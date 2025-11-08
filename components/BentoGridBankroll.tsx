@@ -406,7 +406,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
         <BetModal
           userId={userId}
           onClose={() => setShowBetModal(false)}
-          onBetPlaced={() => {
+          onSuccess={() => {
             setShowBetModal(false)
             loadData()
           }}

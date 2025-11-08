@@ -4,15 +4,18 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { getPostHogClient } from '@/lib/posthog/client'
-import Sidebar from '@/components/Sidebar'
-import MessageList from '@/components/MessageList'
-import MessageInput from '@/components/MessageInput'
-import BankrollTracker from '@/components/BankrollTracker'
+import ModernSidebar from '@/components/ModernSidebar'
+import ModernMessageList from '@/components/ModernMessageList'
+import ModernMessageInput from '@/components/ModernMessageInput'
+import BentoGridBankroll from '@/components/BentoGridBankroll'
+import { motion } from 'framer-motion'
+import { LogOut, Sparkles } from 'lucide-react'
 
 export default function ChatPage() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
+  const [hasMessages, setHasMessages] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -29,7 +32,6 @@ export default function ChatPage() {
 
       setUser(user)
 
-      // Identify user in PostHog for analytics
       const posthog = getPostHogClient()
       if (posthog) {
         posthog.identify(user.id, {
@@ -46,7 +48,6 @@ export default function ChatPage() {
   }, [])
 
   const createInitialConversation = async (userId: string) => {
-    // Check if user has any conversations
     const { data: conversations } = await supabase
       .from('conversations')
       .select('id')
@@ -57,7 +58,6 @@ export default function ChatPage() {
     if (conversations && conversations.length > 0) {
       setCurrentConversationId(conversations[0].id)
     } else {
-      // Create new conversation
       const { data: newConv } = await supabase
         .from('conversations')
         .insert({
@@ -92,17 +92,27 @@ export default function ChatPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-bg-primary">
-        <div className="animate-pulse text-accent-cyan text-xl">Loading Delta AI...</div>
+      <div className="flex items-center justify-center min-h-screen bg-black">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-4"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+            className="w-16 h-16 rounded-full border-4 border-indigo-500 border-t-transparent"
+          />
+          <p className="text-white/80 text-xl font-medium">Loading Delta AI...</p>
+        </motion.div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen bg-bg-primary overflow-hidden">
-      {/* Sidebar - 20% */}
-      <div className="w-1/5 border-r border-gray-800">
-        <Sidebar
+    <div className="flex h-screen bg-black overflow-hidden">
+      <div className="w-1/5">
+        <ModernSidebar
           userId={user?.id}
           currentConversationId={currentConversationId}
           onConversationSelect={setCurrentConversationId}
@@ -110,61 +120,76 @@ export default function ChatPage() {
         />
       </div>
 
-      {/* Main Chat Area - 55% */}
       <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <div className="bg-bg-secondary border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-accent-orange">DELTA AI</h1>
+        <div className="bg-black/60 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white">DELTA AI</h1>
+              <p className="text-xs text-white/40">Intelligent Sports Betting Assistant</p>
+            </div>
+          </div>
           <div className="flex items-center gap-4">
-            <span className="text-text-secondary text-sm">{user?.email}</span>
-            <button
+            <span className="text-white/60 text-sm">{user?.email}</span>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={async () => {
                 await supabase.auth.signOut()
                 router.push('/auth/login')
               }}
-              className="text-text-secondary hover:text-accent-cyan text-sm transition-colors"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-all border border-white/10"
             >
-              Sign Out
-            </button>
+              <LogOut className="w-4 h-4" />
+              <span className="text-sm">Sign Out</span>
+            </motion.button>
           </div>
         </div>
 
-        {/* Messages */}
         <div className="flex-1 overflow-hidden">
           {currentConversationId ? (
-            <MessageList
+            <ModernMessageList
               conversationId={currentConversationId}
               userId={user?.id}
+              onMessagesChange={setHasMessages}
             />
           ) : (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <div className="text-6xl mb-4">🎯</div>
-                <h2 className="text-2xl font-bold text-accent-cyan mb-2">
+            <div className="flex items-center justify-center h-full bg-black">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center"
+              >
+                <motion.div
+                  animate={{ rotate: [0, 10, -10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="text-6xl mb-4"
+                >
+                  🎯
+                </motion.div>
+                <h2 className="text-3xl font-bold text-white mb-2">
                   Welcome to Delta AI
                 </h2>
-                <p className="text-text-secondary">
+                <p className="text-white/60">
                   Your intelligent sports betting assistant
                 </p>
-              </div>
+              </motion.div>
             </div>
           )}
         </div>
 
-        {/* Input */}
-        {currentConversationId && (
-          <div className="bg-bg-secondary border-t border-gray-800">
-            <MessageInput
-              conversationId={currentConversationId}
-              userId={user?.id}
-            />
-          </div>
+        {currentConversationId && hasMessages && (
+          <ModernMessageInput
+            conversationId={currentConversationId}
+            userId={user?.id}
+          />
         )}
       </div>
 
-      {/* Bankroll Tracker - 25% */}
-      <div className="w-1/4 border-l border-gray-800">
-        {user && <BankrollTracker userId={user.id} />}
+      <div className="w-1/4">
+        {user && <BentoGridBankroll userId={user.id} />}
       </div>
     </div>
   )

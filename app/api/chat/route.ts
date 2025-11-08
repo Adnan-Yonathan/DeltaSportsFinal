@@ -215,7 +215,9 @@ You have REAL-TIME access to live odds data for NBA, NCAA Basketball (NCAAB), NF
 
 **When Live Odds Data is Provided:**
 - Extract and display the data in an easy-to-read table format
-- Compare moneyline, spreads, and totals across different sportsbooks
+- **CRITICAL**: Display ALL sportsbooks that have odds for each game (FanDuel, DraftKings, BetRivers, MyBookie, LowVig, BetOnline, BetMGM, etc.)
+- Compare moneyline, spreads, and totals across ALL available sportsbooks for each game
+- Show every bookmaker's odds in the table - do NOT omit any bookmakers from the data
 - Highlight which sportsbook has the best odds for each market
 - NEVER suggest where to bet, only present the data objectively
 - If a user asks about a specific game and you have the data, show it immediately
@@ -487,10 +489,33 @@ export async function POST(req: NextRequest) {
         if (sports.length > 0) {
           const allOddsData: any[] = []
 
+          // Top 25 College Football Teams (updated weekly during season)
+          const top25CFBTeams = [
+            'oregon', 'georgia', 'ohio state', 'texas', 'penn state',
+            'tennessee', 'indiana', 'notre dame', 'miami', 'byu',
+            'ole miss', 'alabama', 'boise state', 'smu', 'army',
+            'clemson', 'colorado', 'washington state', 'kansas state', 'lsu',
+            'louisville', 'south carolina', 'missouri', 'tulane', 'iowa state'
+          ]
+
+          // Helper function to check if a team is Top 25
+          const isTop25Team = (teamName: string): boolean => {
+            const lowerTeamName = teamName.toLowerCase()
+            return top25CFBTeams.some(ranked => lowerTeamName.includes(ranked))
+          }
+
           // Fetch odds for each sport
           for (const sport of sports) {
             try {
-              const oddsData = await fetchOdds(sport)
+              let oddsData = await fetchOdds(sport)
+
+              // Filter NCAAF to only Top 25 matchups
+              if (sport === 'americanfootball_ncaaf' && oddsData.length > 0) {
+                oddsData = oddsData.filter(game =>
+                  isTop25Team(game.home_team) || isTop25Team(game.away_team)
+                )
+              }
+
               if (oddsData.length > 0) {
                 allOddsData.push({
                   sport: sport,
@@ -554,7 +579,7 @@ ${JSON.stringify(
       messages: openaiMessages,
       tools: BANKROLL_FUNCTIONS,
       temperature: 0.7,
-      max_tokens: 1000,
+      max_tokens: 4000,
     })
 
     const initialMessage = initialResponse.choices[0].message
@@ -612,7 +637,7 @@ ${JSON.stringify(
         messages: openaiMessages,
         stream: true,
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 4000,
       })
 
       // Stream the response...
@@ -674,7 +699,7 @@ ${JSON.stringify(
       tools: BANKROLL_FUNCTIONS,
       stream: true,
       temperature: 0.7,
-      max_tokens: 1000,
+      max_tokens: 4000,
     })
 
     // Create a readable stream for the response

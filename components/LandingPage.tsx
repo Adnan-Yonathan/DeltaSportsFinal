@@ -1,0 +1,580 @@
+"use client"
+
+import React from "react"
+import { motion } from "framer-motion"
+import { ShieldCheck, ArrowUpRight, TrendingUp, BarChart3, Zap, Brain, MessageSquare, Search, Target, DollarSign, Activity, LineChart } from "lucide-react"
+import Link from "next/link"
+import { AnimatedHero } from "@/components/ui/animated-hero"
+
+/** Delta AI Landing Page - Revolut-inspired design */
+
+const Stat = ({ label, value }: { label: string; value: string }) => (
+  <div className="space-y-1">
+    <div className="text-3xl font-semibold tracking-tight text-slate-900">{value}</div>
+    <div className="text-sm text-slate-500">{label}</div>
+  </div>
+)
+
+const SoftButton = ({ children, className = "", href, ...props }: any) => {
+  const baseClasses =
+    "rounded-full px-5 py-2.5 text-sm font-medium shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2 " +
+    "bg-slate-900 text-white hover:bg-slate-800 focus:ring-slate-700 " +
+    className
+
+  if (href) {
+    return (
+      <Link href={href} className={baseClasses} {...props}>
+        {children}
+      </Link>
+    )
+  }
+
+  return (
+    <button className={baseClasses} {...props}>
+      {children}
+    </button>
+  )
+}
+
+function AnimatedOddsCard() {
+  const [activeOdds, setActiveOdds] = React.useState(0)
+  const odds = ["-5.5", "-6.0", "-5.0"]
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveOdds((prev) => (prev + 1) % odds.length)
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <div className="mt-6 rounded-xl bg-gradient-to-b from-slate-50 to-white p-6 shadow-sm ring-1 ring-slate-200">
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <div className="text-xs text-slate-500 uppercase tracking-wider">Live Odds</div>
+          <div className="text-lg font-semibold text-slate-900">Lakers vs Warriors</div>
+        </div>
+        <motion.div
+          key={activeOdds}
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.3 }}
+          className="rounded-lg bg-emerald-100 px-4 py-2"
+        >
+          <div className="text-2xl font-bold text-emerald-700">{odds[activeOdds]}</div>
+        </motion.div>
+      </div>
+      <div className="mt-4 flex items-center gap-2">
+        <div className="h-2 flex-1 rounded-full bg-slate-200">
+          <motion.div
+            className="h-2 rounded-full bg-emerald-500"
+            animate={{ width: ["40%", "65%", "50%"] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          />
+        </div>
+        <div className="text-xs text-emerald-600">Live</div>
+      </div>
+    </div>
+  )
+}
+
+function MiniChart() {
+  return (
+    <div className="mt-6 flex h-36 items-end gap-4 rounded-xl bg-gradient-to-b from-blue-50 to-white p-4">
+      {[48, 72, 56, 88, 64, 96, 78].map((h, i) => (
+        <motion.div
+          key={i}
+          initial={{ height: 0, opacity: 0.6 }}
+          animate={{ height: h }}
+          transition={{ delay: 0.5 + i * 0.1, type: "spring" }}
+          className="flex-1 rounded-lg bg-gradient-to-t from-blue-400 to-blue-600 shadow-sm"
+        />
+      ))}
+    </div>
+  )
+}
+
+function AIBrain() {
+  return (
+    <motion.div
+      className="relative flex h-full items-center justify-center"
+      animate={{
+        scale: [1, 1.05, 1],
+      }}
+      transition={{
+        duration: 3,
+        repeat: Infinity,
+        ease: "easeInOut",
+      }}
+    >
+      <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="brainGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#6366f1" />
+            <stop offset="100%" stopColor="#8b5cf6" />
+          </linearGradient>
+        </defs>
+        <circle cx="90" cy="90" r="48" fill="url(#brainGrad)" opacity="0.9" />
+        <circle cx="78" cy="82" r="8" fill="white" opacity="0.4" />
+        <circle cx="108" cy="102" r="6" fill="white" opacity="0.3" />
+        {[0, 60, 120, 180, 240, 300].map((angle, i) => (
+          <motion.circle
+            key={i}
+            cx={90 + Math.cos((angle * Math.PI) / 180) * 70}
+            cy={90 + Math.sin((angle * Math.PI) / 180) * 70}
+            r="3"
+            fill="white"
+            animate={{
+              opacity: [0.2, 1, 0.2],
+              scale: [0.8, 1.2, 0.8],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              delay: i * 0.3,
+            }}
+          />
+        ))}
+      </svg>
+    </motion.div>
+  )
+}
+
+function SportsbookTicker() {
+  const sportsbooks = [
+    "FanDuel", "DraftKings", "BetMGM", "Caesars", "Bet365",
+    "BetRivers", "Pinnacle", "LowVig.ag", "BetOnline.ag", "MyBookie.ag"
+  ]
+
+  // Duplicate the array for seamless loop
+  const duplicatedBooks = [...sportsbooks, ...sportsbooks]
+
+  return (
+    <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 py-8">
+      <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-transparent to-slate-900 z-10 pointer-events-none" />
+      <motion.div
+        className="flex gap-12 items-center"
+        animate={{
+          x: [0, -50 * sportsbooks.length],
+        }}
+        transition={{
+          x: {
+            repeat: Infinity,
+            repeatType: "loop",
+            duration: 30,
+            ease: "linear",
+          },
+        }}
+      >
+        {duplicatedBooks.map((book, index) => (
+          <div
+            key={index}
+            className="flex-shrink-0 text-white/80 font-semibold text-lg whitespace-nowrap"
+          >
+            {book}
+          </div>
+        ))}
+      </motion.div>
+    </div>
+  )
+}
+
+export default function LandingPage() {
+  return (
+    <div className="min-h-screen w-full bg-[#F3F5F7]">
+      {/* Fonts */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        :root { --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+        .font-jakarta { font-family: var(--font-sans); }
+      `}</style>
+
+      {/* Top nav */}
+      <nav className="mx-auto flex w-full max-w-[1180px] items-center justify-between px-4 py-6 md:px-0">
+        <div className="flex items-center gap-3">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-slate-900 text-white shadow">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"
+                fill="currentColor"
+              />
+            </svg>
+          </div>
+          <span className="font-jakarta text-xl font-semibold tracking-tight text-slate-900">Delta AI</span>
+        </div>
+        <div className="hidden gap-2 md:flex">
+          <SoftButton href="/auth/login">
+            Login
+          </SoftButton>
+          <SoftButton href="/auth/signup">Sign Up</SoftButton>
+        </div>
+        <div className="flex gap-2 md:hidden">
+          <SoftButton href="/auth/login" className="text-xs px-3 py-2">
+            Login
+          </SoftButton>
+        </div>
+      </nav>
+
+      {/* Hero area */}
+      <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-6 px-4 pb-14 md:grid-cols-2 md:px-0">
+        {/* Left: headline */}
+        <div className="flex flex-col justify-center space-y-8 pr-2">
+          <div>
+            <AnimatedHero
+              staticText="AI-powered betting"
+              rotatingTerms={["arbitrage", "analytics", "action", "CLV", "edges", "value", "lines"]}
+              interval={2000}
+            />
+            <p className="mt-4 max-w-md text-slate-600">
+              Make smarter bets with{" "}
+              <span className="font-medium text-slate-900">real-time odds</span>, AI insights, and advanced bankroll
+              management.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <SoftButton href="/auth/signup">
+              Get Started <ArrowUpRight className="ml-1 inline h-4 w-4" />
+            </SoftButton>
+          </div>
+
+          <div className="grid grid-cols-2 gap-8 pt-2 md:max-w-sm">
+            <Stat label="Active Users" value="10K+" />
+            <Stat label="Win Rate Improvement" value="23%" />
+          </div>
+
+          <div className="mt-6 flex items-center gap-8 opacity-70">
+            <span className="text-xs text-slate-500">TRUSTED DATA FROM</span>
+            <div className="flex items-center gap-6 text-slate-400">
+              <span className="font-semibold text-sm">The Odds API</span>
+              <span className="font-semibold text-sm">OpenAI</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: animated feature cards */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          {/* AI Chat card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="relative col-span-1 overflow-hidden rounded-xl bg-gradient-to-b from-indigo-600 to-purple-700 p-6 text-indigo-50 shadow-lg"
+          >
+            <div className="absolute inset-0 opacity-20">
+              <svg className="absolute inset-0 h-full w-full" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <radialGradient id="rg" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="transparent" />
+                  </radialGradient>
+                </defs>
+                <rect width="400" height="400" fill="url(#rg)" />
+              </svg>
+            </div>
+
+            <div className="relative flex h-full flex-col justify-between min-h-[240px]">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-indigo-500/60 p-2 ring-1 ring-white/10">
+                  <Brain className="h-5 w-5" />
+                </div>
+                <span className="text-xs uppercase tracking-wider text-indigo-200">AI Assistant</span>
+              </div>
+              <div className="mt-auto">
+                <div className="text-xl leading-snug text-indigo-50/95">
+                  Chat with AI
+                  <br /> for instant insights
+                </div>
+              </div>
+              <div className="mt-4">
+                <AIBrain />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Live Odds card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="col-span-1 rounded-xl bg-white p-6 text-slate-800 shadow-lg ring-1 ring-slate-200"
+          >
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-emerald-100 p-2">
+                <Zap className="h-5 w-5 text-emerald-600" />
+              </div>
+              <span className="text-xs uppercase tracking-wider text-slate-500">Real-Time</span>
+            </div>
+            <div className="mt-3 text-xl leading-snug">
+              Live odds from
+              <br /> top sportsbooks
+            </div>
+            <AnimatedOddsCard />
+          </motion.div>
+
+          {/* Bankroll card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="col-span-1 rounded-xl bg-white p-6 text-slate-800 shadow-lg ring-1 ring-slate-200"
+          >
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-blue-100 p-2">
+                <BarChart3 className="h-5 w-5 text-blue-600" />
+              </div>
+              <span className="text-xs uppercase tracking-wider text-slate-500">Analytics</span>
+            </div>
+            <div className="mt-2 text-3xl font-semibold tracking-tight">
+              $12,450 <span className="text-sm font-medium text-slate-400 align-middle">USD</span>
+            </div>
+            <div className="mt-1 text-xs text-emerald-600">↑ 18.5% this month</div>
+            <MiniChart />
+          </motion.div>
+
+          {/* Arbitrage card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="relative col-span-1 overflow-hidden rounded-xl bg-gradient-to-b from-slate-900 to-slate-800 p-6 text-slate-50 shadow-lg"
+          >
+            <div className="absolute inset-0">
+              <svg className="absolute inset-0 h-full w-full opacity-20" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                {[...Array(10)].map((_, i) => (
+                  <circle
+                    key={i}
+                    cx="200"
+                    cy="200"
+                    r={20 + i * 16}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeOpacity="0.12"
+                  />
+                ))}
+              </svg>
+            </div>
+
+            <div className="relative flex h-full flex-col justify-between">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-slate-700/60 p-2 ring-1 ring-white/10">
+                  <TrendingUp className="h-5 w-5" />
+                </div>
+                <span className="text-xs uppercase tracking-wider text-slate-200">Arbitrage</span>
+              </div>
+              <div className="mt-6 text-xl leading-snug text-slate-50/95">
+                Guaranteed profit
+                <br /> opportunities
+              </div>
+              <motion.div
+                className="mt-4 rounded-lg bg-emerald-500/20 px-3 py-2 text-center ring-1 ring-emerald-500/30"
+                animate={{ scale: [1, 1.02, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                <div className="text-sm text-emerald-200">3 opportunities found</div>
+                <div className="text-lg font-semibold text-emerald-100">ROI: 2.4%</div>
+              </motion.div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Sportsbook Ticker */}
+      <div className="w-full mb-20">
+        <div className="text-center mb-8">
+          <p className="text-sm text-slate-500 uppercase tracking-wider font-semibold">Supported Sportsbooks</p>
+        </div>
+        <SportsbookTicker />
+      </div>
+
+      {/* How It Works section */}
+      <div className="mx-auto w-full max-w-[1180px] px-4 py-20 md:px-0">
+        <div className="text-center mb-16">
+          <h2 className="text-4xl font-bold text-slate-900">How Delta AI Works</h2>
+          <p className="mt-3 text-lg text-slate-600 max-w-2xl mx-auto">
+            Three simple steps to smarter betting
+          </p>
+        </div>
+
+        <div className="grid gap-8 md:grid-cols-3">
+          {[
+            {
+              step: "01",
+              icon: <MessageSquare className="h-8 w-8" />,
+              title: "Ask the AI",
+              description: "Chat with our AI assistant about games, odds, and betting strategies. Get instant analysis on any matchup.",
+            },
+            {
+              step: "02",
+              icon: <Search className="h-8 w-8" />,
+              title: "Compare Odds",
+              description: "View real-time odds from 10+ sportsbooks. Find the best lines and identify arbitrage opportunities automatically.",
+            },
+            {
+              step: "03",
+              icon: <Target className="h-8 w-8" />,
+              title: "Track Performance",
+              description: "Log your bets and monitor your bankroll. Advanced analytics show your ROI, win rate, and edge over time.",
+            },
+          ].map((step, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.15 }}
+              className="relative"
+            >
+              <div className="absolute -top-4 -left-4 text-7xl font-bold text-indigo-100">{step.step}</div>
+              <div className="relative bg-white rounded-2xl p-8 shadow-sm ring-1 ring-slate-200 h-full">
+                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white mb-4">
+                  {step.icon}
+                </div>
+                <h3 className="text-xl font-semibold text-slate-900 mb-3">{step.title}</h3>
+                <p className="text-slate-600 leading-relaxed">{step.description}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Features section */}
+      <div className="mx-auto w-full max-w-[1180px] px-4 py-20 md:px-0">
+        <div className="text-center mb-16">
+          <h2 className="text-4xl font-bold text-slate-900">Powerful Features</h2>
+          <p className="mt-3 text-lg text-slate-600">Everything you need to gain an edge</p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {[
+            {
+              icon: <Brain className="h-6 w-6" />,
+              title: "AI Assistant",
+              description: "Chat with advanced AI to analyze games, understand odds movements, and get strategic insights.",
+            },
+            {
+              icon: <Zap className="h-6 w-6" />,
+              title: "Live Odds Feed",
+              description: "Real-time odds from 10+ major sportsbooks, updated every 30 seconds across all major sports.",
+            },
+            {
+              icon: <TrendingUp className="h-6 w-6" />,
+              title: "Line Movement Tracking",
+              description: "Monitor how lines move across books. Identify steam moves and reverse line movement.",
+            },
+            {
+              icon: <BarChart3 className="h-6 w-6" />,
+              title: "Bankroll Management",
+              description: "Track every bet, analyze your performance, and manage your bankroll with advanced analytics.",
+            },
+            {
+              icon: <Target className="h-6 w-6" />,
+              title: "Arbitrage Scanner",
+              description: "Automatically detect arbitrage opportunities across sportsbooks for guaranteed profit.",
+            },
+            {
+              icon: <ShieldCheck className="h-6 w-6" />,
+              title: "Secure & Private",
+              description: "Bank-level encryption with row-level security. Your data is completely private.",
+            },
+          ].map((feature, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.05 }}
+              className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 hover:shadow-md transition-shadow"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-900 text-white mb-4">
+                {feature.icon}
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">{feature.title}</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">{feature.description}</p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Applications Section */}
+      <div className="w-full bg-gradient-to-b from-slate-50 to-white py-20">
+        <div className="mx-auto w-full max-w-[1180px] px-4 md:px-0">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-slate-900">Built for Every Strategy</h2>
+            <p className="mt-3 text-lg text-slate-600">From casual bettors to professional sharps</p>
+          </div>
+
+          <div className="grid gap-8 md:grid-cols-2">
+            {[
+              {
+                icon: <DollarSign className="h-7 w-7" />,
+                title: "Arbitrage Betting",
+                description: "Find risk-free profit opportunities by betting both sides of a game across different sportsbooks. Our scanner identifies arbitrage in real-time with exact stake calculations.",
+                color: "from-emerald-500 to-teal-600",
+              },
+              {
+                icon: <Activity className="h-7 w-7" />,
+                title: "Sharp Money Tracking",
+                description: "Follow the smart money. Track line movements to see where professional bettors are placing their action. Identify reverse line movement and steam moves.",
+                color: "from-blue-500 to-indigo-600",
+              },
+              {
+                icon: <LineChart className="h-7 w-7" />,
+                title: "Closing Line Value (CLV)",
+                description: "Measure your edge by comparing your bet to the closing line. Positive CLV is the #1 indicator of long-term profitability. We track it automatically.",
+                color: "from-purple-500 to-pink-600",
+              },
+              {
+                icon: <Target className="h-7 w-7" />,
+                title: "Best Line Shopping",
+                description: "Compare odds across all major sportsbooks instantly. Even small differences add up - getting -105 instead of -110 significantly impacts ROI over time.",
+                color: "from-orange-500 to-red-600",
+              },
+            ].map((app, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: i % 2 === 0 ? -30 : 30 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="bg-white rounded-2xl p-8 shadow-lg ring-1 ring-slate-200"
+              >
+                <div className={`inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br ${app.color} text-white mb-4`}>
+                  {app.icon}
+                </div>
+                <h3 className="text-2xl font-semibold text-slate-900 mb-3">{app.title}</h3>
+                <p className="text-slate-600 leading-relaxed">{app.description}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* CTA Section */}
+      <div className="mx-auto w-full max-w-[1180px] px-4 py-16 md:px-0">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 p-12 text-center text-white shadow-xl"
+        >
+          <h2 className="text-3xl font-semibold">Ready to elevate your betting game?</h2>
+          <p className="mt-4 text-slate-300">Join thousands of smart bettors using Delta AI</p>
+          <div className="mt-8 flex justify-center gap-4">
+            <SoftButton href="/auth/login" className="bg-slate-700 hover:bg-slate-600">
+              Sign In
+            </SoftButton>
+          </div>
+        </motion.div>
+      </div>
+
+      <footer className="mx-auto w-full max-w-[1180px] px-4 pb-10 pt-16 text-center text-xs text-slate-400 md:px-0">
+        <div className="mb-4 text-sm text-slate-500">
+          <strong>Disclaimer:</strong> This application is for educational and analytical purposes only. Delta AI does
+          not process real bets or transactions. Gambling involves risk. Please bet responsibly.
+        </div>
+        <div>© {new Date().getFullYear()} Delta AI, Inc. All rights reserved.</div>
+      </footer>
+    </div>
+  )
+}

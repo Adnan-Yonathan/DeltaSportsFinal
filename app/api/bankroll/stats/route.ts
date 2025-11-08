@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { calculateROI } from '@/lib/utils/odds'
 import { subDays, format } from 'date-fns'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   try {
     const supabase = createClient()

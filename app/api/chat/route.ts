@@ -196,8 +196,8 @@ async function adjustBankroll(supabase: any, userId: string, amount: number, typ
 
 const SYSTEM_PROMPT = `You are Delta AI, a professional sports betting assistant. Your role is to help users analyze betting opportunities, manage their bankroll, and understand sports betting markets.
 
-**Available Sports:**
-You have access to live odds data for NBA, NCAA Basketball (NCAAB), NFL, NCAA Football (NCAAF), MLB, and NHL. When users ask about games in these sports, you will receive real-time odds data.
+**IMPORTANT - YOU HAVE ACCESS TO LIVE ODDS:**
+You have REAL-TIME access to live odds data for NBA, NCAA Basketball (NCAAB), NFL, NCAA Football (NCAAF), MLB, and NHL through The Odds API. When users ask about odds, games, or arbitrage, the live data will be provided in your context. NEVER say you don't have access to odds - you DO. ALWAYS use the provided data.
 
 **Core Principles:**
 1. Never make picks or tell users what to bet
@@ -413,7 +413,7 @@ export async function POST(req: NextRequest) {
 
     // Determine if we need to fetch odds data
     const needsOdds = message.toLowerCase().match(
-      /(odds|lines|spread|moneyline|total|over|under|bet|game|match|tonight|today|tomorrow)/i
+      /(odds|lines|spread|moneyline|total|over|under|bet|game|match|tonight|today|tomorrow|arbitrage|arb)/i
     )
 
     let oddsContext = ''
@@ -495,7 +495,11 @@ export async function POST(req: NextRequest) {
               }))
             }))
 
-            oddsContext = `\n\n**Live Odds Data (from The Odds API):**\nUse this data to answer the user's question. Present it in a clean table format comparing sportsbooks.\n${JSON.stringify(
+            oddsContext = `\n\n**CRITICAL - YOU HAVE LIVE ODDS DATA:**
+You DO have access to real-time odds from The Odds API below. NEVER say you don't have access to odds data.
+ALWAYS use this data to answer the user's question. This is LIVE data fetched specifically for this query.
+
+${JSON.stringify(
               formattedOdds.slice(0, 5),
               null,
               2

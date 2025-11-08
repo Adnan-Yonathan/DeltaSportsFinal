@@ -19,17 +19,29 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
+      console.log('Attempting login for:', email)
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) throw error
+      console.log('Login response:', { data, error })
+
+      if (error) {
+        console.error('Login error:', error)
+        throw error
+      }
 
       if (data.user) {
+        console.log('Login successful, user:', data.user.id)
+        // Refresh the router to update auth state
+        router.refresh()
+        // Navigate to chat
         router.push('/chat')
       }
     } catch (err: any) {
+      console.error('Login exception:', err)
       setError(err.message || 'Failed to sign in')
     } finally {
       setLoading(false)

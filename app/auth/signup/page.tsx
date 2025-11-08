@@ -33,25 +33,47 @@ export default function SignUpPage() {
     setLoading(true)
 
     try {
+      console.log('Attempting signup for:', email)
+
       // Sign up user
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       })
 
-      if (signUpError) throw signUpError
+      console.log('Signup response:', { data, error: signUpError })
+
+      if (signUpError) {
+        console.error('Signup error:', signUpError)
+        throw signUpError
+      }
 
       if (data.user) {
-        // Update user profile
-        await supabase.from('users').update({
+        console.log('Signup successful, user:', data.user.id)
+
+        // Wait a moment for the trigger to create the user profile
+        await new Promise(resolve => setTimeout(resolve, 1000))
+
+        // Update user profile with additional details
+        const { error: updateError } = await supabase.from('users').update({
           display_name: displayName || null,
           starting_bankroll: parseFloat(startingBankroll),
           current_bankroll: parseFloat(startingBankroll),
         }).eq('id', data.user.id)
 
+        if (updateError) {
+          console.error('Profile update error:', updateError)
+        }
+
+        // Refresh and navigate
+        router.refresh()
         router.push('/chat')
       }
     } catch (err: any) {
+      console.error('Signup exception:', err)
       setError(err.message || 'Failed to sign up')
     } finally {
       setLoading(false)

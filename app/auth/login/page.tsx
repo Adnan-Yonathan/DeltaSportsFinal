@@ -10,12 +10,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [needsConfirmation, setNeedsConfirmation] = useState(false)
+  const [resendSuccess, setResendSuccess] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setNeedsConfirmation(false)
+    setResendSuccess(false)
     setLoading(true)
 
     try {
@@ -30,7 +34,35 @@ export default function LoginPage() {
         router.push('/chat')
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in')
+      const errorMessage = err.message || 'Failed to sign in'
+      setError(errorMessage)
+
+      // Check if the error is about email not being confirmed
+      if (errorMessage.toLowerCase().includes('email not confirmed')) {
+        setNeedsConfirmation(true)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResendConfirmation = async () => {
+    setLoading(true)
+    setResendSuccess(false)
+    setError('')
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+      })
+
+      if (error) throw error
+
+      setResendSuccess(true)
+      setError('')
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend confirmation email')
     } finally {
       setLoading(false)
     }
@@ -51,7 +83,29 @@ export default function LoginPage() {
         <div className="bg-bg-secondary border border-gray-700 rounded-lg p-8">
           <h2 className="text-2xl font-bold text-text-primary mb-6">Sign In</h2>
 
-          {error && (
+          {resendSuccess && (
+            <div className="bg-accent-cyan/20 border border-accent-cyan text-accent-cyan p-3 rounded-lg text-sm mb-4">
+              <p className="font-semibold">Confirmation email sent!</p>
+              <p className="mt-1">Check your email at <strong>{email}</strong> and click the confirmation link.</p>
+            </div>
+          )}
+
+          {error && needsConfirmation && (
+            <div className="bg-warning-red/20 border border-warning-red text-warning-red p-3 rounded-lg text-sm mb-4">
+              <p className="font-semibold mb-2">{error}</p>
+              <p className="mb-3">Please check your email and click the confirmation link we sent you.</p>
+              <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={loading}
+                className="text-accent-cyan hover:underline text-sm font-semibold"
+              >
+                {loading ? 'Sending...' : 'Resend confirmation email'}
+              </button>
+            </div>
+          )}
+
+          {error && !needsConfirmation && (
             <div className="bg-warning-red/20 border border-warning-red text-warning-red p-3 rounded-lg text-sm mb-4">
               {error}
             </div>

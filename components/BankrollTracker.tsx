@@ -113,9 +113,14 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
 
     let actualResult = 0
     if (status === 'won') {
-      actualResult = bet.potential_win
+      // Won: Return stake + profit
+      actualResult = bet.stake + bet.potential_win
     } else if (status === 'lost') {
-      actualResult = -bet.stake
+      // Lost: Stake was already deducted when bet was placed, so no change
+      actualResult = 0
+    } else if (status === 'push') {
+      // Push: Return stake only
+      actualResult = bet.stake
     }
 
     const response = await fetch(`/api/bets/${betId}/settle`, {

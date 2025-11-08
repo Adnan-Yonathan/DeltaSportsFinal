@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { getPostHogClient } from '@/lib/posthog/client'
 import Sidebar from '@/components/Sidebar'
 import MessageList from '@/components/MessageList'
 import MessageInput from '@/components/MessageInput'
@@ -27,6 +28,16 @@ export default function ChatPage() {
       }
 
       setUser(user)
+
+      // Identify user in PostHog for analytics
+      const posthog = getPostHogClient()
+      if (posthog) {
+        posthog.identify(user.id, {
+          email: user.email,
+          created_at: user.created_at,
+        })
+      }
+
       await createInitialConversation(user.id)
       setLoading(false)
     }

@@ -116,59 +116,53 @@ export default function MessageList({ conversationId, userId }: MessageListProps
   }
 
   return (
-    <div className="h-full overflow-y-auto px-6 py-4">
+    <div className="h-full overflow-y-auto px-4 py-6">
       <div className="max-w-4xl mx-auto space-y-4">
         {messages.map((message) => (
           <div
             key={message.id}
-            className={
-              message.role === 'user' ? 'message-user' : 'message-assistant'
-            }
+            className={`flex ${
+              message.role === 'user' ? 'justify-end' : 'justify-start'
+            }`}
           >
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-bg-primary flex items-center justify-center">
-                {message.role === 'user' ? (
-                  <span className="text-accent-orange">👤</span>
-                ) : (
-                  <span className="text-accent-cyan">🤖</span>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      table: ({ node, ...props }) => (
-                        <div className="overflow-x-auto my-4">
-                          <table className="odds-table" {...props} />
-                        </div>
+            <div
+              className={`max-w-[80%] rounded-lg px-4 py-3 ${
+                message.role === 'user'
+                  ? 'bg-accent-cyan text-bg-primary ml-auto'
+                  : 'bg-bg-secondary text-text-primary mr-auto'
+              }`}
+            >
+              <div className="prose prose-invert prose-sm max-w-none">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    table: ({ node, ...props }) => (
+                      <div className="overflow-x-auto my-4">
+                        <table className="odds-table" {...props} />
+                      </div>
+                    ),
+                    th: ({ node, ...props }) => (
+                      <th className="text-left px-4 py-2" {...props} />
+                    ),
+                    td: ({ node, ...props }) => (
+                      <td className="px-4 py-2" {...props} />
+                    ),
+                    code: ({ node, inline, ...props }: any) =>
+                      inline ? (
+                        <code
+                          className="bg-bg-primary px-1 py-0.5 rounded text-accent-cyan"
+                          {...props}
+                        />
+                      ) : (
+                        <code
+                          className="block bg-bg-primary p-3 rounded my-2"
+                          {...props}
+                        />
                       ),
-                      th: ({ node, ...props }) => (
-                        <th className="text-left px-4 py-2" {...props} />
-                      ),
-                      td: ({ node, ...props }) => (
-                        <td className="px-4 py-2" {...props} />
-                      ),
-                      code: ({ node, inline, ...props }: any) =>
-                        inline ? (
-                          <code
-                            className="bg-bg-primary px-1 py-0.5 rounded text-accent-cyan"
-                            {...props}
-                          />
-                        ) : (
-                          <code
-                            className="block bg-bg-primary p-3 rounded my-2"
-                            {...props}
-                          />
-                        ),
-                    }}
-                  >
-                    {message.content}
-                  </ReactMarkdown>
-                </div>
-                <div className="text-xs text-text-secondary mt-2">
-                  {new Date(message.created_at).toLocaleTimeString()}
-                </div>
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
               </div>
             </div>
           </div>

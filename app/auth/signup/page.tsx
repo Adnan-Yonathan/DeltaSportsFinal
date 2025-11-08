@@ -13,6 +13,7 @@ export default function SignUpPage() {
   const [startingBankroll, setStartingBankroll] = useState('1000')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -37,19 +38,26 @@ export default function SignUpPage() {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            display_name: displayName || null,
+            starting_bankroll: parseFloat(startingBankroll),
+            current_bankroll: parseFloat(startingBankroll),
+          }
+        }
       })
 
       if (signUpError) throw signUpError
 
       if (data.user) {
-        // Update user profile
-        await supabase.from('users').update({
-          display_name: displayName || null,
-          starting_bankroll: parseFloat(startingBankroll),
-          current_bankroll: parseFloat(startingBankroll),
-        }).eq('id', data.user.id)
-
-        router.push('/chat')
+        // Check if email confirmation is required
+        if (data.session) {
+          // User is logged in, no email confirmation needed
+          router.push('/chat')
+        } else {
+          // Email confirmation required
+          setSuccess(true)
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Failed to sign up')
@@ -73,13 +81,21 @@ export default function SignUpPage() {
         <div className="bg-bg-secondary border border-gray-700 rounded-lg p-8">
           <h2 className="text-2xl font-bold text-text-primary mb-6">Create Account</h2>
 
+          {success && (
+            <div className="bg-accent-cyan/20 border border-accent-cyan text-accent-cyan p-4 rounded-lg text-sm mb-4">
+              <p className="font-semibold mb-2">Check your email!</p>
+              <p>We've sent a confirmation link to <strong>{email}</strong></p>
+              <p className="mt-2">Click the link in the email to activate your account, then return here to sign in.</p>
+            </div>
+          )}
+
           {error && (
             <div className="bg-warning-red/20 border border-warning-red text-warning-red p-3 rounded-lg text-sm mb-4">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSignUp} className="space-y-4">
+          {!success && <form onSubmit={handleSignUp} className="space-y-4">
             <div>
               <label className="block text-sm font-semibold text-text-primary mb-2">
                 Email
@@ -166,16 +182,26 @@ export default function SignUpPage() {
             >
               {loading ? 'Creating account...' : 'Create Account'}
             </button>
-          </form>
+          </form>}
 
-          <div className="mt-6 text-center">
-            <p className="text-text-secondary text-sm">
-              Already have an account?{' '}
-              <Link href="/auth/login" className="text-accent-cyan hover:underline">
-                Sign In
+          {success && (
+            <div className="mt-4">
+              <Link href="/auth/login" className="w-full btn-primary block text-center">
+                Go to Sign In
               </Link>
-            </p>
-          </div>
+            </div>
+          )}
+
+          {!success && (
+            <div className="mt-6 text-center">
+              <p className="text-text-secondary text-sm">
+                Already have an account?{' '}
+                <Link href="/auth/login" className="text-accent-cyan hover:underline">
+                  Sign In
+                </Link>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Disclaimer */}

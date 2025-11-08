@@ -222,14 +222,15 @@ You have REAL-TIME access to live odds data for NBA, NCAA Basketball (NCAAB), NF
 
 **Arbitrage Opportunities:**
 When users ask for arbitrage opportunities, you MUST:
-1. **Calculate actual arbitrage** from the live odds data provided
+1. **Calculate actual arbitrage** from the live odds data provided (may include multiple sports)
 2. Use the formula: For an arbitrage to exist, (1/decimal_odds_A) + (1/decimal_odds_B) < 1
 3. Convert American odds to decimal: positive odds = (odds/100) + 1, negative odds = (100/|odds|) + 1
-4. Show ONLY games with real arbitrage opportunities
-5. Format as: "**[Game]**: Bet [Amount] on [Team A] at [Book] ([Odds]) + Bet [Amount] on [Team B] at [Book] ([Odds]) = [Profit]%"
-6. If no arbitrage exists, say "No arbitrage opportunities found in current odds"
+4. Show ONLY games with real arbitrage opportunities across ALL sports provided
+5. Format as: "**[Sport] - [Game]**: Bet [Amount] on [Team A] at [Book] ([Odds]) + Bet [Amount] on [Team B] at [Book] ([Odds]) = [Profit]%"
+6. If no arbitrage exists in any sport, say "No arbitrage opportunities found in current odds"
 7. NEVER explain what arbitrage is unless asked - just show the opportunities
-8. Keep it under 10 lines total
+8. Group by sport if multiple sports are provided
+9. Keep response concise - max 15 lines total
 
 **Prohibited:**
 - Never say "bet on X" or "this is a good bet"
@@ -445,52 +446,75 @@ export async function POST(req: NextRequest) {
                            'wisconsin', 'iowa', 'nebraska', 'minnesota', 'northwestern',
                            'stanford', 'washington', 'ucla', 'utah', 'colorado', 'arizona state']
 
-        let sport = ''
+        let sports: string[] = []
 
         // Check for explicit sport mentions (prioritize specific leagues)
         // Basketball
         if (messageLower.match(/(ncaa|college basketball|ncaab|march madness|college hoops)/i)) {
-          sport = 'basketball_ncaab'
+          sports = ['basketball_ncaab']
         } else if (messageLower.match(/(nba|pro basketball)/i)) {
-          sport = 'basketball_nba'
+          sports = ['basketball_nba']
         } else if (messageLower.match(/basketball/i) && !messageLower.match(/(nba|ncaa|college)/i)) {
-          sport = 'basketball_nba'
+          sports = ['basketball_nba']
         }
         // Football
         else if (messageLower.match(/(ncaaf|college football|cfb)/i)) {
-          sport = 'americanfootball_ncaaf'
+          sports = ['americanfootball_ncaaf']
         } else if (messageLower.match(/(nfl|pro football)/i)) {
-          sport = 'americanfootball_nfl'
+          sports = ['americanfootball_nfl']
         } else if (messageLower.match(/football/i) && !messageLower.match(/(nfl|ncaa|college)/i)) {
-          sport = 'americanfootball_nfl'
+          sports = ['americanfootball_nfl']
         }
         // Other sports
         else if (messageLower.match(/(mlb|baseball)/i)) {
-          sport = 'baseball_mlb'
+          sports = ['baseball_mlb']
         } else if (messageLower.match(/(nhl|hockey)/i)) {
-          sport = 'icehockey_nhl'
+          sports = ['icehockey_nhl']
         }
         // Check for team names if no explicit sport
         else if (nbaTeams.some(team => messageLower.includes(team))) {
-          sport = 'basketball_nba'
+          sports = ['basketball_nba']
         } else if (nflTeams.some(team => messageLower.includes(team))) {
-          sport = 'americanfootball_nfl'
+          sports = ['americanfootball_nfl']
         } else if (ncaafTeams.some(team => messageLower.includes(team))) {
-          sport = 'americanfootball_ncaaf'
+          sports = ['americanfootball_ncaaf']
+        }
+        // If asking for arbitrage without specifying sport, fetch all major sports
+        else if (messageLower.match(/(arbitrage|arb)/i)) {
+          sports = ['basketball_nba', 'americanfootball_nfl', 'icehockey_nhl']
         }
 
-        if (sport) {
-          const oddsData = await fetchOdds(sport)
-          if (oddsData.length > 0) {
+        if (sports.length > 0) {
+          const allOddsData: any[] = []
+
+          // Fetch odds for each sport
+          for (const sport of sports) {
+            try {
+              const oddsData = await fetchOdds(sport)
+              if (oddsData.length > 0) {
+                allOddsData.push({
+                  sport: sport,
+                  games: oddsData.slice(0, 5) // Limit to 5 games per sport
+                })
+              }
+            } catch (err) {
+              console.error(`Error fetching ${sport}:`, err)
+            }
+          }
+
+          if (allOddsData.length > 0) {
             // Format odds data more cleanly for the AI
-            const formattedOdds = oddsData.map(game => ({
-              game: `${game.away_team} @ ${game.home_team}`,
-              commence_time: game.commence_time,
-              bookmakers: game.bookmakers.map(book => ({
-                name: book.title,
-                markets: book.markets.map(market => ({
-                  type: market.key,
-                  outcomes: market.outcomes
+            const formattedOdds = allOddsData.map(sportData => ({
+              sport: sportData.sport,
+              games: sportData.games.map((game: any) => ({
+                game: `${game.away_team} @ ${game.home_team}`,
+                commence_time: game.commence_time,
+                bookmakers: game.bookmakers.map((book: any) => ({
+                  name: book.title,
+                  markets: book.markets.map((market: any) => ({
+                    type: market.key,
+                    outcomes: market.outcomes
+                  }))
                 }))
               }))
             }))
@@ -500,7 +524,7 @@ You DO have access to real-time odds from The Odds API below. NEVER say you don'
 ALWAYS use this data to answer the user's question. This is LIVE data fetched specifically for this query.
 
 ${JSON.stringify(
-              formattedOdds.slice(0, 5),
+              formattedOdds,
               null,
               2
             )}\n`

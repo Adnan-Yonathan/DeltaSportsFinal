@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
+import { enrichGamesWithStats, formatEnrichedGamesForAI } from '@/lib/stats-enrichment'
+import { getTeamStats, getInjuryReports, formatStatsForAI } from '@/lib/sports-stats-api'
 import { trackLLMInteraction } from '@/lib/posthog/server'
 import { format } from 'date-fns'
 
@@ -194,10 +196,17 @@ async function adjustBankroll(supabase: any, userId: string, amount: number, typ
   }
 }
 
-const SYSTEM_PROMPT = `You are Delta AI, a professional sports betting assistant. Your role is to help users analyze betting opportunities, manage their bankroll, and understand sports betting markets.
+const SYSTEM_PROMPT = `You are DELTA, a professional sports betting assistant. Your role is to help users analyze betting opportunities, manage their bankroll, and understand sports betting markets.
 
-**IMPORTANT - YOU HAVE ACCESS TO LIVE ODDS:**
-You have REAL-TIME access to live odds data for NBA, NCAA Basketball (NCAAB), NFL, NCAA Football (NCAAF), MLB, and NHL through The Odds API. When users ask about odds, games, or arbitrage, the live data will be provided in your context. NEVER say you don't have access to odds - you DO. ALWAYS use the provided data.
+**IMPORTANT - YOU HAVE ACCESS TO LIVE ODDS AND ADVANCED STATISTICS:**
+You have REAL-TIME access to:
+1. Live odds data for NBA, NCAA Basketball (NCAAB), NFL, NCAA Football (NCAAF), MLB, and NHL through The Odds API
+2. Team statistics (records, rankings, offensive/defensive stats)
+3. Player statistics and performance metrics
+4. Injury reports and lineup information
+5. Advanced analytics (efficiency ratings, pace, trends)
+
+When users ask about odds, games, or arbitrage, the live data will be provided in your context enriched with relevant stats. NEVER say you don't have access - you DO. ALWAYS use the provided data.
 
 **Core Principles:**
 1. Never make picks or tell users what to bet
@@ -344,6 +353,33 @@ const BANKROLL_FUNCTIONS: OpenAI.Chat.ChatCompletionTool[] = [
           },
         },
         required: ['amount', 'type'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_stats',
+      description: 'Get team statistics, injury reports, or advanced analytics for a specific sport or team. Use this when users ask for stats, injuries, team records, or performance metrics.',
+      parameters: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['team', 'injuries'],
+            description: 'Type of statistics to retrieve',
+          },
+          sport: {
+            type: 'string',
+            enum: ['nba', 'nfl', 'mlb', 'nhl'],
+            description: 'The sport to get stats for',
+          },
+          team: {
+            type: 'string',
+            description: 'Optional team name or abbreviation to filter results',
+          },
+        },
+        required: ['type', 'sport'],
       },
     },
   },
@@ -645,8 +681,25 @@ export async function POST(req: NextRequest) {
           }
 
           if (allOddsData.length > 0) {
-            // Format odds data more cleanly for the AI
-            const formattedOdds = allOddsData.map(sportData => ({
+            // Enrich odds with team stats and injury data
+            const enrichedOddsData = await Promise.all(
+              allOddsData.map(async (sportData) => {
+                try {
+                  const enrichedGames = await enrichGamesWithStats(sportData.games, sportData.sport)
+                  return {
+                    sport: sportData.sport,
+                    games: sportData.games,
+                    enrichedGames
+                  }
+                } catch (error) {
+                  console.error(`Error enriching ${sportData.sport}:`, error)
+                  return sportData
+                }
+              })
+            )
+
+            // Format odds data with enriched stats for the AI
+            const formattedOdds = enrichedOddsData.map(sportData => ({
               sport: sportData.sport,
               games: sportData.games.map((game: any) => ({
                 game: `${game.away_team} @ ${game.home_team}`,
@@ -661,28 +714,43 @@ export async function POST(req: NextRequest) {
               }))
             }))
 
+            // Generate enriched stats summary for AI
+            let statsEnrichment = '\n\n**📊 ENRICHED STATISTICS & INJURY DATA:**\n'
+            for (const sportData of enrichedOddsData) {
+              if (sportData.enrichedGames && sportData.enrichedGames.length > 0) {
+                statsEnrichment += `\n**${sportData.sport.toUpperCase()}:**\n`
+                statsEnrichment += formatEnrichedGamesForAI(sportData.enrichedGames)
+                statsEnrichment += '\n'
+              }
+            }
+
             const totalGames = formattedOdds.reduce((sum, sport) => sum + sport.games.length, 0)
 
-            oddsContext = `\n\n**🔴 CRITICAL - YOU HAVE LIVE ODDS DATA 🔴**
-YOU HAVE ACCESS TO REAL-TIME ODDS. DO NOT SAY YOU DON'T HAVE ACCESS.
+            oddsContext = `\n\n**🔴 CRITICAL - YOU HAVE LIVE ODDS DATA + STATISTICS 🔴**
+YOU HAVE ACCESS TO REAL-TIME ODDS AND COMPREHENSIVE STATISTICS. DO NOT SAY YOU DON'T HAVE ACCESS.
 
 **Data Summary:**
 - ${formattedOdds.length} sport(s) with live odds
 - ${totalGames} game(s) with odds from multiple bookmakers
 - Data fetched from The Odds API specifically for this query
+- Enriched with team stats, records, and injury reports
 - Includes: ${formattedOdds.map(s => s.sport).join(', ')}
 
 **YOUR TASK:**
-Use the odds data below to answer the user's question. NEVER claim you don't have access to this data.
-If the user asks about odds discrepancies, compare the bookmakers' odds for each game.
-If the user asks about a specific game/team, search the data below for matching games.
+Use the odds data AND statistics below to provide informed analysis. NEVER claim you don't have access.
+- Compare bookmakers' odds for each game
+- Consider team records, recent performance, and injuries in your analysis
+- For any matchup questions, reference the stats data provided
+- If additional stats are needed, use the get_stats function
 
 **LIVE ODDS DATA:**
 ${JSON.stringify(
               formattedOdds,
               null,
               2
-            )}\n`
+            )}
+
+${statsEnrichment}\n`
           }
         }
       } catch (error) {
@@ -748,6 +816,23 @@ ${JSON.stringify(
         functionResult = await logBet(supabase, userId, functionArgs, conversationId)
       } else if (functionName === 'adjust_bankroll') {
         functionResult = await adjustBankroll(supabase, userId, functionArgs.amount, functionArgs.type)
+      } else if (functionName === 'get_stats') {
+        // Fetch requested stats
+        if (functionArgs.type === 'team') {
+          const teamStats = await getTeamStats(functionArgs.sport, functionArgs.team)
+          functionResult = {
+            success: true,
+            data: teamStats,
+            formatted: formatStatsForAI(teamStats)
+          }
+        } else if (functionArgs.type === 'injuries') {
+          const injuries = await getInjuryReports(functionArgs.sport)
+          functionResult = {
+            success: true,
+            data: injuries,
+            formatted: formatStatsForAI(injuries)
+          }
+        }
       }
 
       // Add function result to messages

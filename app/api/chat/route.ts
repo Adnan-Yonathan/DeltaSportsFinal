@@ -979,7 +979,7 @@ ${statsEnrichment}\n`
                 }
                 formatted += `\n`
 
-                for (const [marketType, marketData] of Object.entries(playerProp.markets)) {
+                for (const [marketType, marketData] of Object.entries(playerProp.markets) as [string, any][]) {
                   formatted += `  ${marketType.toUpperCase()}: Line ${marketData.line}\n`
                   formatted += `    Over: ${marketData.over.best > 0 ? '+' : ''}${marketData.over.best} (${marketData.over.bestBook})\n`
                   formatted += `    Under: ${marketData.under.best > 0 ? '+' : ''}${marketData.under.best} (${marketData.under.bestBook})\n`

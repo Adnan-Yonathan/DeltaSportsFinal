@@ -290,6 +290,16 @@ You can help users manage their bankroll conversationally:
 1. **Log Bets**: When users say things like "I bet $50 on Lakers -5.5" or "Put $100 on the over", use the log_bet function
 2. **Settle Bets**: When users say "My Lakers bet won" or "I lost the over", use the settle_bet function
 3. **Adjust Bankroll**: When users say "I'm depositing $500" or "Withdrawing $200", use the adjust_bankroll function
+4. **Get Bankroll Stats & Insights**: When users ask "How am I doing?", "Show my stats", "What's my ROI?", "Am I betting too much?", or want analysis of their betting performance, use the get_bankroll_stats function
+
+**Providing Bankroll Insights:**
+When analyzing bankroll stats, provide actionable insights:
+- Comment on win rate (need >52.4% to break even at -110 odds)
+- Analyze bet sizing (should be 1-5% of bankroll per bet for proper bankroll management)
+- Identify which sports are performing better/worse
+- Suggest adjustments if needed (e.g., "Your NBA bets are performing better than NFL")
+- Celebrate wins but emphasize long-term profitability
+- Never encourage risky behavior or chasing losses
 
 Always confirm what you're doing before calling functions and provide friendly responses after.`
 
@@ -442,6 +452,24 @@ const BANKROLL_FUNCTIONS: OpenAI.Chat.ChatCompletionTool[] = [
           },
         },
         required: ['sport'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_bankroll_stats',
+      description: 'Get detailed bankroll statistics and betting performance analytics. Use this when users ask about their betting history, performance, ROI, win rate, bet sizing, or want insights on their bankroll activity. Examples: "How am I doing?", "Show my stats", "What\'s my ROI?", "Am I betting too much?", "How\'s my performance by sport?"',
+      parameters: {
+        type: 'object',
+        properties: {
+          period: {
+            type: 'string',
+            enum: ['7d', '30d', 'all'],
+            description: 'Time period for stats. 7d = last 7 days, 30d = last 30 days, all = all time',
+          },
+        },
+        required: ['period'],
       },
     },
   },
@@ -979,6 +1007,82 @@ ${statsEnrichment}\n`
           functionResult = {
             success: false,
             error: `Failed to fetch player props: ${error.message}`
+          }
+        }
+      } else if (functionName === 'get_bankroll_stats') {
+        // Fetch bankroll statistics
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3002'
+          const period = functionArgs.period || 'all'
+
+          const response = await fetch(`${baseUrl}/api/bankroll/stats?period=${period}`)
+          const statsData = await response.json()
+
+          if (!response.ok) {
+            functionResult = {
+              success: false,
+              error: statsData.error || 'Failed to fetch bankroll stats'
+            }
+          } else {
+            // Format stats for AI analysis
+            const {
+              currentBalance,
+              startingBalance,
+              totalProfit,
+              roi,
+              totalBets,
+              wonBets,
+              lostBets,
+              pushBets,
+              pendingBets,
+              winRate,
+              avgBetSize,
+              biggestWin,
+              biggestLoss,
+              bySport
+            } = statsData
+
+            const periodLabel = period === '7d' ? 'Last 7 Days' : period === '30d' ? 'Last 30 Days' : 'All Time'
+
+            let formatted = `**Bankroll Statistics (${periodLabel})**\n\n`
+            formatted += `**Overall Performance:**\n`
+            formatted += `- Current Balance: $${currentBalance.toFixed(2)}\n`
+            formatted += `- Starting Balance: $${startingBalance.toFixed(2)}\n`
+            formatted += `- Total Profit/Loss: ${totalProfit >= 0 ? '+' : ''}$${totalProfit.toFixed(2)}\n`
+            formatted += `- ROI: ${roi.toFixed(2)}%\n`
+            formatted += `- Win Rate: ${winRate.toFixed(1)}% (${wonBets}W-${lostBets}L-${pushBets}P)\n\n`
+
+            formatted += `**Betting Activity:**\n`
+            formatted += `- Total Bets: ${totalBets} (${pendingBets} pending)\n`
+            formatted += `- Average Bet Size: $${avgBetSize.toFixed(2)}\n`
+            formatted += `- Biggest Win: $${biggestWin.toFixed(2)}\n`
+            formatted += `- Biggest Loss: $${Math.abs(biggestLoss).toFixed(2)}\n\n`
+
+            if (Object.keys(bySport).length > 0) {
+              formatted += `**Performance by Sport:**\n`
+              for (const [sport, data] of Object.entries(bySport)) {
+                formatted += `- ${sport.toUpperCase()}: ${data.won}W-${data.lost}L (${data.winRate.toFixed(1)}% WR, ${data.roi.toFixed(1)}% ROI, $${data.profit.toFixed(2)} profit)\n`
+              }
+            }
+
+            functionResult = {
+              success: true,
+              stats: statsData,
+              formatted,
+              insights: {
+                isPositive: totalProfit > 0,
+                isBreakingEven: totalProfit >= -50 && totalProfit <= 50,
+                hasGoodWinRate: winRate >= 52.4, // Breakeven at -110 odds
+                avgBetSizeVsBankroll: (avgBetSize / currentBalance * 100).toFixed(1),
+                bestSport: Object.entries(bySport).sort((a, b) => b[1].roi - a[1].roi)[0]?.[0],
+                worstSport: Object.entries(bySport).sort((a, b) => a[1].roi - b[1].roi)[0]?.[0]
+              }
+            }
+          }
+        } catch (error: any) {
+          functionResult = {
+            success: false,
+            error: `Failed to fetch bankroll stats: ${error.message}`
           }
         }
       }

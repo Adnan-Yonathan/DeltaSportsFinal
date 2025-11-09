@@ -14,15 +14,15 @@ import Image from "next/image"
 
 const Stat = ({ label, value }: { label: string; value: string }) => (
   <div className="space-y-1">
-    <div className="text-3xl font-semibold tracking-tight text-slate-900">{value}</div>
-    <div className="text-sm text-slate-500">{label}</div>
+    <div className="text-3xl font-semibold tracking-tight text-white">{value}</div>
+    <div className="text-sm text-gray-400">{label}</div>
   </div>
 )
 
 const SoftButton = ({ children, className = "", href, ...props }: any) => {
   const baseClasses =
     "rounded-full px-5 py-2.5 text-sm font-medium shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2 " +
-    "bg-slate-900 text-white hover:bg-slate-800 focus:ring-slate-700 " +
+    "bg-gray-800 text-white hover:bg-gray-700 focus:ring-gray-600 " +
     className
 
   if (href) {
@@ -255,7 +255,7 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen w-full bg-[#F3F5F7]">
+    <div className="min-h-screen w-full bg-black">
       {/* Fonts */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
@@ -274,7 +274,7 @@ export default function LandingPage() {
               />
             </svg>
           </div>
-          <span className="font-jakarta text-xl font-semibold tracking-tight text-slate-900">Delta AI</span>
+          <span className="font-jakarta text-xl font-semibold tracking-tight text-white">Delta AI</span>
         </div>
         <div className="hidden gap-2 md:flex">
           <SoftButton href="/auth/login">
@@ -299,9 +299,9 @@ export default function LandingPage() {
               rotatingTerms={["arbitrage", "analytics", "action", "CLV", "edges", "value", "lines"]}
               interval={2000}
             />
-            <p className="mt-4 max-w-md text-slate-600">
+            <p className="mt-4 max-w-md text-gray-400">
               Make smarter bets with{" "}
-              <span className="font-medium text-slate-900">real-time odds</span>, AI insights, and advanced bankroll
+              <span className="font-medium text-white">real-time odds</span>, AI insights, and advanced bankroll
               management.
             </p>
           </div>
@@ -454,14 +454,14 @@ export default function LandingPage() {
       </div>
 
       {/* Container Scroll Animation - App Showcase */}
-      <div className="w-full bg-[#F3F5F7]">
+      <div className="w-full bg-black">
         <ContainerScroll
           titleComponent={
             <div className="space-y-4">
-              <h2 className="text-4xl md:text-6xl font-bold text-slate-900">
+              <h2 className="text-4xl md:text-6xl font-bold text-white">
                 Experience Delta AI in Action
               </h2>
-              <p className="text-base md:text-xl text-slate-600 max-w-2xl mx-auto">
+              <p className="text-base md:text-xl text-gray-400 max-w-2xl mx-auto">
                 Chat with AI, compare odds, and track your bankroll all in one powerful interface
               </p>
             </div>
@@ -552,12 +552,12 @@ export default function LandingPage() {
       </div>
 
       {/* Powerful Features - Hover Effects */}
-      <div className="w-full bg-white py-20">
+      <div className="w-full bg-black py-20">
         <div className="text-center mb-12 px-4">
-          <h2 className="text-4xl md:text-6xl font-bold text-slate-900 mb-4">
+          <h2 className="text-4xl md:text-6xl font-bold text-white mb-4">
             Powerful Features
           </h2>
-          <p className="text-base md:text-xl text-slate-600 max-w-2xl mx-auto">
+          <p className="text-base md:text-xl text-gray-400 max-w-2xl mx-auto">
             Everything you need to gain an edge in sports betting
           </p>
         </div>
@@ -570,15 +570,15 @@ export default function LandingPage() {
       </div>
 
       {/* CTA Section */}
-      <div className="w-full bg-[#F3F5F7] py-20">
+      <div className="w-full bg-black py-20">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 p-8 md:p-12 text-center text-white shadow-xl">
+          <div className="rounded-2xl bg-gradient-to-r from-gray-900 to-gray-800 p-8 md:p-12 text-center text-white shadow-xl border border-gray-700">
             <h3 className="text-3xl md:text-4xl font-bold mb-4">Ready to Elevate Your Betting Game?</h3>
-            <p className="text-base md:text-lg text-slate-300 mb-8">
+            <p className="text-base md:text-lg text-gray-300 mb-8">
               Join thousands of smart bettors using Delta AI. Get instant access to AI-powered insights, live odds from 10+ sportsbooks, and advanced bankroll management.
             </p>
             <div className="flex justify-center">
-              <SoftButton href="/auth/login" className="bg-black text-white hover:bg-slate-900">
+              <SoftButton href="/auth/login" className="bg-gray-700 text-white hover:bg-gray-600">
                 Sign In
               </SoftButton>
             </div>
@@ -586,8 +586,8 @@ export default function LandingPage() {
         </div>
       </div>
 
-      <footer className="mx-auto w-full max-w-[1180px] px-4 pb-10 pt-16 text-center text-xs text-slate-400 md:px-0">
-        <div className="mb-4 text-sm text-slate-500">
+      <footer className="mx-auto w-full max-w-[1180px] px-4 pb-10 pt-16 text-center text-xs text-gray-500 md:px-0">
+        <div className="mb-4 text-sm text-gray-400">
           <strong>Disclaimer:</strong> This application is for educational and analytical purposes only. Delta AI does
           not process real bets or transactions. Gambling involves risk. Please bet responsibly.
         </div>

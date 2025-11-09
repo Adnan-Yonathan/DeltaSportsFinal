@@ -137,8 +137,19 @@ export default function ChatPage() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={async () => {
-                await supabase.auth.signOut()
-                router.push('/auth/login')
+                try {
+                  const { error } = await supabase.auth.signOut()
+                  if (error) {
+                    console.error('Sign out error:', error)
+                  }
+                  // Redirect regardless of error
+                  router.push('/auth/login')
+                  // Force refresh to clear any cached state
+                  window.location.href = '/auth/login'
+                } catch (err) {
+                  console.error('Sign out error:', err)
+                  window.location.href = '/auth/login'
+                }
               }}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-all border border-white/10"
             >

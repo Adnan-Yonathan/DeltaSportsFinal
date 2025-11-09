@@ -5,7 +5,6 @@ import { motion } from "framer-motion"
 import { ShieldCheck, ArrowUpRight, TrendingUp, BarChart3, Zap, Brain, MessageSquare, Search, Target, DollarSign, Activity, LineChart } from "lucide-react"
 import Link from "next/link"
 import { AnimatedHero } from "@/components/ui/animated-hero"
-import { Timeline } from "@/components/ui/timeline"
 import { ContainerScroll } from "@/components/ui/container-scroll-animation"
 import Image from "next/image"
 
@@ -488,168 +487,198 @@ export default function LandingPage() {
         </ContainerScroll>
       </div>
 
-      {/* Timeline Section - How It Works to CTA */}
-      <Timeline data={[
-        {
-          title: "How Delta AI Works",
-          content: (
-            <div>
-              <p className="text-neutral-800 dark:text-neutral-200 text-sm md:text-base font-normal mb-8">
+      {/* How Delta AI Works - Container Scroll */}
+      <div className="w-full bg-[#F3F5F7]">
+        <ContainerScroll
+          titleComponent={
+            <div className="space-y-4">
+              <h2 className="text-4xl md:text-6xl font-bold text-slate-900">
+                How Delta AI Works
+              </h2>
+              <p className="text-base md:text-xl text-slate-600 max-w-2xl mx-auto">
                 Three simple steps to smarter betting
               </p>
-              <div className="grid gap-6 md:grid-cols-3">
-                {[
-                  {
-                    step: "01",
-                    icon: <MessageSquare className="h-8 w-8" />,
-                    title: "Ask the AI",
-                    description: "Chat with our AI assistant about games, odds, and betting strategies. Get instant analysis on any matchup.",
-                  },
-                  {
-                    step: "02",
-                    icon: <Search className="h-8 w-8" />,
-                    title: "Compare Odds",
-                    description: "View real-time odds from 10+ sportsbooks. Find the best lines and identify arbitrage opportunities automatically.",
-                  },
-                  {
-                    step: "03",
-                    icon: <Target className="h-8 w-8" />,
-                    title: "Track Performance",
-                    description: "Log your bets and monitor your bankroll. Advanced analytics show your ROI, win rate, and edge over time.",
-                  },
-                ].map((step, i) => (
-                  <div
-                    key={i}
-                    className="relative"
-                  >
-                    <div className="absolute -top-4 -left-4 text-6xl md:text-7xl font-bold text-indigo-100">{step.step}</div>
-                    <div className="relative bg-white rounded-2xl p-6 md:p-8 shadow-sm ring-1 ring-slate-200 h-full">
-                      <div className="flex h-12 w-12 md:h-14 md:w-14 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white mb-4">
-                        {step.icon}
-                      </div>
-                      <h3 className="text-lg md:text-xl font-semibold text-slate-900 mb-3">{step.title}</h3>
-                      <p className="text-sm md:text-base text-slate-600 leading-relaxed">{step.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
-          ),
-        },
-        {
-          title: "Powerful Features",
-          content: (
-            <div>
-              <p className="text-neutral-800 dark:text-neutral-200 text-sm md:text-base font-normal mb-8">
+          }
+        >
+          <div className="w-full h-full bg-gradient-to-br from-slate-50 to-white rounded-lg overflow-hidden p-8">
+            <div className="grid gap-6 md:grid-cols-3">
+              {[
+                {
+                  step: "01",
+                  icon: <MessageSquare className="h-8 w-8" />,
+                  title: "Ask the AI",
+                  description: "Chat with our AI assistant about games, odds, and betting strategies. Get instant analysis on any matchup.",
+                },
+                {
+                  step: "02",
+                  icon: <Search className="h-8 w-8" />,
+                  title: "Compare Odds",
+                  description: "View real-time odds from 10+ sportsbooks. Find the best lines and identify arbitrage opportunities automatically.",
+                },
+                {
+                  step: "03",
+                  icon: <Target className="h-8 w-8" />,
+                  title: "Track Performance",
+                  description: "Log your bets and monitor your bankroll. Advanced analytics show your ROI, win rate, and edge over time.",
+                },
+              ].map((step, i) => (
+                <div key={i} className="relative">
+                  <div className="absolute -top-4 -left-4 text-6xl md:text-7xl font-bold text-indigo-100">{step.step}</div>
+                  <div className="relative bg-white rounded-2xl p-6 md:p-8 shadow-sm ring-1 ring-slate-200 h-full">
+                    <div className="flex h-12 w-12 md:h-14 md:w-14 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white mb-4">
+                      {step.icon}
+                    </div>
+                    <h3 className="text-lg md:text-xl font-semibold text-slate-900 mb-3">{step.title}</h3>
+                    <p className="text-sm md:text-base text-slate-600 leading-relaxed">{step.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </ContainerScroll>
+      </div>
+
+      {/* Powerful Features - Container Scroll */}
+      <div className="w-full bg-white">
+        <ContainerScroll
+          titleComponent={
+            <div className="space-y-4">
+              <h2 className="text-4xl md:text-6xl font-bold text-slate-900">
+                Powerful Features
+              </h2>
+              <p className="text-base md:text-xl text-slate-600 max-w-2xl mx-auto">
                 Everything you need to gain an edge in sports betting
               </p>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {[
-                  {
-                    icon: <Brain className="h-6 w-6" />,
-                    title: "AI Assistant",
-                    description: "Chat with advanced AI to analyze games, understand odds movements, and get strategic insights.",
-                  },
-                  {
-                    icon: <Zap className="h-6 w-6" />,
-                    title: "Live Odds Feed",
-                    description: "Real-time odds from 10+ major sportsbooks, updated every 30 seconds across all major sports.",
-                  },
-                  {
-                    icon: <TrendingUp className="h-6 w-6" />,
-                    title: "Line Movement Tracking",
-                    description: "Monitor how lines move across books. Identify steam moves and reverse line movement.",
-                  },
-                  {
-                    icon: <BarChart3 className="h-6 w-6" />,
-                    title: "Bankroll Management",
-                    description: "Track every bet, analyze your performance, and manage your bankroll with advanced analytics.",
-                  },
-                  {
-                    icon: <Target className="h-6 w-6" />,
-                    title: "Arbitrage Scanner",
-                    description: "Automatically detect arbitrage opportunities across sportsbooks for guaranteed profit.",
-                  },
-                  {
-                    icon: <ShieldCheck className="h-6 w-6" />,
-                    title: "Secure & Private",
-                    description: "Bank-level encryption with row-level security. Your data is completely private.",
-                  },
-                ].map((feature, i) => (
-                  <div
-                    key={i}
-                    className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-900 text-white mb-4">
-                      {feature.icon}
-                    </div>
-                    <h3 className="text-lg font-semibold text-slate-900 mb-2">{feature.title}</h3>
-                    <p className="text-sm text-slate-600 leading-relaxed">{feature.description}</p>
-                  </div>
-                ))}
-              </div>
             </div>
-          ),
-        },
-        {
-          title: "Built for Every Strategy",
-          content: (
-            <div>
-              <p className="text-neutral-800 dark:text-neutral-200 text-sm md:text-base font-normal mb-8">
+          }
+        >
+          <div className="w-full h-full bg-gradient-to-br from-slate-50 to-white rounded-lg overflow-hidden p-8">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {[
+                {
+                  icon: <Brain className="h-6 w-6" />,
+                  title: "AI Assistant",
+                  description: "Chat with advanced AI to analyze games, understand odds movements, and get strategic insights.",
+                },
+                {
+                  icon: <Zap className="h-6 w-6" />,
+                  title: "Live Odds Feed",
+                  description: "Real-time odds from 10+ major sportsbooks, updated every 30 seconds across all major sports.",
+                },
+                {
+                  icon: <TrendingUp className="h-6 w-6" />,
+                  title: "Line Movement Tracking",
+                  description: "Monitor how lines move across books. Identify steam moves and reverse line movement.",
+                },
+                {
+                  icon: <BarChart3 className="h-6 w-6" />,
+                  title: "Bankroll Management",
+                  description: "Track every bet, analyze your performance, and manage your bankroll with advanced analytics.",
+                },
+                {
+                  icon: <Target className="h-6 w-6" />,
+                  title: "Arbitrage Scanner",
+                  description: "Automatically detect arbitrage opportunities across sportsbooks for guaranteed profit.",
+                },
+                {
+                  icon: <ShieldCheck className="h-6 w-6" />,
+                  title: "Secure & Private",
+                  description: "Bank-level encryption with row-level security. Your data is completely private.",
+                },
+              ].map((feature, i) => (
+                <div key={i} className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 hover:shadow-md transition-shadow">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-900 text-white mb-4">
+                    {feature.icon}
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">{feature.title}</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">{feature.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </ContainerScroll>
+      </div>
+
+      {/* Built for Every Strategy - Container Scroll */}
+      <div className="w-full bg-[#F3F5F7]">
+        <ContainerScroll
+          titleComponent={
+            <div className="space-y-4">
+              <h2 className="text-4xl md:text-6xl font-bold text-slate-900">
+                Built for Every Strategy
+              </h2>
+              <p className="text-base md:text-xl text-slate-600 max-w-2xl mx-auto">
                 From casual bettors to professional sharps
               </p>
-              <div className="grid gap-8 md:grid-cols-2">
-                {[
-                  {
-                    icon: <DollarSign className="h-7 w-7" />,
-                    title: "Arbitrage Betting",
-                    description: "Find risk-free profit opportunities by betting both sides of a game across different sportsbooks. Our scanner identifies arbitrage in real-time with exact stake calculations.",
-                    color: "from-emerald-500 to-teal-600",
-                  },
-                  {
-                    icon: <Activity className="h-7 w-7" />,
-                    title: "Sharp Money Tracking",
-                    description: "Follow the smart money. Track line movements to see where professional bettors are placing their action. Identify reverse line movement and steam moves.",
-                    color: "from-blue-500 to-indigo-600",
-                  },
-                  {
-                    icon: <LineChart className="h-7 w-7" />,
-                    title: "Closing Line Value (CLV)",
-                    description: "Measure your edge by comparing your bet to the closing line. Positive CLV is the #1 indicator of long-term profitability. We track it automatically.",
-                    color: "from-purple-500 to-pink-600",
-                  },
-                  {
-                    icon: <Target className="h-7 w-7" />,
-                    title: "Best Line Shopping",
-                    description: "Compare odds across all major sportsbooks instantly. Even small differences add up - getting -105 instead of -110 significantly impacts ROI over time.",
-                    color: "from-orange-500 to-red-600",
-                  },
-                ].map((app, i) => (
-                  <div
-                    key={i}
-                    className="bg-white rounded-2xl p-8 shadow-lg ring-1 ring-slate-200"
-                  >
-                    <div className={`inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br ${app.color} text-white mb-4`}>
-                      {app.icon}
-                    </div>
-                    <h3 className="text-xl md:text-2xl font-semibold text-slate-900 mb-3">{app.title}</h3>
-                    <p className="text-sm md:text-base text-slate-600 leading-relaxed">{app.description}</p>
-                  </div>
-                ))}
-              </div>
             </div>
-          ),
-        },
-        {
-          title: "Ready to Elevate Your Betting Game",
-          content: (
-            <div>
+          }
+        >
+          <div className="w-full h-full bg-gradient-to-br from-slate-50 to-white rounded-lg overflow-hidden p-8">
+            <div className="grid gap-8 md:grid-cols-2">
+              {[
+                {
+                  icon: <DollarSign className="h-7 w-7" />,
+                  title: "Arbitrage Betting",
+                  description: "Find risk-free profit opportunities by betting both sides of a game across different sportsbooks. Our scanner identifies arbitrage in real-time with exact stake calculations.",
+                  color: "from-emerald-500 to-teal-600",
+                },
+                {
+                  icon: <Activity className="h-7 w-7" />,
+                  title: "Sharp Money Tracking",
+                  description: "Follow the smart money. Track line movements to see where professional bettors are placing their action. Identify reverse line movement and steam moves.",
+                  color: "from-blue-500 to-indigo-600",
+                },
+                {
+                  icon: <LineChart className="h-7 w-7" />,
+                  title: "Closing Line Value (CLV)",
+                  description: "Measure your edge by comparing your bet to the closing line. Positive CLV is the #1 indicator of long-term profitability. We track it automatically.",
+                  color: "from-purple-500 to-pink-600",
+                },
+                {
+                  icon: <Target className="h-7 w-7" />,
+                  title: "Best Line Shopping",
+                  description: "Compare odds across all major sportsbooks instantly. Even small differences add up - getting -105 instead of -110 significantly impacts ROI over time.",
+                  color: "from-orange-500 to-red-600",
+                },
+              ].map((app, i) => (
+                <div key={i} className="bg-white rounded-2xl p-8 shadow-lg ring-1 ring-slate-200">
+                  <div className={`inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br ${app.color} text-white mb-4`}>
+                    {app.icon}
+                  </div>
+                  <h3 className="text-xl md:text-2xl font-semibold text-slate-900 mb-3">{app.title}</h3>
+                  <p className="text-sm md:text-base text-slate-600 leading-relaxed">{app.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </ContainerScroll>
+      </div>
+
+      {/* CTA Section - Container Scroll */}
+      <div className="w-full bg-white">
+        <ContainerScroll
+          titleComponent={
+            <div className="space-y-4">
+              <h2 className="text-4xl md:text-6xl font-bold text-slate-900">
+                Ready to Elevate Your Betting Game?
+              </h2>
+              <p className="text-base md:text-xl text-slate-600 max-w-2xl mx-auto">
+                Join thousands of smart bettors using Delta AI
+              </p>
+            </div>
+          }
+        >
+          <div className="w-full h-full rounded-lg overflow-hidden flex items-center justify-center p-8">
+            <div className="max-w-3xl w-full">
               <div className="rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 p-8 md:p-12 text-center text-white shadow-xl">
-                <h2 className="text-2xl md:text-3xl font-semibold mb-4">Ready to elevate your betting game?</h2>
-                <p className="text-base md:text-lg text-slate-300 mb-8">Join thousands of smart bettors using Delta AI</p>
-                <div className="flex justify-center gap-4">
+                <h3 className="text-2xl md:text-3xl font-semibold mb-4">Start Making Smarter Bets Today</h3>
+                <p className="text-base md:text-lg text-slate-300 mb-8">
+                  Get instant access to AI-powered insights, live odds from 10+ sportsbooks, and advanced bankroll management
+                </p>
+                <div className="flex flex-col sm:flex-row justify-center gap-4">
                   <SoftButton href="/auth/signup" className="bg-white text-slate-900 hover:bg-slate-100">
-                    Get Started
+                    Get Started Free
                   </SoftButton>
                   <SoftButton href="/auth/login" className="bg-slate-700 hover:bg-slate-600">
                     Sign In
@@ -657,9 +686,9 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
-          ),
-        },
-      ]} />
+          </div>
+        </ContainerScroll>
+      </div>
 
       <footer className="mx-auto w-full max-w-[1180px] px-4 pb-10 pt-16 text-center text-xs text-slate-400 md:px-0">
         <div className="mb-4 text-sm text-slate-500">

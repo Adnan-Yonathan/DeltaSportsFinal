@@ -1088,11 +1088,15 @@ ${statsEnrichment}\n`
       }
 
       // Add function result to messages
-      openaiMessages.push({
+      const assistantMessage: any = {
         role: 'assistant',
-        content: initialMessage.content || null,
         tool_calls: initialMessage.tool_calls,
-      } as any)
+      }
+      // Only include content if it exists (OpenAI requires string or omitted, not null)
+      if (initialMessage.content) {
+        assistantMessage.content = initialMessage.content
+      }
+      openaiMessages.push(assistantMessage)
 
       openaiMessages.push({
         role: 'tool',

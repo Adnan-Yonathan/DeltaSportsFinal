@@ -134,9 +134,11 @@ export async function GET(req: NextRequest) {
             const marketData = playerProp.markets[marketType]
 
             // Determine if this is over or under
-            const isOver = outcome.description?.toLowerCase().includes('over') ||
-                          outcome.description?.toLowerCase().includes('more') ||
-                          (!outcome.description && outcome.point !== undefined)
+            // For player props, outcomes don't have description - we use the point value
+            // Typically the first outcome is Over, second is Under, but we can check if there's any naming convention
+            const isOver = outcome.name?.toLowerCase().includes('over') ||
+                          outcome.name?.toLowerCase().includes('more') ||
+                          (outcome.point !== undefined && outcome.point > 0)
 
             const direction = isOver ? 'over' : 'under'
 

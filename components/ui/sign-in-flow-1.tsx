@@ -519,20 +519,31 @@ export const SignInPage = ({ className }: SignInPageProps) => {
     setError("");
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      // Call our API endpoint to create user (bypasses email confirmation)
+      const signupResponse = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const signupData = await signupResponse.json();
+
+      if (!signupResponse.ok) {
+        throw new Error(signupData.error || 'Failed to create account');
+      }
+
+      // Now sign in the user with their credentials
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
 
-      // Check if session was created (email confirmation disabled)
       if (data.session) {
-        // User is logged in immediately
         router.push('/chat');
-      } else if (data.user && !data.session) {
-        // Email confirmation is required
-        setError("Email confirmation is required. Please disable 'Confirm email' in Supabase Authentication settings.");
       }
     } catch (err: any) {
       setError(err.message || "Failed to create account");

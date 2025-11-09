@@ -28,16 +28,16 @@ function AnimatedHero({
   }, [termIndex, rotatingTerms, interval])
 
   return (
-    <h1 className="text-5xl md:text-6xl font-semibold leading-[1.2] tracking-tight text-white">
+    <h1 className="text-5xl md:text-6xl font-semibold leading-[1.3] tracking-tight text-white">
       {staticText}
       <br />
-      <span className="relative inline-block min-h-[1.4em] w-full">
-        {/* Invisible placeholder to maintain height */}
+      <span className="relative block min-h-[1.6em] w-full pt-1 pb-3">
+        {/* Invisible placeholder to maintain height and proper spacing */}
         <span className="invisible font-semibold">analytics.</span>
         {rotatingTerms.map((term, index) => (
           <motion.span
             key={index}
-            className="absolute left-0 top-0 font-semibold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent"
+            className="absolute left-0 inset-y-0 font-semibold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent whitespace-nowrap flex items-center"
             initial={{ opacity: 0, y: -50 }}
             transition={{ type: "spring", stiffness: 50 }}
             animate={

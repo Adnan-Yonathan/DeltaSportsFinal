@@ -509,11 +509,8 @@ export default function LandingPage() {
             <p className="text-base md:text-lg text-slate-300 mb-8">
               Join thousands of smart bettors using Delta AI. Get instant access to AI-powered insights, live odds from 10+ sportsbooks, and advanced bankroll management.
             </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <SoftButton href="/auth/signup" className="bg-white text-slate-900 hover:bg-slate-100">
-                Get Started Free
-              </SoftButton>
-              <SoftButton href="/auth/login" className="bg-slate-700 hover:bg-slate-600">
+            <div className="flex justify-center">
+              <SoftButton href="/auth/login" className="bg-white text-slate-900 hover:bg-slate-100">
                 Sign In
               </SoftButton>
             </div>

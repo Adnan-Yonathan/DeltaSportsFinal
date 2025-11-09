@@ -245,14 +245,6 @@ export default function LandingPage() {
             <Stat label="Active Users" value="10K+" />
             <Stat label="Win Rate Improvement" value="23%" />
           </div>
-
-          <div className="mt-6 flex items-center gap-8 opacity-70">
-            <span className="text-xs text-slate-500">TRUSTED DATA FROM</span>
-            <div className="flex items-center gap-6 text-slate-400">
-              <span className="font-semibold text-sm">The Odds API</span>
-              <span className="font-semibold text-sm">OpenAI</span>
-            </div>
-          </div>
         </div>
 
         {/* Right: animated feature cards */}

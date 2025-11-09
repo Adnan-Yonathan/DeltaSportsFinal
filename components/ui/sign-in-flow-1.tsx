@@ -690,7 +690,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                             placeholder="info@gmail.com"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full backdrop-blur-[1px] text-white border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                            className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
                             required
                           />
                           <button

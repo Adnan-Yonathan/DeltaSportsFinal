@@ -425,14 +425,97 @@ export async function POST(req: NextRequest) {
         // Try to extract sport from message
         const messageLower = message.toLowerCase()
 
-        // NBA team names detection
+        // Comprehensive team name mapping with variations
+        const teamVariations: { [key: string]: string[] } = {
+          // NBA Teams (base name as key)
+          'lakers': ['lakers', 'la lakers', 'los angeles lakers', 'l.a. lakers'],
+          'warriors': ['warriors', 'golden state', 'gsw'],
+          'celtics': ['celtics', 'boston'],
+          'heat': ['heat', 'miami heat'],
+          'bucks': ['bucks', 'milwaukee'],
+          'suns': ['suns', 'phoenix'],
+          'nets': ['nets', 'brooklyn'],
+          'nuggets': ['nuggets', 'denver'],
+          'clippers': ['clippers', 'la clippers', 'los angeles clippers'],
+          'mavericks': ['mavericks', 'mavs', 'dallas'],
+          'grizzlies': ['grizzlies', 'memphis'],
+          'timberwolves': ['timberwolves', 'wolves', 'minnesota', 't-wolves'],
+          'pelicans': ['pelicans', 'pels', 'new orleans'],
+          'kings': ['kings', 'sacramento'],
+          'sixers': ['76ers', 'sixers', 'philadelphia', 'philly'],
+          'knicks': ['knicks', 'new york knicks', 'ny knicks'],
+          'hawks': ['hawks', 'atlanta'],
+          'bulls': ['bulls', 'chicago bulls'],
+          'cavaliers': ['cavaliers', 'cavs', 'cleveland'],
+          'raptors': ['raptors', 'toronto'],
+          'pacers': ['pacers', 'indiana'],
+          'magic': ['magic', 'orlando'],
+          'hornets': ['hornets', 'charlotte'],
+          'pistons': ['pistons', 'detroit'],
+          'wizards': ['wizards', 'washington'],
+          'thunder': ['thunder', 'okc', 'oklahoma city'],
+          'jazz': ['jazz', 'utah'],
+          'rockets': ['rockets', 'houston rockets'],
+          'spurs': ['spurs', 'san antonio'],
+          'blazers': ['blazers', 'trail blazers', 'portland'],
+          // NFL Teams
+          'chiefs': ['chiefs', 'kansas city', 'kc'],
+          'bills': ['bills', 'buffalo'],
+          'bengals': ['bengals', 'cincinnati'],
+          'ravens': ['ravens', 'baltimore'],
+          '49ers': ['49ers', 'niners', 'san francisco', 'sf'],
+          'eagles': ['eagles', 'philadelphia eagles'],
+          'cowboys': ['cowboys', 'dallas cowboys'],
+          'packers': ['packers', 'green bay'],
+          'rams': ['rams', 'la rams', 'los angeles rams'],
+          'buccaneers': ['buccaneers', 'bucs', 'tampa bay', 'tampa'],
+          'chargers': ['chargers', 'la chargers', 'los angeles chargers'],
+          'dolphins': ['dolphins', 'miami dolphins'],
+          'jets': ['jets', 'new york jets', 'ny jets'],
+          'patriots': ['patriots', 'pats', 'new england'],
+          'raiders': ['raiders', 'las vegas', 'lv raiders'],
+          'broncos': ['broncos', 'denver broncos'],
+          'colts': ['colts', 'indianapolis'],
+          'jaguars': ['jaguars', 'jags', 'jacksonville'],
+          'titans': ['titans', 'tennessee'],
+          'texans': ['texans', 'houston texans'],
+          'steelers': ['steelers', 'pittsburgh'],
+          'browns': ['browns', 'cleveland browns'],
+          'saints': ['saints', 'new orleans saints'],
+          'seahawks': ['seahawks', 'seattle'],
+          'panthers': ['panthers', 'carolina'],
+          'falcons': ['falcons', 'atlanta falcons'],
+          'cardinals': ['cardinals', 'arizona'],
+          'vikings': ['vikings', 'minnesota vikings'],
+          'lions': ['lions', 'detroit lions'],
+          'bears': ['bears', 'chicago bears'],
+          'commanders': ['commanders', 'washington'],
+          'giants': ['giants', 'new york giants', 'ny giants'],
+        }
+
+        // Extract team names from message
+        const extractTeamNames = (msg: string): string[] => {
+          const foundTeams: string[] = []
+          const lowerMsg = msg.toLowerCase()
+
+          for (const [baseTeam, variations] of Object.entries(teamVariations)) {
+            if (variations.some(variation => lowerMsg.includes(variation))) {
+              foundTeams.push(baseTeam)
+            }
+          }
+
+          return foundTeams
+        }
+
+        const mentionedTeams = extractTeamNames(messageLower)
+
+        // Simple team lists for league detection
         const nbaTeams = ['lakers', 'celtics', 'warriors', 'bulls', 'heat', 'knicks', 'nets',
                          'sixers', 'bucks', 'raptors', 'mavericks', 'rockets', 'spurs',
                          'suns', 'clippers', 'nuggets', 'jazz', 'blazers', 'kings', 'thunder',
                          'timberwolves', 'pelicans', 'grizzlies', 'hornets', 'magic',
                          'wizards', 'pistons', 'pacers', 'cavaliers', 'hawks']
 
-        // NFL team names detection
         const nflTeams = ['chiefs', 'bills', 'bengals', 'ravens', 'cowboys', 'eagles',
                          'packers', '49ers', 'rams', 'seahawks', 'buccaneers', 'saints',
                          'patriots', 'dolphins', 'jets', 'steelers', 'browns', 'raiders',
@@ -440,7 +523,6 @@ export async function POST(req: NextRequest) {
                          'panthers', 'falcons', 'cardinals', 'vikings', 'lions', 'bears',
                          'commanders', 'giants']
 
-        // Major NCAA Football teams detection
         const ncaafTeams = ['alabama', 'georgia', 'ohio state', 'michigan', 'oregon', 'texas',
                            'penn state', 'notre dame', 'usc', 'clemson', 'florida state', 'miami',
                            'lsu', 'oklahoma', 'tennessee', 'auburn', 'florida', 'texas a&m',
@@ -516,10 +598,41 @@ export async function POST(req: NextRequest) {
                 )
               }
 
+              // Filter by mentioned teams if any were detected
+              if (mentionedTeams.length > 0 && oddsData.length > 0) {
+                const filteredGames = oddsData.filter(game => {
+                  const homeTeam = game.home_team.toLowerCase()
+                  const awayTeam = game.away_team.toLowerCase()
+
+                  return mentionedTeams.some(team => {
+                    const variations = teamVariations[team] || [team]
+                    return variations.some(variation =>
+                      homeTeam.includes(variation) || awayTeam.includes(variation)
+                    )
+                  })
+                })
+
+                if (filteredGames.length > 0) {
+                  oddsData = filteredGames
+                }
+              }
+
               if (oddsData.length > 0) {
+                // Dynamic game limit based on query specificity
+                let gameLimit = 5 // default
+                if (mentionedTeams.length >= 2) {
+                  gameLimit = 3 // Specific matchup query - fewer games needed
+                } else if (mentionedTeams.length === 1) {
+                  gameLimit = 5 // One team mentioned - show their games
+                } else if (messageLower.match(/(arbitrage|arb)/i)) {
+                  gameLimit = 15 // Arbitrage queries need more games
+                } else {
+                  gameLimit = 10 // General queries - show more options
+                }
+
                 allOddsData.push({
                   sport: sport,
-                  games: oddsData.slice(0, 5) // Limit to 5 games per sport
+                  games: oddsData.slice(0, gameLimit)
                 })
               }
             } catch (err) {

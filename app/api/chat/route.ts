@@ -567,6 +567,10 @@ export async function POST(req: NextRequest) {
         else if (messageLower.match(/(arbitrage|arb)/i)) {
           sports = ['basketball_nba', 'americanfootball_nfl', 'icehockey_nhl']
         }
+        // If no specific sport detected but user is asking about odds/games, fetch all major sports
+        else if (needsOdds && sports.length === 0) {
+          sports = ['basketball_nba', 'americanfootball_nfl', 'icehockey_nhl']
+        }
 
         if (sports.length > 0) {
           const allOddsData: any[] = []
@@ -657,10 +661,23 @@ export async function POST(req: NextRequest) {
               }))
             }))
 
-            oddsContext = `\n\n**CRITICAL - YOU HAVE LIVE ODDS DATA:**
-You DO have access to real-time odds from The Odds API below. NEVER say you don't have access to odds data.
-ALWAYS use this data to answer the user's question. This is LIVE data fetched specifically for this query.
+            const totalGames = formattedOdds.reduce((sum, sport) => sum + sport.games.length, 0)
 
+            oddsContext = `\n\n**🔴 CRITICAL - YOU HAVE LIVE ODDS DATA 🔴**
+YOU HAVE ACCESS TO REAL-TIME ODDS. DO NOT SAY YOU DON'T HAVE ACCESS.
+
+**Data Summary:**
+- ${formattedOdds.length} sport(s) with live odds
+- ${totalGames} game(s) with odds from multiple bookmakers
+- Data fetched from The Odds API specifically for this query
+- Includes: ${formattedOdds.map(s => s.sport).join(', ')}
+
+**YOUR TASK:**
+Use the odds data below to answer the user's question. NEVER claim you don't have access to this data.
+If the user asks about odds discrepancies, compare the bookmakers' odds for each game.
+If the user asks about a specific game/team, search the data below for matching games.
+
+**LIVE ODDS DATA:**
 ${JSON.stringify(
               formattedOdds,
               null,

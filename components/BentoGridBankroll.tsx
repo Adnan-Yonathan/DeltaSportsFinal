@@ -6,7 +6,7 @@ import { formatCurrency, formatPercent } from '@/lib/utils/odds'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import { format } from 'date-fns'
 import { motion } from 'framer-motion'
-import { Wallet, TrendingUp, Trophy, Target, Activity, Check, X } from 'lucide-react'
+import { Wallet, TrendingUp, Trophy, Target, Activity, Check, X, Sparkles, Loader2 } from 'lucide-react'
 import { LiveScore, matchBetToGame } from '@/lib/espn-api'
 
 interface BankrollTrackerProps {
@@ -43,6 +43,9 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
   const [activeBets, setActiveBets] = useState<Bet[]>([])
   const [loading, setLoading] = useState(true)
   const [liveScores, setLiveScores] = useState<LiveScore[]>([])
+  const [showInsights, setShowInsights] = useState(false)
+  const [insightsLoading, setInsightsLoading] = useState(false)
+  const [insights, setInsights] = useState<string>('')
   const supabase = createClient()
 
   useEffect(() => {
@@ -131,6 +134,83 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
 
     if (response.ok) {
       loadData()
+    }
+  }
+
+  const getAIInsights = async () => {
+    setInsightsLoading(true)
+    setShowInsights(true)
+    setInsights('')
+
+    try {
+      // Create a temporary conversation for insights
+      const { data: conversation } = await supabase
+        .from('conversations')
+        .insert({ user_id: userId, title: 'Bankroll Analysis' })
+        .select()
+        .single()
+
+      if (!conversation) {
+        setInsights('Error creating conversation')
+        setInsightsLoading(false)
+        return
+      }
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'Please analyze my bankroll performance for all time. Give me detailed insights on: my overall profitability, win rate analysis, bet sizing recommendations, performance by sport, and specific areas where I can improve. Be thorough and actionable.',
+          conversationId: conversation.id,
+          userId: userId,
+        }),
+      })
+
+      if (!response.ok || !response.body) {
+        setInsights('Error fetching insights')
+        setInsightsLoading(false)
+        return
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let accumulatedText = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') {
+              setInsightsLoading(false)
+              // Delete the temporary conversation
+              await supabase.from('conversations').delete().eq('id', conversation.id)
+              break
+            }
+
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.content) {
+                accumulatedText += parsed.content
+                setInsights(accumulatedText)
+              }
+            } catch (e) {
+              // Ignore parse errors for incomplete JSON
+            }
+          }
+        }
+      }
+
+      setInsightsLoading(false)
+    } catch (error) {
+      console.error('Error getting AI insights:', error)
+      setInsights('Sorry, there was an error generating insights. Please try again.')
+      setInsightsLoading(false)
     }
   }
 
@@ -224,6 +304,39 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                 {stats.pendingBets} pending
               </div>
             </motion.div>
+
+            {/* AI Insights Button - spans 2 columns */}
+            <motion.button
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35 }}
+              onClick={getAIInsights}
+              disabled={insightsLoading}
+              className="col-span-2 p-4 rounded-xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border border-purple-500/30 backdrop-blur-sm hover:from-purple-500/30 hover:to-indigo-500/30 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-purple-500/20 group-hover:bg-purple-500/30 transition-colors">
+                    {insightsLoading ? (
+                      <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-5 h-5 text-purple-400" />
+                    )}
+                  </div>
+                  <div className="text-left">
+                    <div className="text-sm font-semibold text-white">
+                      {insightsLoading ? 'Analyzing...' : 'Get AI Analysis'}
+                    </div>
+                    <div className="text-xs text-white/60">
+                      Personalized insights on your betting performance
+                    </div>
+                  </div>
+                </div>
+                {!insightsLoading && (
+                  <div className="text-purple-400 group-hover:translate-x-1 transition-transform">→</div>
+                )}
+              </div>
+            </motion.button>
 
             {/* Chart - spans 2 columns */}
             <motion.div
@@ -389,6 +502,83 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
           }
         `}</style>
       </div>
+
+      {/* AI Insights Modal */}
+      {showInsights && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setShowInsights(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-3xl max-h-[80vh] bg-gradient-to-br from-gray-900 to-black border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-white/10 bg-gradient-to-r from-purple-500/10 to-indigo-500/10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-purple-500/20">
+                    <Sparkles className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">AI Bankroll Analysis</h2>
+                    <p className="text-sm text-white/60">Personalized insights for your betting performance</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowInsights(false)}
+                  className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto custom-scrollbar max-h-[calc(80vh-120px)]">
+              {insightsLoading && !insights ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="w-12 h-12 text-purple-400 animate-spin mb-4" />
+                  <p className="text-white/60">Analyzing your betting performance...</p>
+                </div>
+              ) : (
+                <div className="prose prose-invert max-w-none">
+                  <div className="text-white/90 whitespace-pre-wrap leading-relaxed">
+                    {insights || 'No insights available'}
+                  </div>
+                  {insightsLoading && (
+                    <div className="mt-4 flex items-center gap-2 text-purple-400">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">Generating insights...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-white/10 bg-white/5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-white/40">
+                  Analysis generated by DELTA AI based on your all-time performance
+                </p>
+                <button
+                  onClick={() => setShowInsights(false)}
+                  className="px-4 py-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-400 text-sm font-medium transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </>
   )
 }

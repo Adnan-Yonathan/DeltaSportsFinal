@@ -9,7 +9,7 @@ import ModernMessageList from '@/components/ModernMessageList'
 import ModernMessageInput from '@/components/ModernMessageInput'
 import BentoGridBankroll from '@/components/BentoGridBankroll'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Sparkles, Menu, X, DollarSign } from 'lucide-react'
+import { LogOut, Menu, X, DollarSign } from 'lucide-react'
 
 export default function ChatPage() {
   const [user, setUser] = useState<any>(null)
@@ -171,9 +171,6 @@ export default function ChatPage() {
               <Menu className="w-5 h-5" />
             </button>
 
-            <div className="p-1.5 sm:p-2 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20">
-              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-            </div>
             <div>
               <h1 className="text-base sm:text-xl font-bold text-white">DELTA</h1>
               <p className="text-xs text-white/40 hidden sm:block">Intelligent Sports Betting Assistant</p>

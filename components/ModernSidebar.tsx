@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDistanceToNow } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MessageSquare, Plus, Trash2, Sparkles } from 'lucide-react'
+import { MessageSquare, Plus, Trash2 } from 'lucide-react'
 
 interface SidebarProps {
   userId: string
@@ -190,14 +190,9 @@ export default function ModernSidebar({
     <div className="h-full bg-black/40 backdrop-blur-xl border-r border-white/5 flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-white/5">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="p-2 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-white">DELTA</h2>
-            <p className="text-xs text-white/40">Chat History</p>
-          </div>
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-white">DELTA</h2>
+          <p className="text-xs text-white/40">Chat History</p>
         </div>
 
         <motion.button

@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Sparkles } from 'lucide-react'
 import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
 
 interface ChatIntroProps {
@@ -76,17 +75,6 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
         animate={{ opacity: 1, y: 0 }}
         className="text-center max-w-2xl w-full -mt-20"
       >
-        <motion.div
-          animate={{
-            scale: [1, 1.1, 1],
-            rotate: [0, 5, -5, 0]
-          }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="inline-block p-4 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 mb-6"
-        >
-          <Sparkles className="w-12 h-12 text-indigo-400" />
-        </motion.div>
-
         <h2 className="text-3xl font-bold text-white mb-4">
           How can I help you today?
         </h2>

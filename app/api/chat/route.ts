@@ -28,6 +28,32 @@ async function createDailySnapshot(supabase: any, userId: string, balance: numbe
     )
 }
 
+// Helper function to auto-generate conversation title
+async function generateConversationTitle(userMessage: string, assistantResponse: string): Promise<string> {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'system',
+          content: 'Generate a short, descriptive title (3-5 words max) for this conversation. Focus on the main topic or action. Use buzzwords and be concise. Examples: "NBA Lakers vs Celtics", "Player Props Analysis", "Bankroll Strategy Tips", "NFL Week 10 Predictions".'
+        },
+        {
+          role: 'user',
+          content: `User: ${userMessage}\n\nAssistant: ${assistantResponse.substring(0, 500)}`
+        }
+      ],
+      max_tokens: 20,
+      temperature: 0.7,
+    })
+
+    return completion.choices[0]?.message?.content?.trim() || 'New Chat'
+  } catch (error) {
+    console.error('Error generating title:', error)
+    return 'New Chat'
+  }
+}
+
 // Helper function to log a bet
 async function logBet(supabase: any, userId: string, data: any, conversationId: string) {
   const {
@@ -983,6 +1009,21 @@ ${statsEnrichment}\n`
               content: fullResponse,
             })
 
+            // Auto-generate title for first exchange
+            const { count: messageCount } = await supabase
+              .from('messages')
+              .select('*', { count: 'exact', head: true })
+              .eq('conversation_id', conversationId)
+
+            if (messageCount === 2) {
+              // This is the first exchange, generate a title
+              const title = await generateConversationTitle(message, fullResponse)
+              await supabase
+                .from('conversations')
+                .update({ title })
+                .eq('id', conversationId)
+            }
+
             // Track LLM interaction in PostHog
             trackLLMInteraction({
               userId: userId,
@@ -1044,6 +1085,21 @@ ${statsEnrichment}\n`
             role: 'assistant',
             content: fullResponse,
           })
+
+          // Auto-generate title for first exchange
+          const { count: messageCount } = await supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('conversation_id', conversationId)
+
+          if (messageCount === 2) {
+            // This is the first exchange, generate a title
+            const title = await generateConversationTitle(message, fullResponse)
+            await supabase
+              .from('conversations')
+              .update({ title })
+              .eq('id', conversationId)
+          }
 
           // Track LLM interaction in PostHog
           trackLLMInteraction({

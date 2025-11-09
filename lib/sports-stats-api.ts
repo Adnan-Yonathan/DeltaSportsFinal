@@ -9,6 +9,22 @@ export interface PlayerStats {
   season?: string
 }
 
+export interface RosterPlayer {
+  id: string
+  name: string
+  fullName: string
+  team: string
+  teamAbbr: string
+  position: string
+  jersey?: string
+  height?: string
+  weight?: string
+  age?: number
+  experience?: number
+  status?: string // Active, Injured, Out
+  headshot?: string
+}
+
 export interface TeamStats {
   team: string
   wins: number
@@ -115,6 +131,89 @@ export async function getNBAInjuries(): Promise<InjuryReport[]> {
   } catch (error) {
     console.error('Error fetching NBA injuries:', error)
     return []
+  }
+}
+
+export async function getNBARoster(teamAbbr?: string): Promise<RosterPlayer[]> {
+  try {
+    const url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams'
+    const response = await fetch(url, { next: { revalidate: 3600 } })
+
+    if (!response.ok) return []
+
+    const data = await response.json()
+    const roster: RosterPlayer[] = []
+
+    if (data.sports?.[0]?.leagues?.[0]?.teams) {
+      for (const teamObj of data.sports[0].leagues[0].teams) {
+        const team = teamObj.team
+        if (teamAbbr && team.abbreviation !== teamAbbr) continue
+
+        // Fetch detailed roster for this team
+        try {
+          const rosterUrl = `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${team.id}/roster`
+          const rosterResponse = await fetch(rosterUrl, { next: { revalidate: 3600 } })
+
+          if (rosterResponse.ok) {
+            const rosterData = await rosterResponse.json()
+
+            // ESPN roster structure: athletes is a direct array
+            if (rosterData.athletes && Array.isArray(rosterData.athletes)) {
+              for (const athlete of rosterData.athletes) {
+                roster.push({
+                  id: athlete.id,
+                  name: athlete.displayName || athlete.fullName,
+                  fullName: athlete.fullName || athlete.displayName,
+                  team: team.displayName,
+                  teamAbbr: team.abbreviation,
+                  position: athlete.position?.abbreviation || athlete.position?.displayName || 'N/A',
+                  jersey: athlete.jersey,
+                  height: athlete.displayHeight,
+                  weight: athlete.displayWeight,
+                  age: athlete.age,
+                  experience: athlete.experience?.years,
+                  status: athlete.injuries && athlete.injuries.length > 0 ? 'Injured' : (athlete.status?.type || 'Active'),
+                  headshot: athlete.headshot?.href
+                })
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`Error fetching roster for ${team.displayName}:`, err)
+        }
+      }
+    }
+
+    return roster
+  } catch (error) {
+    console.error('Error fetching NBA rosters:', error)
+    return []
+  }
+}
+
+export async function searchNBAPlayer(playerName: string): Promise<RosterPlayer | null> {
+  try {
+    const allPlayers = await getNBARoster()
+    const searchLower = playerName.toLowerCase()
+
+    // Try exact match first
+    let found = allPlayers.find(p =>
+      p.fullName.toLowerCase() === searchLower ||
+      p.name.toLowerCase() === searchLower
+    )
+
+    // Try partial match if no exact match
+    if (!found) {
+      found = allPlayers.find(p =>
+        p.fullName.toLowerCase().includes(searchLower) ||
+        p.name.toLowerCase().includes(searchLower)
+      )
+    }
+
+    return found || null
+  } catch (error) {
+    console.error('Error searching for NBA player:', error)
+    return null
   }
 }
 
@@ -386,6 +485,37 @@ export async function getAllInjuries(): Promise<{ sport: string; injuries: Injur
     { sport: 'NBA', injuries: nbaInjuries },
     { sport: 'NFL', injuries: nflInjuries },
   ]
+}
+
+export async function searchPlayer(playerName: string, sport?: string): Promise<RosterPlayer | null> {
+  try {
+    // If sport specified, search only that sport
+    if (sport) {
+      switch (sport.toLowerCase()) {
+        case 'nba':
+        case 'basketball_nba':
+          return await searchNBAPlayer(playerName)
+        default:
+          return null
+      }
+    }
+
+    // Otherwise search NBA (can expand to other sports later)
+    return await searchNBAPlayer(playerName)
+  } catch (error) {
+    console.error('Error searching for player:', error)
+    return null
+  }
+}
+
+export async function getRoster(sport: string, teamAbbr?: string): Promise<RosterPlayer[]> {
+  switch (sport.toLowerCase()) {
+    case 'nba':
+    case 'basketball_nba':
+      return getNBARoster(teamAbbr)
+    default:
+      return []
+  }
 }
 
 // Helper to format stats for AI consumption

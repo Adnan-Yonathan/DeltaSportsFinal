@@ -4,16 +4,20 @@ import {
   getInjuryReports,
   getAllInjuries,
   formatStatsForAI,
+  searchPlayer,
+  getRoster,
   TeamStats,
-  InjuryReport
+  InjuryReport,
+  RosterPlayer
 } from '@/lib/sports-stats-api'
 
 /**
  * GET /api/stats
  * Query parameters:
- * - type: 'team' | 'injuries' | 'all-injuries'
+ * - type: 'team' | 'injuries' | 'all-injuries' | 'player' | 'roster'
  * - sport: 'nba' | 'nfl' | 'mlb' | 'nhl'
  * - team: optional team identifier (abbreviation or ID)
+ * - player: player name to search (for type=player)
  */
 export async function GET(req: NextRequest) {
   try {
@@ -21,6 +25,7 @@ export async function GET(req: NextRequest) {
     const type = searchParams.get('type') || 'team'
     const sport = searchParams.get('sport') || 'nba'
     const team = searchParams.get('team') || undefined
+    const player = searchParams.get('player') || undefined
     const format = searchParams.get('format') || 'json' // 'json' or 'text'
 
     let result: any
@@ -36,6 +41,20 @@ export async function GET(req: NextRequest) {
 
       case 'all-injuries':
         result = await getAllInjuries()
+        break
+
+      case 'player':
+        if (!player) {
+          return NextResponse.json(
+            { error: 'Player name required for player search' },
+            { status: 400 }
+          )
+        }
+        result = await searchPlayer(player, sport)
+        break
+
+      case 'roster':
+        result = await getRoster(sport, team)
         break
 
       default:

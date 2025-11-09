@@ -205,8 +205,9 @@ You have REAL-TIME access to:
 3. Player statistics and performance metrics
 4. Injury reports and lineup information
 5. Advanced analytics (efficiency ratings, pace, trends)
+6. **Player prop betting lines** - When users ask about player props, use the get_player_props function to fetch lines and odds
 
-When users ask about odds, games, or arbitrage, the live data will be provided in your context enriched with relevant stats. NEVER say you don't have access - you DO. ALWAYS use the provided data.
+When users ask about odds, games, or arbitrage, the live data will be provided in your context enriched with relevant stats. For player prop requests, use the get_player_props function. NEVER say you don't have access - you DO. ALWAYS use the provided data.
 
 **Core Principles:**
 1. Never make picks or tell users what to bet
@@ -380,6 +381,32 @@ const BANKROLL_FUNCTIONS: OpenAI.Chat.ChatCompletionTool[] = [
           },
         },
         required: ['type', 'sport'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_player_props',
+      description: 'Get player prop betting odds and lines. Use this ONLY when users explicitly ask about player props, player bets, or specific player performance lines (e.g., "What are LeBron\'s props?", "Show me player props for tonight", "What\'s the over/under for Giannis points?"). DO NOT use for general odds queries.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sport: {
+            type: 'string',
+            enum: ['nba', 'nfl', 'mlb', 'nhl'],
+            description: 'The sport to get player props for',
+          },
+          player: {
+            type: 'string',
+            description: 'Player name to filter props (optional - if not provided, returns all available player props)',
+          },
+          market: {
+            type: 'string',
+            description: 'Comma-separated list of prop markets to fetch. For NBA: points,rebounds,assists,threes. For NFL: pass_tds,pass_yds,rush_yds,receptions. For MLB: hits,total_bases,rbis,runs_scored. For NHL: points,shots_on_goal,blocked_shots. Leave empty for default markets.',
+          },
+        },
+        required: ['sport'],
       },
     },
   },
@@ -831,6 +858,77 @@ ${statsEnrichment}\n`
             success: true,
             data: injuries,
             formatted: formatStatsForAI(injuries)
+          }
+        }
+      } else if (functionName === 'get_player_props') {
+        // Fetch player props from our API endpoint
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3002'
+          const params = new URLSearchParams({
+            sport: functionArgs.sport
+          })
+
+          if (functionArgs.player) {
+            params.append('player', functionArgs.player)
+          }
+
+          if (functionArgs.market) {
+            params.append('market', functionArgs.market)
+          }
+
+          const response = await fetch(`${baseUrl}/api/player-props?${params.toString()}`)
+          const propsData = await response.json()
+
+          if (!response.ok) {
+            functionResult = {
+              success: false,
+              error: propsData.error || 'Failed to fetch player props'
+            }
+          } else {
+            // Format props data for AI
+            let formatted = ''
+            if (propsData.data && propsData.data.length > 0) {
+              formatted = `Found ${propsData.count} player(s) with prop bets:\n\n`
+
+              for (const playerProp of propsData.data) {
+                formatted += `**${playerProp.player}**`
+                if (playerProp.team) {
+                  formatted += ` (${playerProp.teamAbbr || playerProp.team}${playerProp.position ? ', ' + playerProp.position : ''})`
+                }
+                formatted += `\n`
+                if (playerProp.game) {
+                  formatted += `Game: ${playerProp.game}\n`
+                }
+                formatted += `\n`
+
+                for (const [marketType, marketData] of Object.entries(playerProp.markets)) {
+                  formatted += `  ${marketType.toUpperCase()}: Line ${marketData.line}\n`
+                  formatted += `    Over: ${marketData.over.best > 0 ? '+' : ''}${marketData.over.best} (${marketData.over.bestBook})\n`
+                  formatted += `    Under: ${marketData.under.best > 0 ? '+' : ''}${marketData.under.best} (${marketData.under.bestBook})\n`
+
+                  // Show all books if there are multiple
+                  if (marketData.over.allBooks.length > 1) {
+                    formatted += `    All books: ${marketData.over.allBooks.map(b => `${b.book} ${b.odds > 0 ? '+' : ''}${b.odds}`).join(', ')}\n`
+                  }
+                  formatted += `\n`
+                }
+                formatted += `\n`
+              }
+            } else {
+              formatted = 'No player props available for the specified criteria.'
+            }
+
+            functionResult = {
+              success: true,
+              data: propsData.data,
+              count: propsData.count,
+              formatted
+            }
+          }
+        } catch (error: any) {
+          functionResult = {
+            success: false,
+            error: `Failed to fetch player props: ${error.message}`
           }
         }
       }

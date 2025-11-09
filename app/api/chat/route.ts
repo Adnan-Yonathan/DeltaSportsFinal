@@ -227,6 +227,10 @@ async function adjustBankroll(supabase: any, userId: string, amount: number, typ
 
 const SYSTEM_PROMPT = `You are DELTA, a professional sports betting assistant. Your role is to help users analyze betting opportunities, manage their bankroll, and understand sports betting markets.
 
+**CURRENT DATE & TIME:**
+Today's date is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
+Current time is ${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}.
+
 **IMPORTANT - YOU HAVE ACCESS TO LIVE ODDS AND ADVANCED STATISTICS:**
 You have REAL-TIME access to:
 1. Live odds data for NBA, NCAA Basketball (NCAAB), NFL, NCAA Football (NCAAF), MLB, and NHL through The Odds API
@@ -236,7 +240,9 @@ You have REAL-TIME access to:
 5. Advanced analytics (efficiency ratings, pace, trends)
 6. **Player prop betting lines** - When users ask about player props, use the get_player_props function to fetch lines and odds
 
-When users ask about odds, games, or arbitrage, the live data will be provided in your context enriched with relevant stats. For player prop requests, use the get_player_props function. NEVER say you don't have access - you DO. ALWAYS use the provided data.
+When users ask about odds, games, or arbitrage, the live data WILL BE PROVIDED in your context enriched with relevant stats. For player prop requests, use the get_player_props function.
+
+**CRITICAL**: If you see "LIVE ODDS DATA" in your context below, you MUST use it. NEVER say you don't have access when data is provided. If NO odds data appears below, then you can say you don't currently have that specific data loaded.
 
 **Core Principles:**
 1. Never make picks or tell users what to bet
@@ -513,6 +519,7 @@ export async function POST(req: NextRequest) {
 
     let oddsContext = ''
     if (needsOdds) {
+      console.log('[ODDS] Odds request detected, fetching data...')
       try {
         // Try to extract sport from message
         const messageLower = message.toLowerCase()
@@ -737,25 +744,10 @@ export async function POST(req: NextRequest) {
           }
 
           if (allOddsData.length > 0) {
-            // Enrich odds with team stats and injury data
-            const enrichedOddsData = await Promise.all(
-              allOddsData.map(async (sportData) => {
-                try {
-                  const enrichedGames = await enrichGamesWithStats(sportData.games, sportData.sport)
-                  return {
-                    sport: sportData.sport,
-                    games: sportData.games,
-                    enrichedGames
-                  }
-                } catch (error) {
-                  console.error(`Error enriching ${sportData.sport}:`, error)
-                  return sportData
-                }
-              })
-            )
+            console.log(`[ODDS] Successfully fetched odds for ${allOddsData.length} sport(s)`)
 
-            // Format odds data with enriched stats for the AI
-            const formattedOdds = enrichedOddsData.map(sportData => ({
+            // Format odds data FIRST (don't let enrichment failures break everything)
+            const formattedOdds = allOddsData.map(sportData => ({
               sport: sportData.sport,
               games: sportData.games.map((game: any) => ({
                 game: `${game.away_team} @ ${game.home_team}`,
@@ -770,34 +762,56 @@ export async function POST(req: NextRequest) {
               }))
             }))
 
-            // Generate enriched stats summary for AI
-            let statsEnrichment = '\n\n**📊 ENRICHED STATISTICS & INJURY DATA:**\n'
-            for (const sportData of enrichedOddsData) {
-              if (sportData.enrichedGames && sportData.enrichedGames.length > 0) {
-                statsEnrichment += `\n**${sportData.sport.toUpperCase()}:**\n`
-                statsEnrichment += formatEnrichedGamesForAI(sportData.enrichedGames)
-                statsEnrichment += '\n'
+            const totalGames = formattedOdds.reduce((sum, sport) => sum + sport.games.length, 0)
+            console.log(`[ODDS] Total games formatted: ${totalGames}`)
+
+            // Try to enrich with stats (but don't fail if this errors)
+            let statsEnrichment = ''
+            try {
+              const enrichedOddsData = await Promise.all(
+                allOddsData.map(async (sportData) => {
+                  try {
+                    const enrichedGames = await enrichGamesWithStats(sportData.games, sportData.sport)
+                    return {
+                      sport: sportData.sport,
+                      games: sportData.games,
+                      enrichedGames
+                    }
+                  } catch (error) {
+                    console.error(`[ODDS] Error enriching ${sportData.sport}:`, error)
+                    return { ...sportData, enrichedGames: [] }
+                  }
+                })
+              )
+
+              // Generate enriched stats summary for AI
+              statsEnrichment = '\n\n**📊 ENRICHED STATISTICS & INJURY DATA:**\n'
+              for (const sportData of enrichedOddsData) {
+                if (sportData.enrichedGames && sportData.enrichedGames.length > 0) {
+                  statsEnrichment += `\n**${sportData.sport.toUpperCase()}:**\n`
+                  statsEnrichment += formatEnrichedGamesForAI(sportData.enrichedGames)
+                  statsEnrichment += '\n'
+                }
               }
+            } catch (enrichError) {
+              console.error('[ODDS] Stats enrichment failed, continuing with odds only:', enrichError)
+              statsEnrichment = '\n(Stats enrichment unavailable)\n'
             }
 
-            const totalGames = formattedOdds.reduce((sum, sport) => sum + sport.games.length, 0)
+            oddsContext = `\n\n**🔴 LIVE ODDS DATA LOADED 🔴**
+YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
 
-            oddsContext = `\n\n**🔴 CRITICAL - YOU HAVE LIVE ODDS DATA + STATISTICS 🔴**
-YOU HAVE ACCESS TO REAL-TIME ODDS AND COMPREHENSIVE STATISTICS. DO NOT SAY YOU DON'T HAVE ACCESS.
-
-**Data Summary:**
-- ${formattedOdds.length} sport(s) with live odds
-- ${totalGames} game(s) with odds from multiple bookmakers
-- Data fetched from The Odds API specifically for this query
-- Enriched with team stats, records, and injury reports
-- Includes: ${formattedOdds.map(s => s.sport).join(', ')}
+**Data Available:**
+- ${formattedOdds.length} sport(s): ${formattedOdds.map(s => s.sport.replace('basketball_', '').replace('americanfootball_', '').replace('icehockey_', '').toUpperCase()).join(', ')}
+- ${totalGames} game(s) today/upcoming
+- Multiple bookmakers per game
+- Current as of ${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' })}
 
 **YOUR TASK:**
-Use the odds data AND statistics below to provide informed analysis. NEVER claim you don't have access.
-- Compare bookmakers' odds for each game
-- Consider team records, recent performance, and injuries in your analysis
-- For any matchup questions, reference the stats data provided
-- If additional stats are needed, use the get_stats function
+Present this odds data to the user. Create a table or list showing:
+- Game matchups
+- Available odds from different sportsbooks
+- Highlight best odds for each market
 
 **LIVE ODDS DATA:**
 ${JSON.stringify(
@@ -807,11 +821,18 @@ ${JSON.stringify(
             )}
 
 ${statsEnrichment}\n`
+
+            console.log(`[ODDS] Context built successfully, length: ${oddsContext.length} characters`)
+          } else {
+            console.log('[ODDS] No games found after filtering')
           }
+        } else {
+          console.log('[ODDS] No sports detected for odds fetching')
         }
       } catch (error) {
-        console.error('Error fetching odds:', error)
-        // Continue without odds data
+        console.error('[ODDS] Critical error fetching odds:', error)
+        // Add a note to context about the error
+        oddsContext = '\n\n(Note: Odds data temporarily unavailable due to API error)\n'
       }
     }
 

@@ -7,6 +7,7 @@ import Link from "next/link"
 import { AnimatedHero } from "@/components/ui/animated-hero"
 import { ContainerScroll } from "@/components/ui/container-scroll-animation"
 import { FeaturesSectionWithHoverEffects } from "@/components/ui/feature-section-with-hover-effects"
+import RadialOrbitalTimeline from "@/components/ui/radial-orbital-timeline"
 import Image from "next/image"
 
 /** Delta AI Landing Page - Revolut-inspired design */
@@ -183,6 +184,76 @@ function SportsbookTicker() {
 }
 
 export default function LandingPage() {
+  // Delta AI use cases for the radial orbital timeline
+  const deltaUseCases = [
+    {
+      id: 1,
+      title: "Arbitrage Betting",
+      date: "Risk-Free",
+      content: "Find guaranteed profit opportunities by betting both sides across different sportsbooks. Our scanner identifies arbitrage in real-time with exact stake calculations.",
+      category: "Strategy",
+      icon: DollarSign,
+      relatedIds: [2, 3],
+      status: "completed" as const,
+      energy: 100,
+    },
+    {
+      id: 2,
+      title: "Line Shopping",
+      date: "Best Odds",
+      content: "Compare odds across 10+ sportsbooks instantly. Even getting -105 instead of -110 significantly impacts your ROI over time.",
+      category: "Comparison",
+      icon: Search,
+      relatedIds: [1, 3],
+      status: "completed" as const,
+      energy: 95,
+    },
+    {
+      id: 3,
+      title: "Bankroll Management",
+      date: "Track Growth",
+      content: "Monitor every bet and analyze your performance with advanced analytics. See your ROI, win rate, and edge over time.",
+      category: "Analytics",
+      icon: BarChart3,
+      relatedIds: [1, 2, 4],
+      status: "in-progress" as const,
+      energy: 85,
+    },
+    {
+      id: 4,
+      title: "Sharp Money Tracking",
+      date: "Follow Pros",
+      content: "Track line movements to see where professional bettors are placing their action. Identify reverse line movement and steam moves.",
+      category: "Intelligence",
+      icon: TrendingUp,
+      relatedIds: [3, 5],
+      status: "in-progress" as const,
+      energy: 75,
+    },
+    {
+      id: 5,
+      title: "AI Insights",
+      date: "Smart Analysis",
+      content: "Chat with AI to analyze games, understand odds movements, and get strategic insights powered by real-time data.",
+      category: "AI",
+      icon: Brain,
+      relatedIds: [4, 6],
+      status: "in-progress" as const,
+      energy: 90,
+    },
+    {
+      id: 6,
+      title: "CLV Tracking",
+      date: "Measure Edge",
+      content: "Closing Line Value is the #1 indicator of long-term profitability. We automatically track your CLV on every bet.",
+      category: "Performance",
+      icon: LineChart,
+      relatedIds: [5],
+      status: "completed" as const,
+      energy: 80,
+    },
+  ];
+
   return (
     <div className="min-h-screen w-full bg-[#F3F5F7]">
       {/* Fonts */}
@@ -491,6 +562,11 @@ export default function LandingPage() {
           </p>
         </div>
         <FeaturesSectionWithHoverEffects />
+      </div>
+
+      {/* Use Cases - Radial Orbital Timeline */}
+      <div className="w-full bg-black py-0">
+        <RadialOrbitalTimeline timelineData={deltaUseCases} />
       </div>
 
       {/* CTA Section */}

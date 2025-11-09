@@ -986,7 +986,7 @@ ${statsEnrichment}\n`
 
                   // Show all books if there are multiple
                   if (marketData.over.allBooks.length > 1) {
-                    formatted += `    All books: ${marketData.over.allBooks.map(b => `${b.book} ${b.odds > 0 ? '+' : ''}${b.odds}`).join(', ')}\n`
+                    formatted += `    All books: ${marketData.over.allBooks.map((b: any) => `${b.book} ${b.odds > 0 ? '+' : ''}${b.odds}`).join(', ')}\n`
                   }
                   formatted += `\n`
                 }

@@ -625,7 +625,7 @@ export async function POST(req: NextRequest) {
           const foundTeams: string[] = []
           const lowerMsg = msg.toLowerCase()
 
-          for (const [baseTeam, variations] of Object.entries(teamVariations)) {
+          for (const [baseTeam, variations] of Object.entries(teamVariations) as [string, string[]][]) {
             if (variations.some(variation => lowerMsg.includes(variation))) {
               foundTeams.push(baseTeam)
             }
@@ -1060,7 +1060,7 @@ ${statsEnrichment}\n`
 
             if (Object.keys(bySport).length > 0) {
               formatted += `**Performance by Sport:**\n`
-              for (const [sport, data] of Object.entries(bySport)) {
+              for (const [sport, data] of Object.entries(bySport) as [string, any][]) {
                 formatted += `- ${sport.toUpperCase()}: ${data.won}W-${data.lost}L (${data.winRate.toFixed(1)}% WR, ${data.roi.toFixed(1)}% ROI, $${data.profit.toFixed(2)} profit)\n`
               }
             }
@@ -1074,8 +1074,8 @@ ${statsEnrichment}\n`
                 isBreakingEven: totalProfit >= -50 && totalProfit <= 50,
                 hasGoodWinRate: winRate >= 52.4, // Breakeven at -110 odds
                 avgBetSizeVsBankroll: (avgBetSize / currentBalance * 100).toFixed(1),
-                bestSport: Object.entries(bySport).sort((a, b) => b[1].roi - a[1].roi)[0]?.[0],
-                worstSport: Object.entries(bySport).sort((a, b) => a[1].roi - b[1].roi)[0]?.[0]
+                bestSport: (Object.entries(bySport) as [string, any][]).sort((a, b) => b[1].roi - a[1].roi)[0]?.[0],
+                worstSport: (Object.entries(bySport) as [string, any][]).sort((a, b) => a[1].roi - b[1].roi)[0]?.[0]
               }
             }
           }

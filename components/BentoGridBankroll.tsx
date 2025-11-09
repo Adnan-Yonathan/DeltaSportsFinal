@@ -6,8 +6,7 @@ import { formatCurrency, formatPercent } from '@/lib/utils/odds'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import { format } from 'date-fns'
 import { motion } from 'framer-motion'
-import { Wallet, TrendingUp, Trophy, Target, Activity, Plus, Check, X } from 'lucide-react'
-import BetModal from './BetModal'
+import { Wallet, TrendingUp, Trophy, Target, Activity, Check, X } from 'lucide-react'
 import { LiveScore, matchBetToGame } from '@/lib/espn-api'
 
 interface BankrollTrackerProps {
@@ -43,7 +42,6 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
   const [stats, setStats] = useState<BankrollStats | null>(null)
   const [activeBets, setActiveBets] = useState<Bet[]>([])
   const [loading, setLoading] = useState(true)
-  const [showBetModal, setShowBetModal] = useState(false)
   const [liveScores, setLiveScores] = useState<LiveScore[]>([])
   const supabase = createClient()
 
@@ -159,22 +157,12 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
       <div className="h-full bg-black/40 backdrop-blur-xl border-l border-white/5 overflow-y-auto custom-scrollbar">
         <div className="p-6 space-y-4">
           {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <Wallet className="w-5 h-5 text-indigo-400" />
-                Bankroll
-              </h2>
-              <p className="text-xs text-white/40 mt-1">Track your performance</p>
-            </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowBetModal(true)}
-              className="p-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20"
-            >
-              <Plus className="w-4 h-4" />
-            </motion.button>
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-indigo-400" />
+              Bankroll
+            </h2>
+            <p className="text-xs text-white/40 mt-1">Track your performance</p>
           </div>
 
           {/* Bento Grid Layout */}
@@ -401,17 +389,6 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
           }
         `}</style>
       </div>
-
-      {showBetModal && (
-        <BetModal
-          userId={userId}
-          onClose={() => setShowBetModal(false)}
-          onSuccess={() => {
-            setShowBetModal(false)
-            loadData()
-          }}
-        />
-      )}
     </>
   )
 }

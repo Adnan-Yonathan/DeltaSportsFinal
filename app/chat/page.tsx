@@ -105,7 +105,7 @@ export default function ChatPage() {
             transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
             className="w-16 h-16 rounded-full border-4 border-indigo-500 border-t-transparent"
           />
-          <p className="text-white/80 text-xl font-medium">Loading Delta AI...</p>
+          <p className="text-white/80 text-xl font-medium">Loading DELTA...</p>
         </motion.div>
       </div>
     )
@@ -175,7 +175,7 @@ export default function ChatPage() {
               <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-base sm:text-xl font-bold text-white">DELTA AI</h1>
+              <h1 className="text-base sm:text-xl font-bold text-white">DELTA</h1>
               <p className="text-xs text-white/40 hidden sm:block">Intelligent Sports Betting Assistant</p>
             </div>
           </div>
@@ -240,7 +240,7 @@ export default function ChatPage() {
                   🎯
                 </motion.div>
                 <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-                  Welcome to Delta AI
+                  Welcome to DELTA
                 </h2>
                 <p className="text-white/60 text-sm sm:text-base">
                   Your intelligent sports betting assistant

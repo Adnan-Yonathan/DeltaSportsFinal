@@ -195,7 +195,7 @@ export default function ModernSidebar({
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-white">Delta AI</h2>
+            <h2 className="text-lg font-semibold text-white">DELTA</h2>
             <p className="text-xs text-white/40">Chat History</p>
           </div>
         </div>

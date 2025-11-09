@@ -522,16 +522,17 @@ export const SignInPage = ({ className }: SignInPageProps) => {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/chat`,
-        }
       });
 
       if (error) throw error;
 
-      if (data.user) {
-        // Automatically sign in after signup
+      // Check if session was created (email confirmation disabled)
+      if (data.session) {
+        // User is logged in immediately
         router.push('/chat');
+      } else if (data.user && !data.session) {
+        // Email confirmation is required
+        setError("Email confirmation is required. Please disable 'Confirm email' in Supabase Authentication settings.");
       }
     } catch (err: any) {
       setError(err.message || "Failed to create account");

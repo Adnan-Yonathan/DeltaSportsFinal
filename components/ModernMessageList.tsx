@@ -121,8 +121,8 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-black px-4 py-6 custom-scrollbar">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="h-full overflow-y-auto bg-black px-2 sm:px-4 py-3 sm:py-6 custom-scrollbar">
+      <div className="max-w-4xl mx-auto space-y-3 sm:space-y-6">
         <AnimatePresence initial={false}>
           {messages.map((message, index) => (
             <motion.div
@@ -131,20 +131,20 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
-              className={`flex gap-4 ${
+              className={`flex gap-2 sm:gap-4 ${
                 message.role === 'user' ? 'justify-end' : 'justify-start'
               }`}
             >
               {message.role === 'assistant' && (
                 <div className="flex-shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                    <Sparkles className="w-4 h-4 text-white" />
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                   </div>
                 </div>
               )}
 
               <div
-                className={`max-w-[75%] rounded-2xl px-5 py-4 ${
+                className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 py-3 sm:px-5 sm:py-4 ${
                   message.role === 'user'
                     ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/20'
                     : 'bg-white/5 backdrop-blur-xl border border-white/10 text-white/90'

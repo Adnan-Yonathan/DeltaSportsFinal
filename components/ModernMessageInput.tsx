@@ -75,7 +75,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
   }
 
   return (
-    <div className="border-t border-white/5 bg-black/60 backdrop-blur-xl p-4">
+    <div className="border-t border-white/5 bg-black/60 backdrop-blur-xl p-2 sm:p-4">
       <div className="max-w-4xl mx-auto">
         <motion.div
           animate={{
@@ -83,7 +83,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
               ? '0 0 0 2px rgba(99, 102, 241, 0.3)'
               : '0 0 0 0px rgba(99, 102, 241, 0)',
           }}
-          className="relative flex items-end gap-3 rounded-2xl bg-white/5 border border-white/10 p-3 transition-all"
+          className="relative flex items-end gap-2 sm:gap-3 rounded-2xl bg-white/5 border border-white/10 p-2 sm:p-3 transition-all"
         >
           <div className="flex-1">
             <textarea
@@ -107,22 +107,22 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
               whileTap={{ scale: 0.9 }}
               onClick={handleSend}
               disabled={!message.trim() || sending}
-              className={`p-2 rounded-lg transition-all ${
+              className={`p-2.5 sm:p-2 rounded-lg transition-all ${
                 message.trim() && !sending
                   ? 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20'
                   : 'bg-white/5 text-white/30 cursor-not-allowed'
               }`}
             >
               {sending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-5 h-5 sm:w-4 sm:h-4 animate-spin" />
               ) : (
-                <Send className="w-4 h-4" />
+                <Send className="w-5 h-5 sm:w-4 sm:h-4" />
               )}
             </motion.button>
           </div>
         </motion.div>
 
-        <div className="text-xs text-white/40 mt-2 text-center">
+        <div className="hidden sm:block text-xs text-white/40 mt-2 text-center">
           Press <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Enter</kbd> to send •{' '}
           <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Shift + Enter</kbd> for new line
         </div>

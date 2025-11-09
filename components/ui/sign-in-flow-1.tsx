@@ -495,41 +495,49 @@ function MiniNavbar() {
 
 export const SignInPage = ({ className }: SignInPageProps) => {
   const [email, setEmail] = useState("");
-  const [step, setStep] = useState<"email" | "sent">("email");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const supabase = createClient();
   const router = useRouter();
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
-      setLoading(true);
-      setError("");
 
-      try {
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            shouldCreateUser: true,
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-          }
-        });
-
-        if (error) throw error;
-
-        setStep("sent");
-      } catch (err: any) {
-        setError(err.message || "Failed to send magic link");
-      } finally {
-        setLoading(false);
-      }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
     }
-  };
 
-  const handleBackClick = () => {
-    setStep("email");
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    setLoading(true);
     setError("");
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/chat`,
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        // Automatically sign in after signup
+        router.push('/chat');
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to create account");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -562,128 +570,79 @@ export const SignInPage = ({ className }: SignInPageProps) => {
           {/* Left side (form) */}
           <div className="flex-1 flex flex-col justify-center items-center">
             <div className="w-full mt-[150px] max-w-sm">
-              <AnimatePresence mode="wait">
-                {step === "email" ? (
-                  <motion.div
-                    key="email-step"
-                    initial={{ opacity: 0, x: -100 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -100 }}
-                    transition={{ duration: 0.4, ease: "easeOut" }}
-                    className="space-y-6 text-center"
-                  >
-                    <div className="space-y-1">
-                      <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">Welcome to Delta AI</h1>
-                      <p className="text-[1.8rem] text-white/70 font-light">Sign in to continue</p>
-                    </div>
+              <motion.div
+                initial={{ opacity: 0, x: -100 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+                className="space-y-6 text-center"
+              >
+                <div className="space-y-1">
+                  <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">Welcome to Delta AI</h1>
+                  <p className="text-[1.8rem] text-white/70 font-light">Create your account</p>
+                </div>
 
-                    {error && (
-                      <div className="bg-red-500/20 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
-                        {error}
-                      </div>
-                    )}
-
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4">
-                        <div className="h-px bg-white/10 flex-1" />
-                        <span className="text-white/40 text-sm">Enter your email</span>
-                        <div className="h-px bg-white/10 flex-1" />
-                      </div>
-
-                      <form onSubmit={handleEmailSubmit}>
-                        <div className="relative">
-                          <input
-                            type="email"
-                            placeholder="info@gmail.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
-                            required
-                          />
-                          <button
-                            type="submit"
-                            disabled={loading}
-                            className="absolute right-1.5 top-1.5 text-white w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors group overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {loading ? (
-                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                            ) : (
-                              <span className="relative w-full h-full block overflow-hidden">
-                                <span className="absolute inset-0 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-full">
-                                  →
-                                </span>
-                                <span className="absolute inset-0 flex items-center justify-center transition-transform duration-300 -translate-x-full group-hover:translate-x-0">
-                                  →
-                                </span>
-                              </span>
-                            )}
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-
-                    <p className="text-xs text-white/40 pt-10">
-                      By signing up, you agree to the <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">MSA</Link>, <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Product Terms</Link>, <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Policies</Link>, <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Privacy Notice</Link>, and <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Cookie Notice</Link>.
-                    </p>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="sent-step"
-                    initial={{ opacity: 0, x: 100 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 100 }}
-                    transition={{ duration: 0.4, ease: "easeOut" }}
-                    className="space-y-6 text-center"
-                  >
-                    <div className="space-y-1">
-                      <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">Check your email</h1>
-                      <p className="text-[1.25rem] text-white/50 font-light">We sent a magic link to {email}</p>
-                    </div>
-
-                    {error && (
-                      <div className="bg-red-500/20 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
-                        {error}
-                      </div>
-                    )}
-
-                    <div className="py-10">
-                      <motion.div
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ duration: 0.5, delay: 0.2 }}
-                        className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                      </motion.div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <p className="text-white/60 text-sm">Click the link in the email to sign in to your account.</p>
-                      <p className="text-white/40 text-xs">The link will expire in 1 hour.</p>
-                    </div>
-
-                    <div className="pt-6">
-                      <motion.button
-                        onClick={handleBackClick}
-                        className="rounded-full border border-white/10 bg-white/5 text-white font-medium px-8 py-3 hover:bg-white/10 transition-colors"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        Back to email
-                      </motion.button>
-                    </div>
-
-                    <div className="pt-10">
-                      <p className="text-xs text-white/40">
-                        By signing up, you agree to the <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">MSA</Link>, <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Product Terms</Link>, <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Policies</Link>, <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Privacy Notice</Link>, and <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Cookie Notice</Link>.
-                      </p>
-                    </div>
-                  </motion.div>
+                {error && (
+                  <div className="bg-red-500/20 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
+                    {error}
+                  </div>
                 )}
-              </AnimatePresence>
+
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="h-px bg-white/10 flex-1" />
+                    <span className="text-white/40 text-sm">Enter your details</span>
+                    <div className="h-px bg-white/10 flex-1" />
+                  </div>
+
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                    required
+                  />
+
+                  <input
+                    type="password"
+                    placeholder="Password (min 6 characters)"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                    required
+                    minLength={6}
+                  />
+
+                  <input
+                    type="password"
+                    placeholder="Confirm Password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                    required
+                    minLength={6}
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium py-3 hover:from-indigo-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                        Creating account...
+                      </span>
+                    ) : (
+                      'Sign Up'
+                    )}
+                  </button>
+                </form>
+
+                <p className="text-xs text-white/40 pt-10">
+                  By signing up, you agree to the <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">MSA</Link>, <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Product Terms</Link>, <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Policies</Link>, <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Privacy Notice</Link>, and <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Cookie Notice</Link>.
+                </p>
+              </motion.div>
             </div>
           </div>
 

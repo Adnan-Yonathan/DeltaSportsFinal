@@ -1,7 +1,7 @@
 'use client'
 
-import { SignInPage } from '@/components/ui/sign-in-flow-1'
+import { LoginPage } from '@/components/ui/login-page'
 
-export default function LoginPage() {
-  return <SignInPage />
+export default function Login() {
+  return <LoginPage />
 }

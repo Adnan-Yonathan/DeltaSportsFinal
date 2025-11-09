@@ -8,7 +8,6 @@ import { AnimatedHero } from "@/components/ui/animated-hero"
 import { ContainerScroll } from "@/components/ui/container-scroll-animation"
 import { FeaturesSectionWithHoverEffects } from "@/components/ui/feature-section-with-hover-effects"
 import RadialOrbitalTimeline from "@/components/ui/radial-orbital-timeline"
-import DotShaderBackground from "@/components/ui/dot-shader-background"
 import Image from "next/image"
 
 /** Delta AI Landing Page - Revolut-inspired design */
@@ -257,9 +256,6 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen w-full bg-black">
-      {/* Shader Background */}
-      <DotShaderBackground />
-
       {/* Fonts */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');

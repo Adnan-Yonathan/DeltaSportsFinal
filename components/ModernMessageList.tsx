@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { User, Sparkles } from 'lucide-react'
 import AnimatedMessage from './AnimatedMessage'
 import ChatIntro from './ChatIntro'
+import { ShiningText } from '@/components/ui/shining-text'
 
 interface Message {
   id: string
@@ -26,6 +27,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [latestMessageId, setLatestMessageId] = useState<string | null>(null)
+  const [isThinking, setIsThinking] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
@@ -55,6 +57,9 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
           // Track the latest assistant message for animation
           if (newMessage.role === 'assistant') {
             setLatestMessageId(newMessage.id)
+            setIsThinking(false) // Stop thinking when assistant responds
+          } else if (newMessage.role === 'user') {
+            setIsThinking(true) // Start thinking when user sends message
           }
         }
       )
@@ -225,6 +230,27 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
             </motion.div>
           ))}
         </AnimatePresence>
+
+        {/* Thinking indicator */}
+        {isThinking && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className="flex gap-2 sm:gap-4 justify-start"
+          >
+            <div className="flex-shrink-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+              </div>
+            </div>
+            <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 py-3 sm:px-5 sm:py-4 bg-white/5 backdrop-blur-xl border border-white/10">
+              <ShiningText text="DELTA is thinking..." />
+            </div>
+          </motion.div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 

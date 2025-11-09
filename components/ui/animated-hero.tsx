@@ -28,10 +28,10 @@ function AnimatedHero({
   }, [termIndex, rotatingTerms, interval])
 
   return (
-    <h1 className="text-5xl md:text-6xl font-semibold leading-[1.05] tracking-tight text-white">
+    <h1 className="text-5xl md:text-6xl font-semibold leading-[1.2] tracking-tight text-white">
       {staticText}
       <br />
-      <span className="relative inline-block min-h-[1.2em] w-full overflow-hidden">
+      <span className="relative inline-block min-h-[1.4em] w-full">
         {/* Invisible placeholder to maintain height */}
         <span className="invisible font-semibold">analytics.</span>
         {rotatingTerms.map((term, index) => (

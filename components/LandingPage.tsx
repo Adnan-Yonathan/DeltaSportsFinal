@@ -6,6 +6,8 @@ import { ShieldCheck, ArrowUpRight, TrendingUp, BarChart3, Zap, Brain, MessageSq
 import Link from "next/link"
 import { AnimatedHero } from "@/components/ui/animated-hero"
 import { Timeline } from "@/components/ui/timeline"
+import { ContainerScroll } from "@/components/ui/container-scroll-animation"
+import Image from "next/image"
 
 /** Delta AI Landing Page - Revolut-inspired design */
 
@@ -386,6 +388,104 @@ export default function LandingPage() {
           <p className="text-sm text-slate-500 uppercase tracking-wider font-semibold">Supported Sportsbooks</p>
         </div>
         <SportsbookTicker />
+      </div>
+
+      {/* Container Scroll Animation - App Showcase */}
+      <div className="w-full bg-[#F3F5F7]">
+        <ContainerScroll
+          titleComponent={
+            <div className="space-y-4">
+              <h2 className="text-4xl md:text-6xl font-bold text-slate-900">
+                Experience Delta AI in Action
+              </h2>
+              <p className="text-base md:text-xl text-slate-600 max-w-2xl mx-auto">
+                Chat with AI, compare odds, and track your bankroll all in one powerful interface
+              </p>
+            </div>
+          }
+        >
+          {/* Mock Dashboard Interface */}
+          <div className="w-full h-full bg-black rounded-lg overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-3 h-full">
+              {/* Sidebar */}
+              <div className="bg-black/40 backdrop-blur-xl border-r border-white/5 p-4 hidden md:block">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 mb-6">
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600" />
+                    <span className="font-bold text-white">DELTA</span>
+                  </div>
+                  {['New Chat', 'NBA Analysis', 'Arbitrage Picks', 'Bankroll Review'].map((chat, i) => (
+                    <div key={i} className="p-3 rounded-lg bg-white/5 text-white/80 text-sm hover:bg-white/10 transition-colors">
+                      {chat}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Chat Area */}
+              <div className="md:col-span-2 flex flex-col h-full">
+                <div className="flex-1 p-6 space-y-4 overflow-auto">
+                  {/* User Message */}
+                  <div className="flex justify-end">
+                    <div className="max-w-md p-4 rounded-2xl bg-indigo-500 text-white">
+                      <p className="text-sm">Show me the best odds for Lakers vs Warriors tonight</p>
+                    </div>
+                  </div>
+
+                  {/* AI Response */}
+                  <div className="flex justify-start">
+                    <div className="max-w-2xl p-4 rounded-2xl bg-white/10 text-white">
+                      <p className="text-sm mb-3">I found the latest odds for Lakers vs Warriors:</p>
+                      <div className="space-y-2">
+                        <div className="p-3 rounded-lg bg-black/20 text-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="text-white/60">FanDuel</span>
+                            <span className="font-bold text-emerald-400">LAL -5.5 (-110)</span>
+                          </div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-black/20 text-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="text-white/60">DraftKings</span>
+                            <span className="font-bold text-emerald-400">LAL -5.0 (-108)</span>
+                          </div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-black/20 text-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="text-white/60">BetMGM</span>
+                            <span className="font-bold text-emerald-400">LAL -6.0 (-112)</span>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-white/60 mt-3">Best value: DraftKings at -5.0 (-108)</p>
+                    </div>
+                  </div>
+
+                  {/* Typing Indicator */}
+                  <div className="flex justify-start">
+                    <div className="flex items-center gap-2 p-4 rounded-2xl bg-white/5">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 rounded-full bg-white/40 animate-pulse" />
+                        <div className="w-2 h-2 rounded-full bg-white/40 animate-pulse delay-75" />
+                        <div className="w-2 h-2 rounded-full bg-white/40 animate-pulse delay-150" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Input Area */}
+                <div className="p-4 border-t border-white/5">
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-white/5 border border-white/10">
+                    <MessageSquare className="w-5 h-5 text-white/40" />
+                    <div className="flex-1 text-sm text-white/40">Ask about odds, games, or your bankroll...</div>
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
+                      <ArrowUpRight className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ContainerScroll>
       </div>
 
       {/* Timeline Section - How It Works to CTA */}

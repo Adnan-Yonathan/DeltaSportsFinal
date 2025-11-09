@@ -697,10 +697,12 @@ ${JSON.stringify(
         role: 'system',
         content: SYSTEM_PROMPT + contextMessage + oddsContext,
       },
-      ...messages.map((msg) => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-      })),
+      ...messages
+        .filter((msg) => msg.content && msg.content.trim().length > 0)
+        .map((msg) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        })),
     ]
 
     // First call to check for function calls (non-streaming)

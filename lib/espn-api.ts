@@ -18,6 +18,7 @@ const ESPN_API_BASE = 'https://site.web.api.espn.com/apis/site/v2/sports'
 
 const SPORT_ENDPOINTS = {
   nba: `${ESPN_API_BASE}/basketball/nba/scoreboard`,
+  nfl: `${ESPN_API_BASE}/football/nfl/scoreboard`,
   mlb: `${ESPN_API_BASE}/baseball/mlb/scoreboard`,
   nhl: `${ESPN_API_BASE}/hockey/nhl/scoreboard`,
   ncaaf: `${ESPN_API_BASE}/football/college-football/scoreboard`,
@@ -76,7 +77,7 @@ function parseESPNResponse(data: any, sport: string): LiveScore[] {
 }
 
 export async function getAllLiveScores(): Promise<LiveScore[]> {
-  const sports: (keyof typeof SPORT_ENDPOINTS)[] = ['nba', 'mlb', 'nhl', 'ncaaf', 'ncaab']
+  const sports: (keyof typeof SPORT_ENDPOINTS)[] = ['nba', 'nfl', 'mlb', 'nhl', 'ncaaf', 'ncaab']
 
   const results = await Promise.allSettled(
     sports.map(sport => fetchESPNScores(sport))

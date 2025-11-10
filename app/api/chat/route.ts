@@ -325,33 +325,36 @@ When identifying the best odds/value, you MUST consider the line FIRST, then the
 - Note if a book offers a better line even with slightly worse odds
 - Example: "Best value for Lakers: -4.5 at -110 (FanDuel) — Better than -5 at -105 elsewhere"
 
-**CRITICAL - How to Correctly Display Spreads:**
-When showing spread betting lines, you MUST correctly match each team to their spread:
-1. **Understanding The Data Structure:**
-   - Each spread market has TWO outcomes (one for each team)
-   - Each outcome has: "name" (team name), "point" (spread value), "price" (odds)
-   - Example: [{"name": "Portland Trail Blazers", "point": 2.0, "price": -110}, {"name": "Orlando Magic", "point": -2.0, "price": -110}]
+**CRITICAL - How to Display Betting Lines:**
+The odds data includes PRE-FORMATTED LINES that are ready to display. You MUST use these formatted lines:
 
-2. **Displaying Spreads Correctly:**
-   - ALWAYS look at the "name" field to identify which team the spread belongs to
-   - If "point" is POSITIVE (e.g., 2.0), display as "+2" (underdog getting points)
-   - If "point" is NEGATIVE (e.g., -2.0), display as "-2" (favorite giving points)
-   - NEVER show Team A's spread when the user asks about Team B
-   - NEVER invert or swap the spreads between teams
+1. **Use the "formatted_lines" Field:**
+   - Each market has a "formatted_lines" array with human-readable strings
+   - Example: ["Portland Trail Blazers +2 at -110", "Orlando Magic -2 at -110"]
+   - These are ALREADY correctly formatted - just display them as-is
+   - DO NOT try to parse the raw "outcomes" array yourself
 
-3. **Correct Examples:**
-   - If user asks "Trail Blazers spread" and data shows {"name": "Portland Trail Blazers", "point": 2.0}, say: "Trail Blazers +2"
-   - If user asks "Magic spread" and data shows {"name": "Orlando Magic", "point": -2.0}, say: "Magic -2"
+2. **Displaying Spreads and Odds:**
+   - Simply copy the formatted line that matches the team the user asked about
+   - If user asks "Trail Blazers spread on FanDuel", find FanDuel bookmaker, find the formatted line with "Trail Blazers" in it
+   - Example: User asks "Trail Blazers spread?" → Show: "Portland Trail Blazers +2 at -110 (FanDuel)"
+
+3. **Creating Tables:**
+   - When showing multiple bookmakers, create a table using the formatted_lines
+   - List all bookmakers with their formatted lines
+   - Highlight which has the best value (best line, not just best odds)
 
 4. **Common Mistakes to AVOID:**
-   - ❌ Showing Trail Blazers -2 when their point value is 2.0
-   - ❌ Showing Magic +2 when their point value is -2.0
-   - ❌ Swapping which team gets which spread
-   - ❌ Omitting the + sign for positive spreads (always show +2, not just 2)
+   - ❌ NEVER make up spreads or odds from your training data
+   - ❌ NEVER show a different team's line when user asks about a specific team
+   - ❌ NEVER show "-3.5" if the formatted line says "+2"
+   - ❌ NEVER parse the raw outcomes array - use formatted_lines only
+   - ❌ If you don't see the team in the formatted lines, say data not available - DO NOT MAKE UP LINES
 
-5. **When User Asks About Specific Bookmaker:**
-   - If user mentions "FanDuel" or any specific bookmaker, show ONLY that bookmaker's line
-   - Don't show "best line" from other bookmakers unless explicitly asked
+5. **Verification:**
+   - Before responding, verify the team name in your response matches the user's query
+   - If user asks "Trail Blazers", your response MUST contain "Trail Blazers" or "Portland Trail Blazers"
+   - The numbers you show MUST come from the formatted_lines, not your memory
 
 **Arbitrage Opportunities:**
 When users ask for arbitrage opportunities, you MUST:
@@ -914,25 +917,68 @@ export async function POST(req: NextRequest) {
               })
             }
 
+            // Helper to format spread/total with proper +/- sign
+            const formatSpreadOrTotal = (point: number): string => {
+              if (point > 0) return `+${point}`
+              return `${point}` // Negative already has minus sign
+            }
+
             // Format odds data FIRST (don't let enrichment failures break everything)
             const formattedOdds = allOddsData.map(sportData => ({
               sport: sportData.sport,
               games: sportData.games.map((game: any) => ({
                 game: `${game.away_team} @ ${game.home_team}`,
+                away_team: game.away_team,
+                home_team: game.home_team,
                 commence_time: game.commence_time,
                 commence_time_formatted: formatGameTime(game.commence_time),
                 bookmakers: game.bookmakers.map((book: any) => ({
                   name: book.title,
-                  markets: book.markets.map((market: any) => ({
-                    type: market.key,
-                    outcomes: market.outcomes
-                  }))
+                  markets: book.markets.map((market: any) => {
+                    // Pre-format spreads and totals into human-readable strings
+                    const formattedOutcomes = market.outcomes.map((outcome: any) => {
+                      let formatted = `${outcome.name}`
+
+                      // Add spread/total line with proper formatting
+                      if (outcome.point !== undefined) {
+                        if (market.key === 'spreads') {
+                          formatted += ` ${formatSpreadOrTotal(outcome.point)}`
+                        } else if (market.key === 'totals') {
+                          formatted += ` ${outcome.name.includes('Over') ? 'Over' : 'Under'} ${Math.abs(outcome.point)}`
+                        }
+                      }
+
+                      // Add odds
+                      formatted += ` at ${outcome.price > 0 ? '+' : ''}${outcome.price}`
+
+                      return formatted
+                    })
+
+                    return {
+                      type: market.key,
+                      outcomes: market.outcomes,  // Keep original for any programmatic access
+                      formatted_lines: formattedOutcomes  // Pre-formatted human-readable lines
+                    }
+                  })
                 }))
               }))
             }))
 
             const totalGames = formattedOdds.reduce((sum, sport) => sum + sport.games.length, 0)
             console.log(`[ODDS] Total games formatted: ${totalGames}`)
+
+            // Log formatted lines for debugging spread issues
+            formattedOdds.forEach(sportData => {
+              sportData.games.forEach(game => {
+                console.log(`[ODDS] Game: ${game.game}`)
+                game.bookmakers.forEach(book => {
+                  const spreadMarket = book.markets.find((m: any) => m.type === 'spreads')
+                  if (spreadMarket?.formatted_lines) {
+                    console.log(`[ODDS]   ${book.name} spreads: ${spreadMarket.formatted_lines.join(' | ')}`)
+                  }
+                })
+              })
+            })
 
             // Try to enrich with stats (but don't fail if this errors)
             let statsEnrichment = ''
@@ -996,6 +1042,14 @@ Present this odds data to the user. Create a table or list showing:
 - Available odds from different sportsbooks
 - Highlight best odds for each market
 - ONLY show games from the data below - NO OTHER GAMES
+
+**🚨 CRITICAL - HOW TO READ THE DATA:**
+- Each market has a "formatted_lines" array with pre-formatted strings
+- Example: "Portland Trail Blazers +2 at -110"
+- These lines are ALREADY CORRECT - just display them as shown
+- DO NOT parse the raw "outcomes" array - use "formatted_lines" only
+- If user asks for "Trail Blazers spread", find the formatted_line with "Trail Blazers" in it
+- The team name, spread, and odds in formatted_lines are 100% accurate - DO NOT change them
 
 **LIVE ODDS DATA:**
 ${JSON.stringify(

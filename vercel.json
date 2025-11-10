@@ -8,6 +8,10 @@
     {
       "path": "/api/lines/record",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/bets/auto-settle",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

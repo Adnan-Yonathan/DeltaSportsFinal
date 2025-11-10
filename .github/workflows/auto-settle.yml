@@ -17,10 +17,22 @@ jobs:
         run: |
           echo "Triggering auto-settlement at $(date)"
 
+          # Remove trailing slash from domain if present
+          DOMAIN="${{ secrets.VERCEL_DOMAIN }}"
+          DOMAIN="${DOMAIN%/}"
+
+          # Ensure HTTPS
+          if [[ ! "$DOMAIN" =~ ^https?:// ]]; then
+            DOMAIN="https://${DOMAIN}"
+          fi
+
+          echo "Calling: ${DOMAIN}/api/bets/auto-settle"
+
           response=$(curl -s -w "\n%{http_code}" -X POST \
-            "${{ secrets.VERCEL_DOMAIN }}/api/bets/auto-settle" \
+            "${DOMAIN}/api/bets/auto-settle" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json")
+            -H "Content-Type: application/json" \
+            -L)
 
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | sed '$d')

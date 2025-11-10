@@ -11,17 +11,16 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = createClient()
 
-    // Verify user authentication (if called by user)
-    // For cron jobs, you might want to use an API key instead
+    // Verify cron secret for automated calls
+    const authHeader = req.headers.get('authorization')
+    const hasCronAuth = authHeader === `Bearer ${process.env.CRON_SECRET}`
+
+    // Also check for authenticated user (for manual triggers)
     const {
       data: { user },
     } = await supabase.auth.getUser()
 
-    // Allow both authenticated users and API key access
-    const apiKey = req.headers.get('x-api-key')
-    const validApiKey = process.env.AUTO_SETTLE_API_KEY
-
-    if (!user && (!apiKey || apiKey !== validApiKey)) {
+    if (!hasCronAuth && !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

@@ -337,25 +337,30 @@ export async function markOpeningLines(sport: string): Promise<number> {
   const supabase = createClient()
 
   // Get all games for this sport that don't have opening lines yet
-  const { data: gamesWithoutOpening, error } = await supabase
+  const { data: allGames, error } = await supabase
     .from('lines')
-    .select('DISTINCT odds_api_id')
+    .select('odds_api_id')
     .eq('sport', sport)
     .eq('line_type', 'current')
 
-  if (error || !gamesWithoutOpening) {
+  if (error || !allGames) {
     console.error('Error fetching games:', error)
     return 0
   }
 
+  // Get unique game IDs
+  const uniqueGameIds = [...new Set(allGames.map(g => g.odds_api_id))]
+
   let markedCount = 0
 
-  for (const game of gamesWithoutOpening) {
+  for (const gameId of uniqueGameIds) {
+    if (!gameId) continue
+
     // Check if this game already has opening lines
     const { data: existingOpening } = await supabase
       .from('lines')
       .select('id')
-      .eq('odds_api_id', game.odds_api_id)
+      .eq('odds_api_id', gameId)
       .eq('line_type', 'opening')
       .limit(1)
 
@@ -364,7 +369,7 @@ export async function markOpeningLines(sport: string): Promise<number> {
       const { data: earliestLines } = await supabase
         .from('lines')
         .select('*')
-        .eq('odds_api_id', game.odds_api_id)
+        .eq('odds_api_id', gameId)
         .eq('line_type', 'current')
         .order('recorded_at', { ascending: true })
         .limit(10)
@@ -383,7 +388,7 @@ export async function markOpeningLines(sport: string): Promise<number> {
 
         if (!insertError) {
           markedCount++
-          console.log(`✓ Marked opening lines for game ${game.odds_api_id}`)
+          console.log(`✓ Marked opening lines for game ${gameId}`)
         }
       }
     }

@@ -1136,12 +1136,14 @@ ${statsEnrichment}\n`
 
             const latencyMs = Date.now() - startTime
 
-            // Save assistant message
-            await supabase.from('messages').insert({
-              conversation_id: conversationId,
-              role: 'assistant',
-              content: fullResponse,
-            })
+            // Save assistant message (only if it has content)
+            if (fullResponse && fullResponse.trim().length > 0) {
+              await supabase.from('messages').insert({
+                conversation_id: conversationId,
+                role: 'assistant',
+                content: fullResponse,
+              })
+            }
 
             // Auto-generate title for first exchange
             const { count: messageCount } = await supabase
@@ -1213,12 +1215,14 @@ ${statsEnrichment}\n`
 
           const latencyMs = Date.now() - startTime
 
-          // Save assistant message
-          await supabase.from('messages').insert({
-            conversation_id: conversationId,
-            role: 'assistant',
-            content: fullResponse,
-          })
+          // Save assistant message (only if it has content)
+          if (fullResponse && fullResponse.trim().length > 0) {
+            await supabase.from('messages').insert({
+              conversation_id: conversationId,
+              role: 'assistant',
+              content: fullResponse,
+            })
+          }
 
           // Auto-generate title for first exchange
           const { count: messageCount } = await supabase

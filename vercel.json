@@ -3,15 +3,5 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "regions": ["iad1"],
-  "crons": [
-    {
-      "path": "/api/lines/record",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/bets/auto-settle",
-      "schedule": "*/15 * * * *"
-    }
-  ]
+  "regions": ["iad1"]
 }

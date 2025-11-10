@@ -871,10 +871,15 @@ ${statsEnrichment}\n`
         content: SYSTEM_PROMPT + contextMessage + oddsContext,
       },
       ...messages
-        .filter((msg) => msg.content && msg.content.trim().length > 0)
+        .filter((msg) => {
+          // Ensure content exists and is a non-empty string
+          return msg.content != null &&
+                 typeof msg.content === 'string' &&
+                 msg.content.trim().length > 0
+        })
         .map((msg) => ({
           role: msg.role as 'user' | 'assistant',
-          content: msg.content,
+          content: String(msg.content), // Ensure content is always a string
         })),
     ]
 

@@ -150,9 +150,18 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
             if (match) spread = parseFloat(match[1])
           }
 
-          // Calculate time remaining (assuming 48 min for NBA, 60 for others)
+          // Parse time from period string (e.g., "Q3 5:23" or "2nd Half")
           const gameLength = sportKey.includes('basketball') ? 48 : 60
-          const timeRemaining = (gameLength - (liveGame.timeElapsed || 0)) * 60
+          let timeElapsedMinutes = gameLength / 2 // Default to halftime if can't parse
+
+          // Try to parse quarter/period from liveGame.period
+          const periodMatch = liveGame.period.match(/Q(\d)|(\d)(?:st|nd|rd|th)/i)
+          if (periodMatch && sportKey.includes('basketball')) {
+            const quarter = parseInt(periodMatch[1] || periodMatch[2])
+            timeElapsedMinutes = (quarter - 1) * 12 + 6 // Estimate middle of quarter
+          }
+
+          const timeRemaining = (gameLength - timeElapsedMinutes) * 60
 
           const result = calculateBetProbability({
             betType,
@@ -162,7 +171,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
               home: liveGame.homeScore
             },
             timeRemaining,
-            timeElapsed: (liveGame.timeElapsed || 0) * 60,
+            timeElapsed: timeElapsedMinutes * 60,
             spread,
             totalLine,
             direction,

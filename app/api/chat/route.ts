@@ -254,6 +254,27 @@ When users ask about odds, games, or arbitrage, the live data WILL BE PROVIDED i
 
 **CRITICAL**: If you see "LIVE ODDS DATA" in your context below, you MUST use it. NEVER say you don't have access when data is provided. If NO odds data appears below, then you can say you don't currently have that specific data loaded.
 
+**CRITICAL - Game Schedule Queries:**
+When users ask "what games are today/tonight/tomorrow":
+1. YOU MUST ONLY use the live odds data provided in your context
+2. NEVER make up games from memory or training data
+3. If you see "LIVE ODDS DATA" below, list ONLY those games with their commence times
+4. If NO odds data is provided below:
+   - Say: "I need to fetch the latest schedule. One moment..."
+   - DO NOT make up games
+5. Group games by sport if multiple sports are in the data
+6. Show game times in the user's timezone
+7. If user asks for "tomorrow" and you only have "today" data, say you only have today's data
+
+**Example correct response:**
+"Here are the NBA games for today (November 10, 2025):
+- Lakers vs Celtics (7:30 PM EST)
+- Warriors vs Nets (10:00 PM EST)
+[Only games from the provided data]"
+
+**NEVER respond with:**
+"Here are the games..." then list games NOT in the provided data.
+
 **Core Principles:**
 1. Never make picks or tell users what to bet
 2. Provide tools, data, and analysis only
@@ -594,6 +615,10 @@ export async function POST(req: NextRequest) {
         // Try to extract sport from message
         const messageLower = message.toLowerCase()
 
+        // Detect if user is asking about tomorrow
+        const isTomorrowQuery = messageLower.match(/(tomorrow|tmrw|next day)/i)
+        const isTodayQuery = messageLower.match(/(today|tonight|this evening)/i)
+
         // Comprehensive team name mapping with variations
         const teamVariations: { [key: string]: string[] } = {
           // NBA Teams (base name as key)
@@ -764,14 +789,29 @@ export async function POST(req: NextRequest) {
             try {
               let oddsData = await fetchOdds(sport)
 
-              // Filter games to user's "today" in their timezone
+              // Filter games to user's "today" or "tomorrow" in their timezone
               if (oddsData.length > 0) {
                 const now = new Date()
-                const todayInUserTZ = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
-                const startOfDay = new Date(todayInUserTZ)
-                startOfDay.setHours(0, 0, 0, 0)
-                const endOfDay = new Date(todayInUserTZ)
-                endOfDay.setHours(23, 59, 59, 999)
+                const dateInUserTZ = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
+
+                let startOfDay: Date
+                let endOfDay: Date
+
+                if (isTomorrowQuery) {
+                  // Filter for tomorrow's games
+                  const tomorrow = new Date(dateInUserTZ)
+                  tomorrow.setDate(tomorrow.getDate() + 1)
+                  startOfDay = new Date(tomorrow)
+                  startOfDay.setHours(0, 0, 0, 0)
+                  endOfDay = new Date(tomorrow)
+                  endOfDay.setHours(23, 59, 59, 999)
+                } else {
+                  // Filter for today's games (default)
+                  startOfDay = new Date(dateInUserTZ)
+                  startOfDay.setHours(0, 0, 0, 0)
+                  endOfDay = new Date(dateInUserTZ)
+                  endOfDay.setHours(23, 59, 59, 999)
+                }
 
                 oddsData = oddsData.filter(game => {
                   const gameTime = new Date(game.commence_time)
@@ -899,12 +939,22 @@ export async function POST(req: NextRequest) {
               statsEnrichment = '\n(Stats enrichment unavailable)\n'
             }
 
+            const timeLabel = isTomorrowQuery ? 'tomorrow' : 'today/upcoming'
+            const dateContext = isTomorrowQuery ? 'TOMORROW' : 'TODAY'
+
             oddsContext = `\n\n**🔴 LIVE ODDS DATA LOADED 🔴**
 YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
 
+**CRITICAL INSTRUCTIONS:**
+- Below are the ONLY ${totalGames} game(s) you should mention
+- DO NOT make up or invent games not in this data
+- DO NOT use games from your training data/memory
+- If user asks for games not in this data, say data is not available yet
+- These games are for ${dateContext}
+
 **Data Available:**
 - ${formattedOdds.length} sport(s): ${formattedOdds.map(s => s.sport.replace('basketball_', '').replace('americanfootball_', '').replace('icehockey_', '').toUpperCase()).join(', ')}
-- ${totalGames} game(s) today/upcoming
+- ${totalGames} game(s) ${timeLabel}
 - Multiple bookmakers per game
 - Current as of ${new Date().toLocaleString('en-US', {
   timeZone: timezone,
@@ -914,9 +964,10 @@ YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
 
 **YOUR TASK:**
 Present this odds data to the user. Create a table or list showing:
-- Game matchups
+- Game matchups with commence times
 - Available odds from different sportsbooks
 - Highlight best odds for each market
+- ONLY show games from the data below - NO OTHER GAMES
 
 **LIVE ODDS DATA:**
 ${JSON.stringify(
@@ -930,6 +981,9 @@ ${statsEnrichment}\n`
             console.log(`[ODDS] Context built successfully, length: ${oddsContext.length} characters`)
           } else {
             console.log('[ODDS] No games found after filtering')
+            if (isTomorrowQuery) {
+              oddsContext = '\n\n**NO GAMES TOMORROW**: There are no games scheduled for tomorrow based on current data. The odds data may not be available yet for games that far out.\n'
+            }
           }
         } else {
           console.log('[ODDS] No sports detected for odds fetching')

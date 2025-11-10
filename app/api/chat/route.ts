@@ -903,21 +903,62 @@ export async function POST(req: NextRequest) {
               })
             }
 
-            // Format odds data FIRST (don't let enrichment failures break everything)
+            // Format odds data into explicit, hard-to-misinterpret structure
             const formattedOdds = allOddsData.map(sportData => ({
               sport: sportData.sport,
-              games: sportData.games.map((game: any) => ({
-                game: `${game.away_team} @ ${game.home_team}`,
-                commence_time: game.commence_time,
-                commence_time_formatted: formatGameTime(game.commence_time),
-                bookmakers: game.bookmakers.map((book: any) => ({
-                  name: book.title,
-                  markets: book.markets.map((market: any) => ({
-                    type: market.key,
-                    outcomes: market.outcomes
-                  }))
-                }))
-              }))
+              games: sportData.games.map((game: any) => {
+                const gameInfo: any = {
+                  game: `${game.away_team} @ ${game.home_team}`,
+                  away_team: game.away_team,
+                  home_team: game.home_team,
+                  commence_time: game.commence_time,
+                  commence_time_formatted: formatGameTime(game.commence_time),
+                  spreads: [],
+                  totals: [],
+                  moneylines: []
+                }
+
+                // Extract spreads, totals, and moneylines across all bookmakers
+                for (const book of game.bookmakers) {
+                  const spreadsMarket = book.markets.find((m: any) => m.key === 'spreads')
+                  const totalsMarket = book.markets.find((m: any) => m.key === 'totals')
+                  const h2hMarket = book.markets.find((m: any) => m.key === 'h2h')
+
+                  if (spreadsMarket) {
+                    for (const outcome of spreadsMarket.outcomes) {
+                      gameInfo.spreads.push({
+                        book: book.title,
+                        team: outcome.name,
+                        spread: outcome.point,
+                        odds: outcome.price
+                      })
+                    }
+                  }
+
+                  if (totalsMarket) {
+                    for (const outcome of totalsMarket.outcomes) {
+                      gameInfo.totals.push({
+                        book: book.title,
+                        type: outcome.name, // "Over" or "Under"
+                        line: outcome.point,
+                        odds: outcome.price
+                      })
+                    }
+                  }
+
+                  if (h2hMarket) {
+                    for (const outcome of h2hMarket.outcomes) {
+                      gameInfo.moneylines.push({
+                        book: book.title,
+                        team: outcome.name,
+                        odds: outcome.price
+                      })
+                    }
+                  }
+                }
+
+                return gameInfo
+              })
             }))
 
             const totalGames = formattedOdds.reduce((sum, sport) => sum + sport.games.length, 0)
@@ -959,43 +1000,116 @@ export async function POST(req: NextRequest) {
             const timeLabel = isTomorrowQuery ? 'tomorrow' : 'today/upcoming'
             const dateContext = isTomorrowQuery ? 'TOMORROW' : 'TODAY'
 
+            // Pre-format the odds into explicit text format to prevent hallucination
+            let oddsTextFormat = ''
+            for (const sportData of formattedOdds) {
+              const sportName = sportData.sport.replace('basketball_', '').replace('americanfootball_', '').replace('icehockey_', '').toUpperCase()
+              oddsTextFormat += `\n\n=== ${sportName} GAMES ===\n`
+
+              for (const game of sportData.games) {
+                oddsTextFormat += `\n**${game.game}**\n`
+                oddsTextFormat += `Game Time: ${game.commence_time_formatted}\n`
+
+                // List spreads explicitly
+                if (game.spreads.length > 0) {
+                  oddsTextFormat += `\nSPREADS:\n`
+                  const awayTeamSpreads = game.spreads.filter((s: any) => s.team === game.away_team)
+                  const homeTeamSpreads = game.spreads.filter((s: any) => s.team === game.home_team)
+
+                  if (awayTeamSpreads.length > 0) {
+                    oddsTextFormat += `${game.away_team}:\n`
+                    for (const spread of awayTeamSpreads) {
+                      oddsTextFormat += `  - ${spread.book}: ${spread.spread > 0 ? '+' : ''}${spread.spread} (${spread.odds > 0 ? '+' : ''}${spread.odds})\n`
+                    }
+                  }
+
+                  if (homeTeamSpreads.length > 0) {
+                    oddsTextFormat += `${game.home_team}:\n`
+                    for (const spread of homeTeamSpreads) {
+                      oddsTextFormat += `  - ${spread.book}: ${spread.spread > 0 ? '+' : ''}${spread.spread} (${spread.odds > 0 ? '+' : ''}${spread.odds})\n`
+                    }
+                  }
+                }
+
+                // List totals explicitly
+                if (game.totals.length > 0) {
+                  oddsTextFormat += `\nTOTALS (O/U):\n`
+                  const uniqueLines = [...new Set(game.totals.map((t: any) => t.line))]
+                  for (const line of uniqueLines) {
+                    const overs = game.totals.filter((t: any) => t.line === line && t.type === 'Over')
+                    const unders = game.totals.filter((t: any) => t.line === line && t.type === 'Under')
+
+                    if (overs.length > 0) {
+                      oddsTextFormat += `Over ${line}:\n`
+                      for (const over of overs) {
+                        oddsTextFormat += `  - ${over.book}: ${over.odds > 0 ? '+' : ''}${over.odds}\n`
+                      }
+                    }
+
+                    if (unders.length > 0) {
+                      oddsTextFormat += `Under ${line}:\n`
+                      for (const under of unders) {
+                        oddsTextFormat += `  - ${under.book}: ${under.odds > 0 ? '+' : ''}${under.odds}\n`
+                      }
+                    }
+                  }
+                }
+
+                // List moneylines explicitly
+                if (game.moneylines.length > 0) {
+                  oddsTextFormat += `\nMONEYLINE:\n`
+                  const awayMLs = game.moneylines.filter((m: any) => m.team === game.away_team)
+                  const homeMLs = game.moneylines.filter((m: any) => m.team === game.home_team)
+
+                  if (awayMLs.length > 0) {
+                    oddsTextFormat += `${game.away_team}:\n`
+                    for (const ml of awayMLs) {
+                      oddsTextFormat += `  - ${ml.book}: ${ml.odds > 0 ? '+' : ''}${ml.odds}\n`
+                    }
+                  }
+
+                  if (homeMLs.length > 0) {
+                    oddsTextFormat += `${game.home_team}:\n`
+                    for (const ml of homeMLs) {
+                      oddsTextFormat += `  - ${ml.book}: ${ml.odds > 0 ? '+' : ''}${ml.odds}\n`
+                    }
+                  }
+                }
+
+                oddsTextFormat += '\n---\n'
+              }
+            }
+
             oddsContext = `\n\n**🔴 LIVE ODDS DATA LOADED 🔴**
 YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
 
 **CRITICAL ANTI-HALLUCINATION INSTRUCTIONS:**
-- Below are the ONLY ${totalGames} game(s) you should mention
-- DO NOT make up or invent games not in this data
-- DO NOT use games from your training data/memory
-- DO NOT make up odds values - ONLY use the exact odds from the JSON below
-- DO NOT create tables with fabricated spreads, moneylines, or totals
-- If user asks for games not in this data, say data is not available yet
-- If user asks for odds on a specific game not in the data below, say "I don't have current odds for that game"
+- Below is EXACTLY the odds data you have - DO NOT add, modify, or invent any odds
+- If a bookmaker is NOT listed below for a game, DO NOT include it in your response
+- If a spread/total/moneyline is NOT listed below, DO NOT make one up
+- COPY the exact odds values shown - do not round, estimate, or recall from memory
+- If user asks about a game not listed below, say "I don't have current odds for that game"
 - These games are for ${dateContext}
-- ⚠️ REMINDER: Users make real money bets based on your odds - accuracy is critical!
+- ⚠️ CRITICAL: Users make real money bets based on your response - you MUST be 100% accurate!
 
 **Data Available:**
 - ${formattedOdds.length} sport(s): ${formattedOdds.map(s => s.sport.replace('basketball_', '').replace('americanfootball_', '').replace('icehockey_', '').toUpperCase()).join(', ')}
 - ${totalGames} game(s) ${timeLabel}
-- Multiple bookmakers per game
-- Current as of ${new Date().toLocaleString('en-US', {
+- Updated: ${new Date().toLocaleString('en-US', {
   timeZone: timezone,
   dateStyle: 'short',
   timeStyle: 'short'
 })} ${timezone}
 
 **YOUR TASK:**
-Present this odds data to the user. Create a table or list showing:
-- Game matchups with commence times
-- Available odds from different sportsbooks
-- Highlight best odds for each market
-- ONLY show games from the data below - NO OTHER GAMES
+Present the odds data below to the user in a clear table format. You may reorganize for readability, but you MUST:
+1. Only include games listed below
+2. Only include bookmakers listed below for each game
+3. Use the EXACT odds values shown (do not change even by 1 point)
+4. Highlight which book offers the best VALUE for each market
 
-**LIVE ODDS DATA:**
-${JSON.stringify(
-              formattedOdds,
-              null,
-              2
-            )}
+**COMPLETE ODDS DATA:**
+${oddsTextFormat}
 
 ${statsEnrichment}\n`
 

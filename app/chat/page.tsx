@@ -248,7 +248,7 @@ export default function ChatPage() {
         </div>
 
         {/* Message Input */}
-        {currentConversationId && hasMessages && (
+        {currentConversationId && (
           <ModernMessageInput
             conversationId={currentConversationId}
             userId={user?.id}

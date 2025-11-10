@@ -8,6 +8,7 @@ import { format } from 'date-fns'
 import { motion } from 'framer-motion'
 import { Wallet, TrendingUp, Trophy, Target, Activity, Check, X, Sparkles, Loader2 } from 'lucide-react'
 import { LiveScore, matchBetToGame } from '@/lib/espn-api'
+import { calculateBetProbability } from '@/lib/services/probability-engine'
 
 interface BankrollTrackerProps {
   userId: string
@@ -46,6 +47,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
   const [showInsights, setShowInsights] = useState(false)
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [insights, setInsights] = useState<string>('')
+  const [betProbabilities, setBetProbabilities] = useState<Record<string, number>>({})
   const supabase = createClient()
 
   useEffect(() => {
@@ -112,6 +114,85 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
       console.error('Error loading live scores:', error)
     }
   }
+
+  const calculateBetProbabilities = () => {
+    const probabilities: Record<string, number> = {}
+
+    activeBets.forEach(bet => {
+      const liveGame = matchBetToGame(bet.game_description, liveScores)
+
+      if (liveGame && liveGame.status === 'in') {
+        try {
+          // Determine sport from bet.sport
+          const sportKey = `${bet.sport.toLowerCase()}_${bet.sport.toLowerCase() === 'basketball' ? 'nba' : bet.sport.toLowerCase() === 'football' ? 'nfl' : 'nhl'}`
+
+          // Parse bet type from bet_side
+          let betType: 'spread' | 'total' | 'moneyline' = 'moneyline'
+          let spread: number | undefined
+          let totalLine: number | undefined
+          let direction: 'over' | 'under' | undefined
+
+          const betSideLower = bet.bet_side.toLowerCase()
+
+          if (betSideLower.includes('over')) {
+            betType = 'total'
+            direction = 'over'
+            const match = bet.bet_side.match(/over\s+([\d.]+)/i)
+            if (match) totalLine = parseFloat(match[1])
+          } else if (betSideLower.includes('under')) {
+            betType = 'total'
+            direction = 'under'
+            const match = bet.bet_side.match(/under\s+([\d.]+)/i)
+            if (match) totalLine = parseFloat(match[1])
+          } else if (betSideLower.includes('+') || betSideLower.includes('-')) {
+            betType = 'spread'
+            const match = bet.bet_side.match(/([+-][\d.]+)/)
+            if (match) spread = parseFloat(match[1])
+          }
+
+          // Parse time from period string (e.g., "Q3 5:23" or "2nd Half")
+          const gameLength = sportKey.includes('basketball') ? 48 : 60
+          let timeElapsedMinutes = gameLength / 2 // Default to halftime if can't parse
+
+          // Try to parse quarter/period from liveGame.period
+          const periodMatch = liveGame.period.match(/Q(\d)|(\d)(?:st|nd|rd|th)/i)
+          if (periodMatch && sportKey.includes('basketball')) {
+            const quarter = parseInt(periodMatch[1] || periodMatch[2])
+            timeElapsedMinutes = (quarter - 1) * 12 + 6 // Estimate middle of quarter
+          }
+
+          const timeRemaining = (gameLength - timeElapsedMinutes) * 60
+
+          const result = calculateBetProbability({
+            betType,
+            sport: sportKey,
+            currentScore: {
+              away: liveGame.awayScore,
+              home: liveGame.homeScore
+            },
+            timeRemaining,
+            timeElapsed: timeElapsedMinutes * 60,
+            spread,
+            totalLine,
+            direction,
+            odds: bet.odds
+          })
+
+          probabilities[bet.id] = result.probability
+        } catch (error) {
+          console.error('Error calculating probability for bet:', bet.id, error)
+        }
+      }
+    })
+
+    setBetProbabilities(probabilities)
+  }
+
+  useEffect(() => {
+    if (activeBets.length > 0 && liveScores.length > 0) {
+      calculateBetProbabilities()
+    }
+  }, [activeBets, liveScores])
 
   const settleBet = async (betId: string, status: 'won' | 'lost' | 'push') => {
     const bet = activeBets.find((b) => b.id === betId)
@@ -452,6 +533,30 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                               )}
                               <div className="text-xs text-white/60 mt-0.5">{liveGame.period}</div>
                             </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Win Probability */}
+                      {isLive && betProbabilities[bet.id] !== undefined && (
+                        <div className="mb-2 p-2 rounded-md bg-white/5">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs text-white/60">Win Probability</span>
+                            <span className="text-sm font-bold text-white">
+                              {(betProbabilities[bet.id] * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${betProbabilities[bet.id] * 100}%` }}
+                              transition={{ duration: 0.5, ease: 'easeOut' }}
+                              className={`h-full rounded-full ${
+                                betProbabilities[bet.id] >= 0.7 ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' :
+                                betProbabilities[bet.id] >= 0.4 ? 'bg-gradient-to-r from-amber-500 to-amber-400' :
+                                'bg-gradient-to-r from-red-500 to-red-400'
+                              }`}
+                            />
                           </div>
                         </div>
                       )}

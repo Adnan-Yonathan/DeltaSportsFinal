@@ -1,0 +1,42 @@
+name: Record Betting Lines
+
+on:
+  schedule:
+    # Runs every 30 minutes
+    - cron: '*/30 * * * *'
+
+  # Allows manual trigger from GitHub UI
+  workflow_dispatch:
+
+jobs:
+  record-lines:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Line Recording
+        run: |
+          echo "Recording betting lines at $(date)"
+
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.VERCEL_DOMAIN }}/api/lines/record" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"sports":["basketball_nba","americanfootball_nfl","icehockey_nhl","baseball_mlb"]}')
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: Line recording failed with status $http_code"
+            exit 1
+          fi
+
+          echo "✓ Line recording completed successfully"
+
+      - name: Log Results
+        if: always()
+        run: |
+          echo "Job completed at $(date)"

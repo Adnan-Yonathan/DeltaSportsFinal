@@ -1,0 +1,41 @@
+name: Auto-Settle Bets
+
+on:
+  schedule:
+    # Runs every 15 minutes
+    - cron: '*/15 * * * *'
+
+  # Allows manual trigger from GitHub UI
+  workflow_dispatch:
+
+jobs:
+  settle-bets:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Auto-Settlement
+        run: |
+          echo "Triggering auto-settlement at $(date)"
+
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.VERCEL_DOMAIN }}/api/bets/auto-settle" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: Auto-settlement failed with status $http_code"
+            exit 1
+          fi
+
+          echo "✓ Auto-settlement completed successfully"
+
+      - name: Log Results
+        if: always()
+        run: |
+          echo "Job completed at $(date)"

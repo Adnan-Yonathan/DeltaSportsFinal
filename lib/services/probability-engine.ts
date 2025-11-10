@@ -1,0 +1,402 @@
+import { normalCDF, calculateZScore, oddsToImpliedProbability } from '@/lib/utils/statistics'
+
+/**
+ * Sport-specific scoring rates (points per minute)
+ * Based on historical averages
+ */
+const SPORT_SCORING_RATES: { [key: string]: number } = {
+  'basketball_nba': 2.0,        // ~240 total points in 48 minutes
+  'basketball_ncaab': 1.75,     // ~140 total points in 40 minutes
+  'americanfootball_nfl': 0.75, // ~45 total points in 60 minutes
+  'americanfootball_ncaaf': 0.9, // ~54 total points in 60 minutes
+  'icehockey_nhl': 0.1,         // ~6 total points in 60 minutes
+  'baseball_mlb': 0.33,         // ~9 total points in 27 outs (approximated to 27 "minutes")
+}
+
+/**
+ * Sport-specific game lengths (in minutes)
+ */
+const SPORT_GAME_LENGTHS: { [key: string]: number } = {
+  'basketball_nba': 48,
+  'basketball_ncaab': 40,
+  'americanfootball_nfl': 60,
+  'americanfootball_ncaaf': 60,
+  'icehockey_nhl': 60,
+  'baseball_mlb': 27, // Using innings/outs as approximation
+}
+
+/**
+ * Get sport-specific scoring rate
+ */
+function getSportScoringRate(sport: string): number {
+  return SPORT_SCORING_RATES[sport] || 1.0
+}
+
+/**
+ * Get sport-specific game length
+ */
+function getSportGameLength(sport: string): number {
+  return SPORT_GAME_LENGTHS[sport] || 60
+}
+
+/**
+ * Calculate win probability for a spread bet
+ *
+ * @param currentMargin - Current score differential (positive = favorite winning)
+ * @param spread - The bet spread (negative for favorite)
+ * @param timeRemaining - Time remaining in seconds
+ * @param sport - Sport identifier
+ * @param currentScore - Current total score for variance calculation
+ * @returns Win probability (0-1)
+ */
+export function calculateSpreadProbability(
+  currentMargin: number,
+  spread: number,
+  timeRemaining: number,
+  sport: string,
+  currentScore: number = 100
+): number {
+  // Sport-specific scoring rates
+  const pointsPerMinute = getSportScoringRate(sport)
+  const gameLength = getSportGameLength(sport)
+
+  // Calculate remaining expected points
+  const minutesRemaining = timeRemaining / 60
+  const expectedPointsRemaining = minutesRemaining * pointsPerMinute
+
+  // Calculate how far ahead/behind the bet is
+  const differential = currentMargin - spread
+
+  // Standard deviation increases with more time remaining
+  // Using square root of expected points as approximation
+  const standardDeviation = Math.sqrt(expectedPointsRemaining * 0.8)
+
+  // Avoid division by zero
+  if (standardDeviation === 0) {
+    return differential > 0 ? 1.0 : 0.0
+  }
+
+  // Calculate z-score
+  const zScore = differential / standardDeviation
+
+  // Convert to probability using normal CDF
+  return normalCDF(zScore)
+}
+
+/**
+ * Calculate win probability for a total (over/under) bet
+ *
+ * @param currentTotal - Current combined score
+ * @param line - The total line
+ * @param direction - 'over' or 'under'
+ * @param timeRemaining - Time remaining in seconds
+ * @param sport - Sport identifier
+ * @param gameTimeElapsed - Time elapsed in seconds
+ * @returns Win probability (0-1)
+ */
+export function calculateTotalProbability(
+  currentTotal: number,
+  line: number,
+  direction: 'over' | 'under',
+  timeRemaining: number,
+  sport: string,
+  gameTimeElapsed: number
+): number {
+  const pointsPerMinute = getSportScoringRate(sport)
+  const gameLength = getSportGameLength(sport)
+
+  // Calculate current pace
+  const minutesElapsed = gameTimeElapsed / 60
+  const currentPace = minutesElapsed > 0 ? currentTotal / minutesElapsed : pointsPerMinute
+
+  // Project final total based on current pace
+  const minutesRemaining = timeRemaining / 60
+  const projectedRemainingPoints = minutesRemaining * currentPace
+  const projectedFinalTotal = currentTotal + projectedRemainingPoints
+
+  // Calculate standard deviation based on time remaining
+  // More time = more variance
+  const varianceFactor = Math.sqrt(minutesRemaining * pointsPerMinute)
+  const standardDeviation = varianceFactor * 2.5 // Tuning factor
+
+  // Avoid division by zero
+  if (standardDeviation === 0) {
+    const isOver = projectedFinalTotal > line
+    return direction === 'over' ? (isOver ? 1.0 : 0.0) : (isOver ? 0.0 : 1.0)
+  }
+
+  // Calculate z-score
+  const differential = projectedFinalTotal - line
+  const zScore = differential / standardDeviation
+
+  // Convert to probability
+  const overProbability = normalCDF(zScore)
+
+  return direction === 'over' ? overProbability : 1 - overProbability
+}
+
+/**
+ * Calculate win probability for a moneyline bet
+ *
+ * @param currentMargin - Current score differential (positive = team winning)
+ * @param timeRemaining - Time remaining in seconds
+ * @param sport - Sport identifier
+ * @param odds - American odds for context (optional)
+ * @returns Win probability (0-1)
+ */
+export function calculateMoneylineProbability(
+  currentMargin: number,
+  timeRemaining: number,
+  sport: string,
+  odds?: number
+): number {
+  const pointsPerMinute = getSportScoringRate(sport)
+  const minutesRemaining = timeRemaining / 60
+
+  // Expected points remaining
+  const expectedPointsRemaining = minutesRemaining * pointsPerMinute
+
+  // Standard deviation
+  const standardDeviation = Math.sqrt(expectedPointsRemaining)
+
+  // Avoid division by zero
+  if (standardDeviation === 0) {
+    return currentMargin > 0 ? 1.0 : 0.0
+  }
+
+  // For moneyline, we just need to be ahead by any amount
+  // So the differential is just the current margin
+  const zScore = currentMargin / standardDeviation
+
+  let probability = normalCDF(zScore)
+
+  // If odds are provided, we can adjust based on implied probability
+  // This helps calibrate the model
+  if (odds !== undefined) {
+    const impliedProb = oddsToImpliedProbability(odds)
+    // Blend the calculated probability with implied probability
+    // Weight more towards calculation as time runs out
+    const gameLength = getSportGameLength(sport) * 60
+    const elapsedPercent = 1 - (timeRemaining / gameLength)
+    const blendWeight = Math.min(0.9, elapsedPercent * 1.2)
+
+    probability = (probability * blendWeight) + (impliedProb * (1 - blendWeight))
+  }
+
+  return probability
+}
+
+/**
+ * Calculate win probability for a player prop bet
+ *
+ * @param currentStat - Player's current stat value
+ * @param line - The prop line
+ * @param direction - 'over' or 'under'
+ * @param playerMinutesPlayed - Minutes player has been on court/field
+ * @param playerProjectedMinutes - Expected total minutes
+ * @param seasonAverage - Player's season average for this stat
+ * @returns Win probability (0-1)
+ */
+export function calculatePlayerPropProbability(
+  currentStat: number,
+  line: number,
+  direction: 'over' | 'under',
+  playerMinutesPlayed: number,
+  playerProjectedMinutes: number,
+  seasonAverage: number
+): number {
+  // Calculate player's pace this game
+  const paceThisGame = playerMinutesPlayed > 0 ? currentStat / playerMinutesPlayed : 0
+
+  // Project remaining production
+  const minutesRemaining = Math.max(0, playerProjectedMinutes - playerMinutesPlayed)
+  const projectedRemaining = paceThisGame * minutesRemaining
+  const projectedFinal = currentStat + projectedRemaining
+
+  // Calculate variance based on season average and current pace
+  // Players with higher stats tend to have higher variance
+  const baseVariance = seasonAverage * 0.3
+  const paceVariance = Math.abs(paceThisGame - (seasonAverage / 32)) * minutesRemaining
+
+  const totalVariance = baseVariance + paceVariance
+  const standardDeviation = Math.sqrt(totalVariance)
+
+  // Avoid division by zero
+  if (standardDeviation === 0) {
+    const isOver = projectedFinal > line
+    return direction === 'over' ? (isOver ? 1.0 : 0.0) : (isOver ? 0.0 : 1.0)
+  }
+
+  // Calculate z-score
+  const differential = projectedFinal - line
+  const zScore = differential / standardDeviation
+
+  // Convert to probability
+  const overProbability = normalCDF(zScore)
+
+  return direction === 'over' ? overProbability : 1 - overProbability
+}
+
+/**
+ * Calculate comprehensive bet probability with metadata
+ * This is the main function that routes to specific calculators
+ */
+export interface BetProbabilityInput {
+  betType: 'spread' | 'total' | 'moneyline' | 'prop'
+  sport: string
+
+  // Game state
+  currentScore?: { away: number; home: number }
+  timeRemaining?: number // in seconds
+  timeElapsed?: number // in seconds
+
+  // Bet details
+  spread?: number
+  totalLine?: number
+  direction?: 'over' | 'under'
+  odds?: number
+
+  // Player prop specific
+  playerCurrentStat?: number
+  playerMinutesPlayed?: number
+  playerProjectedMinutes?: number
+  playerSeasonAverage?: number
+}
+
+export interface BetProbabilityOutput {
+  probability: number
+  confidence: 'low' | 'medium' | 'high'
+  factors: {
+    currentState: string
+    projection: string
+    variance: string
+  }
+  recommendation?: string
+}
+
+export function calculateBetProbability(input: BetProbabilityInput): BetProbabilityOutput {
+  let probability = 0.5
+  let confidence: 'low' | 'medium' | 'high' = 'medium'
+  const factors = {
+    currentState: '',
+    projection: '',
+    variance: ''
+  }
+
+  try {
+    switch (input.betType) {
+      case 'spread':
+        if (input.currentScore && input.spread !== undefined && input.timeRemaining !== undefined) {
+          const currentMargin = input.currentScore.home - input.currentScore.away
+          const totalScore = input.currentScore.home + input.currentScore.away
+          probability = calculateSpreadProbability(
+            currentMargin,
+            input.spread,
+            input.timeRemaining,
+            input.sport,
+            totalScore
+          )
+          factors.currentState = `Currently ${currentMargin > 0 ? 'leading' : 'trailing'} by ${Math.abs(currentMargin)}`
+          factors.projection = `Need to ${input.spread < 0 ? 'win' : 'lose'} by ${Math.abs(input.spread)} or ${input.spread < 0 ? 'more' : 'less'}`
+          confidence = input.timeRemaining < 600 ? 'high' : input.timeRemaining < 1800 ? 'medium' : 'low'
+        }
+        break
+
+      case 'total':
+        if (input.currentScore && input.totalLine !== undefined && input.timeRemaining !== undefined && input.timeElapsed !== undefined && input.direction) {
+          const currentTotal = input.currentScore.home + input.currentScore.away
+          probability = calculateTotalProbability(
+            currentTotal,
+            input.totalLine,
+            input.direction,
+            input.timeRemaining,
+            input.sport,
+            input.timeElapsed
+          )
+          factors.currentState = `Current total: ${currentTotal}`
+          factors.projection = `Projected final: ${(currentTotal + (currentTotal / input.timeElapsed) * input.timeRemaining).toFixed(1)}`
+          confidence = input.timeRemaining < 600 ? 'high' : input.timeRemaining < 1800 ? 'medium' : 'low'
+        }
+        break
+
+      case 'moneyline':
+        if (input.currentScore && input.timeRemaining !== undefined) {
+          const currentMargin = input.currentScore.home - input.currentScore.away
+          probability = calculateMoneylineProbability(
+            currentMargin,
+            input.timeRemaining,
+            input.sport,
+            input.odds
+          )
+          factors.currentState = `${currentMargin > 0 ? 'Winning' : 'Losing'} by ${Math.abs(currentMargin)}`
+          factors.projection = `Based on current pace and time remaining`
+          confidence = input.timeRemaining < 300 ? 'high' : input.timeRemaining < 1200 ? 'medium' : 'low'
+        }
+        break
+
+      case 'prop':
+        if (
+          input.playerCurrentStat !== undefined &&
+          input.totalLine !== undefined &&
+          input.playerMinutesPlayed !== undefined &&
+          input.playerProjectedMinutes !== undefined &&
+          input.playerSeasonAverage !== undefined &&
+          input.direction
+        ) {
+          probability = calculatePlayerPropProbability(
+            input.playerCurrentStat,
+            input.totalLine,
+            input.direction,
+            input.playerMinutesPlayed,
+            input.playerProjectedMinutes,
+            input.playerSeasonAverage
+          )
+          const pace = input.playerMinutesPlayed > 0 ? input.playerCurrentStat / input.playerMinutesPlayed : 0
+          const projected = input.playerCurrentStat + (pace * (input.playerProjectedMinutes - input.playerMinutesPlayed))
+          factors.currentState = `Current: ${input.playerCurrentStat} in ${input.playerMinutesPlayed.toFixed(0)} min`
+          factors.projection = `Projected: ${projected.toFixed(1)} (pace: ${(pace * 32).toFixed(1)}/game)`
+          confidence = input.playerMinutesPlayed > 20 ? 'high' : input.playerMinutesPlayed > 10 ? 'medium' : 'low'
+        }
+        break
+    }
+
+    // Variance factor based on probability
+    if (probability > 0.8 || probability < 0.2) {
+      factors.variance = 'Low variance - outcome likely determined'
+    } else if (probability > 0.6 || probability < 0.4) {
+      factors.variance = 'Medium variance - outcome leaning one way'
+    } else {
+      factors.variance = 'High variance - outcome still uncertain'
+    }
+
+    // Generate recommendation
+    let recommendation: string | undefined
+    if (confidence === 'high') {
+      if (probability > 0.75) {
+        recommendation = 'Strong position - likely to hit'
+      } else if (probability < 0.25) {
+        recommendation = 'Weak position - unlikely to hit'
+      } else {
+        recommendation = 'Toss-up - could go either way'
+      }
+    }
+
+    return {
+      probability,
+      confidence,
+      factors,
+      recommendation
+    }
+  } catch (error) {
+    console.error('Error calculating bet probability:', error)
+    return {
+      probability: 0.5,
+      confidence: 'low',
+      factors: {
+        currentState: 'Unable to calculate',
+        projection: 'Insufficient data',
+        variance: 'Unknown'
+      }
+    }
+  }
+}

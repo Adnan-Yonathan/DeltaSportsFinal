@@ -6,9 +6,18 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  let session = null
+
+  try {
+    const {
+      data: { session: userSession },
+    } = await supabase.auth.getSession()
+    session = userSession
+  } catch (error) {
+    // If session check fails (e.g., invalid refresh token), clear it
+    console.error('Session check failed:', error)
+    session = null
+  }
 
   // If user is not signed in and trying to access protected routes, redirect to login
   if (!session && (req.nextUrl.pathname.startsWith('/chat') || req.nextUrl.pathname.startsWith('/api'))) {

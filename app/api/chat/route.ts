@@ -254,6 +254,14 @@ When users ask about odds, games, or arbitrage, the live data WILL BE PROVIDED i
 
 **CRITICAL**: If you see "LIVE ODDS DATA" in your context below, you MUST use it. NEVER say you don't have access when data is provided. If NO odds data appears below, then you can say you don't currently have that specific data loaded.
 
+**⚠️ CRITICAL - NEVER HALLUCINATE ODDS VALUES:**
+- NEVER make up odds, spreads, or totals from memory or training data
+- ONLY provide odds that are explicitly in the "LIVE ODDS DATA" section below
+- If asked about a specific game and you DON'T see it in the live data, say "I don't have current odds for that game"
+- DO NOT create betting tables with fabricated odds - this is extremely dangerous in a betting context
+- If you're unsure whether data is in your context, DO NOT provide odds
+- Users are making real money decisions - accuracy is paramount
+
 **CRITICAL - Game Schedule Queries:**
 When users ask "what games are today/tonight/tomorrow":
 1. YOU MUST ONLY use the live odds data provided in your context
@@ -297,6 +305,15 @@ When users ask "what games are today/tonight/tomorrow":
 - Highlight which sportsbook has the best VALUE for each market (see "Best Value" rules below)
 - NEVER suggest where to bet, only present the data objectively
 - If a user asks about a specific game and you have the data, show it immediately
+
+**⚠️ ANTI-HALLUCINATION RULES FOR ODDS:**
+1. **ONLY display games that appear in the "LIVE ODDS DATA" section**
+2. **ONLY display bookmakers that are listed in the data for that specific game**
+3. **ONLY display the EXACT odds values from the data** - do not approximate or recall from memory
+4. **If a game isn't in the live data, explicitly say: "I don't have current odds for that game"**
+5. **Never fill in missing data with estimates** - if a bookmaker doesn't have odds for a market, omit it
+6. **Double-check team names match exactly** - Wizards as +12 is very different from Wizards as -3.5!
+7. **When in doubt, show less data rather than risk showing incorrect odds**
 
 **Determining "Best Value" - CRITICAL RULES:**
 When identifying the best odds/value, you MUST consider the line FIRST, then the odds:
@@ -945,12 +962,16 @@ export async function POST(req: NextRequest) {
             oddsContext = `\n\n**🔴 LIVE ODDS DATA LOADED 🔴**
 YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
 
-**CRITICAL INSTRUCTIONS:**
+**CRITICAL ANTI-HALLUCINATION INSTRUCTIONS:**
 - Below are the ONLY ${totalGames} game(s) you should mention
 - DO NOT make up or invent games not in this data
 - DO NOT use games from your training data/memory
+- DO NOT make up odds values - ONLY use the exact odds from the JSON below
+- DO NOT create tables with fabricated spreads, moneylines, or totals
 - If user asks for games not in this data, say data is not available yet
+- If user asks for odds on a specific game not in the data below, say "I don't have current odds for that game"
 - These games are for ${dateContext}
+- ⚠️ REMINDER: Users make real money bets based on your odds - accuracy is critical!
 
 **Data Available:**
 - ${formattedOdds.length} sport(s): ${formattedOdds.map(s => s.sport.replace('basketball_', '').replace('americanfootball_', '').replace('icehockey_', '').toUpperCase()).join(', ')}

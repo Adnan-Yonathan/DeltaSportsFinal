@@ -225,11 +225,21 @@ async function adjustBankroll(supabase: any, userId: string, amount: number, typ
   }
 }
 
-const SYSTEM_PROMPT = `You are DELTA, a professional sports betting assistant. Your role is to help users analyze betting opportunities, manage their bankroll, and understand sports betting markets.
+const getSystemPrompt = (timezone: string) => `You are DELTA, a professional sports betting assistant. Your role is to help users analyze betting opportunities, manage their bankroll, and understand sports betting markets.
 
-**CURRENT DATE & TIME:**
-Today's date is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
-Current time is ${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}.
+**CURRENT DATE & TIME (${timezone}):**
+Today's date is ${new Date().toLocaleDateString('en-US', {
+  timeZone: timezone,
+  weekday: 'long',
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric'
+})}.
+Current time is ${new Date().toLocaleString('en-US', {
+  timeZone: timezone,
+  dateStyle: 'short',
+  timeStyle: 'short'
+})} ${timezone}.
 
 **IMPORTANT - YOU HAVE ACCESS TO LIVE ODDS AND ADVANCED STATISTICS:**
 You have REAL-TIME access to:
@@ -477,7 +487,12 @@ const BANKROLL_FUNCTIONS: OpenAI.Chat.ChatCompletionTool[] = [
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, conversationId, userId } = await req.json()
+    const {
+      message,
+      conversationId,
+      userId,
+      timezone = 'America/New_York' // Default fallback
+    } = await req.json()
 
     if (!message || !conversationId || !userId) {
       return NextResponse.json(
@@ -722,6 +737,22 @@ export async function POST(req: NextRequest) {
             try {
               let oddsData = await fetchOdds(sport)
 
+              // Filter games to user's "today" in their timezone
+              if (oddsData.length > 0) {
+                const now = new Date()
+                const todayInUserTZ = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
+                const startOfDay = new Date(todayInUserTZ)
+                startOfDay.setHours(0, 0, 0, 0)
+                const endOfDay = new Date(todayInUserTZ)
+                endOfDay.setHours(23, 59, 59, 999)
+
+                oddsData = oddsData.filter(game => {
+                  const gameTime = new Date(game.commence_time)
+                  const gameInUserTZ = new Date(gameTime.toLocaleString('en-US', { timeZone: timezone }))
+                  return gameInUserTZ >= startOfDay && gameInUserTZ <= endOfDay
+                })
+              }
+
               // Filter NCAAF to only Top 25 matchups
               if (sport === 'americanfootball_ncaaf' && oddsData.length > 0) {
                 oddsData = oddsData.filter(game =>
@@ -774,12 +805,27 @@ export async function POST(req: NextRequest) {
           if (allOddsData.length > 0) {
             console.log(`[ODDS] Successfully fetched odds for ${allOddsData.length} sport(s)`)
 
+            // Helper to format game time in user's timezone
+            const formatGameTime = (commence_time: string) => {
+              return new Date(commence_time).toLocaleString('en-US', {
+                timeZone: timezone,
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+                timeZoneName: 'short'
+              })
+            }
+
             // Format odds data FIRST (don't let enrichment failures break everything)
             const formattedOdds = allOddsData.map(sportData => ({
               sport: sportData.sport,
               games: sportData.games.map((game: any) => ({
                 game: `${game.away_team} @ ${game.home_team}`,
                 commence_time: game.commence_time,
+                commence_time_formatted: formatGameTime(game.commence_time),
                 bookmakers: game.bookmakers.map((book: any) => ({
                   name: book.title,
                   markets: book.markets.map((market: any) => ({
@@ -833,7 +879,11 @@ YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
 - ${formattedOdds.length} sport(s): ${formattedOdds.map(s => s.sport.replace('basketball_', '').replace('americanfootball_', '').replace('icehockey_', '').toUpperCase()).join(', ')}
 - ${totalGames} game(s) today/upcoming
 - Multiple bookmakers per game
-- Current as of ${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' })}
+- Current as of ${new Date().toLocaleString('en-US', {
+  timeZone: timezone,
+  dateStyle: 'short',
+  timeStyle: 'short'
+})} ${timezone}
 
 **YOUR TASK:**
 Present this odds data to the user. Create a table or list showing:
@@ -868,7 +918,7 @@ ${statsEnrichment}\n`
     const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: 'system',
-        content: SYSTEM_PROMPT + contextMessage + oddsContext,
+        content: getSystemPrompt(timezone) + contextMessage + oddsContext,
       },
       ...messages
         .filter((msg) => {

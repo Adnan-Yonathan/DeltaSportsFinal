@@ -26,6 +26,9 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
       textareaRef.current.style.height = 'auto'
     }
 
+    // Detect user's timezone
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -36,6 +39,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
           message: userMessage,
           conversationId,
           userId,
+          timezone: userTimezone,
         }),
       })
 

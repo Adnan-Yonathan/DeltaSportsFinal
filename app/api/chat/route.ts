@@ -32,7 +32,7 @@ async function createDailySnapshot(supabase: any, userId: string, balance: numbe
 async function generateConversationTitle(userMessage: string, assistantResponse: string): Promise<string> {
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
@@ -885,7 +885,7 @@ ${statsEnrichment}\n`
 
     // First call to check for function calls (non-streaming)
     const initialResponse = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+      model: 'gpt-4o',
       messages: openaiMessages,
       tools: BANKROLL_FUNCTIONS,
       temperature: 0.7,
@@ -1111,7 +1111,7 @@ ${statsEnrichment}\n`
 
       // Get final response with function result
       const stream = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+        model: 'gpt-4o',
         messages: openaiMessages,
         stream: true,
         temperature: 0.7,
@@ -1163,7 +1163,7 @@ ${statsEnrichment}\n`
             // Track LLM interaction in PostHog
             trackLLMInteraction({
               userId: userId,
-              model: 'gpt-4-turbo-preview',
+              model: 'gpt-4o',
               prompt: message,
               completion: fullResponse,
               latencyMs: latencyMs,
@@ -1189,7 +1189,7 @@ ${statsEnrichment}\n`
 
     // No function call, stream the initial response
     const stream = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+      model: 'gpt-4o',
       messages: openaiMessages,
       tools: BANKROLL_FUNCTIONS,
       stream: true,
@@ -1242,7 +1242,7 @@ ${statsEnrichment}\n`
           // Track LLM interaction in PostHog
           trackLLMInteraction({
             userId: userId,
-            model: 'gpt-4-turbo-preview',
+            model: 'gpt-4o',
             prompt: message,
             completion: fullResponse,
             latencyMs: latencyMs,

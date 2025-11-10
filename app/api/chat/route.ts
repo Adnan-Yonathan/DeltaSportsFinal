@@ -983,6 +983,8 @@ ${statsEnrichment}\n`
             console.log('[ODDS] No games found after filtering')
             if (isTomorrowQuery) {
               oddsContext = '\n\n**NO GAMES TOMORROW**: There are no games scheduled for tomorrow based on current data. The odds data may not be available yet for games that far out.\n'
+            } else {
+              oddsContext = '\n\n**NO GAMES TODAY**: There are no games scheduled for today. This could be an off-day, between game days, or outside the regular season.\n'
             }
           }
         } else {

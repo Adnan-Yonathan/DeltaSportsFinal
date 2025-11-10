@@ -968,10 +968,10 @@ export async function POST(req: NextRequest) {
             console.log(`[ODDS] Total games formatted: ${totalGames}`)
 
             // Log formatted lines for debugging spread issues
-            formattedOdds.forEach(sportData => {
-              sportData.games.forEach(game => {
+            formattedOdds.forEach((sportData: any) => {
+              sportData.games.forEach((game: any) => {
                 console.log(`[ODDS] Game: ${game.game}`)
-                game.bookmakers.forEach(book => {
+                game.bookmakers.forEach((book: any) => {
                   const spreadMarket = book.markets.find((m: any) => m.type === 'spreads')
                   if (spreadMarket?.formatted_lines) {
                     console.log(`[ODDS]   ${book.name} spreads: ${spreadMarket.formatted_lines.join(' | ')}`)

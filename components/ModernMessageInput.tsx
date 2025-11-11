@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, KeyboardEvent } from 'react'
 import { motion } from 'framer-motion'
 import { Send, Loader2, Paperclip } from 'lucide-react'
 
@@ -14,6 +14,29 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
   const [sending, setSending] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<string>
+      if (typeof custom.detail === 'string') {
+        setMessage(custom.detail)
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto'
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
+            textareaRef.current.focus()
+          }
+        })
+      }
+    }
+
+    window.addEventListener('delta-quick-prompt', handler as EventListener)
+    return () => {
+      window.removeEventListener('delta-quick-prompt', handler as EventListener)
+    }
+  }, [])
 
   const handleSend = async () => {
     if (!message.trim() || sending) return

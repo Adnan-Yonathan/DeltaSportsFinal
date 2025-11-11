@@ -39,6 +39,8 @@ export async function saveCustomModel(
     dataHints: payload.dataHints,
     confidence: normalizeConfidence(payload.confidenceLevel),
   }
+  const configJson = config as unknown as Json
+
   const upsertPayload: CustomModelInsert = {
     user_id: userId,
     model_name: payload.modelName.trim(),
@@ -46,7 +48,7 @@ export async function saveCustomModel(
     market_type: payload.marketType,
     target_metric: payload.targetMetric,
     confidence_level: normalizeConfidence(payload.confidenceLevel),
-    config: config as Json,
+    config: configJson,
     notes: payload.notes ?? null,
   }
 

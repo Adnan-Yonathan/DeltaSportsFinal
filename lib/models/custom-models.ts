@@ -37,22 +37,20 @@ export async function saveCustomModel(
     dataHints: payload.dataHints,
     confidence: normalizeConfidence(payload.confidenceLevel),
   }
+  const upsertPayload: Database['public']['Tables']['custom_models']['Insert'] = {
+    user_id: userId,
+    model_name: payload.modelName.trim(),
+    sport_key: payload.sportKey,
+    market_type: payload.marketType,
+    target_metric: payload.targetMetric,
+    confidence_level: normalizeConfidence(payload.confidenceLevel),
+    config: config as unknown as Json,
+    notes: payload.notes ?? null,
+  }
 
   const { data, error } = await supabase
     .from('custom_models')
-    .upsert(
-      {
-        user_id: userId,
-        model_name: payload.modelName.trim(),
-        sport_key: payload.sportKey,
-        market_type: payload.marketType,
-        target_metric: payload.targetMetric,
-        confidence_level: normalizeConfidence(payload.confidenceLevel),
-        config: config as unknown as Json,
-        notes: payload.notes ?? null,
-      },
-      { onConflict: 'user_id,model_name' }
-    )
+    .upsert(upsertPayload, { onConflict: 'user_id,model_name' })
     .select('*')
     .single()
 

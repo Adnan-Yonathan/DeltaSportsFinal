@@ -11,11 +11,6 @@ export type TypedSupabaseClient = SupabaseClient<Database>
 export type CustomModelRow = Database['public']['Tables']['custom_models']['Row']
 type CustomModelInsert = Database['public']['Tables']['custom_models']['Insert']
 
-const CUSTOM_MODELS_TABLE: keyof Database['public']['Tables'] = 'custom_models'
-
-const customModelsTable = (supabase: TypedSupabaseClient) =>
-  supabase.from(CUSTOM_MODELS_TABLE)
-
 export {
   type CustomModelStatInput,
   type CustomModelStatConfig,
@@ -55,7 +50,8 @@ export async function saveCustomModel(
     notes: payload.notes ?? null,
   }
 
-  const { data, error } = await customModelsTable(supabase)
+  const { data, error } = await supabase
+    .from('custom_models')
     .upsert(upsertPayload, { onConflict: 'user_id,model_name' })
     .select('*')
     .single()
@@ -72,7 +68,8 @@ export async function listCustomModels(
   userId: string,
   limit = 5
 ): Promise<CustomModelRow[]> {
-  const { data, error } = await customModelsTable(supabase)
+  const { data, error } = await supabase
+    .from('custom_models')
     .select('*')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
@@ -90,7 +87,8 @@ export async function getCustomModelByName(
   userId: string,
   modelName: string
 ): Promise<CustomModelRow> {
-  const { data, error } = await customModelsTable(supabase)
+  const { data, error } = await supabase
+    .from('custom_models')
     .select('*')
     .eq('user_id', userId)
     .ilike('model_name', modelName)
@@ -107,7 +105,8 @@ export async function touchCustomModelUsage(
   supabase: TypedSupabaseClient,
   modelId: string
 ) {
-  const { error } = await customModelsTable(supabase)
+  const { error } = await supabase
+    .from('custom_models')
     .update({ last_used_at: new Date().toISOString() })
     .eq('id', modelId)
 

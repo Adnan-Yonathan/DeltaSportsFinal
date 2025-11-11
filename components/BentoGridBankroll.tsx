@@ -22,6 +22,7 @@ interface BankrollStats {
   wonBets: number
   lostBets: number
   pendingBets: number
+  totalBets?: number
   dailyBalances: { date: string; balance: number }[]
 }
 
@@ -81,6 +82,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [insights, setInsights] = useState<string>('')
   const [betProbabilities, setBetProbabilities] = useState<Record<string, number>>({})
+  const [totalBetCount, setTotalBetCount] = useState(0)
   const supabase = createClient()
 
   useEffect(() => {
@@ -131,6 +133,16 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
 
     if (active) {
       setActiveBets(active)
+    }
+
+    // Fetch total tracked bets (all time) for guardrails
+    const { count: totalCount, error: totalCountError } = await supabase
+      .from('bets')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+
+    if (!totalCountError && typeof totalCount === 'number') {
+      setTotalBetCount(totalCount)
     }
 
     setLoading(false)
@@ -268,6 +280,14 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
   }
 
   const getAIInsights = async () => {
+    const hasEnoughHistory = totalBetCount >= 10
+    if (!hasEnoughHistory) {
+      setShowInsights(true)
+      setInsights('Track at least 10 bets to unlock AI insights. Log more wagers and try again.')
+      setInsightsLoading(false)
+      return
+    }
+
     setInsightsLoading(true)
     setShowInsights(true)
     setInsights('')
@@ -358,6 +378,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
 
   const profitChange = stats.totalProfit
   const profitPercent = ((stats.currentBalance - stats.startingBalance) / stats.startingBalance) * 100
+  const hasEnoughHistory = totalBetCount >= 10
   const winRate = stats.wonBets + stats.lostBets > 0
     ? (stats.wonBets / (stats.wonBets + stats.lostBets)) * 100
     : 0
@@ -441,7 +462,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.35 }}
               onClick={getAIInsights}
-              disabled={insightsLoading}
+              disabled={insightsLoading || !hasEnoughHistory}
               className="col-span-2 p-4 rounded-xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border border-purple-500/30 backdrop-blur-sm hover:from-purple-500/30 hover:to-indigo-500/30 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="flex items-center justify-between">
@@ -467,6 +488,11 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                 )}
               </div>
             </motion.button>
+            {!hasEnoughHistory && (
+              <div className="col-span-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2">
+                Track at least 10 bets to unlock AI analysis. You currently have {totalBetCount} logged bet{totalBetCount === 1 ? '' : 's'}.
+              </div>
+            )}
 
             {/* Chart - spans 2 columns */}
             <motion.div

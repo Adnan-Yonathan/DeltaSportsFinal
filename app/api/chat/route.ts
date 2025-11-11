@@ -5,7 +5,7 @@ import { fetchOdds } from '@/lib/api/odds-api'
 import { enrichGamesWithStats, formatEnrichedGamesForAI } from '@/lib/stats-enrichment'
 import { getTeamStats, getInjuryReports, formatStatsForAI } from '@/lib/sports-stats-api'
 import { getPostHogServer, trackLLMInteraction } from '@/lib/posthog/server'
-import { listCustomModels, saveCustomModel, touchCustomModelUsage } from '@/lib/models/custom-models'
+import { listCustomModels, saveCustomModel, touchCustomModelUsage, CustomModelRow } from '@/lib/models/custom-models'
 import { CustomModelStatInput } from '@/lib/models/custom-model-types'
 import { runCustomModel } from '@/lib/models/model-runner'
 import { format } from 'date-fns'
@@ -809,7 +809,7 @@ export async function POST(req: NextRequest) {
       .order('placed_at', { ascending: false })
       .limit(5)
 
-    let recentModels: any[] = []
+    let recentModels: CustomModelRow[] = []
     try {
       recentModels = await listCustomModels(supabase, userId, 5)
     } catch (error) {
@@ -1511,14 +1511,14 @@ ${statsEnrichment}\n`
         }
       } else if (functionName === 'apply_custom_model') {
         try {
-          let modelRecord: any = null
+          let modelRecord: CustomModelRow | null = null
           if (functionArgs.model_id) {
             const { data, error } = await supabase
               .from('custom_models')
               .select('*')
               .eq('user_id', userId)
               .eq('id', functionArgs.model_id)
-              .single()
+              .single<CustomModelRow>()
             if (error || !data) {
               throw new Error('No model found for that ID')
             }
@@ -1529,7 +1529,7 @@ ${statsEnrichment}\n`
               .select('*')
               .eq('user_id', userId)
               .ilike('model_name', functionArgs.model_name)
-              .single()
+              .single<CustomModelRow>()
             if (error || !data) {
               throw new Error(`Model "${functionArgs.model_name}" was not found. Ask the user to confirm the name or create it first.`)
             }

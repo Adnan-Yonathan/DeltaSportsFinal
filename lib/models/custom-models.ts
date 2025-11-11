@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
+import { SupabaseClient } from '@supabase/supabase-js'
 import { Database, Json } from '@/lib/supabase/types'
 import {
   CustomModelConfigPayload,
@@ -8,6 +9,7 @@ import {
 import { normalizeConfidence, normalizeStatWeights } from './model-utils'
 
 export type TypedSupabaseClient = SupabaseClient<Database>
+export type CustomModelRow = Database['public']['Tables']['custom_models']['Row']
 export {
   type CustomModelStatInput,
   type CustomModelStatConfig,
@@ -29,7 +31,7 @@ export async function saveCustomModel(
   supabase: TypedSupabaseClient,
   userId: string,
   payload: SaveCustomModelInput
-) {
+): Promise<CustomModelRow> {
   const stats = normalizeStatWeights(payload.stats)
   const config: CustomModelConfigPayload = {
     stats,
@@ -52,21 +54,21 @@ export async function saveCustomModel(
       },
       { onConflict: 'user_id,model_name' }
     )
-    .select()
+    .select('*')
     .single()
 
   if (error) {
     throw new Error(`Failed to save custom model: ${error.message}`)
   }
 
-  return data
+  return data as CustomModelRow
 }
 
 export async function listCustomModels(
   supabase: TypedSupabaseClient,
   userId: string,
   limit = 5
-) {
+): Promise<CustomModelRow[]> {
   const { data, error } = await supabase
     .from('custom_models')
     .select('*')
@@ -78,14 +80,14 @@ export async function listCustomModels(
     throw new Error(`Failed to list custom models: ${error.message}`)
   }
 
-  return data || []
+  return (data || []) as CustomModelRow[]
 }
 
 export async function getCustomModelByName(
   supabase: TypedSupabaseClient,
   userId: string,
   modelName: string
-) {
+): Promise<CustomModelRow> {
   const { data, error } = await supabase
     .from('custom_models')
     .select('*')
@@ -97,7 +99,7 @@ export async function getCustomModelByName(
     throw new Error(`Failed to fetch model "${modelName}": ${error.message}`)
   }
 
-  return data
+  return data as CustomModelRow
 }
 
 export async function touchCustomModelUsage(

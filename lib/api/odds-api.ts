@@ -57,6 +57,14 @@ const isRateLimitOrAuthError = (status: number, bodyText?: string) => {
   )
 }
 
+function isWithinQuietWindowHours(): boolean {
+  const now = new Date()
+  const estString = now.toLocaleString('en-US', { timeZone: 'America/New_York' })
+  const estDate = new Date(estString)
+  const hour = estDate.getHours()
+  return hour >= 1 && hour < 12
+}
+
 async function fetchWithRotation(urlBase: string, init?: RequestInit): Promise<Response> {
   if (keyPool.length === 0) {
     throw new OddsAPIError('ODDS_API_KEY is not configured')
@@ -117,6 +125,11 @@ export async function fetchOdds(
   sport: string,
   markets: string[] = ['h2h', 'spreads', 'totals']
 ): Promise<OddsGame[]> {
+  if (isWithinQuietWindowHours()) {
+    console.warn('Odds fetch suppressed between 1AM and 12PM EST.')
+    return []
+  }
+
   const marketsParam = markets.join(',')
   const url = `${ODDS_API_BASE}/sports/${sport}/odds/?regions=us&markets=${marketsParam}&oddsFormat=american`
 
@@ -134,6 +147,11 @@ export async function fetchOdds(
  * Fetch available sports
  */
 export async function fetchSports(): Promise<any[]> {
+  if (isWithinQuietWindowHours()) {
+    console.warn('Sports list fetch suppressed between 1AM and 12PM EST.')
+    return []
+  }
+
   const url = `${ODDS_API_BASE}/sports/`
 
   try {

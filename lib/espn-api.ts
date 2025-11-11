@@ -95,29 +95,63 @@ export async function getAllLiveScores(): Promise<LiveScore[]> {
 }
 
 // Helper function to match bet description to live game
+const STOP_WORDS = new Set([
+  'the',
+  'vs',
+  'at',
+  'and',
+  'fc',
+  'sc',
+  'club',
+  'team',
+  'los',
+  'las',
+])
+
+const tokenize = (value: string): string[] => {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length > 2 && !STOP_WORDS.has(token))
+}
+
+const countMatches = (tokens: Set<string>, candidates: string[]): number => {
+  return candidates.reduce((count, token) => count + (tokens.has(token) ? 1 : 0), 0)
+}
+
 export function matchBetToGame(betDescription: string, scores: LiveScore[]): LiveScore | null {
-  const normalizedBet = betDescription.toLowerCase()
+  const betTokens = new Set(tokenize(betDescription))
+  if (betTokens.size === 0) {
+    return null
+  }
+
+  let bestMatch: LiveScore | null = null
+  let bestScore = 0
+  let fallbackMatch: LiveScore | null = null
+  let fallbackScore = 0
 
   for (const score of scores) {
-    const homeTeamLower = score.homeTeam.toLowerCase()
-    const awayTeamLower = score.awayTeam.toLowerCase()
+    const homeTokens = tokenize(score.homeTeam)
+    const awayTokens = tokenize(score.awayTeam)
 
-    // Check if bet description contains both team names or parts of them
-    if (normalizedBet.includes(homeTeamLower) || normalizedBet.includes(awayTeamLower)) {
-      // Simple match - could be improved with fuzzy matching
-      return score
-    }
+    const homeMatches = countMatches(betTokens, homeTokens)
+    const awayMatches = countMatches(betTokens, awayTokens)
+    const totalMatches = homeMatches + awayMatches
 
-    // Check for team abbreviations or partial names
-    const homeWords = homeTeamLower.split(' ')
-    const awayWords = awayTeamLower.split(' ')
+    if (homeMatches > 0 && awayMatches > 0) {
+      const statusBoost = score.status === 'in' ? 2 : score.status === 'post' ? 1 : 0
+      const scoreValue = totalMatches * 2 + statusBoost
 
-    for (const word of [...homeWords, ...awayWords]) {
-      if (word.length > 3 && normalizedBet.includes(word)) {
-        return score
+      if (scoreValue > bestScore) {
+        bestScore = scoreValue
+        bestMatch = score
       }
+    } else if (totalMatches > 0 && totalMatches > fallbackScore) {
+      fallbackScore = totalMatches
+      fallbackMatch = score
     }
   }
 
-  return null
+  return bestMatch || fallbackMatch
 }

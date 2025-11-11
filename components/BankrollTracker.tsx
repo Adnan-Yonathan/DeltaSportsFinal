@@ -27,6 +27,7 @@ interface Bet {
   sport: string
   game_description: string
   bet_side: string
+  bet_type?: string
   odds: number
   stake: number
   potential_win: number

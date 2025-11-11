@@ -50,7 +50,7 @@ function getSportGameLength(sport: string): number {
  * @returns Win probability (0-1)
  */
 export function calculateSpreadProbability(
-  currentMargin: number,
+  teamMargin: number,
   spread: number,
   timeRemaining: number,
   sport: string,
@@ -65,7 +65,7 @@ export function calculateSpreadProbability(
   const expectedPointsRemaining = minutesRemaining * pointsPerMinute
 
   // Calculate how far ahead/behind the bet is
-  const differential = currentMargin - spread
+  const differential = teamMargin + spread
 
   // Standard deviation increases with more time remaining
   // Using square root of expected points as approximation
@@ -145,7 +145,7 @@ export function calculateTotalProbability(
  * @returns Win probability (0-1)
  */
 export function calculateMoneylineProbability(
-  currentMargin: number,
+  teamMargin: number,
   timeRemaining: number,
   sport: string,
   odds?: number
@@ -161,12 +161,12 @@ export function calculateMoneylineProbability(
 
   // Avoid division by zero
   if (standardDeviation === 0) {
-    return currentMargin > 0 ? 1.0 : 0.0
+    return teamMargin > 0 ? 1.0 : 0.0
   }
 
   // For moneyline, we just need to be ahead by any amount
   // So the differential is just the current margin
-  const zScore = currentMargin / standardDeviation
+  const zScore = teamMargin / standardDeviation
 
   let probability = normalCDF(zScore)
 
@@ -249,6 +249,7 @@ export interface BetProbabilityInput {
   currentScore?: { away: number; home: number }
   timeRemaining?: number // in seconds
   timeElapsed?: number // in seconds
+  teamSide?: 'home' | 'away'
 
   // Bet details
   spread?: number
@@ -283,11 +284,20 @@ export function calculateBetProbability(input: BetProbabilityInput): BetProbabil
     variance: ''
   }
 
+  const getTeamMargin = (): number => {
+    if (!input.currentScore) return 0
+    const margin = input.currentScore.home - input.currentScore.away
+    if (input.teamSide === 'away') {
+      return -margin
+    }
+    return margin
+  }
+
   try {
     switch (input.betType) {
       case 'spread':
         if (input.currentScore && input.spread !== undefined && input.timeRemaining !== undefined) {
-          const currentMargin = input.currentScore.home - input.currentScore.away
+          const currentMargin = getTeamMargin()
           const totalScore = input.currentScore.home + input.currentScore.away
           probability = calculateSpreadProbability(
             currentMargin,
@@ -296,8 +306,15 @@ export function calculateBetProbability(input: BetProbabilityInput): BetProbabil
             input.sport,
             totalScore
           )
-          factors.currentState = `Currently ${currentMargin > 0 ? 'leading' : 'trailing'} by ${Math.abs(currentMargin)}`
-          factors.projection = `Need to ${input.spread < 0 ? 'win' : 'lose'} by ${Math.abs(input.spread)} or ${input.spread < 0 ? 'more' : 'less'}`
+          const coveringMargin = Number((currentMargin + input.spread).toFixed(1))
+          factors.currentState = coveringMargin >= 0
+            ? `Currently covering by ${Math.abs(coveringMargin)}`
+            : `Outside the cover by ${Math.abs(coveringMargin)}`
+          if (input.spread < 0) {
+            factors.projection = `Need to win by more than ${Math.abs(input.spread)} point(s)`
+          } else {
+            factors.projection = `Can lose by up to ${input.spread} point(s)`
+          }
           confidence = input.timeRemaining < 600 ? 'high' : input.timeRemaining < 1800 ? 'medium' : 'low'
         }
         break
@@ -321,7 +338,7 @@ export function calculateBetProbability(input: BetProbabilityInput): BetProbabil
 
       case 'moneyline':
         if (input.currentScore && input.timeRemaining !== undefined) {
-          const currentMargin = input.currentScore.home - input.currentScore.away
+          const currentMargin = getTeamMargin()
           probability = calculateMoneylineProbability(
             currentMargin,
             input.timeRemaining,

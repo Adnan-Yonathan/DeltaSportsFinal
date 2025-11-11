@@ -30,6 +30,7 @@ interface Bet {
   sport: string
   game_description: string
   bet_side: string
+  bet_type: string
   odds: number
   stake: number
   potential_win: number
@@ -37,6 +38,38 @@ interface Bet {
   status: string
   placed_at: string
   book: string
+}
+
+const TEAM_STOP_WORDS = new Set(['the', 'vs', 'at', 'los', 'las', 'club', 'team', 'fc', 'sc'])
+
+const normalizeText = (value: string) => value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ')
+
+const tokenizeTeam = (team: string): string[] =>
+  normalizeText(team)
+    .split(/\s+/)
+    .filter((token) => token.length > 2 && !TEAM_STOP_WORDS.has(token))
+
+const scoreTeamMatch = (team: string, context: string): number => {
+  const tokens = tokenizeTeam(team)
+  return tokens.reduce((score, token) => (context.includes(token) ? score + 1 : score), 0)
+}
+
+const determineBetTeamSide = (bet: Bet, game: LiveScore): 'home' | 'away' | undefined => {
+  const context = normalizeText(`${bet.bet_side} ${bet.game_description}`)
+  const homeScore = scoreTeamMatch(game.homeTeam, context)
+  const awayScore = scoreTeamMatch(game.awayTeam, context)
+
+  if (homeScore > awayScore && homeScore > 0) return 'home'
+  if (awayScore > homeScore && awayScore > 0) return 'away'
+
+  // Fallback: look at first keyword in bet_side
+  const firstToken = normalizeText(bet.bet_side).split(/\s+/).find((token) => token.length > 2)
+  if (firstToken) {
+    if (tokenizeTeam(game.homeTeam).includes(firstToken)) return 'home'
+    if (tokenizeTeam(game.awayTeam).includes(firstToken)) return 'away'
+  }
+
+  return undefined
 }
 
 export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
@@ -126,8 +159,14 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
           // Determine sport from bet.sport
           const sportKey = `${bet.sport.toLowerCase()}_${bet.sport.toLowerCase() === 'basketball' ? 'nba' : bet.sport.toLowerCase() === 'football' ? 'nfl' : 'nhl'}`
 
+          const teamSide = determineBetTeamSide(bet, liveGame)
+
           // Parse bet type from bet_side
           let betType: 'spread' | 'total' | 'moneyline' = 'moneyline'
+          const betTypeFromDb = bet.bet_type?.toLowerCase()
+          if (betTypeFromDb === 'spread' || betTypeFromDb === 'total' || betTypeFromDb === 'moneyline') {
+            betType = betTypeFromDb
+          }
           let spread: number | undefined
           let totalLine: number | undefined
           let direction: 'over' | 'under' | undefined
@@ -144,8 +183,17 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
             direction = 'under'
             const match = bet.bet_side.match(/under\s+([\d.]+)/i)
             if (match) totalLine = parseFloat(match[1])
-          } else if (betSideLower.includes('+') || betSideLower.includes('-')) {
-            betType = 'spread'
+          } else if (!betTypeFromDb) {
+            if (betSideLower.includes('+') || betSideLower.includes('-')) {
+              betType = 'spread'
+              const match = bet.bet_side.match(/([+-][\d.]+)/)
+              if (match) spread = parseFloat(match[1])
+            } else if (betSideLower.includes('moneyline') || betSideLower.includes('ml')) {
+              betType = 'moneyline'
+            }
+          }
+
+          if (betType === 'spread' && spread === undefined) {
             const match = bet.bet_side.match(/([+-][\d.]+)/)
             if (match) spread = parseFloat(match[1])
           }
@@ -175,7 +223,8 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
             spread,
             totalLine,
             direction,
-            odds: bet.odds
+            odds: bet.odds,
+            teamSide
           })
 
           probabilities[bet.id] = result.probability

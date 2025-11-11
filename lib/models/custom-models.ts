@@ -1,5 +1,4 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import { SupabaseClient } from '@supabase/supabase-js'
 import { Database, Json } from '@/lib/supabase/types'
 import {
   CustomModelConfigPayload,

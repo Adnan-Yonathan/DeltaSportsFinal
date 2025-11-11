@@ -43,14 +43,24 @@ const toolsList = [ { id: 'createImage', name: 'Create an image', shortName: 'Im
 // --- The Final, Self-Contained PromptBox Component ---
 export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
   ({ className, ...props }, ref) => {
-    // ... all state and handlers are unchanged ...
     const internalTextareaRef = React.useRef<HTMLTextAreaElement>(null);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const recorderRef = React.useRef<MediaRecorder | null>(null);
+    React.useEffect(() => {
+      return () => {
+        if (recorderRef.current && recorderRef.current.state === "recording") {
+          recorderRef.current.stop();
+        }
+      };
+    }, []);
     const [value, setValue] = React.useState("");
     const [imagePreview, setImagePreview] = React.useState<string | null>(null);
     const [selectedTool, setSelectedTool] = React.useState<string | null>(null);
     const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
     const [isImageDialogOpen, setIsImageDialogOpen] = React.useState(false);
+    const [isRecording, setIsRecording] = React.useState(false);
+    const [isTranscribing, setIsTranscribing] = React.useState(false);
+    const elevenLabsKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY;
     React.useImperativeHandle(ref, () => internalTextareaRef.current!, []);
     React.useLayoutEffect(() => { const textarea = internalTextareaRef.current; if (textarea) { textarea.style.height = "auto"; const newHeight = Math.min(textarea.scrollHeight, 200); textarea.style.height = `${newHeight}px`; } }, [value]);
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setValue(e.target.value); if (props.onChange) props.onChange(e); };
@@ -61,6 +71,65 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
     const activeTool = selectedTool ? toolsList.find(t => t.id === selectedTool) : null;
     const ActiveToolIcon = activeTool?.icon;
 
+    const appendTranscription = (text: string) => {
+      setValue(prev => prev ? `${prev} ${text}` : text);
+    };
+
+    const uploadRecording = async (blob: Blob) => {
+      if (!elevenLabsKey) return;
+      setIsTranscribing(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", blob, "recording.webm");
+        formData.append("model", "eleven_monolingual_v1");
+        const response = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
+          method: "POST",
+          headers: {
+            "xi-api-key": elevenLabsKey,
+          },
+          body: formData,
+        });
+        if (!response.ok) {
+          throw new Error("ElevenLabs transcription failed");
+        }
+        const payload = await response.json();
+        if (payload?.text) {
+          appendTranscription(payload.text.trim());
+        }
+      } catch (error) {
+        console.error("ElevenLabs transcription error:", error);
+      } finally {
+        setIsTranscribing(false);
+      }
+    };
+
+    const handleMicClick = async () => {
+      if (!elevenLabsKey) return;
+      if (recorderRef.current?.state === "recording") {
+        recorderRef.current.stop();
+        setIsRecording(false);
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        const chunks: BlobPart[] = [];
+        mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) chunks.push(event.data); };
+        mediaRecorder.onstop = () => {
+          const recorded = new Blob(chunks, { type: "audio/webm" });
+          stream.getTracks().forEach(track => track.stop());
+          uploadRecording(recorded);
+        };
+        recorderRef.current = mediaRecorder;
+        mediaRecorder.start();
+        setIsRecording(true);
+      } catch (error) {
+        console.error("Microphone access denied:", error);
+      }
+    };
+
+    const micTooltip = isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : elevenLabsKey ? "Record voice" : "ElevenLabs key missing";
     return (
       <div className={cn("flex flex-col rounded-[28px] p-2 shadow-sm transition-colors bg-white/5 backdrop-blur-xl border border-white/10 cursor-text", className)}>
         <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*"/>
@@ -108,12 +177,17 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
               <div className="ml-auto flex items-center gap-2">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline-none">
+                    <button
+                      type="button"
+                      onClick={handleMicClick}
+                      disabled={!elevenLabsKey || isTranscribing}
+                      className={`flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors focus-visible:outline-none ${isRecording ? "bg-red-500/20 text-red-200" : "hover:bg-white/10"} ${!elevenLabsKey || isTranscribing ? "opacity-40 cursor-not-allowed" : ""}`}
+                    >
                       <MicIcon className="h-5 w-5" />
-                      <span className="sr-only">Record voice</span>
+                      <span className="sr-only">{micTooltip}</span>
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="top" showArrow={true}><p>Record voice</p></TooltipContent>
+                  <TooltipContent side="top" showArrow={true}><p>{micTooltip}</p></TooltipContent>
                 </Tooltip>
 
                 <Tooltip>

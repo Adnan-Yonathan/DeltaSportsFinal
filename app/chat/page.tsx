@@ -179,6 +179,13 @@ export default function ChatPage() {
               <Menu className="w-5 h-5" />
             </button>
 
+            <button
+              onClick={() => router.push('/')}
+              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+            >
+              Home
+            </button>
+
             <div>
               <h1 className="text-base sm:text-xl font-bold text-white">DELTA</h1>
               <p className="text-xs text-white/40 hidden sm:block">Intelligent Sports Betting Assistant</p>

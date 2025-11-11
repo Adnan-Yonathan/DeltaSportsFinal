@@ -11,13 +11,22 @@ import BentoGridBankroll from '@/components/BentoGridBankroll'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LogOut, Menu, X, DollarSign } from 'lucide-react'
 
+const ARBITRAGE_SPORTS = ['basketball_nba', 'americanfootball_nfl', 'icehockey_nhl']
+
 export default function ChatPage() {
   const [user, setUser] = useState<any>(null)
+  const [profileName, setProfileName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [hasMessages, setHasMessages] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bankrollOpen, setBankrollOpen] = useState(false)
+  const [arbitrageData, setArbitrageData] = useState<{
+    total: number
+    best?: string
+    loading: boolean
+    error?: string
+  }>({ total: 0, loading: true })
   const router = useRouter()
   const supabase = createClient()
 
@@ -33,6 +42,13 @@ export default function ChatPage() {
       }
 
       setUser(user)
+
+      const { data: profile } = await supabase
+        .from('users')
+        .select('display_name')
+        .eq('id', user.id)
+        .single()
+      setProfileName(profile?.display_name || user.email || 'Guest')
 
       const posthog = getPostHogClient()
       if (posthog) {
@@ -74,6 +90,58 @@ export default function ChatPage() {
       }
     }
   }
+
+  useEffect(() => {
+    let isMounted = true
+    const fetchOpportunities = async () => {
+      setArbitrageData(prev => ({ ...prev, loading: true }))
+
+      try {
+        const results = await Promise.allSettled(
+          ARBITRAGE_SPORTS.map(async (sport) => {
+            const response = await fetch(`/api/odds/arbitrage?sport=${sport}`)
+            if (!response.ok) {
+              throw new Error(`Failed to fetch ${sport}`)
+            }
+            const payload = await response.json()
+            return payload.opportunities || []
+          })
+        )
+
+        const opportunities: { game: string; profitPercent: number; market: string }[] = []
+
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            opportunities.push(...result.value)
+          }
+        }
+
+        if (!isMounted) return
+
+        const best = opportunities.sort((a, b) => b.profitPercent - a.profitPercent)[0]
+        setArbitrageData({
+          total: opportunities.length,
+          best: best ? `${best.game} (${best.market})` : undefined,
+          loading: false,
+        })
+      } catch (error: any) {
+        if (!isMounted) return
+        console.error('Arbitrage fetch failed', error)
+        setArbitrageData({
+          total: 0,
+          loading: false,
+          error: 'Unable to load arbitrage data',
+        })
+      }
+    }
+
+    fetchOpportunities()
+    const interval = setInterval(fetchOpportunities, 30000)
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
+  }, [])
 
   const handleNewConversation = async () => {
     if (!user) return
@@ -186,8 +254,24 @@ export default function ChatPage() {
               <DollarSign className="w-4 h-4" />
             </button>
 
+            <div className="hidden md:flex flex-col text-right text-xs text-white/50">
+              <span>Arbitrage</span>
+              {arbitrageData.loading ? (
+                <span>Loading...</span>
+              ) : arbitrageData.error ? (
+                <span className="text-amber-300">{arbitrageData.error}</span>
+              ) : (
+                <span className="font-semibold text-white">
+                  {arbitrageData.total} opportunity{arbitrageData.total === 1 ? '' : 'ies'}
+                </span>
+              )}
+              {!arbitrageData.loading && arbitrageData.best && (
+                <span className="text-[10px] text-white/60">{arbitrageData.best}</span>
+              )}
+            </div>
+
             {/* Email (Desktop Only) */}
-            <span className="hidden md:block text-white/60 text-sm">{user?.email}</span>
+            <span className="hidden md:block text-white/60 text-sm">{profileName}</span>
 
             {/* Sign Out Button */}
             <motion.button

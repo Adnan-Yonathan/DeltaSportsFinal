@@ -20,6 +20,7 @@ Delta AI is a Next.js 14 application that combines live odds tracking from The O
 ### Key Features
 
 - **AI Chat Interface**: Conversational assistant powered by GPT-4 for odds analysis, line movement insights, and betting guidance
+- **Custom Statistical Models**: Build named weighted-stat models directly in chat, then recall them later (e.g., “apply my NBA totals model”) for confidence-interval projections
 - **Live Odds Tracking**: Real-time odds from major sportsbooks (FanDuel, DraftKings, BetMGM, Caesars, etc.)
 - **Arbitrage Detection**: Automatic scanning for guaranteed profit opportunities across sportsbooks
 - **Bankroll Management**: Track bets, analyze performance, visualize ROI trends

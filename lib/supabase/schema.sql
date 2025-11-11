@@ -77,12 +77,30 @@ CREATE TABLE IF NOT EXISTS bankroll_snapshots (
   UNIQUE(user_id, snapshot_date)
 );
 
+-- Custom statistical models table
+CREATE TABLE IF NOT EXISTS custom_models (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  model_name TEXT NOT NULL,
+  sport_key TEXT NOT NULL,
+  market_type TEXT NOT NULL,
+  target_metric TEXT NOT NULL,
+  confidence_level NUMERIC(3,2) NOT NULL DEFAULT 0.90,
+  config JSONB NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  last_used_at TIMESTAMP WITH TIME ZONE
+);
+
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_bets_user_status ON bets(user_id, status, placed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bets_user_sport ON bets(user_id, sport, placed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_snapshots_user_date ON bankroll_snapshots(user_id, snapshot_date DESC);
 CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_models_user_name ON custom_models(user_id, model_name);
+CREATE INDEX IF NOT EXISTS idx_custom_models_last_used ON custom_models(user_id, last_used_at DESC);
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -90,6 +108,7 @@ ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bankroll_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE custom_models ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for users table
 CREATE POLICY "Users can view own data" ON users
@@ -153,6 +172,19 @@ CREATE POLICY "Users can view own snapshots" ON bankroll_snapshots
 CREATE POLICY "Users can create own snapshots" ON bankroll_snapshots
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+-- RLS Policies for custom_models table
+CREATE POLICY "Users can view own models" ON custom_models
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own models" ON custom_models
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own models" ON custom_models
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own models" ON custom_models
+  FOR DELETE USING (auth.uid() = user_id);
+
 -- Function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -167,6 +199,9 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_conversations_updated_at BEFORE UPDATE ON conversations
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_custom_models_updated_at BEFORE UPDATE ON custom_models
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Function to create user profile on signup

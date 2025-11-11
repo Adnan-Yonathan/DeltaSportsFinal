@@ -4,7 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
 import { enrichGamesWithStats, formatEnrichedGamesForAI } from '@/lib/stats-enrichment'
 import { getTeamStats, getInjuryReports, formatStatsForAI } from '@/lib/sports-stats-api'
-import { trackLLMInteraction } from '@/lib/posthog/server'
+import { getPostHogServer, trackLLMInteraction } from '@/lib/posthog/server'
+import { listCustomModels, saveCustomModel, touchCustomModelUsage } from '@/lib/models/custom-models'
+import { CustomModelStatInput } from '@/lib/models/custom-model-types'
+import { runCustomModel } from '@/lib/models/model-runner'
 import { format } from 'date-fns'
 
 const openai = new OpenAI({
@@ -225,6 +228,44 @@ async function adjustBankroll(supabase: any, userId: string, amount: number, typ
   }
 }
 
+function normalizeStatArg(stat: any): CustomModelStatInput {
+  if (!stat) {
+    throw new Error('Invalid stat configuration provided')
+  }
+
+  const statKey = stat.stat_key || stat.statKey
+  const label = stat.label
+  const scope = stat.scope || 'team'
+  const importance = stat.importance ?? stat.weight ?? 3
+  const direction = stat.direction || 'higher_better'
+
+  if (!statKey || !label) {
+    throw new Error('Each stat requires stat_key and label fields')
+  }
+
+  return {
+    statKey,
+    label,
+    scope,
+    importance,
+    direction,
+    normalization: stat.normalization || 'zscore',
+    sampleSource: stat.sample_source || stat.sampleSource,
+    varianceOverride: stat.variance_override ?? stat.varianceOverride,
+    minValue: stat.min_value ?? stat.minValue,
+    maxValue: stat.max_value ?? stat.maxValue,
+    notes: stat.notes,
+  }
+}
+
+function buildStatInputs(rawStats: any): CustomModelStatInput[] {
+  if (!Array.isArray(rawStats) || rawStats.length === 0) {
+    throw new Error('At least one stat definition is required to create a model')
+  }
+
+  return rawStats.map(normalizeStatArg)
+}
+
 const getSystemPrompt = (timezone: string) => `You are DELTA, a professional sports betting assistant. Your role is to help users analyze betting opportunities, manage their bankroll, and understand sports betting markets.
 
 **CURRENT DATE & TIME (${timezone}):**
@@ -359,9 +400,16 @@ When analyzing bankroll stats, provide actionable insights:
 - Celebrate wins but emphasize long-term profitability
 - Never encourage risky behavior or chasing losses
 
+**Custom Statistical Models (Single Chat Flow):**
+- You can help users create named models inside this chat. Gather sport, market, target metric, stats + their importance (1-5), normalization preferences, and desired confidence level (80/90/95).
+- Always restate the configuration for confirmation before calling save_custom_model. Do not save without explicit user approval.
+- When a user says things like "apply my NBA model for totals" or "use my NFL rushing model for Derrick Henry", search the provided context for matching models, clarify if multiple exist, then call apply_custom_model with the model name and any matchup/team info mentioned.
+- Use list_custom_models when the user asks what models they have, or when you need to remind them of available names.
+- When models are applied, explain the weighted score, confidence interval, and how each stat contributed. Never fabricate stats—if data is missing, state that limitation.
+
 Always confirm what you're doing before calling functions and provide friendly responses after.`
 
-const BANKROLL_FUNCTIONS: OpenAI.Chat.ChatCompletionTool[] = [
+const ASSISTANT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
@@ -531,6 +579,174 @@ const BANKROLL_FUNCTIONS: OpenAI.Chat.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'save_custom_model',
+      description: 'Persist a user-defined statistical model with weighted stats and desired confidence interval so it can be recalled later in this chat.',
+      parameters: {
+        type: 'object',
+        properties: {
+          model_name: {
+            type: 'string',
+            description: 'Friendly name the user will use later (e.g., "NBA pace model", "NFL rushing v1").',
+          },
+          sport_key: {
+            type: 'string',
+            description: 'Sport identifier (e.g., basketball_nba, americanfootball_nfl, baseball_mlb, icehockey_nhl).',
+          },
+          market_type: {
+            type: 'string',
+            description: 'Market or outcome focus (e.g., totals, moneyline, rushing_yards, player_points).',
+          },
+          target_metric: {
+            type: 'string',
+            description: 'Statistical outcome the model is trying to project (e.g., total_points, rushing_yards, win_probability).',
+          },
+          confidence_level: {
+            type: 'number',
+            enum: [0.8, 0.9, 0.95],
+            description: 'Desired confidence interval level (80%, 90%, 95%).',
+          },
+          data_hints: {
+            type: 'string',
+            description: 'Optional guidance about what data sources/samples to emphasize (e.g., "last 10 games", "road splits").',
+          },
+          notes: {
+            type: 'string',
+            description: 'Optional notes to show users when the model is applied.',
+          },
+          stats: {
+            type: 'array',
+            minItems: 1,
+            description: 'List of stat inputs with importance/weighting details.',
+            items: {
+              type: 'object',
+              properties: {
+                stat_key: {
+                  type: 'string',
+                  description: 'Key to lookup in team/player stats (e.g., pace, offensive_rating, rush_yards_per_game).',
+                },
+                label: {
+                  type: 'string',
+                  description: 'Human label describing the stat.',
+                },
+                scope: {
+                  type: 'string',
+                  enum: ['team', 'matchup_diff', 'player'],
+                  description: 'Whether the stat is team level, matchup differential, or player specific.',
+                },
+                importance: {
+                  type: 'number',
+                  minimum: 1,
+                  maximum: 5,
+                  description: 'Importance tier (1 low, 5 extremely high).',
+                },
+                direction: {
+                  type: 'string',
+                  enum: ['higher_better', 'lower_better'],
+                  description: 'Whether higher numbers help or hurt the projection.',
+                },
+                normalization: {
+                  type: 'string',
+                  enum: ['zscore', 'minmax', 'raw'],
+                  description: 'How to normalize this stat before weighting.',
+                },
+                sample_source: {
+                  type: 'string',
+                  description: 'Sample window (e.g., season, last_10, playoffs).',
+                },
+                variance_override: {
+                  type: 'number',
+                  description: 'Optional variance override if provided by the user.',
+                },
+                min_value: {
+                  type: 'number',
+                  description: 'Optional lower bound for min/max scaling.',
+                },
+                max_value: {
+                  type: 'number',
+                  description: 'Optional upper bound for min/max scaling.',
+                },
+                notes: {
+                  type: 'string',
+                  description: 'Optional note about this stat.',
+                },
+              },
+              required: ['stat_key', 'label', 'scope', 'importance', 'direction'],
+            },
+          },
+        },
+        required: ['model_name', 'sport_key', 'market_type', 'target_metric', 'confidence_level', 'stats'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_custom_models',
+      description: 'List the user’s saved custom models so they know what can be applied.',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: {
+            type: 'number',
+            description: 'Maximum number of models to return (default 5).',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'apply_custom_model',
+      description: 'Run a previously saved model against the latest stats to produce a weighted score and confidence interval for the requested outcome.',
+      parameters: {
+        type: 'object',
+        properties: {
+          model_id: {
+            type: 'string',
+            description: 'ID of the model to apply (optional if model_name is provided).',
+          },
+          model_name: {
+            type: 'string',
+            description: 'Name of the saved model to use (case-insensitive).',
+          },
+          sport_key: {
+            type: 'string',
+            description: 'Override sport key if different from the stored value (optional).',
+          },
+          teams: {
+            type: 'array',
+            description: 'Ordered list of teams or contexts referenced in the user request (e.g., ["Lakers", "Celtics"]).',
+            items: {
+              type: 'string',
+            },
+          },
+          matchup: {
+            type: 'object',
+            description: 'Structured matchup information if user specified a focus and opponent.',
+            properties: {
+              focus: {
+                type: 'string',
+                description: 'Primary team/player the prediction focuses on.',
+              },
+              opponent: {
+                type: 'string',
+                description: 'Opposing team/player.',
+              },
+            },
+          },
+          notes: {
+            type: 'string',
+            description: 'Any extra context supplied by the user (e.g., "tonight in Boston", "use road splits").',
+          },
+        },
+        required: ['model_name'],
+      },
+    },
+  },
 ]
 
 export async function POST(req: NextRequest) {
@@ -593,6 +809,13 @@ export async function POST(req: NextRequest) {
       .order('placed_at', { ascending: false })
       .limit(5)
 
+    let recentModels: any[] = []
+    try {
+      recentModels = await listCustomModels(supabase, userId, 5)
+    } catch (error) {
+      console.error('[MODELS] Failed to load custom models:', error)
+    }
+
     // Build context
     let contextMessage = `\n\n**Current User Context:**\n`
     if (userData) {
@@ -601,6 +824,17 @@ export async function POST(req: NextRequest) {
     }
     if (activeBets && activeBets.length > 0) {
       contextMessage += `- Active bets: ${activeBets.length}\n`
+    }
+    if (recentModels.length > 0) {
+      contextMessage += `- Custom models ready: ${recentModels
+        .map((model) => `${model.model_name} (${model.sport_key.toUpperCase()} ${model.market_type})`)
+        .join(', ')}\n`
+      contextMessage += `\n**Saved Models Overview:**\n`
+      recentModels.forEach((model) => {
+        contextMessage += `- ${model.model_name}: target ${model.target_metric}, confidence ${(Number(model.confidence_level) * 100).toFixed(0)}%, last used ${model.last_used_at ? format(new Date(model.last_used_at), 'MMM d @ h:mm a') : 'n/a'}\n`
+      })
+    } else {
+      contextMessage += '- Custom models ready: none yet (offer to help user build one)\n'
     }
 
     // Determine if we need to fetch odds data
@@ -1018,7 +1252,7 @@ ${statsEnrichment}\n`
     const initialResponse = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: openaiMessages,
-      tools: BANKROLL_FUNCTIONS,
+      tools: ASSISTANT_TOOLS,
       temperature: 0.7,
       max_tokens: 4000,
     })
@@ -1221,6 +1455,128 @@ ${statsEnrichment}\n`
             error: `Failed to fetch bankroll stats: ${error.message}`
           }
         }
+      } else if (functionName === 'save_custom_model') {
+        try {
+          const statsInput = buildStatInputs(functionArgs.stats)
+          const savedModel = await saveCustomModel(supabase, userId, {
+            modelName: functionArgs.model_name,
+            sportKey: functionArgs.sport_key,
+            marketType: functionArgs.market_type,
+            targetMetric: functionArgs.target_metric,
+            confidenceLevel: functionArgs.confidence_level,
+            stats: statsInput,
+            dataHints: functionArgs.data_hints,
+            notes: functionArgs.notes,
+          })
+
+          const posthog = getPostHogServer()
+          posthog?.capture({
+            distinctId: userId,
+            event: 'custom_model_saved',
+            properties: {
+              model_name: savedModel.model_name,
+              sport: savedModel.sport_key,
+              market: savedModel.market_type,
+              confidence: savedModel.confidence_level,
+              conversation_id: conversationId,
+            },
+          })
+
+          functionResult = {
+            success: true,
+            model: savedModel,
+            message: `Model "${savedModel.model_name}" saved successfully`,
+          }
+        } catch (error: any) {
+          functionResult = {
+            success: false,
+            error: error.message || 'Failed to save custom model',
+          }
+        }
+      } else if (functionName === 'list_custom_models') {
+        try {
+          const limit = functionArgs.limit || 5
+          const models = await listCustomModels(supabase, userId, limit)
+
+          functionResult = {
+            success: true,
+            models,
+            count: models.length,
+          }
+        } catch (error: any) {
+          functionResult = {
+            success: false,
+            error: error.message || 'Failed to list custom models',
+          }
+        }
+      } else if (functionName === 'apply_custom_model') {
+        try {
+          let modelRecord: any = null
+          if (functionArgs.model_id) {
+            const { data, error } = await supabase
+              .from('custom_models')
+              .select('*')
+              .eq('user_id', userId)
+              .eq('id', functionArgs.model_id)
+              .single()
+            if (error || !data) {
+              throw new Error('No model found for that ID')
+            }
+            modelRecord = data
+          } else {
+            const { data, error } = await supabase
+              .from('custom_models')
+              .select('*')
+              .eq('user_id', userId)
+              .ilike('model_name', functionArgs.model_name)
+              .single()
+            if (error || !data) {
+              throw new Error(`Model "${functionArgs.model_name}" was not found. Ask the user to confirm the name or create it first.`)
+            }
+            modelRecord = data
+          }
+
+          const matchup = functionArgs.matchup
+            ? {
+                focus: functionArgs.matchup.focus || functionArgs.matchup.focus_team,
+                opponent: functionArgs.matchup.opponent || functionArgs.matchup.opponent_team,
+              }
+            : undefined
+
+          const result = await runCustomModel(modelRecord, {
+            sportKey: functionArgs.sport_key,
+            teams: functionArgs.teams,
+            matchup,
+            notes: functionArgs.notes,
+          })
+
+          await touchCustomModelUsage(supabase, modelRecord.id)
+
+          const posthog = getPostHogServer()
+          posthog?.capture({
+            distinctId: userId,
+            event: 'custom_model_applied',
+            properties: {
+              model_name: modelRecord.model_name,
+              sport: modelRecord.sport_key,
+              market: modelRecord.market_type,
+              score: result.score,
+              confidence: result.confidenceLevel,
+              conversation_id: conversationId,
+            },
+          })
+
+          functionResult = {
+            success: true,
+            model: modelRecord,
+            result,
+          }
+        } catch (error: any) {
+          functionResult = {
+            success: false,
+            error: error.message || 'Failed to apply custom model',
+          }
+        }
       }
 
       // Add function result to messages
@@ -1322,7 +1678,7 @@ ${statsEnrichment}\n`
     const stream = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: openaiMessages,
-      tools: BANKROLL_FUNCTIONS,
+      tools: ASSISTANT_TOOLS,
       stream: true,
       temperature: 0.7,
       max_tokens: 4000,

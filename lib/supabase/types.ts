@@ -175,6 +175,50 @@ export interface Database {
           created_at?: string
         }
       }
+      custom_models: {
+        Row: {
+          id: string
+          user_id: string
+          model_name: string
+          sport_key: string
+          market_type: string
+          target_metric: string
+          confidence_level: number
+          config: Json
+          notes: string | null
+          created_at: string
+          updated_at: string
+          last_used_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          model_name: string
+          sport_key: string
+          market_type: string
+          target_metric: string
+          confidence_level?: number
+          config: Json
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+          last_used_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          model_name?: string
+          sport_key?: string
+          market_type?: string
+          target_metric?: string
+          confidence_level?: number
+          config?: Json
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+          last_used_at?: string | null
+        }
+      }
     }
   }
 }

@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatPercent } from '@/lib/utils/odds'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import { format } from 'date-fns'
 import { motion } from 'framer-motion'
-import { Wallet, TrendingUp, Trophy, Target, Activity, Check, X, Sparkles, Loader2 } from 'lucide-react'
+import { Wallet, Trophy, Target, Activity, Check, X, Sparkles, Loader2 } from 'lucide-react'
 import { LiveScore, matchBetToGame } from '@/lib/espn-api'
 import { calculateBetProbability } from '@/lib/services/probability-engine'
 
@@ -39,6 +39,14 @@ interface Bet {
   status: string
   placed_at: string
   book: string
+}
+
+type ChartRange = '7d' | '30d' | '365d' | 'all'
+
+interface ChartDataPoint {
+  date: string
+  balance: number
+  parsedDate: Date
 }
 
 const TEAM_STOP_WORDS = new Set(['the', 'vs', 'at', 'los', 'las', 'club', 'team', 'fc', 'sc'])
@@ -83,6 +91,8 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
   const [insights, setInsights] = useState<string>('')
   const [betProbabilities, setBetProbabilities] = useState<Record<string, number>>({})
   const [totalBetCount, setTotalBetCount] = useState(0)
+  const [chartRange, setChartRange] = useState<ChartRange>('7d')
+  const [isChartExpanded, setChartExpanded] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -382,6 +392,75 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
   const winRate = stats.wonBets + stats.lostBets > 0
     ? (stats.wonBets / (stats.wonBets + stats.lostBets)) * 100
     : 0
+  const chartRangeOptions: { value: ChartRange; label: string }[] = [
+    { value: '7d', label: '7 Days' },
+    { value: '30d', label: '30 Days' },
+    { value: '365d', label: '1 Year' },
+    { value: 'all', label: 'All Time' },
+  ]
+
+  const chartData = useMemo<ChartDataPoint[]>(() => {
+    if (!stats || !stats.dailyBalances?.length) return []
+    const sorted = [...stats.dailyBalances]
+      .map((entry) => ({ ...entry, parsedDate: new Date(entry.date) }))
+      .sort((a, b) => a.parsedDate.getTime() - b.parsedDate.getTime())
+    if (chartRange === 'all') {
+      return sorted
+    }
+    const days = chartRange === '7d' ? 7 : chartRange === '30d' ? 30 : 365
+    const threshold = new Date()
+    threshold.setDate(threshold.getDate() - days)
+    return sorted.filter((entry) => entry.parsedDate >= threshold)
+  }, [chartRange, stats])
+
+  const formattedChartData = chartData.map((entry) => ({
+    date: entry.parsedDate.toISOString(),
+    balance: entry.balance,
+  }))
+
+  const hasChartData = formattedChartData.length > 0
+
+  const ChartVisualization = ({ height }: { height: number }) => (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={formattedChartData}>
+        <defs>
+          <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <Area
+          type="monotone"
+          dataKey="balance"
+          stroke="#8b5cf6"
+          strokeWidth={2}
+          fill="url(#colorBalance)"
+        />
+        <XAxis
+          dataKey="date"
+          stroke="rgba(255,255,255,0.2)"
+          tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }}
+          tickFormatter={(value) => format(new Date(value), 'MMM d')}
+        />
+        <YAxis
+          stroke="rgba(255,255,255,0.2)"
+          tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }}
+          tickFormatter={(value) => formatCurrency(value)}
+        />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '8px',
+            fontSize: '12px'
+          }}
+          labelStyle={{ color: 'rgba(255,255,255,0.6)' }}
+          itemStyle={{ color: '#8b5cf6' }}
+          formatter={(value: any) => [formatCurrency(value), 'Balance']}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  )
 
   return (
     <>
@@ -412,10 +491,6 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
               <div className="text-3xl font-bold text-white mb-1">
                 {formatCurrency(stats.currentBalance)}
               </div>
-              <div className={`text-sm flex items-center gap-1 ${profitChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                <TrendingUp className="w-3.5 h-3.5" />
-                {profitChange >= 0 ? '+' : ''}{formatCurrency(profitChange)} ({profitPercent.toFixed(2)}%)
-              </div>
             </motion.div>
 
             {/* Win Rate */}
@@ -437,7 +512,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
               </div>
             </motion.div>
 
-            {/* ROI */}
+            {/* Growth */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -446,13 +521,13 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
             >
               <div className="flex items-center gap-2 mb-2">
                 <Target className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs text-white/60">ROI</span>
+                <span className="text-xs text-white/60 uppercase tracking-wider">Growth</span>
               </div>
-              <div className={`text-2xl font-bold ${stats.roi >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {stats.roi.toFixed(1)}%
+              <div className={`text-2xl font-bold ${profitPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(1)}%
               </div>
-              <div className="text-xs text-white/40 mt-1">
-                {stats.pendingBets} pending
+              <div className={`text-sm ${profitChange >= 0 ? 'text-emerald-400' : 'text-red-400'} mt-1`}>
+                {profitChange >= 0 ? '+' : ''}{formatCurrency(profitChange)} {profitChange >= 0 ? 'up' : 'down'}
               </div>
             </motion.div>
 
@@ -501,50 +576,97 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
               transition={{ delay: 0.4 }}
               className="col-span-2 p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
             >
-              <div className="text-xs text-white/60 uppercase tracking-wider font-semibold mb-3">
-                7-Day Trend
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs text-white/60 uppercase tracking-wider font-semibold">
+                  Balance Trend ({chartRange.toUpperCase()})
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {chartRangeOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setChartRange(option.value)}
+                      className={`px-3 py-1 rounded-full text-[10px] uppercase tracking-wider transition ${
+                        chartRange === option.value
+                          ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
+                          : 'bg-white/5 text-white/40 border border-white/10'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setChartExpanded(true)}
+                    className="px-3 py-1 text-[10px] uppercase tracking-wider rounded-full border border-purple-500/40 text-purple-200 bg-transparent"
+                  >
+                    Expand
+                  </button>
+                </div>
               </div>
-              <ResponsiveContainer width="100%" height={120}>
-                <AreaChart data={stats.dailyBalances}>
-                  <defs>
-                    <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <Area
-                    type="monotone"
-                    dataKey="balance"
-                    stroke="#8b5cf6"
-                    strokeWidth={2}
-                    fill="url(#colorBalance)"
-                  />
-                  <XAxis
-                    dataKey="date"
-                    stroke="rgba(255,255,255,0.2)"
-                    tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }}
-                    tickFormatter={(value) => format(new Date(value), 'MMM d')}
-                  />
-                  <YAxis
-                    stroke="rgba(255,255,255,0.2)"
-                    tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }}
-                    tickFormatter={(value) => `$${value}`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'rgba(0,0,0,0.8)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px',
-                      fontSize: '12px'
-                    }}
-                    labelStyle={{ color: 'rgba(255,255,255,0.6)' }}
-                    itemStyle={{ color: '#8b5cf6' }}
-                    formatter={(value: any) => [`$${value.toFixed(2)}`, 'Balance']}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+            {hasChartData ? (
+              <ChartVisualization height={220} />
+            ) : (
+              <div className="text-xs text-white/40">Not enough history to chart growth yet.</div>
+            )}
+          </motion.div>
+          {isChartExpanded && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+              onClick={() => setChartExpanded(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-4xl bg-gradient-to-br from-gray-900 to-black border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 border-b border-white/10">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Sparkles className="w-6 h-6 text-purple-400" />
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">Balance Trend (Expanded)</h3>
+                        <p className="text-xs text-white/60">
+                          Track your bankroll movement in more detail.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setChartExpanded(false)}
+                      className="text-white/60 hover:text-white text-sm"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 mt-4 flex-wrap">
+                    {chartRangeOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setChartRange(option.value)}
+                        className={`px-3 py-1 rounded-full text-[10px] uppercase tracking-wider transition ${
+                          chartRange === option.value
+                            ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
+                            : 'bg-white/5 text-white/40 border border-white/10'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="p-6">
+                  {hasChartData ? (
+                    <ChartVisualization height={340} />
+                  ) : (
+                    <div className="text-xs text-white/40">Not enough history to chart growth yet.</div>
+                  )}
+                </div>
+              </motion.div>
             </motion.div>
-          </div>
+          )}
+        </div>
 
           {/* Active Bets */}
           {activeBets.length > 0 && (

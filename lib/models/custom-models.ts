@@ -46,7 +46,7 @@ export async function saveCustomModel(
     market_type: payload.marketType,
     target_metric: payload.targetMetric,
     confidence_level: normalizeConfidence(payload.confidenceLevel),
-    config: config as unknown as Json,
+    config: config as Json,
     notes: payload.notes ?? null,
   }
 

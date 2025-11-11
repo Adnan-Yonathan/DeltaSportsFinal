@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency, formatPercent } from '@/lib/utils/odds'
+import { formatCurrency } from '@/lib/utils/odds'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import { format } from 'date-fns'
 import { motion } from 'framer-motion'
@@ -46,7 +46,7 @@ type ChartRange = '7d' | '30d' | '365d' | 'all'
 interface ChartDataPoint {
   date: string
   balance: number
-  parsedDate: Date
+  parsedDate?: Date
 }
 
 const TEAM_STOP_WORDS = new Set(['the', 'vs', 'at', 'los', 'las', 'club', 'team', 'fc', 'sc'])
@@ -424,24 +424,6 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
     }
   }
 
-  if (loading || !stats) {
-    return (
-      <div className="h-full bg-black/40 backdrop-blur-xl border-l border-white/5 p-6 flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-          className="w-12 h-12 rounded-full border-2 border-indigo-500 border-t-transparent"
-        />
-      </div>
-    )
-  }
-
-  const profitChange = stats.totalProfit
-  const profitPercent = ((stats.currentBalance - stats.startingBalance) / stats.startingBalance) * 100
-  const hasEnoughHistory = totalBetCount >= 10
-  const winRate = stats.wonBets + stats.lostBets > 0
-    ? (stats.wonBets / (stats.wonBets + stats.lostBets)) * 100
-    : 0
   const chartRangeOptions: { value: ChartRange; label: string }[] = [
     { value: '7d', label: '7 Days' },
     { value: '30d', label: '30 Days' },
@@ -464,11 +446,30 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
   }, [chartRange, stats])
 
   const formattedChartData = chartData.map((entry) => ({
-    date: entry.parsedDate.toISOString(),
+    date: entry.parsedDate!.toISOString(),
     balance: entry.balance,
   }))
 
   const hasChartData = formattedChartData.length > 0
+
+  if (loading || !stats) {
+    return (
+      <div className="h-full bg-black/40 backdrop-blur-xl border-l border-white/5 p-6 flex items-center justify-center">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+          className="w-12 h-12 rounded-full border-2 border-indigo-500 border-t-transparent"
+        />
+      </div>
+    )
+  }
+
+  const profitChange = stats.totalProfit
+  const profitPercent = ((stats.currentBalance - stats.startingBalance) / stats.startingBalance) * 100
+  const hasEnoughHistory = totalBetCount >= 10
+  const winRate = stats.wonBets + stats.lostBets > 0
+    ? (stats.wonBets / (stats.wonBets + stats.lostBets)) * 100
+    : 0
 
   const ChartVisualization = ({ height }: { height: number }) => (
     <ResponsiveContainer width="100%" height={height}>

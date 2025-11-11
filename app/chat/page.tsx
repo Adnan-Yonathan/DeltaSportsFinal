@@ -23,7 +23,6 @@ export default function ChatPage() {
   const [bankrollOpen, setBankrollOpen] = useState(false)
   const [arbitrageData, setArbitrageData] = useState<{
     total: number
-    best?: string
     loading: boolean
     error?: string
   }>({ total: 0, loading: true })
@@ -118,10 +117,8 @@ export default function ChatPage() {
 
         if (!isMounted) return
 
-        const best = opportunities.sort((a, b) => b.profitPercent - a.profitPercent)[0]
         setArbitrageData({
           total: opportunities.length,
-          best: best ? `${best.game} (${best.market})` : undefined,
           loading: false,
         })
       } catch (error: any) {
@@ -256,18 +253,15 @@ export default function ChatPage() {
 
             <div className="hidden md:flex flex-col text-right text-xs text-white/50">
               <span>Arbitrage</span>
-              {arbitrageData.loading ? (
-                <span>Loading...</span>
-              ) : arbitrageData.error ? (
-                <span className="text-amber-300">{arbitrageData.error}</span>
-              ) : (
-                <span className="font-semibold text-white">
-                  {arbitrageData.total} opportunity{arbitrageData.total === 1 ? '' : 'ies'}
-                </span>
-              )}
-              {!arbitrageData.loading && arbitrageData.best && (
-                <span className="text-[10px] text-white/60">{arbitrageData.best}</span>
-              )}
+      {arbitrageData.loading ? (
+        <span>Loading...</span>
+      ) : arbitrageData.error ? (
+        <span className="text-amber-300">{arbitrageData.error}</span>
+      ) : (
+        <span className="font-semibold text-white">
+          {arbitrageData.total} opportunity{arbitrageData.total === 1 ? '' : 'ies'}
+        </span>
+      )}
             </div>
 
             {/* Email (Desktop Only) */}

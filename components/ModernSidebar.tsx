@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -98,6 +98,29 @@ export default function ModernSidebar({
       setConversations(data)
     }
     setLoading(false)
+  }
+
+  const loadModels = async () => {
+    setModelsLoading(true)
+    const { data } = await supabase
+      .from('custom_models')
+      .select('id, model_name, sport_key, market_type, target_metric, confidence_level, updated_at, last_used_at')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(5)
+
+    if (data) {
+      setCustomModels(data)
+    }
+    setModelsLoading(false)
+  }
+
+  const handleQuickPrompt = (model: CustomModel) => {
+    if (typeof window === 'undefined') return
+    const defaultPrompt = `Apply my ${model.model_name} model for ${model.market_type} (add matchup/context here)`
+    window.dispatchEvent(new CustomEvent('delta-quick-prompt', { detail: defaultPrompt }))
+    setQuickPromptModel(model.id)
+    setTimeout(() => setQuickPromptModel(null), 2000)
   }
 
   const deleteConversation = async (id: string, e: React.MouseEvent) => {
@@ -306,10 +329,10 @@ export default function ModernSidebar({
                     <div>
                       <p className="text-sm font-semibold text-white">{model.model_name}</p>
                       <p className="text-xs text-white/50">
-                        {formatSportLabel(model.sport_key)} • {model.market_type}
+                        {formatSportLabel(model.sport_key)} ΓÇó {model.market_type}
                       </p>
                       <p className="text-[11px] text-white/40 mt-1">
-                        Conf {Math.round(Number(model.confidence_level) * 100)}% • {getModelTimeLabel(model)}
+                        Conf {Math.round(Number(model.confidence_level) * 100)}% ΓÇó {getModelTimeLabel(model)}
                       </p>
                     </div>
                     <motion.button
@@ -325,12 +348,12 @@ export default function ModernSidebar({
             </div>
           ) : (
             <p className="text-xs text-white/40">
-              No saved models yet. Ask DELTA to “create a custom model” and it will guide you.
+              No saved models yet. Ask DELTA to ΓÇ£create a custom modelΓÇ¥ and it will guide you.
             </p>
           )}
 
           <p className="text-[11px] text-white/40 mt-3">
-            Prefill drops “Apply my … model” into the chat input—edit the matchup before you send it.
+            Prefill drops ΓÇ£Apply my ΓÇª modelΓÇ¥ into the chat inputΓÇöedit the matchup before you send it.
           </p>
         </div>
       </div>
@@ -353,25 +376,3 @@ export default function ModernSidebar({
     </div>
   )
 }
-  const loadModels = async () => {
-    setModelsLoading(true)
-    const { data } = await supabase
-      .from('custom_models')
-      .select('id, model_name, sport_key, market_type, target_metric, confidence_level, updated_at, last_used_at')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: false })
-      .limit(5)
-
-    if (data) {
-      setCustomModels(data)
-    }
-    setModelsLoading(false)
-  }
-
-  const handleQuickPrompt = (model: CustomModel) => {
-    if (typeof window === 'undefined') return
-    const defaultPrompt = `Apply my ${model.model_name} model for ${model.market_type} (add matchup/context here)`
-    window.dispatchEvent(new CustomEvent('delta-quick-prompt', { detail: defaultPrompt }))
-    setQuickPromptModel(model.id)
-    setTimeout(() => setQuickPromptModel(null), 2000)
-  }

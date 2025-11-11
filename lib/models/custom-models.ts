@@ -12,7 +12,7 @@ export type CustomModelRow = Database['public']['Tables']['custom_models']['Row'
 type CustomModelInsert = Database['public']['Tables']['custom_models']['Insert']
 
 const customModelsTable = (supabase: TypedSupabaseClient) =>
-  supabase.from('custom_models' as any)
+  supabase.from('custom_models') as any
 
 export {
   type CustomModelStatInput,

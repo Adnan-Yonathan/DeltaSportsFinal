@@ -2,13 +2,112 @@ import { OddsGame, ArbitrageOpportunity, MARKETS } from '@/lib/types/odds'
 import { isArbitrage, calculateArbitrageStakes, americanToDecimal } from '@/lib/utils/odds'
 
 const ODDS_API_BASE = 'https://api.the-odds-api.com/v4'
-const API_KEY = process.env.ODDS_API_KEY
 
 export class OddsAPIError extends Error {
   constructor(message: string, public statusCode?: number) {
     super(message)
     this.name = 'OddsAPIError'
   }
+}
+
+// --- Rotating API key support ---
+type KeyStatus = { coolingUntil?: number }
+
+const parseKeyPool = (): string[] => {
+  try {
+    if (process.env.ODDS_API_KEYS) {
+      const arr = JSON.parse(process.env.ODDS_API_KEYS)
+      if (Array.isArray(arr)) return arr.filter(Boolean)
+    }
+  } catch {
+    // ignore parse errors; fall back below
+  }
+  return process.env.ODDS_API_KEY ? [process.env.ODDS_API_KEY] : []
+}
+
+const keyPool = parseKeyPool()
+const keyStatus = new Map<string, KeyStatus>()
+let startIndex = 0
+
+const COOLDOWN_MS = 10 * 60 * 1000 // 10 minutes
+const MAX_ATTEMPTS = Math.min(Math.max(keyPool.length, 1), 10)
+
+const shouldSkipKey = (key: string) => {
+  const s = keyStatus.get(key)
+  return !!(s?.coolingUntil && s.coolingUntil > Date.now())
+}
+
+const markCooling = (key: string, reason: string) => {
+  keyStatus.set(key, { coolingUntil: Date.now() + COOLDOWN_MS })
+  try {
+    console.warn(`[OddsAPI] Cooling key due to ${reason}. Key tail: ${key.slice(-4)}`)
+  } catch {}
+}
+
+const isRateLimitOrAuthError = (status: number, bodyText?: string) => {
+  if (status === 401 || status === 403 || status === 429) return true
+  if (!bodyText) return false
+  const t = bodyText.toLowerCase()
+  return (
+    t.includes('rate') ||
+    t.includes('quota') ||
+    t.includes('limit') ||
+    t.includes('unauthorized') ||
+    t.includes('invalid api key')
+  )
+}
+
+async function fetchWithRotation(urlBase: string, init?: RequestInit): Promise<Response> {
+  if (keyPool.length === 0) {
+    throw new OddsAPIError('ODDS_API_KEY is not configured')
+  }
+
+  let attempts = 0
+  let lastErr: any = null
+
+  for (let i = 0; i < keyPool.length && attempts < MAX_ATTEMPTS; i++) {
+    const idx = (startIndex + i) % keyPool.length
+    const apiKey = keyPool[idx]
+    if (!apiKey) continue
+    if (shouldSkipKey(apiKey)) {
+      continue
+    }
+
+    const u = new URL(urlBase)
+    u.searchParams.set('apiKey', apiKey)
+
+    try {
+      const res = await fetch(u.toString(), init)
+
+      const remaining = res.headers.get('x-requests-remaining')
+      if (remaining && !isNaN(Number(remaining)) && Number(remaining) <= 1) {
+        markCooling(apiKey, `low remaining (${remaining})`)
+        startIndex = (idx + 1) % keyPool.length
+      }
+
+      if (res.ok) {
+        startIndex = (idx + 1) % keyPool.length
+        return res
+      } else {
+        const bodyText = await res.text().catch(() => '')
+        if (isRateLimitOrAuthError(res.status, bodyText)) {
+          markCooling(apiKey, `status ${res.status}`)
+          lastErr = new OddsAPIError(`Odds API returned ${res.status}: ${res.statusText}`, res.status)
+          attempts++
+          continue
+        }
+        throw new OddsAPIError(`Odds API returned ${res.status}: ${res.statusText}`, res.status)
+      }
+    } catch (err: any) {
+      lastErr = err
+      attempts++
+      markCooling(apiKey, 'network/error')
+      continue
+    }
+  }
+
+  if (lastErr instanceof OddsAPIError) throw lastErr
+  throw new OddsAPIError(`Failed to fetch after rotating keys: ${lastErr}`)
 }
 
 /**
@@ -18,31 +117,15 @@ export async function fetchOdds(
   sport: string,
   markets: string[] = ['h2h', 'spreads', 'totals']
 ): Promise<OddsGame[]> {
-  if (!API_KEY) {
-    throw new OddsAPIError('ODDS_API_KEY is not configured')
-  }
-
   const marketsParam = markets.join(',')
-  const url = `${ODDS_API_BASE}/sports/${sport}/odds/?apiKey=${API_KEY}&regions=us&markets=${marketsParam}&oddsFormat=american`
+  const url = `${ODDS_API_BASE}/sports/${sport}/odds/?regions=us&markets=${marketsParam}&oddsFormat=american`
 
   try {
-    const response = await fetch(url, {
-      next: { revalidate: 30 }, // Cache for 30 seconds
-    })
-
-    if (!response.ok) {
-      throw new OddsAPIError(
-        `Odds API returned ${response.status}: ${response.statusText}`,
-        response.status
-      )
-    }
-
+    const response = await fetchWithRotation(url, { next: { revalidate: 30 } })
     const data = await response.json()
     return data as OddsGame[]
   } catch (error) {
-    if (error instanceof OddsAPIError) {
-      throw error
-    }
+    if (error instanceof OddsAPIError) throw error
     throw new OddsAPIError(`Failed to fetch odds: ${error}`)
   }
 }
@@ -51,29 +134,13 @@ export async function fetchOdds(
  * Fetch available sports
  */
 export async function fetchSports(): Promise<any[]> {
-  if (!API_KEY) {
-    throw new OddsAPIError('ODDS_API_KEY is not configured')
-  }
-
-  const url = `${ODDS_API_BASE}/sports/?apiKey=${API_KEY}`
+  const url = `${ODDS_API_BASE}/sports/`
 
   try {
-    const response = await fetch(url, {
-      next: { revalidate: 3600 }, // Cache for 1 hour
-    })
-
-    if (!response.ok) {
-      throw new OddsAPIError(
-        `Odds API returned ${response.status}: ${response.statusText}`,
-        response.status
-      )
-    }
-
+    const response = await fetchWithRotation(url, { next: { revalidate: 3600 } })
     return await response.json()
   } catch (error) {
-    if (error instanceof OddsAPIError) {
-      throw error
-    }
+    if (error instanceof OddsAPIError) throw error
     throw new OddsAPIError(`Failed to fetch sports: ${error}`)
   }
 }

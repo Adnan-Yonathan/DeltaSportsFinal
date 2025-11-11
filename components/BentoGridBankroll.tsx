@@ -51,6 +51,56 @@ interface ChartDataPoint {
 
 const TEAM_STOP_WORDS = new Set(['the', 'vs', 'at', 'los', 'las', 'club', 'team', 'fc', 'sc'])
 
+const formatBalanceTooltip = (value: number) => `$${value.toFixed(2)}`
+
+const ChartVisualization = ({
+  data,
+  height,
+}: {
+  data: ChartDataPoint[]
+  height: number
+}) => (
+  <ResponsiveContainer width="100%" height={height}>
+    <AreaChart data={data}>
+      <defs>
+        <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <Area
+        type="monotone"
+        dataKey="balance"
+        stroke="#8b5cf6"
+        strokeWidth={2}
+        fill="url(#colorBalance)"
+      />
+      <XAxis
+        dataKey="date"
+        stroke="rgba(255,255,255,0.2)"
+        tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }}
+        tickFormatter={(value) => format(new Date(value), 'MMM d')}
+      />
+      <YAxis
+        stroke="rgba(255,255,255,0.2)"
+        tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }}
+        tickFormatter={(value) => formatBalanceTooltip(value)}
+      />
+      <Tooltip
+        contentStyle={{
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '8px',
+          fontSize: '12px'
+        }}
+        labelStyle={{ color: 'rgba(255,255,255,0.6)' }}
+        itemStyle={{ color: '#8b5cf6' }}
+        formatter={(value: any) => [formatBalanceTooltip(value), 'Balance']}
+      />
+    </AreaChart>
+  </ResponsiveContainer>
+)
+
 const normalizeText = (value: string) => value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ')
 
 const tokenizeTeam = (team: string): string[] =>

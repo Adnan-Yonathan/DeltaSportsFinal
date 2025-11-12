@@ -198,7 +198,11 @@ Before pushing, run `npm run verify` for lint + type safety.
 
 ## Contributing
 
+<<<<<<< HEAD
 This repo serves as a portfolio/demo; feel free to fork and customize. If you submit PRs, include screenshots or Loom links and run `npm run verify` first.
+=======
+If u modify i will find u. 
+>>>>>>> 5e1eaf30690cd272ba896f5db9e0ad5d23c8d677
 
 ---
 

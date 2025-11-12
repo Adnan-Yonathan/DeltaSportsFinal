@@ -10,7 +10,6 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { getInjuryReports } from '@/lib/sports-stats-api'
 import { Database } from '@/lib/supabase/types'
 
-type InjuryRow = Database['public']['Tables']['injury_reports']['Row']
 type InjuryInsert = Database['public']['Tables']['injury_reports']['Insert']
 
 const SUPPORTED_SPORTS = [
@@ -48,7 +47,7 @@ async function ingestSport(supabase: ReturnType<typeof createServiceClient>, spo
   const chunkSize = 500
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize)
-    const { error } = await supabase.from('injury_reports').insert(chunk as InjuryInsert[])
+    const { error } = await supabase.from('injury_reports').insert(chunk)
     if (error) {
       console.error(`[INGEST] Failed to insert chunk for ${sport}:`, error.message)
       throw error

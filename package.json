@@ -10,7 +10,8 @@
     "test:custom-models": "ts-node --project tsconfig.test.json tests/custom-models.spec.ts",
     "cleanup:messages": "npx ts-node scripts/cleanup-null-messages.ts",
     "ingest:injuries": "ts-node scripts/ingest-injuries.ts",
-    "ingest:recent-form": "ts-node scripts/ingest-recent-form.ts"
+    "ingest:recent-form": "ts-node scripts/ingest-recent-form.ts",
+    "ingest:market-trends": "ts-node scripts/ingest-market-trends.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

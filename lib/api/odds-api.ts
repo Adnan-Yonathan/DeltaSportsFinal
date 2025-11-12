@@ -121,11 +121,16 @@ async function fetchWithRotation(urlBase: string, init?: RequestInit): Promise<R
 /**
  * Fetch odds for a specific sport
  */
+export interface FetchOddsOptions {
+  bypassQuietWindow?: boolean
+}
+
 export async function fetchOdds(
   sport: string,
-  markets: string[] = ['h2h', 'spreads', 'totals']
+  markets: string[] = ['h2h', 'spreads', 'totals'],
+  options: FetchOddsOptions = {}
 ): Promise<OddsGame[]> {
-  if (isWithinQuietWindowHours()) {
+  if (!options.bypassQuietWindow && isWithinQuietWindowHours()) {
     console.warn('Odds fetch suppressed between 1AM and 12PM EST.')
     return []
   }

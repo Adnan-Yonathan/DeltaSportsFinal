@@ -168,6 +168,125 @@ function formatMarketOutcome(outcome?: { name: string; price: number; point?: nu
   return `${line} (${outcome.price > 0 ? '+' : ''}${outcome.price})`
 }
 
+async function tryLoadMarketSnapshot(
+  supabase: SupabaseClient<Database> | undefined,
+  sport: string,
+  homeTeam: string,
+  awayTeam: string
+): Promise<MarketTrendSummary | undefined> {
+  if (!supabase) return undefined
+  try {
+    const { data } = await supabase
+      .from('market_snapshots')
+      .select('*')
+      .eq('sport_key', sport)
+      .ilike('game_description', `%${awayTeam}%${homeTeam}%`)
+      .order('captured_at', { ascending: false })
+      .limit(1)
+
+    const snapshot = data?.[0]
+    if (!snapshot) return undefined
+
+    return {
+      gameDescription: snapshot.game_description,
+      bestSpreadHome: snapshot.spread_home_line
+        ? `${snapshot.spread_home_line > 0 ? '+' : ''}${snapshot.spread_home_line} (${snapshot.spread_home_odds})`
+        : undefined,
+      bestSpreadAway: snapshot.spread_away_line
+        ? `${snapshot.spread_away_line > 0 ? '+' : ''}${snapshot.spread_away_line} (${snapshot.spread_away_odds})`
+        : undefined,
+      bestMoneylineHome: snapshot.moneyline_home
+        ? `${snapshot.moneyline_home > 0 ? '+' : ''}${snapshot.moneyline_home}`
+        : undefined,
+      bestMoneylineAway: snapshot.moneyline_away
+        ? `${snapshot.moneyline_away > 0 ? '+' : ''}${snapshot.moneyline_away}`
+        : undefined,
+      notes: `Last captured ${new Date(snapshot.captured_at).toLocaleString()}`,
+    }
+  } catch (error) {
+    console.error('[CONTEXT] Failed to load market snapshot:', error)
+    return undefined
+  }
+}
+
+async function tryLoadLiveMarket(
+  sport: string,
+  normalizedHome: string,
+  normalizedAway: string,
+  notes: string[]
+) {
+  try {
+    const oddsData = await fetchOdds(sport, ['h2h', 'spreads'])
+    const targetGame = oddsData.find((game) => {
+      const home = normalizeTeamName(game.home_team || '')
+      const away = normalizeTeamName(game.away_team || '')
+      return home.includes(normalizedHome) || normalizedHome.includes(home)
+        ? away.includes(normalizedAway) || normalizedAway.includes(away)
+        : false
+    })
+
+    if (!targetGame) {
+      notes.push('No live odds found for this matchup to summarize market trends.')
+      return undefined
+    }
+
+    const summary: MarketTrendSummary = {
+      gameDescription: `${targetGame.away_team} @ ${targetGame.home_team}`,
+      notes: `Captured ${new Date().toLocaleString()}`,
+    }
+
+    const spreads = targetGame.bookmakers
+      .map((book) => ({
+        book: book.title,
+        market: book.markets.find((m) => m.key === 'spreads'),
+      }))
+      .filter((entry) => entry.market)
+
+    if (spreads.length > 0) {
+      const bestHome = spreads
+        .map((entry) => entry.market!.outcomes.find((o) => normalizeTeamName(o.name) === normalizedHome))
+        .filter(Boolean)
+        .sort((a, b) => (b!.price || 0) - (a!.price || 0))[0]
+
+      const bestAway = spreads
+        .map((entry) => entry.market!.outcomes.find((o) => normalizeTeamName(o.name) === normalizedAway))
+        .filter(Boolean)
+        .sort((a, b) => (b!.price || 0) - (a!.price || 0))[0]
+
+      summary.bestSpreadHome = formatMarketOutcome(bestHome)
+      summary.bestSpreadAway = formatMarketOutcome(bestAway)
+    }
+
+    const moneyline = targetGame.bookmakers
+      .map((book) => ({
+        book: book.title,
+        market: book.markets.find((m) => m.key === 'h2h'),
+      }))
+      .filter((entry) => entry.market)
+
+    if (moneyline.length > 0) {
+      const mlHome = moneyline
+        .map((entry) => entry.market!.outcomes.find((o) => normalizeTeamName(o.name) === normalizedHome))
+        .filter(Boolean)
+        .sort((a, b) => (b!.price || 0) - (a!.price || 0))[0]
+
+      const mlAway = moneyline
+        .map((entry) => entry.market!.outcomes.find((o) => normalizeTeamName(o.name) === normalizedAway))
+        .filter(Boolean)
+        .sort((a, b) => (b!.price || 0) - (a!.price || 0))[0]
+
+      summary.bestMoneylineHome = formatMarketOutcome(mlHome)
+      summary.bestMoneylineAway = formatMarketOutcome(mlAway)
+    }
+
+    return summary
+  } catch (error) {
+    console.error('[CONTEXT] Failed to fetch market trends:', error)
+    notes.push('Unable to fetch market trends right now.')
+    return undefined
+  }
+}
+
 export async function buildGameContext({
   sport,
   homeTeam,
@@ -219,74 +338,9 @@ export async function buildGameContext({
 
   let marketTrends: MarketTrendSummary | undefined
   if (includeMarketTrends) {
-    try {
-      const oddsData = await fetchOdds(sport, ['h2h', 'spreads'])
-      const targetGame = oddsData.find((game) => {
-        const home = normalizeTeamName(game.home_team || '')
-        const away = normalizeTeamName(game.away_team || '')
-        return home.includes(normalizedHome) || normalizedHome.includes(home)
-          ? away.includes(normalizedAway) || normalizedAway.includes(away)
-          : false
-      })
-
-      if (targetGame) {
-        const summary: MarketTrendSummary = {
-          gameDescription: `${targetGame.away_team} @ ${targetGame.home_team}`,
-          notes: `Captured ${new Date().toLocaleString()}`,
-        }
-
-        const spreads = targetGame.bookmakers
-          .map((book) => ({
-            book: book.title,
-            market: book.markets.find((m) => m.key === 'spreads'),
-          }))
-          .filter((entry) => entry.market)
-
-        if (spreads.length > 0) {
-          const bestHome = spreads
-            .map((entry) => entry.market!.outcomes.find((o) => normalizeTeamName(o.name) === normalizedHome))
-            .filter(Boolean)
-            .sort((a, b) => (b!.price || 0) - (a!.price || 0))[0]
-
-          const bestAway = spreads
-            .map((entry) => entry.market!.outcomes.find((o) => normalizeTeamName(o.name) === normalizedAway))
-            .filter(Boolean)
-            .sort((a, b) => (b!.price || 0) - (a!.price || 0))[0]
-
-          summary.bestSpreadHome = formatMarketOutcome(bestHome)
-          summary.bestSpreadAway = formatMarketOutcome(bestAway)
-        }
-
-        const moneyline = targetGame.bookmakers
-          .map((book) => ({
-            book: book.title,
-            market: book.markets.find((m) => m.key === 'h2h'),
-          }))
-          .filter((entry) => entry.market)
-
-        if (moneyline.length > 0) {
-          const mlHome = moneyline
-            .map((entry) => entry.market!.outcomes.find((o) => normalizeTeamName(o.name) === normalizedHome))
-            .filter(Boolean)
-            .sort((a, b) => (b!.price || 0) - (a!.price || 0))[0]
-
-          const mlAway = moneyline
-            .map((entry) => entry.market!.outcomes.find((o) => normalizeTeamName(o.name) === normalizedAway))
-            .filter(Boolean)
-            .sort((a, b) => (b!.price || 0) - (a!.price || 0))[0]
-
-          summary.bestMoneylineHome = formatMarketOutcome(mlHome)
-          summary.bestMoneylineAway = formatMarketOutcome(mlAway)
-        }
-
-        marketTrends = summary
-      } else {
-        notes.push('No live odds found for this matchup to summarize market trends.')
-      }
-    } catch (error) {
-      console.error('[CONTEXT] Failed to fetch market trends:', error)
-      notes.push('Unable to fetch market trends right now.')
-    }
+    marketTrends =
+      (await tryLoadMarketSnapshot(supabase, sport, homeTeam, awayTeam)) ||
+      (await tryLoadLiveMarket(sport, normalizedHome, normalizedAway, notes))
   }
 
   if (injuries.length === 0) {

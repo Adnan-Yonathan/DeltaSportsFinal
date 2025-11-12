@@ -153,6 +153,25 @@ CREATE TABLE IF NOT EXISTS head_to_head_results (
   captured_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Market snapshots
+CREATE TABLE IF NOT EXISTS market_snapshots (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sport_key TEXT NOT NULL,
+  game_id TEXT NOT NULL,
+  game_description TEXT NOT NULL,
+  captured_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  spread_home_line NUMERIC,
+  spread_home_odds NUMERIC,
+  spread_home_book TEXT,
+  spread_away_line NUMERIC,
+  spread_away_odds NUMERIC,
+  spread_away_book TEXT,
+  moneyline_home NUMERIC,
+  moneyline_home_book TEXT,
+  moneyline_away NUMERIC,
+  moneyline_away_book TEXT
+);
+
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_bets_user_status ON bets(user_id, status, placed_at DESC);
@@ -167,6 +186,8 @@ CREATE INDEX IF NOT EXISTS idx_recent_form_team_date ON team_recent_form(team_na
 CREATE INDEX IF NOT EXISTS idx_recent_form_sport_team ON team_recent_form(sport_key, team_name);
 CREATE INDEX IF NOT EXISTS idx_team_splits_team ON team_splits(team_name, captured_at DESC);
 CREATE INDEX IF NOT EXISTS idx_head_to_head_pair ON head_to_head_results(team_one, team_two, matchup_date DESC);
+CREATE INDEX IF NOT EXISTS idx_market_snapshots_game ON market_snapshots(game_id, captured_at DESC);
+CREATE INDEX IF NOT EXISTS idx_market_snapshots_sport ON market_snapshots(sport_key, captured_at DESC);
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -179,6 +200,7 @@ ALTER TABLE injury_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_recent_form ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_splits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE head_to_head_results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE market_snapshots ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for users table
 CREATE POLICY "Users can view own data" ON users
@@ -266,6 +288,9 @@ CREATE POLICY "Anyone can view team splits" ON team_splits
   FOR SELECT USING (true);
 
 CREATE POLICY "Anyone can view head-to-head" ON head_to_head_results
+  FOR SELECT USING (true);
+
+CREATE POLICY "Anyone can view market snapshots" ON market_snapshots
   FOR SELECT USING (true);
 
 -- Function to automatically update updated_at timestamp

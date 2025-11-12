@@ -429,6 +429,16 @@ npm run ingest:recent-form
 
 This writes game-level results into `team_recent_form`, enabling the chat to summarize “last 5” form without making live calls.
 
+### Market trend snapshots
+
+Capture best spreads/moneylines periodically:
+
+```bash
+npm run ingest:market-trends
+```
+
+This stores summaries in `market_snapshots`, which the chat uses before falling back to live odds.
+
 ---
 
 ## Contributing

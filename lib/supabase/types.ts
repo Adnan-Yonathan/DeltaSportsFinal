@@ -383,6 +383,59 @@ export interface Database {
           captured_at?: string
         }
       }
+      market_snapshots: {
+        Row: {
+          id: string
+          sport_key: string
+          game_id: string
+          game_description: string
+          captured_at: string
+          spread_home_line: number | null
+          spread_home_odds: number | null
+          spread_home_book: string | null
+          spread_away_line: number | null
+          spread_away_odds: number | null
+          spread_away_book: string | null
+          moneyline_home: number | null
+          moneyline_home_book: string | null
+          moneyline_away: number | null
+          moneyline_away_book: string | null
+        }
+        Insert: {
+          id?: string
+          sport_key: string
+          game_id: string
+          game_description: string
+          captured_at?: string
+          spread_home_line?: number | null
+          spread_home_odds?: number | null
+          spread_home_book?: string | null
+          spread_away_line?: number | null
+          spread_away_odds?: number | null
+          spread_away_book?: string | null
+          moneyline_home?: number | null
+          moneyline_home_book?: string | null
+          moneyline_away?: number | null
+          moneyline_away_book?: string | null
+        }
+        Update: {
+          id?: string
+          sport_key?: string
+          game_id?: string
+          game_description?: string
+          captured_at?: string
+          spread_home_line?: number | null
+          spread_home_odds?: number | null
+          spread_home_book?: string | null
+          spread_away_line?: number | null
+          spread_away_odds?: number | null
+          spread_away_book?: string | null
+          moneyline_home?: number | null
+          moneyline_home_book?: string | null
+          moneyline_away?: number | null
+          moneyline_away_book?: string | null
+        }
+      }
     }
   }
 }

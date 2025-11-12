@@ -8,6 +8,7 @@
 import 'dotenv/config'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getInjuryReports } from '@/lib/sports-stats-api'
+import { Database } from '@/lib/supabase/types'
 
 const SUPPORTED_SPORTS = [
   'basketball_nba',

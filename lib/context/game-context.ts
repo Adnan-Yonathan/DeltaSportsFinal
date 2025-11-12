@@ -189,7 +189,7 @@ async function tryLoadMarketSnapshot(
       .order('captured_at', { ascending: false })
       .limit(1)
 
-    const snapshot = data?.[0]
+    const snapshot = data && data.length > 0 ? data[0] : undefined
     if (!snapshot) return undefined
 
     return {

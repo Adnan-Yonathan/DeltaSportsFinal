@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { PostHogProvider } from '@/lib/posthog/provider'
+import StagewiseToolbar from '@/components/StagewiseToolbar'
+import { SupabaseAuthListener } from '@/components/SupabaseAuthListener'
 
 export const metadata: Metadata = {
   title: 'Delta AI - Intelligent Sports Betting Assistant',
@@ -15,7 +17,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <PostHogProvider>{children}</PostHogProvider>
+        <PostHogProvider>
+          <StagewiseToolbar />
+          <SupabaseAuthListener />
+          {children}
+        </PostHogProvider>
       </body>
     </html>
   )

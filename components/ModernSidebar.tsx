@@ -123,6 +123,7 @@ export default function ModernSidebar({
         detail: {
           text: defaultPrompt,
           autoSend: true,
+          conversationId: currentConversationId ?? undefined,
         },
       })
     )

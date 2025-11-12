@@ -19,6 +19,9 @@ const config: Config = {
         'success-green': '#00FF88',
         'warning-red': '#FF4757',
       },
+      maskImage: {
+        'radial-gradient': 'radial-gradient(var(--tw-gradient-stops))',
+      },
     },
   },
   plugins: [],

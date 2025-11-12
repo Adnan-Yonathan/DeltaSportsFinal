@@ -8,16 +8,12 @@ import { AnimatedHero } from "@/components/ui/animated-hero"
 import { ContainerScroll } from "@/components/ui/container-scroll-animation"
 import { FeaturesSectionWithHoverEffects } from "@/components/ui/feature-section-with-hover-effects"
 import RadialOrbitalTimeline from "@/components/ui/radial-orbital-timeline"
+import { FAQSection } from "@/components/ui/faq-section"
 import Image from "next/image"
+import { SimpleHeader } from "@/components/ui/simple-header"
+import { AvatarCircles } from "@/components/ui/avatar-circles"
 
 /** Delta AI Landing Page - Revolut-inspired design */
-
-const Stat = ({ label, value }: { label: string; value: string }) => (
-  <div className="space-y-1">
-    <div className="text-3xl font-semibold tracking-tight text-white">{value}</div>
-    <div className="text-sm text-gray-400">{label}</div>
-  </div>
-)
 
 const SoftButton = ({ children, className = "", href, ...props }: any) => {
   const baseClasses =
@@ -184,6 +180,13 @@ function SportsbookTicker() {
 }
 
 export default function LandingPage() {
+  const heroAvatarUrls = [
+    "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=120&q=80",
+    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=120&q=80",
+    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80",
+    "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=120&q=80",
+  ]
+
   // Delta AI use cases for the radial orbital timeline
   const deltaUseCases = [
     {
@@ -262,35 +265,10 @@ export default function LandingPage() {
         :root { --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
         .font-jakarta { font-family: var(--font-sans); }
       `}</style>
-
-      {/* Top nav */}
-      <nav className="mx-auto flex w-full max-w-[1180px] items-center justify-between px-4 py-6 md:px-0">
-        <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-slate-900 text-white shadow">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"
-                fill="currentColor"
-              />
-            </svg>
-          </div>
-          <span className="font-jakarta text-xl font-semibold tracking-tight text-white">Delta AI</span>
-        </div>
-        <div className="hidden gap-2 md:flex">
-          <SoftButton href="/auth/login">
-            Login
-          </SoftButton>
-          <SoftButton href="/auth/signup">Sign Up</SoftButton>
-        </div>
-        <div className="flex gap-2 md:hidden">
-          <SoftButton href="/auth/login" className="text-xs px-3 py-2">
-            Login
-          </SoftButton>
-        </div>
-      </nav>
+      <SimpleHeader />
 
       {/* Hero area */}
-      <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-6 px-4 pb-14 md:grid-cols-2 md:px-0">
+      <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-6 px-4 pb-14 pt-24 md:grid-cols-2 md:px-0">
         {/* Left: headline */}
         <div className="flex flex-col justify-center space-y-8 pr-2">
           <div>
@@ -312,9 +290,18 @@ export default function LandingPage() {
             </SoftButton>
           </div>
 
-          <div className="grid grid-cols-2 gap-8 pt-2 md:max-w-sm">
-            <Stat label="Active Users" value="10K+" />
-            <Stat label="Win Rate Improvement" value="23%" />
+          <div className="flex flex-col gap-3 pt-4">
+            <div className="flex items-center gap-4">
+              <AvatarCircles avatarUrls={heroAvatarUrls} numPeople={126} />
+              <div className="text-left">
+                <p className="text-[0.75rem] uppercase tracking-[0.35em] text-white/60">
+                  The sharps' favorite new tool
+                </p>
+                <p className="text-sm text-white/80">
+                  Trusted by high-volume bettors finding CLV every week.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -552,7 +539,7 @@ export default function LandingPage() {
       </div>
 
       {/* Powerful Features - Hover Effects */}
-      <div className="w-full bg-black py-20">
+      <div id="features" className="w-full bg-black py-20">
         <div className="text-center mb-12 px-4">
           <h2 className="text-4xl md:text-6xl font-bold text-white mb-4">
             Powerful Features
@@ -564,10 +551,25 @@ export default function LandingPage() {
         <FeaturesSectionWithHoverEffects />
       </div>
 
+      {/* Use Cases - Section Header */}
+      <div id="use-cases" className="w-full bg-black pb-2 pt-20 md:pt-24">
+        <div className="mx-auto max-w-3xl px-4 text-center">
+          <h3 className="text-3xl font-bold text-white md:text-4xl">
+            Use Cases
+          </h3>
+          <p className="mt-3 text-base text-white/80 md:text-lg">
+            Different ways to use Delta AI to elevate your betting performance
+          </p>
+        </div>
+      </div>
+
       {/* Use Cases - Radial Orbital Timeline */}
       <div className="w-full bg-black py-0">
         <RadialOrbitalTimeline timelineData={deltaUseCases} />
       </div>
+
+      {/* FAQ */}
+      <FAQSection />
 
       {/* CTA Section */}
       <div className="w-full bg-black py-20">
@@ -591,7 +593,7 @@ export default function LandingPage() {
           <strong>Disclaimer:</strong> This application is for educational and analytical purposes only. Delta AI does
           not process real bets or transactions. Gambling involves risk. Please bet responsibly.
         </div>
-        <div>© {new Date().getFullYear()} Delta AI, Inc. All rights reserved.</div>
+        <div>(c) {new Date().getFullYear()} Delta AI, Inc. All rights reserved.</div>
       </footer>
     </div>
   )

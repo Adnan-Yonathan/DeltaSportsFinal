@@ -465,8 +465,11 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
     )
   }
 
-  const profitChange = stats.totalProfit
-  const profitPercent = ((stats.currentBalance - stats.startingBalance) / stats.startingBalance) * 100
+  const profitChange = stats.currentBalance - stats.startingBalance
+  const profitPercent =
+    stats.startingBalance > 0
+      ? (profitChange / stats.startingBalance) * 100
+      : 0
   const hasEnoughHistory = totalBetCount >= 10
   const winRate = stats.wonBets + stats.lostBets > 0
     ? (stats.wonBets / (stats.wonBets + stats.lostBets)) * 100

@@ -79,6 +79,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
       | {
           text: string
           autoSend?: boolean
+          conversationId?: string
         }
 
     const handler = (event: Event) => {
@@ -93,8 +94,15 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
             : undefined
       const autoSend =
         typeof detail === 'object' && detail?.autoSend ? true : false
+      const targetConversationId =
+        typeof detail === 'object' && detail?.conversationId
+          ? detail.conversationId
+          : undefined
 
       if (!incomingText) return
+      if (targetConversationId && targetConversationId !== conversationId) {
+        return
+      }
 
       setMessage(incomingText)
       requestAnimationFrame(() => {

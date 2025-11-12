@@ -30,7 +30,7 @@ async function ingestSport(supabase: ReturnType<typeof createServiceClient>, spo
   // Clear existing cache for this sport to avoid stale rows
   await supabase.from('injury_reports').delete().eq('sport_key', sport)
 
-  const rows = injuries.map((injury) => ({
+const rows: Database['public']['Tables']['injury_reports']['Insert'][] = injuries.map((injury) => ({
     sport_key: sport,
     team_name: injury.team,
     player_name: injury.player,

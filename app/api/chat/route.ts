@@ -11,6 +11,8 @@ import { runCustomModel } from '@/lib/models/model-runner'
 import { buildGameContext } from '@/lib/context/game-context'
 import { format } from 'date-fns'
 
+export const runtime = 'nodejs'
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })

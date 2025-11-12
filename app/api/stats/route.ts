@@ -12,6 +12,8 @@ import {
 } from '@/lib/sports-stats-api'
 import { createClient } from '@/lib/supabase/server'
 
+export const runtime = 'nodejs'
+
 /**
  * GET /api/stats
  * Query parameters:

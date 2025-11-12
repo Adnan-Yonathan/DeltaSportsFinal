@@ -439,6 +439,16 @@ npm run ingest:market-trends
 
 This stores summaries in `market_snapshots`, which the chat uses before falling back to live odds.
 
+### Development checks
+
+Before pushing changes, run:
+
+```bash
+npm run verify
+```
+
+This executes linting and a full TypeScript typecheck so the Vercel build won’t fail on script-level errors.
+
 ---
 
 ## Contributing

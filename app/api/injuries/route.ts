@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       .order('captured_at', { ascending: false })
       .limit(200)
 
-    const { data, error } = team ? query.eq('team_name', team) : await query
+    const { data, error } = await (team ? query.eq('team_name', team) : query)
 
     if (error) throw error
 

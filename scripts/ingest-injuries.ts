@@ -29,9 +29,10 @@ async function ingestSport(supabase: ReturnType<typeof createServiceClient>, spo
   }
 
   // Clear existing cache for this sport to avoid stale rows
-  await supabase.from('injury_reports').delete().eq('sport_key', sport)
+  const injuryTable = 'injury_reports' as keyof Database['public']['Tables']
+  await supabase.from(injuryTable).delete().eq('sport_key', sport)
 
-const rows: Database['public']['Tables']['injury_reports']['Insert'][] = injuries.map((injury) => ({
+  const rows: Database['public']['Tables']['injury_reports']['Insert'][] = injuries.map((injury) => ({
     sport_key: sport,
     team_name: injury.team,
     player_name: injury.player,
@@ -45,7 +46,7 @@ const rows: Database['public']['Tables']['injury_reports']['Insert'][] = injurie
   const chunkSize = 500
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize)
-    const { error } = await supabase.from('injury_reports').insert(chunk)
+    const { error } = await supabase.from(injuryTable).insert(chunk)
     if (error) {
       console.error(`[INGEST] Failed to insert chunk for ${sport}:`, error.message)
       throw error

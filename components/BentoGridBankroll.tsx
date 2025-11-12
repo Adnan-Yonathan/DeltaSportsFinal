@@ -9,6 +9,7 @@ import { motion } from 'framer-motion'
 import { Wallet, Trophy, Target, Activity, Check, X, Sparkles, Loader2 } from 'lucide-react'
 import { LiveScore, matchBetToGame } from '@/lib/espn-api'
 import { calculateBetProbability } from '@/lib/services/probability-engine'
+import { deriveGameClockState, resolveSportKey } from '@/lib/utils/live-game'
 
 interface BankrollTrackerProps {
   userId: string
@@ -228,8 +229,15 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
 
       if (liveGame && liveGame.status === 'in') {
         try {
-          // Determine sport from bet.sport
-          const sportKey = `${bet.sport.toLowerCase()}_${bet.sport.toLowerCase() === 'basketball' ? 'nba' : bet.sport.toLowerCase() === 'football' ? 'nfl' : 'nhl'}`
+          const sportKey = resolveSportKey(bet.sport, liveGame.sport)
+          if (!sportKey) {
+            return
+          }
+
+          const clockState = deriveGameClockState(liveGame, sportKey)
+          if (!clockState) {
+            return
+          }
 
           const teamSide = determineBetTeamSide(bet, liveGame)
 
@@ -270,18 +278,11 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
             if (match) spread = parseFloat(match[1])
           }
 
-          // Parse time from period string (e.g., "Q3 5:23" or "2nd Half")
-          const gameLength = sportKey.includes('basketball') ? 48 : 60
-          let timeElapsedMinutes = gameLength / 2 // Default to halftime if can't parse
-
-          // Try to parse quarter/period from liveGame.period
-          const periodMatch = liveGame.period.match(/Q(\d)|(\d)(?:st|nd|rd|th)/i)
-          if (periodMatch && sportKey.includes('basketball')) {
-            const quarter = parseInt(periodMatch[1] || periodMatch[2])
-            timeElapsedMinutes = (quarter - 1) * 12 + 6 // Estimate middle of quarter
+          const timeRemaining = clockState.remainingSeconds
+          const timeElapsed = clockState.elapsedSeconds
+          if (timeRemaining <= 0 && timeElapsed <= 0) {
+            return
           }
-
-          const timeRemaining = (gameLength - timeElapsedMinutes) * 60
 
           const result = calculateBetProbability({
             betType,
@@ -291,7 +292,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
               home: liveGame.homeScore
             },
             timeRemaining,
-            timeElapsed: timeElapsedMinutes * 60,
+            timeElapsed,
             spread,
             totalLine,
             direction,

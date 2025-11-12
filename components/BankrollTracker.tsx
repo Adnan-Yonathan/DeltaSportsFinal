@@ -237,9 +237,9 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
         )}
       </div>
 
-      {/* Today's Bets */}
+      {/* Today&rsquo;s Bets */}
       <div className="p-6 border-b border-gray-800">
-        <div className="card-header mb-3">Today's Results</div>
+        <div className="card-header mb-3">Today&rsquo;s Results</div>
         {todayBets.length === 0 ? (
           <div className="text-text-secondary text-sm text-center py-4">
             No settled bets today

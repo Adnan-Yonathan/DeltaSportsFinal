@@ -54,33 +54,25 @@ export function calculateSpreadProbability(
   spread: number,
   timeRemaining: number,
   sport: string,
-  currentScore: number = 100
+  currentScore: number = 100,
+  odds?: number
 ): number {
-  // Sport-specific scoring rates
-  const pointsPerMinute = getSportScoringRate(sport)
-  const gameLength = getSportGameLength(sport)
-
-  // Calculate remaining expected points
-  const minutesRemaining = timeRemaining / 60
-  const expectedPointsRemaining = minutesRemaining * pointsPerMinute
-
-  // Calculate how far ahead/behind the bet is
+  const gameLengthMinutes = getSportGameLength(sport)
+  const minutesRemaining = Math.max(timeRemaining / 60, 0)
+  const timeRatio = Math.min(1, minutesRemaining / gameLengthMinutes)
   const differential = teamMargin + spread
 
-  // Standard deviation increases with more time remaining
-  // Using square root of expected points as approximation
-  const standardDeviation = Math.sqrt(expectedPointsRemaining * 0.8)
+  const baseVolatility = SPORT_SPREAD_VOLATILITY[sport] || 6
+  const volatility = Math.max(0.75, baseVolatility * Math.sqrt(timeRatio + 0.05))
 
-  // Avoid division by zero
-  if (standardDeviation === 0) {
-    return differential > 0 ? 1.0 : 0.0
-  }
+  const liveProbability = normalCDF(differential / volatility)
+  const impliedProbability = odds !== undefined ? oddsToImpliedProbability(odds) : 0.5
 
-  // Calculate z-score
-  const zScore = differential / standardDeviation
+  // Heavier weight to live data as time winds down
+  const liveWeight = Math.min(0.9, 1 - timeRatio * 0.8)
+  const blended = liveProbability * liveWeight + impliedProbability * (1 - liveWeight)
 
-  // Convert to probability using normal CDF
-  return normalCDF(zScore)
+  return clampProbability(blended)
 }
 
 /**
@@ -100,7 +92,8 @@ export function calculateTotalProbability(
   direction: 'over' | 'under',
   timeRemaining: number,
   sport: string,
-  gameTimeElapsed: number
+  gameTimeElapsed: number,
+  odds?: number
 ): number {
   const pointsPerMinute = getSportScoringRate(sport)
   const gameLength = getSportGameLength(sport)
@@ -117,7 +110,7 @@ export function calculateTotalProbability(
   // Calculate standard deviation based on time remaining
   // More time = more variance
   const varianceFactor = Math.sqrt(minutesRemaining * pointsPerMinute)
-  const standardDeviation = varianceFactor * 2.5 // Tuning factor
+  const standardDeviation = Math.max(1, varianceFactor * 2.5) // Tuning factor
 
   // Avoid division by zero
   if (standardDeviation === 0) {
@@ -131,8 +124,10 @@ export function calculateTotalProbability(
 
   // Convert to probability
   const overProbability = normalCDF(zScore)
-
-  return direction === 'over' ? overProbability : 1 - overProbability
+  const impliedProbability = odds !== undefined ? oddsToImpliedProbability(odds) : 0.5
+  const liveWeight = Math.min(0.9, 1 - Math.min(1, minutesRemaining / gameLength))
+  const prob = direction === 'over' ? overProbability : 1 - overProbability
+  return clampProbability(prob * liveWeight + impliedProbability * (1 - liveWeight))
 }
 
 /**
@@ -150,40 +145,15 @@ export function calculateMoneylineProbability(
   sport: string,
   odds?: number
 ): number {
-  const pointsPerMinute = getSportScoringRate(sport)
-  const minutesRemaining = timeRemaining / 60
-
-  // Expected points remaining
-  const expectedPointsRemaining = minutesRemaining * pointsPerMinute
-
-  // Standard deviation
-  const standardDeviation = Math.sqrt(expectedPointsRemaining)
-
-  // Avoid division by zero
-  if (standardDeviation === 0) {
-    return teamMargin > 0 ? 1.0 : 0.0
-  }
-
-  // For moneyline, we just need to be ahead by any amount
-  // So the differential is just the current margin
-  const zScore = teamMargin / standardDeviation
-
-  let probability = normalCDF(zScore)
-
-  // If odds are provided, we can adjust based on implied probability
-  // This helps calibrate the model
-  if (odds !== undefined) {
-    const impliedProb = oddsToImpliedProbability(odds)
-    // Blend the calculated probability with implied probability
-    // Weight more towards calculation as time runs out
-    const gameLength = getSportGameLength(sport) * 60
-    const elapsedPercent = 1 - (timeRemaining / gameLength)
-    const blendWeight = Math.min(0.9, elapsedPercent * 1.2)
-
-    probability = (probability * blendWeight) + (impliedProb * (1 - blendWeight))
-  }
-
-  return probability
+  const gameLength = getSportGameLength(sport)
+  const minutesRemaining = Math.max(timeRemaining / 60, 0)
+  const timeRatio = Math.min(1, minutesRemaining / gameLength)
+  const baseVolatility = SPORT_SPREAD_VOLATILITY[sport] || 6
+  const volatility = Math.max(0.5, baseVolatility * Math.sqrt(timeRatio + 0.02))
+  const liveProbability = normalCDF(teamMargin / volatility)
+  const impliedProbability = odds !== undefined ? oddsToImpliedProbability(odds) : 0.5
+  const liveWeight = Math.min(0.95, 1 - timeRatio * 0.7)
+  return clampProbability(liveProbability * liveWeight + impliedProbability * (1 - liveWeight))
 }
 
 /**
@@ -304,7 +274,8 @@ export function calculateBetProbability(input: BetProbabilityInput): BetProbabil
             input.spread,
             input.timeRemaining,
             input.sport,
-            totalScore
+            totalScore,
+            input.odds
           )
           const coveringMargin = Number((currentMargin + input.spread).toFixed(1))
           factors.currentState = coveringMargin >= 0
@@ -322,16 +293,20 @@ export function calculateBetProbability(input: BetProbabilityInput): BetProbabil
       case 'total':
         if (input.currentScore && input.totalLine !== undefined && input.timeRemaining !== undefined && input.timeElapsed !== undefined && input.direction) {
           const currentTotal = input.currentScore.home + input.currentScore.away
+          const minutesElapsed = input.timeElapsed / 60
+          const pacePerMinute = minutesElapsed > 0 ? currentTotal / Math.max(minutesElapsed, 0.5) : getSportScoringRate(input.sport)
+          const projectedFinal = currentTotal + pacePerMinute * (input.timeRemaining / 60)
           probability = calculateTotalProbability(
             currentTotal,
             input.totalLine,
             input.direction,
             input.timeRemaining,
             input.sport,
-            input.timeElapsed
+            input.timeElapsed,
+            input.odds
           )
           factors.currentState = `Current total: ${currentTotal}`
-          factors.projection = `Projected final: ${(currentTotal + (currentTotal / input.timeElapsed) * input.timeRemaining).toFixed(1)}`
+          factors.projection = `Projected final: ${projectedFinal.toFixed(1)} (pace ${pacePerMinute.toFixed(1)} pts/min)`
           confidence = input.timeRemaining < 600 ? 'high' : input.timeRemaining < 1800 ? 'medium' : 'low'
         }
         break
@@ -416,4 +391,17 @@ export function calculateBetProbability(input: BetProbabilityInput): BetProbabil
       }
     }
   }
+}
+const SPORT_SPREAD_VOLATILITY: { [key: string]: number } = {
+  'basketball_nba': 7,
+  'basketball_ncaab': 6,
+  'americanfootball_nfl': 10,
+  'americanfootball_ncaaf': 12,
+  'icehockey_nhl': 2,
+  'baseball_mlb': 3,
+}
+
+function clampProbability(value: number) {
+  if (Number.isNaN(value)) return 0.5
+  return Math.min(1, Math.max(0, value))
 }

@@ -80,7 +80,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
         </h2>
         <p className="text-white/60 mb-8">
           Ask me about odds, line movements, arbitrage opportunities, or bankroll
-          management. I'm here to help!
+          management. I&apos;m here to help!
         </p>
 
         <form onSubmit={handleSubmit} className="w-full">

@@ -82,31 +82,31 @@ export default function MessageList({ conversationId, userId }: MessageListProps
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center max-w-2xl px-8">
-          <div className="text-6xl mb-6">💬</div>
+          <div className="text-6xl mb-6">dYZ_</div>
           <h2 className="text-2xl font-bold text-accent-cyan mb-4">
             Start a conversation
           </h2>
           <p className="text-text-secondary mb-6">
             Ask me about odds, line movements, arbitrage opportunities, or bankroll
-            management. I'm here to help!
+            management. I&apos;m here to help!
           </p>
           <div className="grid grid-cols-1 gap-3 text-sm">
             <div className="bg-bg-secondary p-3 rounded-lg text-left">
               <div className="text-accent-orange font-semibold mb-1">Example:</div>
               <div className="text-text-secondary">
-                "Show me tonight's NBA odds"
+                &ldquo;Show me tonight&rsquo;s NBA odds&rdquo;
               </div>
             </div>
             <div className="bg-bg-secondary p-3 rounded-lg text-left">
               <div className="text-accent-orange font-semibold mb-1">Example:</div>
               <div className="text-text-secondary">
-                "Any arbitrage opportunities in NFL today?"
+                &ldquo;Any arbitrage opportunities in NFL today?&rdquo;
               </div>
             </div>
             <div className="bg-bg-secondary p-3 rounded-lg text-left">
               <div className="text-accent-orange font-semibold mb-1">Example:</div>
               <div className="text-text-secondary">
-                "I bet $110 on Lakers -5.5 at FanDuel"
+                &ldquo;I bet $110 on Lakers -5.5 at FanDuel&rdquo;
               </div>
             </div>
           </div>

@@ -868,8 +868,11 @@ export async function POST(req: NextRequest) {
     // Build context
     let contextMessage = `\n\n**Current User Context:**\n`
     if (userData) {
-      contextMessage += `- Bankroll: $${userData.current_bankroll.toFixed(2)}\n`
-      contextMessage += `- Starting: $${userData.starting_bankroll.toFixed(2)}\n`
+      const currentBankroll = Number(userData.current_bankroll ?? 0)
+      const startingBankroll = Number(userData.starting_bankroll ?? 0)
+
+      contextMessage += `- Bankroll: $${currentBankroll.toFixed(2)}\n`
+      contextMessage += `- Starting: $${startingBankroll.toFixed(2)}\n`
     }
     if (activeBets && activeBets.length > 0) {
       contextMessage += `- Active bets: ${activeBets.length}\n`

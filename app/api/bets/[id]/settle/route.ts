@@ -60,9 +60,11 @@ export async function PATCH(
       .eq('id', user.id)
       .single()
 
+    const updatedBankroll = Number(userData?.current_bankroll ?? 0)
+
     return NextResponse.json({
       bet,
-      updatedBankroll: userData?.current_bankroll || 0,
+      updatedBankroll,
     })
   } catch (error) {
     console.error('Settle bet API error:', error)

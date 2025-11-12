@@ -78,9 +78,11 @@ export async function POST(req: NextRequest) {
       .eq('id', user.id)
       .single()
 
+    const updatedBankroll = Number(userData?.current_bankroll ?? 0)
+
     return NextResponse.json({
       bet,
-      updatedBankroll: userData?.current_bankroll || 0,
+      updatedBankroll,
     })
   } catch (error) {
     console.error('Bets API error:', error)

@@ -32,7 +32,7 @@ export async function recordCurrentLines(sports: string[]): Promise<number> {
 
   for (const sport of sports) {
     try {
-      const oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'])
+      const oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: true })
 
       for (const game of oddsData) {
         // Determine league from sport key

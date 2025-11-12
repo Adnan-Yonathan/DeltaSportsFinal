@@ -17,7 +17,7 @@ async function captureSnapshots() {
 
   for (const sport of SPORTS) {
     console.log(`[MARKETS] Fetching odds for ${sport}`)
-    const games = await fetchOdds(sport, ['h2h', 'spreads'], { bypassQuietWindow: true })
+    const games = await fetchOdds(sport, ['h2h', 'spreads'], { live: true })
 
     const rows = games.map((game) => {
       const spreads = game.bookmakers

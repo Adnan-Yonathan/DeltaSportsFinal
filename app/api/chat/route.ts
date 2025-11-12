@@ -1070,7 +1070,7 @@ export async function POST(req: NextRequest) {
           // Fetch odds for each sport
           for (const sport of sports) {
             try {
-              let oddsData = await fetchOdds(sport)
+              let oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: true })
 
               // Filter games to user's "today" or "tomorrow" in their timezone
               if (oddsData.length > 0) {

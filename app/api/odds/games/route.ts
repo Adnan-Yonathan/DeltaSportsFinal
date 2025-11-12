@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     const markets = marketsParam ? marketsParam.split(',') : ['h2h', 'spreads', 'totals']
 
-    const games = await fetchOdds(sport, markets)
+    const games = await fetchOdds(sport, markets, { live: true })
 
     return NextResponse.json({ games })
   } catch (error) {

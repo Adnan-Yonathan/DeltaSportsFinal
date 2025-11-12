@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     const threshold = thresholdParam ? parseFloat(thresholdParam) : 1.0
 
     // Fetch odds with all markets
-    const games = await fetchOdds(sport, ['h2h', 'spreads', 'totals'])
+    const games = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: true })
 
     // Find arbitrage opportunities
     const opportunities = findArbitrageOpportunities(games, threshold)

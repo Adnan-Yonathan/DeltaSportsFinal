@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch odds data with only prop markets
-    const oddsData = await fetchOdds(sport, markets)
+    const oddsData = await fetchOdds(sport, markets, { live: true })
 
     // Aggregate props by player
     const playerPropsMap = new Map<string, PlayerProp>()

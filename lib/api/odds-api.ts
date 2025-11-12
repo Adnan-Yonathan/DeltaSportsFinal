@@ -57,14 +57,6 @@ const isRateLimitOrAuthError = (status: number, bodyText?: string) => {
   )
 }
 
-function isWithinQuietWindowHours(): boolean {
-  const now = new Date()
-  const estString = now.toLocaleString('en-US', { timeZone: 'America/New_York' })
-  const estDate = new Date(estString)
-  const hour = estDate.getHours()
-  return hour >= 1 && hour < 12
-}
-
 async function fetchWithRotation(urlBase: string, init?: RequestInit): Promise<Response> {
   if (keyPool.length === 0) {
     throw new OddsAPIError('ODDS_API_KEY is not configured')
@@ -118,11 +110,20 @@ async function fetchWithRotation(urlBase: string, init?: RequestInit): Promise<R
   throw new OddsAPIError(`Failed to fetch after rotating keys: ${lastErr}`)
 }
 
+const DEFAULT_REVALIDATE_SECONDS = 30
+
 /**
  * Fetch odds for a specific sport
  */
 export interface FetchOddsOptions {
-  bypassQuietWindow?: boolean
+  /**
+   * When true, skip Next.js caching and always pull fresh odds.
+   */
+  live?: boolean
+  /**
+   * Override the cache revalidation window (seconds) used when `live` is false.
+   */
+  revalidateSeconds?: number
 }
 
 export async function fetchOdds(
@@ -130,16 +131,15 @@ export async function fetchOdds(
   markets: string[] = ['h2h', 'spreads', 'totals'],
   options: FetchOddsOptions = {}
 ): Promise<OddsGame[]> {
-  if (!options.bypassQuietWindow && isWithinQuietWindowHours()) {
-    console.warn('Odds fetch suppressed between 1AM and 12PM EST.')
-    return []
-  }
-
   const marketsParam = markets.join(',')
   const url = `${ODDS_API_BASE}/sports/${sport}/odds/?regions=us&markets=${marketsParam}&oddsFormat=american`
+  const fetchInit: RequestInit =
+    options.live
+      ? { cache: 'no-store' }
+      : { next: { revalidate: options.revalidateSeconds ?? DEFAULT_REVALIDATE_SECONDS } }
 
   try {
-    const response = await fetchWithRotation(url, { next: { revalidate: 30 } })
+    const response = await fetchWithRotation(url, fetchInit)
     const data = await response.json()
     return data as OddsGame[]
   } catch (error) {
@@ -152,11 +152,6 @@ export async function fetchOdds(
  * Fetch available sports
  */
 export async function fetchSports(): Promise<any[]> {
-  if (isWithinQuietWindowHours()) {
-    console.warn('Sports list fetch suppressed between 1AM and 12PM EST.')
-    return []
-  }
-
   const url = `${ODDS_API_BASE}/sports/`
 
   try {

@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**AI-powered sports betting analytics, live odds tracking, and bankroll management**
+**AI-powered sports betting analytics, live odds tracking, AI coaching, and bankroll intelligence**
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
@@ -15,469 +15,214 @@
 
 ## Overview
 
-Delta AI is a Next.js 14 application that combines live odds tracking from The Odds API, advanced analytics, AI-powered insights through OpenAI's GPT-4, and comprehensive bankroll management. Built with a Bloomberg Terminal-inspired dark theme, it provides professional-grade tools for sports bettors.
+Delta AI is a full-stack betting intelligence terminal. It blends live market ingestion (The Odds API + Supabase line recorder), an OpenAI-powered copilot that understands bankroll context, and a complete bet lifecycle engine. Everything ships inside a modern Next.js 14 application with streaming chat, edge APIs, GitHub Actions automation, and Bloomberg-style visuals built for power users.
 
-### Key Features
+---
 
-- **AI Chat Interface**: Conversational assistant powered by GPT-4 for odds analysis, line movement insights, and betting guidance
-- **Custom Statistical Models**: Build named weighted-stat models directly in chat, then recall them later (e.g., “apply my NBA totals model”) for confidence-interval projections
-- **Live Odds Tracking**: Real-time odds from major sportsbooks (FanDuel, DraftKings, BetMGM, Caesars, etc.)
-- **Arbitrage Detection**: Automatic scanning for guaranteed profit opportunities across sportsbooks
-- **Bankroll Management**: Track bets, analyze performance, visualize ROI trends
-- **Line Movement Analysis**: Understand why odds change and identify sharp vs. public money
-- **Performance Analytics**: Detailed statistics by sport, bet type, and time period
+## Core Capabilities
+
+### Live Markets & Line Tracking
+- Rotating-key Odds API client with live fetches on every user request plus cached market snapshots for resilience.
+- `/api/lines/record` captures spreads/totals/moneylines for NBA, NFL, NHL, and MLB, recording opening/current/closing states for CLV and trend analysis.
+- Arbitrage finder surfaces guaranteed-profit legs as soon as price disparities appear.
+
+### AI Betting Copilot
+- Streaming GPT-4o chat assistant with Supabase-authenticated sessions and PostHog telemetry.
+- Custom statistical models can be defined, saved, and re-run from the chat interface, complete with weighted stat breakdowns and projections.
+- Context packer stitches bankroll state, injuries, recent form, market snapshots, and live odds into every prompt so answers stay grounded.
+
+### Bankroll & Bet Lifecycle
+- Bet logging, bankroll snapshots, CLV calculations, and ROI dashboards.
+- Auto-settlement workflow (GitHub Actions hitting `/api/bets/auto-settle`) resolves pending bets with live scores and updates bankroll history.
+- Player prop lookups, arbitrage summaries, and bankroll widgets live alongside the chat interface.
+
+### Automation & Tooling
+- GitHub Actions crons keep line recording (every 30m) and bet settlement (every 15m) running, even on Vercel�s free tier.
+- CLI ingestion scripts warm Supabase caches for injuries, recent form, and market trends so the LLM rarely needs to hit third-party APIs mid-conversation.
+- Diagnostics docs (`HALLUCINATION_DIAGNOSIS.md`, `LINE_TRACKING_GUIDE.md`, etc.) document debugging playbooks for odds freshness, timezone handling, and hallucination prevention.
 
 ---
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14 (App Router), React, TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes (Edge Runtime)
-- **Database**: Supabase (PostgreSQL with Row Level Security)
-- **Authentication**: Supabase Auth
-- **AI**: OpenAI API (GPT-4 Turbo with streaming)
-- **Sports Data**: The Odds API
-- **Charts**: Recharts
-- **Deployment**: Vercel
+| Layer | Stack |
+| --- | --- |
+| UI | Next.js 14 App Router, React, TypeScript, Tailwind CSS, Framer Motion, Recharts |
+| APIs | Next.js Route Handlers (Node runtime for chat, Edge runtime for odds/arbitrage/player props) |
+| Data | Supabase Postgres with Row-Level Security + Realtime channels |
+| Auth | Supabase Auth (email/password or OAuth) |
+| AI | OpenAI GPT-4o / GPT-4o-mini (chat, titles, custom model builder) |
+| Sports Data | The Odds API v4 (US books, spreads, totals, props) |
+| Automation | GitHub Actions cron jobs, ingest scripts, optional Vercel cron |
+| Observability | PostHog (client + server) |
+
+---
+
+## Architecture at a Glance
+
+| Area | Responsibilities |
+| --- | --- |
+| Ingestion | `recordCurrentLines`, market snapshot script, Supabase service client, GitHub Actions hitting `/api/lines/record` |
+| Application API | Odds fetching, arbitrage, chat route tool calls (bet logging, bankroll stats, player props, injuries) |
+| AI Orchestration | Prompt builder merges bankroll context, injuries, market data, and custom models for each OpenAI call |
+| Data Layer | Supabase tables for conversations, messages, bets, bankroll snapshots, custom models, market_snapshots, lines, injuries, team_recent_form, etc. |
+| Presentation | Streaming chat UI, Bento bankroll panel, arbitrage cards, player props search |
 
 ---
 
 ## Prerequisites
 
-Before you begin, ensure you have:
-
-- **Node.js** 18+ and npm/yarn/pnpm
-- **Supabase Account** (free tier available)
-- **OpenAI API Key** (requires paid account)
-- **The Odds API Key** (free tier: 500 requests/month)
+- Node.js 18+ and npm/yarn/pnpm
+- Supabase project (free tier works)
+- OpenAI API key with GPT-4o access
+- The Odds API key (free tier offers 500 calls/month)
 
 ---
 
 ## Quick Start
 
-### 1. Clone the Repository
-
-```bash
-git clone <your-repo-url>
-cd DeltaSportsFinal
-```
-
-### 2. Install Dependencies
-
-```bash
-npm install
-# or
-yarn install
-# or
-pnpm install
-```
-
-### 3. Set Up Supabase
-
-#### Create a Supabase Project
-
-1. Go to [Supabase](https://supabase.com/) and create a new project
-2. Wait for the project to be fully provisioned
-
-#### Run the Database Schema
-
-1. Navigate to **SQL Editor** in your Supabase dashboard
-2. Copy the contents of `lib/supabase/schema.sql`
-3. Paste and execute the SQL to create all tables, indexes, and policies
-
-#### Get Your Supabase Credentials
-
-1. Go to **Project Settings** → **API**
-2. Copy:
-   - **Project URL** (NEXT_PUBLIC_SUPABASE_URL)
-   - **anon/public key** (NEXT_PUBLIC_SUPABASE_ANON_KEY)
-   - **service_role key** (SUPABASE_SERVICE_ROLE_KEY)
-
-### 4. Get API Keys
-
-#### OpenAI API Key
-
-1. Go to [OpenAI Platform](https://platform.openai.com/)
-2. Navigate to **API Keys**
-3. Create a new secret key
-
-#### The Odds API Key
-
-1. Go to [The Odds API](https://the-odds-api.com/)
-2. Sign up for a free account
-3. Get your API key from the dashboard
-
-### 5. Configure Environment Variables
-
-Create a `.env.local` file in the root directory:
-
-```bash
-cp .env.example .env.local
-```
-
-Fill in your credentials:
-
-```env
-# Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-
-# OpenAI Configuration
-OPENAI_API_KEY=sk-your-openai-api-key
-
-# The Odds API Configuration
-ODDS_API_KEY=your_odds_api_key
-
-# App Configuration
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-### 6. Run the Development Server
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+1. **Clone & Install**
+   ```bash
+   git clone <your-repo-url>
+   cd DeltaSportsFinal
+   npm install # or yarn / pnpm
+   ```
+2. **Configure Supabase**
+   - Create a project
+   - Run the SQL in `lib/supabase/schema.sql`
+   - Copy the Project URL, anon key, and service_role key
+3. **Add API Keys**
+   ```bash
+   cp .env.example .env.local
+   ```
+   Fill in:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=...
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+   SUPABASE_SERVICE_ROLE_KEY=...
+   OPENAI_API_KEY=sk-...
+   ODDS_API_KEY=...
+   ODDS_API_KEYS=["key1","key2",...]
+   NEXT_PUBLIC_APP_URL=http://localhost:3000
+   ```
+4. **Run Dev Server**
+   ```bash
+   npm run dev
+   ```
+5. **Seed Supporting Tables (optional but recommended)**
+   ```bash
+   npm run ingest:injuries
+   npm run ingest:recent-form
+   npm run ingest:market-trends
+   ```
 
 ---
 
-## Project Structure
+## Automation & Background Jobs
 
-```
-DeltaSportsFinal/
-├── app/
-│   ├── api/                    # API routes
-│   │   ├── chat/              # Streaming chat with OpenAI
-│   │   ├── odds/              # Odds and arbitrage endpoints
-│   │   ├── bets/              # Bet CRUD operations
-│   │   └── bankroll/          # Performance statistics
-│   ├── auth/                   # Authentication pages
-│   │   ├── login/
-│   │   └── signup/
-│   ├── chat/                   # Main chat interface
-│   ├── globals.css            # Global styles
-│   ├── layout.tsx             # Root layout
-│   └── page.tsx               # Landing page (redirects to /chat)
-├── components/
-│   ├── Sidebar.tsx            # Conversation history
-│   ├── MessageList.tsx        # Chat messages
-│   ├── MessageInput.tsx       # Chat input
-│   ├── BankrollTracker.tsx    # Real-time bankroll tracking
-│   └── BetModal.tsx           # Manual bet logging
-├── lib/
-│   ├── supabase/              # Supabase client and types
-│   │   ├── client.ts
-│   │   ├── server.ts
-│   │   ├── types.ts
-│   │   └── schema.sql
-│   ├── api/                   # API clients
-│   │   └── odds-api.ts
-│   ├── types/                 # TypeScript types
-│   │   └── odds.ts
-│   └── utils/                 # Utility functions
-│       └── odds.ts
-├── middleware.ts              # Auth middleware
-├── next.config.js
-├── tailwind.config.ts
-├── tsconfig.json
-└── package.json
-```
+| Workflow | Schedule | Endpoint | Purpose |
+| --- | --- | --- | --- |
+| `auto-settle.yml` | Every 15 minutes | `POST /api/bets/auto-settle` | Settle finished bets, update bankrolls |
+| `line-recording.yml` | Every 30 minutes | `POST /api/lines/record` | Capture line snapshots + mark opening/current |
+
+Both workflows live under `.github/workflows` and authenticate with `CRON_SECRET` + `VERCEL_DOMAIN`. They provide free cron coverage without paying for Vercel Scheduled Functions.
 
 ---
 
-## Features in Detail
+## Data Ingestion Scripts
 
-### 1. AI Chat Interface
+| Command | Description |
+| --- | --- |
+| `npm run ingest:injuries` | Pulls ESPN injuries into `injury_reports` so the chat can reference availability without leaving Supabase |
+| `npm run ingest:recent-form` | Loads recent team performance into `team_recent_form` / splits tables |
+| `npm run ingest:market-trends` | Fetches live odds (`live: true`) and stores best moneylines/spreads per game in `market_snapshots` |
 
-- **Streaming Responses**: Real-time AI responses using OpenAI's streaming API
-- **Context-Aware**: Includes user's bankroll, active bets, and recent conversations
-- **Markdown Support**: Rich formatting with tables, lists, and code blocks
-- **Live Odds Integration**: Automatically fetches odds when relevant to queries
-
-**Example Queries:**
-- "Show me tonight's NBA odds"
-- "Any arbitrage opportunities in NFL?"
-- "Why did the Lakers line move from -4.5 to -5.5?"
-- "I bet $110 on Lakers -5.5 at FanDuel"
-
-### 2. Live Odds Tracking
-
-- **Real-Time Data**: Fetches from The Odds API (30-second cache)
-- **Multiple Sports**: NBA, NFL, MLB, NHL, NCAA Football/Basketball
-- **All Markets**: Spreads, moneylines, totals
-- **Major Books**: FanDuel, DraftKings, BetMGM, Caesars, Bet365, Pinnacle
-
-### 3. Arbitrage Detection
-
-- **Automatic Scanning**: Finds guaranteed profit opportunities
-- **Stake Calculator**: Calculates exact bet amounts for each book
-- **Profit Percentage**: Shows ROI for each opportunity
-- **Quick Actions**: Log both bets directly from the interface
-
-### 4. Bankroll Management
-
-- **Real-Time Tracking**: Live updates as bets are logged and settled
-- **Performance Charts**: 7-day balance trends
-- **Detailed Stats**: Win rate, ROI, avg bet size, biggest win/loss
-- **Sport Breakdown**: Analyze performance by sport
-- **Daily Snapshots**: Historical balance tracking
-
-### 5. Bet Logging
-
-**Two Methods:**
-
-1. **Conversational**: Just tell the AI
-   - "I bet $110 on Lakers -5.5 at FanDuel"
-
-2. **Manual**: Click "Log Bet" button
-   - Fill out structured form
-   - All fields validated
+These scripts use the Supabase service role key, so keep `.env.local` private.
 
 ---
 
-## Database Schema
+## Environment Variables
 
-### Tables
-
-- **users**: User profiles with bankroll tracking
-- **conversations**: Chat sessions
-- **messages**: Individual chat messages
-- **bets**: All bet records with status and results
-- **bankroll_snapshots**: Daily balance history
-
-### Row Level Security (RLS)
-
-All tables are protected with RLS policies ensuring users can only access their own data.
-
-### Triggers
-
-- Auto-update `updated_at` timestamps
-- Create user profile on signup
-- Update bankroll on bet settlement
-- Create daily snapshots
+| Name | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser access to Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side ingestion + cron tasks |
+| `OPENAI_API_KEY` | GPT-4o chat + tooling |
+| `ODDS_API_KEY` or `ODDS_API_KEYS` | Odds API access (rotation supported) |
+| `CRON_SECRET` | Auth token for GitHub Action ? Vercel API calls |
+| `NEXT_PUBLIC_POSTHOG_KEY` / `NEXT_PUBLIC_POSTHOG_HOST` | Analytics |
+| `NEXT_PUBLIC_APP_URL` / `VERCEL_URL` | Used for internal API requests |
 
 ---
 
-## API Routes
+## Responsible Betting & Data Privacy
 
-### Chat API (`/api/chat`)
-
-**POST** - Send a message and get streaming AI response
-
-```typescript
-Body: {
-  message: string
-  conversationId: string
-  userId: string
-}
-```
-
-### Odds API (`/api/odds/games`)
-
-**GET** - Fetch live odds for a sport
-
-```
-Query: ?sport=basketball_nba&markets=h2h,spreads,totals
-```
-
-### Arbitrage API (`/api/odds/arbitrage`)
-
-**GET** - Find arbitrage opportunities
-
-```
-Query: ?sport=basketball_nba&threshold=1.0
-```
-
-### Bets API (`/api/bets`)
-
-**POST** - Log a new bet
-**GET** - Get user's bets
-
-### Bankroll Stats API (`/api/bankroll/stats`)
-
-**GET** - Get performance statistics
-
-```
-Query: ?period=7d
-```
-
----
-
-## Deployment
-
-### Deploy to Vercel
-
-1. Push your code to GitHub
-2. Import repository in [Vercel](https://vercel.com/)
-3. Add environment variables in Vercel dashboard
-4. Deploy!
-
-### Environment Variables in Vercel
-
-Make sure to add all variables from `.env.local`:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY`
-- `ODDS_API_KEY`
-- `NEXT_PUBLIC_APP_URL` (set to your Vercel URL)
-
----
-
-## Cost Estimates
-
-### The Odds API
-- **Free Tier**: 500 requests/month
-- **Paid**: $10/month for 10,000 requests
-- **Estimated**: $50-100/month for 1000 active users
-
-### OpenAI API
-- **GPT-4 Turbo**: $10/1M input tokens, $30/1M output tokens
-- **Estimated**: $500-750/month for 1000 users (10 queries/user/day)
-
-### Supabase
-- **Free Tier**: Up to 500MB database, 2GB bandwidth
-- **Pro**: $25/month for scaling
-
-**Total**: ~$575-875/month for 1000 active users
-
----
-
-## Security & Compliance
-
-### Disclaimers
-
-The app displays responsible gambling notices:
-- "All betting involves risk"
-- "Never bet more than you can afford to lose"
-- "Gambling problem? Call 1-800-GAMBLER"
-- Age verification (21+)
-
-### Data Privacy
-
-- User data is private and encrypted
-- RLS policies prevent unauthorized access
-- No data selling
-- GDPR compliant (users can delete their data)
+- Prominent reminders: "All betting involves risk", "Never bet more than you can afford to lose", "Gambling problem? Call 1-800-GAMBLER", and 21+ age gate.
+- Supabase RLS ensures users only see their own data; we never sell or share user information.
+- GDPR-friendly: users can delete accounts, which cascades their bankroll/bet records.
 
 ---
 
 ## Roadmap
 
-### MVP (Current)
-- ✅ AI chat interface
-- ✅ Live odds tracking
-- ✅ Bet logging
-- ✅ Bankroll management
-- ✅ Arbitrage detection
+### Live
+- AI chat interface with streaming responses
+- Live odds tracking + arbitrage detection
+- Bet logging, bankroll snapshots, CLV
+- Custom statistical models + projections
+- GitHub Actions automation + ingestion scripts
 
-### Post-MVP
-- [ ] Advanced backtesting with user datasets
-- [ ] Public vs sharp money indicators
-- [ ] Mobile-optimized responsive design
-- [ ] Email/SMS notifications
-- [ ] CSV export
-- [ ] Dark/light mode toggle
-- [ ] Voice input
-- [ ] Multiple bankroll accounts
+### Next Up
+- Advanced backtesting with uploaded CSVs
+- Public vs. sharp money overlays
+- Mobile-optimized layouts + PWA shell
+- Notifications (email/SMS/push) for big line moves
+- Voice input + audio answers
+- Multi-bankroll support
 
 ---
 
 ## Troubleshooting
 
-### "Failed to fetch odds"
+| Issue | Checklist |
+| --- | --- |
+| "Failed to send message" | Verify `OPENAI_API_KEY`, ensure you restarted the dev server, and confirm Supabase auth cookies exist |
+| Odds not updating | Confirm Odds API quota, ensure GitHub Action ran, or run `npm run ingest:market-trends` manually |
+| Unauthorized errors | Double-check Supabase credentials + RLS policies; ensure user is logged in |
+| Streaming broken | Confirm OpenAI usage limits and that the chat route is deployed on Node runtime (not Edge) |
+| Injury data missing | Run `npm run ingest:injuries` or confirm the GitHub Action/cron populating the table |
 
-- Check that `ODDS_API_KEY` is set correctly
-- Verify you haven't exceeded the API rate limit
-- Check the sport key is valid (e.g., `basketball_nba`)
-
-### "Unauthorized" errors
-
-- Ensure Supabase credentials are correct
-- Check RLS policies are properly set up
-- Verify user is logged in
-
-### Streaming responses not working
-
-- Ensure `OPENAI_API_KEY` is valid
-- Check you have credits in your OpenAI account
-- Verify the Edge Runtime is enabled
-
-### Injury cache ingestion
-
-The chat now pulls injury context from Supabase. Populate the cache locally or via cron with:
-
-```bash
-npm run ingest:injuries
-```
-
-This fetches current NBA/NFL/MLB/NHL reports from ESPN and stores them in `injury_reports`, so the LLM can answer instantly without hitting third-party feeds every time.
-
-### Recent form cache
-
-To pre-fill last-7-day performance logs (currently NBA example):
-
-```bash
-npm run ingest:recent-form
-```
-
-This writes game-level results into `team_recent_form`, enabling the chat to summarize “last 5” form without making live calls.
-
-### Market trend snapshots
-
-Capture best spreads/moneylines periodically:
-
-```bash
-npm run ingest:market-trends
-```
-
-This stores summaries in `market_snapshots`, which the chat uses before falling back to live odds.
-
-### Development checks
-
-Before pushing changes, run:
-
-```bash
-npm run verify
-```
-
-This executes linting and a full TypeScript typecheck so the Vercel build won’t fail on script-level errors.
+Before pushing, run `npm run verify` for lint + type safety.
 
 ---
 
 ## Contributing
 
-This is a portfolio/demonstration project. Feel free to fork and modify for your own use!
+This repo serves as a portfolio/demo; feel free to fork and customize. If you submit PRs, include screenshots or Loom links and run `npm run verify` first.
 
 ---
 
 ## License
 
-MIT License - See LICENSE file for details
+MIT License � see `LICENSE` for details.
 
 ---
 
 ## Acknowledgments
 
-- **The Odds API** for sports betting data
-- **OpenAI** for GPT-4 API
-- **Supabase** for backend infrastructure
-- **Vercel** for hosting platform
+- The Odds API for real-time prices
+- OpenAI for GPT-4o
+- Supabase for the backend platform
+- Vercel for hosting + previews
 
 ---
 
-## Support
+## Support & Disclaimer
 
-For issues or questions, please open an issue in the GitHub repository.
+Open an issue for bugs or questions.
 
-**Disclaimer**: This application is for educational and analytical purposes only. Delta AI does not process real bets or transactions. Users are responsible for complying with local gambling laws.
+**Disclaimer**: Delta AI is for educational and analytical purposes only. It does not place real wagers or hold custody of funds. Users are responsible for complying with local gambling laws.
 
 ---
 
-**Built with ❤️ for sports betting enthusiasts**
+**Built with grit for sports betting enthusiasts.**

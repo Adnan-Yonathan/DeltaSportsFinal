@@ -3,6 +3,8 @@ import { fetchOdds } from '@/lib/api/odds-api'
 import { getInjuryReports, getTeamStats } from '@/lib/sports-stats-api'
 import { Database } from '@/lib/supabase/types'
 
+type MarketSnapshotRow = Database['public']['Tables']['market_snapshots']['Row']
+
 export interface TeamContextSummary {
   team: string
   record?: string
@@ -181,13 +183,13 @@ async function tryLoadMarketSnapshot(
 ): Promise<MarketTrendSummary | undefined> {
   if (!supabase) return undefined
   try {
-    const { data } = await supabase
+    const { data } = (await supabase
       .from('market_snapshots')
       .select('*')
       .eq('sport_key', sport)
       .ilike('game_description', `%${awayTeam}%${homeTeam}%`)
       .order('captured_at', { ascending: false })
-      .limit(1)
+      .limit(1)) as { data: MarketSnapshotRow[] | null }
 
     const snapshot = data && data.length > 0 ? data[0] : undefined
     if (!snapshot) return undefined

@@ -298,7 +298,7 @@ export default function LandingPage() {
                   The sharps&rsquo; favorite new tool
                 </p>
                 <p className="text-sm text-white/80">
-                  Trusted by high-volume bettors finding CLV every week.
+                  Trusted by sharps and syndicates around the world.
                 </p>
               </div>
             </div>

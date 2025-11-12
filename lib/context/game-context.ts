@@ -4,6 +4,9 @@ import { getInjuryReports, getTeamStats } from '@/lib/sports-stats-api'
 import { Database } from '@/lib/supabase/types'
 
 type MarketSnapshotRow = Database['public']['Tables']['market_snapshots']['Row']
+type TeamRecentFormRow = Database['public']['Tables']['team_recent_form']['Row']
+type TeamSplitRow = Database['public']['Tables']['team_splits']['Row']
+type HeadToHeadRow = Database['public']['Tables']['head_to_head_results']['Row']
 
 export interface TeamContextSummary {
   team: string
@@ -39,18 +42,18 @@ export interface GameContextPayload {
   teamSummaries: TeamContextSummary[]
   marketTrends?: MarketTrendSummary
   recentForm?: {
-    home: any[]
-    away: any[]
+    home: TeamRecentFormRow[]
+    away: TeamRecentFormRow[]
   }
   paceEfficiency?: {
     home: PaceSummary | null
     away: PaceSummary | null
   }
   homeAwaySplits?: {
-    home: any[]
-    away: any[]
+    home: TeamSplitRow[]
+    away: TeamSplitRow[]
   }
-  headToHead?: any[]
+  headToHead?: HeadToHeadRow[]
   notes: string[]
 }
 
@@ -305,38 +308,39 @@ export async function buildGameContext({
   const normalizedHome = normalizeTeamName(homeTeam)
   const normalizedAway = normalizeTeamName(awayTeam)
 
-  const recentFormPromise = supabase
-    ? supabase
+  let recentFormRows: TeamRecentFormRow[] = []
+  let splitsRows: TeamSplitRow[] = []
+  let headToHeadRows: HeadToHeadRow[] = []
+
+  if (supabase) {
+    try {
+      const { data } = await supabase
         .from('team_recent_form')
         .select('*')
         .eq('sport_key', sport)
         .in('team_name', [homeTeam, awayTeam])
         .order('game_date', { ascending: false })
         .limit(10)
-        .then(({ data }) => data || [])
-        .catch((error) => {
-          console.error('[CONTEXT] Failed to fetch recent form:', error)
-          return []
-        })
-    : Promise.resolve([])
+      recentFormRows = data || []
+    } catch (error) {
+      console.error('[CONTEXT] Failed to fetch recent form:', error)
+    }
 
-  const splitsPromise = supabase
-    ? supabase
+    try {
+      const { data } = await supabase
         .from('team_splits')
         .select('*')
         .eq('sport_key', sport)
         .in('team_name', [homeTeam, awayTeam])
         .order('captured_at', { ascending: false })
         .limit(4)
-        .then(({ data }) => data || [])
-        .catch((error) => {
-          console.error('[CONTEXT] Failed to fetch splits:', error)
-          return []
-        })
-    : Promise.resolve([])
+      splitsRows = data || []
+    } catch (error) {
+      console.error('[CONTEXT] Failed to fetch splits:', error)
+    }
 
-  const headToHeadPromise = supabase
-    ? supabase
+    try {
+      const { data } = await supabase
         .from('head_to_head_results')
         .select('*')
         .eq('sport_key', sport)
@@ -345,14 +349,13 @@ export async function buildGameContext({
         )
         .order('matchup_date', { ascending: false })
         .limit(5)
-        .then(({ data }) => data || [])
-        .catch((error) => {
-          console.error('[CONTEXT] Failed to fetch head-to-head:', error)
-          return []
-        })
-    : Promise.resolve([])
+      headToHeadRows = data || []
+    } catch (error) {
+      console.error('[CONTEXT] Failed to fetch head-to-head:', error)
+    }
+  }
 
-  const [injuryFeed, teamStats, recentFormRows, splitsRows, headToHeadRows] = await Promise.all([
+  const [injuryFeed, teamStats] = await Promise.all([
     loadInjuries({ sport, homeTeam, awayTeam, supabase }).catch((error) => {
       console.error('[CONTEXT] Failed to fetch injury reports:', error)
       notes.push('Injury feed unavailable.')
@@ -363,9 +366,6 @@ export async function buildGameContext({
       notes.push('Team stats unavailable.')
       return []
     }),
-    recentFormPromise,
-    splitsPromise,
-    headToHeadPromise,
   ])
 
   const injuriesHome = summarizeInjuries(injuryFeed, homeTeam)

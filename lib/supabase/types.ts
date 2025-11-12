@@ -219,6 +219,41 @@ export interface Database {
           last_used_at?: string | null
         }
       }
+      injury_reports: {
+        Row: {
+          id: string
+          sport_key: string
+          team_name: string
+          player_name: string
+          status: string
+          description: string | null
+          source: string | null
+          source_updated_at: string | null
+          captured_at: string
+        }
+        Insert: {
+          id?: string
+          sport_key: string
+          team_name: string
+          player_name: string
+          status: string
+          description?: string | null
+          source?: string | null
+          source_updated_at?: string | null
+          captured_at?: string
+        }
+        Update: {
+          id?: string
+          sport_key?: string
+          team_name?: string
+          player_name?: string
+          status?: string
+          description?: string | null
+          source?: string | null
+          source_updated_at?: string | null
+          captured_at?: string
+        }
+      }
     }
   }
 }

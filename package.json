@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test:custom-models": "ts-node --project tsconfig.test.json tests/custom-models.spec.ts",
-    "cleanup:messages": "npx ts-node scripts/cleanup-null-messages.ts"
+    "cleanup:messages": "npx ts-node scripts/cleanup-null-messages.ts",
+    "ingest:injuries": "ts-node scripts/ingest-injuries.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

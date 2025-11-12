@@ -8,11 +8,26 @@ import { getPostHogServer, trackLLMInteraction } from '@/lib/posthog/server'
 import { listCustomModels, saveCustomModel, touchCustomModelUsage, CustomModelRow } from '@/lib/models/custom-models'
 import { CustomModelStatInput } from '@/lib/models/custom-model-types'
 import { runCustomModel } from '@/lib/models/model-runner'
+import { buildGameContext } from '@/lib/context/game-context'
 import { format } from 'date-fns'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
+
+function resolveBaseUrl(req: NextRequest) {
+  const origin = req?.nextUrl?.origin
+  const envUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined)
+
+  if (origin) return origin
+  if (envUrl) return envUrl
+
+  const fallback = 'http://localhost:3000'
+  console.warn('[CHAT] Falling back to default base URL; set NEXT_PUBLIC_APP_URL for accuracy')
+  return fallback
+}
 
 // Helper function to create daily snapshot
 async function createDailySnapshot(supabase: any, userId: string, balance: number) {
@@ -406,6 +421,7 @@ When analyzing bankroll stats, provide actionable insights:
 - When a user says things like "apply my NBA model for totals" or "use my NFL rushing model for Derrick Henry", search the provided context for matching models, clarify if multiple exist, then call apply_custom_model with the model name and any matchup/team info mentioned.
 - Use list_custom_models when the user asks what models they have, or when you need to remind them of available names.
 - When models are applied, explain the weighted score, confidence interval, and how each stat contributed. Never fabricate stats—if data is missing, state that limitation.
+- Whenever someone asks about a specific matchup or you are creating/applying a projection, first ask **"Do you want to go more in depth on the matchup?"**. If they say yes (or ask for deeper analysis), call **get_game_context** to pull injuries, team form, and market trends before responding.
 
 Always confirm what you're doing before calling functions and provide friendly responses after.`
 
@@ -747,6 +763,35 @@ const ASSISTANT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_game_context',
+      description: 'Pull injuries, recent form, team summaries, and market trends for a specific matchup to enrich analysis.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sport: {
+            type: 'string',
+            description: 'Sport key (e.g., basketball_nba, americanfootball_nfl, baseball_mlb, icehockey_nhl).',
+          },
+          home_team: {
+            type: 'string',
+            description: 'Home team name.',
+          },
+          away_team: {
+            type: 'string',
+            description: 'Away team name.',
+          },
+          include_market_trends: {
+            type: 'boolean',
+            description: 'Whether to include best spread/moneyline snapshots (defaults to true).',
+          },
+        },
+        required: ['sport', 'home_team', 'away_team'],
+      },
+    },
+  },
 ]
 
 export async function POST(req: NextRequest) {
@@ -757,6 +802,8 @@ export async function POST(req: NextRequest) {
       userId,
       timezone = 'America/New_York' // Default fallback
     } = await req.json()
+
+    const baseUrl = resolveBaseUrl(req)
 
     if (!message || !conversationId || !userId) {
       return NextResponse.json(
@@ -1311,7 +1358,6 @@ ${statsEnrichment}\n`
       } else if (functionName === 'get_player_props') {
         // Fetch player props from our API endpoint
         try {
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3002'
           const params = new URLSearchParams({
             sport: functionArgs.sport
           })
@@ -1382,7 +1428,6 @@ ${statsEnrichment}\n`
       } else if (functionName === 'get_bankroll_stats') {
         // Fetch bankroll statistics
         try {
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3002'
           const period = functionArgs.period || 'all'
 
           const response = await fetch(`${baseUrl}/api/bankroll/stats?period=${period}`)
@@ -1575,6 +1620,24 @@ ${statsEnrichment}\n`
           functionResult = {
             success: false,
             error: error.message || 'Failed to apply custom model',
+          }
+        }
+      } else if (functionName === 'get_game_context') {
+        try {
+          functionResult = await buildGameContext({
+            sport: functionArgs.sport,
+            homeTeam: functionArgs.home_team,
+            awayTeam: functionArgs.away_team,
+            includeMarketTrends:
+              functionArgs.include_market_trends === undefined
+                ? true
+                : Boolean(functionArgs.include_market_trends),
+            supabase,
+          })
+        } catch (error: any) {
+          functionResult = {
+            success: false,
+            error: error.message || 'Failed to gather matchup context',
           }
         }
       }

@@ -409,6 +409,16 @@ The app displays responsible gambling notices:
 - Check you have credits in your OpenAI account
 - Verify the Edge Runtime is enabled
 
+### Injury cache ingestion
+
+The chat now pulls injury context from Supabase. Populate the cache locally or via cron with:
+
+```bash
+npm run ingest:injuries
+```
+
+This fetches current NBA/NFL/MLB/NHL reports from ESPN and stores them in `injury_reports`, so the LLM can answer instantly without hitting third-party feeds every time.
+
 ---
 
 ## Contributing

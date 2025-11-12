@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react'
 import { motion } from 'framer-motion'
 import { Send, Loader2, Paperclip } from 'lucide-react'
 
@@ -15,41 +15,22 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
   const [isFocused, setIsFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return
+  const syncTextareaHeight = () => {
+    if (!textareaRef.current) return
+    textareaRef.current.style.height = 'auto'
+    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
+  }
 
-    const handler = (event: Event) => {
-      const custom = event as CustomEvent<string>
-      if (typeof custom.detail === 'string') {
-        setMessage(custom.detail)
-        requestAnimationFrame(() => {
-          if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto'
-            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
-            textareaRef.current.focus()
-          }
-        })
-      }
-    }
+  const sendMessage = useCallback(async (override?: string) => {
+    const payload = (override ?? message).trim()
+    if (!payload || sending) return
 
-    window.addEventListener('delta-quick-prompt', handler as EventListener)
-    return () => {
-      window.removeEventListener('delta-quick-prompt', handler as EventListener)
-    }
-  }, [])
-
-  const handleSend = async () => {
-    if (!message.trim() || sending) return
-
-    const userMessage = message.trim()
-    setMessage('')
     setSending(true)
-
+    setMessage('')
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
 
-    // Detect user's timezone
     const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
     try {
@@ -59,7 +40,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: userMessage,
+          message: payload,
           conversationId,
           userId,
           timezone: userTimezone,
@@ -83,22 +64,69 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
     } finally {
       setSending(false)
     }
-  }
+  }, [conversationId, message, sending, userId])
+
+  const latestSendMessage = useRef(sendMessage)
+  useEffect(() => {
+    latestSendMessage.current = sendMessage
+  }, [sendMessage])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    type PromptDetail =
+      | string
+      | {
+          text: string
+          autoSend?: boolean
+        }
+
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<PromptDetail>
+      const detail = custom.detail
+
+      const incomingText =
+        typeof detail === 'string'
+          ? detail
+          : typeof detail === 'object'
+            ? detail.text
+            : undefined
+      const autoSend =
+        typeof detail === 'object' && detail?.autoSend ? true : false
+
+      if (!incomingText) return
+
+      setMessage(incomingText)
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto'
+          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
+          textareaRef.current.focus()
+        }
+        if (autoSend) {
+          requestAnimationFrame(() => {
+            void latestSendMessage.current(incomingText)
+          })
+        }
+      })
+    }
+
+    window.addEventListener('delta-quick-prompt', handler as EventListener)
+    return () => {
+      window.removeEventListener('delta-quick-prompt', handler as EventListener)
+    }
+  }, [])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSend()
+      void sendMessage()
     }
   }
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value)
-
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
-    }
+    syncTextareaHeight()
   }
 
   return (
@@ -132,7 +160,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              onClick={handleSend}
+              onClick={() => void sendMessage()}
               disabled={!message.trim() || sending}
               className={`p-2.5 sm:p-2 rounded-lg transition-all ${
                 message.trim() && !sending

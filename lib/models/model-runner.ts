@@ -1,3 +1,4 @@
+import OpenAI from 'openai'
 import { Database } from '@/lib/supabase/types'
 import { getTeamStats, TeamStats } from '@/lib/sports-stats-api'
 import { CustomModelConfigPayload, CustomModelStatConfig, StatNormalization } from './custom-model-types'
@@ -44,6 +45,15 @@ export interface RunModelResult {
     teamsUsed: string[]
     notes?: string
   }
+  projection?: {
+    pointEstimate: number
+    lowerBound?: number
+    upperBound?: number
+    probabilityOverTarget?: number
+    confidenceLabel?: 'low' | 'medium' | 'high'
+    summary?: string
+    keyDrivers?: string[]
+  }
 }
 
 const SAMPLE_SIZE_MAP: Record<string, number> = {
@@ -58,6 +68,34 @@ const Z_TABLE: Record<number, number> = {
   0.8: 1.28,
   0.9: 1.64,
   0.95: 1.96,
+}
+
+const openaiClient = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null
+
+interface LLMProjectionInput {
+  modelName: string
+  targetMetric: string
+  sportKey: string
+  teams: string[]
+  confidenceLevel: number
+  baseScore: number
+  lowerBound: number
+  upperBound: number
+  breakdown: StatBreakdown[]
+  dataHints?: string
+  notes?: string
+}
+
+interface LLMProjection {
+  pointEstimate: number
+  lowerBound?: number
+  upperBound?: number
+  probabilityOverTarget?: number
+  confidenceLabel?: 'low' | 'medium' | 'high'
+  summary: string
+  keyDrivers?: string[]
 }
 
 interface StatMetrics {
@@ -168,6 +206,96 @@ function describeScore(score: number, lower: number, upper: number) {
   if (score < -1.5) return `Strong negative signal within [${lower.toFixed(2)}, ${upper.toFixed(2)}]`
   if (score < -0.75) return `Moderate negative lean within [${lower.toFixed(2)}, ${upper.toFixed(2)}]`
   return `Neutral signal, confidence band [${lower.toFixed(2)}, ${upper.toFixed(2)}]`
+}
+
+function formatBreakdownForLLM(breakdown: StatBreakdown[]) {
+  return breakdown.slice(0, 32).map((stat) => ({
+    statKey: stat.statKey,
+    label: stat.label,
+    weight: Number(stat.weight.toFixed(4)),
+    importance: stat.importance,
+    normalizedValue: Number(stat.normalizedValue.toFixed(4)),
+    rawValue: Number(stat.rawValue.toFixed(4)),
+    direction: stat.direction,
+    scope: stat.scope,
+    details: stat.details,
+  }))
+}
+
+async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjection | null> {
+  if (!openaiClient) return null
+
+  try {
+    const payload = {
+      model_name: input.modelName,
+      target_metric: input.targetMetric,
+      sport_key: input.sportKey,
+      teams: input.teams,
+      confidence_level: input.confidenceLevel,
+      base_score: Number(input.baseScore.toFixed(4)),
+      base_range: {
+        lower: Number(input.lowerBound.toFixed(4)),
+        upper: Number(input.upperBound.toFixed(4)),
+      },
+      stats: formatBreakdownForLLM(input.breakdown),
+      data_hints: input.dataHints,
+      notes: input.notes,
+    }
+
+    const completion = await openaiClient.chat.completions.create({
+      model: 'gpt-4o',
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are DELTA’s advanced statistical engine. Given weighted stats, baselines, and confidence intervals, produce a JSON object with keys: point_estimate (number), lower_bound (number), upper_bound (number), probability_over_target (0-1), confidence_label ("low"|"medium"|"high"), summary (<=80 words), key_drivers (array of short phrases). Keep the math self-consistent and never output anything besides JSON.',
+        },
+        {
+          role: 'user',
+          content: `Projection request:\n${JSON.stringify(payload, null, 2)}`,
+        },
+      ],
+    })
+
+    const content = completion.choices[0]?.message?.content
+    if (!content) return null
+    const parsed = JSON.parse(content)
+
+    return {
+      pointEstimate:
+        typeof parsed.point_estimate === 'number'
+          ? parsed.point_estimate
+          : input.baseScore,
+      lowerBound:
+        typeof parsed.lower_bound === 'number'
+          ? parsed.lower_bound
+          : input.lowerBound,
+      upperBound:
+        typeof parsed.upper_bound === 'number'
+          ? parsed.upper_bound
+          : input.upperBound,
+      probabilityOverTarget:
+        typeof parsed.probability_over_target === 'number'
+          ? parsed.probability_over_target
+          : undefined,
+      confidenceLabel:
+        typeof parsed.confidence_label === 'string'
+          ? parsed.confidence_label
+          : undefined,
+      summary:
+        typeof parsed.summary === 'string'
+          ? parsed.summary
+          : describeScore(input.baseScore, input.lowerBound, input.upperBound),
+      keyDrivers: Array.isArray(parsed.key_drivers)
+        ? parsed.key_drivers
+        : undefined,
+    }
+  } catch (error) {
+    console.error('[MODELS] Failed to generate GPT projection:', error)
+    return null
+  }
 }
 
 export async function runCustomModel(
@@ -281,19 +409,63 @@ export async function runCustomModel(
   const lowerBound = weightedScore - zScore * standardError
   const upperBound = weightedScore + zScore * standardError
 
+  let finalScore = parseFloat(weightedScore.toFixed(4))
+  let finalLowerBound = parseFloat(lowerBound.toFixed(4))
+  let finalUpperBound = parseFloat(upperBound.toFixed(4))
+  let interpretation = describeScore(finalScore, finalLowerBound, finalUpperBound)
+  let projectionDetails: RunModelResult['projection'] | undefined
+
+  if (breakdown.length > 0) {
+    const llmProjection = await getLLMProjection({
+      modelName: model.model_name,
+      targetMetric: model.target_metric || model.market_type || 'target_metric',
+      sportKey,
+      teams: teamsToUse.filter(Boolean),
+      confidenceLevel,
+      baseScore: finalScore,
+      lowerBound,
+      upperBound,
+      breakdown,
+      dataHints: config.dataHints,
+      notes: options.notes,
+    })
+
+    if (llmProjection) {
+      finalScore = Number(llmProjection.pointEstimate.toFixed(4))
+      if (typeof llmProjection.lowerBound === 'number') {
+        finalLowerBound = Number(llmProjection.lowerBound.toFixed(4))
+      }
+      if (typeof llmProjection.upperBound === 'number') {
+        finalUpperBound = Number(llmProjection.upperBound.toFixed(4))
+      }
+
+      interpretation = llmProjection.summary || interpretation
+      projectionDetails = {
+        pointEstimate: finalScore,
+        lowerBound: llmProjection.lowerBound ?? finalLowerBound,
+        upperBound: llmProjection.upperBound ?? finalUpperBound,
+        probabilityOverTarget: llmProjection.probabilityOverTarget,
+        confidenceLabel: llmProjection.confidenceLabel,
+        summary: llmProjection.summary,
+        keyDrivers: llmProjection.keyDrivers,
+      }
+    }
+  }
+
   return {
     modelId: model.id,
     modelName: model.model_name,
     sportKey,
-    score: parseFloat(weightedScore.toFixed(4)),
-    lowerBound: parseFloat(lowerBound.toFixed(4)),
-    upperBound: parseFloat(upperBound.toFixed(4)),
+    score: finalScore,
+    lowerBound: finalLowerBound,
+    upperBound: finalUpperBound,
     confidenceLevel,
     breakdown,
-    interpretation: describeScore(weightedScore, lowerBound, upperBound),
+    interpretation,
     context: {
       teamsUsed: teamsToUse.filter(Boolean),
       notes: options.notes,
     },
+    projection: projectionDetails,
   }
 }

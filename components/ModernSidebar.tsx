@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -118,7 +118,14 @@ export default function ModernSidebar({
   const handleQuickPrompt = (model: CustomModel) => {
     if (typeof window === 'undefined') return
     const defaultPrompt = `Apply my ${model.model_name} model for ${model.market_type} (add matchup/context here)`
-    window.dispatchEvent(new CustomEvent('delta-quick-prompt', { detail: defaultPrompt }))
+    window.dispatchEvent(
+      new CustomEvent('delta-quick-prompt', {
+        detail: {
+          text: defaultPrompt,
+          autoSend: true,
+        },
+      })
+    )
     setQuickPromptModel(model.id)
     setTimeout(() => setQuickPromptModel(null), 2000)
   }
@@ -329,10 +336,10 @@ export default function ModernSidebar({
                     <div>
                       <p className="text-sm font-semibold text-white">{model.model_name}</p>
                       <p className="text-xs text-white/50">
-                        {formatSportLabel(model.sport_key)} ΓÇó {model.market_type}
+                        {formatSportLabel(model.sport_key)} GÃ‡Ã³ {model.market_type}
                       </p>
                       <p className="text-[11px] text-white/40 mt-1">
-                        Conf {Math.round(Number(model.confidence_level) * 100)}% ΓÇó {getModelTimeLabel(model)}
+                        Conf {Math.round(Number(model.confidence_level) * 100)}% GÃ‡Ã³ {getModelTimeLabel(model)}
                       </p>
                     </div>
                     <motion.button
@@ -348,12 +355,12 @@ export default function ModernSidebar({
             </div>
           ) : (
             <p className="text-xs text-white/40">
-              No saved models yet. Ask DELTA to ΓÇ£create a custom modelΓÇ¥ and it will guide you.
+              No saved models yet. Ask DELTA to &quot;create a custom model&quot; and it will guide you.
             </p>
           )}
 
           <p className="text-[11px] text-white/40 mt-3">
-            Prefill drops ΓÇ£Apply my ΓÇª modelΓÇ¥ into the chat inputΓÇöedit the matchup before you send it.
+            Prefill now auto-sends &quot;Apply my model&quot; into the chat so you get projections instantly - adjust with a follow-up message if needed.
           </p>
         </div>
       </div>
@@ -376,3 +383,5 @@ export default function ModernSidebar({
     </div>
   )
 }
+
+

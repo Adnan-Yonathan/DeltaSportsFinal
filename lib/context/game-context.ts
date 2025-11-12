@@ -40,7 +40,19 @@ export interface GameContextPayload {
     home: any[]
     away: any[]
   }
+  paceEfficiency?: {
+    home: PaceSummary | null
+    away: PaceSummary | null
+  }
   notes: string[]
+}
+
+interface PaceSummary {
+  games: number
+  pace: number | null
+  offensive_rating: number | null
+  defensive_rating: number | null
+  net_rating: number | null
 }
 
 interface BuildContextParams {
@@ -127,6 +139,27 @@ function summarizeInjuries(injuries: InjurySummary[], teamName: string, limit = 
   return injuries
     .filter((injury) => normalizeTeamName(injury.team).includes(normalizeTeamName(teamName)))
     .slice(0, limit)
+}
+
+function summarizePace(entries: any[]): PaceSummary | null {
+  if (!entries?.length) return null
+  const games = entries.length
+  const pace =
+    entries.reduce((sum, entry) => sum + (entry.pace ?? 0), 0) / (games || 1)
+  const off =
+    entries.reduce((sum, entry) => sum + (entry.offensive_rating ?? 0), 0) / (games || 1)
+  const def =
+    entries.reduce((sum, entry) => sum + (entry.defensive_rating ?? 0), 0) / (games || 1)
+  const net =
+    entries.reduce((sum, entry) => sum + (entry.net_rating ?? 0), 0) / (games || 1)
+
+  return {
+    games,
+    pace,
+    offensive_rating: off,
+    defensive_rating: def,
+    net_rating: net,
+  }
 }
 
 function formatMarketOutcome(outcome?: { name: string; price: number; point?: number }) {
@@ -277,6 +310,10 @@ export async function buildGameContext({
     recentForm: {
       home: recentHome,
       away: recentAway,
+    },
+    paceEfficiency: {
+      home: summarizePace(recentHome),
+      away: summarizePace(recentAway),
     },
     notes,
   }

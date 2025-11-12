@@ -141,6 +141,41 @@ export async function GET(req: NextRequest) {
         break
       }
 
+      case 'pace_eff': {
+        if (!team) {
+          return NextResponse.json(
+            { error: 'team parameter is required for pace_eff' },
+            { status: 400 }
+          )
+        }
+
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from('team_recent_form')
+          .select('*')
+          .eq('sport_key', sport)
+          .eq('team_name', team)
+          .order('game_date', { ascending: false })
+          .limit(5)
+
+        if (error) {
+          console.error('Stats API error (pace_eff):', error)
+          return NextResponse.json({ error: 'Failed to fetch pace/efficiency' }, { status: 500 })
+        }
+
+        const entries = data || []
+        const games = entries.length || 1
+        const summary = {
+          pace: entries.reduce((sum, e) => sum + (e.pace || 0), 0) / games,
+          offensive_rating: entries.reduce((sum, e) => sum + (e.offensive_rating || 0), 0) / games,
+          defensive_rating: entries.reduce((sum, e) => sum + (e.defensive_rating || 0), 0) / games,
+          net_rating: entries.reduce((sum, e) => sum + (e.net_rating || 0), 0) / games,
+        }
+
+        result = { team, sport, games, summary, entries }
+        break
+      }
+
       default:
         return NextResponse.json(
           { error: 'Invalid type parameter' },

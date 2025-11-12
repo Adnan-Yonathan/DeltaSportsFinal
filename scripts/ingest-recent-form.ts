@@ -69,6 +69,10 @@ function computeEntry(game: NBAGame, team: 'home' | 'away') {
   const pointsFor = isHome ? game.homeScore : game.awayScore
   const pointsAgainst = isHome ? game.awayScore : game.homeScore
   const result = pointsFor > pointsAgainst ? 'W' : pointsFor < pointsAgainst ? 'L' : 'T'
+  const pace = pointsFor + pointsAgainst
+  const offensiveRating = pointsFor
+  const defensiveRating = pointsAgainst
+  const netRating = offensiveRating - defensiveRating
 
   return {
     sport_key: 'basketball_nba',
@@ -79,10 +83,10 @@ function computeEntry(game: NBAGame, team: 'home' | 'away') {
     result,
     points_for: pointsFor,
     points_against: pointsAgainst,
-    pace: null,
-    offensive_rating: null,
-    defensive_rating: null,
-    net_rating: null,
+    pace,
+    offensive_rating: offensiveRating,
+    defensive_rating: defensiveRating,
+    net_rating: netRating,
     captured_at: new Date().toISOString(),
   }
 }
@@ -135,6 +139,14 @@ async function updateSplits(supabase: ReturnType<typeof createServiceClient>, ro
       gamesPlayed
         ? entries.reduce((sum, e) => sum + (e.points_against || 0), 0) / gamesPlayed
         : null
+    const avgPace =
+      gamesPlayed ? entries.reduce((sum, e) => sum + (e.pace || 0), 0) / gamesPlayed : null
+    const avgOff =
+      gamesPlayed ? entries.reduce((sum, e) => sum + (e.offensive_rating || 0), 0) / gamesPlayed : null
+    const avgDef =
+      gamesPlayed ? entries.reduce((sum, e) => sum + (e.defensive_rating || 0), 0) / gamesPlayed : null
+    const avgNet =
+      gamesPlayed ? entries.reduce((sum, e) => sum + (e.net_rating || 0), 0) / gamesPlayed : null
 
     return {
       sport_key: 'basketball_nba',
@@ -144,9 +156,10 @@ async function updateSplits(supabase: ReturnType<typeof createServiceClient>, ro
       win_pct: winPct,
       points_for: avgFor,
       points_against: avgAgainst,
-      offensive_rating: null,
-      defensive_rating: null,
-      net_rating: null,
+      offensive_rating: avgOff,
+      defensive_rating: avgDef,
+      net_rating: avgNet,
+      pace: avgPace,
       captured_at: new Date().toISOString(),
     }
   })

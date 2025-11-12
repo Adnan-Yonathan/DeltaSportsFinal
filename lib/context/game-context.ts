@@ -44,6 +44,11 @@ export interface GameContextPayload {
     home: PaceSummary | null
     away: PaceSummary | null
   }
+  homeAwaySplits?: {
+    home: any[]
+    away: any[]
+  }
+  headToHead?: any[]
   notes: string[]
 }
 
@@ -313,7 +318,39 @@ export async function buildGameContext({
         })
     : Promise.resolve([])
 
-  const [injuryFeed, teamStats, recentFormRows] = await Promise.all([
+  const splitsPromise = supabase
+    ? supabase
+        .from('team_splits')
+        .select('*')
+        .eq('sport_key', sport)
+        .in('team_name', [homeTeam, awayTeam])
+        .order('captured_at', { ascending: false })
+        .limit(4)
+        .then(({ data }) => data || [])
+        .catch((error) => {
+          console.error('[CONTEXT] Failed to fetch splits:', error)
+          return []
+        })
+    : Promise.resolve([])
+
+  const headToHeadPromise = supabase
+    ? supabase
+        .from('head_to_head_results')
+        .select('*')
+        .eq('sport_key', sport)
+        .or(
+          `(team_one.ilike.${homeTeam},team_two.ilike.${awayTeam}),(team_one.ilike.${awayTeam},team_two.ilike.${homeTeam})`
+        )
+        .order('matchup_date', { ascending: false })
+        .limit(5)
+        .then(({ data }) => data || [])
+        .catch((error) => {
+          console.error('[CONTEXT] Failed to fetch head-to-head:', error)
+          return []
+        })
+    : Promise.resolve([])
+
+  const [injuryFeed, teamStats, recentFormRows, splitsRows, headToHeadRows] = await Promise.all([
     loadInjuries({ sport, homeTeam, awayTeam, supabase }).catch((error) => {
       console.error('[CONTEXT] Failed to fetch injury reports:', error)
       notes.push('Injury feed unavailable.')
@@ -324,6 +361,9 @@ export async function buildGameContext({
       notes.push('Team stats unavailable.')
       return []
     }),
+    recentFormPromise,
+    splitsPromise,
+    headToHeadPromise,
   ])
 
   const injuriesHome = summarizeInjuries(injuryFeed, homeTeam)
@@ -354,6 +394,13 @@ export async function buildGameContext({
     (row) => normalizeTeamName(row.team_name) === normalizedAway
   )
 
+  const splitsHome = splitsRows.filter(
+    (row) => normalizeTeamName(row.team_name) === normalizedHome
+  )
+  const splitsAway = splitsRows.filter(
+    (row) => normalizeTeamName(row.team_name) === normalizedAway
+  )
+
   return {
     sport,
     homeTeam,
@@ -369,6 +416,11 @@ export async function buildGameContext({
       home: summarizePace(recentHome),
       away: summarizePace(recentAway),
     },
+    homeAwaySplits: {
+      home: splitsHome,
+      away: splitsAway,
+    },
+    headToHead: headToHeadRows,
     notes,
   }
 }

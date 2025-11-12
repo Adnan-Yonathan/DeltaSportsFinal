@@ -453,7 +453,7 @@ This executes linting and a full TypeScript typecheck so the Vercel build won’
 
 ## Contributing
 
-This is a portfolio/demonstration project. Feel free to fork and modify for your own use!
+If u modify i will find u. 
 
 ---
 

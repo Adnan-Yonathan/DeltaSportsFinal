@@ -304,6 +304,85 @@ export interface Database {
           captured_at?: string
         }
       }
+      team_splits: {
+        Row: {
+          id: string
+          sport_key: string
+          team_name: string
+          context: string
+          games_played: number | null
+          win_pct: number | null
+          points_for: number | null
+          points_against: number | null
+          offensive_rating: number | null
+          defensive_rating: number | null
+          net_rating: number | null
+          captured_at: string
+        }
+        Insert: {
+          id?: string
+          sport_key: string
+          team_name: string
+          context: string
+          games_played?: number | null
+          win_pct?: number | null
+          points_for?: number | null
+          points_against?: number | null
+          offensive_rating?: number | null
+          defensive_rating?: number | null
+          net_rating?: number | null
+          captured_at?: string
+        }
+        Update: {
+          id?: string
+          sport_key?: string
+          team_name?: string
+          context?: string
+          games_played?: number | null
+          win_pct?: number | null
+          points_for?: number | null
+          points_against?: number | null
+          offensive_rating?: number | null
+          defensive_rating?: number | null
+          net_rating?: number | null
+          captured_at?: string
+        }
+      }
+      head_to_head_results: {
+        Row: {
+          id: string
+          sport_key: string
+          team_one: string
+          team_two: string
+          matchup_date: string
+          winner: string | null
+          pace: number | null
+          notes: string | null
+          captured_at: string
+        }
+        Insert: {
+          id?: string
+          sport_key: string
+          team_one: string
+          team_two: string
+          matchup_date: string
+          winner?: string | null
+          pace?: number | null
+          notes?: string | null
+          captured_at?: string
+        }
+        Update: {
+          id?: string
+          sport_key?: string
+          team_one?: string
+          team_two?: string
+          matchup_date?: string
+          winner?: string | null
+          pace?: number | null
+          notes?: string | null
+          captured_at?: string
+        }
+      }
     }
   }
 }

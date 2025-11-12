@@ -15,7 +15,7 @@ import { createClient } from '@/lib/supabase/server'
 /**
  * GET /api/stats
  * Query parameters:
- * - type: 'team' | 'injuries' | 'all-injuries' | 'player' | 'roster' | 'recent_form'
+ * - type: 'team' | 'injuries' | 'all-injuries' | 'player' | 'roster' | 'recent_form' | 'home_away' | 'head_to_head'
  * - sport: 'nba' | 'nfl' | 'mlb' | 'nhl'
  * - team: optional team identifier (abbreviation or ID)
  * - player: player name to search (for type=player)
@@ -87,6 +87,54 @@ export async function GET(req: NextRequest) {
         if (error) {
           console.error('Stats API error (recent_form):', error)
           return NextResponse.json({ error: 'Failed to fetch recent form' }, { status: 500 })
+        }
+
+        result = data || []
+        break
+      }
+
+      case 'home_away': {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from('team_splits')
+          .select('*')
+          .eq('sport_key', sport)
+          .eq('team_name', team || '')
+          .order('captured_at', { ascending: false })
+          .limit(2)
+
+        if (error) {
+          console.error('Stats API error (home_away):', error)
+          return NextResponse.json({ error: 'Failed to fetch splits' }, { status: 500 })
+        }
+
+        result = data || []
+        break
+      }
+
+      case 'head_to_head': {
+        const teamTwo = searchParams.get('opponent')
+        if (!team || !teamTwo) {
+          return NextResponse.json(
+            { error: 'team and opponent parameters are required for head_to_head' },
+            { status: 400 }
+          )
+        }
+
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from('head_to_head_results')
+          .select('*')
+          .eq('sport_key', sport)
+          .or(
+            `(team_one.eq.${team},team_two.eq.${teamTwo}),(team_one.eq.${teamTwo},team_two.eq.${team})`
+          )
+          .order('matchup_date', { ascending: false })
+          .limit(10)
+
+        if (error) {
+          console.error('Stats API error (head_to_head):', error)
+          return NextResponse.json({ error: 'Failed to fetch head-to-head data' }, { status: 500 })
         }
 
         result = data || []

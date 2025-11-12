@@ -111,6 +111,88 @@ async function ingestRecentForm() {
   }
 
   console.log(`[INGEST][FORM] Stored ${rows.length} rows of NBA recent form data`)
+
+  await updateSplits(supabase, rows)
+  await recordHeadToHead(supabase, games)
+}
+
+async function updateSplits(supabase: ReturnType<typeof createServiceClient>, rows: ReturnType<typeof computeEntry>[]) {
+  const grouped: Record<string, ReturnType<typeof computeEntry>[]> = {}
+  for (const row of rows) {
+    const key = `${row.team_name}::${row.is_home ? 'home' : 'away'}`
+    if (!grouped[key]) grouped[key] = []
+    grouped[key].push(row)
+  }
+
+  const payload = Object.entries(grouped).map(([key, entries]) => {
+    const [team, context] = key.split('::')
+    const gamesPlayed = entries.length
+    const wins = entries.filter((e) => e.result === 'W').length
+    const winPct = gamesPlayed ? wins / gamesPlayed : null
+    const avgFor =
+      gamesPlayed ? entries.reduce((sum, e) => sum + (e.points_for || 0), 0) / gamesPlayed : null
+    const avgAgainst =
+      gamesPlayed
+        ? entries.reduce((sum, e) => sum + (e.points_against || 0), 0) / gamesPlayed
+        : null
+
+    return {
+      sport_key: 'basketball_nba',
+      team_name: team,
+      context,
+      games_played: gamesPlayed,
+      win_pct: winPct,
+      points_for: avgFor,
+      points_against: avgAgainst,
+      offensive_rating: null,
+      defensive_rating: null,
+      net_rating: null,
+      captured_at: new Date().toISOString(),
+    }
+  })
+
+  if (payload.length) {
+    const { error } = await supabase.from('team_splits').upsert(payload, {
+      onConflict: 'team_name,context',
+    })
+    if (error) {
+      console.error('[INGEST][SPLITS] Failed to upsert splits:', error.message)
+      throw error
+    }
+    console.log(`[INGEST][SPLITS] Updated ${payload.length} team splits entries`)
+  }
+}
+
+async function recordHeadToHead(
+  supabase: ReturnType<typeof createServiceClient>,
+  games: NBAGame[]
+) {
+  if (!games.length) return
+
+  const payload = games.map((game) => ({
+    sport_key: 'basketball_nba',
+    team_one: game.homeTeam,
+    team_two: game.awayTeam,
+    matchup_date: game.date ? new Date(game.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    winner: game.homeScore > game.awayScore ? game.homeTeam : game.awayScore > game.homeScore ? game.awayTeam : null,
+    pace: null,
+    notes: `${game.homeScore}-${game.awayScore}`,
+    captured_at: new Date().toISOString(),
+  }))
+
+  const chunkSize = 500
+  for (let i = 0; i < payload.length; i += chunkSize) {
+    const chunk = payload.slice(i, i + chunkSize)
+    const { error } = await supabase.from('head_to_head_results').upsert(chunk, {
+      onConflict: 'team_one,team_two,matchup_date',
+    })
+    if (error) {
+      console.error('[INGEST][H2H] Failed to upsert chunk:', error.message)
+      throw error
+    }
+  }
+
+  console.log(`[INGEST][H2H] Logged ${payload.length} head-to-head rows`)
 }
 
 ingestRecentForm()

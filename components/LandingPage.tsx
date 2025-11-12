@@ -295,7 +295,7 @@ export default function LandingPage() {
               <AvatarCircles avatarUrls={heroAvatarUrls} numPeople={126} />
               <div className="text-left">
                 <p className="text-[0.75rem] uppercase tracking-[0.35em] text-white/60">
-                  The sharps' favorite new tool
+                  The sharps&rsquo; favorite new tool
                 </p>
                 <p className="text-sm text-white/80">
                   Trusted by high-volume bettors finding CLV every week.

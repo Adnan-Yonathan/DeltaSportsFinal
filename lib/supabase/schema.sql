@@ -106,6 +106,24 @@ CREATE TABLE IF NOT EXISTS injury_reports (
   captured_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Team recent form cache
+CREATE TABLE IF NOT EXISTS team_recent_form (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sport_key TEXT NOT NULL,
+  team_name TEXT NOT NULL,
+  game_date DATE NOT NULL,
+  opponent TEXT NOT NULL,
+  is_home BOOLEAN NOT NULL,
+  result TEXT,
+  points_for INTEGER,
+  points_against INTEGER,
+  pace NUMERIC,
+  offensive_rating NUMERIC,
+  defensive_rating NUMERIC,
+  net_rating NUMERIC,
+  captured_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_bets_user_status ON bets(user_id, status, placed_at DESC);
@@ -116,6 +134,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_models_user_name ON custom_models(u
 CREATE INDEX IF NOT EXISTS idx_custom_models_last_used ON custom_models(user_id, last_used_at DESC);
 CREATE INDEX IF NOT EXISTS idx_injury_reports_sport_team ON injury_reports(sport_key, team_name);
 CREATE INDEX IF NOT EXISTS idx_injury_reports_captured ON injury_reports(captured_at DESC);
+CREATE INDEX IF NOT EXISTS idx_recent_form_team_date ON team_recent_form(team_name, game_date DESC);
+CREATE INDEX IF NOT EXISTS idx_recent_form_sport_team ON team_recent_form(sport_key, team_name);
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -125,6 +145,7 @@ ALTER TABLE bets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bankroll_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE custom_models ENABLE ROW LEVEL SECURITY;
 ALTER TABLE injury_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE team_recent_form ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for users table
 CREATE POLICY "Users can view own data" ON users
@@ -203,6 +224,9 @@ CREATE POLICY "Users can delete own models" ON custom_models
 
 -- Injury reports are read-only public data
 CREATE POLICY "Anyone can view injuries" ON injury_reports
+  FOR SELECT USING (true);
+
+CREATE POLICY "Anyone can view recent form" ON team_recent_form
   FOR SELECT USING (true);
 
 -- Function to automatically update updated_at timestamp

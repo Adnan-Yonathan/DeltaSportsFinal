@@ -36,6 +36,10 @@ export interface GameContextPayload {
   injuries: InjurySummary[]
   teamSummaries: TeamContextSummary[]
   marketTrends?: MarketTrendSummary
+  recentForm?: {
+    home: any[]
+    away: any[]
+  }
   notes: string[]
 }
 
@@ -142,7 +146,22 @@ export async function buildGameContext({
   const normalizedHome = normalizeTeamName(homeTeam)
   const normalizedAway = normalizeTeamName(awayTeam)
 
-  const [injuryFeed, teamStats] = await Promise.all([
+  const recentFormPromise = supabase
+    ? supabase
+        .from('team_recent_form')
+        .select('*')
+        .eq('sport_key', sport)
+        .in('team_name', [homeTeam, awayTeam])
+        .order('game_date', { ascending: false })
+        .limit(10)
+        .then(({ data }) => data || [])
+        .catch((error) => {
+          console.error('[CONTEXT] Failed to fetch recent form:', error)
+          return []
+        })
+    : Promise.resolve([])
+
+  const [injuryFeed, teamStats, recentFormRows] = await Promise.all([
     loadInjuries({ sport, homeTeam, awayTeam, supabase }).catch((error) => {
       console.error('[CONTEXT] Failed to fetch injury reports:', error)
       notes.push('Injury feed unavailable.')
@@ -241,6 +260,13 @@ export async function buildGameContext({
     notes.push('No injury updates available for these teams.')
   }
 
+  const recentHome = recentFormRows.filter(
+    (row) => normalizeTeamName(row.team_name) === normalizedHome
+  )
+  const recentAway = recentFormRows.filter(
+    (row) => normalizeTeamName(row.team_name) === normalizedAway
+  )
+
   return {
     sport,
     homeTeam,
@@ -248,6 +274,10 @@ export async function buildGameContext({
     injuries,
     teamSummaries,
     marketTrends,
+    recentForm: {
+      home: recentHome,
+      away: recentAway,
+    },
     notes,
   }
 }

@@ -254,6 +254,56 @@ export interface Database {
           captured_at?: string
         }
       }
+      team_recent_form: {
+        Row: {
+          id: string
+          sport_key: string
+          team_name: string
+          game_date: string
+          opponent: string
+          is_home: boolean
+          result: string | null
+          points_for: number | null
+          points_against: number | null
+          pace: number | null
+          offensive_rating: number | null
+          defensive_rating: number | null
+          net_rating: number | null
+          captured_at: string
+        }
+        Insert: {
+          id?: string
+          sport_key: string
+          team_name: string
+          game_date: string
+          opponent: string
+          is_home: boolean
+          result?: string | null
+          points_for?: number | null
+          points_against?: number | null
+          pace?: number | null
+          offensive_rating?: number | null
+          defensive_rating?: number | null
+          net_rating?: number | null
+          captured_at?: string
+        }
+        Update: {
+          id?: string
+          sport_key?: string
+          team_name?: string
+          game_date?: string
+          opponent?: string
+          is_home?: boolean
+          result?: string | null
+          points_for?: number | null
+          points_against?: number | null
+          pace?: number | null
+          offensive_rating?: number | null
+          defensive_rating?: number | null
+          net_rating?: number | null
+          captured_at?: string
+        }
+      }
     }
   }
 }

@@ -419,6 +419,16 @@ npm run ingest:injuries
 
 This fetches current NBA/NFL/MLB/NHL reports from ESPN and stores them in `injury_reports`, so the LLM can answer instantly without hitting third-party feeds every time.
 
+### Recent form cache
+
+To pre-fill last-7-day performance logs (currently NBA example):
+
+```bash
+npm run ingest:recent-form
+```
+
+This writes game-level results into `team_recent_form`, enabling the chat to summarize “last 5” form without making live calls.
+
 ---
 
 ## Contributing

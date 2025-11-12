@@ -10,11 +10,12 @@ import {
   InjuryReport,
   RosterPlayer
 } from '@/lib/sports-stats-api'
+import { createClient } from '@/lib/supabase/server'
 
 /**
  * GET /api/stats
  * Query parameters:
- * - type: 'team' | 'injuries' | 'all-injuries' | 'player' | 'roster'
+ * - type: 'team' | 'injuries' | 'all-injuries' | 'player' | 'roster' | 'recent_form'
  * - sport: 'nba' | 'nfl' | 'mlb' | 'nhl'
  * - team: optional team identifier (abbreviation or ID)
  * - player: player name to search (for type=player)
@@ -35,9 +36,25 @@ export async function GET(req: NextRequest) {
         result = await getTeamStats(sport, team)
         break
 
-      case 'injuries':
-        result = await getInjuryReports(sport)
+      case 'injuries': {
+        const supabase = createClient()
+        let data: any[] | null = null
+        try {
+          const { data: cached } = await supabase
+            .from('injury_reports')
+            .select('*')
+            .eq('sport_key', sport)
+            .order('captured_at', { ascending: false })
+            .limit(200)
+
+          data = cached
+        } catch (error) {
+          console.warn('[STATS] Failed to read injury cache:', error)
+        }
+
+        result = data && data.length > 0 ? data : await getInjuryReports(sport)
         break
+      }
 
       case 'all-injuries':
         result = await getAllInjuries()
@@ -56,6 +73,25 @@ export async function GET(req: NextRequest) {
       case 'roster':
         result = await getRoster(sport, team)
         break
+
+      case 'recent_form': {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from('team_recent_form')
+          .select('*')
+          .eq('sport_key', sport)
+          .eq('team_name', team || '')
+          .order('game_date', { ascending: false })
+          .limit(10)
+
+        if (error) {
+          console.error('Stats API error (recent_form):', error)
+          return NextResponse.json({ error: 'Failed to fetch recent form' }, { status: 500 })
+        }
+
+        result = data || []
+        break
+      }
 
       default:
         return NextResponse.json(

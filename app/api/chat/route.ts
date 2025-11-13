@@ -303,7 +303,7 @@ Current time is ${new Date().toLocaleString('en-US', {
 
 **IMPORTANT - YOU HAVE ACCESS TO LIVE ODDS AND ADVANCED STATISTICS:**
 You have REAL-TIME access to:
-1. Live odds data for NBA, NCAA Basketball (NCAAB), NFL, NCAA Football (NCAAF), MLB, and NHL through The Odds API
+  1. Live odds data for NBA, NCAA Basketball (NCAAB), NFL, NCAA Football (NCAAF), MLB, and NHL via Odds-API.io (provider)
 2. Team statistics (records, rankings, offensive/defensive stats)
 3. Player statistics and performance metrics
 4. Injury reports and lineup information
@@ -351,7 +351,7 @@ When users ask "what games are today/tonight/tomorrow":
 
 **When Live Odds Data is Provided:**
 - Extract and display the data in an easy-to-read table format
-- **CRITICAL**: Display ALL sportsbooks that have odds for each game (FanDuel, DraftKings, BetRivers, MyBookie, LowVig, BetOnline, BetMGM, etc.)
+ - **CRITICAL**: Display ALL sportsbooks returned by the API for each game (e.g., FanDuel, DraftKings, BetMGM, Caesars, Fanatics, Bet365, BetRivers, Hard Rock, Pinnacle, PointsBet, Bovada, Stake, Fliff). Do not list books that are not present in the data.
 - Compare moneyline, spreads, and totals across ALL available sportsbooks for each game
 - Show every bookmaker's odds in the table - do NOT omit any bookmakers from the data
 - Highlight which sportsbook has the best VALUE for each market (see "Best Value" rules below)

@@ -142,8 +142,8 @@ function AIBrain() {
 
 function SportsbookTicker() {
   const sportsbooks = [
-    "FanDuel", "DraftKings", "BetMGM", "Caesars", "Bet365",
-    "BetRivers", "Pinnacle", "LowVig.ag", "BetOnline.ag", "MyBookie.ag"
+    "FanDuel", "DraftKings", "BetMGM", "Caesars", "Fanatics", "Bet365",
+    "BetRivers", "Hard Rock", "Pinnacle", "PointsBet", "Bovada", "Stake", "Fliff"
   ]
 
   // Duplicate the array for seamless loop

@@ -293,40 +293,6 @@ CREATE POLICY "Anyone can view head-to-head" ON head_to_head_results
 CREATE POLICY "Anyone can view market snapshots" ON market_snapshots
   FOR SELECT USING (true);
 
--- Attachments
-CREATE TABLE IF NOT EXISTS attachments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
-  conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE NOT NULL,
-  bet_id UUID REFERENCES bets(id) ON DELETE SET NULL,
-  type TEXT NOT NULL CHECK (type IN ('image', 'document')),
-  storage_path TEXT NOT NULL,
-  original_name TEXT,
-  mime_type TEXT,
-  size_bytes INTEGER,
-  extracted_text TEXT,
-  analysis_json JSONB,
-  analysis_status TEXT DEFAULT 'pending' CHECK (analysis_status IN ('pending', 'ready', 'failed')),
-  error_message TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  analyzed_at TIMESTAMP WITH TIME ZONE
-);
-
-CREATE INDEX IF NOT EXISTS idx_attachments_conversation ON attachments(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_attachments_user ON attachments(user_id);
-CREATE INDEX IF NOT EXISTS idx_attachments_bet ON attachments(bet_id);
-
-ALTER TABLE attachments ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Attachments read own" ON attachments
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Attachments insert own" ON attachments
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Attachments update own" ON attachments
-  FOR UPDATE USING (auth.uid() = user_id);
-
 -- Function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

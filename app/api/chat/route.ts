@@ -889,51 +889,6 @@ export async function POST(req: NextRequest) {
       contextMessage += '- Custom models ready: none yet (offer to help user build one)\n'
     }
 
-    const { data: analyzedAttachments } = await supabase
-      .from('attachments')
-      .select('id, type, original_name, analysis_status, extracted_text, analysis_json')
-      .eq('conversation_id', conversationId)
-      .eq('analysis_status', 'ready')
-      .order('created_at', { ascending: false })
-      .limit(5)
-
-    if (analyzedAttachments && analyzedAttachments.length > 0) {
-      contextMessage += `\n**Recent Attachments:**\n`
-      analyzedAttachments.forEach((attachment, index) => {
-        const parsed =
-          attachment.analysis_json && typeof attachment.analysis_json === 'object'
-            ? attachment.analysis_json
-            : null
-        const summary =
-          (parsed && typeof (parsed as any).summary === 'string' && (parsed as any).summary.trim().length > 0
-            ? (parsed as any).summary
-            : attachment.extracted_text) || 'Attachment analyzed but summary unavailable.'
-
-        contextMessage += `- [${attachment.type.toUpperCase()} #${index + 1}] ${
-          attachment.original_name || 'Attachment'
-        }: ${summary}\n`
-
-        if (parsed && typeof parsed === 'object' && 'bet_slip' in parsed && (parsed as any).bet_slip) {
-          const betSlips = Array.isArray((parsed as any).bet_slip) ? (parsed as any).bet_slip : [(parsed as any).bet_slip]
-          betSlips.forEach((bet: any) => {
-            const cleaned = Object.fromEntries(
-              Object.entries(bet || {}).filter(
-                ([, value]) =>
-                  value !== undefined &&
-                  value !== null &&
-                  String(value).trim().length > 0
-              )
-            )
-            if (Object.keys(cleaned).length > 0) {
-              contextMessage += `  *Bet slip:* ${JSON.stringify(cleaned)}\n`
-            }
-          })
-        } else if (parsed && Array.isArray((parsed as any).key_points) && (parsed as any).key_points.length > 0) {
-          contextMessage += `  *Key points:* ${(parsed as any).key_points.join('; ')}\n`
-        }
-      })
-    }
-
     // Determine if we need to fetch odds data
     const needsOdds = message.toLowerCase().match(
       /(odds|lines|spread|moneyline|total|over|under|bet|game|match|tonight|today|tomorrow|arbitrage|arb)/i
@@ -1178,21 +1133,9 @@ export async function POST(req: NextRequest) {
               }
 
               if (oddsData.length > 0) {
-                // Dynamic game limit based on query specificity
-                let gameLimit = 5 // default
-                if (mentionedTeams.length >= 2) {
-                  gameLimit = 3 // Specific matchup query - fewer games needed
-                } else if (mentionedTeams.length === 1) {
-                  gameLimit = 5 // One team mentioned - show their games
-                } else if (messageLower.match(/(arbitrage|arb)/i)) {
-                  gameLimit = 15 // Arbitrage queries need more games
-                } else {
-                  gameLimit = 10 // General queries - show more options
-                }
-
                 allOddsData.push({
-                  sport: sport,
-                  games: oddsData.slice(0, gameLimit)
+                  sport,
+                  games: oddsData,
                 })
               }
             } catch (err) {

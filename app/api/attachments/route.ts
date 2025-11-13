@@ -32,7 +32,13 @@ interface AttachmentRow {
   analyzed_at: string | null
 }
 
-type AttachmentUpdate = Partial<AttachmentRow>
+interface AttachmentUpdate {
+  analysis_status?: AttachmentRow['analysis_status']
+  extracted_text?: AttachmentRow['extracted_text']
+  analysis_json?: AttachmentRow['analysis_json']
+  analyzed_at?: AttachmentRow['analyzed_at']
+  error_message?: AttachmentRow['error_message']
+}
 
 export async function POST(req: NextRequest) {
   try {

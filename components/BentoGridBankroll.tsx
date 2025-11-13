@@ -25,6 +25,17 @@ interface BankrollStats {
   pendingBets: number
   totalBets?: number
   dailyBalances: { date: string; balance: number }[]
+  clv?: {
+    totalConsidered: number
+    beat: number
+    tie: number
+    noBeat: number
+    market: {
+      moneyline: { total: number; beat: number; avgProbDelta: number }
+      spread: { total: number; beat: number; avgPts: number }
+      total: { total: number; beat: number; avgPts: number }
+    }
+  } | null
 }
 
 interface Bet {
@@ -532,6 +543,87 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
 
           {/* Bento Grid Layout */}
           <div className="grid grid-cols-2 gap-3">
+            {/* CLV Overview */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+              className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Target className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs text-white/60 uppercase tracking-wider">Beat Closing Line</span>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/bankroll/recalc-clv?period=7d', { method: 'POST' })
+                      if (res.ok) {
+                        await loadData()
+                      }
+                    } catch (e) { /* noop */ }
+                  }}
+                  className="text-[10px] px-2 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white"
+                >
+                  Recalculate CLV
+                </button>
+              </div>
+              {stats.clv?.totalConsidered ? (
+                <>
+                  <div className="text-2xl font-bold text-white">
+                    {((stats.clv.beat / stats.clv.totalConsidered) * 100).toFixed(1)}%
+                  </div>
+                  <div className="text-xs text-white/40 mt-1">
+                    {stats.clv.beat} beat • {stats.clv.tie} tie • {stats.clv.noBeat} didn’t beat
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs text-white/40">CLV will appear here after your next session.</div>
+              )}
+            </motion.div>
+
+            {/* CLV by Market */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.16 }}
+              className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Activity className="w-4 h-4 text-cyan-400" />
+                <span className="text-xs text-white/60 uppercase tracking-wider">CLV by Market</span>
+              </div>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between text-white/80">
+                  <span>Moneyline</span>
+                  {stats.clv?.market.moneyline.total ? (
+                    <span>
+                      {((stats.clv.market.moneyline.beat / stats.clv.market.moneyline.total) * 100).toFixed(1)}% • 
+                      ?prob {((stats.clv.market.moneyline.avgProbDelta || 0) * 100).toFixed(1)}%
+                    </span>
+                  ) : <span className="text-white/40">n/a</span>}
+                </div>
+                <div className="flex justify-between text-white/80">
+                  <span>Spread</span>
+                  {stats.clv?.market.spread.total ? (
+                    <span>
+                      {((stats.clv.market.spread.beat / stats.clv.market.spread.total) * 100).toFixed(1)}% • 
+                      ?line {(stats.clv.market.spread.avgPts || 0).toFixed(2)}
+                    </span>
+                  ) : <span className="text-white/40">n/a</span>}
+                </div>
+                <div className="flex justify-between text-white/80">
+                  <span>Total</span>
+                  {stats.clv?.market.total.total ? (
+                    <span>
+                      {((stats.clv.market.total.beat / stats.clv.market.total.total) * 100).toFixed(1)}% • 
+                      ?line {(stats.clv.market.total.avgPts || 0).toFixed(2)}
+                    </span>
+                  ) : <span className="text-white/40">n/a</span>}
+                </div>
+              </div>
+            </motion.div>
             {/* Balance Card - spans 2 columns */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -939,3 +1031,5 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
     </>
   )
 }
+
+

@@ -230,3 +230,6 @@ Open an issue for bugs or questions.
 ---
 
 **Built with grit for sports betting enthusiasts.**
+
+
+Note: Schedule/score queries use ESPN; betting queries call The Odds API.

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { Database } from '@/lib/supabase/types'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -15,7 +14,23 @@ const ATTACHMENTS_BUCKET =
 const ATTACHMENT_ANALYSIS_MODEL =
   process.env.ATTACHMENT_ANALYSIS_MODEL || 'gpt-4o-mini'
 
-type AttachmentRow = Database['public']['Tables']['attachments']['Row']
+type AttachmentRow = {
+  id: string
+  user_id: string
+  conversation_id: string
+  bet_id: string | null
+  type: 'image' | 'document'
+  storage_path: string
+  original_name: string | null
+  mime_type: string | null
+  size_bytes: number | null
+  extracted_text: string | null
+  analysis_json: Record<string, unknown> | null
+  analysis_status: 'pending' | 'ready' | 'failed'
+  error_message: string | null
+  created_at: string
+  analyzed_at: string | null
+}
 
 export async function POST(req: NextRequest) {
   try {

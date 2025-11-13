@@ -219,6 +219,59 @@ export interface Database {
           last_used_at?: string | null
         }
       }
+      attachments: {
+        Row: {
+          id: string
+          user_id: string
+          conversation_id: string
+          bet_id: string | null
+          type: 'image' | 'document'
+          storage_path: string
+          original_name: string | null
+          mime_type: string | null
+          size_bytes: number | null
+          extracted_text: string | null
+          analysis_json: Json | null
+          analysis_status: 'pending' | 'ready' | 'failed'
+          error_message: string | null
+          created_at: string
+          analyzed_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          conversation_id: string
+          bet_id?: string | null
+          type: 'image' | 'document'
+          storage_path: string
+          original_name?: string | null
+          mime_type?: string | null
+          size_bytes?: number | null
+          extracted_text?: string | null
+          analysis_json?: Json | null
+          analysis_status?: 'pending' | 'ready' | 'failed'
+          error_message?: string | null
+          created_at?: string
+          analyzed_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          conversation_id?: string
+          bet_id?: string | null
+          type?: 'image' | 'document'
+          storage_path?: string
+          original_name?: string | null
+          mime_type?: string | null
+          size_bytes?: number | null
+          extracted_text?: string | null
+          analysis_json?: Json | null
+          analysis_status?: 'pending' | 'ready' | 'failed'
+          error_message?: string | null
+          created_at?: string
+          analyzed_at?: string | null
+        }
+      }
       injury_reports: {
         Row: {
           id: string

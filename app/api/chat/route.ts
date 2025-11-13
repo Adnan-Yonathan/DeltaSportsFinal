@@ -891,30 +891,25 @@ export async function POST(req: NextRequest) {
     }
 
     // Determine if we need to fetch odds data
-    const bettingIntent = /(odds|lines|spread|moneyline|total|over|under|arbitrage|arb|price|juice)\\b/i.test(message)
-    const scheduleIntent = /(games?|schedule|who plays|playing|matchups?|match|game time|tipoff|puck drop|first pitch|score|scores?|final|quarter|period|inning|today|tonight|tomorrow)\\b/i.test(message)
+    const needsOdds = message.toLowerCase().match(
+      /(odds|lines|spread|moneyline|total|over|under|bet|game|match|tonight|today|tomorrow|arbitrage|arb)/i
+    )
 
-    let oddsContext = ''
+    const msgLower = message.toLowerCase()
+    const scheduleIntent = /(games?|schedule|who plays|playing|matchups?|match|game time|tipoff|puck drop|first pitch|score|scores?|final|quarter|period|inning|today|tonight|tomorrow)\b/i.test(msgLower)
     let scoresContext = ''
-    // If schedule-only intent, build ESPN scores/schedule context
-    if (scheduleIntent && !bettingIntent) {
+    if (scheduleIntent) {
       console.log('[SCORES] Schedule/score request detected, fetching ESPN data...')
-      // Heuristic sport detection
-      const sportsESPN: ("nba"|"nfl"|"nhl"|"mlb"|"ncaaf"|"ncaab")[] = []
+      const sportsESPN: ('nba'|'nfl'|'nhl'|'mlb'|'ncaaf'|'ncaab')[] = []
       const pushUnique = (v: any) => { if (!sportsESPN.includes(v)) sportsESPN.push(v) }
-      const ml = messageLower
-      if (/nba|basketball/.test(ml)) pushUnique('nba')
-      if (/nfl|football/.test(ml)) pushUnique('nfl')
-      if (/nhl|hockey/.test(ml)) pushUnique('nhl')
-      if (/mlb|baseball/.test(ml)) pushUnique('mlb')
-      if (/ncaaf|college\s+football|cfb/.test(ml)) pushUnique('ncaaf')
-      if (/ncaab|college\s+basketball/.test(ml)) pushUnique('ncaab')
-      if (sportsESPN.length === 0) {
-        // Default to common pro leagues if none detected
-        sportsESPN.push('nba','nfl','nhl')
-      }
+      if (/nba|basketball/.test(msgLower)) pushUnique('nba')
+      if (/nfl|football/.test(msgLower)) pushUnique('nfl')
+      if (/nhl|hockey/.test(msgLower)) pushUnique('nhl')
+      if (/mlb|baseball/.test(msgLower)) pushUnique('mlb')
+      if (/ncaaf|college\s+football|cfb/.test(msgLower)) pushUnique('ncaaf')
+      if (/ncaab|college\s+basketball/.test(msgLower)) pushUnique('ncaab')
+      if (sportsESPN.length === 0) sportsESPN.push('nba','nfl','nhl')
 
-      // Team mention filter using simple includes
       const mentionedTeams: string[] = []
       const variations: Record<string,string[]> = {
         lakers:['lakers','los angeles lakers','la lakers'], celtics:['celtics','boston'], warriors:['warriors','golden state','gsw'],
@@ -925,12 +920,11 @@ export async function POST(req: NextRequest) {
         yankees:['yankees','new york yankees'], dodgers:['dodgers','los angeles dodgers']
       }
       for (const [base, vars] of Object.entries(variations)) {
-        if (vars.some(v => ml.includes(v))) mentionedTeams.push(base)
+        if (vars.some(v => msgLower.includes(v))) mentionedTeams.push(base)
       }
 
-      // Compute target date string if tomorrow requested
       let dateParam: string | null = null
-      if (isTomorrowQuery) {
+      if (/(tomorrow|tmrw|next day)/i.test(msgLower)) {
         const now = new Date()
         const tzDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
         tzDate.setDate(tzDate.getDate() + 1)
@@ -940,10 +934,7 @@ export async function POST(req: NextRequest) {
       const allScores: { sport: string; games: any[] }[] = []
       for (const sp of sportsESPN) {
         try {
-          const games = dateParam
-            ? await fetchESPNScoresForDate(sp as any, dateParam)
-            : await fetchESPNScores(sp as any)
-
+          const games = dateParam ? await fetchESPNScoresForDate(sp as any, dateParam) : await fetchESPNScores(sp as any)
           let filtered = games
           if (mentionedTeams.length > 0) {
             filtered = games.filter(g => {
@@ -952,44 +943,34 @@ export async function POST(req: NextRequest) {
               return mentionedTeams.some(t => h.includes(t) || a.includes(t))
             })
           }
-
           if (filtered.length > 0) {
             allScores.push({ sport: sp.toUpperCase(), games: filtered })
           }
         } catch (err) {
-          console.error([SCORES] Error fetching :, err)
+          console.error('[SCORES] Error fetching ' + sp + ':', err)
         }
       }
 
       if (allScores.length > 0) {
-        // Format for AI
         const fmtTime = (iso?: string) => iso ? new Date(iso).toLocaleString('en-US', { timeZone: timezone, weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true, timeZoneName:'short' }) : ''
         const lines: string[] = []
         for (const bucket of allScores) {
-          lines.push(\n****)
+          lines.push(`\n**${bucket.sport}**`)
           for (const g of bucket.games) {
             const when = fmtTime(g.startTime)
             const status = g.status?.toUpperCase?.() || 'PRE'
-            const score = (g.homeScore || g.awayScore) ?  —   @   : ''
-            lines.push(-  @  () [])
+            const score = (g.homeScore || g.awayScore) ? ` - ${g.awayTeam} ${g.awayScore} @ ${g.homeTeam} ${g.homeScore}` : ''
+            lines.push(`- ${g.awayTeam} @ ${g.homeTeam} (${when}) [${status}]${score}`)
           }
         }
-        scoresContext = \n\n**ESPN SCHEDULE/SCORES LOADED**\nUse this data for schedule/score questions. Do not claim lack of access.\n\n
-        console.log([SCORES] Context built successfully, sports: )
+        scoresContext = `\n\n**ESPN SCHEDULE/SCORES LOADED**\nUse this data for schedule/score questions. Do not claim lack of access.\n${lines.join('\n')}\n`
+        console.log('[SCORES] Context built successfully, sports: ' + allScores.length)
       } else {
         console.log('[SCORES] No games found for the requested criteria')
         scoresContext = '\n\n(No schedule available for the requested criteria)\n'
       }
-    }
-
-    const messageLower = message.toLowerCase()
-    const isTomorrowQuery = messageLower.match(/(tomorrow|tmrw|next day)/i)
-    const isTodayQuery = messageLower.match(/(today|tonight|this evening)/i).match(
-      /(odds|lines|spread|moneyline|total|over|under|bet|game|match|tonight|today|tomorrow|arbitrage|arb)/i
-    )
-
-    let oddsContext = ''
-    if (bettingIntent) {
+    }    let oddsContext = ''
+    if (needsOdds) {
       console.log('[ODDS] Odds request detected, fetching data...')
       try {
         // Try to extract sport from message
@@ -1909,8 +1890,6 @@ ${statsEnrichment}\n`
     )
   }
 }
-
-
 
 
 

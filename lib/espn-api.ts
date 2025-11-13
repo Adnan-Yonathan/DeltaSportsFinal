@@ -165,16 +165,15 @@ export async function fetchESPNScoresForDate(
     const dateStr = typeof date === 'string'
       ? date
       : new Date(date).toISOString().slice(0,10).replace(/-/g,'');
-
-    const endpoint = ${SPORT_ENDPOINTS[sport]}?dates=;
+    const endpoint = `${SPORT_ENDPOINTS[sport]}?dates=${dateStr}`;
     const response = await fetch(endpoint, { next: { revalidate: 30 } });
     if (!response.ok) {
-      throw new Error(ESPN API error: );
+      throw new Error(`ESPN API error: ${response.status}`);
     }
     const data = await response.json();
     return parseESPNResponse(data, sport);
   } catch (error) {
-    console.error(Error fetching  scores for date:, error);
+    console.error(`Error fetching ${sport} scores for date:`, error);
     return [];
   }
 }

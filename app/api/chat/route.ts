@@ -301,7 +301,7 @@ Current time is ${new Date().toLocaleString('en-US', {
   timeStyle: 'short'
 })} ${timezone}.
 
-**IMPORTANT - YOU HAVE ACCESS TO LIVE ODDS AND ADVANCED STATISTICS:**
+  **IMPORTANT - YOU HAVE ACCESS TO ODDS DATA AND ADVANCED STATISTICS:**
 You have REAL-TIME access to:
   1. Live odds data for NBA, NCAA Basketball (NCAAB), NFL, NCAA Football (NCAAF), MLB, and NHL via Odds-API.io (provider)
 2. Team statistics (records, rankings, offensive/defensive stats)
@@ -955,6 +955,9 @@ export async function POST(req: NextRequest) {
         // Only fetch LIVE if the user explicitly asks for live/current/score context
         const wantsLiveOdds = /(live|in-play|inplay|scores?|score|current|now|ongoing)/i.test(messageLower)
         const fetchLive = Boolean(wantsLiveOdds) && !isTomorrowQuery
+        const requestedLive = fetchLive
+        let usedLive = false
+        let usedFallback = false
 
         // Comprehensive team name mapping with variations
         const teamVariations: { [key: string]: string[] } = {
@@ -1125,11 +1128,20 @@ export async function POST(req: NextRequest) {
           for (const sport of sports) {
             try {
               let oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: fetchLive })
+              if (Array.isArray(oddsData) && oddsData.length > 0 && fetchLive) {
+                usedLive = true
+              }
 
               // Fallback: if user wanted live but nothing returned, try pending (pre-match)
               if (Array.isArray(oddsData) && oddsData.length === 0 && fetchLive) {
                 try {
-                  oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: false })
+                  const pendingData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: false })
+                  if (Array.isArray(pendingData) && pendingData.length > 0) {
+                    oddsData = pendingData
+                    usedFallback = true
+                  } else {
+                    oddsData = pendingData
+                  }
                 } catch (fallbackErr) {
                   console.error(`[ODDS] Fallback to pending failed for ${sport}:`, fallbackErr)
                 }
@@ -1276,6 +1288,16 @@ export async function POST(req: NextRequest) {
             const timeLabel = isTomorrowQuery ? 'tomorrow' : 'today/upcoming'
             const dateContext = isTomorrowQuery ? 'TOMORROW' : 'TODAY'
 
+            // Build mode-aware header text for odds context
+            const modeLabel = usedLive ? 'LIVE' : 'PRE-MATCH'
+            const headerLine = `**dY"' ${modeLabel} ODDS DATA LOADED dY"'**`
+            const accessLine = usedLive
+              ? "You have live, in-play odds. Use them. Do not say you don't have access."
+              : "You have pre-match odds. Do not call these live. Use them. Do not say you don't have access."
+            const fallbackNote = requestedLive && !usedLive && usedFallback
+              ? '\n(Note: Live was requested, but unavailable; showing pre-match odds.)'
+              : ''
+
             oddsContext = `\n\n**ðŸ”´ LIVE ODDS DATA LOADED ðŸ”´**
 YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
 
@@ -1311,6 +1333,10 @@ ${JSON.stringify(
             )}
 
 ${statsEnrichment}\n`
+
+            // Adjust header and access line to reflect actual mode used
+            oddsContext = oddsContext.replace('LIVE ODDS DATA LOADED', `${modeLabel} ODDS DATA LOADED`)
+            oddsContext = oddsContext.replace("YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.", `${accessLine}${fallbackNote}`)
 
             console.log(`[ODDS] Context built successfully, length: ${oddsContext.length} characters`)
           } else {

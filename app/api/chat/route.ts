@@ -951,6 +951,11 @@ export async function POST(req: NextRequest) {
         const isTomorrowQuery = messageLower.match(/(tomorrow|tmrw|next day)/i)
         const isTodayQuery = messageLower.match(/(today|tonight|this evening)/i)
 
+        // Decide whether to fetch LIVE vs PENDING odds
+        // Only fetch LIVE if the user explicitly asks for live/current/score context
+        const wantsLiveOdds = /(live|in-play|inplay|scores?|score|current|now|ongoing)/i.test(messageLower)
+        const fetchLive = Boolean(wantsLiveOdds) && !isTomorrowQuery
+
         // Comprehensive team name mapping with variations
         const teamVariations: { [key: string]: string[] } = {
           // NBA Teams (base name as key)
@@ -1119,7 +1124,16 @@ export async function POST(req: NextRequest) {
           // Fetch odds for each sport
           for (const sport of sports) {
             try {
-              let oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: true })
+              let oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: fetchLive })
+
+              // Fallback: if user wanted live but nothing returned, try pending (pre-match)
+              if (Array.isArray(oddsData) && oddsData.length === 0 && fetchLive) {
+                try {
+                  oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: false })
+                } catch (fallbackErr) {
+                  console.error(`[ODDS] Fallback to pending failed for ${sport}:`, fallbackErr)
+                }
+              }
 
               // Filter games to user's "today" or "tomorrow" in their timezone
               if (oddsData.length > 0) {

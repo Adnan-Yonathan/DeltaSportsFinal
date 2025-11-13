@@ -28,7 +28,7 @@ Users want to:
    - Missing: live tracking data, player prop details
 
 3. **Player Props API** (`app/api/player-props/route.ts`)
-   - Fetches player prop odds from Odds API
+   - Fetches player prop odds from the odds provider (Odds-API.io)
    - Supports: NBA, NFL, MLB, NHL
    - Markets: points, rebounds, assists, passing yards, etc.
 
@@ -224,7 +224,7 @@ CREATE TABLE IF NOT EXISTS lines (
   away_team TEXT NOT NULL,
   game_time TIMESTAMP WITH TIME ZONE NOT NULL,
   espn_game_id TEXT, -- Link to ESPN if available
-  odds_api_id TEXT, -- The Odds API game ID
+  odds_provider_id TEXT, -- Provider game ID (Odds-API.io)
 
   -- Line Data
   market_type TEXT NOT NULL, -- 'spread', 'total', 'moneyline'
@@ -257,7 +257,7 @@ CREATE TABLE IF NOT EXISTS lines (
 CREATE INDEX idx_lines_game ON lines(sport, home_team, away_team, game_time);
 CREATE INDEX idx_lines_market ON lines(market_type, line_type, recorded_at DESC);
 CREATE INDEX idx_lines_sharp ON lines(is_sharp_move, sport) WHERE is_sharp_move = true;
-CREATE INDEX idx_lines_game_id ON lines(odds_api_id, line_type);
+CREATE INDEX idx_lines_game_id ON lines(odds_provider_id, line_type);
 
 -- View for opening lines
 CREATE VIEW opening_lines AS
@@ -265,11 +265,11 @@ SELECT * FROM lines WHERE line_type = 'opening';
 
 -- View for current lines
 CREATE VIEW current_lines AS
-SELECT DISTINCT ON (odds_api_id, market_type, bookmaker)
+SELECT DISTINCT ON (odds_provider_id, market_type, bookmaker)
   *
 FROM lines
 WHERE line_type = 'current'
-ORDER BY odds_api_id, market_type, bookmaker, recorded_at DESC;
+ORDER BY odds_provider_id, market_type, bookmaker, recorded_at DESC;
 
 -- View for closing lines
 CREATE VIEW closing_lines AS
@@ -1403,7 +1403,7 @@ function calculatePlayerPropProbability(
 
 ### External APIs
 - ✅ ESPN Scoreboard API (free, unofficial)
-- ✅ The Odds API (already using)
+- ✅ Odds-API.io (already integrated)
 - Optional: ESPN Player Stats API
 - Optional: Sports Reference API for historical data
 

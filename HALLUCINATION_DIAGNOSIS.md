@@ -110,7 +110,7 @@ YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
 ### Contributing Factors
 
 1. **API Timing Issues:**
-   - If The Odds API call fails or times out, no data is provided to context
+   - If the odds provider call fails or times out, no data is provided to context
    - AI then has no real data to work with
    - May fall back to generating plausible-sounding games
 
@@ -119,7 +119,7 @@ YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
    - Not hallucination, but could appear incorrect
 
 3. **Tomorrow vs Today Confusion:**
-   - The Odds API may not have odds for games far in advance
+   - The provider may not have odds for games far in advance
    - If user asks "what games tomorrow?" but API only has today's games
    - AI might generate tomorrow's games from memory
 
@@ -140,7 +140,7 @@ YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
 - Incorrect game times
 - Games that don't exist
 
-**Detection:** Compare AI response to actual API data from The Odds API
+**Detection:** Compare AI response to actual API data from the odds provider (Odds-API.io)
 
 **Status:** Fixed in `f651a25` but may still occur occasionally
 
@@ -152,7 +152,7 @@ YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
 - Odds for games that don't exist
 - Incorrect bookmaker information
 
-**Detection:** Compare to The Odds API raw response
+**Detection:** Compare to Odds-API.io raw response
 
 **Status:** Should be prevented by context injection
 
@@ -194,15 +194,15 @@ grep -E "(ODDS_API_KEY|OPENAI_API_KEY)" .env .env.local
 **Expected:** Both keys should be present and valid
 
 **If Missing:**
-- Get The Odds API key from https://the-odds-api.com/
+- Get Odds-API.io key from https://odds-api.io/
 - Get OpenAI API key from https://platform.openai.com/
 - Add to `.env.local` file
 
 ### Step 2: Test API Connectivity
 
-**Test The Odds API:**
+**Test Odds-API.io:**
 ```bash
-curl "https://api.the-odds-api.com/v4/sports/basketball_nba/odds/?apiKey=YOUR_KEY&regions=us&markets=h2h,spreads,totals&oddsFormat=american"
+curl "https://api.odds-api.io/v3/sports"
 ```
 
 **Expected:** JSON response with current NBA games and odds
@@ -212,7 +212,7 @@ curl "https://api.the-odds-api.com/v4/sports/basketball_nba/odds/?apiKey=YOUR_KE
 - API quota exceeded (500 requests/month free tier)
 - API service down
 
-### Step 3: Test Odds API Endpoint
+### Step 3: Test Odds Endpoint
 
 ```bash
 curl "http://localhost:3000/api/odds/games?sport=basketball_nba"
@@ -246,7 +246,7 @@ User: "What NBA games are today?"
 ```
 
 **Check:**
-1. Does response match actual games from The Odds API?
+1. Does response match actual games from Odds-API.io?
 2. Are game times accurate?
 3. Does AI list games NOT in the API response?
 
@@ -256,7 +256,7 @@ User: "What are the best odds for Lakers spread?"
 ```
 
 **Check:**
-1. Are odds real (match The Odds API)?
+1. Are odds real (match Odds-API.io)?
 2. Are bookmaker names correct?
 3. Is the comparison accurate?
 
@@ -430,7 +430,7 @@ describe('Anti-Hallucination Tests', () => {
 
 **Core Implementation:**
 - `/app/api/chat/route.ts` - Main AI chatbot (lines 228-362: system prompt, 940-979: context injection)
-- `/lib/api/odds-api.ts` - The Odds API integration
+- `/lib/api/odds-api.ts` - Odds-API.io integration
 - `/lib/espn-api.ts` - ESPN live scores
 - `/app/api/player-props/route.ts` - Player prop betting lines
 

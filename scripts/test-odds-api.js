@@ -1,4 +1,4 @@
-// Test script to diagnose Odds API issues
+// Test script to diagnose odds provider (Odds-API.io) issues
 const fs = require('fs')
 const path = require('path')
 
@@ -17,16 +17,16 @@ envContent.split('\n').forEach(line => {
 })
 
 const API_KEY = envVars.ODDS_API_KEY
-const ODDS_API_BASE = 'https://api.the-odds-api.com/v4'
+const ODDS_IO_BASE = 'https://api.odds-api.io/v3'
 
 async function testOddsAPI() {
-  console.log('\n=== ODDS API DIAGNOSTIC TEST ===\n')
+  console.log('\n=== ODDS PROVIDER (Odds-API.io) DIAGNOSTIC TEST ===\n')
   console.log(`API Key: ${API_KEY ? API_KEY.substring(0, 8) + '...' : 'NOT FOUND'}`)
 
   // Test 1: Get available sports
-  console.log('\n--- Test 1: Fetching Available Sports ---')
+  console.log('\n--- Test 1: Fetching Available Sports (no auth) ---')
   try {
-    const sportsUrl = `${ODDS_API_BASE}/sports/?apiKey=${API_KEY}`
+    const sportsUrl = `${ODDS_IO_BASE}/sports`
     const response = await fetch(sportsUrl)
 
     console.log(`Status: ${response.status} ${response.statusText}`)
@@ -41,8 +41,7 @@ async function testOddsAPI() {
     console.log(`Total sports available: ${sports.length}`)
 
     // Filter for active sports
-    const activeSports = sports.filter(s => s.active)
-    console.log(`Active sports: ${activeSports.length}`)
+    console.log(`Total sports returned: ${sports.length}`)
 
     console.log('\nActive Sports:')
     activeSports.forEach(sport => {
@@ -50,84 +49,75 @@ async function testOddsAPI() {
     })
 
     // Test 2: Get odds for NBA
-    console.log('\n--- Test 2: Fetching NBA Odds ---')
-    const nbaUrl = `${ODDS_API_BASE}/sports/basketball_nba/odds/?apiKey=${API_KEY}&regions=us&markets=h2h,spreads,totals&oddsFormat=american`
-    const nbaResponse = await fetch(nbaUrl)
+    console.log('\n--- Test 2: Fetching NBA Events + Odds ---')
+    // Fetch events (pending)
+    const eventsUrl = `${ODDS_IO_BASE}/events?apiKey=${API_KEY}&sport=basketball&league=nba&status=pending`
+    const evRes = await fetch(eventsUrl)
+    console.log(`Events status: ${evRes.status} ${evRes.statusText}`)
+    const events = evRes.ok ? await evRes.json() : []
+    console.log(`NBA pending events: ${Array.isArray(events) ? events.length : 0}`)
+
+    // Pick up to 10 event IDs and fetch multi-odds
+    const ids = Array.isArray(events) ? events.map(e => String(e.id)).slice(0, 10) : []
+    if (ids.length) {
+      const multiUrl = new URL(`${ODDS_IO_BASE}/odds/multi`)
+      multiUrl.searchParams.set('apiKey', API_KEY)
+      multiUrl.searchParams.set('eventIds', ids.join(','))
+      const nbaResponse = await fetch(multiUrl.toString())
 
     console.log(`Status: ${nbaResponse.status} ${nbaResponse.statusText}`)
 
-    if (nbaResponse.ok) {
-      const nbaGames = await nbaResponse.json()
-      console.log(`NBA games available: ${nbaGames.length}`)
-
-      if (nbaGames.length > 0) {
-        console.log('\nFirst NBA game:')
-        const game = nbaGames[0]
-        console.log(`  ${game.away_team} @ ${game.home_team}`)
-        console.log(`  Commence time: ${game.commence_time}`)
-        console.log(`  Bookmakers: ${game.bookmakers.length}`)
+      if (nbaResponse.ok) {
+        const nbaOdds = await nbaResponse.json()
+        console.log(`NBA odds snapshots: ${Array.isArray(nbaOdds) ? nbaOdds.length : 0}`)
+      } else {
+        const errorText = await nbaResponse.text()
+        console.error('NBA Error:', errorText)
       }
     } else {
-      const errorText = await nbaResponse.text()
-      console.error('NBA Error:', errorText)
+      console.log('No NBA events found to test odds/multi.')
     }
 
     // Test 3: Get odds for NFL
-    console.log('\n--- Test 3: Fetching NFL Odds ---')
-    const nflUrl = `${ODDS_API_BASE}/sports/americanfootball_nfl/odds/?apiKey=${API_KEY}&regions=us&markets=h2h,spreads,totals&oddsFormat=american`
-    const nflResponse = await fetch(nflUrl)
+    console.log('\n--- Test 3: Fetching NFL Events (pending) ---')
+    const nflEvUrl = `${ODDS_IO_BASE}/events?apiKey=${API_KEY}&sport=football&league=nfl&status=pending`
+    const nflResponse = await fetch(nflEvUrl)
 
     console.log(`Status: ${nflResponse.status} ${nflResponse.statusText}`)
 
     if (nflResponse.ok) {
-      const nflGames = await nflResponse.json()
-      console.log(`NFL games available: ${nflGames.length}`)
-
-      if (nflGames.length > 0) {
-        console.log('\nFirst NFL game:')
-        const game = nflGames[0]
-        console.log(`  ${game.away_team} @ ${game.home_team}`)
-        console.log(`  Commence time: ${game.commence_time}`)
-        console.log(`  Bookmakers: ${game.bookmakers.length}`)
-      }
+      const nflEvents = await nflResponse.json()
+      console.log(`NFL pending events: ${Array.isArray(nflEvents) ? nflEvents.length : 0}`)
     } else {
       const errorText = await nflResponse.text()
       console.error('NFL Error:', errorText)
     }
 
     // Test 4: Get odds for NHL
-    console.log('\n--- Test 4: Fetching NHL Odds ---')
-    const nhlUrl = `${ODDS_API_BASE}/sports/icehockey_nhl/odds/?apiKey=${API_KEY}&regions=us&markets=h2h,spreads,totals&oddsFormat=american`
-    const nhlResponse = await fetch(nhlUrl)
+    console.log('\n--- Test 4: Fetching NHL Events (pending) ---')
+    const nhlEvUrl = `${ODDS_IO_BASE}/events?apiKey=${API_KEY}&sport=hockey&league=nhl&status=pending`
+    const nhlResponse = await fetch(nhlEvUrl)
 
     console.log(`Status: ${nhlResponse.status} ${nhlResponse.statusText}`)
 
     if (nhlResponse.ok) {
-      const nhlGames = await nhlResponse.json()
-      console.log(`NHL games available: ${nhlGames.length}`)
-
-      if (nhlGames.length > 0) {
-        console.log('\nFirst NHL game:')
-        const game = nhlGames[0]
-        console.log(`  ${game.away_team} @ ${game.home_team}`)
-        console.log(`  Commence time: ${game.commence_time}`)
-        console.log(`  Bookmakers: ${game.bookmakers.length}`)
-      }
+      const nhlEvents = await nhlResponse.json()
+      console.log(`NHL pending events: ${Array.isArray(nhlEvents) ? nhlEvents.length : 0}`)
     } else {
       const errorText = await nhlResponse.text()
       console.error('NHL Error:', errorText)
     }
 
     // Test 5: Check API usage
-    console.log('\n--- Test 5: Checking API Usage ---')
-    const usageUrl = `${ODDS_API_BASE}/sports/?apiKey=${API_KEY}`
-    const usageResponse = await fetch(usageUrl)
+    console.log('\n--- Test 5: Checking Rate Limit Headers ---')
+    // Hit sports again to read provider rate-limit headers
+    const usageResponse = await fetch(`${ODDS_IO_BASE}/sports`)
+    const limit = usageResponse.headers.get('x-ratelimit-limit')
+    const remaining = usageResponse.headers.get('x-ratelimit-remaining')
+    const reset = usageResponse.headers.get('x-ratelimit-reset')
 
-    const remainingRequests = usageResponse.headers.get('x-requests-remaining')
-    const usedRequests = usageResponse.headers.get('x-requests-used')
-
-    console.log(`Requests used: ${usedRequests || 'N/A'}`)
-    console.log(`Requests remaining: ${remainingRequests || 'N/A'}`)
+    console.log(`Rate limit: ${remaining || 'N/A'} / ${limit || 'N/A'}`)
+    console.log(`Resets at: ${reset || 'N/A'}`)
 
   } catch (error) {
     console.error('Error during testing:', error)

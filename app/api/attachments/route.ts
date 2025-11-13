@@ -162,14 +162,20 @@ async function analyzeAttachment(attachment: AttachmentRow) {
       analyzed_at: new Date().toISOString(),
     }
 
-    await admin.from('attachments').update(successUpdate).eq('id', attachment.id)
+    await admin
+      .from('attachments')
+      .update(successUpdate as Database['public']['Tables']['attachments']['Update'])
+      .eq('id', attachment.id)
   } catch (error: any) {
     const failureUpdate: AttachmentUpdate = {
       analysis_status: 'failed',
       error_message: error.message,
     }
 
-    await admin.from('attachments').update(failureUpdate).eq('id', attachment.id)
+    await admin
+      .from('attachments')
+      .update(failureUpdate as Database['public']['Tables']['attachments']['Update'])
+      .eq('id', attachment.id)
 
     throw error
   }

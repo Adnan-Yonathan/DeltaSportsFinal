@@ -1,7 +1,8 @@
-import { OddsGame, ArbitrageOpportunity, MARKETS, Bookmaker, OddsMarket, OddsOutcome } from '@/lib/types/odds'
+﻿import { OddsGame, ArbitrageOpportunity, MARKETS, Bookmaker, OddsMarket, OddsOutcome } from '@/lib/types/odds'
 import { isArbitrage, calculateArbitrageStakes, americanToDecimal, decimalToAmerican } from '@/lib/utils/odds'
 
 const ODDS_API_BASE = 'https://api.the-odds-api.com/v4'
+const ODDS_IO_BASE = 'https://api.odds-api.io/v3'
 const ODDS_IO_BASE = 'https://api.odds-api.io/v3'
 
 export class OddsAPIError extends Error {
@@ -356,4 +357,68 @@ export function getBestOdds(game: OddsGame, marketKey: string): Map<string, {
   }
 
   return bestOdds
+}
+
+
+// Mapping for Odds-API.io events
+const SPORT_MAP: Record<string, { sport: string; league: string }> = {
+  basketball_nba: { sport: 'basketball', league: 'nba' },
+  basketball_ncaab: { sport: 'basketball', league: 'ncaab' },
+  americanfootball_nfl: { sport: 'football', league: 'nfl' },
+  americanfootball_ncaaf: { sport: 'football', league: 'ncaaf' },
+  baseball_mlb: { sport: 'baseball', league: 'mlb' },
+  icehockey_nhl: { sport: 'hockey', league: 'nhl' },
+}
+
+function getOddsIOKey(): string {
+  const key = process.env.ODDS_API_KEY as string | undefined
+  if (!key) throw new OddsAPIError('ODDS_API_KEY is not configured')
+  return key
+}
+
+export async function fetchEventsIO(
+  sportKey: string,
+  opts: { status?: 'pending' | 'live'; tz?: string; day?: 'today' | 'tomorrow' } = {}
+): Promise<Array<{ id: string; home: string; away: string; date: string; status: string }>> {
+  const mapping = SPORT_MAP[sportKey]
+  if (!mapping) return []
+  const apiKey = getOddsIOKey()
+  const status = opts.status || 'pending'
+  const url = new URL(`${ODDS_IO_BASE}/events`)
+  url.searchParams.set('apiKey', apiKey)
+  url.searchParams.set('sport', mapping.sport)
+  url.searchParams.set('league', mapping.league)
+  url.searchParams.set('status', status)
+
+  const res = await fetch(url.toString(), { next: { revalidate: status === 'live' ? 10 : 60 } })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new OddsAPIError(`Odds-API.io events error ${res.status}: ${body || res.statusText}`, res.status)
+  }
+  const events = (await res.json()) as any[]
+  if (!Array.isArray(events)) return []
+
+  const tz = opts.tz || 'America/New_York'
+  const day = opts.day || 'today'
+  const now = new Date()
+  const base = new Date(now.toLocaleString('en-US', { timeZone: tz }))
+  if (day === 'tomorrow') base.setDate(base.getDate() + 1)
+  const start = new Date(base)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(base)
+  end.setHours(23, 59, 59, 999)
+
+  const filtered = events.filter((ev) => {
+    const d = new Date(ev.date)
+    const local = new Date(d.toLocaleString('en-US', { timeZone: tz }))
+    return local >= start && local <= end
+  })
+
+  return filtered.map((ev) => ({
+    id: String(ev.id),
+    home: String(ev.home),
+    away: String(ev.away),
+    date: String(ev.date),
+    status: String(ev.status || 'pending'),
+  }))
 }

@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
 import { enrichGamesWithStats, formatEnrichedGamesForAI } from '@/lib/stats-enrichment'
 import { getTeamStats, getInjuryReports, formatStatsForAI } from '@/lib/sports-stats-api'
 import { fetchESPNScores, fetchESPNScoresForDate } from '@/lib/espn-api'
+import { fetchEventsIO } from '@/lib/api/odds-api'
 import { getPostHogServer, trackLLMInteraction } from '@/lib/posthog/server'
 import { listCustomModels, saveCustomModel, touchCustomModelUsage, CustomModelRow } from '@/lib/models/custom-models'
 import { CustomModelStatInput } from '@/lib/models/custom-model-types'
@@ -382,7 +383,7 @@ When identifying the best odds/value, you MUST consider the line FIRST, then the
 **When presenting odds, ALWAYS:**
 - Show the best line/spread for each side (not just the best odds on any line)
 - Note if a book offers a better line even with slightly worse odds
-- Example: "Best value for Lakers: -4.5 at -110 (FanDuel) — Better than -5 at -105 elsewhere"
+- Example: "Best value for Lakers: -4.5 at -110 (FanDuel) â€” Better than -5 at -105 elsewhere"
 
 **Arbitrage Opportunities:**
 When users ask for arbitrage opportunities, you MUST:
@@ -423,7 +424,7 @@ When analyzing bankroll stats, provide actionable insights:
 - Always restate the configuration for confirmation before calling save_custom_model. Do not save without explicit user approval.
 - When a user says things like "apply my NBA model for totals" or "use my NFL rushing model for Derrick Henry", search the provided context for matching models, clarify if multiple exist, then call apply_custom_model with the model name and any matchup/team info mentioned.
 - Use list_custom_models when the user asks what models they have, or when you need to remind them of available names.
-- When models are applied, explain the weighted score, confidence interval, and how each stat contributed. Never fabricate stats—if data is missing, state that limitation.
+- When models are applied, explain the weighted score, confidence interval, and how each stat contributed. Never fabricate statsâ€”if data is missing, state that limitation.
 - Whenever someone asks about a specific matchup or you are creating/applying a projection, first ask **"Do you want to go more in depth on the matchup?"**. If they say yes (or ask for deeper analysis), call **get_game_context** to pull injuries, team form, and market trends before responding.
 
 Always confirm what you're doing before calling functions and provide friendly responses after.`
@@ -704,7 +705,7 @@ const ASSISTANT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'list_custom_models',
-      description: 'List the user’s saved custom models so they know what can be applied.',
+      description: 'List the userâ€™s saved custom models so they know what can be applied.',
       parameters: {
         type: 'object',
         properties: {
@@ -897,79 +898,46 @@ export async function POST(req: NextRequest) {
 
     const msgLower = message.toLowerCase()
     const scheduleIntent = /(games?|schedule|who plays|playing|matchups?|match|game time|tipoff|puck drop|first pitch|score|scores?|final|quarter|period|inning|today|tonight|tomorrow)\b/i.test(msgLower)
-    let scoresContext = ''
-    if (scheduleIntent) {
-      console.log('[SCORES] Schedule/score request detected, fetching ESPN data...')
-      const sportsESPN: ('nba'|'nfl'|'nhl'|'mlb'|'ncaaf'|'ncaab')[] = []
-      const pushUnique = (v: any) => { if (!sportsESPN.includes(v)) sportsESPN.push(v) }
-      if (/nba|basketball/.test(msgLower)) pushUnique('nba')
-      if (/nfl|football/.test(msgLower)) pushUnique('nfl')
-      if (/nhl|hockey/.test(msgLower)) pushUnique('nhl')
-      if (/mlb|baseball/.test(msgLower)) pushUnique('mlb')
-      if (/ncaaf|college\s+football|cfb/.test(msgLower)) pushUnique('ncaaf')
-      if (/ncaab|college\s+basketball/.test(msgLower)) pushUnique('ncaab')
-      if (sportsESPN.length === 0) sportsESPN.push('nba','nfl','nhl')
-
-      const mentionedTeams: string[] = []
-      const variations: Record<string,string[]> = {
-        lakers:['lakers','los angeles lakers','la lakers'], celtics:['celtics','boston'], warriors:['warriors','golden state','gsw'],
-        heat:['heat','miami'], bucks:['bucks','milwaukee'], knicks:['knicks','new york knicks','ny knicks'],
-        rams:['rams','los angeles rams','la rams'], chiefs:['chiefs','kansas city'], eagles:['eagles','philadelphia'],
-        patriots:['patriots','new england'], cowboys:['cowboys','dallas'],
-        bruins:['bruins','boston'], rangers:['rangers','new york rangers'], canadiens:['canadiens','montreal'],
-        yankees:['yankees','new york yankees'], dodgers:['dodgers','los angeles dodgers']
-      }
-      for (const [base, vars] of Object.entries(variations)) {
-        if (vars.some(v => msgLower.includes(v))) mentionedTeams.push(base)
-      }
-
-      let dateParam: string | null = null
-      if (/(tomorrow|tmrw|next day)/i.test(msgLower)) {
-        const now = new Date()
-        const tzDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
-        tzDate.setDate(tzDate.getDate() + 1)
-        dateParam = tzDate.toISOString().slice(0,10).replace(/-/g,'')
-      }
-
-      const allScores: { sport: string; games: any[] }[] = []
-      for (const sp of sportsESPN) {
+    let scoresContext = ''    if (scheduleIntent) {
+      console.log('[SCHEDULE] Request detected, fetching provider events...')
+      const ml = msgLower
+      const sportsList: string[] = []
+      const push = (k: string) => { if (!sportsList.includes(k)) sportsList.push(k) }
+      if (/nba|basketball/.test(ml)) push('basketball_nba')
+      if (/nfl|football/.test(ml)) push('americanfootball_nfl')
+      if (/nhl|hockey/.test(ml)) push('icehockey_nhl')
+      if (/mlb|baseball/.test(ml)) push('baseball_mlb')
+      if (/ncaaf|college\s+football|cfb/.test(ml)) push('americanfootball_ncaaf')
+      if (/ncaab|college\s+basketball/.test(ml)) push('basketball_ncaab')
+      if (sportsList.length === 0) push('basketball_nba')
+      const day = /(tomorrow|tmrw|next day)/i.test(ml) ? 'tomorrow' : 'today'
+      const all: { sport: string; events: any[] }[] = []
+      for (const sk of sportsList) {
         try {
-          const games = dateParam ? await fetchESPNScoresForDate(sp as any, dateParam) : await fetchESPNScores(sp as any)
-          let filtered = games
-          if (mentionedTeams.length > 0) {
-            filtered = games.filter(g => {
-              const h = (g.homeTeam||'').toLowerCase()
-              const a = (g.awayTeam||'').toLowerCase()
-              return mentionedTeams.some(t => h.includes(t) || a.includes(t))
-            })
-          }
-          if (filtered.length > 0) {
-            allScores.push({ sport: sp.toUpperCase(), games: filtered })
-          }
+          const evs = await fetchEventsIO(sk, { status: 'pending', tz: timezone, day })
+          if (evs.length) all.push({ sport: sk, events: evs })
         } catch (err) {
-          console.error('[SCORES] Error fetching ' + sp + ':', err)
+          console.error('[SCHEDULE] Provider events error for', sk, err)
         }
       }
-
-      if (allScores.length > 0) {
+      if (all.length > 0) {
         const fmtTime = (iso?: string) => iso ? new Date(iso).toLocaleString('en-US', { timeZone: timezone, weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true, timeZoneName:'short' }) : ''
         const lines: string[] = []
-        for (const bucket of allScores) {
-          lines.push(`\n**${bucket.sport}**`)
-          for (const g of bucket.games) {
-            const when = fmtTime(g.startTime)
-            const status = g.status?.toUpperCase?.() || 'PRE'
-            const score = (g.homeScore || g.awayScore) ? ` - ${g.awayTeam} ${g.awayScore} @ ${g.homeTeam} ${g.homeScore}` : ''
-            lines.push(`- ${g.awayTeam} @ ${g.homeTeam} (${when}) [${status}]${score}`)
+        for (const bucket of all) {
+          lines.push(`\n**${bucket.sport.toUpperCase()}**`)
+          for (const e of bucket.events) {
+            const when = fmtTime(e.date)
+            const st = (e.status || 'pending').toUpperCase()
+            lines.push(`- ${e.away} @ ${e.home} (${when}) [${st}]`)
           }
         }
-        scoresContext = `\n\n**ESPN SCHEDULE/SCORES LOADED**\nUse this data for schedule/score questions. Do not claim lack of access.\n${lines.join('\n')}\n`
-        console.log('[SCORES] Context built successfully, sports: ' + allScores.length)
+        scoresContext = `\n\n**PROVIDER SCHEDULE LOADED**\nUse this data for schedule questions. Do not claim lack of access.\n${lines.join('\n')}\n`
+        console.log('[SCHEDULE] Context built successfully (provider), sports:', all.length)
       } else {
-        console.log('[SCORES] No games found for the requested criteria')
         scoresContext = '\n\n(No schedule available for the requested criteria)\n'
+        console.log('[SCHEDULE] No provider events found for', sportsList.join(','))
       }
-    }    let oddsContext = ''
+    }    }    let oddsContext = ''
     if (needsOdds) {
       console.log('[ODDS] Odds request detected, fetching data...')
       try {
@@ -1275,7 +1243,7 @@ export async function POST(req: NextRequest) {
               )
 
               // Generate enriched stats summary for AI
-              statsEnrichment = '\n\n**📊 ENRICHED STATISTICS & INJURY DATA:**\n'
+              statsEnrichment = '\n\n**ðŸ“Š ENRICHED STATISTICS & INJURY DATA:**\n'
               for (const sportData of enrichedOddsData) {
                 if (sportData.enrichedGames && sportData.enrichedGames.length > 0) {
                   statsEnrichment += `\n**${sportData.sport.toUpperCase()}:**\n`
@@ -1291,7 +1259,7 @@ export async function POST(req: NextRequest) {
             const timeLabel = isTomorrowQuery ? 'tomorrow' : 'today/upcoming'
             const dateContext = isTomorrowQuery ? 'TOMORROW' : 'TODAY'
 
-            oddsContext = `\n\n**🔴 LIVE ODDS DATA LOADED 🔴**
+            oddsContext = `\n\n**ðŸ”´ LIVE ODDS DATA LOADED ðŸ”´**
 YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
 
 **CRITICAL INSTRUCTIONS:**
@@ -1890,6 +1858,8 @@ ${statsEnrichment}\n`
     )
   }
 }
+
+
 
 
 

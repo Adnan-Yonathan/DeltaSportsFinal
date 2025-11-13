@@ -10,104 +10,28 @@ export class OddsAPIError extends Error {
   }
 }
 
-// --- Rotating API key support ---
-type KeyStatus = { coolingUntil?: number }
-
-const parseKeyPool = (): string[] => {
-  try {
-    if (process.env.ODDS_API_KEYS) {
-      const arr = JSON.parse(process.env.ODDS_API_KEYS)
-      if (Array.isArray(arr)) return arr.filter(Boolean)
-    }
-  } catch {
-    // ignore parse errors; fall back below
-  }
-  return process.env.ODDS_API_KEY ? [process.env.ODDS_API_KEY] : []
-}
-
-const keyPool = parseKeyPool()
-const keyStatus = new Map<string, KeyStatus>()
-let startIndex = 0
-
-const COOLDOWN_MS = 10 * 60 * 1000 // 10 minutes
-const MAX_ATTEMPTS = Math.min(Math.max(keyPool.length, 1), 10)
-
-const shouldSkipKey = (key: string) => {
-  const s = keyStatus.get(key)
-  return !!(s?.coolingUntil && s.coolingUntil > Date.now())
-}
-
-const markCooling = (key: string, reason: string) => {
-  keyStatus.set(key, { coolingUntil: Date.now() + COOLDOWN_MS })
-  try {
-    console.warn(`[OddsAPI] Cooling key due to ${reason}. Key tail: ${key.slice(-4)}`)
-  } catch {}
-}
-
-const isRateLimitOrAuthError = (status: number, bodyText?: string) => {
-  if (status === 401 || status === 403 || status === 429) return true
-  if (!bodyText) return false
-  const t = bodyText.toLowerCase()
-  return (
-    t.includes('rate') ||
-    t.includes('quota') ||
-    t.includes('limit') ||
-    t.includes('unauthorized') ||
-    t.includes('invalid api key')
-  )
-}
-
-async function fetchWithRotation(urlBase: string, init?: RequestInit): Promise<Response> {
-  if (keyPool.length === 0) {
+const getRequiredOddsKey = (): string => {
+  const key = process.env.ODDS_API_KEY
+  if (!key) {
     throw new OddsAPIError('ODDS_API_KEY is not configured')
   }
+  return key
+}
 
-  let attempts = 0
-  let lastErr: any = null
+async function fetchWithSingleKey(urlBase: string, init?: RequestInit): Promise<Response> {
+  const apiKey = getRequiredOddsKey()
+  const url = new URL(urlBase)
+  url.searchParams.set('apiKey', apiKey)
 
-  for (let i = 0; i < keyPool.length && attempts < MAX_ATTEMPTS; i++) {
-    const idx = (startIndex + i) % keyPool.length
-    const apiKey = keyPool[idx]
-    if (!apiKey) continue
-    if (shouldSkipKey(apiKey)) {
-      continue
-    }
-
-    const u = new URL(urlBase)
-    u.searchParams.set('apiKey', apiKey)
-
-    try {
-      const res = await fetch(u.toString(), init)
-
-      const remaining = res.headers.get('x-requests-remaining')
-      if (remaining && !isNaN(Number(remaining)) && Number(remaining) <= 1) {
-        markCooling(apiKey, `low remaining (${remaining})`)
-        startIndex = (idx + 1) % keyPool.length
-      }
-
-      if (res.ok) {
-        startIndex = (idx + 1) % keyPool.length
-        return res
-      } else {
-        const bodyText = await res.text().catch(() => '')
-        if (isRateLimitOrAuthError(res.status, bodyText)) {
-          markCooling(apiKey, `status ${res.status}`)
-          lastErr = new OddsAPIError(`Odds API returned ${res.status}: ${res.statusText}`, res.status)
-          attempts++
-          continue
-        }
-        throw new OddsAPIError(`Odds API returned ${res.status}: ${res.statusText}`, res.status)
-      }
-    } catch (err: any) {
-      lastErr = err
-      attempts++
-      markCooling(apiKey, 'network/error')
-      continue
-    }
+  const res = await fetch(url.toString(), init)
+  if (!res.ok) {
+    const bodyText = await res.text().catch(() => '')
+    throw new OddsAPIError(
+      `Odds API returned ${res.status}: ${bodyText || res.statusText}`,
+      res.status
+    )
   }
-
-  if (lastErr instanceof OddsAPIError) throw lastErr
-  throw new OddsAPIError(`Failed to fetch after rotating keys: ${lastErr}`)
+  return res
 }
 
 const DEFAULT_REVALIDATE_SECONDS = 30
@@ -139,7 +63,7 @@ export async function fetchOdds(
       : { next: { revalidate: options.revalidateSeconds ?? DEFAULT_REVALIDATE_SECONDS } }
 
   try {
-    const response = await fetchWithRotation(url, fetchInit)
+    const response = await fetchWithSingleKey(url, fetchInit)
     const data = await response.json()
     return data as OddsGame[]
   } catch (error) {
@@ -155,7 +79,7 @@ export async function fetchSports(): Promise<any[]> {
   const url = `${ODDS_API_BASE}/sports/`
 
   try {
-    const response = await fetchWithRotation(url, { next: { revalidate: 3600 } })
+    const response = await fetchWithSingleKey(url, { next: { revalidate: 3600 } })
     return await response.json()
   } catch (error) {
     if (error instanceof OddsAPIError) throw error

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
 import { enrichGamesWithStats, formatEnrichedGamesForAI } from '@/lib/stats-enrichment'
 import { getTeamStats, getInjuryReports, formatStatsForAI } from '@/lib/sports-stats-api'
+import { fetchESPNScores, fetchESPNScoresForDate } from '@/lib/espn-api'
 import { getPostHogServer, trackLLMInteraction } from '@/lib/posthog/server'
 import { listCustomModels, saveCustomModel, touchCustomModelUsage, CustomModelRow } from '@/lib/models/custom-models'
 import { CustomModelStatInput } from '@/lib/models/custom-model-types'
@@ -890,12 +891,105 @@ export async function POST(req: NextRequest) {
     }
 
     // Determine if we need to fetch odds data
-    const needsOdds = message.toLowerCase().match(
+    const bettingIntent = /(odds|lines|spread|moneyline|total|over|under|arbitrage|arb|price|juice)\\b/i.test(message)
+    const scheduleIntent = /(games?|schedule|who plays|playing|matchups?|match|game time|tipoff|puck drop|first pitch|score|scores?|final|quarter|period|inning|today|tonight|tomorrow)\\b/i.test(message)
+
+    let oddsContext = ''
+    let scoresContext = ''
+    // If schedule-only intent, build ESPN scores/schedule context
+    if (scheduleIntent && !bettingIntent) {
+      console.log('[SCORES] Schedule/score request detected, fetching ESPN data...')
+      // Heuristic sport detection
+      const sportsESPN: ("nba"|"nfl"|"nhl"|"mlb"|"ncaaf"|"ncaab")[] = []
+      const pushUnique = (v: any) => { if (!sportsESPN.includes(v)) sportsESPN.push(v) }
+      const ml = messageLower
+      if (/nba|basketball/.test(ml)) pushUnique('nba')
+      if (/nfl|football/.test(ml)) pushUnique('nfl')
+      if (/nhl|hockey/.test(ml)) pushUnique('nhl')
+      if (/mlb|baseball/.test(ml)) pushUnique('mlb')
+      if (/ncaaf|college\s+football|cfb/.test(ml)) pushUnique('ncaaf')
+      if (/ncaab|college\s+basketball/.test(ml)) pushUnique('ncaab')
+      if (sportsESPN.length === 0) {
+        // Default to common pro leagues if none detected
+        sportsESPN.push('nba','nfl','nhl')
+      }
+
+      // Team mention filter using simple includes
+      const mentionedTeams: string[] = []
+      const variations: Record<string,string[]> = {
+        lakers:['lakers','los angeles lakers','la lakers'], celtics:['celtics','boston'], warriors:['warriors','golden state','gsw'],
+        heat:['heat','miami'], bucks:['bucks','milwaukee'], knicks:['knicks','new york knicks','ny knicks'],
+        rams:['rams','los angeles rams','la rams'], chiefs:['chiefs','kansas city'], eagles:['eagles','philadelphia'],
+        patriots:['patriots','new england'], cowboys:['cowboys','dallas'],
+        bruins:['bruins','boston'], rangers:['rangers','new york rangers'], canadiens:['canadiens','montreal'],
+        yankees:['yankees','new york yankees'], dodgers:['dodgers','los angeles dodgers']
+      }
+      for (const [base, vars] of Object.entries(variations)) {
+        if (vars.some(v => ml.includes(v))) mentionedTeams.push(base)
+      }
+
+      // Compute target date string if tomorrow requested
+      let dateParam: string | null = null
+      if (isTomorrowQuery) {
+        const now = new Date()
+        const tzDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
+        tzDate.setDate(tzDate.getDate() + 1)
+        dateParam = tzDate.toISOString().slice(0,10).replace(/-/g,'')
+      }
+
+      const allScores: { sport: string; games: any[] }[] = []
+      for (const sp of sportsESPN) {
+        try {
+          const games = dateParam
+            ? await fetchESPNScoresForDate(sp as any, dateParam)
+            : await fetchESPNScores(sp as any)
+
+          let filtered = games
+          if (mentionedTeams.length > 0) {
+            filtered = games.filter(g => {
+              const h = (g.homeTeam||'').toLowerCase()
+              const a = (g.awayTeam||'').toLowerCase()
+              return mentionedTeams.some(t => h.includes(t) || a.includes(t))
+            })
+          }
+
+          if (filtered.length > 0) {
+            allScores.push({ sport: sp.toUpperCase(), games: filtered })
+          }
+        } catch (err) {
+          console.error([SCORES] Error fetching :, err)
+        }
+      }
+
+      if (allScores.length > 0) {
+        // Format for AI
+        const fmtTime = (iso?: string) => iso ? new Date(iso).toLocaleString('en-US', { timeZone: timezone, weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true, timeZoneName:'short' }) : ''
+        const lines: string[] = []
+        for (const bucket of allScores) {
+          lines.push(\n****)
+          for (const g of bucket.games) {
+            const when = fmtTime(g.startTime)
+            const status = g.status?.toUpperCase?.() || 'PRE'
+            const score = (g.homeScore || g.awayScore) ?  —   @   : ''
+            lines.push(-  @  () [])
+          }
+        }
+        scoresContext = \n\n**ESPN SCHEDULE/SCORES LOADED**\nUse this data for schedule/score questions. Do not claim lack of access.\n\n
+        console.log([SCORES] Context built successfully, sports: )
+      } else {
+        console.log('[SCORES] No games found for the requested criteria')
+        scoresContext = '\n\n(No schedule available for the requested criteria)\n'
+      }
+    }
+
+    const messageLower = message.toLowerCase()
+    const isTomorrowQuery = messageLower.match(/(tomorrow|tmrw|next day)/i)
+    const isTodayQuery = messageLower.match(/(today|tonight|this evening)/i).match(
       /(odds|lines|spread|moneyline|total|over|under|bet|game|match|tonight|today|tomorrow|arbitrage|arb)/i
     )
 
     let oddsContext = ''
-    if (needsOdds) {
+    if (bettingIntent) {
       console.log('[ODDS] Odds request detected, fetching data...')
       try {
         // Try to extract sport from message
@@ -1273,7 +1367,7 @@ ${statsEnrichment}\n`
     const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: 'system',
-        content: getSystemPrompt(timezone) + contextMessage + oddsContext,
+        content: getSystemPrompt(timezone) + contextMessage + scoresContext + oddsContext,
       },
       ...messages
         .filter((msg) => {
@@ -1815,3 +1909,8 @@ ${statsEnrichment}\n`
     )
   }
 }
+
+
+
+
+

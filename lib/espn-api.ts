@@ -155,3 +155,26 @@ export function matchBetToGame(betDescription: string, scores: LiveScore[]): Liv
 
   return bestMatch || fallbackMatch
 }
+
+// Fetch ESPN scores for a specific date (YYYYMMDD or Date)
+export async function fetchESPNScoresForDate(
+  sport: keyof typeof SPORT_ENDPOINTS,
+  date: string | Date
+): Promise<LiveScore[]> {
+  try {
+    const dateStr = typeof date === 'string'
+      ? date
+      : new Date(date).toISOString().slice(0,10).replace(/-/g,'');
+
+    const endpoint = ${SPORT_ENDPOINTS[sport]}?dates=;
+    const response = await fetch(endpoint, { next: { revalidate: 30 } });
+    if (!response.ok) {
+      throw new Error(ESPN API error: );
+    }
+    const data = await response.json();
+    return parseESPNResponse(data, sport);
+  } catch (error) {
+    console.error(Error fetching  scores for date:, error);
+    return [];
+  }
+}

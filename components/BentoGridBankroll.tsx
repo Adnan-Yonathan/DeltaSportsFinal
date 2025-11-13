@@ -706,7 +706,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                   </div>
                 </div>
                 {!insightsLoading && (
-                  <div className="text-purple-400 group-hover:translate-x-1 transition-transform">></div>
+                  <div className="text-purple-400 group-hover:translate-x-1 transition-transform">{'>'}</div>
                 )}
               </div>
             </motion.button>
@@ -1031,6 +1031,8 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
     </>
   )
 }
+
+
 
 
 

@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ games })
   } catch (error) {
-    console.error('Odds API error:', error)
+    console.error('Odds provider error:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch odds' },
       { status: 500 }

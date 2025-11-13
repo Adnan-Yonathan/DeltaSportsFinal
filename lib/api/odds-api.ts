@@ -28,7 +28,7 @@ async function fetchWithSingleKey(urlBase: string, init?: RequestInit): Promise<
   if (!res.ok) {
     const bodyText = await res.text().catch(() => '')
     throw new OddsAPIError(
-      `Odds API returned ${res.status}: ${bodyText || res.statusText}`,
+      `Odds provider returned ${res.status}: ${bodyText || res.statusText}`,
       res.status
     )
   }
@@ -201,7 +201,7 @@ export async function fetchOdds(
   markets: string[] = ['h2h', 'spreads', 'totals'],
   options: FetchOddsOptions = {}
 ): Promise<OddsGame[]> {
-  const provider = (process.env.ODDS_PROVIDER || '').toLowerCase()
+  const provider = (process.env.ODDS_PROVIDER || 'odds-api-io').toLowerCase()
   if (provider === 'odds-api-io') {
     return fetchOddsIO(sport, markets, {
       live: options.live,
@@ -226,11 +226,23 @@ export async function fetchOdds(
 }
 
 /**
- * Fetch available sports (legacy; The Odds API only)
+ * Fetch available sports (provider-aware; Odds-API.io preferred)
  */
 export async function fetchSports(): Promise<any[]> {
-  const url = `${ODDS_API_BASE}/sports/`
+  const provider = (process.env.ODDS_PROVIDER || 'odds-api-io').toLowerCase()
+  if (provider === 'odds-api-io') {
+    const url = `${ODDS_IO_BASE}/sports`
+    try {
+      // This endpoint does not require authentication per provider docs
+      const response = await fetch(url, { next: { revalidate: 3600 } })
+      return await response.json()
+    } catch (error) {
+      if (error instanceof OddsAPIError) throw error
+      throw new OddsAPIError(`Failed to fetch sports (Odds-API.io): ${error}`)
+    }
+  }
 
+  const url = `${ODDS_API_BASE}/sports/`
   try {
     const response = await fetchWithSingleKey(url, { next: { revalidate: 3600 } })
     return await response.json()

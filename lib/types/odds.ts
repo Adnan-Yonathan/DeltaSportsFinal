@@ -1,4 +1,4 @@
-// The Odds API Types
+// Odds Types (provider-agnostic)
 
 export interface OddsMarket {
   key: string

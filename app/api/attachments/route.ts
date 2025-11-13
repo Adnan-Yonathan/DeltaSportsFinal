@@ -8,7 +8,10 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-const ATTACHMENTS_BUCKET = process.env.ATTACHMENTS_BUCKET || 'attachments'
+const ATTACHMENTS_BUCKET =
+  process.env.ATTACHMENTS_BUCKET ||
+  process.env.NEXT_PUBLIC_ATTACHMENTS_BUCKET ||
+  'attachments'
 const ATTACHMENT_ANALYSIS_MODEL =
   process.env.ATTACHMENT_ANALYSIS_MODEL || 'gpt-4o-mini'
 
@@ -144,24 +147,22 @@ async function analyzeAttachment(attachment: AttachmentRow) {
     const content = completion.choices[0]?.message?.content ?? ''
     const parsed = safeJsonParse(content)
 
-    await admin
-      .from('attachments')
-      .update({
-        analysis_status: 'ready',
-        extracted_text:
-          typeof parsed?.summary === 'string' ? parsed.summary : content,
-        analysis_json: parsed ?? { raw: content },
-        analyzed_at: new Date().toISOString(),
-      })
-      .eq('id', attachment.id)
+    const successUpdate: Partial<AttachmentRow> = {
+      analysis_status: 'ready',
+      extracted_text:
+        typeof parsed?.summary === 'string' ? parsed.summary : content,
+      analysis_json: (parsed ?? { raw: content }) as AttachmentRow['analysis_json'],
+      analyzed_at: new Date().toISOString(),
+    }
+
+    await admin.from('attachments').update(successUpdate).eq('id', attachment.id)
   } catch (error: any) {
-    await admin
-      .from('attachments')
-      .update({
-        analysis_status: 'failed',
-        error_message: error.message,
-      })
-      .eq('id', attachment.id)
+    const failureUpdate: Partial<AttachmentRow> = {
+      analysis_status: 'failed',
+      error_message: error.message,
+    }
+
+    await admin.from('attachments').update(failureUpdate).eq('id', attachment.id)
 
     throw error
   }

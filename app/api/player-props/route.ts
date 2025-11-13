@@ -164,7 +164,7 @@ export async function GET(req: NextRequest) {
           const marketType = market.key.replace('player_', '')
 
           market.outcomes.forEach((outcome, index) => {
-            const rawName = stripPlayerName(outcome.name || outcome.description)
+            const rawName = stripPlayerName(outcome.name)
             const playerName = rawName || outcome.name || 'Unknown Player'
 
             if (

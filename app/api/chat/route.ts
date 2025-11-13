@@ -898,7 +898,8 @@ export async function POST(req: NextRequest) {
 
     const msgLower = message.toLowerCase()
     const scheduleIntent = /(games?|schedule|who plays|playing|matchups?|match|game time|tipoff|puck drop|first pitch|score|scores?|final|quarter|period|inning|today|tonight|tomorrow)\b/i.test(msgLower)
-    let scoresContext = ''    if (scheduleIntent) {
+    let scoresContext = ''
+    if (scheduleIntent) {
       console.log('[SCHEDULE] Request detected, fetching provider events...')
       const ml = msgLower
       const sportsList: string[] = []
@@ -937,7 +938,9 @@ export async function POST(req: NextRequest) {
         scoresContext = '\n\n(No schedule available for the requested criteria)\n'
         console.log('[SCHEDULE] No provider events found for', sportsList.join(','))
       }
-    }    }    let oddsContext = ''
+    }
+
+    let oddsContext = ''
     if (needsOdds) {
       console.log('[ODDS] Odds request detected, fetching data...')
       try {

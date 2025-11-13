@@ -3,7 +3,6 @@ import { isArbitrage, calculateArbitrageStakes, americanToDecimal, decimalToAmer
 
 const ODDS_API_BASE = 'https://api.the-odds-api.com/v4'
 const ODDS_IO_BASE = 'https://api.odds-api.io/v3'
-const ODDS_IO_BASE = 'https://api.odds-api.io/v3'
 
 export class OddsAPIError extends Error {
   constructor(message: string, public statusCode?: number) {
@@ -360,15 +359,7 @@ export function getBestOdds(game: OddsGame, marketKey: string): Map<string, {
 }
 
 
-// Mapping for Odds-API.io events
-const SPORT_MAP: Record<string, { sport: string; league: string }> = {
-  basketball_nba: { sport: 'basketball', league: 'nba' },
-  basketball_ncaab: { sport: 'basketball', league: 'ncaab' },
-  americanfootball_nfl: { sport: 'football', league: 'nfl' },
-  americanfootball_ncaaf: { sport: 'football', league: 'ncaaf' },
-  baseball_mlb: { sport: 'baseball', league: 'mlb' },
-  icehockey_nhl: { sport: 'hockey', league: 'nhl' },
-}
+// (duplicate SPORT_MAP removed; single definition kept above)
 
 function getOddsIOKey(): string {
   const key = process.env.ODDS_API_KEY as string | undefined

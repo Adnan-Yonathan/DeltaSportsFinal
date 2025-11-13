@@ -14,7 +14,7 @@ const ATTACHMENTS_BUCKET =
 const ATTACHMENT_ANALYSIS_MODEL =
   process.env.ATTACHMENT_ANALYSIS_MODEL || 'gpt-4o-mini'
 
-type AttachmentRow = {
+interface AttachmentRow {
   id: string
   user_id: string
   conversation_id: string
@@ -31,6 +31,8 @@ type AttachmentRow = {
   created_at: string
   analyzed_at: string | null
 }
+
+type AttachmentUpdate = Partial<AttachmentRow>
 
 export async function POST(req: NextRequest) {
   try {
@@ -162,7 +164,7 @@ async function analyzeAttachment(attachment: AttachmentRow) {
     const content = completion.choices[0]?.message?.content ?? ''
     const parsed = safeJsonParse(content)
 
-    const successUpdate: Partial<AttachmentRow> = {
+    const successUpdate: AttachmentUpdate = {
       analysis_status: 'ready',
       extracted_text:
         typeof parsed?.summary === 'string' ? parsed.summary : content,
@@ -172,7 +174,7 @@ async function analyzeAttachment(attachment: AttachmentRow) {
 
     await admin.from('attachments').update(successUpdate).eq('id', attachment.id)
   } catch (error: any) {
-    const failureUpdate: Partial<AttachmentRow> = {
+    const failureUpdate: AttachmentUpdate = {
       analysis_status: 'failed',
       error_message: error.message,
     }

@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      const clvRes = await fetch(${req.nextUrl.origin}/api/bankroll/recalc-clv?period=, { method: 'POST' })\n    let clv:any = null\n    if (clvRes.ok) { clv = await clvRes.json() }\n\n    return NextResponse.json({, clv: clv?.clv ?? null })
     }
 
     const { searchParams } = new URL(req.url)
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       .single()
 
     if (!userData) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      const clvRes = await fetch(${req.nextUrl.origin}/api/bankroll/recalc-clv?period=, { method: 'POST' })\n    let clv:any = null\n    if (clvRes.ok) { clv = await clvRes.json() }\n\n    return NextResponse.json({, clv: clv?.clv ?? null })
     }
 
     // Calculate date range
@@ -131,23 +131,7 @@ export async function GET(req: NextRequest) {
         balance: Number(s.balance),
       })) || []
 
-    return NextResponse.json({
-      currentBalance: Number(userData.current_bankroll),
-      startingBalance: Number(userData.starting_bankroll),
-      totalProfit,
-      roi,
-      totalBets,
-      wonBets,
-      lostBets,
-      pushBets,
-      pendingBets,
-      winRate,
-      avgBetSize,
-      biggestWin,
-      biggestLoss,
-      bySport,
-      dailyBalances,
-    })
+    const clvRes = await fetch(${req.nextUrl.origin}/api/bankroll/recalc-clv?period=, { method: 'POST' })\n    let clv:any = null\n    if (clvRes.ok) { clv = await clvRes.json() }\n\n    return NextResponse.json({, clv: clv?.clv ?? null })
   } catch (error) {
     console.error('Bankroll stats API error:', error)
     return NextResponse.json(
@@ -156,3 +140,4 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+

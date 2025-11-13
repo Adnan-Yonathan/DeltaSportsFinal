@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -575,7 +575,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                     {((stats.clv.beat / stats.clv.totalConsidered) * 100).toFixed(1)}%
                   </div>
                   <div className="text-xs text-white/40 mt-1">
-                    {stats.clv.beat} beat � {stats.clv.tie} tie � {stats.clv.noBeat} didn�t beat
+                    {stats.clv.beat} beat • {stats.clv.tie} tie • {stats.clv.noBeat} didn't beat
                   </div>
                 </>
               ) : (
@@ -599,7 +599,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                   <span>Moneyline</span>
                   {stats.clv?.market.moneyline.total ? (
                     <span>
-                      {((stats.clv.market.moneyline.beat / stats.clv.market.moneyline.total) * 100).toFixed(1)}% � 
+                      {((stats.clv.market.moneyline.beat / stats.clv.market.moneyline.total) * 100).toFixed(1)}% • 
                       ?prob {((stats.clv.market.moneyline.avgProbDelta || 0) * 100).toFixed(1)}%
                     </span>
                   ) : <span className="text-white/40">n/a</span>}
@@ -608,7 +608,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                   <span>Spread</span>
                   {stats.clv?.market.spread.total ? (
                     <span>
-                      {((stats.clv.market.spread.beat / stats.clv.market.spread.total) * 100).toFixed(1)}% � 
+                      {((stats.clv.market.spread.beat / stats.clv.market.spread.total) * 100).toFixed(1)}% • 
                       ?line {(stats.clv.market.spread.avgPts || 0).toFixed(2)}
                     </span>
                   ) : <span className="text-white/40">n/a</span>}
@@ -617,7 +617,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                   <span>Total</span>
                   {stats.clv?.market.total.total ? (
                     <span>
-                      {((stats.clv.market.total.beat / stats.clv.market.total.total) * 100).toFixed(1)}% � 
+                      {((stats.clv.market.total.beat / stats.clv.market.total.total) * 100).toFixed(1)}% • 
                       ?line {(stats.clv.market.total.avgPts || 0).toFixed(2)}
                     </span>
                   ) : <span className="text-white/40">n/a</span>}
@@ -706,7 +706,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                   </div>
                 </div>
                 {!insightsLoading && (
-                  <div className="text-purple-400 group-hover:translate-x-1 transition-transform">→</div>
+                  <div className="text-purple-400 group-hover:translate-x-1 transition-transform">></div>
                 )}
               </div>
             </motion.button>
@@ -841,7 +841,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                             {bet.game_description}
                           </div>
                           <div className="text-xs text-white/60 mt-1">
-                            {bet.bet_side} • {bet.odds > 0 ? '+' : ''}{bet.odds} • {bet.book}
+                            {bet.bet_side} â€¢ {bet.odds > 0 ? '+' : ''}{bet.odds} â€¢ {bet.book}
                           </div>
                         </div>
                         <div className="text-right">
@@ -1031,5 +1031,6 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
     </>
   )
 }
+
 
 

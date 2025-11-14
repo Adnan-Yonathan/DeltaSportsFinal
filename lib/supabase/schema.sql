@@ -46,6 +46,12 @@ CREATE TABLE IF NOT EXISTS bets (
   bet_type TEXT NOT NULL,
   bet_side TEXT NOT NULL,
   odds INTEGER NOT NULL,
+  is_prop BOOLEAN DEFAULT FALSE,
+  player_name TEXT,
+  prop_market TEXT,
+  prop_line NUMERIC,
+  prop_selection TEXT,
+  prop_team TEXT,
 
   -- Financial
   stake DECIMAL(10,2) NOT NULL,
@@ -169,7 +175,27 @@ CREATE TABLE IF NOT EXISTS market_snapshots (
   moneyline_home NUMERIC,
   moneyline_home_book TEXT,
   moneyline_away NUMERIC,
-  moneyline_away_book TEXT
+  moneyline_away_book TEXT,
+  total_line NUMERIC,
+  total_over_odds NUMERIC,
+  total_over_book TEXT,
+  total_under_odds NUMERIC,
+  total_under_book TEXT
+);
+
+-- Player prop snapshots
+CREATE TABLE IF NOT EXISTS player_prop_snapshots (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sport_key TEXT NOT NULL,
+  event_id TEXT NOT NULL,
+  player_name TEXT NOT NULL,
+  team_name TEXT,
+  market_key TEXT NOT NULL,
+  line NUMERIC,
+  over_odds NUMERIC,
+  under_odds NUMERIC,
+  book TEXT NOT NULL,
+  captured_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create indexes for better query performance
@@ -188,6 +214,8 @@ CREATE INDEX IF NOT EXISTS idx_team_splits_team ON team_splits(team_name, captur
 CREATE INDEX IF NOT EXISTS idx_head_to_head_pair ON head_to_head_results(team_one, team_two, matchup_date DESC);
 CREATE INDEX IF NOT EXISTS idx_market_snapshots_game ON market_snapshots(game_id, captured_at DESC);
 CREATE INDEX IF NOT EXISTS idx_market_snapshots_sport ON market_snapshots(sport_key, captured_at DESC);
+CREATE INDEX IF NOT EXISTS idx_prop_snapshots_event ON player_prop_snapshots(event_id, captured_at DESC);
+CREATE INDEX IF NOT EXISTS idx_prop_snapshots_player ON player_prop_snapshots(player_name, captured_at DESC);
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -201,6 +229,7 @@ ALTER TABLE team_recent_form ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_splits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE head_to_head_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE market_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE player_prop_snapshots ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for users table
 CREATE POLICY "Users can view own data" ON users
@@ -291,6 +320,9 @@ CREATE POLICY "Anyone can view head-to-head" ON head_to_head_results
   FOR SELECT USING (true);
 
 CREATE POLICY "Anyone can view market snapshots" ON market_snapshots
+  FOR SELECT USING (true);
+
+CREATE POLICY "Anyone can view player prop snapshots" ON player_prop_snapshots
   FOR SELECT USING (true);
 
 -- Function to automatically update updated_at timestamp

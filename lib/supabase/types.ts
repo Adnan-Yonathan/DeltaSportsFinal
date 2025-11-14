@@ -106,6 +106,12 @@ export interface Database {
           closing_odds: number | null
           notes: string | null
           created_at: string
+          is_prop: boolean | null
+          player_name: string | null
+          prop_market: string | null
+          prop_line: number | null
+          prop_selection: string | null
+          prop_team: string | null
         }
         Insert: {
           id?: string
@@ -128,6 +134,12 @@ export interface Database {
           closing_odds?: number | null
           notes?: string | null
           created_at?: string
+          is_prop?: boolean | null
+          player_name?: string | null
+          prop_market?: string | null
+          prop_line?: number | null
+          prop_selection?: string | null
+          prop_team?: string | null
         }
         Update: {
           id?: string
@@ -150,6 +162,12 @@ export interface Database {
           closing_odds?: number | null
           notes?: string | null
           created_at?: string
+          is_prop?: boolean | null
+          player_name?: string | null
+          prop_market?: string | null
+          prop_line?: number | null
+          prop_selection?: string | null
+          prop_team?: string | null
         }
       }
       bankroll_snapshots: {
@@ -400,6 +418,11 @@ export interface Database {
           moneyline_home_book: string | null
           moneyline_away: number | null
           moneyline_away_book: string | null
+          total_line: number | null
+          total_over_odds: number | null
+          total_over_book: string | null
+          total_under_odds: number | null
+          total_under_book: string | null
         }
         Insert: {
           id?: string
@@ -417,6 +440,11 @@ export interface Database {
           moneyline_home_book?: string | null
           moneyline_away?: number | null
           moneyline_away_book?: string | null
+          total_line?: number | null
+          total_over_odds?: number | null
+          total_over_book?: string | null
+          total_under_odds?: number | null
+          total_under_book?: string | null
         }
         Update: {
           id?: string
@@ -434,6 +462,52 @@ export interface Database {
           moneyline_home_book?: string | null
           moneyline_away?: number | null
           moneyline_away_book?: string | null
+          total_line?: number | null
+          total_over_odds?: number | null
+          total_over_book?: string | null
+          total_under_odds?: number | null
+          total_under_book?: string | null
+        }
+      }
+      player_prop_snapshots: {
+        Row: {
+          id: string
+          sport_key: string
+          event_id: string
+          player_name: string
+          team_name: string | null
+          market_key: string
+          line: number | null
+          over_odds: number | null
+          under_odds: number | null
+          book: string
+          captured_at: string
+        }
+        Insert: {
+          id?: string
+          sport_key: string
+          event_id: string
+          player_name: string
+          team_name?: string | null
+          market_key: string
+          line?: number | null
+          over_odds?: number | null
+          under_odds?: number | null
+          book: string
+          captured_at?: string
+        }
+        Update: {
+          id?: string
+          sport_key?: string
+          event_id?: string
+          player_name?: string
+          team_name?: string | null
+          market_key?: string
+          line?: number | null
+          over_odds?: number | null
+          under_odds?: number | null
+          book?: string
+          captured_at?: string
         }
       }
     }

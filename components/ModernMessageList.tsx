@@ -212,6 +212,14 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
                         h3: ({ node, ...props }) => (
                           <h3 className="text-base font-semibold mt-2 mb-1 text-white" {...props} />
                         ),
+                        a: ({ node, ...props }) => (
+                          <a
+                            className="text-indigo-300 underline hover:text-indigo-200"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            {...props}
+                          />
+                        ),
                       }}
                     >
                       {message.content}

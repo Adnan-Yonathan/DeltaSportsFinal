@@ -17,7 +17,7 @@ async function captureSnapshots() {
 
   for (const sport of SPORTS) {
     console.log(`[MARKETS] Fetching odds for ${sport}`)
-    const games = await fetchOdds(sport, ['h2h', 'spreads'], { live: true })
+    const games = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: true })
 
     const rows = games.map((game) => {
       const spreads = game.bookmakers
@@ -31,6 +31,13 @@ async function captureSnapshots() {
         .map((book) => ({
           book: book.title,
           market: book.markets.find((m) => m.key === 'h2h'),
+        }))
+        .filter((entry) => entry.market)
+
+      const totals = game.bookmakers
+        .map((book) => ({
+          book: book.title,
+          market: book.markets.find((m) => m.key === 'totals'),
         }))
         .filter((entry) => entry.market)
 
@@ -66,6 +73,27 @@ async function captureSnapshots() {
         .filter((entry) => entry.outcome)
         .sort((a, b) => (b.outcome!.price || 0) - (a.outcome!.price || 0))[0]
 
+      const bestOver = totals
+        .map((entry) => ({
+          ...entry,
+          outcome: entry.market!.outcomes.find((o) => o.name?.toLowerCase() === 'over'),
+        }))
+        .filter((entry) => entry.outcome)
+        .sort((a, b) => (b.outcome!.price || 0) - (a.outcome!.price || 0))[0]
+
+      const bestUnder = totals
+        .map((entry) => ({
+          ...entry,
+          outcome: entry.market!.outcomes.find((o) => o.name?.toLowerCase() === 'under'),
+        }))
+        .filter((entry) => entry.outcome)
+        .sort((a, b) => (b.outcome!.price || 0) - (a.outcome!.price || 0))[0]
+
+      const totalLine =
+        bestOver?.outcome?.point ??
+        bestUnder?.outcome?.point ??
+        (totals[0]?.market?.outcomes?.[0]?.point ?? null)
+
       return {
         sport_key: sport,
         game_id: game.id,
@@ -81,6 +109,11 @@ async function captureSnapshots() {
         moneyline_home_book: bestHomeML?.book ?? null,
         moneyline_away: bestAwayML?.outcome?.price ?? null,
         moneyline_away_book: bestAwayML?.book ?? null,
+        total_line: totalLine,
+        total_over_odds: bestOver?.outcome?.price ?? null,
+        total_over_book: bestOver?.book ?? null,
+        total_under_odds: bestUnder?.outcome?.price ?? null,
+        total_under_book: bestUnder?.book ?? null,
       }
     })
 

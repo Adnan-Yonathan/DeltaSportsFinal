@@ -1,4 +1,5 @@
 import { OddsGame, ArbitrageOpportunity, MARKETS, Bookmaker, OddsMarket, OddsOutcome } from '@/lib/types/odds'
+import { getBookmakerLink } from '@/lib/config/bookmaker-links'
 import {
   SportResponse,
   LeagueResponse,
@@ -187,9 +188,21 @@ export function mapBookmakersIO(
   const shouldInclude = (key: string) => !allowedSet || allowedSet.has(key)
 
   for (const [bookName, markets] of Object.entries(oddsObj || {})) {
-    const title = String(bookName)
+    const rawTitle = String(bookName).trim()
+    const normalizedLower = rawTitle.toLowerCase()
+    const compact = normalizedLower.replace(/[^a-z0-9]/g, '')
+
+    if (compact === 'bet365') {
+      continue
+    }
+
+    const isBet365NoLatency =
+      compact.startsWith('bet365') && normalizedLower.includes('no latency')
+
+    const title = isBet365NoLatency ? 'Bet365' : rawTitle
     const key = slugify(title)
     const mappedMarkets: OddsMarket[] = []
+    const url = getBookmakerLink(key)
 
     for (const market of markets as any[]) {
       const name = market?.name || ''
@@ -312,7 +325,7 @@ export function mapBookmakersIO(
     }
 
     if (mappedMarkets.length) {
-      result.push({ key, title, markets: mappedMarkets })
+      result.push({ key, title, url, markets: mappedMarkets })
     }
   }
   return result
@@ -432,13 +445,17 @@ export async function searchEvents(
 export async function fetchEventOdds(
   eventId: string,
   bookmakers?: string | string[] | null,
-  init?: NextFetchRequestInit
+  init?: NextFetchRequestInit,
+  markets?: string[] | null
 ): Promise<EventResponse> {
   if (!eventId) throw new OddsAPIError('eventId is required')
   const bookmakerParam = normalizeBookmakerList(bookmakers)
   const params: Record<string, QueryValue> = { eventId }
   if (bookmakerParam) {
     params.bookmakers = bookmakerParam
+  }
+  if (markets && markets.length) {
+    params.markets = markets.join(',')
   }
   const { data } = await oddsIoFetch<EventResponse>('/odds', {
     params,
@@ -450,7 +467,8 @@ export async function fetchEventOdds(
 export async function fetchMultiEventOdds(
   eventIds: string[],
   bookmakers?: string | string[] | null,
-  init?: NextFetchRequestInit
+  init?: NextFetchRequestInit,
+  markets?: string[] | null
 ): Promise<EventResponse[]> {
   const ids = eventIds.map((id) => String(id).trim()).filter(Boolean)
   if (!ids.length) return []
@@ -458,7 +476,7 @@ export async function fetchMultiEventOdds(
 
   for (const id of ids) {
     try {
-      const event = await fetchEventOdds(id, bookmakers, init)
+      const event = await fetchEventOdds(id, bookmakers, init, markets)
       results.push(event)
     } catch (error) {
       console.error(`[ODDS] Failed to fetch odds for event ${id}:`, error)
@@ -659,7 +677,7 @@ async function fetchOddsIO(
     for (const chunk of chunks) {
       const activeFilter =
         bookmakersFilter === undefined ? envBookmakers : bookmakersFilter
-      const data = await fetchMultiEventOdds(chunk, activeFilter ?? null, oddsFetchInit)
+      const data = await fetchMultiEventOdds(chunk, activeFilter ?? null, oddsFetchInit, _markets)
       if (!Array.isArray(data) || !data.length) continue
 
       for (const ev of data) {

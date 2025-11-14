@@ -159,6 +159,14 @@ export default function MessageList({ conversationId, userId }: MessageListProps
                           {...props}
                         />
                       ),
+                    a: ({ node, ...props }) => (
+                      <a
+                        className="text-accent-cyan underline hover:text-accent-orange"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        {...props}
+                      />
+                    ),
                   }}
                 >
                   {message.content}

@@ -31,6 +31,8 @@ export interface MarketTrendSummary {
   bestSpreadAway?: string
   bestMoneylineHome?: string
   bestMoneylineAway?: string
+  bestTotalOver?: string
+  bestTotalUnder?: string
   notes?: string
 }
 
@@ -174,7 +176,12 @@ function summarizePace(entries: any[]): PaceSummary | null {
 
 function formatMarketOutcome(outcome?: { name: string; price: number; point?: number }) {
   if (!outcome) return undefined
-  const line = outcome.point != null ? `${outcome.name} ${outcome.point > 0 ? '+' : ''}${outcome.point}` : outcome.name
+  const normalized = outcome.name?.toLowerCase() || ''
+  const shouldShowSign = normalized !== 'over' && normalized !== 'under'
+  const line =
+    outcome.point != null
+      ? `${outcome.name} ${shouldShowSign && outcome.point > 0 ? '+' : ''}${outcome.point}`
+      : outcome.name
   return `${line} (${outcome.price > 0 ? '+' : ''}${outcome.price})`
 }
 
@@ -211,6 +218,14 @@ async function tryLoadMarketSnapshot(
       bestMoneylineAway: snapshot.moneyline_away
         ? `${snapshot.moneyline_away > 0 ? '+' : ''}${snapshot.moneyline_away}`
         : undefined,
+      bestTotalOver:
+        snapshot.total_line != null && snapshot.total_over_odds != null
+          ? `Over ${snapshot.total_line} (${snapshot.total_over_odds > 0 ? '+' : ''}${snapshot.total_over_odds})`
+          : undefined,
+      bestTotalUnder:
+        snapshot.total_line != null && snapshot.total_under_odds != null
+          ? `Under ${snapshot.total_line} (${snapshot.total_under_odds > 0 ? '+' : ''}${snapshot.total_under_odds})`
+          : undefined,
       notes: `Last captured ${new Date(snapshot.captured_at).toLocaleString()}`,
     }
   } catch (error) {
@@ -226,7 +241,7 @@ async function tryLoadLiveMarket(
   notes: string[]
 ) {
   try {
-      const oddsData = await fetchOdds(sport, ['h2h', 'spreads'], { live: true })
+      const oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: true })
     const targetGame = oddsData.find((game) => {
       const home = normalizeTeamName(game.home_team || '')
       const away = normalizeTeamName(game.away_team || '')
@@ -287,6 +302,28 @@ async function tryLoadLiveMarket(
 
       summary.bestMoneylineHome = formatMarketOutcome(mlHome)
       summary.bestMoneylineAway = formatMarketOutcome(mlAway)
+    }
+
+    const totals = targetGame.bookmakers
+      .map((book) => ({
+        book: book.title,
+        market: book.markets.find((m) => m.key === 'totals'),
+      }))
+      .filter((entry) => entry.market)
+
+    if (totals.length > 0) {
+      const overOutcome = totals
+        .map((entry) => entry.market!.outcomes.find((o) => o.name?.toLowerCase() === 'over'))
+        .filter(Boolean)
+        .sort((a, b) => (b!.price || 0) - (a!.price || 0))[0]
+
+      const underOutcome = totals
+        .map((entry) => entry.market!.outcomes.find((o) => o.name?.toLowerCase() === 'under'))
+        .filter(Boolean)
+        .sort((a, b) => (b!.price || 0) - (a!.price || 0))[0]
+
+      summary.bestTotalOver = formatMarketOutcome(overOutcome)
+      summary.bestTotalUnder = formatMarketOutcome(underOutcome)
     }
 
     return summary

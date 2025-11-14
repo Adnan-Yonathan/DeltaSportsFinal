@@ -11,6 +11,7 @@ import { listCustomModels, saveCustomModel, touchCustomModelUsage, CustomModelRo
 import { CustomModelStatInput } from '@/lib/models/custom-model-types'
 import { runCustomModel } from '@/lib/models/model-runner'
 import { buildGameContext } from '@/lib/context/game-context'
+import { normalizePropMarketKey, normalizePropSelection, extractPropLine } from '@/lib/utils/props'
 import { format } from 'date-fns'
 
 export const runtime = 'nodejs'
@@ -88,7 +89,19 @@ async function logBet(supabase: any, userId: string, data: any, conversationId: 
     stake,
     book,
     notes,
+    player_name,
+    prop_market,
+    prop_line,
+    prop_selection,
+    prop_team,
   } = data
+
+  const normalizedPropMarket = normalizePropMarketKey(prop_market)
+  const normalizedPropSelection = normalizePropSelection(prop_selection || bet_side)
+  const normalizedPropLine =
+    prop_line != null && prop_line !== ''
+      ? parseFloat(prop_line)
+      : extractPropLine(bet_side)
 
   // Calculate potential win based on American odds
   let potentialWin = 0
@@ -115,6 +128,12 @@ async function logBet(supabase: any, userId: string, data: any, conversationId: 
       book,
       notes: notes || null,
       status: 'pending',
+      is_prop: Boolean(normalizedPropMarket && player_name),
+      player_name: player_name || null,
+      prop_market: normalizedPropMarket,
+      prop_line: normalizedPropLine != null ? normalizedPropLine : null,
+      prop_selection: normalizedPropSelection,
+      prop_team: prop_team || null,
     })
     .select()
     .single()
@@ -309,6 +328,7 @@ You have REAL-TIME access to:
 4. Injury reports and lineup information
 5. Advanced analytics (efficiency ratings, pace, trends)
 6. **Player prop betting lines** - When users ask about player props, use the get_player_props function to fetch lines and odds
+- Always present player props in a standardized markdown table with columns for Market, Line, Best Over, and Best Under. No bullet lists.
 
 When users ask about odds, games, or arbitrage, the live data WILL BE PROVIDED in your context enriched with relevant stats. For player prop requests, use the get_player_props function.
 
@@ -354,9 +374,19 @@ When users ask "what games are today/tonight/tomorrow":
  - **CRITICAL**: Display ALL sportsbooks returned by the API for each game (e.g., FanDuel, DraftKings, BetMGM, Caesars, Fanatics, Bet365, BetRivers, Hard Rock, Pinnacle, PointsBet, Bovada, Stake, Fliff). Do not list books that are not present in the data.
 - Compare moneyline, spreads, and totals across ALL available sportsbooks for each game
 - Show every bookmaker's odds in the table - do NOT omit any bookmakers from the data
+- ALWAYS present odds using the standardized Market/Team/Sportsbook table layout (see the example below). The API response now includes fully-built Markdown tables—copy them directly so formatting never varies.
+- Make each sportsbook name clickable using Markdown hyperlinks (e.g., [FanDuel](https://sportsbook.fanduel.com/)). Use the provided URL data for EVERY book and apply hyperlinks no matter which bet type/market is shown. If a link is missing from the data, leave the name as plain text.
 - Highlight which sportsbook has the best VALUE for each market (see "Best Value" rules below)
 - NEVER suggest where to bet, only present the data objectively
 - If a user asks about a specific game and you have the data, show it immediately
+
+**Example Odds Table Format:**
+| Market | Team | Book A | Book B |
+| --- | --- | --- | --- |
+| Moneyline | Team 1 | +120 | +115 |
+|  | Team 2 | -135 | -130 |
+| Spread | Team 1 | +4.5 (-110) | +4 (-105) |
+|  | Team 2 | -4.5 (-110) | -4 (-115) |
 
 **Determining "Best Value" - CRITICAL RULES:**
 When identifying the best odds/value, you MUST consider the line FIRST, then the odds:
@@ -474,6 +504,26 @@ const ASSISTANT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
           notes: {
             type: 'string',
             description: 'Optional notes about the bet',
+          },
+          player_name: {
+            type: 'string',
+            description: 'Player name for prop bets (e.g., "Deni Avdija")',
+          },
+          prop_market: {
+            type: 'string',
+            description: 'Prop market identifier (e.g., "points", "rebounds", "pass_yds")',
+          },
+          prop_line: {
+            type: 'number',
+            description: 'Prop line (e.g., 22.5 points, 6.5 receptions)',
+          },
+          prop_selection: {
+            type: 'string',
+            description: 'Prop side (e.g., "Over", "Under")',
+          },
+          prop_team: {
+            type: 'string',
+            description: 'Player team for the prop bet',
           },
         },
         required: ['sport', 'league', 'game_description', 'bet_type', 'bet_side', 'odds', 'stake', 'book'],
@@ -1240,11 +1290,213 @@ export async function POST(req: NextRequest) {
               })
             }
 
-            const MAX_GAMES_PER_SPORT = 3
-            const MAX_MARKETS_PER_BOOK = 2
-            const MAX_OUTCOMES_PER_MARKET = 3
+            const MARKET_LABELS: Record<string, string> = {
+              h2h: 'Moneyline',
+              spreads: 'Spread',
+              totals: 'Total',
+            }
+
             const PRIORITY_MARKETS = ['h2h', 'spreads', 'totals']
-            const allowedMarketSet = new Set(PRIORITY_MARKETS)
+
+            const formatNumber = (value: number) => {
+              return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0+$/, '')
+            }
+
+            const formatAmericanOdds = (value?: number) => {
+              if (value == null || !isFinite(value)) return '—'
+              return value > 0 ? `+${value}` : String(value)
+            }
+
+            const formatSpreadPoint = (value?: number) => {
+              if (value == null || !isFinite(value)) return ''
+              const prefix = value > 0 ? '+' : ''
+              return `${prefix}${formatNumber(value)}`
+            }
+
+            const formatTotalPoint = (value?: number) => {
+              if (value == null || !isFinite(value)) return ''
+              return formatNumber(value)
+            }
+
+            const formatOutcomeValue = (marketKey: string, outcome: any) => {
+              const priceText = formatAmericanOdds(outcome?.price)
+              if (marketKey === 'spreads') {
+                const pointText = formatSpreadPoint(outcome?.point)
+                return pointText ? `${pointText} (${priceText})` : priceText
+              }
+              if (marketKey === 'totals') {
+                const lineText = formatTotalPoint(outcome?.point)
+                return lineText ? `${lineText} (${priceText})` : priceText
+              }
+              return priceText
+            }
+
+            const escapeTableCell = (value: string) => value.replace(/\|/g, '\\|')
+
+            const SPREAD_PRICE_MIN = -120
+            const SPREAD_PRICE_MAX = 105
+
+            const spreadPriceWithinRange = (price: number) =>
+              price >= SPREAD_PRICE_MIN && price <= SPREAD_PRICE_MAX
+
+            const spreadWindowPenalty = (price: number) => {
+              if (price < SPREAD_PRICE_MIN) return SPREAD_PRICE_MIN - price
+              if (price > SPREAD_PRICE_MAX) return price - SPREAD_PRICE_MAX
+              return 0
+            }
+
+            const spreadTargetPenalty = (price: number) => {
+              const target = price < 0 ? -110 : 100
+              return Math.abs(price - target)
+            }
+
+            const evaluateSpreadMarket = (market: { outcomes: any[] }) => {
+              const prices = (market.outcomes || [])
+                .map((outcome: any) => (typeof outcome?.price === 'number' ? outcome.price : undefined))
+                .filter((price): price is number => price != null && isFinite(price))
+
+              if (!prices.length) {
+                return {
+                  withinRange: false,
+                  targetPenalty: Number.POSITIVE_INFINITY,
+                  windowPenalty: Number.POSITIVE_INFINITY,
+                }
+              }
+
+              const withinRange = prices.every(spreadPriceWithinRange)
+              const targetPenalty =
+                prices.reduce((sum, price) => sum + spreadTargetPenalty(price), 0) / prices.length
+              const windowPenalty =
+                prices.reduce((sum, price) => sum + spreadWindowPenalty(price), 0) / prices.length
+
+              return { withinRange, targetPenalty, windowPenalty }
+            }
+
+            const choosePreferredSpreadMarket = (
+              current: { key: string; outcomes: any[] } | undefined,
+              candidate: { key: string; outcomes: any[] }
+            ) => {
+              if (!current) return candidate
+              const currentEval = evaluateSpreadMarket(current)
+              const candidateEval = evaluateSpreadMarket(candidate)
+
+              if (candidateEval.withinRange && !currentEval.withinRange) return candidate
+              if (!candidateEval.withinRange && currentEval.withinRange) return current
+              if (candidateEval.withinRange && currentEval.withinRange) {
+                return candidateEval.targetPenalty <= currentEval.targetPenalty ? candidate : current
+              }
+              return candidateEval.windowPenalty <= currentEval.windowPenalty ? candidate : current
+            }
+
+            const orderOutcomeLabels = (
+              marketKey: string,
+              labels: string[],
+              awayTeam: string,
+              homeTeam: string
+            ) => {
+              const lowerLabels = labels.map((label) => label.toLowerCase())
+              const desired: string[] = []
+              const pushIfPresent = (target?: string) => {
+                if (!target) return
+                const idx = lowerLabels.findIndex((label) => label === target.toLowerCase())
+                if (idx >= 0) desired.push(labels[idx])
+              }
+              if (marketKey === 'h2h' || marketKey === 'spreads') {
+                pushIfPresent(awayTeam)
+                pushIfPresent(homeTeam)
+                pushIfPresent('Draw')
+              } else if (marketKey === 'totals') {
+                pushIfPresent('Over')
+                pushIfPresent('Under')
+              }
+              const remaining = labels.filter((label) => !desired.includes(label)).sort()
+              return [...desired, ...remaining]
+            }
+
+            const buildOddsTableMarkdown = (
+              awayTeam: string,
+              homeTeam: string,
+              bookmakers: Array<{ name: string; link?: string; markets: any[] }>
+            ) => {
+              if (!bookmakers.length) return ''
+              const bookColumns = bookmakers.map((book) => ({
+                key: book.name,
+                header: book.link ? `[${book.name}](${book.link})` : book.name,
+              }))
+
+              const marketsAggregate = new Map<
+                string,
+                { label: string; rows: Record<string, Record<string, string>> }
+              >()
+
+              for (const book of bookmakers) {
+                for (const market of book.markets || []) {
+                  const marketKey = market?.key || 'other'
+                  if (!marketsAggregate.has(marketKey)) {
+                    marketsAggregate.set(marketKey, {
+                      label: MARKET_LABELS[marketKey] || marketKey,
+                      rows: {},
+                    })
+                  }
+                  const entry = marketsAggregate.get(marketKey)!
+                  for (const outcome of market.outcomes || []) {
+                    const label = outcome?.name ? String(outcome.name) : 'Other'
+                    if (!entry.rows[label]) {
+                      entry.rows[label] = {}
+                    }
+                    entry.rows[label][book.name] = formatOutcomeValue(marketKey, outcome)
+                  }
+                }
+              }
+
+              const orderedMarketKeys = [
+                ...PRIORITY_MARKETS.filter((key) => marketsAggregate.has(key)),
+                ...Array.from(marketsAggregate.keys()).filter(
+                  (key) => !PRIORITY_MARKETS.includes(key)
+                ),
+              ]
+
+              const tableRows: Array<{
+                marketLabel: string
+                teamLabel: string
+                values: Record<string, string>
+              }> = []
+
+              for (const marketKey of orderedMarketKeys) {
+                const entry = marketsAggregate.get(marketKey)
+                if (!entry) continue
+                const labels = Object.keys(entry.rows)
+                if (!labels.length) continue
+                const orderedLabels = orderOutcomeLabels(marketKey, labels, awayTeam, homeTeam)
+                orderedLabels.forEach((label, idx) => {
+                  tableRows.push({
+                    marketLabel: idx === 0 ? entry.label : '',
+                    teamLabel: label,
+                    values: entry.rows[label] || {},
+                  })
+                })
+              }
+
+              if (!tableRows.length) return ''
+
+              const header = `| Market | Team | ${bookColumns
+                .map((col) => escapeTableCell(col.header))
+                .join(' | ')} |`
+              const divider = `| --- | --- | ${bookColumns.map(() => '---').join(' | ')} |`
+              const body = tableRows
+                .map((row) => {
+                  const cells = bookColumns.map((col) =>
+                    escapeTableCell(row.values[col.key] ?? '—')
+                  )
+                  const marketLabel = row.marketLabel ? escapeTableCell(row.marketLabel) : '&nbsp;'
+                  return `| ${marketLabel} | ${escapeTableCell(row.teamLabel)} | ${cells.join(' | ')} |`
+                })
+                .join('\n')
+
+              return `${header}\n${divider}\n${body}`
+            }
+
+            const MAX_GAMES_PER_SPORT = 3
 
             // Format odds data FIRST (don't let enrichment failures break everything)
             const formattedOdds = allOddsData
@@ -1257,35 +1509,64 @@ export async function POST(req: NextRequest) {
                     commence_time: game.commence_time,
                     commence_time_formatted: formatGameTime(game.commence_time),
                     status: (game as any).status || undefined,
+                    home_team: game.home_team,
+                    away_team: game.away_team,
                     bookmakers: (game.bookmakers || [])
                       .map((book: any) => {
-                        const markets = (book.markets || [])
-                          .filter((market: any) => allowedMarketSet.has(market.key))
-                          .sort(
-                            (a: any, b: any) =>
-                              PRIORITY_MARKETS.indexOf(a.key) - PRIORITY_MARKETS.indexOf(b.key)
-                          )
-                          .slice(0, MAX_MARKETS_PER_BOOK)
-                          .map((market: any) => ({
-                            type: market.key,
-                            outcomes: (market.outcomes || []).slice(
-                              0,
-                              MAX_OUTCOMES_PER_MARKET
-                            ),
-                          }))
+                        const marketMap = new Map<string, { key: string; outcomes: any[] }>()
+
+                        for (const market of book.markets || []) {
+                          const normalized = {
+                            key: market.key,
+                            outcomes: Array.isArray(market.outcomes) ? market.outcomes : [],
+                          }
+                          if (!normalized.outcomes.length) continue
+
+                          if (normalized.key === 'spreads') {
+                            const preferred = choosePreferredSpreadMarket(
+                              marketMap.get('spreads'),
+                              normalized
+                            )
+                            marketMap.set('spreads', preferred)
+                          } else {
+                            marketMap.set(normalized.key, normalized)
+                          }
+                        }
+
+                        const markets = Array.from(marketMap.values())
 
                         return {
                           name: book.title,
+                          link: book.url,
                           markets,
                         }
                       })
                       .filter((book: any) => book.markets.length > 0),
                   }))
-                  .filter((game: any) => game.bookmakers.length > 0),
+                  .map((game: any) => {
+                    const table_markdown = buildOddsTableMarkdown(
+                      game.away_team,
+                      game.home_team,
+                      game.bookmakers
+                    )
+                    return { ...game, table_markdown }
+                  })
+                  .filter((game: any) => game.bookmakers.length > 0 && game.table_markdown),
               }))
               .filter((sport) => sport.games.length > 0)
 
             const totalGames = formattedOdds.reduce((sum, sport) => sum + sport.games.length, 0)
+            const standardizedOddsTables = formattedOdds
+              .map((sport) =>
+                sport.games
+                  .map(
+                    (game: any) =>
+                      `### ${sport.sport.toUpperCase()} - ${game.game}\n**Game Time:** ${game.commence_time_formatted}\n${game.table_markdown}`
+                  )
+                  .join('\n\n')
+              )
+              .filter(Boolean)
+              .join('\n\n')
             console.log(`[ODDS] Total games formatted: ${totalGames}`)
 
             // Try to enrich with stats (but don't fail if this errors)
@@ -1355,16 +1636,19 @@ YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
 })} ${timezone}
 
 **YOUR TASK:**
-Present this odds data to the user. Create a table or list showing:
-- Game matchups with commence times
-- Available odds from different sportsbooks
-- Highlight best odds for each market
-- ONLY show games from the data below - NO OTHER GAMES
-- Keep the summary concise (aim for a few paragraphs, not a data dump).
-- After summarizing, explicitly ask the user which matchup they want deeper odds on next so you can fetch narrower data.
+For each game below:
+1. Write a short intro line (e.g., "Here are the current betting odds for [Team] vs [Team].")
+2. Include the commence time in the user's timezone.
+3. Paste the provided Markdown table from **STANDARDIZED ODDS TABLES** exactly as-is. Do NOT reformat it into lists or different layouts.
+4. Call out the best values per market beneath the table (per the rules below) and invite the user to choose a matchup for a deeper dive next.
+5. ONLY mention games contained in this data.
+6. Keep things concise (table + a few tight sentences).
 
 **LIVE ODDS DATA:**
 ${JSON.stringify(formattedOdds)}
+
+**STANDARDIZED ODDS TABLES (USE THESE EXACTLY IN YOUR RESPONSE):**
+${standardizedOddsTables || '_No odds tables available_'}
 
 ${statsEnrichment}
 
@@ -1495,27 +1779,34 @@ ${statsEnrichment}
               formatted = `Found ${propsData.count} player(s) with prop bets:\n\n`
 
               for (const playerProp of propsData.data) {
-                formatted += `**${playerProp.player}**`
+                const headerParts = [`**${playerProp.player}**`]
                 if (playerProp.team) {
-                  formatted += ` (${playerProp.teamAbbr || playerProp.team}${playerProp.position ? ', ' + playerProp.position : ''})`
+                  headerParts.push(
+                    `(${playerProp.teamAbbr || playerProp.team}${playerProp.position ? ', ' + playerProp.position : ''})`
+                  )
                 }
-                formatted += `\n`
+                formatted += `${headerParts.join(' ')}\n`
                 if (playerProp.game) {
                   formatted += `Game: ${playerProp.game}\n`
                 }
-                formatted += `\n`
+                formatted += `| Market | Line | Best Over | Best Under |\n`
+                formatted += `| --- | --- | --- | --- |\n`
 
                 for (const [marketType, marketData] of Object.entries(playerProp.markets) as [string, any][]) {
-                  formatted += `  ${marketType.toUpperCase()}: Line ${marketData.line}\n`
-                  formatted += `    Over: ${marketData.over.best > 0 ? '+' : ''}${marketData.over.best} (${marketData.over.bestBook})\n`
-                  formatted += `    Under: ${marketData.under.best > 0 ? '+' : ''}${marketData.under.best} (${marketData.under.bestBook})\n`
+                  const lineLabel =
+                    marketData.line !== undefined && marketData.line !== null ? marketData.line : '—'
+                  const bestOver =
+                    marketData.over.bestBook
+                      ? `${marketData.over.best > 0 ? '+' : ''}${marketData.over.best} (${marketData.over.bestBook})`
+                      : '—'
+                  const bestUnder =
+                    marketData.under.bestBook
+                      ? `${marketData.under.best > 0 ? '+' : ''}${marketData.under.best} (${marketData.under.bestBook})`
+                      : '—'
 
-                  // Show all books if there are multiple
-                  if (marketData.over.allBooks.length > 1) {
-                    formatted += `    All books: ${marketData.over.allBooks.map((b: any) => `${b.book} ${b.odds > 0 ? '+' : ''}${b.odds}`).join(', ')}\n`
-                  }
-                  formatted += `\n`
+                  formatted += `| ${marketType.toUpperCase()} | ${lineLabel} | ${bestOver} | ${bestUnder} |\n`
                 }
+
                 formatted += `\n`
               }
             } else {

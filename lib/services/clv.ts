@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
+import { normalizePropMarketKey, normalizePropSelection, extractPropLine } from '@/lib/utils/props'
 
 type BetRow = any
 
@@ -46,6 +47,7 @@ export async function computeClvForBets(bets: BetRow[]): Promise<{ clvAgg: any; 
       moneyline: { total: 0, beat: 0, avgProbDelta: 0 },
       spread: { total: 0, beat: 0, avgPts: 0 },
       total: { total: 0, beat: 0, avgPts: 0 },
+      prop: { total: 0, beat: 0, avgPts: 0 },
     },
   }
 
@@ -154,6 +156,31 @@ export async function computeClvForBets(bets: BetRow[]): Promise<{ clvAgg: any; 
             beat = delta > 0
           }
         }
+      } else if (betType === 'prop' || bet.is_prop) {
+        const playerName = bet.player_name
+        const marketKey = normalizePropMarketKey(bet.prop_market)
+        const selection = normalizePropSelection(bet.prop_selection || bet.bet_side)
+        const betLine = bet.prop_line ?? extractPropLine(bet.bet_side)
+
+        if (playerName && marketKey && selection && betLine != null) {
+          const snapshot = await fetchLatestPropSnapshot(supabase, {
+            playerName,
+            marketKey,
+            eventId: bet.odds_api_id,
+            book: bet.book,
+          })
+          if (snapshot) {
+            closingLine = snapshot.line ?? null
+            closingOdds = selection === 'over' ? snapshot.over_odds ?? null : snapshot.under_odds ?? null
+            if (closingLine != null) {
+              clvMethod = 'points'
+              const dir = selection === 'over' ? 1 : -1
+              const delta = (closingLine - Number(betLine)) * dir
+              clvValue = delta
+              beat = delta > 0
+            }
+          }
+        }
       }
 
       if (clvMethod) {
@@ -187,6 +214,11 @@ export async function computeClvForBets(bets: BetRow[]): Promise<{ clvAgg: any; 
           if (beat) agg.market.total.beat++
           agg.market.total.avgPts += Math.abs(clvValue || 0)
         }
+        if (betType === 'prop' || bet.is_prop) {
+          agg.market.prop.total++
+          if (beat) agg.market.prop.beat++
+          agg.market.prop.avgPts += Math.abs(clvValue || 0)
+        }
       }
     }
   }
@@ -198,6 +230,46 @@ export async function computeClvForBets(bets: BetRow[]): Promise<{ clvAgg: any; 
   if (agg.market.moneyline.total > 0) agg.market.moneyline.avgProbDelta /= agg.market.moneyline.total
   if (agg.market.spread.total > 0) agg.market.spread.avgPts /= agg.market.spread.total
   if (agg.market.total.total > 0) agg.market.total.avgPts /= agg.market.total.total
+  if (agg.market.prop.total > 0) agg.market.prop.avgPts /= agg.market.prop.total
 
   return { clvAgg: agg, updates }
+}
+
+async function fetchLatestPropSnapshot(
+  supabase: any,
+  params: { playerName: string; marketKey: string; eventId?: string | null; book?: string | null }
+) {
+  const { playerName, marketKey, eventId, book } = params
+  const baseQuery = () =>
+    supabase
+      .from('player_prop_snapshots')
+      .select('line,over_odds,under_odds,captured_at,book')
+      .eq('player_name', playerName)
+      .eq('market_key', marketKey)
+      .order('captured_at', { ascending: false })
+      .limit(1)
+
+  let query = baseQuery()
+  if (eventId) query = query.eq('event_id', eventId)
+  if (book) query = query.eq('book', book)
+
+  let { data, error } = await query
+  if (error) {
+    console.error('[CLV] Failed to load prop snapshot:', error.message)
+    return null
+  }
+  if (data && data.length > 0) return data[0]
+
+  if (book) {
+    let retry = baseQuery()
+    if (eventId) retry = retry.eq('event_id', eventId)
+    const retryResult = await retry
+    if (retryResult.error) {
+      console.error('[CLV] Prop snapshot retry failed:', retryResult.error.message)
+      return null
+    }
+    return retryResult.data?.[0] ?? null
+  }
+
+  return null
 }

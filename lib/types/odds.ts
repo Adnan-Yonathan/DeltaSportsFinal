@@ -15,6 +15,7 @@ export interface OddsOutcome {
 export interface Bookmaker {
   key: string
   title: string
+  url?: string
   markets: OddsMarket[]
   last_update?: string
 }

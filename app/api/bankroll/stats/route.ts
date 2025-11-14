@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { calculateROI } from '@/lib/utils/odds'
 import { subDays, format } from 'date-fns'
 import { computeClvForBets } from '@/lib/services/clv'
+import { normalizePropMarketKey, normalizePropSelection, extractPropLine } from '@/lib/utils/props'
 
 export const dynamic = 'force-dynamic'
 
@@ -152,6 +153,7 @@ export async function GET(req: NextRequest) {
       bySport,
       dailyBalances,
       clv: clvAgg || null,
+      propLiveBets: await buildPropLiveInsights(supabase, bets || []),
     })
   } catch (error) {
     console.error('Bankroll stats API error:', error)
@@ -160,4 +162,81 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+async function buildPropLiveInsights(supabase: any, bets: any[]) {
+  const pendingProps = bets.filter(
+    (bet) => bet?.is_prop && bet?.status === 'pending' && bet?.player_name
+  )
+  const insights: any[] = []
+
+  for (const bet of pendingProps) {
+    const marketKey = normalizePropMarketKey(bet.prop_market)
+    if (!marketKey) continue
+    const snapshot = await fetchLatestPropSnapshot(supabase, {
+      playerName: bet.player_name,
+      marketKey,
+      eventId: bet.odds_api_id,
+      book: bet.book,
+    })
+
+    const selection = normalizePropSelection(bet.prop_selection || bet.bet_side)
+    const placedLine = bet.prop_line ?? extractPropLine(bet.bet_side)
+
+    insights.push({
+      betId: bet.id,
+      player: bet.player_name,
+      market: marketKey,
+      selection,
+      placedLine: placedLine != null ? Number(placedLine) : null,
+      currentLine: snapshot?.line ?? null,
+      currentOverOdds: snapshot?.over_odds ?? null,
+      currentUnderOdds: snapshot?.under_odds ?? null,
+      book: snapshot?.book ?? bet.book ?? null,
+      capturedAt: snapshot?.captured_at ?? null,
+    })
+  }
+
+  return insights
+}
+
+async function fetchLatestPropSnapshot(
+  supabase: any,
+  params: { playerName: string; marketKey: string; eventId?: string | null; book?: string | null }
+) {
+  const { playerName, marketKey, eventId, book } = params
+  const baseQuery = () =>
+    supabase
+      .from('player_prop_snapshots')
+      .select('player_name,market_key,line,over_odds,under_odds,book,captured_at')
+      .eq('player_name', playerName)
+      .eq('market_key', marketKey)
+      .order('captured_at', { ascending: false })
+      .limit(1)
+
+  let query = baseQuery()
+  if (eventId) query = query.eq('event_id', eventId)
+  if (book) query = query.eq('book', book)
+
+  let { data, error } = await query
+  if (error) {
+    console.error('[BANKROLL] Failed to fetch prop snapshot:', error.message)
+    return null
+  }
+
+  if (data && data.length > 0) return data[0]
+
+  // Retry without book constraint if no match
+  if (book) {
+    let retry = baseQuery()
+    if (eventId) retry = retry.eq('event_id', eventId)
+    const retryResult = await retry
+    if (retryResult.error) {
+      console.error('[BANKROLL] Failed to fetch prop snapshot (retry):', retryResult.error.message)
+      return null
+    }
+    return retryResult.data?.[0] ?? null
+  }
+
+  return null
 }

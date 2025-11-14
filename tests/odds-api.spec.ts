@@ -60,4 +60,33 @@ const totals = fanDuel.markets.find((m) => m.key === 'totals')
 assert.ok(totals?.outcomes.some((o) => o.name === 'Over'), 'Totals should have Over selection')
 assert.ok(totals?.outcomes.some((o) => o.name === 'Under'), 'Totals should have Under selection')
 
+const propPayload = {
+  DraftKings: [
+    {
+      name: 'Player Points',
+      key: 'player_points',
+      odds: [
+        {
+          name: 'Over',
+          price: '1.90',
+          point: 22.5,
+        },
+        {
+          name: 'Under',
+          price: '1.90',
+          point: 22.5,
+        },
+      ],
+      updatedAt: '2025-01-01T12:35:00Z',
+    },
+  ],
+}
+
+const propBookmakers = mapBookmakersIO(propPayload, 'Boston Celtics', 'Miami Heat')
+assert.equal(propBookmakers.length, 1, 'Should normalize prop bookmaker')
+const [draftKingsProps] = propBookmakers
+const propsMarket = draftKingsProps.markets.find((m) => m.key === 'player_points')
+assert.ok(propsMarket, 'Prop market should be retained')
+assert.equal(propsMarket?.outcomes.length, 2, 'Prop market should include two sides')
+
 console.log('odds-api normalization tests passed')

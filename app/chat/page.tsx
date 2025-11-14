@@ -194,7 +194,7 @@ export default function ChatPage() {
   const fallbackName = profileName || user?.email || 'Guest'
   const profileInitials = fallbackName
     .split(' ')
-    .map((part) => part.charAt(0))
+    .map((part: string) => part.charAt(0))
     .join('')
     .slice(0, 2)
     .toUpperCase()

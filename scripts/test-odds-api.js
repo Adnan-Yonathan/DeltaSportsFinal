@@ -57,25 +57,29 @@ async function testOddsAPI() {
     const events = evRes.ok ? await evRes.json() : []
     console.log(`NBA pending events: ${Array.isArray(events) ? events.length : 0}`)
 
-    // Pick up to 10 event IDs and fetch multi-odds
-    const ids = Array.isArray(events) ? events.map(e => String(e.id)).slice(0, 10) : []
+    // Pick up to 3 event IDs and fetch odds individually
+    const ids = Array.isArray(events) ? events.map(e => String(e.id)).slice(0, 3) : []
     if (ids.length) {
-      const multiUrl = new URL(`${ODDS_IO_BASE}/odds/multi`)
-      multiUrl.searchParams.set('apiKey', API_KEY)
-      multiUrl.searchParams.set('eventIds', ids.join(','))
-      const nbaResponse = await fetch(multiUrl.toString())
+      for (const id of ids) {
+        const oddsUrl = new URL(`${ODDS_IO_BASE}/odds`)
+        oddsUrl.searchParams.set('apiKey', API_KEY)
+        oddsUrl.searchParams.set('eventId', id)
+        oddsUrl.searchParams.set('bookmakers', envVars.ODDS_BOOKMAKERS || 'Bet365,Unibet,Pinnacle')
+        const nbaResponse = await fetch(oddsUrl.toString())
 
-    console.log(`Status: ${nbaResponse.status} ${nbaResponse.statusText}`)
+        console.log(`Odds status (${id}): ${nbaResponse.status} ${nbaResponse.statusText}`)
 
-      if (nbaResponse.ok) {
-        const nbaOdds = await nbaResponse.json()
-        console.log(`NBA odds snapshots: ${Array.isArray(nbaOdds) ? nbaOdds.length : 0}`)
-      } else {
-        const errorText = await nbaResponse.text()
-        console.error('NBA Error:', errorText)
+        if (nbaResponse.ok) {
+          const nbaOdds = await nbaResponse.json()
+          const bookmakerCount = nbaOdds?.bookmakers ? Object.keys(nbaOdds.bookmakers).length : 0
+          console.log(`Bookmakers returned: ${bookmakerCount}`)
+        } else {
+          const errorText = await nbaResponse.text()
+          console.error(`NBA Error for event ${id}:`, errorText)
+        }
       }
     } else {
-      console.log('No NBA events found to test odds/multi.')
+      console.log('No NBA events found to test odds endpoint.')
     }
 
     // Test 3: Get odds for NFL

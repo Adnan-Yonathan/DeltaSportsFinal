@@ -8,7 +8,7 @@
 
 **PRIMARY CAUSE: LLM HALLUCINATION (GPT-4o)**
 
-The hallucination issue is primarily an **LLM problem**, not an API problem. The app uses legitimate external APIs for all data (The Odds API, ESPN API, sports stats APIs), but GPT-4o was generating fake games and information from its training data instead of using the real API data provided in context.
+The hallucination issue is primarily an **LLM problem**, not an API problem. The app uses legitimate external APIs for all data (Odds-API.io, ESPN API, sports stats APIs), but GPT-4o was generating fake games and information from its training data instead of using the real API data provided in context.
 
 **STATUS:** Recent fixes were applied (commit `f651a25`) but the issue may still occur due to LLM non-determinism.
 
@@ -22,8 +22,8 @@ All betting and game data comes from external APIs - **NO code generates or infe
 
 | Data Type | Source | File | Status |
 |-----------|--------|------|--------|
-| Betting Odds | The Odds API | `/lib/api/odds-api.ts` | ✅ Real-time API |
-| Player Props | The Odds API | `/app/api/player-props/route.ts` | ✅ Real-time API |
+| Betting Odds | Odds-API.io | `/lib/api/odds-api.ts` | ✅ Real-time API |
+| Player Props | Odds-API.io | `/app/api/player-props/route.ts` | ✅ Real-time API |
 | Live Scores | ESPN API | `/lib/espn-api.ts` | ✅ Real-time API |
 | Team Stats | Sports Stats APIs | `/lib/sports-stats-api.ts` | ✅ Real-time API |
 | Win Probability | Calculated from live scores | `/lib/services/probability-engine.ts` | ✅ Legitimate calculations |
@@ -349,7 +349,7 @@ User: "What are the best odds for Lakers spread?"
    - Track by query type (schedule, odds, props, etc.)
 
 2. **API Success Rate:**
-   - % of times The Odds API call succeeds
+   - % of times Odds-API.io call succeeds
    - % of times data is successfully injected into context
 
 3. **AI Claim Rate:**
@@ -376,7 +376,7 @@ User: "What are the best odds for Lakers spread?"
 
 - [ ] Test: "What NBA games are today?" - Verify all games are real
 - [ ] Test: "What games are tomorrow?" - Verify date filtering works
-- [ ] Test: "Show me Lakers odds" - Verify odds match The Odds API
+- [ ] Test: "Show me Lakers odds" - Verify odds match Odds-API.io
 - [ ] Test: "Find arbitrage opportunities" - Verify calculations are correct
 - [ ] Test: "What's LeBron's points over/under?" - Verify props are real
 - [ ] Test: "What's the score of [live game]?" - Verify scores match ESPN

@@ -120,18 +120,40 @@ const countMatches = (tokens: Set<string>, candidates: string[]): number => {
   return candidates.reduce((count, token) => count + (tokens.has(token) ? 1 : 0), 0)
 }
 
-export function matchBetToGame(betDescription: string, scores: LiveScore[]): LiveScore | null {
+const SPORT_KEY_TO_SCOREBOARD: Record<string, string> = {
+  basketball_nba: 'NBA',
+  basketball_ncaab: 'NCAAB',
+  americanfootball_nfl: 'NFL',
+  americanfootball_ncaaf: 'NCAAF',
+  baseball_mlb: 'MLB',
+  icehockey_nhl: 'NHL',
+  soccer_epl: 'ENG.1',
+}
+
+export function matchBetToGame(
+  betDescription: string,
+  scores: LiveScore[],
+  sportKeyHint?: string | null
+): LiveScore | null {
   const betTokens = new Set(tokenize(betDescription))
   if (betTokens.size === 0) {
     return null
   }
+
+  const sportFilter = sportKeyHint ? SPORT_KEY_TO_SCOREBOARD[sportKeyHint] : undefined
+  const candidates =
+    sportFilter != null
+      ? scores.filter((score) => score.sport === sportFilter)
+      : scores
+
+  const searchScores = candidates.length > 0 ? candidates : scores
 
   let bestMatch: LiveScore | null = null
   let bestScore = 0
   let fallbackMatch: LiveScore | null = null
   let fallbackScore = 0
 
-  for (const score of scores) {
+  for (const score of searchScores) {
     const homeTokens = tokenize(score.homeTeam)
     const awayTokens = tokenize(score.awayTeam)
 

@@ -1,8 +1,19 @@
-﻿import { OddsGame, ArbitrageOpportunity, MARKETS, Bookmaker, OddsMarket, OddsOutcome } from '@/lib/types/odds'
+import { OddsGame, ArbitrageOpportunity, MARKETS, Bookmaker, OddsMarket, OddsOutcome } from '@/lib/types/odds'
+import {
+  SportResponse,
+  LeagueResponse,
+  SimpleEventDto,
+  EventResponse,
+  HandicapMovementsResponse,
+  ArbitrageOpportunityDto,
+} from '@/lib/types/odds-io'
 import { isArbitrage, calculateArbitrageStakes, americanToDecimal, decimalToAmerican } from '@/lib/utils/odds'
 
 const ODDS_API_BASE = 'https://api.the-odds-api.com/v4'
 const ODDS_IO_BASE = 'https://api.odds-api.io/v3'
+
+type NextFetchRequestInit = RequestInit & { next?: { revalidate?: number } }
+type QueryValue = string | number | boolean | Array<string | number | boolean> | undefined
 
 export class OddsAPIError extends Error {
   constructor(message: string, public statusCode?: number) {
@@ -19,7 +30,7 @@ const getRequiredOddsKey = (): string => {
   return key
 }
 
-async function fetchWithSingleKey(urlBase: string, init?: RequestInit): Promise<Response> {
+async function fetchWithSingleKey(urlBase: string, init?: NextFetchRequestInit): Promise<Response> {
   const apiKey = getRequiredOddsKey()
   const url = new URL(urlBase)
   url.searchParams.set('apiKey', apiKey)
@@ -39,12 +50,12 @@ const DEFAULT_REVALIDATE_SECONDS = 30
 
 // ============ Odds-API.io Provider (inline) ============
 const SPORT_MAP: Record<string, { sport: string; league: string }> = {
-  basketball_nba: { sport: 'basketball', league: 'nba' },
-  basketball_ncaab: { sport: 'basketball', league: 'ncaab' },
-  americanfootball_nfl: { sport: 'football', league: 'nfl' },
-  americanfootball_ncaaf: { sport: 'football', league: 'ncaaf' },
-  baseball_mlb: { sport: 'baseball', league: 'mlb' },
-  icehockey_nhl: { sport: 'hockey', league: 'nhl' },
+  basketball_nba: { sport: 'basketball', league: 'usa-nba' },
+  basketball_ncaab: { sport: 'basketball', league: 'usa-ncaab' },
+  americanfootball_nfl: { sport: 'american-football', league: 'usa-nfl' },
+  americanfootball_ncaaf: { sport: 'american-football', league: 'usa-ncaaf' },
+  baseball_mlb: { sport: 'baseball', league: 'usa-mlb' },
+  icehockey_nhl: { sport: 'ice-hockey', league: 'usa-nhl' },
 }
 
 function pickBookmakersParam(): string | undefined {
@@ -54,17 +65,95 @@ function pickBookmakersParam(): string | undefined {
   return list.length ? list.join(',') : undefined
 }
 
+let lastAppliedBookmakers: string | null = null
+let selectingBookmakersPromise: Promise<void> | null = null
+
+async function ensureBookmakersSelection(bookmakers?: string | null) {
+  if (!bookmakers) return
+  const normalized = bookmakers
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .join(',')
+  if (!normalized) return
+  if (lastAppliedBookmakers === normalized) return
+
+  if (selectingBookmakersPromise) {
+    try {
+      await selectingBookmakersPromise
+    } catch {
+      // ignore previous failure; we will retry below
+    }
+  }
+
+  selectingBookmakersPromise = selectBookmakersRemote(normalized.split(','))
+  try {
+    await selectingBookmakersPromise
+    lastAppliedBookmakers = normalized
+  } catch (error) {
+    console.error('[ODDS] Failed to apply bookmaker selection:', error)
+  } finally {
+    selectingBookmakersPromise = null
+  }
+}
+
 function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
 
-async function fetchJson(url: string, init?: RequestInit): Promise<any> {
-  const res = await fetch(url, init)
+const formatQueryValue = (value: QueryValue): string | undefined => {
+  if (value === undefined) return undefined
+  if (Array.isArray(value)) {
+    const filtered = value
+      .map((entry) => (typeof entry === 'boolean' ? (entry ? 'true' : 'false') : String(entry)))
+      .filter(Boolean)
+    return filtered.length ? filtered.join(',') : undefined
+  }
+  if (typeof value === 'boolean') return value ? 'true' : 'false'
+  return String(value)
+}
+
+const buildFetchInit = (opts?: { revalidateSeconds?: number; live?: boolean }): NextFetchRequestInit | undefined => {
+  if (!opts) return undefined
+  if (opts.live) return { cache: 'no-store' }
+  if (typeof opts.revalidateSeconds === 'number') {
+    return { next: { revalidate: opts.revalidateSeconds } }
+  }
+  return undefined
+}
+
+interface OddsIoRequestOptions {
+  params?: Record<string, QueryValue>
+  init?: NextFetchRequestInit
+  requireAuth?: boolean
+}
+
+async function oddsIoFetch<T>(
+  path: string,
+  options: OddsIoRequestOptions = {}
+): Promise<{ data: T; headers: Headers }> {
+  const { params = {}, init, requireAuth = true } = options
+  const base = path.startsWith('http') ? path : `${ODDS_IO_BASE}${path}`
+  const url = new URL(base)
+
+  if (requireAuth) {
+    url.searchParams.set('apiKey', getOddsIOKey())
+  }
+
+  for (const [key, rawValue] of Object.entries(params)) {
+    const value = formatQueryValue(rawValue)
+    if (value != null && value !== '') {
+      url.searchParams.set(key, value)
+    }
+  }
+
+  const res = await fetch(url.toString(), init)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new OddsAPIError(`Odds-API.io error ${res.status}: ${body || res.statusText}`, res.status)
   }
-  return res.json()
+
+  return { data: (await res.json()) as T, headers: res.headers }
 }
 
 function toAmerican(value?: string | number | null): number | undefined {
@@ -74,8 +163,29 @@ function toAmerican(value?: string | number | null): number | undefined {
   return decimalToAmerican(dec)
 }
 
-function mapBookmakersIO(oddsObj: any, home: string, away: string): Bookmaker[] {
+function parseNumber(value: any): number | undefined {
+  if (typeof value === 'number' && isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value)
+    if (isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
+export function mapBookmakersIO(
+  oddsObj: any,
+  home: string,
+  away: string,
+  allowedMarkets?: string[]
+): Bookmaker[] {
   const result: Bookmaker[] = []
+  const allowedSet =
+    allowedMarkets && allowedMarkets.length
+      ? new Set(allowedMarkets.map((m) => m.toLowerCase()))
+      : null
+
+  const shouldInclude = (key: string) => !allowedSet || allowedSet.has(key)
+
   for (const [bookName, markets] of Object.entries(oddsObj || {})) {
     const title = String(bookName)
     const key = slugify(title)
@@ -83,45 +193,120 @@ function mapBookmakersIO(oddsObj: any, home: string, away: string): Bookmaker[] 
 
     for (const market of markets as any[]) {
       const name = market?.name || ''
+      const normalizedName = name.toLowerCase()
+      const normalizedKey = typeof market?.key === 'string' ? market.key.toLowerCase() : ''
       const last_update = market?.updatedAt
 
-      if (name === 'ML' && market.odds?.[0]) {
-        const o = market.odds[0]
+      const oddsEntries = Array.isArray(market?.odds)
+        ? market.odds
+        : Array.isArray(market?.lines)
+          ? market.lines
+          : []
+
+      const isMoneyline =
+        normalizedName === 'ml' ||
+        normalizedName.includes('moneyline') ||
+        normalizedName.includes('money line') ||
+        normalizedName.includes('h2h') ||
+        normalizedKey === 'ml' ||
+        normalizedKey === 'moneyline' ||
+        normalizedKey === 'h2h'
+
+      if (isMoneyline) {
+        const o = oddsEntries.length ? oddsEntries[0] : market.odds
         const out: OddsOutcome[] = []
-        const homePrice = toAmerican(o.home)
-        const awayPrice = toAmerican(o.away)
+        const homePrice = toAmerican(o?.home ?? o?.homeOdds ?? o?.home_price)
+        const awayPrice = toAmerican(o?.away ?? o?.awayOdds ?? o?.away_price)
         if (homePrice != null) out.push({ name: home, price: homePrice })
-        if (o.draw != null) {
-          const drawPrice = toAmerican(o.draw)
+        if (o?.draw != null || o?.drawOdds != null) {
+          const drawPrice = toAmerican(o?.draw ?? o?.drawOdds ?? o?.draw_price)
           if (drawPrice != null) out.push({ name: 'Draw', price: drawPrice })
         }
         if (awayPrice != null) out.push({ name: away, price: awayPrice })
-        if (out.length) mappedMarkets.push({ key: 'h2h', outcomes: out, last_update })
-      }
-
-      if ((name.includes('Asian Handicap') || name.includes('Spread')) && Array.isArray(market.odds)) {
-        for (const row of market.odds) {
-          const hdp = typeof row.hdp === 'number' ? row.hdp : parseFloat(row.hdp)
-          if (!isFinite(hdp)) continue
-          const out: OddsOutcome[] = []
-          const homePrice = toAmerican(row.home)
-          const awayPrice = toAmerican(row.away)
-          if (homePrice != null) out.push({ name: home, price: homePrice, point: hdp })
-          if (awayPrice != null) out.push({ name: away, price: awayPrice, point: -hdp })
-          if (out.length) mappedMarkets.push({ key: 'spreads', outcomes: out, last_update })
+        if (out.length && shouldInclude('h2h')) {
+          mappedMarkets.push({ key: 'h2h', outcomes: out, last_update })
         }
       }
 
-      if ((name.includes('Over/Under') || name.includes('Total')) && Array.isArray(market.odds)) {
-        for (const row of market.odds) {
-          const max = typeof row.max === 'number' ? row.max : parseFloat(row.max)
-          if (!isFinite(max)) continue
-          const overPrice = toAmerican(row.over)
-          const underPrice = toAmerican(row.under)
+      const isSpread =
+        normalizedName.includes('spread') ||
+        normalizedName.includes('handicap') ||
+        normalizedName.includes('point spread') ||
+        normalizedKey.includes('spread') ||
+        normalizedKey.includes('handicap')
+
+      if (isSpread && oddsEntries.length) {
+        for (const row of oddsEntries) {
+          const hdp = parseNumber(
+            row?.hdp ?? row?.handicap ?? row?.line ?? row?.points ?? row?.point
+          )
+          if (hdp == null) continue
+          const out: OddsOutcome[] = []
+          const homePrice = toAmerican(row?.home ?? row?.homeOdds ?? row?.home_price)
+          const awayPrice = toAmerican(row?.away ?? row?.awayOdds ?? row?.away_price)
+          if (homePrice != null) out.push({ name: home, price: homePrice, point: hdp })
+          if (awayPrice != null) out.push({ name: away, price: awayPrice, point: -hdp })
+          if (out.length && shouldInclude('spreads')) {
+            mappedMarkets.push({ key: 'spreads', outcomes: out, last_update })
+          }
+        }
+      }
+
+      const isTotal =
+        normalizedName.includes('over/under') ||
+        normalizedName.includes('total') ||
+        normalizedName.includes('over under') ||
+        normalizedKey.includes('total') ||
+        normalizedKey.includes('over_under')
+
+      if (isTotal && oddsEntries.length) {
+        for (const row of oddsEntries) {
+          const totalLine = parseNumber(
+            row?.max ?? row?.line ?? row?.points ?? row?.point ?? row?.total
+          )
+          if (totalLine == null) continue
+          const overPrice = toAmerican(row?.over ?? row?.overOdds ?? row?.over_price)
+          const underPrice = toAmerican(row?.under ?? row?.underOdds ?? row?.under_price)
           const outcomes: OddsOutcome[] = []
-          if (overPrice != null) outcomes.push({ name: 'Over', price: overPrice, point: max })
-          if (underPrice != null) outcomes.push({ name: 'Under', price: underPrice, point: max })
-          if (outcomes.length) mappedMarkets.push({ key: 'totals', outcomes, last_update })
+          if (overPrice != null) outcomes.push({ name: 'Over', price: overPrice, point: totalLine })
+          if (underPrice != null)
+            outcomes.push({ name: 'Under', price: underPrice, point: totalLine })
+          if (outcomes.length && shouldInclude('totals')) {
+            mappedMarkets.push({ key: 'totals', outcomes: outcomes, last_update })
+          }
+        }
+      }
+
+      if (
+        !isMoneyline &&
+        !isSpread &&
+        !isTotal &&
+        typeof market?.key === 'string' &&
+        shouldInclude(market.key)
+      ) {
+        const outcomes = Array.isArray(market?.odds) ? market.odds : market?.outcomes
+        if (Array.isArray(outcomes) && outcomes.length) {
+          const normalizedOutcomes = outcomes
+            .map((o) => {
+              const price = toAmerican(o?.price ?? o?.odds ?? o?.lineOdds)
+              if (price == null) return undefined
+              const point = parseNumber(o?.point ?? o?.line ?? o?.threshold)
+              const normalized: OddsOutcome = {
+                name: o?.name ?? o?.selection ?? '',
+                price,
+              }
+              if (point != null) normalized.point = point
+              return normalized
+            })
+            .filter((value): value is OddsOutcome => Boolean(value))
+
+          if (normalizedOutcomes.length) {
+            mappedMarkets.push({
+              key: market.key,
+              outcomes: normalizedOutcomes,
+              last_update,
+            })
+          }
         }
       }
     }
@@ -133,6 +318,244 @@ function mapBookmakersIO(oddsObj: any, home: string, away: string): Bookmaker[] 
   return result
 }
 
+const VALID_EVENT_STATUSES = new Set(['pending', 'live', 'settled'])
+const UPCOMING_STATUSES = ['pending'] as const
+
+const normalizeEventStatuses = (status?: string | ReadonlyArray<string> | null): string | undefined => {
+  if (!status) return undefined
+  const source = Array.isArray(status) ? Array.from(status) : String(status).split(',')
+  const normalized = source
+    .map((entry: string) => entry.trim().toLowerCase())
+    .filter((entry: string) => VALID_EVENT_STATUSES.has(entry))
+  if (!normalized.length) return undefined
+  return Array.from(new Set(normalized)).join(',')
+}
+
+const normalizeBookmakerList = (input?: string | string[] | null): string | undefined => {
+  if (input === null) return undefined
+  if (input === undefined) return pickBookmakersParam()
+  const source = Array.isArray(input) ? input : input.split(',')
+  const list = source.map((entry) => entry.trim()).filter(Boolean)
+  if (!list.length) return pickBookmakersParam()
+  return list.join(',')
+}
+
+export async function listSports(options?: { revalidateSeconds?: number }): Promise<SportResponse[]> {
+  const init = buildFetchInit({ revalidateSeconds: options?.revalidateSeconds ?? 3600 })
+  const { data } = await oddsIoFetch<SportResponse[]>('/sports', {
+    init,
+    requireAuth: false,
+  })
+  return data
+}
+
+export async function listLeagues(
+  sport: string,
+  options?: { revalidateSeconds?: number }
+): Promise<LeagueResponse[]> {
+  if (!sport) throw new OddsAPIError('Sport parameter is required for leagues lookup')
+  const init = buildFetchInit({ revalidateSeconds: options?.revalidateSeconds ?? 900 })
+  const { data } = await oddsIoFetch<LeagueResponse[]>('/leagues', {
+    params: { sport },
+    init,
+  })
+  return data
+}
+
+export interface FetchProviderEventsParams {
+  sport: string
+  league?: string
+  status?: string | ReadonlyArray<string>
+  from?: string
+  to?: string
+  limit?: number
+}
+
+export async function fetchEventsList(
+  filters: FetchProviderEventsParams,
+  options?: { revalidateSeconds?: number; live?: boolean }
+): Promise<SimpleEventDto[]> {
+  if (!filters?.sport) throw new OddsAPIError('Sport is required to fetch events')
+  const init = buildFetchInit({
+    live: options?.live,
+    revalidateSeconds: options?.revalidateSeconds,
+  })
+  const statusParam = normalizeEventStatuses(filters.status)
+  const params: Record<string, QueryValue> = {
+    sport: filters.sport,
+    league: filters.league,
+    status: statusParam,
+    from: filters.from,
+    to: filters.to,
+    limit: filters.limit,
+  }
+  const { data } = await oddsIoFetch<SimpleEventDto[]>('/events', { params, init })
+  return data
+}
+
+export async function fetchLiveEventsList(
+  sport?: string,
+  options?: { revalidateSeconds?: number }
+): Promise<SimpleEventDto[]> {
+  const init =
+    options?.revalidateSeconds != null
+      ? buildFetchInit({ revalidateSeconds: options.revalidateSeconds })
+      : buildFetchInit({ live: true })
+
+  const { data } = await oddsIoFetch<SimpleEventDto[]>('/events/live', {
+    params: { sport },
+    init,
+  })
+  return data
+}
+
+export async function fetchEventById(id: string, options?: { revalidateSeconds?: number }) {
+  if (!id) throw new OddsAPIError('Event ID is required')
+  const init = buildFetchInit({ revalidateSeconds: options?.revalidateSeconds ?? 120 })
+  const { data } = await oddsIoFetch<SimpleEventDto>(`/events/${id}`, { init })
+  return data
+}
+
+export async function searchEvents(
+  query: string,
+  options?: { revalidateSeconds?: number }
+): Promise<SimpleEventDto[]> {
+  if (!query || query.length < 3) throw new OddsAPIError('Search query must be at least 3 characters')
+  const init = buildFetchInit({ revalidateSeconds: options?.revalidateSeconds ?? 60 })
+  const { data } = await oddsIoFetch<SimpleEventDto[]>('/events/search', {
+    params: { query },
+    init,
+  })
+  return data
+}
+
+export async function fetchEventOdds(
+  eventId: string,
+  bookmakers?: string | string[] | null,
+  init?: NextFetchRequestInit
+): Promise<EventResponse> {
+  if (!eventId) throw new OddsAPIError('eventId is required')
+  const bookmakerParam = normalizeBookmakerList(bookmakers)
+  const params: Record<string, QueryValue> = { eventId }
+  if (bookmakerParam) {
+    params.bookmakers = bookmakerParam
+  }
+  const { data } = await oddsIoFetch<EventResponse>('/odds', {
+    params,
+    init,
+  })
+  return data
+}
+
+export async function fetchMultiEventOdds(
+  eventIds: string[],
+  bookmakers?: string | string[] | null,
+  init?: NextFetchRequestInit
+): Promise<EventResponse[]> {
+  const ids = eventIds.map((id) => String(id).trim()).filter(Boolean)
+  if (!ids.length) return []
+  const results: EventResponse[] = []
+
+  for (const id of ids) {
+    try {
+      const event = await fetchEventOdds(id, bookmakers, init)
+      results.push(event)
+    } catch (error) {
+      console.error(`[ODDS] Failed to fetch odds for event ${id}:`, error)
+    }
+  }
+
+  return results
+}
+
+export interface UpdatedOddsParams {
+  since: number
+  bookmaker: string
+  sport: string
+}
+
+export async function fetchUpdatedOdds(
+  params: UpdatedOddsParams,
+  init?: NextFetchRequestInit
+): Promise<EventResponse[]> {
+  if (!params?.since) throw new OddsAPIError('"since" is required for updated odds')
+  if (!params.bookmaker) throw new OddsAPIError('"bookmaker" is required for updated odds')
+  if (!params.sport) throw new OddsAPIError('"sport" is required for updated odds')
+  const query: Record<string, QueryValue> = {
+    since: params.since,
+    bookmaker: params.bookmaker,
+    sport: params.sport,
+  }
+  const { data } = await oddsIoFetch<EventResponse[]>('/odds/updated', {
+    params: query,
+    init,
+  })
+  return data
+}
+
+export interface OddsMovementParams {
+  eventId: string
+  bookmaker: string
+  market: string
+  marketLine?: string
+}
+
+export async function fetchOddsMovements(
+  params: OddsMovementParams,
+  init?: NextFetchRequestInit
+): Promise<HandicapMovementsResponse> {
+  if (!params.eventId) throw new OddsAPIError('"eventId" is required for odds movements')
+  if (!params.bookmaker) throw new OddsAPIError('"bookmaker" is required for odds movements')
+  if (!params.market) throw new OddsAPIError('"market" is required for odds movements')
+  const { data } = await oddsIoFetch<HandicapMovementsResponse>('/odds/movements', {
+    params: {
+      eventId: params.eventId,
+      bookmaker: params.bookmaker,
+      market: params.market,
+      marketLine: params.marketLine,
+    },
+    init,
+  })
+  return data
+}
+
+export interface ArbitrageQueryParams {
+  bookmakers: string | string[]
+  limit?: number
+  includeEventDetails?: boolean
+}
+
+export async function fetchArbitrageOpportunitiesRemote(
+  params: ArbitrageQueryParams,
+  init?: NextFetchRequestInit
+): Promise<ArbitrageOpportunityDto[]> {
+  const bookmakerParam = normalizeBookmakerList(params.bookmakers)
+  if (!bookmakerParam) {
+    throw new OddsAPIError('At least one bookmaker is required to fetch arbitrage opportunities')
+  }
+  const { data } = await oddsIoFetch<ArbitrageOpportunityDto[]>('/arbitrage-bets', {
+    params: {
+      bookmakers: bookmakerParam,
+      limit: params.limit,
+      includeEventDetails: params.includeEventDetails,
+    },
+    init,
+  })
+  return data
+}
+
+export async function selectBookmakersRemote(bookmakers: string | string[]) {
+  const bookmakerParam = normalizeBookmakerList(bookmakers)
+  if (!bookmakerParam) {
+    throw new OddsAPIError('At least one bookmaker is required')
+  }
+  await oddsIoFetch('/bookmakers/selected/select', {
+    params: { bookmakers: bookmakerParam },
+    init: { method: 'PUT' },
+  })
+}
+
+
 async function fetchOddsIO(
   sportKey: string,
   _markets: string[] = ['h2h', 'spreads', 'totals'],
@@ -140,49 +563,152 @@ async function fetchOddsIO(
 ): Promise<OddsGame[]> {
   const mapping = SPORT_MAP[sportKey]
   if (!mapping) return []
-  const apiKey = getRequiredOddsKey()
-  const status = opts.live ? 'live' : 'pending'
-  const fetchInit: RequestInit = opts.live ? { cache: 'no-store' } : { next: { revalidate: opts.revalidateSeconds ?? 30 } }
+  const oddsFetchInit = buildFetchInit({
+    live: opts.live,
+    revalidateSeconds: opts.live ? undefined : opts.revalidateSeconds ?? DEFAULT_REVALIDATE_SECONDS,
+  })
+  const statusFilters = opts.live ? ['live'] : UPCOMING_STATUSES
 
-  const eventsUrl = `${ODDS_IO_BASE}/events?apiKey=${apiKey}&sport=${mapping.sport}&league=${mapping.league}&status=${status}`
-  const events = await fetchJson(eventsUrl, fetchInit)
-  if (!Array.isArray(events) || events.length === 0) return []
+  const fetchEventsSafe = async (
+    filters: FetchProviderEventsParams,
+    options?: { revalidateSeconds?: number; live?: boolean }
+  ): Promise<SimpleEventDto[]> => {
+    try {
+      return await fetchEventsList(filters, options)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (
+        filters.league &&
+        error instanceof OddsAPIError &&
+        message.toLowerCase().includes('league not found')
+      ) {
+        console.warn(
+          `[ODDS] League "${filters.league}" not recognized for ${sportKey}, retrying without league filter`
+        )
+        const { league, ...rest } = filters
+        return fetchEventsList(rest as FetchProviderEventsParams, options)
+      }
+      throw error instanceof Error ? error : new OddsAPIError(message)
+    }
+  }
 
-  const ids: string[] = events.map((e: any) => String(e.id)).filter(Boolean)
+  let events: SimpleEventDto[] = []
+  try {
+    if (opts.live) {
+      const liveEvents = await fetchLiveEventsList(mapping.sport, {
+        revalidateSeconds: Math.max(opts.revalidateSeconds ?? 20, 10),
+      })
+      events = liveEvents.filter((event) => {
+        const leagueSlug =
+          typeof event.league === 'string'
+            ? event.league
+            : event.league?.slug || event.league?.name
+        return !mapping.league || leagueSlug?.toLowerCase() === mapping.league
+      })
+
+      // Fallback to the traditional status filter if /events/live misses anything.
+      if (events.length === 0) {
+        console.warn(
+          `[ODDS] No live events found via /events/live for ${sportKey}, retrying with status filter`
+        )
+        events = await fetchEventsSafe(
+          {
+            sport: mapping.sport,
+            league: mapping.league,
+            status: statusFilters,
+          },
+          {
+            live: true,
+            revalidateSeconds: Math.max(opts.revalidateSeconds ?? 20, 10),
+          }
+        )
+      }
+    } else {
+      events = await fetchEventsSafe(
+        {
+          sport: mapping.sport,
+          league: mapping.league,
+          status: statusFilters,
+        },
+        {
+          live: opts.live,
+          revalidateSeconds: opts.live ? undefined : Math.max(opts.revalidateSeconds ?? 60, 30),
+        }
+      )
+    }
+  } catch (error) {
+    throw error instanceof Error ? error : new OddsAPIError(String(error))
+  }
+
+  if (!Array.isArray(events) || events.length === 0) {
+    return []
+  }
+
+  const eventLookup = new Map(events.map((event) => [String(event.id), event]))
+  const ids: string[] = Array.from(eventLookup.keys())
   if (ids.length === 0) return []
 
-  const bookmakersParam = pickBookmakersParam()
+  const envBookmakers = pickBookmakersParam()
+  await ensureBookmakersSelection(envBookmakers ?? null)
   const chunks: string[][] = []
   for (let i = 0; i < ids.length; i += 10) chunks.push(ids.slice(i, i + 10))
 
-  const games: OddsGame[] = []
+  const loadGames = async (bookmakersFilter?: string | null): Promise<OddsGame[]> => {
+    const games: OddsGame[] = []
 
-  for (const chunk of chunks) {
-    const oddsUrl = new URL(`${ODDS_IO_BASE}/odds/multi`)
-    oddsUrl.searchParams.set('apiKey', apiKey)
-    oddsUrl.searchParams.set('eventIds', chunk.join(','))
-    if (bookmakersParam) oddsUrl.searchParams.set('bookmakers', bookmakersParam)
+    for (const chunk of chunks) {
+      const activeFilter =
+        bookmakersFilter === undefined ? envBookmakers : bookmakersFilter
+      const data = await fetchMultiEventOdds(chunk, activeFilter ?? null, oddsFetchInit)
+      if (!Array.isArray(data) || !data.length) continue
 
-    const data = await fetchJson(oddsUrl.toString(), fetchInit)
-    if (!Array.isArray(data)) continue
+      for (const ev of data) {
+        const meta = eventLookup.get(String(ev.id))
+        const home = ev.home || meta?.home || ''
+        const away = ev.away || meta?.away || ''
+        const bk = mapBookmakersIO(ev.bookmakers || {}, home, away, _markets)
+        if (bk.length === 0) continue
 
-    for (const ev of data) {
-      const home = ev.home || events.find((e: any) => String(e.id) === String(ev.id))?.home || ''
-      const away = ev.away || events.find((e: any) => String(e.id) === String(ev.id))?.away || ''
-      const bk = mapBookmakersIO(ev.bookmakers || {}, home, away)
-      if (bk.length === 0) continue
-
-      const commence = ev.date || events.find((e: any) => String(e.id) === String(ev.id))?.date || new Date().toISOString()
-      games.push({
-        id: String(ev.id),
-        sport_key: sportKey,
-        sport_title: mapping.league.toUpperCase(),
-        commence_time: String(commence),
-        home_team: String(home),
-        away_team: String(away),
-        bookmakers: bk,
-      })
+        const commence = ev.date || meta?.date || new Date().toISOString()
+        games.push({
+          id: String(ev.id),
+          sport_key: sportKey,
+          sport_title: mapping.league.toUpperCase(),
+          commence_time: String(commence),
+          home_team: String(home),
+          away_team: String(away),
+          bookmakers: bk,
+        })
+      }
     }
+
+    return games
+  }
+
+  let games: OddsGame[] = []
+  try {
+    games = await loadGames(undefined)
+  } catch (error: any) {
+    const message = String(error?.message || '')
+    if (
+      envBookmakers &&
+      (error instanceof OddsAPIError || message.includes('bookmaker')) &&
+      message.toLowerCase().includes('not a valid bookmaker')
+    ) {
+      console.warn(
+        `[ODDS] Invalid bookmaker in filter "${envBookmakers}", retrying without filter`
+      )
+      games = await loadGames(null)
+    } else {
+      throw error
+    }
+  }
+
+  if (!games.length && envBookmakers) {
+    console.warn(
+      '[ODDS] No bookmakers returned for ' + sportKey + ' with filter "' + envBookmakers + '", retrying without filter'
+    )
+    games = await loadGames(null)
   }
 
   return games
@@ -211,7 +737,7 @@ export async function fetchOdds(
 
   const marketsParam = markets.join(',')
   const url = `${ODDS_API_BASE}/sports/${sport}/odds/?regions=us&markets=${marketsParam}&oddsFormat=american`
-  const fetchInit: RequestInit = options.live
+  const fetchInit: NextFetchRequestInit = options.live
     ? { cache: 'no-store' }
     : { next: { revalidate: options.revalidateSeconds ?? DEFAULT_REVALIDATE_SECONDS } }
 
@@ -231,15 +757,7 @@ export async function fetchOdds(
 export async function fetchSports(): Promise<any[]> {
   const provider = (process.env.ODDS_PROVIDER || 'odds-api-io').toLowerCase()
   if (provider === 'odds-api-io') {
-    const url = `${ODDS_IO_BASE}/sports`
-    try {
-      // This endpoint does not require authentication per provider docs
-      const response = await fetch(url, { next: { revalidate: 3600 } })
-      return await response.json()
-    } catch (error) {
-      if (error instanceof OddsAPIError) throw error
-      throw new OddsAPIError(`Failed to fetch sports (Odds-API.io): ${error}`)
-    }
+    return listSports()
   }
 
   const url = `${ODDS_API_BASE}/sports/`
@@ -386,20 +904,47 @@ export async function fetchEventsIO(
   const mapping = SPORT_MAP[sportKey]
   if (!mapping) return []
   const apiKey = getOddsIOKey()
-  const status = opts.status || 'pending'
-  const url = new URL(`${ODDS_IO_BASE}/events`)
-  url.searchParams.set('apiKey', apiKey)
-  url.searchParams.set('sport', mapping.sport)
-  url.searchParams.set('league', mapping.league)
-  url.searchParams.set('status', status)
+  const requestedStatus = opts.status || 'pending'
+  const statusQueue = requestedStatus === 'live' ? ['live'] : ['pending']
 
-  const res = await fetch(url.toString(), { next: { revalidate: status === 'live' ? 10 : 60 } })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new OddsAPIError(`Odds-API.io events error ${res.status}: ${body || res.statusText}`, res.status)
+  let events: any[] = []
+  let lastError: Error | undefined
+  let hadSuccessfulResponse = false
+
+  for (const status of statusQueue) {
+    const url = new URL(`${ODDS_IO_BASE}/events`)
+    url.searchParams.set('apiKey', apiKey)
+    url.searchParams.set('sport', mapping.sport)
+    url.searchParams.set('league', mapping.league)
+    url.searchParams.set('status', status)
+
+    try {
+      const init: NextFetchRequestInit = { next: { revalidate: status === 'live' ? 10 : 60 } }
+      const res = await fetch(url.toString(), init)
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        lastError = new OddsAPIError(
+          `Odds-API.io events error ${res.status}: ${body || res.statusText}`,
+          res.status
+        )
+        continue
+      }
+
+      hadSuccessfulResponse = true
+      const payload = (await res.json()) as any[]
+      if (Array.isArray(payload) && payload.length > 0) {
+        events = payload
+        break
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+    }
   }
-  const events = (await res.json()) as any[]
-  if (!Array.isArray(events)) return []
+
+  if (!events.length) {
+    if (lastError && !hadSuccessfulResponse) throw lastError
+    return []
+  }
 
   const tz = opts.tz || 'America/New_York'
   const day = opts.day || 'today'
@@ -422,6 +967,7 @@ export async function fetchEventsIO(
     home: String(ev.home),
     away: String(ev.away),
     date: String(ev.date),
-    status: String(ev.status || 'pending'),
+    status: String(ev.status || requestedStatus),
   }))
 }
+

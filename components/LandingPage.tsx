@@ -142,16 +142,25 @@ function AIBrain() {
 
 function SportsbookTicker() {
   const sportsbooks = [
-    "FanDuel", "DraftKings", "BetMGM", "Caesars", "Fanatics", "Bet365",
-    "BetRivers", "Hard Rock", "Pinnacle", "PointsBet", "Bovada", "Stake", "Fliff"
+    { name: "FanDuel", logo: "https://logos-world.net/wp-content/uploads/2024/10/FanDuel-Logo-500x281.png" },
+    { name: "DraftKings", logo: "https://companieslogo.com/img/orig/DKNG_BIG-9bcdf411.png?t=1720244491" },
+    { name: "BetMGM", logo: "https://www.pngall.com/wp-content/uploads/17/BETMGM-Logo-Distinct-Design-PNG-thumb.png" },
+    { name: "Caesars", logo: "https://w7.pngwing.com/pngs/576/343/png-transparent-caesars-hd-logo.png" },
+    { name: "Fanatics", logo: "https://th.bing.com/th/id/R.f81ccad342d6e34bf8bf84a4ddeb9ea7?rik=fLrtlzA1wgHf%2fw&pid=ImgRaw&r=0" },
+    { name: "Bet365", logo: "https://magicgoals.live/wp-content/uploads/2023/01/bet365-logo.png" },
+    { name: "BetRivers", logo: "https://assets.actionnetwork.com/800x405/486540_BetRivers_1200x608.png" },
+    { name: "Pinnacle", logo: "https://th.bing.com/th/id/R.38eec8450d7dc257896f7893d0a0fa68?rik=A1vhXbQI8R%2fzwA&riu=http%3a%2f%2fgruenzeug-graz.at%2fwp-content%2fuploads%2fpinnacle-sports-logo.png&ehk=Y%2bxlVb%2b6i9Seu4nSU2dXaouFXVbtFSztDndLfOB00zA%3d&risl=&pid=ImgRaw&r=0" },
+    { name: "Bovada", logo: "https://atlantapokerclub.com/wp-content/uploads/2018/12/reviews-bovada-logo.png" },
+    { name: "Stake", logo: "https://d1nz104zbf64va.cloudfront.net/global/b/o/stake.png" },
+    { name: "Fliff", logo: "https://hellorookie.com/wp-content/uploads/2023/08/Fliff-Logo-Light.png" },
   ]
 
   // Duplicate the array for seamless loop
   const duplicatedBooks = [...sportsbooks, ...sportsbooks]
 
   return (
-    <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 py-8">
-      <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-transparent to-slate-900 z-10 pointer-events-none" />
+    <div className="relative overflow-hidden bg-white py-8">
+      <div className="absolute inset-0 bg-gradient-to-r from-white via-transparent to-white z-10 pointer-events-none" />
       <motion.div
         className="flex gap-12 items-center"
         animate={{
@@ -161,17 +170,26 @@ function SportsbookTicker() {
           x: {
             repeat: Infinity,
             repeatType: "loop",
-            duration: 30,
+            duration: 18,
             ease: "linear",
           },
         }}
       >
         {duplicatedBooks.map((book, index) => (
-          <div
-            key={index}
-            className="flex-shrink-0 text-white/80 font-semibold text-lg whitespace-nowrap"
-          >
-            {book}
+          <div key={index} className="flex-shrink-0 flex items-center gap-2 text-slate-700 font-semibold text-lg whitespace-nowrap">
+            {book.logo ? (
+              <div className="h-12 w-32 relative flex items-center justify-center">
+                <Image
+                  src={book.logo}
+                  alt={`${book.name} logo`}
+                  fill
+                  className="object-contain"
+                  sizes="128px"
+                />
+              </div>
+            ) : (
+              book.name
+            )}
           </div>
         ))}
       </motion.div>

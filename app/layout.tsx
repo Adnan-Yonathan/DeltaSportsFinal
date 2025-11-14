@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import { PostHogProvider } from '@/lib/posthog/provider'
 import StagewiseToolbar from '@/components/StagewiseToolbar'
 import { SupabaseAuthListener } from '@/components/SupabaseAuthListener'
 
@@ -17,11 +16,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <PostHogProvider>
-          <StagewiseToolbar />
-          <SupabaseAuthListener />
-          {children}
-        </PostHogProvider>
+        <StagewiseToolbar />
+        <SupabaseAuthListener />
+        {children}
       </body>
     </html>
   )

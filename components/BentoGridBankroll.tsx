@@ -236,7 +236,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
     const probabilities: Record<string, number> = {}
 
     activeBets.forEach(bet => {
-      const liveGame = matchBetToGame(bet.game_description, liveScores)
+      const liveGame = matchBetToGame(bet.game_description, liveScores, bet.sport)
 
       if (liveGame && liveGame.status === 'in') {
         try {
@@ -824,7 +824,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
               </h3>
               <div className="space-y-2">
                 {activeBets.map((bet, index) => {
-                  const liveGame = matchBetToGame(bet.game_description, liveScores)
+                  const liveGame = matchBetToGame(bet.game_description, liveScores, bet.sport)
                   const isLive = liveGame && liveGame.status === 'in'
 
                   return (

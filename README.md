@@ -32,7 +32,7 @@ Key traits:
 - Arbitrage finder surfaces guaranteed-profit legs as soon as price disparities appear.
 
 ### AI Betting Copilot
-- Streaming GPT-4o assistant with Supabase-authenticated sessions and PostHog telemetry.
+- Streaming GPT-4o assistant with Supabase-authenticated sessions.
 - Custom statistical models can be defined, saved, and re-run from the chat interface.
 - Context packer stitches bankroll state, injuries, recent form, market snapshots, and live odds into every prompt so answers stay grounded.
 
@@ -58,17 +58,21 @@ Key traits:
 | AI | OpenAI GPT-4o / GPT-4o-mini (chat, titles, custom model builder) |
 | Sports Data | Odds-API.io (multi-book, pre-match/live; ML/Spreads/Totals/Props) |
 | Automation | Optional GitHub Actions jobs, ingest scripts |
-| Observability | PostHog (client + server) |
+| Observability | Server-side logging |
 
 ---
 
 ## Key Endpoints
 
-- `/api/odds/games?sport=basketball_nba&live=true` — Live odds snapshot for a sport.
-- `/api/odds/best?sport=basketball_nba&live=false` — Best price per market by game.
-- `/api/arbitrage?sport=basketball_nba&minProfit=1&live=false` — Arbitrage scan.
-- `/api/bankroll/stats?period=7d` — Bankroll KPIs with CLV summary.
-- `POST /api/bankroll/recalc-clv?period=7d` — On-demand CLV recompute.
+- `/api/odds/games?sport=basketball_nba&live=true` – Live odds snapshot for a sport.
+- `/api/odds/best?sport=basketball_nba&live=false` – Best price per market by game.
+- `/api/arbitrage?sport=basketball_nba&minProfit=1&live=false` – Arbitrage scan.
+- `/api/bankroll/stats?period=7d` – Bankroll KPIs with CLV summary.
+- `POST /api/bankroll/recalc-clv?period=7d` – On-demand CLV recompute.
+- `/api/sports` / `/api/leagues?sport=football` – Provider-backed sport and league catalogs for dropdowns.
+- `/api/events`, `/api/events/live`, `/api/events/[id]`, `/api/events/search` – Schedule accessors with timezone-aware filtering.
+- `/api/odds/event`, `/api/odds/multi`, `/api/odds/updated`, `/api/odds/movements` – Direct odds + movement feeds for widgets and recorders.
+- `POST /api/bookmakers/select` – Persist the bookmaker filter used for Odds-API.io requests.
 
 ---
 
@@ -111,6 +115,7 @@ Common checks:
 - Ensure `ODDS_API_KEY` is set and `ODDS_PROVIDER=odds-api-io` in your environment.
 - Sanity test odds: `GET /api/odds/games?sport=basketball_nba`.
 - Recompute CLV: `POST /api/bankroll/recalc-clv?period=7d`.
+- Validate odds normalization helpers: `npm run test:odds`.
 
 ---
 

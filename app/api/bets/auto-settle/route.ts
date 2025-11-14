@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     for (const bet of pendingBets) {
       try {
         // Match bet to a game
-        const matchedGame = matchBetToGame(bet.game_description, liveScores)
+        const matchedGame = matchBetToGame(bet.game_description, liveScores, bet.sport)
 
         if (!matchedGame) {
           // No matching game found - skip
@@ -185,7 +185,7 @@ export async function GET(req: NextRequest) {
 
     // Check each bet
     for (const bet of pendingBets) {
-      const matchedGame = matchBetToGame(bet.game_description, liveScores)
+      const matchedGame = matchBetToGame(bet.game_description, liveScores, bet.sport)
 
       if (matchedGame && matchedGame.status === 'post') {
         const settlement = determineBetOutcome(bet, matchedGame)

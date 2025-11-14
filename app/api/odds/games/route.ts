@@ -29,8 +29,11 @@ export async function GET(req: NextRequest) {
     }
 
     const markets = marketsParam ? marketsParam.split(',') : ['h2h', 'spreads', 'totals']
+    const liveParam = searchParams.get('live')
+    const live =
+      liveParam === null ? false : liveParam === 'true' || liveParam === '1'
 
-    const games = await fetchOdds(sport, markets, { live: true })
+    const games = await fetchOdds(sport, markets, { live })
 
     return NextResponse.json({ games })
   } catch (error) {

@@ -2,11 +2,11 @@
 import OpenAI from 'openai'
 import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
+import type { OddsGame } from '@/lib/types/odds'
 import { enrichGamesWithStats, formatEnrichedGamesForAI } from '@/lib/stats-enrichment'
 import { getTeamStats, getInjuryReports, formatStatsForAI } from '@/lib/sports-stats-api'
 import { fetchESPNScores, fetchESPNScoresForDate } from '@/lib/espn-api'
 import { fetchEventsIO } from '@/lib/api/odds-api'
-import { getPostHogServer, trackLLMInteraction } from '@/lib/posthog/server'
 import { listCustomModels, saveCustomModel, touchCustomModelUsage, CustomModelRow } from '@/lib/models/custom-models'
 import { CustomModelStatInput } from '@/lib/models/custom-model-types'
 import { runCustomModel } from '@/lib/models/model-runner'
@@ -891,13 +891,97 @@ export async function POST(req: NextRequest) {
       contextMessage += '- Custom models ready: none yet (offer to help user build one)\n'
     }
 
-    // Determine if we need to fetch odds data
-    const needsOdds = message.toLowerCase().match(
+    const msgLower = message.toLowerCase()
+    const oddsKeywordMatch = msgLower.match(
       /(odds|lines|spread|moneyline|total|over|under|bet|game|match|tonight|today|tomorrow|arbitrage|arb)/i
     )
-
-    const msgLower = message.toLowerCase()
     const scheduleIntent = /(games?|schedule|who plays|playing|matchups?|match|game time|tipoff|puck drop|first pitch|score|scores?|final|quarter|period|inning|today|tonight|tomorrow)\b/i.test(msgLower)
+    const wantsLiveOdds = /(live|in-play|inplay|scores?|score|current|now|ongoing)/i.test(msgLower)
+
+    const teamVariations: { [key: string]: string[] } = {
+      // NBA Teams (base name as key)
+      'lakers': ['lakers', 'la lakers', 'los angeles lakers', 'l.a. lakers'],
+      'warriors': ['warriors', 'golden state', 'gsw'],
+      'celtics': ['celtics', 'boston'],
+      'heat': ['heat', 'miami heat'],
+      'bucks': ['bucks', 'milwaukee'],
+      'suns': ['suns', 'phoenix'],
+      'nets': ['nets', 'brooklyn'],
+      'nuggets': ['nuggets', 'denver'],
+      'clippers': ['clippers', 'la clippers', 'los angeles clippers'],
+      'mavericks': ['mavericks', 'mavs', 'dallas'],
+      'grizzlies': ['grizzlies', 'memphis'],
+      'timberwolves': ['timberwolves', 'wolves', 'minnesota', 't-wolves'],
+      'pelicans': ['pelicans', 'pels', 'new orleans'],
+      'kings': ['kings', 'sacramento'],
+      'sixers': ['76ers', 'sixers', 'philadelphia', 'philly'],
+      'knicks': ['knicks', 'new york knicks', 'ny knicks'],
+      'hawks': ['hawks', 'atlanta'],
+      'bulls': ['bulls', 'chicago bulls'],
+      'cavaliers': ['cavaliers', 'cavs', 'cleveland'],
+      'raptors': ['raptors', 'toronto'],
+      'pacers': ['pacers', 'indiana'],
+      'magic': ['magic', 'orlando'],
+      'hornets': ['hornets', 'charlotte'],
+      'pistons': ['pistons', 'detroit'],
+      'wizards': ['wizards', 'washington'],
+      'thunder': ['thunder', 'okc', 'oklahoma city'],
+      'jazz': ['jazz', 'utah'],
+      'rockets': ['rockets', 'houston rockets'],
+      'spurs': ['spurs', 'san antonio'],
+      'blazers': ['blazers', 'trail blazers', 'portland'],
+      // NFL Teams
+      'chiefs': ['chiefs', 'kansas city', 'kc'],
+      'bills': ['bills', 'buffalo'],
+      'bengals': ['bengals', 'cincinnati'],
+      'ravens': ['ravens', 'baltimore'],
+      '49ers': ['49ers', 'niners', 'san francisco', 'sf'],
+      'eagles': ['eagles', 'philadelphia eagles'],
+      'cowboys': ['cowboys', 'dallas cowboys'],
+      'packers': ['packers', 'green bay'],
+      'rams': ['rams', 'la rams', 'los angeles rams'],
+      'buccaneers': ['buccaneers', 'bucs', 'tampa bay', 'tampa'],
+      'chargers': ['chargers', 'la chargers', 'los angeles chargers'],
+      'dolphins': ['dolphins', 'miami dolphins'],
+      'jets': ['jets', 'new york jets', 'ny jets'],
+      'patriots': ['patriots', 'pats', 'new england'],
+      'raiders': ['raiders', 'las vegas', 'lv raiders'],
+      'broncos': ['broncos', 'denver broncos'],
+      'colts': ['colts', 'indianapolis'],
+      'jaguars': ['jaguars', 'jags', 'jacksonville'],
+      'titans': ['titans', 'tennessee'],
+      'texans': ['texans', 'houston texans'],
+      'steelers': ['steelers', 'pittsburgh'],
+      'browns': ['browns', 'cleveland browns'],
+      'saints': ['saints', 'new orleans saints'],
+      'seahawks': ['seahawks', 'seattle'],
+      'panthers': ['panthers', 'carolina'],
+      'falcons': ['falcons', 'atlanta falcons'],
+      'cardinals': ['cardinals', 'arizona cardinals'],
+      'vikings': ['vikings', 'minnesota vikings'],
+      'lions': ['lions', 'detroit lions'],
+      'bears': ['bears', 'chicago bears'],
+      'commanders': ['commanders', 'washington commanders'],
+      'giants': ['giants', 'new york giants', 'ny giants'],
+    }
+
+    const extractTeamNames = (msg: string): string[] => {
+      const foundTeams: string[] = []
+      const lowerMsg = msg.toLowerCase()
+
+      for (const [baseTeam, variations] of Object.entries(teamVariations) as [string, string[]][]) {
+        if (variations.some((variation) => lowerMsg.includes(variation))) {
+          foundTeams.push(baseTeam)
+        }
+      }
+
+      return foundTeams
+    }
+
+    const mentionedTeams = extractTeamNames(msgLower)
+
+    const shouldFetchOdds =
+      Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0
     let scoresContext = ''
     if (scheduleIntent) {
       console.log('[SCHEDULE] Request detected, fetching provider events...')
@@ -941,107 +1025,22 @@ export async function POST(req: NextRequest) {
     }
 
     let oddsContext = ''
-    if (needsOdds) {
+    if (shouldFetchOdds) {
       console.log('[ODDS] Odds request detected, fetching data...')
       try {
         // Try to extract sport from message
-        const messageLower = message.toLowerCase()
+        const messageLower = msgLower
 
         // Detect if user is asking about tomorrow
-        const isTomorrowQuery = messageLower.match(/(tomorrow|tmrw|next day)/i)
-        const isTodayQuery = messageLower.match(/(today|tonight|this evening)/i)
+        const isTomorrowQuery = messageLower.match(/(tomorrow(?:'|’)?s?|tmrw|next day)/i)
+        const isTodayQuery = messageLower.match(/(today(?:'|’)?s?|tonight|this evening)/i)
 
         // Decide whether to fetch LIVE vs PENDING odds
-        // Only fetch LIVE if the user explicitly asks for live/current/score context
-        const wantsLiveOdds = /(live|in-play|inplay|scores?|score|current|now|ongoing)/i.test(messageLower)
-        const fetchLive = Boolean(wantsLiveOdds) && !isTomorrowQuery
+        // Fetch LIVE when the user explicitly asks for live context or mentions specific teams (implies current interest)
+        const fetchLive = !isTomorrowQuery && (Boolean(wantsLiveOdds) || mentionedTeams.length > 0)
         const requestedLive = fetchLive
         let usedLive = false
         let usedFallback = false
-
-        // Comprehensive team name mapping with variations
-        const teamVariations: { [key: string]: string[] } = {
-          // NBA Teams (base name as key)
-          'lakers': ['lakers', 'la lakers', 'los angeles lakers', 'l.a. lakers'],
-          'warriors': ['warriors', 'golden state', 'gsw'],
-          'celtics': ['celtics', 'boston'],
-          'heat': ['heat', 'miami heat'],
-          'bucks': ['bucks', 'milwaukee'],
-          'suns': ['suns', 'phoenix'],
-          'nets': ['nets', 'brooklyn'],
-          'nuggets': ['nuggets', 'denver'],
-          'clippers': ['clippers', 'la clippers', 'los angeles clippers'],
-          'mavericks': ['mavericks', 'mavs', 'dallas'],
-          'grizzlies': ['grizzlies', 'memphis'],
-          'timberwolves': ['timberwolves', 'wolves', 'minnesota', 't-wolves'],
-          'pelicans': ['pelicans', 'pels', 'new orleans'],
-          'kings': ['kings', 'sacramento'],
-          'sixers': ['76ers', 'sixers', 'philadelphia', 'philly'],
-          'knicks': ['knicks', 'new york knicks', 'ny knicks'],
-          'hawks': ['hawks', 'atlanta'],
-          'bulls': ['bulls', 'chicago bulls'],
-          'cavaliers': ['cavaliers', 'cavs', 'cleveland'],
-          'raptors': ['raptors', 'toronto'],
-          'pacers': ['pacers', 'indiana'],
-          'magic': ['magic', 'orlando'],
-          'hornets': ['hornets', 'charlotte'],
-          'pistons': ['pistons', 'detroit'],
-          'wizards': ['wizards', 'washington'],
-          'thunder': ['thunder', 'okc', 'oklahoma city'],
-          'jazz': ['jazz', 'utah'],
-          'rockets': ['rockets', 'houston rockets'],
-          'spurs': ['spurs', 'san antonio'],
-          'blazers': ['blazers', 'trail blazers', 'portland'],
-          // NFL Teams
-          'chiefs': ['chiefs', 'kansas city', 'kc'],
-          'bills': ['bills', 'buffalo'],
-          'bengals': ['bengals', 'cincinnati'],
-          'ravens': ['ravens', 'baltimore'],
-          '49ers': ['49ers', 'niners', 'san francisco', 'sf'],
-          'eagles': ['eagles', 'philadelphia eagles'],
-          'cowboys': ['cowboys', 'dallas cowboys'],
-          'packers': ['packers', 'green bay'],
-          'rams': ['rams', 'la rams', 'los angeles rams'],
-          'buccaneers': ['buccaneers', 'bucs', 'tampa bay', 'tampa'],
-          'chargers': ['chargers', 'la chargers', 'los angeles chargers'],
-          'dolphins': ['dolphins', 'miami dolphins'],
-          'jets': ['jets', 'new york jets', 'ny jets'],
-          'patriots': ['patriots', 'pats', 'new england'],
-          'raiders': ['raiders', 'las vegas', 'lv raiders'],
-          'broncos': ['broncos', 'denver broncos'],
-          'colts': ['colts', 'indianapolis'],
-          'jaguars': ['jaguars', 'jags', 'jacksonville'],
-          'titans': ['titans', 'tennessee'],
-          'texans': ['texans', 'houston texans'],
-          'steelers': ['steelers', 'pittsburgh'],
-          'browns': ['browns', 'cleveland browns'],
-          'saints': ['saints', 'new orleans saints'],
-          'seahawks': ['seahawks', 'seattle'],
-          'panthers': ['panthers', 'carolina'],
-          'falcons': ['falcons', 'atlanta falcons'],
-          'cardinals': ['cardinals', 'arizona'],
-          'vikings': ['vikings', 'minnesota vikings'],
-          'lions': ['lions', 'detroit lions'],
-          'bears': ['bears', 'chicago bears'],
-          'commanders': ['commanders', 'washington'],
-          'giants': ['giants', 'new york giants', 'ny giants'],
-        }
-
-        // Extract team names from message
-        const extractTeamNames = (msg: string): string[] => {
-          const foundTeams: string[] = []
-          const lowerMsg = msg.toLowerCase()
-
-          for (const [baseTeam, variations] of Object.entries(teamVariations) as [string, string[]][]) {
-            if (variations.some(variation => lowerMsg.includes(variation))) {
-              foundTeams.push(baseTeam)
-            }
-          }
-
-          return foundTeams
-        }
-
-        const mentionedTeams = extractTeamNames(messageLower)
 
         // Simple team lists for league detection
         const nbaTeams = ['lakers', 'celtics', 'warriors', 'bulls', 'heat', 'knicks', 'nets',
@@ -1102,8 +1101,8 @@ export async function POST(req: NextRequest) {
           sports = ['basketball_nba', 'americanfootball_nfl', 'icehockey_nhl']
         }
         // If no specific sport detected but user is asking about odds/games, fetch all major sports
-        else if (needsOdds && sports.length === 0) {
-          sports = ['basketball_nba', 'americanfootball_nfl', 'icehockey_nhl']
+        else if (shouldFetchOdds && sports.length === 0) {
+          sports = ['basketball_nba', 'americanfootball_nfl', 'icehockey_nhl', 'baseball_mlb']
         }
 
         if (sports.length > 0) {
@@ -1127,28 +1126,37 @@ export async function POST(req: NextRequest) {
           // Fetch odds for each sport
           for (const sport of sports) {
             try {
-              let oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: fetchLive })
-              if (Array.isArray(oddsData) && oddsData.length > 0 && fetchLive) {
-                usedLive = true
-              }
+              const pendingData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: false })
+              let oddsData = pendingData
+              let liveData: OddsGame[] = []
 
-              // Fallback: if user wanted live but nothing returned, try pending (pre-match)
-              if (Array.isArray(oddsData) && oddsData.length === 0 && fetchLive) {
-                try {
-                  const pendingData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: false })
-                  if (Array.isArray(pendingData) && pendingData.length > 0) {
-                    oddsData = pendingData
-                    usedFallback = true
-                  } else {
-                    oddsData = pendingData
-                  }
-                } catch (fallbackErr) {
-                  console.error(`[ODDS] Fallback to pending failed for ${sport}:`, fallbackErr)
+              if (fetchLive) {
+                liveData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: true })
+                if (liveData.length > 0) {
+                  usedLive = true
                 }
+
+                const combined = new Map<string, OddsGame & { status?: string }>()
+                const pushGames = (games: OddsGame[], statusLabel: 'live' | 'pre-match') => {
+                  for (const game of games) {
+                    const annotated: OddsGame & { status?: string } = {
+                      ...game,
+                      status: statusLabel === 'live' ? 'LIVE' : (game as any).status || 'PREMATCH',
+                    }
+                    combined.set(game.id, annotated)
+                  }
+                }
+
+                if (pendingData.length > 0) pushGames(pendingData, 'pre-match')
+                if (liveData.length > 0) pushGames(liveData, 'live')
+                oddsData = Array.from(combined.values())
               }
 
-              // Filter games to user's "today" or "tomorrow" in their timezone
-              if (oddsData.length > 0) {
+              usedFallback = fetchLive && !usedLive
+
+              // Filter games to user's "today" or "tomorrow" in their timezone if explicitly requested
+              const applyDayFilter = Boolean(isTomorrowQuery || isTodayQuery)
+              if (applyDayFilter && oddsData.length > 0) {
                 const now = new Date()
                 const dateInUserTZ = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
 
@@ -1232,22 +1240,50 @@ export async function POST(req: NextRequest) {
               })
             }
 
+            const MAX_GAMES_PER_SPORT = 3
+            const MAX_MARKETS_PER_BOOK = 2
+            const MAX_OUTCOMES_PER_MARKET = 3
+            const PRIORITY_MARKETS = ['h2h', 'spreads', 'totals']
+            const allowedMarketSet = new Set(PRIORITY_MARKETS)
+
             // Format odds data FIRST (don't let enrichment failures break everything)
-            const formattedOdds = allOddsData.map(sportData => ({
-              sport: sportData.sport,
-              games: sportData.games.map((game: any) => ({
-                game: `${game.away_team} @ ${game.home_team}`,
-                commence_time: game.commence_time,
-                commence_time_formatted: formatGameTime(game.commence_time),
-                bookmakers: game.bookmakers.map((book: any) => ({
-                  name: book.title,
-                  markets: book.markets.map((market: any) => ({
-                    type: market.key,
-                    outcomes: market.outcomes
+            const formattedOdds = allOddsData
+              .map((sportData) => ({
+                sport: sportData.sport,
+                games: sportData.games
+                  .slice(0, MAX_GAMES_PER_SPORT)
+                  .map((game: any) => ({
+                    game: `${game.away_team} @ ${game.home_team}`,
+                    commence_time: game.commence_time,
+                    commence_time_formatted: formatGameTime(game.commence_time),
+                    status: (game as any).status || undefined,
+                    bookmakers: (game.bookmakers || [])
+                      .map((book: any) => {
+                        const markets = (book.markets || [])
+                          .filter((market: any) => allowedMarketSet.has(market.key))
+                          .sort(
+                            (a: any, b: any) =>
+                              PRIORITY_MARKETS.indexOf(a.key) - PRIORITY_MARKETS.indexOf(b.key)
+                          )
+                          .slice(0, MAX_MARKETS_PER_BOOK)
+                          .map((market: any) => ({
+                            type: market.key,
+                            outcomes: (market.outcomes || []).slice(
+                              0,
+                              MAX_OUTCOMES_PER_MARKET
+                            ),
+                          }))
+
+                        return {
+                          name: book.title,
+                          markets,
+                        }
+                      })
+                      .filter((book: any) => book.markets.length > 0),
                   }))
-                }))
+                  .filter((game: any) => game.bookmakers.length > 0),
               }))
-            }))
+              .filter((sport) => sport.games.length > 0)
 
             const totalGames = formattedOdds.reduce((sum, sport) => sum + sport.games.length, 0)
             console.log(`[ODDS] Total games formatted: ${totalGames}`)
@@ -1324,15 +1360,15 @@ Present this odds data to the user. Create a table or list showing:
 - Available odds from different sportsbooks
 - Highlight best odds for each market
 - ONLY show games from the data below - NO OTHER GAMES
+- Keep the summary concise (aim for a few paragraphs, not a data dump).
+- After summarizing, explicitly ask the user which matchup they want deeper odds on next so you can fetch narrower data.
 
 **LIVE ODDS DATA:**
-${JSON.stringify(
-              formattedOdds,
-              null,
-              2
-            )}
+${JSON.stringify(formattedOdds)}
 
-${statsEnrichment}\n`
+${statsEnrichment}
+
+**FOLLOW-UP INSTRUCTION:** Wrap up by inviting the user to name a specific matchup for a deeper dive (e.g., "Which game should we zoom in on next?").\n`
 
             // Adjust header and access line to reflect actual mode used
             oddsContext = oddsContext.replace('LIVE ODDS DATA LOADED', `${modeLabel} ODDS DATA LOADED`)
@@ -1385,16 +1421,11 @@ ${statsEnrichment}\n`
 
     const initialMessage = initialResponse.choices[0].message
 
-    // Check if AI wants to call a function
-    if (initialMessage.tool_calls && initialMessage.tool_calls.length > 0) {
-      // Execute the function call
-      const tool_call = initialMessage.tool_calls[0]
-      const functionName = tool_call.function.name
-      const functionArgs = JSON.parse(tool_call.function.arguments)
-
+    const runToolCall = async (toolCall: any) => {
+      const functionName = toolCall.function.name
+      const functionArgs = JSON.parse(toolCall.function.arguments || '{}')
       let functionResult: any
 
-      // Execute the appropriate function
       if (functionName === 'settle_bet') {
         const { data: pendingBets } = await supabase
           .from('bets')
@@ -1593,19 +1624,6 @@ ${statsEnrichment}\n`
             notes: functionArgs.notes,
           })
 
-          const posthog = getPostHogServer()
-          posthog?.capture({
-            distinctId: userId,
-            event: 'custom_model_saved',
-            properties: {
-              model_name: savedModel.model_name,
-              sport: savedModel.sport_key,
-              market: savedModel.market_type,
-              confidence: savedModel.confidence_level,
-              conversation_id: conversationId,
-            },
-          })
-
           functionResult = {
             success: true,
             model: savedModel,
@@ -1676,20 +1694,6 @@ ${statsEnrichment}\n`
 
           await touchCustomModelUsage(supabase, modelRecord.id)
 
-          const posthog = getPostHogServer()
-          posthog?.capture({
-            distinctId: userId,
-            event: 'custom_model_applied',
-            properties: {
-              model_name: modelRecord.model_name,
-              sport: modelRecord.sport_key,
-              market: modelRecord.market_type,
-              score: result.score,
-              confidence: result.confidenceLevel,
-              conversation_id: conversationId,
-            },
-          })
-
           functionResult = {
             success: true,
             model: modelRecord,
@@ -1721,102 +1725,97 @@ ${statsEnrichment}\n`
         }
       }
 
-      // Add function result to messages
-      const assistantMessage: any = {
-        role: 'assistant',
-        tool_calls: initialMessage.tool_calls,
-      }
-      // Only include content if it exists (OpenAI requires string or omitted, not null)
-      if (initialMessage.content) {
-        assistantMessage.content = initialMessage.content
-      }
-      openaiMessages.push(assistantMessage)
+      return functionResult
+    };
 
-      openaiMessages.push({
-        role: 'tool',
-        content: JSON.stringify(functionResult),
-        tool_call_id: tool_call.id,
-      } as any)
-
-      // Get final response with function result
-      const stream = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: openaiMessages,
-        stream: true,
-        temperature: 0.7,
-        max_tokens: 4000,
-      })
-
-      // Stream the response...
+    const streamTextResponse = async (text: string) => {
       const encoder = new TextEncoder()
-      let fullResponse = ''
-      const startTime = Date.now()
-
-      const readableStream = new ReadableStream({
+      const handledStream = new ReadableStream({
         async start(controller) {
           try {
-            for await (const chunk of stream) {
-              const content = chunk.choices[0]?.delta?.content || ''
-              if (content) {
-                fullResponse += content
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`))
-              }
-            }
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: text })}\n\n`))
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+            controller.close()
 
-            const latencyMs = Date.now() - startTime
-
-            // Save assistant message (only if it has content)
-            if (fullResponse && fullResponse.trim().length > 0) {
+            if (text.trim().length > 0) {
               await supabase.from('messages').insert({
                 conversation_id: conversationId,
                 role: 'assistant',
-                content: fullResponse,
+                content: text,
               })
             }
 
-            // Auto-generate title for first exchange
             const { count: messageCount } = await supabase
               .from('messages')
               .select('*', { count: 'exact', head: true })
               .eq('conversation_id', conversationId)
 
             if (messageCount === 2) {
-              // This is the first exchange, generate a title
-              const title = await generateConversationTitle(message, fullResponse)
+              const title = await generateConversationTitle(message, text)
               await supabase
                 .from('conversations')
                 .update({ title })
                 .eq('id', conversationId)
             }
-
-            // Track LLM interaction in PostHog
-            trackLLMInteraction({
-              userId: userId,
-              model: 'gpt-4o',
-              prompt: message,
-              completion: fullResponse,
-              latencyMs: latencyMs,
-              conversationId: conversationId,
-            })
-
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-            controller.close()
           } catch (error) {
             controller.error(error)
           }
         },
       })
 
-      return new Response(readableStream, {
+      return new Response(handledStream, {
         headers: {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
           Connection: 'keep-alive',
         },
+      });
+    };
+
+    let toolMessage = initialMessage
+    let handledToolCalls = false
+
+    while (toolMessage.tool_calls && toolMessage.tool_calls.length > 0) {
+      handledToolCalls = true
+
+      const assistantMessage: any = {
+        role: 'assistant',
+        tool_calls: toolMessage.tool_calls,
+      }
+      if (toolMessage.content) {
+        assistantMessage.content = toolMessage.content
+      }
+      openaiMessages.push(assistantMessage)
+
+      for (const tool_call of toolMessage.tool_calls) {
+        const functionResult = await runToolCall(tool_call)
+        openaiMessages.push({
+          role: 'tool',
+          content: JSON.stringify(functionResult),
+          tool_call_id: tool_call.id,
+        } as any)
+      }
+
+      const followup = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: openaiMessages,
+        tools: ASSISTANT_TOOLS,
+        temperature: 0.7,
+        max_tokens: 4000,
       })
+
+      toolMessage = followup.choices[0].message
     }
 
-    // No function call, stream the initial response
+    if (handledToolCalls) {
+      const finalText =
+        toolMessage.content && toolMessage.content.trim().length > 0
+          ? toolMessage.content
+          : 'Done.';
+
+      return streamTextResponse(finalText)
+    }
+
     const stream = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: openaiMessages,
@@ -1826,7 +1825,6 @@ ${statsEnrichment}\n`
       max_tokens: 4000,
     })
 
-    // Create a readable stream for the response
     const encoder = new TextEncoder()
     let fullResponse = ''
     const startTime = Date.now()
@@ -1844,7 +1842,6 @@ ${statsEnrichment}\n`
 
           const latencyMs = Date.now() - startTime
 
-          // Save assistant message (only if it has content)
           if (fullResponse && fullResponse.trim().length > 0) {
             await supabase.from('messages').insert({
               conversation_id: conversationId,
@@ -1853,30 +1850,18 @@ ${statsEnrichment}\n`
             })
           }
 
-          // Auto-generate title for first exchange
           const { count: messageCount } = await supabase
             .from('messages')
             .select('*', { count: 'exact', head: true })
             .eq('conversation_id', conversationId)
 
           if (messageCount === 2) {
-            // This is the first exchange, generate a title
             const title = await generateConversationTitle(message, fullResponse)
             await supabase
               .from('conversations')
               .update({ title })
               .eq('id', conversationId)
           }
-
-          // Track LLM interaction in PostHog
-          trackLLMInteraction({
-            userId: userId,
-            model: 'gpt-4o',
-            prompt: message,
-            completion: fullResponse,
-            latencyMs: latencyMs,
-            conversationId: conversationId,
-          })
 
           controller.enqueue(encoder.encode('data: [DONE]\n\n'))
           controller.close()
@@ -1898,7 +1883,7 @@ ${statsEnrichment}\n`
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-    )
+    );
   }
 }
 

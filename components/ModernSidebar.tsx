@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -42,7 +42,6 @@ export default function ModernSidebar({
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [customModels, setCustomModels] = useState<CustomModel[]>([])
   const [modelsLoading, setModelsLoading] = useState(true)
-  const [quickPromptModel, setQuickPromptModel] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -113,22 +112,6 @@ export default function ModernSidebar({
       setCustomModels(data)
     }
     setModelsLoading(false)
-  }
-
-  const handleQuickPrompt = (model: CustomModel) => {
-    if (typeof window === 'undefined') return
-    const defaultPrompt = `Apply my ${model.model_name} model for ${model.market_type} (add matchup/context here)`
-    window.dispatchEvent(
-      new CustomEvent('delta-quick-prompt', {
-        detail: {
-          text: defaultPrompt,
-          autoSend: true,
-          conversationId: currentConversationId ?? undefined,
-        },
-      })
-    )
-    setQuickPromptModel(model.id)
-    setTimeout(() => setQuickPromptModel(null), 2000)
   }
 
   const deleteConversation = async (id: string, e: React.MouseEvent) => {
@@ -300,7 +283,11 @@ export default function ModernSidebar({
           )}
         </AnimatePresence>
 
-        <div className="mt-8 border-t border-white/5 pt-4">
+        <div
+          className="mt-8 border-t border-white/5 pt-4"
+          id="saved-models-section"
+          data-section="saved-models"
+        >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-full bg-white/5 text-indigo-300">
@@ -308,7 +295,7 @@ export default function ModernSidebar({
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">Saved Models</p>
-                <p className="text-xs text-white/40">Prefill prompts to apply them fast</p>
+                <p className="text-xs text-white/40">Call conversationally (e.g., &quot;run my model&quot;)</p>
               </div>
             </div>
             <button
@@ -337,19 +324,15 @@ export default function ModernSidebar({
                     <div>
                       <p className="text-sm font-semibold text-white">{model.model_name}</p>
                       <p className="text-xs text-white/50">
-                        {formatSportLabel(model.sport_key)} GÃ‡Ã³ {model.market_type}
+                        {formatSportLabel(model.sport_key)} &middot; {model.market_type}
                       </p>
                       <p className="text-[11px] text-white/40 mt-1">
-                        Conf {Math.round(Number(model.confidence_level) * 100)}% GÃ‡Ã³ {getModelTimeLabel(model)}
+                        Confidence {Math.round(Number(model.confidence_level) * 100)}% &middot; {getModelTimeLabel(model)}
                       </p>
                     </div>
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handleQuickPrompt(model)}
-                      className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-100 border border-indigo-500/40 hover:bg-indigo-500/30 transition-colors"
-                    >
-                      {quickPromptModel === model.id ? 'Prompt Ready' : 'Prefill prompt'}
-                    </motion.button>
+                    <p className="text-[11px] text-white/50 text-right leading-4">
+                      Ask DELTA to &quot;apply {model.model_name}&quot; in any chat
+                    </p>
                   </div>
                 </div>
               ))}
@@ -361,7 +344,7 @@ export default function ModernSidebar({
           )}
 
           <p className="text-[11px] text-white/40 mt-3">
-            Prefill now auto-sends &quot;Apply my model&quot; into the chat so you get projections instantly - adjust with a follow-up message if needed.
+            To use a model, tell DELTA which one to run (e.g., &quot;Apply my NBA pace model for tonight&quot;).
           </p>
         </div>
       </div>
@@ -384,5 +367,7 @@ export default function ModernSidebar({
     </div>
   )
 }
+
+
 
 

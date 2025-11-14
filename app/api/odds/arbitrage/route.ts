@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchOdds, findArbitrageOpportunities } from '@/lib/api/odds-api'
+import {
+  fetchOdds,
+  findArbitrageOpportunities,
+  fetchArbitrageOpportunitiesRemote,
+} from '@/lib/api/odds-api'
 import { createClient } from '@/lib/supabase/server'
 
 export const runtime = 'edge'
@@ -29,14 +33,41 @@ export async function GET(req: NextRequest) {
     }
 
     const threshold = thresholdParam ? parseFloat(thresholdParam) : 1.0
+    const remoteBooksParam = searchParams.get('bookmakers') || process.env.ODDS_BOOKMAKERS || undefined
+    const remoteLimitParam = searchParams.get('limit')
+    const parsedLimit = remoteLimitParam ? Number(remoteLimitParam) : undefined
+    const safeLimit =
+      parsedLimit && !Number.isNaN(parsedLimit) ? Math.min(parsedLimit, 500) : undefined
+    const includeEventDetails = searchParams.get('includeEventDetails') === 'true'
+
+    const remoteBookmakersList = remoteBooksParam
+      ? remoteBooksParam.split(',').map((entry) => entry.trim()).filter(Boolean)
+      : []
+
+    const providerPromise =
+      remoteBookmakersList.length > 0
+        ? fetchArbitrageOpportunitiesRemote(
+            {
+              bookmakers: remoteBookmakersList,
+              limit: safeLimit,
+              includeEventDetails,
+            }
+          ).catch((error) => {
+            console.warn('[ARBITRAGE] Provider opportunities failed:', error)
+            return []
+          })
+        : Promise.resolve([])
 
     // Fetch odds with all markets
-    const games = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: true })
+    const [games, providerOpportunities] = await Promise.all([
+      fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: true }),
+      providerPromise,
+    ])
 
     // Find arbitrage opportunities
     const opportunities = findArbitrageOpportunities(games, threshold)
 
-    return NextResponse.json({ opportunities })
+    return NextResponse.json({ opportunities, providerOpportunities })
   } catch (error) {
     console.error('Arbitrage API error:', error)
     return NextResponse.json(

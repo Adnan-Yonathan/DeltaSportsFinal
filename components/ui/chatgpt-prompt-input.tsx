@@ -52,7 +52,6 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
     const [isImageDialogOpen, setIsImageDialogOpen] = React.useState(false);
     const [isRecording, setIsRecording] = React.useState(false);
     const [isTranscribing, setIsTranscribing] = React.useState(false);
-    const elevenLabsKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY;
     React.useImperativeHandle(ref, () => internalTextareaRef.current!, []);
     React.useLayoutEffect(() => { const textarea = internalTextareaRef.current; if (textarea) { textarea.style.height = "auto"; const newHeight = Math.min(textarea.scrollHeight, 200); textarea.style.height = `${newHeight}px`; } }, [value]);
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setValue(e.target.value); if (props.onChange) props.onChange(e); };
@@ -66,35 +65,31 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
     };
 
     const uploadRecording = async (blob: Blob) => {
-      if (!elevenLabsKey) return;
       setIsTranscribing(true);
       try {
         const formData = new FormData();
         formData.append("file", blob, "recording.webm");
-        formData.append("model", "eleven_monolingual_v1");
-        const response = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
+        const response = await fetch("/api/transcribe", {
           method: "POST",
-          headers: {
-            "xi-api-key": elevenLabsKey,
-          },
           body: formData,
         });
         if (!response.ok) {
-          throw new Error("ElevenLabs transcription failed");
+          const error = await response.json();
+          throw new Error(error.error || "Transcription failed");
         }
-        const payload = await response.json();
-        if (payload?.text) {
-          appendTranscription(payload.text.trim());
+        const result = await response.json();
+        if (result?.text) {
+          appendTranscription(result.text.trim());
         }
-      } catch (error) {
-        console.error("ElevenLabs transcription error:", error);
+      } catch (error: any) {
+        console.error("Transcription error:", error);
+        alert(`Failed to transcribe audio: ${error.message}`);
       } finally {
         setIsTranscribing(false);
       }
     };
 
     const handleMicClick = async () => {
-      if (!elevenLabsKey) return;
       if (recorderRef.current?.state === "recording") {
         recorderRef.current.stop();
         setIsRecording(false);
@@ -116,10 +111,11 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
         setIsRecording(true);
       } catch (error) {
         console.error("Microphone access denied:", error);
+        alert("Microphone access denied. Please grant permission to use voice input.");
       }
     };
 
-    const micTooltip = isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : elevenLabsKey ? "Record voice" : "ElevenLabs key missing";
+    const micTooltip = isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : "Record voice";
     return (
       <div className={cn("flex flex-col rounded-[28px] p-2 shadow-sm transition-colors bg-white/5 backdrop-blur-xl border border-white/10 cursor-text", className)}>
         <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*"/>
@@ -140,8 +136,8 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
                     <button
                       type="button"
                       onClick={handleMicClick}
-                      disabled={!elevenLabsKey || isTranscribing}
-                      className={`flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors focus-visible:outline-none ${isRecording ? "bg-red-500/20 text-red-200" : "hover:bg-white/10"} ${!elevenLabsKey || isTranscribing ? "opacity-40 cursor-not-allowed" : ""}`}
+                      disabled={isTranscribing}
+                      className={`flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors focus-visible:outline-none ${isRecording ? "bg-red-500/20 text-red-200" : "hover:bg-white/10"} ${isTranscribing ? "opacity-40 cursor-not-allowed" : ""}`}
                     >
                       <MicIcon className="h-5 w-5" />
                       <span className="sr-only">{micTooltip}</span>

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react'
-import { motion } from 'framer-motion'
-import { Send, Loader2, Paperclip } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Send, Loader2, Paperclip, Mic, MicOff } from 'lucide-react'
 
 interface MessageInputProps {
   conversationId: string
@@ -13,12 +13,147 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [isTranscribing, setIsTranscribing] = useState(false)
+  const [recordingDuration, setRecordingDuration] = useState(0)
+  const [isMicSupported, setIsMicSupported] = useState(true)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const durationIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const MAX_RECORDING_DURATION = 60000 // 60 seconds
+
+  // Check browser compatibility on mount
+  useEffect(() => {
+    const isSupported =
+      typeof MediaRecorder !== 'undefined' &&
+      typeof navigator !== 'undefined' &&
+      !!navigator.mediaDevices?.getUserMedia
+    setIsMicSupported(isSupported)
+
+    // Cleanup on unmount
+    return () => {
+      if (recorderRef.current && recorderRef.current.state === 'recording') {
+        recorderRef.current.stop()
+      }
+      if (recordingTimerRef.current) {
+        clearTimeout(recordingTimerRef.current)
+      }
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current)
+      }
+    }
+  }, [])
 
   const syncTextareaHeight = () => {
     if (!textareaRef.current) return
     textareaRef.current.style.height = 'auto'
     textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
+  }
+
+  const appendTranscription = (text: string) => {
+    setMessage((prev) => (prev ? `${prev} ${text}` : text))
+    // Sync height after appending
+    setTimeout(syncTextareaHeight, 0)
+  }
+
+  const uploadRecording = async (blob: Blob) => {
+    setIsTranscribing(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', blob, 'recording.webm')
+
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Transcription failed')
+      }
+
+      const result = await response.json()
+      if (result.text) {
+        appendTranscription(result.text.trim())
+      }
+    } catch (error: any) {
+      console.error('Transcription error:', error)
+      alert(`Failed to transcribe audio: ${error.message}`)
+    } finally {
+      setIsTranscribing(false)
+    }
+  }
+
+  const startRecording = async () => {
+    if (!isMicSupported) {
+      alert('Voice recording is not supported in your browser.')
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream)
+      const chunks: BlobPart[] = []
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data)
+      }
+
+      mediaRecorder.onstop = () => {
+        const recorded = new Blob(chunks, { type: 'audio/webm' })
+        stream.getTracks().forEach((track) => track.stop())
+        uploadRecording(recorded)
+
+        // Clear timers
+        if (recordingTimerRef.current) {
+          clearTimeout(recordingTimerRef.current)
+          recordingTimerRef.current = null
+        }
+        if (durationIntervalRef.current) {
+          clearInterval(durationIntervalRef.current)
+          durationIntervalRef.current = null
+        }
+        setRecordingDuration(0)
+      }
+
+      recorderRef.current = mediaRecorder
+      mediaRecorder.start()
+      setIsRecording(true)
+
+      // Start duration counter
+      const startTime = Date.now()
+      durationIntervalRef.current = setInterval(() => {
+        setRecordingDuration(Date.now() - startTime)
+      }, 100)
+
+      // Auto-stop after max duration
+      recordingTimerRef.current = setTimeout(() => {
+        if (mediaRecorder.state === 'recording') {
+          mediaRecorder.stop()
+          setIsRecording(false)
+        }
+      }, MAX_RECORDING_DURATION)
+    } catch (error: any) {
+      console.error('Microphone access denied:', error)
+      alert('Microphone access denied. Please grant permission to use voice input.')
+      setIsRecording(false)
+    }
+  }
+
+  const stopRecording = () => {
+    if (recorderRef.current && recorderRef.current.state === 'recording') {
+      recorderRef.current.stop()
+      setIsRecording(false)
+    }
+  }
+
+  const handleMicClick = () => {
+    if (isRecording) {
+      stopRecording()
+    } else {
+      startRecording()
+    }
   }
 
   const sendMessage = useCallback(async (override?: string) => {
@@ -165,6 +300,39 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Voice Input Button */}
+            {isMicSupported && (
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={handleMicClick}
+                disabled={sending || isTranscribing}
+                className={`p-2.5 sm:p-2 rounded-lg transition-all ${
+                  isRecording
+                    ? 'bg-red-500/20 text-red-400 animate-pulse'
+                    : isTranscribing
+                      ? 'bg-white/5 text-white/30 cursor-not-allowed'
+                      : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                }`}
+                title={
+                  isRecording
+                    ? 'Stop recording'
+                    : isTranscribing
+                      ? 'Transcribing...'
+                      : 'Start voice recording'
+                }
+              >
+                {isTranscribing ? (
+                  <Loader2 className="w-5 h-5 sm:w-4 sm:h-4 animate-spin" />
+                ) : isRecording ? (
+                  <MicOff className="w-5 h-5 sm:w-4 sm:h-4" />
+                ) : (
+                  <Mic className="w-5 h-5 sm:w-4 sm:h-4" />
+                )}
+              </motion.button>
+            )}
+
+            {/* Send Button */}
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
@@ -185,10 +353,59 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
           </div>
         </motion.div>
 
-        <div className="hidden sm:block text-xs text-white/40 mt-2 text-center">
-          Press <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Enter</kbd> to send •{' '}
-          <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Shift + Enter</kbd> for new line
-        </div>
+        {/* Recording Duration Indicator */}
+        <AnimatePresence>
+          {isRecording && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="text-center mt-2"
+            >
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-full">
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                <span className="text-xs text-red-400 font-medium">
+                  Recording {Math.floor(recordingDuration / 1000)}s / {MAX_RECORDING_DURATION / 1000}s
+                </span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Transcribing Indicator */}
+        <AnimatePresence>
+          {isTranscribing && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="text-center mt-2"
+            >
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full">
+                <Loader2 className="w-3 h-3 text-indigo-400 animate-spin" />
+                <span className="text-xs text-indigo-400 font-medium">
+                  Transcribing audio...
+                </span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {!isRecording && !isTranscribing && (
+          <div className="hidden sm:block text-xs text-white/40 mt-2 text-center">
+            Press <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Enter</kbd> to send •{' '}
+            <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Shift + Enter</kbd> for new line
+            {isMicSupported && (
+              <>
+                {' • '}
+                <span className="inline-flex items-center gap-1">
+                  <Mic className="w-3 h-3 inline" />
+                  Voice input available
+                </span>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -136,9 +136,25 @@ export async function GET(req: NextRequest) {
     // Compute CLV aggregates on-demand
     const { clvAgg } = await computeClvForBets(bets || [])
 
+    // Calculate unit-based metrics
+    const startingBalance = Number(userData.starting_bankroll)
+    const currentBalance = Number(userData.current_bankroll)
+    const unitSize = startingBalance > 0 ? startingBalance / 100 : 100 // 1% of starting bankroll
+
+    const startingUnits = startingBalance / unitSize
+    const currentUnits = currentBalance / unitSize
+    const unitsWon = totalProfit / unitSize
+    const unitsLost = 0 // Will be calculated from losing bets
+
+    // Convert daily balances to units
+    const dailyUnits = dailyBalances.map(day => ({
+      date: day.date,
+      units: day.balance / unitSize
+    }))
+
     return NextResponse.json({
-      currentBalance: Number(userData.current_bankroll),
-      startingBalance: Number(userData.starting_bankroll),
+      currentBalance,
+      startingBalance,
       totalProfit,
       roi,
       totalBets,
@@ -152,6 +168,13 @@ export async function GET(req: NextRequest) {
       biggestLoss,
       bySport,
       dailyBalances,
+      // Unit metrics
+      currentUnits,
+      startingUnits,
+      unitsWon,
+      unitsLost,
+      unitSize,
+      dailyUnits,
       clv: clvAgg || null,
       propLiveBets: await buildPropLiveInsights(supabase, bets || []),
     })

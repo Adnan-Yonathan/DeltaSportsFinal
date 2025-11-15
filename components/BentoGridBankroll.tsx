@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency } from '@/lib/utils/odds'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
@@ -25,6 +25,13 @@ interface BankrollStats {
   pendingBets: number
   totalBets?: number
   dailyBalances: { date: string; balance: number }[]
+  // Unit-based metrics
+  currentUnits: number
+  startingUnits: number
+  unitsWon: number
+  unitsLost: number
+  unitSize: number
+  dailyUnits: { date: string; units: number }[]
   clv?: {
     totalConsidered: number
     beat: number
@@ -65,54 +72,6 @@ const TEAM_STOP_WORDS = new Set(['the', 'vs', 'at', 'los', 'las', 'club', 'team'
 
 const formatBalanceTooltip = (value: number) => `$${value.toFixed(2)}`
 
-const ChartVisualization = ({
-  data,
-  height,
-}: {
-  data: ChartDataPoint[]
-  height: number
-}) => (
-  <ResponsiveContainer width="100%" height={height}>
-    <AreaChart data={data}>
-      <defs>
-        <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      <Area
-        type="monotone"
-        dataKey="balance"
-        stroke="#8b5cf6"
-        strokeWidth={2}
-        fill="url(#colorBalance)"
-      />
-      <XAxis
-        dataKey="date"
-        stroke="rgba(255,255,255,0.2)"
-        tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }}
-        tickFormatter={(value) => format(new Date(value), 'MMM d')}
-      />
-      <YAxis
-        stroke="rgba(255,255,255,0.2)"
-        tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }}
-        tickFormatter={(value) => formatBalanceTooltip(value)}
-      />
-      <Tooltip
-        contentStyle={{
-          backgroundColor: 'rgba(0,0,0,0.8)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: '8px',
-          fontSize: '12px'
-        }}
-        labelStyle={{ color: 'rgba(255,255,255,0.6)' }}
-        itemStyle={{ color: '#8b5cf6' }}
-        formatter={(value: any) => [formatBalanceTooltip(value), 'Balance']}
-      />
-    </AreaChart>
-  </ResponsiveContainer>
-)
-
 const normalizeText = (value: string) => value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ')
 
 const tokenizeTeam = (team: string): string[] =>
@@ -151,7 +110,6 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
   const [showInsights, setShowInsights] = useState(false)
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [insights, setInsights] = useState<string>('')
-  const [betProbabilities, setBetProbabilities] = useState<Record<string, number>>({})
   const [totalBetCount, setTotalBetCount] = useState(0)
   const [chartRange, setChartRange] = useState<ChartRange>('7d')
   const [isChartExpanded, setChartExpanded] = useState(false)
@@ -188,8 +146,13 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
     }
   }, [userId])
 
-  const loadData = async () => {
-    const statsRes = await fetch(`/api/bankroll/stats?period=7d`)
+  // Reload stats when chart range changes
+  useEffect(() => {
+    loadData(chartRange)
+  }, [chartRange])
+
+  const loadData = async (period: ChartRange = chartRange) => {
+    const statsRes = await fetch(`/api/bankroll/stats?period=${period}`)
     if (statsRes.ok) {
       const data = await statsRes.json()
       setStats(data)
@@ -232,8 +195,12 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
     }
   }
 
-  const calculateBetProbabilities = () => {
+  const betProbabilities = useMemo(() => {
     const probabilities: Record<string, number> = {}
+
+    if (activeBets.length === 0 || liveScores.length === 0) {
+      return probabilities
+    }
 
     activeBets.forEach(bet => {
       const liveGame = matchBetToGame(bet.game_description, liveScores, bet.sport)
@@ -318,13 +285,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
       }
     })
 
-    setBetProbabilities(probabilities)
-  }
-
-  useEffect(() => {
-    if (activeBets.length > 0 && liveScores.length > 0) {
-      calculateBetProbabilities()
-    }
+    return probabilities
   }, [activeBets, liveScores])
 
   const settleBet = async (betId: string, status: 'won' | 'lost' | 'push') => {
@@ -541,188 +502,50 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
             <p className="text-xs text-white/40 mt-1">Track your performance</p>
           </div>
 
-          {/* Bento Grid Layout */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* CLV Overview */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.12 }}
-              className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Target className="w-4 h-4 text-cyan-400" />
-                  <span className="text-xs text-white/60 uppercase tracking-wider">Beat Closing Line</span>
+          {/* Unified Unit-Centric Dashboard Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="p-6 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 backdrop-blur-sm"
+          >
+            {/* Top Row: Units + Record */}
+            <div className="flex items-start justify-between mb-6">
+              {/* Current Units */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Trophy className="w-5 h-5 text-indigo-400" />
+                  <span className="text-xs text-white/60 uppercase tracking-wider font-semibold">Current Units</span>
                 </div>
-                <button
-                  onClick={async () => {
-                    try {
-                      const res = await fetch('/api/bankroll/recalc-clv?period=7d', { method: 'POST' })
-                      if (res.ok) {
-                        await loadData()
-                      }
-                    } catch (e) { /* noop */ }
-                  }}
-                  className="text-[10px] px-2 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white"
-                >
-                  Recalculate CLV
-                </button>
-              </div>
-              {stats.clv?.totalConsidered ? (
-                <>
-                  <div className="text-2xl font-bold text-white">
-                    {((stats.clv.beat / stats.clv.totalConsidered) * 100).toFixed(1)}%
-                  </div>
-                  <div className="text-xs text-white/40 mt-1">
-                    {stats.clv.beat} beat • {stats.clv.tie} tie • {stats.clv.noBeat} didn't beat
-                  </div>
-                </>
-              ) : (
-                <div className="text-xs text-white/40">CLV will appear here after your next session.</div>
-              )}
-            </motion.div>
-
-            {/* CLV by Market */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.16 }}
-              className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <Activity className="w-4 h-4 text-cyan-400" />
-                <span className="text-xs text-white/60 uppercase tracking-wider">CLV by Market</span>
-              </div>
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between text-white/80">
-                  <span>Moneyline</span>
-                  {stats.clv?.market.moneyline.total ? (
-                    <span>
-                      {((stats.clv.market.moneyline.beat / stats.clv.market.moneyline.total) * 100).toFixed(1)}% • 
-                      ?prob {((stats.clv.market.moneyline.avgProbDelta || 0) * 100).toFixed(1)}%
-                    </span>
-                  ) : <span className="text-white/40">n/a</span>}
-                </div>
-                <div className="flex justify-between text-white/80">
-                  <span>Spread</span>
-                  {stats.clv?.market.spread.total ? (
-                    <span>
-                      {((stats.clv.market.spread.beat / stats.clv.market.spread.total) * 100).toFixed(1)}% • 
-                      ?line {(stats.clv.market.spread.avgPts || 0).toFixed(2)}
-                    </span>
-                  ) : <span className="text-white/40">n/a</span>}
-                </div>
-                <div className="flex justify-between text-white/80">
-                  <span>Total</span>
-                  {stats.clv?.market.total.total ? (
-                    <span>
-                      {((stats.clv.market.total.beat / stats.clv.market.total.total) * 100).toFixed(1)}% • 
-                      ?line {(stats.clv.market.total.avgPts || 0).toFixed(2)}
-                    </span>
-                  ) : <span className="text-white/40">n/a</span>}
+                <div className="text-5xl font-bold text-white">
+                  {stats.currentUnits?.toFixed(1) || '0.0'}u
                 </div>
               </div>
-            </motion.div>
-            {/* Balance Card - spans 2 columns */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="col-span-2 p-5 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 backdrop-blur-sm"
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Activity className="w-4 h-4 text-indigo-400" />
-                <span className="text-xs text-white/60 uppercase tracking-wider font-semibold">Current Balance</span>
-              </div>
-              <div className="text-3xl font-bold text-white mb-1">
-                {formatCurrency(stats.currentBalance)}
-              </div>
-            </motion.div>
 
-            {/* Win Rate */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <Trophy className="w-4 h-4 text-amber-400" />
-                <span className="text-xs text-white/60">Win Rate</span>
-              </div>
-              <div className="text-2xl font-bold text-white">
-                {winRate.toFixed(1)}%
-              </div>
-              <div className="text-xs text-white/40 mt-1">
-                {stats.wonBets}W - {stats.lostBets}L
-              </div>
-            </motion.div>
-
-            {/* Growth */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <Target className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs text-white/60 uppercase tracking-wider">Growth</span>
-              </div>
-              <div className={`text-2xl font-bold ${profitPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(1)}%
-              </div>
-              <div className={`text-sm ${profitChange >= 0 ? 'text-emerald-400' : 'text-red-400'} mt-1`}>
-                {profitChange >= 0 ? '+' : ''}{formatCurrency(profitChange)} {profitChange >= 0 ? 'up' : 'down'}
-              </div>
-            </motion.div>
-
-            {/* AI Insights Button - spans 2 columns */}
-            <motion.button
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.35 }}
-              onClick={getAIInsights}
-              disabled={insightsLoading || !hasEnoughHistory}
-              className="col-span-2 p-4 rounded-xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border border-purple-500/30 backdrop-blur-sm hover:from-purple-500/30 hover:to-indigo-500/30 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-500/20 group-hover:bg-purple-500/30 transition-colors">
-                    {insightsLoading ? (
-                      <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-5 h-5 text-purple-400" />
-                    )}
-                  </div>
-                  <div className="text-left">
-                    <div className="text-sm font-semibold text-white">
-                      {insightsLoading ? 'Analyzing...' : 'Get AI Analysis'}
-                    </div>
-                    <div className="text-xs text-white/60">
-                      Personalized insights on your betting performance
-                    </div>
-                  </div>
+              {/* Record */}
+              <div className="text-right">
+                <div className="text-xs text-white/60 uppercase tracking-wider mb-2">Record</div>
+                <div className="text-2xl font-bold text-white">
+                  {stats.wonBets}W - {stats.lostBets}L
                 </div>
-                {!insightsLoading && (
-                  <div className="text-purple-400 group-hover:translate-x-1 transition-transform">{'>'}</div>
-                )}
+                <div className="text-xs text-white/40 mt-1">
+                  {winRate.toFixed(1)}% win rate
+                </div>
               </div>
-            </motion.button>
-            {!hasEnoughHistory && (
-              <div className="col-span-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2">
-                Track at least 10 bets to unlock AI analysis. You currently have {totalBetCount} logged bet{totalBetCount === 1 ? '' : 's'}.
-              </div>
-            )}
+            </div>
 
-            {/* Chart - spans 2 columns */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="col-span-2 p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-            >
+            {/* Units Profit/Loss with Percentage */}
+            <div className="mb-6 p-4 rounded-lg bg-white/5">
+              <div className={`text-3xl font-bold mb-1 ${stats.unitsWon >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {stats.unitsWon >= 0 ? '+' : ''}{stats.unitsWon?.toFixed(2) || '0.00'}u
+              </div>
+              <div className={`text-lg ${stats.unitsWon >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {stats.unitsWon >= 0 ? '↑' : '↓'} {Math.abs((stats.unitsWon / stats.startingUnits) * 100).toFixed(2)}% on bankroll
+              </div>
+            </div>
+
+            {/* Balance Trend Chart */}
+            <div>
               <div className="flex items-center justify-between mb-3">
                 <div className="text-xs text-white/60 uppercase tracking-wider font-semibold">
                   Balance Trend ({chartRange.toUpperCase()})
@@ -741,79 +564,53 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                       {option.label}
                     </button>
                   ))}
-                  <button
-                    onClick={() => setChartExpanded(true)}
-                    className="px-3 py-1 text-[10px] uppercase tracking-wider rounded-full border border-purple-500/40 text-purple-200 bg-transparent"
-                  >
-                    Expand
-                  </button>
                 </div>
               </div>
-            {hasChartData ? (
-              <ChartVisualization height={220} />
-            ) : (
-              <div className="text-xs text-white/40">Not enough history to chart growth yet.</div>
-            )}
+              {hasChartData ? (
+                <ChartVisualization height={200} />
+              ) : (
+                <div className="text-xs text-white/40 text-center py-8">Not enough history to chart growth yet.</div>
+              )}
+            </div>
           </motion.div>
-          {isChartExpanded && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-              onClick={() => setChartExpanded(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                onClick={(e) => e.stopPropagation()}
-                className="w-full max-w-4xl bg-gradient-to-br from-gray-900 to-black border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
-              >
-                <div className="p-6 border-b border-white/10">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Sparkles className="w-6 h-6 text-purple-400" />
-                      <div>
-                        <h3 className="text-lg font-semibold text-white">Balance Trend (Expanded)</h3>
-                        <p className="text-xs text-white/60">
-                          Track your bankroll movement in more detail.
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setChartExpanded(false)}
-                      className="text-white/60 hover:text-white text-sm"
-                    >
-                      Close
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2 mt-4 flex-wrap">
-                    {chartRangeOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => setChartRange(option.value)}
-                        className={`px-3 py-1 rounded-full text-[10px] uppercase tracking-wider transition ${
-                          chartRange === option.value
-                            ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
-                            : 'bg-white/5 text-white/40 border border-white/10'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="p-6">
-                  {hasChartData ? (
-                    <ChartVisualization height={340} />
+
+          {/* AI Insights Button */}
+          <motion.button
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            onClick={getAIInsights}
+            disabled={insightsLoading || !hasEnoughHistory}
+            className="w-full p-4 rounded-xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border border-purple-500/30 backdrop-blur-sm hover:from-purple-500/30 hover:to-indigo-500/30 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-purple-500/20 group-hover:bg-purple-500/30 transition-colors">
+                  {insightsLoading ? (
+                    <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
                   ) : (
-                    <div className="text-xs text-white/40">Not enough history to chart growth yet.</div>
+                    <Sparkles className="w-5 h-5 text-purple-400" />
                   )}
                 </div>
-              </motion.div>
-            </motion.div>
+                <div className="text-left">
+                  <div className="text-sm font-semibold text-white">
+                    {insightsLoading ? 'Analyzing...' : 'Get AI Analysis'}
+                  </div>
+                  <div className="text-xs text-white/60">
+                    Personalized insights on your betting performance
+                  </div>
+                </div>
+              </div>
+              {!insightsLoading && (
+                <div className="text-purple-400 group-hover:translate-x-1 transition-transform">{'>'}</div>
+              )}
+            </div>
+          </motion.button>
+          {!hasEnoughHistory && (
+            <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2 mt-2">
+              Track at least 10 bets to unlock AI analysis. You currently have {totalBetCount} logged bet{totalBetCount === 1 ? '' : 's'}.
+            </div>
           )}
-        </div>
 
           {/* Active Bets */}
           {activeBets.length > 0 && (
@@ -841,7 +638,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                             {bet.game_description}
                           </div>
                           <div className="text-xs text-white/60 mt-1">
-                            {bet.bet_side} â€¢ {bet.odds > 0 ? '+' : ''}{bet.odds} â€¢ {bet.book}
+                            {bet.bet_side} • {bet.odds > 0 ? '+' : ''}{bet.odds} • {bet.book}
                           </div>
                         </div>
                         <div className="text-right">
@@ -934,8 +731,10 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
             </div>
           )}
         </div>
+      </div>
 
-        <style jsx>{`
+      <style dangerouslySetInnerHTML={{
+        __html: `
           .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
           }
@@ -949,8 +748,8 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
           .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: rgba(255, 255, 255, 0.2);
           }
-        `}</style>
-      </div>
+        `
+      }} />
 
       {/* AI Insights Modal */}
       {showInsights && (

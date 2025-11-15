@@ -366,6 +366,115 @@ export interface Database {
           captured_at?: string
         }
       }
+      team_stats: {
+        Row: {
+          id: string
+          sport_key: string
+          league: string | null
+          team_name: string
+          season: string | null
+          wins: number | null
+          losses: number | null
+          home_record: string | null
+          away_record: string | null
+          ats_record: string | null
+          over_under_record: string | null
+          points_per_game: number | null
+          points_allowed_per_game: number | null
+          pace: number | null
+          offensive_rating: number | null
+          defensive_rating: number | null
+          net_rating: number | null
+          recent_streak: string | null
+          trend_tags: string[] | null
+          provider_team_id: string | null
+          captured_at: string
+        }
+        Insert: {
+          id?: string
+          sport_key: string
+          league?: string | null
+          team_name: string
+          season?: string | null
+          wins?: number | null
+          losses?: number | null
+          home_record?: string | null
+          away_record?: string | null
+          ats_record?: string | null
+          over_under_record?: string | null
+          points_per_game?: number | null
+          points_allowed_per_game?: number | null
+          pace?: number | null
+          offensive_rating?: number | null
+          defensive_rating?: number | null
+          net_rating?: number | null
+          recent_streak?: string | null
+          trend_tags?: string[] | null
+          provider_team_id?: string | null
+          captured_at?: string
+        }
+        Update: {
+          id?: string
+          sport_key?: string
+          league?: string | null
+          team_name?: string
+          season?: string | null
+          wins?: number | null
+          losses?: number | null
+          home_record?: string | null
+          away_record?: string | null
+          ats_record?: string | null
+          over_under_record?: string | null
+          points_per_game?: number | null
+          points_allowed_per_game?: number | null
+          pace?: number | null
+          offensive_rating?: number | null
+          defensive_rating?: number | null
+          net_rating?: number | null
+          recent_streak?: string | null
+          trend_tags?: string[] | null
+          provider_team_id?: string | null
+          captured_at?: string
+        }
+      }
+      team_trends: {
+        Row: {
+          id: string
+          sport_key: string
+          league: string | null
+          team_name: string
+          trend_type: string
+          trend_window: string | null
+          trend_summary: string
+          metrics: Json | null
+          provider_team_id: string | null
+          captured_at: string
+        }
+        Insert: {
+          id?: string
+          sport_key: string
+          league?: string | null
+          team_name: string
+          trend_type: string
+          trend_window?: string | null
+          trend_summary: string
+          metrics?: Json | null
+          provider_team_id?: string | null
+          captured_at?: string
+        }
+        Update: {
+          id?: string
+          sport_key?: string
+          league?: string | null
+          team_name?: string
+          trend_type?: string
+          trend_window?: string | null
+          trend_summary?: string
+          metrics?: Json | null
+          provider_team_id?: string | null
+          captured_at?: string
+        }
+      }
       head_to_head_results: {
         Row: {
           id: string

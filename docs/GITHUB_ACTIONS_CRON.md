@@ -4,10 +4,11 @@ This project uses GitHub Actions to run scheduled tasks (cron jobs) for free, in
 
 ## Overview
 
-We have two automated workflows:
+We have three automated workflows:
 
 1. **Auto-Settlement** - Settles finished bets every 15 minutes
 2. **Line Recording** - Records betting lines every 30 minutes
+3. **Team Stats Ingestion** - Captures current team records every hour
 
 ## How It Works
 
@@ -69,6 +70,26 @@ We have two automated workflows:
 - NFL (americanfootball_nfl)
 - NHL (icehockey_nhl)
 - MLB (baseball_mlb)
+
+### 3. Team Stats Ingestion (`.github/workflows/team-stats-ingest.yml`)
+
+**Schedule:** Every hour on the hour (`0 * * * *`)
+
+**What it does:**
+- Calls the protected `POST /api/stats/ingest-team` endpoint
+- Fetches current team records from ESPN-integrated helpers
+- Inserts hourly snapshots into `team_stats` and `team_trends`
+- Derives light-weight trend tags and scoring summaries for AI consumption
+
+**Sports tracked:**
+- NBA (`basketball_nba`)
+- NFL (`americanfootball_nfl`)
+- MLB (`baseball_mlb`)
+- NHL (`icehockey_nhl`)
+
+**Endpoint:** `POST /api/stats/ingest-team`
+
+**Manual run:** Call `GET /api/stats/ingest-team` locally (or with `Authorization: Bearer CRON_SECRET` in production) or execute `npm run ingest:team-stats`.
 
 ## Setup Instructions
 

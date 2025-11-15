@@ -12,10 +12,11 @@
     "test:custom-models": "ts-node --project tsconfig.test.json tests/custom-models.spec.ts",
     "test:odds": "ts-node --project tsconfig.test.json -r tsconfig-paths/register tests/odds-api.spec.ts",
     "cleanup:messages": "npx ts-node scripts/cleanup-null-messages.ts",
-    "ingest:injuries": "ts-node --project tsconfig.scripts.json scripts/ingest-injuries.ts",
-    "ingest:recent-form": "ts-node --project tsconfig.scripts.json scripts/ingest-recent-form.ts",
-    "ingest:market-trends": "ts-node --project tsconfig.scripts.json scripts/ingest-market-trends.ts",
-    "ingest:player-props": "ts-node --project tsconfig.scripts.json scripts/ingest-player-props.ts"
+    "ingest:injuries": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-injuries.ts",
+    "ingest:recent-form": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-recent-form.ts",
+    "ingest:market-trends": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-market-trends.ts",
+    "ingest:player-props": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-player-props.ts",
+    "ingest:team-stats": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-team-stats.ts"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",

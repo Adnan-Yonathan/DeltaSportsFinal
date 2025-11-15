@@ -1,0 +1,37 @@
+name: Ingest Team Stats
+
+on:
+  schedule:
+    # Runs hourly at the top of the hour
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ingest-team-stats:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Team Stats Ingestion
+        run: |
+          echo "Triggering team stats ingestion at $(date)"
+
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.VERCEL_DOMAIN }}/api/stats/ingest-team" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: Team stats ingestion failed with status $http_code"
+            exit 1
+          fi
+
+          echo "✅ Team stats ingestion completed successfully"
+
+      - name: Log Results
+        if: always()
+        run: echo "Job completed at $(date)"

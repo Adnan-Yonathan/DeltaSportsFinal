@@ -44,3 +44,24 @@ npm run cleanup:messages
 ### After running
 
 Your chat functionality should work normally (assuming you also have OpenAI credits).
+
+## ingest-team-stats.ts
+
+Captures hourly team stats/trend snapshots for NBA, NFL, MLB, and NHL using ESPN data and stores them in the `team_stats` and `team_trends` tables.
+
+### How to run
+
+```
+npm run ingest:team-stats
+```
+
+### What it does
+
+1. Fetches team standings/metrics for each supported sport
+2. Calculates per-game scoring, streak summaries, and lightweight trend tags
+3. Inserts snapshots into Supabase (service role key required)
+
+### Notes
+
+- Requires `.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+- Mirrors the hourly GitHub Action (`team-stats-ingest.yml`) so local runs produce identical payloads

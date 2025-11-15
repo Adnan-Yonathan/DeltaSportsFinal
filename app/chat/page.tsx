@@ -49,9 +49,16 @@ export default function ChatPage() {
 
       const { data: profile } = await supabase
         .from('users')
-        .select('display_name')
+        .select('display_name, onboarding_completed')
         .eq('id', user.id)
         .single()
+
+      // Check if onboarding is completed
+      if (!profile?.onboarding_completed) {
+        router.push('/onboarding')
+        return
+      }
+
       setProfileName(profile?.display_name || user.email || 'Guest')
 
       await createInitialConversation(user.id)

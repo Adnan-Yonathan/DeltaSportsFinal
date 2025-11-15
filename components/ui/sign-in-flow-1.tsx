@@ -543,7 +543,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
       if (error) throw error;
 
       if (data.session) {
-        router.push('/chat');
+        router.push('/onboarding');
       }
     } catch (err: any) {
       setError(err.message || "Failed to create account");

@@ -454,8 +454,20 @@ When analyzing bankroll stats, provide actionable insights:
 - Always restate the configuration for confirmation before calling save_custom_model. Do not save without explicit user approval.
 - When a user says things like "apply my NBA model for totals" or "use my NFL rushing model for Derrick Henry", search the provided context for matching models, clarify if multiple exist, then call apply_custom_model with the model name and any matchup/team info mentioned.
 - Use list_custom_models when the user asks what models they have, or when you need to remind them of available names.
-- When models are applied, explain the weighted score, confidence interval, and how each stat contributed. Never fabricate statsâ€”if data is missing, state that limitation.
+- When models are applied, explain the weighted score, confidence interval, and how each stat contributed. Never fabricate statsâ€"if data is missing, state that limitation.
 - Whenever someone asks about a specific matchup or you are creating/applying a projection, first ask **"Do you want to go more in depth on the matchup?"**. If they say yes (or ask for deeper analysis), call **get_game_context** to pull injuries, team form, and market trends before responding.
+
+**Research Models (Automated Opportunity Scanners):**
+- Research models automatically scan betting markets to find opportunities matching user-defined criteria (e.g., "find NBA spreads 1 point better than Pinnacle", "find player props over 25.5 with good odds").
+- When users want to create a research model, gather: (1) Sports to scan, (2) Markets to scan (spreads/totals/h2h/props), (3) Filter criteria (odds comparison, line comparison, prop values, stat thresholds), (4) Sort preference, (5) Max results.
+- **Filter Types Available:**
+  - **odds_comparison**: Compare odds vs average/Pinnacle/specific book (e.g., "+100 better than average")
+  - **line_comparison**: Compare spreads/totals vs average/Pinnacle (e.g., "1 point better than Pinnacle")
+  - **prop_value**: Filter player props by line value, odds, player, team (e.g., "player points > 25.5 with odds >= -110")
+  - **stat_threshold**: Filter by team/player stats (e.g., "team pace >= 100")
+- Always confirm the configuration before calling save_research_model.
+- Use run_research_model to execute a scan and find current opportunities. Results are cached for quick re-access via list_research_opportunities.
+- When presenting results, format them clearly with: game, market, book, odds/line, comparison data (how much better than average/Pinnacle), and game time.
 
 Always confirm what you're doing before calling functions and provide friendly responses after.`
 
@@ -843,6 +855,135 @@ const ASSISTANT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
           },
         },
         required: ['sport', 'home_team', 'away_team'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'save_research_model',
+      description: 'Save a research model that scans betting markets for opportunities matching user-defined criteria (e.g., "find NBA spreads 1 point better than Pinnacle", "find player props over 25.5"). Always confirm configuration before saving.',
+      parameters: {
+        type: 'object',
+        properties: {
+          model_name: {
+            type: 'string',
+            description: 'Unique name for this research model (e.g., "Spread Hunter", "High-Value Props").',
+          },
+          sports: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Sports to scan (e.g., ["basketball_nba", "americanfootball_nfl"]).',
+          },
+          markets: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Markets to scan (e.g., ["spreads", "totals", "h2h"]).',
+          },
+          filters: {
+            type: 'array',
+            description: 'Array of filter criteria that opportunities must match (ALL filters must pass).',
+            items: {
+              type: 'object',
+              properties: {
+                type: {
+                  type: 'string',
+                  enum: ['odds_comparison', 'line_comparison', 'prop_value', 'stat_threshold'],
+                  description: 'Type of filter to apply.',
+                },
+                label: {
+                  type: 'string',
+                  description: 'Human-readable label for this filter.',
+                },
+                condition: {
+                  type: 'object',
+                  description: 'Filter-specific configuration. Structure varies by filter type.',
+                },
+              },
+              required: ['type', 'condition'],
+            },
+          },
+          sort_by: {
+            type: 'object',
+            properties: {
+              field: {
+                type: 'string',
+                enum: ['ev', 'odds_diff', 'line_diff', 'game_time'],
+                description: 'Field to sort results by.',
+              },
+              direction: {
+                type: 'string',
+                enum: ['asc', 'desc'],
+                description: 'Sort direction.',
+              },
+            },
+          },
+          max_results: {
+            type: 'number',
+            description: 'Maximum number of opportunities to return (default: 20).',
+          },
+          notes: {
+            type: 'string',
+            description: 'Optional notes about this research model.',
+          },
+        },
+        required: ['model_name', 'sports', 'markets', 'filters'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'run_research_model',
+      description: 'Execute a research model to scan current betting markets and find matching opportunities.',
+      parameters: {
+        type: 'object',
+        properties: {
+          model_id: {
+            type: 'string',
+            description: 'ID of the research model to run (optional if model_name provided).',
+          },
+          model_name: {
+            type: 'string',
+            description: 'Name of the research model to run (case-insensitive).',
+          },
+          live_only: {
+            type: 'boolean',
+            description: 'Only scan in-play games (default: false).',
+          },
+          upcoming_only: {
+            type: 'boolean',
+            description: 'Only scan upcoming games (default: true).',
+          },
+          time_window: {
+            type: 'number',
+            description: 'Hours ahead to scan for upcoming games (default: 24).',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_research_opportunities',
+      description: 'Get the latest cached results from a research model without re-running the scan.',
+      parameters: {
+        type: 'object',
+        properties: {
+          model_id: {
+            type: 'string',
+            description: 'ID of the research model.',
+          },
+          model_name: {
+            type: 'string',
+            description: 'Name of the research model (case-insensitive).',
+          },
+          limit: {
+            type: 'number',
+            description: 'Number of cached result sets to return (default: 1).',
+          },
+        },
       },
     },
   },
@@ -2012,6 +2153,121 @@ ${statsEnrichment}
           functionResult = {
             success: false,
             error: error.message || 'Failed to gather matchup context',
+          }
+        }
+      } else if (functionName === 'save_research_model') {
+        try {
+          const { save_research_model } = await import('@/lib/models/research-crud')
+
+          const savedModel = await save_research_model(supabase, userId, {
+            modelName: functionArgs.model_name,
+            sports: functionArgs.sports,
+            markets: functionArgs.markets,
+            filters: functionArgs.filters,
+            sortBy: functionArgs.sort_by,
+            maxResults: functionArgs.max_results,
+            notes: functionArgs.notes,
+          })
+
+          functionResult = {
+            success: true,
+            model: savedModel,
+            message: `Research model "${savedModel.model_name}" saved successfully. Use run_research_model to scan for opportunities.`,
+          }
+        } catch (error: any) {
+          functionResult = {
+            success: false,
+            error: error.message || 'Failed to save research model',
+          }
+        }
+      } else if (functionName === 'run_research_model') {
+        try {
+          const { runResearchModel } = await import('@/lib/models/research-runner')
+
+          // Find the model by ID or name
+          let modelId: string
+          if (functionArgs.model_id) {
+            modelId = functionArgs.model_id
+          } else if (functionArgs.model_name) {
+            const { data, error } = await supabase
+              .from('custom_models')
+              .select('id')
+              .eq('user_id', userId)
+              .eq('model_type', 'research')
+              .ilike('model_name', functionArgs.model_name)
+              .single()
+
+            if (error || !data) {
+              throw new Error(`Research model "${functionArgs.model_name}" not found`)
+            }
+            modelId = data.id
+          } else {
+            throw new Error('Either model_id or model_name is required')
+          }
+
+          // Run the research model
+          const result = await runResearchModel(modelId, userId, {
+            liveOnly: functionArgs.live_only,
+            upcomingOnly: functionArgs.upcoming_only !== false, // Default true
+            timeWindow: functionArgs.time_window || 24,
+          })
+
+          functionResult = {
+            success: true,
+            result,
+            message: `Found ${result.totalMatches} opportunities matching your criteria.`,
+          }
+        } catch (error: any) {
+          functionResult = {
+            success: false,
+            error: error.message || 'Failed to run research model',
+          }
+        }
+      } else if (functionName === 'list_research_opportunities') {
+        try {
+          const { getLatestResearchResults } = await import('@/lib/models/research-runner')
+
+          // Find the model by ID or name
+          let modelId: string
+          if (functionArgs.model_id) {
+            modelId = functionArgs.model_id
+          } else if (functionArgs.model_name) {
+            const { data, error } = await supabase
+              .from('custom_models')
+              .select('id')
+              .eq('user_id', userId)
+              .eq('model_type', 'research')
+              .ilike('model_name', functionArgs.model_name)
+              .single()
+
+            if (error || !data) {
+              throw new Error(`Research model "${functionArgs.model_name}" not found`)
+            }
+            modelId = data.id
+          } else {
+            throw new Error('Either model_id or model_name is required')
+          }
+
+          // Get cached results
+          const results = await getLatestResearchResults(modelId, userId, functionArgs.limit || 1)
+
+          if (results.length === 0) {
+            functionResult = {
+              success: true,
+              results: [],
+              message: 'No cached results found. Run the research model first.',
+            }
+          } else {
+            functionResult = {
+              success: true,
+              results,
+              message: `Retrieved ${results.length} cached result set(s).`,
+            }
+          }
+        } catch (error: any) {
+          functionResult = {
+            success: false,
+            error: error.message || 'Failed to list research opportunities',
           }
         }
       }

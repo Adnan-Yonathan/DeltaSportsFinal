@@ -155,8 +155,8 @@ function SportsbookTicker() {
   const duplicatedBooks = [...sportsbooks, ...sportsbooks]
 
   return (
-    <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 py-8">
-      <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-transparent to-slate-900 z-10 pointer-events-none" />
+    <div className="relative overflow-hidden bg-transparent py-8">
+      <div className="absolute inset-0 bg-gradient-to-r from-black via-transparent to-black z-10 pointer-events-none" />
       <motion.div
         className="flex gap-12 items-center"
         animate={{

@@ -56,7 +56,8 @@ export interface GameStats {
 
 export async function getNBATeamStats(teamAbbr?: string): Promise<TeamStats[]> {
   try {
-    const url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams'
+    // Use standings API which has current, accurate records
+    const url = 'https://site.api.espn.com/apis/v2/sports/basketball/nba/standings'
     const response = await fetch(url, { next: { revalidate: 3600 } })
 
     if (!response.ok) return []
@@ -64,21 +65,34 @@ export async function getNBATeamStats(teamAbbr?: string): Promise<TeamStats[]> {
     const data = await response.json()
     const teams: TeamStats[] = []
 
-    if (data.sports?.[0]?.leagues?.[0]?.teams) {
-      for (const teamObj of data.sports[0].leagues[0].teams) {
-        const team = teamObj.team
-        if (teamAbbr && team.abbreviation !== teamAbbr) continue
+    // Parse both Eastern and Western conferences
+    if (data.children) {
+      for (const conference of data.children) {
+        const entries = conference.standings?.entries || []
 
-        teams.push({
-          team: team.displayName,
-          wins: team.record?.items?.[0]?.stats?.find((s: any) => s.name === 'wins')?.value || 0,
-          losses: team.record?.items?.[0]?.stats?.find((s: any) => s.name === 'losses')?.value || 0,
-          winPct: team.record?.items?.[0]?.stats?.find((s: any) => s.name === 'winPercent')?.value || 0,
-          stats: {
-            gamesPlayed: team.record?.items?.[0]?.stats?.find((s: any) => s.name === 'gamesPlayed')?.value || 0,
-            streak: team.record?.items?.[0]?.summary || '',
-          },
-        })
+        for (const entry of entries) {
+          const team = entry.team
+          if (teamAbbr && team.abbreviation !== teamAbbr) continue
+
+          // Extract stats from the stats array
+          const statsArray = entry.stats || []
+          const wins = statsArray.find((s: any) => s.name === 'wins')?.value || 0
+          const losses = statsArray.find((s: any) => s.name === 'losses')?.value || 0
+          const winPct = statsArray.find((s: any) => s.name === 'winPercent')?.value || 0
+          const streak = statsArray.find((s: any) => s.name === 'streak')?.displayValue || ''
+          const gamesPlayed = wins + losses
+
+          teams.push({
+            team: team.displayName,
+            wins,
+            losses,
+            winPct,
+            stats: {
+              gamesPlayed,
+              streak,
+            },
+          })
+        }
       }
     }
 

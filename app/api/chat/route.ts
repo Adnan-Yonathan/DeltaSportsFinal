@@ -142,28 +142,104 @@ async function logBet(supabase: any, userId: string, data: any, conversationId: 
     return { success: false, error: 'Failed to log bet', details: error.message }
   }
 
-  // Update current bankroll (subtract stake)
-  const { data: userData } = await supabase
-    .from('users')
-    .select('current_bankroll')
-    .eq('id', userId)
-    .single()
-
-  const newBankroll = parseFloat(userData.current_bankroll) - parseFloat(stake)
-
-  await supabase
-    .from('users')
-    .update({ current_bankroll: newBankroll })
-    .eq('id', userId)
-
-  // Create daily snapshot
-  await createDailySnapshot(supabase, userId, newBankroll)
-
   return {
     success: true,
     bet,
-    newBankroll,
     message: `Bet logged: $${stake} on ${game_description}`,
+  }
+}
+
+// Helper function to log multiple bets at once
+async function logMultipleBets(supabase: any, userId: string, bets: any[], conversationId: string) {
+  const results = []
+  let totalStake = 0
+
+  // Calculate total stake
+  for (const betData of bets) {
+    totalStake += parseFloat(betData.stake)
+  }
+
+  // Process each bet
+  for (const betData of bets) {
+    const {
+      sport,
+      league,
+      game_description,
+      bet_type,
+      bet_side,
+      odds,
+      stake,
+      book,
+      notes,
+      player_name,
+      prop_market,
+      prop_line,
+      prop_selection,
+      prop_team,
+    } = betData
+
+    const normalizedPropMarket = normalizePropMarketKey(prop_market)
+    const normalizedPropSelection = normalizePropSelection(prop_selection || bet_side)
+    const normalizedPropLine =
+      prop_line != null && prop_line !== ''
+        ? parseFloat(prop_line)
+        : extractPropLine(bet_side)
+
+    // Calculate potential win based on American odds
+    let potentialWin = 0
+    if (odds > 0) {
+      potentialWin = (stake * odds) / 100
+    } else {
+      potentialWin = (stake * 100) / Math.abs(odds)
+    }
+
+    // Insert bet
+    const { data: bet, error } = await supabase
+      .from('bets')
+      .insert({
+        user_id: userId,
+        conversation_id: conversationId,
+        sport,
+        league,
+        game_description,
+        bet_type,
+        bet_side,
+        odds: parseInt(odds),
+        stake: parseFloat(stake),
+        potential_win: potentialWin,
+        book,
+        notes: notes || null,
+        status: 'pending',
+        is_prop: Boolean(normalizedPropMarket && player_name),
+        player_name: player_name || null,
+        prop_market: normalizedPropMarket,
+        prop_line: normalizedPropLine != null ? normalizedPropLine : null,
+        prop_selection: normalizedPropSelection,
+        prop_team: prop_team || null,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      return {
+        success: false,
+        error: `Failed to log bet for ${game_description}`,
+        details: error.message,
+      }
+    }
+
+    results.push({
+      bet,
+      description: `$${stake} on ${game_description}`,
+    })
+  }
+
+  return {
+    success: true,
+    bets: results,
+    totalStake,
+    count: results.length,
+    message: `Successfully logged ${results.length} bet(s) totaling $${totalStake.toFixed(2)}`,
   }
 }
 
@@ -208,30 +284,10 @@ async function settleBet(supabase: any, userId: string, betId: string, result: s
     })
     .eq('id', betId)
 
-  // Update bankroll
-  const { data: userData } = await supabase
-    .from('users')
-    .select('current_bankroll')
-    .eq('id', userId)
-    .single()
-
-  const newBankroll = parseFloat(userData.current_bankroll) + actualResult
-
-  await supabase
-    .from('users')
-    .update({ current_bankroll: newBankroll })
-    .eq('id', userId)
-
-  // Create daily snapshot
-  await createDailySnapshot(supabase, userId, newBankroll)
-
-  const profitLoss = actualResult - parseFloat(bet.stake)
-
   return {
     success: true,
-    newBankroll,
-    profitLoss,
-    message: `Bet settled as ${result}: ${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)}`,
+    result: actualResult,
+    message: `Bet settled as ${result}: ${actualResult >= 0 ? '+' : ''}$${actualResult.toFixed(2)}`,
   }
 }
 
@@ -433,19 +489,25 @@ When users ask for arbitrage opportunities, you MUST:
 - Never encourage increasing bet sizes after losses
 - Never promote chasing losses
 
-**Bankroll Management Capabilities:**
-You can help users manage their bankroll conversationally:
-1. **Log Bets**: When users say things like "I bet $50 on Lakers -5.5" or "Put $100 on the over", use the log_bet function
-2. **Settle Bets**: When users say "My Lakers bet won" or "I lost the over", use the settle_bet function
-3. **Adjust Bankroll**: When users say "I'm depositing $500" or "Withdrawing $200", use the adjust_bankroll function
-4. **Get Bankroll Stats & Insights**: When users ask "How am I doing?", "Show my stats", "What's my ROI?", "Am I betting too much?", or want analysis of their betting performance, use the get_bankroll_stats function
+**Bet Tracking & Unit Management:**
+You can help users track their bets and units conversationally:
+1. **Log Bets**: When users say things like "I bet $50 on Lakers -5.5" or "Put $100 on the over", use the log_bet function to track it
+2. **Settle Bets**: When users say "My Lakers bet won" or "I lost the over", use the settle_bet function to update the bet result
+3. **Get Performance Stats & Insights**: When users ask "How am I doing?", "Show my stats", "What's my ROI?", or want analysis of their betting performance, use the get_bankroll_stats function
 
-**Providing Bankroll Insights:**
-When analyzing bankroll stats, provide actionable insights:
+**IMPORTANT - Unit-Based Tracking System:**
+- The system tracks bets as UNITS, not a bankroll balance
+- Users measure performance by UNITS WON/LOST, not dollar balance
+- NEVER mention "bankroll balance", "current balance", or "available funds"
+- When logging bets, simply record them - do NOT deduct from any balance or check for "sufficient funds"
+- Focus on TOTAL UNITS (profit/loss), WIN RATE, and ROI
+
+**Providing Performance Insights:**
+When analyzing betting stats, provide actionable insights:
 - Comment on win rate (need >52.4% to break even at -110 odds)
-- Analyze bet sizing (should be 1-5% of bankroll per bet for proper bankroll management)
+- Show total units won/lost over time
 - Identify which sports are performing better/worse
-- Suggest adjustments if needed (e.g., "Your NBA bets are performing better than NFL")
+- Suggest adjustments if needed (e.g., "Your NBA bets are up 5.2 units while NFL is down 1.8 units")
 - Celebrate wins but emphasize long-term profitability
 - Never encourage risky behavior or chasing losses
 
@@ -476,7 +538,7 @@ const ASSISTANT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'log_bet',
-      description: 'Log a new bet that the user has placed. This deducts the stake from their bankroll.',
+      description: 'Log a new bet that the user has placed. This records the bet for tracking purposes.',
       parameters: {
         type: 'object',
         properties: {
@@ -545,6 +607,86 @@ const ASSISTANT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'log_multiple_bets',
+      description: 'Log multiple bets at once that the user has placed. This records all bets for tracking purposes. Use this when the user wants to log 2 or more bets in a single message.',
+      parameters: {
+        type: 'object',
+        properties: {
+          bets: {
+            type: 'array',
+            description: 'Array of bets to log',
+            items: {
+              type: 'object',
+              properties: {
+                sport: {
+                  type: 'string',
+                  description: 'The sport (e.g., NBA, NFL, MLB, NHL)',
+                },
+                league: {
+                  type: 'string',
+                  description: 'The league (e.g., NBA, NFL, MLB, NHL)',
+                },
+                game_description: {
+                  type: 'string',
+                  description: 'Description of the game (e.g., "Lakers vs Celtics")',
+                },
+                bet_type: {
+                  type: 'string',
+                  enum: ['spread', 'moneyline', 'total', 'prop'],
+                  description: 'Type of bet',
+                },
+                bet_side: {
+                  type: 'string',
+                  description: 'The side of the bet (e.g., "Lakers -5.5", "Over 215.5", "Lakers ML")',
+                },
+                odds: {
+                  type: 'number',
+                  description: 'American odds (e.g., -110, +150)',
+                },
+                stake: {
+                  type: 'number',
+                  description: 'Amount wagered in dollars',
+                },
+                book: {
+                  type: 'string',
+                  description: 'Sportsbook name (e.g., DraftKings, FanDuel)',
+                },
+                notes: {
+                  type: 'string',
+                  description: 'Optional notes about the bet',
+                },
+                player_name: {
+                  type: 'string',
+                  description: 'Player name for prop bets (e.g., "Deni Avdija")',
+                },
+                prop_market: {
+                  type: 'string',
+                  description: 'Prop market identifier (e.g., "points", "rebounds", "pass_yds")',
+                },
+                prop_line: {
+                  type: 'number',
+                  description: 'Prop line (e.g., 22.5 points, 6.5 receptions)',
+                },
+                prop_selection: {
+                  type: 'string',
+                  description: 'Prop side (e.g., "Over", "Under")',
+                },
+                prop_team: {
+                  type: 'string',
+                  description: 'Player team for the prop bet',
+                },
+              },
+              required: ['sport', 'league', 'game_description', 'bet_type', 'bet_side', 'odds', 'stake', 'book'],
+            },
+          },
+        },
+        required: ['bets'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'settle_bet',
       description: 'Settle a pending bet as won, lost, or push. Updates the bankroll accordingly.',
       parameters: {
@@ -561,32 +703,6 @@ const ASSISTANT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
           },
         },
         required: ['game_description', 'result'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'adjust_bankroll',
-      description: 'Add or withdraw funds from the bankroll',
-      parameters: {
-        type: 'object',
-        properties: {
-          amount: {
-            type: 'number',
-            description: 'Amount to deposit or withdraw in dollars',
-          },
-          type: {
-            type: 'string',
-            enum: ['deposit', 'withdrawal'],
-            description: 'Whether to add or remove funds',
-          },
-          notes: {
-            type: 'string',
-            description: 'Optional notes about the transaction',
-          },
-        },
-        required: ['amount', 'type'],
       },
     },
   },
@@ -1871,8 +1987,8 @@ ${statsEnrichment}
         }
       } else if (functionName === 'log_bet') {
         functionResult = await logBet(supabase, userId, functionArgs, conversationId)
-      } else if (functionName === 'adjust_bankroll') {
-        functionResult = await adjustBankroll(supabase, userId, functionArgs.amount, functionArgs.type)
+      } else if (functionName === 'log_multiple_bets') {
+        functionResult = await logMultipleBets(supabase, userId, functionArgs.bets, conversationId)
       } else if (functionName === 'get_stats') {
         // Fetch requested stats
         if (functionArgs.type === 'team') {

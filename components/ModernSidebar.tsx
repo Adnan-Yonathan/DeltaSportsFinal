@@ -103,7 +103,7 @@ export default function ModernSidebar({
     setModelsLoading(true)
     const { data } = await supabase
       .from('custom_models')
-      .select('id, model_name, sport_key, market_type, target_metric, confidence_level, updated_at, last_used_at')
+      .select('id, model_name, sport_key, market_type, target_metric, confidence_level, model_type, updated_at, last_used_at')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(5)
@@ -315,36 +315,59 @@ export default function ModernSidebar({
             </div>
           ) : customModels.length > 0 ? (
             <div className="space-y-2">
-              {customModels.map((model) => (
-                <div
-                  key={model.id}
-                  className="p-3 rounded-lg border border-white/10 bg-white/5 hover:border-indigo-400/50 transition-all"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-white">{model.model_name}</p>
-                      <p className="text-xs text-white/50">
-                        {formatSportLabel(model.sport_key)} &middot; {model.market_type}
-                      </p>
-                      <p className="text-[11px] text-white/40 mt-1">
-                        Confidence {Math.round(Number(model.confidence_level) * 100)}% &middot; {getModelTimeLabel(model)}
+              {customModels.map((model) => {
+                const isResearch = model.model_type === 'research'
+                return (
+                  <div
+                    key={model.id}
+                    className={`p-3 rounded-lg border ${
+                      isResearch
+                        ? 'border-purple-500/20 bg-purple-500/5 hover:border-purple-400/50'
+                        : 'border-white/10 bg-white/5 hover:border-indigo-400/50'
+                    } transition-all`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-sm font-semibold text-white">{model.model_name}</p>
+                          {isResearch && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              SCANNER
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-white/50">
+                          {formatSportLabel(model.sport_key)} &middot; {model.market_type}
+                        </p>
+                        <p className="text-[11px] text-white/40 mt-1">
+                          {isResearch ? (
+                            <>Auto-scanner &middot; {getModelTimeLabel(model)}</>
+                          ) : (
+                            <>Confidence {Math.round(Number(model.confidence_level) * 100)}% &middot; {getModelTimeLabel(model)}</>
+                          )}
+                        </p>
+                      </div>
+                      <p className="text-[11px] text-white/50 text-right leading-4">
+                        {isResearch ? (
+                          <>Ask DELTA to &quot;run {model.model_name}&quot;</>
+                        ) : (
+                          <>Ask DELTA to &quot;apply {model.model_name}&quot;</>
+                        )}
                       </p>
                     </div>
-                    <p className="text-[11px] text-white/50 text-right leading-4">
-                      Ask DELTA to &quot;apply {model.model_name}&quot; in any chat
-                    </p>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <p className="text-xs text-white/40">
-              No saved models yet. Ask DELTA to &quot;create a custom model&quot; and it will guide you.
+              No saved models yet. Ask DELTA to &quot;create a custom model&quot; or &quot;create a research model&quot; and it will guide you.
             </p>
           )}
 
           <p className="text-[11px] text-white/40 mt-3">
-            To use a model, tell DELTA which one to run (e.g., &quot;Apply my NBA pace model for tonight&quot;).
+            <strong>Prediction models:</strong> Apply to matchups for projections<br/>
+            <strong>Research models:</strong> Run to find betting opportunities
           </p>
         </div>
       </div>

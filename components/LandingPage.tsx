@@ -12,6 +12,7 @@ import { FAQSection } from "@/components/ui/faq-section"
 import Image from "next/image"
 import { SimpleHeader } from "@/components/ui/simple-header"
 import { AvatarCircles } from "@/components/ui/avatar-circles"
+import { DottedSurface } from "@/components/ui/dotted-surface"
 
 /** Delta AI Landing Page - Revolut-inspired design */
 
@@ -271,7 +272,10 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen w-full bg-black text-white">
+    <div className="relative min-h-screen w-full bg-black text-white">
+      {/* Dotted Surface Background */}
+      <DottedSurface />
+
       {/* Fonts */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');

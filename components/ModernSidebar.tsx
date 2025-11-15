@@ -23,6 +23,7 @@ interface Conversation {
 interface CustomModel {
   id: string
   model_name: string
+  model_type?: string
   sport_key: string
   market_type: string
   target_metric: string

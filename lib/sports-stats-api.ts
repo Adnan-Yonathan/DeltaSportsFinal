@@ -23,6 +23,7 @@ export interface RosterPlayer {
   experience?: number
   status?: string // Active, Injured, Out
   headshot?: string
+  stats?: Record<string, number | string> // Player statistics
 }
 
 export interface TeamStats {

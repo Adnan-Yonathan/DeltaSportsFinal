@@ -169,6 +169,10 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
     const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
     try {
+      // Add timeout to prevent hanging
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 300000) // 5 minute timeout
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -180,7 +184,10 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
           userId,
           timezone: userTimezone,
         }),
+        signal: controller.signal,
       })
+
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
         throw new Error('Failed to send message')
@@ -188,14 +195,43 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
 
       const reader = response.body?.getReader()
       if (reader) {
+        const decoder = new TextDecoder()
         while (true) {
-          const { done } = await reader.read()
+          const { done, value } = await reader.read()
           if (done) break
+
+          // Decode and log the chunk for debugging
+          if (value) {
+            const chunk = decoder.decode(value, { stream: true })
+            // Stream is being consumed (messages update via Supabase realtime)
+          }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error)
-      alert('Failed to send message. Please try again.')
+
+      let errorMessage = 'Failed to send message. Please try again.'
+
+      if (error.name === 'AbortError') {
+        errorMessage = 'Request timed out. The message may still be processing. Please check your conversation.'
+      } else if (!navigator.onLine) {
+        errorMessage = 'No internet connection. Please check your network and try again.'
+      } else if (error.message?.includes('Failed to fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
+      }
+
+      alert(errorMessage)
+
+      // Restore message if send failed
+      if (error.name === 'AbortError') {
+        setMessage(payload)
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto'
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
+          }
+        }, 0)
+      }
     } finally {
       setSending(false)
     }

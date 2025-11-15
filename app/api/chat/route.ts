@@ -15,6 +15,7 @@ import { normalizePropMarketKey, normalizePropSelection, extractPropLine } from 
 import { format } from 'date-fns'
 
 export const runtime = 'nodejs'
+export const maxDuration = 300 // 5 minutes (max for Pro plan)
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -2495,6 +2496,15 @@ ${statsEnrichment}
     const readableStream = new ReadableStream({
       async start(controller) {
         try {
+          // Add keep-alive to prevent timeout
+          const keepAliveInterval = setInterval(() => {
+            try {
+              controller.enqueue(encoder.encode(': keep-alive\n\n'))
+            } catch (e) {
+              clearInterval(keepAliveInterval)
+            }
+          }, 15000) // Send keep-alive every 15 seconds
+
           for await (const chunk of stream) {
             const content = chunk.choices[0]?.delta?.content || ''
             if (content) {
@@ -2502,6 +2512,8 @@ ${statsEnrichment}
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`))
             }
           }
+
+          clearInterval(keepAliveInterval)
 
           const latencyMs = Date.now() - startTime
 
@@ -2529,6 +2541,13 @@ ${statsEnrichment}
           controller.enqueue(encoder.encode('data: [DONE]\n\n'))
           controller.close()
         } catch (error) {
+          console.error('Streaming error:', error)
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Streaming error occurred' })}\n\n`))
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+          } catch (e) {
+            // Controller already closed
+          }
           controller.error(error)
         }
       },

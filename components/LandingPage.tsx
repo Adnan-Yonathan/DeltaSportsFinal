@@ -452,7 +452,7 @@ export default function LandingPage() {
       {/* Sportsbook Ticker */}
       <div className="w-full mb-20">
         <div className="text-center mb-4">
-          <p className="text-sm text-slate-500 uppercase tracking-wider font-semibold">Compatible with All Sportsbooks</p>
+          <p className="text-sm text-white uppercase tracking-wider font-semibold">Compatible with All Sportsbooks</p>
         </div>
         <SportsbookTicker />
       </div>

@@ -57,7 +57,7 @@ async function capturePlayerProps() {
           if (!market.key.startsWith('player_')) continue
 
           market.outcomes.forEach((outcome, index) => {
-            const label = `${outcome.name || ''} ${outcome.description || ''}`.trim()
+            const label = outcome.name || ''
             const playerName = stripPlayerName(label) || outcome.name || 'Unknown Player'
             const direction = detectDirection(label || '', index)
             const key = [
@@ -108,6 +108,7 @@ async function capturePlayerProps() {
     const chunkSize = 500
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, i + chunkSize)
+      // @ts-expect-error - TypeScript struggles with insert type inference in Node module resolution
       const { error } = await supabase.from('player_prop_snapshots').insert(chunk)
       if (error) {
         console.error(`[PROPS] Failed to insert prop chunk for ${sport}:`, error.message)

@@ -1526,8 +1526,13 @@ export async function POST(req: NextRequest) {
                   games: oddsData,
                 })
               }
-            } catch (err) {
+            } catch (err: any) {
               console.error(`Error fetching ${sport}:`, err)
+
+              // Check if this is a rate limit error
+              if (err?.isRateLimited || err?.statusCode === 429) {
+                throw new Error('RATE_LIMIT_EXCEEDED: The odds API is currently experiencing high traffic. Please wait a few minutes and try again. (Tip: Try asking about specific sports or teams to reduce API usage)')
+              }
             }
           }
 

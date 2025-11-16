@@ -6,7 +6,7 @@ import { formatCurrency } from '@/lib/utils/odds'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import { format } from 'date-fns'
 import { motion } from 'framer-motion'
-import { Wallet, Trophy, Target, Activity, Check, X, Sparkles, Loader2 } from 'lucide-react'
+import { Wallet, Trophy, Target, Activity, Check, X, Sparkles, Loader2, Edit2, Save } from 'lucide-react'
 import { LiveScore, matchBetToGame } from '@/lib/espn-api'
 import { calculateBetProbability } from '@/lib/services/probability-engine'
 import { deriveGameClockState, resolveSportKey } from '@/lib/utils/live-game'
@@ -113,6 +113,11 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
   const [totalBetCount, setTotalBetCount] = useState(0)
   const [chartRange, setChartRange] = useState<ChartRange>('7d')
   const [isChartExpanded, setChartExpanded] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editBankroll, setEditBankroll] = useState<string>('')
+  const [editUnitSize, setEditUnitSize] = useState<string>('')
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [settingsError, setSettingsError] = useState<string>('')
   const supabase = createClient()
 
   useEffect(() => {
@@ -397,6 +402,77 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
     }
   }
 
+  const handleEditStart = () => {
+    setIsEditing(true)
+    setEditBankroll(stats?.currentBalance.toString() || '')
+    setEditUnitSize(stats?.unitSize.toString() || '')
+    setSettingsError('')
+  }
+
+  const handleEditCancel = () => {
+    setIsEditing(false)
+    setEditBankroll('')
+    setEditUnitSize('')
+    setSettingsError('')
+  }
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true)
+    setSettingsError('')
+
+    try {
+      const bankrollNum = parseFloat(editBankroll)
+      const unitNum = parseFloat(editUnitSize)
+
+      // Validate inputs
+      if (isNaN(bankrollNum) || bankrollNum <= 0) {
+        setSettingsError('Bankroll must be a positive number')
+        setSavingSettings(false)
+        return
+      }
+
+      if (isNaN(unitNum) || unitNum <= 0) {
+        setSettingsError('Unit size must be a positive number')
+        setSavingSettings(false)
+        return
+      }
+
+      if (unitNum > bankrollNum) {
+        setSettingsError('Unit size cannot be larger than bankroll')
+        setSavingSettings(false)
+        return
+      }
+
+      // Save to database
+      const { error } = await supabase
+        .from('users')
+        .update({
+          current_bankroll: bankrollNum,
+          unit_size: unitNum,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+
+      if (error) {
+        console.error('Error updating settings:', error)
+        setSettingsError('Failed to save settings')
+        setSavingSettings(false)
+        return
+      }
+
+      // Reload data
+      await loadData()
+      setIsEditing(false)
+      setEditBankroll('')
+      setEditUnitSize('')
+    } catch (error) {
+      console.error('Error saving settings:', error)
+      setSettingsError('An error occurred')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
   const chartRangeOptions: { value: ChartRange; label: string }[] = [
     { value: '7d', label: '7 Days' },
     { value: '30d', label: '30 Days' },
@@ -501,6 +577,95 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
             </h2>
             <p className="text-xs text-white/40 mt-1">Track your performance</p>
           </div>
+
+          {/* Editable Settings Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
+          >
+            {!isEditing ? (
+              <div className="flex items-center justify-between">
+                <div className="flex gap-6">
+                  <div>
+                    <div className="text-xs text-white/60 uppercase tracking-wider">Current Bankroll</div>
+                    <div className="text-lg font-bold text-white mt-1">{formatCurrency(stats.currentBalance)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-white/60 uppercase tracking-wider">Unit Size</div>
+                    <div className="text-lg font-bold text-white mt-1">{formatCurrency(stats.unitSize)}</div>
+                  </div>
+                </div>
+                <button
+                  onClick={handleEditStart}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-white text-sm"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Edit
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-white/60 uppercase tracking-wider block mb-2">Current Bankroll</label>
+                    <input
+                      type="number"
+                      value={editBankroll}
+                      onChange={(e) => setEditBankroll(e.target.value)}
+                      placeholder="1000"
+                      min="0"
+                      step="0.01"
+                      className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-white/60 uppercase tracking-wider block mb-2">Unit Size</label>
+                    <input
+                      type="number"
+                      value={editUnitSize}
+                      onChange={(e) => setEditUnitSize(e.target.value)}
+                      placeholder="20"
+                      min="0"
+                      step="0.01"
+                      className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+                {settingsError && (
+                  <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+                    {settingsError}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 justify-end">
+                  <button
+                    onClick={handleEditCancel}
+                    disabled={savingSettings}
+                    className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-white text-sm disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveSettings}
+                    disabled={savingSettings}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 transition-colors text-white text-sm disabled:opacity-50"
+                  >
+                    {savingSettings ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
 
           {/* Unified Unit-Centric Dashboard Card */}
           <motion.div

@@ -8,6 +8,7 @@ import { StepUsername } from "./onboarding/StepUsername"
 import { StepSports } from "./onboarding/StepSports"
 import { StepExperience } from "./onboarding/StepExperience"
 import { StepRiskTolerance } from "./onboarding/StepRiskTolerance"
+import { StepBankroll } from "./onboarding/StepBankroll"
 import { StepFeatures } from "./onboarding/StepFeatures"
 import { StepPricing } from "./onboarding/StepPricing"
 
@@ -16,6 +17,8 @@ interface OnboardingData {
   favorite_sports: string[]
   experience_level: string
   risk_tolerance: string
+  starting_bankroll: number
+  unit_size: number
   signup_reasons: string[]
   subscription_tier: string | null
 }
@@ -32,6 +35,8 @@ export function OnboardingFlow() {
     favorite_sports: [],
     experience_level: "",
     risk_tolerance: "",
+    starting_bankroll: 0,
+    unit_size: 0,
     signup_reasons: [],
     subscription_tier: null,
   })
@@ -54,7 +59,7 @@ export function OnboardingFlow() {
     localStorage.setItem("onboarding_data", JSON.stringify(data))
   }, [data])
 
-  const totalSteps = 6
+  const totalSteps = 7
   const progress = ((currentStep + 1) / totalSteps) * 100
 
   const steps = [
@@ -90,6 +95,18 @@ export function OnboardingFlow() {
         <StepRiskTolerance
           value={data.risk_tolerance}
           onChange={(value) => setData({ ...data, risk_tolerance: value })}
+          onValidation={setIsStepValid}
+        />
+      ),
+    },
+    {
+      component: (
+        <StepBankroll
+          bankroll={data.starting_bankroll}
+          unitSize={data.unit_size}
+          onChange={(bankroll, unitSize) =>
+            setData({ ...data, starting_bankroll: bankroll, unit_size: unitSize })
+          }
           onValidation={setIsStepValid}
         />
       ),

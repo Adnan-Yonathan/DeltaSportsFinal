@@ -6,6 +6,8 @@ interface OnboardingData {
   favorite_sports: string[]
   experience_level: 'beginner' | 'intermediate' | 'advanced' | 'professional'
   risk_tolerance: 'conservative' | 'moderate' | 'aggressive'
+  starting_bankroll: number
+  unit_size: number
   signup_reasons: string[]
   subscription_tier?: 'pro' | 'unlimited' | null
 }
@@ -28,9 +30,32 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!body.username || !body.favorite_sports || !body.experience_level ||
-        !body.risk_tolerance || !body.signup_reasons) {
+        !body.risk_tolerance || !body.signup_reasons ||
+        body.starting_bankroll === undefined || body.unit_size === undefined) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      )
+    }
+
+    // Validate bankroll and unit size
+    if (body.starting_bankroll <= 0) {
+      return NextResponse.json(
+        { error: 'Starting bankroll must be greater than 0' },
+        { status: 400 }
+      )
+    }
+
+    if (body.unit_size <= 0) {
+      return NextResponse.json(
+        { error: 'Unit size must be greater than 0' },
+        { status: 400 }
+      )
+    }
+
+    if (body.unit_size > body.starting_bankroll) {
+      return NextResponse.json(
+        { error: 'Unit size cannot be larger than starting bankroll' },
         { status: 400 }
       )
     }
@@ -84,6 +109,9 @@ export async function POST(request: NextRequest) {
         favorite_sports: body.favorite_sports,
         experience_level: body.experience_level,
         risk_tolerance: body.risk_tolerance,
+        starting_bankroll: body.starting_bankroll,
+        current_bankroll: body.starting_bankroll,
+        unit_size: body.unit_size,
         signup_reasons: body.signup_reasons,
         subscription_tier: body.subscription_tier || null,
         onboarding_completed: true,

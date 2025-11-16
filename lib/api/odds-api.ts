@@ -17,9 +17,21 @@ type NextFetchRequestInit = RequestInit & { next?: { revalidate?: number } }
 type QueryValue = string | number | boolean | Array<string | number | boolean> | undefined
 
 export class OddsAPIError extends Error {
+  public isRateLimited: boolean = false
+
   constructor(message: string, public statusCode?: number) {
     super(message)
     this.name = 'OddsAPIError'
+
+    // Detect rate limit errors
+    if (
+      statusCode === 429 ||
+      message.toLowerCase().includes('rate limit') ||
+      message.toLowerCase().includes('too many requests') ||
+      message.toLowerCase().includes('quota exceeded')
+    ) {
+      this.isRateLimited = true
+    }
   }
 }
 
@@ -151,7 +163,20 @@ async function oddsIoFetch<T>(
   const res = await fetch(url.toString(), init)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new OddsAPIError(`Odds-API.io error ${res.status}: ${body || res.statusText}`, res.status)
+    const error = new OddsAPIError(`Odds-API.io error ${res.status}: ${body || res.statusText}`, res.status)
+
+    // Log rate limit warnings
+    if (error.isRateLimited) {
+      console.error('⚠️ [ODDS API] RATE LIMIT HIT:', {
+        status: res.status,
+        message: body || res.statusText,
+        endpoint: path,
+        remainingCalls: res.headers.get('x-ratelimit-remaining'),
+        resetTime: res.headers.get('x-ratelimit-reset'),
+      })
+    }
+
+    throw error
   }
 
   return { data: (await res.json()) as T, headers: res.headers }

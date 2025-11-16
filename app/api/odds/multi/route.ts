@@ -37,6 +37,18 @@ export async function GET(req: NextRequest) {
     })
   } catch (error: any) {
     console.error('[ODDS_MULTI] Failed to fetch odds:', error)
+
+    // Check for rate limit errors
+    if (error?.isRateLimited || error?.statusCode === 429) {
+      return NextResponse.json(
+        {
+          error: 'Rate limit exceeded. The odds API is experiencing high traffic. Please wait a few minutes and try again.',
+          isRateLimited: true
+        },
+        { status: 429 }
+      )
+    }
+
     return NextResponse.json(
       { error: error?.message || 'Failed to fetch odds' },
       { status: error?.statusCode || 500 }

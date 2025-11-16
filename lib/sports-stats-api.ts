@@ -274,7 +274,8 @@ export async function getNFLTeamStats(teamAbbr?: string): Promise<TeamStats[]> {
 export async function getNFLInjuries(): Promise<InjuryReport[]> {
   try {
     const url = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries'
-    const response = await fetch(url, { next: { revalidate: 1800 } })
+    // Disable Next.js caching - response is 8.4MB, exceeds 2MB cache limit
+    const response = await fetch(url, { cache: 'no-store' })
 
     if (!response.ok) return []
 

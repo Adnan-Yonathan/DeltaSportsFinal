@@ -1206,6 +1206,9 @@ export async function POST(req: NextRequest) {
     const scheduleIntent = /(games?|schedule|who plays|playing|matchups?|match|game time|tipoff|puck drop|first pitch|score|scores?|final|quarter|period|inning|today|tonight|tomorrow)\b/i.test(msgLower)
     const wantsLiveOdds = /(live|in-play|inplay|scores?|score|current|now|ongoing)/i.test(msgLower)
 
+    // Detect if user wants deep analysis with injuries/stats (only enrich for these requests)
+    const wantsDeepDive = /(injur(y|ies)|stats?|statistical|analysis|analyze|breakdown|deep dive|more (info|detail)|tell me more|recent form|team performance|head to head|h2h|matchup analysis)/i.test(msgLower)
+
     const teamVariations: { [key: string]: string[] } = {
       // NBA Teams (base name as key)
       'lakers': ['lakers', 'la lakers', 'los angeles lakers', 'l.a. lakers'],
@@ -1842,37 +1845,44 @@ export async function POST(req: NextRequest) {
               .join('\n\n')
             console.log(`[ODDS] Total games formatted: ${totalGames}`)
 
-            // Try to enrich with stats (but don't fail if this errors)
+            // Only enrich with stats if user explicitly asks for deep analysis/injuries/stats
+            // This avoids the 8.4MB NFL injuries cache issue on simple odds requests
             let statsEnrichment = ''
-            try {
-              const enrichedOddsData = await Promise.all(
-                allOddsData.map(async (sportData) => {
-                  try {
-                    const enrichedGames = await enrichGamesWithStats(sportData.games, sportData.sport)
-                    return {
-                      sport: sportData.sport,
-                      games: sportData.games,
-                      enrichedGames
+            if (wantsDeepDive) {
+              console.log('[ODDS] Deep dive requested, enriching with stats and injuries...')
+              try {
+                const enrichedOddsData = await Promise.all(
+                  allOddsData.map(async (sportData) => {
+                    try {
+                      const enrichedGames = await enrichGamesWithStats(sportData.games, sportData.sport)
+                      return {
+                        sport: sportData.sport,
+                        games: sportData.games,
+                        enrichedGames
+                      }
+                    } catch (error) {
+                      console.error(`[ODDS] Error enriching ${sportData.sport}:`, error)
+                      return { ...sportData, enrichedGames: [] }
                     }
-                  } catch (error) {
-                    console.error(`[ODDS] Error enriching ${sportData.sport}:`, error)
-                    return { ...sportData, enrichedGames: [] }
-                  }
-                })
-              )
+                  })
+                )
 
-              // Generate enriched stats summary for AI
-              statsEnrichment = '\n\n**ðŸ“Š ENRICHED STATISTICS & INJURY DATA:**\n'
-              for (const sportData of enrichedOddsData) {
-                if (sportData.enrichedGames && sportData.enrichedGames.length > 0) {
-                  statsEnrichment += `\n**${sportData.sport.toUpperCase()}:**\n`
-                  statsEnrichment += formatEnrichedGamesForAI(sportData.enrichedGames)
-                  statsEnrichment += '\n'
+                // Generate enriched stats summary for AI
+                statsEnrichment = '\n\n**📊 ENRICHED STATISTICS & INJURY DATA:**\n'
+                for (const sportData of enrichedOddsData) {
+                  if (sportData.enrichedGames && sportData.enrichedGames.length > 0) {
+                    statsEnrichment += `\n**${sportData.sport.toUpperCase()}:**\n`
+                    statsEnrichment += formatEnrichedGamesForAI(sportData.enrichedGames)
+                    statsEnrichment += '\n'
+                  }
                 }
+              } catch (enrichError) {
+                console.error('[ODDS] Stats enrichment failed, continuing with odds only:', enrichError)
+                statsEnrichment = '\n(Stats enrichment unavailable)\n'
               }
-            } catch (enrichError) {
-              console.error('[ODDS] Stats enrichment failed, continuing with odds only:', enrichError)
-              statsEnrichment = '\n(Stats enrichment unavailable)\n'
+            } else {
+              console.log('[ODDS] Simple odds request - skipping stats enrichment for performance')
+              statsEnrichment = ''
             }
 
             const timeLabel = isTomorrowQuery ? 'tomorrow' : 'today/upcoming'
@@ -1913,7 +1923,7 @@ For each game below:
 1. Write a short intro line (e.g., "Here are the current betting odds for [Team] vs [Team].")
 2. Include the commence time in the user's timezone.
 3. Paste the provided Markdown table from **STANDARDIZED ODDS TABLES** exactly as-is. Do NOT reformat it into lists or different layouts.
-4. Call out the best values per market beneath the table (per the rules below) and invite the user to choose a matchup for a deeper dive next.
+4. Call out the best values per market beneath the table (per the rules below).
 5. ONLY mention games contained in this data.
 6. Keep things concise (table + a few tight sentences).
 
@@ -1925,7 +1935,7 @@ ${standardizedOddsTables || '_No odds tables available_'}
 
 ${statsEnrichment}
 
-**FOLLOW-UP INSTRUCTION:** Wrap up by inviting the user to name a specific matchup for a deeper dive (e.g., "Which game should we zoom in on next?").\n`
+**FOLLOW-UP INSTRUCTION:** ${wantsDeepDive ? 'You have injury and stats data above. Use it in your analysis.' : 'Wrap up by asking if they want injuries, stats, or deeper analysis on any matchup (e.g., "Want me to pull injuries and recent form for any of these games?").'}\n`
 
             // Adjust header and access line to reflect actual mode used
             oddsContext = oddsContext.replace('LIVE ODDS DATA LOADED', `${modeLabel} ODDS DATA LOADED`)

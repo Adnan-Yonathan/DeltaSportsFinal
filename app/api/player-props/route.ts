@@ -61,17 +61,19 @@ const normalizeSportKey = (raw: string) => {
   return SUPPORTED_PROP_SPORTS.has(lowered) ? lowered : null
 }
 
-const cacheKeyFor = (sport: string, markets: string[]) =>
-  `${sport}:${markets.slice().sort().join(',')}`
+const cacheKeyFor = (sport: string, markets: string[], teamFilter?: string[]) =>
+  `${sport}:${markets.slice().sort().join(',')}:${teamFilter?.slice().sort().join(',') || 'all'}`
 
-async function getCachedOdds(sport: string, markets: string[]): Promise<OddsGame[]> {
-  const key = cacheKeyFor(sport, markets)
+async function getCachedOdds(sport: string, markets: string[], teamFilter?: string[]): Promise<OddsGame[]> {
+  const key = cacheKeyFor(sport, markets, teamFilter)
   const cached = oddsCache.get(key)
   if (cached && cached.expires > Date.now()) {
+    console.log(`[PLAYER_PROPS] Cache hit for ${key}`)
     return cached.data
   }
 
-  const fresh = await fetchOdds(sport, markets, { live: true })
+  console.log(`[PLAYER_PROPS] Cache miss, fetching odds for ${key}`)
+  const fresh = await fetchOdds(sport, markets, { live: true, teamFilter })
   oddsCache.set(key, { data: fresh, expires: Date.now() + CACHE_TTL_MS })
   return fresh
 }
@@ -120,6 +122,7 @@ export async function GET(req: NextRequest) {
     const sport = searchParams.get('sport')
     const playerFilter = searchParams.get('player')
     const marketParam = searchParams.get('market')
+    const teamParam = searchParams.get('team')
 
     if (!sport) {
       return NextResponse.json(
@@ -148,8 +151,17 @@ export async function GET(req: NextRequest) {
       markets = DEFAULT_MARKETS[normalizedSport] || ['player_points']
     }
 
+    // Parse team filter (comma-separated list of teams)
+    const teamFilter = teamParam
+      ? teamParam.split(',').map(t => t.trim()).filter(Boolean)
+      : undefined
+
+    if (teamFilter && teamFilter.length > 0) {
+      console.log(`[PLAYER_PROPS] Filtering to teams: ${teamFilter.join(', ')}`)
+    }
+
     // Fetch odds data with only prop markets (cached briefly)
-    const oddsData = await getCachedOdds(normalizedSport, markets)
+    const oddsData = await getCachedOdds(normalizedSport, markets, teamFilter)
 
     // Aggregate props by player
     const playerPropsMap = new Map<string, PlayerProp>()

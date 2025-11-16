@@ -385,6 +385,7 @@ You have REAL-TIME access to:
 4. Injury reports and lineup information
 5. Advanced analytics (efficiency ratings, pace, trends)
 6. **Player prop betting lines** - When users ask about player props, use the get_player_props function to fetch lines and odds
+- IMPORTANT: If the user mentions specific teams (e.g., "Lakers props", "Chiefs player props"), pass those team names to the team parameter for efficient filtering
 - Always present player props in a standardized markdown table with columns for Market, Line, Best Over, and Best Under. No bullet lists.
 
 When users ask about odds, games, or arbitrage, the live data WILL BE PROVIDED in your context enriched with relevant stats. For player prop requests, use the get_player_props function.
@@ -754,6 +755,10 @@ const ASSISTANT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
           market: {
             type: 'string',
             description: 'Comma-separated list of prop markets to fetch. For NBA: points,rebounds,assists,threes. For NFL: pass_tds,pass_yds,rush_yds,receptions. For MLB: hits,total_bases,rbis,runs_scored. For NHL: points,shots_on_goal,blocked_shots. Leave empty for default markets.',
+          },
+          team: {
+            type: 'string',
+            description: 'Comma-separated list of team names to filter props (optional - only fetch props for players on these teams). Use team nicknames like "lakers,celtics" or "chiefs,eagles".',
           },
         },
         required: ['sport'],
@@ -2042,6 +2047,11 @@ ${statsEnrichment}
 
           if (functionArgs.market) {
             params.append('market', functionArgs.market)
+          }
+
+          if (functionArgs.team) {
+            params.append('team', functionArgs.team)
+            console.log(`[PLAYER_PROPS] Team filter applied: ${functionArgs.team}`)
           }
 
           const response = await fetch(`${baseUrl}/api/player-props?${params.toString()}`)

@@ -2551,7 +2551,7 @@ ${statsEnrichment}
     const streamResult = await streamText({
       model: openaiProvider(chatModel),
       messages: openaiMessages,
-      tools: ASSISTANT_TOOLS,
+      tools: ASSISTANT_TOOLS as any, // ToolSet expects keyed object; cast array shape for compatibility
       temperature: !chatModel.includes('gpt-5') ? 0.7 : undefined,
       maxOutputTokens: 4000,
     })

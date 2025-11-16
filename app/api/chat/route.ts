@@ -1438,17 +1438,33 @@ export async function POST(req: NextRequest) {
           // Fetch odds for each sport
           for (const sport of sports) {
             try {
-              console.log(`[DEBUG] Fetching odds for ${sport}, live=${fetchLive}`)
-              const pendingData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: false })
+              // Expand team names to include all variations for better matching across all sports
+              const teamFilterList = mentionedTeams.length > 0
+                ? mentionedTeams.flatMap(team => teamVariations[team] || [team])
+                : undefined
+
+              console.log(`[DEBUG] Fetching odds for ${sport}, live=${fetchLive}, teams=${mentionedTeams.length > 0 ? mentionedTeams : 'all'}`)
+              const pendingData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+                live: false,
+                teamFilter: teamFilterList
+              })
               console.log(`[DEBUG] Pending data for ${sport}:`, pendingData.length, 'games')
               let oddsData = pendingData
               let liveData: OddsGame[] = []
 
               if (fetchLive) {
-                liveData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: true })
-                console.log(`[DEBUG] Live data for ${sport}:`, liveData.length, 'games')
-                if (liveData.length > 0) {
-                  usedLive = true
+                try {
+                  liveData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+                    live: true,
+                    teamFilter: teamFilterList
+                  })
+                  console.log(`[DEBUG] Live data for ${sport}:`, liveData.length, 'games')
+                  if (liveData.length > 0) {
+                    usedLive = true
+                  }
+                } catch (liveError: any) {
+                  console.log(`[DEBUG] Live odds fetch failed for ${sport}, using pending data only:`, liveError?.message || liveError)
+                  // Don't throw - just continue with pending data
                 }
 
                 const combined = new Map<string, OddsGame & { status?: string }>()
@@ -1508,28 +1524,7 @@ export async function POST(req: NextRequest) {
                 )
               }
 
-              // Filter by mentioned teams if any were detected
-              if (mentionedTeams.length > 0 && oddsData.length > 0) {
-                console.log(`[DEBUG] Filtering ${oddsData.length} games by teams:`, mentionedTeams)
-                const filteredGames = oddsData.filter(game => {
-                  const homeTeam = game.home_team.toLowerCase()
-                  const awayTeam = game.away_team.toLowerCase()
-
-                  return mentionedTeams.some(team => {
-                    const variations = teamVariations[team] || [team]
-                    return variations.some(variation =>
-                      homeTeam.includes(variation) || awayTeam.includes(variation)
-                    )
-                  })
-                })
-
-                console.log(`[DEBUG] After team filter: ${filteredGames.length} games`)
-                if (filteredGames.length > 0) {
-                  oddsData = filteredGames
-                  console.log(`[DEBUG] Filtered games:`, filteredGames.map(g => `${g.away_team} @ ${g.home_team}`))
-                }
-              }
-
+              // Team filtering now happens at API level for efficiency
               console.log(`[DEBUG] Final oddsData for ${sport}:`, oddsData.length, 'games')
               if (oddsData.length > 0) {
                 allOddsData.push({

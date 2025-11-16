@@ -602,7 +602,7 @@ export async function selectBookmakersRemote(bookmakers: string | string[]) {
 async function fetchOddsIO(
   sportKey: string,
   _markets: string[] = ['h2h', 'spreads', 'totals'],
-  opts: { live?: boolean; revalidateSeconds?: number } = {}
+  opts: { live?: boolean; revalidateSeconds?: number; teamFilter?: string[] } = {}
 ): Promise<OddsGame[]> {
   const mapping = SPORT_MAP[sportKey]
   if (!mapping) return []
@@ -687,7 +687,22 @@ async function fetchOddsIO(
     return []
   }
 
-  const eventLookup = new Map(events.map((event) => [String(event.id), event]))
+  // Filter events by team name BEFORE loading odds (massive optimization!)
+  let filteredEvents = events
+  if (opts.teamFilter && opts.teamFilter.length > 0) {
+    console.log(`[ODDS] Filtering ${events.length} events by teams:`, opts.teamFilter)
+    filteredEvents = events.filter((event) => {
+      const home = (event.home || '').toLowerCase()
+      const away = (event.away || '').toLowerCase()
+      return opts.teamFilter!.some((team) => {
+        const teamLower = team.toLowerCase()
+        return home.includes(teamLower) || away.includes(teamLower)
+      })
+    })
+    console.log(`[ODDS] After team filter: ${filteredEvents.length} events (saved ${events.length - filteredEvents.length} API calls)`)
+  }
+
+  const eventLookup = new Map(filteredEvents.map((event) => [String(event.id), event]))
   const ids: string[] = Array.from(eventLookup.keys())
   if (ids.length === 0) return []
 
@@ -763,6 +778,7 @@ async function fetchOddsIO(
 export interface FetchOddsOptions {
   live?: boolean
   revalidateSeconds?: number
+  teamFilter?: string[] // Filter events to only these team names (case-insensitive partial match)
 }
 
 export async function fetchOdds(
@@ -775,6 +791,7 @@ export async function fetchOdds(
     return fetchOddsIO(sport, markets, {
       live: options.live,
       revalidateSeconds: options.revalidateSeconds,
+      teamFilter: options.teamFilter,
     })
   }
 

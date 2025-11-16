@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { Database } from '@/lib/supabase/types'
 import { getTeamStats, TeamStats } from '@/lib/sports-stats-api'
 import { CustomModelConfigPayload, CustomModelStatConfig, StatNormalization } from './custom-model-types'
+import { AI_MODELS } from '@/lib/ai-gateway-client'
 
 type CustomModelRow = Database['public']['Tables']['custom_models']['Row']
 
@@ -243,7 +244,7 @@ async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjectio
     }
 
     const completion = await openaiClient.chat.completions.create({
-      model: 'gpt-4o',
+      model: AI_MODELS.modelRunner,
       temperature: 0.2,
       response_format: { type: 'json_object' },
       messages: [

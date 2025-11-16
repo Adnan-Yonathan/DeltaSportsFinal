@@ -13,13 +13,18 @@ import { runCustomModel } from '@/lib/models/model-runner'
 import { buildGameContext } from '@/lib/context/game-context'
 import { normalizePropMarketKey, normalizePropSelection, extractPropLine } from '@/lib/utils/props'
 import { format } from 'date-fns'
+import { openaiGateway as openai, AI_MODELS, isAIGatewayEnabled } from '@/lib/ai-gateway-client'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300 // 5 minutes (max for Pro plan)
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+// Log model configuration on startup
+console.log('[CHAT] Using direct OpenAI API (not AI Gateway)')
+console.log(`[CHAT] Chat Model: ${AI_MODELS.chat}`)
+console.log(`[CHAT] Title Model: ${AI_MODELS.titleGen}`)
+
+// Note: To use AI Gateway, this route needs to be migrated to the AI SDK
+// Current implementation uses OpenAI SDK which doesn't support vck_ API keys
 
 function resolveBaseUrl(req: NextRequest) {
   const origin = req?.nextUrl?.origin
@@ -55,8 +60,11 @@ async function createDailySnapshot(supabase: any, userId: string, balance: numbe
 // Helper function to auto-generate conversation title
 async function generateConversationTitle(userMessage: string, assistantResponse: string): Promise<string> {
   try {
+    const titleModel = AI_MODELS.titleGen
+    console.log(`[TITLE] Using model: ${titleModel}`)
+
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: titleModel,
       messages: [
         {
           role: 'system',
@@ -67,9 +75,14 @@ async function generateConversationTitle(userMessage: string, assistantResponse:
           content: `User: ${userMessage}\n\nAssistant: ${assistantResponse.substring(0, 500)}`
         }
       ],
-      max_tokens: 20,
+      max_completion_tokens: 20,
       temperature: 0.7,
     })
+
+    // Log title gen token usage
+    if (completion.usage) {
+      console.log(`[TITLE] Token usage: ${completion.usage.total_tokens}`)
+    }
 
     return completion.choices[0]?.message?.content?.trim() || 'New Chat'
   } catch (error) {
@@ -1980,13 +1993,21 @@ ${statsEnrichment}
     ]
 
     // First call to check for function calls (non-streaming)
+    const chatModel = AI_MODELS.chat
+    console.log(`[CHAT] Using model: ${chatModel}`)
+
     const initialResponse = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: chatModel,
       messages: openaiMessages,
       tools: ASSISTANT_TOOLS,
       temperature: 0.7,
-      max_tokens: 4000,
+      max_completion_tokens: 4000,
     })
+
+    // Log token usage
+    if (initialResponse.usage) {
+      console.log(`[CHAT] Token usage: ${initialResponse.usage.total_tokens} (${initialResponse.usage.prompt_tokens} in, ${initialResponse.usage.completion_tokens} out)`)
+    }
 
     const initialMessage = initialResponse.choices[0].message
 
@@ -2493,12 +2514,17 @@ ${statsEnrichment}
       }
 
       const followup = await openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: chatModel,
         messages: openaiMessages,
         tools: ASSISTANT_TOOLS,
         temperature: 0.7,
-        max_tokens: 4000,
+        max_completion_tokens: 4000,
       })
+
+      // Log follow-up token usage
+      if (followup.usage) {
+        console.log(`[CHAT] Follow-up token usage: ${followup.usage.total_tokens} (${followup.usage.prompt_tokens} in, ${followup.usage.completion_tokens} out)`)
+      }
 
       toolMessage = followup.choices[0].message
     }

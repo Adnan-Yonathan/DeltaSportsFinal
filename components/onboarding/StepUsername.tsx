@@ -70,7 +70,7 @@ export function StepUsername({ value, onChange, onValidation }: StepUsernameProp
     >
       <div className="text-center space-y-2">
         <h2 className="text-4xl font-bold text-white">Choose Your Username</h2>
-        <p className="text-white/60">This is how you'll be known on Delta AI</p>
+        <p className="text-white/60">This is how you&apos;ll be known on Delta AI</p>
       </div>
 
       <div className="max-w-md mx-auto space-y-4">

@@ -1,8 +1,8 @@
-import OpenAI from 'openai'
 import { Database } from '@/lib/supabase/types'
 import { getTeamStats, TeamStats } from '@/lib/sports-stats-api'
 import { CustomModelConfigPayload, CustomModelStatConfig, StatNormalization } from './custom-model-types'
-import { AI_MODELS } from '@/lib/ai-gateway-client'
+import { generateText } from 'ai'
+import { AI_MODELS, openai as openaiGatewayProvider } from '@/lib/ai-gateway-client'
 
 type CustomModelRow = Database['public']['Tables']['custom_models']['Row']
 
@@ -70,10 +70,6 @@ const Z_TABLE: Record<number, number> = {
   0.9: 1.64,
   0.95: 1.96,
 }
-
-const openaiClient = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null
 
 interface LLMProjectionInput {
   modelName: string
@@ -230,7 +226,8 @@ function formatBreakdownForLLM(breakdown: StatBreakdown[]) {
 }
 
 async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjection | null> {
-  if (!openaiClient) return null
+  const hasKey = Boolean(process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY)
+  if (!hasKey) return null
 
   try {
     const payload = {
@@ -284,24 +281,17 @@ async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjectio
       userMessage += '\n\nUse this uploaded data as additional context for your analysis and projections.'
     }
 
-    const completion = await openaiClient.chat.completions.create({
-      model: AI_MODELS.modelRunner,
+    const result = await generateText({
+      model: openaiGatewayProvider(AI_MODELS.modelRunner),
       temperature: 0.2,
-      response_format: { type: 'json_object' },
-      max_completion_tokens: 2000,
+      maxTokens: 2000,
       messages: [
-        {
-          role: 'system',
-          content: systemMessage,
-        },
-        {
-          role: 'user',
-          content: userMessage,
-        },
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: userMessage },
       ],
     })
 
-    const content = completion.choices[0]?.message?.content
+    const content = result.text
     if (!content) return null
     const parsed = JSON.parse(content)
 

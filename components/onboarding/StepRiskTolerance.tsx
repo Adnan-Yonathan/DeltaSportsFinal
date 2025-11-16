@@ -50,7 +50,7 @@ export function StepRiskTolerance({ value, onChange, onValidation }: StepRiskTol
       className="space-y-6"
     >
       <div className="text-center space-y-2">
-        <h2 className="text-4xl font-bold text-white">What's Your Risk Tolerance?</h2>
+        <h2 className="text-4xl font-bold text-white">What&apos;s Your Risk Tolerance?</h2>
         <p className="text-white/60">How do you approach betting?</p>
       </div>
 

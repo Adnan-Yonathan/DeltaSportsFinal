@@ -87,7 +87,7 @@ export function StepBankroll({ bankroll, unitSize, onChange, onValidation }: Ste
             />
           </div>
           <p className="text-white/40 text-xs">
-            This is the total amount you're starting with for sports betting
+            This is the total amount you&apos;re starting with for sports betting
           </p>
         </div>
 

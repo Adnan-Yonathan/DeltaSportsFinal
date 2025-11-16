@@ -54,7 +54,7 @@ export function StepExperience({ value, onChange, onValidation }: StepExperience
       className="space-y-6"
     >
       <div className="text-center space-y-2">
-        <h2 className="text-4xl font-bold text-white">What's Your Experience Level?</h2>
+        <h2 className="text-4xl font-bold text-white">What&apos;s Your Experience Level?</h2>
         <p className="text-white/60">This helps us personalize your experience</p>
       </div>
 

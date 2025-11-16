@@ -77,7 +77,7 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
     >
       <div className="text-center space-y-2">
         <h2 className="text-4xl font-bold text-white">What Brought You Here?</h2>
-        <p className="text-white/60">Select the features you're most interested in</p>
+        <p className="text-white/60">Select the features you&apos;re most interested in</p>
       </div>
 
       <div className="max-w-3xl mx-auto">

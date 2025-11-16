@@ -1,5 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server'
-import OpenAI from 'openai'
+import { generateText, streamText, type CoreMessage } from 'ai'
 import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
 import type { OddsGame } from '@/lib/types/odds'
@@ -13,18 +13,20 @@ import { runCustomModel } from '@/lib/models/model-runner'
 import { buildGameContext } from '@/lib/context/game-context'
 import { normalizePropMarketKey, normalizePropSelection, extractPropLine } from '@/lib/utils/props'
 import { format } from 'date-fns'
-import { openaiGateway as openai, AI_MODELS, isAIGatewayEnabled } from '@/lib/ai-gateway-client'
+import { openai as openaiProvider, AI_MODELS } from '@/lib/ai-gateway-client'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300 // 5 minutes (max for Pro plan)
 
 // Log model configuration on startup
-console.log('[CHAT] Using direct OpenAI API (not AI Gateway)')
+const gatewayEnabled = Boolean(process.env.AI_GATEWAY_API_KEY)
+const openaiEnabled = Boolean(process.env.OPENAI_API_KEY)
+console.log(`[CHAT] AI Gateway: ${gatewayEnabled ? 'ENABLED' : 'disabled'}`)
+console.log(`[CHAT] OpenAI direct: ${openaiEnabled ? 'ENABLED' : 'disabled'}`)
 console.log(`[CHAT] Chat Model: ${AI_MODELS.chat}`)
 console.log(`[CHAT] Title Model: ${AI_MODELS.titleGen}`)
 
-// Note: To use AI Gateway, this route needs to be migrated to the AI SDK
-// Current implementation uses OpenAI SDK which doesn't support vck_ API keys
+// This route uses the AI SDK so it works with either AI Gateway (vck_ keys) or direct OpenAI keys
 
 function resolveBaseUrl(req: NextRequest) {
   const origin = req?.nextUrl?.origin
@@ -63,28 +65,26 @@ async function generateConversationTitle(userMessage: string, assistantResponse:
     const titleModel = AI_MODELS.titleGen
     console.log(`[TITLE] Using model: ${titleModel}`)
 
-    const completion = await openai.chat.completions.create({
-      model: titleModel,
+    const completion = await generateText({
+      model: openaiProvider(titleModel),
       messages: [
         {
           role: 'system',
-          content: 'Generate a short, descriptive title (3-5 words max) for this conversation. Focus on the main topic or action. Use buzzwords and be concise. Examples: "NBA Lakers vs Celtics", "Player Props Analysis", "Bankroll Strategy Tips", "NFL Week 10 Predictions".'
+          content:
+            'Generate a short, descriptive title (3-5 words max) for this conversation. Focus on the main topic or action. Use buzzwords and be concise. Examples: "NBA Lakers vs Celtics", "Player Props Analysis", "Bankroll Strategy Tips", "NFL Week 10 Predictions".',
         },
         {
           role: 'user',
-          content: `User: ${userMessage}\n\nAssistant: ${assistantResponse.substring(0, 500)}`
-        }
+          content: `User: ${userMessage}\n\nAssistant: ${assistantResponse.substring(0, 500)}`,
+        },
       ],
-      max_completion_tokens: 20,
+      maxTokens: 20,
       temperature: 0.7,
     })
 
-    // Log title gen token usage
-    if (completion.usage) {
-      console.log(`[TITLE] Token usage: ${completion.usage.total_tokens}`)
-    }
+    console.log(`[TITLE] Response length: ${completion.text.length}`)
 
-    return completion.choices[0]?.message?.content?.trim() || 'New Chat'
+    return completion.text?.trim() || 'New Chat'
   } catch (error) {
     console.error('Error generating title:', error)
     return 'New Chat'
@@ -445,7 +445,7 @@ When users ask "what games are today/tonight/tomorrow":
  - **CRITICAL**: Display ALL sportsbooks returned by the API for each game (e.g., FanDuel, DraftKings, BetMGM, Caesars, Fanatics, Bet365, BetRivers, Hard Rock, Pinnacle, PointsBet, Bovada, Stake, Fliff). Do not list books that are not present in the data.
 - Compare moneyline, spreads, and totals across ALL available sportsbooks for each game
 - Show every bookmaker's odds in the table - do NOT omit any bookmakers from the data
-- ALWAYS present odds using the standardized Market/Team/Sportsbook table layout (see the example below). The API response now includes fully-built Markdown tables—copy them directly so formatting never varies.
+- ALWAYS present odds using the standardized Market/Team/Sportsbook table layout (see the example below). The API response now includes fully-built Markdown tables�copy them directly so formatting never varies.
 - Make each sportsbook name clickable using Markdown hyperlinks (e.g., [FanDuel](https://sportsbook.fanduel.com/)). Use the provided URL data for EVERY book and apply hyperlinks no matter which bet type/market is shown. If a link is missing from the data, leave the name as plain text.
 - Highlight which sportsbook has the best VALUE for each market (see "Best Value" rules below)
 - NEVER suggest where to bet, only present the data objectively
@@ -484,7 +484,7 @@ When identifying the best odds/value, you MUST consider the line FIRST, then the
 **When presenting odds, ALWAYS:**
 - Show the best line/spread for each side (not just the best odds on any line)
 - Note if a book offers a better line even with slightly worse odds
-- Example: "Best value for Lakers: -4.5 at -110 (FanDuel) â€” Better than -5 at -105 elsewhere"
+- Example: "Best value for Lakers: -4.5 at -110 (FanDuel) — Better than -5 at -105 elsewhere"
 
 **Arbitrage Opportunities:**
 When users ask for arbitrage opportunities, you MUST:
@@ -531,7 +531,7 @@ When analyzing betting stats, provide actionable insights:
 - Always restate the configuration for confirmation before calling save_custom_model. Do not save without explicit user approval.
 - When a user says things like "apply my NBA model for totals" or "use my NFL rushing model for Derrick Henry", search the provided context for matching models, clarify if multiple exist, then call apply_custom_model with the model name and any matchup/team info mentioned.
 - Use list_custom_models when the user asks what models they have, or when you need to remind them of available names.
-- When models are applied, explain the weighted score, confidence interval, and how each stat contributed. Never fabricate statsâ€"if data is missing, state that limitation.
+- When models are applied, explain the weighted score, confidence interval, and how each stat contributed. Never fabricate stats�"if data is missing, state that limitation.
 - Whenever someone asks about a specific matchup or you are creating/applying a projection, first ask **"Do you want to go more in depth on the matchup?"**. If they say yes (or ask for deeper analysis), call **get_game_context** to pull injuries, team form, and market trends before responding.
 
 **Research Models (Automated Opportunity Scanners):**
@@ -548,7 +548,7 @@ When analyzing betting stats, provide actionable insights:
 
 Always confirm what you're doing before calling functions and provide friendly responses after.`
 
-const ASSISTANT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
+const ASSISTANT_TOOLS: any[] = [
   {
     type: 'function',
     function: {
@@ -902,7 +902,7 @@ const ASSISTANT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'list_custom_models',
-      description: 'List the userâ€™s saved custom models so they know what can be applied.',
+      description: 'List the user’s saved custom models so they know what can be applied.',
       parameters: {
         type: 'object',
         properties: {
@@ -1133,6 +1133,13 @@ export async function POST(req: NextRequest) {
       timezone = 'America/New_York' // Default fallback
     } = await req.json()
 
+    if (!process.env.AI_GATEWAY_API_KEY && !process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { error: 'AI key not configured' },
+        { status: 500 }
+      )
+    }
+
     const baseUrl = resolveBaseUrl(req)
 
     if (!message || !conversationId || !userId) {
@@ -1362,8 +1369,8 @@ export async function POST(req: NextRequest) {
         const messageLower = msgLower
 
         // Detect if user is asking about tomorrow
-        const isTomorrowQuery = messageLower.match(/(tomorrow(?:'|’)?s?|tmrw|next day)/i)
-        const isTodayQuery = messageLower.match(/(today(?:'|’)?s?|tonight|this evening)/i)
+        const isTomorrowQuery = messageLower.match(/(tomorrow(?:'|�)?s?|tmrw|next day)/i)
+        const isTodayQuery = messageLower.match(/(today(?:'|�)?s?|tonight|this evening)/i)
 
         // Decide whether to fetch LIVE vs PENDING odds
         // Fetch LIVE when the user explicitly asks for live context or mentions specific teams (implies current interest)
@@ -1590,7 +1597,7 @@ export async function POST(req: NextRequest) {
             }
 
             const formatAmericanOdds = (value?: number) => {
-              if (value == null || !isFinite(value)) return '—'
+              if (value == null || !isFinite(value)) return '�'
               return value > 0 ? `+${value}` : String(value)
             }
 
@@ -1773,7 +1780,7 @@ export async function POST(req: NextRequest) {
               const body = tableRows
                 .map((row) => {
                   const cells = bookColumns.map((col) =>
-                    escapeTableCell(row.values[col.key] ?? '—')
+                    escapeTableCell(row.values[col.key] ?? '�')
                   )
                   const marketLabel = row.marketLabel ? escapeTableCell(row.marketLabel) : '&nbsp;'
                   return `| ${marketLabel} | ${escapeTableCell(row.teamLabel)} | ${cells.join(' | ')} |`
@@ -1881,7 +1888,7 @@ export async function POST(req: NextRequest) {
                 )
 
                 // Generate enriched stats summary for AI
-                statsEnrichment = '\n\n**📊 ENRICHED STATISTICS & INJURY DATA:**\n'
+                statsEnrichment = '\n\n**?? ENRICHED STATISTICS & INJURY DATA:**\n'
                 for (const sportData of enrichedOddsData) {
                   if (sportData.enrichedGames && sportData.enrichedGames.length > 0) {
                     statsEnrichment += `\n**${sportData.sport.toUpperCase()}:**\n`
@@ -1911,7 +1918,7 @@ export async function POST(req: NextRequest) {
               ? '\n(Note: Live was requested, but unavailable; showing pre-match odds.)'
               : ''
 
-            oddsContext = `\n\n**ðŸ”´ LIVE ODDS DATA LOADED ðŸ”´**
+            oddsContext = `\n\n**🔴 LIVE ODDS DATA LOADED 🔴**
 YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
 
 **CRITICAL INSTRUCTIONS:**
@@ -1974,7 +1981,7 @@ ${statsEnrichment}
     }
 
     // Create OpenAI messages
-    const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    const openaiMessages: CoreMessage[] = [
       {
         role: 'system',
         content: getSystemPrompt(timezone) + contextMessage + scoresContext + oddsContext,
@@ -1996,27 +2003,21 @@ ${statsEnrichment}
     const chatModel = AI_MODELS.chat
     console.log(`[CHAT] Using model: ${chatModel}`)
 
-    // GPT-5 models don't support custom temperature (only default 1)
-    const completionParams: any = {
-      model: chatModel,
-      messages: openaiMessages,
-      tools: ASSISTANT_TOOLS,
-      max_completion_tokens: 4000,
+    const buildParams = () => {
+      const params: any = {
+        model: openaiProvider(chatModel),
+        messages: openaiMessages,
+        tools: ASSISTANT_TOOLS,
+        maxTokens: 4000,
+      }
+      if (!chatModel.includes('gpt-5')) {
+        params.temperature = 0.7
+      }
+      return params
     }
 
-    // Only set temperature for non-GPT-5 models
-    if (!chatModel.includes('gpt-5')) {
-      completionParams.temperature = 0.7
-    }
-
-    const initialResponse = await openai.chat.completions.create(completionParams)
-
-    // Log token usage
-    if (initialResponse.usage) {
-      console.log(`[CHAT] Token usage: ${initialResponse.usage.total_tokens} (${initialResponse.usage.prompt_tokens} in, ${initialResponse.usage.completion_tokens} out)`)
-    }
-
-    const initialMessage = initialResponse.choices[0].message
+    let initialResponse = await generateText(buildParams())
+    let toolCalls = initialResponse.toolCalls || []
 
     const runToolCall = async (toolCall: any) => {
       const functionName = toolCall.function.name
@@ -2112,15 +2113,15 @@ ${statsEnrichment}
 
                 for (const [marketType, marketData] of Object.entries(playerProp.markets) as [string, any][]) {
                   const lineLabel =
-                    marketData.line !== undefined && marketData.line !== null ? marketData.line : '—'
+                    marketData.line !== undefined && marketData.line !== null ? marketData.line : '�'
                   const bestOver =
                     marketData.over.bestBook
                       ? `${marketData.over.best > 0 ? '+' : ''}${marketData.over.best} (${marketData.over.bestBook})`
-                      : '—'
+                      : '�'
                   const bestUnder =
                     marketData.under.bestBook
                       ? `${marketData.under.best > 0 ? '+' : ''}${marketData.under.best} (${marketData.under.bestBook})`
-                      : '—'
+                      : '�'
 
                   formatted += `| ${marketType.toUpperCase()} | ${lineLabel} | ${bestOver} | ${bestUnder} |\n`
                 }
@@ -2496,68 +2497,56 @@ ${statsEnrichment}
       });
     };
 
-    let toolMessage = initialMessage
     let handledToolCalls = false
+    let lastText = initialResponse.text || ''
 
-    while (toolMessage.tool_calls && toolMessage.tool_calls.length > 0) {
+    while (toolCalls && toolCalls.length > 0) {
       handledToolCalls = true
 
-      const assistantMessage: any = {
+      openaiMessages.push({
         role: 'assistant',
-        tool_calls: toolMessage.tool_calls,
-      }
-      if (toolMessage.content) {
-        assistantMessage.content = toolMessage.content
-      }
-      openaiMessages.push(assistantMessage)
+        content: lastText || undefined,
+        tool_calls: toolCalls.map((tc) => ({
+          id: tc.toolCallId,
+          type: 'function',
+          function: {
+            name: tc.toolName,
+            arguments: JSON.stringify(tc.args || {}),
+          },
+        })),
+      } as any)
 
-      for (const tool_call of toolMessage.tool_calls) {
-        const functionResult = await runToolCall(tool_call)
+      for (const toolCall of toolCalls) {
+        const functionResult = await runToolCall({
+          id: toolCall.toolCallId,
+          function: {
+            name: toolCall.toolName,
+            arguments: JSON.stringify(toolCall.args || {}),
+          },
+        } as any)
         openaiMessages.push({
           role: 'tool',
           content: JSON.stringify(functionResult),
-          tool_call_id: tool_call.id,
+          tool_call_id: toolCall.toolCallId,
         } as any)
       }
 
-      const followupParams: any = {
-        model: chatModel,
-        messages: openaiMessages,
-        tools: ASSISTANT_TOOLS,
-        max_completion_tokens: 4000,
-      }
-
-      // Only set temperature for non-GPT-5 models (GPT-5 only supports default temp=1)
-      if (!chatModel.includes('gpt-5')) {
-        followupParams.temperature = 0.7
-      }
-
-      const followup = await openai.chat.completions.create(followupParams)
-
-      // Log follow-up token usage
-      if (followup.usage) {
-        console.log(`[CHAT] Follow-up token usage: ${followup.usage.total_tokens} (${followup.usage.prompt_tokens} in, ${followup.usage.completion_tokens} out)`)
-      }
-
-      toolMessage = followup.choices[0].message
+      const followup = await generateText(buildParams())
+      lastText = followup.text || ''
+      toolCalls = followup.toolCalls || []
     }
 
     if (handledToolCalls) {
-      const finalText =
-        toolMessage.content && toolMessage.content.trim().length > 0
-          ? toolMessage.content
-          : 'Done.';
-
+      const finalText = lastText && lastText.trim().length > 0 ? lastText : 'Done.'
       return streamTextResponse(finalText)
     }
 
-    const stream = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const streamResult = await streamText({
+      model: openaiProvider(chatModel),
       messages: openaiMessages,
       tools: ASSISTANT_TOOLS,
-      stream: true,
-      temperature: 0.7,
-      max_tokens: 4000,
+      temperature: !chatModel.includes('gpt-5') ? 0.7 : undefined,
+      maxTokens: 4000,
     })
 
     const encoder = new TextEncoder()
@@ -2576,8 +2565,8 @@ ${statsEnrichment}
             }
           }, 15000) // Send keep-alive every 15 seconds
 
-          for await (const chunk of stream) {
-            const content = chunk.choices[0]?.delta?.content || ''
+          for await (const delta of streamResult.textStream) {
+            const content = delta || ''
             if (content) {
               fullResponse += content
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`))
@@ -2639,6 +2628,10 @@ ${statsEnrichment}
     );
   }
 }
+
+
+
+
 
 
 

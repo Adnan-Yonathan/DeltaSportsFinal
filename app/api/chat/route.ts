@@ -1287,6 +1287,7 @@ export async function POST(req: NextRequest) {
     }
 
     const mentionedTeams = extractTeamNames(msgLower)
+    console.log('[DEBUG] Mentioned teams detected:', mentionedTeams)
 
     const shouldFetchOdds =
       Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0
@@ -1434,12 +1435,15 @@ export async function POST(req: NextRequest) {
           // Fetch odds for each sport
           for (const sport of sports) {
             try {
+              console.log(`[DEBUG] Fetching odds for ${sport}, live=${fetchLive}`)
               const pendingData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: false })
+              console.log(`[DEBUG] Pending data for ${sport}:`, pendingData.length, 'games')
               let oddsData = pendingData
               let liveData: OddsGame[] = []
 
               if (fetchLive) {
                 liveData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: true })
+                console.log(`[DEBUG] Live data for ${sport}:`, liveData.length, 'games')
                 if (liveData.length > 0) {
                   usedLive = true
                 }
@@ -1503,6 +1507,7 @@ export async function POST(req: NextRequest) {
 
               // Filter by mentioned teams if any were detected
               if (mentionedTeams.length > 0 && oddsData.length > 0) {
+                console.log(`[DEBUG] Filtering ${oddsData.length} games by teams:`, mentionedTeams)
                 const filteredGames = oddsData.filter(game => {
                   const homeTeam = game.home_team.toLowerCase()
                   const awayTeam = game.away_team.toLowerCase()
@@ -1515,11 +1520,14 @@ export async function POST(req: NextRequest) {
                   })
                 })
 
+                console.log(`[DEBUG] After team filter: ${filteredGames.length} games`)
                 if (filteredGames.length > 0) {
                   oddsData = filteredGames
+                  console.log(`[DEBUG] Filtered games:`, filteredGames.map(g => `${g.away_team} @ ${g.home_team}`))
                 }
               }
 
+              console.log(`[DEBUG] Final oddsData for ${sport}:`, oddsData.length, 'games')
               if (oddsData.length > 0) {
                 allOddsData.push({
                   sport,
@@ -1819,6 +1827,8 @@ export async function POST(req: NextRequest) {
               .filter((sport) => sport.games.length > 0)
 
             const totalGames = formattedOdds.reduce((sum, sport) => sum + sport.games.length, 0)
+            console.log(`[DEBUG] Formatted odds: ${formattedOdds.length} sports, ${totalGames} total games`)
+            console.log(`[DEBUG] Games per sport:`, formattedOdds.map(s => `${s.sport}: ${s.games.length}`))
             const standardizedOddsTables = formattedOdds
               .map((sport) =>
                 sport.games
@@ -1923,13 +1933,15 @@ ${statsEnrichment}
 
             console.log(`[ODDS] Context built successfully, length: ${oddsContext.length} characters`)
           } else {
-            console.log('[ODDS] No games found after filtering')
+            console.log('[ODDS] No games found after filtering - formattedOdds is empty')
+            console.log('[DEBUG] allOddsData length:', allOddsData.length)
             if (isTomorrowQuery) {
               oddsContext = '\n\n**NO GAMES TOMORROW**: There are no games scheduled for tomorrow based on current data. The odds data may not be available yet for games that far out.\n'
             }
           }
         } else {
           console.log('[ODDS] No sports detected for odds fetching')
+          console.log('[DEBUG] shouldFetchOdds:', shouldFetchOdds, 'sports:', sports)
         }
       } catch (error) {
         console.error('[ODDS] Critical error fetching odds:', error)

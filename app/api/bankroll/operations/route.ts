@@ -143,14 +143,14 @@ async function settleBet(supabase: any, userId: string, data: any) {
   let actualResult = 0
 
   if (result === 'won') {
-    // Win = stake + potential_win
+    // Win = stake + potential_win (total returned)
     actualResult = parseFloat(bet.stake) + parseFloat(bet.potential_win)
   } else if (result === 'push') {
     // Push = get stake back
     actualResult = parseFloat(bet.stake)
   } else if (result === 'lost') {
-    // Lost = lose stake (already deducted when placed)
-    actualResult = 0
+    // Lost = lose stake (negative value to reduce bankroll)
+    actualResult = -parseFloat(bet.stake)
   }
 
   // Update bet

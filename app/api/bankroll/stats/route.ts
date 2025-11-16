@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     // Get user data
     const { data: userData } = await supabase
       .from('users')
-      .select('current_bankroll, starting_bankroll')
+      .select('current_bankroll, starting_bankroll, unit_size')
       .eq('id', user.id)
       .single()
 
@@ -139,12 +139,21 @@ export async function GET(req: NextRequest) {
     // Calculate unit-based metrics
     const startingBalance = Number(userData.starting_bankroll)
     const currentBalance = Number(userData.current_bankroll)
-    const unitSize = startingBalance > 0 ? startingBalance / 100 : 100 // 1% of starting bankroll
+    // Use user's configured unit_size, fallback to 1% of starting bankroll if not set
+    const unitSize = Number(userData.unit_size) || (startingBalance > 0 ? startingBalance / 100 : 100)
 
     const startingUnits = startingBalance / unitSize
     const currentUnits = currentBalance / unitSize
-    const unitsWon = totalProfit / unitSize
-    const unitsLost = 0 // Will be calculated from losing bets
+
+    // Calculate units won from winning bets (actual_result - stake = profit)
+    const unitsWon = bets
+      ?.filter((b) => b.status === 'won' && b.actual_result !== null)
+      .reduce((sum, b) => sum + ((Number(b.actual_result || 0) - Number(b.stake)) / unitSize), 0) || 0
+
+    // Calculate units lost from losing bets (absolute value of negative actual_result)
+    const unitsLost = Math.abs(bets
+      ?.filter((b) => b.status === 'lost' && b.actual_result !== null)
+      .reduce((sum, b) => sum + (Number(b.actual_result || 0) / unitSize), 0) || 0)
 
     // Convert daily balances to units
     const dailyUnits = dailyBalances.map(day => ({

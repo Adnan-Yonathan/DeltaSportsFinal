@@ -2503,6 +2503,12 @@ ${statsEnrichment}
     while (toolCalls && toolCalls.length > 0) {
       handledToolCalls = true
 
+      const buildToolInput = (call: any) => {
+        // AI SDK v4 exposes tool input on "input"; older shapes may use "args"
+        if (call && 'input' in call) return call.input ?? {}
+        return call?.args ?? {}
+      }
+
       openaiMessages.push({
         role: 'assistant',
         content: lastText || undefined,
@@ -2511,17 +2517,18 @@ ${statsEnrichment}
           type: 'function',
           function: {
             name: tc.toolName,
-            arguments: JSON.stringify(tc.args || {}),
+            arguments: JSON.stringify(buildToolInput(tc)),
           },
         })),
       } as any)
 
       for (const toolCall of toolCalls) {
+        const toolInput = buildToolInput(toolCall)
         const functionResult = await runToolCall({
           id: toolCall.toolCallId,
           function: {
             name: toolCall.toolName,
-            arguments: JSON.stringify(toolCall.args || {}),
+            arguments: JSON.stringify(toolInput),
           },
         } as any)
         openaiMessages.push({

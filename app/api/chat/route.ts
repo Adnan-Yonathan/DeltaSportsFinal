@@ -78,7 +78,7 @@ async function generateConversationTitle(userMessage: string, assistantResponse:
           content: `User: ${userMessage}\n\nAssistant: ${assistantResponse.substring(0, 500)}`,
         },
       ],
-      maxTokens: 20,
+      maxOutputTokens: 20,
       temperature: 0.7,
     })
 
@@ -2008,7 +2008,7 @@ ${statsEnrichment}
         model: openaiProvider(chatModel),
         messages: openaiMessages,
         tools: ASSISTANT_TOOLS,
-        maxTokens: 4000,
+        maxOutputTokens: 4000,
       }
       if (!chatModel.includes('gpt-5')) {
         params.temperature = 0.7
@@ -2546,7 +2546,7 @@ ${statsEnrichment}
       messages: openaiMessages,
       tools: ASSISTANT_TOOLS,
       temperature: !chatModel.includes('gpt-5') ? 0.7 : undefined,
-      maxTokens: 4000,
+      maxOutputTokens: 4000,
     })
 
     const encoder = new TextEncoder()

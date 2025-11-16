@@ -284,7 +284,7 @@ async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjectio
     const result = await generateText({
       model: openaiGatewayProvider(AI_MODELS.modelRunner),
       temperature: 0.2,
-      maxTokens: 2000,
+      maxOutputTokens: 2000,
       messages: [
         { role: 'system', content: systemMessage },
         { role: 'user', content: userMessage },

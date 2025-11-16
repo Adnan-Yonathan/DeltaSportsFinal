@@ -48,7 +48,8 @@
     "remark-gfm": "^4.0.0",
     "tailwind-merge": "^3.3.1",
     "three": "^0.160.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@21st-extension/toolbar": "^0.5.14",

@@ -1124,6 +1124,14 @@ const ASSISTANT_TOOLS: any[] = [
   },
 ]
 
+// Convert array format to ToolSet object format for AI SDK v5
+// AI SDK v5 expects tools as an object where keys are tool names
+const ASSISTANT_TOOLS_OBJECT = ASSISTANT_TOOLS.reduce((acc, tool) => {
+  const toolName = tool.function.name
+  acc[toolName] = tool
+  return acc
+}, {} as Record<string, any>)
+
 export async function POST(req: NextRequest) {
   try {
     const {
@@ -2007,7 +2015,7 @@ ${statsEnrichment}
       const params: any = {
         model: openaiProvider(chatModel),
         messages: openaiMessages,
-        tools: ASSISTANT_TOOLS,
+        tools: ASSISTANT_TOOLS_OBJECT,
         maxOutputTokens: 4000,
       }
       if (!chatModel.includes('gpt-5')) {
@@ -2551,7 +2559,7 @@ ${statsEnrichment}
     const streamResult = await streamText({
       model: openaiProvider(chatModel),
       messages: openaiMessages,
-      tools: ASSISTANT_TOOLS as any, // ToolSet expects keyed object; cast array shape for compatibility
+      tools: ASSISTANT_TOOLS_OBJECT,
       temperature: !chatModel.includes('gpt-5') ? 0.7 : undefined,
       maxOutputTokens: 4000,
     })

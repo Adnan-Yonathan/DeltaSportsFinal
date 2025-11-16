@@ -1996,13 +1996,20 @@ ${statsEnrichment}
     const chatModel = AI_MODELS.chat
     console.log(`[CHAT] Using model: ${chatModel}`)
 
-    const initialResponse = await openai.chat.completions.create({
+    // GPT-5 models don't support custom temperature (only default 1)
+    const completionParams: any = {
       model: chatModel,
       messages: openaiMessages,
       tools: ASSISTANT_TOOLS,
-      temperature: 0.7,
       max_completion_tokens: 4000,
-    })
+    }
+
+    // Only set temperature for non-GPT-5 models
+    if (!chatModel.includes('gpt-5')) {
+      completionParams.temperature = 0.7
+    }
+
+    const initialResponse = await openai.chat.completions.create(completionParams)
 
     // Log token usage
     if (initialResponse.usage) {
@@ -2513,13 +2520,19 @@ ${statsEnrichment}
         } as any)
       }
 
-      const followup = await openai.chat.completions.create({
+      const followupParams: any = {
         model: chatModel,
         messages: openaiMessages,
         tools: ASSISTANT_TOOLS,
-        temperature: 0.7,
         max_completion_tokens: 4000,
-      })
+      }
+
+      // Only set temperature for non-GPT-5 models (GPT-5 only supports default temp=1)
+      if (!chatModel.includes('gpt-5')) {
+        followupParams.temperature = 0.7
+      }
+
+      const followup = await openai.chat.completions.create(followupParams)
 
       // Log follow-up token usage
       if (followup.usage) {

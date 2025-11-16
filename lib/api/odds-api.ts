@@ -61,6 +61,19 @@ async function fetchWithSingleKey(urlBase: string, init?: NextFetchRequestInit):
 
 const DEFAULT_REVALIDATE_SECONDS = 30
 
+// Standard spread odds range configuration
+// Only fetch spreads with odds between MIN and MAX to exclude alternate spreads
+const FILTER_ALTERNATE_SPREADS = process.env.FILTER_ALTERNATE_SPREADS !== 'false'
+const MIN_STANDARD_SPREAD_ODDS = parseInt(process.env.MIN_STANDARD_SPREAD_ODDS || '-121')
+const MAX_STANDARD_SPREAD_ODDS = parseInt(process.env.MAX_STANDARD_SPREAD_ODDS || '106')
+
+// Log filter configuration on startup
+if (FILTER_ALTERNATE_SPREADS) {
+  console.log(`[ODDS] Alternate spread filter: ENABLED (odds range: ${MIN_STANDARD_SPREAD_ODDS} to ${MAX_STANDARD_SPREAD_ODDS})`)
+} else {
+  console.log('[ODDS] Alternate spread filter: DISABLED (all spreads will be included)')
+}
+
 // ============ Odds-API.io Provider (inline) ============
 const SPORT_MAP: Record<string, { sport: string; league: string }> = {
   basketball_nba: { sport: 'basketball', league: 'usa-nba' },
@@ -198,6 +211,16 @@ function parseNumber(value: any): number | undefined {
   return undefined
 }
 
+/**
+ * Check if odds are within standard spread range
+ * Standard spreads typically have odds between -121 and +106
+ * Alternate spreads have extreme odds like -250, +180, etc.
+ */
+function isStandardSpreadOdds(price: number | null | undefined): boolean {
+  if (price == null) return false
+  return price >= MIN_STANDARD_SPREAD_ODDS && price <= MAX_STANDARD_SPREAD_ODDS
+}
+
 export function mapBookmakersIO(
   oddsObj: any,
   home: string,
@@ -274,19 +297,45 @@ export function mapBookmakersIO(
         normalizedKey.includes('handicap')
 
       if (isSpread && oddsEntries.length) {
+        let filteredCount = 0
+        let totalSpreadCount = 0
+
         for (const row of oddsEntries) {
           const hdp = parseNumber(
             row?.hdp ?? row?.handicap ?? row?.line ?? row?.points ?? row?.point
           )
           if (hdp == null) continue
-          const out: OddsOutcome[] = []
+
+          totalSpreadCount++
           const homePrice = toAmerican(row?.home ?? row?.homeOdds ?? row?.home_price)
           const awayPrice = toAmerican(row?.away ?? row?.awayOdds ?? row?.away_price)
+
+          // Filter out alternate spreads with extreme odds (if enabled)
+          // Only include if BOTH sides have standard spread odds (between MIN and MAX)
+          if (FILTER_ALTERNATE_SPREADS) {
+            if (!isStandardSpreadOdds(homePrice) || !isStandardSpreadOdds(awayPrice)) {
+              filteredCount++
+              console.log(
+                `[ODDS] Filtered alternate spread: ${bookName} ${home} vs ${away} ` +
+                `(line: ${hdp}, odds: ${homePrice}/${awayPrice})`
+              )
+              continue
+            }
+          }
+
+          const out: OddsOutcome[] = []
           if (homePrice != null) out.push({ name: home, price: homePrice, point: hdp })
           if (awayPrice != null) out.push({ name: away, price: awayPrice, point: -hdp })
           if (out.length && shouldInclude('spreads')) {
             mappedMarkets.push({ key: 'spreads', outcomes: out, last_update })
           }
+        }
+
+        if (filteredCount > 0) {
+          console.log(
+            `[ODDS] ${bookName}: Filtered ${filteredCount}/${totalSpreadCount} alternate spreads ` +
+            `(kept ${totalSpreadCount - filteredCount} standard spreads)`
+          )
         }
       }
 

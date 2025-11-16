@@ -204,6 +204,11 @@ export interface Database {
           confidence_level: number
           config: Json
           notes: string | null
+          model_type?: string
+          research_config?: Json
+          description?: string | null
+          instructions?: string | null
+          file_metadata?: Json
           created_at: string
           updated_at: string
           last_used_at: string | null
@@ -218,6 +223,11 @@ export interface Database {
           confidence_level?: number
           config: Json
           notes?: string | null
+          model_type?: string
+          research_config?: Json
+          description?: string | null
+          instructions?: string | null
+          file_metadata?: Json
           created_at?: string
           updated_at?: string
           last_used_at?: string | null
@@ -232,9 +242,49 @@ export interface Database {
           confidence_level?: number
           config?: Json
           notes?: string | null
+          model_type?: string
+          research_config?: Json
+          description?: string | null
+          instructions?: string | null
+          file_metadata?: Json
           created_at?: string
           updated_at?: string
           last_used_at?: string | null
+        }
+      }
+      model_files: {
+        Row: {
+          id: string
+          model_id: string
+          user_id: string
+          file_name: string
+          file_type: string
+          file_size: number
+          storage_path: string
+          parsed_data: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          model_id: string
+          user_id: string
+          file_name: string
+          file_type: string
+          file_size: number
+          storage_path: string
+          parsed_data?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          model_id?: string
+          user_id?: string
+          file_name?: string
+          file_type?: string
+          file_size?: number
+          storage_path?: string
+          parsed_data?: Json | null
+          created_at?: string
         }
       }
       injury_reports: {
@@ -622,3 +672,8 @@ export interface Database {
     }
   }
 }
+
+// Type aliases for model_files
+export type ModelFileRow = Database['public']['Tables']['model_files']['Row']
+export type ModelFileInsert = Database['public']['Tables']['model_files']['Insert']
+export type ModelFileUpdate = Database['public']['Tables']['model_files']['Update']

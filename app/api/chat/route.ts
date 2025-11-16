@@ -2292,7 +2292,7 @@ ${statsEnrichment}
             teams: functionArgs.teams,
             matchup,
             notes: functionArgs.notes,
-          })
+          }, supabase)
 
           await touchCustomModelUsage(supabase, modelRecord.id)
 

@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDistanceToNow } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MessageSquare, Plus, Trash2, Sparkles, RefreshCw } from 'lucide-react'
+import { MessageSquare, Plus, Trash2, Sparkles, RefreshCw, Eye } from 'lucide-react'
+import Link from 'next/link'
 
 interface SidebarProps {
   userId: string
@@ -306,6 +307,24 @@ export default function ModernSidebar({
             >
               <RefreshCw className={`w-4 h-4 ${modelsLoading ? 'animate-spin' : ''}`} />
             </button>
+          </div>
+
+          {/* Create Model and View All Buttons */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <Link
+              href="/models/new"
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-indigo-500/10 to-purple-600/10 border border-indigo-500/30 hover:border-indigo-400/50 text-white/80 hover:text-white font-medium text-xs transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Create</span>
+            </Link>
+            <Link
+              href="/models"
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-white/10 hover:border-white/30 text-white/60 hover:text-white font-medium text-xs transition-all"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>View All</span>
+            </Link>
           </div>
 
           {modelsLoading ? (

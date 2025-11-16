@@ -87,6 +87,12 @@ interface LLMProjectionInput {
   breakdown: StatBreakdown[]
   dataHints?: string
   notes?: string
+  customInstructions?: string
+  uploadedFiles?: Array<{
+    fileName: string
+    fileType: string
+    data: any
+  }>
 }
 
 interface LLMProjection {
@@ -243,19 +249,54 @@ async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjectio
       notes: input.notes,
     }
 
+    // Build system message with optional custom instructions
+    let systemMessage = 'You are DELTA\'s advanced statistical engine. Given weighted stats, baselines, and confidence intervals, produce a JSON object with keys: point_estimate (number), lower_bound (number), upper_bound (number), probability_over_target (0-1), confidence_label ("low"|"medium"|"high"), summary (<=80 words), key_drivers (array of short phrases). Keep the math self-consistent and never output anything besides JSON.'
+
+    if (input.customInstructions) {
+      systemMessage += `\n\n## Custom Model Instructions:\n${input.customInstructions}\n\nApply these instructions when analyzing the data and generating projections.`
+    }
+
+    // Build user message with optional file data
+    let userMessage = `Projection request:\n${JSON.stringify(payload, null, 2)}`
+
+    if (input.uploadedFiles && input.uploadedFiles.length > 0) {
+      userMessage += '\n\n## Uploaded Reference Data:\n'
+      for (const file of input.uploadedFiles) {
+        userMessage += `\n### File: ${file.fileName} (${file.fileType})\n`
+
+        if (file.fileType === 'csv' || file.fileType === 'xlsx') {
+          // Format as table preview for CSV/Excel
+          if (Array.isArray(file.data) && file.data.length > 0) {
+            const headers = Object.keys(file.data[0])
+            const previewRows = file.data.slice(0, 10)
+            userMessage += `Columns: ${headers.join(', ')}\n`
+            userMessage += `Sample data (first 10 rows):\n${JSON.stringify(previewRows, null, 2)}\n`
+          }
+        } else if (file.fileType === 'pdf' || file.fileType === 'txt') {
+          // Include text content
+          const text = file.data?.text || file.data
+          const preview = typeof text === 'string' && text.length > 1000
+            ? text.substring(0, 1000) + '...(truncated)'
+            : text
+          userMessage += `Content:\n${preview}\n`
+        }
+      }
+      userMessage += '\n\nUse this uploaded data as additional context for your analysis and projections.'
+    }
+
     const completion = await openaiClient.chat.completions.create({
       model: AI_MODELS.modelRunner,
       temperature: 0.2,
       response_format: { type: 'json_object' },
+      max_completion_tokens: 2000,
       messages: [
         {
           role: 'system',
-          content:
-            'You are DELTA’s advanced statistical engine. Given weighted stats, baselines, and confidence intervals, produce a JSON object with keys: point_estimate (number), lower_bound (number), upper_bound (number), probability_over_target (0-1), confidence_label ("low"|"medium"|"high"), summary (<=80 words), key_drivers (array of short phrases). Keep the math self-consistent and never output anything besides JSON.',
+          content: systemMessage,
         },
         {
           role: 'user',
-          content: `Projection request:\n${JSON.stringify(payload, null, 2)}`,
+          content: userMessage,
         },
       ],
     })
@@ -301,11 +342,37 @@ async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjectio
 
 export async function runCustomModel(
   model: CustomModelRow,
-  options: RunModelOptions = {}
+  options: RunModelOptions = {},
+  supabaseClient?: any // Optional Supabase client for loading files
 ): Promise<RunModelResult> {
   const config = model.config as unknown as CustomModelConfigPayload
   const sportKey = options.sportKey || model.sport_key
   const leagueStats = await getTeamStats(sportKey)
+
+  // Load uploaded files if they exist and supabase client is provided
+  let uploadedFiles: Array<{ fileName: string; fileType: string; data: any }> = []
+  if (supabaseClient && model.file_metadata) {
+    const fileMetadata = model.file_metadata as any[]
+    if (Array.isArray(fileMetadata) && fileMetadata.length > 0) {
+      try {
+        const { data: filesData } = await supabaseClient
+          .from('model_files')
+          .select('*')
+          .eq('model_id', model.id)
+
+        if (filesData && filesData.length > 0) {
+          uploadedFiles = filesData.map((file: any) => ({
+            fileName: file.file_name,
+            fileType: file.file_type,
+            data: file.parsed_data,
+          }))
+        }
+      } catch (error) {
+        console.error('Error loading model files:', error)
+        // Continue without files if there's an error
+      }
+    }
+  }
 
   const teamsToUse = options.matchup
     ? [options.matchup.focus, options.matchup.opponent].filter(Boolean) as string[]
@@ -429,6 +496,8 @@ export async function runCustomModel(
       breakdown,
       dataHints: config.dataHints,
       notes: options.notes,
+      customInstructions: model.instructions || undefined,
+      uploadedFiles: uploadedFiles.length > 0 ? uploadedFiles : undefined,
     })
 
     if (llmProjection) {

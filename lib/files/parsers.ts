@@ -5,7 +5,6 @@
 
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
-import pdf from 'pdf-parse'
 
 export type FileType = 'csv' | 'xlsx' | 'pdf' | 'txt'
 
@@ -109,7 +108,10 @@ export async function parseExcel(buffer: Buffer): Promise<ParsedFileResult> {
  */
 export async function parsePDF(buffer: Buffer): Promise<ParsedFileResult> {
   try {
-    const data = await pdf(buffer)
+    // Dynamic import for pdf-parse (server-side only)
+    const pdfParseModule: any = await import('pdf-parse')
+    const pdfParse = pdfParseModule.default || pdfParseModule
+    const data = await pdfParse(buffer)
 
     const text = data.text.trim()
     if (!text) {

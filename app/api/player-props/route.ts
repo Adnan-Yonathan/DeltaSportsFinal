@@ -52,8 +52,8 @@ type CacheEntry = { expires: number; data: OddsGame[] }
 const oddsCache = new Map<string, CacheEntry>()
 const playerLookupCache = new Map<string, Promise<RosterPlayer | null>>()
 
-const SAFE_PROP_BOOKMAKERS = ['FanDuel', 'DraftKings']
-const FALLBACK_SINGLE_BOOK = ['FanDuel']
+const SAFE_PROP_BOOKMAKERS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365', 'Fanatics', 'Bovada', 'Stake', 'Fliff', 'BetRivers', 'Pinnacle']
+const FALLBACK_SINGLE_BOOK = ['FanDuel', 'DraftKings', 'BetMGM']
 
 const STAT_KEY_MAP: Record<string, string> = {
   'passing attempts': 'player_pass_atts',
@@ -253,8 +253,10 @@ async function getCachedOdds(
   const attempts: Array<{ live: boolean; books: string[] | null }> = [
     { live: false, books: SAFE_PROP_BOOKMAKERS },
     { live: false, books: FALLBACK_SINGLE_BOOK },
+    { live: false, books: null },
     { live: true, books: SAFE_PROP_BOOKMAKERS },
     { live: true, books: FALLBACK_SINGLE_BOOK },
+    { live: true, books: null },
   ]
 
   for (const attempt of attempts) {

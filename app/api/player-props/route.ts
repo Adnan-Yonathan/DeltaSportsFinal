@@ -52,7 +52,7 @@ type CacheEntry = { expires: number; data: OddsGame[] }
 const oddsCache = new Map<string, CacheEntry>()
 const playerLookupCache = new Map<string, Promise<RosterPlayer | null>>()
 
-const SAFE_PROP_BOOKMAKERS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365']
+const SAFE_PROP_BOOKMAKERS = ['FanDuel']
 const FALLBACK_SINGLE_BOOK = ['FanDuel']
 
 const STAT_KEY_MAP: Record<string, string> = {
@@ -84,6 +84,7 @@ const parsePlayerPropsFromBookmaker = (
   playerFilter?: string[]
 ) => {
   const marketsOut: any[] = []
+  const seen = new Set<string>() // de-dupe by player + key
 
   for (const market of markets || []) {
     if (typeof market?.name !== 'string') continue
@@ -106,6 +107,9 @@ const parsePlayerPropsFromBookmaker = (
       if (requestedMarkets.length && !requestedMarkets.includes(key)) continue
 
       const line = typeof entry.hdp === 'number' ? entry.hdp : parseFloat(entry.hdp)
+      const dedupeKey = `${playerName.toLowerCase()}|${key}`
+      if (seen.has(dedupeKey)) continue
+
       const outcomes: any[] = []
       if (entry.over != null && entry.over !== 'N/A') {
         outcomes.push({ name: 'Over', price: parseFloat(entry.over), point: line })
@@ -118,6 +122,7 @@ const parsePlayerPropsFromBookmaker = (
       }
       if (!outcomes.length) continue
 
+      seen.add(dedupeKey)
       marketsOut.push({
         key,
         outcomes,
@@ -246,10 +251,8 @@ async function getCachedOdds(
   const attempts: Array<{ live: boolean; books: string[] | null }> = [
     { live: false, books: SAFE_PROP_BOOKMAKERS },
     { live: false, books: FALLBACK_SINGLE_BOOK },
-    { live: false, books: null },
     { live: true, books: SAFE_PROP_BOOKMAKERS },
     { live: true, books: FALLBACK_SINGLE_BOOK },
-    { live: true, books: null },
   ]
 
   for (const attempt of attempts) {

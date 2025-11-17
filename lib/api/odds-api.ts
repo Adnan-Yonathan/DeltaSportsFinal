@@ -61,18 +61,8 @@ async function fetchWithSingleKey(urlBase: string, init?: NextFetchRequestInit):
 
 const DEFAULT_REVALIDATE_SECONDS = 30
 
-// Standard spread odds range configuration
-// Only fetch spreads with odds between MIN and MAX to exclude alternate spreads
-const FILTER_ALTERNATE_SPREADS = process.env.FILTER_ALTERNATE_SPREADS !== 'false'
-const MIN_STANDARD_SPREAD_ODDS = parseInt(process.env.MIN_STANDARD_SPREAD_ODDS || '-121')
-const MAX_STANDARD_SPREAD_ODDS = parseInt(process.env.MAX_STANDARD_SPREAD_ODDS || '106')
-
-// Log filter configuration on startup
-if (FILTER_ALTERNATE_SPREADS) {
-  console.log(`[ODDS] Alternate spread filter: ENABLED (odds range: ${MIN_STANDARD_SPREAD_ODDS} to ${MAX_STANDARD_SPREAD_ODDS})`)
-} else {
-  console.log('[ODDS] Alternate spread filter: DISABLED (all spreads will be included)')
-}
+// Alternate spread filtering disabled (include all spreads)
+const FILTER_ALTERNATE_SPREADS = false
 
 // ============ Odds-API.io Provider (inline) ============
 const SPORT_MAP: Record<string, { sport: string; league: string }> = {
@@ -407,8 +397,8 @@ export function mapBookmakersIO(
   return result
 }
 
-const VALID_EVENT_STATUSES = new Set(['pending', 'live', 'settled', 'scheduled', 'not_started', 'pre-match', 'pre_match'])
-const UPCOMING_STATUSES = ['pending', 'scheduled', 'not_started', 'pre-match', 'pre_match'] as const
+const VALID_EVENT_STATUSES = new Set(['pending', 'live', 'settled'])
+const UPCOMING_STATUSES = ['pending'] as const
 
 const normalizeEventStatuses = (status?: string | ReadonlyArray<string> | null): string | undefined => {
   if (!status) return undefined
@@ -680,6 +670,15 @@ async function fetchOddsIO(
           `[ODDS] League "${filters.league}" not recognized for ${sportKey}, retrying without league filter`
         )
         const { league, ...rest } = filters
+        return fetchEventsList(rest as FetchProviderEventsParams, options)
+      } else if (
+        error instanceof OddsAPIError &&
+        message.toLowerCase().includes('invalid status')
+      ) {
+        console.warn(
+          `[ODDS] Invalid status filter "${filters.status}" for ${sportKey}, retrying without status filter`
+        )
+        const { status, ...rest } = filters
         return fetchEventsList(rest as FetchProviderEventsParams, options)
       }
       throw error instanceof Error ? error : new OddsAPIError(message)

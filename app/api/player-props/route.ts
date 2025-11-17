@@ -61,21 +61,30 @@ const normalizeSportKey = (raw: string) => {
   return SUPPORTED_PROP_SPORTS.has(lowered) ? lowered : null
 }
 
-const cacheKeyFor = (sport: string, markets: string[], teamFilter?: string[]) =>
-  `${sport}:${markets.slice().sort().join(',')}:${teamFilter?.slice().sort().join(',') || 'all'}`
+const cacheKeyFor = (sport: string, markets: string[], teamFilter?: string[], mode?: string) =>
+  `${sport}:${markets.slice().sort().join(',')}:${teamFilter?.slice().sort().join(',') || 'all'}:${mode || 'any'}`
 
 async function getCachedOdds(sport: string, markets: string[], teamFilter?: string[]): Promise<OddsGame[]> {
-  const key = cacheKeyFor(sport, markets, teamFilter)
-  const cached = oddsCache.get(key)
-  if (cached && cached.expires > Date.now()) {
-    console.log(`[PLAYER_PROPS] Cache hit for ${key}`)
-    return cached.data
+  // Try prematch first (more widely available for props) then fall back to live
+  const tryFetch = async (live: boolean) => {
+    const key = cacheKeyFor(sport, markets, teamFilter, live ? 'live' : 'prematch')
+    const cached = oddsCache.get(key)
+    if (cached && cached.expires > Date.now()) {
+      console.log(`[PLAYER_PROPS] Cache hit for ${key}`)
+      return cached.data
+    }
+
+    console.log(`[PLAYER_PROPS] Cache miss, fetching odds for ${key}`)
+    const fresh = await fetchOdds(sport, markets, { live, teamFilter })
+    oddsCache.set(key, { data: fresh, expires: Date.now() + CACHE_TTL_MS })
+    return fresh
   }
 
-  console.log(`[PLAYER_PROPS] Cache miss, fetching odds for ${key}`)
-  const fresh = await fetchOdds(sport, markets, { live: true, teamFilter })
-  oddsCache.set(key, { data: fresh, expires: Date.now() + CACHE_TTL_MS })
-  return fresh
+  let data = await tryFetch(false)
+  if (data.length === 0) {
+    data = await tryFetch(true)
+  }
+  return data
 }
 
 const playerCacheKey = (sport: string, player: string) =>

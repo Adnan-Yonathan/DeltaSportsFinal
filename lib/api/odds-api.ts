@@ -553,11 +553,8 @@ export async function fetchEventOdds(
   markets?: string[] | null
 ): Promise<EventResponse> {
   if (!eventId) throw new OddsAPIError('eventId is required')
-  const bookmakerParam = normalizeBookmakerList(bookmakers)
-  const params: Record<string, QueryValue> = { eventId }
-  if (bookmakerParam) {
-    params.bookmakers = bookmakerParam
-  }
+  const bookmakerParam = normalizeBookmakerList(bookmakers) || 'all'
+  const params: Record<string, QueryValue> = { eventId, bookmakers: bookmakerParam }
   if (markets && markets.length) {
     params.markets = markets.join(',')
   }

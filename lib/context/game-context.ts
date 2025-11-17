@@ -129,7 +129,7 @@ async function loadInjuries({
         .select('*')
         .eq('sport_key', sport)
         .or(
-          `team_name.ilike.${homeTeam.replace(/ /g, '%')}%,team_name.ilike.${awayTeam.replace(/ /g, '%')}%`
+          `team_name.ilike.%${homeTeam}%,team_name.ilike.%${awayTeam}%`
         )
         .gte('captured_at', cutoff)
         .order('captured_at', { ascending: false })
@@ -355,12 +355,12 @@ export async function buildGameContext({
         .from('team_recent_form')
         .select('*')
         .eq('sport_key', sport)
-        .in('team_name', [homeTeam, awayTeam])
+        .or(`team_name.ilike.%${homeTeam}%,team_name.ilike.%${awayTeam}%`)
         .order('game_date', { ascending: false })
         .limit(10)
       recentFormRows = data || []
     } catch (error) {
-      console.error('[CONTEXT] Failed to fetch recent form:', error)
+      console.error(`[CONTEXT] Failed to fetch recent form for sport=${sport}, teams=[${homeTeam}, ${awayTeam}]:`, error)
     }
 
     try {
@@ -368,12 +368,12 @@ export async function buildGameContext({
         .from('team_splits')
         .select('*')
         .eq('sport_key', sport)
-        .in('team_name', [homeTeam, awayTeam])
+        .or(`team_name.ilike.%${homeTeam}%,team_name.ilike.%${awayTeam}%`)
         .order('captured_at', { ascending: false })
         .limit(4)
       splitsRows = data || []
     } catch (error) {
-      console.error('[CONTEXT] Failed to fetch splits:', error)
+      console.error(`[CONTEXT] Failed to fetch splits for sport=${sport}, teams=[${homeTeam}, ${awayTeam}]:`, error)
     }
 
     try {
@@ -382,13 +382,13 @@ export async function buildGameContext({
         .select('*')
         .eq('sport_key', sport)
         .or(
-          `(team_one.ilike.${homeTeam},team_two.ilike.${awayTeam}),(team_one.ilike.${awayTeam},team_two.ilike.${homeTeam})`
+          `(team_one.ilike.%${homeTeam}%,team_two.ilike.%${awayTeam}%),(team_one.ilike.%${awayTeam}%,team_two.ilike.%${homeTeam}%)`
         )
         .order('matchup_date', { ascending: false })
         .limit(5)
       headToHeadRows = data || []
     } catch (error) {
-      console.error('[CONTEXT] Failed to fetch head-to-head:', error)
+      console.error(`[CONTEXT] Failed to fetch head-to-head for sport=${sport}, teams=[${homeTeam}, ${awayTeam}]:`, error)
     }
   }
 

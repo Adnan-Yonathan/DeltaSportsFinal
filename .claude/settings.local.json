@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npx ts-node:*)",
       "Bash(nul)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(npm install:*)",
+      "Bash(npm view:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,8 +1,8 @@
 import { Database } from '@/lib/supabase/types'
 import { getTeamStats, TeamStats } from '@/lib/sports-stats-api'
 import { CustomModelConfigPayload, CustomModelStatConfig, StatNormalization } from './custom-model-types'
-import { generateText } from 'ai'
-import { AI_MODELS, openai as openaiGatewayProvider } from '@/lib/ai-gateway-client'
+import { openai, AI_MODELS } from '@/lib/ai-gateway-client'
+import { buildGameContext, GameContextPayload } from '@/lib/context/game-context'
 
 type CustomModelRow = Database['public']['Tables']['custom_models']['Row']
 
@@ -89,6 +89,7 @@ interface LLMProjectionInput {
     fileType: string
     data: any
   }>
+  enrichmentContext?: GameContextPayload | null
 }
 
 interface LLMProjection {
@@ -281,17 +282,94 @@ async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjectio
       userMessage += '\n\nUse this uploaded data as additional context for your analysis and projections.'
     }
 
-    const result = await generateText({
-      model: openaiGatewayProvider(AI_MODELS.modelRunner),
+    // Add enrichment context if available
+    if (input.enrichmentContext) {
+      userMessage += '\n\n## 📊 Matchup Context & Advanced Stats:\n'
+
+      // Injuries
+      if (input.enrichmentContext.injuries && input.enrichmentContext.injuries.length > 0) {
+        userMessage += '\n### Injuries:\n'
+        for (const injury of input.enrichmentContext.injuries) {
+          userMessage += `- ${injury.player_name} (${injury.team}): ${injury.status} - ${injury.injury_description}\n`
+        }
+      }
+
+      // Team Summaries
+      if (input.enrichmentContext.teamSummaries && input.enrichmentContext.teamSummaries.length > 0) {
+        userMessage += '\n### Team Summaries:\n'
+        for (const team of input.enrichmentContext.teamSummaries) {
+          userMessage += `**${team.team}**: Record ${team.wins}-${team.losses}`
+          if (team.winPct) userMessage += ` (${(team.winPct * 100).toFixed(1)}%)`
+          if (team.streak) userMessage += `, Streak: ${team.streak}`
+          if (team.notes) userMessage += `, ${team.notes}`
+          userMessage += '\n'
+        }
+      }
+
+      // Recent Form
+      if (input.enrichmentContext.recentForm && input.enrichmentContext.recentForm.length > 0) {
+        userMessage += '\n### Recent Form (Last 10 Games):\n'
+        for (const form of input.enrichmentContext.recentForm) {
+          userMessage += `**${form.team}**: ${form.record || 'N/A'}\n`
+          if (form.games && form.games.length > 0) {
+            const recentGames = form.games.slice(0, 5).map(g =>
+              `${g.result} vs ${g.opponent} (${g.game_date})`
+            ).join(', ')
+            userMessage += `  Recent: ${recentGames}\n`
+          }
+        }
+      }
+
+      // Pace & Efficiency
+      if (input.enrichmentContext.paceEfficiency && input.enrichmentContext.paceEfficiency.length > 0) {
+        userMessage += '\n### Pace & Efficiency:\n'
+        for (const pace of input.enrichmentContext.paceEfficiency) {
+          userMessage += `**${pace.team}**:\n`
+          if (pace.avgPace) userMessage += `  - Avg Pace: ${pace.avgPace.toFixed(2)}\n`
+          if (pace.avgOffRtg) userMessage += `  - Offensive Rating: ${pace.avgOffRtg.toFixed(2)}\n`
+          if (pace.avgDefRtg) userMessage += `  - Defensive Rating: ${pace.avgDefRtg.toFixed(2)}\n`
+          if (pace.avgNetRtg) userMessage += `  - Net Rating: ${pace.avgNetRtg.toFixed(2)}\n`
+        }
+      }
+
+      // Market Trends
+      if (input.enrichmentContext.marketTrends) {
+        userMessage += '\n### Current Market Lines:\n'
+        const mt = input.enrichmentContext.marketTrends
+        if (mt.bestSpreadHome || mt.bestSpreadAway) {
+          userMessage += `Spread: ${mt.bestSpreadHome?.line || 'N/A'} (${mt.bestSpreadHome?.odds || 'N/A'}) / ${mt.bestSpreadAway?.line || 'N/A'} (${mt.bestSpreadAway?.odds || 'N/A'})\n`
+        }
+        if (mt.bestMoneylineHome || mt.bestMoneylineAway) {
+          userMessage += `Moneyline: ${mt.bestMoneylineHome?.odds || 'N/A'} / ${mt.bestMoneylineAway?.odds || 'N/A'}\n`
+        }
+        if (mt.bestTotalOver || mt.bestTotalUnder) {
+          userMessage += `Total: O${mt.bestTotalOver?.point || 'N/A'} (${mt.bestTotalOver?.odds || 'N/A'}) / U${mt.bestTotalUnder?.point || 'N/A'} (${mt.bestTotalUnder?.odds || 'N/A'})\n`
+        }
+      }
+
+      // Head to Head
+      if (input.enrichmentContext.headToHead && input.enrichmentContext.headToHead.length > 0) {
+        userMessage += '\n### Head-to-Head History:\n'
+        const h2h = input.enrichmentContext.headToHead.slice(0, 5)
+        for (const game of h2h) {
+          userMessage += `- ${game.game_date}: ${game.winner} defeated ${game.loser}\n`
+        }
+      }
+
+      userMessage += '\n**Use this enrichment context to enhance your projection analysis and account for current injuries, momentum, matchup history, and market sentiment.**\n'
+    }
+
+    const result = await openai.chat.completions.create({
+      model: AI_MODELS.modelRunner,
       temperature: 0.2,
-      maxOutputTokens: 2000,
+      max_tokens: 2000,
       messages: [
         { role: 'system', content: systemMessage },
         { role: 'user', content: userMessage },
       ],
     })
 
-    const content = result.text
+    const content = result.choices[0].message.content
     if (!content) return null
     const parsed = JSON.parse(content)
 
@@ -473,6 +551,25 @@ export async function runCustomModel(
   let interpretation = describeScore(finalScore, finalLowerBound, finalUpperBound)
   let projectionDetails: RunModelResult['projection'] | undefined
 
+  // Fetch enrichment context (injuries, recent form, market trends, etc.)
+  let enrichmentContext: GameContextPayload | null = null
+  if (supabaseClient && teamsToUse.length >= 2) {
+    try {
+      console.log('[MODEL] Enriching with game context...')
+      enrichmentContext = await buildGameContext({
+        sport: sportKey,
+        homeTeam: teamsToUse[0],
+        awayTeam: teamsToUse[1],
+        includeMarketTrends: true,
+        supabase: supabaseClient,
+      })
+      console.log('[MODEL] Successfully enriched model with game context')
+    } catch (error) {
+      console.error('[MODEL] Failed to enrich with game context:', error)
+      // Continue without enrichment - not critical to model execution
+    }
+  }
+
   if (breakdown.length > 0) {
     const llmProjection = await getLLMProjection({
       modelName: model.model_name,
@@ -488,6 +585,7 @@ export async function runCustomModel(
       notes: options.notes,
       customInstructions: model.instructions || undefined,
       uploadedFiles: uploadedFiles.length > 0 ? uploadedFiles : undefined,
+      enrichmentContext,
     })
 
     if (llmProjection) {

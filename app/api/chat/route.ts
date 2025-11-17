@@ -1,5 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server'
-import { generateText, streamText, type CoreMessage } from 'ai'
+import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat'
 import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
 import type { OddsGame } from '@/lib/types/odds'
@@ -13,20 +13,15 @@ import { runCustomModel } from '@/lib/models/model-runner'
 import { buildGameContext } from '@/lib/context/game-context'
 import { normalizePropMarketKey, normalizePropSelection, extractPropLine } from '@/lib/utils/props'
 import { format } from 'date-fns'
-import { openai as openaiProvider, AI_MODELS } from '@/lib/ai-gateway-client'
+import { openai, AI_MODELS } from '@/lib/ai-gateway-client'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300 // 5 minutes (max for Pro plan)
 
 // Log model configuration on startup
-const gatewayEnabled = Boolean(process.env.AI_GATEWAY_API_KEY)
-const openaiEnabled = Boolean(process.env.OPENAI_API_KEY)
-console.log(`[CHAT] AI Gateway: ${gatewayEnabled ? 'ENABLED' : 'disabled'}`)
-console.log(`[CHAT] OpenAI direct: ${openaiEnabled ? 'ENABLED' : 'disabled'}`)
+console.log(`[CHAT] Using OpenAI API`)
 console.log(`[CHAT] Chat Model: ${AI_MODELS.chat}`)
 console.log(`[CHAT] Title Model: ${AI_MODELS.titleGen}`)
-
-// This route uses the AI SDK so it works with either AI Gateway (vck_ keys) or direct OpenAI keys
 
 function resolveBaseUrl(req: NextRequest) {
   const origin = req?.nextUrl?.origin
@@ -65,8 +60,8 @@ async function generateConversationTitle(userMessage: string, assistantResponse:
     const titleModel = AI_MODELS.titleGen
     console.log(`[TITLE] Using model: ${titleModel}`)
 
-    const completion = await generateText({
-      model: openaiProvider(titleModel),
+    const completion = await openai.chat.completions.create({
+      model: titleModel,
       messages: [
         {
           role: 'system',
@@ -78,13 +73,14 @@ async function generateConversationTitle(userMessage: string, assistantResponse:
           content: `User: ${userMessage}\n\nAssistant: ${assistantResponse.substring(0, 500)}`,
         },
       ],
-      maxOutputTokens: 20,
+      max_tokens: 20,
       temperature: 0.7,
     })
 
-    console.log(`[TITLE] Response length: ${completion.text.length}`)
+    const text = completion.choices[0].message.content || ''
+    console.log(`[TITLE] Response length: ${text.length}`)
 
-    return completion.text?.trim() || 'New Chat'
+    return text.trim() || 'New Chat'
   } catch (error) {
     console.error('Error generating title:', error)
     return 'New Chat'
@@ -548,7 +544,8 @@ When analyzing betting stats, provide actionable insights:
 
 Always confirm what you're doing before calling functions and provide friendly responses after.`
 
-const ASSISTANT_TOOLS: any[] = [
+// OpenAI SDK tool definitions with JSON schema
+const ASSISTANT_TOOLS: ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
@@ -557,63 +554,20 @@ const ASSISTANT_TOOLS: any[] = [
       parameters: {
         type: 'object',
         properties: {
-          sport: {
-            type: 'string',
-            description: 'The sport (e.g., NBA, NFL, MLB, NHL)',
-          },
-          league: {
-            type: 'string',
-            description: 'The league (e.g., NBA, NFL, MLB, NHL)',
-          },
-          game_description: {
-            type: 'string',
-            description: 'Description of the game (e.g., "Lakers vs Celtics")',
-          },
-          bet_type: {
-            type: 'string',
-            enum: ['spread', 'moneyline', 'total', 'prop'],
-            description: 'Type of bet',
-          },
-          bet_side: {
-            type: 'string',
-            description: 'The side of the bet (e.g., "Lakers -5.5", "Over 215.5", "Lakers ML")',
-          },
-          odds: {
-            type: 'number',
-            description: 'American odds (e.g., -110, +150)',
-          },
-          stake: {
-            type: 'number',
-            description: 'Amount wagered in dollars',
-          },
-          book: {
-            type: 'string',
-            description: 'Sportsbook name (e.g., DraftKings, FanDuel)',
-          },
-          notes: {
-            type: 'string',
-            description: 'Optional notes about the bet',
-          },
-          player_name: {
-            type: 'string',
-            description: 'Player name for prop bets (e.g., "Deni Avdija")',
-          },
-          prop_market: {
-            type: 'string',
-            description: 'Prop market identifier (e.g., "points", "rebounds", "pass_yds")',
-          },
-          prop_line: {
-            type: 'number',
-            description: 'Prop line (e.g., 22.5 points, 6.5 receptions)',
-          },
-          prop_selection: {
-            type: 'string',
-            description: 'Prop side (e.g., "Over", "Under")',
-          },
-          prop_team: {
-            type: 'string',
-            description: 'Player team for the prop bet',
-          },
+          sport: { type: 'string', description: 'The sport (e.g., NBA, NFL, MLB, NHL)' },
+          league: { type: 'string', description: 'The league (e.g., NBA, NFL, MLB, NHL)' },
+          game_description: { type: 'string', description: 'Description of the game (e.g., "Lakers vs Celtics")' },
+          bet_type: { type: 'string', enum: ['spread', 'moneyline', 'total', 'prop'], description: 'Type of bet' },
+          bet_side: { type: 'string', description: 'The side of the bet (e.g., "Lakers -5.5", "Over 215.5", "Lakers ML")' },
+          odds: { type: 'number', description: 'American odds (e.g., -110, +150)' },
+          stake: { type: 'number', description: 'Amount wagered in dollars' },
+          book: { type: 'string', description: 'Sportsbook name (e.g., DraftKings, FanDuel)' },
+          notes: { type: 'string', description: 'Optional notes about the bet' },
+          player_name: { type: 'string', description: 'Player name for prop bets (e.g., "Deni Avdija")' },
+          prop_market: { type: 'string', description: 'Prop market identifier (e.g., "points", "rebounds", "pass_yds")' },
+          prop_line: { type: 'number', description: 'Prop line (e.g., 22.5 points, 6.5 receptions)' },
+          prop_selection: { type: 'string', description: 'Prop side (e.g., "Over", "Under")' },
+          prop_team: { type: 'string', description: 'Player team for the prop bet' },
         },
         required: ['sport', 'league', 'game_description', 'bet_type', 'bet_side', 'odds', 'stake', 'book'],
       },
@@ -633,63 +587,20 @@ const ASSISTANT_TOOLS: any[] = [
             items: {
               type: 'object',
               properties: {
-                sport: {
-                  type: 'string',
-                  description: 'The sport (e.g., NBA, NFL, MLB, NHL)',
-                },
-                league: {
-                  type: 'string',
-                  description: 'The league (e.g., NBA, NFL, MLB, NHL)',
-                },
-                game_description: {
-                  type: 'string',
-                  description: 'Description of the game (e.g., "Lakers vs Celtics")',
-                },
-                bet_type: {
-                  type: 'string',
-                  enum: ['spread', 'moneyline', 'total', 'prop'],
-                  description: 'Type of bet',
-                },
-                bet_side: {
-                  type: 'string',
-                  description: 'The side of the bet (e.g., "Lakers -5.5", "Over 215.5", "Lakers ML")',
-                },
-                odds: {
-                  type: 'number',
-                  description: 'American odds (e.g., -110, +150)',
-                },
-                stake: {
-                  type: 'number',
-                  description: 'Amount wagered in dollars',
-                },
-                book: {
-                  type: 'string',
-                  description: 'Sportsbook name (e.g., DraftKings, FanDuel)',
-                },
-                notes: {
-                  type: 'string',
-                  description: 'Optional notes about the bet',
-                },
-                player_name: {
-                  type: 'string',
-                  description: 'Player name for prop bets (e.g., "Deni Avdija")',
-                },
-                prop_market: {
-                  type: 'string',
-                  description: 'Prop market identifier (e.g., "points", "rebounds", "pass_yds")',
-                },
-                prop_line: {
-                  type: 'number',
-                  description: 'Prop line (e.g., 22.5 points, 6.5 receptions)',
-                },
-                prop_selection: {
-                  type: 'string',
-                  description: 'Prop side (e.g., "Over", "Under")',
-                },
-                prop_team: {
-                  type: 'string',
-                  description: 'Player team for the prop bet',
-                },
+                sport: { type: 'string', description: 'The sport (e.g., NBA, NFL, MLB, NHL)' },
+                league: { type: 'string', description: 'The league (e.g., NBA, NFL, MLB, NHL)' },
+                game_description: { type: 'string', description: 'Description of the game (e.g., "Lakers vs Celtics")' },
+                bet_type: { type: 'string', enum: ['spread', 'moneyline', 'total', 'prop'], description: 'Type of bet' },
+                bet_side: { type: 'string', description: 'The side of the bet (e.g., "Lakers -5.5", "Over 215.5", "Lakers ML")' },
+                odds: { type: 'number', description: 'American odds (e.g., -110, +150)' },
+                stake: { type: 'number', description: 'Amount wagered in dollars' },
+                book: { type: 'string', description: 'Sportsbook name (e.g., DraftKings, FanDuel)' },
+                notes: { type: 'string', description: 'Optional notes about the bet' },
+                player_name: { type: 'string', description: 'Player name for prop bets (e.g., "Deni Avdija")' },
+                prop_market: { type: 'string', description: 'Prop market identifier (e.g., "points", "rebounds", "pass_yds")' },
+                prop_line: { type: 'number', description: 'Prop line (e.g., 22.5 points, 6.5 receptions)' },
+                prop_selection: { type: 'string', description: 'Prop side (e.g., "Over", "Under")' },
+                prop_team: { type: 'string', description: 'Player team for the prop bet' },
               },
               required: ['sport', 'league', 'game_description', 'bet_type', 'bet_side', 'odds', 'stake', 'book'],
             },
@@ -707,15 +618,8 @@ const ASSISTANT_TOOLS: any[] = [
       parameters: {
         type: 'object',
         properties: {
-          game_description: {
-            type: 'string',
-            description: 'Description of the game to identify the bet (e.g., "Lakers vs Celtics")',
-          },
-          result: {
-            type: 'string',
-            enum: ['won', 'lost', 'push'],
-            description: 'The result of the bet',
-          },
+          game_description: { type: 'string', description: 'Description of the game to identify the bet (e.g., "Lakers vs Celtics")' },
+          result: { type: 'string', enum: ['won', 'lost', 'push'], description: 'The result of the bet' },
         },
         required: ['game_description', 'result'],
       },
@@ -729,20 +633,9 @@ const ASSISTANT_TOOLS: any[] = [
       parameters: {
         type: 'object',
         properties: {
-          type: {
-            type: 'string',
-            enum: ['team', 'injuries'],
-            description: 'Type of statistics to retrieve',
-          },
-          sport: {
-            type: 'string',
-            enum: ['nba', 'nfl', 'mlb', 'nhl'],
-            description: 'The sport to get stats for',
-          },
-          team: {
-            type: 'string',
-            description: 'Optional team name or abbreviation to filter results',
-          },
+          type: { type: 'string', enum: ['team', 'injuries'], description: 'Type of statistics to retrieve' },
+          sport: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'], description: 'The sport to get stats for' },
+          team: { type: 'string', description: 'Optional team name or abbreviation to filter results' },
         },
         required: ['type', 'sport'],
       },
@@ -756,23 +649,10 @@ const ASSISTANT_TOOLS: any[] = [
       parameters: {
         type: 'object',
         properties: {
-          sport: {
-            type: 'string',
-            enum: ['nba', 'nfl', 'mlb', 'nhl'],
-            description: 'The sport to get player props for',
-          },
-          player: {
-            type: 'string',
-            description: 'Player name to filter props (optional - if not provided, returns all available player props)',
-          },
-          market: {
-            type: 'string',
-            description: 'Comma-separated list of prop markets to fetch. For NBA: points,rebounds,assists,threes. For NFL: pass_tds,pass_yds,rush_yds,receptions. For MLB: hits,total_bases,rbis,runs_scored. For NHL: points,shots_on_goal,blocked_shots. Leave empty for default markets.',
-          },
-          team: {
-            type: 'string',
-            description: 'Comma-separated list of team names to filter props (optional - only fetch props for players on these teams). Use team nicknames like "lakers,celtics" or "chiefs,eagles".',
-          },
+          sport: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'], description: 'The sport to get player props for' },
+          player: { type: 'string', description: 'Player name to filter props (optional - if not provided, returns all available player props)' },
+          market: { type: 'string', description: 'Comma-separated list of prop markets to fetch. For NBA: points,rebounds,assists,threes. For NFL: pass_tds,pass_yds,rush_yds,receptions. For MLB: hits,total_bases,rbis,runs_scored. For NHL: points,shots_on_goal,blocked_shots. Leave empty for default markets.' },
+          team: { type: 'string', description: 'Comma-separated list of team names to filter props (optional - only fetch props for players on these teams). Use team nicknames like "lakers,celtics" or "chiefs,eagles".' },
         },
         required: ['sport'],
       },
@@ -786,11 +666,7 @@ const ASSISTANT_TOOLS: any[] = [
       parameters: {
         type: 'object',
         properties: {
-          period: {
-            type: 'string',
-            enum: ['7d', '30d', 'all'],
-            description: 'Time period for stats. 7d = last 7 days, 30d = last 30 days, all = all time',
-          },
+          period: { type: 'string', enum: ['7d', '30d', 'all'], description: 'Time period for stats. 7d = last 7 days, 30d = last 30 days, all = all time' },
         },
         required: ['period'],
       },
@@ -804,35 +680,13 @@ const ASSISTANT_TOOLS: any[] = [
       parameters: {
         type: 'object',
         properties: {
-          model_name: {
-            type: 'string',
-            description: 'Friendly name the user will use later (e.g., "NBA pace model", "NFL rushing v1").',
-          },
-          sport_key: {
-            type: 'string',
-            description: 'Sport identifier (e.g., basketball_nba, americanfootball_nfl, baseball_mlb, icehockey_nhl).',
-          },
-          market_type: {
-            type: 'string',
-            description: 'Market or outcome focus (e.g., totals, moneyline, rushing_yards, player_points).',
-          },
-          target_metric: {
-            type: 'string',
-            description: 'Statistical outcome the model is trying to project (e.g., total_points, rushing_yards, win_probability).',
-          },
-          confidence_level: {
-            type: 'number',
-            enum: [0.8, 0.9, 0.95],
-            description: 'Desired confidence interval level (80%, 90%, 95%).',
-          },
-          data_hints: {
-            type: 'string',
-            description: 'Optional guidance about what data sources/samples to emphasize (e.g., "last 10 games", "road splits").',
-          },
-          notes: {
-            type: 'string',
-            description: 'Optional notes to show users when the model is applied.',
-          },
+          model_name: { type: 'string', description: 'Friendly name the user will use later (e.g., "NBA pace model", "NFL rushing v1").' },
+          sport_key: { type: 'string', description: 'Sport identifier (e.g., basketball_nba, americanfootball_nfl, baseball_mlb, icehockey_nhl).' },
+          market_type: { type: 'string', description: 'Market or outcome focus (e.g., totals, moneyline, rushing_yards, player_points).' },
+          target_metric: { type: 'string', description: 'Statistical outcome the model is trying to project (e.g., total_points, rushing_yards, win_probability).' },
+          confidence_level: { type: 'number', enum: [0.8, 0.9, 0.95], description: 'Desired confidence interval level (80%, 90%, 95%).' },
+          data_hints: { type: 'string', description: 'Optional guidance about what data sources/samples to emphasize (e.g., "last 10 games", "road splits").' },
+          notes: { type: 'string', description: 'Optional notes to show users when the model is applied.' },
           stats: {
             type: 'array',
             minItems: 1,
@@ -840,55 +694,17 @@ const ASSISTANT_TOOLS: any[] = [
             items: {
               type: 'object',
               properties: {
-                stat_key: {
-                  type: 'string',
-                  description: 'Key to lookup in team/player stats (e.g., pace, offensive_rating, rush_yards_per_game).',
-                },
-                label: {
-                  type: 'string',
-                  description: 'Human label describing the stat.',
-                },
-                scope: {
-                  type: 'string',
-                  enum: ['team', 'matchup_diff', 'player'],
-                  description: 'Whether the stat is team level, matchup differential, or player specific.',
-                },
-                importance: {
-                  type: 'number',
-                  minimum: 1,
-                  maximum: 5,
-                  description: 'Importance tier (1 low, 5 extremely high).',
-                },
-                direction: {
-                  type: 'string',
-                  enum: ['higher_better', 'lower_better'],
-                  description: 'Whether higher numbers help or hurt the projection.',
-                },
-                normalization: {
-                  type: 'string',
-                  enum: ['zscore', 'minmax', 'raw'],
-                  description: 'How to normalize this stat before weighting.',
-                },
-                sample_source: {
-                  type: 'string',
-                  description: 'Sample window (e.g., season, last_10, playoffs).',
-                },
-                variance_override: {
-                  type: 'number',
-                  description: 'Optional variance override if provided by the user.',
-                },
-                min_value: {
-                  type: 'number',
-                  description: 'Optional lower bound for min/max scaling.',
-                },
-                max_value: {
-                  type: 'number',
-                  description: 'Optional upper bound for min/max scaling.',
-                },
-                notes: {
-                  type: 'string',
-                  description: 'Optional note about this stat.',
-                },
+                stat_key: { type: 'string', description: 'Key to lookup in team/player stats (e.g., pace, offensive_rating, rush_yards_per_game).' },
+                label: { type: 'string', description: 'Human label describing the stat.' },
+                scope: { type: 'string', enum: ['team', 'matchup_diff', 'player'], description: 'Whether the stat is team level, matchup differential, or player specific.' },
+                importance: { type: 'number', minimum: 1, maximum: 5, description: 'Importance tier (1 low, 5 extremely high).' },
+                direction: { type: 'string', enum: ['higher_better', 'lower_better'], description: 'Whether higher numbers help or hurt the projection.' },
+                normalization: { type: 'string', enum: ['zscore', 'minmax', 'raw'], description: 'How to normalize this stat before weighting.' },
+                sample_source: { type: 'string', description: 'Sample window (e.g., season, last_10, playoffs).' },
+                variance_override: { type: 'number', description: 'Optional variance override if provided by the user.' },
+                min_value: { type: 'number', description: 'Optional lower bound for min/max scaling.' },
+                max_value: { type: 'number', description: 'Optional upper bound for min/max scaling.' },
+                notes: { type: 'string', description: 'Optional note about this stat.' },
               },
               required: ['stat_key', 'label', 'scope', 'importance', 'direction'],
             },
@@ -902,14 +718,11 @@ const ASSISTANT_TOOLS: any[] = [
     type: 'function',
     function: {
       name: 'list_custom_models',
-      description: 'List the user’s saved custom models so they know what can be applied.',
+      description: 'List the user\'s saved custom models so they know what can be applied.',
       parameters: {
         type: 'object',
         properties: {
-          limit: {
-            type: 'number',
-            description: 'Maximum number of models to return (default 5).',
-          },
+          limit: { type: 'number', description: 'Maximum number of models to return (default 5).' },
         },
       },
     },
@@ -922,43 +735,23 @@ const ASSISTANT_TOOLS: any[] = [
       parameters: {
         type: 'object',
         properties: {
-          model_id: {
-            type: 'string',
-            description: 'ID of the model to apply (optional if model_name is provided).',
-          },
-          model_name: {
-            type: 'string',
-            description: 'Name of the saved model to use (case-insensitive).',
-          },
-          sport_key: {
-            type: 'string',
-            description: 'Override sport key if different from the stored value (optional).',
-          },
+          model_id: { type: 'string', description: 'ID of the model to apply (optional if model_name is provided).' },
+          model_name: { type: 'string', description: 'Name of the saved model to use (case-insensitive).' },
+          sport_key: { type: 'string', description: 'Override sport key if different from the stored value (optional).' },
           teams: {
             type: 'array',
             description: 'Ordered list of teams or contexts referenced in the user request (e.g., ["Lakers", "Celtics"]).',
-            items: {
-              type: 'string',
-            },
+            items: { type: 'string' },
           },
           matchup: {
             type: 'object',
             description: 'Structured matchup information if user specified a focus and opponent.',
             properties: {
-              focus: {
-                type: 'string',
-                description: 'Primary team/player the prediction focuses on.',
-              },
-              opponent: {
-                type: 'string',
-                description: 'Opposing team/player.',
-              },
+              focus: { type: 'string', description: 'Primary team/player the prediction focuses on.' },
+              opponent: { type: 'string', description: 'Opposing team/player.' },
             },
           },
-          notes: {
-            type: 'string',
-            description: 'Any extra context supplied by the user (e.g., "tonight in Boston", "use road splits").',
-          },
+          notes: { type: 'string', description: 'Any extra context supplied by the user (e.g., "tonight in Boston", "use road splits").' },
         },
         required: ['model_name'],
       },
@@ -972,22 +765,10 @@ const ASSISTANT_TOOLS: any[] = [
       parameters: {
         type: 'object',
         properties: {
-          sport: {
-            type: 'string',
-            description: 'Sport key (e.g., basketball_nba, americanfootball_nfl, baseball_mlb, icehockey_nhl).',
-          },
-          home_team: {
-            type: 'string',
-            description: 'Home team name.',
-          },
-          away_team: {
-            type: 'string',
-            description: 'Away team name.',
-          },
-          include_market_trends: {
-            type: 'boolean',
-            description: 'Whether to include best spread/moneyline snapshots (defaults to true).',
-          },
+          sport: { type: 'string', description: 'Sport key (e.g., basketball_nba, americanfootball_nfl, baseball_mlb, icehockey_nhl).' },
+          home_team: { type: 'string', description: 'Home team name.' },
+          away_team: { type: 'string', description: 'Away team name.' },
+          include_market_trends: { type: 'boolean', description: 'Whether to include best spread/moneyline snapshots (defaults to true).' },
         },
         required: ['sport', 'home_team', 'away_team'],
       },
@@ -1001,19 +782,16 @@ const ASSISTANT_TOOLS: any[] = [
       parameters: {
         type: 'object',
         properties: {
-          model_name: {
-            type: 'string',
-            description: 'Unique name for this research model (e.g., "Spread Hunter", "High-Value Props").',
-          },
+          model_name: { type: 'string', description: 'Unique name for this research model (e.g., "Spread Hunter", "High-Value Props").' },
           sports: {
             type: 'array',
-            items: { type: 'string' },
             description: 'Sports to scan (e.g., ["basketball_nba", "americanfootball_nfl"]).',
+            items: { type: 'string' },
           },
           markets: {
             type: 'array',
-            items: { type: 'string' },
             description: 'Markets to scan (e.g., ["spreads", "totals", "h2h"]).',
+            items: { type: 'string' },
           },
           filters: {
             type: 'array',
@@ -1021,19 +799,9 @@ const ASSISTANT_TOOLS: any[] = [
             items: {
               type: 'object',
               properties: {
-                type: {
-                  type: 'string',
-                  enum: ['odds_comparison', 'line_comparison', 'prop_value', 'stat_threshold'],
-                  description: 'Type of filter to apply.',
-                },
-                label: {
-                  type: 'string',
-                  description: 'Human-readable label for this filter.',
-                },
-                condition: {
-                  type: 'object',
-                  description: 'Filter-specific configuration. Structure varies by filter type.',
-                },
+                type: { type: 'string', enum: ['odds_comparison', 'line_comparison', 'prop_value', 'stat_threshold'], description: 'Type of filter to apply.' },
+                label: { type: 'string', description: 'Human-readable label for this filter.' },
+                condition: { type: 'object', description: 'Filter-specific configuration. Structure varies by filter type.' },
               },
               required: ['type', 'condition'],
             },
@@ -1041,26 +809,12 @@ const ASSISTANT_TOOLS: any[] = [
           sort_by: {
             type: 'object',
             properties: {
-              field: {
-                type: 'string',
-                enum: ['ev', 'odds_diff', 'line_diff', 'game_time'],
-                description: 'Field to sort results by.',
-              },
-              direction: {
-                type: 'string',
-                enum: ['asc', 'desc'],
-                description: 'Sort direction.',
-              },
+              field: { type: 'string', enum: ['ev', 'odds_diff', 'line_diff', 'game_time'], description: 'Field to sort results by.' },
+              direction: { type: 'string', enum: ['asc', 'desc'], description: 'Sort direction.' },
             },
           },
-          max_results: {
-            type: 'number',
-            description: 'Maximum number of opportunities to return (default: 20).',
-          },
-          notes: {
-            type: 'string',
-            description: 'Optional notes about this research model.',
-          },
+          max_results: { type: 'number', description: 'Maximum number of opportunities to return (default: 20).' },
+          notes: { type: 'string', description: 'Optional notes about this research model.' },
         },
         required: ['model_name', 'sports', 'markets', 'filters'],
       },
@@ -1074,26 +828,11 @@ const ASSISTANT_TOOLS: any[] = [
       parameters: {
         type: 'object',
         properties: {
-          model_id: {
-            type: 'string',
-            description: 'ID of the research model to run (optional if model_name provided).',
-          },
-          model_name: {
-            type: 'string',
-            description: 'Name of the research model to run (case-insensitive).',
-          },
-          live_only: {
-            type: 'boolean',
-            description: 'Only scan in-play games (default: false).',
-          },
-          upcoming_only: {
-            type: 'boolean',
-            description: 'Only scan upcoming games (default: true).',
-          },
-          time_window: {
-            type: 'number',
-            description: 'Hours ahead to scan for upcoming games (default: 24).',
-          },
+          model_id: { type: 'string', description: 'ID of the research model to run (optional if model_name provided).' },
+          model_name: { type: 'string', description: 'Name of the research model to run (case-insensitive).' },
+          live_only: { type: 'boolean', description: 'Only scan in-play games (default: false).' },
+          upcoming_only: { type: 'boolean', description: 'Only scan upcoming games (default: true).' },
+          time_window: { type: 'number', description: 'Hours ahead to scan for upcoming games (default: 24).' },
         },
       },
     },
@@ -1106,31 +845,14 @@ const ASSISTANT_TOOLS: any[] = [
       parameters: {
         type: 'object',
         properties: {
-          model_id: {
-            type: 'string',
-            description: 'ID of the research model.',
-          },
-          model_name: {
-            type: 'string',
-            description: 'Name of the research model (case-insensitive).',
-          },
-          limit: {
-            type: 'number',
-            description: 'Number of cached result sets to return (default: 1).',
-          },
+          model_id: { type: 'string', description: 'ID of the research model.' },
+          model_name: { type: 'string', description: 'Name of the research model (case-insensitive).' },
+          limit: { type: 'number', description: 'Number of cached result sets to return (default: 1).' },
         },
       },
     },
   },
 ]
-
-// Convert array format to ToolSet object format for AI SDK v5
-// AI SDK v5 expects tools as an object where keys are tool names
-const ASSISTANT_TOOLS_OBJECT = ASSISTANT_TOOLS.reduce((acc, tool) => {
-  const toolName = tool.function.name
-  acc[toolName] = tool
-  return acc
-}, {} as Record<string, any>)
 
 export async function POST(req: NextRequest) {
   try {
@@ -1141,9 +863,9 @@ export async function POST(req: NextRequest) {
       timezone = 'America/New_York' // Default fallback
     } = await req.json()
 
-    if (!process.env.AI_GATEWAY_API_KEY && !process.env.OPENAI_API_KEY) {
+    if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
-        { error: 'AI key not configured' },
+        { error: 'OpenAI API key not configured' },
         { status: 500 }
       )
     }
@@ -2013,10 +1735,10 @@ ${statsEnrichment}
 
     const buildParams = () => {
       const params: any = {
-        model: openaiProvider(chatModel),
+        model: chatModel,
         messages: openaiMessages,
-        tools: ASSISTANT_TOOLS_OBJECT,
-        maxOutputTokens: 4000,
+        tools: ASSISTANT_TOOLS,
+        max_tokens: 4000,
       }
       if (!chatModel.includes('gpt-5')) {
         params.temperature = 0.7
@@ -2024,8 +1746,8 @@ ${statsEnrichment}
       return params
     }
 
-    let initialResponse = await generateText(buildParams())
-    let toolCalls = initialResponse.toolCalls || []
+    let initialResponse = await openai.chat.completions.create(buildParams())
+    let toolCalls = initialResponse.choices[0].message.tool_calls || []
 
     const runToolCall = async (toolCall: any) => {
       const functionName = toolCall.function.name
@@ -2506,49 +2228,30 @@ ${statsEnrichment}
     };
 
     let handledToolCalls = false
-    let lastText = initialResponse.text || ''
+    let lastText = initialResponse.choices[0].message.content || ''
 
     while (toolCalls && toolCalls.length > 0) {
       handledToolCalls = true
 
-      const buildToolInput = (call: any) => {
-        // AI SDK v4 exposes tool input on "input"; older shapes may use "args"
-        if (call && 'input' in call) return call.input ?? {}
-        return call?.args ?? {}
-      }
-
+      // OpenAI SDK returns tool_calls with { id, type, function: { name, arguments } }
       openaiMessages.push({
         role: 'assistant',
         content: lastText || undefined,
-        tool_calls: toolCalls.map((tc) => ({
-          id: tc.toolCallId,
-          type: 'function',
-          function: {
-            name: tc.toolName,
-            arguments: JSON.stringify(buildToolInput(tc)),
-          },
-        })),
+        tool_calls: toolCalls,
       } as any)
 
       for (const toolCall of toolCalls) {
-        const toolInput = buildToolInput(toolCall)
-        const functionResult = await runToolCall({
-          id: toolCall.toolCallId,
-          function: {
-            name: toolCall.toolName,
-            arguments: JSON.stringify(toolInput),
-          },
-        } as any)
+        const functionResult = await runToolCall(toolCall)
         openaiMessages.push({
           role: 'tool',
           content: JSON.stringify(functionResult),
-          tool_call_id: toolCall.toolCallId,
+          tool_call_id: toolCall.id,
         } as any)
       }
 
-      const followup = await generateText(buildParams())
-      lastText = followup.text || ''
-      toolCalls = followup.toolCalls || []
+      const followup = await openai.chat.completions.create(buildParams())
+      lastText = followup.choices[0].message.content || ''
+      toolCalls = followup.choices[0].message.tool_calls || []
     }
 
     if (handledToolCalls) {
@@ -2556,12 +2259,13 @@ ${statsEnrichment}
       return streamTextResponse(finalText)
     }
 
-    const streamResult = await streamText({
-      model: openaiProvider(chatModel),
+    const stream = await openai.chat.completions.create({
+      model: chatModel,
       messages: openaiMessages,
-      tools: ASSISTANT_TOOLS_OBJECT,
+      tools: ASSISTANT_TOOLS,
       temperature: !chatModel.includes('gpt-5') ? 0.7 : undefined,
-      maxOutputTokens: 4000,
+      max_tokens: 4000,
+      stream: true,
     })
 
     const encoder = new TextEncoder()
@@ -2580,8 +2284,8 @@ ${statsEnrichment}
             }
           }, 15000) // Send keep-alive every 15 seconds
 
-          for await (const delta of streamResult.textStream) {
-            const content = delta || ''
+          for await (const chunk of stream) {
+            const content = chunk.choices[0]?.delta?.content || ''
             if (content) {
               fullResponse += content
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`))

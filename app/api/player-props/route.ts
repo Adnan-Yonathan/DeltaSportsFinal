@@ -104,9 +104,12 @@ async function getCachedOdds(
     if (eventIds.length) {
       const eventOdds = await fetchMultiEventOdds(eventIds, null, { cache: 'no-store' }, markets)
       console.log(`[PLAYER_PROPS] eventOdds length: ${eventOdds.length}`)
-      const games: OddsGame[] = eventOdds.map((ev: any) => {
-        const bookmakers = mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', markets)
-        return {
+    const games: OddsGame[] = eventOdds.map((ev: any) => {
+      const bookmakers = mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', markets)
+      if (!bookmakers.length) {
+        console.warn('[PLAYER_PROPS] No bookmakers mapped for event', ev.id, 'market keys:', ev.bookmakers ? Object.keys(ev.bookmakers) : [])
+      }
+      return {
           id: String(ev.id),
           sport_key: sport,
           sport_title: ev.league?.toString() || '',

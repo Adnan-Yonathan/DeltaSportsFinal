@@ -53,6 +53,7 @@ const oddsCache = new Map<string, CacheEntry>()
 const playerLookupCache = new Map<string, Promise<RosterPlayer | null>>()
 
 const SAFE_PROP_BOOKMAKERS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365']
+const FALLBACK_SINGLE_BOOK = ['FanDuel']
 
 const normalizeSportKey = (raw: string) => {
   const resolved = resolveSportKey(raw)
@@ -85,9 +86,20 @@ async function getCachedOdds(
   }
 
   // Try fetching by eventId (per provider docs)
-  try {
-    const events = await fetchEventsIO(sport, { status: 'pending' })
-    console.log(`[PLAYER_PROPS] Loaded ${events.length} pending events for ${sport}`)
+  const logNoBooks = (ev: any, markets: string[]) => {
+    console.warn(
+      '[PLAYER_PROPS] No bookmakers mapped for event',
+      ev.id,
+      'market keys:',
+      ev.bookmakers ? Object.keys(ev.bookmakers) : [],
+      'requested markets:',
+      markets
+    )
+  }
+
+  const fetchEventBatch = async (bookmakers: string[] | null, live: boolean) => {
+    const events = await fetchEventsIO(sport, { status: live ? 'live' : 'pending' })
+    console.log(`[PLAYER_PROPS] Loaded ${events.length} ${live ? 'live' : 'pending'} events for ${sport}`)
     const filteredEvents = teamFilter && teamFilter.length
       ? events.filter(ev => {
           const home = (ev.home || '').toLowerCase()
@@ -99,44 +111,20 @@ async function getCachedOdds(
         })
       : events
 
-    const eventIds = filteredEvents.slice(0, 10).map(ev => String(ev.id))
-    console.log(`[PLAYER_PROPS] Using ${eventIds.length} eventIds for props fetch`)
-    if (eventIds.length) {
-      const eventOdds = await fetchMultiEventOdds(eventIds, null, { cache: 'no-store' }, markets)
-      console.log(`[PLAYER_PROPS] eventOdds length: ${eventOdds.length}`)
+    const eventIds = filteredEvents.slice(0, 25).map(ev => String(ev.id))
+    console.log(`[PLAYER_PROPS] Using ${eventIds.length} eventIds (${live ? 'live' : 'pending'}) for props fetch with books=${bookmakers?.join(',') || 'ALL'}`)
+    if (!eventIds.length) return []
+
+    const eventOdds = await fetchMultiEventOdds(
+      eventIds,
+      bookmakers,
+      { cache: 'no-store' },
+      markets
+    )
+    console.log(`[PLAYER_PROPS] eventOdds length: ${eventOdds.length}`)
     const games: OddsGame[] = eventOdds.map((ev: any) => {
-      const bookmakers = mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', markets)
-      if (!bookmakers.length) {
-        console.warn('[PLAYER_PROPS] No bookmakers mapped for event', ev.id, 'market keys:', ev.bookmakers ? Object.keys(ev.bookmakers) : [])
-      }
-      return {
-          id: String(ev.id),
-          sport_key: sport,
-          sport_title: ev.league?.toString() || '',
-          commence_time: String(ev.date || ''),
-          home_team: String(ev.home || ''),
-          away_team: String(ev.away || ''),
-          bookmakers,
-        }
-      })
-      if (games.length) {
-        oddsCache.set(key, { data: games, expires: Date.now() + CACHE_TTL_MS })
-        return games
-      }
-    }
-  } catch (err) {
-    console.warn('[PLAYER_PROPS] Event-based props fetch failed, falling back:', err instanceof Error ? err.message : err)
-  }
-
-  // Prefer dedicated player-props endpoint when available, fall back to odds
-  try {
-    const playerProps = await fetchPlayerProps(sport, markets, {
-      teamFilter,
-      playerFilter: playerFilter && playerFilter.length ? playerFilter : undefined,
-    })
-
-    const games: OddsGame[] = playerProps.map((ev) => {
-      const bookmakers = mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', markets)
+      const mapped = mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', markets)
+      if (!mapped.length) logNoBooks(ev, markets)
       return {
         id: String(ev.id),
         sport_key: sport,
@@ -144,39 +132,38 @@ async function getCachedOdds(
         commence_time: String(ev.date || ''),
         home_team: String(ev.home || ''),
         away_team: String(ev.away || ''),
-        bookmakers,
+        bookmakers: mapped,
       }
-    })
+    }).filter(g => g.bookmakers && g.bookmakers.length)
 
-    if (games.length) {
-      oddsCache.set(key, { data: games, expires: Date.now() + CACHE_TTL_MS })
-      return games
+    return games
+  }
+
+  // Try pending events with safe bookmaker set, then single-book fallback, then no filter; repeat for live
+  const attempts: Array<{ live: boolean; books: string[] | null }> = [
+    { live: false, books: SAFE_PROP_BOOKMAKERS },
+    { live: false, books: FALLBACK_SINGLE_BOOK },
+    { live: false, books: null },
+    { live: true, books: SAFE_PROP_BOOKMAKERS },
+    { live: true, books: FALLBACK_SINGLE_BOOK },
+    { live: true, books: null },
+  ]
+
+  for (const attempt of attempts) {
+    try {
+      const games = await fetchEventBatch(attempt.books, attempt.live)
+      if (games.length) {
+        oddsCache.set(key, { data: games, expires: Date.now() + CACHE_TTL_MS })
+        return games
+      }
+    } catch (err) {
+      console.warn('[PLAYER_PROPS] Event batch fetch failed:', err instanceof Error ? err.message : err)
     }
-  } catch (err) {
-    console.warn('[PLAYER_PROPS] Player-props endpoint failed, falling back to odds:', err instanceof Error ? err.message : err)
   }
 
-  const tryFetch = async (live: boolean) => {
-    console.log(`[PLAYER_PROPS] Cache miss, fetching odds for ${key}${live ? ':live' : ':prematch'}`)
-    const fresh = await fetchOdds(sport, markets, {
-      live,
-      teamFilter,
-      bookmakers: SAFE_PROP_BOOKMAKERS,
-    })
-    oddsCache.set(key, { data: fresh, expires: Date.now() + CACHE_TTL_MS })
-    return fresh
-  }
+  console.warn(`[PLAYER_PROPS] No props returned for ${key}`)
 
-  let games = await tryFetch(false)
-  if (!games.length) {
-    games = await tryFetch(true)
-  }
-
-  if (!games.length) {
-    console.warn(`[PLAYER_PROPS] No props returned for ${key}`)
-  }
-
-  return games
+  return []
 }
 
 const playerCacheKey = (sport: string, player: string) =>

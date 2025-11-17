@@ -86,15 +86,37 @@ function pickBookmakersParam(): string | undefined {
 let lastAppliedBookmakers: string | null = null
 let selectingBookmakersPromise: Promise<void> | null = null
 
+const extractInvalidBookmakers = (message: string): string[] => {
+  try {
+    const jsonMatch = message.match(/Odds-API\.io error \d+:\s*(\{.*\})/i)
+    if (jsonMatch && jsonMatch[1]) {
+      const parsed = JSON.parse(jsonMatch[1])
+      if (Array.isArray(parsed.invalidBookmakers)) {
+        return parsed.invalidBookmakers.map((b: any) => String(b)).filter(Boolean)
+      }
+    }
+  } catch {
+    // ignore parsing errors
+  }
+  return []
+}
+
 async function ensureBookmakersSelection(bookmakers?: string | null): Promise<boolean> {
   if (!bookmakers) return false
-  const normalized = bookmakers
+  const entries = bookmakers
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean)
-    .join(',')
-  if (!normalized) return false
+  if (!entries.length) return false
+
+  const normalized = entries.join(',')
   if (lastAppliedBookmakers === normalized) return true
+
+  const applySelection = async (list: string[]) => {
+    selectingBookmakersPromise = selectBookmakersRemote(list)
+    await selectingBookmakersPromise
+    lastAppliedBookmakers = list.join(',')
+  }
 
   if (selectingBookmakersPromise) {
     try {
@@ -104,12 +126,30 @@ async function ensureBookmakersSelection(bookmakers?: string | null): Promise<bo
     }
   }
 
-  selectingBookmakersPromise = selectBookmakersRemote(normalized.split(','))
   try {
-    await selectingBookmakersPromise
-    lastAppliedBookmakers = normalized
+    await applySelection(entries)
     return true
-  } catch (error) {
+  } catch (error: any) {
+    const message = error?.message ? String(error.message) : ''
+    const invalid = extractInvalidBookmakers(message)
+    if (invalid.length > 0) {
+      const filtered = entries.filter(
+        (bk) => !invalid.some((inv) => inv.toLowerCase() === bk.toLowerCase())
+      )
+      if (filtered.length > 0 && filtered.length < entries.length) {
+        console.warn(
+          `[ODDS] Removing invalid bookmakers (${invalid.join(
+            ', '
+          )}) and retrying selection`
+        )
+        try {
+          await applySelection(filtered)
+          return true
+        } catch (retryError) {
+          console.error('[ODDS] Failed to apply bookmaker selection after cleanup:', retryError)
+        }
+      }
+    }
     console.error('[ODDS] Failed to apply bookmaker selection:', error)
     return false
   } finally {

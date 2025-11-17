@@ -863,7 +863,21 @@ export async function POST(req: NextRequest) {
       timezone = 'America/New_York' // Default fallback
     } = await req.json()
 
-    if (!process.env.OPENAI_API_KEY) {
+    const environmentName = process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown'
+    const oddsProvider = process.env.ODDS_PROVIDER || 'odds-api-io'
+    const oddsApiKey = process.env.ODDS_API_KEY
+    const openaiApiKey = process.env.OPENAI_API_KEY
+
+    console.log('[CONFIG] Environment validation:', {
+      environment: environmentName,
+      oddsProvider,
+      hasOddsApiKey: Boolean(oddsApiKey),
+      oddsApiKeyLength: oddsApiKey?.length || 0,
+      hasOpenAIApiKey: Boolean(openaiApiKey),
+      openaiApiKeyLength: openaiApiKey?.length || 0,
+    })
+
+    if (!openaiApiKey) {
       return NextResponse.json(
         { error: 'OpenAI API key not configured' },
         { status: 500 }
@@ -1288,12 +1302,25 @@ export async function POST(req: NextRequest) {
                 })
               }
             } catch (err: any) {
-              console.error(`Error fetching ${sport}:`, err)
+              const statusCode = err?.statusCode ?? err?.status ?? err?.response?.status
+              const errorName = err?.name || 'UnknownError'
+              const errorMessage = err?.message || String(err)
+
+              console.error(`[ODDS] Error fetching ${sport}:`, {
+                name: errorName,
+                message: errorMessage,
+                statusCode,
+                code: err?.code,
+                isRateLimited: err?.isRateLimited,
+                stack: err?.stack,
+              })
 
               // Check if this is a rate limit error
-              if (err?.isRateLimited || err?.statusCode === 429) {
+              if (err?.isRateLimited || statusCode === 429) {
                 throw new Error('RATE_LIMIT_EXCEEDED: The odds API is currently experiencing high traffic. Please wait a few minutes and try again. (Tip: Try asking about specific sports or teams to reduce API usage)')
               }
+
+              throw err instanceof Error ? err : new Error(errorMessage)
             }
           }
 
@@ -1704,9 +1731,27 @@ ${statsEnrichment}
           console.log('[DEBUG] shouldFetchOdds:', shouldFetchOdds, 'sports:', sports)
         }
       } catch (error) {
-        console.error('[ODDS] Critical error fetching odds:', error)
-        // Add a note to context about the error
-        oddsContext = '\n\n(Note: Odds data temporarily unavailable due to API error)\n'
+        const oddsError: any = error
+        const statusCode = oddsError?.statusCode ?? oddsError?.status ?? oddsError?.response?.status
+        const message = oddsError?.message || String(oddsError)
+        const oddsKeyLength = oddsApiKey?.length || 0
+        const hasOddsKey = Boolean(oddsApiKey)
+
+        console.error('[ODDS] Critical error fetching odds:', {
+          name: oddsError?.name || 'UnknownError',
+          message,
+          statusCode,
+          code: oddsError?.code,
+          isRateLimited: oddsError?.isRateLimited,
+          stack: oddsError?.stack,
+          environment: environmentName,
+          oddsProvider,
+          oddsApiKeyPresent: hasOddsKey,
+          oddsApiKeyLength: oddsKeyLength,
+          openaiApiKeyPresent: Boolean(openaiApiKey),
+        })
+
+        oddsContext = `\n\n(Odds data unavailable due to API error: ${message}. status=${statusCode ?? 'unknown'}, provider=${oddsProvider}, env=${environmentName}, oddsKey=${hasOddsKey ? 'present' : 'MISSING'} len=${oddsKeyLength})\n`
       }
     }
 

@@ -63,6 +63,8 @@ const DEFAULT_REVALIDATE_SECONDS = 30
 
 // Alternate spread filtering disabled (include all spreads)
 const FILTER_ALTERNATE_SPREADS = false
+const MIN_STANDARD_SPREAD_ODDS = Number.NEGATIVE_INFINITY
+const MAX_STANDARD_SPREAD_ODDS = Number.POSITIVE_INFINITY
 
 // ============ Odds-API.io Provider (inline) ============
 const SPORT_MAP: Record<string, { sport: string; league: string }> = {
@@ -203,11 +205,7 @@ function parseNumber(value: any): number | undefined {
   return undefined
 }
 
-/**
- * Check if odds are within standard spread range
- * Standard spreads typically have odds between -121 and +106
- * Alternate spreads have extreme odds like -250, +180, etc.
- */
+// Check if odds are within the allowed spread range (currently unbounded to include all spreads)
 function isStandardSpreadOdds(price: number | null | undefined): boolean {
   if (price == null) return false
   return price >= MIN_STANDARD_SPREAD_ODDS && price <= MAX_STANDARD_SPREAD_ODDS

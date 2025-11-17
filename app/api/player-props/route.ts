@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchOdds, fetchPlayerProps, mapBookmakersIO } from '@/lib/api/odds-api'
+import { fetchOdds, fetchPlayerProps, mapBookmakersIO, fetchEventsIO, fetchMultiEventOdds } from '@/lib/api/odds-api'
 import { searchPlayer } from '@/lib/sports-stats-api'
 import type { RosterPlayer } from '@/lib/sports-stats-api'
 import { resolveSportKey } from '@/lib/utils/live-game'
@@ -82,6 +82,44 @@ async function getCachedOdds(
   if (cached && cached.expires > Date.now()) {
     console.log(`[PLAYER_PROPS] Cache hit for ${key}`)
     return cached.data
+  }
+
+  // Try fetching by eventId (per provider docs)
+  try {
+    const events = await fetchEventsIO(sport, { status: 'pending' })
+    const filteredEvents = teamFilter && teamFilter.length
+      ? events.filter(ev => {
+          const home = (ev.home || '').toLowerCase()
+          const away = (ev.away || '').toLowerCase()
+          return teamFilter.some(t => {
+            const lower = t.toLowerCase()
+            return home.includes(lower) || away.includes(lower)
+          })
+        })
+      : events
+
+    const eventIds = filteredEvents.slice(0, 10).map(ev => String(ev.id))
+    if (eventIds.length) {
+      const eventOdds = await fetchMultiEventOdds(eventIds, null, { cache: 'no-store' }, markets)
+      const games: OddsGame[] = eventOdds.map((ev: any) => {
+        const bookmakers = mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', markets)
+        return {
+          id: String(ev.id),
+          sport_key: sport,
+          sport_title: ev.league?.toString() || '',
+          commence_time: String(ev.date || ''),
+          home_team: String(ev.home || ''),
+          away_team: String(ev.away || ''),
+          bookmakers,
+        }
+      })
+      if (games.length) {
+        oddsCache.set(key, { data: games, expires: Date.now() + CACHE_TTL_MS })
+        return games
+      }
+    }
+  } catch (err) {
+    console.warn('[PLAYER_PROPS] Event-based props fetch failed, falling back:', err instanceof Error ? err.message : err)
   }
 
   // Prefer dedicated player-props endpoint when available, fall back to odds

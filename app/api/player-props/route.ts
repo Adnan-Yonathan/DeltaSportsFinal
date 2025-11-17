@@ -52,7 +52,7 @@ type CacheEntry = { expires: number; data: OddsGame[] }
 const oddsCache = new Map<string, CacheEntry>()
 const playerLookupCache = new Map<string, Promise<RosterPlayer | null>>()
 
-const SAFE_PROP_BOOKMAKERS = ['FanDuel']
+const SAFE_PROP_BOOKMAKERS = ['FanDuel', 'DraftKings']
 const FALLBACK_SINGLE_BOOK = ['FanDuel']
 
 const STAT_KEY_MAP: Record<string, string> = {
@@ -61,12 +61,14 @@ const STAT_KEY_MAP: Record<string, string> = {
   'td passes': 'player_pass_tds',
   'passing tds': 'player_pass_tds',
   'completions': 'player_pass_completions',
+  'passing completions': 'player_pass_completions',
   'passing + rushing yards': 'player_pass_rush_yds',
   'rushing yards': 'player_rush_yds',
   'rush attempts': 'player_rush_attempts',
   'rushing + receiving yards': 'player_rush_rec_yds',
   'receiving yards': 'player_receiving_yds',
   'receptions': 'player_receptions',
+  'receiving receptions': 'player_receptions',
   'longest reception': 'player_longest_rec',
   'interceptions': 'player_interceptions',
   'anytime td': 'player_anytime_td',
@@ -104,7 +106,7 @@ const parsePlayerPropsFromBookmaker = (
       }
 
       const key = normalizeStatKey(statLabel)
-      if (requestedMarkets.length && !requestedMarkets.includes(key)) continue
+      // Do not drop markets solely because they aren't in requestedMarkets; we normalize and keep first per player/key
 
       const line = typeof entry.hdp === 'number' ? entry.hdp : parseFloat(entry.hdp)
       const dedupeKey = `${playerName.toLowerCase()}|${key}`

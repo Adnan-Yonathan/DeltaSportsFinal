@@ -1,5 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server'
-import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat'
+import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions'
 import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
 import type { OddsGame } from '@/lib/types/odds'
@@ -1711,7 +1711,7 @@ ${statsEnrichment}
     }
 
     // Create OpenAI messages
-    const openaiMessages: CoreMessage[] = [
+    const openaiMessages: ChatCompletionMessageParam[] = [
       {
         role: 'system',
         content: getSystemPrompt(timezone) + contextMessage + scoresContext + oddsContext,

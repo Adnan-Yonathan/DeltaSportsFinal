@@ -5,7 +5,8 @@
       "Bash(nul)",
       "Bash(dir:*)",
       "Bash(npm install:*)",
-      "Bash(npm view:*)"
+      "Bash(npm view:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

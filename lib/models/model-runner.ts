@@ -290,7 +290,7 @@ async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjectio
       if (input.enrichmentContext.injuries && input.enrichmentContext.injuries.length > 0) {
         userMessage += '\n### Injuries:\n'
         for (const injury of input.enrichmentContext.injuries) {
-          userMessage += `- ${injury.player_name} (${injury.team}): ${injury.status} - ${injury.injury_description}\n`
+          userMessage += `- ${injury.player} (${injury.team}): ${injury.status}${injury.injury ? ` - ${injury.injury}` : ''}\n`
         }
       }
 
@@ -298,37 +298,59 @@ async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjectio
       if (input.enrichmentContext.teamSummaries && input.enrichmentContext.teamSummaries.length > 0) {
         userMessage += '\n### Team Summaries:\n'
         for (const team of input.enrichmentContext.teamSummaries) {
-          userMessage += `**${team.team}**: Record ${team.wins}-${team.losses}`
-          if (team.winPct) userMessage += ` (${(team.winPct * 100).toFixed(1)}%)`
+          userMessage += `**${team.team}**`
+          if (team.record) userMessage += `: Record ${team.record}`
+          if (team.rank) userMessage += `, Rank: #${team.rank}`
           if (team.streak) userMessage += `, Streak: ${team.streak}`
-          if (team.notes) userMessage += `, ${team.notes}`
+          if (team.recentFormNote) userMessage += `, ${team.recentFormNote}`
+          if (team.homeAwayNote) userMessage += `, ${team.homeAwayNote}`
           userMessage += '\n'
         }
       }
 
       // Recent Form
-      if (input.enrichmentContext.recentForm && input.enrichmentContext.recentForm.length > 0) {
+      if (input.enrichmentContext.recentForm) {
         userMessage += '\n### Recent Form (Last 10 Games):\n'
-        for (const form of input.enrichmentContext.recentForm) {
-          userMessage += `**${form.team}**: ${form.record || 'N/A'}\n`
-          if (form.games && form.games.length > 0) {
-            const recentGames = form.games.slice(0, 5).map(g =>
-              `${g.result} vs ${g.opponent} (${g.game_date})`
-            ).join(', ')
-            userMessage += `  Recent: ${recentGames}\n`
-          }
+        const homeForm = input.enrichmentContext.recentForm.home || []
+        const awayForm = input.enrichmentContext.recentForm.away || []
+
+        if (homeForm.length > 0) {
+          userMessage += `**Home Team**: ${homeForm.length} recent games\n`
+          const recentGames = homeForm.slice(0, 5).map(g =>
+            `${g.result || 'N/A'} vs ${g.opponent} (${g.game_date})`
+          ).join(', ')
+          userMessage += `  ${recentGames}\n`
+        }
+
+        if (awayForm.length > 0) {
+          userMessage += `**Away Team**: ${awayForm.length} recent games\n`
+          const recentGames = awayForm.slice(0, 5).map(g =>
+            `${g.result || 'N/A'} vs ${g.opponent} (${g.game_date})`
+          ).join(', ')
+          userMessage += `  ${recentGames}\n`
         }
       }
 
       // Pace & Efficiency
-      if (input.enrichmentContext.paceEfficiency && input.enrichmentContext.paceEfficiency.length > 0) {
+      if (input.enrichmentContext.paceEfficiency) {
         userMessage += '\n### Pace & Efficiency:\n'
-        for (const pace of input.enrichmentContext.paceEfficiency) {
-          userMessage += `**${pace.team}**:\n`
-          if (pace.avgPace) userMessage += `  - Avg Pace: ${pace.avgPace.toFixed(2)}\n`
-          if (pace.avgOffRtg) userMessage += `  - Offensive Rating: ${pace.avgOffRtg.toFixed(2)}\n`
-          if (pace.avgDefRtg) userMessage += `  - Defensive Rating: ${pace.avgDefRtg.toFixed(2)}\n`
-          if (pace.avgNetRtg) userMessage += `  - Net Rating: ${pace.avgNetRtg.toFixed(2)}\n`
+        const homePace = input.enrichmentContext.paceEfficiency.home
+        const awayPace = input.enrichmentContext.paceEfficiency.away
+
+        if (homePace) {
+          userMessage += `**Home Team** (${homePace.games} games):\n`
+          if (homePace.pace) userMessage += `  - Avg Pace: ${homePace.pace.toFixed(2)}\n`
+          if (homePace.offensive_rating) userMessage += `  - Offensive Rating: ${homePace.offensive_rating.toFixed(2)}\n`
+          if (homePace.defensive_rating) userMessage += `  - Defensive Rating: ${homePace.defensive_rating.toFixed(2)}\n`
+          if (homePace.net_rating) userMessage += `  - Net Rating: ${homePace.net_rating.toFixed(2)}\n`
+        }
+
+        if (awayPace) {
+          userMessage += `**Away Team** (${awayPace.games} games):\n`
+          if (awayPace.pace) userMessage += `  - Avg Pace: ${awayPace.pace.toFixed(2)}\n`
+          if (awayPace.offensive_rating) userMessage += `  - Offensive Rating: ${awayPace.offensive_rating.toFixed(2)}\n`
+          if (awayPace.defensive_rating) userMessage += `  - Defensive Rating: ${awayPace.defensive_rating.toFixed(2)}\n`
+          if (awayPace.net_rating) userMessage += `  - Net Rating: ${awayPace.net_rating.toFixed(2)}\n`
         }
       }
 
@@ -336,14 +358,18 @@ async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjectio
       if (input.enrichmentContext.marketTrends) {
         userMessage += '\n### Current Market Lines:\n'
         const mt = input.enrichmentContext.marketTrends
+        userMessage += `${mt.gameDescription}\n`
         if (mt.bestSpreadHome || mt.bestSpreadAway) {
-          userMessage += `Spread: ${mt.bestSpreadHome?.line || 'N/A'} (${mt.bestSpreadHome?.odds || 'N/A'}) / ${mt.bestSpreadAway?.line || 'N/A'} (${mt.bestSpreadAway?.odds || 'N/A'})\n`
+          userMessage += `Spread: ${mt.bestSpreadHome || 'N/A'} / ${mt.bestSpreadAway || 'N/A'}\n`
         }
         if (mt.bestMoneylineHome || mt.bestMoneylineAway) {
-          userMessage += `Moneyline: ${mt.bestMoneylineHome?.odds || 'N/A'} / ${mt.bestMoneylineAway?.odds || 'N/A'}\n`
+          userMessage += `Moneyline: ${mt.bestMoneylineHome || 'N/A'} / ${mt.bestMoneylineAway || 'N/A'}\n`
         }
         if (mt.bestTotalOver || mt.bestTotalUnder) {
-          userMessage += `Total: O${mt.bestTotalOver?.point || 'N/A'} (${mt.bestTotalOver?.odds || 'N/A'}) / U${mt.bestTotalUnder?.point || 'N/A'} (${mt.bestTotalUnder?.odds || 'N/A'})\n`
+          userMessage += `Total: ${mt.bestTotalOver || 'N/A'} / ${mt.bestTotalUnder || 'N/A'}\n`
+        }
+        if (mt.notes) {
+          userMessage += `Notes: ${mt.notes}\n`
         }
       }
 
@@ -352,7 +378,8 @@ async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjectio
         userMessage += '\n### Head-to-Head History:\n'
         const h2h = input.enrichmentContext.headToHead.slice(0, 5)
         for (const game of h2h) {
-          userMessage += `- ${game.game_date}: ${game.winner} defeated ${game.loser}\n`
+          const loser = game.winner === game.team_one ? game.team_two : game.team_one
+          userMessage += `- ${game.matchup_date}: ${game.winner || 'Unknown'} defeated ${loser}\n`
         }
       }
 

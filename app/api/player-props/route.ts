@@ -55,6 +55,97 @@ const playerLookupCache = new Map<string, Promise<RosterPlayer | null>>()
 const SAFE_PROP_BOOKMAKERS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365']
 const FALLBACK_SINGLE_BOOK = ['FanDuel']
 
+const STAT_KEY_MAP: Record<string, string> = {
+  'passing attempts': 'player_pass_atts',
+  'passing yards': 'player_pass_yds',
+  'td passes': 'player_pass_tds',
+  'passing tds': 'player_pass_tds',
+  'completions': 'player_pass_completions',
+  'passing + rushing yards': 'player_pass_rush_yds',
+  'rushing yards': 'player_rush_yds',
+  'rush attempts': 'player_rush_attempts',
+  'rushing + receiving yards': 'player_rush_rec_yds',
+  'receiving yards': 'player_receiving_yds',
+  'receptions': 'player_receptions',
+  'longest reception': 'player_longest_rec',
+  'interceptions': 'player_interceptions',
+  'anytime td': 'player_anytime_td',
+}
+
+const normalizeStatKey = (label: string): string => {
+  const key = label.trim().toLowerCase()
+  return STAT_KEY_MAP[key] || `player_prop_${key.replace(/\s+/g, '_')}`
+}
+
+const parsePlayerPropsFromBookmaker = (
+  bookName: string,
+  markets: any[],
+  requestedMarkets: string[],
+  playerFilter?: string[]
+) => {
+  const marketsOut: any[] = []
+
+  for (const market of markets || []) {
+    if (typeof market?.name !== 'string') continue
+    if (market.name.toLowerCase() !== 'player props') continue
+    if (!Array.isArray(market.odds)) continue
+
+    for (const entry of market.odds) {
+      const rawLabel = String(entry?.label || '')
+      const match = rawLabel.match(/^(.*?)\s*\((.+)\)$/)
+      const playerName = (match?.[1] || rawLabel).trim()
+      const statLabel = (match?.[2] || '').trim()
+      if (!playerName || !statLabel) continue
+
+      if (playerFilter && playerFilter.length) {
+        const lower = playerName.toLowerCase()
+        if (!playerFilter.some(p => lower.includes(p.toLowerCase()))) continue
+      }
+
+      const key = normalizeStatKey(statLabel)
+      if (requestedMarkets.length && !requestedMarkets.includes(key)) continue
+
+      const line = typeof entry.hdp === 'number' ? entry.hdp : parseFloat(entry.hdp)
+      const outcomes: any[] = []
+      if (entry.over != null && entry.over !== 'N/A') {
+        outcomes.push({ name: 'Over', price: parseFloat(entry.over), point: line })
+      }
+      if (entry.under != null && entry.under !== 'N/A') {
+        outcomes.push({ name: 'Under', price: parseFloat(entry.under), point: line })
+      }
+      if (!outcomes.length && entry.price != null) {
+        outcomes.push({ name: 'Over', price: parseFloat(entry.price), point: line })
+      }
+      if (!outcomes.length) continue
+
+      marketsOut.push({
+        key,
+        outcomes,
+      })
+    }
+  }
+
+  if (!marketsOut.length) return null
+  return {
+    key: bookName.toLowerCase(),
+    title: bookName,
+    markets: marketsOut,
+  }
+}
+
+const parsePlayerPropBookmakers = (
+  bookmakers: Record<string, any>,
+  requestedMarkets: string[],
+  playerFilter?: string[]
+) => {
+  const result: any[] = []
+  for (const [bookName, markets] of Object.entries(bookmakers || {})) {
+    const parsed = parsePlayerPropsFromBookmaker(bookName, markets as any[], requestedMarkets, playerFilter)
+    if (parsed) result.push(parsed)
+  }
+  return result
+}
+
 const normalizeSportKey = (raw: string) => {
   const resolved = resolveSportKey(raw)
   if (resolved && SUPPORTED_PROP_SPORTS.has(resolved)) {
@@ -123,17 +214,19 @@ async function getCachedOdds(
     )
     console.log(`[PLAYER_PROPS] eventOdds length: ${eventOdds.length}`)
     const games: OddsGame[] = eventOdds.map((ev: any) => {
-      const mapped = mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', undefined)
-        .map(book => ({
-          ...book,
-          markets: book.markets.filter(mkt =>
-            (!markets || !markets.length) ? true : markets.includes(mkt.key)
-          ),
-        }))
-        .filter(book => book.markets.length > 0)
+      const mapped =
+        parsePlayerPropBookmakers(ev.bookmakers || {}, markets, playerFilter) ||
+        mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', undefined)
+          .map(book => ({
+            ...book,
+            markets: book.markets.filter(mkt =>
+              (!markets || !markets.length) ? true : markets.includes(mkt.key)
+            ),
+          }))
+          .filter(book => book.markets.length > 0)
       if (!mapped.length) logNoBooks(ev, markets)
       else if (mapped[0]?.markets?.length) {
-        console.log('[PLAYER_PROPS] Mapped bookmaker markets example:', mapped[0].key, mapped[0].markets.map(m => m.key))
+        console.log('[PLAYER_PROPS] Mapped bookmaker markets example:', mapped[0].key, mapped[0].markets.map((m: any) => m.key))
       }
       return {
         id: String(ev.id),

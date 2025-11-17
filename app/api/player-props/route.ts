@@ -87,6 +87,7 @@ async function getCachedOdds(
   // Try fetching by eventId (per provider docs)
   try {
     const events = await fetchEventsIO(sport, { status: 'pending' })
+    console.log(`[PLAYER_PROPS] Loaded ${events.length} pending events for ${sport}`)
     const filteredEvents = teamFilter && teamFilter.length
       ? events.filter(ev => {
           const home = (ev.home || '').toLowerCase()
@@ -99,8 +100,10 @@ async function getCachedOdds(
       : events
 
     const eventIds = filteredEvents.slice(0, 10).map(ev => String(ev.id))
+    console.log(`[PLAYER_PROPS] Using ${eventIds.length} eventIds for props fetch`)
     if (eventIds.length) {
       const eventOdds = await fetchMultiEventOdds(eventIds, null, { cache: 'no-store' }, markets)
+      console.log(`[PLAYER_PROPS] eventOdds length: ${eventOdds.length}`)
       const games: OddsGame[] = eventOdds.map((ev: any) => {
         const bookmakers = mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', markets)
         return {

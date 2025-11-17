@@ -90,6 +90,14 @@ function getDefaultBookmakers(): string | undefined {
   return ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365'].join(',')
 }
 
+const getPlayerPropMarkets = (sportKey: string): string[] | null => {
+  if (sportKey === 'basketball_nba') return ['player_points', 'player_rebounds', 'player_assists', 'player_threes']
+  if (sportKey === 'americanfootball_nfl') return ['player_pass_tds', 'player_pass_yds', 'player_rush_yds', 'player_receptions']
+  if (sportKey === 'baseball_mlb') return ['player_hits', 'player_total_bases', 'player_rbis', 'player_runs_scored']
+  if (sportKey === 'icehockey_nhl') return ['player_points', 'player_shots_on_goal', 'player_blocked_shots']
+  return null
+}
+
 let lastAppliedBookmakers: string | null = null
 let selectingBookmakersPromise: Promise<void> | null = null
 
@@ -935,6 +943,42 @@ export async function fetchOdds(
     if (error instanceof OddsAPIError) throw error
     throw new OddsAPIError(`Failed to fetch odds: ${error?.message || error}`)
   }
+}
+
+/**
+ * Fetch player props via odds-api.io player props endpoint
+ */
+export async function fetchPlayerProps(
+  sportKey: string,
+  markets?: string[] | null,
+  options: { teamFilter?: string[]; playerFilter?: string[] } = {}
+): Promise<EventResponse[]> {
+  const mapping = SPORT_MAP[sportKey]
+  if (!mapping) return []
+  const appliedMarkets = markets && markets.length ? markets : getPlayerPropMarkets(sportKey) || []
+  if (!appliedMarkets.length) return []
+
+  const params: Record<string, QueryValue> = {
+    sport: mapping.sport,
+    league: mapping.league,
+    markets: appliedMarkets.join(','),
+  }
+
+  const bookmakers = normalizeBookmakerList(null) ?? getDefaultBookmakers()
+  if (bookmakers) params.bookmakers = bookmakers
+
+  if (options.teamFilter && options.teamFilter.length) {
+    params.teams = options.teamFilter.join(',')
+  }
+  if (options.playerFilter && options.playerFilter.length) {
+    params.players = options.playerFilter.join(',')
+  }
+
+  const { data } = await oddsIoFetch<EventResponse[]>('/odds/player-props', {
+    params,
+    init: { cache: 'no-store' },
+  })
+  return data
 }
 
 /**

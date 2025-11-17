@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchOdds } from '@/lib/api/odds-api'
+import { fetchOdds, fetchPlayerProps, mapBookmakersIO } from '@/lib/api/odds-api'
 import { searchPlayer } from '@/lib/sports-stats-api'
 import type { RosterPlayer } from '@/lib/sports-stats-api'
 import { resolveSportKey } from '@/lib/utils/live-game'
@@ -61,30 +61,54 @@ const normalizeSportKey = (raw: string) => {
   return SUPPORTED_PROP_SPORTS.has(lowered) ? lowered : null
 }
 
-const cacheKeyFor = (sport: string, markets: string[], teamFilter?: string[], mode?: string) =>
-  `${sport}:${markets.slice().sort().join(',')}:${teamFilter?.slice().sort().join(',') || 'all'}:${mode || 'any'}`
+const cacheKeyFor = (
+  sport: string,
+  markets: string[],
+  teamFilter?: string[],
+  playerFilter?: string[]
+) =>
+  `${sport}:${markets.slice().sort().join(',')}:${teamFilter?.slice().sort().join(',') || 'all'}:${playerFilter?.slice().sort().join(',') || 'all'}`
 
-async function getCachedOdds(sport: string, markets: string[], teamFilter?: string[]): Promise<OddsGame[]> {
-  // Try prematch first (more widely available for props) then fall back to live
-  const tryFetch = async (live: boolean) => {
-    const key = cacheKeyFor(sport, markets, teamFilter, live ? 'live' : 'prematch')
-    const cached = oddsCache.get(key)
-    if (cached && cached.expires > Date.now()) {
-      console.log(`[PLAYER_PROPS] Cache hit for ${key}`)
-      return cached.data
+async function getCachedOdds(
+  sport: string,
+  markets: string[],
+  teamFilter?: string[],
+  playerFilter?: string[]
+): Promise<OddsGame[]> {
+  const key = cacheKeyFor(sport, markets, teamFilter, playerFilter)
+  const cached = oddsCache.get(key)
+  if (cached && cached.expires > Date.now()) {
+    console.log(`[PLAYER_PROPS] Cache hit for ${key}`)
+    return cached.data
+  }
+
+  console.log(`[PLAYER_PROPS] Cache miss, fetching odds for ${key}`)
+  const freshEvents = await fetchPlayerProps(sport, markets, {
+    teamFilter,
+    playerFilter: playerFilter && playerFilter.length ? playerFilter : undefined,
+  })
+
+  // Map provider response to OddsGame-like objects
+  const games: OddsGame[] = freshEvents.map((ev) => {
+    const bookmakers = mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', markets)
+    return {
+      id: String(ev.id),
+      sport_key: sport,
+      sport_title: ev.league?.toString() || '',
+      commence_time: String(ev.date || ''),
+      home_team: String(ev.home || ''),
+      away_team: String(ev.away || ''),
+      bookmakers,
     }
+  })
 
-    console.log(`[PLAYER_PROPS] Cache miss, fetching odds for ${key}`)
-    const fresh = await fetchOdds(sport, markets, { live, teamFilter })
-    oddsCache.set(key, { data: fresh, expires: Date.now() + CACHE_TTL_MS })
-    return fresh
+  oddsCache.set(key, { data: games, expires: Date.now() + CACHE_TTL_MS })
+
+  if (!games.length) {
+    console.warn(`[PLAYER_PROPS] No props returned for ${key}`)
   }
 
-  let data = await tryFetch(false)
-  if (data.length === 0) {
-    data = await tryFetch(true)
-  }
-  return data
+  return games
 }
 
 const playerCacheKey = (sport: string, player: string) =>
@@ -170,7 +194,12 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch odds data with only prop markets (cached briefly)
-    const oddsData = await getCachedOdds(normalizedSport, markets, teamFilter)
+    const oddsData = await getCachedOdds(
+      normalizedSport,
+      markets,
+      teamFilter,
+      playerFilter ? [playerFilter] : undefined
+    )
 
     // Aggregate props by player
     const playerPropsMap = new Map<string, PlayerProp>()

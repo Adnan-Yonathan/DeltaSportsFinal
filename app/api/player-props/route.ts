@@ -123,8 +123,18 @@ async function getCachedOdds(
     )
     console.log(`[PLAYER_PROPS] eventOdds length: ${eventOdds.length}`)
     const games: OddsGame[] = eventOdds.map((ev: any) => {
-      const mapped = mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', markets)
+      const mapped = mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', undefined)
+        .map(book => ({
+          ...book,
+          markets: book.markets.filter(mkt =>
+            (!markets || !markets.length) ? true : markets.includes(mkt.key)
+          ),
+        }))
+        .filter(book => book.markets.length > 0)
       if (!mapped.length) logNoBooks(ev, markets)
+      else if (mapped[0]?.markets?.length) {
+        console.log('[PLAYER_PROPS] Mapped bookmaker markets example:', mapped[0].key, mapped[0].markets.map(m => m.key))
+      }
       return {
         id: String(ev.id),
         sport_key: sport,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchOdds } from '@/lib/api/odds-api'
+import { fetchOdds, fetchPlayerProps, mapBookmakersIO } from '@/lib/api/odds-api'
 import { searchPlayer } from '@/lib/sports-stats-api'
 import type { RosterPlayer } from '@/lib/sports-stats-api'
 import { resolveSportKey } from '@/lib/utils/live-game'
@@ -82,6 +82,34 @@ async function getCachedOdds(
   if (cached && cached.expires > Date.now()) {
     console.log(`[PLAYER_PROPS] Cache hit for ${key}`)
     return cached.data
+  }
+
+  // Prefer dedicated player-props endpoint when available, fall back to odds
+  try {
+    const playerProps = await fetchPlayerProps(sport, markets, {
+      teamFilter,
+      playerFilter: playerFilter && playerFilter.length ? playerFilter : undefined,
+    })
+
+    const games: OddsGame[] = playerProps.map((ev) => {
+      const bookmakers = mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', markets)
+      return {
+        id: String(ev.id),
+        sport_key: sport,
+        sport_title: ev.league?.toString() || '',
+        commence_time: String(ev.date || ''),
+        home_team: String(ev.home || ''),
+        away_team: String(ev.away || ''),
+        bookmakers,
+      }
+    })
+
+    if (games.length) {
+      oddsCache.set(key, { data: games, expires: Date.now() + CACHE_TTL_MS })
+      return games
+    }
+  } catch (err) {
+    console.warn('[PLAYER_PROPS] Player-props endpoint failed, falling back to odds:', err instanceof Error ? err.message : err)
   }
 
   const tryFetch = async (live: boolean) => {

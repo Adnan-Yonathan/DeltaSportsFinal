@@ -963,6 +963,7 @@ export async function fetchPlayerProps(
     sport: mapping.sport,
     league: mapping.league,
     markets: appliedMarkets.join(','),
+    regions: process.env.ODDS_REGIONS || 'us',
   }
 
   const bookmakers = normalizeBookmakerList(null) ?? getDefaultBookmakers()
@@ -975,7 +976,7 @@ export async function fetchPlayerProps(
     params.players = options.playerFilter.join(',')
   }
 
-  const { data } = await oddsIoFetch<EventResponse[]>('/odds/player-props', {
+  const { data } = await oddsIoFetch<EventResponse[]>('/player-props', {
     params,
     init: { cache: 'no-store' },
   })

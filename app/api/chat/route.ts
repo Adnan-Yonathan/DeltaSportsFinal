@@ -613,6 +613,53 @@ const ASSISTANT_TOOLS: ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'create_parlay',
+      description: 'Create and log a parlay with multiple picks and a stake. Use when users want combined odds and tracked parlay legs.',
+      parameters: {
+        type: 'object',
+        properties: {
+          stake: { type: 'number', description: 'Amount wagered in dollars' },
+          picks: {
+            type: 'array',
+            minItems: 2,
+            description: 'Array of parlay picks (min 2)',
+            items: {
+              type: 'object',
+              properties: {
+                sport: { type: 'string', description: 'Sport (e.g., NBA, NFL)' },
+                league: { type: 'string', description: 'League (e.g., nba, nfl)' },
+                game_description: { type: 'string', description: 'Game description (e.g., Cowboys vs Raiders)' },
+                event_id: { type: 'string', description: 'Odds provider event id' },
+                market: { type: 'string', description: 'Market name (e.g., spread, moneyline, player_receptions)' },
+                selection: { type: 'string', description: 'Selection side/details (e.g., Cowboys -3.5, Over 6.5 receptions)' },
+                line: { type: 'number', description: 'Line/point if applicable (e.g., 6.5)' },
+                odds: { type: 'number', description: 'American odds for the pick' },
+                book: { type: 'string', description: 'Sportsbook (e.g., FanDuel, DraftKings)' },
+              },
+              required: ['market', 'selection', 'odds'],
+            },
+          },
+        },
+        required: ['stake', 'picks'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_parlays',
+      description: 'List recent parlays for the user with their picks and current status.',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', description: 'Number of parlays to fetch (default 20)' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'settle_bet',
       description: 'Settle a pending bet as won, lost, or push. Updates the bankroll accordingly.',
       parameters: {
@@ -1837,6 +1884,36 @@ ${statsEnrichment}
             data: injuries,
             formatted: formatStatsForAI(injuries)
           }
+        }
+      } else if (functionName === 'create_parlay') {
+        try {
+          const response = await fetch(`${baseUrl}/api/parlays`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              stake: functionArgs.stake,
+              picks: functionArgs.picks,
+              conversationId,
+            }),
+            cache: 'no-store',
+          })
+          const data = await response.json()
+          functionResult = data
+        } catch (error: any) {
+          functionResult = { error: error?.message || 'Failed to create parlay' }
+        }
+      } else if (functionName === 'get_parlays') {
+        try {
+          const params = new URLSearchParams()
+          if (functionArgs.limit) params.set('limit', String(functionArgs.limit))
+          const response = await fetch(`${baseUrl}/api/parlays?${params.toString()}`, {
+            method: 'GET',
+            cache: 'no-store',
+          })
+          const data = await response.json()
+          functionResult = data
+        } catch (error: any) {
+          functionResult = { error: error?.message || 'Failed to fetch parlays' }
         }
       } else if (functionName === 'get_player_props') {
         // Fetch player props from our API endpoint

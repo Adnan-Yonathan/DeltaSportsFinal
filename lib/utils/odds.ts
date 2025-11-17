@@ -46,6 +46,34 @@ export function calculatePayout(stake: number, americanOdds: number): number {
 }
 
 /**
+ * Combine multiple legs into parlay odds.
+ * Returns decimal and American representations.
+ */
+export function calculateParlayOdds(americanOdds: number[]): { decimal: number; american: number } {
+  if (!americanOdds || !americanOdds.length) {
+    throw new Error('At least one leg is required for parlay odds')
+  }
+  const decimal = americanOdds.reduce((acc, current) => acc * americanToDecimal(current), 1)
+  const american = decimalToAmerican(decimal)
+  return { decimal, american }
+}
+
+/**
+ * Calculate parlay payout for given stake
+ */
+export function calculateParlayPayout(stake: number, americanOdds: number[]): { combinedAmerican: number; combinedDecimal: number; potentialWin: number; potentialPayout: number } {
+  const { decimal, american } = calculateParlayOdds(americanOdds)
+  const potentialWin = stake * (decimal - 1)
+  const potentialPayout = potentialWin + stake
+  return {
+    combinedAmerican: american,
+    combinedDecimal: decimal,
+    potentialWin,
+    potentialPayout,
+  }
+}
+
+/**
  * Format American odds with + or - sign
  */
 export function formatAmericanOdds(odds: number): string {

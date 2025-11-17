@@ -52,6 +52,8 @@ type CacheEntry = { expires: number; data: OddsGame[] }
 const oddsCache = new Map<string, CacheEntry>()
 const playerLookupCache = new Map<string, Promise<RosterPlayer | null>>()
 
+const SAFE_PROP_BOOKMAKERS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365']
+
 const normalizeSportKey = (raw: string) => {
   const resolved = resolveSportKey(raw)
   if (resolved && SUPPORTED_PROP_SPORTS.has(resolved)) {
@@ -84,7 +86,11 @@ async function getCachedOdds(
 
   const tryFetch = async (live: boolean) => {
     console.log(`[PLAYER_PROPS] Cache miss, fetching odds for ${key}${live ? ':live' : ':prematch'}`)
-    const fresh = await fetchOdds(sport, markets, { live, teamFilter })
+    const fresh = await fetchOdds(sport, markets, {
+      live,
+      teamFilter,
+      bookmakers: SAFE_PROP_BOOKMAKERS,
+    })
     oddsCache.set(key, { data: fresh, expires: Date.now() + CACHE_TTL_MS })
     return fresh
   }

@@ -696,7 +696,7 @@ export async function selectBookmakersRemote(bookmakers: string | string[]) {
 async function fetchOddsIO(
   sportKey: string,
   _markets: string[] = ['h2h', 'spreads', 'totals'],
-  opts: { live?: boolean; revalidateSeconds?: number; teamFilter?: string[] } = {}
+  opts: { live?: boolean; revalidateSeconds?: number; teamFilter?: string[]; bookmakers?: string | string[] | null } = {}
 ): Promise<OddsGame[]> {
   const mapping = SPORT_MAP[sportKey]
   if (!mapping) return []
@@ -839,7 +839,7 @@ async function fetchOddsIO(
   const ids: string[] = Array.from(eventLookup.keys())
   if (ids.length === 0) return []
 
-  const envBookmakers = pickBookmakersParam()
+  const envBookmakers = opts.bookmakers ? normalizeBookmakerList(opts.bookmakers) : pickBookmakersParam()
   const bookmakerSelectionApplied = await ensureBookmakersSelection(envBookmakers ?? null)
   const defaultBookmakersFilter = bookmakerSelectionApplied ? envBookmakers : null
   const chunks: string[][] = []
@@ -913,6 +913,7 @@ export interface FetchOddsOptions {
   live?: boolean
   revalidateSeconds?: number
   teamFilter?: string[] // Filter events to only these team names (case-insensitive partial match)
+  bookmakers?: string | string[] | null // Optional override of bookmaker filter
 }
 
 export async function fetchOdds(

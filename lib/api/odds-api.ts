@@ -94,15 +94,15 @@ function pickBookmakersParam(): string | undefined {
 let lastAppliedBookmakers: string | null = null
 let selectingBookmakersPromise: Promise<void> | null = null
 
-async function ensureBookmakersSelection(bookmakers?: string | null) {
-  if (!bookmakers) return
+async function ensureBookmakersSelection(bookmakers?: string | null): Promise<boolean> {
+  if (!bookmakers) return false
   const normalized = bookmakers
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean)
     .join(',')
-  if (!normalized) return
-  if (lastAppliedBookmakers === normalized) return
+  if (!normalized) return false
+  if (lastAppliedBookmakers === normalized) return true
 
   if (selectingBookmakersPromise) {
     try {
@@ -116,8 +116,10 @@ async function ensureBookmakersSelection(bookmakers?: string | null) {
   try {
     await selectingBookmakersPromise
     lastAppliedBookmakers = normalized
+    return true
   } catch (error) {
     console.error('[ODDS] Failed to apply bookmaker selection:', error)
+    return false
   } finally {
     selectingBookmakersPromise = null
   }
@@ -405,8 +407,8 @@ export function mapBookmakersIO(
   return result
 }
 
-const VALID_EVENT_STATUSES = new Set(['pending', 'live', 'settled'])
-const UPCOMING_STATUSES = ['pending'] as const
+const VALID_EVENT_STATUSES = new Set(['pending', 'live', 'settled', 'scheduled', 'not_started', 'pre-match', 'pre_match'])
+const UPCOMING_STATUSES = ['pending', 'scheduled', 'not_started', 'pre-match', 'pre_match'] as const
 
 const normalizeEventStatuses = (status?: string | ReadonlyArray<string> | null): string | undefined => {
   if (!status) return undefined
@@ -733,6 +735,36 @@ async function fetchOddsIO(
   }
 
   if (!Array.isArray(events) || events.length === 0) {
+    if (!opts.live) {
+      console.warn(
+        `[ODDS] No pre-match events found for ${sportKey} with statuses ${statusFilters.join(',')}, retrying without status filter`
+      )
+      events = await fetchEventsSafe(
+        { sport: mapping.sport, league: mapping.league },
+        {
+          live: opts.live,
+          revalidateSeconds: opts.live ? undefined : Math.max(opts.revalidateSeconds ?? 60, 30),
+        }
+      )
+    }
+  }
+
+  if (!Array.isArray(events) || events.length === 0) {
+    if (!opts.live && mapping.league) {
+      console.warn(
+        `[ODDS] Still no events for ${sportKey}; retrying without league or status filters`
+      )
+      events = await fetchEventsSafe(
+        { sport: mapping.sport },
+        {
+          live: opts.live,
+          revalidateSeconds: opts.live ? undefined : Math.max(opts.revalidateSeconds ?? 60, 30),
+        }
+      )
+    }
+  }
+
+  if (!Array.isArray(events) || events.length === 0) {
     return []
   }
 
@@ -756,7 +788,8 @@ async function fetchOddsIO(
   if (ids.length === 0) return []
 
   const envBookmakers = pickBookmakersParam()
-  await ensureBookmakersSelection(envBookmakers ?? null)
+  const bookmakerSelectionApplied = await ensureBookmakersSelection(envBookmakers ?? null)
+  const defaultBookmakersFilter = bookmakerSelectionApplied ? envBookmakers : null
   const chunks: string[][] = []
   for (let i = 0; i < ids.length; i += 10) chunks.push(ids.slice(i, i + 10))
 
@@ -765,7 +798,7 @@ async function fetchOddsIO(
 
     for (const chunk of chunks) {
       const activeFilter =
-        bookmakersFilter === undefined ? envBookmakers : bookmakersFilter
+        bookmakersFilter === undefined ? defaultBookmakersFilter : bookmakersFilter
       const data = await fetchMultiEventOdds(chunk, activeFilter ?? null, oddsFetchInit, _markets)
       if (!Array.isArray(data) || !data.length) continue
 
@@ -798,12 +831,12 @@ async function fetchOddsIO(
   } catch (error: any) {
     const message = String(error?.message || '')
     if (
-      envBookmakers &&
+      defaultBookmakersFilter &&
       (error instanceof OddsAPIError || message.includes('bookmaker')) &&
       message.toLowerCase().includes('not a valid bookmaker')
     ) {
       console.warn(
-        `[ODDS] Invalid bookmaker in filter "${envBookmakers}", retrying without filter`
+        `[ODDS] Invalid bookmaker in filter "${defaultBookmakersFilter}", retrying without filter`
       )
       games = await loadGames(null)
     } else {
@@ -811,9 +844,9 @@ async function fetchOddsIO(
     }
   }
 
-  if (!games.length && envBookmakers) {
+  if (!games.length && defaultBookmakersFilter) {
     console.warn(
-      '[ODDS] No bookmakers returned for ' + sportKey + ' with filter "' + envBookmakers + '", retrying without filter'
+      '[ODDS] No bookmakers returned for ' + sportKey + ' with filter "' + defaultBookmakersFilter + '", retrying without filter'
     )
     games = await loadGames(null)
   }
@@ -1079,4 +1112,3 @@ export async function fetchEventsIO(
     status: String(ev.status || requestedStatus),
   }))
 }
-

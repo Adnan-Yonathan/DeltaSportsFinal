@@ -114,13 +114,13 @@ const parsePlayerPropsFromBookmaker = (
 
       const outcomes: any[] = []
       if (entry.over != null && entry.over !== 'N/A') {
-        outcomes.push({ name: 'Over', price: parseFloat(entry.over), point: line })
+        outcomes.push({ name: `${playerName} Over`, price: parseFloat(entry.over), point: line })
       }
       if (entry.under != null && entry.under !== 'N/A') {
-        outcomes.push({ name: 'Under', price: parseFloat(entry.under), point: line })
+        outcomes.push({ name: `${playerName} Under`, price: parseFloat(entry.under), point: line })
       }
       if (!outcomes.length && entry.price != null) {
-        outcomes.push({ name: 'Over', price: parseFloat(entry.price), point: line })
+        outcomes.push({ name: `${playerName} Over`, price: parseFloat(entry.price), point: line })
       }
       if (!outcomes.length) continue
 

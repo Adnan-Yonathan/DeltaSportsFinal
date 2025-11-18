@@ -997,6 +997,15 @@ export async function POST(req: NextRequest) {
       .order('placed_at', { ascending: false })
       .limit(5)
 
+    // Fetch recent settled bets for memory/analysis
+    const { data: recentBets } = await supabase
+      .from('bets')
+      .select('game_description,bet_side,stake,status,actual_result,placed_at,odds,book')
+      .eq('user_id', userId)
+      .neq('status', 'pending')
+      .order('placed_at', { ascending: false })
+      .limit(10)
+
     let recentModels: CustomModelRow[] = []
     try {
       recentModels = await listCustomModels(supabase, userId, 5)
@@ -1025,6 +1034,13 @@ export async function POST(req: NextRequest) {
     }
     if (activeBets && activeBets.length > 0) {
       contextMessage += `- Active bets: ${activeBets.length}\n`
+    }
+    if (recentBets && recentBets.length > 0) {
+      const recentSummary = recentBets.slice(0, 5).map((b) => {
+        const result = b.status === 'won' ? `+${Number(b.actual_result || 0).toFixed(2)}` : Number(b.actual_result || 0).toFixed(2)
+        return `${b.game_description || b.bet_side || 'bet'} (${b.status}${b.book ? ` @ ${b.book}` : ''}, ${result})`
+      }).join('; ')
+      contextMessage += `- Recent bets: ${recentSummary}\n`
     }
     if (recentModels.length > 0) {
       contextMessage += `- Custom models ready: ${recentModels

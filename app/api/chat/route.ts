@@ -918,9 +918,7 @@ export async function POST(req: NextRequest) {
       conversationId,
       userId,
       timezone = 'America/New_York', // Default fallback
-      mode = 'regular',
-      researchModelId,
-      researchModelName
+      mode = 'regular'
     } = await req.json()
 
     const environmentName = process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown'
@@ -1022,9 +1020,7 @@ export async function POST(req: NextRequest) {
 
     let contextMessage = `\n\n**Current User Context:**\n`
     contextMessage += `${modeDirectives[mode] || `- Mode: ${mode}`}\n`
-    if (mode === 'research' && researchModelId) {
-      contextMessage += `- Selected research model: ${researchModelName || researchModelId} (call run_research_model with this model_id unless user says otherwise)\n`
-    }
+    // Research model can be selected later in chat; no preset model_id here.
     if (userData) {
       const currentBankroll = Number(userData.current_bankroll ?? 0)
       const startingBankroll = Number(userData.starting_bankroll ?? 0)

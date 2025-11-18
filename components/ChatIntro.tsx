@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
-import { createClient } from '@/lib/supabase/client'
 
 interface ChatIntroProps {
   conversationId: string
@@ -14,32 +13,6 @@ interface ChatIntroProps {
 export default function ChatIntro({ conversationId, userId, onMessageSent }: ChatIntroProps) {
   const [sending, setSending] = useState(false)
   const [mode, setMode] = useState<'regular' | 'live' | 'research'>('regular')
-  
-  const [models, setModels] = useState<Array<{ id: string; model_name: string }>>([])
-  const [selectedModelId, setSelectedModelId] = useState<string>('')
-  const [loadingModels, setLoadingModels] = useState(false)
-
-  useEffect(() => {
-    const fetchModels = async () => {
-      if (!userId || models.length > 0 || loadingModels) return
-      setLoadingModels(true)
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('custom_models')
-        .select('id, model_name')
-        .eq('user_id', userId)
-        .eq('model_type', 'research')
-        .order('updated_at', { ascending: false })
-        .limit(20)
-      if (!error && data) {
-        setModels(data as any)
-      }
-      setLoadingModels(false)
-    }
-    if (mode === 'research') {
-      fetchModels()
-    }
-  }, [mode, userId, models.length, loadingModels])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -63,11 +36,6 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
           conversationId,
           userId,
           mode,
-          researchModelId: mode === 'research' && selectedModelId ? selectedModelId : undefined,
-          researchModelName:
-            mode === 'research' && selectedModelId
-              ? models.find((m) => m.id === selectedModelId)?.model_name
-              : undefined,
         }),
       })
 
@@ -157,24 +125,8 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
         </div>
 
         {mode === 'research' && (
-          <div className="mb-6 text-left">
-            <label className="block text-white font-semibold mb-2">Select a saved research model (optional)</label>
-            <select
-              value={selectedModelId}
-              onChange={(e) => setSelectedModelId(e.target.value)}
-              disabled={loadingModels}
-              className="w-full rounded-lg bg-white/5 border border-white/10 text-white p-3"
-            >
-              <option value="">{loadingModels ? 'Loading models...' : 'None selected'}</option>
-              {models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.model_name}
-                </option>
-              ))}
-            </select>
-            {!loadingModels && models.length === 0 && (
-              <p className="text-xs text-white/60 mt-2">No saved research models yet.</p>
-            )}
+          <div className="mb-6 text-left text-white/70 text-sm">
+            Research mode: ask for the sport/markets and which saved model to run; the assistant will confirm before running.
           </div>
         )}
 

@@ -1856,20 +1856,7 @@ ${statsEnrichment}
       const functionArgs = JSON.parse(toolCall.function.arguments || '{}')
       let functionResult: any
 
-      const DISABLED_TOOLS = new Set([
-        'save_research_model',
-        'run_research_model',
-        'list_research_opportunities',
-      ])
-      if (DISABLED_TOOLS.has(functionName)) {
-        const reason =
-          'Statistics and research models are temporarily disabled due to upstream data inconsistencies that are causing hangs. Please ask for specific odds or props instead while we fix the data source.'
-        console.warn(`[CHAT] Blocked tool call: ${functionName} - ${reason}`)
-        return {
-          success: false,
-          error: reason,
-        }
-      }
+      const DISABLED_TOOLS = new Set([])
 
       if (functionName === 'settle_bet') {
         const { data: pendingBets } = await supabase

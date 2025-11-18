@@ -28,6 +28,10 @@ export async function runResearchModel(
 ): Promise<ResearchResult> {
   const startTime = Date.now()
   const errors: string[] = []
+  const MAX_SPORTS = 3
+  const MAX_MARKETS = 3
+  const MAX_RESULTS = 50
+  const FETCH_TIMEOUT_MS = 12000
 
   try {
     // 1. Fetch the research model from database
@@ -50,19 +54,37 @@ export async function runResearchModel(
       throw new Error('Invalid research model configuration')
     }
 
+    const scopeMarkets = config.searchScope.markets || []
+    const scopeSports = config.searchScope.sports || []
+
+    // Cap sports and markets to avoid runaway workloads
+    if (scopeSports.length > MAX_SPORTS) {
+      throw new Error(`Too many sports requested; max ${MAX_SPORTS}`)
+    }
+    if (scopeMarkets.length > MAX_MARKETS) {
+      throw new Error(`Too many markets requested; max ${MAX_MARKETS}`)
+    }
+
     // 2. Fetch odds data for all specified sports and markets
     const allOpportunities: OddsData[] = []
 
-    for (const sport of config.searchScope.sports) {
+    for (const sport of scopeSports) {
       try {
-        const markets = config.searchScope.markets.length > 0
-          ? config.searchScope.markets
+        const markets = scopeMarkets.length > 0
+          ? scopeMarkets
           : ['h2h', 'spreads', 'totals']
 
-        const oddsData = await fetchOdds(sport, markets, {
+        const oddsPromise = fetchOdds(sport, markets, {
           live: options.liveOnly,
           revalidateSeconds: options.skipCache ? 0 : 30,
         })
+
+        const oddsData = await Promise.race([
+          oddsPromise,
+          new Promise<OddsGame[]>((_, reject) =>
+            setTimeout(() => reject(new Error('Fetch timeout')), FETCH_TIMEOUT_MS)
+          ),
+        ])
 
         // Transform odds data into filterable opportunities
         const opportunities = transformOddsToOpportunities(
@@ -140,7 +162,7 @@ export async function runResearchModel(
     const sorted = sortOpportunities(matchedOpportunities, config.sortBy)
 
     // 6. Limit results
-    const maxResults = config.maxResults || 20
+    const maxResults = Math.min(config.maxResults || 20, MAX_RESULTS)
     const limited = sorted.slice(0, maxResults)
 
     // 7. Update model last_used_at

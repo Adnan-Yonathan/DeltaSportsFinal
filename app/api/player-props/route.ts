@@ -55,11 +55,6 @@ const playerLookupCache = new Map<string, Promise<RosterPlayer | null>>()
 const SAFE_PROP_BOOKMAKERS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365', 'Fanatics', 'Bovada', 'Stake', 'Fliff', 'BetRivers', 'Pinnacle']
 const FALLBACK_SINGLE_BOOK = ['FanDuel', 'DraftKings', 'BetMGM']
 
-const FANTASY_BOOKS = (process.env.ODDS_FANTASY_BOOKS || 'PrizePicks,Underdog')
-  .split(',')
-  .map((b) => b.trim().toLowerCase())
-  .filter(Boolean)
-
 const STAT_KEY_MAP: Record<string, string> = {
   'passing attempts': 'player_pass_atts',
   'passing yards': 'player_pass_yds',
@@ -155,7 +150,6 @@ const parsePlayerPropBookmakers = (
 ) => {
   const result: any[] = []
   for (const [bookName, markets] of Object.entries(bookmakers || {})) {
-    if (FANTASY_BOOKS.includes(bookName.toLowerCase())) continue
     const parsed = parsePlayerPropsFromBookmaker(bookName, markets as any[], requestedMarkets, allowedKeys, playerFilter)
     if (parsed) result.push(parsed)
   }

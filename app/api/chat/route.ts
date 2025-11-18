@@ -2357,6 +2357,8 @@ ${statsEnrichment}
     let handledToolCalls = false
     let lastText = initialResponse.choices[0].message.content || ''
 
+    let skipModelResponse = false
+
     while (toolCalls && toolCalls.length > 0) {
       handledToolCalls = true
 
@@ -2369,11 +2371,29 @@ ${statsEnrichment}
 
       for (const toolCall of toolCalls) {
         const functionResult = await runToolCall(toolCall)
+
+        // Short-circuit for player props: if we already have a formatted response, return it without another model pass
+        if (
+          toolCall.function?.name === 'get_player_props' &&
+          functionResult &&
+          typeof functionResult === 'object' &&
+          'formatted' in functionResult &&
+          (functionResult as any).formatted
+        ) {
+          lastText = (functionResult as any).formatted as string
+          skipModelResponse = true
+          toolCalls = []
+        }
+
         openaiMessages.push({
           role: 'tool',
           content: JSON.stringify(functionResult),
           tool_call_id: toolCall.id,
         } as any)
+      }
+
+      if (skipModelResponse) {
+        break
       }
 
       const followup = await openai.chat.completions.create(buildParams())

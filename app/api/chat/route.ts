@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
 import type { OddsGame } from '@/lib/types/odds'
 import { enrichGamesWithStats, formatEnrichedGamesForAI } from '@/lib/stats-enrichment'
-import { getTeamStats, getInjuryReports, formatStatsForAI } from '@/lib/sports-stats-api'
+import { getTeamStats, getInjuryReports, getNBAAdvancedTeamStats, getNFLAdvancedTeamStats, formatStatsForAI } from '@/lib/sports-stats-api'
 import { fetchESPNScores, fetchESPNScoresForDate } from '@/lib/espn-api'
 import { fetchEventsIO } from '@/lib/api/odds-api'
 import { listCustomModels, saveCustomModel, touchCustomModelUsage, CustomModelRow } from '@/lib/models/custom-models'
@@ -1857,7 +1857,6 @@ ${statsEnrichment}
       let functionResult: any
 
       const DISABLED_TOOLS = new Set([
-        'get_stats',
         'save_research_model',
         'run_research_model',
         'list_research_opportunities',
@@ -1895,20 +1894,84 @@ ${statsEnrichment}
       } else if (functionName === 'log_multiple_bets') {
         functionResult = await logMultipleBets(supabase, userId, functionArgs.bets, conversationId)
       } else if (functionName === 'get_stats') {
-        // Fetch requested stats
+        // Fetch requested stats with optional advanced data for NBA/NFL
+        const timeout = <T>(p: Promise<T>, ms = 8000) =>
+          Promise.race<T>([
+            p,
+            new Promise<T>((_, reject) => setTimeout(() => reject(new Error('stats fetch timeout')), ms)) as Promise<T>,
+          ])
+
         if (functionArgs.type === 'team') {
-          const teamStats = await getTeamStats(functionArgs.sport, functionArgs.team)
-          functionResult = {
-            success: true,
-            data: teamStats,
-            formatted: formatStatsForAI(teamStats)
+          try {
+            const [teamStats, injuries, advanced] = await Promise.all([
+              timeout(getTeamStats(functionArgs.sport, functionArgs.team)),
+              timeout(getInjuryReports(functionArgs.sport)),
+              timeout(
+                (functionArgs.sport || '').toLowerCase().includes('basketball')
+                  ? getNBAAdvancedTeamStats()
+                  : (functionArgs.sport || '').toLowerCase().includes('football')
+                  ? getNFLAdvancedTeamStats()
+                  : Promise.resolve([])
+              ).catch(() => [] as any[]),
+            ])
+
+            const formattedBase = formatStatsForAI(teamStats)
+            let formatted = formattedBase
+
+            // Attach injuries if present
+            if (injuries && injuries.length) {
+              formatted += `\n\nInjuries:\n${formatStatsForAI(injuries)}`
+            }
+
+            // Attach advanced metrics if present
+            const advLines: string[] = []
+            if (advanced && advanced.length && teamStats && teamStats.length) {
+              const target = (functionArgs.team || '').toString().toLowerCase()
+              const advMatch = (advanced as any[]).find(
+                (a) =>
+                  a.team?.toLowerCase() === target ||
+                  a.teamAbbr?.toLowerCase() === target ||
+                  target.includes((a.team || '').toLowerCase())
+              )
+              if (advMatch) {
+                if ((functionArgs.sport || '').toLowerCase().includes('basketball')) {
+                  advLines.push(
+                    `Advanced: NetRtg ${advMatch.netRating?.toFixed(1) ?? 'n/a'}, Pace ${advMatch.pace?.toFixed(1) ?? 'n/a'}, TS% ${advMatch.tsPct ? (advMatch.tsPct * 100).toFixed(1) : 'n/a'}`
+                  )
+                } else if ((functionArgs.sport || '').toLowerCase().includes('football')) {
+                  advLines.push(
+                    `Advanced: EPA/play ${advMatch.epaPerPlay?.toFixed(3) ?? 'n/a'}, Success% ${advMatch.successRate ? (advMatch.successRate * 100).toFixed(1) : 'n/a'}, Pass% ${advMatch.passRate ? (advMatch.passRate * 100).toFixed(1) : 'n/a'}`
+                  )
+                }
+              }
+            }
+
+            if (advLines.length) {
+              formatted += `\n\n${advLines.join('\n')}`
+            }
+
+            functionResult = {
+              success: true,
+              data: {
+                teams: teamStats,
+                injuries,
+                advanced,
+              },
+              formatted,
+            }
+          } catch (err: any) {
+            functionResult = { success: false, error: err?.message || 'Failed to fetch team stats' }
           }
         } else if (functionArgs.type === 'injuries') {
-          const injuries = await getInjuryReports(functionArgs.sport)
-          functionResult = {
-            success: true,
-            data: injuries,
-            formatted: formatStatsForAI(injuries)
+          try {
+            const injuries = await timeout(getInjuryReports(functionArgs.sport))
+            functionResult = {
+              success: true,
+              data: injuries,
+              formatted: formatStatsForAI(injuries),
+            }
+          } catch (err: any) {
+            functionResult = { success: false, error: err?.message || 'Failed to fetch injuries' }
           }
         }
       } else if (functionName === 'create_parlay') {

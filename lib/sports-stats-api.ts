@@ -35,6 +35,18 @@ export interface TeamStats {
   rank?: number
 }
 
+export interface AdvancedTeamStats {
+  team: string
+  teamAbbr?: string
+  pace?: number
+  oRating?: number
+  dRating?: number
+  netRating?: number
+  reboundPct?: number
+  turnoverPct?: number
+  tsPct?: number
+}
+
 export interface InjuryReport {
   player: string
   team: string
@@ -110,6 +122,63 @@ export async function getNBAPlayerStats(playerName?: string): Promise<PlayerStat
     return []
   } catch (error) {
     console.error('Error fetching NBA player stats:', error)
+    return []
+  }
+}
+
+// Advanced NBA team stats via stats.nba.com (unofficial; requires headers)
+export async function getNBAAdvancedTeamStats(): Promise<AdvancedTeamStats[]> {
+  try {
+    const season = (() => {
+      const now = new Date()
+      const year = now.getFullYear()
+      // NBA season spans years; before August, use prior season start
+      const seasonStart = now.getMonth() >= 8 ? year : year - 1
+      return `${seasonStart}-${(seasonStart + 1).toString().slice(-2)}`
+    })()
+
+    const url =
+      `https://stats.nba.com/stats/leaguedashteamstats` +
+      `?MeasureType=Advanced&PerMode=PerGame&PlusMinus=N&PaceAdjust=N&Rank=N&` +
+      `Season=${encodeURIComponent(season)}&SeasonType=Regular%20Season`
+
+    const response = await fetch(url, {
+      // stats.nba.com expects a browser-like client
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36',
+        Referer: 'https://www.nba.com/',
+        Origin: 'https://www.nba.com',
+        Accept: '*/*',
+      },
+      // prune cache to avoid stale; endpoints are near-real-time
+      next: { revalidate: 900 },
+    })
+
+    if (!response.ok) {
+      console.warn('NBA advanced stats fetch failed:', response.statusText)
+      return []
+    }
+
+    const data = await response.json()
+    const headersArr: string[] = data?.resultSets?.[0]?.headers || []
+    const rows: any[] = data?.resultSets?.[0]?.rowSet || []
+
+    const idx = (key: string) => headersArr.indexOf(key)
+
+    return rows.map((r) => ({
+      team: r[idx('TEAM_NAME')],
+      teamAbbr: r[idx('TEAM_ABBREVIATION')],
+      pace: r[idx('PACE')],
+      oRating: r[idx('OFF_RATING')],
+      dRating: r[idx('DEF_RATING')],
+      netRating: r[idx('NET_RATING')],
+      reboundPct: r[idx('REB_PCT')],
+      turnoverPct: r[idx('TM_TOV_PCT')],
+      tsPct: r[idx('TS_PCT')],
+    }))
+  } catch (error) {
+    console.error('Error fetching NBA advanced team stats:', error)
     return []
   }
 }

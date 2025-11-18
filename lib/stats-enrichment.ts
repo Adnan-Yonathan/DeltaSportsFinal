@@ -1,4 +1,11 @@
-import { getTeamStats, getInjuryReports, TeamStats, InjuryReport } from './sports-stats-api'
+import {
+  getTeamStats,
+  getInjuryReports,
+  getNBAAdvancedTeamStats,
+  TeamStats,
+  InjuryReport,
+  AdvancedTeamStats,
+} from './sports-stats-api'
 
 export interface EnrichedGame {
   gameId: string
@@ -9,6 +16,8 @@ export interface EnrichedGame {
   awayScore?: number
   homeStats?: TeamStats
   awayStats?: TeamStats
+  homeAdvanced?: AdvancedTeamStats
+  awayAdvanced?: AdvancedTeamStats
   relevantInjuries?: InjuryReport[]
   startTime?: string
   odds?: any[]
@@ -23,9 +32,10 @@ export async function enrichGamesWithStats(
 ): Promise<EnrichedGame[]> {
   try {
     // Fetch all team stats and injuries for this sport
-    const [teamStats, injuries] = await Promise.all([
+    const [teamStats, injuries, advancedStats] = await Promise.all([
       getTeamStats(sport),
       getInjuryReports(sport),
+      sport.toLowerCase().includes('basketball') ? getNBAAdvancedTeamStats() : Promise.resolve([]),
     ])
 
     // Enrich each game
@@ -42,6 +52,20 @@ export async function enrichGamesWithStats(
       const awayStats = teamStats.find(t =>
         t.team.toLowerCase().includes(awayTeam.toLowerCase()) ||
         awayTeam.toLowerCase().includes(t.team.toLowerCase())
+      )
+
+      // Match advanced stats (NBA only currently)
+      const homeAdvanced = (advancedStats as AdvancedTeamStats[]).find(
+        a =>
+          a.team?.toLowerCase() === homeTeam.toLowerCase() ||
+          a.teamAbbr?.toLowerCase() === homeTeam.toLowerCase() ||
+          homeTeam.toLowerCase().includes((a.team || '').toLowerCase())
+      )
+      const awayAdvanced = (advancedStats as AdvancedTeamStats[]).find(
+        a =>
+          a.team?.toLowerCase() === awayTeam.toLowerCase() ||
+          a.teamAbbr?.toLowerCase() === awayTeam.toLowerCase() ||
+          awayTeam.toLowerCase().includes((a.team || '').toLowerCase())
       )
 
       // Find relevant injuries (players from these teams)
@@ -61,6 +85,8 @@ export async function enrichGamesWithStats(
         awayScore: game.awayScore || game.away_score,
         homeStats,
         awayStats,
+        homeAdvanced,
+        awayAdvanced,
         relevantInjuries: relevantInjuries.length > 0 ? relevantInjuries : undefined,
         startTime: game.commence_time || game.startTime,
         odds: game.bookmakers || game.odds,
@@ -98,6 +124,17 @@ export function formatEnrichedGamesForAI(games: EnrichedGame[]): string {
     }
     if (game.homeStats) {
       gameInfo += `  ${game.homeTeam}: ${game.homeStats.wins}-${game.homeStats.losses} (${(game.homeStats.winPct * 100).toFixed(1)}%)\n`
+    }
+
+    // Add advanced efficiency/pace if available (NBA)
+    if (game.homeAdvanced || game.awayAdvanced) {
+      gameInfo += `  Advanced (per-game):\n`
+      if (game.homeAdvanced) {
+        gameInfo += `    ${game.homeTeam}: NetRtg ${game.homeAdvanced.netRating?.toFixed(1) ?? 'n/a'}, Pace ${game.homeAdvanced.pace?.toFixed(1) ?? 'n/a'}\n`
+      }
+      if (game.awayAdvanced) {
+        gameInfo += `    ${game.awayTeam}: NetRtg ${game.awayAdvanced.netRating?.toFixed(1) ?? 'n/a'}, Pace ${game.awayAdvanced.pace?.toFixed(1) ?? 'n/a'}\n`
+      }
     }
 
     // Add key stats if available

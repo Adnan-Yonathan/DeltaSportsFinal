@@ -12,6 +12,7 @@ interface ChatIntroProps {
 
 export default function ChatIntro({ conversationId, userId, onMessageSent }: ChatIntroProps) {
   const [sending, setSending] = useState(false)
+  const [mode, setMode] = useState<'regular' | 'live' | 'research'>('regular')
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -34,6 +35,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
           message,
           conversationId,
           userId,
+          mode,
         }),
       })
 
@@ -82,6 +84,45 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
           Ask me about odds, line movements, arbitrage opportunities, or bankroll
           management. I&apos;m here to help!
         </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 text-left">
+          <label className={`rounded-lg border ${mode === 'regular' ? 'border-white/80 bg-white/5' : 'border-white/10'} p-3 text-white/80 cursor-pointer`}>
+            <input
+              type="radio"
+              name="mode"
+              value="regular"
+              className="mr-2 accent-blue-500"
+              checked={mode === 'regular'}
+              onChange={() => setMode('regular')}
+            />
+            <span className="font-semibold text-white">Regular</span>
+            <div className="text-xs text-white/60 mt-1">Balanced chat with quick answers.</div>
+          </label>
+          <label className={`rounded-lg border ${mode === 'live' ? 'border-white/80 bg-white/5' : 'border-white/10'} p-3 text-white/80 cursor-pointer`}>
+            <input
+              type="radio"
+              name="mode"
+              value="live"
+              className="mr-2 accent-blue-500"
+              checked={mode === 'live'}
+              onChange={() => setMode('live')}
+            />
+            <span className="font-semibold text-white">Live odds/props</span>
+            <div className="text-xs text-white/60 mt-1">Prioritize fresh odds & player props.</div>
+          </label>
+          <label className={`rounded-lg border ${mode === 'research' ? 'border-white/80 bg-white/5' : 'border-white/10'} p-3 text-white/80 cursor-pointer`}>
+            <input
+              type="radio"
+              name="mode"
+              value="research"
+              className="mr-2 accent-blue-500"
+              checked={mode === 'research'}
+              onChange={() => setMode('research')}
+            />
+            <span className="font-semibold text-white">Research</span>
+            <div className="text-xs text-white/60 mt-1">Allow deeper scans (may take longer).</div>
+          </label>
+        </div>
 
         <form onSubmit={handleSubmit} className="w-full">
           <PromptBox name="message" disabled={sending} />

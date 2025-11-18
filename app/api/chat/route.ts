@@ -917,7 +917,8 @@ export async function POST(req: NextRequest) {
       message,
       conversationId,
       userId,
-      timezone = 'America/New_York' // Default fallback
+      timezone = 'America/New_York', // Default fallback
+      mode = 'regular'
     } = await req.json()
 
     const environmentName = process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown'
@@ -1003,6 +1004,7 @@ export async function POST(req: NextRequest) {
 
     // Build context
     let contextMessage = `\n\n**Current User Context:**\n`
+    contextMessage += `- Mode: ${mode}\n`
     if (userData) {
       const currentBankroll = Number(userData.current_bankroll ?? 0)
       const startingBankroll = Number(userData.starting_bankroll ?? 0)

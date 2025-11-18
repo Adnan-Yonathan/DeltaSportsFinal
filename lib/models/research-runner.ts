@@ -17,6 +17,7 @@ import {
   ResearchFilter,
   FilterExecutionContext,
 } from './research-model-types'
+import { runWebSearchResponse } from '@/lib/ai-gateway-client'
 
 /**
  * Main function to run a research model
@@ -32,6 +33,8 @@ export async function runResearchModel(
   const MAX_MARKETS = 3
   const MAX_RESULTS = 50
   const FETCH_TIMEOUT_MS = 12000
+  const webSearchEnabled = process.env.ENABLE_WEB_SEARCH === 'true'
+  const liveContext: Record<string, string> = {}
 
   try {
     // 1. Fetch the research model from database
@@ -68,30 +71,45 @@ export async function runResearchModel(
     // 2. Fetch odds data for all specified sports and markets
     const allOpportunities: OddsData[] = []
 
-    for (const sport of scopeSports) {
-      try {
-        const markets = scopeMarkets.length > 0
-          ? scopeMarkets
-          : ['h2h', 'spreads', 'totals']
+  for (const sport of scopeSports) {
+    try {
+      const markets = scopeMarkets.length > 0
+        ? scopeMarkets
+        : ['h2h', 'spreads', 'totals']
 
         const oddsPromise = fetchOdds(sport, markets, {
           live: options.liveOnly,
           revalidateSeconds: options.skipCache ? 0 : 30,
         })
 
-        const oddsData = await Promise.race([
-          oddsPromise,
-          new Promise<OddsGame[]>((_, reject) =>
-            setTimeout(() => reject(new Error('Fetch timeout')), FETCH_TIMEOUT_MS)
-          ),
-        ])
+      const oddsData = await Promise.race([
+        oddsPromise,
+        new Promise<OddsGame[]>((_, reject) =>
+          setTimeout(() => reject(new Error('Fetch timeout')), FETCH_TIMEOUT_MS)
+        ),
+      ])
 
-        // Transform odds data into filterable opportunities
-        const opportunities = transformOddsToOpportunities(
-          oddsData,
-          sport,
-          config.searchScope.books
-        )
+      // Optionally enrich with live web context per game (limited)
+      if (webSearchEnabled) {
+        for (const game of oddsData.slice(0, 6)) {
+          const key = `${sport}:${game.away_team}@${game.home_team}`
+          if (liveContext[key]) continue
+          try {
+            const prompt = buildSearchPrompt(sport, game.away_team, game.home_team)
+            const text = await runWebSearchResponse(prompt, { maxOutputTokens: 400, retry: 1 })
+            liveContext[key] = text
+          } catch (err: any) {
+            errors.push(`Live context failed for ${key}: ${err?.message || err}`)
+          }
+        }
+      }
+
+      // Transform odds data into filterable opportunities
+      const opportunities = transformOddsToOpportunities(
+        oddsData,
+        sport,
+        config.searchScope.books
+      )
 
         allOpportunities.push(...opportunities)
       } catch (error: any) {
@@ -198,6 +216,7 @@ export async function runResearchModel(
       totalMatches: limited.length,
       searchCriteria: config,
       executionTimeMs: Date.now() - startTime,
+      liveContext: webSearchEnabled ? liveContext : undefined,
       errors: errors.length > 0 ? errors : undefined,
     }
   } catch (error: any) {
@@ -385,6 +404,16 @@ function calculateComparison(
   }
 
   return comparison
+}
+
+function buildSearchPrompt(sport: string, away: string, home: string) {
+  return [
+    `You are gathering live context for sports betting research.`,
+    `Game: ${away} @ ${home} (${sport}).`,
+    `Find: current injuries/lineup changes (last 48h), recent form/pace/net rating trends (last 10 games), and any breaking news that could move lines.`,
+    `Return a concise paragraph with bullet-like sentences and include source URLs inline.`,
+    `If nothing recent, say "No recent updates found."`,
+  ].join('\n')
 }
 
 /**

@@ -224,6 +224,7 @@ export interface ResearchResult {
   searchCriteria: ResearchModelConfig
   executionTimeMs?: number
   errors?: string[] // Any errors encountered during scan
+  liveContext?: Record<string, string>
 }
 
 // ============================================================================

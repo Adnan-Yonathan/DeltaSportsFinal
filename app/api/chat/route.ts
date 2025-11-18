@@ -1008,13 +1008,13 @@ export async function POST(req: NextRequest) {
     const modeDirectives: Record<string, string> = {
       regular: '- Mode: Regular — focus on education and betting know-how. Do NOT call live odds or player prop tools unless the user explicitly asks for data.',
       live: '- Mode: Live — prioritize fresh odds/props; if data is missing, say so briefly. Keep replies concise.',
-      research: '- Mode: Research — confirm scope (sports, markets, filters, data to use) before running research tools. Do not run without user confirmation.',
+      research: '- Mode: Research — confirm scope (sports, markets, filters, data to use) before running research tools. If a model_id is provided, prefer calling run_research_model with that ID.',
     }
 
     let contextMessage = `\n\n**Current User Context:**\n`
     contextMessage += `${modeDirectives[mode] || `- Mode: ${mode}`}\n`
     if (mode === 'research' && researchModelId) {
-      contextMessage += `- Selected research model: ${researchModelName || researchModelId}\n`
+      contextMessage += `- Selected research model: ${researchModelName || researchModelId} (call run_research_model with this model_id unless user says otherwise)\n`
     }
     if (userData) {
       const currentBankroll = Number(userData.current_bankroll ?? 0)

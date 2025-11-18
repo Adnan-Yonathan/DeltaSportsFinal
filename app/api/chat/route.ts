@@ -2314,25 +2314,30 @@ ${statsEnrichment}
             controller.enqueue(encoder.encode('data: [DONE]\n\n'))
             controller.close()
 
-            if (text.trim().length > 0) {
-              await supabase.from('messages').insert({
-                conversation_id: conversationId,
-                role: 'assistant',
-                content: text,
-              })
-            }
+            try {
+              if (text.trim().length > 0) {
+                await supabase.from('messages').insert({
+                  conversation_id: conversationId,
+                  role: 'assistant',
+                  content: text,
+                })
+              }
 
-            const { count: messageCount } = await supabase
-              .from('messages')
-              .select('*', { count: 'exact', head: true })
-              .eq('conversation_id', conversationId)
+              const { count: messageCount } = await supabase
+                .from('messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('conversation_id', conversationId)
 
-            if (messageCount === 2) {
-              const title = await generateConversationTitle(message, text)
-              await supabase
-                .from('conversations')
-                .update({ title })
-                .eq('id', conversationId)
+              if (messageCount === 2) {
+                const title = await generateConversationTitle(message, text)
+                await supabase
+                  .from('conversations')
+                  .update({ title })
+                  .eq('id', conversationId)
+              }
+            } catch (persistError) {
+              console.error('[CHAT] Failed to persist message/title:', persistError)
+              // Do not throw; streaming should already be closed
             }
           } catch (error) {
             controller.error(error)

@@ -45,6 +45,10 @@ export interface AdvancedTeamStats {
   reboundPct?: number
   turnoverPct?: number
   tsPct?: number
+  epaPerPlay?: number
+  successRate?: number
+  passRate?: number
+  rushRate?: number
 }
 
 export interface InjuryReport {
@@ -179,6 +183,57 @@ export async function getNBAAdvancedTeamStats(): Promise<AdvancedTeamStats[]> {
     }))
   } catch (error) {
     console.error('Error fetching NBA advanced team stats:', error)
+    return []
+  }
+}
+
+// ==================== NFL ADVANCED STATS (via nflfastR CSV) ====================
+
+/**
+ * Fetch team-level advanced metrics (EPA/Play, success rate, pass/run rate) from nflfastR public CSV.
+ * Uses season summary file to avoid pulling full play-by-play.
+ */
+export async function getNFLAdvancedTeamStats(): Promise<AdvancedTeamStats[]> {
+  try {
+    const season = new Date().getFullYear()
+    const csvUrl = `https://raw.githubusercontent.com/guga31bb/nflfastR-data/master/data/seasons/` +
+      `team_stats_${season}.csv`
+
+    const response = await fetch(csvUrl, { cache: 'no-store' })
+    if (!response.ok) {
+      console.warn('NFL advanced stats fetch failed:', response.statusText)
+      return []
+    }
+
+    const csvText = await response.text()
+    const lines = csvText.split('\n').filter(Boolean)
+    const header = lines.shift()
+    if (!header) return []
+
+    const cols = header.split(',')
+    const colIdx = (key: string) => cols.indexOf(key)
+
+    const requiredCols = ['posteam', 'epa_play', 'success_rate', 'pass_rate', 'rush_rate']
+    if (!requiredCols.every((c) => colIdx(c) !== -1)) {
+      console.warn('NFL advanced stats missing required columns')
+      return []
+    }
+
+    const results: AdvancedTeamStats[] = lines.map((line) => {
+      const parts = line.split(',')
+      return {
+        team: parts[colIdx('posteam')],
+        teamAbbr: parts[colIdx('posteam')],
+        epaPerPlay: parseFloat(parts[colIdx('epa_play')]),
+        successRate: parseFloat(parts[colIdx('success_rate')]),
+        passRate: parseFloat(parts[colIdx('pass_rate')]),
+        rushRate: parseFloat(parts[colIdx('rush_rate')]),
+      }
+    })
+
+    return results
+  } catch (error) {
+    console.error('Error fetching NFL advanced team stats:', error)
     return []
   }
 }

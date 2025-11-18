@@ -2,6 +2,7 @@ import {
   getTeamStats,
   getInjuryReports,
   getNBAAdvancedTeamStats,
+  getNFLAdvancedTeamStats,
   TeamStats,
   InjuryReport,
   AdvancedTeamStats,
@@ -35,7 +36,11 @@ export async function enrichGamesWithStats(
     const [teamStats, injuries, advancedStats] = await Promise.all([
       getTeamStats(sport),
       getInjuryReports(sport),
-      sport.toLowerCase().includes('basketball') ? getNBAAdvancedTeamStats() : Promise.resolve([]),
+      sport.toLowerCase().includes('basketball')
+        ? getNBAAdvancedTeamStats()
+        : sport.toLowerCase().includes('football')
+        ? getNFLAdvancedTeamStats()
+        : Promise.resolve([]),
     ])
 
     // Enrich each game
@@ -54,7 +59,7 @@ export async function enrichGamesWithStats(
         awayTeam.toLowerCase().includes(t.team.toLowerCase())
       )
 
-      // Match advanced stats (NBA only currently)
+      // Match advanced stats (NBA/NFL)
       const homeAdvanced = (advancedStats as AdvancedTeamStats[]).find(
         a =>
           a.team?.toLowerCase() === homeTeam.toLowerCase() ||
@@ -126,14 +131,24 @@ export function formatEnrichedGamesForAI(games: EnrichedGame[]): string {
       gameInfo += `  ${game.homeTeam}: ${game.homeStats.wins}-${game.homeStats.losses} (${(game.homeStats.winPct * 100).toFixed(1)}%)\n`
     }
 
-    // Add advanced efficiency/pace if available (NBA)
+    // Add advanced efficiency/pace if available (NBA/NFL)
     if (game.homeAdvanced || game.awayAdvanced) {
       gameInfo += `  Advanced (per-game):\n`
       if (game.homeAdvanced) {
-        gameInfo += `    ${game.homeTeam}: NetRtg ${game.homeAdvanced.netRating?.toFixed(1) ?? 'n/a'}, Pace ${game.homeAdvanced.pace?.toFixed(1) ?? 'n/a'}\n`
+        const adv = game.homeAdvanced
+        if (game.sport.toLowerCase().includes('basketball')) {
+          gameInfo += `    ${game.homeTeam}: NetRtg ${adv.netRating?.toFixed(1) ?? 'n/a'}, Pace ${adv.pace?.toFixed(1) ?? 'n/a'}\n`
+        } else if (game.sport.toLowerCase().includes('football')) {
+          gameInfo += `    ${game.homeTeam}: EPA/play ${adv.epaPerPlay?.toFixed(3) ?? 'n/a'}, Success% ${(adv.successRate ?? 0 * 100).toFixed(1) || 'n/a'}\n`
+        }
       }
       if (game.awayAdvanced) {
-        gameInfo += `    ${game.awayTeam}: NetRtg ${game.awayAdvanced.netRating?.toFixed(1) ?? 'n/a'}, Pace ${game.awayAdvanced.pace?.toFixed(1) ?? 'n/a'}\n`
+        const adv = game.awayAdvanced
+        if (game.sport.toLowerCase().includes('basketball')) {
+          gameInfo += `    ${game.awayTeam}: NetRtg ${adv.netRating?.toFixed(1) ?? 'n/a'}, Pace ${adv.pace?.toFixed(1) ?? 'n/a'}\n`
+        } else if (game.sport.toLowerCase().includes('football')) {
+          gameInfo += `    ${game.awayTeam}: EPA/play ${adv.epaPerPlay?.toFixed(3) ?? 'n/a'}, Success% ${(adv.successRate ?? 0 * 100).toFixed(1) || 'n/a'}\n`
+        }
       }
     }
 

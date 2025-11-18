@@ -456,15 +456,15 @@ async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjectio
       userMessage += '\n**Use this enrichment context to enhance your projection analysis and account for current injuries, momentum, matchup history, and market sentiment.**\n'
     }
 
-    const result = await openai.chat.completions.create({
-      model: AI_MODELS.modelRunner,
-      temperature: 0.2,
-      max_tokens: 2000,
-      messages: [
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: userMessage },
-      ],
-    })
+  const result = await openai.chat.completions.create({
+    model: AI_MODELS.modelRunner,
+    temperature: 0.2,
+    max_completion_tokens: 2000,
+    messages: [
+      { role: 'system', content: systemMessage },
+      { role: 'user', content: userMessage },
+    ],
+  })
 
     const content = result.choices[0].message.content
     if (!content) return null

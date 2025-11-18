@@ -52,7 +52,7 @@ export async function applyCustomFilter(
 
     // Call GPT for evaluation
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', // Use mini for cost efficiency
+      model: 'gpt-5-nano', // Use nano for cost efficiency
       messages: [
         {
           role: 'system',
@@ -64,7 +64,7 @@ export async function applyCustomFilter(
         },
       ],
       temperature: 0, // Deterministic responses
-      max_tokens: 10, // Just need YES/NO
+      max_completion_tokens: 10, // Just need YES/NO
     })
 
     const answer = response.choices[0]?.message?.content?.trim().toUpperCase()

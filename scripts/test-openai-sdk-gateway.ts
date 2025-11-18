@@ -22,7 +22,7 @@ async function testOpenAISDK() {
     const response = await client.chat.completions.create({
       model: 'gpt-5-mini',
       messages: [{ role: 'user', content: 'Say "Hello from OpenAI SDK" in exactly 5 words' }],
-      max_tokens: 20,
+      max_completion_tokens: 20,
     })
 
     console.log(`✅ Response: ${response.choices[0].message.content}`)

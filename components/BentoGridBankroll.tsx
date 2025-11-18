@@ -304,9 +304,13 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
 
     let actualResult = 0
     if (status === 'won') {
-      actualResult = bet.stake + bet.potential_win
+      // Net profit (exclude returned stake)
+      actualResult = bet.potential_win
     } else if (status === 'push') {
       actualResult = bet.stake
+    } else if (status === 'lost') {
+      // Record loss as negative stake
+      actualResult = -bet.stake
     }
 
     const response = await fetch(`/api/bets/${betId}/settle`, {
@@ -1125,7 +1129,6 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
     </>
   )
 }
-
 
 
 

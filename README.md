@@ -2,7 +2,7 @@
 
 <div align="center">
 
-AI-powered sports betting analytics, live odds tracking, AI coaching, and bankroll intelligence
+AI betting mate for odds discovery, bankroll tracking, custom models, and live market research.
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
@@ -15,35 +15,30 @@ AI-powered sports betting analytics, live odds tracking, AI coaching, and bankro
 
 ## Overview
 
-Delta AI is a full-stack betting intelligence terminal. It blends live market ingestion (Odds-API.io + Supabase line recorder), an OpenAI-powered copilot that understands bankroll context, and a complete bet lifecycle engine. Everything ships inside a modern Next.js 14 application with streaming chat, edge APIs, GitHub Actions automation (optional), and Bloomberg-style visuals built for power users.
-
-Key traits:
-- Provider-aware odds client (defaults to Odds-API.io) with live fetches on user request plus cached market snapshots for resilience.
-- Clean separation between schedule/events and live odds data.
-- No cron requirement by default; all compute can be triggered on demand from the app. Automation via GitHub Actions is optional.
+Delta AI is a Next.js 14 + Supabase application that blends a streaming OpenAI copilot with a full betting toolkit: odds aggregation (Odds-API.io), bankroll + bet lifecycle tracking, parlay math, player props, custom/research models, and market ingestion pipelines. Most APIs require a Supabase-authenticated session; automation endpoints are protected with secrets for cron jobs.
 
 ---
 
-## Core Capabilities
+## What It Does
 
-### Live Markets & Line Tracking
-- Provider-aware odds client (Odds-API.io by default) with batched multi-odds requests to minimize rate usage.
-- `/api/lines/record` (optional) captures spreads/totals/moneylines and can record opening/current/closing states for CLV and trend analysis.
-- Arbitrage finder surfaces guaranteed-profit legs as soon as price disparities appear.
+- **AI copilot & chat**: Supabase-authenticated chat at `/chat` with streaming GPT-4o responses, auto-titling, and function-calling tools for bets, parlays, bankroll stats, odds, player props, injuries, game context, and custom/research models. Voice input is supported via `/api/transcribe` (ElevenLabs).
+- **Bankroll + bet tracking**: Bet logging (single or batch), manual settlement, deposits/withdrawals, parlay creation, and daily bankroll snapshots. Auto-settlement checks ESPN live scores (`/api/bets/auto-settle`), while `/api/bankroll/stats` surfaces ROI, units, per-sport splits, CLV rollups, and live prop deltas. CLV recompute is available at `/api/bankroll/recalc-clv`.
+- **Odds + market data**: Odds-API.io client with best-price summaries (`/api/odds/best`), arbitrage scans (`/api/arbitrage` and `/api/odds/arbitrage`), game odds (`/api/odds/games`, `/api/odds/event`, `/api/odds/multi`, `/api/odds/updated`, `/api/odds/movements`), and bookmaker selection (`/api/bookmakers/select`). Line recorder/history/sharp-move endpoints track spreads/totals/moneylines for CLV and movement analysis. Player props are aggregated with best over/under books via `/api/player-props`. Schedules (`/api/events/*`), sports/leagues, injuries, live scores, and market trend snapshots (`/api/markets/trends`) ship alongside a probability/EV engine at `/api/probability`.
+- **Custom & research models**: `/models` lists saved models; `/models/new` builds prediction or research models with weighted stats, optional data hints, and file uploads (CSV/Excel/PDF/TXT via `/api/models/upload` stored in Supabase Storage). The model runner powers chat tools to save/list/apply models, and the research runner scans markets for user-defined opportunities.
+- **Onboarding & pricing flows**: Multi-step onboarding collects username, favorite sports, experience, risk tolerance, bankroll, unit size, feature interest, and subscription intent before unlocking chat. Auth pages and a pricing showcase live under `auth/` and `/pricing`.
+- **Automation & ingestion**: Cron-guarded ingestors for team stats (`/api/stats/ingest-team`), line recording (`/api/lines/record`), and sharp-move detection (`/api/lines/sharp-moves`). Scripts in `package.json` cover injuries, recent form, market trends, player props, team stats, and reset helpers, all expecting service-role Supabase credentials and `CRON_SECRET`.
 
-### AI Betting Copilot
-- Streaming GPT-4o assistant with Supabase-authenticated sessions.
-- Custom statistical models can be defined, saved, and re-run from the chat interface.
-- Context packer stitches bankroll state, injuries, recent form, market snapshots, and live odds into every prompt so answers stay grounded.
+---
 
-### Bankroll & Bet Lifecycle
-- Bet logging, bankroll snapshots, CLV calculations, and ROI dashboards.
-- On-demand CLV recomputation endpoint for historical and current portfolio analysis.
-- Player prop lookups, arbitrage summaries, and bankroll widgets live alongside the chat interface.
+## Selected API Surface
 
-### Automation & Tooling (Optional)
-- GitHub Actions can be configured for line recording and settlement if you want unattended operation. The app itself does not require cron; all workflows can run on demand from the UI.
-- Diagnostics docs (hallucination prevention, timezone handling, line tracking) provide debugging playbooks.
+- **Odds & data**: `/api/odds/games`, `/api/odds/event`, `/api/odds/multi`, `/api/odds/updated`, `/api/odds/movements`, `/api/odds/best`, `/api/odds/arbitrage`, `/api/arbitrage`, `/api/events`, `/api/events/live`, `/api/events/search`, `/api/events/[id]`, `/api/sports`, `/api/leagues`, `/api/bookmakers/select`, `/api/player-props`, `/api/injuries`, `/api/stats`, `/api/live-scores`, `/api/markets/trends`.
+- **Lines & trends**: `/api/lines/record`, `/api/lines/history`, `/api/lines/sharp-moves`.
+- **Bets & bankroll**: `/api/bets`, `/api/bets/auto-settle`, `/api/bets/[id]/settle`, `/api/parlays`, `/api/bankroll/operations`, `/api/bankroll/stats`, `/api/bankroll/recalc-clv`.
+- **Models & research**: `/api/models/upload` plus chat-exposed tools to save/list/apply custom and research models.
+- **Utilities**: `/api/probability`, `/api/transcribe`, `/api/chat`, `/api/onboarding`, `/api/username/check`.
+
+Most endpoints require a Supabase session; cron-style routes (`lines/*`, `stats/ingest-team`, `auto-settle`) require `CRON_SECRET` or an API key in headers.
 
 ---
 
@@ -52,85 +47,55 @@ Key traits:
 | Layer | Stack |
 | --- | --- |
 | UI | Next.js 14 App Router, React, TypeScript, Tailwind CSS, Framer Motion, Recharts |
-| APIs | Next.js Route Handlers (Node runtime for chat, Edge runtime for odds/arbitrage/player props) |
-| Data | Supabase Postgres with Row-Level Security + Realtime channels |
-| Auth | Supabase Auth (email/password or OAuth) |
-| AI | OpenAI GPT-4o / GPT-4o-mini (chat, titles, custom model builder) |
-| Sports Data | Odds-API.io (multi-book, pre-match/live; ML/Spreads/Totals/Props) |
-| Automation | Optional GitHub Actions jobs, ingest scripts |
-| Observability | Server-side logging |
-
----
-
-## Key Endpoints
-
-- `/api/odds/games?sport=basketball_nba&live=true` – Live odds snapshot for a sport.
-- `/api/odds/best?sport=basketball_nba&live=false` – Best price per market by game.
-- `/api/arbitrage?sport=basketball_nba&minProfit=1&live=false` – Arbitrage scan.
-- `/api/bankroll/stats?period=7d` – Bankroll KPIs with CLV summary.
-- `POST /api/bankroll/recalc-clv?period=7d` – On-demand CLV recompute.
-- `/api/sports` / `/api/leagues?sport=football` – Provider-backed sport and league catalogs for dropdowns.
-- `/api/events`, `/api/events/live`, `/api/events/[id]`, `/api/events/search` – Schedule accessors with timezone-aware filtering.
-- `/api/odds/event`, `/api/odds/multi`, `/api/odds/updated`, `/api/odds/movements` – Direct odds + movement feeds for widgets and recorders.
-- `POST /api/bookmakers/select` – Persist the bookmaker filter used for Odds-API.io requests.
+| APIs | Next.js Route Handlers (Node runtime for chat/bankroll/models; Edge for odds/arbitrage/player props/bookmaker selection) |
+| Data | Supabase Postgres with RLS + Storage for model files |
+| Auth | Supabase Auth |
+| AI | OpenAI GPT-4o / GPT-4o-mini (chat, titles, filters, model runner) |
+| Sports Data | Odds-API.io (pre-match/live odds, props), ESPN (live scores), sports-stats API (team/advanced stats, injuries) |
+| Voice | ElevenLabs speech-to-text (server-side) |
 
 ---
 
 ## Environment
 
-Minimum env vars (see `.env.local.example` if present):
+Copy `.env.example` to `.env.local` and fill at minimum:
 
-| Name | Description |
+| Name | Purpose |
 | --- | --- |
-| `ODDS_PROVIDER` | Odds data provider. Defaults to `odds-api-io`. |
-| `ODDS_API_KEY` | Provider API key (Odds-API.io). |
-| `ODDS_BOOKMAKERS` | Comma-separated list of books to request (e.g., `FanDuel,DraftKings,BetMGM,Caesars,Fanatics,Bet365,BetRivers,HardRock,Bovada,Stake,Fliff,Pinnacle,PointsBet`). |
+| `ODDS_PROVIDER` | Odds provider key (`odds-api-io` default). |
+| `ODDS_API_KEY` | Odds-API.io API key. |
+| `ODDS_BOOKMAKERS` | Comma-separated books to request (FanDuel, DraftKings, BetMGM, Caesars, etc.). |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase URL. |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key. |
-| `OPENAI_API_KEY` | OpenAI key for chat and utilities. |
-
-Rate limits: Odds-API.io docs indicate 5,000 requests/hour per plan, with response headers `x-ratelimit-limit`, `x-ratelimit-remaining`, and `x-ratelimit-reset` for monitoring.
-
----
-
-## Schedules and Scores
-
-- Schedules (events) are fetched from the provider (Odds-API.io). The app formats results in the user’s timezone.
-- ESPN may be used optionally for live score enrichment.
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (client). |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service-role key for ingestion scripts/cron tasks. |
+| `NEXT_PUBLIC_APP_URL` | App base URL for chat links/title generation. |
+| `OPENAI_API_KEY` | OpenAI access for chat/models. |
+| `ELEVENLABS_API_KEY` | Required for voice transcription via `/api/transcribe`. |
+| `CRON_SECRET` | Protects `lines/*` and `stats/ingest-team` ingestors. |
+| `AUTO_SETTLE_API_KEY` | Optional key to trigger `/api/bets/auto-settle` without a user session. |
+| `ODDS_FANTASY_BOOKS`, `ODDS_REGIONS`, `VERCEL_TOKEN` | Optional provider/runtime tuning. |
 
 ---
 
-## Development
+## Development & Testing
 
-Install and build:
-
-```bash
-npm install
-npm run dev
-# or
-npm run build && npm start
-```
-
-Common checks:
-- Ensure `ODDS_API_KEY` is set and `ODDS_PROVIDER=odds-api-io` in your environment.
-- Sanity test odds: `GET /api/odds/games?sport=basketball_nba`.
-- Recompute CLV: `POST /api/bankroll/recalc-clv?period=7d`.
-- Validate odds normalization helpers: `npm run test:odds`.
+- Install & run: `npm install` then `npm run dev` (or `npm run build && npm start`).
+- Quality gates: `npm run lint`, `npm run typecheck`, `npm run verify`.
+- Unit/spec helpers: `npm run test:custom-models` (stat weight normalization), `npm run test:odds` (odds helpers).
+- Scripts/ingestion: see `npm run ingest:*` and `npm run reset:tracking`; they require `SUPABASE_SERVICE_ROLE_KEY` and `CRON_SECRET` in the environment.
 
 ---
 
 ## Troubleshooting
 
-| Issue | Tip |
-| --- | --- |
-| Odds not updating | Confirm provider quota; verify `ODDS_API_KEY`; ensure `ODDS_BOOKMAKERS` is set; hit `/api/odds/games` manually. |
-| “No schedule available” | Check provider events `/v3/events` for the sport/league and date window; verify timezone filtering. |
-| High rate usage | Use multi-odds batching; cache where possible; avoid unnecessary refreshes. |
+- **Odds rate limits**: Watch Odds-API.io headers (`x-ratelimit-*`); trim `ODDS_BOOKMAKERS`, use `/api/odds/multi`, and lean on line snapshots where possible.
+- **Empty schedules/props**: Verify sport/league keys and timezone filters; confirm provider has events today; pass `live=true` when appropriate.
+- **Live data gaps**: Injuries and recent form fall back to live fetches when the Supabase cache is empty; run `ingest:*` jobs to refresh regularly.
+- **Voice input**: Ensure `ELEVENLABS_API_KEY` is set; browsers must allow mic access.
 
 ---
 
 ## Notes
 
-- The assistant is designed not to give picks; it provides data, analysis, and tooling (CLV, line movement, arbitrage math) so users can make informed decisions.
-- CLV surfaces in the Bankroll tab. Individual bet cards avoid CLV display by design.
-
+- The assistant is designed to surface data, math, and tooling - not to give gambling advice.
+- CLV and bankroll stats power chat summaries and the `BentoGridBankroll` widget; individual bet cards intentionally avoid displaying CLV directly.

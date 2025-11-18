@@ -1935,7 +1935,7 @@ ${statsEnrichment}
             console.log(`[PLAYER_PROPS] Team filter applied: ${functionArgs.team}`)
           }
 
-          const response = await fetch(`${baseUrl}/api/player-props?${params.toString()}`)
+          const response = await fetch(`${baseUrl}/api/player-props?${params.toString()}`, { cache: 'no-store' })
           const propsData = await response.json()
 
           if (!response.ok) {

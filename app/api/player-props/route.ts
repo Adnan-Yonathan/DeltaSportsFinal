@@ -42,7 +42,16 @@ const SUPPORTED_PROP_SPORTS = new Set([
 
 const DEFAULT_MARKETS: Record<string, string[]> = {
   basketball_nba: ['player_points', 'player_rebounds', 'player_assists', 'player_threes'],
-  americanfootball_nfl: ['player_pass_tds', 'player_pass_yds', 'player_rush_yds', 'player_receptions'],
+  americanfootball_nfl: [
+    'player_pass_tds',
+    'player_pass_yds',
+    'player_rush_yds',
+    'player_receptions',
+    'player_receiving_yds',
+    'player_rush_tds',
+    'player_anytime_td',
+    'player_receiving_tds',
+  ],
   baseball_mlb: ['player_hits', 'player_total_bases', 'player_rbis', 'player_runs_scored'],
   icehockey_nhl: ['player_points', 'player_shots_on_goal', 'player_blocked_shots'],
 }
@@ -54,6 +63,7 @@ const playerLookupCache = new Map<string, Promise<RosterPlayer | null>>()
 
 const SAFE_PROP_BOOKMAKERS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365', 'Fanatics', 'Bovada', 'Stake', 'Fliff', 'BetRivers', 'Pinnacle']
 const FALLBACK_SINGLE_BOOK = ['FanDuel', 'DraftKings', 'BetMGM']
+const EXCLUDED_FANTASY_BOOKS = new Set(['PrizePicks', 'Underdog', 'Underdog Fantasy', 'ThriveFantasy', 'Sleeper'])
 
 const STAT_KEY_MAP: Record<string, string> = {
   'passing attempts': 'player_pass_atts',
@@ -72,6 +82,12 @@ const STAT_KEY_MAP: Record<string, string> = {
   'longest reception': 'player_longest_rec',
   'interceptions': 'player_interceptions',
   'anytime td': 'player_anytime_td',
+  'rushing tds': 'player_rush_tds',
+  'rushing touchdowns': 'player_rush_tds',
+  'rush tds': 'player_rush_tds',
+  'receiving tds': 'player_receiving_tds',
+  'receiving touchdowns': 'player_receiving_tds',
+  'touchdowns': 'player_anytime_td',
 }
 
 const normalizeStatKey = (label: string): string => {
@@ -150,6 +166,7 @@ const parsePlayerPropBookmakers = (
 ) => {
   const result: any[] = []
   for (const [bookName, markets] of Object.entries(bookmakers || {})) {
+    if (EXCLUDED_FANTASY_BOOKS.has(bookName)) continue
     const parsed = parsePlayerPropsFromBookmaker(bookName, markets as any[], requestedMarkets, allowedKeys, playerFilter)
     if (parsed) result.push(parsed)
   }
@@ -209,6 +226,7 @@ async function getCachedOdds(
             'player_pass_tds',
             'player_rush_yds',
             'player_rush_tds',
+            'player_receiving_tds',
           ])
         : null
 
@@ -246,7 +264,7 @@ async function getCachedOdds(
               (!markets || !markets.length) ? true : markets.includes(mkt.key)
             ),
           }))
-          .filter(book => book.markets.length > 0)
+          .filter(book => book.markets.length > 0 && !EXCLUDED_FANTASY_BOOKS.has(book.title))
       if (!mapped.length) logNoBooks(ev, markets)
       else if (mapped[0]?.markets?.length) {
         console.log('[PLAYER_PROPS] Mapped bookmaker markets example:', mapped[0].key, mapped[0].markets.map((m: any) => m.key))

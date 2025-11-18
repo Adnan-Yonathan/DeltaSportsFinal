@@ -1003,8 +1003,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Build context
+    const modeDirectives: Record<string, string> = {
+      regular: '- Mode: Regular — focus on education and betting know-how. Do NOT call live odds or player prop tools unless the user explicitly asks for data.',
+      live: '- Mode: Live — prioritize fresh odds/props; if data is missing, say so briefly. Keep replies concise.',
+      research: '- Mode: Research — confirm scope (sports, markets, filters, data to use) before running research tools. Do not run without user confirmation.',
+    }
+
     let contextMessage = `\n\n**Current User Context:**\n`
-    contextMessage += `- Mode: ${mode}\n`
+    contextMessage += `${modeDirectives[mode] || `- Mode: ${mode}`}\n`
     if (userData) {
       const currentBankroll = Number(userData.current_bankroll ?? 0)
       const startingBankroll = Number(userData.starting_bankroll ?? 0)
@@ -1837,11 +1843,30 @@ ${statsEnrichment}
     const chatModel = AI_MODELS.chat
     console.log(`[CHAT] Using model: ${chatModel}`)
 
+    const allowedTools = ASSISTANT_TOOLS.filter((tool) => {
+      const name = (tool as any)?.function?.name
+      if (!name) return true
+      if (mode === 'regular') {
+        return !['get_player_props', 'run_research_model', 'save_research_model', 'list_research_opportunities'].includes(name)
+      }
+      if (mode === 'live') {
+        return name !== 'run_research_model' && name !== 'save_research_model'
+      }
+      // research or default: all tools
+      return true
+    })
+
+    const allowedToolNames = new Set(
+      allowedTools
+        .map((t: any) => t?.function?.name)
+        .filter(Boolean)
+    )
+
     const buildParams = () => {
       const params: any = {
         model: chatModel,
         messages: openaiMessages,
-        tools: ASSISTANT_TOOLS,
+        tools: allowedTools,
         max_tokens: 4000,
       }
       if (!chatModel.includes('gpt-5')) {
@@ -1857,6 +1882,11 @@ ${statsEnrichment}
       const functionName = toolCall.function.name
       const functionArgs = JSON.parse(toolCall.function.arguments || '{}')
       let functionResult: any
+
+      if (functionName && !allowedToolNames.has(functionName)) {
+        const reason = `Tool ${functionName} is disabled in ${mode} mode.`
+        return { success: false, error: reason }
+      }
 
       const DISABLED_TOOLS = new Set([])
 

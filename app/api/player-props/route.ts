@@ -83,6 +83,7 @@ const parsePlayerPropsFromBookmaker = (
   bookName: string,
   markets: any[],
   requestedMarkets: string[],
+  allowedKeys: Set<string> | null,
   playerFilter?: string[]
 ) => {
   const marketsOut: any[] = []
@@ -106,6 +107,7 @@ const parsePlayerPropsFromBookmaker = (
       }
 
       const key = normalizeStatKey(statLabel)
+      if (allowedKeys && !allowedKeys.has(key)) continue
       // Do not drop markets solely because they aren't in requestedMarkets; we normalize and keep first per player/key
 
       const line = typeof entry.hdp === 'number' ? entry.hdp : parseFloat(entry.hdp)
@@ -143,11 +145,12 @@ const parsePlayerPropsFromBookmaker = (
 const parsePlayerPropBookmakers = (
   bookmakers: Record<string, any>,
   requestedMarkets: string[],
+  allowedKeys: Set<string> | null,
   playerFilter?: string[]
 ) => {
   const result: any[] = []
   for (const [bookName, markets] of Object.entries(bookmakers || {})) {
-    const parsed = parsePlayerPropsFromBookmaker(bookName, markets as any[], requestedMarkets, playerFilter)
+    const parsed = parsePlayerPropsFromBookmaker(bookName, markets as any[], requestedMarkets, allowedKeys, playerFilter)
     if (parsed) result.push(parsed)
   }
   return result
@@ -196,6 +199,19 @@ async function getCachedOdds(
   }
 
   const fetchEventBatch = async (bookmakers: string[] | null, live: boolean) => {
+    const allowedKeys =
+      sport === 'americanfootball_nfl'
+        ? new Set([
+            'player_receiving_yds',
+            'player_receptions',
+            'player_anytime_td',
+            'player_pass_yds',
+            'player_pass_tds',
+            'player_rush_yds',
+            'player_rush_tds',
+          ])
+        : null
+
     const events = await fetchEventsIO(sport, { status: live ? 'live' : 'pending' })
     console.log(`[PLAYER_PROPS] Loaded ${events.length} ${live ? 'live' : 'pending'} events for ${sport}`)
     const filteredEvents = teamFilter && teamFilter.length
@@ -222,7 +238,7 @@ async function getCachedOdds(
     console.log(`[PLAYER_PROPS] eventOdds length: ${eventOdds.length}`)
     const games: OddsGame[] = eventOdds.map((ev: any) => {
       const mapped =
-        parsePlayerPropBookmakers(ev.bookmakers || {}, markets, playerFilter) ||
+        parsePlayerPropBookmakers(ev.bookmakers || {}, markets, allowedKeys, playerFilter) ||
         mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', undefined)
           .map(book => ({
             ...book,

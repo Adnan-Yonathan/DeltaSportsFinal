@@ -9,9 +9,11 @@ import { fetchESPNScores, fetchESPNScoresForDate } from '@/lib/espn-api'
 import { fetchEventsIO } from '@/lib/api/odds-api'
 import { listCustomModels, saveCustomModel, touchCustomModelUsage, CustomModelRow } from '@/lib/models/custom-models'
 import { CustomModelStatInput } from '@/lib/models/custom-model-types'
-import { runCustomModel } from '@/lib/models/model-runner'
+import { runCustomModel, runCustomModelAcrossSlate } from '@/lib/models/model-runner'
+import type { UserDataOverride } from '@/lib/models/model-runner'
 import { buildGameContext } from '@/lib/context/game-context'
 import { normalizePropMarketKey, normalizePropSelection, extractPropLine } from '@/lib/utils/props'
+import { calculateKellyStake } from '@/lib/utils/kelly'
 import { format } from 'date-fns'
 import { openai, AI_MODELS } from '@/lib/ai-gateway-client'
 
@@ -368,6 +370,43 @@ function buildStatInputs(rawStats: any): CustomModelStatInput[] {
   }
 
   return rawStats.map(normalizeStatArg)
+}
+
+const normalizeHierarchyInput = (raw: any): { label: string; statKeys?: string[]; weight: number; note?: string }[] | undefined => {
+  if (!Array.isArray(raw)) return undefined
+  return raw
+    .map((tier: any) => ({
+      label: typeof tier?.label === 'string' ? tier.label : 'Tier',
+      statKeys: Array.isArray(tier?.stat_keys) ? tier.stat_keys : Array.isArray(tier?.statKeys) ? tier.statKeys : undefined,
+      weight: typeof tier?.weight === 'number' ? tier.weight : 1,
+      note: typeof tier?.note === 'string' ? tier.note : undefined,
+    }))
+    .filter((t: any) => t.statKeys && t.statKeys.length)
+}
+
+const normalizeUserDataOverrides = (raw: any): UserDataOverride[] | undefined => {
+  if (!Array.isArray(raw)) return undefined
+  const cleaned: UserDataOverride[] = []
+  for (const entry of raw) {
+    if (!entry?.stat_key && !entry?.statKey) continue
+    const statKey = entry.stat_key || entry.statKey
+    const teamValues = entry.team_values || entry.teamValues
+    if (!teamValues || typeof teamValues !== 'object') continue
+    const parsedValues: Record<string, number> = {}
+    Object.entries(teamValues).forEach(([team, value]) => {
+      const num = Number(value)
+      if (Number.isFinite(num)) {
+        parsedValues[team] = num
+      }
+    })
+    if (!Object.keys(parsedValues).length) continue
+    cleaned.push({
+      statKey,
+      teamValues: parsedValues,
+      note: typeof entry.note === 'string' ? entry.note : undefined,
+    })
+  }
+  return cleaned.length ? cleaned : undefined
 }
 
 const getSystemPrompt = (timezone: string) => `You are DELTA, a professional sports betting assistant. Your role is to help users analyze betting opportunities, manage their bankroll, and understand sports betting markets.
@@ -744,6 +783,31 @@ const ASSISTANT_TOOLS: ChatCompletionTool[] = [
           confidence_level: { type: 'number', enum: [0.8, 0.9, 0.95], description: 'Desired confidence interval level (80%, 90%, 95%).' },
           data_hints: { type: 'string', description: 'Optional guidance about what data sources/samples to emphasize (e.g., "last 10 games", "road splits").' },
           notes: { type: 'string', description: 'Optional notes to show users when the model is applied.' },
+          user_data_spec: {
+            type: 'object',
+            description: 'Describe the shape of user-provided data (columns/keys) expected when applying the model.',
+            properties: {
+              description: { type: 'string' },
+              keys: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              required: { type: 'boolean' },
+            },
+          },
+          hierarchy: {
+            type: 'array',
+            description: 'Optional hierarchy for stats (tiers with weights).',
+            items: {
+              type: 'object',
+              properties: {
+                label: { type: 'string' },
+                stat_keys: { type: 'array', items: { type: 'string' } },
+                weight: { type: 'number' },
+                note: { type: 'string' },
+              },
+            },
+          },
           stats: {
             type: 'array',
             minItems: 1,
@@ -800,12 +864,47 @@ const ASSISTANT_TOOLS: ChatCompletionTool[] = [
             description: 'Ordered list of teams or contexts referenced in the user request (e.g., ["Lakers", "Celtics"]).',
             items: { type: 'string' },
           },
+          apply_to_slate: {
+            type: 'boolean',
+            description: 'When true, run this model across the slate (today/tomorrow) instead of a single matchup.',
+          },
+          slate_day: { type: 'string', enum: ['today', 'tomorrow'], description: 'Which day to scan when apply_to_slate = true.' },
+          max_games: { type: 'number', description: 'Limit the number of games to scan (default 8).' },
+          min_confidence: { type: 'number', description: 'Optional minimum confidence (0-1) to include a slate result.' },
           matchup: {
             type: 'object',
             description: 'Structured matchup information if user specified a focus and opponent.',
             properties: {
               focus: { type: 'string', description: 'Primary team/player the prediction focuses on.' },
               opponent: { type: 'string', description: 'Opposing team/player.' },
+            },
+          },
+          user_data: {
+            type: 'array',
+            description: 'User-provided stat overrides keyed by team name.',
+            items: {
+              type: 'object',
+              properties: {
+                stat_key: { type: 'string' },
+                team_values: {
+                  type: 'object',
+                  additionalProperties: { type: 'number' },
+                },
+                note: { type: 'string' },
+              },
+              required: ['stat_key', 'team_values'],
+            },
+          },
+          hierarchy: {
+            type: 'array',
+            description: 'Optional stat tiers/weights to apply at runtime.',
+            items: {
+              type: 'object',
+              properties: {
+                label: { type: 'string' },
+                stat_keys: { type: 'array', items: { type: 'string' } },
+                weight: { type: 'number' },
+              },
             },
           },
           notes: { type: 'string', description: 'Any extra context supplied by the user (e.g., "tonight in Boston", "use road splits").' },
@@ -906,6 +1005,25 @@ const ASSISTANT_TOOLS: ChatCompletionTool[] = [
           model_name: { type: 'string', description: 'Name of the research model (case-insensitive).' },
           limit: { type: 'number', description: 'Number of cached result sets to return (default: 1).' },
         },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'calculate_kelly',
+      description: 'Calculate Kelly Criterion sizing with optional bankroll/unit context.',
+      parameters: {
+        type: 'object',
+        properties: {
+          odds: { type: 'number', description: 'American odds for the wager (e.g., -110, +150).' },
+          win_probability: { type: 'number', description: 'Estimated win probability as a decimal between 0 and 1 (e.g., 0.55 = 55%).' },
+          bankroll: { type: 'number', description: 'Optional bankroll to size against.' },
+          unit_size: { type: 'number', description: 'Optional unit size to convert stake into units.' },
+          fraction: { type: 'number', description: 'Fractional Kelly (0-1). Defaults to 0.25 for safer sizing.' },
+          max_stake_pct: { type: 'number', description: 'Cap stake at this share of bankroll (0-1). Defaults to 0.05.' },
+        },
+        required: ['odds', 'win_probability'],
       },
     },
   },
@@ -2200,6 +2318,7 @@ ${statsEnrichment}
       } else if (functionName === 'save_custom_model') {
         try {
           const statsInput = buildStatInputs(functionArgs.stats)
+          const hierarchy = normalizeHierarchyInput(functionArgs.hierarchy)
           const savedModel = await saveCustomModel(supabase, userId, {
             modelName: functionArgs.model_name,
             sportKey: functionArgs.sport_key,
@@ -2209,6 +2328,14 @@ ${statsEnrichment}
             stats: statsInput,
             dataHints: functionArgs.data_hints,
             notes: functionArgs.notes,
+            hierarchy,
+            userDataSpec: functionArgs.user_data_spec
+              ? {
+                  description: functionArgs.user_data_spec.description,
+                  keys: functionArgs.user_data_spec.keys,
+                  required: functionArgs.user_data_spec.required,
+                }
+              : undefined,
           })
 
           functionResult = {
@@ -2272,19 +2399,57 @@ ${statsEnrichment}
               }
             : undefined
 
-          const result = await runCustomModel(modelRecord, {
-            sportKey: functionArgs.sport_key,
-            teams: functionArgs.teams,
-            matchup,
-            notes: functionArgs.notes,
-          }, supabase)
+          const userDataOverrides = normalizeUserDataOverrides(functionArgs.user_data)
+          const hierarchy = normalizeHierarchyInput(functionArgs.hierarchy) as any
+          const applyToSlate = Boolean(functionArgs.apply_to_slate)
+          const maxGames = functionArgs.max_games != null ? Number(functionArgs.max_games) : undefined
+          const minConfidence =
+            functionArgs.min_confidence != null ? Number(functionArgs.min_confidence) : undefined
 
-          await touchCustomModelUsage(supabase, modelRecord.id)
+          if (applyToSlate) {
+            const slate = await runCustomModelAcrossSlate(
+              modelRecord,
+              {
+                sportKey: functionArgs.sport_key || modelRecord.sport_key,
+                day: functionArgs.slate_day || 'today',
+                limit: maxGames,
+                minConfidence,
+                userData: userDataOverrides,
+                hierarchy,
+              },
+              supabase
+            )
 
-          functionResult = {
-            success: true,
-            model: modelRecord,
-            result,
+            await touchCustomModelUsage(supabase, modelRecord.id)
+
+            functionResult = {
+              success: true,
+              model: modelRecord,
+              slate,
+              count: slate.length,
+              message: `Model applied across ${slate.length} game(s).`,
+            }
+          } else {
+            const result = await runCustomModel(
+              modelRecord,
+              {
+                sportKey: functionArgs.sport_key,
+                teams: functionArgs.teams,
+                matchup,
+                notes: functionArgs.notes,
+                userData: userDataOverrides,
+                hierarchy,
+              },
+              supabase
+            )
+
+            await touchCustomModelUsage(supabase, modelRecord.id)
+
+            functionResult = {
+              success: true,
+              model: modelRecord,
+              result,
+            }
           }
         } catch (error: any) {
           functionResult = {
@@ -2424,6 +2589,27 @@ ${statsEnrichment}
             success: false,
             error: error.message || 'Failed to list research opportunities',
           }
+        }
+      } else if (functionName === 'calculate_kelly') {
+        const odds = Number(functionArgs.odds)
+        const winProb = Math.max(0, Math.min(1, Number(functionArgs.win_probability)))
+        const fraction =
+          functionArgs.fraction != null ? Math.max(0, Number(functionArgs.fraction)) : undefined
+        const maxStakePct =
+          functionArgs.max_stake_pct != null ? Math.max(0, Number(functionArgs.max_stake_pct)) : undefined
+
+        const result = calculateKellyStake({
+          americanOdds: odds,
+          winProbability: winProb,
+          bankroll: functionArgs.bankroll != null ? Number(functionArgs.bankroll) : undefined,
+          unitSize: functionArgs.unit_size != null ? Number(functionArgs.unit_size) : undefined,
+          fraction,
+          maxStakePct,
+        })
+
+        functionResult = {
+          success: true,
+          ...result,
         }
       }
 

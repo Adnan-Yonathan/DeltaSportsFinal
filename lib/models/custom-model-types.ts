@@ -2,6 +2,19 @@ export type ModelStatScope = 'team' | 'matchup_diff' | 'player'
 export type StatDirection = 'higher_better' | 'lower_better'
 export type StatNormalization = 'zscore' | 'minmax' | 'raw'
 
+export interface CustomModelHierarchyTier {
+  label: string
+  statKeys?: string[]
+  weight: number
+  note?: string
+}
+
+export interface CustomModelUserDataSpec {
+  description?: string
+  keys: string[]
+  required?: boolean
+}
+
 export interface CustomModelStatInput {
   statKey: string
   label: string
@@ -26,4 +39,6 @@ export interface CustomModelConfigPayload {
   stats: CustomModelStatConfig[]
   dataHints?: string
   confidence: number
+  hierarchy?: CustomModelHierarchyTier[]
+  userDataSpec?: CustomModelUserDataSpec
 }

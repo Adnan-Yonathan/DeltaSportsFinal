@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency } from '@/lib/utils/odds'
+import { calculateKellyStake } from '@/lib/utils/kelly'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import { format } from 'date-fns'
 import { motion } from 'framer-motion'
@@ -118,6 +119,10 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
   const [editUnitSize, setEditUnitSize] = useState<string>('')
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsError, setSettingsError] = useState<string>('')
+  const [kellyOdds, setKellyOdds] = useState<string>('')
+  const [kellyProb, setKellyProb] = useState<string>('55')
+  const [kellyFraction, setKellyFraction] = useState<string>('0.25')
+  const [kellyCap, setKellyCap] = useState<string>('0.05')
   const supabase = createClient()
 
   useEffect(() => {
@@ -523,6 +528,24 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
     ? (stats.wonBets / (stats.wonBets + stats.lostBets)) * 100
     : 0
 
+  const kellyResult = useMemo(() => {
+    const oddsNum = parseFloat(kellyOdds)
+    const probNum = parseFloat(kellyProb)
+    if (!Number.isFinite(oddsNum) || !Number.isFinite(probNum) || probNum <= 0 || probNum >= 100) {
+      return null
+    }
+    const fractionNum = Math.max(0, parseFloat(kellyFraction) || 0)
+    const capNum = Math.max(0, parseFloat(kellyCap) || 0)
+    return calculateKellyStake({
+      americanOdds: oddsNum,
+      winProbability: probNum / 100,
+      bankroll: stats.currentBalance,
+      unitSize: stats.unitSize,
+      fraction: Number.isFinite(fractionNum) ? fractionNum : undefined,
+      maxStakePct: Number.isFinite(capNum) ? capNum : undefined,
+    })
+  }, [kellyCap, kellyFraction, kellyOdds, kellyProb, stats.currentBalance, stats.unitSize])
+
   const ChartVisualization = ({ height }: { height: number }) => (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={formattedChartData}>
@@ -665,6 +688,112 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                 </div>
               </div>
             )}
+          </motion.div>
+
+          {/* Kelly sizing helper */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-xs text-white/60 uppercase tracking-wider">Kelly Sizing</div>
+                <div className="text-sm text-white/70">Estimate stake using edge + odds</div>
+              </div>
+              <div className="text-xs text-white/50">
+                Bankroll: {formatCurrency(stats.currentBalance)} · Unit: {formatCurrency(stats.unitSize)}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-white/60 uppercase tracking-wider block mb-1">Odds (American)</label>
+                <input
+                  type="number"
+                  value={kellyOdds}
+                  onChange={(e) => setKellyOdds(e.target.value)}
+                  placeholder="-110"
+                  className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-white/60 uppercase tracking-wider block mb-1">Win Probability (%)</label>
+                <input
+                  type="number"
+                  value={kellyProb}
+                  onChange={(e) => setKellyProb(e.target.value)}
+                  placeholder="55"
+                  min="1"
+                  max="99"
+                  className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-white/60 uppercase tracking-wider block mb-1">Fractional Kelly (0-1)</label>
+                <input
+                  type="number"
+                  value={kellyFraction}
+                  onChange={(e) => setKellyFraction(e.target.value)}
+                  step="0.05"
+                  min="0"
+                  max="1"
+                  className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-white/60 uppercase tracking-wider block mb-1">Max Stake Cap (% bankroll)</label>
+                <input
+                  type="number"
+                  value={kellyCap}
+                  onChange={(e) => setKellyCap(e.target.value)}
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            {kellyResult ? (
+              <div className="mt-4 grid grid-cols-3 gap-3 text-sm text-white">
+                <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                  <div className="text-xs text-white/60 uppercase tracking-wider">Suggested Stake</div>
+                  <div className="text-lg font-semibold text-white mt-1">
+                    {kellyResult.suggestedStake != null ? formatCurrency(kellyResult.suggestedStake) : '—'}
+                  </div>
+                  <div className="text-xs text-white/50">
+                    {kellyResult.suggestedUnits != null ? `${kellyResult.suggestedUnits.toFixed(2)}u` : ''}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                  <div className="text-xs text-white/60 uppercase tracking-wider">Kelly % (applied)</div>
+                  <div className="text-lg font-semibold text-white mt-1">
+                    {kellyResult.appliedPercent.toFixed(2)}%
+                  </div>
+                  <div className="text-xs text-white/50">Raw: {kellyResult.kellyPercent.toFixed(2)}%</div>
+                </div>
+                <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                  <div className="text-xs text-white/60 uppercase tracking-wider">Edge</div>
+                  <div className="text-lg font-semibold text-white mt-1">
+                    {kellyResult.edgePercent.toFixed(2)}%
+                  </div>
+                  <div className="text-xs text-white/50">
+                    Implied {kellyResult.impliedProbability.toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-white/50 mt-3">Enter odds and win probability to size with Kelly.</div>
+            )}
+
+            {kellyResult?.warnings?.length ? (
+              <div className="mt-3 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 space-y-1">
+                {kellyResult.warnings.map((w, idx) => (
+                  <div key={idx}>- {w}</div>
+                ))}
+              </div>
+            ) : null}
           </motion.div>
 
           {/* Unified Unit-Centric Dashboard Card */}
@@ -995,7 +1124,6 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
     </>
   )
 }
-
 
 
 

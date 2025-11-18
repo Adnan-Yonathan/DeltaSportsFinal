@@ -1,6 +1,12 @@
 import { Database } from '@/lib/supabase/types'
 import { getTeamStats, TeamStats } from '@/lib/sports-stats-api'
-import { CustomModelConfigPayload, CustomModelStatConfig, StatNormalization } from './custom-model-types'
+import { fetchOdds } from '@/lib/api/odds-api'
+import {
+  CustomModelConfigPayload,
+  CustomModelHierarchyTier,
+  CustomModelStatConfig,
+  StatNormalization,
+} from './custom-model-types'
 import { openai, AI_MODELS } from '@/lib/ai-gateway-client'
 import { buildGameContext, GameContextPayload } from '@/lib/context/game-context'
 
@@ -14,6 +20,18 @@ export interface RunModelOptions {
     opponent: string
   }
   notes?: string
+  userData?: UserDataOverride[]
+  hierarchy?: CustomModelHierarchyTier[]
+}
+
+export interface RunModelSlateOptions {
+  sportKey?: string
+  day?: 'today' | 'tomorrow'
+  limit?: number
+  live?: boolean
+  minConfidence?: number
+  userData?: UserDataOverride[]
+  hierarchy?: CustomModelHierarchyTier[]
 }
 
 export interface StatBreakdown {
@@ -55,6 +73,12 @@ export interface RunModelResult {
     summary?: string
     keyDrivers?: string[]
   }
+}
+
+export interface UserDataOverride {
+  statKey: string
+  teamValues: Record<string, number>
+  note?: string
 }
 
 const SAMPLE_SIZE_MAP: Record<string, number> = {
@@ -120,6 +144,52 @@ function findTeamStats(
   if (!teamName) return undefined
   const target = sanitizeTeamName(teamName)
   return leagueStats.find((team) => sanitizeTeamName(team.team).includes(target) || target.includes(sanitizeTeamName(team.team)))
+}
+
+function buildHierarchyMap(
+  tiers?: CustomModelHierarchyTier[]
+): Map<string, number> {
+  const map = new Map<string, number>()
+  if (!tiers) return map
+
+  for (const tier of tiers) {
+    const weight = typeof tier.weight === 'number' ? tier.weight : 1
+    if (Array.isArray(tier.statKeys)) {
+      for (const key of tier.statKeys) {
+        map.set(key, weight)
+      }
+    }
+  }
+  return map
+}
+
+function buildUserDataLookup(overrides?: UserDataOverride[]) {
+  const lookup = new Map<string, Map<string, number>>()
+  if (!overrides) return lookup
+
+  overrides.forEach((entry) => {
+    if (!entry?.statKey || !entry.teamValues) return
+    const byTeam = new Map<string, number>()
+    Object.entries(entry.teamValues).forEach(([team, value]) => {
+      const key = sanitizeTeamName(team)
+      if (typeof value === 'number' && key) {
+        byTeam.set(key, value)
+      }
+    })
+    lookup.set(entry.statKey, byTeam)
+  })
+  return lookup
+}
+
+function getUserStatValue(
+  lookup: Map<string, Map<string, number>>,
+  statKey: string,
+  teamName?: string
+): number | undefined {
+  if (!teamName) return undefined
+  const statMap = lookup.get(statKey)
+  if (!statMap) return undefined
+  return statMap.get(sanitizeTeamName(teamName))
 }
 
 function computeLeagueMetrics(
@@ -443,6 +513,8 @@ export async function runCustomModel(
   const config = model.config as unknown as CustomModelConfigPayload
   const sportKey = options.sportKey || model.sport_key
   const leagueStats = await getTeamStats(sportKey)
+  const userDataLookup = buildUserDataLookup(options.userData)
+  const hierarchyMap = buildHierarchyMap(options.hierarchy || config.hierarchy)
 
   // Load uploaded files if they exist and supabase client is provided
   let uploadedFiles: Array<{ fileName: string; fileType: string; data: any }> = []
@@ -484,6 +556,9 @@ export async function runCustomModel(
   let effectiveSampleSize = 0
 
   for (const statConfig of config.stats) {
+    const hierarchyMultiplier = hierarchyMap.get(statConfig.statKey) ?? 1
+    const appliedWeight = statConfig.weight * hierarchyMultiplier
+
     if (!statMetricsCache.has(statConfig.statKey)) {
       const metrics = computeLeagueMetrics(leagueStats, statConfig.statKey)
       if (metrics) {
@@ -495,29 +570,37 @@ export async function runCustomModel(
     let rawValue: number | undefined
     let sourceTeam: string | undefined
     let details: string | undefined
+    let usedUserData = false
 
     if (statConfig.scope === 'matchup_diff') {
+      const userFocus = getUserStatValue(userDataLookup, statConfig.statKey, teamsToUse[0])
+      const userOpp = getUserStatValue(userDataLookup, statConfig.statKey, teamsToUse[1])
       const focusValue =
+        userFocus ??
         (focusTeamStats?.stats?.[statConfig.statKey] as number | undefined) ??
         metrics?.mean
       const oppValue =
+        userOpp ??
         (opponentStats?.stats?.[statConfig.statKey] as number | undefined) ??
         metrics?.mean
 
       if (typeof focusValue === 'number' && typeof oppValue === 'number') {
         rawValue = focusValue - oppValue
         sourceTeam = teamsToUse.slice(0, 2).join(' vs ')
+        usedUserData = typeof userFocus === 'number' || typeof userOpp === 'number'
         details = `Difference between ${teamsToUse[0] || 'focus'} and ${teamsToUse[1] || 'league avg'}`
       }
     } else {
       const team = focusTeamStats ?? opponentStats
       const value =
+        getUserStatValue(userDataLookup, statConfig.statKey, team?.team) ??
         (team?.stats?.[statConfig.statKey] as number | undefined) ??
         metrics?.mean
 
       if (typeof value === 'number') {
         rawValue = value
         sourceTeam = team?.team
+        usedUserData = Boolean(getUserStatValue(userDataLookup, statConfig.statKey, team?.team))
         details = team ? `Value from ${team.team}` : 'Fallback to league average'
       }
     }
@@ -526,7 +609,7 @@ export async function runCustomModel(
       breakdown.push({
         statKey: statConfig.statKey,
         label: statConfig.label,
-        weight: statConfig.weight,
+        weight: appliedWeight,
         importance: statConfig.importance,
         rawValue: 0,
         normalizedValue: 0,
@@ -542,16 +625,16 @@ export async function runCustomModel(
     }
 
     const normalizedValue = normalizeValue(rawValue, statConfig, metrics)
-    weightedScore += statConfig.weight * normalizedValue
+    weightedScore += appliedWeight * normalizedValue
 
     const variance = determineVariance(statConfig, metrics)
-    combinedVariance += Math.pow(statConfig.weight, 2) * variance
-    effectiveSampleSize += statConfig.weight * determineSampleSize(statConfig)
+    combinedVariance += Math.pow(appliedWeight, 2) * variance
+    effectiveSampleSize += appliedWeight * determineSampleSize(statConfig)
 
     breakdown.push({
       statKey: statConfig.statKey,
       label: statConfig.label,
-      weight: statConfig.weight,
+      weight: appliedWeight,
       importance: statConfig.importance,
       rawValue,
       normalizedValue,
@@ -561,7 +644,7 @@ export async function runCustomModel(
       direction: statConfig.direction,
       scope: statConfig.scope,
       sourceTeam,
-      details,
+      details: usedUserData ? `${details || 'Value loaded'} (user data override)` : details,
     })
   }
 
@@ -653,4 +736,85 @@ export async function runCustomModel(
     },
     projection: projectionDetails,
   }
+}
+
+export async function runCustomModelAcrossSlate(
+  model: CustomModelRow,
+  options: RunModelSlateOptions = {},
+  supabaseClient?: any
+): Promise<
+  Array<{
+    game: string
+    sportKey: string
+    commenceTime?: string
+    homeTeam: string
+    awayTeam: string
+    result: RunModelResult
+  }>
+> {
+  const sportKey = options.sportKey || model.sport_key
+  const odds = await fetchOdds(sportKey, ['h2h'], {
+    live: options.live ?? false,
+    revalidateSeconds: options.live ? 10 : 0,
+  })
+
+  const dayFilter = options.day
+  const now = new Date()
+  const start = new Date(now)
+  const end = new Date(now)
+  if (dayFilter === 'tomorrow') {
+    start.setDate(start.getDate() + 1)
+    end.setDate(end.getDate() + 1)
+  }
+  start.setHours(0, 0, 0, 0)
+  end.setHours(23, 59, 59, 999)
+
+  const games = odds
+    .filter((game) => {
+      if (!dayFilter) return true
+      const when = new Date(game.commence_time || now)
+      return when >= start && when <= end
+    })
+    .slice(0, options.limit ?? 8)
+
+  const results: Array<{
+    game: string
+    sportKey: string
+    commenceTime?: string
+    homeTeam: string
+    awayTeam: string
+    result: RunModelResult
+  }> = []
+
+  for (const game of games) {
+    const home = game.home_team
+    const away = game.away_team
+    if (!home || !away) continue
+
+    const result = await runCustomModel(
+      model,
+      {
+        sportKey,
+        teams: [home, away],
+        userData: options.userData,
+        hierarchy: options.hierarchy,
+      },
+      supabaseClient
+    )
+
+    if (options.minConfidence && result.confidenceLevel < options.minConfidence) {
+      continue
+    }
+
+    results.push({
+      game: `${away} @ ${home}`,
+      sportKey,
+      commenceTime: game.commence_time,
+      homeTeam: home,
+      awayTeam: away,
+      result,
+    })
+  }
+
+  return results
 }

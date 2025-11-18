@@ -4,6 +4,8 @@ import {
   CustomModelConfigPayload,
   CustomModelStatConfig,
   CustomModelStatInput,
+  CustomModelHierarchyTier,
+  CustomModelUserDataSpec,
 } from './custom-model-types'
 import { normalizeConfidence, normalizeStatWeights } from './model-utils'
 
@@ -29,6 +31,8 @@ export interface SaveCustomModelInput {
   stats: CustomModelStatInput[]
   dataHints?: string
   notes?: string
+  hierarchy?: CustomModelHierarchyTier[]
+  userDataSpec?: CustomModelUserDataSpec
 }
 
 export async function saveCustomModel(
@@ -41,6 +45,8 @@ export async function saveCustomModel(
     stats,
     dataHints: payload.dataHints,
     confidence: normalizeConfidence(payload.confidenceLevel),
+    hierarchy: payload.hierarchy,
+    userDataSpec: payload.userDataSpec,
   }
   const configJson = config as unknown as Json
 

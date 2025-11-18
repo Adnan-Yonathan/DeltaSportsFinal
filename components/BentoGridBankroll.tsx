@@ -506,6 +506,25 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
 
   const hasChartData = formattedChartData.length > 0
 
+  const kellyResult = useMemo(() => {
+    if (!stats) return null
+    const oddsNum = parseFloat(kellyOdds)
+    const probNum = parseFloat(kellyProb)
+    if (!Number.isFinite(oddsNum) || !Number.isFinite(probNum) || probNum <= 0 || probNum >= 100) {
+      return null
+    }
+    const fractionNum = Math.max(0, parseFloat(kellyFraction) || 0)
+    const capNum = Math.max(0, parseFloat(kellyCap) || 0)
+    return calculateKellyStake({
+      americanOdds: oddsNum,
+      winProbability: probNum / 100,
+      bankroll: stats.currentBalance,
+      unitSize: stats.unitSize,
+      fraction: Number.isFinite(fractionNum) ? fractionNum : undefined,
+      maxStakePct: Number.isFinite(capNum) ? capNum : undefined,
+    })
+  }, [kellyCap, kellyFraction, kellyOdds, kellyProb, stats])
+
   if (loading || !stats) {
     return (
       <div className="h-full bg-black/40 backdrop-blur-xl border-l border-white/5 p-6 flex items-center justify-center">
@@ -527,24 +546,6 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
   const winRate = stats.wonBets + stats.lostBets > 0
     ? (stats.wonBets / (stats.wonBets + stats.lostBets)) * 100
     : 0
-
-  const kellyResult = useMemo(() => {
-    const oddsNum = parseFloat(kellyOdds)
-    const probNum = parseFloat(kellyProb)
-    if (!Number.isFinite(oddsNum) || !Number.isFinite(probNum) || probNum <= 0 || probNum >= 100) {
-      return null
-    }
-    const fractionNum = Math.max(0, parseFloat(kellyFraction) || 0)
-    const capNum = Math.max(0, parseFloat(kellyCap) || 0)
-    return calculateKellyStake({
-      americanOdds: oddsNum,
-      winProbability: probNum / 100,
-      bankroll: stats.currentBalance,
-      unitSize: stats.unitSize,
-      fraction: Number.isFinite(fractionNum) ? fractionNum : undefined,
-      maxStakePct: Number.isFinite(capNum) ? capNum : undefined,
-    })
-  }, [kellyCap, kellyFraction, kellyOdds, kellyProb, stats.currentBalance, stats.unitSize])
 
   const ChartVisualization = ({ height }: { height: number }) => (
     <ResponsiveContainer width="100%" height={height}>
@@ -1124,7 +1125,6 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
     </>
   )
 }
-
 
 
 

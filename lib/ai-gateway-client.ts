@@ -16,9 +16,10 @@ export const openai = new OpenAI({
 /**
  * Model configurations for different use cases
  */
+const CHAT_MODEL = process.env.CHAT_MODEL || 'gpt-5-nano'
 export const AI_MODELS = {
   // Main chat - high quality, supports function calling
-  chat: 'gpt-4o',
+  chat: CHAT_MODEL,
 
   // Title generation - fast, cheap, good enough
   titleGen: 'gpt-4o-mini',

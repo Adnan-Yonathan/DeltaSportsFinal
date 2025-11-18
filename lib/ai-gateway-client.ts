@@ -22,13 +22,13 @@ export const AI_MODELS = {
   chat: CHAT_MODEL,
 
   // Title generation - fast, cheap, good enough
-  titleGen: 'gpt-4o-mini',
+  titleGen: 'gpt-5-nano',
 
   // Custom filters - simple yes/no evaluations
-  filters: 'gpt-4o-mini',
+  filters: 'gpt-5-nano',
 
   // Model runner - custom model execution
-  modelRunner: 'gpt-4o',
+  modelRunner: 'gpt-5-mini',
 
   // Web search augmented model (Responses API)
   search: process.env.SEARCH_MODEL || 'gpt-5',

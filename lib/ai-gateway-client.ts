@@ -59,7 +59,7 @@ export async function runWebSearchResponse(
   }
 
   const model = AI_MODELS.search
-  const maxOutputTokens = opts.maxOutputTokens ?? 600
+  const maxOutputTokens = opts.maxOutputTokens ?? 1000
   const retries = opts.retry ?? 1
   console.log(`[WEB_SEARCH] Enabled=${enabled} model=${model} max_tokens=${maxOutputTokens}`)
 

@@ -568,7 +568,13 @@ export async function fetchEventOdds(
   markets?: string[] | null
 ): Promise<EventResponse> {
   if (!eventId) throw new OddsAPIError('eventId is required')
-  const bookmakerParam = normalizeBookmakerList(bookmakers) ?? getDefaultBookmakers()
+  let bookmakerParam: string | undefined
+  if (bookmakers === null) {
+    // Explicit null disables the bookmaker filter so we can fetch all available data
+    bookmakerParam = undefined
+  } else {
+    bookmakerParam = normalizeBookmakerList(bookmakers) ?? getDefaultBookmakers()
+  }
   const params: Record<string, QueryValue> = {
     eventId,
     regions: process.env.ODDS_REGIONS || 'us',

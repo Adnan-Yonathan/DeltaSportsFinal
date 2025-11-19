@@ -19,13 +19,13 @@ export function FeaturesSectionWithHoverEffects() {
       icon: <IconBrain />,
     },
     {
-      title: "Live Odds Feed",
+      title: "Line Shopping",
       description:
-        "Real-time odds from 10+ major sportsbooks, updated every 30 seconds across all major sports.",
-      icon: <IconBolt />,
+        "Compare odds across every major sportsbook in real time to lock in the best price before it moves.",
+      icon: <IconCurrencyDollar />,
     },
     {
-      title: "Line Movement Tracking",
+      title: "Line Movements",
       description:
         "Monitor how lines move across books. Identify steam moves and reverse line movement.",
       icon: <IconTrendingUp />,
@@ -49,16 +49,16 @@ export function FeaturesSectionWithHoverEffects() {
       icon: <IconShield />,
     },
     {
-      title: "Best Line Shopping",
+      title: "Sharp Money Signals",
       description:
-        "Compare odds across all major sportsbooks instantly. Even small differences add up significantly.",
-      icon: <IconCurrencyDollar />,
+        "Follow professional bettors in real time with steam, reverse line moves, and handle percentage alerts.",
+      icon: <IconActivity />,
     },
     {
-      title: "Sharp Money Tracking",
+      title: "Smart Alerts & Automation",
       description:
-        "Follow the smart money. Track line movements to see where professional bettors are placing their action.",
-      icon: <IconActivity />,
+        "Set custom triggers for injuries, price thresholds, or model confidence and automate notifications everywhere.",
+      icon: <IconBolt />,
     },
   ];
   return (

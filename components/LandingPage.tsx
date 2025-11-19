@@ -205,9 +205,9 @@ export default function LandingPage() {
   const deltaUseCases = [
     {
       id: 1,
-      title: "Arbitrage Betting",
-      date: "Risk-Free",
-      content: "Find guaranteed profit opportunities by betting both sides across different sportsbooks. Our scanner identifies arbitrage in real-time with exact stake calculations.",
+      title: "Statistical Projections",
+      date: "Model-Driven",
+      content: "Run advanced projection models in minutes, compare against live odds, and surface mismatches tailored to your style.",
       category: "Strategy",
       icon: DollarSign,
       relatedIds: [2, 3],
@@ -238,9 +238,9 @@ export default function LandingPage() {
     },
     {
       id: 4,
-      title: "Sharp Money Tracking",
-      date: "Follow Pros",
-      content: "Track line movements to see where professional bettors are placing their action. Identify reverse line movement and steam moves.",
+      title: "Instant Research",
+      date: "Auto Insights",
+      content: "Generate deep research briefs with matchup data, injury context, and ready-to-bet talking points in seconds.",
       category: "Intelligence",
       icon: TrendingUp,
       relatedIds: [3, 5],

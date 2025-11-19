@@ -1303,6 +1303,10 @@ export async function POST(req: NextRequest) {
     const mentionedTeams = extractTeamNames(msgLower)
     console.log('[DEBUG] Mentioned teams detected:', mentionedTeams)
 
+    const propIntent = /props?\b|player\s+(points|rebounds|assists|threes|blocks|steals|yards|tds|receptions|pra)\b|over\/under\s+\d+(\.\d+)?/i.test(
+      msgLower
+    )
+
     const shouldFetchOdds =
       Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0
     let scoresContext = ''
@@ -2705,6 +2709,63 @@ ${statsEnrichment}
         },
       });
     };
+
+    // If user clearly wants player props, short-circuit to props endpoint
+    if (propIntent) {
+      try {
+        const sportKey =
+          msgLower.match(/nfl|football/) ? 'nfl' :
+          msgLower.match(/mlb|baseball/) ? 'mlb' :
+          msgLower.match(/nhl|hockey/) ? 'nhl' :
+          'nba'
+
+        const params = new URLSearchParams({ sport: sportKey })
+        if (mentionedTeams.length) {
+          params.set('team', mentionedTeams.join(','))
+        }
+        const propsRes = await fetch(`${baseUrl}/api/player-props?${params.toString()}`, { cache: 'no-store' })
+        const propsData = await propsRes.json()
+        let formatted = 'No player props available.'
+        if (propsRes.ok && propsData?.data?.length) {
+          formatted = `Found ${propsData.count} player(s) with prop bets:\n\n`
+          for (const playerProp of propsData.data) {
+            const headerParts = [`**${playerProp.player}**`]
+            if (playerProp.team) {
+              headerParts.push(
+                `(${playerProp.teamAbbr || playerProp.team}${playerProp.position ? ', ' + playerProp.position : ''})`
+              )
+            }
+            formatted += `${headerParts.join(' ')}\n`
+            if (playerProp.game) {
+              formatted += `Game: ${playerProp.game}\n`
+            }
+            formatted += `| Market | Line | Best Over | Best Under |\n`
+            formatted += `| --- | --- | --- | --- |\n`
+            for (const [marketType, marketData] of Object.entries(playerProp.markets) as [string, any][]) {
+              const lineLabel =
+                marketData.line !== undefined && marketData.line !== null ? marketData.line : '?'
+              const bestOver =
+                marketData.over.bestBook
+                  ? `${marketData.over.best > 0 ? '+' : ''}${marketData.over.best} (${marketData.over.bestBook})`
+                  : '?'
+              const bestUnder =
+                marketData.under.bestBook
+                  ? `${marketData.under.best > 0 ? '+' : ''}${marketData.under.best} (${marketData.under.bestBook})`
+                  : '?'
+              formatted += `| ${marketType.toUpperCase()} | ${lineLabel} | ${bestOver} | ${bestUnder} |\n`
+            }
+            formatted += `\n`
+          }
+        } else if (!propsRes.ok) {
+          formatted = propsData?.error || 'Failed to fetch player props.'
+        }
+
+        return streamTextResponse(formatted)
+      } catch (err: any) {
+        console.error('[PLAYER_PROPS_SHORTCUT] Failed:', err)
+        return streamTextResponse('Player props are temporarily unavailable. Please try again.')
+      }
+    }
 
     let handledToolCalls = false
     let lastText = initialResponse.choices[0].message.content || ''

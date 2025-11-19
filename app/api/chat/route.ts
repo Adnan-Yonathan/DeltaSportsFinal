@@ -2732,6 +2732,33 @@ ${statsEnrichment}
       return streamTextResponse(finalText)
     }
 
+    // If GPT-5 and we already have odds tables, short-circuit to a deterministic reply to avoid streaming issues
+    const hasOddsTables =
+      typeof (globalThis as any).standardizedOddsTables === 'string' &&
+      (globalThis as any).standardizedOddsTables.trim().length > 0 &&
+      Array.isArray((globalThis as any).formattedOdds) &&
+      (globalThis as any).formattedOdds.length > 0
+    if (chatModel.includes('gpt-5') && hasOddsTables) {
+      const fo = (globalThis as any).formattedOdds as any[]
+      const tables = (globalThis as any).standardizedOddsTables as string
+      const gamesLine = fo
+        .map((sport) =>
+          sport.games
+            .map((g: any) => `${g.away_team} @ ${g.home_team} (${g.commence_time_formatted || 'TBD'})`)
+            .join('; ')
+        )
+        .filter(Boolean)
+        .join('; ')
+      const reply = [
+        gamesLine ? `Here are the current odds: ${gamesLine}` : 'Here are the current odds:',
+        tables,
+        'Want injuries, stats, or deeper analysis on this matchup?',
+      ]
+        .filter(Boolean)
+        .join('\n\n')
+      return streamTextResponse(reply)
+    }
+
     // For GPT-5 models, use non-streaming to avoid stream parsing issues
     if (chatModel.includes('gpt-5')) {
       const completion = await openai.chat.completions.create({

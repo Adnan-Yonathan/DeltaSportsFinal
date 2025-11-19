@@ -1332,6 +1332,7 @@ export async function POST(req: NextRequest) {
     const researchIntent = /research\s+(mode|tab)|recent\s+news|search\s+the\s+web|latest\s+updates|run\s+my\s+model|apply\s+my\s+model|statistical\s+projection/i.test(
       msgLower
     )
+    const webSearchToggle = /enable_web_search|enable\s+web\s+search/i.test(msgLower)
 
     const shouldFetchOdds =
       !betIntent &&
@@ -2750,7 +2751,8 @@ ${statsEnrichment}
         return streamTextResponse(buildDeterministicOddsReply() as string)
       }
 
-      if (process.env.ENABLE_WEB_SEARCH === 'true') {
+      const webSearchAllowed = process.env.ENABLE_WEB_SEARCH === 'true' || webSearchToggle
+      if (webSearchAllowed) {
         try {
           const searchPrompt = `Find the latest news, injuries, and performance updates for: ${message}. Return a concise bulleted list with source links. Prioritize items from the last 72 hours.`
           const searchResult = await runWebSearchResponse(searchPrompt, { maxOutputTokens: 400, retry: 1 })
@@ -2763,7 +2765,7 @@ ${statsEnrichment}
 
       // If web search not enabled or failed, and a model is specified in text, prompt user to specify model/application
       return streamTextResponse(
-        'Research mode is active. Tell me which saved model to apply (or what projection you want), and I’ll run it. If you want web search, enable ENABLE_WEB_SEARCH.'
+        'Research mode is active. Tell me which saved model to apply (or what projection you want), and I’ll run it. If you want web search, say "enable web search" and repeat your request.'
       )
     }
 

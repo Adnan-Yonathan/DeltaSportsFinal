@@ -291,7 +291,7 @@ export default function LandingPage() {
           <div>
             <AnimatedHero
               staticText="AI-powered betting"
-              rotatingTerms={["arbitrage", "analytics", "action", "CLV", "edges", "value", "lines"]}
+              rotatingTerms={["analytics", "action", "edges", "value", "lines", "models", "sharps"]}
               interval={2000}
             />
             <p className="mt-4 max-w-md text-gray-400">

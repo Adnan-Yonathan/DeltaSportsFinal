@@ -15,7 +15,7 @@ import { buildGameContext } from '@/lib/context/game-context'
 import { normalizePropMarketKey, normalizePropSelection, extractPropLine } from '@/lib/utils/props'
 import { calculateKellyStake } from '@/lib/utils/kelly'
 import { format } from 'date-fns'
-import { openai, AI_MODELS } from '@/lib/ai-gateway-client'
+import { openai, AI_MODELS, runWebSearchResponse } from '@/lib/ai-gateway-client'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300 // 5 minutes (max for Pro plan)
@@ -1329,9 +1329,14 @@ export async function POST(req: NextRequest) {
       msgLower
     )
     const betIntent = /(log|track|record)\s+(my\s+)?bet\b|i\s+bet\s+\$?\d+/i.test(msgLower) || /settle\s+my\s+bet/i.test(msgLower)
+    const researchIntent = /research\s+(mode|tab)|recent\s+news|search\s+the\s+web|latest\s+updates|run\s+my\s+model|apply\s+my\s+model|statistical\s+projection/i.test(
+      msgLower
+    )
 
     const shouldFetchOdds =
-      !betIntent && (Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0)
+      !betIntent &&
+      !researchIntent &&
+      (Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0)
     let scoresContext = ''
     if (scheduleIntent) {
       console.log('[SCHEDULE] Request detected, fetching provider events...')
@@ -2737,6 +2742,30 @@ ${statsEnrichment}
         },
       });
     };
+
+    // Research intent: prioritize web search or saved model/projection
+    if (researchIntent) {
+      // If odds context is already available, prefer deterministic odds reply to avoid “done”
+      if (buildDeterministicOddsReply()) {
+        return streamTextResponse(buildDeterministicOddsReply() as string)
+      }
+
+      if (process.env.ENABLE_WEB_SEARCH === 'true') {
+        try {
+          const searchPrompt = `Find the latest news, injuries, and performance updates for: ${message}. Return a concise bulleted list with source links. Prioritize items from the last 72 hours.`
+          const searchResult = await runWebSearchResponse(searchPrompt, { maxOutputTokens: 400, retry: 1 })
+          return streamTextResponse(searchResult || 'No recent updates found.')
+        } catch (err: any) {
+          console.error('[RESEARCH] Web search failed:', err?.message || err)
+          // Fall through to model-based handling
+        }
+      }
+
+      // If web search not enabled or failed, and a model is specified in text, prompt user to specify model/application
+      return streamTextResponse(
+        'Research mode is active. Tell me which saved model to apply (or what projection you want), and I’ll run it. If you want web search, enable ENABLE_WEB_SEARCH.'
+      )
+    }
 
     // If user clearly wants player props, short-circuit to props endpoint
     if (propIntent) {

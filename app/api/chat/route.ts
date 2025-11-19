@@ -61,6 +61,7 @@ async function generateConversationTitle(userMessage: string, assistantResponse:
   try {
     const titleModel = AI_MODELS.titleGen
     console.log(`[TITLE] Using model: ${titleModel}`)
+    const titleTemp = titleModel.includes('gpt-5') ? undefined : 0.7
 
     const completion = await openai.chat.completions.create({
       model: titleModel,
@@ -76,7 +77,7 @@ async function generateConversationTitle(userMessage: string, assistantResponse:
         },
       ],
       max_completion_tokens: 20,
-      temperature: 0.7,
+      temperature: titleTemp,
     })
 
     const text = completion.choices[0].message.content || ''

@@ -414,6 +414,14 @@ const buildDeterministicOddsReply = () => {
     .join('\n\n')
 }
 
+const extractPlayerName = (msg: string) => {
+  const matches = msg.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g)
+  if (matches && matches.length) {
+    return matches[0]
+  }
+  return undefined
+}
+
 const normalizeHierarchyInput = (raw: any): { label: string; statKeys?: string[]; weight: number; note?: string }[] | undefined => {
   if (!Array.isArray(raw)) return undefined
   return raw
@@ -2722,6 +2730,11 @@ ${statsEnrichment}
         const params = new URLSearchParams({ sport: sportKey })
         if (mentionedTeams.length) {
           params.set('team', mentionedTeams.join(','))
+        }
+        const playerName = extractPlayerName(message)
+        if (playerName) {
+          params.set('player', playerName)
+          console.log(`[PLAYER_PROPS] Player filter applied: ${playerName}`)
         }
         const propsRes = await fetch(`${baseUrl}/api/player-props?${params.toString()}`, { cache: 'no-store' })
         const propsData = await propsRes.json()

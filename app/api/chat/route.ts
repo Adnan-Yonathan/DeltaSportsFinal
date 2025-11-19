@@ -2103,13 +2103,6 @@ ${statsEnrichment}
         })),
     ]
 
-    if (shouldFetchOdds && totalGamesAvailable === 0) {
-      const fallbackOddsMessage =
-        oddsContext?.trim() ||
-        'No odds are available for that request right now. Try a different team, sport, or timeframe.'
-      return streamTextResponse(fallbackOddsMessage)
-    }
-
     // First call to check for function calls (non-streaming)
     const chatModel = AI_MODELS.chat
     console.log(`[CHAT] Using model: ${chatModel}`)
@@ -2800,6 +2793,13 @@ ${statsEnrichment}
         },
       });
     };
+
+    if (shouldFetchOdds && totalGamesAvailable === 0) {
+      const fallbackOddsMessage =
+        oddsContext?.trim() ||
+        'No odds are available for that request right now. Try a different team, sport, or timeframe.'
+      return streamTextResponse(fallbackOddsMessage)
+    }
 
     // Research intent: prioritize web search or saved model/projection
     if (researchIntent) {

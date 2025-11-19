@@ -2732,6 +2732,21 @@ ${statsEnrichment}
       return streamTextResponse(finalText)
     }
 
+    // For GPT-5 models, use non-streaming to avoid stream parsing issues
+    if (chatModel.includes('gpt-5')) {
+      const completion = await openai.chat.completions.create({
+        model: chatModel,
+        messages: openaiMessages,
+        tools: ASSISTANT_TOOLS,
+        temperature: undefined,
+        max_completion_tokens: 1000,
+      })
+
+      const text = extractText(completion.choices[0]?.message?.content || completion.choices[0]?.message || '')
+      const finalText = text && text.trim().length > 0 ? text : 'Done.'
+      return streamTextResponse(finalText)
+    }
+
     const stream = await openai.chat.completions.create({
       model: chatModel,
       messages: openaiMessages,

@@ -892,7 +892,7 @@ export async function runCustomModelAcrossSlate(
                 edges.push({
                   market: 'moneyline',
                   side: team,
-                  book: book.name,
+                  book: (book as any).name || book.title || book.key || 'Book',
                   odds: price,
                   line: undefined,
                   edgePercent,
@@ -930,7 +930,7 @@ export async function runCustomModelAcrossSlate(
               edges.push({
                 market: 'spread',
                 side: outcome.name || (isHome ? home : away),
-                book: book.name,
+                book: (book as any).name || book.title || book.key || 'Book',
                 line: outcome.point,
                 odds: outcome.price,
                 edgePercent,
@@ -964,7 +964,7 @@ export async function runCustomModelAcrossSlate(
               edges.push({
                 market: 'total',
                 side: outcome.name || (isOver ? 'Over' : 'Under'),
-                book: book.name,
+                book: (book as any).name || book.title || book.key || 'Book',
                 line: outcome.point,
                 odds: outcome.price,
                 edgePercent,

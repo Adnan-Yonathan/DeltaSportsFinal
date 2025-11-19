@@ -1328,9 +1328,10 @@ export async function POST(req: NextRequest) {
     const propIntent = /props?\b|player\s+(points|rebounds|assists|threes|blocks|steals|yards|tds|receptions|pra)\b|over\/under\s+\d+(\.\d+)?/i.test(
       msgLower
     )
+    const betIntent = /(log|track|record)\s+(my\s+)?bet\b|i\s+bet\s+\$?\d+/i.test(msgLower) || /settle\s+my\s+bet/i.test(msgLower)
 
     const shouldFetchOdds =
-      Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0
+      !betIntent && (Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0)
     let scoresContext = ''
     if (scheduleIntent) {
       console.log('[SCHEDULE] Request detected, fetching provider events...')
@@ -1371,6 +1372,11 @@ export async function POST(req: NextRequest) {
         scoresContext = '\n\n(No schedule available for the requested criteria)\n'
         console.log('[SCHEDULE] No provider events found for', sportsList.join(','))
       }
+    }
+
+    // If user wants to log/settle bet, avoid fetching odds
+    if (betIntent) {
+      console.log('[BET] Bet intent detected; skipping odds fetch')
     }
 
     let oddsContext = ''

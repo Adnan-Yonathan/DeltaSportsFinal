@@ -16,22 +16,22 @@ export const openai = new OpenAI({
 /**
  * Model configurations for different use cases
  */
-const CHAT_MODEL = process.env.CHAT_MODEL || 'gpt-5-nano'
+const CHAT_MODEL = process.env.CHAT_MODEL || 'gpt-5-mini'
 export const AI_MODELS = {
   // Main chat - high quality, supports function calling
   chat: CHAT_MODEL,
 
   // Title generation - fast, cheap, good enough
-  titleGen: 'gpt-5-nano',
+  titleGen: 'gpt-5-mini',
 
   // Custom filters - simple yes/no evaluations
-  filters: 'gpt-5-nano',
+  filters: 'gpt-5-mini',
 
   // Model runner - custom model execution
   modelRunner: 'gpt-5-mini',
 
   // Web search augmented model (Responses API)
-  search: process.env.SEARCH_MODEL || 'gpt-5',
+  search: process.env.SEARCH_MODEL || 'gpt-5-mini',
 } as const
 
 /**

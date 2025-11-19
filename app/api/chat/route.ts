@@ -1349,6 +1349,8 @@ export async function POST(req: NextRequest) {
     const webSearchToggle = /enable_web_search|enable\s+web\s+search/i.test(msgLower)
     const wantsEdgesOrValue = /(edge|ev|expected\s+value|value\s+bet|mispriced|best\s+bet)/i.test(msgLower)
     const mentionsModel = /model/i.test(msgLower)
+    const modelApplicationIntent =
+      /apply\s+.+?(model|confidence)|confidence\s+interval|run\s+my\s+model|use\s+my\s+model|custom\s+model/i.test(msgLower)
     const researchIntent =
       /research\s+(mode|tab)|recent\s+news|search\s+the\s+web|latest\s+updates|run\s+my\s+model|apply\s+my\s+model|statistical\s+projection/i.test(
         msgLower
@@ -1358,6 +1360,7 @@ export async function POST(req: NextRequest) {
       !betIntent &&
       !researchIntent &&
       !webSearchToggle &&
+      !modelApplicationIntent &&
       (Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0)
     let scoresContext = ''
     if (scheduleIntent) {
@@ -2816,6 +2819,37 @@ ${statsEnrichment}
         oddsContext?.trim() ||
         'No odds are available for that request right now. Try a different team, sport, or timeframe.'
       return streamTextResponse(fallbackOddsMessage)
+    }
+
+    if (modelApplicationIntent) {
+      try {
+        const modelInstructions =
+          'You are an analytics assistant that emulates a custom betting model. Read the user-provided stats, matchup context, and any odds snippet. ' +
+          'Return a structured projection that mirrors a model output: remind what metrics were used, estimate spreads/totals/confidence intervals, and make a clear pick (cover/over/etc.) with rationale. ' +
+          'Reference the provided numbers (net rating, defense, tempo, etc.) directly. If odds are in the message, compare your projection to them. Keep it concise but actionable.'
+
+        const completion = await openai.chat.completions.create({
+          model: AI_MODELS.chat,
+          temperature: 0.4,
+          max_completion_tokens: 400,
+          messages: [
+            { role: 'system', content: modelInstructions },
+            {
+              role: 'user',
+              content:
+                'User request:\n' +
+                message +
+                '\n\nIf odds or lines are embedded, compare your projection against them. Output format: intro sentence, key drivers bullets, final prediction (spread/cover or total) with confidence label.',
+            },
+          ],
+        })
+
+        const text = completion.choices[0]?.message?.content?.trim()
+        return streamTextResponse(text || 'Model-style projection unavailable—please provide more structured stats.')
+      } catch (err: any) {
+        console.error('[MODEL_EMULATION] Failed:', err?.message || err)
+        return streamTextResponse('I couldn’t run that model-like projection. Please share the matchup stats and target again.')
+      }
     }
 
     // Research intent: prioritize web search or saved model/projection

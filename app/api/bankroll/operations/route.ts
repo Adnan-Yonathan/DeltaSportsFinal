@@ -143,13 +143,13 @@ async function settleBet(supabase: any, userId: string, data: any) {
   let actualResult = 0
 
   if (result === 'won') {
-    // Win = stake + potential_win (total returned)
-    actualResult = parseFloat(bet.stake) + parseFloat(bet.potential_win)
+    // Stake was removed at log time; profit is potential_win
+    actualResult = parseFloat(bet.potential_win)
   } else if (result === 'push') {
-    // Push = get stake back
-    actualResult = parseFloat(bet.stake)
+    // No profit/loss; stake was already removed at log time
+    actualResult = 0
   } else if (result === 'lost') {
-    // Lost = lose stake (negative value to reduce bankroll)
+    // Lose the stake (record negative profit)
     actualResult = -parseFloat(bet.stake)
   }
 
@@ -180,7 +180,7 @@ async function settleBet(supabase: any, userId: string, data: any) {
   // Create daily snapshot
   await createDailySnapshot(supabase, userId, newBankroll)
 
-  const profitLoss = actualResult - parseFloat(bet.stake)
+  const profitLoss = actualResult
 
   return NextResponse.json({
     success: true,

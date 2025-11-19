@@ -1,6 +1,8 @@
 import { Database } from '@/lib/supabase/types'
 import { getTeamStats, TeamStats } from '@/lib/sports-stats-api'
 import { fetchOdds } from '@/lib/api/odds-api'
+import { calculateKellyStake } from '@/lib/utils/kelly'
+import { americanToDecimal } from '@/lib/utils/odds'
 import {
   CustomModelConfigPayload,
   CustomModelHierarchyTier,
@@ -32,6 +34,10 @@ export interface RunModelSlateOptions {
   minConfidence?: number
   userData?: UserDataOverride[]
   hierarchy?: CustomModelHierarchyTier[]
+  edgeThreshold?: number // e.g., 0.03 for 3% EV
+  kellyFraction?: number // 0-1 fractional Kelly
+  bankroll?: number
+  unitSize?: number
 }
 
 export interface StatBreakdown {
@@ -750,10 +756,24 @@ export async function runCustomModelAcrossSlate(
     homeTeam: string
     awayTeam: string
     result: RunModelResult
+    edges?: Array<{
+      market: 'moneyline' | 'spread' | 'total'
+      side: string
+      book: string
+      line?: number
+      odds: number
+      edgePercent: number
+      winProb: number
+      impliedProb: number
+      projected: number
+      evMultiple: number
+      suggestedStake?: number
+      suggestedUnits?: number
+    }>
   }>
 > {
   const sportKey = options.sportKey || model.sport_key
-  const odds = await fetchOdds(sportKey, ['h2h'], {
+  const odds = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
     live: options.live ?? false,
     revalidateSeconds: options.live ? 10 : 0,
   })
@@ -784,7 +804,26 @@ export async function runCustomModelAcrossSlate(
     homeTeam: string
     awayTeam: string
     result: RunModelResult
+    edges?: Array<{
+      market: 'moneyline' | 'spread' | 'total'
+      side: string
+      book: string
+      line?: number
+      odds: number
+      edgePercent: number
+      winProb: number
+      impliedProb: number
+      projected: number
+      evMultiple: number
+      suggestedStake?: number
+      suggestedUnits?: number
+    }>
   }> = []
+
+  const probFromMargin = (margin: number) => {
+    const p = 0.5 + Math.tanh(margin / 6) * 0.5
+    return Math.max(0.01, Math.min(0.99, p))
+  }
 
   for (const game of games) {
     const home = game.home_team
@@ -806,6 +845,144 @@ export async function runCustomModelAcrossSlate(
       continue
     }
 
+    const edges: Array<{
+      market: 'moneyline' | 'spread' | 'total'
+      side: string
+      book: string
+      line?: number
+      odds: number
+      edgePercent: number
+      winProb: number
+      impliedProb: number
+      projected: number
+      evMultiple: number
+      suggestedStake?: number
+      suggestedUnits?: number
+    }> = []
+
+    const targetMetric = (model.target_metric || model.market_type || '').toLowerCase()
+    const isTotalTarget = targetMetric.includes('total')
+    const projectedSpread = result.score
+    const projectedTotal = isTotalTarget ? result.score : undefined
+
+    const edgeThreshold = options.edgeThreshold ?? 0.03
+    const kellyFraction = options.kellyFraction ?? 0.25
+
+    for (const book of game.bookmakers || []) {
+      for (const market of book.markets || []) {
+        if (market.key === 'h2h') {
+          const outcomes = market.outcomes || []
+          const priceHome = outcomes.find((o: any) => String(o.name).toLowerCase() === home.toLowerCase())
+          const priceAway = outcomes.find((o: any) => String(o.name).toLowerCase() === away.toLowerCase())
+          if (priceHome?.price != null && priceAway?.price != null) {
+            const pHome = probFromMargin(projectedSpread)
+            const pAway = 1 - pHome
+            const addMlEdge = (team: string, price: number, winProb: number) => {
+              const dec = americanToDecimal(price)
+              const ev = winProb * dec - 1
+              const edgePercent = ev * 100
+              if (edgePercent >= edgeThreshold * 100) {
+                const k = calculateKellyStake({
+                  americanOdds: price,
+                  winProbability: winProb,
+                  fraction: kellyFraction,
+                  bankroll: options.bankroll,
+                  unitSize: options.unitSize,
+                })
+                edges.push({
+                  market: 'moneyline',
+                  side: team,
+                  book: book.name,
+                  odds: price,
+                  line: undefined,
+                  edgePercent,
+                  winProb: winProb * 100,
+                  impliedProb: (1 / dec) * 100,
+                  projected: projectedSpread,
+                  evMultiple: ev,
+                  suggestedStake: k.suggestedStake,
+                  suggestedUnits: k.suggestedUnits,
+                })
+              }
+            }
+            addMlEdge(home, priceHome.price, pHome)
+            addMlEdge(away, priceAway.price, pAway)
+          }
+        } else if (market.key === 'spreads') {
+          const outcomes = market.outcomes || []
+          for (const outcome of outcomes) {
+            if (typeof outcome?.price !== 'number' || typeof outcome?.point !== 'number') continue
+            const isHome = String(outcome.name).toLowerCase() === home.toLowerCase()
+            const modelSpread = isHome ? projectedSpread : -projectedSpread
+            const diff = modelSpread - outcome.point
+            const winProb = probFromMargin(diff)
+            const dec = americanToDecimal(outcome.price)
+            const ev = winProb * dec - 1
+            const edgePercent = ev * 100
+            if (edgePercent >= edgeThreshold * 100) {
+              const k = calculateKellyStake({
+                americanOdds: outcome.price,
+                winProbability: winProb,
+                fraction: kellyFraction,
+                bankroll: options.bankroll,
+                unitSize: options.unitSize,
+              })
+              edges.push({
+                market: 'spread',
+                side: outcome.name || (isHome ? home : away),
+                book: book.name,
+                line: outcome.point,
+                odds: outcome.price,
+                edgePercent,
+                winProb: winProb * 100,
+                impliedProb: (1 / dec) * 100,
+                projected: modelSpread,
+                evMultiple: ev,
+                suggestedStake: k.suggestedStake,
+                suggestedUnits: k.suggestedUnits,
+              })
+            }
+          }
+        } else if (market.key === 'totals' && projectedTotal != null) {
+          const outcomes = market.outcomes || []
+          for (const outcome of outcomes) {
+            if (typeof outcome?.price !== 'number' || typeof outcome?.point !== 'number') continue
+            const isOver = String(outcome.name).toLowerCase().includes('over')
+            const diff = isOver ? projectedTotal - outcome.point : outcome.point - projectedTotal
+            const winProb = probFromMargin(diff)
+            const dec = americanToDecimal(outcome.price)
+            const ev = winProb * dec - 1
+            const edgePercent = ev * 100
+            if (edgePercent >= edgeThreshold * 100) {
+              const k = calculateKellyStake({
+                americanOdds: outcome.price,
+                winProbability: winProb,
+                fraction: kellyFraction,
+                bankroll: options.bankroll,
+                unitSize: options.unitSize,
+              })
+              edges.push({
+                market: 'total',
+                side: outcome.name || (isOver ? 'Over' : 'Under'),
+                book: book.name,
+                line: outcome.point,
+                odds: outcome.price,
+                edgePercent,
+                winProb: winProb * 100,
+                impliedProb: (1 / dec) * 100,
+                projected: projectedTotal,
+                evMultiple: ev,
+                suggestedStake: k.suggestedStake,
+                suggestedUnits: k.suggestedUnits,
+              })
+            }
+          }
+        }
+      }
+    }
+
+    edges.sort((a, b) => b.edgePercent - a.edgePercent)
+
     results.push({
       game: `${away} @ ${home}`,
       sportKey,
@@ -813,6 +990,7 @@ export async function runCustomModelAcrossSlate(
       homeTeam: home,
       awayTeam: away,
       result,
+      edges,
     })
   }
 

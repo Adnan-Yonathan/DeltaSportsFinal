@@ -148,12 +148,13 @@ export async function GET(req: NextRequest) {
     // Calculate units won from winning bets (actual_result - stake = profit)
     const unitsWon = bets
       ?.filter((b) => b.status === 'won' && b.actual_result !== null)
-      .reduce((sum, b) => sum + ((Number(b.actual_result || 0) - Number(b.stake)) / unitSize), 0) || 0
+      .reduce((sum, b) => sum + (Number(b.actual_result || 0) / unitSize), 0) || 0
 
-    // Calculate units lost from losing bets (absolute value of negative actual_result)
-    const unitsLost = Math.abs(bets
-      ?.filter((b) => b.status === 'lost' && b.actual_result !== null)
-      .reduce((sum, b) => sum + (Number(b.actual_result || 0) / unitSize), 0) || 0)
+    const unitsLost = Math.abs(
+      bets
+        ?.filter((b) => b.status === 'lost' && b.actual_result !== null)
+        .reduce((sum, b) => sum + (Number(b.actual_result || 0) / unitSize), 0) || 0
+    )
 
     // Convert daily balances to units
     const dailyUnits = dailyBalances.map(day => ({

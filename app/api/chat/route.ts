@@ -1330,6 +1330,8 @@ export async function POST(req: NextRequest) {
     )
     const betIntent = /(log|track|record)\s+(my\s+)?bet\b|i\s+bet\s+\$?\d+/i.test(msgLower) || /settle\s+my\s+bet/i.test(msgLower)
     const webSearchToggle = /enable_web_search|enable\s+web\s+search/i.test(msgLower)
+    const wantsEdgesOrValue = /(edge|ev|expected\s+value|value\s+bet|mispriced|best\s+bet)/i.test(msgLower)
+    const mentionsModel = /model/i.test(msgLower)
     const researchIntent =
       /research\s+(mode|tab)|recent\s+news|search\s+the\s+web|latest\s+updates|run\s+my\s+model|apply\s+my\s+model|statistical\s+projection/i.test(
         msgLower
@@ -1388,6 +1390,7 @@ export async function POST(req: NextRequest) {
     }
 
     let oddsContext = ''
+    let totalGamesAvailable = 0
     if (shouldFetchOdds) {
       console.log('[ODDS] Odds request detected, fetching data...')
       try {
@@ -1891,6 +1894,7 @@ export async function POST(req: NextRequest) {
             formattedOddsGlobal = formattedOdds
 
             const totalGames = formattedOdds.reduce((sum, sport) => sum + sport.games.length, 0)
+            totalGamesAvailable = totalGames
             console.log(`[DEBUG] Formatted odds: ${formattedOdds.length} sports, ${totalGames} total games`)
             console.log(`[DEBUG] Games per sport:`, formattedOdds.map(s => `${s.sport}: ${s.games.length}`))
             const standardizedOddsTables = formattedOdds
@@ -2098,6 +2102,13 @@ ${statsEnrichment}
           content: String(msg.content), // Ensure content is always a string
         })),
     ]
+
+    if (shouldFetchOdds && totalGamesAvailable === 0) {
+      const fallbackOddsMessage =
+        oddsContext?.trim() ||
+        'No odds are available for that request right now. Try a different team, sport, or timeframe.'
+      return streamTextResponse(fallbackOddsMessage)
+    }
 
     // First call to check for function calls (non-streaming)
     const chatModel = AI_MODELS.chat
@@ -2792,6 +2803,12 @@ ${statsEnrichment}
 
     // Research intent: prioritize web search or saved model/projection
     if (researchIntent) {
+      if (wantsEdgesOrValue && !mentionsModel) {
+        return streamTextResponse(
+          'To calculate edges/EV or make picks, choose a custom model and run it. Without a model, I can only provide news, injuries, and qualitative trends (no odds, no EV).'
+        )
+      }
+
       // If odds context is already available, prefer deterministic odds reply to avoid "done"
       // Only use the odds shortcut when we are not explicitly in web-search mode
       if (!webSearchToggle && buildDeterministicOddsReply()) {
@@ -2804,7 +2821,7 @@ ${statsEnrichment}
           const searchPrompt =
             `You are the web research mode. Search the web for authoritative, recent information only. ` +
             `Task: find the latest news, injury reports, and performance/advanced-stat trends for: ${message}. ` +
-            `Do NOT return sportsbook odds. Summarize as concise bullets with source links. Prioritize the last 72 hours.`
+            `Do NOT return sportsbook odds. Do NOT give picks or EV unless a custom model is provided. Summarize as concise bullets with source links. Prioritize the last 72 hours.`
           const searchResult = await runWebSearchResponse(searchPrompt, { maxOutputTokens: 400, retry: 1 })
           return streamTextResponse(searchResult || 'No recent updates found.')
         } catch (err: any) {
@@ -2821,7 +2838,7 @@ ${statsEnrichment}
             {
               role: 'system',
               content:
-                'Research mode without web search. Use domain knowledge and provided context only. Focus on injuries, recent performance trends, matchup notes. Do NOT provide sportsbook odds or lines. Keep the reply concise, bullet-first.',
+                'Research mode without web search. Use domain knowledge and provided context only. Focus on injuries, recent performance trends, matchup notes. Do NOT provide sportsbook odds or lines. Do NOT give EV, edges, or picks unless a custom model was provided. Keep the reply concise, bullet-first.',
             },
             { role: 'user', content: message },
           ],

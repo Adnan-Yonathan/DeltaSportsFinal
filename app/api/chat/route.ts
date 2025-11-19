@@ -1875,8 +1875,8 @@ export async function POST(req: NextRequest) {
               ? '\n(Note: Live was requested, but unavailable; showing pre-match odds.)'
               : ''
 
-            oddsContext = `\n\n**🔴 LIVE ODDS DATA LOADED 🔴**
-YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.
+            oddsContext = `\n\n${headerLine}
+**(Marker: LIVE ODDS DATA LOADED)**\n${accessLine}${fallbackNote}
 
 **CRITICAL INSTRUCTIONS:**
 - Below are the ONLY ${totalGames} game(s) you should mention
@@ -1913,10 +1913,6 @@ ${standardizedOddsTables || '_No odds tables available_'}
 ${statsEnrichment}
 
 **FOLLOW-UP INSTRUCTION:** ${wantsDeepDive ? 'You have injury and stats data above. Use it in your analysis.' : 'Wrap up by asking if they want injuries, stats, or deeper analysis on any matchup (e.g., "Want me to pull injuries and recent form for any of these games?").'}\n`
-
-            // Adjust header and access line to reflect actual mode used
-            oddsContext = oddsContext.replace('LIVE ODDS DATA LOADED', `${modeLabel} ODDS DATA LOADED`)
-            oddsContext = oddsContext.replace("YOU HAVE REAL-TIME ODDS DATA. USE IT. DO NOT SAY YOU DON'T HAVE ACCESS.", `${accessLine}${fallbackNote}`)
 
             console.log(`[ODDS] Context built successfully, length: ${oddsContext.length} characters`)
           } else {

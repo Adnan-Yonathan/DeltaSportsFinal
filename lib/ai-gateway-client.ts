@@ -69,7 +69,9 @@ export async function runWebSearchResponse(
       const response = await openai.responses.create({
         model,
         tools: [{ type: 'web_search' }],
-        input,
+        input:
+          input +
+          '\n\nReturn at least 3 concise bullet points with source links. If there are no relevant items in the last 72 hours, expand to the last 7 days. If still nothing is found, return the string "NO_RESULTS".',
         max_output_tokens: maxOutputTokens,
       } as any)
 
@@ -92,8 +94,8 @@ export async function runWebSearchResponse(
         : ''
 
       if (fromOutputArray.trim()) return fromOutputArray
-
-      return ''
+      console.warn('[WEB_SEARCH] Empty response payload from search model; returning NO_RESULTS')
+      return 'NO_RESULTS'
     } catch (error: any) {
       lastError = error
       const status = error?.status || error?.response?.status

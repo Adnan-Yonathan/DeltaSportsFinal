@@ -395,6 +395,25 @@ const extractText = (val: any): string => {
 let formattedOddsGlobal: any[] = []
 let standardizedOddsTablesGlobal: string | null = null
 
+const buildDeterministicOddsReply = () => {
+  if (!standardizedOddsTablesGlobal || !formattedOddsGlobal.length) return null
+  const gamesLine = formattedOddsGlobal
+    .map((sport: any) =>
+      sport.games
+        .map((g: any) => `${g.away_team} @ ${g.home_team} (${g.commence_time_formatted || 'TBD'})`)
+        .join('; ')
+    )
+    .filter(Boolean)
+    .join('; ')
+  return [
+    gamesLine ? `Here are the current odds: ${gamesLine}` : 'Here are the current odds:',
+    standardizedOddsTablesGlobal,
+    'Want injuries, stats, or deeper analysis on this matchup?',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
 const normalizeHierarchyInput = (raw: any): { label: string; statKeys?: string[]; weight: number; note?: string }[] | undefined => {
   if (!Array.isArray(raw)) return undefined
   return raw
@@ -2746,22 +2765,8 @@ ${statsEnrichment}
       Array.isArray(formattedOddsGlobal) &&
       formattedOddsGlobal.length > 0
     if (chatModel.includes('gpt-5') && hasOddsTables) {
-      const gamesLine = formattedOddsGlobal
-        .map((sport: any) =>
-          sport.games
-            .map((g: any) => `${g.away_team} @ ${g.home_team} (${g.commence_time_formatted || 'TBD'})`)
-            .join('; ')
-        )
-        .filter(Boolean)
-        .join('; ')
-      const reply = [
-        gamesLine ? `Here are the current odds: ${gamesLine}` : 'Here are the current odds:',
-        standardizedOddsTablesGlobal,
-        'Want injuries, stats, or deeper analysis on this matchup?',
-      ]
-        .filter(Boolean)
-        .join('\n\n')
-      return streamTextResponse(reply)
+      const reply = buildDeterministicOddsReply()
+      if (reply) return streamTextResponse(reply)
     }
 
     // For GPT-5 models, use non-streaming to avoid stream parsing issues

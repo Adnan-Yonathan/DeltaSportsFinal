@@ -2830,7 +2830,7 @@ ${statsEnrichment}
 
         const completion = await openai.chat.completions.create({
           model: AI_MODELS.chat,
-          temperature: 0.4,
+          temperature: AI_MODELS.chat.includes('gpt-5') ? undefined : 0.4,
           max_completion_tokens: 400,
           messages: [
             { role: 'system', content: modelInstructions },

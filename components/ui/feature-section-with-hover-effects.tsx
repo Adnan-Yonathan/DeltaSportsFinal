@@ -25,10 +25,10 @@ export function FeaturesSectionWithHoverEffects() {
       icon: <IconCurrencyDollar />,
     },
     {
-      title: "Line Movements",
+      title: "Live Score Intelligence",
       description:
-        "Monitor how lines move across books. Identify steam moves and reverse line movement.",
-      icon: <IconTrendingUp />,
+        "ESPN-powered lineups, box scores, and player stats stream into the app and update every card in real time.",
+      icon: <IconActivity />,
     },
     {
       title: "Bankroll Management",
@@ -49,10 +49,10 @@ export function FeaturesSectionWithHoverEffects() {
       icon: <IconShield />,
     },
     {
-      title: "Sharp Money Signals",
+      title: "On-Demand Research",
       description:
-        "Follow professional bettors in real time with steam, reverse line moves, and handle percentage alerts.",
-      icon: <IconActivity />,
+        "Ask the copilot for live stats, starters, or matchup context and get instant answers pulled from our ESPN data cache.",
+      icon: <IconTrendingUp />,
     },
     {
       title: "Smart Alerts & Automation",

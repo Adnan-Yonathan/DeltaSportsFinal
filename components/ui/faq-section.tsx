@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, PhoneCall } from "lucide-react"
+import { Check, Mail } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import {
   Accordion,
@@ -68,11 +68,14 @@ function FAQSection({ className }: { className?: string }) {
               </div>
             ))}
             <Button
+              asChild
               variant="outline"
               className="mt-4 w-full gap-2 border-white/30 text-white hover:bg-white/10"
             >
-              Any questions? Reach out
-              <PhoneCall className="h-4 w-4" />
+              <a href="mailto:support@delta.ai">
+                Email us anytime
+                <Mail className="h-4 w-4" />
+              </a>
             </Button>
           </div>
         </div>

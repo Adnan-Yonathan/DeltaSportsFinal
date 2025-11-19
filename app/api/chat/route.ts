@@ -391,6 +391,10 @@ const extractText = (val: any): string => {
   return ''
 }
 
+// Odds formatting context for GPT-5 fallbacks
+let formattedOddsGlobal: any[] = []
+let standardizedOddsTablesGlobal: string | null = null
+
 const normalizeHierarchyInput = (raw: any): { label: string; statKeys?: string[]; weight: number; note?: string }[] | undefined => {
   if (!Array.isArray(raw)) return undefined
   return raw
@@ -1825,6 +1829,8 @@ export async function POST(req: NextRequest) {
               }))
               .filter((sport) => sport.games.length > 0)
 
+            formattedOddsGlobal = formattedOdds
+
             const totalGames = formattedOdds.reduce((sum, sport) => sum + sport.games.length, 0)
             console.log(`[DEBUG] Formatted odds: ${formattedOdds.length} sports, ${totalGames} total games`)
             console.log(`[DEBUG] Games per sport:`, formattedOdds.map(s => `${s.sport}: ${s.games.length}`))
@@ -1840,6 +1846,7 @@ export async function POST(req: NextRequest) {
               .filter(Boolean)
               .join('\n\n')
             console.log(`[ODDS] Total games formatted: ${totalGames}`)
+            standardizedOddsTablesGlobal = standardizedOddsTables
 
             // Only enrich with stats if user explicitly asks for deep analysis/injuries/stats
             // This avoids the 8.4MB NFL injuries cache issue on simple odds requests
@@ -2734,15 +2741,13 @@ ${statsEnrichment}
 
     // If GPT-5 and we already have odds tables, short-circuit to a deterministic reply to avoid streaming issues
     const hasOddsTables =
-      typeof (globalThis as any).standardizedOddsTables === 'string' &&
-      (globalThis as any).standardizedOddsTables.trim().length > 0 &&
-      Array.isArray((globalThis as any).formattedOdds) &&
-      (globalThis as any).formattedOdds.length > 0
+      typeof standardizedOddsTablesGlobal === 'string' &&
+      standardizedOddsTablesGlobal.trim().length > 0 &&
+      Array.isArray(formattedOddsGlobal) &&
+      formattedOddsGlobal.length > 0
     if (chatModel.includes('gpt-5') && hasOddsTables) {
-      const fo = (globalThis as any).formattedOdds as any[]
-      const tables = (globalThis as any).standardizedOddsTables as string
-      const gamesLine = fo
-        .map((sport) =>
+      const gamesLine = formattedOddsGlobal
+        .map((sport: any) =>
           sport.games
             .map((g: any) => `${g.away_team} @ ${g.home_team} (${g.commence_time_formatted || 'TBD'})`)
             .join('; ')
@@ -2751,7 +2756,7 @@ ${statsEnrichment}
         .join('; ')
       const reply = [
         gamesLine ? `Here are the current odds: ${gamesLine}` : 'Here are the current odds:',
-        tables,
+        standardizedOddsTablesGlobal,
         'Want injuries, stats, or deeper analysis on this matchup?',
       ]
         .filter(Boolean)

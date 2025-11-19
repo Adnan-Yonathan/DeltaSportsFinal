@@ -469,8 +469,10 @@ const buildTeamLineups = (playerSections: any[], teamId: string, league: LeagueI
 
   const bench = players.filter((player) => !starters.includes(player))
 
+  const benchRoster = ["nfl", "cfb"].includes(league) ? [] : players.filter((player) => !starters.includes(player))
+
   return {
     starters,
-    bench,
+    bench: benchRoster,
   }
 }

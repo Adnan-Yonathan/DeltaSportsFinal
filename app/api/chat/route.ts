@@ -1150,6 +1150,23 @@ export async function POST(req: NextRequest) {
       role: 'user',
       content: message,
     })
+    const sanitizedTitle = message
+      .replace(/^enable\s+web\s+search:\s*/i, '')
+      .trim()
+      .replace(/\s+/g, ' ')
+    if (sanitizedTitle) {
+      const fallbackTitle =
+        sanitizedTitle.length > 60 ? `${sanitizedTitle.slice(0, 57)}…` : sanitizedTitle
+      try {
+        await supabase
+          .from('conversations')
+          .update({ title: fallbackTitle })
+          .eq('id', conversationId)
+          .or('title.is.null,title.eq.New%20Chat')
+      } catch (titleError) {
+        console.error('[CHAT] Failed to set fallback title:', titleError)
+      }
+    }
 
     // Fetch conversation history (last 10 messages)
     const { data: history } = await supabase

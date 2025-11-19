@@ -2822,7 +2822,14 @@ ${statsEnrichment}
             `You are the web research mode. Search the web for authoritative, recent information only. ` +
             `Task: find the latest news, injury reports, and performance/advanced-stat trends for: ${message}. ` +
             `Do NOT return sportsbook odds. Do NOT give picks or EV unless a custom model is provided. Summarize as concise bullets with source links. Prioritize the last 72 hours.`
-          const searchResult = await runWebSearchResponse(searchPrompt, { maxOutputTokens: 400, retry: 1 })
+          let searchResult = await runWebSearchResponse(searchPrompt, { maxOutputTokens: 400, retry: 1 })
+          if (!searchResult || !String(searchResult).trim()) {
+            const fallbackPrompt =
+              `You are the web research mode. Search the web for authoritative information. ` +
+              `Task: find the latest news, injury reports, and performance/advanced-stat trends for: ${message}. ` +
+              `Expand to the last 7 days if nothing is found in the last 72 hours. Provide concise bullets with source links. No odds; no picks/EV without a custom model.`
+            searchResult = await runWebSearchResponse(fallbackPrompt, { maxOutputTokens: 400, retry: 1 })
+          }
           return streamTextResponse(searchResult || 'No recent updates found.')
         } catch (err: any) {
           console.error('[RESEARCH] Web search failed:', err?.message || err)

@@ -374,6 +374,7 @@ function buildStatInputs(rawStats: any): CustomModelStatInput[] {
 
 const extractText = (val: any): string => {
   if (!val) return ''
+  if (val.output_text) return String(val.output_text)
   if (typeof val === 'string') return val
   if (Array.isArray(val)) {
     return val
@@ -2721,7 +2722,7 @@ ${statsEnrichment}
       }
 
       const followup = await openai.chat.completions.create(buildParams())
-      lastText = extractText(followup.choices[0].message.content)
+      lastText = extractText(followup.choices[0].message.content || followup.choices[0].message)
       toolCalls = followup.choices[0].message.tool_calls || []
     }
 
@@ -2757,7 +2758,7 @@ ${statsEnrichment}
 
           for await (const chunk of stream) {
             const delta = chunk.choices[0]?.delta
-            const content = extractText(delta?.content)
+            const content = extractText((delta as any)?.content || (delta as any)?.output_text || delta)
             if (content && content.length) {
               fullResponse += content
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`))

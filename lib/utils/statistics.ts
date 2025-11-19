@@ -204,10 +204,8 @@ export function kellyBetSize(
   const q = 1 - probability
   const b = decimalOdds - 1
 
-  const kellyFraction = (b * probability - q) / b
+  const kellyFraction = (b * probability - q) / b // fraction of bankroll
+  const fractionalKelly = Math.max(0, kellyFraction / 4) // default quarter-Kelly safety
 
-  // Use fractional Kelly (1/4 Kelly is common for safety)
-  const fractionalKelly = kellyFraction / 4
-
-  return Math.max(0, fractionalKelly * bankroll)
+  return bankroll * fractionalKelly
 }

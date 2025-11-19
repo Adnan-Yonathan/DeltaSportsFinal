@@ -1329,14 +1329,16 @@ export async function POST(req: NextRequest) {
       msgLower
     )
     const betIntent = /(log|track|record)\s+(my\s+)?bet\b|i\s+bet\s+\$?\d+/i.test(msgLower) || /settle\s+my\s+bet/i.test(msgLower)
-    const researchIntent = /research\s+(mode|tab)|recent\s+news|search\s+the\s+web|latest\s+updates|run\s+my\s+model|apply\s+my\s+model|statistical\s+projection/i.test(
-      msgLower
-    )
     const webSearchToggle = /enable_web_search|enable\s+web\s+search/i.test(msgLower)
+    const researchIntent =
+      /research\s+(mode|tab)|recent\s+news|search\s+the\s+web|latest\s+updates|run\s+my\s+model|apply\s+my\s+model|statistical\s+projection/i.test(
+        msgLower
+      ) || webSearchToggle
 
     const shouldFetchOdds =
       !betIntent &&
       !researchIntent &&
+      !webSearchToggle &&
       (Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0)
     let scoresContext = ''
     if (scheduleIntent) {
@@ -2746,15 +2748,19 @@ ${statsEnrichment}
 
     // Research intent: prioritize web search or saved model/projection
     if (researchIntent) {
-      // If odds context is already available, prefer deterministic odds reply to avoid “done”
-      if (buildDeterministicOddsReply()) {
+      // If odds context is already available, prefer deterministic odds reply to avoid "done"
+      // Only use the odds shortcut when we are not explicitly in web-search mode
+      if (!webSearchToggle && buildDeterministicOddsReply()) {
         return streamTextResponse(buildDeterministicOddsReply() as string)
       }
 
       const webSearchAllowed = process.env.ENABLE_WEB_SEARCH === 'true' || webSearchToggle
       if (webSearchAllowed) {
         try {
-          const searchPrompt = `Find the latest news, injuries, and performance updates for: ${message}. Return a concise bulleted list with source links. Prioritize items from the last 72 hours.`
+          const searchPrompt =
+            `You are the web research mode. Search the web for authoritative, recent information only. ` +
+            `Task: find the latest news, injury reports, and performance/advanced-stat trends for: ${message}. ` +
+            `Do NOT return sportsbook odds. Summarize as concise bullets with source links. Prioritize the last 72 hours.`
           const searchResult = await runWebSearchResponse(searchPrompt, { maxOutputTokens: 400, retry: 1 })
           return streamTextResponse(searchResult || 'No recent updates found.')
         } catch (err: any) {
@@ -2763,10 +2769,28 @@ ${statsEnrichment}
         }
       }
 
-      // If web search not enabled or failed, and a model is specified in text, prompt user to specify model/application
-      return streamTextResponse(
-        'Research mode is active. Tell me which saved model to apply (or what projection you want), and I’ll run it. If you want web search, say "enable web search" and repeat your request.'
-      )
+      // Fallback: run research model (no web). Use gpt-5 to summarize trends/injuries without odds.
+      try {
+        const completion = await openai.chat.completions.create({
+          model: AI_MODELS.research,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'Research mode without web search. Use domain knowledge and provided context only. Focus on injuries, recent performance trends, matchup notes. Do NOT provide sportsbook odds or lines. Keep the reply concise, bullet-first.',
+            },
+            { role: 'user', content: message },
+          ],
+          max_completion_tokens: 320,
+        })
+        const text = completion.choices[0]?.message?.content?.trim()
+        return streamTextResponse(text || 'No research output generated.')
+      } catch (err: any) {
+        console.error('[RESEARCH] Local research model failed:', err?.message || err)
+        return streamTextResponse(
+          'Research mode is active. Tell me which saved model to apply (or what projection you want), and I will run it. If you want web search, say "enable web search" and repeat your request.'
+        )
+      }
     }
 
     // If user clearly wants player props, short-circuit to props endpoint

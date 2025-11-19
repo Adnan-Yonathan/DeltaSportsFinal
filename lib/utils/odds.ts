@@ -149,10 +149,11 @@ export function kellyCalculator(
   const p = estimatedWinProbability / 100
   const q = 1 - p
 
-  const kelly = (b * p - q) / b
-  const kellyPercent = Math.max(0, kelly * 100) * kellyFraction
+  const kelly = (b * p - q) / b // fraction of bankroll
+  const kellyPercent = Math.max(0, kelly * 100)
 
-  return (bankroll * kellyPercent) / 100
+  const fractionClamped = Math.max(0, Math.min(1, kellyFraction))
+  return bankroll * (Math.max(0, kelly) * fractionClamped)
 }
 
 /**

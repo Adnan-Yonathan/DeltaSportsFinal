@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Loader2, Paperclip, Mic, MicOff } from 'lucide-react'
+import { Send, Loader2, Paperclip, Mic, MicOff, Globe2 } from 'lucide-react'
 
 interface MessageInputProps {
   conversationId: string
@@ -17,6 +17,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [recordingDuration, setRecordingDuration] = useState(0)
   const [isMicSupported, setIsMicSupported] = useState(true)
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -157,8 +158,10 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
   }
 
   const sendMessage = useCallback(async (override?: string) => {
-    const payload = (override ?? message).trim()
-    if (!payload || sending) return
+    const basePayload = (override ?? message).trim()
+    if (!basePayload || sending) return
+
+    const payload = webSearchEnabled ? `enable web search: ${basePayload}` : basePayload
 
     setSending(true)
     setMessage('')
@@ -235,7 +238,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
     } finally {
       setSending(false)
     }
-  }, [conversationId, message, sending, userId])
+  }, [conversationId, message, sending, userId, webSearchEnabled])
 
   const latestSendMessage = useRef(sendMessage)
   useEffect(() => {
@@ -367,6 +370,23 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
                 )}
               </motion.button>
             )}
+
+            {/* Web Search Toggle */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setWebSearchEnabled((prev) => !prev)}
+              disabled={sending}
+              className={`p-2.5 sm:p-2 rounded-lg transition-all border ${
+                webSearchEnabled
+                  ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300 shadow-inner shadow-indigo-500/30'
+                  : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white'
+              }`}
+              title="Toggle web search for research mode"
+              aria-pressed={webSearchEnabled}
+            >
+              <Globe2 className="w-5 h-5 sm:w-4 sm:h-4" />
+            </motion.button>
 
             {/* Send Button */}
             <motion.button

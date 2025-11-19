@@ -17,6 +17,7 @@ export const openai = new OpenAI({
  * Model configurations for different use cases
  */
 const CHAT_MODEL = process.env.CHAT_MODEL || 'gpt-5-mini'
+const RESEARCH_MODEL = process.env.RESEARCH_MODEL || 'gpt-5'
 export const AI_MODELS = {
   // Main chat - high quality, supports function calling
   chat: CHAT_MODEL,
@@ -30,8 +31,11 @@ export const AI_MODELS = {
   // Model runner - custom model execution
   modelRunner: 'gpt-5-mini',
 
+  // Research mode without web search
+  research: RESEARCH_MODEL,
+
   // Web search augmented model (Responses API)
-  search: process.env.SEARCH_MODEL || 'gpt-5-mini',
+  search: process.env.SEARCH_MODEL || 'gpt-5',
 } as const
 
 /**

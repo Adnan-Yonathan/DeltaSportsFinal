@@ -41,11 +41,12 @@ export function calculateKellyStake(input: KellyInput): KellyResult {
   const edgePercent = (p - implied) * 100
 
   const b = decimal - 1
-  const rawKelly = (b * p - q) / b
-  const kellyPercent = Math.max(0, rawKelly * 100)
+  const rawKellyFraction = (b * p - q) / b // classic Kelly fraction of bankroll
+  const kellyPercent = Math.max(0, rawKellyFraction * 100)
 
   const fraction = input.fraction != null ? input.fraction : 0.25
-  const appliedPercent = kellyPercent * Math.max(0, Math.min(1, fraction))
+  const fractionClamped = Math.max(0, Math.min(1, fraction))
+  const appliedPercent = kellyPercent * fractionClamped
 
   const warnings: string[] = []
   if (kellyPercent === 0 || p <= implied) {
@@ -58,7 +59,7 @@ export function calculateKellyStake(input: KellyInput): KellyResult {
   const maxStakePct = input.maxStakePct ?? 0.05
 
   if (typeof input.bankroll === 'number' && input.bankroll > 0) {
-    suggestedStake = (input.bankroll * appliedPercent) / 100
+    suggestedStake = input.bankroll * (Math.max(0, rawKellyFraction) * fractionClamped)
     const cap = input.bankroll * maxStakePct
     if (suggestedStake > cap) {
       suggestedStake = cap

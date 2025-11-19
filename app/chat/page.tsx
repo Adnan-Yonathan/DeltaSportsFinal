@@ -246,31 +246,60 @@ export default function ChatPage() {
                 transition={{ type: 'spring', damping: 30, stiffness: 300 }}
                 className="fixed left-0 top-0 bottom-0 w-80 z-50 lg:hidden"
               >
-                <ModernSidebar
-                  userId={user?.id}
-                  currentConversationId={currentConversationId}
-                  onConversationSelect={(id) => {
-                    setCurrentConversationId(id)
-                    setSidebarOpen(false)
-                  }}
-                  onNewConversation={() => {
-                    handleNewConversation()
-                    setSidebarOpen(false)
-                  }}
-                />
+                <div className="flex h-full flex-col bg-black">
+                  <div className="flex-1 overflow-y-auto">
+                    <ModernSidebar
+                      userId={user?.id}
+                      currentConversationId={currentConversationId}
+                      onConversationSelect={(id) => {
+                        setCurrentConversationId(id)
+                        setSidebarOpen(false)
+                      }}
+                      onNewConversation={() => {
+                        handleNewConversation()
+                        setSidebarOpen(false)
+                      }}
+                    />
+                  </div>
+                  <div className="border-t border-white/5 p-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        scrollToSavedModels()
+                        setSidebarOpen(false)
+                      }}
+                      className="flex w-full items-center justify-center gap-2 rounded-full bg-indigo-600/90 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:bg-indigo-500"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Saved Models
+                    </button>
+                  </div>
+                </div>
               </motion.div>
             </>
           )}
         </AnimatePresence>
 
         {/* Desktop Sidebar */}
-        <div className="hidden lg:block lg:w-1/5">
-          <ModernSidebar
-            userId={user?.id}
-            currentConversationId={currentConversationId}
-            onConversationSelect={setCurrentConversationId}
-            onNewConversation={handleNewConversation}
-          />
+        <div className="hidden lg:flex lg:w-1/5 flex-col border-r border-white/5">
+          <div className="flex-1 overflow-hidden">
+            <ModernSidebar
+              userId={user?.id}
+              currentConversationId={currentConversationId}
+              onConversationSelect={setCurrentConversationId}
+              onNewConversation={handleNewConversation}
+            />
+          </div>
+          <div className="border-t border-white/5 p-4">
+            <button
+              type="button"
+              onClick={scrollToSavedModels}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-indigo-600/90 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:bg-indigo-500"
+            >
+              <Sparkles className="w-4 h-4" />
+              Saved Models
+            </button>
+          </div>
         </div>
 
         {/* Main Chat Area */}
@@ -461,14 +490,6 @@ export default function ChatPage() {
         </AnimatePresence>
       </div>
 
-      <button
-        type="button"
-        onClick={scrollToSavedModels}
-        className="fixed bottom-4 left-4 z-40 flex items-center gap-2 rounded-full bg-indigo-600/90 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 backdrop-blur focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black hover:bg-indigo-500 transition"
-      >
-        <Sparkles className="w-4 h-4" />
-        <span>Saved Models</span>
-      </button>
     </>
   )
 }

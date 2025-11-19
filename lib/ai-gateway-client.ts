@@ -52,7 +52,8 @@ export async function runWebSearchResponse(
   input: string,
   opts: { maxOutputTokens?: number; retry?: number } = {}
 ): Promise<string> {
-  const enabled = process.env.ENABLE_WEB_SEARCH === 'true'
+  const enabledValue = process.env.ENABLE_WEB_SEARCH || ''
+  const enabled = ['true', '1', 'yes'].includes(enabledValue.trim().toLowerCase())
   if (!enabled) {
     throw new Error('Web search is disabled. Set ENABLE_WEB_SEARCH=true to enable.')
   }

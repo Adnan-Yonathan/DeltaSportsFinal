@@ -73,8 +73,26 @@ export async function runWebSearchResponse(
       } as any)
 
       const maybeOutput = (response as any)?.output_text
-      if (typeof maybeOutput === 'string') return maybeOutput
-      return JSON.stringify(response)
+      if (typeof maybeOutput === 'string' && maybeOutput.trim()) return maybeOutput
+
+      const fromOutputArray = Array.isArray((response as any)?.output)
+        ? (response as any).output
+            .map((item: any) => {
+              const txt =
+                item?.output_text ||
+                item?.text ||
+                item?.summary?.join?.(' ') ||
+                item?.content?.[0]?.text?.value ||
+                item?.content?.[0]?.text
+              return typeof txt === 'string' ? txt : ''
+            })
+            .filter(Boolean)
+            .join('\n')
+        : ''
+
+      if (fromOutputArray.trim()) return fromOutputArray
+
+      return ''
     } catch (error: any) {
       lastError = error
       const status = error?.status || error?.response?.status

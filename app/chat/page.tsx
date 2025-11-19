@@ -8,7 +8,7 @@ import ModernMessageList from '@/components/ModernMessageList'
 import ModernMessageInput from '@/components/ModernMessageInput'
 import BentoGridBankroll from '@/components/BentoGridBankroll'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, DollarSign, Sparkles, Home, Image as ImageIcon } from 'lucide-react'
+import { LogOut, Menu, X, DollarSign, Sparkles, Home, Image as ImageIcon, Radio } from 'lucide-react'
 
 export default function ChatPage() {
   const [user, setUser] = useState<any>(null)
@@ -309,6 +309,14 @@ export default function ChatPage() {
                 aria-label="Open bankroll"
               >
                 <DollarSign className="w-4 h-4" />
+              </button>
+
+              <button
+                onClick={() => router.push('/live-scores')}
+                className="hidden sm:inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 hover:text-white hover:border-white/40 transition-colors"
+              >
+                <Radio className="w-4 h-4" />
+                Live Scores
               </button>
 
               <div className="relative" ref={profileMenuRef}>

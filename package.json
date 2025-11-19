@@ -19,7 +19,8 @@
     "ingest:market-trends": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-market-trends.ts",
     "ingest:player-props": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-player-props.ts",
     "ingest:team-stats": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-team-stats.ts",
-    "reset:tracking": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/reset-all-tracking.ts"
+    "reset:tracking": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/reset-all-tracking.ts",
+    "cache:live": "node scripts/fetch-live-scores.js"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",

@@ -1,21 +1,23 @@
-import { NextResponse } from 'next/server'
-import { getAllLiveScores } from '@/lib/espn-api'
+import { NextRequest, NextResponse } from "next/server"
+import { fetchAllLiveScores } from "@/lib/live-scores"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const scores = await getAllLiveScores()
-
-    return NextResponse.json({
-      scores,
-      timestamp: new Date().toISOString(),
+    const { searchParams } = new URL(request.url)
+    const date = searchParams.get("date") ?? undefined
+    const data = await fetchAllLiveScores({ date })
+    return NextResponse.json(data, {
+      headers: {
+        "Cache-Control": "s-maxage=10, stale-while-revalidate=30",
+      },
     })
   } catch (error) {
-    console.error('Error fetching live scores:', error)
+    console.error("[live-scores] api error", error)
     return NextResponse.json(
-      { error: 'Failed to fetch live scores' },
-      { status: 500 }
+      { error: "Unable to fetch live scores right now." },
+      {
+        status: 500,
+      }
     )
   }
 }
-
-export const revalidate = 30 // Revalidate every 30 seconds

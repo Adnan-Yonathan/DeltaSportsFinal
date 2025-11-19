@@ -305,6 +305,9 @@ export default function LandingPage() {
             <SoftButton href="/auth/signup">
               Get Started <ArrowUpRight className="ml-1 inline h-4 w-4" />
             </SoftButton>
+            <SoftButton href="/live-scores">
+              Live Scores <ArrowUpRight className="ml-1 inline h-4 w-4" />
+            </SoftButton>
           </div>
 
           <div className="flex flex-col gap-3 pt-4">

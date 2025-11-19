@@ -1907,6 +1907,46 @@ export async function POST(req: NextRequest) {
             console.log(`[ODDS] Total games formatted: ${totalGames}`)
             standardizedOddsTablesGlobal = standardizedOddsTables
 
+            // Compute automatic best-book highlights across all books per market/outcome
+            const bestValueLines: string[] = []
+            const marketsOfInterest = ['h2h', 'spreads', 'totals']
+            for (const sport of formattedOdds) {
+              for (const game of sport.games) {
+                const bestByMarket: Record<string, Record<string, { book: string; price: number; point?: number }>> = {}
+                for (const book of game.bookmakers || []) {
+                  for (const market of book.markets || []) {
+                    if (!marketsOfInterest.includes(market.key)) continue
+                    for (const outcome of market.outcomes || []) {
+                      if (typeof outcome?.price !== 'number') continue
+                      const label = outcome?.name ? String(outcome.name) : 'Other'
+                      if (!bestByMarket[market.key]) bestByMarket[market.key] = {}
+                      const current = bestByMarket[market.key][label]
+                      const candidate = { book: book.name, price: outcome.price as number, point: outcome.point }
+                      if (!current || candidate.price > current.price) {
+                        bestByMarket[market.key][label] = candidate
+                      }
+                    }
+                  }
+                }
+
+                const lines: string[] = []
+                for (const [marketKey, outcomes] of Object.entries(bestByMarket)) {
+                  for (const [label, best] of Object.entries(outcomes)) {
+                    const pointPart =
+                      best.point != null ? ` @ ${best.point > 0 ? '+' : ''}${best.point}` : ''
+                    lines.push(`${marketKey.toUpperCase()} ${label}: ${best.book} (${best.price}${pointPart})`)
+                  }
+                }
+                if (lines.length) {
+                  bestValueLines.push(`- ${game.game}: ${lines.join(' | ')}`)
+                }
+              }
+            }
+            const bestValuesSection =
+              bestValueLines.length > 0
+                ? `\n**BEST BOOKS (auto-highlight across ALL books):**\n${bestValueLines.join('\n')}\n`
+                : ''
+
             // Only enrich with stats if user explicitly asks for deep analysis/injuries/stats
             // This avoids the 8.4MB NFL injuries cache issue on simple odds requests
             let statsEnrichment = ''
@@ -1994,6 +2034,7 @@ ${JSON.stringify(formattedOdds)}
 
 **STANDARDIZED ODDS TABLES (USE THESE EXACTLY IN YOUR RESPONSE):**
 ${standardizedOddsTables || '_No odds tables available_'}
+${bestValuesSection}
 
 ${statsEnrichment}
 
@@ -2005,6 +2046,9 @@ ${statsEnrichment}
             console.log('[DEBUG] allOddsData length:', allOddsData.length)
             if (isTomorrowQuery) {
               oddsContext = '\n\n**NO GAMES TOMORROW**: There are no games scheduled for tomorrow based on current data. The odds data may not be available yet for games that far out.\n'
+            } else {
+              oddsContext =
+                '\n\n**NO ODDS AVAILABLE**: No games matched this request right now. Try a different team, sport, or timeframe.'
             }
           }
         } else {

@@ -402,7 +402,7 @@ export default function LandingPage() {
             <MiniChart />
           </motion.div>
 
-          {/* Arbitrage card */}
+          {/* Custom Models card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -430,11 +430,11 @@ export default function LandingPage() {
                 <div className="rounded-full bg-slate-700/60 p-2 ring-1 ring-white/10">
                   <TrendingUp className="h-5 w-5" />
                 </div>
-                <span className="text-xs uppercase tracking-wider text-slate-200">Arbitrage</span>
+                <span className="text-xs uppercase tracking-wider text-slate-200">Custom Models</span>
               </div>
               <div className="mt-6 text-xl leading-snug text-slate-50/95">
-                Guaranteed profit
-                <br /> opportunities
+                Do research and run
+                <br /> projections in minutes
               </div>
               <motion.div
                 className="mt-4 rounded-lg bg-emerald-500/20 px-3 py-2 text-center ring-1 ring-emerald-500/30"

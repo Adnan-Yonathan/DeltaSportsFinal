@@ -37,9 +37,9 @@ export function FeaturesSectionWithHoverEffects() {
       icon: <IconChartBar />,
     },
     {
-      title: "Arbitrage Scanner",
+      title: "Custom Models",
       description:
-        "Automatically detect arbitrage opportunities across sportsbooks for guaranteed profit.",
+        "Automatically do research and run prediction models to find bets that match your style.",
       icon: <IconTarget />,
     },
     {

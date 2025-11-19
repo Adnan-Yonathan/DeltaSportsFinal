@@ -11,7 +11,7 @@ interface AnimatedHeroProps {
 
 function AnimatedHero({
   staticText = "AI-powered betting",
-  rotatingTerms = ["arbitrage", "analytics", "action", "CLV", "edges", "value", "lines"],
+  rotatingTerms = ["analytics", "models", "action", "edges", "lines", "tracking"],
   interval = 2000,
 }: AnimatedHeroProps) {
   const [termIndex, setTermIndex] = useState(0)

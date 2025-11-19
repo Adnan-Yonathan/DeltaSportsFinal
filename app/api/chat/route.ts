@@ -372,6 +372,23 @@ function buildStatInputs(rawStats: any): CustomModelStatInput[] {
   return rawStats.map(normalizeStatArg)
 }
 
+const extractText = (val: any): string => {
+  if (!val) return ''
+  if (typeof val === 'string') return val
+  if (Array.isArray(val)) {
+    return val
+      .map((entry) => {
+        if (typeof entry === 'string') return entry
+        if (entry?.text) return entry.text
+        if (entry?.content) return entry.content
+        return ''
+      })
+      .join('')
+  }
+  if (typeof val === 'object' && val.text) return String(val.text)
+  return ''
+}
+
 const normalizeHierarchyInput = (raw: any): { label: string; statKeys?: string[]; weight: number; note?: string }[] | undefined => {
   if (!Array.isArray(raw)) return undefined
   return raw
@@ -2704,7 +2721,7 @@ ${statsEnrichment}
       }
 
       const followup = await openai.chat.completions.create(buildParams())
-      lastText = followup.choices[0].message.content || ''
+      lastText = extractText(followup.choices[0].message.content)
       toolCalls = followup.choices[0].message.tool_calls || []
     }
 
@@ -2739,8 +2756,9 @@ ${statsEnrichment}
           }, 15000) // Send keep-alive every 15 seconds
 
           for await (const chunk of stream) {
-            const content = chunk.choices[0]?.delta?.content || ''
-            if (content) {
+            const delta = chunk.choices[0]?.delta
+            const content = extractText(delta?.content)
+            if (content && content.length) {
               fullResponse += content
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`))
             }
@@ -2764,7 +2782,7 @@ ${statsEnrichment}
             .eq('conversation_id', conversationId)
 
           if (messageCount === 2) {
-            const title = await generateConversationTitle(message, fullResponse)
+          const title = await generateConversationTitle(message, fullResponse)
             await supabase
               .from('conversations')
               .update({ title })

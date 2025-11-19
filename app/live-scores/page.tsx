@@ -15,8 +15,8 @@ const LEAGUE_TABS: Array<{ id: "all" | LeagueId; label: string }> = [
 ]
 
 const BUCKET_ORDER: Array<{ key: LiveScoreGame["bucket"]; title: string }> = [
-  { key: "upcoming", title: "Upcoming Games" },
   { key: "live", title: "Live Now" },
+  { key: "upcoming", title: "Upcoming Games" },
   { key: "completed", title: "Recent Finals" },
 ]
 
@@ -106,19 +106,25 @@ export default function LiveScoresPage() {
     <div className="min-h-screen bg-black text-white">
       <div className="mx-auto max-w-6xl px-4 py-8 space-y-10">
         <header className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/chat"
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-white/80 hover:text-white hover:border-white/40 transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Chat
-            </Link>
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-white/40">Live Center</p>
-              <h1 className="text-3xl font-bold">Real-time Scores</h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-white/80 hover:text-white hover:border-white/40 transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Home
+              </Link>
+              <Link
+                href="/chat"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-white/80 hover:text-white hover:border-white/40 transition-colors"
+              >
+                Back to Chat
+              </Link>
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-white/40">Live Center</p>
+                <h1 className="text-3xl font-bold">Real-time Scores</h1>
+              </div>
             </div>
-          </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 rounded-full border border-white/10 px-3 py-1.5 bg-white/5">
               <button

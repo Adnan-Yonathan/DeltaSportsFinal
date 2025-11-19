@@ -415,9 +415,23 @@ const buildDeterministicOddsReply = () => {
 }
 
 const extractPlayerName = (msg: string) => {
+  // Look for quoted names first
+  const quoted = msg.match(/"([^"]+)"/)
+  if (quoted && quoted[1]) return quoted[1].trim()
+
+  // Look for capitalized first + last name
   const matches = msg.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g)
-  if (matches && matches.length) {
-    return matches[0]
+  if (matches && matches.length) return matches[0].trim()
+
+  // Look for patterns like "lebron james" even if lowercased
+  const lower = msg.toLowerCase()
+  const parts = lower.split(/\s+/)
+  for (let i = 0; i < parts.length - 1; i++) {
+    const first = parts[i]
+    const last = parts[i + 1]
+    if (first.length > 2 && last.length > 2) {
+      return `${first} ${last}`
+    }
   }
   return undefined
 }
@@ -2735,6 +2749,8 @@ ${statsEnrichment}
         if (playerName) {
           params.set('player', playerName)
           console.log(`[PLAYER_PROPS] Player filter applied: ${playerName}`)
+        } else if (!mentionedTeams.length) {
+          return streamTextResponse('I can pull player props—tell me the player name (and team if you\'d like) to narrow it down.')
         }
         const propsRes = await fetch(`${baseUrl}/api/player-props?${params.toString()}`, { cache: 'no-store' })
         const propsData = await propsRes.json()

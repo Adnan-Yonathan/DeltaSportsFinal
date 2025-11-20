@@ -65,6 +65,8 @@ const NBA_API_HEADERS = {
 }
 
 const NBA_FETCH_TIMEOUT_MS = 12000
+const NBA_FETCH_BACKOFF_MS = 2 * 60 * 1000
+let nbaFetchBlockedUntil = 0
 
 const NFL_PLAYER_STATS_BASE =
   'https://github.com/nflverse/nflverse-data/releases/download/player_stats'
@@ -102,6 +104,9 @@ const fetchWithTimeout = async (url: string, init: RequestInit = {}, timeoutMs =
 }
 
 const fetchNBAJson = async <T>(url: string, attempt = 1): Promise<T> => {
+  if (Date.now() < nbaFetchBlockedUntil) {
+    throw new Error('NBA stats temporarily unavailable (recent timeout)')
+  }
   const timeoutMs = attempt > 1 ? Math.floor(NBA_FETCH_TIMEOUT_MS * 1.5) : NBA_FETCH_TIMEOUT_MS
   try {
     const response = await fetchWithTimeout(
@@ -115,6 +120,9 @@ const fetchNBAJson = async <T>(url: string, attempt = 1): Promise<T> => {
     return (await response.json()) as T
   } catch (error: any) {
     const isAbort = error?.name === 'AbortError'
+    if (isAbort) {
+      nbaFetchBlockedUntil = Date.now() + NBA_FETCH_BACKOFF_MS
+    }
     if (isAbort && attempt < 2) {
       console.warn(`NBA fetch aborted (attempt ${attempt}); retrying...`)
       return fetchNBAJson<T>(url, attempt + 1)
@@ -230,32 +238,37 @@ const fetchNBAPlayerBaseStats = async (playerId: string, seasonLabel: string) =>
     SeasonType: 'Regular Season',
   })
   const url = `https://stats.nba.com/stats/playerprofilev2?${params.toString()}`
-  const data = await fetchNBAJson<any>(url)
-  const totals = data.resultSets?.find((set: any) => set.name === 'SeasonTotalsRegularSeason')
-  if (!totals) {
+  try {
+    const data = await fetchNBAJson<any>(url)
+    const totals = data.resultSets?.find((set: any) => set.name === 'SeasonTotalsRegularSeason')
+    if (!totals) {
+      return null
+    }
+    const headers: string[] = totals.headers ?? []
+    const rows: any[][] = totals.rowSet ?? []
+    const idxSeason = headers.indexOf('SEASON_ID')
+    const idx = (field: string) => headers.indexOf(field)
+    const row = rows.find((entry) => idxSeason !== -1 && entry[idxSeason] === seasonLabel)
+    if (!row) {
+      return null
+    }
+    const getNumber = (field: string) => {
+      const column = idx(field)
+      if (column === -1) return null
+      const value = row[column]
+      return typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : null
+    }
+    return {
+      ppg: getNumber('PTS'),
+      rpg: getNumber('REB'),
+      apg: getNumber('AST'),
+      fgPct: getNumber('FG_PCT'),
+      threePct: getNumber('FG3_PCT'),
+      ftPct: getNumber('FT_PCT'),
+    }
+  } catch (error) {
+    console.warn('NBA base stats fetch failed:', error)
     return null
-  }
-  const headers: string[] = totals.headers ?? []
-  const rows: any[][] = totals.rowSet ?? []
-  const idxSeason = headers.indexOf('SEASON_ID')
-  const idx = (field: string) => headers.indexOf(field)
-  const row = rows.find((entry) => idxSeason !== -1 && entry[idxSeason] === seasonLabel)
-  if (!row) {
-    return null
-  }
-  const getNumber = (field: string) => {
-    const column = idx(field)
-    if (column === -1) return null
-    const value = row[column]
-    return typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : null
-  }
-  return {
-    ppg: getNumber('PTS'),
-    rpg: getNumber('REB'),
-    apg: getNumber('AST'),
-    fgPct: getNumber('FG_PCT'),
-    threePct: getNumber('FG3_PCT'),
-    ftPct: getNumber('FT_PCT'),
   }
 }
 
@@ -290,67 +303,89 @@ const fetchNBAPlayerAdvancedStats = async (playerId: string, seasonLabel: string
     VsDivision: '',
   })
   const url = `https://stats.nba.com/stats/playerdashboardbygeneralsplits?${params.toString()}`
-  const data = await fetchNBAJson<any>(url)
-  const totals = data.resultSets?.find((set: any) => set.name === 'OverallPlayerDashboard')
-  if (!totals) return null
-  const headers: string[] = totals.headers ?? []
-  const row: any[] | undefined = totals.rowSet?.[0]
-  if (!row) return null
-  const idx = (field: string) => headers.indexOf(field)
-  const pick = (field: string) => {
-    const column = idx(field)
-    if (column === -1) return null
-    const value = row[column]
-    return typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : null
+  try {
+    const data = await fetchNBAJson<any>(url)
+    const totals = data.resultSets?.find((set: any) => set.name === 'OverallPlayerDashboard')
+    if (!totals) return null
+    const headers: string[] = totals.headers ?? []
+    const row: any[] | undefined = totals.rowSet?.[0]
+    if (!row) return null
+    const idx = (field: string) => headers.indexOf(field)
+    const pick = (field: string) => {
+      const column = idx(field)
+      if (column === -1) return null
+      const value = row[column]
+      return typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : null
+    }
+    return {
+      tsPct: pick('TS_PCT'),
+      usgPct: pick('USG_PCT'),
+      ortg: pick('OFF_RATING'),
+      drtg: pick('DEF_RATING'),
+      pie: pick('PIE'),
+    }
+  } catch (error) {
+    console.warn('NBA advanced stats fetch failed:', error)
+    return null
   }
-  return {
-    tsPct: pick('TS_PCT'),
-    usgPct: pick('USG_PCT'),
-    ortg: pick('OFF_RATING'),
-    drtg: pick('DEF_RATING'),
-    pie: pick('PIE'),
+}
+
+const fetchESPNNBAPlayerStats = async (
+  espnId: string
+): Promise<{ ppg: number | null; rpg: number | null; apg: number | null; fgPct: number | null; seasonLabel: string }> => {
+  const url = `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${espnId}?region=us&lang=en`
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) {
+      return null
+    }
+    const data = await res.json()
+    const statsSummary = data?.athlete?.statsSummary?.statistics ?? []
+    const seasonLabel =
+      data?.season?.displayName ??
+      (data?.season?.year ? String(data.season.year) : getCurrentNBASeasonLabel())
+
+    const findVal = (name: string) => {
+      const entry = statsSummary.find((s: any) => s.name === name)
+      return entry ? Number(entry.value) : null
+    }
+
+    return {
+      ppg: findVal('avgPoints'),
+      rpg: findVal('avgRebounds'),
+      apg: findVal('avgAssists'),
+      fgPct: findVal('fieldGoalPct'),
+      seasonLabel,
+    }
+  } catch (error) {
+    console.warn('ESPN NBA stats fetch failed:', error)
+    return null
   }
 }
 
 export async function getNBAPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
-  const seasonLabel = getCurrentNBASeasonLabel()
   const rosterEntry = await searchNBAPlayer(playerName)
-  const nbaId = await findNBAPlayerId(rosterEntry?.fullName ?? playerName, seasonLabel)
-  if (!nbaId) {
-    return null
-  }
-  const [baseStats, advancedStats] = await Promise.all([
-    fetchNBAPlayerBaseStats(nbaId, seasonLabel),
-    fetchNBAPlayerAdvancedStats(nbaId, seasonLabel),
-  ])
-  if (!baseStats) {
+  if (!rosterEntry) {
     return null
   }
 
-  const stats: Record<string, number | string> = {
-    PPG: Number(baseStats.ppg?.toFixed(1) ?? 0),
-    RPG: Number(baseStats.rpg?.toFixed(1) ?? 0),
-    APG: Number(baseStats.apg?.toFixed(1) ?? 0),
-    FG_PERCENT: Number(((baseStats.fgPct ?? 0) * 100).toFixed(1)),
-    THREE_PERCENT: Number(((baseStats.threePct ?? 0) * 100).toFixed(1)),
-    FT_PERCENT: Number(((baseStats.ftPct ?? 0) * 100).toFixed(1)),
+  const espnId = rosterEntry.id
+  const espnStats = await fetchESPNNBAPlayerStats(espnId)
+  if (!espnStats) {
+    return null
   }
 
-  if (advancedStats) {
-    stats.TS_PERCENT = Number(((advancedStats.tsPct ?? 0) * 100).toFixed(1))
-    stats.USG_PERCENT = Number(((advancedStats.usgPct ?? 0) * 100).toFixed(1))
-    stats.OFF_RATING = Number((advancedStats.ortg ?? 0).toFixed(1))
-    stats.DEF_RATING = Number((advancedStats.drtg ?? 0).toFixed(1))
-    if (advancedStats.pie != null) {
-      stats.PER = Number((advancedStats.pie * 30).toFixed(1))
-    }
-  }
+  const stats: Record<string, number | string> = {}
+  if (espnStats.ppg != null) stats.PPG = Number(espnStats.ppg.toFixed(1))
+  if (espnStats.rpg != null) stats.RPG = Number(espnStats.rpg.toFixed(1))
+  if (espnStats.apg != null) stats.APG = Number(espnStats.apg.toFixed(1))
+  if (espnStats.fgPct != null) stats.FG_PERCENT = Number(espnStats.fgPct.toFixed(1))
 
   return {
     name: rosterEntry?.fullName ?? playerName,
     team: rosterEntry?.team ?? '',
     position: rosterEntry?.position,
-    season: seasonLabel,
+    season: espnStats.seasonLabel,
     stats,
   }
 }

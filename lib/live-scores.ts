@@ -8,6 +8,50 @@ export const ESPN_LEAGUES = [
   { id: "ncaab", sport: "basketball", league: "mens-college-basketball", label: "NCAAB" },
 ] as const
 
+const CFB_CONFERENCE_MAP: Record<
+  string,
+  {
+    abbr: string
+    name: string
+  }
+> = {
+  // Power 5 / New Alignments
+  "1": { abbr: "ACC", name: "ACC" },
+  "4": { abbr: "B12", name: "Big 12" },
+  "5": { abbr: "B1G", name: "Big Ten" },
+  "8": { abbr: "SEC", name: "SEC" },
+  "9": { abbr: "PAC", name: "Pac-12" },
+  // A5+G5
+  "151": { abbr: "AAC", name: "American" },
+  "17": { abbr: "MW", name: "Mountain West" },
+  "37": { abbr: "SBC", name: "Sun Belt" },
+  "15": { abbr: "MAC", name: "MAC" },
+  "12": { abbr: "CUSA", name: "C-USA" },
+  // Other buckets
+  "18": { abbr: "IND", name: "Independent" },
+  "21": { abbr: "FCS", name: "FCS" },
+  "48": { abbr: "CAA", name: "CAA" },
+}
+
+const NCAAB_CONFERENCE_MAP: Record<
+  string,
+  {
+    abbr: string
+    name: string
+  }
+> = {
+  "2": { abbr: "ACC", name: "ACC" },
+  "8": { abbr: "B12", name: "Big 12" },
+  "7": { abbr: "B10", name: "Big Ten" },
+  "23": { abbr: "SEC", name: "SEC" },
+  "21": { abbr: "PAC", name: "Pac-12" },
+  "4": { abbr: "BE", name: "Big East" },
+  "44": { abbr: "MW", name: "Mountain West" },
+  "29": { abbr: "WCC", name: "West Coast" },
+  "3": { abbr: "A10", name: "Atlantic 10" },
+  "62": { abbr: "AAC", name: "American" },
+}
+
 export type LeagueId = (typeof ESPN_LEAGUES)[number]["id"]
 export type ScoreBucket = "upcoming" | "live" | "completed"
 
@@ -22,6 +66,9 @@ export interface LiveScoreCompetitor {
   name: string
   shortName: string
   abbreviation: string
+  conferenceId?: string
+  conferenceAbbr?: string
+  conferenceName?: string
   logo?: string
   homeAway: "home" | "away"
   score: number
@@ -155,7 +202,16 @@ const determineBucket = (state?: string): ScoreBucket => {
 }
 
 async function fetchLeagueScores(config: (typeof ESPN_LEAGUES)[number], options: FetchLeagueOptions): Promise<LiveScoreGame[]> {
-  const url = `${ESPN_BASE_URL}/${config.sport}/${config.league}/scoreboard?dates=${toEspnDate(options.date)}`
+  const params = new URLSearchParams({
+    dates: toEspnDate(options.date),
+  })
+  // ESPN defaults to ranked-only for some college scoreboards; force full slate and high limit
+  if (config.id === "ncaab") {
+    params.set("groups", "50") // Division I
+    params.set("limit", "900")
+  }
+
+  const url = `${ESPN_BASE_URL}/${config.sport}/${config.league}/scoreboard?${params.toString()}`
   const response = await fetch(url, {
     next: { revalidate: options.mode === "completed" ? 60 : 20 },
   })
@@ -203,11 +259,39 @@ async function fetchLeagueScores(config: (typeof ESPN_LEAGUES)[number], options:
                 .filter(Boolean)
             : []
 
+          const conferenceId = competitor?.team?.conferenceId ? String(competitor.team.conferenceId) : undefined
+          const conferenceMeta =
+            config.id === "cfb"
+              ? conferenceId
+                ? CFB_CONFERENCE_MAP[conferenceId]
+                : undefined
+              : config.id === "ncaab"
+                ? conferenceId
+                  ? NCAAB_CONFERENCE_MAP[conferenceId]
+                  : undefined
+                : undefined
+          const conferenceRaw =
+            competitor?.team?.conference?.abbreviation ??
+            competitor?.team?.conference?.shortName ??
+            competitor?.team?.conference?.id ??
+            conferenceMeta?.abbr ??
+            competitor?.team?.conferenceId ??
+            competitor?.team?.conference?.name
+
+          const conferenceLabel =
+            competitor?.team?.conference?.name ??
+            competitor?.team?.conference?.displayName ??
+            conferenceMeta?.name ??
+            conferenceId
+
           return {
             id: competitor?.team?.id ?? competitor?.id ?? "",
             name: competitor?.team?.displayName ?? competitor?.team?.name ?? "",
             shortName: competitor?.team?.shortDisplayName ?? competitor?.team?.shortName ?? "",
             abbreviation: competitor?.team?.abbreviation ?? "",
+            conferenceId,
+            conferenceAbbr: conferenceRaw != null ? String(conferenceRaw) : undefined,
+            conferenceName: conferenceLabel != null ? String(conferenceLabel) : undefined,
             logo: competitor?.team?.logos?.[0]?.href ?? competitor?.team?.logo,
             homeAway: competitor?.homeAway === "home" ? "home" : "away",
             score: Number(competitor?.score ?? 0),

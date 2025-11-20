@@ -1,18 +1,41 @@
-"use client"
+﻿"use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import clsx from "clsx"
-import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, RefreshCw, Radio, X } from "lucide-react"
+import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, RefreshCw, X } from "lucide-react"
 import { useLiveScores } from "@/hooks/use-live-scores"
 import { useGameDetails } from "@/hooks/use-game-details"
 import { ESPN_LEAGUES, type LeagueId, type LiveScoreGame, type LiveScoreGameDetails } from "@/lib/live-scores"
 
-const LEAGUE_TABS: Array<{ id: "all" | LeagueId; label: string }> = [
-  { id: "all", label: "All" },
-  ...ESPN_LEAGUES.map((league) => ({ id: league.id, label: league.label })),
-]
+const LEAGUE_TABS: Array<{ id: LeagueId; label: string }> =
+  ESPN_LEAGUES.map((league) => ({ id: league.id, label: league.label }))
+
+const CONFERENCE_FILTERS: Partial<Record<LeagueId, Array<{ value: string; label: string }>>> = {
+  ncaab: [
+    { value: "ACC", label: "ACC" },
+    { value: "B12", label: "Big 12" },
+    { value: "B10", label: "Big Ten" },
+    { value: "SEC", label: "SEC" },
+    { value: "PAC", label: "Pac-12" },
+    { value: "BE", label: "Big East" },
+    { value: "MW", label: "Mountain West" },
+    { value: "WCC", label: "WCC" },
+    { value: "A10", label: "A-10" },
+  ],
+  cfb: [
+    { value: "ACC", label: "ACC" },
+    { value: "SEC", label: "SEC" },
+    { value: "B12", label: "Big 12" },
+    { value: "B1G", label: "Big Ten" },
+    { value: "PAC", label: "Pac-12" },
+    { value: "AAC", label: "AAC" },
+    { value: "MW", label: "MWC" },
+    { value: "SBC", label: "Sun Belt" },
+    { value: "MAC", label: "MAC" },
+  ],
+}
 
 const BUCKET_ORDER: Array<{ key: LiveScoreGame["bucket"]; title: string }> = [
   { key: "live", title: "Live Now" },
@@ -67,9 +90,10 @@ const groupByLeague = (games: LiveScoreGame[]) => {
 }
 
 export default function LiveScoresPage() {
-  const [activeLeague, setActiveLeague] = useState<(typeof LEAGUE_TABS)[number]["id"]>("all")
+  const [activeLeague, setActiveLeague] = useState<(typeof LEAGUE_TABS)[number]["id"]>(LEAGUE_TABS[0]?.id)
   const [selectedDate, setSelectedDate] = useState<string>(todayYMD())
   const [selectedGame, setSelectedGame] = useState<LiveScoreGame | null>(null)
+  const [conference, setConference] = useState<string>("")
   const { data, loading, error, lastUpdated, refetch, isRefreshing } = useLiveScores({
     refreshInterval: 20000,
     date: selectedDate,
@@ -82,8 +106,25 @@ export default function LiveScoresPage() {
 
   const filteredGames = useMemo(() => {
     if (!data?.games) return []
-    return data.games.filter((game) => (activeLeague === "all" ? true : game.league === activeLeague))
-  }, [data, activeLeague])
+    const leagueFiltered = data.games.filter((game) => game.league === activeLeague)
+
+    if (!conference || !(activeLeague in CONFERENCE_FILTERS)) {
+      return leagueFiltered
+    }
+
+    const target = conference.toLowerCase()
+    return leagueFiltered.filter((game) =>
+      game.competitors?.some((team) => {
+        const conf = String(team.conferenceAbbr || team.conferenceName || "").toLowerCase()
+        return conf === target || conf.includes(target)
+      })
+    )
+  }, [data, activeLeague, conference])
+
+  // Reset conference filter when league changes
+  useEffect(() => {
+    setConference("")
+  }, [activeLeague])
 
   const bucketed = useMemo(() => {
     return filteredGames.reduce(
@@ -178,10 +219,23 @@ export default function LiveScoresPage() {
                   : "border-white/10 text-white/70 hover:border-white/40 hover:text-white"
               )}
             >
-              {tab.id === "all" ? <Radio className="h-4 w-4" /> : null}
               {tab.label}
             </button>
           ))}
+          {CONFERENCE_FILTERS[activeLeague] && (
+            <select
+              value={conference}
+              onChange={(event) => setConference(event.target.value)}
+              className="rounded-full border border-white/20 bg-black px-3 py-2 text-sm text-white hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/70"
+            >
+              <option value="">All Conferences</option>
+              {CONFERENCE_FILTERS[activeLeague]?.map((conf) => (
+                <option key={`${activeLeague}-${conf.value}`} value={conf.value}>
+                  {conf.label}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {loading ? (
@@ -195,7 +249,7 @@ export default function LiveScoresPage() {
             const games = bucketed[section.key]
             const description =
               section.key === "completed"
-                ? `Yesterday · ${completedDateLabel || "No finals"}`
+                ? `Yesterday - ${completedDateLabel || "No finals"}`
                 : `For ${selectedDateLabel || "selected date"}`
 
             if (games.length === 0) {
@@ -218,7 +272,7 @@ export default function LiveScoresPage() {
             const grouped = groupByLeague(games)
 
             return (
-              <section key={section.key} className="space-y-4">
+              <section key={section.key} className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-semibold tracking-tight">{section.title}</h2>
@@ -227,9 +281,9 @@ export default function LiveScoresPage() {
                   <span className="text-xs text-white/40 uppercase tracking-[0.3em]">{games.length} games</span>
                 </div>
                 {grouped.map(([leagueName, leagueGames]) => (
-                  <div key={`${section.key}-${leagueName}`} className="space-y-3">
+                  <div key={`${section.key}-${leagueName}`} className="space-y-4 pt-2">
                     <div className="text-sm font-semibold uppercase tracking-[0.3em] text-white/60">{leagueName}</div>
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                       {leagueGames.map((game) => (
                         <article
                           key={`${section.key}-${game.id}`}
@@ -242,9 +296,9 @@ export default function LiveScoresPage() {
                               setSelectedGame(game)
                             }
                           }}
-                          className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-4 shadow-lg shadow-black/40 transition ring-offset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
+                          className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-3 shadow-md shadow-black/30 transition ring-offset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
                         >
-                          <div className="flex items-center justify-between text-xs text-white/60">
+                          <div className="flex items-center justify-between text-[11px] text-white/60">
                             <span className="uppercase tracking-[0.3em]">{game.leagueLabel}</span>
                             <span>
                               {game.bucket === "upcoming"
@@ -255,12 +309,12 @@ export default function LiveScoresPage() {
                             </span>
                           </div>
 
-                          <div className="mt-4 space-y-4">
+                          <div className="mt-3 space-y-3">
                             {[...game.competitors].sort((a, b) => (a.homeAway === "home" ? 1 : -1)).map((team) => (
-                              <div key={team.id} className="flex items-center gap-3">
-                                <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                              <div key={team.id} className="flex items-center gap-2.5">
+                                <div className="relative h-9 w-9 overflow-hidden rounded-lg border border-white/10 bg-white/5">
                                   {team.logo ? (
-                                    <Image src={team.logo} alt={team.shortName} fill sizes="40px" className="object-contain p-1" />
+                                    <Image src={team.logo} alt={team.shortName} fill sizes="36px" className="object-contain p-1" />
                                   ) : (
                                     <div className="flex h-full w-full items-center justify-center text-xs text-white/60">
                                       {team.abbreviation}
@@ -269,25 +323,25 @@ export default function LiveScoresPage() {
                                 </div>
                                 <div className="flex flex-1 items-center justify-between">
                                   <div>
-                                    <p className="text-sm font-semibold">{team.name}</p>
-                                    <p className="text-xs text-white/50">
+                                    <p className="text-sm font-semibold leading-tight">{team.name}</p>
+                                    <p className="text-[11px] text-white/50">
                                       {team.record ?? (team.homeAway === "home" ? "Home" : "Away")}
                                     </p>
                                   </div>
-                                  <p className="text-2xl font-bold tabular-nums">{team.score}</p>
+                                  <p className="text-xl font-bold tabular-nums">{team.score}</p>
                                 </div>
                               </div>
                             ))}
                           </div>
 
                           {game.situation?.description && (
-                            <p className="mt-4 text-xs text-white/60">{game.situation.description}</p>
+                            <p className="mt-3 text-[11px] text-white/60">{game.situation.description}</p>
                           )}
 
-                          <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-white/40">
+                          <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white/40">
                             {game.status?.detail && <span>{game.status.detail}</span>}
-                            {game.broadcast && <span>• {game.broadcast}</span>}
-                            {game.odds && <span>• {game.odds}</span>}
+                            {game.broadcast && <span>- {game.broadcast}</span>}
+                            {game.odds && <span>- {game.odds}</span>}
                           </div>
                         </article>
                       ))}
@@ -563,7 +617,7 @@ function PlayerDetailDrawer({ team, playerId, onClose }: PlayerDetailDrawerProps
             <div>
               <p className="text-lg font-semibold text-white">{player.name}</p>
               <p className="text-xs text-white/60">
-                {team.name} • {player.position || "Player"}
+                {team.name} - {player.position || "Player"}
               </p>
             </div>
           </div>

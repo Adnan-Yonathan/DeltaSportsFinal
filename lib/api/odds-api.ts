@@ -707,8 +707,10 @@ async function fetchOddsIO(
   _markets: string[] = ['h2h', 'spreads', 'totals'],
   opts: { live?: boolean; revalidateSeconds?: number; teamFilter?: string[]; bookmakers?: string | string[] | null } = {}
 ): Promise<OddsGame[]> {
-  const mapping = SPORT_MAP[sportKey]
-  if (!mapping) return []
+  const baseMapping = SPORT_MAP[sportKey]
+  if (!baseMapping) return []
+  // NCAAB league slug is unstable; omit league filter to avoid provider errors/timeouts
+  const mapping = sportKey === 'basketball_ncaab' ? { ...baseMapping, league: undefined } : baseMapping
   const oddsFetchInit = buildFetchInit({
     live: opts.live,
     revalidateSeconds: opts.live ? undefined : opts.revalidateSeconds ?? DEFAULT_REVALIDATE_SECONDS,
@@ -747,8 +749,28 @@ async function fetchOddsIO(
     }
   }
 
+  const timeWindowNcaab = () => {
+    const now = new Date()
+    const from = new Date(now)
+    const to = new Date(now)
+    to.setDate(to.getDate() + 3)
+    return { from: from.toISOString(), to: to.toISOString(), limit: 200 }
+  }
+
   let events: SimpleEventDto[] = []
   try {
+    const baseFilters: FetchProviderEventsParams = {
+      sport: mapping.sport,
+      league: mapping.league,
+      status: statusFilters,
+    }
+    if (sportKey === 'basketball_ncaab') {
+      const window = timeWindowNcaab()
+      baseFilters.from = window.from
+      baseFilters.to = window.to
+      baseFilters.limit = window.limit
+    }
+
     if (opts.live) {
       const liveEvents = await fetchLiveEventsList(mapping.sport, {
         revalidateSeconds: Math.max(opts.revalidateSeconds ?? 20, 10),
@@ -766,30 +788,16 @@ async function fetchOddsIO(
         console.warn(
           `[ODDS] No live events found via /events/live for ${sportKey}, retrying with status filter`
         )
-        events = await fetchEventsSafe(
-          {
-            sport: mapping.sport,
-            league: mapping.league,
-            status: statusFilters,
-          },
-          {
-            live: true,
-            revalidateSeconds: Math.max(opts.revalidateSeconds ?? 20, 10),
-          }
-        )
+        events = await fetchEventsSafe(baseFilters, {
+          live: true,
+          revalidateSeconds: Math.max(opts.revalidateSeconds ?? 20, 10),
+        })
       }
     } else {
-      events = await fetchEventsSafe(
-        {
-          sport: mapping.sport,
-          league: mapping.league,
-          status: statusFilters,
-        },
-        {
-          live: opts.live,
-          revalidateSeconds: opts.live ? undefined : Math.max(opts.revalidateSeconds ?? 60, 30),
-        }
-      )
+      events = await fetchEventsSafe(baseFilters, {
+        live: opts.live,
+        revalidateSeconds: opts.live ? undefined : Math.max(opts.revalidateSeconds ?? 60, 30),
+      })
     }
   } catch (error) {
     throw error instanceof Error ? error : new OddsAPIError(String(error))
@@ -800,13 +808,20 @@ async function fetchOddsIO(
       console.warn(
         `[ODDS] No pre-match events found for ${sportKey} with statuses ${statusFilters.join(',')}, retrying without status filter`
       )
-      events = await fetchEventsSafe(
-        { sport: mapping.sport, league: mapping.league },
-        {
-          live: opts.live,
-          revalidateSeconds: opts.live ? undefined : Math.max(opts.revalidateSeconds ?? 60, 30),
-        }
-      )
+      const base: FetchProviderEventsParams = {
+        sport: mapping.sport,
+        league: mapping.league,
+      }
+      if (sportKey === 'basketball_ncaab') {
+        const window = timeWindowNcaab()
+        base.from = window.from
+        base.to = window.to
+        base.limit = window.limit
+      }
+      events = await fetchEventsSafe(base, {
+        live: opts.live,
+        revalidateSeconds: opts.live ? undefined : Math.max(opts.revalidateSeconds ?? 60, 30),
+      })
     }
   }
 
@@ -815,13 +830,17 @@ async function fetchOddsIO(
       console.warn(
         `[ODDS] Still no events for ${sportKey}; retrying without league or status filters`
       )
-      events = await fetchEventsSafe(
-        { sport: mapping.sport },
-        {
-          live: opts.live,
-          revalidateSeconds: opts.live ? undefined : Math.max(opts.revalidateSeconds ?? 60, 30),
-        }
-      )
+      const base: FetchProviderEventsParams = { sport: mapping.sport }
+      if (sportKey === 'basketball_ncaab') {
+        const window = timeWindowNcaab()
+        base.from = window.from
+        base.to = window.to
+        base.limit = window.limit
+      }
+      events = await fetchEventsSafe(base, {
+        live: opts.live,
+        revalidateSeconds: opts.live ? undefined : Math.max(opts.revalidateSeconds ?? 60, 30),
+      })
     }
   }
 
@@ -874,7 +893,7 @@ async function fetchOddsIO(
         games.push({
           id: String(ev.id),
           sport_key: sportKey,
-          sport_title: mapping.league.toUpperCase(),
+          sport_title: (mapping.league || mapping.sport || sportKey).toUpperCase(),
           commence_time: String(commence),
           home_team: String(home),
           away_team: String(away),

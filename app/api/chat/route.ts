@@ -13,6 +13,8 @@ import {
   getNBAPlayerSeasonStats,
   getNFLPlayerSeasonStats,
 } from '@/lib/sports-stats-api'
+import type { TeamStats as ProviderTeamStats } from '@/lib/sports-stats-api'
+import { fetchAllLiveScores, fetchGameDetails, type LeagueId, type LiveScoreGameDetails } from '@/lib/live-scores'
 import { fetchESPNScores, fetchESPNScoresForDate } from '@/lib/espn-api'
 import { fetchEventsIO } from '@/lib/api/odds-api'
 import { listCustomModels, saveCustomModel, touchCustomModelUsage, CustomModelRow } from '@/lib/models/custom-models'
@@ -402,6 +404,165 @@ const extractText = (val: any): string => {
 // Odds formatting context for GPT-5 fallbacks
 let formattedOddsGlobal: any[] = []
 let standardizedOddsTablesGlobal: string | null = null
+let ncaabSlateCache:
+  | {
+      date: string
+      teams: Set<string>
+      timestamp: number
+    }
+  | null = null
+
+const normalizeTeamKey = (value?: string) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+const SPORT_TO_LEAGUE: Record<string, LeagueId | undefined> = {
+  basketball_nba: 'nba',
+  basketball_ncaab: 'ncaab',
+  americanfootball_nfl: 'nfl',
+  americanfootball_ncaaf: 'cfb',
+  icehockey_nhl: 'nhl',
+}
+
+const buildTeamInsightsFromDetails = (details: LiveScoreGameDetails) => {
+  if (!details?.teams?.length) return null
+  const lines: string[] = []
+  details.teams.forEach((team) => {
+    const statMap: Record<string, string> = {}
+    ;(team.statistics || []).forEach((entry) => {
+      if (!entry?.label || entry?.value == null) return
+      statMap[entry.label.toLowerCase()] = String(entry.value)
+    })
+    const pick = (key: string) => statMap[key.toLowerCase()]
+    const preferredOrder = [
+      ['Streak', pick('streak')],
+      ['Last 10', pick('last 10 games')],
+      ['Points Per Game', pick('points per game')],
+      ['Points Against', pick('points against')],
+      ['Field Goal %', pick('field goal %')],
+      ['Three Point %', pick('three point %')],
+      ['Rebounds Per Game', pick('rebounds per game')],
+      ['Assists Per Game', pick('assists per game')],
+      ['Blocks Per Game', pick('blocks per game')],
+      ['Steals Per Game', pick('steals per game')],
+    ]
+    const rendered = preferredOrder
+      .map(([label, val]) => (val ? `${label}: ${val}` : null))
+      .filter(Boolean) as string[]
+    const statsLine =
+      rendered.length > 0
+        ? rendered.join(' | ')
+        : (team.statistics || [])
+            .map((s) => `${s.label}: ${s.value}`)
+            .slice(0, 6)
+            .join(' | ') || 'No team stats available yet.'
+    lines.push(`- ${team.name}: ${statsLine}`)
+  })
+  return lines.join('\n')
+}
+
+const buildTeamInsightsFromTeamStats = async (
+  sportKey: string,
+  homeTeam: string,
+  awayTeam: string
+): Promise<string | null> => {
+  try {
+    const stats = await getTeamStats(sportKey)
+    const norm = (v: string) => normalizeTeamKey(v)
+    const findTeam = (name: string) =>
+      stats.find((t) => {
+        const key = norm(t.team)
+        return key.includes(norm(name)) || norm(name).includes(key)
+      })
+    const formatRow = (teamName: string, row?: ProviderTeamStats) => {
+      if (!row) return `- ${teamName}: No team stats available yet.`
+      const gamesRaw = row.stats?.gamesPlayed ?? row.stats?.games
+      const games = Number(gamesRaw != null ? gamesRaw : (row.wins ?? 0) + (row.losses ?? 0))
+      const pointsForRaw = row.stats?.pointsFor ?? row.stats?.points_scored ?? row.stats?.pointsForPerGame
+      const pointsAgainstRaw = row.stats?.pointsAgainst ?? (row.stats as any)?.points_allowed ?? row.stats?.pointsAgainstPerGame
+      const pointsFor = Number(pointsForRaw ?? 0)
+      const pointsAgainst = Number(pointsAgainstRaw ?? 0)
+      const ppg = games > 0 && pointsFor > 0 ? (pointsFor / games).toFixed(1) : (pointsFor || 'n/a')
+      const papg = games > 0 && pointsAgainst > 0 ? (pointsAgainst / games).toFixed(1) : (pointsAgainst || 'n/a')
+      const entries: Array<[string, string | number]> = [
+        ['Record', `${row.wins ?? '?'}-${row.losses ?? '?'}`],
+        ['Streak', row.stats?.streak ?? 'n/a'],
+        ['Points Per Game', ppg],
+        ['Points Against', papg],
+      ]
+      if (row.winPct != null) entries.push(['Win %', (row.winPct * 100).toFixed(1)])
+      const fg = row.stats?.fieldGoalPct ?? row.stats?.fgPct
+      if (fg != null) entries.push(['Field Goal %', Number(fg).toFixed(1)])
+      const three = row.stats?.threePointPct ?? row.stats?.threePct
+      if (three != null) entries.push(['Three Point %', Number(three).toFixed(1)])
+      const reb = row.stats?.reboundsPerGame ?? row.stats?.rpg
+      if (reb != null) entries.push(['Rebounds Per Game', Number(reb).toFixed(1)])
+      const ast = row.stats?.assistsPerGame ?? row.stats?.apg
+      if (ast != null) entries.push(['Assists Per Game', Number(ast).toFixed(1)])
+      const blk = row.stats?.blocksPerGame ?? row.stats?.bpg
+      if (blk != null) entries.push(['Blocks Per Game', Number(blk).toFixed(1)])
+      const stl = row.stats?.stealsPerGame ?? row.stats?.spg
+      if (stl != null) entries.push(['Steals Per Game', Number(stl).toFixed(1)])
+
+      const line = entries
+        .filter(([, val]) => val !== undefined && val !== null && val !== 'n/a' && val !== 'NaN')
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(' | ')
+      return `- ${teamName}: ${line || 'No team stats available yet.'}`
+    }
+
+    const homeRow = formatRow(homeTeam, findTeam(homeTeam))
+    const awayRow = formatRow(awayTeam, findTeam(awayTeam))
+    return [homeRow, awayRow].join('\n')
+  } catch (error) {
+    console.warn('[ODDS] provider team stats lookup failed', error)
+    return null
+  }
+}
+
+const findLiveScoreDetailsForOddsGame = async (
+  sportKey: string,
+  game: { home_team: string; away_team: string; commence_time?: string },
+  timezone: string
+): Promise<string | null> => {
+  const league = SPORT_TO_LEAGUE[sportKey]
+  if (!league) return null
+  try {
+    const targetHome = normalizeTeamKey(game.home_team)
+    const targetAway = normalizeTeamKey(game.away_team)
+    const baseDate = game.commence_time ? game.commence_time.slice(0, 10) : new Date().toISOString().slice(0, 10)
+    const candidateDates = new Set<string>([baseDate])
+    // Also look +/-1 day to tolerate timezone mismatches
+    const dt = new Date(`${baseDate}T00:00:00Z`)
+    const addDate = (d: Date) => candidateDates.add(d.toISOString().slice(0, 10))
+    addDate(new Date(dt.getTime() + 24 * 60 * 60 * 1000))
+    addDate(new Date(dt.getTime() - 24 * 60 * 60 * 1000))
+
+    for (const date of candidateDates) {
+      const slate = await fetchAllLiveScores({ date })
+      let matched = slate.games.find((g) => {
+        if (g.league !== league) return false
+        const keys = g.competitors?.map((c) => normalizeTeamKey(c.name || c.shortName || c.abbreviation)) || []
+        return keys.includes(targetHome) && keys.includes(targetAway)
+      })
+      // If no exact two-team match, allow partial match if both teams appear anywhere in slate (best-effort)
+      if (!matched) {
+        matched = slate.games.find((g) => {
+          if (g.league !== league) return false
+          const keys = g.competitors?.map((c) => normalizeTeamKey(c.name || c.shortName || c.abbreviation)) || []
+          return keys.some((k) => targetHome.includes(k) || k.includes(targetHome) || targetAway.includes(k) || k.includes(targetAway))
+        })
+      }
+      if (matched) {
+        const details = await fetchGameDetails(league, matched.eventId)
+        const insight = buildTeamInsightsFromDetails(details)
+        if (insight) return insight
+      }
+    }
+    return null
+  } catch (error) {
+    console.warn('[ODDS] live-scores insights lookup failed', error)
+    return null
+  }
+}
 
 const buildDeterministicOddsReply = () => {
   if (!standardizedOddsTablesGlobal || !formattedOddsGlobal.length) return null
@@ -1365,9 +1526,32 @@ export async function POST(req: NextRequest) {
       return foundTeams
     }
 
+    const normalizeTeamList = (names: string[]): string[] => {
+      const banned = /\b(odds?|lines?|ncaab|ncaa|college|basketball)\b/gi
+      const cleaned = names
+        .map((name) =>
+          name
+            .toLowerCase()
+            .replace(/[^\w\s.'&-]/g, ' ')
+            .replace(/\bst[.]?\s+/g, 'st ')
+            .replace(banned, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+        )
+        .filter(Boolean)
+      return Array.from(new Set(cleaned))
+    }
+
     const mentionedTeams = extractTeamNames(msgLower)
     console.log('[DEBUG] Mentioned teams detected:', mentionedTeams)
-
+    const parsedMatchupTeams = (() => {
+      const m = message.match(/([a-zA-Z][a-zA-Z\s.&'-]+?)\s+(?:vs\.?|v\.?|@)\s+([a-zA-Z][a-zA-Z\s.&'-]+)/i)
+      if (!m) return []
+      return normalizeTeamList([m[1], m[2]])
+    })()
+    if (parsedMatchupTeams.length) {
+      console.log('[DEBUG] Parsed matchup teams:', parsedMatchupTeams)
+    }
     const propIntent = /props?\b|player\s+(points|rebounds|assists|threes|blocks|steals|yards|tds|receptions|pra)\b|over\/under\s+\d+(\.\d+)?/i.test(
       msgLower
     )
@@ -1388,7 +1572,48 @@ export async function POST(req: NextRequest) {
       !webSearchToggle &&
       !modelApplicationIntent &&
       (Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0)
+
+    const loadNcaabSlateTeams = async () => {
+      const today = new Date().toISOString().slice(0, 10)
+      if (ncaabSlateCache && ncaabSlateCache.date === today && Date.now() - ncaabSlateCache.timestamp < 5 * 60 * 1000) {
+        return ncaabSlateCache.teams
+      }
+      try {
+        const slate = await fetchAllLiveScores({ date: today })
+        const teams = new Set<string>()
+        slate.games
+          .filter((g) => g.league === 'ncaab')
+          .forEach((game) => {
+            game.competitors?.forEach((team) => {
+              if (team.name) teams.add(team.name.toLowerCase())
+              if (team.shortName) teams.add(team.shortName.toLowerCase())
+              if (team.abbreviation) teams.add(team.abbreviation.toLowerCase())
+            })
+          })
+        ncaabSlateCache = { date: today, teams, timestamp: Date.now() }
+        return teams
+      } catch (e) {
+        console.warn('[ODDS] Failed to load NCAAB slate for detection', e)
+        return new Set<string>()
+      }
+    }
+    let ncaabSlateTeams: Set<string> | null = null
+    if (shouldFetchOdds || /(ncaab|college basketball|cbb|college hoops)/i.test(message)) {
+      ncaabSlateTeams = await loadNcaabSlateTeams()
+    }
+    const ncaabInlineTeams: string[] =
+      ncaabSlateTeams && ncaabSlateTeams.size
+        ? Array.from(ncaabSlateTeams).filter((team) => {
+            // Require whole-word or clear match; avoid noise like "bills" matching "ill"
+            const pattern = new RegExp(`\\b${team.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i')
+            return pattern.test(message)
+          })
+        : []
+    if (ncaabInlineTeams.length) {
+      console.log('[DEBUG] NCAAB teams detected from live slate:', ncaabInlineTeams)
+    }
     let scoresContext = ''
+    let pendingOddsReply: string | null = null
     if (scheduleIntent) {
       console.log('[SCHEDULE] Request detected, fetching provider events...')
       const ml = msgLower
@@ -1449,7 +1674,7 @@ export async function POST(req: NextRequest) {
 
         // Decide whether to fetch LIVE vs PENDING odds
         // Fetch LIVE when the user explicitly asks for live context or mentions specific teams (implies current interest)
-        const fetchLive = !isTomorrowQuery && (Boolean(wantsLiveOdds) || mentionedTeams.length > 0)
+        const fetchLive = !isTomorrowQuery && Boolean(wantsLiveOdds)
         const requestedLive = fetchLive
         let usedLive = false
         let usedFallback = false
@@ -1500,6 +1725,17 @@ export async function POST(req: NextRequest) {
         } else if (messageLower.match(/(nhl|hockey)/i)) {
           sports = ['icehockey_nhl']
         }
+        // Parsed matchup with college hoops hints
+        else if (
+          parsedMatchupTeams.length > 0 &&
+          /(ncaab|college basketball|college hoops|cbb|ncaa)/i.test(messageLower)
+        ) {
+          sports = ['basketball_ncaab']
+        }
+        // Live-slate teams ONLY when message has explicit college hoops cues
+        else if (ncaabInlineTeams.length > 0 && /(ncaab|college basketball|college hoops|cbb|ncaa)/i.test(messageLower)) {
+          sports = ['basketball_ncaab']
+        }
         // Check for team names if no explicit sport
         else if (nbaTeams.some(team => messageLower.includes(team))) {
           sports = ['basketball_nba']
@@ -1514,11 +1750,28 @@ export async function POST(req: NextRequest) {
         }
         // If no specific sport detected but user is asking about odds/games, fetch all major sports
         else if (shouldFetchOdds && sports.length === 0) {
-          sports = ['basketball_nba', 'americanfootball_nfl', 'icehockey_nhl', 'baseball_mlb']
+          sports = ['basketball_nba', 'americanfootball_nfl', 'americanfootball_ncaaf', 'icehockey_nhl']
         }
 
         if (sports.length > 0) {
           const allOddsData: any[] = []
+          const oddsPerf: Array<{ sport: string; ms: number; liveUsed: boolean; games: number }> = []
+          let oddsFailureMessage: string | null = null
+          let lastTeamFilter: string[] | undefined
+          const withHardTimeout = async <T>(promise: Promise<T>, ms: number, label: string) => {
+            let timer: NodeJS.Timeout | undefined
+            try {
+              return await Promise.race<T>([
+                promise,
+                new Promise<T>((_, reject) => {
+                  timer = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms)
+                }) as Promise<T>,
+              ])
+            } finally {
+              if (timer) clearTimeout(timer)
+            }
+          }
+          const MAX_ODDS_FETCH_MS = 6000
 
           // Top 25 College Football Teams (updated weekly during season)
           const top25CFBTeams = [
@@ -1537,27 +1790,57 @@ export async function POST(req: NextRequest) {
 
           // Fetch odds for each sport
           for (const sport of sports) {
+            const sportStart = Date.now()
             try {
               // Expand team names to include all variations for better matching across all sports
-              const teamFilterList = mentionedTeams.length > 0
-                ? mentionedTeams.flatMap(team => teamVariations[team] || [team])
-                : undefined
+              const teamFilterList =
+                mentionedTeams.length > 0
+                  ? mentionedTeams.flatMap(team => teamVariations[team] || [team])
+                  : parsedMatchupTeams.length > 0
+                    ? parsedMatchupTeams
+                    : ncaabInlineTeams.length > 0 && sport === 'basketball_ncaab'
+                      ? ncaabInlineTeams
+                      : undefined
+              lastTeamFilter = teamFilterList
+              const now = Date.now()
+              const sportTimeoutMs = sport === 'basketball_ncaab' ? 10000 : MAX_ODDS_FETCH_MS
 
-              console.log(`[DEBUG] Fetching odds for ${sport}, live=${fetchLive}, teams=${mentionedTeams.length > 0 ? mentionedTeams : 'all'}`)
-              const pendingData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
-                live: false,
-                teamFilter: teamFilterList
-              })
+              console.log(`[DEBUG] Fetching odds for ${sport}, live=${fetchLive}, teams=${teamFilterList ? teamFilterList : 'all'}`)
+              let pendingData: OddsGame[] = []
+              try {
+                pendingData = await withHardTimeout(
+                  fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+                    live: false,
+                    teamFilter: teamFilterList
+                  }),
+                  sportTimeoutMs,
+                  `${sport}-pending`
+                )
+              } catch (firstErr) {
+                console.log(`[DEBUG] Pending fetch timed out for ${sport}, retrying once without team filter`)
+                pendingData = await withHardTimeout(
+                  fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+                    live: false,
+                    teamFilter: undefined
+                  }),
+                  sportTimeoutMs,
+                  `${sport}-pending-retry`
+                )
+              }
               console.log(`[DEBUG] Pending data for ${sport}:`, pendingData.length, 'games')
               let oddsData = pendingData
               let liveData: OddsGame[] = []
 
               if (fetchLive) {
                 try {
-                  liveData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
-                    live: true,
-                    teamFilter: teamFilterList
-                  })
+                  liveData = await withHardTimeout(
+                    fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+                      live: true,
+                      teamFilter: teamFilterList
+                    }),
+                    sportTimeoutMs,
+                    `${sport}-live`
+                  )
                   console.log(`[DEBUG] Live data for ${sport}:`, liveData.length, 'games')
                   if (liveData.length > 0) {
                     usedLive = true
@@ -1581,6 +1864,26 @@ export async function POST(req: NextRequest) {
                 if (pendingData.length > 0) pushGames(pendingData, 'pre-match')
                 if (liveData.length > 0) pushGames(liveData, 'live')
                 oddsData = Array.from(combined.values())
+              }
+
+              // Drop games that are too far out (more than ~3 days) to keep responses focused
+              if (oddsData.length > 0) {
+                const horizonMs = now + 3 * 24 * 60 * 60 * 1000
+                oddsData = oddsData.filter((game: any) => {
+                  const t = new Date(game.commence_time).getTime()
+                  return !Number.isNaN(t) && t <= horizonMs
+                })
+              }
+
+              // For NCAAB, drop games whose teams are not in today's NCAAB live-scores slate (when available)
+              if (sport === 'basketball_ncaab' && ncaabSlateTeams && ncaabSlateTeams.size && oddsData.length > 0) {
+                oddsData = oddsData.filter((game: any) => {
+                  const home = (game.home_team || '').toLowerCase()
+                  const away = (game.away_team || '').toLowerCase()
+                  const matches = (team: string) =>
+                    Array.from(ncaabSlateTeams as Set<string>).some((name) => name && team.includes(name))
+                  return matches(home) && matches(away)
+                })
               }
 
               usedFallback = fetchLive && !usedLive
@@ -1632,6 +1935,8 @@ export async function POST(req: NextRequest) {
                   games: oddsData,
                 })
               }
+
+              oddsPerf.push({ sport, ms: Date.now() - sportStart, liveUsed: usedLive, games: oddsData.length })
             } catch (err: any) {
               const statusCode = err?.statusCode ?? err?.status ?? err?.response?.status
               const errorName = err?.name || 'UnknownError'
@@ -1651,12 +1956,23 @@ export async function POST(req: NextRequest) {
                 throw new Error('RATE_LIMIT_EXCEEDED: The odds API is currently experiencing high traffic. Please wait a few minutes and try again. (Tip: Try asking about specific sports or teams to reduce API usage)')
               }
 
-              throw err instanceof Error ? err : new Error(errorMessage)
+              oddsFailureMessage =
+                oddsFailureMessage ||
+                `Odds unavailable right now (${sport.replace('americanfootball_', '').toUpperCase()}): ${errorMessage}`
+              // Continue to next sport or bail out quickly if this was the only sport
+              if (sports.length === 1) {
+                break
+              } else {
+                continue
+              }
             }
           }
 
           if (allOddsData.length > 0) {
             console.log(`[ODDS] Successfully fetched odds for ${allOddsData.length} sport(s)`)
+            if (oddsPerf.length) {
+              console.log('[PERF][ODDS]', oddsPerf)
+            }
 
             // Helper to format game time in user's timezone
             const formatGameTime = (commence_time: string) => {
@@ -1879,13 +2195,15 @@ export async function POST(req: NextRequest) {
             }
 
             const MAX_GAMES_PER_SPORT = 3
+            const MAX_GAMES_TARGETED = 1
+            const MAX_BOOKS_PER_GAME = 6
 
             // Format odds data FIRST (don't let enrichment failures break everything)
             const formattedOdds = allOddsData
               .map((sportData) => ({
                 sport: sportData.sport,
                 games: sportData.games
-                  .slice(0, MAX_GAMES_PER_SPORT)
+                  .slice(0, mentionedTeams.length > 0 ? MAX_GAMES_TARGETED : MAX_GAMES_PER_SPORT)
                   .map((game: any) => ({
                     game: `${game.away_team} @ ${game.home_team}`,
                     commence_time: game.commence_time,
@@ -1923,6 +2241,7 @@ export async function POST(req: NextRequest) {
                           markets,
                         }
                       })
+                      .slice(0, MAX_BOOKS_PER_GAME)
                       .filter((book: any) => book.markets.length > 0),
                   }))
                   .map((game: any) => {
@@ -1996,6 +2315,26 @@ export async function POST(req: NextRequest) {
               bestValueLines.length > 0
                 ? `\n**BEST BOOKS (auto-highlight across ALL books):**\n${bestValueLines.join('\n')}\n`
                 : ''
+
+            let teamInsights = ''
+            if (allOddsData.length === 1 && formattedOdds.length === 1 && formattedOdds[0].games.length === 1) {
+              const baseGame = allOddsData[0].games[0]
+              const sportKey = allOddsData[0].sport
+              const liveInsights = await findLiveScoreDetailsForOddsGame(sportKey, baseGame, timezone)
+              if (liveInsights) {
+                teamInsights = `\n**TEAM INSIGHTS (Live Scores):**\n${liveInsights}\n\nUse these stats as the advanced info for this matchup (streak, last 10, PPG/PAPG, FG%/3P%, REB/AST/BLK/STL).`
+              }
+              if (!teamInsights) {
+                const fallbackInsights = await buildTeamInsightsFromTeamStats(
+                  sportKey,
+                  baseGame.home_team,
+                  baseGame.away_team
+                )
+                if (fallbackInsights) {
+                  teamInsights = `\n**TEAM INSIGHTS (Season snapshot):**\n${fallbackInsights}\n\nUse these stats as the advanced info for this matchup (streak, last 10, PPG/PAPG, FG%/3P%, REB/AST/BLK/STL).`
+                }
+              }
+            }
 
             // Only enrich with stats if user explicitly asks for deep analysis/injuries/stats
             // This avoids the 8.4MB NFL injuries cache issue on simple odds requests
@@ -2085,21 +2424,78 @@ ${JSON.stringify(formattedOdds)}
 **STANDARDIZED ODDS TABLES (USE THESE EXACTLY IN YOUR RESPONSE):**
 ${standardizedOddsTables || '_No odds tables available_'}
 ${bestValuesSection}
+${teamInsights}
 
 ${statsEnrichment}
 
-**FOLLOW-UP INSTRUCTION:** ${wantsDeepDive ? 'You have injury and stats data above. Use it in your analysis.' : 'Wrap up by asking if they want injuries, stats, or deeper analysis on any matchup (e.g., "Want me to pull injuries and recent form for any of these games?").'}\n`
+${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data above. Use it in your analysis.\n' : ''}`
 
             console.log(`[ODDS] Context built successfully, length: ${oddsContext.length} characters`)
+            const deterministicOdds = buildDeterministicOddsReply()
+            if (!wantsDeepDive) {
+              let reply = deterministicOdds || ''
+              if (teamInsights) {
+                reply = reply ? `${reply}\n\n${teamInsights}` : teamInsights
+              }
+              pendingOddsReply = reply || 'Odds available. (Formatting failed to build deterministic table.)'
+            }
           } else {
             console.log('[ODDS] No games found after filtering - formattedOdds is empty')
             console.log('[DEBUG] allOddsData length:', allOddsData.length)
-            if (isTomorrowQuery) {
-              oddsContext = '\n\n**NO GAMES TOMORROW**: There are no games scheduled for tomorrow based on current data. The odds data may not be available yet for games that far out.\n'
-            } else {
-              oddsContext =
-                '\n\n**NO ODDS AVAILABLE**: No games matched this request right now. Try a different team, sport, or timeframe.'
+            const fallbackMsg =
+              oddsFailureMessage ||
+              (isTomorrowQuery
+                ? '**NO GAMES TOMORROW**: There are no games scheduled for tomorrow based on current data.'
+                : '**NO ODDS AVAILABLE**: No games matched this request right now. Try a different team, sport, or timeframe.')
+            let ncaabScheduleFallback: string | null = null
+            if (sports.includes('basketball_ncaab')) {
+              try {
+                const slate = await fetchAllLiveScores({ date: new Date().toISOString().slice(0, 10) })
+                const matchers = new Set(
+                  (lastTeamFilter && lastTeamFilter.length ? lastTeamFilter : parsedMatchupTeams).map((t: string) =>
+                    String(t).toLowerCase()
+                  )
+                )
+                const ncaabGames = slate.games
+                  .filter((g) => g.league === 'ncaab')
+                  .filter((g) =>
+                    matchers.size === 0
+                      ? true
+                      : g.competitors?.some((c) => {
+                          const name = (c.name || c.shortName || c.abbreviation || '').toLowerCase()
+                          return Array.from(matchers).some((m) => name.includes(m))
+                        })
+                  )
+                  .slice(0, 5)
+
+                if (ncaabGames.length) {
+                  const toLocal = (iso: string) =>
+                    new Date(iso).toLocaleString('en-US', {
+                      timeZone: timezone,
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true,
+                    })
+                  ncaabScheduleFallback =
+                    '**NCAAB schedule (fallback, odds provider error):**\n' +
+                    ncaabGames
+                      .map((g) => {
+                        const [a, b] = g.competitors || []
+                        const matchup = a && b ? `${a.name} @ ${b.name}` : g.shortName || 'Game'
+                        return `- ${matchup} — ${toLocal(g.startTime)}`
+                      })
+                      .join('\n')
+                }
+              } catch (e) {
+                console.warn('[ODDS] NCAAB schedule fallback failed', e)
+              }
             }
+
+            const fallbackPayload = [fallbackMsg, ncaabScheduleFallback].filter(Boolean).join('\n\n')
+            pendingOddsReply = `Odds unavailable right now. ${fallbackPayload} Try again shortly.`
           }
         } else {
           console.log('[ODDS] No sports detected for odds fetching')
@@ -2172,20 +2568,43 @@ ${statsEnrichment}
         .filter(Boolean)
     )
 
-    const buildParams = () => {
-      const params: any = {
-        model: chatModel,
-        messages: openaiMessages,
-        tools: allowedTools,
-        max_completion_tokens: 4000,
+    if (pendingOddsReply) {
+      return streamTextResponse(pendingOddsReply)
+    }
+
+  const buildParams = () => {
+    const params: any = {
+      model: chatModel,
+      messages: openaiMessages,
+      tools: allowedTools,
+      max_completion_tokens: 1500,
       }
       if (!chatModel.includes('gpt-5')) {
         params.temperature = 0.7
       }
       return params
-    }
+  }
 
-    let initialResponse = await openai.chat.completions.create(buildParams())
+  const llmInitialStart = Date.now()
+
+  const wantsTeamInsightsOnly = /team insight|team insights|advanced stats|more info|deeper (stats|info)/i.test(message)
+  if (
+    wantsTeamInsightsOnly &&
+    formattedOddsGlobal.length === 1 &&
+    formattedOddsGlobal[0].games?.length === 1
+  ) {
+    const game = formattedOddsGlobal[0].games[0]
+    const sportKey = formattedOddsGlobal[0].sport
+    const insights =
+      (await findLiveScoreDetailsForOddsGame(sportKey, game, timezone)) ??
+      (await buildTeamInsightsFromTeamStats(sportKey, game.home_team, game.away_team))
+    const titleLine = `Team insights for ${game.away_team} @ ${game.home_team}`
+    const body = insights || 'No team insights available yet.'
+    return streamTextResponse(`${titleLine}\n\n${body}`)
+  }
+
+  let initialResponse = await openai.chat.completions.create(buildParams())
+  console.log('[PERF][LLM][INITIAL_MS]', Date.now() - llmInitialStart)
     let toolCalls = initialResponse.choices[0].message.tool_calls || []
 
     const withTimeout = <T>(p: Promise<T>, ms = 8000) =>
@@ -2231,6 +2650,7 @@ ${statsEnrichment}
       } else if (functionName === 'get_stats') {
         // Fetch requested stats with optional advanced data for NBA/NFL
         if (functionArgs.type === 'team') {
+          const statsStart = Date.now()
           try {
             const [teamStats, injuries, advanced] = await Promise.all([
               withTimeout(getTeamStats(functionArgs.sport, functionArgs.team)),
@@ -2288,6 +2708,11 @@ ${statsEnrichment}
               },
               formatted,
             }
+            console.log('[PERF][STATS][TEAM]', {
+              sport: functionArgs.sport,
+              team: functionArgs.team,
+              ms: Date.now() - statsStart,
+            })
           } catch (err: any) {
             functionResult = { success: false, error: err?.message || 'Failed to fetch team stats' }
           }
@@ -2310,6 +2735,7 @@ ${statsEnrichment}
         }
       } else if (functionName === 'get_player_season_stats') {
         try {
+          const statsStart = Date.now()
           const sportKey = (functionArgs.sport || '').toString().toLowerCase()
           const playerName = (functionArgs.player || '').toString().trim()
           if (!playerName) {
@@ -2330,6 +2756,11 @@ ${statsEnrichment}
               error: `player-season not supported for sport ${functionArgs.sport}`,
             }
           }
+          console.log('[PERF][STATS][PLAYER]', {
+            sport: sportKey,
+            player: playerName,
+            ms: Date.now() - statsStart,
+          })
         } catch (err: any) {
           functionResult = {
             success: false,
@@ -2831,7 +3262,7 @@ ${statsEnrichment}
       return functionResult
     };
 
-    const streamTextResponse = async (text: string) => {
+    async function streamTextResponse(text: string) {
       const encoder = new TextEncoder()
       const handledStream = new ReadableStream({
         async start(controller) {
@@ -2878,7 +3309,11 @@ ${statsEnrichment}
           Connection: 'keep-alive',
         },
       });
-    };
+    }
+
+    if (pendingOddsReply) {
+      return streamTextResponse(pendingOddsReply)
+    }
 
     if (shouldFetchOdds && totalGamesAvailable === 0) {
       const fallbackOddsMessage =
@@ -3132,7 +3567,7 @@ ${statsEnrichment}
       messages: openaiMessages,
       tools: ASSISTANT_TOOLS,
       temperature: !chatModel.includes('gpt-5') ? 0.7 : undefined,
-      max_completion_tokens: 4000,
+      max_completion_tokens: 1500,
       stream: true,
     })
 
@@ -3164,6 +3599,7 @@ ${statsEnrichment}
           clearInterval(keepAliveInterval)
 
           const latencyMs = Date.now() - startTime
+          console.log('[PERF][LLM][STREAM_MS]', latencyMs)
 
           if (fullResponse && fullResponse.trim().length > 0) {
             await supabase.from('messages').insert({

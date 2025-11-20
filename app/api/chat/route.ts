@@ -540,6 +540,7 @@ When users ask "what games are today/tonight/tomorrow":
 4. Keep responses concise (3-5 sentences for simple queries)
 5. Do NOT promise deeper player splits/advanced NBA metrics; if asked, say they are unavailable right now and stick to season averages
 6. Offer odds/player-prop fetching only after you have provided the requested stats/context (don’t pre-promise)
+7. Do NOT ask the user if they want deeper splits—those are not available; acknowledge unavailability instead
 5. Use data and statistics to support insights
 
 **Response Guidelines:**

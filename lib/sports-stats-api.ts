@@ -358,11 +358,32 @@ const fetchESPNNBAPlayerStats = async (espnId: string): Promise<ESPNPlayerSummar
     if (!averages) return null
 
     const labels: string[] = averages.labels ?? []
-    const totals: (string | number)[] = averages.totals ?? []
+    const statsEntries: any[] = averages.statistics ?? []
+    const targetSeasonLabel = getCurrentNBASeasonLabel()
+
+    const pickLatestStats = () => {
+      if (!statsEntries.length) return null
+      // Prefer entry matching current season label, otherwise newest year
+      const exact = statsEntries.find(
+        (entry) => entry?.season?.displayName === targetSeasonLabel
+      )
+      if (exact) return exact
+
+      return statsEntries.reduce((latest, curr) => {
+        const currYear = curr?.season?.year ?? 0
+        const latestYear = latest?.season?.year ?? 0
+        return currYear >= latestYear ? curr : latest
+      }, statsEntries[0] as any)
+    }
+
+    const latest = pickLatestStats()
+    const values: (string | number)[] =
+      (Array.isArray(latest?.stats) ? latest.stats : averages.totals) ?? []
+
     const getVal = (label: string) => {
       const idx = labels.indexOf(label)
       if (idx === -1) return null
-      const raw = totals[idx]
+      const raw = values[idx]
       if (raw == null) return null
       if (typeof raw === 'number') return raw
       const parts = raw.split('-').map((v) => Number(v))
@@ -372,7 +393,7 @@ const fetchESPNNBAPlayerStats = async (espnId: string): Promise<ESPNPlayerSummar
     }
 
     // Season label from any stats entry
-    const anyStat = (averages.statistics || [])[0]
+    const anyStat = latest || (averages.statistics || [])[0]
     const seasonLabel =
       anyStat?.season?.displayName ??
       (anyStat?.season?.year ? String(anyStat.season.year) : getCurrentNBASeasonLabel())

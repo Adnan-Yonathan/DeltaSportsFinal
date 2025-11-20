@@ -340,32 +340,49 @@ type ESPNPlayerSummary = {
   rpg: number | null
   apg: number | null
   fgPct: number | null
+  threePct: number | null
   seasonLabel: string
 }
 
 const fetchESPNNBAPlayerStats = async (espnId: string): Promise<ESPNPlayerSummary | null> => {
-  const url = `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${espnId}?region=us&lang=en`
+  const url = `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${espnId}/stats?region=us&lang=en`
   try {
     const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) {
       return null
     }
     const data = await res.json()
-    const statsSummary = data?.athlete?.statsSummary?.statistics ?? []
-    const seasonLabel =
-      data?.season?.displayName ??
-      (data?.season?.year ? String(data.season.year) : getCurrentNBASeasonLabel())
+    const categories = data?.categories ?? []
+    const averages =
+      categories.find((c: any) => c.name === 'averages') || categories[0]
+    if (!averages) return null
 
-    const findVal = (name: string) => {
-      const entry = statsSummary.find((s: any) => s.name === name)
-      return entry ? Number(entry.value) : null
+    const labels: string[] = averages.labels ?? []
+    const totals: (string | number)[] = averages.totals ?? []
+    const getVal = (label: string) => {
+      const idx = labels.indexOf(label)
+      if (idx === -1) return null
+      const raw = totals[idx]
+      if (raw == null) return null
+      if (typeof raw === 'number') return raw
+      const parts = raw.split('-').map((v) => Number(v))
+      if (parts.length === 2 && !Number.isNaN(parts[0])) return parts[0]
+      const n = Number(raw)
+      return Number.isNaN(n) ? null : n
     }
 
+    // Season label from any stats entry
+    const anyStat = (averages.statistics || [])[0]
+    const seasonLabel =
+      anyStat?.season?.displayName ??
+      (anyStat?.season?.year ? String(anyStat.season.year) : getCurrentNBASeasonLabel())
+
     return {
-      ppg: findVal('avgPoints'),
-      rpg: findVal('avgRebounds'),
-      apg: findVal('avgAssists'),
-      fgPct: findVal('fieldGoalPct'),
+      ppg: getVal('PTS'),
+      rpg: getVal('REB'),
+      apg: getVal('AST'),
+      fgPct: getVal('FG%'),
+      threePct: getVal('3P%'),
       seasonLabel,
     }
   } catch (error) {
@@ -391,6 +408,8 @@ export async function getNBAPlayerSeasonStats(playerName: string): Promise<Playe
   if (espnStats.rpg != null) stats.RPG = Number(espnStats.rpg.toFixed(1))
   if (espnStats.apg != null) stats.APG = Number(espnStats.apg.toFixed(1))
   if (espnStats.fgPct != null) stats.FG_PERCENT = Number(espnStats.fgPct.toFixed(1))
+  // Always return a 3P% value (default 0.0 if missing) so the UI can display it consistently
+  stats.THREE_PERCENT = Number((espnStats.threePct ?? 0).toFixed(1))
 
   return {
     name: rosterEntry?.fullName ?? playerName,

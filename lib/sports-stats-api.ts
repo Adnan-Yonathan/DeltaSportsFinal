@@ -1,3 +1,5 @@
+import Papa from 'papaparse'
+
 // Comprehensive Sports Statistics API Integration
 // Supports NBA, NFL, MLB, NHL - Player stats, team stats, advanced analytics, injuries
 
@@ -49,6 +51,338 @@ export interface AdvancedTeamStats {
   successRate?: number
   passRate?: number
   rushRate?: number
+}
+
+const NBA_API_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36',
+  Referer: 'https://www.nba.com/',
+  Origin: 'https://www.nba.com',
+  Accept: 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'x-nba-stats-origin': 'stats',
+  'x-nba-stats-token': 'true',
+}
+
+const NFL_PLAYER_STATS_BASE =
+  'https://github.com/nflverse/nflverse-data/releases/download/player_stats'
+
+const normalizeName = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .trim()
+
+const getCurrentNBASeasonLabel = () => {
+  const now = new Date()
+  const month = now.getUTCMonth()
+  const startYear = month >= 8 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
+  const nextYear = String(startYear + 1)
+  return `${startYear}-${nextYear.slice(-2)}`
+}
+
+const getCurrentNFLSeasonYear = () => {
+  const now = new Date()
+  const month = now.getUTCMonth() // 0-11
+  const year = now.getUTCFullYear()
+  // Season starts in August/September; early months belong to previous year
+  return month >= 6 ? year : year - 1
+}
+
+const fetchNBAJson = async <T>(url: string): Promise<T> => {
+  const response = await fetch(url, { headers: NBA_API_HEADERS, cache: 'no-store' })
+  if (!response.ok) {
+    throw new Error(`NBA stats request failed (${response.status})`)
+  }
+  return (await response.json()) as T
+}
+
+const findNBAPlayerId = async (playerName: string, seasonLabel: string): Promise<string | null> => {
+  const tryFetch = async (currentOnly: boolean) => {
+    const url =
+      `https://stats.nba.com/stats/commonallplayers?` +
+      `IsOnlyCurrentSeason=${currentOnly ? 1 : 0}&LeagueID=00&Season=${encodeURIComponent(seasonLabel)}`
+    const data = await fetchNBAJson<any>(url)
+    const set = data.resultSets?.[0]
+    if (!set) return null
+    const headers: string[] = set.headers ?? []
+    const rows: any[][] = set.rowSet ?? []
+    const idxName = headers.indexOf('DISPLAY_FIRST_LAST')
+    const idxPersonId = headers.indexOf('PERSON_ID')
+    if (idxName === -1 || idxPersonId === -1) return null
+    const target = normalizeName(playerName)
+    for (const row of rows) {
+      const name = typeof row[idxName] === 'string' ? normalizeName(row[idxName]) : ''
+      if (name === target) {
+        return String(row[idxPersonId])
+      }
+    }
+    return null
+  }
+
+  const current = await tryFetch(true)
+  if (current) return current
+  return tryFetch(false)
+}
+
+const fetchNBAPlayerBaseStats = async (playerId: string, seasonLabel: string) => {
+  const params = new URLSearchParams({
+    LeagueID: '00',
+    PerMode: 'PerGame',
+    PlayerID: playerId,
+    Season: seasonLabel,
+    SeasonType: 'Regular Season',
+  })
+  const url = `https://stats.nba.com/stats/playerprofilev2?${params.toString()}`
+  const data = await fetchNBAJson<any>(url)
+  const totals = data.resultSets?.find((set: any) => set.name === 'SeasonTotalsRegularSeason')
+  if (!totals) {
+    return null
+  }
+  const headers: string[] = totals.headers ?? []
+  const rows: any[][] = totals.rowSet ?? []
+  const idxSeason = headers.indexOf('SEASON_ID')
+  const idx = (field: string) => headers.indexOf(field)
+  const row = rows.find((entry) => idxSeason !== -1 && entry[idxSeason] === seasonLabel)
+  if (!row) {
+    return null
+  }
+  const getNumber = (field: string) => {
+    const column = idx(field)
+    if (column === -1) return null
+    const value = row[column]
+    return typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : null
+  }
+  return {
+    ppg: getNumber('PTS'),
+    rpg: getNumber('REB'),
+    apg: getNumber('AST'),
+    fgPct: getNumber('FG_PCT'),
+    threePct: getNumber('FG3_PCT'),
+    ftPct: getNumber('FT_PCT'),
+  }
+}
+
+const fetchNBAPlayerAdvancedStats = async (playerId: string, seasonLabel: string) => {
+  const params = new URLSearchParams({
+    DateFrom: '',
+    DateTo: '',
+    GameSegment: '',
+    LastNGames: '0',
+    LeagueID: '00',
+    Location: '',
+    MeasureType: 'Advanced',
+    Month: '0',
+    OpponentTeamID: '0',
+    Outcome: '',
+    PORound: '0',
+    PaceAdjust: 'N',
+    PerMode: 'PerGame',
+    Period: '0',
+    PlayerID: playerId,
+    PlusMinus: 'N',
+    Rank: 'N',
+    Season: seasonLabel,
+    SeasonSegment: '',
+    SeasonType: 'Regular Season',
+    ShotClockRange: '',
+    Split: 'y',
+    StartPeriod: '1',
+    StarterBench: '',
+    TeamID: '0',
+    VsConference: '',
+    VsDivision: '',
+  })
+  const url = `https://stats.nba.com/stats/playerdashboardbygeneralsplits?${params.toString()}`
+  const data = await fetchNBAJson<any>(url)
+  const totals = data.resultSets?.find((set: any) => set.name === 'OverallPlayerDashboard')
+  if (!totals) return null
+  const headers: string[] = totals.headers ?? []
+  const row: any[] | undefined = totals.rowSet?.[0]
+  if (!row) return null
+  const idx = (field: string) => headers.indexOf(field)
+  const pick = (field: string) => {
+    const column = idx(field)
+    if (column === -1) return null
+    const value = row[column]
+    return typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : null
+  }
+  return {
+    tsPct: pick('TS_PCT'),
+    usgPct: pick('USG_PCT'),
+    ortg: pick('OFF_RATING'),
+    drtg: pick('DEF_RATING'),
+    pie: pick('PIE'),
+  }
+}
+
+export async function getNBAPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
+  const seasonLabel = getCurrentNBASeasonLabel()
+  const rosterEntry = await searchNBAPlayer(playerName)
+  const nbaId = await findNBAPlayerId(rosterEntry?.fullName ?? playerName, seasonLabel)
+  if (!nbaId) {
+    return null
+  }
+  const [baseStats, advancedStats] = await Promise.all([
+    fetchNBAPlayerBaseStats(nbaId, seasonLabel),
+    fetchNBAPlayerAdvancedStats(nbaId, seasonLabel),
+  ])
+  if (!baseStats) {
+    return null
+  }
+
+  const stats: Record<string, number | string> = {
+    PPG: Number(baseStats.ppg?.toFixed(1) ?? 0),
+    RPG: Number(baseStats.rpg?.toFixed(1) ?? 0),
+    APG: Number(baseStats.apg?.toFixed(1) ?? 0),
+    FG_PERCENT: Number(((baseStats.fgPct ?? 0) * 100).toFixed(1)),
+    THREE_PERCENT: Number(((baseStats.threePct ?? 0) * 100).toFixed(1)),
+    FT_PERCENT: Number(((baseStats.ftPct ?? 0) * 100).toFixed(1)),
+  }
+
+  if (advancedStats) {
+    stats.TS_PERCENT = Number(((advancedStats.tsPct ?? 0) * 100).toFixed(1))
+    stats.USG_PERCENT = Number(((advancedStats.usgPct ?? 0) * 100).toFixed(1))
+    stats.OFF_RATING = Number((advancedStats.ortg ?? 0).toFixed(1))
+    stats.DEF_RATING = Number((advancedStats.drtg ?? 0).toFixed(1))
+    stats.PER =
+      advancedStats.pie != null ? Number((advancedStats.pie * 30).toFixed(1)) : undefined
+  }
+
+  return {
+    name: rosterEntry?.fullName ?? playerName,
+    team: rosterEntry?.team ?? '',
+    position: rosterEntry?.position,
+    season: seasonLabel,
+    stats,
+  }
+}
+
+export async function getNFLPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
+  const rosterEntry = await searchNFLPlayer(playerName)
+  if (!rosterEntry) {
+    return null
+  }
+  const seasonYear = getCurrentNFLSeasonYear()
+  const [baseStats, csvData] = await Promise.all([
+    fetchNFLPlayerBaseStats(rosterEntry.id, seasonYear),
+    loadNFLPlayerSeasonRows(rosterEntry.fullName, seasonYear),
+  ])
+
+  if (!baseStats && !csvData) {
+    return null
+  }
+
+  const stats: Record<string, number | string> = {}
+  if (baseStats) {
+    stats.PASSING_YARDS = baseStats.passingYards ?? 0
+    stats.PASSING_TDS = baseStats.passingTouchdowns ?? 0
+    stats.INTERCEPTIONS = baseStats.passingInterceptions ?? 0
+    stats.COMPLETIONS = baseStats.completions ?? 0
+    stats.ATTEMPTS = baseStats.passingAttempts ?? 0
+    stats.RUSHING_YARDS = baseStats.rushingYards ?? 0
+    stats.RUSHING_TDS = baseStats.rushingTouchdowns ?? 0
+    stats.RUSHING_ATTEMPTS = baseStats.rushingAttempts ?? 0
+    if ((baseStats.receptions ?? 0) > 0) {
+      stats.RECEPTIONS = baseStats.receptions ?? 0
+      stats.RECEIVING_YARDS = baseStats.receivingYards ?? 0
+      stats.RECEIVING_TDS = baseStats.receivingTouchdowns ?? 0
+      stats.TARGETS = baseStats.targets ?? 0
+    }
+  }
+
+  if (csvData && csvData.rows.length) {
+    let passingEPA = 0
+    let rushingEPA = 0
+    let receivingEPA = 0
+    let passAttempts = 0
+    let rushAttempts = 0
+    let targets = 0
+
+    for (const row of csvData.rows) {
+      passingEPA += Number(row.passing_epa ?? 0)
+      rushingEPA += Number(row.rushing_epa ?? 0)
+      receivingEPA += Number(row.receiving_epa ?? 0)
+      passAttempts += Number(row.attempts ?? 0)
+      rushAttempts += Number(row.carries ?? 0)
+      targets += Number(row.targets ?? 0)
+    }
+
+    const totalPlays = passAttempts + rushAttempts + targets
+    const totalEPA = passingEPA + rushingEPA + receivingEPA
+    stats.EPA_TOTAL = Number(totalEPA.toFixed(2))
+    stats.EPA_PER_PLAY = totalPlays > 0 ? Number((totalEPA / totalPlays).toFixed(3)) : null
+  }
+
+  return {
+    name: rosterEntry.fullName,
+    team: rosterEntry.team,
+    position: rosterEntry.position,
+    season: String(baseStats?.season ?? csvData?.season ?? seasonYear),
+    stats,
+  }
+}
+
+const fetchNFLPlayerBaseStats = async (playerId: string, seasonYear: number) => {
+  const trySeason = async (year: number) => {
+    const url = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/${year}/types/2/athletes/${playerId}/statistics?lang=en&region=us`
+    const response = await fetch(url, { cache: 'no-store' })
+    if (!response.ok) {
+      return null
+    }
+    const data = await response.json()
+    const stats = data.splits?.categories?.flatMap((cat: any) => cat.stats) ?? []
+    const pick = (name: string) => {
+      const entry = stats.find((stat: any) => stat.name === name)
+      return entry?.value ?? null
+    }
+    return {
+      season: year,
+      passingYards: pick('passingYards'),
+      passingTouchdowns: pick('passingTouchdowns'),
+      passingInterceptions: pick('interceptions'),
+      passingAttempts: pick('passingAttempts'),
+      completions: pick('completions'),
+      rushingYards: pick('rushingYards'),
+      rushingTouchdowns: pick('rushingTouchdowns'),
+      rushingAttempts: pick('rushingAttempts'),
+      receptions: pick('receptions'),
+      receivingYards: pick('receivingYards'),
+      receivingTouchdowns: pick('receivingTouchdowns'),
+      targets: pick('receivingTargets'),
+    }
+  }
+
+  const primary = await trySeason(seasonYear)
+  if (primary) return primary
+  return trySeason(seasonYear - 1)
+}
+
+const loadNFLPlayerSeasonRows = async (playerName: string, seasonYear: number) => {
+  const tryLoad = async (year: number) => {
+    const url = `${NFL_PLAYER_STATS_BASE}/player_stats_${year}.csv`
+    const response = await fetch(url, { cache: 'no-store' })
+    if (!response.ok) {
+      return null
+    }
+    const text = await response.text()
+    const parsed = Papa.parse<Record<string, string | number>>(text, {
+      header: true,
+      dynamicTyping: true,
+      skipEmptyLines: true,
+    })
+    const rows = (parsed.data || []).filter(
+      (row) =>
+        Number(row.season) === year &&
+        String(row.season_type).toUpperCase() === 'REG' &&
+        normalizeName(String(row.player_display_name ?? row.player_name ?? '')) === normalizeName(playerName)
+    )
+    return { rows, season: year }
+  }
+
+  const primary = await tryLoad(seasonYear)
+  if (primary && primary.rows.length) return primary
+  return tryLoad(seasonYear - 1)
 }
 
 export interface InjuryReport {
@@ -356,6 +690,69 @@ export async function searchNBAPlayer(playerName: string): Promise<RosterPlayer 
   }
 }
 
+export async function getNFLRoster(teamAbbr?: string): Promise<RosterPlayer[]> {
+  try {
+    const url = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams'
+    const response = await fetch(url, { next: { revalidate: 3600 } })
+    if (!response.ok) return []
+    const data = await response.json()
+    const roster: RosterPlayer[] = []
+    const teams = data.sports?.[0]?.leagues?.[0]?.teams ?? []
+    for (const entry of teams) {
+      const team = entry.team
+      if (!team) continue
+      if (teamAbbr && team.abbreviation !== teamAbbr) continue
+      try {
+        const rosterUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/${team.id}/roster`
+        const rosterResponse = await fetch(rosterUrl, { next: { revalidate: 3600 } })
+        if (!rosterResponse.ok) continue
+        const rosterData = await rosterResponse.json()
+        const groups = rosterData.athletes ?? []
+        for (const group of groups) {
+          const athletes = group.items ?? []
+          for (const athlete of athletes) {
+            roster.push({
+              id: athlete.id,
+              name: athlete.displayName || athlete.fullName,
+              fullName: athlete.fullName || athlete.displayName,
+              team: team.displayName,
+              teamAbbr: team.abbreviation,
+              position: athlete.position?.abbreviation || athlete.position?.name || 'N/A',
+              jersey: athlete.jersey,
+              height: athlete.displayHeight,
+              weight: athlete.displayWeight,
+              age: athlete.age,
+              experience: athlete.experience?.years,
+              status: athlete.status?.type ?? 'Active',
+              headshot: athlete.headshot?.href,
+            })
+          }
+        }
+      } catch (error) {
+        console.error(`Error fetching roster for ${team.displayName}:`, error)
+      }
+    }
+    return roster
+  } catch (error) {
+    console.error('Error fetching NFL rosters:', error)
+    return []
+  }
+}
+
+export async function searchNFLPlayer(playerName: string): Promise<RosterPlayer | null> {
+  try {
+    const roster = await getNFLRoster()
+    const target = normalizeName(playerName)
+    let found =
+      roster.find((player) => normalizeName(player.fullName) === target) ??
+      roster.find((player) => normalizeName(player.name).includes(target))
+    return found || null
+  } catch (error) {
+    console.error('Error searching for NFL player:', error)
+    return null
+  }
+}
+
 // ==================== NFL STATS (via ESPN) ====================
 
 export async function getNFLTeamStats(teamAbbr?: string): Promise<TeamStats[]> {
@@ -587,10 +984,52 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
   switch (sport.toLowerCase()) {
     case 'nba':
     case 'basketball_nba':
-      return getNBATeamStats(teamIdentifier)
+      {
+        const [basic, advanced] = await Promise.all([
+          getNBATeamStats(teamIdentifier),
+          getNBAAdvancedTeamStats(),
+        ])
+        return basic.map((teamEntry) => {
+          const adv = advanced.find(
+            (candidate) => normalizeName(candidate.team) === normalizeName(teamEntry.team)
+          )
+          if (adv) {
+            teamEntry.stats = {
+              ...teamEntry.stats,
+              pace: adv.pace,
+              offensiveRating: adv.oRating,
+              defensiveRating: adv.dRating,
+              netRating: adv.netRating,
+              trueShootingPct: adv.tsPct,
+              turnoverPct: adv.turnoverPct,
+            }
+          }
+          return teamEntry
+        })
+      }
     case 'nfl':
     case 'americanfootball_nfl':
-      return getNFLTeamStats(teamIdentifier)
+      {
+        const [basic, advanced] = await Promise.all([
+          getNFLTeamStats(teamIdentifier),
+          getNFLAdvancedTeamStats(),
+        ])
+        return basic.map((teamEntry) => {
+          const adv = advanced.find(
+            (candidate) => normalizeName(candidate.team) === normalizeName(teamEntry.team)
+          )
+          if (adv) {
+            teamEntry.stats = {
+              ...teamEntry.stats,
+              epaPerPlay: adv.epaPerPlay,
+              successRate: adv.successRate,
+              passRate: adv.passRate,
+              rushRate: adv.rushRate,
+            }
+          }
+          return teamEntry
+        })
+      }
     case 'mlb':
     case 'baseball_mlb':
       return getMLBTeamStats(teamIdentifier ? parseInt(teamIdentifier) : undefined)
@@ -635,6 +1074,9 @@ export async function searchPlayer(playerName: string, sport?: string): Promise<
         case 'nba':
         case 'basketball_nba':
           return await searchNBAPlayer(playerName)
+        case 'nfl':
+        case 'americanfootball_nfl':
+          return await searchNFLPlayer(playerName)
         default:
           return null
       }
@@ -653,6 +1095,9 @@ export async function getRoster(sport: string, teamAbbr?: string): Promise<Roste
     case 'nba':
     case 'basketball_nba':
       return getNBARoster(teamAbbr)
+    case 'nfl':
+    case 'americanfootball_nfl':
+      return getNFLRoster(teamAbbr)
     default:
       return []
   }

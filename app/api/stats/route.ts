@@ -6,6 +6,8 @@ import {
   formatStatsForAI,
   searchPlayer,
   getRoster,
+  getNBAPlayerSeasonStats,
+  getNFLPlayerSeasonStats,
   TeamStats,
   InjuryReport,
   RosterPlayer
@@ -17,7 +19,7 @@ export const runtime = 'nodejs'
 /**
  * GET /api/stats
  * Query parameters:
- * - type: 'team' | 'injuries' | 'all-injuries' | 'player' | 'roster' | 'recent_form' | 'home_away' | 'head_to_head'
+ * - type: 'team' | 'injuries' | 'all-injuries' | 'player' | 'player-season' | 'roster' | 'recent_form' | 'home_away' | 'head_to_head'
  * - sport: 'nba' | 'nfl' | 'mlb' | 'nhl'
  * - team: optional team identifier (abbreviation or ID)
  * - player: player name to search (for type=player)
@@ -71,6 +73,29 @@ export async function GET(req: NextRequest) {
         }
         result = await searchPlayer(player, sport)
         break
+
+      case 'player-season': {
+        if (!player) {
+          return NextResponse.json(
+            { error: 'Player name required for player-season query' },
+            { status: 400 }
+          )
+        }
+        if (['nba', 'basketball_nba'].includes(sport.toLowerCase())) {
+          result = await getNBAPlayerSeasonStats(player)
+        } else if (['nfl', 'americanfootball_nfl'].includes(sport.toLowerCase())) {
+          result = await getNFLPlayerSeasonStats(player)
+        } else {
+          return NextResponse.json(
+            { error: `player-season not supported for sport ${sport}` },
+            { status: 400 }
+          )
+        }
+        if (!result) {
+          return NextResponse.json({ error: 'Player season stats not found' }, { status: 404 })
+        }
+        break
+      }
 
       case 'roster':
         result = await getRoster(sport, team)

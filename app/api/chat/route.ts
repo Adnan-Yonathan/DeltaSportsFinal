@@ -2185,6 +2185,12 @@ ${statsEnrichment}
     let initialResponse = await openai.chat.completions.create(buildParams())
     let toolCalls = initialResponse.choices[0].message.tool_calls || []
 
+    const withTimeout = <T>(p: Promise<T>, ms = 8000) =>
+      Promise.race<T>([
+        p,
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error('tool timeout')), ms)) as Promise<T>,
+      ])
+
     const runToolCall = async (toolCall: any) => {
       const functionName = toolCall.function.name
       const functionArgs = JSON.parse(toolCall.function.arguments || '{}')
@@ -2221,18 +2227,12 @@ ${statsEnrichment}
         functionResult = await logMultipleBets(supabase, userId, functionArgs.bets, conversationId)
       } else if (functionName === 'get_stats') {
         // Fetch requested stats with optional advanced data for NBA/NFL
-        const timeout = <T>(p: Promise<T>, ms = 8000) =>
-          Promise.race<T>([
-            p,
-            new Promise<T>((_, reject) => setTimeout(() => reject(new Error('stats fetch timeout')), ms)) as Promise<T>,
-          ])
-
         if (functionArgs.type === 'team') {
           try {
             const [teamStats, injuries, advanced] = await Promise.all([
-              timeout(getTeamStats(functionArgs.sport, functionArgs.team)),
-              timeout(getInjuryReports(functionArgs.sport)),
-              timeout(
+              withTimeout(getTeamStats(functionArgs.sport, functionArgs.team)),
+              withTimeout(getInjuryReports(functionArgs.sport)),
+              withTimeout(
                 (functionArgs.sport || '').toLowerCase().includes('basketball')
                   ? getNBAAdvancedTeamStats()
                   : (functionArgs.sport || '').toLowerCase().includes('football')
@@ -2290,12 +2290,12 @@ ${statsEnrichment}
           }
         } else if (functionArgs.type === 'injuries') {
           try {
-            const injuries = await timeout(getInjuryReports(functionArgs.sport))
-            functionResult = {
-              success: true,
-              data: injuries,
-              formatted: formatStatsForAI(injuries),
-            }
+          const injuries = await withTimeout(getInjuryReports(functionArgs.sport))
+          functionResult = {
+            success: true,
+            data: injuries,
+            formatted: formatStatsForAI(injuries),
+          }
           } catch (err: any) {
             functionResult = { success: false, error: err?.message || 'Failed to fetch injuries' }
           }
@@ -2664,16 +2664,23 @@ ${statsEnrichment}
         }
       } else if (functionName === 'get_game_context') {
         try {
-          functionResult = await buildGameContext({
-            sport: functionArgs.sport,
-            homeTeam: functionArgs.home_team,
-            awayTeam: functionArgs.away_team,
-            includeMarketTrends:
-              functionArgs.include_market_trends === undefined
-                ? true
-                : Boolean(functionArgs.include_market_trends),
-            supabase,
-          })
+          const ctx = await withTimeout(
+            buildGameContext({
+              sport: functionArgs.sport,
+              homeTeam: functionArgs.home_team,
+              awayTeam: functionArgs.away_team,
+              includeMarketTrends:
+                functionArgs.include_market_trends === undefined
+                  ? true
+                  : Boolean(functionArgs.include_market_trends),
+              supabase,
+            }),
+            12000
+          )
+          functionResult = {
+            success: true,
+            data: ctx,
+          }
         } catch (error: any) {
           functionResult = {
             success: false,

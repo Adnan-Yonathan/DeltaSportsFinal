@@ -53,7 +53,7 @@ const badgeStyles = cn(
 )
 
 export function PricingSection({ tiers, className }: PricingSectionProps) {
-  const [isYearly, setIsYearly] = useState(false)
+  const [isYearly, setIsYearly] = useState(true)
 
   return (
     <section
@@ -73,13 +73,13 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
             Simple, transparent pricing
           </h2>
           <div className="inline-flex items-center p-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur">
-            {(["Monthly", "Yearly"] as const).map((period) => (
+            {(["Monthly", "Annual"] as const).map((period) => (
               <button
                 key={period}
-                onClick={() => setIsYearly(period === "Yearly")}
+                onClick={() => setIsYearly(period === "Annual")}
                 className={cn(
                   "px-8 py-2.5 text-sm font-medium rounded-full transition-all duration-300",
-                  (period === "Yearly") === isYearly
+                  (period === "Annual") === isYearly
                     ? "bg-white text-black shadow-lg"
                     : "text-white/70 hover:text-white",
                 )}
@@ -124,7 +124,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                       ${isYearly ? tier.price.yearly : tier.price.monthly}
                     </span>
                     <span className="text-sm text-white/60">
-                      /{isYearly ? "year" : "month"}
+                      /month{isYearly ? " (billed annually)" : ""}
                     </span>
                   </div>
                   <p className="mt-2 text-sm text-white/70">{tier.description}</p>

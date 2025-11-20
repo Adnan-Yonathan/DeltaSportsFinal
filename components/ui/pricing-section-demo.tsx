@@ -8,7 +8,7 @@ const defaultTiers: PricingTier[] = [
     name: "Pro",
     price: {
       monthly: 29,
-      yearly: 174,
+      yearly: 15, // annual price per month (50% off)
     },
     description: "Unlimited bankroll tracking plus live scores and odds.",
     highlight: true,
@@ -45,7 +45,7 @@ const defaultTiers: PricingTier[] = [
     name: "Unlimited",
     price: {
       monthly: 199,
-      yearly: 1194,
+      yearly: 99, // annual price per month (50% off)
     },
     description: "Unlimited messaging plus custom statistical modeling.",
     icon: (

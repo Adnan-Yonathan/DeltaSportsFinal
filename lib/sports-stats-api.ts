@@ -330,9 +330,15 @@ const fetchNBAPlayerAdvancedStats = async (playerId: string, seasonLabel: string
   }
 }
 
-const fetchESPNNBAPlayerStats = async (
-  espnId: string
-): Promise<{ ppg: number | null; rpg: number | null; apg: number | null; fgPct: number | null; seasonLabel: string }> => {
+type ESPNPlayerSummary = {
+  ppg: number | null
+  rpg: number | null
+  apg: number | null
+  fgPct: number | null
+  seasonLabel: string
+}
+
+const fetchESPNNBAPlayerStats = async (espnId: string): Promise<ESPNPlayerSummary | null> => {
   const url = `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${espnId}?region=us&lang=en`
   try {
     const res = await fetch(url, { cache: 'no-store' })

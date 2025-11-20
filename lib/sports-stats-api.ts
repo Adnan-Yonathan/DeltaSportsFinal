@@ -64,6 +64,8 @@ const NBA_API_HEADERS = {
   'x-nba-stats-token': 'true',
 }
 
+const NBA_FETCH_TIMEOUT_MS = 8000
+
 const NFL_PLAYER_STATS_BASE =
   'https://github.com/nflverse/nflverse-data/releases/download/player_stats'
 
@@ -89,8 +91,22 @@ const getCurrentNFLSeasonYear = () => {
   return month >= 6 ? year : year - 1
 }
 
+const fetchWithTimeout = async (url: string, init: RequestInit = {}, timeoutMs = 10000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 const fetchNBAJson = async <T>(url: string): Promise<T> => {
-  const response = await fetch(url, { headers: NBA_API_HEADERS, cache: 'no-store' })
+  const response = await fetchWithTimeout(
+    url,
+    { headers: NBA_API_HEADERS, cache: 'no-store' },
+    NBA_FETCH_TIMEOUT_MS
+  )
   if (!response.ok) {
     throw new Error(`NBA stats request failed (${response.status})`)
   }
@@ -181,9 +197,14 @@ const findNBAPlayerId = async (playerName: string, seasonLabel: string): Promise
     return null
   }
 
-  const current = await tryFetch(true)
-  if (current) return current
-  return tryFetch(false)
+  try {
+    const current = await tryFetch(true)
+    if (current) return current
+    return await tryFetch(false)
+  } catch (error) {
+    console.error('Failed to resolve NBA player ID:', error)
+    return null
+  }
 }
 
 const fetchNBAPlayerBaseStats = async (playerId: string, seasonLabel: string) => {

@@ -101,16 +101,26 @@ const fetchWithTimeout = async (url: string, init: RequestInit = {}, timeoutMs =
   }
 }
 
-const fetchNBAJson = async <T>(url: string): Promise<T> => {
-  const response = await fetchWithTimeout(
-    url,
-    { headers: NBA_API_HEADERS, cache: 'no-store' },
-    NBA_FETCH_TIMEOUT_MS
-  )
-  if (!response.ok) {
-    throw new Error(`NBA stats request failed (${response.status})`)
+const fetchNBAJson = async <T>(url: string, attempt = 1): Promise<T> => {
+  const timeoutMs = attempt > 1 ? Math.floor(NBA_FETCH_TIMEOUT_MS * 1.5) : NBA_FETCH_TIMEOUT_MS
+  try {
+    const response = await fetchWithTimeout(
+      url,
+      { headers: NBA_API_HEADERS, cache: 'no-store' },
+      timeoutMs
+    )
+    if (!response.ok) {
+      throw new Error(`NBA stats request failed (${response.status})`)
+    }
+    return (await response.json()) as T
+  } catch (error: any) {
+    const isAbort = error?.name === 'AbortError'
+    if (isAbort && attempt < 2) {
+      console.warn(`NBA fetch aborted (attempt ${attempt}); retrying...`)
+      return fetchNBAJson<T>(url, attempt + 1)
+    }
+    throw error
   }
-  return (await response.json()) as T
 }
 
 interface NBAPlayerDirectoryEntry {

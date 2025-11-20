@@ -312,7 +312,9 @@ export async function getNFLPlayerSeasonStats(playerName: string): Promise<Playe
     const totalPlays = passAttempts + rushAttempts + targets
     const totalEPA = passingEPA + rushingEPA + receivingEPA
     stats.EPA_TOTAL = Number(totalEPA.toFixed(2))
-    stats.EPA_PER_PLAY = totalPlays > 0 ? Number((totalEPA / totalPlays).toFixed(3)) : null
+    if (totalPlays > 0) {
+      stats.EPA_PER_PLAY = Number((totalEPA / totalPlays).toFixed(3))
+    }
   }
 
   return {

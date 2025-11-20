@@ -145,27 +145,27 @@ export default function LiveScoresPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-10">
+      <div className="mx-auto w-full max-w-none px-4 sm:px-6 lg:px-12 py-8 space-y-12">
         <header className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                href="/"
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-white/80 hover:text-white hover:border-white/40 transition-colors"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Home
-              </Link>
-              <Link
-                href="/chat"
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-white/80 hover:text-white hover:border-white/40 transition-colors"
-              >
-                Back to Chat
-              </Link>
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-white/40">Live Center</p>
-                <h1 className="text-3xl font-bold">Real-time Scores</h1>
-              </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-white/80 hover:text-white hover:border-white/40 transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Home
+            </Link>
+            <Link
+              href="/chat"
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-white/80 hover:text-white hover:border-white/40 transition-colors"
+            >
+              Back to Chat
+            </Link>
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-white/40">Live Center</p>
+              <h1 className="text-3xl font-bold">Real-time Scores</h1>
             </div>
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 rounded-full border border-white/10 px-3 py-1.5 bg-white/5">
               <button
@@ -202,12 +202,12 @@ export default function LiveScoresPage() {
             </button>
             <div className="text-right">
               <p className="text-xs text-white/50">Updated</p>
-              <p className="text-sm font-medium text-white">{lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "—"}</p>
+              <p className="text-sm font-medium text-white">{lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "-"}</p>
             </div>
           </div>
         </header>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 sm:gap-3 mt-2 sm:mt-4">
           {LEAGUE_TABS.map((tab) => (
             <button
               key={tab.id}
@@ -283,7 +283,7 @@ export default function LiveScoresPage() {
                 {grouped.map(([leagueName, leagueGames]) => (
                   <div key={`${section.key}-${leagueName}`} className="space-y-4 pt-2">
                     <div className="text-sm font-semibold uppercase tracking-[0.3em] text-white/60">{leagueName}</div>
-                    <div className="grid grid-cols-2 gap-2 [@media(min-width:480px)]:grid-cols-3 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 sm:gap-3">
+                    <div className="grid grid-cols-2 gap-2 [@media(min-width:480px)]:grid-cols-3 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 sm:gap-4 lg:gap-5">
                       {leagueGames.map((game) => (
                         <article
                           key={`${section.key}-${game.id}`}
@@ -296,7 +296,7 @@ export default function LiveScoresPage() {
                               setSelectedGame(game)
                             }
                           }}
-                          className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-2 sm:p-3 shadow-md shadow-black/30 transition ring-offset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
+                          className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-2 sm:p-4 lg:p-5 shadow-md shadow-black/30 transition ring-offset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
                         >
                           <div className="flex items-center justify-between text-[11px] text-white/60">
                             <span className="uppercase tracking-[0.3em]">{game.leagueLabel}</span>

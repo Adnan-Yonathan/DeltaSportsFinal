@@ -245,8 +245,9 @@ export async function getNBAPlayerSeasonStats(playerName: string): Promise<Playe
     stats.USG_PERCENT = Number(((advancedStats.usgPct ?? 0) * 100).toFixed(1))
     stats.OFF_RATING = Number((advancedStats.ortg ?? 0).toFixed(1))
     stats.DEF_RATING = Number((advancedStats.drtg ?? 0).toFixed(1))
-    stats.PER =
-      advancedStats.pie != null ? Number((advancedStats.pie * 30).toFixed(1)) : undefined
+    if (advancedStats.pie != null) {
+      stats.PER = Number((advancedStats.pie * 30).toFixed(1))
+    }
   }
 
   return {

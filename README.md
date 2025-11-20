@@ -19,11 +19,20 @@ Delta AI is a Next.js 14 + Supabase application that blends a streaming OpenAI c
 
 ---
 
+## Recent Updates
+
+- Single-game odds replies now auto-include team insights from live scores (streak, last 10, PPG/PAPG, FG%/3P%, REB/AST/BLK/STL) with season snapshots as fallback.
+- NCAAB odds filtering tightened using live-slate matching to avoid cross-sport noise.
+- Pricing toggle defaults to Annual (50% off): Pro $15/mo billed annually, Unlimited $99/mo billed annually.
+- Live scores layout widened on desktop (four cards per row, larger cards, centered header/controls).
+
+---
+
 ## What It Does
 
 - **AI copilot & chat**: Supabase-authenticated chat at `/chat` with streaming GPT-4o responses, auto-titling, and function-calling tools for bets, parlays, bankroll stats, odds, player props, injuries, game context, and custom/research models. Voice input is supported via `/api/transcribe` (ElevenLabs).
 - **Bankroll + bet tracking**: Bet logging (single or batch), manual settlement, deposits/withdrawals, parlay creation, and daily bankroll snapshots. Auto-settlement checks ESPN live scores (`/api/bets/auto-settle`), while `/api/bankroll/stats` surfaces ROI, units, per-sport splits, CLV rollups, and live prop deltas. CLV recompute is available at `/api/bankroll/recalc-clv`.
-- **Odds + market data**: Odds-API.io client with best-price summaries (`/api/odds/best`), arbitrage scans (`/api/arbitrage` and `/api/odds/arbitrage`), game odds (`/api/odds/games`, `/api/odds/event`, `/api/odds/multi`, `/api/odds/updated`, `/api/odds/movements`), and bookmaker selection (`/api/bookmakers/select`). Line recorder/history/sharp-move endpoints track spreads/totals/moneylines for CLV and movement analysis. Player props are aggregated with best over/under books via `/api/player-props`. Schedules (`/api/events/*`), sports/leagues, injuries, live scores, and market trend snapshots (`/api/markets/trends`) ship alongside a probability/EV engine at `/api/probability`. A new `/live-scores` experience shows NBA/NFL/NHL/CFB/NCAAB games with real lineups, box scores, and player detail drawers, backed by an ESPN cache that also powers the landing hero “Live Scores” CTA.
+- **Odds + market data**: Odds-API.io client with best-price summaries (`/api/odds/best`), arbitrage scans (`/api/arbitrage` and `/api/odds/arbitrage`), game odds (`/api/odds/games`, `/api/odds/event`, `/api/odds/multi`, `/api/odds/updated`, `/api/odds/movements`), and bookmaker selection (`/api/bookmakers/select`). Line recorder/history/sharp-move endpoints track spreads/totals/moneylines for CLV and movement analysis. Player props are aggregated with best over/under books via `/api/player-props`. Schedules (`/api/events/*`), sports/leagues, injuries, live scores, and market trend snapshots (`/api/markets/trends`) ship alongside a probability/EV engine at `/api/probability`. A `/live-scores` experience shows NBA/NFL/NHL/CFB/NCAAB games with lineups, box scores, and player detail drawers; single-game odds replies embed the same team insight stats when available.
 - **Live data access for AI/models**: ESPN snapshots are cached via `npm run cache:live` and exposed through `/api/live-scores/cache` plus LLM-friendly endpoints under `/api/llm/live/*`. Helpers in `lib/live-data-service.ts` and tool descriptors in `lib/llm/tools/live-tools.ts` let the chat assistant or custom models fetch live scores, starters, player stats, and team snapshots on demand without touching the base prompt. Documentation in `docs/llm-live-data.md` / `docs/model-live-data.md` outlines how to plug these tools into the LLM runtime and prediction pipelines.
 - **Custom & research models**: `/models` lists saved models; `/models/new` builds prediction or research models with weighted stats, optional data hints, and file uploads (CSV/Excel/PDF/TXT via `/api/models/upload` stored in Supabase Storage). The model runner powers chat tools to save/list/apply models, and the research runner scans markets for user-defined opportunities.
 - **Onboarding & pricing flows**: Multi-step onboarding collects username, favorite sports, experience, risk tolerance, bankroll, unit size, feature interest, and subscription intent before unlocking chat. Auth pages and a pricing showcase live under `auth/` and `/pricing`.

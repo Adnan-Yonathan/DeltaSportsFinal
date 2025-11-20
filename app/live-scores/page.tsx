@@ -283,7 +283,7 @@ export default function LiveScoresPage() {
                 {grouped.map(([leagueName, leagueGames]) => (
                   <div key={`${section.key}-${leagueName}`} className="space-y-4 pt-2">
                     <div className="text-sm font-semibold uppercase tracking-[0.3em] text-white/60">{leagueName}</div>
-                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-2 [@media(min-width:480px)]:grid-cols-3 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 sm:gap-3">
                       {leagueGames.map((game) => (
                         <article
                           key={`${section.key}-${game.id}`}
@@ -296,7 +296,7 @@ export default function LiveScoresPage() {
                               setSelectedGame(game)
                             }
                           }}
-                          className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-3 shadow-md shadow-black/30 transition ring-offset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
+                          className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-2 sm:p-3 shadow-md shadow-black/30 transition ring-offset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
                         >
                           <div className="flex items-center justify-between text-[11px] text-white/60">
                             <span className="uppercase tracking-[0.3em]">{game.leagueLabel}</span>
@@ -311,8 +311,8 @@ export default function LiveScoresPage() {
 
                           <div className="mt-3 space-y-3">
                             {[...game.competitors].sort((a, b) => (a.homeAway === "home" ? 1 : -1)).map((team) => (
-                              <div key={team.id} className="flex items-center gap-2.5">
-                                <div className="relative h-9 w-9 overflow-hidden rounded-lg border border-white/10 bg-white/5">
+                              <div key={team.id} className="flex items-center gap-2">
+                                <div className="relative h-7 w-7 sm:h-9 sm:w-9 overflow-hidden rounded-lg border border-white/10 bg-white/5">
                                   {team.logo ? (
                                     <Image src={team.logo} alt={team.shortName} fill sizes="36px" className="object-contain p-1" />
                                   ) : (
@@ -323,19 +323,19 @@ export default function LiveScoresPage() {
                                 </div>
                                 <div className="flex flex-1 items-center justify-between">
                                   <div>
-                                    <p className="text-sm font-semibold leading-tight">{team.name}</p>
-                                    <p className="text-[11px] text-white/50">
+                                    <p className="text-xs sm:text-sm font-semibold leading-tight">{team.name}</p>
+                                    <p className="text-[10px] sm:text-[11px] text-white/50">
                                       {team.record ?? (team.homeAway === "home" ? "Home" : "Away")}
                                     </p>
                                   </div>
-                                  <p className="text-xl font-bold tabular-nums">{team.score}</p>
+                                  <p className="text-lg sm:text-xl font-bold tabular-nums">{team.score}</p>
                                 </div>
                               </div>
                             ))}
                           </div>
 
                           {game.situation?.description && (
-                            <p className="mt-3 text-[11px] text-white/60">{game.situation.description}</p>
+                            <p className="mt-2 sm:mt-3 text-[11px] text-white/60">{game.situation.description}</p>
                           )}
 
                           <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white/40">

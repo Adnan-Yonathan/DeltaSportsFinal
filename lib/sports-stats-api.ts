@@ -64,7 +64,7 @@ const NBA_API_HEADERS = {
   'x-nba-stats-token': 'true',
 }
 
-const NBA_FETCH_TIMEOUT_MS = 8000
+const NBA_FETCH_TIMEOUT_MS = 12000
 
 const NFL_PLAYER_STATS_BASE =
   'https://github.com/nflverse/nflverse-data/releases/download/player_stats'
@@ -168,8 +168,10 @@ const loadNBAPlayerDirectory = async (): Promise<NBAPlayerDirectoryEntry[]> => {
 
     nbaPlayerDirectoryCache = { season, timestamp: now, entries }
     return entries
-  } catch (error) {
-    console.error('Failed to load NBA player directory:', error)
+  } catch (error: any) {
+    const isAbort = error?.name === 'AbortError'
+    const label = isAbort ? 'NBA player directory request aborted (timeout)' : 'Failed to load NBA player directory'
+    ;(isAbort ? console.warn : console.error)(label + ':', error)
     return nbaPlayerDirectoryCache?.entries ?? []
   }
 }
@@ -201,8 +203,10 @@ const findNBAPlayerId = async (playerName: string, seasonLabel: string): Promise
     const current = await tryFetch(true)
     if (current) return current
     return await tryFetch(false)
-  } catch (error) {
-    console.error('Failed to resolve NBA player ID:', error)
+  } catch (error: any) {
+    const isAbort = error?.name === 'AbortError'
+    const label = isAbort ? 'NBA player ID lookup aborted (timeout)' : 'Failed to resolve NBA player ID'
+    ;(isAbort ? console.warn : console.error)(label + ':', error)
     return null
   }
 }

@@ -97,6 +97,67 @@ const fetchNBAJson = async <T>(url: string): Promise<T> => {
   return (await response.json()) as T
 }
 
+interface NBAPlayerDirectoryEntry {
+  id: string
+  name: string
+  teamId: string | null
+  teamName: string
+  teamAbbr: string | null
+}
+
+const NBA_PLAYER_DIRECTORY_TTL = 1000 * 60 * 30
+let nbaPlayerDirectoryCache:
+  | {
+      season: string
+      timestamp: number
+      entries: NBAPlayerDirectoryEntry[]
+    }
+  | null = null
+
+const loadNBAPlayerDirectory = async (): Promise<NBAPlayerDirectoryEntry[]> => {
+  const season = getCurrentNBASeasonLabel()
+  const now = Date.now()
+  if (nbaPlayerDirectoryCache && now - nbaPlayerDirectoryCache.timestamp < NBA_PLAYER_DIRECTORY_TTL) {
+    if (nbaPlayerDirectoryCache.season === season) {
+      return nbaPlayerDirectoryCache.entries
+    }
+  }
+
+  try {
+    const url = `https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=1&LeagueID=00&Season=${encodeURIComponent(
+      season
+    )}`
+    const data = await fetchNBAJson<any>(url)
+    const set = data?.resultSets?.[0]
+    const headers: string[] = set?.headers ?? []
+    const rows: any[][] = set?.rowSet ?? []
+    const idx = (field: string) => headers.indexOf(field)
+    const idxPersonId = idx('PERSON_ID')
+    const idxName = idx('DISPLAY_FIRST_LAST')
+    const idxTeamId = idx('TEAM_ID')
+    const idxTeamName = idx('TEAM_NAME')
+    const idxTeamAbbr = idx('TEAM_ABBREVIATION')
+
+    if (idxPersonId === -1 || idxName === -1) {
+      throw new Error('NBA player directory missing expected columns')
+    }
+
+    const entries: NBAPlayerDirectoryEntry[] = rows.map((row) => ({
+      id: String(row[idxPersonId]),
+      name: String(row[idxName] ?? ''),
+      teamId: idxTeamId !== -1 && row[idxTeamId] != null ? String(row[idxTeamId]) : null,
+      teamName: idxTeamName !== -1 ? String(row[idxTeamName] ?? '') : '',
+      teamAbbr: idxTeamAbbr !== -1 && row[idxTeamAbbr] ? String(row[idxTeamAbbr]) : null,
+    }))
+
+    nbaPlayerDirectoryCache = { season, timestamp: now, entries }
+    return entries
+  } catch (error) {
+    console.error('Failed to load NBA player directory:', error)
+    return nbaPlayerDirectoryCache?.entries ?? []
+  }
+}
+
 const findNBAPlayerId = async (playerName: string, seasonLabel: string): Promise<string | null> => {
   const tryFetch = async (currentOnly: boolean) => {
     const url =
@@ -669,24 +730,33 @@ export async function getNBARoster(teamAbbr?: string): Promise<RosterPlayer[]> {
 
 export async function searchNBAPlayer(playerName: string): Promise<RosterPlayer | null> {
   try {
-    const allPlayers = await getNBARoster()
-    const searchLower = playerName.toLowerCase()
+    const directory = await loadNBAPlayerDirectory()
+    const normalized = normalizeName(playerName)
 
-    // Try exact match first
-    let found = allPlayers.find(p =>
-      p.fullName.toLowerCase() === searchLower ||
-      p.name.toLowerCase() === searchLower
-    )
+    const dirMatch =
+      directory.find((entry) => normalizeName(entry.name) === normalized) ||
+      directory.find((entry) => normalizeName(entry.name).includes(normalized))
 
-    // Try partial match if no exact match
-    if (!found) {
-      found = allPlayers.find(p =>
-        p.fullName.toLowerCase().includes(searchLower) ||
-        p.name.toLowerCase().includes(searchLower)
-      )
+    if (dirMatch && dirMatch.teamAbbr) {
+      const teamPlayers = await getNBARoster(dirMatch.teamAbbr)
+      const exactMatch =
+        teamPlayers.find((player) => normalizeName(player.fullName) === normalized) ||
+        teamPlayers.find((player) => normalizeName(player.name).includes(normalized))
+      if (exactMatch) {
+        return exactMatch
+      }
     }
 
-    return found || null
+    const allPlayers = await getNBARoster()
+    return (
+      allPlayers.find(
+        (p) => normalizeName(p.fullName) === normalized || normalizeName(p.name) === normalized
+      ) ||
+      allPlayers.find(
+        (p) => normalizeName(p.fullName).includes(normalized) || normalizeName(p.name).includes(normalized)
+      ) ||
+      null
+    )
   } catch (error) {
     console.error('Error searching for NBA player:', error)
     return null

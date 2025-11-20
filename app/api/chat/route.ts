@@ -4,7 +4,15 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
 import type { OddsGame } from '@/lib/types/odds'
 import { enrichGamesWithStats, formatEnrichedGamesForAI } from '@/lib/stats-enrichment'
-import { getTeamStats, getInjuryReports, getNBAAdvancedTeamStats, getNFLAdvancedTeamStats, formatStatsForAI } from '@/lib/sports-stats-api'
+import {
+  getTeamStats,
+  getInjuryReports,
+  getNBAAdvancedTeamStats,
+  getNFLAdvancedTeamStats,
+  formatStatsForAI,
+  getNBAPlayerSeasonStats,
+  getNFLPlayerSeasonStats,
+} from '@/lib/sports-stats-api'
 import { fetchESPNScores, fetchESPNScoresForDate } from '@/lib/espn-api'
 import { fetchEventsIO } from '@/lib/api/odds-api'
 import { listCustomModels, saveCustomModel, touchCustomModelUsage, CustomModelRow } from '@/lib/models/custom-models'
@@ -798,6 +806,21 @@ const ASSISTANT_TOOLS: ChatCompletionTool[] = [
           team: { type: 'string', description: 'Optional team name or abbreviation to filter results' },
         },
         required: ['type', 'sport'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_player_season_stats',
+      description: 'Fetch season averages for a player in NBA or NFL. Use this when users ask for player season stats like points per game or passing yards.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sport: { type: 'string', enum: ['nba', 'basketball_nba', 'nfl', 'americanfootball_nfl'], description: 'Sport for the player.' },
+          player: { type: 'string', description: 'Player full name to search (e.g., "Stephen Curry").' },
+        },
+        required: ['sport', 'player'],
       },
     },
   },
@@ -2276,6 +2299,39 @@ ${statsEnrichment}
           } catch (err: any) {
             functionResult = { success: false, error: err?.message || 'Failed to fetch injuries' }
           }
+        } else {
+          functionResult = {
+            success: false,
+            error: `Unsupported stats type: ${functionArgs.type || 'unknown'}`,
+          }
+        }
+      } else if (functionName === 'get_player_season_stats') {
+        try {
+          const sportKey = (functionArgs.sport || '').toString().toLowerCase()
+          const playerName = (functionArgs.player || '').toString().trim()
+          if (!playerName) {
+            functionResult = { success: false, error: 'Player name is required' }
+          } else if (['nba', 'basketball_nba'].includes(sportKey)) {
+            const data = await getNBAPlayerSeasonStats(playerName)
+            functionResult = data
+              ? { success: true, data, formatted: formatStatsForAI([data]) }
+              : { success: false, error: 'Player season stats not found' }
+          } else if (['nfl', 'americanfootball_nfl'].includes(sportKey)) {
+            const data = await getNFLPlayerSeasonStats(playerName)
+            functionResult = data
+              ? { success: true, data, formatted: formatStatsForAI([data]) }
+              : { success: false, error: 'Player season stats not found' }
+          } else {
+            functionResult = {
+              success: false,
+              error: `player-season not supported for sport ${functionArgs.sport}`,
+            }
+          }
+        } catch (err: any) {
+          functionResult = {
+            success: false,
+            error: err?.message || 'Failed to fetch player season stats',
+          }
         }
       } else if (functionName === 'create_parlay') {
         try {
@@ -3007,9 +3063,16 @@ ${statsEnrichment}
           toolCalls = []
         }
 
+        const serializedResult =
+          typeof functionResult === 'string'
+            ? functionResult
+            : JSON.stringify(
+                functionResult ?? { success: false, error: 'Tool returned no result' }
+              ) || '{"success":false,"error":"Tool returned no result"}'
+
         openaiMessages.push({
           role: 'tool',
-          content: JSON.stringify(functionResult),
+          content: serializedResult,
           tool_call_id: toolCall.id,
         } as any)
       }

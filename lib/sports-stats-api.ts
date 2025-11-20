@@ -997,14 +997,16 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
             (candidate) => normalizeName(candidate.team) === normalizeName(teamEntry.team)
           )
           if (adv) {
+            const extras: Record<string, number> = {}
+            if (adv.pace != null) extras.pace = adv.pace
+            if (adv.oRating != null) extras.offensiveRating = adv.oRating
+            if (adv.dRating != null) extras.defensiveRating = adv.dRating
+            if (adv.netRating != null) extras.netRating = adv.netRating
+            if (adv.tsPct != null) extras.trueShootingPct = adv.tsPct
+            if (adv.turnoverPct != null) extras.turnoverPct = adv.turnoverPct
             teamEntry.stats = {
               ...teamEntry.stats,
-              pace: adv.pace,
-              offensiveRating: adv.oRating,
-              defensiveRating: adv.dRating,
-              netRating: adv.netRating,
-              trueShootingPct: adv.tsPct,
-              turnoverPct: adv.turnoverPct,
+              ...extras,
             }
           }
           return teamEntry
@@ -1022,12 +1024,14 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
             (candidate) => normalizeName(candidate.team) === normalizeName(teamEntry.team)
           )
           if (adv) {
+            const extras: Record<string, number> = {}
+            if (adv.epaPerPlay != null) extras.epaPerPlay = adv.epaPerPlay
+            if (adv.successRate != null) extras.successRate = adv.successRate
+            if (adv.passRate != null) extras.passRate = adv.passRate
+            if (adv.rushRate != null) extras.rushRate = adv.rushRate
             teamEntry.stats = {
               ...teamEntry.stats,
-              epaPerPlay: adv.epaPerPlay,
-              successRate: adv.successRate,
-              passRate: adv.passRate,
-              rushRate: adv.rushRate,
+              ...extras,
             }
           }
           return teamEntry

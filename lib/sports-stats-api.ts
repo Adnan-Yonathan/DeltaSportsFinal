@@ -188,8 +188,13 @@ const loadNBAPlayerDirectory = async (): Promise<NBAPlayerDirectoryEntry[]> => {
     return entries
   } catch (error: any) {
     const isAbort = error?.name === 'AbortError'
-    const label = isAbort ? 'NBA player directory request aborted (timeout)' : 'Failed to load NBA player directory'
-    ;(isAbort ? console.warn : console.error)(label + ':', error)
+    const isBlocked = typeof error?.message === 'string' && error.message.includes('temporarily unavailable')
+    const label = isAbort
+      ? 'NBA player directory request aborted (timeout)'
+      : isBlocked
+      ? 'NBA player directory skipped (temporary block)'
+      : 'Failed to load NBA player directory'
+    ;(isAbort || isBlocked ? console.warn : console.error)(label + ':', error)
     return nbaPlayerDirectoryCache?.entries ?? []
   }
 }

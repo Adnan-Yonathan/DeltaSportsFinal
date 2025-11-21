@@ -19,7 +19,7 @@ const PLANS = [
     description: "Perfect for serious bettors",
     features: [
       "Unlimited bankroll tracking",
-      "25 AI messages per day",
+      "100 AI messages per week",
       "Live score tracking",
       "Live odds from 10+ books",
       "CLV tracking",

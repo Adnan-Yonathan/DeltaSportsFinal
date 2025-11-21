@@ -168,8 +168,9 @@ let nbaRosterCache: { timestamp: number; roster: RosterPlayer[] } | null = null
 
 const loadNBAPlayerDirectory = async (): Promise<NBAPlayerDirectoryEntry[]> => {
   // stats.nba.com calls are disabled; rely on ESPN roster data via getNBARoster
-  if (nbaPlayerDirectoryCache?.entries?.length) {
-    return nbaPlayerDirectoryCache.entries
+  const cache = nbaPlayerDirectoryCache
+  if (cache && Array.isArray(cache.entries) && cache.entries.length) {
+    return cache.entries
   }
   return []
 }

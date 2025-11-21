@@ -102,6 +102,7 @@ export interface LiveScoreGame {
   broadcast?: string | null
   odds?: string | null
   competitors: LiveScoreCompetitor[]
+  articles?: LiveScoreArticle[]
 }
 
 export interface LiveScoresResponse {
@@ -144,6 +145,30 @@ export interface GameDetailsTeam {
   bench: GamePlayerSummary[]
 }
 
+export interface LiveScoreArticle {
+  type: "pregame" | "postgame"
+  title: string
+  url: string
+  published: string
+  image?: string
+}
+
+export interface PlayByPlayEntry {
+  id: string
+  period?: number
+  clock?: string
+  text: string
+  homeScore?: number
+  awayScore?: number
+  teamId?: string
+}
+
+export interface WinProbabilitySnapshot {
+  home: number
+  away: number
+  updatedAt?: string
+}
+
 export interface LiveScoreGameDetails {
   eventId: string
   league: LeagueId
@@ -152,6 +177,9 @@ export interface LiveScoreGameDetails {
   statusText?: string
   venue?: string
   teams: GameDetailsTeam[]
+  articles?: LiveScoreArticle[]
+  plays?: PlayByPlayEntry[]
+  winProbability?: WinProbabilitySnapshot
 }
 
 interface FetchLeagueOptions {
@@ -199,6 +227,128 @@ const determineBucket = (state?: string): ScoreBucket => {
   if (normalized === "in" || normalized === "mid" || normalized === "halftime") return "live"
   if (normalized === "post" || normalized === "final") return "completed"
   return "upcoming"
+}
+
+const ARTICLE_CACHE_TTL_MS = 10 * 60 * 1000
+const MAX_ARTICLE_FETCHES = 50
+const articlesCache = new Map<
+  string,
+  {
+    timestamp: number
+    data: LiveScoreArticle[]
+  }
+>()
+
+const parsePublished = (entry: any): string | null => {
+  const raw = entry?.published || entry?.publishedDate || entry?.date
+  if (!raw) return null
+  const ts = Date.parse(raw)
+  return Number.isNaN(ts) ? null : new Date(ts).toISOString()
+}
+
+const pickArticles = (
+  items: any[],
+  startTime?: string,
+  isCompleted?: boolean
+): LiveScoreArticle[] => {
+  const startMs = startTime ? Date.parse(startTime) : NaN
+  const isStarted = Number.isFinite(startMs) ? Date.now() >= startMs : false
+  if (isCompleted || isStarted) return []
+
+  const pre: LiveScoreArticle[] = []
+
+  const addIfValid = (entry: any) => {
+    const title =
+      entry?.headline || entry?.title || entry?.name || entry?.description || "Article"
+    const url =
+      entry?.links?.web?.href ||
+      entry?.link ||
+      entry?.links?.api?.self?.href ||
+      entry?.links?.mobile?.href ||
+      ""
+    if (!title || !url) return
+    const published = parsePublished(entry) ?? new Date().toISOString()
+    const image =
+      entry?.images?.[0]?.url ||
+      entry?.images?.[0]?.href ||
+      entry?.image?.href ||
+      entry?.image?.url
+
+    const article: LiveScoreArticle = { type: "pregame", title, url, published, image }
+    pre.push(article)
+  }
+
+  items.forEach((item) => addIfValid(item))
+
+  const sortDesc = (arr: LiveScoreArticle[]) =>
+    arr.sort((a, b) => Date.parse(b.published) - Date.parse(a.published))
+
+  return pre.length ? [sortDesc(pre)[0]] : []
+}
+
+const extractMatchedTeams = (text: string, teamTokens: string[]): Set<string> => {
+  const lower = text.toLowerCase()
+  const matched = new Set<string>()
+  teamTokens.forEach((token) => {
+    const t = token.trim().toLowerCase()
+    if (t && lower.includes(t)) matched.add(t)
+  })
+  return matched
+}
+
+async function fetchArticlesForGame(
+  eventId: string,
+  league: { sport: string; league: string },
+  startTime?: string,
+  isCompleted?: boolean,
+  teamNames: string[] = []
+): Promise<LiveScoreArticle[]> {
+  if (!eventId) return []
+  if (isCompleted) return []
+  const cached = articlesCache.get(eventId)
+  const now = Date.now()
+  if (cached && now - cached.timestamp < ARTICLE_CACHE_TTL_MS) {
+    return cached.data
+  }
+
+  try {
+    const url = `${ESPN_BASE_URL}/${league.sport}/${league.league}/news?events=${eventId}&limit=8`
+    const res = await fetch(url, { next: { revalidate: 600 } })
+    if (!res.ok) throw new Error(`news ${res.status}`)
+    const data = await res.json()
+    const items: any[] = Array.isArray(data?.articles)
+      ? data.articles
+      : Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data?.news)
+          ? data.news
+          : []
+    const lowerTeams = teamNames.map((t) => t.toLowerCase())
+    const hasEventTag = (item: any) => {
+      const eventList = Array.isArray(item?.events) ? item.events : []
+      const eventStrings = eventList.map((e: any) => String(e?.id ?? e)).filter(Boolean)
+      const link = item?.link || item?.links?.web?.href || ""
+      return eventStrings.includes(eventId) || (typeof link === "string" && link.includes(eventId))
+    }
+
+    const filtered =
+      lowerTeams.length && items.length
+        ? items.filter((item) => {
+            const text = `${item?.headline || ""} ${item?.title || ""} ${item?.description || ""}`
+            const matched = extractMatchedTeams(text, lowerTeams)
+            if (hasEventTag(item)) return true
+            return matched.size >= 2 // require both sides to reduce cross-team bleed
+          })
+        : items
+
+    const picked = pickArticles(filtered.length ? filtered : items, startTime, isCompleted)
+    articlesCache.set(eventId, { timestamp: now, data: picked })
+    return picked
+  } catch (error) {
+    console.warn("[live-scores] article fetch failed", error)
+    articlesCache.set(eventId, { timestamp: now, data: [] })
+    return []
+  }
 }
 
 async function fetchLeagueScores(config: (typeof ESPN_LEAGUES)[number], options: FetchLeagueOptions): Promise<LiveScoreGame[]> {
@@ -365,6 +515,31 @@ export async function fetchAllLiveScores(options: FetchAllOptions = {}): Promise
     (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
   )
 
+  // Attach up to MAX_ARTICLE_FETCHES articles (1 pregame, 1 postgame) across the set
+  let fetchBudget = MAX_ARTICLE_FETCHES
+  for (let i = 0; i < games.length && fetchBudget > 0; i++) {
+    const game = games[i]
+    if (game.bucket !== "upcoming") continue
+    try {
+      const leagueConfig = getLeagueConfig(game.league)
+      const articles = await fetchArticlesForGame(
+        game.eventId,
+        leagueConfig,
+        game.startTime,
+        game.bucket === "completed",
+        game.competitors
+          ?.flatMap((c) => [c.name, c.shortName, c.abbreviation])
+          .filter(Boolean) || []
+      )
+      fetchBudget--
+      if (articles.length) {
+        games[i] = { ...game, articles }
+      }
+    } catch (error) {
+      console.warn("[live-scores] article enrichment failed", error)
+    }
+  }
+
   return {
     updatedAt: new Date().toISOString(),
     requestedDate,
@@ -399,6 +574,47 @@ export async function fetchGameDetails(league: LeagueId, eventId: string): Promi
   const competition = data?.header?.competitions?.[0]
 
   const playerSections = data?.boxscore?.players ?? []
+
+  const plays: PlayByPlayEntry[] = (() => {
+    const raw =
+      (Array.isArray((data as any)?.plays) && (data as any)?.plays) ||
+      (Array.isArray((data as any)?.pbp?.items) && (data as any)?.pbp?.items) ||
+      []
+    return raw
+      .map((p: any) => ({
+        id: String(p?.id ?? p?.sequenceNumber ?? `${Date.now()}-${Math.random()}`),
+        period: p?.period?.number ?? p?.period,
+        clock: p?.clock?.displayValue ?? p?.clock,
+        text: p?.text ?? p?.description ?? "",
+        homeScore: p?.homeScore,
+        awayScore: p?.awayScore,
+        teamId: p?.team?.id,
+      }))
+      .filter((p: PlayByPlayEntry) => p.text)
+  })()
+
+  const winProbability: WinProbabilitySnapshot | undefined = (() => {
+    const wpSeries =
+      (Array.isArray((data as any)?.winprobability) && (data as any)?.winprobability) ||
+      (Array.isArray((data as any)?.predictor?.items) && (data as any)?.predictor?.items) ||
+      []
+    const latest = wpSeries[wpSeries.length - 1]
+    if (!latest) return undefined
+    const homeProb =
+      typeof latest?.homeWinPercentage === "number"
+        ? latest.homeWinPercentage
+        : typeof latest?.homeWinProbability === "number"
+          ? latest.homeWinProbability
+          : typeof latest?.homeTeam?.probability === "number"
+            ? latest.homeTeam.probability
+            : undefined
+    if (homeProb == null) return undefined
+    return {
+      home: Math.max(0, Math.min(1, homeProb)),
+      away: 1 - Math.max(0, Math.min(1, homeProb)),
+      updatedAt: latest?.updated ?? latest?.time,
+    }
+  })()
 
   const teams: GameDetailsTeam[] =
     competition?.competitors?.map((comp: any) => {
@@ -440,6 +656,20 @@ export async function fetchGameDetails(league: LeagueId, eventId: string): Promi
     statusText: competition?.status?.type?.shortDetail ?? competition?.status?.type?.detail,
     venue: data?.gameInfo?.venue?.fullName ?? competition?.venue?.fullName,
     teams,
+    articles:
+      competition?.status?.type?.completed || competition?.status?.type?.state?.toLowerCase() === "in"
+        ? []
+        : await fetchArticlesForGame(
+            eventId,
+            config,
+            competition?.date,
+            competition?.status?.type?.completed,
+            competition?.competitors
+              ?.flatMap((c: any) => [c?.team?.displayName, c?.team?.shortDisplayName, c?.team?.abbreviation, c?.team?.name])
+              .filter(Boolean) || []
+          ),
+    plays,
+    winProbability,
   }
 }
 

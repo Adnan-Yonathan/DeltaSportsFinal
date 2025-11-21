@@ -78,6 +78,19 @@ function adjustDate(date: string, delta: number) {
   return parsed.toISOString().slice(0, 10)
 }
 
+function formatArticleTime(published?: string) {
+  if (!published) return ""
+  try {
+    const date = new Date(published)
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+    }).format(date)
+  } catch {
+    return ""
+  }
+}
+
 const groupByLeague = (games: LiveScoreGame[]) => {
   const map = new Map<string, LiveScoreGame[]>()
   games.forEach((game) => {
@@ -343,6 +356,38 @@ export default function LiveScoresPage() {
                             {game.broadcast && <span>- {game.broadcast}</span>}
                             {game.odds && <span>- {game.odds}</span>}
                           </div>
+
+                          {(game.articles && game.articles.length > 0) && (
+                            <div className="mt-3 border-t border-white/10 pt-2 space-y-1.5 text-[11px]">
+                              {(["pregame", "postgame"] as const).map((kind) => {
+                                const article = game.articles?.find((a) => a.type === kind)
+                                if (!article) return null
+                                return (
+                                  <div key={kind} className="flex items-start gap-2">
+                                    <span className="uppercase tracking-[0.2em] text-white/40 min-w-[68px]">
+                                      {kind === "pregame" ? "Pregame" : "Postgame"}
+                                    </span>
+                                    <div className="flex-1 leading-snug">
+                                      <a
+                                        className="text-white/80 hover:text-white underline decoration-white/30 decoration-dotted"
+                                        href={article.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        {article.title}
+                                      </a>
+                                      {article.published && (
+                                        <span className="ml-2 text-white/40">
+                                          {formatArticleTime(article.published)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
                         </article>
                       ))}
                     </div>
@@ -356,6 +401,7 @@ export default function LiveScoresPage() {
       {selectedGame && (
         <GameDetailsModal game={selectedGame} onClose={() => setSelectedGame(null)} detailsState={detailsState} />
       )}
+
     </div>
   )
 }
@@ -394,6 +440,21 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
             <h3 className="text-2xl font-bold text-white">{game.shortName}</h3>
             <p className="text-sm text-white/60">{data?.statusText || "Details"}</p>
           </div>
+          {data?.winProbability && (
+            <div className="flex flex-col items-end text-sm text-white/80">
+              <span className="text-xs uppercase tracking-[0.25em] text-white/50">Win Probability</span>
+              <div className="mt-1 flex items-center gap-2 text-base font-semibold">
+                <span>{Math.round(data.winProbability.home * 100)}% Home</span>
+                <div className="h-2 w-28 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-400"
+                    style={{ width: `${Math.round(data.winProbability.home * 100)}%` }}
+                  />
+                </div>
+                <span>{Math.round(data.winProbability.away * 100)}% Away</span>
+              </div>
+            </div>
+          )}
           <button
             onClick={onClose}
             className="rounded-full border border-white/10 p-2 text-white/60 hover:text-white hover:border-white/40 transition"
@@ -526,7 +587,9 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
                             </button>
                           ))
                         ) : (
-                          <p className="text-xs text-white/50">Lineup data unavailable.</p>
+                          <div className="rounded-xl border border-white/5 bg-black/30 px-3 py-2 text-xs text-white/60">
+                            Starting lineups populate closer to game time.
+                          </div>
                         )}
                       </div>
                       <div className="pt-2">
@@ -569,6 +632,49 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
                   ))}
                 </div>
               </section>
+
+              {data?.plays && data.plays.length > 0 && (
+                <section className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold uppercase tracking-[0.3em] text-white/70">Play by Play</h4>
+                    <span className="text-xs text-white/50">Latest {Math.min(data.plays.length, 30)} plays</span>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto space-y-2">
+                    {Object.entries(
+                      data.plays
+                        .slice(-30)
+                        .reduce((acc: Record<string, typeof data.plays>, play) => {
+                          const key = play.period != null ? `P${play.period}` : "Plays"
+                          acc[key] = acc[key] || []
+                          acc[key].push(play)
+                          return acc
+                        }, {})
+                    ).map(([periodKey, plays]) => (
+                      <div key={periodKey} className="space-y-1">
+                        <p className="text-[11px] uppercase tracking-[0.25em] text-white/50">{periodKey}</p>
+                        <div className="space-y-1.5">
+                          {plays
+                            .slice()
+                            .reverse()
+                            .map((play) => (
+                              <div key={play.id} className="rounded-xl border border-white/5 bg-black/30 px-3 py-2 text-sm text-white/80">
+                                <div className="flex items-center justify-between text-[11px] text-white/50 mb-1">
+                                  <span>{play.clock || "—"}</span>
+                                  {(play.homeScore != null || play.awayScore != null) && (
+                                    <span className="font-semibold text-white/70">
+                                      {play.awayScore ?? "–"} - {play.homeScore ?? "–"}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="leading-snug">{play.text}</p>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
             </>
           ) : (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-white/60">No box score data available yet.</div>

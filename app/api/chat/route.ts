@@ -67,37 +67,11 @@ async function createDailySnapshot(supabase: any, userId: string, balance: numbe
 }
 
 // Helper function to auto-generate conversation title
-async function generateConversationTitle(userMessage: string, assistantResponse: string): Promise<string> {
-  try {
-    const titleModel = AI_MODELS.titleGen
-    console.log(`[TITLE] Using model: ${titleModel}`)
-    const titleTemp = titleModel.includes('gpt-5') ? undefined : 0.7
-
-    const completion = await openai.chat.completions.create({
-      model: titleModel,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Generate a short, descriptive title (3-5 words max) for this conversation. Focus on the main topic or action. Use buzzwords and be concise. Examples: "NBA Lakers vs Celtics", "Player Props Analysis", "Bankroll Strategy Tips", "NFL Week 10 Predictions".',
-        },
-        {
-          role: 'user',
-          content: `User: ${userMessage}\n\nAssistant: ${assistantResponse.substring(0, 500)}`,
-        },
-      ],
-      max_completion_tokens: 20,
-      temperature: titleTemp,
-    })
-
-    const text = completion.choices[0].message.content || ''
-    console.log(`[TITLE] Response length: ${text.length}`)
-
-    return text.trim() || 'New Chat'
-  } catch (error) {
-    console.error('Error generating title:', error)
-    return 'New Chat'
-  }
+async function generateConversationTitle(firstUserMessage: string): Promise<string> {
+  const cleaned = (firstUserMessage || '').replace(/\s+/g, ' ').trim()
+  if (!cleaned) return 'New Chat'
+  const maxLen = 50
+  return cleaned.length > maxLen ? `${cleaned.slice(0, maxLen).trimEnd()}…` : cleaned
 }
 
 // Helper function to log a bet
@@ -424,39 +398,48 @@ const SPORT_TO_LEAGUE: Record<string, LeagueId | undefined> = {
 
 const buildTeamInsightsFromDetails = (details: LiveScoreGameDetails) => {
   if (!details?.teams?.length) return null
-  const lines: string[] = []
+  const rows: string[] = []
+  const headers = [
+    'Team',
+    'Streak',
+    'Last 10',
+    'PPG',
+    'PAPG',
+    'FG%',
+    '3P%',
+    'REB',
+    'AST',
+    'BLK',
+    'STL',
+  ]
+  const pickVariant = (statMap: Record<string, string>, keys: string[]) => {
+    for (const key of keys) {
+      const direct = statMap[key.toLowerCase()]
+      if (direct) return direct
+    }
+    // fuzzy contains
+    const lowerKeys = Object.keys(statMap)
+    for (const target of keys) {
+      const normalized = target.toLowerCase()
+      const matchKey = lowerKeys.find((k) => k.includes(normalized))
+      if (matchKey && statMap[matchKey]) return statMap[matchKey]
+    }
+    return 'n/a'
+  }
   details.teams.forEach((team) => {
     const statMap: Record<string, string> = {}
     ;(team.statistics || []).forEach((entry) => {
       if (!entry?.label || entry?.value == null) return
       statMap[entry.label.toLowerCase()] = String(entry.value)
     })
-    const pick = (key: string) => statMap[key.toLowerCase()]
-    const preferredOrder = [
-      ['Streak', pick('streak')],
-      ['Last 10', pick('last 10 games')],
-      ['Points Per Game', pick('points per game')],
-      ['Points Against', pick('points against')],
-      ['Field Goal %', pick('field goal %')],
-      ['Three Point %', pick('three point %')],
-      ['Rebounds Per Game', pick('rebounds per game')],
-      ['Assists Per Game', pick('assists per game')],
-      ['Blocks Per Game', pick('blocks per game')],
-      ['Steals Per Game', pick('steals per game')],
-    ]
-    const rendered = preferredOrder
-      .map(([label, val]) => (val ? `${label}: ${val}` : null))
-      .filter(Boolean) as string[]
-    const statsLine =
-      rendered.length > 0
-        ? rendered.join(' | ')
-        : (team.statistics || [])
-            .map((s) => `${s.label}: ${s.value}`)
-            .slice(0, 6)
-            .join(' | ') || 'No team stats available yet.'
-    lines.push(`- ${team.name}: ${statsLine}`)
+    const pick = (key: string) => statMap[key.toLowerCase()] || 'n/a'
+    const last10 = pickVariant(statMap, ['last 10 games', 'last 10', 'last ten', 'lastten', 'last10'])
+    rows.push(
+      `| ${team.name} | ${pick('streak')} | ${last10} | ${pick('points per game')} | ${pick('points against')} | ${pick('field goal %')} | ${pick('three point %')} | ${pick('rebounds per game')} | ${pick('assists per game')} | ${pick('blocks per game')} | ${pick('steals per game')} |`
+    )
   })
-  return lines.join('\n')
+  const header = `| ${headers.join(' | ')} |\n| ${headers.map(() => '---').join(' | ')} |`
+  return `${header}\n${rows.join('\n')}`
 }
 
 const buildTeamInsightsFromTeamStats = async (
@@ -473,7 +456,9 @@ const buildTeamInsightsFromTeamStats = async (
         return key.includes(norm(name)) || norm(name).includes(key)
       })
     const formatRow = (teamName: string, row?: ProviderTeamStats) => {
-      if (!row) return `- ${teamName}: No team stats available yet.`
+      if (!row) {
+        return `| ${teamName} | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |`
+      }
       const gamesRaw = row.stats?.gamesPlayed ?? row.stats?.games
       const games = Number(gamesRaw != null ? gamesRaw : (row.wins ?? 0) + (row.losses ?? 0))
       const pointsForRaw = row.stats?.pointsFor ?? row.stats?.points_scored ?? row.stats?.pointsForPerGame
@@ -482,36 +467,41 @@ const buildTeamInsightsFromTeamStats = async (
       const pointsAgainst = Number(pointsAgainstRaw ?? 0)
       const ppg = games > 0 && pointsFor > 0 ? (pointsFor / games).toFixed(1) : (pointsFor || 'n/a')
       const papg = games > 0 && pointsAgainst > 0 ? (pointsAgainst / games).toFixed(1) : (pointsAgainst || 'n/a')
-      const entries: Array<[string, string | number]> = [
-        ['Record', `${row.wins ?? '?'}-${row.losses ?? '?'}`],
-        ['Streak', row.stats?.streak ?? 'n/a'],
-        ['Points Per Game', ppg],
-        ['Points Against', papg],
-      ]
-      if (row.winPct != null) entries.push(['Win %', (row.winPct * 100).toFixed(1)])
       const fg = row.stats?.fieldGoalPct ?? row.stats?.fgPct
-      if (fg != null) entries.push(['Field Goal %', Number(fg).toFixed(1)])
+      const fgPct = fg != null ? Number(fg).toFixed(1) : 'n/a'
       const three = row.stats?.threePointPct ?? row.stats?.threePct
-      if (three != null) entries.push(['Three Point %', Number(three).toFixed(1)])
+      const threePct = three != null ? Number(three).toFixed(1) : 'n/a'
       const reb = row.stats?.reboundsPerGame ?? row.stats?.rpg
-      if (reb != null) entries.push(['Rebounds Per Game', Number(reb).toFixed(1)])
+      const rebVal = reb != null ? Number(reb).toFixed(1) : 'n/a'
       const ast = row.stats?.assistsPerGame ?? row.stats?.apg
-      if (ast != null) entries.push(['Assists Per Game', Number(ast).toFixed(1)])
+      const astVal = ast != null ? Number(ast).toFixed(1) : 'n/a'
       const blk = row.stats?.blocksPerGame ?? row.stats?.bpg
-      if (blk != null) entries.push(['Blocks Per Game', Number(blk).toFixed(1)])
+      const blkVal = blk != null ? Number(blk).toFixed(1) : 'n/a'
       const stl = row.stats?.stealsPerGame ?? row.stats?.spg
-      if (stl != null) entries.push(['Steals Per Game', Number(stl).toFixed(1)])
+      const stlVal = stl != null ? Number(stl).toFixed(1) : 'n/a'
 
-      const line = entries
-        .filter(([, val]) => val !== undefined && val !== null && val !== 'n/a' && val !== 'NaN')
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(' | ')
-      return `- ${teamName}: ${line || 'No team stats available yet.'}`
+      const last10 = row.stats?.lastTen ?? row.stats?.last10 ?? 'n/a'
+
+      return `| ${teamName} | ${row.stats?.streak ?? 'n/a'} | ${last10} | ${ppg} | ${papg} | ${fgPct} | ${threePct} | ${rebVal} | ${astVal} | ${blkVal} | ${stlVal} |`
     }
 
     const homeRow = formatRow(homeTeam, findTeam(homeTeam))
     const awayRow = formatRow(awayTeam, findTeam(awayTeam))
-    return [homeRow, awayRow].join('\n')
+    const headers = [
+      'Team',
+      'Streak',
+      'Last 10',
+      'PPG',
+      'PAPG',
+      'FG%',
+      '3P%',
+      'REB',
+      'AST',
+      'BLK',
+      'STL',
+    ]
+    const header = `| ${headers.join(' | ')} |\n| ${headers.map(() => '---').join(' | ')} |`
+    return [header, homeRow, awayRow].join('\n')
   } catch (error) {
     console.warn('[ODDS] provider team stats lookup failed', error)
     return null
@@ -2338,7 +2328,7 @@ export async function POST(req: NextRequest) {
               const sportKey = allOddsData[0].sport
               const liveInsights = await findLiveScoreDetailsForOddsGame(sportKey, baseGame, timezone)
               if (liveInsights) {
-                teamInsights = `\n**TEAM INSIGHTS (Live Scores):**\n${liveInsights}\n\nUse these stats as the advanced info for this matchup (streak, last 10, PPG/PAPG, FG%/3P%, REB/AST/BLK/STL).`
+                teamInsights = `\n**TEAM INSIGHTS:**\n${liveInsights}\n\nUse these stats as the advanced info for this matchup (streak, last 10, PPG/PAPG, FG%/3P%, REB/AST/BLK/STL).`
               }
               if (!teamInsights) {
                 const fallbackInsights = await buildTeamInsightsFromTeamStats(
@@ -3302,7 +3292,7 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
                 .eq('conversation_id', conversationId)
 
               if (messageCount === 2) {
-                const title = await generateConversationTitle(message, text)
+                const title = await generateConversationTitle(message)
                 await supabase
                   .from('conversations')
                   .update({ title })
@@ -3631,7 +3621,7 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
             .eq('conversation_id', conversationId)
 
           if (messageCount === 2) {
-          const title = await generateConversationTitle(message, fullResponse)
+            const title = await generateConversationTitle(message)
             await supabase
               .from('conversations')
               .update({ title })

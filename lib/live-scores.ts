@@ -1,4 +1,4 @@
-import { buildTeamTokenBucket, hasRelevantTeamMentions, normalizeTeamTokens } from "./live-score-articles"
+import { buildTeamTokenBucket, hasRelevantTeamMentions, isPreviewArticle, normalizeTeamTokens } from "./live-score-articles"
 
 const ESPN_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports"
 
@@ -332,13 +332,14 @@ async function fetchArticlesForGame(
     let filtered = items
     if (items.length && normalizedTokenBuckets.length >= 2) {
       filtered = items.filter((item) => {
+        if (!isPreviewArticle(item)) return false
         if (hasEventTag(item)) return true
         const text = `${item?.headline || ""} ${item?.title || ""} ${item?.description || ""}`
         return hasRelevantTeamMentions(text, normalizedTokenBuckets)
       })
     } else if (items.length) {
-      // If we don't have clean tokens for both teams, only trust ESPN event tagging
-      filtered = items.filter((item) => hasEventTag(item))
+      // If we don't have clean tokens for both teams, only trust ESPN event tagging and preview signal
+      filtered = items.filter((item) => isPreviewArticle(item) && hasEventTag(item))
     }
 
     const picked = pickArticles(filtered.length ? filtered : items, startTime, isCompleted)

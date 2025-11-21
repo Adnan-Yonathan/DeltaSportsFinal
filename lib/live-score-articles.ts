@@ -51,3 +51,20 @@ export const buildTeamTokenBucket = (team?: Partial<{ name?: string; shortName?:
   ]
   return tokens.filter(Boolean) as string[]
 }
+
+export const isPreviewArticle = (item: any): boolean => {
+  const typeFields = [
+    item?.type,
+    item?.subType,
+    item?.articleType,
+    item?.articleType?.type,
+    item?.category,
+  ]
+    .map((t) => (typeof t === "string" ? t.toLowerCase() : ""))
+    .filter(Boolean)
+  if (typeFields.some((t) => t.includes("preview"))) return true
+
+  const text = `${item?.headline || ""} ${item?.title || ""} ${item?.description || ""}`.toLowerCase()
+  const previewSignals = ["preview", "matchup", "odds", "prediction", "how to watch", "vs.", " vs ", " at "]
+  return previewSignals.some((signal) => text.includes(signal))
+}

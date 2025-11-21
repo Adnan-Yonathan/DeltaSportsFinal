@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { hasRelevantTeamMentions } from '../lib/live-score-articles'
+import { hasRelevantTeamMentions, isPreviewArticle } from '../lib/live-score-articles'
 
 const lakersVsCeltics = [
   ['Los Angeles Lakers', 'Lakers', 'LA Lakers', 'LAL'],
@@ -35,6 +35,16 @@ assert.ok(
     ['Duke'],
   ]),
   'Should drop generic stopwords like "state"'
+)
+
+assert.ok(
+  isPreviewArticle({ headline: 'Celtics vs Lakers: Game preview and odds' }),
+  'Should accept common preview phrasing'
+)
+
+assert.ok(
+  !isPreviewArticle({ headline: 'Lamelo Ball ankle update for Saturday' }),
+  'Should reject injury blurbs without preview signals'
 )
 
 console.log('live-scores article relevance tests passed')

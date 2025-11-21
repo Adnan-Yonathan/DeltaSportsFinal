@@ -1,3 +1,5 @@
+import { buildTeamTokenBucket, hasRelevantTeamMentions, normalizeTeamTokens } from "./live-score-articles"
+
 const ESPN_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports"
 
 export const ESPN_LEAGUES = [
@@ -187,6 +189,8 @@ interface FetchLeagueOptions {
   mode: "primary" | "completed"
 }
 
+type NextFetchInit = RequestInit & { next?: { revalidate?: number } }
+
 const DAY_MS = 24 * 60 * 60 * 1000
 
 const getLeagueConfig = (id: LeagueId) => {
@@ -287,22 +291,12 @@ const pickArticles = (
   return pre.length ? [sortDesc(pre)[0]] : []
 }
 
-const extractMatchedTeams = (text: string, teamTokens: string[]): Set<string> => {
-  const lower = text.toLowerCase()
-  const matched = new Set<string>()
-  teamTokens.forEach((token) => {
-    const t = token.trim().toLowerCase()
-    if (t && lower.includes(t)) matched.add(t)
-  })
-  return matched
-}
-
 async function fetchArticlesForGame(
   eventId: string,
   league: { sport: string; league: string },
   startTime?: string,
   isCompleted?: boolean,
-  teamNames: string[] = []
+  teamTokenBuckets: string[][] = []
 ): Promise<LiveScoreArticle[]> {
   if (!eventId) return []
   if (isCompleted) return []
@@ -314,7 +308,7 @@ async function fetchArticlesForGame(
 
   try {
     const url = `${ESPN_BASE_URL}/${league.sport}/${league.league}/news?events=${eventId}&limit=8`
-    const res = await fetch(url, { next: { revalidate: 600 } })
+    const res = await fetch(url, { next: { revalidate: 600 } } as NextFetchInit)
     if (!res.ok) throw new Error(`news ${res.status}`)
     const data = await res.json()
     const items: any[] = Array.isArray(data?.articles)
@@ -324,7 +318,6 @@ async function fetchArticlesForGame(
         : Array.isArray(data?.news)
           ? data.news
           : []
-    const lowerTeams = teamNames.map((t) => t.toLowerCase())
     const hasEventTag = (item: any) => {
       const eventList = Array.isArray(item?.events) ? item.events : []
       const eventStrings = eventList.map((e: any) => String(e?.id ?? e)).filter(Boolean)
@@ -332,15 +325,20 @@ async function fetchArticlesForGame(
       return eventStrings.includes(eventId) || (typeof link === "string" && link.includes(eventId))
     }
 
-    const filtered =
-      lowerTeams.length && items.length
-        ? items.filter((item) => {
-            const text = `${item?.headline || ""} ${item?.title || ""} ${item?.description || ""}`
-            const matched = extractMatchedTeams(text, lowerTeams)
-            if (hasEventTag(item)) return true
-            return matched.size >= 2 // require both sides to reduce cross-team bleed
-          })
-        : items
+    const normalizedTokenBuckets = teamTokenBuckets
+      .map((bucket) => normalizeTeamTokens(bucket))
+      .filter((bucket) => bucket.length)
+
+    let filtered = items
+    if (items.length && normalizedTokenBuckets.length) {
+      filtered = items.filter((item) => {
+        if (hasEventTag(item)) return true
+        const text = `${item?.headline || ""} ${item?.title || ""} ${item?.description || ""}`
+        return hasRelevantTeamMentions(text, normalizedTokenBuckets)
+      })
+    } else if (items.length) {
+      filtered = items.filter((item) => hasEventTag(item))
+    }
 
     const picked = pickArticles(filtered.length ? filtered : items, startTime, isCompleted)
     articlesCache.set(eventId, { timestamp: now, data: picked })
@@ -365,7 +363,7 @@ async function fetchLeagueScores(config: (typeof ESPN_LEAGUES)[number], options:
   const url = `${ESPN_BASE_URL}/${config.sport}/${config.league}/scoreboard?${params.toString()}`
   const response = await fetch(url, {
     next: { revalidate: options.mode === "completed" ? 60 : 20 },
-  })
+  } as NextFetchInit)
 
   if (!response.ok) {
     throw new Error(`Failed to fetch ${config.label} scores`)
@@ -533,9 +531,7 @@ export async function fetchAllLiveScores(options: FetchAllOptions = {}): Promise
             leagueConfig,
             game.startTime,
             false,
-            game.competitors
-              ?.flatMap((c) => [c.name, c.shortName, c.abbreviation])
-              .filter(Boolean) || []
+            (game.competitors || []).map((c) => buildTeamTokenBucket(c))
           )
           if (articles.length) {
             games[index] = { ...game, articles }
@@ -571,7 +567,7 @@ export async function fetchGameDetails(league: LeagueId, eventId: string): Promi
   const url = `${ESPN_BASE_URL}/${config.sport}/${config.league}/summary?event=${eventId}`
   const response = await fetch(url, {
     next: { revalidate: 15 },
-  })
+  } as NextFetchInit)
 
   if (!response.ok) {
     throw new Error(`Unable to fetch summary for event ${eventId}`)
@@ -671,9 +667,13 @@ export async function fetchGameDetails(league: LeagueId, eventId: string): Promi
             config,
             competition?.date,
             competition?.status?.type?.completed,
-            competition?.competitors
-              ?.flatMap((c: any) => [c?.team?.displayName, c?.team?.shortDisplayName, c?.team?.abbreviation, c?.team?.name])
-              .filter(Boolean) || []
+            (competition?.competitors || []).map((c: any) =>
+              buildTeamTokenBucket({
+                name: c?.team?.displayName ?? c?.team?.name,
+                shortName: c?.team?.shortDisplayName ?? c?.team?.shortName,
+                abbreviation: c?.team?.abbreviation,
+              })
+            )
           ),
     plays,
     winProbability,

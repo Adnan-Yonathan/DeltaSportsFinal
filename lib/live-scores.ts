@@ -330,13 +330,14 @@ async function fetchArticlesForGame(
       .filter((bucket) => bucket.length)
 
     let filtered = items
-    if (items.length && normalizedTokenBuckets.length) {
+    if (items.length && normalizedTokenBuckets.length >= 2) {
       filtered = items.filter((item) => {
         if (hasEventTag(item)) return true
         const text = `${item?.headline || ""} ${item?.title || ""} ${item?.description || ""}`
         return hasRelevantTeamMentions(text, normalizedTokenBuckets)
       })
     } else if (items.length) {
+      // If we don't have clean tokens for both teams, only trust ESPN event tagging
       filtered = items.filter((item) => hasEventTag(item))
     }
 

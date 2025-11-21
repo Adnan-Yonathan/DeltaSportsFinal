@@ -18,10 +18,23 @@ assert.ok(
 
 assert.ok(
   !hasRelevantTeamMentions('LA edges out Boston on the road', [
-    ['LA'], // two-letter token should be ignored
+    ['LA'], // short token should be ignored
     ['Boston'],
   ]),
-  'Should ignore sub-3 character tokens and avoid false positives'
+  'Should ignore short tokens and avoid false positives'
+)
+
+assert.ok(
+  !hasRelevantTeamMentions('Bulls advance in tournament play', [['Chicago Bulls'], []]),
+  'Should require token buckets for both teams'
+)
+
+assert.ok(
+  !hasRelevantTeamMentions('State edges rival in close game', [
+    ['NC State', 'State'],
+    ['Duke'],
+  ]),
+  'Should drop generic stopwords like "state"'
 )
 
 console.log('live-scores article relevance tests passed')

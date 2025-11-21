@@ -108,7 +108,7 @@ export default function LiveScoresPage() {
   const [selectedGame, setSelectedGame] = useState<LiveScoreGame | null>(null)
   const [conference, setConference] = useState<string>("")
   const { data, loading, error, lastUpdated, refetch, isRefreshing } = useLiveScores({
-    refreshInterval: 20000,
+    refreshInterval: 1000,
     date: selectedDate,
   })
   const detailsState = useGameDetails({

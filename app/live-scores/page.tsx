@@ -7,7 +7,7 @@ import clsx from "clsx"
 import { ArrowLeft, Calendar, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, X } from "lucide-react"
 import { useLiveScores } from "@/hooks/use-live-scores"
 import { useGameDetails } from "@/hooks/use-game-details"
-import { ESPN_LEAGUES, type LeagueId, type LiveScoreGame, type LiveScoreGameDetails } from "@/lib/live-scores"
+import { ESPN_LEAGUES, type LeagueId, type LiveScoreArticle, type LiveScoreGame, type LiveScoreGameDetails } from "@/lib/live-scores"
 
 const LEAGUE_TABS: Array<{ id: LeagueId; label: string }> =
   ESPN_LEAGUES.map((league) => ({ id: league.id, label: league.label }))
@@ -107,7 +107,7 @@ export default function LiveScoresPage() {
   const relevantArticles = useMemo(() => {
     if (!data?.games) return []
     const leagueFiltered = data.games.filter((game) => game.league === activeLeague)
-    const dedup = new Map<string, typeof leagueFiltered[number]["articles"][number] & { leagueLabel?: string }>()
+    const dedup = new Map<string, LiveScoreArticle & { leagueLabel?: string }>()
 
     leagueFiltered.forEach((game) => {
       ;(game.articles || []).forEach((article) => {

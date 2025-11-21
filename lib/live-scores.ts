@@ -231,6 +231,7 @@ const determineBucket = (state?: string): ScoreBucket => {
 
 const ARTICLE_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_ARTICLE_FETCHES = 50
+const ARTICLE_ENRICH_CONCURRENCY = 6
 const articlesCache = new Map<
   string,
   {
@@ -516,28 +517,34 @@ export async function fetchAllLiveScores(options: FetchAllOptions = {}): Promise
   )
 
   // Attach up to MAX_ARTICLE_FETCHES articles (1 pregame, 1 postgame) across the set
-  let fetchBudget = MAX_ARTICLE_FETCHES
-  for (let i = 0; i < games.length && fetchBudget > 0; i++) {
-    const game = games[i]
-    if (game.bucket !== "upcoming") continue
-    try {
-      const leagueConfig = getLeagueConfig(game.league)
-      const articles = await fetchArticlesForGame(
-        game.eventId,
-        leagueConfig,
-        game.startTime,
-        false,
-        game.competitors
-          ?.flatMap((c) => [c.name, c.shortName, c.abbreviation])
-          .filter(Boolean) || []
-      )
-      fetchBudget--
-      if (articles.length) {
-        games[i] = { ...game, articles }
-      }
-    } catch (error) {
-      console.warn("[live-scores] article enrichment failed", error)
-    }
+  const articleCandidates = games
+    .map((game, index) => ({ game, index }))
+    .filter(({ game }) => game.bucket === "upcoming")
+    .slice(0, MAX_ARTICLE_FETCHES)
+
+  for (let i = 0; i < articleCandidates.length; i += ARTICLE_ENRICH_CONCURRENCY) {
+    const batch = articleCandidates.slice(i, i + ARTICLE_ENRICH_CONCURRENCY)
+    await Promise.all(
+      batch.map(async ({ game, index }) => {
+        try {
+          const leagueConfig = getLeagueConfig(game.league)
+          const articles = await fetchArticlesForGame(
+            game.eventId,
+            leagueConfig,
+            game.startTime,
+            false,
+            game.competitors
+              ?.flatMap((c) => [c.name, c.shortName, c.abbreviation])
+              .filter(Boolean) || []
+          )
+          if (articles.length) {
+            games[index] = { ...game, articles }
+          }
+        } catch (error) {
+          console.warn("[live-scores] article enrichment failed", error)
+        }
+      })
+    )
   }
 
   return {

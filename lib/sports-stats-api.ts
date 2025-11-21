@@ -9,6 +9,7 @@ export interface PlayerStats {
   position?: string
   stats: Record<string, number | string>
   season?: string
+  headshot?: string
 }
 
 export interface RosterPlayer {
@@ -77,6 +78,9 @@ const getCurrentNFLSeasonYear = () => {
   // Season starts in August/September; early months belong to previous year
   return month >= 6 ? year : year - 1
 }
+
+const PLAYER_STATS_CACHE_TTL = 1000 * 60 * 15 // 15 minutes
+const playerStatsCache = new Map<string, { data: PlayerStats | null; ts: number }>()
 
 const extractEspnId = (content: any): string | null => {
   const web = content?.link?.web
@@ -267,8 +271,15 @@ const fetchESPNNBAPlayerStats = async (espnId: string): Promise<ESPNPlayerSummar
 }
 
 export async function getNBAPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
+  const cacheKey = `nba:${normalizeName(playerName)}`
+  const cached = playerStatsCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < PLAYER_STATS_CACHE_TTL) {
+    return cached.data
+  }
+
   const rosterEntry = (await searchNBAPlayerFast(playerName)) ?? (await searchNBAPlayer(playerName))
   if (!rosterEntry) {
+    playerStatsCache.set(cacheKey, { data: null, ts: Date.now() })
     return null
   }
 
@@ -286,18 +297,29 @@ export async function getNBAPlayerSeasonStats(playerName: string): Promise<Playe
   // Always return a 3P% value (default 0.0 if missing) so the UI can display it consistently
   stats.THREE_PERCENT = Number((espnStats.threePct ?? 0).toFixed(1))
 
-  return {
+  const result: PlayerStats = {
     name: rosterEntry?.fullName ?? playerName,
     team: rosterEntry?.team ?? '',
     position: rosterEntry?.position,
     season: espnStats.seasonLabel,
     stats,
+    headshot: rosterEntry?.headshot,
   }
+
+  playerStatsCache.set(cacheKey, { data: result, ts: Date.now() })
+  return result
 }
 
 export async function getNFLPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
+  const cacheKey = `nfl:${normalizeName(playerName)}`
+  const cached = playerStatsCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < PLAYER_STATS_CACHE_TTL) {
+    return cached.data
+  }
+
   const rosterEntry = await searchNFLPlayer(playerName)
   if (!rosterEntry) {
+    playerStatsCache.set(cacheKey, { data: null, ts: Date.now() })
     return null
   }
   const seasonYear = getCurrentNFLSeasonYear()
@@ -353,13 +375,17 @@ export async function getNFLPlayerSeasonStats(playerName: string): Promise<Playe
     }
   }
 
-  return {
+  const result: PlayerStats = {
     name: rosterEntry.fullName,
     team: rosterEntry.team,
     position: rosterEntry.position,
     season: String(baseStats?.season ?? csvData?.season ?? seasonYear),
     stats,
+    headshot: rosterEntry.headshot,
   }
+
+  playerStatsCache.set(cacheKey, { data: result, ts: Date.now() })
+  return result
 }
 
 const fetchNFLPlayerBaseStats = async (playerId: string, seasonYear: number) => {

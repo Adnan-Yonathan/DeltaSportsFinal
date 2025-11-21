@@ -520,6 +520,49 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
                 )}
               </section>
 
+              {data?.plays && data.plays.length > 0 && (
+                <section className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold uppercase tracking-[0.3em] text-white/70">Play by Play</h4>
+                    <span className="text-xs text-white/50">Latest {Math.min(data.plays.length, 30)} plays</span>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto space-y-2">
+                    {Object.entries(
+                      data.plays
+                        .slice(-30)
+                        .reduce((acc: Record<string, typeof data.plays>, play) => {
+                          const key = play.period != null ? `P${play.period}` : "Plays"
+                          acc[key] = acc[key] || []
+                          acc[key].push(play)
+                          return acc
+                        }, {})
+                    ).map(([periodKey, plays]) => (
+                      <div key={periodKey} className="space-y-1">
+                        <p className="text-[11px] uppercase tracking-[0.25em] text-white/50">{periodKey}</p>
+                        <div className="space-y-1.5">
+                          {plays
+                            .slice()
+                            .reverse()
+                            .map((play) => (
+                              <div key={play.id} className="rounded-xl border border-white/5 bg-black/30 px-3 py-2 text-sm text-white/80">
+                                <div className="flex items-center justify-between text-[11px] text-white/50 mb-1">
+                                  <span>{play.clock || "-"}</span>
+                                  {(play.homeScore != null || play.awayScore != null) && (
+                                    <span className="font-semibold text-white/70">
+                                      {play.awayScore ?? "-"} - {play.homeScore ?? "-"}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="leading-snug">{play.text}</p>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               <section className="grid gap-4 md:grid-cols-2">
                 {data.teams.map((team) => (
                   <div key={`stats-${team.id}`} className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.03] p-4 space-y-4">
@@ -632,49 +675,6 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
                   ))}
                 </div>
               </section>
-
-              {data?.plays && data.plays.length > 0 && (
-                <section className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold uppercase tracking-[0.3em] text-white/70">Play by Play</h4>
-                    <span className="text-xs text-white/50">Latest {Math.min(data.plays.length, 30)} plays</span>
-                  </div>
-                  <div className="max-h-80 overflow-y-auto space-y-2">
-                    {Object.entries(
-                      data.plays
-                        .slice(-30)
-                        .reduce((acc: Record<string, typeof data.plays>, play) => {
-                          const key = play.period != null ? `P${play.period}` : "Plays"
-                          acc[key] = acc[key] || []
-                          acc[key].push(play)
-                          return acc
-                        }, {})
-                    ).map(([periodKey, plays]) => (
-                      <div key={periodKey} className="space-y-1">
-                        <p className="text-[11px] uppercase tracking-[0.25em] text-white/50">{periodKey}</p>
-                        <div className="space-y-1.5">
-                          {plays
-                            .slice()
-                            .reverse()
-                            .map((play) => (
-                              <div key={play.id} className="rounded-xl border border-white/5 bg-black/30 px-3 py-2 text-sm text-white/80">
-                                <div className="flex items-center justify-between text-[11px] text-white/50 mb-1">
-                                  <span>{play.clock || "—"}</span>
-                                  {(play.homeScore != null || play.awayScore != null) && (
-                                    <span className="font-semibold text-white/70">
-                                      {play.awayScore ?? "–"} - {play.homeScore ?? "–"}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="leading-snug">{play.text}</p>
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
             </>
           ) : (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-white/60">No box score data available yet.</div>

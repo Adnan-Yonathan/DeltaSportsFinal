@@ -155,23 +155,22 @@ interface NBAPlayerDirectoryEntry {
   teamAbbr: string | null
 }
 
-let nbaPlayerDirectoryCache:
+type NBAPlayerDirectoryCache =
   | {
       season: string
       timestamp: number
       entries: NBAPlayerDirectoryEntry[]
     }
-  | null = null
+  | null
+
+let nbaPlayerDirectoryCache: NBAPlayerDirectoryCache = null
 
 const NBA_ROSTER_CACHE_TTL = 1000 * 60 * 15
 let nbaRosterCache: { timestamp: number; roster: RosterPlayer[] } | null = null
 
 const loadNBAPlayerDirectory = async (): Promise<NBAPlayerDirectoryEntry[]> => {
   // stats.nba.com calls are disabled; rely on ESPN roster data via getNBARoster
-  const cache = nbaPlayerDirectoryCache
-  if (cache && Array.isArray(cache.entries) && cache.entries.length) {
-    return cache.entries
-  }
+  // Directory lookup is bypassed; return empty and fall back to roster search
   return []
 }
 

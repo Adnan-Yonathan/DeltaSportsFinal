@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import clsx from "clsx"
-import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, RefreshCw, X } from "lucide-react"
+import { ArrowLeft, Calendar, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, X } from "lucide-react"
 import { useLiveScores } from "@/hooks/use-live-scores"
 import { useGameDetails } from "@/hooks/use-game-details"
 import { ESPN_LEAGUES, type LeagueId, type LiveScoreGame, type LiveScoreGameDetails } from "@/lib/live-scores"
@@ -78,19 +78,6 @@ function adjustDate(date: string, delta: number) {
   return parsed.toISOString().slice(0, 10)
 }
 
-function formatArticleTime(published?: string) {
-  if (!published) return ""
-  try {
-    const date = new Date(published)
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-    }).format(date)
-  } catch {
-    return ""
-  }
-}
-
 const groupByLeague = (games: LiveScoreGame[]) => {
   const map = new Map<string, LiveScoreGame[]>()
   games.forEach((game) => {
@@ -107,6 +94,7 @@ export default function LiveScoresPage() {
   const [selectedDate, setSelectedDate] = useState<string>(todayYMD())
   const [selectedGame, setSelectedGame] = useState<LiveScoreGame | null>(null)
   const [conference, setConference] = useState<string>("")
+  const [showArticlesMenu, setShowArticlesMenu] = useState(false)
   const { data, loading, error, lastUpdated, refetch, isRefreshing } = useLiveScores({
     refreshInterval: 1000,
     date: selectedDate,
@@ -116,6 +104,28 @@ export default function LiveScoresPage() {
     eventId: selectedGame?.eventId,
     enabled: Boolean(selectedGame),
   })
+  const relevantArticles = useMemo(() => {
+    if (!data?.games) return []
+    const leagueFiltered = data.games.filter((game) => game.league === activeLeague)
+    const dedup = new Map<string, typeof leagueFiltered[number]["articles"][number] & { leagueLabel?: string }>()
+
+    leagueFiltered.forEach((game) => {
+      ;(game.articles || []).forEach((article) => {
+        if (!article?.url) return
+        if (!dedup.has(article.url)) {
+          dedup.set(article.url, { ...article, leagueLabel: game.leagueLabel })
+        }
+      })
+    })
+
+    return Array.from(dedup.values())
+      .sort((a, b) => {
+        const aDate = a.published ? Date.parse(a.published) : -Infinity
+        const bDate = b.published ? Date.parse(b.published) : -Infinity
+        return bDate - aDate
+      })
+      .slice(0, 20)
+  }, [data, activeLeague])
 
   const filteredGames = useMemo(() => {
     if (!data?.games) return []
@@ -220,35 +230,75 @@ export default function LiveScoresPage() {
           </div>
         </header>
 
-        <div className="flex flex-wrap gap-2 sm:gap-3 mt-2 sm:mt-4">
-          {LEAGUE_TABS.map((tab) => (
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-2 sm:mt-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {LEAGUE_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveLeague(tab.id)}
+                className={clsx(
+                  "flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors border",
+                  activeLeague === tab.id
+                    ? "bg-white text-black border-white"
+                    : "border-white/10 text-white/70 hover:border-white/40 hover:text-white"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+            {CONFERENCE_FILTERS[activeLeague] && (
+              <select
+                value={conference}
+                onChange={(event) => setConference(event.target.value)}
+                className="rounded-full border border-white/20 bg-black px-3 py-2 text-sm text-white hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/70"
+              >
+                <option value="">All Conferences</option>
+                {CONFERENCE_FILTERS[activeLeague]?.map((conf) => (
+                  <option key={`${activeLeague}-${conf.value}`} value={conf.value}>
+                    {conf.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="relative">
             <button
-              key={tab.id}
-              onClick={() => setActiveLeague(tab.id)}
-              className={clsx(
-                "flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors border",
-                activeLeague === tab.id
-                  ? "bg-white text-black border-white"
-                  : "border-white/10 text-white/70 hover:border-white/40 hover:text-white"
-              )}
+              type="button"
+              onClick={() => setShowArticlesMenu((prev) => !prev)}
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white hover:border-white/40 focus:outline-none focus:ring-2 focus:ring-white/60"
             >
-              {tab.label}
+              Articles
+              <ChevronDown className="h-4 w-4" />
             </button>
-          ))}
-          {CONFERENCE_FILTERS[activeLeague] && (
-            <select
-              value={conference}
-              onChange={(event) => setConference(event.target.value)}
-              className="rounded-full border border-white/20 bg-black px-3 py-2 text-sm text-white hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/70"
-            >
-              <option value="">All Conferences</option>
-              {CONFERENCE_FILTERS[activeLeague]?.map((conf) => (
-                <option key={`${activeLeague}-${conf.value}`} value={conf.value}>
-                  {conf.label}
-                </option>
-              ))}
-            </select>
-          )}
+            {showArticlesMenu && (
+              <div className="absolute right-0 z-20 mt-2 w-72 overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f12] shadow-xl shadow-black/40">
+                {relevantArticles.length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-white/60">No relevant articles</div>
+                ) : (
+                  <ul className="max-h-80 overflow-auto divide-y divide-white/5">
+                    {relevantArticles.map((article, index) => (
+                      <li key={`${article.url}-${index}`}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (article.url) window.open(article.url, "_blank", "noreferrer")
+                            setShowArticlesMenu(false)
+                          }}
+                          className="flex w-full flex-col items-start gap-1 px-4 py-3 text-left hover:bg-white/5 focus:outline-none focus-visible:bg-white/10"
+                        >
+                          <span className="text-[11px] uppercase tracking-[0.2em] text-white/50">
+                            {article.leagueLabel || "Article"}
+                          </span>
+                          <span className="text-sm text-white line-clamp-2">{article.title}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -357,37 +407,6 @@ export default function LiveScoresPage() {
                             {game.odds && <span>- {game.odds}</span>}
                           </div>
 
-                          {(game.articles && game.articles.length > 0) && (
-                            <div className="mt-3 border-t border-white/10 pt-2 space-y-1.5 text-[11px]">
-                              {(["pregame", "postgame"] as const).map((kind) => {
-                                const article = game.articles?.find((a) => a.type === kind)
-                                if (!article) return null
-                                return (
-                                  <div key={kind} className="flex items-start gap-2">
-                                    <span className="uppercase tracking-[0.2em] text-white/40 min-w-[68px]">
-                                      {kind === "pregame" ? "Pregame" : "Postgame"}
-                                    </span>
-                                    <div className="flex-1 leading-snug">
-                                      <a
-                                        className="text-white/80 hover:text-white underline decoration-white/30 decoration-dotted"
-                                        href={article.url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        {article.title}
-                                      </a>
-                                      {article.published && (
-                                        <span className="ml-2 text-white/40">
-                                          {formatArticleTime(article.published)}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
                         </article>
                       ))}
                     </div>

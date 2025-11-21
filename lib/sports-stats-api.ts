@@ -53,21 +53,6 @@ export interface AdvancedTeamStats {
   rushRate?: number
 }
 
-const NBA_API_HEADERS = {
-  'User-Agent':
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36',
-  Referer: 'https://www.nba.com/',
-  Origin: 'https://www.nba.com',
-  Accept: 'application/json, text/plain, */*',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'x-nba-stats-origin': 'stats',
-  'x-nba-stats-token': 'true',
-}
-
-const NBA_FETCH_TIMEOUT_MS = 12000
-const NBA_FETCH_BACKOFF_MS = 2 * 60 * 1000
-let nbaFetchBlockedUntil = 0
-
 const NFL_PLAYER_STATS_BASE =
   'https://github.com/nflverse/nflverse-data/releases/download/player_stats'
 
@@ -93,41 +78,72 @@ const getCurrentNFLSeasonYear = () => {
   return month >= 6 ? year : year - 1
 }
 
-const fetchWithTimeout = async (url: string, init: RequestInit = {}, timeoutMs = 10000) => {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    return await fetch(url, { ...init, signal: controller.signal })
-  } finally {
-    clearTimeout(timer)
+const extractEspnId = (content: any): string | null => {
+  const web = content?.link?.web
+  if (typeof web === 'string') {
+    const match = web.match(/\/id\/(\d+)/)
+    if (match?.[1]) return match[1]
   }
+  const uid = content?.uid
+  const uidMatch = typeof uid === 'string' ? uid.match(/~a:(\d+)/) : null
+  return uidMatch?.[1] ?? null
 }
 
-const fetchNBAJson = async <T>(url: string, attempt = 1): Promise<T> => {
-  if (Date.now() < nbaFetchBlockedUntil) {
-    throw new Error('NBA stats temporarily unavailable (recent timeout)')
-  }
-  const timeoutMs = attempt > 1 ? Math.floor(NBA_FETCH_TIMEOUT_MS * 1.5) : NBA_FETCH_TIMEOUT_MS
+const searchNBAPlayerFast = async (playerName: string): Promise<RosterPlayer | null> => {
   try {
-    const response = await fetchWithTimeout(
-      url,
-      { headers: NBA_API_HEADERS, cache: 'no-store' },
-      timeoutMs
-    )
-    if (!response.ok) {
-      throw new Error(`NBA stats request failed (${response.status})`)
+    const url = `https://site.api.espn.com/apis/search/v2?type=player&limit=5&query=${encodeURIComponent(
+      playerName
+    )}`
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return null
+    const data = await res.json()
+    const playerResults = data?.results?.find((r: any) => r?.type === 'player')?.contents
+    if (!Array.isArray(playerResults)) return null
+
+    const target = normalizeName(playerName)
+    const match = playerResults.find((entry: any) => normalizeName(entry?.displayName || '') === target)
+    if (!match) return null
+
+    const espnId = extractEspnId(match)
+    if (!espnId) return null
+
+    // Fetch profile to fill team/position; keep this lightweight
+    let profile: any = null
+    try {
+      const profileRes = await fetch(
+        `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${espnId}`,
+        { cache: 'no-store' }
+      )
+      if (profileRes.ok) {
+        profile = await profileRes.json()
+      }
+    } catch (err) {
+      console.warn('NBA profile fetch failed (non-fatal):', err)
     }
-    return (await response.json()) as T
-  } catch (error: any) {
-    const isAbort = error?.name === 'AbortError'
-    if (isAbort) {
-      nbaFetchBlockedUntil = Date.now() + NBA_FETCH_BACKOFF_MS
+
+    const name = match.displayName || profile?.fullName || playerName
+    return {
+      id: espnId,
+      name,
+      fullName: name,
+      team: profile?.team?.displayName || match?.subtitle || '',
+      teamAbbr: profile?.team?.abbreviation || '',
+      position:
+        profile?.position?.abbreviation ||
+        profile?.position?.displayName ||
+        profile?.position?.name ||
+        'N/A',
+      jersey: profile?.jersey,
+      height: profile?.displayHeight,
+      weight: profile?.displayWeight,
+      age: profile?.age,
+      experience: profile?.experience?.years,
+      status: profile?.status?.type ?? 'Active',
+      headshot: profile?.headshot?.href || match?.image?.default,
     }
-    if (isAbort && attempt < 2) {
-      console.warn(`NBA fetch aborted (attempt ${attempt}); retrying...`)
-      return fetchNBAJson<T>(url, attempt + 1)
-    }
-    throw error
+  } catch (error) {
+    console.warn('NBA fast search failed:', error)
+    return null
   }
 }
 
@@ -139,7 +155,6 @@ interface NBAPlayerDirectoryEntry {
   teamAbbr: string | null
 }
 
-const NBA_PLAYER_DIRECTORY_TTL = 1000 * 60 * 30
 let nbaPlayerDirectoryCache:
   | {
       season: string
@@ -148,191 +163,30 @@ let nbaPlayerDirectoryCache:
     }
   | null = null
 
+const NBA_ROSTER_CACHE_TTL = 1000 * 60 * 15
+let nbaRosterCache: { timestamp: number; roster: RosterPlayer[] } | null = null
+
 const loadNBAPlayerDirectory = async (): Promise<NBAPlayerDirectoryEntry[]> => {
-  const season = getCurrentNBASeasonLabel()
-  const now = Date.now()
-  if (nbaPlayerDirectoryCache && now - nbaPlayerDirectoryCache.timestamp < NBA_PLAYER_DIRECTORY_TTL) {
-    if (nbaPlayerDirectoryCache.season === season) {
-      return nbaPlayerDirectoryCache.entries
-    }
+  // stats.nba.com calls are disabled; rely on ESPN roster data via getNBARoster
+  if (nbaPlayerDirectoryCache?.entries?.length) {
+    return nbaPlayerDirectoryCache.entries
   }
-
-  try {
-    const url = `https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=1&LeagueID=00&Season=${encodeURIComponent(
-      season
-    )}`
-    const data = await fetchNBAJson<any>(url)
-    const set = data?.resultSets?.[0]
-    const headers: string[] = set?.headers ?? []
-    const rows: any[][] = set?.rowSet ?? []
-    const idx = (field: string) => headers.indexOf(field)
-    const idxPersonId = idx('PERSON_ID')
-    const idxName = idx('DISPLAY_FIRST_LAST')
-    const idxTeamId = idx('TEAM_ID')
-    const idxTeamName = idx('TEAM_NAME')
-    const idxTeamAbbr = idx('TEAM_ABBREVIATION')
-
-    if (idxPersonId === -1 || idxName === -1) {
-      throw new Error('NBA player directory missing expected columns')
-    }
-
-    const entries: NBAPlayerDirectoryEntry[] = rows.map((row) => ({
-      id: String(row[idxPersonId]),
-      name: String(row[idxName] ?? ''),
-      teamId: idxTeamId !== -1 && row[idxTeamId] != null ? String(row[idxTeamId]) : null,
-      teamName: idxTeamName !== -1 ? String(row[idxTeamName] ?? '') : '',
-      teamAbbr: idxTeamAbbr !== -1 && row[idxTeamAbbr] ? String(row[idxTeamAbbr]) : null,
-    }))
-
-    nbaPlayerDirectoryCache = { season, timestamp: now, entries }
-    return entries
-  } catch (error: any) {
-    const isAbort = error?.name === 'AbortError'
-    const isBlocked = typeof error?.message === 'string' && error.message.includes('temporarily unavailable')
-    const label = isAbort
-      ? 'NBA player directory request aborted (timeout)'
-      : isBlocked
-      ? 'NBA player directory skipped (temporary block)'
-      : 'Failed to load NBA player directory'
-    ;(isAbort || isBlocked ? console.warn : console.error)(label + ':', error)
-    return nbaPlayerDirectoryCache?.entries ?? []
-  }
+  return []
 }
 
 const findNBAPlayerId = async (playerName: string, seasonLabel: string): Promise<string | null> => {
-  const tryFetch = async (currentOnly: boolean) => {
-    const url =
-      `https://stats.nba.com/stats/commonallplayers?` +
-      `IsOnlyCurrentSeason=${currentOnly ? 1 : 0}&LeagueID=00&Season=${encodeURIComponent(seasonLabel)}`
-    const data = await fetchNBAJson<any>(url)
-    const set = data.resultSets?.[0]
-    if (!set) return null
-    const headers: string[] = set.headers ?? []
-    const rows: any[][] = set.rowSet ?? []
-    const idxName = headers.indexOf('DISPLAY_FIRST_LAST')
-    const idxPersonId = headers.indexOf('PERSON_ID')
-    if (idxName === -1 || idxPersonId === -1) return null
-    const target = normalizeName(playerName)
-    for (const row of rows) {
-      const name = typeof row[idxName] === 'string' ? normalizeName(row[idxName]) : ''
-      if (name === target) {
-        return String(row[idxPersonId])
-      }
-    }
-    return null
-  }
-
-  try {
-    const current = await tryFetch(true)
-    if (current) return current
-    return await tryFetch(false)
-  } catch (error: any) {
-    const isAbort = error?.name === 'AbortError'
-    const label = isAbort ? 'NBA player ID lookup aborted (timeout)' : 'Failed to resolve NBA player ID'
-    ;(isAbort ? console.warn : console.error)(label + ':', error)
-    return null
-  }
+  // stats.nba.com calls are disabled; rely on ESPN roster data in searchNBAPlayer
+  return null
 }
 
 const fetchNBAPlayerBaseStats = async (playerId: string, seasonLabel: string) => {
-  const params = new URLSearchParams({
-    LeagueID: '00',
-    PerMode: 'PerGame',
-    PlayerID: playerId,
-    Season: seasonLabel,
-    SeasonType: 'Regular Season',
-  })
-  const url = `https://stats.nba.com/stats/playerprofilev2?${params.toString()}`
-  try {
-    const data = await fetchNBAJson<any>(url)
-    const totals = data.resultSets?.find((set: any) => set.name === 'SeasonTotalsRegularSeason')
-    if (!totals) {
-      return null
-    }
-    const headers: string[] = totals.headers ?? []
-    const rows: any[][] = totals.rowSet ?? []
-    const idxSeason = headers.indexOf('SEASON_ID')
-    const idx = (field: string) => headers.indexOf(field)
-    const row = rows.find((entry) => idxSeason !== -1 && entry[idxSeason] === seasonLabel)
-    if (!row) {
-      return null
-    }
-    const getNumber = (field: string) => {
-      const column = idx(field)
-      if (column === -1) return null
-      const value = row[column]
-      return typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : null
-    }
-    return {
-      ppg: getNumber('PTS'),
-      rpg: getNumber('REB'),
-      apg: getNumber('AST'),
-      fgPct: getNumber('FG_PCT'),
-      threePct: getNumber('FG3_PCT'),
-      ftPct: getNumber('FT_PCT'),
-    }
-  } catch (error) {
-    console.warn('NBA base stats fetch failed:', error)
-    return null
-  }
+  // stats.nba.com is disabled; base stats are sourced from ESPN instead
+  return null
 }
 
 const fetchNBAPlayerAdvancedStats = async (playerId: string, seasonLabel: string) => {
-  const params = new URLSearchParams({
-    DateFrom: '',
-    DateTo: '',
-    GameSegment: '',
-    LastNGames: '0',
-    LeagueID: '00',
-    Location: '',
-    MeasureType: 'Advanced',
-    Month: '0',
-    OpponentTeamID: '0',
-    Outcome: '',
-    PORound: '0',
-    PaceAdjust: 'N',
-    PerMode: 'PerGame',
-    Period: '0',
-    PlayerID: playerId,
-    PlusMinus: 'N',
-    Rank: 'N',
-    Season: seasonLabel,
-    SeasonSegment: '',
-    SeasonType: 'Regular Season',
-    ShotClockRange: '',
-    Split: 'y',
-    StartPeriod: '1',
-    StarterBench: '',
-    TeamID: '0',
-    VsConference: '',
-    VsDivision: '',
-  })
-  const url = `https://stats.nba.com/stats/playerdashboardbygeneralsplits?${params.toString()}`
-  try {
-    const data = await fetchNBAJson<any>(url)
-    const totals = data.resultSets?.find((set: any) => set.name === 'OverallPlayerDashboard')
-    if (!totals) return null
-    const headers: string[] = totals.headers ?? []
-    const row: any[] | undefined = totals.rowSet?.[0]
-    if (!row) return null
-    const idx = (field: string) => headers.indexOf(field)
-    const pick = (field: string) => {
-      const column = idx(field)
-      if (column === -1) return null
-      const value = row[column]
-      return typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : null
-    }
-    return {
-      tsPct: pick('TS_PCT'),
-      usgPct: pick('USG_PCT'),
-      ortg: pick('OFF_RATING'),
-      drtg: pick('DEF_RATING'),
-      pie: pick('PIE'),
-    }
-  } catch (error) {
-    console.warn('NBA advanced stats fetch failed:', error)
-    return null
-  }
+  // stats.nba.com is disabled; advanced splits are unavailable from ESPN endpoints
+  return null
 }
 
 type ESPNPlayerSummary = {
@@ -413,7 +267,7 @@ const fetchESPNNBAPlayerStats = async (espnId: string): Promise<ESPNPlayerSummar
 }
 
 export async function getNBAPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
-  const rosterEntry = await searchNBAPlayer(playerName)
+  const rosterEntry = (await searchNBAPlayerFast(playerName)) ?? (await searchNBAPlayer(playerName))
   if (!rosterEntry) {
     return null
   }
@@ -649,61 +503,10 @@ export async function getNBAPlayerStats(playerName?: string): Promise<PlayerStat
   }
 }
 
-// Advanced NBA team stats via stats.nba.com (unofficial; requires headers)
+// Advanced NBA team stats (stats.nba.com disabled; no advanced metrics available)
 export async function getNBAAdvancedTeamStats(): Promise<AdvancedTeamStats[]> {
-  try {
-    const season = (() => {
-      const now = new Date()
-      const year = now.getFullYear()
-      // NBA season spans years; before August, use prior season start
-      const seasonStart = now.getMonth() >= 8 ? year : year - 1
-      return `${seasonStart}-${(seasonStart + 1).toString().slice(-2)}`
-    })()
-
-    const url =
-      `https://stats.nba.com/stats/leaguedashteamstats` +
-      `?MeasureType=Advanced&PerMode=PerGame&PlusMinus=N&PaceAdjust=N&Rank=N&` +
-      `Season=${encodeURIComponent(season)}&SeasonType=Regular%20Season`
-
-    const response = await fetch(url, {
-      // stats.nba.com expects a browser-like client
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36',
-        Referer: 'https://www.nba.com/',
-        Origin: 'https://www.nba.com',
-        Accept: '*/*',
-      },
-      // prune cache to avoid stale; endpoints are near-real-time
-      next: { revalidate: 900 },
-    })
-
-    if (!response.ok) {
-      console.warn('NBA advanced stats fetch failed:', response.statusText)
-      return []
-    }
-
-    const data = await response.json()
-    const headersArr: string[] = data?.resultSets?.[0]?.headers || []
-    const rows: any[] = data?.resultSets?.[0]?.rowSet || []
-
-    const idx = (key: string) => headersArr.indexOf(key)
-
-    return rows.map((r) => ({
-      team: r[idx('TEAM_NAME')],
-      teamAbbr: r[idx('TEAM_ABBREVIATION')],
-      pace: r[idx('PACE')],
-      oRating: r[idx('OFF_RATING')],
-      dRating: r[idx('DEF_RATING')],
-      netRating: r[idx('NET_RATING')],
-      reboundPct: r[idx('REB_PCT')],
-      turnoverPct: r[idx('TM_TOV_PCT')],
-      tsPct: r[idx('TS_PCT')],
-    }))
-  } catch (error) {
-    console.error('Error fetching NBA advanced team stats:', error)
-    return []
-  }
+  // stats.nba.com is disabled; ESPN does not expose advanced pace/efficiency
+  return []
 }
 
 // ==================== NFL ADVANCED STATS (via nflfastR CSV) ====================
@@ -793,89 +596,108 @@ export async function getNBAInjuries(): Promise<InjuryReport[]> {
 }
 
 export async function getNBARoster(teamAbbr?: string): Promise<RosterPlayer[]> {
+  const useCache = !teamAbbr
+  const now = Date.now()
+  if (useCache && nbaRosterCache && now - nbaRosterCache.timestamp < NBA_ROSTER_CACHE_TTL) {
+    return nbaRosterCache.roster
+  }
+
   try {
     const url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams'
     const response = await fetch(url, { next: { revalidate: 3600 } })
 
-    if (!response.ok) return []
+    if (!response.ok) return useCache && nbaRosterCache ? nbaRosterCache.roster : []
 
     const data = await response.json()
+    const teams = data.sports?.[0]?.leagues?.[0]?.teams ?? []
     const roster: RosterPlayer[] = []
 
-    if (data.sports?.[0]?.leagues?.[0]?.teams) {
-      for (const teamObj of data.sports[0].leagues[0].teams) {
-        const team = teamObj.team
-        if (teamAbbr && team.abbreviation !== teamAbbr) continue
+    const fetchTeamRoster = async (team: any): Promise<RosterPlayer[]> => {
+      const players: RosterPlayer[] = []
+      const rosterUrl = `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${team.id}/roster`
 
-        // Fetch detailed roster for this team
-        try {
-          const rosterUrl = `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${team.id}/roster`
-          const rosterResponse = await fetch(rosterUrl, { next: { revalidate: 3600 } })
+      try {
+        const rosterResponse = await fetch(rosterUrl, { next: { revalidate: 3600 } })
 
-          if (rosterResponse.ok) {
-            const rosterData = await rosterResponse.json()
+        if (!rosterResponse.ok) return players
 
-            // ESPN roster structure: athletes is a direct array
-            if (rosterData.athletes && Array.isArray(rosterData.athletes)) {
-              for (const athlete of rosterData.athletes) {
-                roster.push({
-                  id: athlete.id,
-                  name: athlete.displayName || athlete.fullName,
-                  fullName: athlete.fullName || athlete.displayName,
-                  team: team.displayName,
-                  teamAbbr: team.abbreviation,
-                  position: athlete.position?.abbreviation || athlete.position?.displayName || 'N/A',
-                  jersey: athlete.jersey,
-                  height: athlete.displayHeight,
-                  weight: athlete.displayWeight,
-                  age: athlete.age,
-                  experience: athlete.experience?.years,
-                  status: athlete.injuries && athlete.injuries.length > 0 ? 'Injured' : (athlete.status?.type || 'Active'),
-                  headshot: athlete.headshot?.href
-                })
-              }
-            }
+        const rosterData = await rosterResponse.json()
+
+        if (rosterData.athletes && Array.isArray(rosterData.athletes)) {
+          for (const athlete of rosterData.athletes) {
+            players.push({
+              id: athlete.id,
+              name: athlete.displayName || athlete.fullName,
+              fullName: athlete.fullName || athlete.displayName,
+              team: team.displayName,
+              teamAbbr: team.abbreviation,
+              position: athlete.position?.abbreviation || athlete.position?.displayName || 'N/A',
+              jersey: athlete.jersey,
+              height: athlete.displayHeight,
+              weight: athlete.displayWeight,
+              age: athlete.age,
+              experience: athlete.experience?.years,
+              status: athlete.injuries && athlete.injuries.length > 0 ? 'Injured' : (athlete.status?.type || 'Active'),
+              headshot: athlete.headshot?.href,
+            })
           }
-        } catch (err) {
-          console.error(`Error fetching roster for ${team.displayName}:`, err)
+        }
+      } catch (error) {
+        console.error(`Error fetching roster for ${team.displayName}:`, error)
+      }
+
+      return players
+    }
+
+    if (teamAbbr) {
+      const targetTeam = teams.find((entry: any) => entry?.team?.abbreviation === teamAbbr)?.team
+      if (!targetTeam) return []
+      return await fetchTeamRoster(targetTeam)
+    }
+
+    const queue = [...teams]
+    const concurrency = Math.min(5, queue.length)
+    const workers = Array.from({ length: concurrency }, async () => {
+      while (queue.length) {
+        const teamEntry = queue.shift()
+        if (!teamEntry?.team) continue
+        const players = await fetchTeamRoster(teamEntry.team)
+        if (players.length) {
+          roster.push(...players)
         }
       }
+    })
+
+    await Promise.all(workers)
+
+    if (useCache && roster.length) {
+      nbaRosterCache = { timestamp: Date.now(), roster }
     }
 
     return roster
   } catch (error) {
     console.error('Error fetching NBA rosters:', error)
-    return []
+    return useCache && nbaRosterCache ? nbaRosterCache.roster : []
   }
 }
 
 export async function searchNBAPlayer(playerName: string): Promise<RosterPlayer | null> {
   try {
-    const directory = await loadNBAPlayerDirectory()
     const normalized = normalizeName(playerName)
 
-    const dirMatch =
-      directory.find((entry) => normalizeName(entry.name) === normalized) ||
-      directory.find((entry) => normalizeName(entry.name).includes(normalized))
+    const allPlayers = await getNBARoster()
+    const exactMatch =
+      allPlayers.find(
+        (player) => normalizeName(player.fullName) === normalized || normalizeName(player.name) === normalized
+      ) || null
 
-    if (dirMatch && dirMatch.teamAbbr) {
-      const teamPlayers = await getNBARoster(dirMatch.teamAbbr)
-      const exactMatch =
-        teamPlayers.find((player) => normalizeName(player.fullName) === normalized) ||
-        teamPlayers.find((player) => normalizeName(player.name).includes(normalized))
-      if (exactMatch) {
-        return exactMatch
-      }
+    if (exactMatch) {
+      return exactMatch
     }
 
-    const allPlayers = await getNBARoster()
     return (
-      allPlayers.find(
-        (p) => normalizeName(p.fullName) === normalized || normalizeName(p.name) === normalized
-      ) ||
-      allPlayers.find(
-        (p) => normalizeName(p.fullName).includes(normalized) || normalizeName(p.name).includes(normalized)
-      ) ||
+      allPlayers.find((player) => normalizeName(player.fullName).includes(normalized)) ||
+      allPlayers.find((player) => normalizeName(player.name).includes(normalized)) ||
       null
     )
   } catch (error) {

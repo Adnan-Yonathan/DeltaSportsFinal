@@ -8,7 +8,7 @@ interface UseLiveScoresOptions {
   date?: string
 }
 
-export function useLiveScores({ refreshInterval = 15000, date }: UseLiveScoresOptions = {}) {
+export function useLiveScores({ refreshInterval = 5000, date }: UseLiveScoresOptions = {}) {
   const [data, setData] = useState<LiveScoresResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

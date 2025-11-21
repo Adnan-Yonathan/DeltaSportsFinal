@@ -11,7 +11,9 @@ const BOOKMAKER_LINKS: Record<string, string> = {
   betmgm: 'https://www.betmgm.com/en/sports',
   'bet-mgm': 'https://www.betmgm.com/en/sports',
 
-  stake: 'https://stake.com/sports/home',
+  underdog: 'https://underdogfantasy.com/pickem',
+  'underdog-fantasy': 'https://underdogfantasy.com/pickem',
+  underdogfantasy: 'https://underdogfantasy.com/pickem',
 
   betfanatics: 'https://betfanatics.com/sportsbook',
   fanatics: 'https://betfanatics.com/sportsbook',

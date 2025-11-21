@@ -868,8 +868,20 @@ async function fetchOddsIO(
   if (ids.length === 0) return []
 
   const envBookmakers = opts.bookmakers ? normalizeBookmakerList(opts.bookmakers) : pickBookmakersParam()
-  const bookmakerSelectionApplied = await ensureBookmakersSelection(envBookmakers ?? null)
-  const defaultBookmakersFilter = bookmakerSelectionApplied ? envBookmakers : null
+
+  // Apply bookmaker selection; if the provided list fails, fall back to a safe default set
+  let appliedBookmakers: string | null | undefined = envBookmakers
+  let bookmakerSelectionApplied = await ensureBookmakersSelection(appliedBookmakers ?? null)
+  if (!bookmakerSelectionApplied) {
+    const fallbackBookmakers = getDefaultBookmakers()
+    if (fallbackBookmakers && fallbackBookmakers !== appliedBookmakers) {
+      appliedBookmakers = fallbackBookmakers
+      bookmakerSelectionApplied = await ensureBookmakersSelection(appliedBookmakers)
+    }
+  }
+  const defaultBookmakersFilter = bookmakerSelectionApplied
+    ? appliedBookmakers
+    : appliedBookmakers ?? getDefaultBookmakers()
   const chunks: string[][] = []
   for (let i = 0; i < ids.length; i += 10) chunks.push(ids.slice(i, i + 10))
 

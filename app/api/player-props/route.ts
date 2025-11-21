@@ -61,9 +61,9 @@ type CacheEntry = { expires: number; data: OddsGame[] }
 const oddsCache = new Map<string, CacheEntry>()
 const playerLookupCache = new Map<string, Promise<RosterPlayer | null>>()
 
-const SAFE_PROP_BOOKMAKERS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365', 'Fanatics', 'Bovada', 'Stake', 'Fliff', 'BetRivers', 'Pinnacle']
+const SAFE_PROP_BOOKMAKERS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365', 'Fanatics', 'Bovada', 'Underdog', 'Fliff', 'BetRivers', 'Pinnacle']
 const FALLBACK_SINGLE_BOOK = ['FanDuel', 'DraftKings', 'BetMGM']
-const EXCLUDED_FANTASY_BOOKS = new Set(['PrizePicks', 'Underdog', 'Underdog Fantasy', 'ThriveFantasy', 'Sleeper'])
+const EXCLUDED_FANTASY_BOOKS = new Set(['PrizePicks', 'ThriveFantasy', 'Sleeper'])
 
 const STAT_KEY_MAP: Record<string, string> = {
   'passing attempts': 'player_pass_atts',

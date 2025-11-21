@@ -526,7 +526,7 @@ export async function fetchAllLiveScores(options: FetchAllOptions = {}): Promise
         game.eventId,
         leagueConfig,
         game.startTime,
-        game.bucket === "completed",
+        false,
         game.competitors
           ?.flatMap((c) => [c.name, c.shortName, c.abbreviation])
           .filter(Boolean) || []

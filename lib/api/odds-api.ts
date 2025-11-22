@@ -61,6 +61,8 @@ async function fetchWithSingleKey(urlBase: string, init?: NextFetchRequestInit):
 
 const DEFAULT_REVALIDATE_SECONDS = 30
 
+const STANDARD_MARKETS = [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS] as const
+
 // Alternate spread filtering disabled (include all spreads)
 const FILTER_ALTERNATE_SPREADS = false
 const MIN_STANDARD_SPREAD_ODDS = Number.NEGATIVE_INFINITY
@@ -251,6 +253,25 @@ function toAmerican(value?: string | number | null): number | undefined {
   return decimalToAmerican(dec)
 }
 
+// Normalize provider odds that may be decimal or already American
+function normalizePrice(value: any): number | undefined {
+  const num = parseNumber(value)
+  if (num == null) return undefined
+
+  // Decimal odds (common range)
+  if (num > 1 && num < 20) {
+    const converted = decimalToAmerican(num)
+    return isFinite(converted) ? converted : undefined
+  }
+
+  // American odds
+  if (Math.abs(num) >= 100 && Math.abs(num) <= 2000) {
+    return Math.round(num)
+  }
+
+  return undefined
+}
+
 function parseNumber(value: any): number | undefined {
   if (typeof value === 'number' && isFinite(value)) return value
   if (typeof value === 'string') {
@@ -321,11 +342,11 @@ export function mapBookmakersIO(
       if (isMoneyline) {
         const o = oddsEntries.length ? oddsEntries[0] : market.odds
         const out: OddsOutcome[] = []
-        const homePrice = toAmerican(o?.home ?? o?.homeOdds ?? o?.home_price)
-        const awayPrice = toAmerican(o?.away ?? o?.awayOdds ?? o?.away_price)
+        const homePrice = normalizePrice(o?.home ?? o?.homeOdds ?? o?.home_price)
+        const awayPrice = normalizePrice(o?.away ?? o?.awayOdds ?? o?.away_price)
         if (homePrice != null) out.push({ name: home, price: homePrice })
         if (o?.draw != null || o?.drawOdds != null) {
-          const drawPrice = toAmerican(o?.draw ?? o?.drawOdds ?? o?.draw_price)
+          const drawPrice = normalizePrice(o?.draw ?? o?.drawOdds ?? o?.draw_price)
           if (drawPrice != null) out.push({ name: 'Draw', price: drawPrice })
         }
         if (awayPrice != null) out.push({ name: away, price: awayPrice })
@@ -352,8 +373,8 @@ export function mapBookmakersIO(
           if (hdp == null) continue
 
           totalSpreadCount++
-          const homePrice = toAmerican(row?.home ?? row?.homeOdds ?? row?.home_price)
-          const awayPrice = toAmerican(row?.away ?? row?.awayOdds ?? row?.away_price)
+          const homePrice = normalizePrice(row?.home ?? row?.homeOdds ?? row?.home_price)
+          const awayPrice = normalizePrice(row?.away ?? row?.awayOdds ?? row?.away_price)
 
           // Filter out alternate spreads with extreme odds (if enabled)
           // Only include if BOTH sides have standard spread odds (between MIN and MAX)
@@ -392,20 +413,84 @@ export function mapBookmakersIO(
         normalizedKey.includes('over_under')
 
       if (isTotal && oddsEntries.length) {
+        const isTeamOrPartialTotal =
+          normalizedName.includes('team total') ||
+          normalizedName.includes('totals ht') ||
+          normalizedName.includes('total ht') ||
+          normalizedName.includes('1st half') ||
+          normalizedName.includes('first half') ||
+          normalizedName.includes('half total') ||
+          normalizedName.includes('quarter') ||
+          normalizedKey.includes('team_total') ||
+          normalizedKey.includes('totals_ht')
+
+        if (isTeamOrPartialTotal) {
+          continue
+        }
+
+        const totalsWithinWindow = (prices: number[]) =>
+          prices.every((price) => price >= -150 && price <= 150)
+        const totalsPenalty = (prices: number[]) => {
+          if (!prices.length) return Number.POSITIVE_INFINITY
+          const targetPenalty = prices.reduce((sum, price) => {
+            const target = price < 0 ? -110 : 100
+            return sum + Math.abs(price - target)
+          }, 0) / prices.length
+          const windowPenalty = prices.reduce((sum, price) => {
+            if (price < -150) return sum + (-150 - price)
+            if (price > 150) return sum + (price - 150)
+            return sum
+          }, 0) / prices.length
+          return targetPenalty + windowPenalty
+        }
+
+        let bestTotals:
+          | {
+              outcomes: OddsOutcome[]
+              last_update?: string
+              prices: number[]
+              point?: number
+            }
+          | null = null
+
         for (const row of oddsEntries) {
           const totalLine = parseNumber(
-            row?.max ?? row?.line ?? row?.points ?? row?.point ?? row?.total
+            row?.max ?? row?.line ?? row?.points ?? row?.point ?? row?.total ?? row?.hdp
           )
-          if (totalLine == null) continue
-          const overPrice = toAmerican(row?.over ?? row?.overOdds ?? row?.over_price)
-          const underPrice = toAmerican(row?.under ?? row?.underOdds ?? row?.under_price)
+          if (totalLine == null || totalLine < 5 || totalLine > 400) continue
+          const overPrice = normalizePrice(row?.over ?? row?.overOdds ?? row?.over_price)
+          const underPrice = normalizePrice(row?.under ?? row?.underOdds ?? row?.under_price)
           const outcomes: OddsOutcome[] = []
           if (overPrice != null) outcomes.push({ name: 'Over', price: overPrice, point: totalLine })
           if (underPrice != null)
             outcomes.push({ name: 'Under', price: underPrice, point: totalLine })
           if (outcomes.length && shouldInclude('totals')) {
-            mappedMarkets.push({ key: 'totals', outcomes: outcomes, last_update })
+            const prices = outcomes.map((o) => o.price).filter((p) => isFinite(p))
+            if (!prices.length) continue
+            const candidate = { outcomes, last_update, prices, point: totalLine }
+            if (!bestTotals) {
+              bestTotals = candidate
+            } else {
+              const candWithin = totalsWithinWindow(candidate.prices)
+              const bestWithin = totalsWithinWindow(bestTotals.prices)
+              const candPenalty = totalsPenalty(candidate.prices)
+              const bestPenalty = totalsPenalty(bestTotals.prices)
+              if (
+                (candWithin && !bestWithin) ||
+                (candWithin === bestWithin && candPenalty <= bestPenalty)
+              ) {
+                bestTotals = candidate
+              }
+            }
           }
+        }
+
+        if (bestTotals) {
+          mappedMarkets.push({
+            key: 'totals',
+            outcomes: bestTotals.outcomes,
+            last_update: bestTotals.last_update,
+          })
         }
       }
 
@@ -574,8 +659,10 @@ export async function fetchEventOdds(
     regions: process.env.ODDS_REGIONS || 'us',
   }
   params.bookmakers = bookmakerParam
-  if (markets && markets.length) {
-    params.markets = markets.join(',')
+  const appliedMarkets =
+    markets === null ? null : (markets && markets.length ? markets : [...STANDARD_MARKETS])
+  if (appliedMarkets && appliedMarkets.length) {
+    params.markets = appliedMarkets.join(',')
   }
   const { data } = await oddsIoFetch<EventResponse>('/odds', {
     params,
@@ -593,10 +680,12 @@ export async function fetchMultiEventOdds(
   const ids = eventIds.map((id) => String(id).trim()).filter(Boolean)
   if (!ids.length) return []
   const results: EventResponse[] = []
+  const appliedMarkets =
+    markets === null ? null : (markets && markets.length ? markets : [...STANDARD_MARKETS])
 
   for (const id of ids) {
     try {
-      const event = await fetchEventOdds(id, bookmakers, init, markets)
+      const event = await fetchEventOdds(id, bookmakers, init, appliedMarkets)
       results.push(event)
     } catch (error) {
       console.error(`[ODDS] Failed to fetch odds for event ${id}:`, error)
@@ -696,7 +785,7 @@ export async function selectBookmakersRemote(bookmakers: string | string[]) {
 
 async function fetchOddsIO(
   sportKey: string,
-  _markets: string[] = ['h2h', 'spreads', 'totals'],
+  _markets: string[] = [...STANDARD_MARKETS],
   opts: { live?: boolean; revalidateSeconds?: number; teamFilter?: string[]; bookmakers?: string | string[] | null } = {}
 ): Promise<OddsGame[]> {
   const baseMapping = SPORT_MAP[sportKey]
@@ -944,7 +1033,74 @@ async function fetchOddsIO(
     games = await loadGames(fallbackBookmakers)
   }
 
+  // Best-effort retry for totals when a provider omits them in the initial response
+  const wantsTotals = _markets.includes(MARKETS.TOTALS)
+  if (wantsTotals && games.length > 0) {
+    const missingTotalsGameIds = games
+      .filter(
+        (game) =>
+          !game.bookmakers.some((bk) => bk.markets.some((m) => m.key === MARKETS.TOTALS))
+      )
+      .map((game) => game.id)
+
+    if (missingTotalsGameIds.length > 0) {
+      console.warn(
+        `[ODDS] Totals missing for ${missingTotalsGameIds.length} game(s); fetching totals-only fallback`
+      )
+      const totalChunks: string[][] = []
+      for (let i = 0; i < missingTotalsGameIds.length; i += 10) {
+        totalChunks.push(missingTotalsGameIds.slice(i, i + 10))
+      }
+
+      for (const chunk of totalChunks) {
+        try {
+          const totalsEvents = await fetchMultiEventOdds(
+            chunk,
+            defaultBookmakersFilter ?? getDefaultBookmakers(),
+            oddsFetchInit,
+            [MARKETS.TOTALS]
+          )
+
+          for (const ev of totalsEvents) {
+            const meta = eventLookup.get(String(ev.id))
+            const home = ev.home || meta?.home || ''
+            const away = ev.away || meta?.away || ''
+            const totalsBooks = mapBookmakersIO(ev.bookmakers || {}, home, away, [
+              MARKETS.TOTALS,
+            ])
+            const target = games.find((g) => g.id === String(ev.id))
+            if (target && totalsBooks.length > 0) {
+              target.bookmakers = mergeTotalsMarkets(target.bookmakers, totalsBooks)
+            }
+          }
+        } catch (error) {
+          console.error('[ODDS] Failed totals-only fallback fetch:', error)
+        }
+      }
+    }
+  }
+
   return games
+}
+
+function mergeTotalsMarkets(existing: Bookmaker[], totalsOnly: Bookmaker[]): Bookmaker[] {
+  const existingMap = new Map(existing.map((bk) => [bk.key, bk]))
+
+  for (const totalsBk of totalsOnly) {
+    const totalsMarket = totalsBk.markets.find((m) => m.key === MARKETS.TOTALS)
+    if (!totalsMarket) continue
+    const target = existingMap.get(totalsBk.key)
+    if (target) {
+      const withoutTotals = target.markets.filter((m) => m.key !== MARKETS.TOTALS)
+      target.markets = [...withoutTotals, totalsMarket]
+    } else {
+      // If we didn't have this book before, add it with totals only
+      existing.push({ ...totalsBk, markets: [totalsMarket] })
+      existingMap.set(totalsBk.key, existing[existing.length - 1])
+    }
+  }
+
+  return existing
 }
 
 /**
@@ -959,7 +1115,7 @@ export interface FetchOddsOptions {
 
 export async function fetchOdds(
   sport: string,
-  markets: string[] = ['h2h', 'spreads', 'totals'],
+  markets: string[] = [...STANDARD_MARKETS],
   options: FetchOddsOptions = {}
 ): Promise<OddsGame[]> {
   const provider = (process.env.ODDS_PROVIDER || 'odds-api-io').toLowerCase()

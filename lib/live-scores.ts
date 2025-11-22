@@ -483,11 +483,17 @@ async function fetchLeagueScores(config: (typeof ESPN_LEAGUES)[number], options:
 
 interface FetchAllOptions {
   date?: string
+  includeCompletedForDate?: boolean
 }
 
 export async function fetchAllLiveScores(options: FetchAllOptions = {}): Promise<LiveScoresResponse> {
   const requestedDate = normalizeDate(options.date)
   const previousDate = shiftDate(requestedDate, -1)
+  const todayYmd = normalizeDate(new Date().toISOString().slice(0, 10))
+  const includeCompletedForDate =
+    options.includeCompletedForDate ??
+    new Date(`${requestedDate}T00:00:00Z`).getTime() <
+      new Date(`${todayYmd}T00:00:00Z`).getTime()
 
   const primaryPromises = ESPN_LEAGUES.map(async (league) => {
     try {
@@ -500,7 +506,8 @@ export async function fetchAllLiveScores(options: FetchAllOptions = {}): Promise
 
   const completedPromises = ESPN_LEAGUES.map(async (league) => {
     try {
-      return await fetchLeagueScores(league, { date: previousDate, mode: "completed" })
+      const completedDate = includeCompletedForDate ? requestedDate : previousDate
+      return await fetchLeagueScores(league, { date: completedDate, mode: "completed" })
     } catch (error) {
       console.error(`[live-scores] ${league.label} completed fetch failed`, error)
       return []

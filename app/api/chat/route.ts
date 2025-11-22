@@ -12,6 +12,7 @@ import {
   formatStatsForAI,
   getNBAPlayerSeasonStats,
   getNFLPlayerSeasonStats,
+  searchPlayer,
 } from '@/lib/sports-stats-api'
 import type { TeamStats as ProviderTeamStats } from '@/lib/sports-stats-api'
 import { fetchAllLiveScores, fetchGameDetails, type LeagueId, type LiveScoreGameDetails } from '@/lib/live-scores'
@@ -29,6 +30,218 @@ import { openai, AI_MODELS, runWebSearchResponse } from '@/lib/ai-gateway-client
 
 export const runtime = 'nodejs'
 export const maxDuration = 300 // 5 minutes (max for Pro plan)
+
+const formatLeagueLabel = (sportKey: string): string => {
+  const map: Record<string, string> = {
+    basketball_nba: 'NBA',
+    basketball_ncaab: 'NCAAB',
+    americanfootball_nfl: 'NFL',
+    americanfootball_ncaaf: 'NCAAF',
+    baseball_mlb: 'MLB',
+    icehockey_nhl: 'NHL',
+  }
+  return map[sportKey] || sportKey.toUpperCase()
+}
+
+const normalizeToken = (value?: string) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+const parseDateFromMessage = (input: string): string => {
+  const lower = input.toLowerCase()
+  const today = new Date()
+  const toYmd = (d: Date) => d.toISOString().slice(0, 10)
+
+  if (/\blast\s+night\b/.test(lower)) {
+    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1))
+    return toYmd(d)
+  }
+  if (/\blast\b/.test(lower) && /\b(game|match)\b/.test(lower)) {
+    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1))
+    return toYmd(d)
+  }
+  const m = input.match(/(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?/)
+  if (m) {
+    const month = Number(m[1])
+    const day = Number(m[2])
+    const yearRaw = m[3] ? Number(m[3]) : today.getFullYear()
+    const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw
+    const date = new Date(Date.UTC(year, month - 1, day))
+    if (!Number.isNaN(date.getTime())) {
+      const todayMid = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
+      if (date.getTime() - todayMid.getTime() > 24 * 60 * 60 * 1000) {
+        const prior = new Date(Date.UTC(year - 1, month - 1, day))
+        return toYmd(prior)
+      }
+      return toYmd(date)
+    }
+  }
+  return toYmd(today)
+}
+
+const formatPlayerGameLine = (player: any): string => {
+  if (!player?.statMap) return player?.summaryLine || ''
+  const stats = player.statMap as Record<string, string>
+  const parts: string[] = []
+  const pick = (key: string) => stats[key] ?? stats[key.toUpperCase()] ?? stats[key.toLowerCase()]
+  const pushIf = (label: string, key: string | string[]) => {
+    const keys = Array.isArray(key) ? key : [key]
+    for (const k of keys) {
+      const val = pick(k)
+      if (val) {
+        parts.push(`${label} ${val}`)
+        break
+      }
+    }
+  }
+  pushIf('PTS', ['PTS'])
+  pushIf('REB', ['REB', 'REBS'])
+  pushIf('AST', ['AST', 'ASSISTS'])
+  pushIf('STL', ['STL'])
+  pushIf('BLK', ['BLK'])
+  pushIf('FG', ['FGM/FGA', 'FG'])
+  pushIf('3PT', ['3PM/3PA', '3PT'])
+  if (parts.length === 0 && player.summaryLine) return player.summaryLine
+  return parts.join(' | ')
+}
+
+const findPlayerGameStats = async (opts: {
+  player: string
+  opponent?: string
+  opponentCandidates?: string[]
+  date?: string
+}): Promise<{ title: string; line?: string; reason?: string } | null> => {
+  const parsedDate =
+    opts.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date) ? opts.date : parseDateFromMessage(opts.date || '')
+  const playerEntry = await searchPlayer(opts.player, 'basketball_nba')
+  if (!playerEntry) return { title: `${opts.player} on ${parsedDate}`, line: undefined, reason: 'player_not_found_global' }
+  const playerTeam = normalizeToken(playerEntry?.team) || normalizeToken(opts.player.split(' ').slice(-1)[0]) // allow last name fallback
+  const inferredOpponent =
+    opts.opponent ||
+    (opts.opponentCandidates || []).find((team) => {
+      const norm = normalizeToken(team)
+      return norm && !playerTeam.includes(norm) && !norm.includes(playerTeam)
+    })
+  const opponentToken = normalizeToken(inferredOpponent)
+
+  const loadScores = async (d: string) => {
+    const scores = await fetchAllLiveScores({ date: d, includeCompletedForDate: true })
+    return (scores?.games || []).filter((g) => g.league === 'nba')
+  }
+
+  const seenDates = new Set<string>()
+  const shiftDateStr = (ymd: string, delta: number) => {
+    const dt = new Date(`${ymd}T00:00:00Z`)
+    const shifted = new Date(dt.getTime() + delta * 24 * 60 * 60 * 1000)
+    return shifted.toISOString().slice(0, 10)
+  }
+  const dateCandidates = [
+    parsedDate,
+    shiftDateStr(parsedDate, -1),
+    shiftDateStr(parsedDate, 1),
+    shiftDateStr(parsedDate, -2),
+    shiftDateStr(parsedDate, 2),
+  ]
+  const parsedDt = new Date(`${parsedDate}T00:00:00Z`)
+  const priorYear = new Date(Date.UTC(parsedDt.getUTCFullYear() - 1, parsedDt.getUTCMonth(), parsedDt.getUTCDate()))
+  dateCandidates.push(priorYear.toISOString().slice(0, 10))
+
+  let games: any[] = []
+  let usedDate = parsedDate
+  let triedPriorYear = false
+
+  let targetGame: any | undefined
+
+  for (const dateCandidate of dateCandidates) {
+    if (seenDates.has(dateCandidate)) continue
+    seenDates.add(dateCandidate)
+    const slate = await loadScores(dateCandidate)
+    games = slate
+    if (priorYear.toISOString().slice(0, 10) === dateCandidate) triedPriorYear = true
+
+    const matchGame =
+      games.find((g) => {
+        const teams = (g.competitors || []).map((c) => normalizeToken(c.name) || normalizeToken(c.shortName) || normalizeToken(c.abbreviation))
+        const hasPlayerTeam = playerTeam ? teams.some((t) => t.includes(playerTeam) || playerTeam.includes(t)) : false
+        const hasOpponent = opponentToken ? teams.some((t) => t.includes(opponentToken) || opponentToken.includes(t)) : true
+        return hasPlayerTeam && hasOpponent
+      }) ||
+      games.find((g) => {
+        const teams = (g.competitors || []).map((c) => normalizeToken(c.name) || normalizeToken(c.shortName) || normalizeToken(c.abbreviation))
+        return playerTeam ? teams.some((t) => t.includes(playerTeam) || playerTeam.includes(t)) : false
+      })
+
+    if (!matchGame && games.length) {
+      for (const g of games.slice(0, 8)) {
+        try {
+          const details = await fetchGameDetails('nba', g.eventId)
+          const players = details.teams.flatMap((t) => [...(t.starters || []), ...(t.bench || []), ...(t as any).players || []])
+          const found = players.find((p) => normalizeToken(p.name).includes(normalizeToken(opts.player)))
+          if (found) {
+            targetGame = g
+            usedDate = dateCandidate
+            break
+          }
+        } catch {
+          continue
+        }
+      }
+    }
+
+    if (matchGame) {
+      targetGame = matchGame
+      usedDate = dateCandidate
+      break
+    }
+    if (targetGame) break
+  }
+
+  // Fallback: scan a few games on that date for the player name in box score
+  if (!targetGame && games.length) {
+    for (const g of games.slice(0, 6)) {
+      try {
+        const details = await fetchGameDetails('nba', g.eventId)
+        const players = details.teams.flatMap((t) => [...(t.starters || []), ...(t.bench || [])])
+        const found = players.find((p) => normalizeToken(p.name).includes(normalizeToken(opts.player)))
+        if (found) {
+          targetGame = g
+          break
+        }
+      } catch {
+        // ignore and continue
+      }
+    }
+  }
+
+  if (!targetGame) {
+    return {
+      title: `${opts.player} on ${parsedDate}`,
+      line: undefined,
+      reason: triedPriorYear ? 'no_game_prior' : 'no_game',
+    }
+  }
+
+  let details
+  try {
+    details = await fetchGameDetails('nba', targetGame.eventId)
+  } catch (err) {
+    return { title: `${opts.player} on ${parsedDate}`, line: undefined, reason: 'no_boxscore' }
+  }
+  const players = details.teams.flatMap((t) => [...(t.starters || []), ...(t.bench || []), ...(t as any).players || []])
+  const normalizedPlayer = normalizeToken(opts.player)
+  const lastName = normalizeToken(opts.player.split(' ').slice(-1)[0] || '')
+  const target =
+    players.find((p) => normalizeToken(p.name).includes(normalizedPlayer)) ||
+    (lastName ? players.find((p) => normalizeToken(p.name).includes(lastName)) : undefined)
+
+  const title = `${opts.player} vs ${inferredOpponent || 'opponent'} on ${usedDate}`
+  if (!target) {
+    return { title, line: undefined, reason: 'player_not_found' }
+  }
+
+  return {
+    title,
+    line: formatPlayerGameLine(target),
+  }
+}
 
 // Log model configuration on startup
 console.log(`[CHAT] Using OpenAI API`)
@@ -632,6 +845,27 @@ const normalizeUserDataOverrides = (raw: any): UserDataOverride[] | undefined =>
 }
 
 const getSystemPrompt = (timezone: string) => `You are DELTA, a professional sports betting assistant. Your role is to help users analyze betting opportunities, manage their bankroll, and understand sports betting markets.
+
+**Data sources and limits (ESPN + odds-api):**
+- Betting lines: use odds-api (moneyline/spread/totals); do NOT claim odds come from ESPN.
+- Stats: use ESPN-derived data we fetch (box scores, season averages, injuries, standings). Advanced pace/usage/DvP/snap-share/xG are NOT available; do not invent them.
+- If a query mixes betting + stats, pull odds from odds-api and stats from ESPN, then synthesize with reasoning.
+
+**What ESPN actually provides (use only these):**
+- NBA: season averages (PTS/REB/AST/FG%/3P%), box-score lines, minutes, injuries, team records. No usage, pace, DvP, potential assists, or rebounding chances.
+- NFL: pass/rush/receiving yards, attempts/receptions/TDs/INTs, completions/attempts, basic injuries and team scoring/allowed. No snap share, routes, advanced coverage/OL data.
+- NHL: goals/assists/points, shots on goal, time on ice (via box), goalie SV%, team records. No PP/PK%, no advanced pace.
+- MLB: minimal via ESPN feeds; no advanced K%, xFIP, barrel%, etc. (don’t promise them).
+- Soccer: basic goals/assists/shots/cards and team form; no xG/xA unless explicitly provided elsewhere.
+
+**General conversation & betting education layer (for non-odds / non-specific stats asks):**
+- Tone: conversational, sharp, concise, data-aware. Avoid hot takes/speculation/emotional language.
+- Allowed: explain sports rules, betting terminology (moneyline, spread, total, juice, CLV/EV, arbitrage/middles), sharp concepts (bankroll/line shopping/CLV), how to interpret stats, how to use the app. Keep it brief (≤4 sentences; bullets OK).
+- Boundaries: decline politics/medical/legal/relationship/explicit/finance investment; politely pivot back to sports/betting.
+- Education: define terms simply and tie to actionable betting behavior; no picks/guarantees.
+- Redirect examples: “I stay out of that, but I can break down any matchup, trend, or stat you want.”
+
+**Stats-only questions:** Answer directly with ESPN-derived data (season averages, box scores, injuries, standings). If something isn’t available, state the limitation instead of stalling.
 
 **CURRENT DATE & TIME (${timezone}):**
 Today's date is ${new Date().toLocaleDateString('en-US', {
@@ -1564,6 +1798,11 @@ export async function POST(req: NextRequest) {
     const webSearchToggle = /enable_web_search|enable\s+web\s+search/i.test(msgLower)
     const wantsEdgesOrValue = /(edge|ev|expected\s+value|value\s+bet|mispriced|best\s+bet)/i.test(msgLower)
     const mentionsModel = /model/i.test(msgLower)
+    const playerNameInMessage = extractPlayerName(message)
+    const playerGameStatsIntent =
+      Boolean(playerNameInMessage) &&
+      /\b(stat line|box score|game stats?|how many|line vs|stats?\s+vs)\b/i.test(msgLower) &&
+      (/\bvs\b|against|@/i.test(msgLower) || /\b\d{1,2}\/\d{1,2}\b/.test(msgLower) || /\blast\s+(night|game)\b/i.test(msgLower))
     const modelApplicationIntent =
       /apply\s+.+?(model|confidence)|confidence\s+interval|run\s+my\s+model|use\s+my\s+model|custom\s+model/i.test(msgLower)
     const researchIntent =
@@ -1576,6 +1815,7 @@ export async function POST(req: NextRequest) {
       !researchIntent &&
       !webSearchToggle &&
       !modelApplicationIntent &&
+      !playerGameStatsIntent &&
       (Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0)
 
     const loadNcaabSlateTeams = async () => {
@@ -1645,7 +1885,7 @@ export async function POST(req: NextRequest) {
         const fmtTime = (iso?: string) => iso ? new Date(iso).toLocaleString('en-US', { timeZone: timezone, weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true, timeZoneName:'short' }) : ''
         const lines: string[] = []
         for (const bucket of all) {
-          lines.push(`\n**${bucket.sport.toUpperCase()}**`)
+          lines.push(`\n**${formatLeagueLabel(bucket.sport)}**`)
           for (const e of bucket.events) {
             const when = fmtTime(e.date)
             const st = (e.status || 'pending').toUpperCase()
@@ -2199,6 +2439,24 @@ export async function POST(req: NextRequest) {
               return `${header}\n${divider}\n${body}`
             }
 
+            const hasTotalsMarket = (book: { markets: Array<{ key: string }> }) =>
+              book.markets.some((m) => m.key === 'totals')
+
+            const ensureTotalsInSelection = (
+              books: Array<{ name: string; link?: string; markets: any[] }>,
+              limit: number
+            ) => {
+              if (!books.length || limit <= 0) return []
+              const limited = books.slice(0, limit)
+              if (limited.some(hasTotalsMarket)) return limited
+              const withTotals = books.slice(limit).find(hasTotalsMarket)
+              if (withTotals) {
+                // Replace last slot to surface at least one totals market
+                limited[Math.max(0, limited.length - 1)] = withTotals
+              }
+              return limited
+            }
+
             const MAX_GAMES_PER_SPORT = 3
             const MAX_GAMES_TARGETED = 1
             const MAX_BOOKS_PER_GAME = 6
@@ -2216,38 +2474,40 @@ export async function POST(req: NextRequest) {
                     status: (game as any).status || undefined,
                     home_team: game.home_team,
                     away_team: game.away_team,
-                    bookmakers: (game.bookmakers || [])
-                      .map((book: any) => {
-                        const marketMap = new Map<string, { key: string; outcomes: any[] }>()
+                    bookmakers: ensureTotalsInSelection(
+                      (game.bookmakers || [])
+                        .map((book: any) => {
+                          const marketMap = new Map<string, { key: string; outcomes: any[] }>()
 
-                        for (const market of book.markets || []) {
-                          const normalized = {
-                            key: market.key,
-                            outcomes: Array.isArray(market.outcomes) ? market.outcomes : [],
+                          for (const market of book.markets || []) {
+                            const normalized = {
+                              key: market.key,
+                              outcomes: Array.isArray(market.outcomes) ? market.outcomes : [],
+                            }
+                            if (!normalized.outcomes.length) continue
+
+                            if (normalized.key === 'spreads') {
+                              const preferred = choosePreferredSpreadMarket(
+                                marketMap.get('spreads'),
+                                normalized
+                              )
+                              marketMap.set('spreads', preferred)
+                            } else {
+                              marketMap.set(normalized.key, normalized)
+                            }
                           }
-                          if (!normalized.outcomes.length) continue
 
-                          if (normalized.key === 'spreads') {
-                            const preferred = choosePreferredSpreadMarket(
-                              marketMap.get('spreads'),
-                              normalized
-                            )
-                            marketMap.set('spreads', preferred)
-                          } else {
-                            marketMap.set(normalized.key, normalized)
+                          const markets = Array.from(marketMap.values())
+
+                          return {
+                            name: book.title,
+                            link: book.url,
+                            markets,
                           }
-                        }
-
-                        const markets = Array.from(marketMap.values())
-
-                        return {
-                          name: book.title,
-                          link: book.url,
-                          markets,
-                        }
-                      })
-                      .slice(0, MAX_BOOKS_PER_GAME)
-                      .filter((book: any) => book.markets.length > 0),
+                        })
+                        .filter((book: any) => book.markets.length > 0),
+                      MAX_BOOKS_PER_GAME
+                    ),
                   }))
                   .map((game: any) => {
                     const table_markdown = buildOddsTableMarkdown(
@@ -2272,7 +2532,7 @@ export async function POST(req: NextRequest) {
                 sport.games
                   .map(
                     (game: any) =>
-                      `### ${sport.sport.toUpperCase()} - ${game.game}\n**Game Time:** ${game.commence_time_formatted}\n${game.table_markdown}`
+                      `### ${formatLeagueLabel(sport.sport)} - ${game.game}\n**Game Time:** ${game.commence_time_formatted}\n${game.table_markdown}`
                   )
                   .join('\n\n')
               )
@@ -2327,7 +2587,7 @@ export async function POST(req: NextRequest) {
               const sportKey = allOddsData[0].sport
               const liveInsights = await findLiveScoreDetailsForOddsGame(sportKey, baseGame, timezone)
               if (liveInsights) {
-                teamInsights = `\n**TEAM INSIGHTS:**\n${liveInsights}\n\nUse these stats as the advanced info for this matchup (streak, last 10, PPG/PAPG, FG%/3P%, REB/AST/BLK/STL).`
+                teamInsights = `\n**TEAM INSIGHTS:**\n${liveInsights}\n\nUse these stats as the advanced info for this matchup.`
               }
               if (!teamInsights) {
                 const fallbackInsights = await buildTeamInsightsFromTeamStats(
@@ -2336,7 +2596,7 @@ export async function POST(req: NextRequest) {
                   baseGame.away_team
                 )
                 if (fallbackInsights) {
-                  teamInsights = `\n**TEAM INSIGHTS (Season snapshot):**\n${fallbackInsights}\n\nUse these stats as the advanced info for this matchup (streak, last 10, PPG/PAPG, FG%/3P%, REB/AST/BLK/STL).`
+                  teamInsights = `\n**TEAM INSIGHTS (Season snapshot):**\n${fallbackInsights}\n\nUse these stats as the advanced info for this matchup.`
                 }
               }
             }
@@ -2367,7 +2627,7 @@ export async function POST(req: NextRequest) {
                 statsEnrichment = '\n\n**?? ENRICHED STATISTICS & INJURY DATA:**\n'
                 for (const sportData of enrichedOddsData) {
                   if (sportData.enrichedGames && sportData.enrichedGames.length > 0) {
-                    statsEnrichment += `\n**${sportData.sport.toUpperCase()}:**\n`
+                    statsEnrichment += `\n**${formatLeagueLabel(sportData.sport)}:**\n`
                     statsEnrichment += formatEnrichedGamesForAI(sportData.enrichedGames)
                     statsEnrichment += '\n'
                   }
@@ -2606,6 +2866,70 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
     const titleLine = `Team insights for ${game.away_team} @ ${game.home_team}`
     const body = insights || 'No team insights available yet.'
     return streamTextResponse(`${titleLine}\n\n${body}`)
+  }
+
+  // Shortcut: player season stats (avoid empty GPT replies)
+  const lowerMessage = message.toLowerCase()
+  const wantsPlayerSeasonStats = /\bseason (stats?|averages?)\b|per[- ]game stats?/i.test(lowerMessage)
+  const seasonPlayerName = extractPlayerName(message)
+  if (wantsPlayerSeasonStats && seasonPlayerName) {
+    try {
+      const sportGuess = lowerMessage.includes('nfl') || lowerMessage.includes('football')
+        ? 'americanfootball_nfl'
+        : 'basketball_nba'
+      const data =
+        sportGuess === 'americanfootball_nfl'
+          ? await getNFLPlayerSeasonStats(seasonPlayerName)
+          : await getNBAPlayerSeasonStats(seasonPlayerName)
+
+      if (data) {
+        const formatted = formatStatsForAI([data])
+        return streamTextResponse(`Season stats for ${seasonPlayerName} (${sportGuess === 'americanfootball_nfl' ? 'NFL' : 'NBA'}):\n\n${formatted}`)
+      }
+      return streamTextResponse(`I couldn't find season stats for ${seasonPlayerName}. Please check the spelling or tell me the sport.`)
+    } catch (err: any) {
+      console.error('[PLAYER_SEASON_STATS_SHORTCUT] Failed:', err)
+      return streamTextResponse('Player season stats are temporarily unavailable. Please try again.')
+    }
+  }
+
+  // Player single-game stat intent: fetch box score line
+  if (playerGameStatsIntent && playerNameInMessage) {
+    try {
+      const dateHint = parseDateFromMessage(message)
+      const opponentName =
+        parsedMatchupTeams[1] ||
+        parsedMatchupTeams[0] ||
+        (mentionedTeams.length ? mentionedTeams[0] : undefined)
+      const result = await findPlayerGameStats({
+        player: playerNameInMessage,
+        opponent: opponentName,
+        opponentCandidates: mentionedTeams,
+        date: dateHint,
+      })
+      const opponentLabel = opponentName ? opponentName : 'opponent'
+      if (result?.line) {
+        return streamTextResponse(
+          `${playerNameInMessage} vs ${opponentLabel} (${dateHint})\n${result.line}`
+        )
+      }
+      if (result?.reason === 'no_game') {
+        return streamTextResponse(
+          `No game found for ${playerNameInMessage} vs ${opponentLabel} on ${dateHint}. Try another date.`
+        )
+      }
+      if (result?.reason === 'player_not_found') {
+        return streamTextResponse(
+          `Game found on ${dateHint}, but ${playerNameInMessage} wasn't in the box score. Check the name or date.`
+        )
+      }
+      return streamTextResponse(
+        `I couldn't find a box score line for ${playerNameInMessage} on ${dateHint}. Try another date or opponent.`
+      )
+    } catch (err: any) {
+      console.error('[PLAYER_BOX_SCORE_SHORTCUT] Failed:', err)
+      return streamTextResponse('Box score lookup is temporarily unavailable. Please try again.')
+    }
   }
 
   let initialResponse = await openai.chat.completions.create(buildParams())
@@ -2935,7 +3259,7 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
             if (Object.keys(bySport).length > 0) {
               formatted += `**Performance by Sport:**\n`
               for (const [sport, data] of Object.entries(bySport) as [string, any][]) {
-                formatted += `- ${sport.toUpperCase()}: ${data.won}W-${data.lost}L (${data.winRate.toFixed(1)}% WR, ${data.roi.toFixed(1)}% ROI, $${data.profit.toFixed(2)} profit)\n`
+                formatted += `- ${formatLeagueLabel(sport)}: ${data.won}W-${data.lost}L (${data.winRate.toFixed(1)}% WR, ${data.roi.toFixed(1)}% ROI, $${data.profit.toFixed(2)} profit)\n`
               }
             }
 

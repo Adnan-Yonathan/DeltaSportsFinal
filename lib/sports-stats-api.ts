@@ -1162,9 +1162,34 @@ export function formatStatsForAI(stats: TeamStats[] | PlayerStats[] | InjuryRepo
   } else if ('position' in stats[0]) {
     // Player stats
     const players = stats as PlayerStats[]
-    return players.map(p =>
-      `${p.name} (${p.team}${p.position ? ', ' + p.position : ''}):\n${JSON.stringify(p.stats, null, 2)}`
-    ).join('\n\n')
+    const preferredOrder = ['PPG', 'RPG', 'APG', 'FG%', '3P%', 'PTS', 'REB', 'AST']
+    const formatLabel = (key: string) =>
+      key
+        .replace(/_/g, ' ')
+        .replace(/\b([a-z])/g, (m) => m.toUpperCase())
+    const formatValue = (key: string, val: any) => {
+      if (val == null) return 'n/a'
+      const num = typeof val === 'number' ? val : Number(val)
+      const isPercent = key.toLowerCase().includes('percent') || key.toLowerCase().includes('pct')
+      if (!Number.isNaN(num) && isPercent) return `${num.toFixed(1)}%`
+      if (!Number.isNaN(num)) return Number.isInteger(num) ? String(num) : num.toFixed(1)
+      return String(val)
+    }
+    return players
+      .map((p) => {
+        const orderedKeys = [
+          ...preferredOrder.filter((k) => p.stats[k] !== undefined),
+          ...Object.keys(p.stats || {}).filter((k) => !preferredOrder.includes(k)),
+        ]
+        const lines = orderedKeys.map((key) => `- ${formatLabel(key)}: ${formatValue(key, (p.stats as any)[key])}`)
+        const headerParts = [p.name || 'Unknown']
+        if (p.team) headerParts.push(p.team)
+        if (p.position) headerParts.push(p.position)
+        if (p.season) headerParts.push(`Season ${p.season}`)
+        const header = headerParts.join(' | ')
+        return `${header}\n${lines.join('\n')}`
+      })
+      .join('\n\n')
   } else {
     // Team stats
     const teams = stats as TeamStats[]

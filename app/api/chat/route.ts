@@ -160,13 +160,13 @@ const findPlayerGameStats = async (opts: {
     const matchGame =
       games.find((g) => {
         const teams = (g.competitors || []).map((c: any) => normalizeToken(c?.name) || normalizeToken(c?.shortName) || normalizeToken(c?.abbreviation))
-        const hasPlayerTeam = playerTeam ? teams.some((t) => t.includes(playerTeam) || playerTeam.includes(t)) : false
-        const hasOpponent = opponentToken ? teams.some((t) => t.includes(opponentToken) || opponentToken.includes(t)) : true
+        const hasPlayerTeam = playerTeam ? teams.some((t: string) => t.includes(playerTeam) || playerTeam.includes(t)) : false
+        const hasOpponent = opponentToken ? teams.some((t: string) => t.includes(opponentToken) || opponentToken.includes(t)) : true
         return hasPlayerTeam && hasOpponent
       }) ||
       games.find((g) => {
         const teams = (g.competitors || []).map((c: any) => normalizeToken(c?.name) || normalizeToken(c?.shortName) || normalizeToken(c?.abbreviation))
-        return playerTeam ? teams.some((t) => t.includes(playerTeam) || playerTeam.includes(t)) : false
+        return playerTeam ? teams.some((t: string) => t.includes(playerTeam) || playerTeam.includes(t)) : false
       })
 
     if (!matchGame && games.length) {

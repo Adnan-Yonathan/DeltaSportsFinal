@@ -42,7 +42,7 @@ const highlights = [
 
 function FAQSection({ className }: { className?: string }) {
   return (
-    <section className={cn("w-full bg-black py-16 md:py-24", className)}>
+    <section className={cn("w-full py-16 md:py-24", className)}>
       <div className="mx-auto grid w-full max-w-6xl gap-12 px-4 md:grid-cols-2">
         <div className="space-y-8">
           <div className="space-y-4">

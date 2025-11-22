@@ -567,7 +567,6 @@ const buildDeterministicOddsReply = () => {
   return [
     gamesLine ? `Here are the current odds: ${gamesLine}` : 'Here are the current odds:',
     standardizedOddsTablesGlobal,
-    'Want injuries, stats, or deeper analysis on this matchup?',
   ]
     .filter(Boolean)
     .join('\n\n')

@@ -28,7 +28,7 @@ function AnimatedHero({
   }, [termIndex, rotatingTerms, interval])
 
   return (
-    <h1 className="text-5xl md:text-6xl font-semibold leading-[1.3] tracking-tight text-white">
+    <h1 className="text-5xl md:text-7xl max-w-2xl tracking-tighter text-center font-semibold text-white">
       {staticText}
       <br />
       <span className="relative block min-h-[1.6em] w-full pt-1 pb-3">
@@ -37,7 +37,7 @@ function AnimatedHero({
         {rotatingTerms.map((term, index) => (
           <motion.span
             key={index}
-            className="absolute left-0 inset-y-0 font-semibold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent whitespace-nowrap flex items-center"
+            className="absolute left-0 right-0 inset-y-0 font-semibold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent whitespace-nowrap flex items-center justify-center"
             initial={{ opacity: 0, y: -50 }}
             transition={{ type: "spring", stiffness: 50 }}
             animate={

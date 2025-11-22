@@ -568,20 +568,12 @@ export async function fetchEventOdds(
   markets?: string[] | null
 ): Promise<EventResponse> {
   if (!eventId) throw new OddsAPIError('eventId is required')
-  let bookmakerParam: string | undefined
-  if (bookmakers === null) {
-    // Explicit null disables the bookmaker filter so we can fetch all available data
-    bookmakerParam = undefined
-  } else {
-    bookmakerParam = normalizeBookmakerList(bookmakers) ?? getDefaultBookmakers()
-  }
+  const bookmakerParam = normalizeBookmakerList(bookmakers) ?? getDefaultBookmakers()
   const params: Record<string, QueryValue> = {
     eventId,
     regions: process.env.ODDS_REGIONS || 'us',
   }
-  if (bookmakerParam) {
-    params.bookmakers = bookmakerParam
-  }
+  params.bookmakers = bookmakerParam
   if (markets && markets.length) {
     params.markets = markets.join(',')
   }
@@ -891,7 +883,12 @@ async function fetchOddsIO(
     for (const chunk of chunks) {
       const activeFilter =
         bookmakersFilter === undefined ? defaultBookmakersFilter : bookmakersFilter
-      const data = await fetchMultiEventOdds(chunk, activeFilter ?? null, oddsFetchInit, _markets)
+      const data = await fetchMultiEventOdds(
+        chunk,
+        activeFilter ?? getDefaultBookmakers(),
+        oddsFetchInit,
+        _markets
+      )
       if (!Array.isArray(data) || !data.length) continue
 
       for (const ev of data) {
@@ -930,7 +927,9 @@ async function fetchOddsIO(
       console.warn(
         `[ODDS] Invalid bookmaker in filter "${defaultBookmakersFilter}", retrying without filter`
       )
-      games = await loadGames(null)
+      const fallbackBookmakers = getDefaultBookmakers()
+      await ensureBookmakersSelection(fallbackBookmakers)
+      games = await loadGames(fallbackBookmakers)
     } else {
       throw error
     }
@@ -940,7 +939,9 @@ async function fetchOddsIO(
     console.warn(
       '[ODDS] No bookmakers returned for ' + sportKey + ' with filter "' + defaultBookmakersFilter + '", retrying without filter'
     )
-    games = await loadGames(null)
+    const fallbackBookmakers = getDefaultBookmakers()
+    await ensureBookmakersSelection(fallbackBookmakers)
+    games = await loadGames(fallbackBookmakers)
   }
 
   return games

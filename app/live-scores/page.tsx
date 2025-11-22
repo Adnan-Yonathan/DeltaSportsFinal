@@ -8,6 +8,7 @@ import { ArrowLeft, Calendar, ChevronDown, ChevronLeft, ChevronRight, RefreshCw,
 import { useLiveScores } from "@/hooks/use-live-scores"
 import { useGameDetails } from "@/hooks/use-game-details"
 import { ESPN_LEAGUES, type LeagueId, type LiveScoreArticle, type LiveScoreGame, type LiveScoreGameDetails } from "@/lib/live-scores"
+import { DottedSurface } from "@/components/ui/dotted-surface"
 
 const LEAGUE_TABS: Array<{ id: LeagueId; label: string }> =
   ESPN_LEAGUES.map((league) => ({ id: league.id, label: league.label }))
@@ -167,8 +168,11 @@ export default function LiveScoresPage() {
   const completedDateLabel = formatDisplayDate(data?.previousDate)
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="mx-auto w-full max-w-none px-4 sm:px-6 lg:px-12 py-8 space-y-12">
+    <div className="relative min-h-screen bg-black text-white">
+      {/* Dotted Surface Background */}
+      <DottedSurface className="z-10" />
+
+      <div className="relative z-20 mx-auto w-full max-w-none px-4 sm:px-6 lg:px-12 py-8 space-y-12">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -359,7 +363,7 @@ export default function LiveScoresPage() {
                               setSelectedGame(game)
                             }
                           }}
-                          className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-2 sm:p-4 lg:p-5 shadow-md shadow-black/30 transition ring-offset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
+                          className="rounded-2xl border border-white/10 bg-[#111116] p-2 sm:p-4 lg:p-5 shadow-md shadow-black/30 transition ring-offset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
                         >
                           <div className="flex items-center justify-between text-[11px] text-white/60">
                             <span className="uppercase tracking-[0.3em]">{game.leagueLabel}</span>

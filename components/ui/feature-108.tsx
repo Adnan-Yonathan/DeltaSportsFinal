@@ -44,8 +44,7 @@ const Feature108 = ({
         description:
           "Discover new web trends that help you craft sleek, highly functional sites that drive traffic and convert leads into customers.",
         buttonText: "See Plans",
-        imageSrc:
-          "https://shadcnblocks.com/images/block/placeholder-dark-1.svg",
+        imageSrc: "/Betting-Board.jpg",
         imageAlt: "placeholder",
       },
     },
@@ -59,8 +58,7 @@ const Feature108 = ({
         description:
           "Use stellar design to easily engage users and strengthen their loyalty. Create a seamless experience that keeps them coming back for more.",
         buttonText: "See Tools",
-        imageSrc:
-          "https://shadcnblocks.com/images/block/placeholder-dark-2.svg",
+        imageSrc: "/R.jpg",
         imageAlt: "placeholder",
       },
     },
@@ -74,8 +72,7 @@ const Feature108 = ({
         description:
           "Lift your brand with modern tech that grabs attention and drives action. Create a digital experience that stands out from the crowd.",
         buttonText: "See Options",
-        imageSrc:
-          "https://shadcnblocks.com/images/block/placeholder-dark-3.svg",
+        imageSrc: "/stock-market-prediction-using-ai.jpg",
         imageAlt: "placeholder",
       },
     },

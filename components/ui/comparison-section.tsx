@@ -44,12 +44,6 @@ const defaultFeatures: Feature[] = [
     delta: "yes",
   },
   {
-    name: "CLV (Closing Line Value) Tracking",
-    chatgpt: "no",
-    oddsjam: "yes",
-    delta: "yes",
-  },
-  {
     name: "Custom Projection Models",
     chatgpt: "no",
     oddsjam: "no",
@@ -120,9 +114,6 @@ const ComparisonSection = ({
       <div className="container mx-auto px-4">
         {/* Header */}
         <div className="flex flex-col items-center gap-4 text-center mb-12">
-          <Badge variant="outline" className="border-white/20 text-white/80">
-            {badge}
-          </Badge>
           <h2 className="max-w-2xl text-3xl font-bold text-white md:text-5xl">
             {heading}
           </h2>
@@ -203,10 +194,37 @@ const ComparisonSection = ({
                 Complete betting edge
               </div>
             </div>
+
+            {/* Pricing Row */}
+            <div className="grid grid-cols-4 gap-4 p-4 md:p-6 border-t border-white/10 bg-gradient-to-r from-white/5 to-white/10">
+              <div className="text-sm font-medium text-white/60">
+                Price
+              </div>
+              <div className="text-center">
+                <span className="text-lg md:text-xl font-bold text-white/80">$20</span>
+                <span className="text-xs text-white/50">/mo</span>
+              </div>
+              <div className="text-center">
+                <span className="text-lg md:text-xl font-bold text-white/80">$150</span>
+                <span className="text-xs text-white/50">/mo</span>
+              </div>
+              <div className="text-center relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 -mx-4 md:-mx-6" />
+                <div className="relative">
+                  <span className="text-lg md:text-xl font-bold text-emerald-400">$15</span>
+                  <span className="text-xs text-white/50">/mo*</span>
+                </div>
+              </div>
+            </div>
           </div>
 
+          {/* Pricing Note */}
+          <p className="text-center text-xs text-white/40 mt-3">
+            *Billed annually
+          </p>
+
           {/* Legend */}
-          <div className="flex flex-wrap justify-center gap-6 mt-6 text-sm text-white/60">
+          <div className="flex flex-wrap justify-center gap-6 mt-4 text-sm text-white/60">
             <div className="flex items-center gap-2">
               <StatusIcon status="yes" />
               <span>Full Support</span>

@@ -2,10 +2,10 @@
 
 import React from "react"
 import { motion } from "framer-motion"
-import { ArrowUpRight, Brain, Database, Shuffle } from "lucide-react"
+import { ArrowUpRight } from "lucide-react"
 import Link from "next/link"
 import { AnimatedHero } from "@/components/ui/animated-hero"
-import { Feature108 } from "@/components/ui/feature-108"
+import { FeaturesChat } from "@/components/ui/features-chat"
 import { ComparisonSection } from "@/components/ui/comparison-section"
 import { HowWeHelpSection } from "@/components/ui/how-we-help-section"
 import { FAQSection } from "@/components/ui/faq-section"
@@ -13,9 +13,6 @@ import Image from "next/image"
 import { SimpleHeader } from "@/components/ui/simple-header"
 import { AvatarCircles } from "@/components/ui/avatar-circles"
 import { DottedSurface } from "@/components/ui/dotted-surface"
-import bettingBoardImg from "@/public/Betting-Board.jpg"
-import statsImage from "@/public/R.jpg"
-import aiModelsImage from "@/public/stock-market-prediction-using-ai.jpg"
 
 /** Delta AI Landing Page - Revolut-inspired design */
 
@@ -226,50 +223,6 @@ export default function LandingPage() {
     "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80",
     "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=120&q=80",
   ]
-  const featureTabs = [
-    {
-      value: "line-shopping",
-      icon: <Shuffle className="h-auto w-4 shrink-0" />,
-      label: "Line Shopping",
-      content: {
-        badge: "Line Shopping",
-        title: "Maximize your betting value",
-        description:
-          "Compare prices across every book in seconds, grab the best number before it moves, and squeeze extra edge out of every bet you place.",
-        buttonText: "",
-        imageSrc: bettingBoardImg.src,
-        imageAlt: "Line shopping odds board",
-      },
-    },
-    {
-      value: "stat-database",
-      icon: <Database className="h-auto w-4 shrink-0" />,
-      label: "Stat Database",
-      content: {
-        badge: "Stat Database",
-        title: "Up to date statistics at your fingertips",
-        description:
-          "Real-time team and player stats, injuries, and form so you can validate edges, build angles, and feed clean data into your models.",
-        buttonText: "",
-        imageSrc: statsImage.src,
-        imageAlt: "Stat database courtside view",
-      },
-    },
-    {
-      value: "custom-models",
-      icon: <Brain className="h-auto w-4 shrink-0" />,
-      label: "Custom Models",
-      content: {
-        badge: "Custom Models",
-        title: "Save hours with instant research and projections",
-        description:
-          "Run research, generate projections, and test scenarios with Delta’s AI-backed models—no code required, just actionable outputs.",
-        buttonText: "",
-        imageSrc: aiModelsImage.src,
-        imageAlt: "Custom models and projections",
-      },
-    },
-  ]
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white">
@@ -363,12 +316,7 @@ export default function LandingPage() {
       {/* Powerful Features */}
       <FadeInSection className="w-full" delay={0.1}>
         <div id="features">
-          <Feature108
-            badge="Delta AI"
-            heading="Powerful Features"
-            description="Everything you need to gain an edge in sports betting"
-            tabs={featureTabs}
-          />
+          <FeaturesChat />
         </div>
       </FadeInSection>
 

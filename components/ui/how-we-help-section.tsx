@@ -15,9 +15,9 @@ const features: FeatureType[] = [
         description: 'Get intelligent insights on any game. Ask questions in plain English and get expert-level answers.',
     },
     {
-        title: 'Track Your Edge',
+        title: 'Live Statistics',
         icon: TrendingUp,
-        description: 'Monitor CLV, ROI, and win rate automatically. Know exactly where your edge is coming from.',
+        description: 'Real-time player props, team stats, and game data updated every second. Always have the latest numbers.',
     },
     {
         title: 'Smart Research',
@@ -25,14 +25,14 @@ const features: FeatureType[] = [
         description: 'Deep dive into matchups with AI-generated reports. Injuries, trends, and key stats at your fingertips.',
     },
     {
-        title: 'Bankroll Analytics',
+        title: 'Line Shopping',
         icon: BarChart3,
-        description: 'Professional-grade tracking for every bet. See your performance broken down by sport, bet type, and more.',
+        description: 'Compare lines across every major sportsbook instantly. Find the best price and maximize your expected value on every bet.',
     },
     {
-        title: 'Save Hours Daily',
+        title: 'Custom Projections',
         icon: Clock,
-        description: 'What used to take hours now takes minutes. Focus on making bets, not finding them.',
+        description: 'Build personalized models with your own criteria. Generate projections tailored to your betting strategy in minutes.',
     },
 ];
 

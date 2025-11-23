@@ -11,6 +11,7 @@ const navLinks = [
   { label: "Features", href: "#features" },
   { label: "Uses", href: "#use-cases" },
   { label: "Pricing", href: "/pricing" },
+  { label: "Docs", href: "/docs" },
 ]
 
 export function SimpleHeader() {

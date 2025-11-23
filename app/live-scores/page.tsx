@@ -7,7 +7,7 @@ import clsx from "clsx"
 import { ArrowLeft, Calendar, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, X } from "lucide-react"
 import { useLiveScores } from "@/hooks/use-live-scores"
 import { useGameDetails } from "@/hooks/use-game-details"
-import { ESPN_LEAGUES, type LeagueId, type LiveScoreArticle, type LiveScoreGame, type LiveScoreGameDetails } from "@/lib/live-scores"
+import { ESPN_LEAGUES, type LeagueId, type LiveScoreArticle, type LiveScoreGame, type LiveScoreGameDetails, type GamePlayerSummary } from "@/lib/live-scores"
 import { DottedSurface } from "@/components/ui/dotted-surface"
 
 const LEAGUE_TABS: Array<{ id: LeagueId; label: string }> =

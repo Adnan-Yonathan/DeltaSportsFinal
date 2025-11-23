@@ -125,7 +125,7 @@ export default function LiveScoresPage() {
         const bDate = b.published ? Date.parse(b.published) : -Infinity
         return bDate - aDate
       })
-      .slice(0, 20)
+      .slice(0, 10)
   }, [data, activeLeague])
 
   const filteredGames = useMemo(() => {

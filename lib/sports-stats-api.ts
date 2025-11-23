@@ -1023,65 +1023,86 @@ export async function getNHLPlayerStats(playerId?: number): Promise<PlayerStats[
 // ==================== UNIFIED FUNCTIONS ====================
 
 export async function getTeamStats(sport: string, teamIdentifier?: string): Promise<TeamStats[]> {
-  switch (sport.toLowerCase()) {
+  const sportKey = sport.toLowerCase()
+
+  const filterTeams = (teams: TeamStats[]): TeamStats[] => {
+    if (!teamIdentifier) return teams
+
+    const target = normalizeName(teamIdentifier)
+    return teams.filter((entry) => {
+      const name = normalizeName(entry.team)
+      const abbr = normalizeName((entry as any).teamAbbr || '')
+      return (
+        name.includes(target) ||
+        target.includes(name) ||
+        (abbr && (abbr === target || target.includes(abbr) || abbr.includes(target)))
+      )
+    })
+  }
+
+  switch (sportKey) {
     case 'nba':
-    case 'basketball_nba':
-      {
-        const [basic, advanced] = await Promise.all([
-          getNBATeamStats(teamIdentifier),
-          getNBAAdvancedTeamStats(),
-        ])
-        return basic.map((teamEntry) => {
-          const adv = advanced.find(
-            (candidate) => normalizeName(candidate.team) === normalizeName(teamEntry.team)
-          )
-          if (adv) {
-            const extras: Record<string, number> = {}
-            if (adv.pace != null) extras.pace = adv.pace
-            if (adv.oRating != null) extras.offensiveRating = adv.oRating
-            if (adv.dRating != null) extras.defensiveRating = adv.dRating
-            if (adv.netRating != null) extras.netRating = adv.netRating
-            if (adv.tsPct != null) extras.trueShootingPct = adv.tsPct
-            if (adv.turnoverPct != null) extras.turnoverPct = adv.turnoverPct
-            teamEntry.stats = {
-              ...teamEntry.stats,
-              ...extras,
-            }
+    case 'basketball_nba': {
+      const [basic, advanced] = await Promise.all([
+        getNBATeamStats(),
+        getNBAAdvancedTeamStats(),
+      ])
+      const merged = basic.map((teamEntry) => {
+        const adv = advanced.find(
+          (candidate) => normalizeName(candidate.team) === normalizeName(teamEntry.team)
+        )
+        if (adv) {
+          const extras: Record<string, number> = {}
+          if (adv.pace != null) extras.pace = adv.pace
+          if (adv.oRating != null) extras.offensiveRating = adv.oRating
+          if (adv.dRating != null) extras.defensiveRating = adv.dRating
+          if (adv.netRating != null) extras.netRating = adv.netRating
+          if (adv.tsPct != null) extras.trueShootingPct = adv.tsPct
+          if (adv.turnoverPct != null) extras.turnoverPct = adv.turnoverPct
+          teamEntry.stats = {
+            ...teamEntry.stats,
+            ...extras,
           }
-          return teamEntry
-        })
-      }
+        }
+        return teamEntry
+      })
+      return filterTeams(merged)
+    }
     case 'nfl':
-    case 'americanfootball_nfl':
-      {
-        const [basic, advanced] = await Promise.all([
-          getNFLTeamStats(teamIdentifier),
-          getNFLAdvancedTeamStats(),
-        ])
-        return basic.map((teamEntry) => {
-          const adv = advanced.find(
-            (candidate) => normalizeName(candidate.team) === normalizeName(teamEntry.team)
-          )
-          if (adv) {
-            const extras: Record<string, number> = {}
-            if (adv.epaPerPlay != null) extras.epaPerPlay = adv.epaPerPlay
-            if (adv.successRate != null) extras.successRate = adv.successRate
-            if (adv.passRate != null) extras.passRate = adv.passRate
-            if (adv.rushRate != null) extras.rushRate = adv.rushRate
-            teamEntry.stats = {
-              ...teamEntry.stats,
-              ...extras,
-            }
+    case 'americanfootball_nfl': {
+      const [basic, advanced] = await Promise.all([
+        getNFLTeamStats(),
+        getNFLAdvancedTeamStats(),
+      ])
+      const merged = basic.map((teamEntry) => {
+        const adv = advanced.find(
+          (candidate) => normalizeName(candidate.team) === normalizeName(teamEntry.team)
+        )
+        if (adv) {
+          const extras: Record<string, number> = {}
+          if (adv.epaPerPlay != null) extras.epaPerPlay = adv.epaPerPlay
+          if (adv.successRate != null) extras.successRate = adv.successRate
+          if (adv.passRate != null) extras.passRate = adv.passRate
+          if (adv.rushRate != null) extras.rushRate = adv.rushRate
+          teamEntry.stats = {
+            ...teamEntry.stats,
+            ...extras,
           }
-          return teamEntry
-        })
-      }
+        }
+        return teamEntry
+      })
+      return filterTeams(merged)
+    }
     case 'mlb':
-    case 'baseball_mlb':
-      return getMLBTeamStats(teamIdentifier ? parseInt(teamIdentifier) : undefined)
+    case 'baseball_mlb': {
+      const teams = await getMLBTeamStats()
+      return filterTeams(teams)
+    }
     case 'nhl':
-    case 'icehockey_nhl':
-      return getNHLTeamStats(teamIdentifier)
+    case 'icehockey_nhl': {
+      const teams = await getNHLTeamStats()
+      return filterTeams(teams)
+    }
     default:
       return []
   }

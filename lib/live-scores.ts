@@ -236,6 +236,7 @@ const determineBucket = (state?: string): ScoreBucket => {
 const ARTICLE_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_ARTICLE_FETCHES = 50
 const ARTICLE_ENRICH_CONCURRENCY = 6
+const MAX_ARTICLES_PER_GAME = 10
 const articlesCache = new Map<
   string,
   {
@@ -288,7 +289,10 @@ const pickArticles = (
   const sortDesc = (arr: LiveScoreArticle[]) =>
     arr.sort((a, b) => Date.parse(b.published) - Date.parse(a.published))
 
-  return pre.length ? [sortDesc(pre)[0]] : []
+  if (!pre.length) return []
+
+  const sorted = sortDesc(pre)
+  return sorted.slice(0, MAX_ARTICLES_PER_GAME)
 }
 
 async function fetchArticlesForGame(
@@ -307,7 +311,7 @@ async function fetchArticlesForGame(
   }
 
   try {
-    const url = `${ESPN_BASE_URL}/${league.sport}/${league.league}/news?events=${eventId}&limit=8`
+    const url = `${ESPN_BASE_URL}/${league.sport}/${league.league}/news?events=${eventId}&limit=64`
     const res = await fetch(url, { next: { revalidate: 600 } } as NextFetchInit)
     if (!res.ok) throw new Error(`news ${res.status}`)
     const data = await res.json()

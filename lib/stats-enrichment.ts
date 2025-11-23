@@ -139,7 +139,9 @@ export function formatEnrichedGamesForAI(games: EnrichedGame[]): string {
         if (game.sport.toLowerCase().includes('basketball')) {
           gameInfo += `    ${game.homeTeam}: NetRtg ${adv.netRating?.toFixed(1) ?? 'n/a'}, Pace ${adv.pace?.toFixed(1) ?? 'n/a'}\n`
         } else if (game.sport.toLowerCase().includes('football')) {
-          gameInfo += `    ${game.homeTeam}: EPA/play ${adv.epaPerPlay?.toFixed(3) ?? 'n/a'}, Success% ${(adv.successRate ?? 0 * 100).toFixed(1) || 'n/a'}\n`
+          const epa = adv.epaPerPlay != null ? adv.epaPerPlay.toFixed(3) : 'n/a'
+          const success = adv.successRate != null ? (adv.successRate * 100).toFixed(1) : 'n/a'
+          gameInfo += `    ${game.homeTeam}: EPA/play ${epa}, Success% ${success}\n`
         }
       }
       if (game.awayAdvanced) {
@@ -147,7 +149,9 @@ export function formatEnrichedGamesForAI(games: EnrichedGame[]): string {
         if (game.sport.toLowerCase().includes('basketball')) {
           gameInfo += `    ${game.awayTeam}: NetRtg ${adv.netRating?.toFixed(1) ?? 'n/a'}, Pace ${adv.pace?.toFixed(1) ?? 'n/a'}\n`
         } else if (game.sport.toLowerCase().includes('football')) {
-          gameInfo += `    ${game.awayTeam}: EPA/play ${adv.epaPerPlay?.toFixed(3) ?? 'n/a'}, Success% ${(adv.successRate ?? 0 * 100).toFixed(1) || 'n/a'}\n`
+          const epa = adv.epaPerPlay != null ? adv.epaPerPlay.toFixed(3) : 'n/a'
+          const success = adv.successRate != null ? (adv.successRate * 100).toFixed(1) : 'n/a'
+          gameInfo += `    ${game.awayTeam}: EPA/play ${epa}, Success% ${success}\n`
         }
       }
     }
@@ -162,8 +166,14 @@ export function formatEnrichedGamesForAI(games: EnrichedGame[]): string {
         if (game.awayStats?.stats?.streak) gameInfo += `    ${game.awayTeam} streak: ${game.awayStats.stats.streak}\n`
       } else if (game.sport.toLowerCase().includes('football')) {
         // NFL/NCAAF specific
-        if (game.homeStats?.stats?.pointsFor) gameInfo += `    ${game.homeTeam} avg: ${game.homeStats.stats.pointsFor} pts/game\n`
-        if (game.awayStats?.stats?.pointsFor) gameInfo += `    ${game.awayTeam} avg: ${game.awayStats.stats.pointsFor} pts/game\n`
+        const homeGames = Number(game.homeStats?.stats?.gamesPlayed || 0)
+        const awayGames = Number(game.awayStats?.stats?.gamesPlayed || 0)
+        const homePts = Number(game.homeStats?.stats?.pointsFor || 0)
+        const awayPts = Number(game.awayStats?.stats?.pointsFor || 0)
+        const homePpg = homeGames > 0 ? (homePts / homeGames).toFixed(1) : null
+        const awayPpg = awayGames > 0 ? (awayPts / awayGames).toFixed(1) : null
+        if (homePpg) gameInfo += `    ${game.homeTeam} avg: ${homePpg} pts/game\n`
+        if (awayPpg) gameInfo += `    ${game.awayTeam} avg: ${awayPpg} pts/game\n`
       } else if (game.sport.toLowerCase().includes('hockey')) {
         // NHL specific
         if (game.homeStats?.stats?.goalsFor) gameInfo += `    ${game.homeTeam} GF/GA: ${game.homeStats.stats.goalsFor}/${game.homeStats.stats.goalsAgainst}\n`

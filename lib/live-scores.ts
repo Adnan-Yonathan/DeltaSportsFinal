@@ -132,6 +132,8 @@ export interface GamePlayerSummary {
   headshot?: string
   summaryLine?: string
   statMap?: Record<string, string>
+  role?: "offense" | "defense" | "specialTeams" | "forward" | "defenseman" | "goalie"
+  lineLabel?: string
 }
 
 export interface GameDetailsTeam {
@@ -145,6 +147,12 @@ export interface GameDetailsTeam {
   statistics: GameTeamStatistic[]
   starters: GamePlayerSummary[]
   bench: GamePlayerSummary[]
+  offense?: GamePlayerSummary[]
+  defense?: GamePlayerSummary[]
+  specialTeams?: GamePlayerSummary[]
+  forwards?: GamePlayerSummary[]
+  defensemen?: GamePlayerSummary[]
+  goalies?: GamePlayerSummary[]
 }
 
 export interface LiveScoreArticle {
@@ -368,7 +376,7 @@ async function fetchLeagueScores(config: (typeof ESPN_LEAGUES)[number], options:
 
   const url = `${ESPN_BASE_URL}/${config.sport}/${config.league}/scoreboard?${params.toString()}`
   const response = await fetch(url, {
-    next: { revalidate: options.mode === "completed" ? 60 : 20 },
+    cache: "no-store",
   } as NextFetchInit)
 
   if (!response.ok) {
@@ -579,7 +587,7 @@ export async function fetchGameDetails(league: LeagueId, eventId: string): Promi
   const config = getLeagueConfig(league)
   const url = `${ESPN_BASE_URL}/${config.sport}/${config.league}/summary?event=${eventId}`
   const response = await fetch(url, {
-    next: { revalidate: 15 },
+    cache: "no-store",
   } as NextFetchInit)
 
   if (!response.ok) {
@@ -648,7 +656,7 @@ export async function fetchGameDetails(league: LeagueId, eventId: string): Promi
         }))
         .filter((entry: GameTeamStatistic) => entry.label && entry.value)
 
-      const { starters, bench } = buildTeamLineups(playerSections, teamId, league)
+      const lineups = buildTeamLineups(playerSections, teamId, league)
 
       return {
         id: teamId,
@@ -659,8 +667,14 @@ export async function fetchGameDetails(league: LeagueId, eventId: string): Promi
         score: Number(comp?.score ?? 0),
         linescore: lines,
         statistics: stats,
-        starters,
-        bench,
+        starters: lineups.starters,
+        bench: lineups.bench,
+        offense: lineups.offense,
+        defense: lineups.defense,
+        specialTeams: lineups.specialTeams,
+        forwards: lineups.forwards,
+        defensemen: lineups.defensemen,
+        goalies: lineups.goalies,
       } satisfies GameDetailsTeam
     }) ?? []
 
@@ -741,7 +755,16 @@ const getHighlightSegments = (league: LeagueId, statMap: Record<string, string> 
 const buildTeamLineups = (playerSections: any[], teamId: string, league: LeagueId) => {
   const section = playerSections.find((team: any) => team?.team?.id === teamId)
   if (!section) {
-    return { starters: [] as GamePlayerSummary[], bench: [] as GamePlayerSummary[] }
+    return {
+      starters: [] as GamePlayerSummary[],
+      bench: [] as GamePlayerSummary[],
+      offense: [] as GamePlayerSummary[],
+      defense: [] as GamePlayerSummary[],
+      specialTeams: [] as GamePlayerSummary[],
+      forwards: [] as GamePlayerSummary[],
+      defensemen: [] as GamePlayerSummary[],
+      goalies: [] as GamePlayerSummary[],
+    }
   }
 
   const statsets = section.statistics ?? []
@@ -755,6 +778,9 @@ const buildTeamLineups = (playerSections: any[], teamId: string, league: LeagueI
   let orderCounter = 0
 
   statsets.forEach((statset: any) => {
+    const groupName: string = String(
+      statset?.name ?? statset?.abbreviation ?? statset?.displayName ?? ""
+    ).toLowerCase()
     const labels: string[] = statset?.labels ?? statset?.keys ?? []
     const athletes = statset?.athletes ?? []
 
@@ -786,6 +812,41 @@ const buildTeamLineups = (playerSections: any[], teamId: string, league: LeagueI
       if (entry?.starter) {
         player.isStarter = true
       }
+
+      // Assign role based on league and stat group / position
+      if (league === "nfl" || league === "cfb") {
+        if (
+          groupName.includes("pass") ||
+          groupName.includes("rush") ||
+          groupName.includes("receiv") ||
+          groupName.includes("offense")
+        ) {
+          player.role = "offense"
+        } else if (
+          groupName.includes("defense") ||
+          groupName.includes("tackle") ||
+          groupName.includes("sack") ||
+          groupName.includes("interception")
+        ) {
+          player.role = "defense"
+        } else if (
+          groupName.includes("kick") ||
+          groupName.includes("punt") ||
+          groupName.includes("return") ||
+          groupName.includes("special")
+        ) {
+          player.role = "specialTeams"
+        }
+      } else if (league === "nhl") {
+        const pos = (player.position || "").toUpperCase()
+        if (pos === "G") {
+          player.role = "goalie"
+        } else if (pos === "D" || pos === "LD" || pos === "RD") {
+          player.role = "defenseman"
+        } else if (pos) {
+          player.role = "forward"
+        }
+      }
     })
   })
 
@@ -803,10 +864,27 @@ const buildTeamLineups = (playerSections: any[], teamId: string, league: LeagueI
 
   const bench = players.filter((player) => !starters.includes(player))
 
-  const benchRoster = ["nfl", "cfb"].includes(league) ? [] : players.filter((player) => !starters.includes(player))
+  const benchRoster =
+    league === "nfl" || league === "cfb"
+      ? []
+      : players.filter((player) => !starters.includes(player))
+
+  const offense = players.filter((player) => player.role === "offense")
+  const defense = players.filter((player) => player.role === "defense")
+  const specialTeams = players.filter((player) => player.role === "specialTeams")
+
+  const forwards = players.filter((player) => player.role === "forward")
+  const defensemen = players.filter((player) => player.role === "defenseman")
+  const goalies = players.filter((player) => player.role === "goalie")
 
   return {
     starters,
     bench: benchRoster,
+    offense,
+    defense,
+    specialTeams,
+    forwards,
+    defensemen,
+    goalies,
   }
 }

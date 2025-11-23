@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const data = await fetchAllLiveScores({ date })
     return NextResponse.json(data, {
       headers: {
-        "Cache-Control": "s-maxage=10, stale-while-revalidate=30",
+        "Cache-Control": "no-store",
       },
     })
   } catch (error) {

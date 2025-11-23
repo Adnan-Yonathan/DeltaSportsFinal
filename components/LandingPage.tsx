@@ -4,7 +4,6 @@ import React from "react"
 import { motion } from "framer-motion"
 import { ArrowUpRight } from "lucide-react"
 import Link from "next/link"
-import { AnimatedHero } from "@/components/ui/animated-hero"
 import { FeaturesChat } from "@/components/ui/features-chat"
 import { ComparisonSection } from "@/components/ui/comparison-section"
 import { HowWeHelpSection } from "@/components/ui/how-we-help-section"
@@ -242,11 +241,9 @@ export default function LandingPage() {
         <div className="container mx-auto">
           <div className="flex gap-4 py-6 lg:py-10 items-center justify-center flex-col px-4">
             <div className="flex gap-4 flex-col">
-              <AnimatedHero
-                staticText="AI-powered betting"
-                rotatingTerms={["analytics", "action", "edges", "value", "lines", "models", "sharps"]}
-                interval={2000}
-              />
+              <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-white text-center">
+                The First Conversational Sports Betting Copilot
+              </h1>
               <p className="text-base md:text-lg leading-relaxed tracking-tight text-gray-400 max-w-2xl text-center">
                 Make smarter bets with{" "}
                 <span className="font-medium text-white">real-time odds</span>, AI insights, and advanced bankroll

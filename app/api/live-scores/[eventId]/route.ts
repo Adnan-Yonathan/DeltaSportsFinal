@@ -19,7 +19,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const data = await fetchGameDetails(leagueParam, eventId)
     return NextResponse.json(data, {
       headers: {
-        "Cache-Control": "s-maxage=15, stale-while-revalidate=30",
+        "Cache-Control": "no-store",
       },
     })
   } catch (error) {

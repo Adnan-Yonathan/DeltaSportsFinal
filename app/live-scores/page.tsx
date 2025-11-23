@@ -616,84 +616,66 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
 
               <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="mb-4 flex items-center justify-between">
-                  <h4 className="text-sm font-semibold uppercase tracking-[0.3em] text-white/70">Lineups & Bench</h4>
-                  <span className="text-xs text-white/50">Based on most recent box score</span>
+                  <h4 className="text-sm font-semibold uppercase tracking-[0.3em] text-white/70">Lineups</h4>
+                  <span className="text-xs text-white/50">From latest box score</span>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   {data.teams.map((team) => (
                     <div key={`lineups-${team.id}`} className="space-y-3">
                       <p className="text-sm font-semibold uppercase tracking-[0.3em] text-white/60">{team.name}</p>
-                      <div className="space-y-2">
-                        {team.starters.length ? (
-                          team.starters.map((player) => (
-                            <button
-                              key={`${team.id}-starter-${player.id}`}
-                              onClick={() =>
-                                setPlayerDetail((prev) =>
-                                  prev && prev.playerId === player.id ? null : { team: team.id, playerId: player.id }
-                                )
-                              }
-                              className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                            >
-                              <div className="relative h-10 w-10 overflow-hidden rounded-full bg-white/10">
-                                {player.headshot ? (
-                                  <Image src={player.headshot} alt={player.name} fill sizes="40px" className="object-cover" />
-                                ) : (
-                                  <div className="flex h-full w-full items-center justify-center text-xs text-white/70">
-                                    {player.position || player.name.charAt(0)}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm font-semibold text-white">
-                                  {player.name} <span className="text-xs text-white/50">{player.position}</span>
-                                </p>
-                                <p className="text-xs text-white/60">{player.summaryLine ?? "Starter"}</p>
-                              </div>
-                            </button>
-                          ))
-                        ) : (
-                          <div className="rounded-xl border border-white/5 bg-black/30 px-3 py-2 text-xs text-white/60">
-                            Starting lineups populate closer to game time.
-                          </div>
-                        )}
-                      </div>
-                      <div className="pt-2">
-                        <p className="text-[11px] uppercase tracking-[0.3em] text-white/50 mb-2">Bench</p>
-                        <div className="space-y-2">
-                          {team.bench.length ? (
-                            team.bench.map((player) => (
-                              <button
-                                key={`${team.id}-bench-${player.id}`}
-                                onClick={() =>
-                                  setPlayerDetail((prev) =>
-                                    prev && prev.playerId === player.id ? null : { team: team.id, playerId: player.id }
-                                  )
-                                }
-                                className="flex w-full items-center gap-3 rounded-2xl border border-white/5 bg-black/40 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                              >
-                                <div className="relative h-8 w-8 overflow-hidden rounded-full bg-white/10">
-                                  {player.headshot ? (
-                                    <Image src={player.headshot} alt={player.name} fill sizes="32px" className="object-cover" />
-                                  ) : (
-                                    <div className="flex h-full w-full items-center justify-center text-[11px] text-white/70">
-                                      {player.position || player.name.charAt(0)}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="flex-1">
-                                  <p className="text-xs font-semibold text-white">
-                                    {player.name} <span className="text-[11px] text-white/50">{player.position}</span>
-                                  </p>
-                                  <p className="text-[11px] text-white/60">{player.summaryLine ?? "Bench"}</p>
-                                </div>
-                              </button>
-                            ))
-                          ) : (
-                            <p className="text-xs text-white/50">Bench stats unavailable.</p>
-                          )}
+                      {data.league === "nfl" || data.league === "cfb" ? (
+                        <div className="space-y-3">
+                          <LineupGroup
+                            title="Offense"
+                            players={team.offense || []}
+                            onSelect={(playerId) => setPlayerDetail({ team: team.id, playerId })}
+                          />
+                          <LineupGroup
+                            title="Defense"
+                            players={team.defense || []}
+                            onSelect={(playerId) => setPlayerDetail({ team: team.id, playerId })}
+                          />
+                          <LineupGroup
+                            title="Special Teams"
+                            players={team.specialTeams || []}
+                            onSelect={(playerId) => setPlayerDetail({ team: team.id, playerId })}
+                          />
                         </div>
-                      </div>
+                      ) : data.league === "nhl" ? (
+                        <div className="space-y-3">
+                          <LineupGroup
+                            title="Forwards"
+                            players={team.forwards || []}
+                            onSelect={(playerId) => setPlayerDetail({ team: team.id, playerId })}
+                          />
+                          <LineupGroup
+                            title="Defensemen"
+                            players={team.defensemen || []}
+                            onSelect={(playerId) => setPlayerDetail({ team: team.id, playerId })}
+                          />
+                          <LineupGroup
+                            title="Goalies"
+                            players={team.goalies || []}
+                            onSelect={(playerId) => setPlayerDetail({ team: team.id, playerId })}
+                          />
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <LineupGroup
+                            title="Starters"
+                            players={team.starters}
+                            emptyMessage="Starting lineups populate closer to game time."
+                            onSelect={(playerId) => setPlayerDetail({ team: team.id, playerId })}
+                          />
+                          <LineupGroup
+                            title="Bench"
+                            players={team.bench}
+                            emptyMessage="Bench stats unavailable."
+                            onSelect={(playerId) => setPlayerDetail({ team: team.id, playerId })}
+                            compact
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -723,7 +705,17 @@ interface PlayerDetailDrawerProps {
 
 function PlayerDetailDrawer({ team, playerId, onClose }: PlayerDetailDrawerProps) {
   if (!team) return null
-  const player = [...team.starters, ...team.bench].find((athlete) => athlete.id === playerId)
+  const playerPool = [
+    ...team.starters,
+    ...team.bench,
+    ...(team.offense || []),
+    ...(team.defense || []),
+    ...(team.specialTeams || []),
+    ...(team.forwards || []),
+    ...(team.defensemen || []),
+    ...(team.goalies || []),
+  ]
+  const player = playerPool.find((athlete) => athlete.id === playerId)
   if (!player) return null
 
   const statsEntries = player.statMap ? Object.entries(player.statMap) : []
@@ -772,6 +764,64 @@ function PlayerDetailDrawer({ team, playerId, onClose }: PlayerDetailDrawerProps
           <p className="text-sm text-white/60">No detailed stats recorded for this player.</p>
         )}
       </div>
+    </div>
+  )
+}
+
+interface LineupGroupProps {
+  title: string
+  players: GamePlayerSummary[]
+  emptyMessage?: string
+  compact?: boolean
+  onSelect: (playerId: string) => void
+}
+
+function LineupGroup({ title, players, emptyMessage, compact, onSelect }: LineupGroupProps) {
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">{title}</p>
+      {players.length ? (
+        <div className="space-y-2">
+          {players.map((player) => (
+            <button
+              key={`${title}-${player.id}`}
+              onClick={() => onSelect(player.id)}
+              className={clsx(
+                "flex w-full items-center gap-3 rounded-2xl border bg-black/30 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+                compact ? "border-white/5" : "border-white/10"
+              )}
+            >
+              <div
+                className={clsx(
+                  "relative overflow-hidden bg-white/10",
+                  compact ? "h-8 w-8 rounded-full" : "h-10 w-10 rounded-full"
+                )}
+              >
+                {player.headshot ? (
+                  <Image src={player.headshot} alt={player.name} fill sizes={compact ? "32px" : "40px"} className="object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-[11px] text-white/70">
+                    {player.position || player.name.charAt(0)}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1">
+                <p className={clsx("font-semibold text-white", compact ? "text-xs" : "text-sm")}>
+                  {player.name}{" "}
+                  {player.position && (
+                    <span className={clsx("text-white/50", compact ? "text-[11px]" : "text-xs")}>{player.position}</span>
+                  )}
+                </p>
+                <p className={clsx("text-white/60", compact ? "text-[11px]" : "text-xs")}>
+                  {player.summaryLine || player.lineLabel || (title === "Bench" ? "Bench" : title)}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : emptyMessage ? (
+        <p className="text-xs text-white/50">{emptyMessage}</p>
+      ) : null}
     </div>
   )
 }

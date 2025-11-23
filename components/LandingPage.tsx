@@ -240,11 +240,28 @@ export default function LandingPage() {
       <FadeInSection className="w-full" delay={0.1}>
         <div className="container mx-auto">
           <div className="flex gap-4 py-6 lg:py-10 items-center justify-center flex-col px-4">
-            <div className="flex gap-4 flex-col">
+            <div className="flex gap-4 flex-col items-center">
               <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-white text-center">
-                The First Conversational Sports Betting Copilot
+                The First Conversational Sports Betting{" "}
+                <span className="relative inline-block">
+                  <span className="bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent animate-pulse">
+                    Copilot
+                  </span>
+                  <motion.span
+                    className="absolute -inset-1 bg-gradient-to-r from-violet-500/20 via-purple-500/20 to-indigo-500/20 blur-xl rounded-lg -z-10"
+                    animate={{
+                      opacity: [0.5, 0.8, 0.5],
+                      scale: [1, 1.05, 1],
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                  />
+                </span>
               </h1>
-              <p className="text-base md:text-lg leading-relaxed tracking-tight text-gray-400 max-w-2xl text-center">
+              <p className="text-base md:text-lg leading-relaxed tracking-tight text-gray-400 max-w-2xl text-center mx-auto">
                 Make smarter bets with{" "}
                 <span className="font-medium text-white">real-time odds</span>, AI insights, and advanced bankroll
                 management.

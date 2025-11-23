@@ -16,42 +16,42 @@ const FEATURES = [
     name: "AI Insights",
     description: "Chat with AI for game analysis and betting strategies",
     icon: Brain,
+    color: "from-violet-500 to-purple-500",
+  },
+  {
+    id: "odds-comparison",
+    name: "Real-Time Odds",
+    description: "Compare odds across 10+ sportsbooks instantly",
+    icon: Search,
     color: "from-purple-500 to-indigo-500",
   },
   {
-    id: "arbitrage",
-    name: "Arbitrage Detection",
-    description: "Find guaranteed profit opportunities across sportsbooks",
-    icon: DollarSign,
-    color: "from-emerald-500 to-green-500",
+    id: "statistics",
+    name: "Advanced Statistics",
+    description: "Access comprehensive stats for every team and player",
+    icon: BarChart3,
+    color: "from-indigo-500 to-violet-500",
+  },
+  {
+    id: "custom-models",
+    name: "Custom Models",
+    description: "Build personalized models with your own criteria",
+    icon: LineChart,
+    color: "from-violet-500 to-fuchsia-500",
+  },
+  {
+    id: "live-tracking",
+    name: "Live Game Tracking",
+    description: "Real-time scores, stats, and updates as games happen",
+    icon: TrendingUp,
+    color: "from-purple-500 to-violet-500",
   },
   {
     id: "line-shopping",
-    name: "Line Shopping",
-    description: "Compare odds across 10+ sportsbooks instantly",
-    icon: Search,
-    color: "from-blue-500 to-cyan-500",
-  },
-  {
-    id: "bankroll-tracking",
-    name: "Bankroll Tracking",
-    description: "Monitor performance with advanced analytics",
-    icon: BarChart3,
-    color: "from-amber-500 to-orange-500",
-  },
-  {
-    id: "clv-tracking",
-    name: "CLV Tracking",
-    description: "Measure your edge with closing line value analysis",
-    icon: LineChart,
-    color: "from-pink-500 to-rose-500",
-  },
-  {
-    id: "sharp-money",
-    name: "Sharp Money Tracking",
-    description: "Follow professional betting patterns and line movements",
-    icon: TrendingUp,
-    color: "from-violet-500 to-purple-500",
+    name: "Smart Line Shopping",
+    description: "Never miss the best line with automated comparison",
+    icon: DollarSign,
+    color: "from-fuchsia-500 to-purple-500",
   },
 ]
 
@@ -92,7 +92,7 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
                 className={`
                   relative p-5 rounded-xl border-2 transition-all text-left
                   ${isSelected
-                    ? "bg-indigo-500/20 border-indigo-500"
+                    ? "bg-purple-500/20 border-purple-500"
                     : "bg-zinc-900/50 border-white/10 hover:border-white/30"
                   }
                 `}
@@ -100,7 +100,7 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
                 whileTap={{ scale: 0.98 }}
               >
                 {isSelected && (
-                  <div className="absolute top-3 right-3 bg-indigo-500 rounded-full p-1">
+                  <div className="absolute top-3 right-3 bg-purple-500 rounded-full p-1">
                     <Check className="w-4 h-4 text-white" />
                   </div>
                 )}

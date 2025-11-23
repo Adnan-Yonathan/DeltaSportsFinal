@@ -61,7 +61,7 @@ export function StepSports({ value, onChange, onValidation }: StepSportsProps) {
                 className={`
                   relative p-6 rounded-xl border-2 transition-all
                   ${isSelected
-                    ? "bg-indigo-500/20 border-indigo-500"
+                    ? "bg-purple-500/20 border-purple-500"
                     : "bg-zinc-900/50 border-white/10 hover:border-white/30"
                   }
                 `}
@@ -69,7 +69,7 @@ export function StepSports({ value, onChange, onValidation }: StepSportsProps) {
                 whileTap={{ scale: 0.98 }}
               >
                 {isSelected && (
-                  <div className="absolute top-2 right-2 bg-indigo-500 rounded-full p-1">
+                  <div className="absolute top-2 right-2 bg-purple-500 rounded-full p-1">
                     <Check className="w-4 h-4 text-white" />
                   </div>
                 )}

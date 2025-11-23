@@ -239,9 +239,9 @@ export default function LandingPage() {
       {/* Hero area */}
       <FadeInSection className="w-full" delay={0.1}>
         <div className="container mx-auto">
-          <div className="flex gap-4 py-6 lg:py-10 items-center justify-center flex-col px-4">
+          <div className="flex gap-4 pt-16 pb-6 lg:pt-24 lg:pb-10 items-center justify-center flex-col px-4">
             <div className="flex gap-4 flex-col items-center">
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-white text-center">
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white text-center">
                 The First Conversational Sports Betting{" "}
                 <span className="relative inline-block">
                   <span className="bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent animate-pulse">
@@ -262,9 +262,9 @@ export default function LandingPage() {
                 </span>
               </h1>
               <p className="text-base md:text-lg leading-relaxed tracking-tight text-gray-400 max-w-2xl text-center mx-auto">
-                Make smarter bets with{" "}
-                <span className="font-medium text-white">real-time odds</span>, AI insights, and advanced bankroll
-                management.
+                Betting made simple. Chat with the most advanced sports AI to get
+                <br />
+                <span className="font-medium text-white">odds, stats, and insights</span> in seconds.
               </p>
             </div>
 

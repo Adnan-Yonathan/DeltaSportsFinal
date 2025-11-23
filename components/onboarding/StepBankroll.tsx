@@ -83,7 +83,7 @@ export function StepBankroll({ bankroll, unitSize, onChange, onValidation }: Ste
               placeholder="1000"
               min="0"
               step="0.01"
-              className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border border-white/10 rounded-xl py-4 pl-12 pr-6 focus:outline-none focus:border-indigo-500 text-lg"
+              className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border border-white/10 rounded-xl py-4 pl-12 pr-6 focus:outline-none focus:border-purple-500 text-lg"
             />
           </div>
           <p className="text-white/40 text-xs">
@@ -103,7 +103,7 @@ export function StepBankroll({ bankroll, unitSize, onChange, onValidation }: Ste
               placeholder={suggestedUnit}
               min="0"
               step="0.01"
-              className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border border-white/10 rounded-xl py-4 pl-12 pr-6 focus:outline-none focus:border-indigo-500 text-lg"
+              className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border border-white/10 rounded-xl py-4 pl-12 pr-6 focus:outline-none focus:border-purple-500 text-lg"
             />
           </div>
           <p className="text-white/40 text-xs">
@@ -127,7 +127,7 @@ export function StepBankroll({ bankroll, unitSize, onChange, onValidation }: Ste
         )}
 
         {/* Info Box */}
-        <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-4 space-y-2">
+        <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4 space-y-2">
           <h3 className="text-white font-semibold text-sm">Why track units?</h3>
           <p className="text-white/60 text-xs">
             Units help you manage risk and track performance consistently, regardless of bankroll changes.

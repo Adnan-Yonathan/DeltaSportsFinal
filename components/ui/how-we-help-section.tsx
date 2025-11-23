@@ -98,7 +98,7 @@ const CheckIcon = () => {
             height="24"
             viewBox="0 0 24 24"
             fill="currentColor"
-            className="h-4 w-4 text-blue-500 mt-1 flex-shrink-0"
+            className="h-4 w-4 text-purple-500 mt-1 flex-shrink-0"
         >
             <path stroke="none" d="M0 0h24v24H0z" fill="none" />
             <path
@@ -160,7 +160,7 @@ export function HowWeHelpSection() {
                         >
                             <div className="relative z-20">
                                 <feature.icon
-                                    className="h-6 w-6 text-blue-500"
+                                    className="h-6 w-6 text-purple-500"
                                     strokeWidth={1.5}
                                 />
                                 <p className="text-xl font-bold mt-4 text-white">

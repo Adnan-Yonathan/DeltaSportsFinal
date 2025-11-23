@@ -14,29 +14,29 @@ const PLANS = [
   {
     id: "pro",
     name: "Pro",
-    monthlyPrice: 29,
-    yearlyPrice: 174,
+    monthlyPrice: 25,
+    yearlyPrice: 15,
     description: "Perfect for serious bettors",
     features: [
-      "Unlimited bankroll tracking",
       "100 AI messages per week",
-      "Live score tracking",
       "Live odds from 10+ books",
-      "CLV tracking",
+      "Advanced statistics",
+      "Live score tracking",
+      "Smart line shopping",
     ],
     highlighted: true,
   },
   {
     id: "unlimited",
     name: "Unlimited",
-    monthlyPrice: 199,
-    yearlyPrice: 1194,
+    monthlyPrice: 149,
+    yearlyPrice: 99,
     description: "For professional bettors",
     features: [
       "Unlimited AI messages",
-      "Statistical model builder",
-      "Custom research tools",
-      "VIP support",
+      "Custom model builder",
+      "Advanced research tools",
+      "Priority support",
       "All Pro features",
     ],
     highlighted: false,
@@ -44,7 +44,7 @@ const PLANS = [
 ]
 
 export function StepPricing({ value, onChange, onValidation }: StepPricingProps) {
-  const [isYearly, setIsYearly] = useState(false)
+  const [isYearly, setIsYearly] = useState(true)
 
   useEffect(() => {
     // Pricing is optional, always valid
@@ -93,7 +93,7 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
           {PLANS.map((plan) => {
             const isSelected = value === plan.id
             const price = isYearly ? plan.yearlyPrice : plan.monthlyPrice
-            const priceLabel = isYearly ? "/year" : "/month"
+            const priceLabel = "/month"
 
             return (
               <motion.div
@@ -101,7 +101,7 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
                 className={`
                   relative rounded-2xl border-2 p-6 transition-all
                   ${isSelected
-                    ? "bg-indigo-500/20 border-indigo-500 ring-4 ring-indigo-500/20"
+                    ? "bg-purple-500/20 border-purple-500 ring-4 ring-purple-500/20"
                     : plan.highlighted
                     ? "bg-white/5 border-white/20"
                     : "bg-white/5 border-white/10 hover:border-white/20"
@@ -142,7 +142,7 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
                   className={`
                     w-full py-3 px-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2
                     ${isSelected
-                      ? "bg-indigo-500 text-white hover:bg-indigo-600"
+                      ? "bg-purple-500 text-white hover:bg-purple-600"
                       : plan.highlighted
                       ? "bg-white text-black hover:bg-gray-100"
                       : "bg-white/10 text-white hover:bg-white/20"

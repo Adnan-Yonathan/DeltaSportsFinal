@@ -247,7 +247,7 @@ export function OnboardingFlow() {
                 className="px-4 py-2 rounded-lg text-white/60 hover:text-white transition-colors"
                 disabled={saving}
               >
-                Skip for now
+                Use free membership
               </button>
             )}
           </div>

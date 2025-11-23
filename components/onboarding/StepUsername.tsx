@@ -80,7 +80,7 @@ export function StepUsername({ value, onChange, onValidation }: StepUsernameProp
             value={value}
             onChange={(e) => onChange(e.target.value.toLowerCase())}
             placeholder="Enter username"
-            className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border border-white/10 rounded-xl py-4 px-6 focus:outline-none focus:border-indigo-500 text-lg pr-12"
+            className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border border-white/10 rounded-xl py-4 px-6 focus:outline-none focus:border-purple-500 text-lg pr-12"
             maxLength={20}
           />
           <div className="absolute right-4 top-1/2 -translate-y-1/2">

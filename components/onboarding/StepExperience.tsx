@@ -16,7 +16,7 @@ const EXPERIENCE_LEVELS = [
     name: "Beginner",
     description: "Just starting out or betting casually for fun",
     icon: Sparkles,
-    color: "from-blue-500 to-cyan-500",
+    color: "from-violet-500 to-purple-500",
   },
   {
     id: "intermediate",
@@ -69,7 +69,7 @@ export function StepExperience({ value, onChange, onValidation }: StepExperience
               className={`
                 relative w-full p-6 rounded-xl border-2 transition-all text-left
                 ${isSelected
-                  ? "bg-indigo-500/20 border-indigo-500"
+                  ? "bg-purple-500/20 border-purple-500"
                   : "bg-zinc-900/50 border-white/10 hover:border-white/30"
                 }
               `}
@@ -87,8 +87,8 @@ export function StepExperience({ value, onChange, onValidation }: StepExperience
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="text-xl font-bold text-white">{level.name}</h3>
                     {isSelected && (
-                      <div className="flex items-center gap-2 text-indigo-400 text-sm">
-                        <div className="w-2 h-2 rounded-full bg-indigo-400" />
+                      <div className="flex items-center gap-2 text-purple-400 text-sm">
+                        <div className="w-2 h-2 rounded-full bg-purple-400" />
                         Selected
                       </div>
                     )}

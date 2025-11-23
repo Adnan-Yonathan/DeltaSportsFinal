@@ -28,7 +28,7 @@ function AnimatedHero({
   }, [termIndex, rotatingTerms, interval])
 
   return (
-    <h1 className="text-5xl md:text-7xl max-w-2xl tracking-tighter text-center font-semibold text-white">
+    <h1 className="text-4xl md:text-6xl max-w-2xl tracking-tighter text-center font-semibold text-white">
       {staticText}
       <br />
       <span className="relative block min-h-[1.6em] w-full pt-1 pb-3">

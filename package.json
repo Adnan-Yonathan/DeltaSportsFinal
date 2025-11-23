@@ -20,7 +20,9 @@
     "ingest:player-props": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-player-props.ts",
     "ingest:team-stats": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-team-stats.ts",
     "reset:tracking": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/reset-all-tracking.ts",
-    "cache:live": "node scripts/fetch-live-scores.js"
+    "cache:live": "node scripts/fetch-live-scores.js",
+    "test:prompts": "ts-node --project tsconfig.test.json tests/run-prompts.ts",
+    "test:prompts:dry": "DRY_RUN=true ts-node --project tsconfig.test.json tests/run-prompts.ts"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",

@@ -240,19 +240,21 @@ export default function LandingPage() {
       {/* Hero area */}
       <FadeInSection className="w-full" delay={0.1}>
         <div className="container mx-auto">
-          <div className="flex gap-6 py-10 lg:py-16 items-center justify-center flex-col px-4">
+          <div className="flex gap-4 py-6 lg:py-10 items-center justify-center flex-col px-4">
             <div className="flex gap-4 flex-col">
               <AnimatedHero
                 staticText="AI-powered betting"
                 rotatingTerms={["analytics", "action", "edges", "value", "lines", "models", "sharps"]}
                 interval={2000}
               />
-              <p className="text-lg md:text-xl leading-relaxed tracking-tight text-gray-400 max-w-2xl text-center">
+              <p className="text-base md:text-lg leading-relaxed tracking-tight text-gray-400 max-w-2xl text-center">
                 Make smarter bets with{" "}
                 <span className="font-medium text-white">real-time odds</span>, AI insights, and advanced bankroll
                 management.
               </p>
             </div>
+
+            <div className="w-full max-w-xs h-px bg-gradient-to-r from-transparent via-purple-400 to-transparent" />
 
             <div className="flex flex-row gap-3">
               <SoftButton href="/auth/signup">
@@ -281,7 +283,7 @@ export default function LandingPage() {
       </FadeInSection>
 
       {/* Video Showcase */}
-      <FadeInSection className="w-full px-4 pb-16" delay={0.2}>
+      <FadeInSection className="w-full px-4 pb-10" delay={0.2}>
         <div className="max-w-5xl mx-auto">
           <div className="relative w-full overflow-hidden rounded-[30px] border-4 border-[#6C6C6C] bg-[#222222] p-2 md:p-6 shadow-2xl">
             <div className="relative w-full overflow-hidden rounded-2xl bg-black aspect-video">

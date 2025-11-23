@@ -1,0 +1,504 @@
+{
+  "prompts": [
+    {
+      "id": 1,
+      "category": "Player Stats & Trends",
+      "text": "What has Tatum averaged in his last 10 games?"
+    },
+    {
+      "id": 2,
+      "category": "Player Stats & Trends",
+      "text": "Show me Jokic's points/rebounds/assists for the last 5."
+    },
+    {
+      "id": 3,
+      "category": "Player Stats & Trends",
+      "text": "How many threes has Curry been taking recently?"
+    },
+    {
+      "id": 4,
+      "category": "Player Stats & Trends",
+      "text": "Is Jalen Brunson hot or cold right now?"
+    },
+    {
+      "id": 5,
+      "category": "Player Stats & Trends",
+      "text": "What's SGA's assist trend over the last 8?"
+    },
+    {
+      "id": 6,
+      "category": "Player Stats & Trends",
+      "text": "How is Zion shooting at home vs on the road?"
+    },
+    {
+      "id": 7,
+      "category": "Player Stats & Trends",
+      "text": "What are Donovan Mitchell's minutes looking like?"
+    },
+    {
+      "id": 8,
+      "category": "Player Stats & Trends",
+      "text": "Show me Embiid's scoring splits vs top 10 defenses."
+    },
+    {
+      "id": 9,
+      "category": "Player Stats & Trends",
+      "text": "How does Bam perform against bigger centers?"
+    },
+    {
+      "id": 10,
+      "category": "Player Stats & Trends",
+      "text": "What's Haliburton's usage rate the last 5?"
+    },
+    {
+      "id": 11,
+      "category": "Player Stats & Trends",
+      "text": "How many rebound chances is Sabonis averaging?"
+    },
+    {
+      "id": 12,
+      "category": "Player Stats & Trends",
+      "text": "Is Trae Young's shot volume up or down?"
+    },
+    {
+      "id": 13,
+      "category": "Player Stats & Trends",
+      "text": "What's Anthony Edwards' FG% over the last 12 games?"
+    },
+    {
+      "id": 14,
+      "category": "Player Stats & Trends",
+      "text": "How has LeBron been performing against the Suns?"
+    },
+    {
+      "id": 15,
+      "category": "Player Stats & Trends",
+      "text": "Show me Wemby's blocks trend."
+    },
+    {
+      "id": 16,
+      "category": "Player Stats & Trends",
+      "text": "Is Garland's assist rate increasing?"
+    },
+    {
+      "id": 17,
+      "category": "Player Stats & Trends",
+      "text": "Which players are trending up on rebounds?"
+    },
+    {
+      "id": 18,
+      "category": "Player Stats & Trends",
+      "text": "Who's been smashing their points props lately?"
+    },
+    {
+      "id": 19,
+      "category": "Player Stats & Trends",
+      "text": "Is Jaylen Brown on a hot streak?"
+    },
+    {
+      "id": 20,
+      "category": "Player Stats & Trends",
+      "text": "How many minutes is Poole playing on average?"
+    },
+    {
+      "id": 21,
+      "category": "Team Stats & Matchups",
+      "text": "What's the pace projection for Lakers vs Kings?"
+    },
+    {
+      "id": 22,
+      "category": "Team Stats & Matchups",
+      "text": "Which team has the defensive edge in this matchup?"
+    },
+    {
+      "id": 23,
+      "category": "Team Stats & Matchups",
+      "text": "How does Miami defend point guards?"
+    },
+    {
+      "id": 24,
+      "category": "Team Stats & Matchups",
+      "text": "Who has the rebounding advantage tonight?"
+    },
+    {
+      "id": 25,
+      "category": "Team Stats & Matchups",
+      "text": "What's the expected tempo for Warriors games this week?"
+    },
+    {
+      "id": 26,
+      "category": "Team Stats & Matchups",
+      "text": "Show me the Knicks' last 10 defensive rating."
+    },
+    {
+      "id": 27,
+      "category": "Team Stats & Matchups",
+      "text": "How many points is Dallas giving up on average?"
+    },
+    {
+      "id": 28,
+      "category": "Team Stats & Matchups",
+      "text": "What's OKC's offensive rating in their last 8?"
+    },
+    {
+      "id": 29,
+      "category": "Team Stats & Matchups",
+      "text": "Are the Bulls good against shooting guards?"
+    },
+    {
+      "id": 30,
+      "category": "Team Stats & Matchups",
+      "text": "What's the Hornets' defense vs bigs?"
+    },
+    {
+      "id": 31,
+      "category": "Team Stats & Matchups",
+      "text": "Show me pace and efficiency for Spurs games."
+    },
+    {
+      "id": 32,
+      "category": "Team Stats & Matchups",
+      "text": "What's the matchup like for Tatum vs Heat?"
+    },
+    {
+      "id": 33,
+      "category": "Team Stats & Matchups",
+      "text": "Which team forces the most turnovers?"
+    },
+    {
+      "id": 34,
+      "category": "Team Stats & Matchups",
+      "text": "How has Denver's defense performed recently?"
+    },
+    {
+      "id": 35,
+      "category": "Team Stats & Matchups",
+      "text": "Is this a good rebounding matchup for the Wolves?"
+    },
+    {
+      "id": 36,
+      "category": "Team Stats & Matchups",
+      "text": "How many assists do the Rockets allow?"
+    },
+    {
+      "id": 37,
+      "category": "Team Stats & Matchups",
+      "text": "Show me team form for the Clippers (last 10)."
+    },
+    {
+      "id": 38,
+      "category": "Team Stats & Matchups",
+      "text": "Which teams play the fastest on tonight's slate?"
+    },
+    {
+      "id": 39,
+      "category": "Team Stats & Matchups",
+      "text": "Who has the best overall matchup tonight?"
+    },
+    {
+      "id": 40,
+      "category": "Team Stats & Matchups",
+      "text": "What's the defensive profile for Utah right now?"
+    },
+    {
+      "id": 41,
+      "category": "Odds & Line Shopping",
+      "text": "Find me the best price for Lakers ML across all books."
+    },
+    {
+      "id": 42,
+      "category": "Odds & Line Shopping",
+      "text": "What's the best number on Knicks +4.5?"
+    },
+    {
+      "id": 43,
+      "category": "Odds & Line Shopping",
+      "text": "Which book has the worst line for this game?"
+    },
+    {
+      "id": 44,
+      "category": "Odds & Line Shopping",
+      "text": "Where can I get the highest total for Warriors game?"
+    },
+    {
+      "id": 45,
+      "category": "Odds & Line Shopping",
+      "text": "Which book has the lowest odds on Nuggets ML?"
+    },
+    {
+      "id": 46,
+      "category": "Odds & Line Shopping",
+      "text": "Find me the best price for Tatum over 28.5."
+    },
+    {
+      "id": 47,
+      "category": "Odds & Line Shopping",
+      "text": "Show me disagreements between books on player props."
+    },
+    {
+      "id": 48,
+      "category": "Odds & Line Shopping",
+      "text": "Where is the line moving on Bucks vs Heat?"
+    },
+    {
+      "id": 49,
+      "category": "Odds & Line Shopping",
+      "text": "Which book has the softest alt lines?"
+    },
+    {
+      "id": 50,
+      "category": "Odds & Line Shopping",
+      "text": "Check if there's an arbitrage opportunity on this game."
+    },
+    {
+      "id": 51,
+      "category": "Odds & Line Shopping",
+      "text": "Are there any middles available tonight?"
+    },
+    {
+      "id": 52,
+      "category": "Odds & Line Shopping",
+      "text": "Convert -125 to implied probability."
+    },
+    {
+      "id": 53,
+      "category": "Odds & Line Shopping",
+      "text": "Show me every book with + odds on this prop."
+    },
+    {
+      "id": 54,
+      "category": "Odds & Line Shopping",
+      "text": "Which book has the best SGP leg price for Curry threes?"
+    },
+    {
+      "id": 55,
+      "category": "Odds & Line Shopping",
+      "text": "Is any book mispricing Jokic rebounds?"
+    },
+    {
+      "id": 56,
+      "category": "Odds & Line Shopping",
+      "text": "Compare ML prices for all games tonight."
+    },
+    {
+      "id": 57,
+      "category": "Odds & Line Shopping",
+      "text": "Give me line movement over the last 6 hours."
+    },
+    {
+      "id": 58,
+      "category": "Odds & Line Shopping",
+      "text": "Which totals moved the most today?"
+    },
+    {
+      "id": 59,
+      "category": "Odds & Line Shopping",
+      "text": "Show me spreads sorted by value gap."
+    },
+    {
+      "id": 60,
+      "category": "Odds & Line Shopping",
+      "text": "Find books disagreeing on assist props."
+    },
+    {
+      "id": 61,
+      "category": "Custom Model",
+      "text": "Run my pace-heavy model for tonight's slate."
+    },
+    {
+      "id": 62,
+      "category": "Custom Model",
+      "text": "Using my defensive-weighted model, find all unders."
+    },
+    {
+      "id": 63,
+      "category": "Custom Model",
+      "text": "Call my 'Rebound Dominance' model and scan all games."
+    },
+    {
+      "id": 64,
+      "category": "Custom Model",
+      "text": "Use my 'Shot Volume' model to find scoring edges."
+    },
+    {
+      "id": 65,
+      "category": "Custom Model",
+      "text": "Run a model that prioritizes usage + pace only."
+    },
+    {
+      "id": 66,
+      "category": "Custom Model",
+      "text": "Find bets where my model edge is > 8%."
+    },
+    {
+      "id": 67,
+      "category": "Custom Model",
+      "text": "Explain why my model likes this spot."
+    },
+    {
+      "id": 68,
+      "category": "Custom Model",
+      "text": "Compare my 'Assist Model' to the actual lines."
+    },
+    {
+      "id": 69,
+      "category": "Custom Model",
+      "text": "Run a model using opponent DvP + recent form."
+    },
+    {
+      "id": 70,
+      "category": "Custom Model",
+      "text": "Give me model results filtered by props only."
+    },
+    {
+      "id": 71,
+      "category": "Custom Model",
+      "text": "Find all players with pace advantage + high usage."
+    },
+    {
+      "id": 72,
+      "category": "Custom Model",
+      "text": "Return only games with projected tempo spikes."
+    },
+    {
+      "id": 73,
+      "category": "Custom Model",
+      "text": "Run a model using injuries + usage redistribution."
+    },
+    {
+      "id": 74,
+      "category": "Custom Model",
+      "text": "Match my custom model against current market odds."
+    },
+    {
+      "id": 75,
+      "category": "Custom Model",
+      "text": "Which players fit my 'high volume, weak defense' criteria?"
+    },
+    {
+      "id": 76,
+      "category": "Custom Model",
+      "text": "Call my 'Undervalued Rebounders' model."
+    },
+    {
+      "id": 77,
+      "category": "Custom Model",
+      "text": "Call my 'Big Game Scorers' model for tonight's slate."
+    },
+    {
+      "id": 78,
+      "category": "Custom Model",
+      "text": "Find all players who check 4+ of my criteria."
+    },
+    {
+      "id": 79,
+      "category": "Custom Model",
+      "text": "Show me which of my models likes this matchup the most."
+    },
+    {
+      "id": 80,
+      "category": "Custom Model",
+      "text": "Explain model disagreement across books."
+    },
+    {
+      "id": 81,
+      "category": "Live Game Context",
+      "text": "What's the live score for Lakers vs Jazz?"
+    },
+    {
+      "id": 82,
+      "category": "Live Game Context",
+      "text": "How's my bet looking right now?"
+    },
+    {
+      "id": 83,
+      "category": "Live Game Context",
+      "text": "Did the pace change in the second half?"
+    },
+    {
+      "id": 84,
+      "category": "Live Game Context",
+      "text": "How many rebounds does Sabonis have live?"
+    },
+    {
+      "id": 85,
+      "category": "Live Game Context",
+      "text": "Is my under still live based on current tempo?"
+    },
+    {
+      "id": 86,
+      "category": "Live Game Context",
+      "text": "Show me live box score for Warriors game."
+    },
+    {
+      "id": 87,
+      "category": "Live Game Context",
+      "text": "Who's hot right now in the 4th quarter?"
+    },
+    {
+      "id": 88,
+      "category": "Live Game Context",
+      "text": "What's the biggest momentum swing so far?"
+    },
+    {
+      "id": 89,
+      "category": "Live Game Context",
+      "text": "Update me on my tracked bets."
+    },
+    {
+      "id": 90,
+      "category": "Live Game Context",
+      "text": "What's the current win probability for my ML bet?"
+    },
+    {
+      "id": 91,
+      "category": "Education & Strategy",
+      "text": "Explain CLV in simple terms."
+    },
+    {
+      "id": 92,
+      "category": "Education & Strategy",
+      "text": "Why does line shopping matter?"
+    },
+    {
+      "id": 93,
+      "category": "Education & Strategy",
+      "text": "What makes a bet +EV?"
+    },
+    {
+      "id": 94,
+      "category": "Education & Strategy",
+      "text": "Explain how sharps think about pace."
+    },
+    {
+      "id": 95,
+      "category": "Education & Strategy",
+      "text": "How do I know if a prop is mispriced?"
+    },
+    {
+      "id": 96,
+      "category": "Education & Strategy",
+      "text": "When should I avoid betting overs?"
+    },
+    {
+      "id": 97,
+      "category": "Education & Strategy",
+      "text": "Is this a sharp or public-sided line move?"
+    },
+    {
+      "id": 98,
+      "category": "Education & Strategy",
+      "text": "How do injuries affect usage?"
+    },
+    {
+      "id": 99,
+      "category": "Education & Strategy",
+      "text": "Explain why a model liked this bet."
+    },
+    {
+      "id": 100,
+      "category": "Education & Strategy",
+      "text": "Give me things to watch before placing props."
+    }
+  ]
+}

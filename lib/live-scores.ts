@@ -242,7 +242,7 @@ const determineBucket = (state?: string): ScoreBucket => {
 }
 
 const ARTICLE_CACHE_TTL_MS = 10 * 60 * 1000
-const MAX_ARTICLE_FETCHES = 50
+const MAX_ARTICLE_FETCHES = 0
 const ARTICLE_ENRICH_CONCURRENCY = 6
 const MAX_ARTICLES_PER_GAME = 10
 const articlesCache = new Map<

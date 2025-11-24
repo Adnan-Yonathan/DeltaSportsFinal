@@ -69,14 +69,14 @@ const features: Feature[] = [
         ],
     },
     {
-        title: 'Smart Line Shopping',
+        title: 'Sharp/Public Indicators',
         icon: Target,
-        description: 'Never miss the best line. Automated comparison finds optimal prices across all books.',
+        description: 'Spot public vs sharp sides quickly by comparing ticket share to handle share for each market.',
         steps: [
-            'Cross-sportsbook comparison',
-            'Expected value calculations',
-            'Arbitrage detection',
-            'Price alerts & notifications',
+            'Ticket vs handle splits by side',
+            'Public vs sharp side inference',
+            'Confidence tiers for each lean',
+            'Covers spreads, moneylines, totals',
         ],
     },
 ];

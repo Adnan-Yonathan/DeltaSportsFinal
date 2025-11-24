@@ -34,7 +34,7 @@ export interface TeamStats {
   wins: number
   losses: number
   winPct: number
-  stats: Record<string, number | string>
+  stats: Record<string, number | string | null>
   rank?: number
 }
 

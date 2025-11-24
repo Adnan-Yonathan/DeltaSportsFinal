@@ -112,3 +112,4 @@ Copy `.env.example` to `.env.local` and fill at minimum:
 
 - The assistant is designed to surface data, math, and tooling - not to give gambling advice.
 - CLV and bankroll stats power chat summaries and the `BentoGridBankroll` widget; individual bet cards intentionally avoid displaying CLV directly.
+- Deployment touchpoint for the current release.

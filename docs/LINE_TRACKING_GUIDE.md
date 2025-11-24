@@ -159,6 +159,15 @@ curl -X POST http://localhost:3002/api/lines/sharp-moves \
   -H "Authorization: Bearer YOUR_CRON_SECRET"
 ```
 
+### 4. Chat betting splits (public vs sharp)
+
+The chat endpoint can answer “who has the public money” or “what % of bets/handle are on each side” for spreads, moneylines, and totals.
+
+- **Input**: Natural language (e.g., “Who’s the public on Eagles-Cowboys spread?”).
+- **Behavior**: Pulls sportsbook-reported ticket% vs handle% for the requested game/market, returns per-side percentages, and labels public vs sharp lean with confidence tiers.
+- **Output**: `Side A: xx% bets / yy% money` and `Side B: ...` plus a note like “public → Side A; sharp → Side B (moderate).”
+- **Fallbacks**: If splits are missing for the game/market, the chat responds that no split is available.
+
 ## Service Functions
 
 ### recordCurrentLines(sports: string[])
@@ -390,7 +399,6 @@ Requirements:
 - **Real-time alerts** for sharp moves
 - **Reverse line movement** detection (line moves opposite to money)
 - **Steam moves** detection (rapid line changes)
-- **Public betting percentages** integration
 - **Machine learning** for move classification
 - **CLV leaderboards** for users
 - **Automated bet grading** using closing lines

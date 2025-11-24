@@ -21,6 +21,7 @@ Delta AI is a Next.js 14 + Supabase application that blends a streaming OpenAI c
 
 ## Recent Updates
 
+- Chat can answer “what % of bets/money is on each side” and label public vs sharp leans (spreads/ML/totals) with confidence tiers across major sports.
 - Single-game odds replies now auto-include team insights from live scores (streak, last 10, PPG/PAPG, FG%/3P%, REB/AST/BLK/STL) with season snapshots as fallback.
 - NCAAB odds filtering tightened using live-slate matching to avoid cross-sport noise.
 - Pricing toggle defaults to Annual (50% off): Pro $15/mo billed annually, Unlimited $99/mo billed annually.
@@ -32,7 +33,8 @@ Delta AI is a Next.js 14 + Supabase application that blends a streaming OpenAI c
 
 - **AI copilot & chat**: Supabase-authenticated chat at `/chat` with streaming GPT-4o responses, auto-titling, and function-calling tools for bets, parlays, bankroll stats, odds, player props, injuries, game context, and custom/research models. Voice input is supported via `/api/transcribe` (ElevenLabs).
 - **Bankroll + bet tracking**: Bet logging (single or batch), manual settlement, deposits/withdrawals, parlay creation, and daily bankroll snapshots. Auto-settlement checks ESPN live scores (`/api/bets/auto-settle`), while `/api/bankroll/stats` surfaces ROI, units, per-sport splits, CLV rollups, and live prop deltas. CLV recompute is available at `/api/bankroll/recalc-clv`.
-- **Odds + market data**: Odds-API.io client with best-price summaries (`/api/odds/best`), arbitrage scans (`/api/arbitrage` and `/api/odds/arbitrage`), game odds (`/api/odds/games`, `/api/odds/event`, `/api/odds/multi`, `/api/odds/updated`, `/api/odds/movements`), and bookmaker selection (`/api/bookmakers/select`). Line recorder/history/sharp-move endpoints track spreads/totals/moneylines for CLV and movement analysis. Player props are aggregated with best over/under books via `/api/player-props`. Schedules (`/api/events/*`), sports/leagues, injuries, live scores, and market trend snapshots (`/api/markets/trends`) ship alongside a probability/EV engine at `/api/probability`. A `/live-scores` experience shows NBA/NFL/NHL/CFB/NCAAB games with lineups, box scores, and player detail drawers; single-game odds replies embed the same team insight stats when available.
+- **Odds + market data**: Odds-API.io client with best-price summaries (`/api/odds/best`), arbitrage scans (`/api/arbitrage` and `/api/odds/arbitrage`), game odds (`/api/odds/games`, `/api/odds/event`, `/api/odds/multi`, `/api/odds/updated`, `/api/odds/movements`), and bookmaker selection (`/api/bookmakers/select`). Line recorder/history/sharp-move endpoints track spreads/totals/moneylines for CLV and movement analysis. Player props are aggregated with best over/under books via `/api/player-props`. Betting splits surface ticket% vs handle% for spreads/moneylines/totals to flag public vs sharp sides directly in chat. Schedules (`/api/events/*`), sports/leagues, injuries, live scores, and market trend snapshots (`/api/markets/trends`) ship alongside a probability/EV engine at `/api/probability`. A `/live-scores` experience shows NBA/NFL/NHL/CFB/NCAAB games with lineups, box scores, and player detail drawers; single-game odds replies embed the same team insight stats when available.
+- **Sharp/Public indicators**: Chat understands “who has the public money?” and returns per-side % bets/% handle plus a public vs sharp lean with low/moderate/strong confidence, covering spreads, moneylines, and totals across major sports.
 - **Live data access for AI/models**: ESPN snapshots are cached via `npm run cache:live` and exposed through `/api/live-scores/cache` plus LLM-friendly endpoints under `/api/llm/live/*`. Helpers in `lib/live-data-service.ts` and tool descriptors in `lib/llm/tools/live-tools.ts` let the chat assistant or custom models fetch live scores, starters, player stats, and team snapshots on demand without touching the base prompt. Documentation in `docs/llm-live-data.md` / `docs/model-live-data.md` outlines how to plug these tools into the LLM runtime and prediction pipelines.
 - **Custom & research models**: `/models` lists saved models; `/models/new` builds prediction or research models with weighted stats, optional data hints, and file uploads (CSV/Excel/PDF/TXT via `/api/models/upload` stored in Supabase Storage). The model runner powers chat tools to save/list/apply models, and the research runner scans markets for user-defined opportunities.
 - **Onboarding & pricing flows**: Multi-step onboarding collects username, favorite sports, experience, risk tolerance, bankroll, unit size, feature interest, and subscription intent before unlocking chat. Auth pages and a pricing showcase live under `auth/` and `/pricing`.
@@ -91,7 +93,7 @@ Copy `.env.example` to `.env.local` and fill at minimum:
 
 - Install & run: `npm install` then `npm run dev` (or `npm run build && npm start`).
 - Quality gates: `npm run lint`, `npm run typecheck`, `npm run verify`.
-- Unit/spec helpers: `npm run test:custom-models` (stat weight normalization), `npm run test:odds` (odds helpers).
+- Unit/spec helpers: `npm run test:custom-models` (stat weight normalization), `npm run test:odds` (odds helpers), `ts-node --project tsconfig.test.json tests/dk-splits.spec.ts` (public/sharp inference).
 - Scripts/ingestion: see `npm run ingest:*`, `npm run cache:live` (ESPN snapshot cache), and `npm run reset:tracking`; they require `SUPABASE_SERVICE_ROLE_KEY` and `CRON_SECRET` in the environment.
 
 ---
@@ -101,6 +103,7 @@ Copy `.env.example` to `.env.local` and fill at minimum:
 - **Odds rate limits**: Watch Odds-API.io headers (`x-ratelimit-*`); trim `ODDS_BOOKMAKERS`, use `/api/odds/multi`, and lean on line snapshots where possible.
 - **Empty schedules/props**: Verify sport/league keys and timezone filters; confirm provider has events today; pass `live=true` when appropriate.
 - **Live data gaps**: Injuries and recent form fall back to live fetches when the Supabase cache is empty; run `ingest:*` jobs to refresh regularly.
+- **Betting splits unavailable**: If chat can’t return % bets/% handle, try specifying the sport or a near-term matchup; some events may not publish splits.
 - **Voice input**: Ensure `ELEVENLABS_API_KEY` is set; browsers must allow mic access.
 
 ---

@@ -25,6 +25,7 @@ import type { UserDataOverride } from '@/lib/models/model-runner'
 import { buildGameContext } from '@/lib/context/game-context'
 import { normalizePropMarketKey, normalizePropSelection, extractPropLine } from '@/lib/utils/props'
 import { calculateKellyStake } from '@/lib/utils/kelly'
+import { summarizeSplitsForChat } from '@/lib/services/dk-splits'
 import { format } from 'date-fns'
 import { openai, AI_MODELS, runWebSearchResponse } from '@/lib/ai-gateway-client'
 
@@ -1897,6 +1898,25 @@ export async function POST(req: NextRequest) {
       } else {
         scoresContext = '\n\n(No schedule available for the requested criteria)\n'
         console.log('[SCHEDULE] No provider events found for', sportsList.join(','))
+      }
+    }
+
+    const splitsIntent =
+      /\b(public money|sharp money|betting\s+splits?|betting\s+split|% of bets|% of money|handle%|tickets%|handle share|ticket share|public side)\b/i.test(
+        msgLower
+      ) || /\bwhere (is|are) the (public|money)\b/i.test(msgLower)
+
+    if (splitsIntent) {
+      try {
+        const splitsResponse = await summarizeSplitsForChat({
+          message,
+          teams: parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams,
+          timezone,
+        })
+        return streamTextResponse(splitsResponse)
+      } catch (err: any) {
+        console.error('[SPLITS] Failed to fetch DK splits', err)
+        return streamTextResponse('Betting splits are unavailable right now. Try again in a bit or specify the league.')
       }
     }
 

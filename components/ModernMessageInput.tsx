@@ -2,19 +2,22 @@
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Loader2, Paperclip, Mic, MicOff, Globe2 } from 'lucide-react'
+import { Send, Loader2, Paperclip, Mic, MicOff, Globe2, ChevronDown } from 'lucide-react'
 
 interface MessageInputProps {
   conversationId: string
   userId: string
+  mode: 'regular' | 'live' | 'research'
+  onModeChange: (mode: 'regular' | 'live' | 'research') => void
 }
 
-export default function ModernMessageInput({ conversationId, userId }: MessageInputProps) {
+export default function ModernMessageInput({ conversationId, userId, mode, onModeChange }: MessageInputProps) {
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
+  const [modeDropdownOpen, setModeDropdownOpen] = useState(false)
   const [recordingDuration, setRecordingDuration] = useState(0)
   const [isMicSupported, setIsMicSupported] = useState(true)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
@@ -22,6 +25,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
   const recorderRef = useRef<MediaRecorder | null>(null)
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const modeDropdownRef = useRef<HTMLDivElement | null>(null)
   const MAX_RECORDING_DURATION = 60000 // 60 seconds
 
   // Check browser compatibility on mount
@@ -44,6 +48,18 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
         clearInterval(durationIntervalRef.current)
       }
     }
+  }, [])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modeDropdownRef.current && !modeDropdownRef.current.contains(event.target as Node)) {
+        setModeDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   const syncTextareaHeight = () => {
@@ -186,6 +202,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
           conversationId,
           userId,
           timezone: userTimezone,
+          mode,
         }),
         signal: controller.signal,
       })
@@ -238,7 +255,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
     } finally {
       setSending(false)
     }
-  }, [conversationId, message, sending, userId, webSearchEnabled])
+  }, [conversationId, message, sending, userId, webSearchEnabled, mode])
 
   const latestSendMessage = useRef(sendMessage)
   useEffect(() => {
@@ -370,6 +387,80 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
                 )}
               </motion.button>
             )}
+
+            {/* Mode Dropdown */}
+            <div className="relative" ref={modeDropdownRef}>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setModeDropdownOpen((prev) => !prev)}
+                disabled={sending}
+                className="px-3 py-2 sm:px-2.5 sm:py-2 rounded-lg transition-all bg-indigo-500/10 border border-indigo-500/30 text-white hover:bg-indigo-500/20 hover:border-indigo-500/50 flex items-center gap-1.5"
+                title="Select mode"
+              >
+                <span className="text-xs font-semibold">
+                  {mode === 'regular' ? 'Regular' : mode === 'live' ? 'Live' : 'Research'}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </motion.button>
+
+              <AnimatePresence>
+                {modeDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute bottom-full mb-2 left-0 w-56 rounded-xl border border-white/10 bg-[#0f132d] shadow-2xl z-50 overflow-hidden"
+                  >
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          onModeChange('regular')
+                          setModeDropdownOpen(false)
+                        }}
+                        className={`w-full px-4 py-3 text-left transition-colors ${
+                          mode === 'regular'
+                            ? 'bg-indigo-500/20 text-white'
+                            : 'text-white/80 hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="font-semibold text-sm">Regular</div>
+                        <div className="text-xs text-white/60 mt-0.5">Balanced chat with quick answers</div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          onModeChange('live')
+                          setModeDropdownOpen(false)
+                        }}
+                        className={`w-full px-4 py-3 text-left transition-colors ${
+                          mode === 'live'
+                            ? 'bg-indigo-500/20 text-white'
+                            : 'text-white/80 hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="font-semibold text-sm">Live odds/props</div>
+                        <div className="text-xs text-white/60 mt-0.5">Prioritize fresh odds & player props</div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          onModeChange('research')
+                          setModeDropdownOpen(false)
+                        }}
+                        className={`w-full px-4 py-3 text-left transition-colors ${
+                          mode === 'research'
+                            ? 'bg-indigo-500/20 text-white'
+                            : 'text-white/80 hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="font-semibold text-sm">Research</div>
+                        <div className="text-xs text-white/60 mt-0.5">Allow deeper scans (may take longer)</div>
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             {/* Web Search Toggle */}
             <motion.button

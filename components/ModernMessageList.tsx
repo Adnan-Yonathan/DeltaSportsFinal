@@ -21,9 +21,11 @@ interface MessageListProps {
   conversationId: string
   userId: string
   onMessagesChange?: (hasMessages: boolean) => void
+  mode: 'regular' | 'live' | 'research'
+  onModeChange: (mode: 'regular' | 'live' | 'research') => void
 }
 
-export default function ModernMessageList({ conversationId, userId, onMessagesChange }: MessageListProps) {
+export default function ModernMessageList({ conversationId, userId, onMessagesChange, mode, onModeChange }: MessageListProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [latestMessageId, setLatestMessageId] = useState<string | null>(null)
@@ -121,6 +123,8 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
         conversationId={conversationId}
         userId={userId}
         onMessageSent={loadMessages}
+        mode={mode}
+        onModeChange={onModeChange}
       />
     )
   }

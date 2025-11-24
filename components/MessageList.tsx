@@ -118,63 +118,52 @@ export default function MessageList({ conversationId, userId }: MessageListProps
   return (
     <div className="h-full overflow-y-auto px-4 py-6">
       <div className="max-w-4xl mx-auto space-y-4">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${
-              message.role === 'user' ? 'justify-end' : 'justify-start'
-            }`}
-          >
-            <div
-              className={`max-w-[80%] rounded-lg px-4 py-3 ${
-                message.role === 'user'
-                  ? 'bg-accent-cyan text-bg-primary ml-auto'
-                  : 'bg-bg-secondary text-text-primary mr-auto'
-              }`}
-            >
-              <div className="prose prose-invert prose-sm max-w-none">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    table: ({ node, ...props }) => (
-                      <div className="overflow-x-auto my-4">
-                        <table className="odds-table" {...props} />
-                      </div>
-                    ),
-                    th: ({ node, ...props }) => (
-                      <th className="text-left px-4 py-2" {...props} />
-                    ),
-                    td: ({ node, ...props }) => (
-                      <td className="px-4 py-2" {...props} />
-                    ),
-                    code: ({ node, inline, ...props }: any) =>
-                      inline ? (
-                        <code
-                          className="bg-bg-primary px-1 py-0.5 rounded text-accent-cyan"
-                          {...props}
-                        />
-                      ) : (
-                        <code
-                          className="block bg-bg-primary p-3 rounded my-2"
+        {messages.map((message) => {
+          const isUser = message.role === 'user'
+          const bubbleBase =
+            'relative max-w-[85%] rounded-2xl px-5 py-4 shadow-xl transition-transform duration-150 hover:-translate-y-[1px]'
+          const userStyles =
+            'bg-gradient-to-br from-cyan-500/90 via-cyan-500/80 to-blue-500/70 text-white border border-cyan-200/30 shadow-cyan-500/25 ml-auto'
+          const assistantStyles =
+            'bg-gradient-to-br from-white/8 via-white/6 to-white/4 text-white border border-white/10 shadow-black/30 mr-auto backdrop-blur-sm'
+
+          return (
+            <div key={message.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+              <div className={`${bubbleBase} ${isUser ? userStyles : assistantStyles}`}>
+                <div className="prose prose-invert prose-sm max-w-none">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      table: ({ node, ...props }) => (
+                        <div className="overflow-x-auto my-4">
+                          <table className="odds-table" {...props} />
+                        </div>
+                      ),
+                      th: ({ node, ...props }) => <th className="text-left px-4 py-2" {...props} />,
+                      td: ({ node, ...props }) => <td className="px-4 py-2" {...props} />,
+                      code: ({ node, inline, ...props }: any) =>
+                        inline ? (
+                          <code className="bg-bg-primary px-1 py-0.5 rounded text-accent-cyan" {...props} />
+                        ) : (
+                          <code className="block bg-bg-primary p-3 rounded my-2" {...props} />
+                        ),
+                      a: ({ node, ...props }) => (
+                        <a
+                          className="text-accent-cyan underline hover:text-accent-orange"
+                          target="_blank"
+                          rel="noopener noreferrer"
                           {...props}
                         />
                       ),
-                    a: ({ node, ...props }) => (
-                      <a
-                        className="text-accent-cyan underline hover:text-accent-orange"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        {...props}
-                      />
-                    ),
-                  }}
-                >
-                  {message.content}
-                </ReactMarkdown>
+                    }}
+                  >
+                    {message.content}
+                  </ReactMarkdown>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
         <div ref={messagesEndRef} />
       </div>
     </div>

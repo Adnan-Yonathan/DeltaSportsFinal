@@ -1,18 +1,34 @@
 'use client'
 
-import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
+import { ChevronDown } from 'lucide-react'
 
 interface ChatIntroProps {
   conversationId: string
   userId: string
   onMessageSent: () => void
+  mode: 'regular' | 'live' | 'research'
+  onModeChange: (mode: 'regular' | 'live' | 'research') => void
 }
 
-export default function ChatIntro({ conversationId, userId, onMessageSent }: ChatIntroProps) {
+export default function ChatIntro({ conversationId, userId, onMessageSent, mode, onModeChange }: ChatIntroProps) {
   const [sending, setSending] = useState(false)
-  const [mode, setMode] = useState<'regular' | 'live' | 'research'>('regular')
+  const [modeDropdownOpen, setModeDropdownOpen] = useState(false)
+  const modeDropdownRef = useRef<HTMLDivElement | null>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modeDropdownRef.current && !modeDropdownRef.current.contains(event.target as Node)) {
+        setModeDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -81,57 +97,90 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
           How can I help you today?
         </h2>
         <p className="text-white/60 mb-8">
-          Ask me about odds, line movements, arbitrage opportunities, or bankroll
-          management. I&apos;m here to help!
+          Get real-time stats, compare odds, analyze betting lines, track your bankroll,
+          and discover value plays across all major sports.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 text-left">
-          <label className={`rounded-lg border ${mode === 'regular' ? 'border-white/80 bg-white/5' : 'border-white/10'} p-3 text-white/80 cursor-pointer`}>
-            <input
-              type="radio"
-              name="mode"
-              value="regular"
-              className="mr-2 accent-blue-500"
-              checked={mode === 'regular'}
-              onChange={() => setMode('regular')}
-            />
-            <span className="font-semibold text-white">Regular</span>
-            <div className="text-xs text-white/60 mt-1">Balanced chat with quick answers.</div>
-          </label>
-          <label className={`rounded-lg border ${mode === 'live' ? 'border-white/80 bg-white/5' : 'border-white/10'} p-3 text-white/80 cursor-pointer`}>
-            <input
-              type="radio"
-              name="mode"
-              value="live"
-              className="mr-2 accent-blue-500"
-              checked={mode === 'live'}
-              onChange={() => setMode('live')}
-            />
-            <span className="font-semibold text-white">Live odds/props</span>
-            <div className="text-xs text-white/60 mt-1">Prioritize fresh odds & player props.</div>
-          </label>
-          <label className={`rounded-lg border ${mode === 'research' ? 'border-white/80 bg-white/5' : 'border-white/10'} p-3 text-white/80 cursor-pointer`}>
-            <input
-              type="radio"
-              name="mode"
-              value="research"
-              className="mr-2 accent-blue-500"
-              checked={mode === 'research'}
-              onChange={() => setMode('research')}
-            />
-            <span className="font-semibold text-white">Research</span>
-            <div className="text-xs text-white/60 mt-1">Allow deeper scans (may take longer).</div>
-          </label>
-        </div>
-
-        {mode === 'research' && (
-          <div className="mb-6 text-left text-white/70 text-sm">
-            Research mode: ask for the sport/markets and which saved model to run; the assistant will confirm before running.
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="w-full">
+        <form onSubmit={handleSubmit} className="w-full relative">
           <PromptBox name="message" disabled={sending} />
+
+          {/* Mode Dropdown - positioned absolutely over the PromptBox, left side */}
+          <div className="absolute bottom-3 left-14 z-10" ref={modeDropdownRef}>
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setModeDropdownOpen((prev) => !prev)}
+              disabled={sending}
+              className="px-3 py-2 rounded-lg transition-all bg-indigo-500/10 border border-indigo-500/30 text-white hover:bg-indigo-500/20 hover:border-indigo-500/50 flex items-center gap-1.5"
+              title="Select mode"
+            >
+              <span className="text-xs font-semibold">
+                {mode === 'regular' ? 'Regular' : mode === 'live' ? 'Live' : 'Research'}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </motion.button>
+
+            <AnimatePresence>
+              {modeDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute bottom-full mb-2 left-0 w-56 rounded-xl border border-white/10 bg-[#0f132d] shadow-2xl overflow-hidden"
+                >
+                  <div className="py-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onModeChange('regular')
+                        setModeDropdownOpen(false)
+                      }}
+                      className={`w-full px-4 py-3 text-left transition-colors ${
+                        mode === 'regular'
+                          ? 'bg-indigo-500/20 text-white'
+                          : 'text-white/80 hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="font-semibold text-sm">Regular</div>
+                      <div className="text-xs text-white/60 mt-0.5">Balanced chat with quick answers</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onModeChange('live')
+                        setModeDropdownOpen(false)
+                      }}
+                      className={`w-full px-4 py-3 text-left transition-colors ${
+                        mode === 'live'
+                          ? 'bg-indigo-500/20 text-white'
+                          : 'text-white/80 hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="font-semibold text-sm">Live odds/props</div>
+                      <div className="text-xs text-white/60 mt-0.5">Prioritize fresh odds & player props</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onModeChange('research')
+                        setModeDropdownOpen(false)
+                      }}
+                      className={`w-full px-4 py-3 text-left transition-colors ${
+                        mode === 'research'
+                          ? 'bg-indigo-500/20 text-white'
+                          : 'text-white/80 hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="font-semibold text-sm">Research</div>
+                      <div className="text-xs text-white/60 mt-0.5">Allow deeper scans (may take longer)</div>
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </form>
       </motion.div>
     </div>

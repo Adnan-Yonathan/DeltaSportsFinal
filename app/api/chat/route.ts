@@ -1792,6 +1792,68 @@ export async function POST(req: NextRequest) {
     if (parsedMatchupTeams.length) {
       console.log('[DEBUG] Parsed matchup teams:', parsedMatchupTeams)
     }
+
+    function formatTeamRow(team: any, stats: Record<string, any>) {
+      const headers = ['Team', 'Streak', 'Last 10', 'PPG', 'PAPG', 'FG%', '3P%', 'REB', 'AST', 'BLK', 'STL']
+      const fmt = (val: any) => {
+        if (val == null || val === '') return 'N/A'
+        const num = Number(val)
+        if (!Number.isNaN(num)) return num.toFixed(1).replace(/\.0+$/, '')
+        return String(val)
+      }
+      const row = [
+        team?.team || 'Team',
+        stats.streak || 'N/A',
+        stats.lastTen || 'N/A',
+        fmt(stats.pointsForPerGame),
+        fmt(stats.pointsAgainstPerGame),
+        fmt(stats.fieldGoalPct),
+        fmt(stats.threePointPct),
+        fmt(stats.reboundsPerGame),
+        fmt(stats.assistsPerGame),
+        fmt(stats.blocksPerGame),
+        fmt(stats.stealsPerGame),
+      ]
+      const header = `| ${headers.join(' | ')} |`
+      const divider = `| ${headers.map(() => '---').join(' | ')} |`
+      const rowLine = `| ${row.join(' | ')} |`
+      return `${header}\n${divider}\n${rowLine}`
+    }
+
+    function resolveTeamStats(teamNames: string[]) {
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'americanfootball_nfl' :
+        msgLower.match(/mlb|baseball/) ? 'baseball_mlb' :
+        msgLower.match(/nhl|hockey/) ? 'icehockey_nhl' :
+        msgLower.match(/ncaab|college basketball|cbb/) ? 'basketball_ncaab' :
+        'basketball_nba'
+
+      const target = teamNames[0]
+      return getTeamStats(sportGuess, target).then(async (stats) => {
+        if (!stats.length) {
+          return streamTextResponse(`I couldn't find team stats for ${target || 'that team'}. Please check the name or sport.`)
+        }
+
+        const team = stats[0]
+        const form = team.stats || {}
+        const fmt = (val: any, digits = 1) => {
+          if (val == null) return 'N/A'
+          const num = Number(val)
+          if (Number.isNaN(num)) return String(val)
+          return num.toFixed(digits).replace(/\.0+$/, '')
+        }
+
+        const insightTable = formatTeamRow(team, form)
+
+        const lines = [
+          `Team stats (${sportGuess.toUpperCase()}): ${team.team}`,
+          `Record: ${team.wins}-${team.losses} (${fmt(team.winPct * 100)}%)`,
+          '',
+          insightTable,
+        ]
+        return streamTextResponse(lines.join('\n'))
+      })
+    }
     const propIntent = /props?\b|player\s+(points|rebounds|assists|threes|blocks|steals|yards|tds|receptions|pra)\b|over\/under\s+\d+(\.\d+)?/i.test(
       msgLower
     )
@@ -1804,6 +1866,21 @@ export async function POST(req: NextRequest) {
       Boolean(playerNameInMessage) &&
       /\b(stat line|box score|game stats?|how many|line vs|stats?\s+vs)\b/i.test(msgLower) &&
       (/\bvs\b|against|@/i.test(msgLower) || /\b\d{1,2}\/\d{1,2}\b/.test(msgLower) || /\blast\s+(night|game)\b/i.test(msgLower))
+    const teamStatsIntent =
+      /\b(team stats?|team statistics|team form|team record|recent form|last\s*10|last ten)\b/i.test(msgLower) ||
+      (mentionedTeams.length > 0 &&
+        /\b(stats?|record|standings?)\b/i.test(msgLower) &&
+        !playerNameInMessage)
+
+    // Early short-circuit for team stats to avoid odds fetches
+    if (teamStatsIntent || (mentionedTeams.length && !oddsKeywordMatch && !wantsLiveOdds && !propIntent && !playerNameInMessage)) {
+      try {
+        return await resolveTeamStats(mentionedTeams.length ? mentionedTeams : parsedMatchupTeams)
+      } catch (err: any) {
+        console.error('[TEAM_STATS_SHORTCUT] Failed (early)', err)
+        return streamTextResponse('Team stats are temporarily unavailable. Please try again.')
+      }
+    }
     const modelApplicationIntent =
       /apply\s+.+?(model|confidence)|confidence\s+interval|run\s+my\s+model|use\s+my\s+model|custom\s+model/i.test(msgLower)
     const researchIntent =
@@ -1817,6 +1894,7 @@ export async function POST(req: NextRequest) {
       !webSearchToggle &&
       !modelApplicationIntent &&
       !playerGameStatsIntent &&
+      !teamStatsIntent &&
       (Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0)
 
     const loadNcaabSlateTeams = async () => {
@@ -2910,6 +2988,73 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
     } catch (err: any) {
       console.error('[PLAYER_SEASON_STATS_SHORTCUT] Failed:', err)
       return streamTextResponse('Player season stats are temporarily unavailable. Please try again.')
+    }
+  }
+
+  // Team stats handled earlier
+
+  // Broader player stats shortcut (NBA/NFL season averages)
+  const genericPlayerStatsIntent =
+    !propIntent &&
+    !oddsKeywordMatch &&
+    playerNameInMessage &&
+    /\b(stats?|averages?|ppg|rpg|apg|points per game|rebounds|assists)\b/i.test(lowerMessage)
+
+  if (genericPlayerStatsIntent) {
+    const sportGuess =
+      lowerMessage.includes('nfl') || lowerMessage.includes('football')
+        ? 'americanfootball_nfl'
+        : 'basketball_nba'
+    try {
+      const data =
+        sportGuess === 'americanfootball_nfl'
+          ? await getNFLPlayerSeasonStats(playerNameInMessage)
+          : await getNBAPlayerSeasonStats(playerNameInMessage)
+
+      if (data) {
+        const leagueLabel = sportGuess === 'americanfootball_nfl' ? 'NFL' : 'NBA'
+        const stats = (data.stats || {}) as Record<string, number | string>
+        const num = (v: any, decimals = 1) =>
+          v == null || v === '' || Number.isNaN(Number(v)) ? 'N/A' : Number(v).toFixed(decimals)
+        const fmtPercent = (v: any) =>
+          v == null || v === '' || Number.isNaN(Number(v)) ? 'N/A' : `${Number(v).toFixed(1)}%`
+
+        const ppg = num(stats.PPG)
+        const rpg = num(stats.RPG)
+        const apg = num(stats.APG)
+        const fg = fmtPercent(stats.FG_PERCENT ?? stats['FG%'])
+        const three = fmtPercent(stats.THREE_PERCENT ?? stats['3P%'])
+
+        const lines = [
+          `Here are ${data.name || playerNameInMessage}'s ${data.season || 'current'} season averages (ESPN data):`,
+          '',
+          `- Team: ${data.team || 'Unknown'}`,
+          `- Position: ${data.position || 'N/A'}`,
+          `- PPG: ${ppg}`,
+          `- RPG: ${rpg}`,
+          `- APG: ${apg}`,
+          `- FG%: ${fg}`,
+          `- 3P%: ${three}`,
+        ]
+        lines.push('')
+
+        return streamTextResponse(lines.join('\n'))
+      }
+      const leagueLabel = sportGuess === 'americanfootball_nfl' ? 'NFL' : 'NBA'
+      return streamTextResponse(`I couldn't find season stats for ${playerNameInMessage} (${leagueLabel}). Please check the spelling or tell me the sport.`)
+    } catch (err: any) {
+      console.error('[PLAYER_STATS_SHORTCUT] Failed:', err)
+      return streamTextResponse('Player stats are temporarily unavailable. Please try again.')
+    }
+  }
+
+  // Handle team stats before odds to avoid unnecessary odds fetches
+  if (teamStatsIntent || (mentionedTeams.length && !oddsKeywordMatch && !wantsLiveOdds && !propIntent && !playerNameInMessage)) {
+    try {
+      return await resolveTeamStats(mentionedTeams.length ? mentionedTeams : parsedMatchupTeams)
+    } catch (err: any) {
+      console.error('[TEAM_STATS_SHORTCUT] Failed:', err)
+      return streamTextResponse('Team stats are temporarily unavailable. Please try again.')
     }
   }
 

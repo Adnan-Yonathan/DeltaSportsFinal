@@ -79,6 +79,12 @@ function adjustDate(date: string, delta: number) {
   return parsed.toISOString().slice(0, 10)
 }
 
+function resolveHeadshot(src?: string | null) {
+  if (!src) return null
+  if (src.startsWith("http")) return src
+  return `https:${src}`
+}
+
 const groupByLeague = (games: LiveScoreGame[]) => {
   const map = new Map<string, LiveScoreGame[]>()
   games.forEach((game) => {
@@ -719,6 +725,7 @@ function PlayerDetailDrawer({ team, playerId, onClose }: PlayerDetailDrawerProps
   if (!player) return null
 
   const statsEntries = player.statMap ? Object.entries(player.statMap) : []
+  const headshotSrc = resolveHeadshot(player.headshot)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center sm:justify-center">
@@ -727,8 +734,8 @@ function PlayerDetailDrawer({ team, playerId, onClose }: PlayerDetailDrawerProps
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="relative h-12 w-12 overflow-hidden rounded-full bg-white/10">
-              {player.headshot ? (
-                <Image src={player.headshot} alt={player.name} fill sizes="48px" className="object-cover" />
+              {headshotSrc ? (
+                <Image src={headshotSrc} alt={player.name} fill sizes="48px" className="object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-sm text-white/60">
                   {player.position || player.name.charAt(0)}
@@ -782,42 +789,45 @@ function LineupGroup({ title, players, emptyMessage, compact, onSelect }: Lineup
       <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">{title}</p>
       {players.length ? (
         <div className="space-y-2">
-          {players.map((player) => (
-            <button
-              key={`${title}-${player.id}`}
-              onClick={() => onSelect(player.id)}
-              className={clsx(
-                "flex w-full items-center gap-3 rounded-2xl border bg-black/30 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
-                compact ? "border-white/5" : "border-white/10"
-              )}
-            >
-              <div
+          {players.map((player) => {
+            const headshotSrc = resolveHeadshot(player.headshot)
+            return (
+              <button
+                key={`${title}-${player.id}`}
+                onClick={() => onSelect(player.id)}
                 className={clsx(
-                  "relative overflow-hidden bg-white/10",
-                  compact ? "h-8 w-8 rounded-full" : "h-10 w-10 rounded-full"
+                  "flex w-full items-center gap-3 rounded-2xl border bg-black/30 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+                  compact ? "border-white/5" : "border-white/10"
                 )}
               >
-                {player.headshot ? (
-                  <Image src={player.headshot} alt={player.name} fill sizes={compact ? "32px" : "40px"} className="object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-[11px] text-white/70">
-                    {player.position || player.name.charAt(0)}
-                  </div>
-                )}
-              </div>
-              <div className="flex-1">
-                <p className={clsx("font-semibold text-white", compact ? "text-xs" : "text-sm")}>
-                  {player.name}{" "}
-                  {player.position && (
-                    <span className={clsx("text-white/50", compact ? "text-[11px]" : "text-xs")}>{player.position}</span>
+                <div
+                  className={clsx(
+                    "relative overflow-hidden bg-white/10",
+                    compact ? "h-8 w-8 rounded-full" : "h-10 w-10 rounded-full"
                   )}
-                </p>
-                <p className={clsx("text-white/60", compact ? "text-[11px]" : "text-xs")}>
-                  {player.summaryLine || player.lineLabel || (title === "Bench" ? "Bench" : title)}
-                </p>
-              </div>
-            </button>
-          ))}
+                >
+                  {headshotSrc ? (
+                    <Image src={headshotSrc} alt={player.name} fill sizes={compact ? "32px" : "40px"} className="object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-[11px] text-white/70">
+                      {player.position || player.name.charAt(0)}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className={clsx("font-semibold text-white", compact ? "text-xs" : "text-sm")}>
+                    {player.name}{" "}
+                    {player.position && (
+                      <span className={clsx("text-white/50", compact ? "text-[11px]" : "text-xs")}>{player.position}</span>
+                    )}
+                  </p>
+                  <p className={clsx("text-white/60", compact ? "text-[11px]" : "text-xs")}>
+                    {player.summaryLine || player.lineLabel || (title === "Bench" ? "Bench" : title)}
+                  </p>
+                </div>
+              </button>
+            )
+          })}
         </div>
       ) : emptyMessage ? (
         <p className="text-xs text-white/50">{emptyMessage}</p>

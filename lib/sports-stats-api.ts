@@ -480,6 +480,23 @@ export async function getNBATeamStats(teamAbbr?: string): Promise<TeamStats[]> {
     const data = await response.json()
     const teams: TeamStats[] = []
 
+    const pickStat = (statsArray: any[], names: string | string[]) => {
+      const list = Array.isArray(names) ? names : [names]
+      for (const name of list) {
+        const exact = statsArray.find((s: any) => s.name === name)
+        if (exact) return exact.value != null ? exact.value : exact.displayValue ?? null
+      }
+      const lowerNames = list.map((n) => n.toLowerCase())
+      const loose = statsArray.find((s: any) => lowerNames.some((n) => String(s?.name || '').toLowerCase().includes(n)))
+      if (loose) return loose.value != null ? loose.value : loose.displayValue ?? null
+      return null
+    }
+
+    const numOrNull = (value: any) => {
+      const n = Number(value)
+      return Number.isFinite(n) ? n : null
+    }
+
     // Parse both Eastern and Western conferences
     if (data.children) {
       for (const conference of data.children) {
@@ -491,11 +508,34 @@ export async function getNBATeamStats(teamAbbr?: string): Promise<TeamStats[]> {
 
           // Extract stats from the stats array
           const statsArray = entry.stats || []
-          const wins = statsArray.find((s: any) => s.name === 'wins')?.value || 0
-          const losses = statsArray.find((s: any) => s.name === 'losses')?.value || 0
-          const winPct = statsArray.find((s: any) => s.name === 'winPercent')?.value || 0
-          const streak = statsArray.find((s: any) => s.name === 'streak')?.displayValue || ''
+          const wins = Number(pickStat(statsArray, 'wins')) || 0
+          const losses = Number(pickStat(statsArray, 'losses')) || 0
+          const winPct = Number(pickStat(statsArray, 'winPercent')) || 0
+          const streak = pickStat(statsArray, 'streak') || ''
           const gamesPlayed = wins + losses
+          const lastTenWins = Number(pickStat(statsArray, 'lastTenWins')) || null
+          const lastTenLosses = Number(pickStat(statsArray, 'lastTenLosses')) || null
+          const lastTen =
+            pickStat(statsArray, 'lastTen') ||
+            pickStat(statsArray, 'last10') ||
+            (lastTenWins != null && lastTenLosses != null ? `${lastTenWins}-${lastTenLosses}` : null)
+
+          const pointsForPerGame = numOrNull(pickStat(statsArray, ['pointsPerGame', 'pointsFor']))
+          const pointsAgainstPerGame = numOrNull(
+            pickStat(statsArray, ['pointsAgainstPerGame', 'pointsAgainst', 'oppPointsPerGame'])
+          )
+          const pointsFor = pointsForPerGame && gamesPlayed ? Number((pointsForPerGame * gamesPlayed).toFixed(1)) : null
+          const pointsAgainst =
+            pointsAgainstPerGame && gamesPlayed ? Number((pointsAgainstPerGame * gamesPlayed).toFixed(1)) : null
+          const fgPct = numOrNull(pickStat(statsArray, ['fieldGoalPct', 'fgPct', 'fieldGoalPercentage']))
+          const threePct = numOrNull(pickStat(statsArray, ['threePointPct', 'threePointPercentage', '3PointPct']))
+          const ftPct = numOrNull(pickStat(statsArray, ['freeThrowPct', 'freeThrowPercentage', 'ftPct']))
+          const reboundsPerGame = numOrNull(
+            pickStat(statsArray, ['reboundsPerGame', 'totalReboundsPerGame', 'reboundAvg', 'rebPerGame'])
+          )
+          const assistsPerGame = numOrNull(pickStat(statsArray, ['assistsPerGame', 'assistAvg', 'astPerGame']))
+          const blocksPerGame = numOrNull(pickStat(statsArray, ['blocksPerGame', 'blockAvg', 'blkPerGame']))
+          const stealsPerGame = numOrNull(pickStat(statsArray, ['stealsPerGame', 'stealAvg', 'stlPerGame']))
 
           teams.push({
             team: team.displayName,
@@ -505,6 +545,18 @@ export async function getNBATeamStats(teamAbbr?: string): Promise<TeamStats[]> {
             stats: {
               gamesPlayed,
               streak,
+              lastTen,
+              pointsForPerGame,
+              pointsAgainstPerGame,
+              pointsFor,
+              pointsAgainst,
+              fieldGoalPct: fgPct,
+              threePointPct: threePct,
+              freeThrowPct: ftPct,
+              reboundsPerGame,
+              assistsPerGame,
+              blocksPerGame,
+              stealsPerGame,
             },
           })
         }

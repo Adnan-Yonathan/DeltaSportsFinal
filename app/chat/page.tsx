@@ -19,6 +19,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bankrollOpen, setBankrollOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [mode, setMode] = useState<'regular' | 'live' | 'research'>('regular')
   const router = useRouter()
   const supabase = createClient()
   const profileMenuRef = useRef<HTMLDivElement | null>(null)
@@ -412,6 +413,8 @@ export default function ChatPage() {
                 conversationId={currentConversationId}
                 userId={user?.id}
                 onMessagesChange={setHasMessages}
+                mode={mode}
+                onModeChange={setMode}
               />
             ) : (
               <div className="flex items-center justify-center h-full bg-black px-4">
@@ -443,6 +446,8 @@ export default function ChatPage() {
             <ModernMessageInput
               conversationId={currentConversationId}
               userId={user?.id}
+              mode={mode}
+              onModeChange={setMode}
             />
           )}
         </div>

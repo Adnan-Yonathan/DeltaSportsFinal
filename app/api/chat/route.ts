@@ -3911,6 +3911,8 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
       return streamTextResponse(finalText)
     }
 
+    const llmAbort = new AbortController()
+    const llmTimeout = setTimeout(() => llmAbort.abort(new Error('LLM timeout')), 12000)
     const stream = await openai.chat.completions.create({
       model: chatModel,
       messages: openaiMessages,
@@ -3918,6 +3920,7 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
       temperature: !chatModel.includes('gpt-5') ? 0.7 : undefined,
       max_completion_tokens: 1500,
       stream: true,
+      signal: llmAbort.signal,
     })
 
     const encoder = new TextEncoder()
@@ -3949,6 +3952,7 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
 
           const latencyMs = Date.now() - startTime
           console.log('[PERF][LLM][STREAM_MS]', latencyMs)
+          clearTimeout(llmTimeout)
 
           if (fullResponse && fullResponse.trim().length > 0) {
             await supabase.from('messages').insert({
@@ -3975,6 +3979,7 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
           controller.close()
         } catch (error) {
           console.error('Streaming error:', error)
+          clearTimeout(llmTimeout)
           try {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Streaming error occurred' })}\n\n`))
             controller.enqueue(encoder.encode('data: [DONE]\n\n'))

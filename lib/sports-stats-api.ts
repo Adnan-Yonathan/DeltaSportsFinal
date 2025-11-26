@@ -1,4 +1,6 @@
 import Papa from 'papaparse'
+import { buildRecentPerformances } from '@/lib/utils/recent-performances'
+import { RecentPerformance } from '@/lib/utils/recent-performances'
 
 // Comprehensive Sports Statistics API Integration
 // Supports NBA, NFL, MLB, NHL - Player stats, team stats, advanced analytics, injuries
@@ -11,6 +13,7 @@ export interface PlayerStats {
   season?: string
   headshot?: string
   sport?: string
+  recent?: ReturnType<typeof buildRecentPerformances>
 }
 
 export interface RosterPlayer {
@@ -77,12 +80,85 @@ const SPORT_ALIASES: Record<string, string> = {
 }
 
 const SPORT_PRIORITY = ['basketball_nba', 'americanfootball_nfl', 'baseball_mlb', 'icehockey_nhl']
+const ESPN_SPORT_PATH: Record<string, string> = {
+  basketball_nba: 'basketball/nba',
+  basketball_ncaab: 'basketball/mens-college-basketball',
+  americanfootball_nfl: 'football/nfl',
+  americanfootball_ncaaf: 'football/college-football',
+}
 
 const normalizeName = (value: string) =>
   value
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '')
     .trim()
+
+const fetchEspnRecentGames = async (
+  athleteId: string,
+  sportPath: string,
+  options?: {
+    season?: string | number
+    seasonType?: number
+    maxGames?: number
+  }
+): Promise<RecentPerformance[]> => {
+  try {
+    const season = options?.season
+    const seasonType = options?.seasonType ?? 2 // 2 = regular season on ESPN
+    const maxGames = options?.maxGames ?? 5
+    const url = `https://site.web.api.espn.com/apis/common/v3/sports/${sportPath}/athletes/${athleteId}/gamelog${
+      season ? `?season=${season}&seasontype=${seasonType}` : `?seasontype=${seasonType}`
+    }`
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return []
+    const data = await res.json()
+    const games: any[] =
+      data?.events ||
+      data?.gameLog ||
+      data?.gamelog ||
+      data?.items ||
+      data?.entries ||
+      []
+
+    const result: RecentPerformance[] = []
+    for (const game of games) {
+      if (result.length >= maxGames) break
+      const date = game?.date || game?.gameDate || game?.game_date || ''
+      const opponent =
+        game?.opponent?.displayName ||
+        game?.opponent?.name ||
+        game?.opponent ||
+        game?.opponentName ||
+        ''
+      const resultText = game?.result || game?.gameResult || game?.outcome || ''
+      const stats: Record<string, number> = {}
+
+      const statBlocks: any[] = Array.isArray(game?.stats) ? game.stats : Array.isArray(game?.statistics) ? game.statistics : []
+      for (const block of statBlocks) {
+        const entries: any[] = Array.isArray(block?.stats) ? block.stats : Array.isArray(block) ? block : []
+        for (const entry of entries) {
+          const label = entry?.label || entry?.displayName || entry?.name
+          const value = typeof entry?.value === 'number' ? entry.value : Number(entry?.value)
+          if (!label || !Number.isFinite(value)) continue
+          const key = label.toString().toUpperCase().replace(/\s+/g, '_')
+          stats[key] = value
+        }
+      }
+
+      result.push({
+        date: date ? String(date) : '',
+        opponent: String(opponent),
+        result: resultText ? String(resultText) : undefined,
+        stats,
+      })
+    }
+
+    return result
+  } catch (err) {
+    console.warn('[ESPN] gamelog fetch failed', err)
+    return []
+  }
+}
 
 const resolveSportKey = (sport?: string | null): string | undefined => {
   if (!sport) return undefined
@@ -98,6 +174,14 @@ const getCurrentNBASeasonLabel = () => {
   return `${startYear}-${nextYear.slice(-2)}`
 }
 
+const getCurrentNBASeasonYear = () => {
+  const now = new Date()
+  const month = now.getUTCMonth()
+  const startYear = month >= 8 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
+  // ESPN often expects the ending year for season param (e.g., 2025 for 2024-25)
+  return startYear + 1
+}
+
 const getCurrentNFLSeasonYear = () => {
   const now = new Date()
   const month = now.getUTCMonth() // 0-11
@@ -108,6 +192,8 @@ const getCurrentNFLSeasonYear = () => {
 
 const PLAYER_STATS_CACHE_TTL = 1000 * 60 * 15 // 15 minutes
 const playerStatsCache = new Map<string, { data: PlayerStats | null; ts: number }>()
+const nflSeasonRowsCache = new Map<number, { ts: number; rows: Record<string, any>[] }>()
+const nflEpaRankCache = new Map<number, Map<string, { rank: number; total: number; epaPerPlay: number }>>()
 
 const extractEspnId = (content: any): string | null => {
   const web = content?.link?.web
@@ -218,6 +304,54 @@ const fetchNBAPlayerBaseStats = async (playerId: string, seasonLabel: string) =>
 const fetchNBAPlayerAdvancedStats = async (playerId: string, seasonLabel: string) => {
   // stats.nba.com is disabled; advanced splits are unavailable from ESPN endpoints
   return null
+}
+
+type EspnSearchTarget = {
+  id: string
+  name: string
+  team?: string
+  teamAbbr?: string
+  position?: string
+  headshot?: string
+}
+
+const searchEspnAthlete = async (
+  playerName: string,
+  sportPath: string,
+  leagueAbbrev?: string
+): Promise<EspnSearchTarget | null> => {
+  try {
+    const url = `https://site.api.espn.com/apis/search/v2?type=player&limit=10&query=${encodeURIComponent(
+      playerName
+    )}`
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return null
+    const data = await res.json()
+    const results: any[] = data?.results?.find((r: any) => r?.type === 'player')?.contents || []
+    if (!Array.isArray(results)) return null
+    const target = normalizeName(playerName)
+    const matches = results.filter((entry: any) => {
+      if (!leagueAbbrev) return true
+      const league = entry?.leagues?.[0]?.leagueAbbrev || entry?.leagues?.[0]?.abbr
+      return league && league.toLowerCase() === leagueAbbrev.toLowerCase()
+    })
+    const pick =
+      matches.find((entry: any) => normalizeName(entry?.displayName || '') === target) ||
+      matches.find((entry: any) => normalizeName(entry?.displayName || '').includes(target)) ||
+      matches[0]
+    if (!pick?.id) return null
+    return {
+      id: String(pick.id),
+      name: pick.displayName || playerName,
+      team: pick.team || pick.teamName || '',
+      teamAbbr: pick.teamAbbreviation || '',
+      position: pick.position || '',
+      headshot: pick.image?.default || pick.image?.href || undefined,
+    }
+  } catch (err) {
+    console.warn('[ESPN] search failed', err)
+    return null
+  }
 }
 
 type ESPNPlayerSummary = {
@@ -334,6 +468,117 @@ export async function getNBAPlayerSeasonStats(playerName: string): Promise<Playe
     sport: 'basketball_nba',
   }
 
+  if (rosterEntry.id) {
+    const seasonYear = getCurrentNBASeasonYear()
+    const recent =
+      (await fetchEspnRecentGames(rosterEntry.id, ESPN_SPORT_PATH.basketball_nba, {
+        season: seasonYear,
+        seasonType: 2,
+        maxGames: 5,
+      })) ||
+      (await fetchEspnRecentGames(rosterEntry.id, ESPN_SPORT_PATH.basketball_nba, {
+        season: seasonYear - 1,
+        seasonType: 2,
+        maxGames: 5,
+      }))
+    if (recent && recent.length) {
+      result.recent = recent
+    }
+  }
+
+  playerStatsCache.set(cacheKey, { data: result, ts: Date.now() })
+  return result
+}
+
+// ============ NCAA FOOTBALL / BASKETBALL (basic + recent only) ============
+
+const buildStatsFromRecent = (games: RecentPerformance[]): Record<string, number> => {
+  const totals: Record<string, number> = {}
+  for (const game of games) {
+    for (const [k, v] of Object.entries(game.stats)) {
+      if (typeof v !== 'number' || !Number.isFinite(v)) continue
+      totals[k] = (totals[k] || 0) + v
+    }
+  }
+  return totals
+}
+
+export async function getNCAAFPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
+  const cacheKey = `ncaaf:${normalizeName(playerName)}`
+  const cached = playerStatsCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < PLAYER_STATS_CACHE_TTL) return cached.data
+
+  const search = await searchEspnAthlete(playerName, ESPN_SPORT_PATH.americanfootball_ncaaf, 'ncf')
+  if (!search) {
+    playerStatsCache.set(cacheKey, { data: null, ts: Date.now() })
+    return null
+  }
+
+  const currentYear = new Date().getFullYear()
+  const recent =
+    (await fetchEspnRecentGames(search.id, ESPN_SPORT_PATH.americanfootball_ncaaf, {
+      season: currentYear,
+      seasonType: 2,
+      maxGames: 5,
+    })) ||
+    (await fetchEspnRecentGames(search.id, ESPN_SPORT_PATH.americanfootball_ncaaf, {
+      season: currentYear - 1,
+      seasonType: 2,
+      maxGames: 5,
+    }))
+  const stats = buildStatsFromRecent(recent)
+
+  const result: PlayerStats = {
+    name: search.name,
+    team: search.team || '',
+    position: search.position,
+    season: String(getCurrentNFLSeasonYear()),
+    stats,
+    headshot: search.headshot,
+    sport: 'americanfootball_ncaaf',
+    recent,
+  }
+
+  playerStatsCache.set(cacheKey, { data: result, ts: Date.now() })
+  return result
+}
+
+export async function getNCAABPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
+  const cacheKey = `ncaab:${normalizeName(playerName)}`
+  const cached = playerStatsCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < PLAYER_STATS_CACHE_TTL) return cached.data
+
+  const search = await searchEspnAthlete(playerName, ESPN_SPORT_PATH.basketball_ncaab, 'ncb')
+  if (!search) {
+    playerStatsCache.set(cacheKey, { data: null, ts: Date.now() })
+    return null
+  }
+
+  const currentYear = new Date().getFullYear()
+  const recent =
+    (await fetchEspnRecentGames(search.id, ESPN_SPORT_PATH.basketball_ncaab, {
+      season: currentYear,
+      seasonType: 2,
+      maxGames: 5,
+    })) ||
+    (await fetchEspnRecentGames(search.id, ESPN_SPORT_PATH.basketball_ncaab, {
+      season: currentYear - 1,
+      seasonType: 2,
+      maxGames: 5,
+    }))
+  const stats = buildStatsFromRecent(recent)
+
+  const result: PlayerStats = {
+    name: search.name,
+    team: search.team || '',
+    position: search.position,
+    season: String(new Date().getFullYear()),
+    stats,
+    headshot: search.headshot,
+    sport: 'basketball_ncaab',
+    recent,
+  }
+
   playerStatsCache.set(cacheKey, { data: result, ts: Date.now() })
   return result
 }
@@ -403,6 +648,21 @@ export async function getNFLPlayerSeasonStats(playerName: string): Promise<Playe
     }
   }
 
+  // EPA/play position rank
+  try {
+    const ranks = await getEpaPerPlayPositionRanks(seasonYear)
+    const pos = (rosterEntry.position || '').trim().toUpperCase()
+    if (pos) {
+      const lookupKey = `${normalizeName(rosterEntry.fullName)}|${pos}`
+      const rankEntry = ranks.get(lookupKey)
+      if (rankEntry) {
+        stats.EPA_PER_PLAY_RANK = `${rankEntry.rank}/${rankEntry.total} ${pos}`
+      }
+    }
+  } catch (err) {
+    console.warn('[NFL] EPA rank lookup failed', err)
+  }
+
   const result: PlayerStats = {
     name: rosterEntry.fullName,
     team: rosterEntry.team,
@@ -411,6 +671,11 @@ export async function getNFLPlayerSeasonStats(playerName: string): Promise<Playe
     stats,
     headshot: rosterEntry.headshot,
     sport: 'americanfootball_nfl',
+  }
+
+  // Recent performances (last 5 games from CSV rows)
+  if (csvData?.rows?.length) {
+    result.recent = buildRecentPerformances(csvData.rows, 5)
   }
 
   playerStatsCache.set(cacheKey, { data: result, ts: Date.now() })
@@ -452,8 +717,64 @@ const fetchNFLPlayerBaseStats = async (playerId: string, seasonYear: number) => 
   return trySeason(seasonYear - 1)
 }
 
+const MIN_PLAYS_FOR_EPA_RANK = 20
+
+const getEpaPerPlayPositionRanks = async (seasonYear: number) => {
+  const cache = nflEpaRankCache.get(seasonYear)
+  if (cache) return cache
+
+  const seasonRows = nflSeasonRowsCache.get(seasonYear)?.rows || (await loadNFLPlayerSeasonRows('', seasonYear))?.rows || []
+  if (!seasonRows.length) {
+    return new Map<string, { rank: number; total: number; epaPerPlay: number }>()
+  }
+
+  const positionGroups = new Map<string, Array<{ name: string; epaPerPlay: number }>>()
+
+  for (const row of seasonRows) {
+    const name =
+      String(row.player_display_name ?? row.player_name ?? '').trim()
+    const pos = String(row.position ?? '').trim().toUpperCase()
+    if (!name || !pos) continue
+
+    const attempts = Number(row.attempts ?? 0)
+    const carries = Number(row.carries ?? 0)
+    const targets = Number(row.targets ?? 0)
+    const totalPlays = attempts + carries + targets
+    if (!Number.isFinite(totalPlays) || totalPlays < MIN_PLAYS_FOR_EPA_RANK) continue
+
+    const passingEPA = Number(row.passing_epa ?? 0)
+    const rushingEPA = Number(row.rushing_epa ?? 0)
+    const receivingEPA = Number(row.receiving_epa ?? 0)
+    const totalEPA = passingEPA + rushingEPA + receivingEPA
+    const epaPerPlay = totalPlays > 0 ? totalEPA / totalPlays : 0
+
+    if (!positionGroups.has(pos)) {
+      positionGroups.set(pos, [])
+    }
+    positionGroups.get(pos)!.push({ name, epaPerPlay })
+  }
+
+  const rankMap = new Map<string, { rank: number; total: number; epaPerPlay: number }>()
+
+  for (const [pos, list] of positionGroups.entries()) {
+    const sorted = list.sort((a, b) => b.epaPerPlay - a.epaPerPlay)
+    sorted.forEach((entry, idx) => {
+      const key = `${normalizeName(entry.name)}|${pos}`
+      rankMap.set(key, { rank: idx + 1, total: sorted.length, epaPerPlay: entry.epaPerPlay })
+    })
+  }
+
+  nflEpaRankCache.set(seasonYear, rankMap)
+  return rankMap
+}
+
 const loadNFLPlayerSeasonRows = async (playerName: string, seasonYear: number) => {
-  const tryLoad = async (year: number) => {
+  const loadSeasonRows = async (year: number) => {
+    const cached = nflSeasonRowsCache.get(year)
+    if (cached && Date.now() - cached.ts < PLAYER_STATS_CACHE_TTL) {
+      return cached.rows
+    }
+
     const url = `${NFL_PLAYER_STATS_BASE}/player_stats_${year}.csv`
     const response = await fetch(url, { cache: 'no-store' })
     if (!response.ok) {
@@ -468,15 +789,25 @@ const loadNFLPlayerSeasonRows = async (playerName: string, seasonYear: number) =
     const rows = (parsed.data || []).filter(
       (row) =>
         Number(row.season) === year &&
-        String(row.season_type).toUpperCase() === 'REG' &&
-        normalizeName(String(row.player_display_name ?? row.player_name ?? '')) === normalizeName(playerName)
+        String(row.season_type).toUpperCase() === 'REG'
     )
-    return { rows, season: year }
+    nflSeasonRowsCache.set(year, { ts: Date.now(), rows })
+    return rows
   }
 
-  const primary = await tryLoad(seasonYear)
-  if (primary && primary.rows.length) return primary
-  return tryLoad(seasonYear - 1)
+  const seasonRows = (await loadSeasonRows(seasonYear)) || (await loadSeasonRows(seasonYear - 1))
+  if (!seasonRows) return null
+
+  if (!playerName) {
+    return { rows: seasonRows, season: seasonRows?.[0]?.season ?? seasonYear }
+  }
+
+  const filtered = seasonRows.filter(
+    (row) =>
+      normalizeName(String(row.player_display_name ?? row.player_name ?? '')) === normalizeName(playerName)
+  )
+
+  return { rows: filtered, season: seasonRows?.[0]?.season ?? seasonYear }
 }
 
 export interface InjuryReport {
@@ -1268,10 +1599,10 @@ export async function getNHLTeamStats(teamAbbr?: string): Promise<TeamStats[]> {
 
 export async function getNHLPlayerStats(playerId?: number): Promise<PlayerStats[]> {
   try {
-    if (!playerId) return []
+  if (!playerId) return []
 
-    const season = `${new Date().getFullYear() - 1}${new Date().getFullYear()}`
-    const url = `https://api-web.nhle.com/v1/player/${playerId}/landing`
+  const season = `${new Date().getFullYear() - 1}${new Date().getFullYear()}`
+  const url = `https://api-web.nhle.com/v1/player/${playerId}/landing`
     const response = await fetch(url, { next: { revalidate: 3600 } })
 
     if (!response.ok) return []
@@ -1348,6 +1679,36 @@ export async function getNHLPlayerSeasonStats(playerName: string): Promise<Playe
     sport: 'icehockey_nhl',
   }
 
+  // NHL recent games from NHL API
+  try {
+    const season = new Date().getFullYear()
+    const seasonLabel = `${season - 1}${season}` // e.g., 20242025
+    const url = `https://api-web.nhle.com/v1/player/${rosterEntry.id}/game-log/${seasonLabel}`
+    const res = await fetch(url, { cache: 'no-store' })
+    if (res.ok) {
+      const data = await res.json()
+      const items: any[] = data?.gameLog || []
+      const recent: RecentPerformance[] = items.slice(0, 5).map((g: any) => ({
+        date: g.gameDate || '',
+        opponent: g.opponentAbbrev || g.opponentTeam || '',
+        result: g.decision || undefined,
+        stats: {
+          GOALS: g.goals ?? 0,
+          ASSISTS: g.assists ?? 0,
+          POINTS: g.points ?? 0,
+          SHOTS: g.shots ?? 0,
+          PLUS_MINUS: g.plusMinus ?? 0,
+          PIM: g.pim ?? 0,
+        },
+      }))
+      if (recent.length) {
+        result.recent = recent
+      }
+    }
+  } catch (err) {
+    console.warn('[NHL] recent fetch failed', err)
+  }
+
   playerStatsCache.set(cacheKey, { data: result, ts: Date.now() })
   return result
 }
@@ -1366,6 +1727,10 @@ export async function getPlayerSeasonStats(playerName: string, sport?: string): 
       data = await getMLBPlayerSeasonStats(playerName)
     } else if (sportKey === 'icehockey_nhl') {
       data = await getNHLPlayerSeasonStats(playerName)
+    } else if (sportKey === 'basketball_ncaab') {
+      data = await getNCAABPlayerSeasonStats(playerName)
+    } else if (sportKey === 'americanfootball_ncaaf') {
+      data = await getNCAAFPlayerSeasonStats(playerName)
     }
     if (data) {
       return { ...data, sport: data.sport ?? sportKey }

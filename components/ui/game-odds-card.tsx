@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { TrendingUp, ChevronDown, ChevronUp, Trophy } from 'lucide-react'
 import { ParsedGameOdds, ParsedMarket, BookmakerOdds } from '@/lib/utils/stats-parser'
+import { ShareButton } from '@/components/ui/share-button'
 
 interface GameOddsCardProps extends Omit<ParsedGameOdds, 'type' | 'originalText'> {}
 
@@ -17,6 +18,8 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
   markets,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null)
+  const proxiedAwayLogo = awayLogo ? `/api/image-proxy?url=${encodeURIComponent(awayLogo)}` : undefined
+  const proxiedHomeLogo = homeLogo ? `/api/image-proxy?url=${encodeURIComponent(homeLogo)}` : undefined
   const [isHovered, setIsHovered] = useState(false)
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
   const [expandedMarkets, setExpandedMarkets] = useState<Set<string>>(new Set(['moneyline']))
@@ -171,7 +174,7 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
       {/* Card content */}
       <div className="relative z-40 p-4 sm:p-6">
         {/* Header Section */}
-        <div className="flex items-start justify-between mb-4 sm:mb-6">
+        <div className="flex items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
           <div className="flex-1 min-w-0">
             {/* Team Matchup */}
             <motion.div
@@ -182,8 +185,8 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
             >
               {/* Away Team */}
               <div className="flex items-center gap-2 flex-1 min-w-0">
-                {awayLogo ? (
-                  <img src={awayLogo} alt={awayTeam} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
+                {proxiedAwayLogo ? (
+                  <img src={proxiedAwayLogo} alt={awayTeam} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
                 ) : (
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-600 flex-shrink-0">
                     <span className="text-white text-xs font-bold">{getTeamAbbr(awayTeam)}</span>
@@ -197,8 +200,8 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
               {/* Home Team */}
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 <span className="text-base sm:text-lg font-bold text-white truncate">{homeTeam}</span>
-                {homeLogo ? (
-                  <img src={homeLogo} alt={homeTeam} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
+                {proxiedHomeLogo ? (
+                  <img src={proxiedHomeLogo} alt={homeTeam} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
                 ) : (
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-600 flex-shrink-0">
                     <span className="text-white text-xs font-bold">{getTeamAbbr(homeTeam)}</span>
@@ -220,15 +223,21 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
             )}
           </div>
 
-          {/* Sport Badge */}
-          <motion.div
-            className="px-2.5 sm:px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold flex-shrink-0 ml-3"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            {formatSport(sport)}
-          </motion.div>
+          {/* Right rail */}
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            <motion.div
+              className="px-2.5 sm:px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold flex-shrink-0"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              {formatSport(sport)}
+            </motion.div>
+            <ShareButton
+              targetRef={cardRef}
+              filename={`${awayTeam.replace(/\s+/g, '_')}_at_${homeTeam.replace(/\s+/g, '_')}_odds.png`}
+            />
+          </div>
         </div>
 
         {/* Markets Accordion */}

@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Trophy, TrendingUp } from 'lucide-react'
 import { ShareButton } from '@/components/ui/share-button'
+import { RecentPerformance } from '@/lib/utils/recent-performances'
 
 interface PlayerStatsCardProps {
   name: string
@@ -13,6 +14,7 @@ interface PlayerStatsCardProps {
   season?: string
   headshot?: string
   stats: Record<string, number | string>
+  recent?: RecentPerformance[]
 }
 
 export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
@@ -23,6 +25,7 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
   season,
   headshot,
   stats,
+  recent,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null)
   const proxiedHeadshot = headshot
@@ -64,6 +67,7 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
   const formatStatLabel = (key: string) => {
     const lower = key.toLowerCase()
     if (lower.includes('epa') && lower.includes('play')) return 'EPA/play'
+    if (lower.includes('epa') && lower.includes('rank')) return 'EPA/play Rank'
     if (lower === 'epa_total') return 'EPA Total'
     return key
       .replace(/_/g, ' ')
@@ -82,10 +86,47 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
       if (isEpa) return value.toFixed(3)
       return Number.isInteger(value) ? value.toString() : value.toFixed(1)
     }
+    if (typeof value === 'string' && keyLower.includes('rank')) {
+      return value
+    }
     return String(value)
   }
 
   const statEntries = Object.entries(stats)
+  const [showRecent, setShowRecent] = useState(false)
+  const [recentGames, setRecentGames] = useState<RecentPerformance[]>(recent || [])
+  const [recentLoading, setRecentLoading] = useState(false)
+
+  // Lazy-load recent games from API if not provided
+  useEffect(() => {
+    if (recent && recent.length) {
+      setRecentGames(recent)
+      return
+    }
+    let cancelled = false
+    const fetchRecent = async () => {
+      setRecentLoading(true)
+      try {
+        const params = new URLSearchParams()
+        params.set('name', name)
+        if (sport) params.set('sport', sport)
+        const res = await fetch(`/api/player/recent?${params.toString()}`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
+        if (!cancelled && Array.isArray(data.recent)) {
+          setRecentGames(data.recent)
+        }
+      } catch (err) {
+        console.warn('[PlayerStatsCard] recent fetch failed', err)
+      } finally {
+        if (!cancelled) setRecentLoading(false)
+      }
+    }
+    fetchRecent()
+    return () => {
+      cancelled = true
+    }
+  }, [name, sport, recent])
 
   return (
     <motion.div
@@ -276,6 +317,61 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
               </span>
             </motion.div>
           ))}
+        </div>
+
+        {/* Recent performances */}
+        <div className="mt-4">
+          <button
+            onClick={() => setShowRecent(!showRecent)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs sm:text-sm text-white/80 transition-colors hover:border-purple-500/30"
+          >
+            <span>Last 5 games</span>
+            <span className="text-purple-300 font-semibold text-xs">
+              {recentLoading ? 'Loading...' : showRecent ? 'Hide' : 'Show'}
+            </span>
+          </button>
+          {showRecent && (
+            <div className="mt-2 space-y-2">
+              {recentLoading ? (
+                <div className="rounded-lg bg-white/5 border border-white/10 p-3 text-xs text-white/70">
+                  Loading recent games...
+                </div>
+              ) : recentGames.length === 0 ? (
+                <div className="rounded-lg bg-white/5 border border-white/10 p-3 text-xs text-white/70">
+                  Recent game logs not available for this player.
+                </div>
+              ) : (
+                recentGames.map((game, idx) => (
+                  <div
+                    key={`${game.date}-${idx}`}
+                    className="rounded-lg bg-white/5 border border-white/10 p-3 text-xs text-white/80"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-semibold">{game.date || 'Game'}</span>
+                      <span className="text-white/60">{game.opponent || ''}</span>
+                    </div>
+                    {game.result && (
+                      <div className="text-white/60 mb-1">{game.result}</div>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(game.stats).map(([label, val]) => (
+                        <div
+                          key={label}
+                          className="px-2 py-1 rounded bg-white/10 border border-white/10 text-white text-[11px]"
+                        >
+                          <span className="font-semibold">{label}</span>{' '}
+                          <span className="text-white/70">{val}</span>
+                        </div>
+                      ))}
+                      {Object.keys(game.stats).length === 0 && (
+                        <span className="text-white/50 text-[11px]">No stats available</span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {/* Performance Indicator */}

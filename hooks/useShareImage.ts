@@ -52,12 +52,6 @@ export const useShareImage = () => {
           style: {
             transform: 'none',
           },
-          onClone: (doc) => {
-            doc.querySelectorAll('img').forEach((img) => {
-              img.setAttribute('crossorigin', 'anonymous')
-              img.setAttribute('referrerpolicy', 'no-referrer')
-            })
-          },
         })
         if (!dataUrl) throw new Error('Unable to capture card')
         const response = await fetch(dataUrl)

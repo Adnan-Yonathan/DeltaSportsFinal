@@ -3,6 +3,7 @@
 import React, { useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { TrendingUp, ArrowUp, ArrowDown, Plus, Minus } from 'lucide-react'
+import { ShareButton } from '@/components/ui/share-button'
 
 interface PropOdds {
   best: number
@@ -41,6 +42,9 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
   markets,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null)
+  const proxiedHeadshot = headshot
+    ? `/api/image-proxy?url=${encodeURIComponent(headshot)}`
+    : undefined
   const [isHovered, setIsHovered] = useState(false)
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
   const [isExpanded, setIsExpanded] = useState(false)
@@ -292,7 +296,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
         {/* Header Section */}
         <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
           {/* Player Headshot */}
-          {headshot ? (
+          {proxiedHeadshot ? (
             <motion.div
               className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-purple-500/30 flex-shrink-0"
               initial={{ opacity: 0, scale: 0.8 }}
@@ -300,7 +304,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
               transition={{ delay: 0.1 }}
             >
               <img
-                src={headshot}
+                src={proxiedHeadshot}
                 alt={player}
                 className="w-full h-full object-cover"
                 onError={(e) => {
@@ -388,6 +392,10 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
                 </select>
               </div>
             )}
+            <ShareButton
+              targetRef={cardRef}
+              filename={`${player.replace(/\s+/g, '_')}_props.png`}
+            />
           </div>
         </div>
 

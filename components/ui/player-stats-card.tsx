@@ -3,6 +3,7 @@
 import React, { useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Trophy, TrendingUp } from 'lucide-react'
+import { ShareButton } from '@/components/ui/share-button'
 
 interface PlayerStatsCardProps {
   name: string
@@ -24,6 +25,9 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
   stats,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null)
+  const proxiedHeadshot = headshot
+    ? `/api/image-proxy?url=${encodeURIComponent(headshot)}`
+    : undefined
   const [isHovered, setIsHovered] = useState(false)
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
@@ -175,7 +179,7 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
         {/* Header Section */}
         <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
           {/* Player Headshot */}
-          {headshot ? (
+          {proxiedHeadshot ? (
             <motion.div
               className="w-16 h-16 rounded-full overflow-hidden border-2 border-purple-500/30 flex-shrink-0"
               initial={{ opacity: 0, scale: 0.8 }}
@@ -183,7 +187,7 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
               transition={{ delay: 0.1 }}
             >
               <img
-                src={headshot}
+                src={proxiedHeadshot}
                 alt={name}
                 className="w-full h-full object-cover"
                 onError={(e) => {
@@ -228,15 +232,18 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
             </motion.div>
           </div>
 
-          {/* Sport Badge */}
-          <motion.div
-            className="px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            {formatSport(sport)}
-          </motion.div>
+          {/* Right rail */}
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            <motion.div
+              className="px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              {formatSport(sport)}
+            </motion.div>
+            <ShareButton targetRef={cardRef} filename={`${name.replace(/\s+/g, '_')}_card.png`} />
+          </div>
         </div>
 
         {/* Season Info */}

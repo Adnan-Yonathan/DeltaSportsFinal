@@ -7,6 +7,10 @@ import { TrendingUp, ArrowUp, ArrowDown, Plus, Minus } from 'lucide-react'
 interface PropOdds {
   best: number
   bestBook: string
+  allBooks?: Array<{
+    book: string
+    odds: number
+  }>
 }
 
 interface PropMarket {
@@ -40,6 +44,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
   const [isHovered, setIsHovered] = useState(false)
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
   const [isExpanded, setIsExpanded] = useState(false)
+  const [selectedBook, setSelectedBook] = useState<string>('best')
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (cardRef.current) {
@@ -80,11 +85,120 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
     return odds > 0 ? `+${odds}` : `${odds}`
   }
 
-  const marketEntries = Object.entries(markets)
+  // Define main stats for each sport/position
+  const getMainStats = (sport: string, position?: string): string[] => {
+    const pos = position?.toUpperCase() || ''
+
+    switch (sport) {
+      case 'basketball_nba':
+      case 'nba':
+        return ['points', 'rebounds', 'assists', 'pts+reb+ast', 'threes']
+
+      case 'americanfootball_nfl':
+      case 'nfl':
+        // QB
+        if (pos.includes('QB')) {
+          return ['pass_yds', 'passing_yds', 'pass_tds', 'passing_tds', 'pass_attempts', 'pass_completions']
+        }
+        // RB
+        if (pos.includes('RB')) {
+          return ['rush_yds', 'rushing_yds', 'rush_attempts', 'rush_tds', 'rushing_tds']
+        }
+        // WR/TE
+        if (pos.includes('WR') || pos.includes('TE')) {
+          return ['receptions', 'receiving_yds', 'rec_yds', 'receiving_tds', 'rec_tds']
+        }
+        // Default for unknown positions
+        return ['pass_yds', 'passing_yds', 'rush_yds', 'rushing_yds', 'receptions', 'receiving_yds']
+
+      case 'baseball_mlb':
+      case 'mlb':
+        // Pitchers
+        if (pos.includes('P') || pos.includes('SP') || pos.includes('RP')) {
+          return ['strikeouts', 'pitcher_outs', 'earned_runs', 'hits_allowed', 'walks']
+        }
+        // Hitters
+        return ['hits', 'total_bases', 'home_runs', 'rbis', 'runs']
+
+      case 'icehockey_nhl':
+      case 'nhl':
+        return ['goals', 'assists', 'points', 'shots_on_goal', 'blocked_shots']
+
+      default:
+        return []
+    }
+  }
+
+  // Filter and prioritize markets based on sport/position
+  const filterAndPrioritizeMarkets = (allMarkets: Record<string, PropMarket>): [string, PropMarket][] => {
+    const mainStats = getMainStats(sport, position)
+    const entries = Object.entries(allMarkets)
+
+    if (mainStats.length === 0) {
+      // No filtering, return all markets
+      return entries
+    }
+
+    // Separate markets into main stats and others
+    const mainMarkets: [string, PropMarket][] = []
+    const otherMarkets: [string, PropMarket][] = []
+
+    for (const entry of entries) {
+      const marketKey = entry[0].toLowerCase()
+      const isMainStat = mainStats.some(stat => marketKey.includes(stat) || stat.includes(marketKey))
+
+      if (isMainStat) {
+        mainMarkets.push(entry)
+      } else {
+        otherMarkets.push(entry)
+      }
+    }
+
+    // Sort main markets by priority (order in mainStats array)
+    mainMarkets.sort((a, b) => {
+      const aKey = a[0].toLowerCase()
+      const bKey = b[0].toLowerCase()
+
+      const aIndex = mainStats.findIndex(stat => aKey.includes(stat) || stat.includes(aKey))
+      const bIndex = mainStats.findIndex(stat => bKey.includes(stat) || stat.includes(bKey))
+
+      return aIndex - bIndex
+    })
+
+    // Return main stats first, then other markets
+    return [...mainMarkets, ...otherMarkets]
+  }
+
+  const marketEntries = filterAndPrioritizeMarkets(markets)
   const INITIAL_VISIBLE_COUNT = 3
   const hasMoreMarkets = marketEntries.length > INITIAL_VISIBLE_COUNT
   const visibleMarkets = isExpanded ? marketEntries : marketEntries.slice(0, INITIAL_VISIBLE_COUNT)
   const hiddenMarkets = marketEntries.slice(INITIAL_VISIBLE_COUNT)
+
+  // Collect all bookmakers that appear across markets for dropdown options
+  const allBooksSet = new Set<string>()
+  for (const [, market] of marketEntries) {
+    if (market.over.bestBook) allBooksSet.add(market.over.bestBook)
+    if (market.under.bestBook) allBooksSet.add(market.under.bestBook)
+    market.over.allBooks?.forEach(entry => allBooksSet.add(entry.book))
+    market.under.allBooks?.forEach(entry => allBooksSet.add(entry.book))
+  }
+  const bookOptions = ['best', ...Array.from(allBooksSet).sort((a, b) => a.localeCompare(b))]
+
+  const resolveOdds = (side: 'over' | 'under', market: PropMarket) => {
+    const target = market[side]
+    if (selectedBook === 'best' || !target.allBooks || target.allBooks.length === 0) {
+      return { odds: target.best, book: target.bestBook }
+    }
+    const selectedLower = selectedBook.toLowerCase()
+    const match = target.allBooks.find(entry => entry.book.toLowerCase() === selectedLower)
+    if (match) return { odds: match.odds, book: match.book }
+    // If the user picked the same book as bestBook but it wasn't in allBooks, fallback to best
+    if (target.bestBook && target.bestBook.toLowerCase() === selectedLower) {
+      return { odds: target.best, book: target.bestBook }
+    }
+    return { odds: Number.NaN, book: selectedBook }
+  }
 
   return (
     <motion.div
@@ -245,15 +359,36 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
             )}
           </div>
 
-          {/* Sport Badge */}
-          <motion.div
-            className="px-2.5 sm:px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold flex-shrink-0"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            {formatSport(sport)}
-          </motion.div>
+          {/* Right rail controls */}
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            <motion.div
+              className="px-2.5 sm:px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              {formatSport(sport)}
+            </motion.div>
+            {bookOptions.length > 1 && (
+              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-3 py-1">
+                <span className="text-[11px] uppercase tracking-wide text-white/50">Odds</span>
+                <select
+                  value={selectedBook}
+                  onChange={(e) => setSelectedBook(e.target.value)}
+                  className="bg-transparent text-xs text-white font-semibold outline-none"
+                >
+                  <option value="best">Best available</option>
+                  {bookOptions
+                    .filter((opt) => opt !== 'best')
+                    .map((book) => (
+                      <option key={book} value={book}>
+                        {book}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Props Markets */}
@@ -286,10 +421,20 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
                     <ArrowUp className="w-3 h-3 sm:w-4 sm:h-4 text-green-400" />
                     <span className="text-xs text-white/50 uppercase tracking-wide">Over</span>
                   </div>
-                  <div className="text-base sm:text-lg font-bold text-white mb-0.5">
-                    {formatOdds(market.over.best)}
-                  </div>
-                  <div className="text-xs text-white/40 truncate">{market.over.bestBook}</div>
+                  {(() => {
+                    const { odds, book } = resolveOdds('over', market)
+                    const isAvailable = Number.isFinite(odds)
+                    return (
+                      <>
+                        <div className={`text-base sm:text-lg font-bold ${isAvailable ? 'text-white' : 'text-white/40'} mb-0.5`}>
+                          {isAvailable ? formatOdds(odds) : 'N/A'}
+                        </div>
+                        <div className="text-xs text-white/40 truncate">
+                          {isAvailable ? book : `${book} unavailable`}
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
 
                 {/* Under */}
@@ -298,10 +443,20 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
                     <ArrowDown className="w-3 h-3 sm:w-4 sm:h-4 text-red-400" />
                     <span className="text-xs text-white/50 uppercase tracking-wide">Under</span>
                   </div>
-                  <div className="text-base sm:text-lg font-bold text-white mb-0.5">
-                    {formatOdds(market.under.best)}
-                  </div>
-                  <div className="text-xs text-white/40 truncate">{market.under.bestBook}</div>
+                  {(() => {
+                    const { odds, book } = resolveOdds('under', market)
+                    const isAvailable = Number.isFinite(odds)
+                    return (
+                      <>
+                        <div className={`text-base sm:text-lg font-bold ${isAvailable ? 'text-white' : 'text-white/40'} mb-0.5`}>
+                          {isAvailable ? formatOdds(odds) : 'N/A'}
+                        </div>
+                        <div className="text-xs text-white/40 truncate">
+                          {isAvailable ? book : `${book} unavailable`}
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
             </motion.div>
@@ -339,26 +494,46 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
                         <ArrowUp className="w-3 h-3 sm:w-4 sm:h-4 text-green-400" />
                         <span className="text-xs text-white/50 uppercase tracking-wide">Over</span>
                       </div>
-                      <div className="text-base sm:text-lg font-bold text-white mb-0.5">
-                        {formatOdds(market.over.best)}
-                      </div>
-                      <div className="text-xs text-white/40 truncate">{market.over.bestBook}</div>
-                    </div>
+                  {(() => {
+                    const { odds, book } = resolveOdds('over', market)
+                    const isAvailable = Number.isFinite(odds)
+                    return (
+                      <>
+                        <div className={`text-base sm:text-lg font-bold ${isAvailable ? 'text-white' : 'text-white/40'} mb-0.5`}>
+                          {isAvailable ? formatOdds(odds) : 'N/A'}
+                        </div>
+                        <div className="text-xs text-white/40 truncate">
+                          {isAvailable ? book : `${book} unavailable`}
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
 
-                    {/* Under */}
-                    <div className="p-3 sm:p-4 hover:bg-white/5 transition-colors">
-                      <div className="flex items-center gap-2 mb-1">
-                        <ArrowDown className="w-3 h-3 sm:w-4 sm:h-4 text-red-400" />
-                        <span className="text-xs text-white/50 uppercase tracking-wide">Under</span>
-                      </div>
-                      <div className="text-base sm:text-lg font-bold text-white mb-0.5">
-                        {formatOdds(market.under.best)}
-                      </div>
-                      <div className="text-xs text-white/40 truncate">{market.under.bestBook}</div>
-                    </div>
+                {/* Under */}
+                <div className="p-3 sm:p-4 hover:bg-white/5 transition-colors">
+                  <div className="flex items-center gap-2 mb-1">
+                    <ArrowDown className="w-3 h-3 sm:w-4 sm:h-4 text-red-400" />
+                    <span className="text-xs text-white/50 uppercase tracking-wide">Under</span>
                   </div>
-                </motion.div>
-              ))}
+                  {(() => {
+                    const { odds, book } = resolveOdds('under', market)
+                    const isAvailable = Number.isFinite(odds)
+                    return (
+                      <>
+                        <div className={`text-base sm:text-lg font-bold ${isAvailable ? 'text-white' : 'text-white/40'} mb-0.5`}>
+                          {isAvailable ? formatOdds(odds) : 'N/A'}
+                        </div>
+                        <div className="text-xs text-white/40 truncate">
+                          {isAvailable ? book : `${book} unavailable`}
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+              </div>
+            </motion.div>
+          ))}
           </AnimatePresence>
 
           {/* Expand/Collapse Button */}

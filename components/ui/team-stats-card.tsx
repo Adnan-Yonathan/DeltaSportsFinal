@@ -52,6 +52,9 @@ export const TeamStatsCard: React.FC<TeamStatsCardProps> = ({
   }
 
   const formatStatLabel = (key: string) => {
+    const lower = key.toLowerCase()
+    if (lower.includes('epa') && lower.includes('play')) return 'EPA/play'
+    if (lower === 'epa_total') return 'EPA Total'
     return key
       .replace(/_/g, ' ')
       .replace(/([A-Z])/g, ' $1')
@@ -62,6 +65,10 @@ export const TeamStatsCard: React.FC<TeamStatsCardProps> = ({
   const formatStatValue = (value: any) => {
     if (value == null) return 'N/A'
     if (typeof value === 'number') {
+      if (value > -1 && value < 1 && Math.abs(value) < 0.5 && Math.abs(value) >= 0) {
+        // More precision for per-play efficiency
+        return value.toFixed(3)
+      }
       return Number.isInteger(value) ? value.toString() : value.toFixed(1)
     }
     return String(value)
@@ -72,6 +79,18 @@ export const TeamStatsCard: React.FC<TeamStatsCardProps> = ({
     ([key]) =>
       !['wins', 'losses', 'winPct', 'winPercent', 'gamesPlayed'].includes(key)
   )
+
+  // Prioritize key efficiency stats for NFL (EPA/play)
+  const priorityOrder = ['epa_per_play', 'epa/play', 'epa per play']
+  const normalizeKey = (key: string) => key.toLowerCase().replace(/[\s/_-]+/g, '')
+  displayStats.sort((a, b) => {
+    const aIdx = priorityOrder.findIndex(p => normalizeKey(a[0]).includes(p.replace(/[^\w]/g, '')))
+    const bIdx = priorityOrder.findIndex(p => normalizeKey(b[0]).includes(p.replace(/[^\w]/g, '')))
+    if (aIdx === -1 && bIdx === -1) return 0
+    if (aIdx === -1) return 1
+    if (bIdx === -1) return -1
+    return aIdx - bIdx
+  })
 
   return (
     <motion.div

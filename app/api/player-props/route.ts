@@ -519,15 +519,56 @@ const createEmptyMarketBucket = (line: number): PropMarket => ({
 })
 
 const pickPrimaryLine = (lineBuckets: Map<string, PropMarket>): PropMarket | null => {
-  let best: { bucket: PropMarket; books: number } | null = null
+  let primary: { bucket: PropMarket; books: number } | null = null
   for (const bucket of lineBuckets.values()) {
     const bookCount = bucket.over.allBooks.length + bucket.under.allBooks.length
     if (!bookCount) continue
-    if (!best || bookCount > best.books) {
-      best = { bucket, books: bookCount }
+    if (!primary || bookCount > primary.books) {
+      primary = { bucket, books: bookCount }
     }
   }
-  return best?.bucket ?? null
+  if (!primary) return null
+
+  // Merge odds from other buckets so every bookmaker can be selected in the UI
+  const merged: PropMarket = {
+    line: primary.bucket.line,
+    over: {
+      best: primary.bucket.over.best,
+      bestBook: primary.bucket.over.bestBook,
+      allBooks: [...primary.bucket.over.allBooks],
+    },
+    under: {
+      best: primary.bucket.under.best,
+      bestBook: primary.bucket.under.bestBook,
+      allBooks: [...primary.bucket.under.allBooks],
+    },
+  }
+
+  const upsert = (
+    target: { best: number; bestBook: string; allBooks: PropOdds[] },
+    incoming: PropOdds
+  ) => {
+    const exists = target.allBooks.find(b => b.book.toLowerCase() === incoming.book.toLowerCase())
+    if (!exists) {
+      target.allBooks.push(incoming)
+    }
+    if (isBetterOdds(target.best, incoming.odds)) {
+      target.best = incoming.odds
+      target.bestBook = incoming.book
+    }
+  }
+
+  for (const bucket of lineBuckets.values()) {
+    if (bucket === primary.bucket) continue
+    for (const entry of bucket.over.allBooks) {
+      upsert(merged.over, entry)
+    }
+    for (const entry of bucket.under.allBooks) {
+      upsert(merged.under, entry)
+    }
+  }
+
+  return merged
 }
 
 export async function GET(req: NextRequest) {

@@ -1611,8 +1611,8 @@ export function formatStatsForAI(stats: TeamStats[] | PlayerStats[] | InjuryRepo
       `${fmtNumber(s.TARGETS, 0)} tgt`,
     ]
     const epaLines: string[] = []
-    if (s.EPA_PER_PLAY != null) epaLines.push(`EPA/play ${fmtNumber(s.EPA_PER_PLAY, 3)}`)
-    if (s.EPA_TOTAL != null) epaLines.push(`EPA total ${fmtNumber(s.EPA_TOTAL, 2)}`)
+    if (s.EPA_PER_PLAY != null) epaLines.push(`EPA/play: ${fmtNumber(s.EPA_PER_PLAY, 3)}`)
+    if (s.EPA_TOTAL != null) epaLines.push(`EPA total: ${fmtNumber(s.EPA_TOTAL, 2)}`)
 
     const lines = [`- Passing: ${pass.join(', ')}`]
     if (rush.some((v) => v.includes('n/a') === false)) lines.push(`- Rushing: ${rush.join(', ')}`)

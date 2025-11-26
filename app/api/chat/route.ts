@@ -2480,6 +2480,8 @@ export async function POST(req: NextRequest) {
               for (const book of bookmakers) {
                 for (const market of book.markets || []) {
                   const marketKey = market?.key || 'other'
+                  console.log(`[buildOddsTableMarkdown] Book: ${book.name}, Market: ${marketKey}, Outcomes:`, market.outcomes?.map((o: any) => o.name))
+
                   if (!marketsAggregate.has(marketKey)) {
                     marketsAggregate.set(marketKey, {
                       label: MARKET_LABELS[marketKey] || marketKey,
@@ -2515,7 +2517,14 @@ export async function POST(req: NextRequest) {
                 if (!entry) continue
                 const labels = Object.keys(entry.rows)
                 if (!labels.length) continue
+
+                // Debug logging
+                console.log(`[buildOddsTableMarkdown] Market: ${marketKey}, Labels found:`, labels)
+                console.log(`[buildOddsTableMarkdown] entry.rows:`, entry.rows)
+
                 const orderedLabels = orderOutcomeLabels(marketKey, labels, awayTeam, homeTeam)
+                console.log(`[buildOddsTableMarkdown] Ordered labels:`, orderedLabels)
+
                 orderedLabels.forEach((label, idx) => {
                   tableRows.push({
                     marketLabel: idx === 0 ? entry.label : '',
@@ -2585,6 +2594,12 @@ export async function POST(req: NextRequest) {
                           const marketMap = new Map<string, { key: string; outcomes: any[] }>()
 
                           for (const market of book.markets || []) {
+                            // Debug: Log raw market outcomes from API
+                            console.log(`[RAW API] Book: ${book.title}, Market: ${market.key}, Outcomes count: ${market.outcomes?.length}`)
+                            if (market.outcomes) {
+                              console.log(`[RAW API] Outcome names:`, market.outcomes.map((o: any) => o.name))
+                            }
+
                             const normalized = {
                               key: market.key,
                               outcomes: Array.isArray(market.outcomes) ? market.outcomes : [],

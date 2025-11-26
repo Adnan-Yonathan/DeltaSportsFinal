@@ -58,6 +58,9 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
 
   // Format stat label to be more readable
   const formatStatLabel = (key: string) => {
+    const lower = key.toLowerCase()
+    if (lower.includes('epa') && lower.includes('play')) return 'EPA/play'
+    if (lower === 'epa_total') return 'EPA Total'
     return key
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (l) => l.toUpperCase())
@@ -68,9 +71,11 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
     if (value == null) return 'N/A'
     const keyLower = key.toLowerCase()
     const isPercent = keyLower.includes('percent') || keyLower.includes('pct') || key === 'FG%' || key === '3P%'
+    const isEpa = keyLower.includes('epa')
 
     if (typeof value === 'number') {
       if (isPercent) return `${value.toFixed(1)}%`
+      if (isEpa) return value.toFixed(3)
       return Number.isInteger(value) ? value.toString() : value.toFixed(1)
     }
     return String(value)

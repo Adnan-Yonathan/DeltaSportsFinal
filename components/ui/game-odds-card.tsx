@@ -20,7 +20,6 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
   const [isHovered, setIsHovered] = useState(false)
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
   const [expandedMarkets, setExpandedMarkets] = useState<Set<string>>(new Set(['moneyline']))
-  const [showAllBookmakers, setShowAllBookmakers] = useState(false)
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (cardRef.current) {
@@ -241,8 +240,6 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
               market={markets.moneyline}
               isExpanded={expandedMarkets.has('moneyline')}
               onToggle={() => toggleMarket('moneyline')}
-              showAllBookmakers={showAllBookmakers}
-              onToggleBookmakers={() => setShowAllBookmakers(!showAllBookmakers)}
             />
           )}
           {markets.spreads && (
@@ -252,8 +249,6 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
               market={markets.spreads}
               isExpanded={expandedMarkets.has('spreads')}
               onToggle={() => toggleMarket('spreads')}
-              showAllBookmakers={showAllBookmakers}
-              onToggleBookmakers={() => setShowAllBookmakers(!showAllBookmakers)}
             />
           )}
           {markets.totals && (
@@ -263,8 +258,6 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
               market={markets.totals}
               isExpanded={expandedMarkets.has('totals')}
               onToggle={() => toggleMarket('totals')}
-              showAllBookmakers={showAllBookmakers}
-              onToggleBookmakers={() => setShowAllBookmakers(!showAllBookmakers)}
             />
           )}
         </div>
@@ -291,8 +284,6 @@ interface MarketSectionProps {
   market: ParsedMarket
   isExpanded: boolean
   onToggle: () => void
-  showAllBookmakers: boolean
-  onToggleBookmakers: () => void
 }
 
 const MarketSection: React.FC<MarketSectionProps> = ({
@@ -301,16 +292,76 @@ const MarketSection: React.FC<MarketSectionProps> = ({
   market,
   isExpanded,
   onToggle,
-  showAllBookmakers,
-  onToggleBookmakers,
 }) => {
-  // Extract all bookmakers
-  const allBookmakers = extractAllBookmakers(market)
-  const visibleBookmakers = showAllBookmakers ? allBookmakers : allBookmakers.slice(0, 3)
-  const hiddenCount = allBookmakers.length - 3
+  const [expandedBookmakers, setExpandedBookmakers] = useState<Record<string, boolean>>({})
+
+  const isOutcomeExpanded = (label: string) => expandedBookmakers[label] === true
+  const toggleOutcomeExpansion = (label: string) => {
+    setExpandedBookmakers((prev) => ({
+      ...prev,
+      [label]: !prev[label],
+    }))
+  }
 
   // Calculate best odds
   const bestOddsMap = calculateBestOdds(market, marketKey)
+
+  // Get both outcomes (teams or Over/Under)
+  const outcome1 = market.outcomes[0]
+  const outcome2 = market.outcomes[1]
+
+  // Safety check - need at least one outcome
+  if (!outcome1) {
+    return (
+      <div className="rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 p-4">
+        <span className="text-sm text-white/50">No odds available for {marketLabel}</span>
+      </div>
+    )
+  }
+
+  // Special handling for totals - use side-by-side display
+  const isTotals = marketKey === 'totals'
+  const totalsOver = isTotals
+    ? market.outcomes.find(o => o.label.toLowerCase() === 'over')
+    : undefined
+  const totalsUnder = isTotals
+    ? market.outcomes.find(o => o.label.toLowerCase() === 'under')
+    : undefined
+
+  // Get top bookmakers for each outcome
+  const limit1 = isOutcomeExpanded(outcome1.label) ? undefined : 3
+  const limit2 = outcome2 && isOutcomeExpanded(outcome2.label) ? undefined : 3
+
+  const bookmakers1 = getTopBookmakersByOdds(outcome1, marketKey, limit1)
+  const bookmakers2 = outcome2 ? getTopBookmakersByOdds(outcome2, marketKey, limit2) : []
+
+  // For totals, use common bookmakers (since Over/Under should have same books)
+  const totalsBookmakersAll = isTotals ? extractAllBookmakers(market) : []
+  const totalsBookmakers = isTotals
+    ? (isOutcomeExpanded('__totals__')
+        ? totalsBookmakersAll
+        : totalsBookmakersAll.slice(0, 3))
+    : []
+
+  // Debug logging
+  if (typeof window !== 'undefined') {
+    console.log(`\n=== [${marketKey}] Market Debug ===`)
+    console.log('isTotals:', isTotals)
+    console.log('outcome1:', outcome1?.label, 'bookmakers:', Object.keys(outcome1?.bookmakers || {}))
+    console.log('outcome2:', outcome2?.label, 'bookmakers:', Object.keys(outcome2?.bookmakers || {}))
+    console.log('bookmakers1 (top for outcome1):', bookmakers1)
+    console.log('bookmakers2 (top for outcome2):', bookmakers2)
+    console.log('totalsBookmakers:', totalsBookmakers)
+  }
+
+  // Calculate total unique bookmakers for "Show More" button
+  const totalBookmakers1 = Object.keys(outcome1.bookmakers).length
+  const hiddenCount1 = Math.max(0, totalBookmakers1 - bookmakers1.length)
+  const totalBookmakers2 = outcome2 ? Object.keys(outcome2.bookmakers).length : 0
+  const hiddenCount2 = Math.max(0, totalBookmakers2 - bookmakers2.length)
+  const totalsHiddenCount = isTotals
+    ? Math.max(0, totalsBookmakersAll.length - totalsBookmakers.length)
+    : 0
 
   return (
     <div className="rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 overflow-hidden">
@@ -337,43 +388,170 @@ const MarketSection: React.FC<MarketSectionProps> = ({
             transition={{ duration: 0.3 }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-4 space-y-4">
-              {market.outcomes.map((outcome, index) => (
-                <div key={index} className="space-y-2">
-                  <div className="text-xs sm:text-sm font-medium text-white/70">{outcome.label}</div>
+            <div className="px-4 pb-4">
+              {isTotals && (totalsOver || totalsUnder) ? (
+                /* Totals Market - Side-by-side Over/Under display */
+                <>
+                  {/* Over/Under Headers */}
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="text-xs sm:text-sm font-semibold text-white/80 text-center py-2 rounded-lg bg-white/5">
+                      {totalsOver?.label ?? 'Over'}
+                    </div>
+                    <div className="text-xs sm:text-sm font-semibold text-white/80 text-center py-2 rounded-lg bg-white/5">
+                      {totalsUnder?.label ?? 'Under'}
+                    </div>
+                  </div>
 
-                  {/* Bookmaker Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {visibleBookmakers.map((bookmakerName) => {
-                      const odds = outcome.bookmakers[bookmakerName]
-                      if (!odds) return null
+                  {/* Bookmaker Rows - Side by side for totals */}
+                  <div className="space-y-2">
+                    {totalsBookmakers.map((bookmakerName) => {
+                      const odds1 = (totalsOver || outcome1)?.bookmakers[bookmakerName]
+                      const odds2 = (totalsUnder || outcome2 || totalsOver || outcome1)?.bookmakers[bookmakerName]
 
-                      const isBest = isBestOdds(bookmakerName, outcome.label, bestOddsMap)
+                      if (!odds1 && !odds2) return null
+
+                      const isBest1 = totalsOver
+                        ? isBestOdds(bookmakerName, totalsOver.label, bestOddsMap)
+                        : isBestOdds(bookmakerName, outcome1.label, bestOddsMap)
+                      const isBest2 = totalsUnder
+                        ? isBestOdds(bookmakerName, totalsUnder.label, bestOddsMap)
+                        : outcome2
+                          ? isBestOdds(bookmakerName, outcome2.label, bestOddsMap)
+                          : false
 
                       return (
-                        <BookmakerCard
-                          key={bookmakerName}
-                          name={bookmakerName}
-                          odds={odds}
-                          marketType={marketKey}
-                          isBest={isBest}
-                        />
+                        <div key={bookmakerName} className="flex items-stretch gap-2">
+                          {/* Bookmaker Name */}
+                          <div className="w-24 sm:w-28 flex-shrink-0 flex items-center justify-center px-2 py-3 rounded-lg bg-white/5 border border-white/10">
+                            <span className="text-xs font-medium text-white/70 text-center truncate">
+                              {bookmakerName}
+                            </span>
+                          </div>
+
+                          {/* Both Over/Under Odds */}
+                          <div className="flex-1 grid grid-cols-2 gap-2">
+                            {/* Over Odds */}
+                            {odds1 ? (
+                              <OddsDisplay
+                                odds={odds1}
+                                marketType={marketKey}
+                                isBest={isBest1}
+                              />
+                            ) : (
+                              <div className="p-3 rounded-lg border border-white/10 bg-white/5 opacity-50 flex items-center justify-center">
+                                <span className="text-sm text-white/30">N/A</span>
+                              </div>
+                            )}
+
+                            {/* Under Odds */}
+                            {odds2 ? (
+                              <OddsDisplay
+                                odds={odds2}
+                                marketType={marketKey}
+                                isBest={isBest2}
+                              />
+                            ) : (
+                              <div className="p-3 rounded-lg border border-white/10 bg-white/5 opacity-50 flex items-center justify-center">
+                                <span className="text-sm text-white/30">N/A</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       )
                     })}
                   </div>
-                </div>
-              ))}
+                </>
+              ) : (
+                /* Moneyline/Spread Markets - Separate sections per team */
+                <>
+                  {/* Team 1 Section */}
+                  <div className="mb-4">
+                    <div className="text-xs sm:text-sm font-semibold text-white/80 mb-2 px-2">
+                      {outcome1.label}
+                    </div>
+                    <div className="space-y-2">
+                      {bookmakers1.map((bookmakerName) => {
+                        const odds = outcome1.bookmakers[bookmakerName]
+                        if (!odds) return null
 
-              {/* Show More Button */}
-              {hiddenCount > 0 && (
+                        const isBest = isBestOdds(bookmakerName, outcome1.label, bestOddsMap)
+
+                        return (
+                          <BookmakerCard
+                            key={bookmakerName}
+                            name={bookmakerName}
+                            odds={odds}
+                            marketType={marketKey}
+                            isBest={isBest}
+                          />
+                        )
+                      })}
+                    </div>
+                    {hiddenCount1 > 0 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleOutcomeExpansion(outcome1.label)
+                        }}
+                        className="mt-2 w-full p-3 rounded-lg border border-white/10 bg-white/5 hover:border-white/20 transition-all text-[11px] sm:text-xs font-semibold text-purple-300 flex items-center justify-center"
+                      >
+                        {isOutcomeExpanded(outcome1.label) ? 'Show less' : `+ ${hiddenCount1} more`}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Team 2 Section */}
+                  {outcome2 && bookmakers2 && (
+                    <div className="mb-4">
+                      <div className="text-xs sm:text-sm font-semibold text-white/80 mb-2 px-2">
+                        {outcome2.label}
+                      </div>
+                      <div className="space-y-2">
+                        {bookmakers2.map((bookmakerName) => {
+                          const odds = outcome2.bookmakers[bookmakerName]
+                          if (!odds) return null
+
+                          const isBest = isBestOdds(bookmakerName, outcome2.label, bestOddsMap)
+
+                          return (
+                            <BookmakerCard
+                              key={bookmakerName}
+                              name={bookmakerName}
+                              odds={odds}
+                              marketType={marketKey}
+                              isBest={isBest}
+                            />
+                          )
+                        })}
+                      </div>
+                      {hiddenCount2 > 0 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleOutcomeExpansion(outcome2.label)
+                          }}
+                          className="mt-2 w-full p-3 rounded-lg border border-white/10 bg-white/5 hover:border-white/20 transition-all text-[11px] sm:text-xs font-semibold text-purple-300 flex items-center justify-center"
+                        >
+                          {isOutcomeExpanded(outcome2.label) ? 'Show less' : `+ ${hiddenCount2} more`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Totals toggle */}
+              {isTotals && totalsHiddenCount > 0 && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    onToggleBookmakers()
+                    toggleOutcomeExpansion('__totals__')
                   }}
                   className="w-full mt-3 py-2 px-4 rounded-lg bg-purple-600/10 border border-purple-500/30 hover:bg-purple-600/20 hover:border-purple-500/50 transition-all text-xs sm:text-sm font-semibold text-purple-300"
                 >
-                  {showAllBookmakers ? `Show Less` : `Show ${hiddenCount} More Bookmaker${hiddenCount > 1 ? 's' : ''}`}
+                  {isOutcomeExpanded('__totals__')
+                    ? 'Show less'
+                    : `+ ${totalsHiddenCount} more bookmaker${totalsHiddenCount > 1 ? 's' : ''}`}
                 </button>
               )}
             </div>
@@ -384,7 +562,35 @@ const MarketSection: React.FC<MarketSectionProps> = ({
   )
 }
 
-// Bookmaker Card Component
+// Odds Display Component (without bookmaker name)
+interface OddsDisplayProps {
+  odds: BookmakerOdds
+  marketType: string
+  isBest: boolean
+}
+
+const OddsDisplay: React.FC<OddsDisplayProps> = ({ odds, marketType, isBest }) => {
+  const displayText = formatOddsDisplay(odds, marketType)
+
+  return (
+    <div
+      className={`
+        p-3 rounded-lg border transition-all flex items-center justify-center
+        ${
+          isBest
+            ? 'border-green-500 bg-green-500/10'
+            : 'border-white/10 bg-white/5 hover:border-white/20'
+        }
+      `}
+    >
+      <div className={`text-sm sm:text-base font-bold ${isBest ? 'text-green-400' : 'text-white'}`}>
+        {displayText}
+      </div>
+    </div>
+  )
+}
+
+// Bookmaker Card Component (legacy - kept for backward compatibility)
 interface BookmakerCardProps {
   name: string
   odds: BookmakerOdds
@@ -431,6 +637,10 @@ const BookmakerCard: React.FC<BookmakerCardProps> = ({ name, odds, marketType, i
 // Utility Functions
 
 function extractAllBookmakers(market: ParsedMarket): string[] {
+  if (market.outcomes.length === 0) return []
+
+  // For game odds, we want bookmakers that appear in ANY outcome
+  // (we'll show N/A if a bookmaker doesn't have odds for one team)
   const bookmakerSet = new Set<string>()
 
   for (const outcome of market.outcomes) {
@@ -450,6 +660,103 @@ function extractAllBookmakers(market: ParsedMarket): string[] {
     if (bIndex !== -1) return 1
     return a.localeCompare(b)
   })
+}
+
+// Extract only bookmakers that have odds for BOTH teams (for cleaner display)
+function extractCommonBookmakers(market: ParsedMarket): string[] {
+  if (market.outcomes.length < 2) return extractAllBookmakers(market)
+
+  const outcome1Books = new Set(Object.keys(market.outcomes[0].bookmakers))
+  const outcome2Books = new Set(Object.keys(market.outcomes[1].bookmakers))
+
+  // Find intersection - bookmakers that exist in both outcomes
+  const commonBookmakers: string[] = []
+  for (const book of outcome1Books) {
+    if (outcome2Books.has(book)) {
+      commonBookmakers.push(book)
+    }
+  }
+
+  // Prioritize common bookmakers
+  const priority = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365', 'Pinnacle']
+
+  return commonBookmakers.sort((a, b) => {
+    const aIndex = priority.indexOf(a)
+    const bIndex = priority.indexOf(b)
+
+    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex
+    if (aIndex !== -1) return -1
+    if (bIndex !== -1) return 1
+    return a.localeCompare(b)
+  })
+}
+
+// Get top N bookmakers with best odds for a specific outcome
+function getTopBookmakersByOdds(
+  outcome: ParsedMarket['outcomes'][0],
+  marketType: string,
+  limit?: number
+): string[] {
+  const bookmakers = Object.keys(outcome.bookmakers)
+
+  if (typeof window !== 'undefined') {
+    console.log(`[getTopBookmakersByOdds] marketType: ${marketType}, limit: ${limit}, total bookmakers: ${bookmakers.length}`)
+  }
+
+  if (bookmakers.length === 0) {
+    console.warn('[getTopBookmakersByOdds] No bookmakers found for outcome:', outcome.label)
+    return []
+  }
+
+  // Sort bookmakers by odds value (best first)
+  const sorted = [...bookmakers].sort((a, b) => {
+    const oddsA = outcome.bookmakers[a]
+    const oddsB = outcome.bookmakers[b]
+
+    if (marketType === 'moneyline') {
+      // For moneyline, higher odds = better (more payout)
+      return oddsB.price - oddsA.price
+    } else if (marketType === 'spreads') {
+      // For spreads, compare by point value first
+      const pointA = oddsA.point ?? 0
+      const pointB = oddsB.point ?? 0
+
+      // More positive spread is better
+      if (pointA !== pointB) {
+        return pointB - pointA
+      }
+
+      // If points equal, compare by price (higher is better)
+      return oddsB.price - oddsA.price
+    } else if (marketType === 'totals') {
+      // For totals, higher price = better (at same line)
+      return oddsB.price - oddsA.price
+    }
+
+    return 0
+  })
+
+  // Apply limit if specified
+  const limited = limit ? sorted.slice(0, limit) : sorted
+
+  // Apply priority sorting for equal odds values
+  const priority = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365', 'Pinnacle']
+
+  const result = limited.sort((a, b) => {
+    const aIndex = priority.indexOf(a)
+    const bIndex = priority.indexOf(b)
+
+    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex
+    if (aIndex !== -1) return -1
+    if (bIndex !== -1) return 1
+    return a.localeCompare(b)
+  })
+
+  if (typeof window !== 'undefined') {
+    console.log(`[getTopBookmakersByOdds] Returning:`, result)
+  }
+
+  return result
 }
 
 function calculateBestOdds(market: ParsedMarket, marketType: string): Map<string, string> {

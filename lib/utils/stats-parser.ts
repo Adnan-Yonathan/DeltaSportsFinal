@@ -30,6 +30,10 @@ export interface ParsedTeamStats {
 export interface PropOdds {
   best: number
   bestBook: string
+  allBooks?: Array<{
+    book: string
+    odds: number
+  }>
 }
 
 export interface PropMarket {
@@ -501,24 +505,37 @@ export async function detectGameOdds(text: string): Promise<ParsedGameOdds | nul
   const tableRows = tableMatch[2]
   const markets: ParsedGameOdds['markets'] = {}
 
+  type MarketKey = 'moneyline' | 'spreads' | 'totals'
+
+  const normalizeMarketType = (marketType: string): MarketKey | null => {
+    const cleaned = marketType
+      .replace(/&nbsp;|&#160;|\u00a0/gi, '')
+      .trim()
+      .toLowerCase()
+
+    if (!cleaned) return null
+    if (cleaned === 'moneyline' || cleaned === 'h2h') return 'moneyline'
+    if (cleaned === 'spread' || cleaned === 'spreads') return 'spreads'
+    if (cleaned === 'total' || cleaned === 'totals') return 'totals'
+    return null
+  }
+
   const rowPattern = /\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|(.+)\|/g
-  let rowMatch
+  let rowMatch: RegExpExecArray | null
+  let lastMarketKey: MarketKey | null = null
 
   while ((rowMatch = rowPattern.exec(tableRows)) !== null) {
-    const marketType = rowMatch[1].trim().toLowerCase()
+    const marketTypeRaw = rowMatch[1]
+    const normalizedMarket = normalizeMarketType(marketTypeRaw)
+    const marketKey: MarketKey | null = normalizedMarket || lastMarketKey
+    if (!marketKey) continue
+    lastMarketKey = marketKey
+
     const teamName = rowMatch[2].trim()
     const oddsValues = rowMatch[3]
       .split('|')
       .map(v => v.trim())
       .filter(v => v.length > 0)
-
-    // Determine market key
-    let marketKey: 'moneyline' | 'spreads' | 'totals' | null = null
-    if (marketType === 'moneyline') marketKey = 'moneyline'
-    else if (marketType === 'spread') marketKey = 'spreads'
-    else if (marketType === 'total') marketKey = 'totals'
-
-    if (!marketKey) continue
 
     // Initialize market if not exists
     if (!markets[marketKey]) {

@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions'
 import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
@@ -10,8 +10,7 @@ import {
   getNBAAdvancedTeamStats,
   getNFLAdvancedTeamStats,
   formatStatsForAI,
-  getNBAPlayerSeasonStats,
-  getNFLPlayerSeasonStats,
+  getPlayerSeasonStats,
   searchPlayer,
 } from '@/lib/sports-stats-api'
 import type { TeamStats as ProviderTeamStats } from '@/lib/sports-stats-api'
@@ -42,6 +41,14 @@ const formatLeagueLabel = (sportKey: string): string => {
     icehockey_nhl: 'NHL',
   }
   return map[sportKey] || sportKey.toUpperCase()
+}
+
+const mapSportToPropKey = (sport?: string): string => {
+  const value = (sport || '').toLowerCase()
+  if (value.includes('nfl') || value === 'football') return 'americanfootball_nfl'
+  if (value.includes('mlb') || value.includes('baseball')) return 'baseball_mlb'
+  if (value.includes('nhl') || value.includes('hockey')) return 'icehockey_nhl'
+  return 'basketball_nba'
 }
 
 const normalizeToken = (value?: string) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -2951,6 +2958,16 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
   const llmInitialStart = Date.now()
 
   const wantsTeamInsightsOnly = /team insight|team insights|advanced stats|more info|deeper (stats|info)/i.test(message)
+  const sportHintFromMessage = (msg: string): string | undefined => {
+    const lower = msg.toLowerCase()
+    if (lower.includes('mlb') || lower.includes('baseball')) return 'baseball_mlb'
+    if (lower.includes('nhl') || lower.includes('hockey')) return 'icehockey_nhl'
+    if (lower.includes('nfl') || lower.includes('football')) return 'americanfootball_nfl'
+    if (lower.includes('nba') || lower.includes('basketball')) return 'basketball_nba'
+    return undefined
+  }
+  const sportHint = sportHintFromMessage(message)
+
   if (
     wantsTeamInsightsOnly &&
     formattedOddsGlobal.length === 1 &&
@@ -2972,17 +2989,12 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
   const seasonPlayerName = extractPlayerName(message)
   if (wantsPlayerSeasonStats && seasonPlayerName) {
     try {
-      const sportGuess = lowerMessage.includes('nfl') || lowerMessage.includes('football')
-        ? 'americanfootball_nfl'
-        : 'basketball_nba'
-      const data =
-        sportGuess === 'americanfootball_nfl'
-          ? await getNFLPlayerSeasonStats(seasonPlayerName)
-          : await getNBAPlayerSeasonStats(seasonPlayerName)
+      const data = await getPlayerSeasonStats(seasonPlayerName, sportHint)
 
       if (data) {
         const formatted = formatStatsForAI([data])
-        return streamTextResponse(`Season stats for ${seasonPlayerName} (${sportGuess === 'americanfootball_nfl' ? 'NFL' : 'NBA'}):\n\n${formatted}`)
+        const leagueLabel = formatLeagueLabel(data.sport || sportHint || 'basketball_nba')
+        return streamTextResponse(formatted)
       }
       return streamTextResponse(`I couldn't find season stats for ${seasonPlayerName}. Please check the spelling or tell me the sport.`)
     } catch (err: any) {
@@ -2998,49 +3010,18 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
     !propIntent &&
     !oddsKeywordMatch &&
     playerNameInMessage &&
-    /\b(stats?|averages?|ppg|rpg|apg|points per game|rebounds|assists)\b/i.test(lowerMessage)
+    /\b(stats?|averages?|ppg|rpg|apg|points per game|rebounds|assists|batting average|home runs|rbi|era|ops|goals|points|pim)\b/i.test(lowerMessage)
 
   if (genericPlayerStatsIntent) {
-    const sportGuess =
-      lowerMessage.includes('nfl') || lowerMessage.includes('football')
-        ? 'americanfootball_nfl'
-        : 'basketball_nba'
     try {
-      const data =
-        sportGuess === 'americanfootball_nfl'
-          ? await getNFLPlayerSeasonStats(playerNameInMessage)
-          : await getNBAPlayerSeasonStats(playerNameInMessage)
+      const data = await getPlayerSeasonStats(playerNameInMessage, sportHint)
 
       if (data) {
-        const leagueLabel = sportGuess === 'americanfootball_nfl' ? 'NFL' : 'NBA'
-        const stats = (data.stats || {}) as Record<string, number | string>
-        const num = (v: any, decimals = 1) =>
-          v == null || v === '' || Number.isNaN(Number(v)) ? 'N/A' : Number(v).toFixed(decimals)
-        const fmtPercent = (v: any) =>
-          v == null || v === '' || Number.isNaN(Number(v)) ? 'N/A' : `${Number(v).toFixed(1)}%`
-
-        const ppg = num(stats.PPG)
-        const rpg = num(stats.RPG)
-        const apg = num(stats.APG)
-        const fg = fmtPercent(stats.FG_PERCENT ?? stats['FG%'])
-        const three = fmtPercent(stats.THREE_PERCENT ?? stats['3P%'])
-
-        const lines = [
-          `Here are ${data.name || playerNameInMessage}'s ${data.season || 'current'} season averages (ESPN data):`,
-          '',
-          `- Team: ${data.team || 'Unknown'}`,
-          `- Position: ${data.position || 'N/A'}`,
-          `- PPG: ${ppg}`,
-          `- RPG: ${rpg}`,
-          `- APG: ${apg}`,
-          `- FG%: ${fg}`,
-          `- 3P%: ${three}`,
-        ]
-        lines.push('')
-
-        return streamTextResponse(lines.join('\n'))
+        const leagueLabel = formatLeagueLabel(data.sport || sportHint || 'basketball_nba')
+        const formatted = formatStatsForAI([data])
+        return streamTextResponse(formatted)
       }
-      const leagueLabel = sportGuess === 'americanfootball_nfl' ? 'NFL' : 'NBA'
+      const leagueLabel = sportHint ? formatLeagueLabel(sportHint) : 'their sport'
       return streamTextResponse(`I couldn't find season stats for ${playerNameInMessage} (${leagueLabel}). Please check the spelling or tell me the sport.`)
     } catch (err: any) {
       console.error('[PLAYER_STATS_SHORTCUT] Failed:', err)
@@ -3234,21 +3215,11 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
           const playerName = (functionArgs.player || '').toString().trim()
           if (!playerName) {
             functionResult = { success: false, error: 'Player name is required' }
-          } else if (['nba', 'basketball_nba'].includes(sportKey)) {
-            const data = await getNBAPlayerSeasonStats(playerName)
-            functionResult = data
-              ? { success: true, data, formatted: formatStatsForAI([data]) }
-              : { success: false, error: 'Player season stats not found' }
-          } else if (['nfl', 'americanfootball_nfl'].includes(sportKey)) {
-            const data = await getNFLPlayerSeasonStats(playerName)
-            functionResult = data
-              ? { success: true, data, formatted: formatStatsForAI([data]) }
-              : { success: false, error: 'Player season stats not found' }
           } else {
-            functionResult = {
-              success: false,
-              error: `player-season not supported for sport ${functionArgs.sport}`,
-            }
+            const data = await getPlayerSeasonStats(playerName, sportKey || undefined)
+            functionResult = data
+              ? { success: true, data, formatted: formatStatsForAI([data]) }
+              : { success: false, error: 'Player season stats not found' }
           }
           console.log('[PERF][STATS][PLAYER]', {
             sport: sportKey,
@@ -3294,77 +3265,82 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
       } else if (functionName === 'get_player_props') {
         // Fetch player props from our API endpoint
         try {
-          const params = new URLSearchParams({
-            sport: functionArgs.sport
-          })
-
-          if (functionArgs.player) {
-            params.append('player', functionArgs.player)
-          }
-
-          if (functionArgs.market) {
-            params.append('market', functionArgs.market)
-          }
-
-          if (functionArgs.team) {
-            params.append('team', functionArgs.team)
-            console.log(`[PLAYER_PROPS] Team filter applied: ${functionArgs.team}`)
-          }
-
-          const response = await fetch(`${baseUrl}/api/player-props?${params.toString()}`, { cache: 'no-store' })
-          const propsData = await response.json()
-
-          if (!response.ok) {
+          if (!functionArgs.player && !functionArgs.team) {
             functionResult = {
               success: false,
-              error: propsData.error || 'Failed to fetch player props'
+              error: 'Please specify a player name (and optionally a team) to fetch props faster.'
             }
           } else {
-            // Format props data for AI
-            let formatted = ''
-            if (propsData.data && propsData.data.length > 0) {
-              formatted = `Found ${propsData.count} player(s) with prop bets:\n\n`
+            const params = new URLSearchParams({
+              sport: mapSportToPropKey(functionArgs.sport)
+            })
 
-              for (const playerProp of propsData.data) {
-                const headerParts = [`**${playerProp.player}**`]
-                if (playerProp.team) {
-                  headerParts.push(
-                    `(${playerProp.teamAbbr || playerProp.team}${playerProp.position ? ', ' + playerProp.position : ''})`
-                  )
-                }
-                formatted += `${headerParts.join(' ')}\n`
-                if (playerProp.game) {
-                  formatted += `Game: ${playerProp.game}\n`
-                }
-                formatted += `| Market | Line | Best Over | Best Under |\n`
-                formatted += `| --- | --- | --- | --- |\n`
-
-                for (const [marketType, marketData] of Object.entries(playerProp.markets) as [string, any][]) {
-                  const lineLabel =
-                    marketData.line !== undefined && marketData.line !== null ? marketData.line : '�'
-                  const bestOver =
-                    marketData.over.bestBook
-                      ? `${marketData.over.best > 0 ? '+' : ''}${marketData.over.best} (${marketData.over.bestBook})`
-                      : '�'
-                  const bestUnder =
-                    marketData.under.bestBook
-                      ? `${marketData.under.best > 0 ? '+' : ''}${marketData.under.best} (${marketData.under.bestBook})`
-                      : '�'
-
-                  formatted += `| ${marketType.toUpperCase()} | ${lineLabel} | ${bestOver} | ${bestUnder} |\n`
-                }
-
-                formatted += `\n`
-              }
-            } else {
-              formatted = 'No player props available for the specified criteria.'
+            if (functionArgs.player) {
+              params.append('player', functionArgs.player)
             }
 
-            functionResult = {
-              success: true,
-              data: propsData.data,
-              count: propsData.count,
-              formatted
+            if (functionArgs.market) {
+              params.append('market', functionArgs.market)
+            }
+
+            if (functionArgs.team) {
+              params.append('team', functionArgs.team)
+              console.log(`[PLAYER_PROPS] Team filter applied: ${functionArgs.team}`)
+            }
+
+            const response = await fetch(`${baseUrl}/api/player-props?${params.toString()}`, { cache: 'no-store' })
+            const propsData = await response.json()
+
+            if (!response.ok) {
+              functionResult = {
+                success: false,
+                error: propsData.error || 'Failed to fetch player props'
+              }
+            } else {
+              // Format props data for AI
+              let formatted = ''
+              if (propsData.data && propsData.data.length > 0) {
+                for (const playerProp of propsData.data) {
+                  const headerParts = [`**${playerProp.player}**`]
+                  if (playerProp.team) {
+                    headerParts.push(
+                      `(${playerProp.teamAbbr || playerProp.team}${playerProp.position ? ', ' + playerProp.position : ''})`
+                    )
+                  }
+                  formatted += `${headerParts.join(' ')}\n`
+                  if (playerProp.game) {
+                    formatted += `Game: ${playerProp.game}\n`
+                  }
+                  formatted += `| Market | Line | Best Over | Best Under |\n`
+                  formatted += `| --- | --- | --- | --- |\n`
+
+                  for (const [marketType, marketData] of Object.entries(playerProp.markets) as [string, any][]) {
+                    const lineLabel =
+                      marketData.line !== undefined && marketData.line !== null ? marketData.line : '?'
+                    const bestOver =
+                      marketData.over.bestBook
+                        ? `${marketData.over.best > 0 ? '+' : ''}${marketData.over.best} (${marketData.over.bestBook})`
+                        : '?'
+                    const bestUnder =
+                      marketData.under.bestBook
+                        ? `${marketData.under.best > 0 ? '+' : ''}${marketData.under.best} (${marketData.under.bestBook})`
+                        : '?'
+
+                    formatted += `| ${marketType.toUpperCase()} | ${lineLabel} | ${bestOver} | ${bestUnder} |\n`
+                  }
+
+                  formatted += `\n`
+                }
+              } else {
+                formatted = 'No player props available for the specified criteria.'
+              }
+
+              functionResult = {
+                success: true,
+                data: propsData.data,
+                count: propsData.count,
+                formatted
+              }
             }
           }
         } catch (error: any) {
@@ -3910,12 +3886,13 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
     // If user clearly wants player props, short-circuit to props endpoint
     if (propIntent) {
       try {
-        const sportKey =
+        const inferredSport =
           msgLower.match(/nfl|football/) ? 'nfl' :
           msgLower.match(/mlb|baseball/) ? 'mlb' :
           msgLower.match(/nhl|hockey/) ? 'nhl' :
           'nba'
 
+        const sportKey = mapSportToPropKey(inferredSport)
         const params = new URLSearchParams({ sport: sportKey })
         if (mentionedTeams.length) {
           params.set('team', mentionedTeams.join(','))
@@ -4145,11 +4122,6 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
     );
   }
 }
-
-
-
-
-
 
 
 

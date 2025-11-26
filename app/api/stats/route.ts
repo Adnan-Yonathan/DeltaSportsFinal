@@ -6,11 +6,7 @@ import {
   formatStatsForAI,
   searchPlayer,
   getRoster,
-  getNBAPlayerSeasonStats,
-  getNFLPlayerSeasonStats,
-  TeamStats,
-  InjuryReport,
-  RosterPlayer
+  getPlayerSeasonStats,
 } from '@/lib/sports-stats-api'
 import { createClient } from '@/lib/supabase/server'
 
@@ -28,7 +24,8 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const type = searchParams.get('type') || 'team'
-    const sport = searchParams.get('sport') || 'nba'
+    const rawSport = searchParams.get('sport')
+    const sport = rawSport || 'nba'
     const team = searchParams.get('team') || undefined
     const player = searchParams.get('player') || undefined
     const format = searchParams.get('format') || 'json' // 'json' or 'text'
@@ -71,7 +68,10 @@ export async function GET(req: NextRequest) {
             { status: 400 }
           )
         }
-        result = await searchPlayer(player, sport)
+        result = await searchPlayer(
+          player,
+          rawSport && ['auto', 'any', 'all'].includes(rawSport.toLowerCase()) ? undefined : (rawSport || undefined)
+        )
         break
 
       case 'player-season': {
@@ -81,16 +81,9 @@ export async function GET(req: NextRequest) {
             { status: 400 }
           )
         }
-        if (['nba', 'basketball_nba'].includes(sport.toLowerCase())) {
-          result = await getNBAPlayerSeasonStats(player)
-        } else if (['nfl', 'americanfootball_nfl'].includes(sport.toLowerCase())) {
-          result = await getNFLPlayerSeasonStats(player)
-        } else {
-          return NextResponse.json(
-            { error: `player-season not supported for sport ${sport}` },
-            { status: 400 }
-          )
-        }
+        const seasonSport =
+          rawSport && ['auto', 'any', 'all'].includes(rawSport.toLowerCase()) ? undefined : (rawSport || undefined)
+        result = await getPlayerSeasonStats(player, seasonSport)
         if (!result) {
           return NextResponse.json({ error: 'Player season stats not found' }, { status: 404 })
         }

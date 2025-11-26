@@ -680,15 +680,24 @@ export async function fetchMultiEventOdds(
   const ids = eventIds.map((id) => String(id).trim()).filter(Boolean)
   if (!ids.length) return []
   const results: EventResponse[] = []
+  const maxConcurrent = 5
   const appliedMarkets =
     markets === null ? null : (markets && markets.length ? markets : [...STANDARD_MARKETS])
 
-  for (const id of ids) {
+  const fetchOne = async (id: string) => {
     try {
-      const event = await fetchEventOdds(id, bookmakers, init, appliedMarkets)
-      results.push(event)
+      return await fetchEventOdds(id, bookmakers, init, appliedMarkets)
     } catch (error) {
       console.error(`[ODDS] Failed to fetch odds for event ${id}:`, error)
+      return null
+    }
+  }
+
+  for (let i = 0; i < ids.length; i += maxConcurrent) {
+    const chunk = ids.slice(i, i + maxConcurrent)
+    const chunkResults = await Promise.all(chunk.map(fetchOne))
+    for (const event of chunkResults) {
+      if (event) results.push(event)
     }
   }
 

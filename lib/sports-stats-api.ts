@@ -10,6 +10,7 @@ export interface PlayerStats {
   stats: Record<string, number | string>
   season?: string
   headshot?: string
+  sport?: string
 }
 
 export interface RosterPlayer {
@@ -26,6 +27,7 @@ export interface RosterPlayer {
   experience?: number
   status?: string // Active, Injured, Out
   headshot?: string
+  sport?: string
   stats?: Record<string, number | string> // Player statistics
 }
 
@@ -57,11 +59,36 @@ export interface AdvancedTeamStats {
 const NFL_PLAYER_STATS_BASE =
   'https://github.com/nflverse/nflverse-data/releases/download/player_stats'
 
+const SPORT_ALIASES: Record<string, string> = {
+  nba: 'basketball_nba',
+  basketball: 'basketball_nba',
+  basketball_nba: 'basketball_nba',
+  nfl: 'americanfootball_nfl',
+  football: 'americanfootball_nfl',
+  americanfootball: 'americanfootball_nfl',
+  americanfootball_nfl: 'americanfootball_nfl',
+  mlb: 'baseball_mlb',
+  baseball: 'baseball_mlb',
+  baseball_mlb: 'baseball_mlb',
+  nhl: 'icehockey_nhl',
+  hockey: 'icehockey_nhl',
+  icehockey: 'icehockey_nhl',
+  icehockey_nhl: 'icehockey_nhl',
+}
+
+const SPORT_PRIORITY = ['basketball_nba', 'americanfootball_nfl', 'baseball_mlb', 'icehockey_nhl']
+
 const normalizeName = (value: string) =>
   value
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '')
     .trim()
+
+const resolveSportKey = (sport?: string | null): string | undefined => {
+  if (!sport) return undefined
+  const key = sport.trim().toLowerCase()
+  return SPORT_ALIASES[key] || SPORT_ALIASES[key.replace(/[_\s-]+/g, '_')] || undefined
+}
 
 const getCurrentNBASeasonLabel = () => {
   const now = new Date()
@@ -304,6 +331,7 @@ export async function getNBAPlayerSeasonStats(playerName: string): Promise<Playe
     season: espnStats.seasonLabel,
     stats,
     headshot: rosterEntry?.headshot,
+    sport: 'basketball_nba',
   }
 
   playerStatsCache.set(cacheKey, { data: result, ts: Date.now() })
@@ -382,6 +410,7 @@ export async function getNFLPlayerSeasonStats(playerName: string): Promise<Playe
     season: String(baseStats?.season ?? csvData?.season ?? seasonYear),
     stats,
     headshot: rosterEntry.headshot,
+    sport: 'americanfootball_nfl',
   }
 
   playerStatsCache.set(cacheKey, { data: result, ts: Date.now() })
@@ -924,6 +953,83 @@ export async function getNFLInjuries(): Promise<InjuryReport[]> {
 
 // ==================== MLB STATS (Official API) ====================
 
+export async function searchMLBPlayer(playerName: string): Promise<RosterPlayer | null> {
+  try {
+    const url = `https://statsapi.mlb.com/api/v1/people/search?names=${encodeURIComponent(playerName)}`
+    const response = await fetch(url, { cache: 'no-store' })
+    if (!response.ok) return null
+
+    const data = await response.json()
+    const candidates: any[] = data.people ?? []
+    if (!candidates.length) return null
+
+    const normalized = normalizeName(playerName)
+    const pick = () => {
+      const exact = candidates.find(
+        (p) => normalizeName(p.fullName || p.nameFirstLast || '') === normalized
+      )
+      if (exact) return exact
+      return (
+        candidates.find((p) => normalizeName(p.fullName || '').includes(normalized)) ||
+        candidates[0]
+      )
+    }
+
+    const selected = pick()
+    if (!selected?.id) return null
+
+    let person: any = null
+    try {
+      const personRes = await fetch(`https://statsapi.mlb.com/api/v1/people/${selected.id}`, {
+        cache: 'no-store',
+      })
+      if (personRes.ok) {
+        const personData = await personRes.json()
+        person = personData.people?.[0] || null
+      }
+    } catch (err) {
+      console.warn('MLB person lookup failed (non-fatal):', err)
+    }
+
+    const teamName =
+      person?.currentTeam?.name ||
+      person?.currentTeam?.abbreviation ||
+      person?.fullName ||
+      selected.fullName
+    const teamAbbr =
+      person?.currentTeam?.abbreviation ||
+      person?.currentTeam?.abbrev ||
+      person?.currentTeam?.abbreviation
+    const debutYear = person?.proDebutDate ? new Date(person.proDebutDate).getFullYear() : null
+    const experienceYears =
+      debutYear && Number.isFinite(debutYear) ? new Date().getFullYear() - debutYear : undefined
+
+    return {
+      id: String(selected.id),
+      name: selected.fullName || selected.nameFirstLast || playerName,
+      fullName: selected.fullName || selected.nameFirstLast || playerName,
+      team: teamName || '',
+      teamAbbr: teamAbbr || '',
+      position:
+        person?.primaryPosition?.abbreviation ||
+        person?.primaryPosition?.name ||
+        selected.primaryPosition?.abbreviation ||
+        'N/A',
+      jersey: person?.primaryNumber,
+      height: person?.height,
+      weight: person?.weight ? String(person.weight) : undefined,
+      age: person?.currentAge,
+      experience: experienceYears,
+      status: person?.active ? 'Active' : 'Inactive',
+      headshot: person?.officialImageSrc,
+      sport: 'baseball_mlb',
+    }
+  } catch (error) {
+    console.error('Error searching for MLB player:', error)
+    return null
+  }
+}
+
 export async function getMLBTeamStats(teamId?: number): Promise<TeamStats[]> {
   try {
     const season = new Date().getFullYear()
@@ -988,6 +1094,7 @@ export async function getMLBPlayerStats(playerId?: number): Promise<PlayerStats[
             position: data.people?.[0]?.primaryPosition?.abbreviation,
             stats: splits.stat || {},
             season: splits.season,
+            sport: 'baseball_mlb',
           })
         }
       }
@@ -1000,7 +1107,124 @@ export async function getMLBPlayerStats(playerId?: number): Promise<PlayerStats[
   }
 }
 
+export async function getMLBPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
+  const cacheKey = `mlb:${normalizeName(playerName)}`
+  const cached = playerStatsCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < PLAYER_STATS_CACHE_TTL) {
+    return cached.data
+  }
+
+  const rosterEntry = await searchMLBPlayer(playerName)
+  if (!rosterEntry) {
+    playerStatsCache.set(cacheKey, { data: null, ts: Date.now() })
+    return null
+  }
+
+  const season = new Date().getFullYear()
+  const playerId = Number(rosterEntry.id)
+  const entries = await getMLBPlayerStats(playerId)
+  const primary = entries.find((e) => (e.stats as any)?.avg != null) || entries[0]
+  if (!primary) {
+    playerStatsCache.set(cacheKey, { data: null, ts: Date.now() })
+    return null
+  }
+
+  const raw = primary.stats as Record<string, any>
+  const stats: Record<string, number | string> = {}
+
+  const toNumber = (val: any) => {
+    if (val == null) return null
+    const n = Number(String(val).replace(/[^0-9.-]/g, ''))
+    return Number.isNaN(n) ? null : n
+  }
+
+  const hitter = raw.avg != null || raw.obp != null || raw.ops != null
+  if (hitter) {
+    const pick = (key: string) => raw[key] ?? null
+    const avg = pick('avg')
+    const obp = pick('obp')
+    const slg = pick('slg')
+    const ops = pick('ops')
+    if (avg != null) stats.AVG = toNumber(avg) ?? avg
+    if (obp != null) stats.OBP = toNumber(obp) ?? obp
+    if (slg != null) stats.SLG = toNumber(slg) ?? slg
+    if (ops != null) stats.OPS = toNumber(ops) ?? ops
+    stats.HR = toNumber(pick('homeRuns')) ?? 0
+    stats.RBI = toNumber(pick('rbi')) ?? 0
+    stats.RUNS = toNumber(pick('runs')) ?? 0
+    stats.HITS = toNumber(pick('hits')) ?? 0
+    stats.SB = toNumber(pick('stolenBases')) ?? 0
+  } else {
+    stats.ERA = toNumber(raw.era) ?? 0
+    stats.WHIP = toNumber(raw.whip) ?? 0
+    stats.INNINGS_PITCHED = toNumber(raw.inningsPitched) ?? 0
+    stats.STRIKEOUTS = toNumber(raw.strikeOuts) ?? 0
+    stats.WINS = toNumber(raw.wins) ?? 0
+    stats.LOSSES = toNumber(raw.losses) ?? 0
+    stats.SAVES = toNumber(raw.saves) ?? 0
+  }
+
+  const result: PlayerStats = {
+    name: rosterEntry.fullName,
+    team: rosterEntry.team || primary.team,
+    position: rosterEntry.position,
+    season: primary.season || String(season),
+    stats,
+    headshot: rosterEntry.headshot,
+    sport: 'baseball_mlb',
+  }
+
+  playerStatsCache.set(cacheKey, { data: result, ts: Date.now() })
+  return result
+}
+
 // ==================== NHL STATS (Official API) ====================
+
+export async function searchNHLPlayer(playerName: string): Promise<RosterPlayer | null> {
+  try {
+    const url = `https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=10&q=${encodeURIComponent(
+      playerName
+    )}`
+    const response = await fetch(url, { cache: 'no-store' })
+    if (!response.ok) return null
+
+    const data = await response.json()
+    const results: any[] = Array.isArray(data) ? data : []
+    if (!results.length) return null
+
+    const target = normalizeName(playerName)
+    const pick = () => {
+      const exact = results.find((p) => normalizeName(p.name || '') === target && p.active)
+      if (exact) return exact
+      const looseActive = results.find((p) => normalizeName(p.name || '').includes(target) && p.active)
+      if (looseActive) return looseActive
+      return results.find((p) => normalizeName(p.name || '').includes(target)) || results[0]
+    }
+
+    const player = pick()
+    if (!player?.playerId) return null
+
+    return {
+      id: String(player.playerId),
+      name: player.name || playerName,
+      fullName: player.name || playerName,
+      team: player.teamAbbrev || '',
+      teamAbbr: player.teamAbbrev || '',
+      position: player.positionCode || 'N/A',
+      jersey: player.sweaterNumber ? String(player.sweaterNumber) : undefined,
+      height: player.height,
+      weight: player.weightInPounds ? String(player.weightInPounds) : undefined,
+      status: player.active ? 'Active' : 'Inactive',
+      headshot: player.playerId
+        ? `https://assets.nhle.com/mugs/nhl/20252026/${player.teamAbbrev || 'NA'}/${player.playerId}.png`
+        : undefined,
+      sport: 'icehockey_nhl',
+    }
+  } catch (error) {
+    console.error('Error searching for NHL player:', error)
+    return null
+  }
+}
 
 export async function getNHLTeamStats(teamAbbr?: string): Promise<TeamStats[]> {
   try {
@@ -1062,6 +1286,7 @@ export async function getNHLPlayerStats(playerId?: number): Promise<PlayerStats[
         position: data.position,
         stats: data.featuredStats.regularSeason.subSeason,
         season,
+        sport: 'icehockey_nhl',
       })
     }
 
@@ -1070,6 +1295,84 @@ export async function getNHLPlayerStats(playerId?: number): Promise<PlayerStats[
     console.error('Error fetching NHL player stats:', error)
     return []
   }
+}
+
+export async function getNHLPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
+  const cacheKey = `nhl:${normalizeName(playerName)}`
+  const cached = playerStatsCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < PLAYER_STATS_CACHE_TTL) {
+    return cached.data
+  }
+
+  const rosterEntry = await searchNHLPlayer(playerName)
+  if (!rosterEntry) {
+    playerStatsCache.set(cacheKey, { data: null, ts: Date.now() })
+    return null
+  }
+
+  const entries = await getNHLPlayerStats(Number(rosterEntry.id))
+  const primary = entries[0]
+  if (!primary) {
+    playerStatsCache.set(cacheKey, { data: null, ts: Date.now() })
+    return null
+  }
+
+  const raw = primary.stats as Record<string, any>
+  const stats: Record<string, number | string> = {}
+  const pick = (key: string) => raw?.[key] ?? null
+  const num = (key: string) => {
+    const val = pick(key)
+    if (val == null) return null
+    const n = Number(val)
+    return Number.isNaN(n) ? null : n
+  }
+
+  stats.GP = num('gamesPlayed') ?? num('games') ?? 0
+  stats.GOALS = num('goals') ?? 0
+  stats.ASSISTS = num('assists') ?? 0
+  stats.POINTS = num('points') ?? (stats.GOALS as number) + (stats.ASSISTS as number)
+  const plusMinus = num('plusMinus')
+  if (plusMinus != null) stats.PLUS_MINUS = plusMinus
+  const pim = num('pim') ?? num('penaltyMinutes')
+  if (pim != null) stats.PIM = pim
+  const shots = num('shots')
+  if (shots != null) stats.SHOTS = shots
+
+  const result: PlayerStats = {
+    name: rosterEntry.fullName,
+    team: rosterEntry.team || primary.team,
+    position: rosterEntry.position,
+    season: primary.season,
+    stats,
+    headshot: rosterEntry.headshot,
+    sport: 'icehockey_nhl',
+  }
+
+  playerStatsCache.set(cacheKey, { data: result, ts: Date.now() })
+  return result
+}
+
+export async function getPlayerSeasonStats(playerName: string, sport?: string): Promise<PlayerStats | null> {
+  const resolved = resolveSportKey(sport)
+  const targets = resolved ? [resolved] : SPORT_PRIORITY
+
+  for (const sportKey of targets) {
+    let data: PlayerStats | null = null
+    if (sportKey === 'basketball_nba') {
+      data = await getNBAPlayerSeasonStats(playerName)
+    } else if (sportKey === 'americanfootball_nfl') {
+      data = await getNFLPlayerSeasonStats(playerName)
+    } else if (sportKey === 'baseball_mlb') {
+      data = await getMLBPlayerSeasonStats(playerName)
+    } else if (sportKey === 'icehockey_nhl') {
+      data = await getNHLPlayerSeasonStats(playerName)
+    }
+    if (data) {
+      return { ...data, sport: data.sport ?? sportKey }
+    }
+  }
+
+  return null
 }
 
 // ==================== UNIFIED FUNCTIONS ====================
@@ -1187,22 +1490,33 @@ export async function getAllInjuries(): Promise<{ sport: string; injuries: Injur
 
 export async function searchPlayer(playerName: string, sport?: string): Promise<RosterPlayer | null> {
   try {
-    // If sport specified, search only that sport
-    if (sport) {
-      switch (sport.toLowerCase()) {
-        case 'nba':
+    const resolved = resolveSportKey(sport)
+
+    const searchBySport = async (sportKey: string) => {
+      switch (sportKey) {
         case 'basketball_nba':
           return await searchNBAPlayer(playerName)
-        case 'nfl':
         case 'americanfootball_nfl':
           return await searchNFLPlayer(playerName)
+        case 'baseball_mlb':
+          return await searchMLBPlayer(playerName)
+        case 'icehockey_nhl':
+          return await searchNHLPlayer(playerName)
         default:
           return null
       }
     }
 
-    // Otherwise search NBA (can expand to other sports later)
-    return await searchNBAPlayer(playerName)
+    if (resolved) {
+      return await searchBySport(resolved)
+    }
+
+    for (const sportKey of SPORT_PRIORITY) {
+      const found = await searchBySport(sportKey)
+      if (found) return found
+    }
+
+    return null
   } catch (error) {
     console.error('Error searching for player:', error)
     return null
@@ -1226,16 +1540,38 @@ export async function getRoster(sport: string, teamAbbr?: string): Promise<Roste
 export function formatStatsForAI(stats: TeamStats[] | PlayerStats[] | InjuryReport[]): string {
   if (stats.length === 0) return 'No stats available'
 
-  if ('injury' in stats[0]) {
-    // Injury reports
-    const injuries = stats as InjuryReport[]
-    return injuries.map(i =>
-      `${i.player} (${i.team}) - ${i.status}${i.injury ? ': ' + i.injury : ''}`
-    ).join('\n')
-  } else if ('position' in stats[0]) {
-    // Player stats
-    const players = stats as PlayerStats[]
-    const preferredOrder = ['PPG', 'RPG', 'APG', 'FG%', '3P%', 'PTS', 'REB', 'AST']
+  const formatHeader = (p: PlayerStats) => {
+    const headerParts = [p.name || 'Unknown']
+    if (p.team) headerParts.push(p.team)
+    if (p.position) headerParts.push(p.position)
+    if (p.season) headerParts.push(`Season ${p.season}`)
+    return headerParts.join(' | ')
+  }
+
+  const fmtNumber = (val: any, decimals = 1) => {
+    if (val == null || val === '') return 'n/a'
+    const num = Number(val)
+    if (Number.isNaN(num)) return String(val)
+    return Number.isInteger(num) ? String(num) : num.toFixed(decimals)
+  }
+
+  const detectPlayerSport = (p: PlayerStats): string => {
+    if (p.sport) return p.sport
+    const keys = Object.keys(p.stats || {}).map((k) => k.toUpperCase())
+    if (keys.some((k) => k.startsWith('PASSING_') || k.startsWith('RUSHING_') || k.startsWith('RECEIVING_'))) {
+      return 'americanfootball_nfl'
+    }
+    if (keys.some((k) => ['AVG', 'OBP', 'OPS', 'ERA', 'WHIP'].includes(k))) {
+      return 'baseball_mlb'
+    }
+    if (keys.some((k) => ['GOALS', 'ASSISTS', 'POINTS', 'PLUS_MINUS'].includes(k))) {
+      return 'icehockey_nhl'
+    }
+    return 'basketball_nba'
+  }
+
+  const formatNBAPlayer = (p: PlayerStats) => {
+    const preferredOrder = ['PPG', 'RPG', 'APG', 'FG_PERCENT', 'FG%', 'THREE_PERCENT', '3P%']
     const formatLabel = (key: string) =>
       key
         .replace(/_/g, ' ')
@@ -1243,24 +1579,98 @@ export function formatStatsForAI(stats: TeamStats[] | PlayerStats[] | InjuryRepo
     const formatValue = (key: string, val: any) => {
       if (val == null) return 'n/a'
       const num = typeof val === 'number' ? val : Number(val)
-      const isPercent = key.toLowerCase().includes('percent') || key.toLowerCase().includes('pct')
+      const isPercent = key.toLowerCase().includes('percent') || key.toLowerCase().includes('pct') || key === 'FG%'
       if (!Number.isNaN(num) && isPercent) return `${num.toFixed(1)}%`
       if (!Number.isNaN(num)) return Number.isInteger(num) ? String(num) : num.toFixed(1)
       return String(val)
     }
+    const orderedKeys = [
+      ...preferredOrder.filter((k) => p.stats[k] !== undefined),
+      ...Object.keys(p.stats || {}).filter((k) => !preferredOrder.includes(k)),
+    ]
+    const lines = orderedKeys.map((key) => `- ${formatLabel(key)}: ${formatValue(key, (p.stats as any)[key])}`)
+    return `${formatHeader(p)}\n${lines.join('\n')}`
+  }
+
+  const formatNFLPlayer = (p: PlayerStats) => {
+    const s = p.stats as Record<string, any>
+    const pass = [
+      fmtNumber(s.PASSING_YARDS ?? s.PASS_YARDS ?? s.PASS_YDS, 0),
+      `${fmtNumber(s.PASSING_TDS ?? s.PASS_TDS ?? s.PASS_TOUCHDOWNS, 0)} TD`,
+      `${fmtNumber(s.INTERCEPTIONS ?? s.INT ?? s.PASS_INTERCEPTIONS, 0)} INT`,
+    ]
+    const rush = [
+      `${fmtNumber(s.RUSHING_YARDS ?? s.RUSH_YARDS ?? s.RUSH_YDS, 0)} rush yds`,
+      `${fmtNumber(s.RUSHING_TDS ?? s.RUSH_TDS, 0)} TD`,
+      `${fmtNumber(s.RUSHING_ATTEMPTS ?? s.RUSH_ATTEMPTS ?? s.CARRIES, 0)} att`,
+    ]
+    const recv = [
+      `${fmtNumber(s.RECEPTIONS ?? s.REC, 0)} rec`,
+      `${fmtNumber(s.RECEIVING_YARDS ?? s.REC_YARDS ?? s.RECEIVING_YDS, 0)} yds`,
+      `${fmtNumber(s.RECEIVING_TDS ?? s.REC_TDS, 0)} TD`,
+      `${fmtNumber(s.TARGETS, 0)} tgt`,
+    ]
+    const epaLines: string[] = []
+    if (s.EPA_PER_PLAY != null) epaLines.push(`EPA/play ${fmtNumber(s.EPA_PER_PLAY, 3)}`)
+    if (s.EPA_TOTAL != null) epaLines.push(`EPA total ${fmtNumber(s.EPA_TOTAL, 2)}`)
+
+    const lines = [`- Passing: ${pass.join(', ')}`]
+    if (rush.some((v) => v.includes('n/a') === false)) lines.push(`- Rushing: ${rush.join(', ')}`)
+    if (recv.some((v) => v.includes('n/a') === false)) lines.push(`- Receiving: ${recv.join(', ')}`)
+    if (epaLines.length) lines.push(`- Advanced: ${epaLines.join(' | ')}`)
+
+    return `${formatHeader(p)}\n${lines.join('\n')}`
+  }
+
+  const formatMLBPlayer = (p: PlayerStats) => {
+    const s = p.stats as Record<string, any>
+    const hasPitching = s.ERA != null || s.WHIP != null || s.INNINGS_PITCHED != null
+    if (hasPitching) {
+      const lines = [
+        `- ERA: ${fmtNumber(s.ERA, 2)} | WHIP: ${fmtNumber(s.WHIP, 2)} | IP: ${fmtNumber(s.INNINGS_PITCHED, 1)}`,
+        `- SO: ${fmtNumber(s.STRIKEOUTS, 0)} | W-L-SV: ${fmtNumber(s.WINS, 0)}-${fmtNumber(s.LOSSES, 0)}-${fmtNumber(s.SAVES, 0)}`,
+      ]
+      return `${formatHeader(p)}\n${lines.join('\n')}`
+    }
+
+    const slash = `AVG/OBP/SLG: ${fmtNumber(s.AVG, 3)}/${fmtNumber(s.OBP, 3)}/${fmtNumber(s.SLG, 3)}`
+    const ops = s.OPS != null ? `OPS: ${fmtNumber(s.OPS, 3)}` : null
+    const lines = [
+      `- ${slash}${ops ? ` | ${ops}` : ''}`,
+      `- HR: ${fmtNumber(s.HR, 0)} | RBI: ${fmtNumber(s.RBI, 0)} | R: ${fmtNumber(s.RUNS, 0)} | H: ${fmtNumber(s.HITS, 0)} | SB: ${fmtNumber(s.SB, 0)}`,
+    ]
+    return `${formatHeader(p)}\n${lines.join('\n')}`
+  }
+
+  const formatNHLPlayer = (p: PlayerStats) => {
+    const s = p.stats as Record<string, any>
+    const gp = fmtNumber(s.GP ?? s.GAMES, 0)
+    const goals = fmtNumber(s.GOALS, 0)
+    const assists = fmtNumber(s.ASSISTS, 0)
+    const points = fmtNumber(s.POINTS, 0)
+    const plusMinus = s.PLUS_MINUS != null ? ` | +/-: ${fmtNumber(s.PLUS_MINUS, 0)}` : ''
+    const pim = s.PIM != null ? ` | PIM: ${fmtNumber(s.PIM, 0)}` : ''
+    const shots = s.SHOTS != null ? ` | SOG: ${fmtNumber(s.SHOTS, 0)}` : ''
+    const lines = [`- GP: ${gp} | G: ${goals} | A: ${assists} | PTS: ${points}${plusMinus}${pim}${shots}`]
+    return `${formatHeader(p)}\n${lines.join('\n')}`
+  }
+
+  if ('injury' in stats[0]) {
+    // Injury reports
+    const injuries = stats as InjuryReport[]
+    return injuries.map(i =>
+      `${i.player} (${i.team}) - ${i.status}${i.injury ? ': ' + i.injury : ''}`
+    ).join('\n')
+  } else if ('position' in stats[0]) {
+    // Player stats with sport-specific formatting
+    const players = stats as PlayerStats[]
     return players
       .map((p) => {
-        const orderedKeys = [
-          ...preferredOrder.filter((k) => p.stats[k] !== undefined),
-          ...Object.keys(p.stats || {}).filter((k) => !preferredOrder.includes(k)),
-        ]
-        const lines = orderedKeys.map((key) => `- ${formatLabel(key)}: ${formatValue(key, (p.stats as any)[key])}`)
-        const headerParts = [p.name || 'Unknown']
-        if (p.team) headerParts.push(p.team)
-        if (p.position) headerParts.push(p.position)
-        if (p.season) headerParts.push(`Season ${p.season}`)
-        const header = headerParts.join(' | ')
-        return `${header}\n${lines.join('\n')}`
+        const sportKey = detectPlayerSport(p)
+        if (sportKey === 'americanfootball_nfl') return formatNFLPlayer(p)
+        if (sportKey === 'baseball_mlb') return formatMLBPlayer(p)
+        if (sportKey === 'icehockey_nhl') return formatNHLPlayer(p)
+        return formatNBAPlayer(p)
       })
       .join('\n\n')
   } else {

@@ -2,7 +2,7 @@
 
 import React, { useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, ChevronUp, TrendingUp } from 'lucide-react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { ParsedTeamInsights } from '@/lib/utils/stats-parser'
 
 interface TeamInsightsCardProps extends Omit<ParsedTeamInsights, 'type' | 'originalText'> {}
@@ -11,10 +11,14 @@ export const TeamInsightsCard: React.FC<TeamInsightsCardProps> = ({
   sport,
   awayTeam,
   homeTeam,
+  awayLogo,
+  homeLogo,
   awayStats,
   homeStats,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null)
+  const proxiedAwayLogo = awayLogo ? `/api/image-proxy?url=${encodeURIComponent(awayLogo)}` : undefined
+  const proxiedHomeLogo = homeLogo ? `/api/image-proxy?url=${encodeURIComponent(homeLogo)}` : undefined
   const [isHovered, setIsHovered] = useState(false)
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
   const [showAllStats, setShowAllStats] = useState(false)
@@ -35,47 +39,99 @@ export const TeamInsightsCard: React.FC<TeamInsightsCardProps> = ({
     setRotation({ x: 0, y: 0 })
   }
 
-  // Helper: Parse Last 10 record "7-3" -> { wins: 7, losses: 3 }
-  const parseLast10 = (record: string) => {
-    const match = record.match(/(\d+)-(\d+)/)
-    return match ? { wins: parseInt(match[1]), losses: parseInt(match[2]) } : null
+  const normalizeValue = (val: any) => {
+    if (val == null) return 'N/A'
+    if (typeof val === 'number') return val
+    const num = parseFloat(String(val))
+    return isNaN(num) ? String(val) : num
   }
 
-  // Helper: Safe parse float (handles "n/a")
-  const safeParseFloat = (value: string): number | null => {
-    if (value === 'n/a' || value === 'N/A') return null
-    const num = parseFloat(value)
-    return isNaN(num) ? null : num
-  }
+  const formatLabel = (key: string) =>
+    key
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase())
 
-  // Comparison logic for highlighting
-  const compareStats = (awayStat: string, homeStat: string, lowerIsBetter = false) => {
-    const awayNum = safeParseFloat(awayStat)
-    const homeNum = safeParseFloat(homeStat)
-    if (awayNum === null || homeNum === null) return { awayBetter: false, homeBetter: false }
-
-    if (lowerIsBetter) {
-      return { awayBetter: awayNum < homeNum, homeBetter: homeNum < awayNum }
-    } else {
-      return { awayBetter: awayNum > homeNum, homeBetter: homeNum > awayNum }
-    }
-  }
-
-  const compareLast10 = () => {
-    const away = parseLast10(awayStats.last10)
-    const home = parseLast10(homeStats.last10)
-    if (!away || !home) return { awayBetter: false, homeBetter: false }
-    return { awayBetter: away.wins > home.wins, homeBetter: home.wins > away.wins }
-  }
-
-  // Format sport label
   const formatSport = (sportKey: string) => {
     const map: Record<string, string> = {
       basketball_nba: 'NBA',
       basketball_ncaab: 'NCAAB',
+      americanfootball_nfl: 'NFL',
+      americanfootball_ncaaf: 'NCAAF',
+      baseball_mlb: 'MLB',
+      icehockey_nhl: 'NHL',
     }
     return map[sportKey] || sportKey.toUpperCase()
   }
+
+  const getTeamAbbr = (teamName: string) => {
+    // Fallback: take first letter of each word
+    return teamName
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 3)
+  }
+
+  const getSportIcon = (sportKey: string) => {
+    // Map sport keys to emoji icons
+    if (sportKey === 'basketball_nba' || sportKey === 'basketball_ncaab') {
+      return '🏀'
+    } else if (sportKey === 'americanfootball_nfl' || sportKey === 'americanfootball_ncaaf') {
+      return '🏈'
+    } else if (sportKey === 'icehockey_nhl') {
+      return '🏒'
+    } else if (sportKey === 'baseball_mlb') {
+      return '⚾'
+    }
+    return '🏆' // default for unknown sports
+  }
+
+  const priorityKeysBySport: Record<string, string[]> = {
+    basketball_nba: ['streak', 'last10', 'ppg', 'papg', 'fgPct', 'threePct', 'reb', 'ast', 'blk', 'stl'],
+    basketball_ncaab: ['streak', 'last10', 'ppg', 'papg', 'fgPct', 'threePct', 'reb', 'ast', 'blk', 'stl'],
+    americanfootball_nfl: ['streak', 'last10', 'ppg', 'papg', 'offYds', 'defYds', 'passYds', 'rushYds', 'takeaways', 'sacks'],
+    americanfootball_ncaaf: ['streak', 'last10', 'ppg', 'papg', 'offYds', 'defYds', 'passYds', 'rushYds', 'takeaways', 'sacks'],
+    baseball_mlb: ['streak', 'last10', 'runs', 'runsAllowed', 'era', 'ops'],
+    icehockey_nhl: ['streak', 'last10', 'gpg', 'gapg', 'shots', 'shotsAllowed', 'powerPlayPct', 'penaltyKillPct', 'faceoffWinPct', 'hits'],
+  }
+
+  const lowerIsBetterKeys = new Set(['papg', 'gapg', 'defyds', 'runsallowed', 'era', 'shotsallowed'])
+
+  const buildRows = () => {
+    const keys = new Set<string>([...Object.keys(awayStats), ...Object.keys(homeStats)])
+    const ordered: string[] = []
+    const priority = priorityKeysBySport[sport] || []
+    priority.forEach((k) => {
+      if (keys.has(k)) {
+        ordered.push(k)
+        keys.delete(k)
+      }
+    })
+    ordered.push(...Array.from(keys))
+    return ordered
+      .filter((k) => awayStats[k as keyof typeof awayStats] != null || homeStats[k as keyof typeof homeStats] != null)
+      .map((key) => {
+        const awayValRaw = normalizeValue(awayStats[key as keyof typeof awayStats])
+        const homeValRaw = normalizeValue(homeStats[key as keyof typeof homeStats])
+        const awayVal = typeof awayValRaw === 'number' ? awayValRaw.toFixed(awayValRaw % 1 === 0 ? 0 : 1) : awayValRaw
+        const homeVal = typeof homeValRaw === 'number' ? homeValRaw.toFixed(homeValRaw % 1 === 0 ? 0 : 1) : homeValRaw
+        const aNum = typeof awayValRaw === 'number' ? awayValRaw : null
+        const hNum = typeof homeValRaw === 'number' ? homeValRaw : null
+        const lowerIsBetter = lowerIsBetterKeys.has(key.toLowerCase())
+        return {
+          key,
+          label: formatLabel(key),
+          awayVal: awayVal ?? 'N/A',
+          homeVal: homeVal ?? 'N/A',
+          awayBetter: aNum != null && hNum != null ? (lowerIsBetter ? aNum < hNum : aNum > hNum) : false,
+          homeBetter: aNum != null && hNum != null ? (lowerIsBetter ? hNum < aNum : hNum > aNum) : false,
+        }
+      })
+      .slice(0, 10)
+  }
+
+  const rows = buildRows()
 
   return (
     <motion.div
@@ -166,43 +222,68 @@ export const TeamInsightsCard: React.FC<TeamInsightsCardProps> = ({
 
       {/* Card content */}
       <div className="relative z-40 p-4 sm:p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex-1 text-center">
-            <h3 className="text-base sm:text-lg font-bold text-white">{awayTeam}</h3>
+        {/* Header Section */}
+        <div className="flex items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
+          <div className="flex-1 min-w-0">
+            {/* Team Matchup */}
+            <motion.div
+              className="flex items-center gap-2 sm:gap-3"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              {/* Away Team */}
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {proxiedAwayLogo ? (
+                  <img src={proxiedAwayLogo} alt={awayTeam} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
+                ) : (
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-600 flex-shrink-0">
+                    <span className="text-white text-xs font-bold">{getTeamAbbr(awayTeam)}</span>
+                  </div>
+                )}
+                <span className="text-base sm:text-lg font-bold text-white truncate">{awayTeam}</span>
+              </div>
+
+              <span className="text-white/40 text-sm sm:text-base px-2 flex-shrink-0">@</span>
+
+              {/* Home Team */}
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-base sm:text-lg font-bold text-white truncate">{homeTeam}</span>
+                {proxiedHomeLogo ? (
+                  <img src={proxiedHomeLogo} alt={homeTeam} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
+                ) : (
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-600 flex-shrink-0">
+                    <span className="text-white text-xs font-bold">{getTeamAbbr(homeTeam)}</span>
+                  </div>
+                )}
+              </div>
+            </motion.div>
           </div>
-          <div className="px-4 text-white/40 font-bold">VS</div>
-          <div className="flex-1 text-center">
-            <h3 className="text-base sm:text-lg font-bold text-white">{homeTeam}</h3>
-          </div>
-          <div className="ml-4 px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold">
-            {formatSport(sport)}
+
+          {/* Right rail */}
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            <motion.div
+              className="px-2.5 sm:px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold flex-shrink-0"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              {formatSport(sport)}
+            </motion.div>
           </div>
         </div>
 
-        {/* Always Visible Stats: Last 10, PPG, PAPG */}
+        {/* Always Visible Stats: show first 3 rows */}
         <div className="space-y-3 mb-4">
-          {/* Last 10 */}
-          <StatRow
-            label="Last 10"
-            awayValue={awayStats.last10}
-            homeValue={homeStats.last10}
-            comparison={compareLast10()}
-          />
-          {/* PPG */}
-          <StatRow
-            label="PPG"
-            awayValue={awayStats.ppg}
-            homeValue={homeStats.ppg}
-            comparison={compareStats(awayStats.ppg, homeStats.ppg)}
-          />
-          {/* PAPG */}
-          <StatRow
-            label="PAPG"
-            awayValue={awayStats.papg}
-            homeValue={homeStats.papg}
-            comparison={compareStats(awayStats.papg, homeStats.papg, true)}
-          />
+          {rows.slice(0, 3).map((row) => (
+            <StatRow
+              key={row.key}
+              label={row.label}
+              awayValue={row.awayVal as string}
+              homeValue={row.homeVal as string}
+              comparison={{ awayBetter: row.awayBetter, homeBetter: row.homeBetter }}
+            />
+          ))}
         </div>
 
         {/* Expandable Stats Toggle */}
@@ -234,13 +315,15 @@ export const TeamInsightsCard: React.FC<TeamInsightsCardProps> = ({
               className="overflow-hidden"
             >
               <div className="space-y-3 mt-4 pt-4 border-t border-white/10">
-                <StatRow label="Streak" awayValue={awayStats.streak} homeValue={homeStats.streak} comparison={{ awayBetter: false, homeBetter: false }} />
-                <StatRow label="FG%" awayValue={awayStats.fgPct} homeValue={homeStats.fgPct} comparison={compareStats(awayStats.fgPct, homeStats.fgPct)} />
-                <StatRow label="3P%" awayValue={awayStats.threePct} homeValue={homeStats.threePct} comparison={compareStats(awayStats.threePct, homeStats.threePct)} />
-                <StatRow label="REB" awayValue={awayStats.reb} homeValue={homeStats.reb} comparison={compareStats(awayStats.reb, homeStats.reb)} />
-                <StatRow label="AST" awayValue={awayStats.ast} homeValue={homeStats.ast} comparison={compareStats(awayStats.ast, homeStats.ast)} />
-                <StatRow label="BLK" awayValue={awayStats.blk} homeValue={homeStats.blk} comparison={compareStats(awayStats.blk, homeStats.blk)} />
-                <StatRow label="STL" awayValue={awayStats.stl} homeValue={homeStats.stl} comparison={compareStats(awayStats.stl, homeStats.stl)} />
+                {rows.slice(3).map((row) => (
+                  <StatRow
+                    key={row.key}
+                    label={row.label}
+                    awayValue={row.awayVal as string}
+                    homeValue={row.homeVal as string}
+                    comparison={{ awayBetter: row.awayBetter, homeBetter: row.homeBetter }}
+                  />
+                ))}
               </div>
             </motion.div>
           )}
@@ -253,7 +336,7 @@ export const TeamInsightsCard: React.FC<TeamInsightsCardProps> = ({
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
         >
-          <TrendingUp className="w-4 h-4" />
+          <span className="text-base">{getSportIcon(sport)}</span>
           <span>Team Insights</span>
         </motion.div>
       </div>

@@ -8,6 +8,7 @@ import type { OddsGame } from '@/lib/types/odds'
 interface PropOdds {
   book: string
   odds: number
+  line?: number
 }
 
 interface PropMarket {
@@ -22,6 +23,7 @@ interface PropMarket {
     bestBook: string
     allBooks: PropOdds[]
   }
+  lines?: Array<{ book: string; line: number; overOdds?: number; underOdds?: number }>
 }
 
 interface PlayerProp {
@@ -292,19 +294,8 @@ async function getCachedOdds(
     return cached.data
   }
 
-  const allowedKeys =
-    sport === 'americanfootball_nfl'
-      ? new Set([
-          'player_receiving_yds',
-          'player_receptions',
-          'player_anytime_td',
-          'player_pass_yds',
-          'player_pass_tds',
-          'player_rush_yds',
-          'player_rush_tds',
-          'player_receiving_tds',
-        ])
-      : null
+  // Allow all prop markets; do not restrict NFL props to a narrow subset
+  const allowedKeys = null
 
   // Try fetching by eventId (per provider docs)
   const logNoBooks = (ev: any, markets: string[]) => {
@@ -519,54 +510,101 @@ const createEmptyMarketBucket = (line: number): PropMarket => ({
 })
 
 const pickPrimaryLine = (lineBuckets: Map<string, PropMarket>): PropMarket | null => {
-  let primary: { bucket: PropMarket; books: number } | null = null
-  for (const bucket of lineBuckets.values()) {
-    const bookCount = bucket.over.allBooks.length + bucket.under.allBooks.length
-    if (!bookCount) continue
-    if (!primary || bookCount > primary.books) {
-      primary = { bucket, books: bookCount }
-    }
-  }
-  if (!primary) return null
-
-  // Merge odds from other buckets so every bookmaker can be selected in the UI
-  const merged: PropMarket = {
-    line: primary.bucket.line,
-    over: {
-      best: primary.bucket.over.best,
-      bestBook: primary.bucket.over.bestBook,
-      allBooks: [...primary.bucket.over.allBooks],
-    },
-    under: {
-      best: primary.bucket.under.best,
-      bestBook: primary.bucket.under.bestBook,
-      allBooks: [...primary.bucket.under.allBooks],
-    },
-  }
-
-  const upsert = (
-    target: { best: number; bestBook: string; allBooks: PropOdds[] },
-    incoming: PropOdds
-  ) => {
-    const exists = target.allBooks.find(b => b.book.toLowerCase() === incoming.book.toLowerCase())
-    if (!exists) {
-      target.allBooks.push(incoming)
-    }
-    if (isBetterOdds(target.best, incoming.odds)) {
-      target.best = incoming.odds
-      target.bestBook = incoming.book
-    }
-  }
+  // Build per-book-per-line rows to preserve alternates
+  const lineMap = new Map<string, { book: string; line: number; overOdds?: number; underOdds?: number }>()
+  const priority = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365', 'Pinnacle', 'Bovada', 'BetRivers', 'Fanatics', 'Fliff']
 
   for (const bucket of lineBuckets.values()) {
-    if (bucket === primary.bucket) continue
+    const line = bucket.line
     for (const entry of bucket.over.allBooks) {
-      upsert(merged.over, entry)
+      const key = `${entry.book.toLowerCase()}|${line}`
+      if (!lineMap.has(key)) lineMap.set(key, { book: entry.book, line })
+      const row = lineMap.get(key)!
+      row.overOdds = entry.odds
+      if (!Number.isFinite(row.line) || row.line === 0) row.line = entry.line ?? line
     }
     for (const entry of bucket.under.allBooks) {
-      upsert(merged.under, entry)
+      const key = `${entry.book.toLowerCase()}|${line}`
+      if (!lineMap.has(key)) lineMap.set(key, { book: entry.book, line })
+      const row = lineMap.get(key)!
+      row.underOdds = entry.odds
+      if (!Number.isFinite(row.line) || row.line === 0) row.line = entry.line ?? line
     }
   }
+
+  const rows = Array.from(lineMap.values())
+  if (!rows.length) return null
+
+  const merged: PropMarket = {
+    line: rows[0].line,
+    over: { best: Number.NEGATIVE_INFINITY, bestBook: '', allBooks: [] },
+    under: { best: Number.NEGATIVE_INFINITY, bestBook: '', allBooks: [] },
+    lines: [],
+  }
+
+  let bestOver: { book: string; line: number; odds: number } | null = null
+  let bestUnder: { book: string; line: number; odds: number } | null = null
+
+  for (const row of rows) {
+    if (Number.isFinite(row.overOdds)) {
+      merged.over.allBooks.push({ book: row.book, odds: row.overOdds!, line: row.line })
+      if (!bestOver || row.overOdds! > bestOver.odds) {
+        bestOver = { book: row.book, line: row.line, odds: row.overOdds! }
+      }
+    }
+    if (Number.isFinite(row.underOdds)) {
+      merged.under.allBooks.push({ book: row.book, odds: row.underOdds!, line: row.line })
+      if (!bestUnder || row.underOdds! > bestUnder.odds) {
+        bestUnder = { book: row.book, line: row.line, odds: row.underOdds! }
+      }
+    }
+  }
+
+  // Select up to 6 rows, ensuring best over/under are included
+  const selected: typeof rows = []
+  const used = new Set<string>()
+  const pushUnique = (row: typeof rows[number]) => {
+    const key = `${row.book.toLowerCase()}|${row.line}`
+    if (used.has(key)) return
+    selected.push(row)
+    used.add(key)
+  }
+
+  if (bestOver) {
+    const r = rows.find(r => r.book === bestOver!.book && r.line === bestOver!.line)
+    if (r) pushUnique(r)
+  }
+  if (bestUnder) {
+    const r = rows.find(r => r.book === bestUnder!.book && r.line === bestUnder!.line)
+    if (r) pushUnique(r)
+  }
+
+  rows
+    .sort((a, b) => {
+      const aP = priority.indexOf(a.book)
+      const bP = priority.indexOf(b.book)
+      if (aP !== -1 && bP !== -1) return aP - bP
+      if (aP !== -1) return -1
+      if (bP !== -1) return 1
+      if (a.line !== b.line) return (a.line ?? 0) - (b.line ?? 0)
+      return a.book.localeCompare(b.book)
+    })
+    .forEach(r => pushUnique(r))
+
+  merged.lines = selected.slice(0, 6)
+
+  // Set best odds from the best found (allBooks already has ALL bookmakers from lines 559-572)
+  if (bestOver) {
+    merged.over.best = bestOver.odds
+    merged.over.bestBook = bestOver.book
+    merged.line = bestOver.line
+  }
+  if (bestUnder) {
+    merged.under.best = bestUnder.odds
+    merged.under.bestBook = bestUnder.book
+  }
+
+  console.log('[PLAYER-PROPS API] Returning market with', merged.over.allBooks.length, 'over bookmakers,', merged.under.allBooks.length, 'under bookmakers')
 
   return merged
 }
@@ -683,6 +721,7 @@ export async function GET(req: NextRequest) {
             bucket.allBooks.push({
               book: bookmaker.title,
               odds: price,
+              line: normalizedLine,
             })
 
             if (isBetterOdds(bucket.best, price)) {

@@ -316,7 +316,51 @@ export function detectTeamStats(text: string): ParsedTeamStats | null {
  * Detect if text contains formatted player props
  * Pattern: **PlayerName** (Team, Position) followed by markdown table
  */
-export async function detectPlayerProps(text: string): Promise<ParsedPlayerProps | null> {
+export async function detectPlayerProps(text: string, structuredData?: any[]): Promise<ParsedPlayerProps | null> {
+  console.log('[PARSER] detectPlayerProps called')
+  console.log('[PARSER] Text length:', text.length)
+  console.log('[PARSER] Received structured data:', !!structuredData, 'players:', structuredData?.length)
+
+  // If structured data was passed in from parent, check if this block matches a player props pattern
+  if (structuredData && structuredData.length > 0) {
+    // Check if this block looks like a player props table
+    const hasPropsTable = /\|\s*Market\s*\|.*\|\s*Best Over\s*\|/i.test(text)
+    if (hasPropsTable) {
+      console.log('[PARSER] Using global structured data (skipping markdown fallback)')
+      const playerProp = structuredData[0]
+      console.log('[PARSER] Using structured data for:', playerProp.player)
+      console.log('[PARSER] Markets:', Object.keys(playerProp.markets || {}))
+
+      // Fetch headshot if missing
+      let headshot = playerProp.headshot
+      if (!headshot) {
+        try {
+          const playerData = await searchPlayer(
+            playerProp.player,
+            playerProp.sport || 'basketball_nba'
+          )
+          if (playerData?.headshot) headshot = playerData.headshot
+        } catch (error) {
+          console.warn('Failed to fetch headshot:', error)
+        }
+      }
+
+      return {
+        type: 'props',
+        player: playerProp.player,
+        team: playerProp.team,
+        teamAbbr: playerProp.teamAbbr,
+        position: playerProp.position,
+        sport: playerProp.sport || 'basketball_nba',
+        game: playerProp.game,
+        headshot,
+        markets: playerProp.markets,
+        originalText: text,
+      }
+    }
+  }
+
+  // Fallback to markdown parsing
   // Look for player props pattern: **PlayerName** (Team, Position)
   const headerPattern = /\*\*([^*]+)\*\*\s*\(([^,)]+)(?:,\s*([^)]+))?\)/
   const match = text.match(headerPattern)
@@ -700,12 +744,51 @@ async function fetchTeamLogos(
  * Pattern: | Team | Streak | Last 10 | PPG | PAPG | FG% | 3P% | REB | AST | BLK | STL |
  */
 export async function detectTeamInsights(text: string): Promise<ParsedTeamInsights | null> {
-  // Look for team insights table header
-  const headerPattern = /\|\s*Team\s*\|\s*Streak\s*\|\s*Last\s*10\s*\|\s*PPG\s*\|\s*PAPG\s*\|\s*FG%\s*\|\s*3P%\s*\|\s*REB\s*\|\s*AST\s*\|\s*BLK\s*\|\s*STL\s*\|/i
+  // Detect sport from the header label
+  let sport = 'basketball_nba' // default
+  const textLower = text.toLowerCase()
+
+  if (textLower.includes('basketball nba') || textLower.includes('basketball_nba')) {
+    sport = 'basketball_nba'
+  } else if (textLower.includes('basketball ncaab') || textLower.includes('basketball_ncaab')) {
+    sport = 'basketball_ncaab'
+  } else if (textLower.includes('americanfootball nfl') || textLower.includes('americanfootball_nfl')) {
+    sport = 'americanfootball_nfl'
+  } else if (textLower.includes('americanfootball ncaaf') || textLower.includes('americanfootball_ncaaf')) {
+    sport = 'americanfootball_ncaaf'
+  } else if (textLower.includes('icehockey nhl') || textLower.includes('icehockey_nhl')) {
+    sport = 'icehockey_nhl'
+  } else if (textLower.includes('nba')) {
+    sport = 'basketball_nba'
+  } else if (textLower.includes('ncaab')) {
+    sport = 'basketball_ncaab'
+  } else if (textLower.includes('nfl')) {
+    sport = 'americanfootball_nfl'
+  } else if (textLower.includes('ncaaf')) {
+    sport = 'americanfootball_ncaaf'
+  } else if (textLower.includes('nhl')) {
+    sport = 'icehockey_nhl'
+  }
+
+  const isBasketball = sport === 'basketball_nba' || sport === 'basketball_ncaab'
+  const isFootball = sport === 'americanfootball_nfl' || sport === 'americanfootball_ncaaf'
+  const isHockey = sport === 'icehockey_nhl'
+
+  // Look for team insights table header (sport-specific)
+  let headerPattern: RegExp
+  if (isBasketball) {
+    headerPattern = /\|\s*Team\s*\|\s*Streak\s*\|\s*Last\s*10\s*\|\s*PPG\s*\|\s*PAPG\s*\|\s*FG%\s*\|\s*3P%\s*\|\s*REB\s*\|\s*AST\s*\|\s*BLK\s*\|\s*STL\s*\|/i
+  } else if (isFootball) {
+    headerPattern = /\|\s*Team\s*\|\s*Streak\s*\|\s*Last\s*10\s*\|\s*PPG\s*\|\s*PAPG\s*\|\s*Off\s*Yds\s*\|\s*Def\s*Yds\s*\|\s*Pass\s*Yds\s*\|\s*Rush\s*Yds\s*\|\s*TO\s*\|\s*Sacks\s*\|/i
+  } else if (isHockey) {
+    headerPattern = /\|\s*Team\s*\|\s*Streak\s*\|\s*Last\s*10\s*\|\s*GPG\s*\|\s*GAPG\s*\|\s*Shots\s*\|\s*SA\s*\|\s*PP%\s*\|\s*PK%\s*\|\s*FOW%\s*\|\s*Hits\s*\|/i
+  } else {
+    return null
+  }
 
   if (!headerPattern.test(text)) return null
 
-  // Extract table rows (skip header and separator)
+  // Extract table rows (skip header and separator) - all formats have 11 columns
   const rowPattern = /\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|/g
 
   const matches = [...text.matchAll(rowPattern)]
@@ -721,27 +804,102 @@ export async function detectTeamInsights(text: string): Promise<ParsedTeamInsigh
     team: match[1].trim(),
     streak: match[2].trim(),
     last10: match[3].trim(),
-    ppg: match[4].trim(),
-    papg: match[5].trim(),
-    fgPct: match[6].trim(),
-    threePct: match[7].trim(),
-    reb: match[8].trim(),
-    ast: match[9].trim(),
-    blk: match[10].trim(),
-    stl: match[11].trim(),
+    stat1: match[4].trim(),
+    stat2: match[5].trim(),
+    stat3: match[6].trim(),
+    stat4: match[7].trim(),
+    stat5: match[8].trim(),
+    stat6: match[9].trim(),
+    stat7: match[10].trim(),
+    stat8: match[11].trim(),
   })
 
   const team1 = parseTeamRow(dataRows[0])
   const team2 = parseTeamRow(dataRows[1])
 
-  // Detect sport from context
-  let sport = 'basketball_nba' // default (most common for these stats)
-  const textLower = text.toLowerCase()
-  if (textLower.includes('nba')) sport = 'basketball_nba'
-  else if (textLower.includes('ncaab')) sport = 'basketball_ncaab'
-
   // Fetch team logos
   const { awayLogo, homeLogo } = await fetchTeamLogos(sport, team1.team, team2.team)
+
+  // Map stats to appropriate keys based on sport
+  let awayStats: any
+  let homeStats: any
+
+  if (isBasketball) {
+    awayStats = {
+      streak: team1.streak,
+      last10: team1.last10,
+      ppg: team1.stat1,
+      papg: team1.stat2,
+      fgPct: team1.stat3,
+      threePct: team1.stat4,
+      reb: team1.stat5,
+      ast: team1.stat6,
+      blk: team1.stat7,
+      stl: team1.stat8,
+    }
+    homeStats = {
+      streak: team2.streak,
+      last10: team2.last10,
+      ppg: team2.stat1,
+      papg: team2.stat2,
+      fgPct: team2.stat3,
+      threePct: team2.stat4,
+      reb: team2.stat5,
+      ast: team2.stat6,
+      blk: team2.stat7,
+      stl: team2.stat8,
+    }
+  } else if (isFootball) {
+    awayStats = {
+      streak: team1.streak,
+      last10: team1.last10,
+      ppg: team1.stat1,
+      papg: team1.stat2,
+      offYds: team1.stat3,
+      defYds: team1.stat4,
+      passYds: team1.stat5,
+      rushYds: team1.stat6,
+      takeaways: team1.stat7,
+      sacks: team1.stat8,
+    }
+    homeStats = {
+      streak: team2.streak,
+      last10: team2.last10,
+      ppg: team2.stat1,
+      papg: team2.stat2,
+      offYds: team2.stat3,
+      defYds: team2.stat4,
+      passYds: team2.stat5,
+      rushYds: team2.stat6,
+      takeaways: team2.stat7,
+      sacks: team2.stat8,
+    }
+  } else if (isHockey) {
+    awayStats = {
+      streak: team1.streak,
+      last10: team1.last10,
+      gpg: team1.stat1,
+      gapg: team1.stat2,
+      shots: team1.stat3,
+      shotsAllowed: team1.stat4,
+      powerPlayPct: team1.stat5,
+      penaltyKillPct: team1.stat6,
+      faceoffWinPct: team1.stat7,
+      hits: team1.stat8,
+    }
+    homeStats = {
+      streak: team2.streak,
+      last10: team2.last10,
+      gpg: team2.stat1,
+      gapg: team2.stat2,
+      shots: team2.stat3,
+      shotsAllowed: team2.stat4,
+      powerPlayPct: team2.stat5,
+      penaltyKillPct: team2.stat6,
+      faceoffWinPct: team2.stat7,
+      hits: team2.stat8,
+    }
+  }
 
   return {
     type: 'team_insights',
@@ -750,30 +908,8 @@ export async function detectTeamInsights(text: string): Promise<ParsedTeamInsigh
     homeTeam: team2.team,
     awayLogo,
     homeLogo,
-    awayStats: {
-      streak: team1.streak,
-      last10: team1.last10,
-      ppg: team1.ppg,
-      papg: team1.papg,
-      fgPct: team1.fgPct,
-      threePct: team1.threePct,
-      reb: team1.reb,
-      ast: team1.ast,
-      blk: team1.blk,
-      stl: team1.stl,
-    },
-    homeStats: {
-      streak: team2.streak,
-      last10: team2.last10,
-      ppg: team2.ppg,
-      papg: team2.papg,
-      fgPct: team2.fgPct,
-      threePct: team2.threePct,
-      reb: team2.reb,
-      ast: team2.ast,
-      blk: team2.blk,
-      stl: team2.stl,
-    },
+    awayStats,
+    homeStats,
     originalText: text,
   }
 }
@@ -784,6 +920,19 @@ export async function detectTeamInsights(text: string): Promise<ParsedTeamInsigh
  */
 export async function parseStatsFromText(text: string): Promise<ParsedStats[]> {
   const results: ParsedStats[] = []
+
+  // Extract structured props data from FULL text (if present) to avoid duplicates
+  const structuredPropsMatch = text.match(/<!--\s*STRUCTURED_PROPS_DATA:(.*?)\s*-->/)
+  let globalPropsData: any[] | undefined
+  if (structuredPropsMatch && structuredPropsMatch[1]) {
+    try {
+      globalPropsData = JSON.parse(structuredPropsMatch[1])
+      const playerCount = Array.isArray(globalPropsData) ? globalPropsData.length : 0
+      console.log('[parseStatsFromText] Found global structured props data for', playerCount, 'players')
+    } catch (error) {
+      console.warn('[parseStatsFromText] Failed to parse global structured props data:', error)
+    }
+  }
 
   // Split text into potential stat blocks (separated by blank lines)
   const blocks = text.split(/\n\s*\n/)
@@ -804,8 +953,8 @@ export async function parseStatsFromText(text: string): Promise<ParsedStats[]> {
         continue
       }
 
-      // Check for player props
-      const playerProps = await detectPlayerProps(block)
+      // Check for player props - pass global structured data if available
+      const playerProps = await detectPlayerProps(block, globalPropsData)
       if (playerProps) {
         results.push(playerProps)
         continue
@@ -839,6 +988,9 @@ export function removeStatsFromText(text: string, parsedStats: ParsedStats[]): s
     // Remove the original text block
     cleaned = cleaned.replace(stat.originalText, '').trim()
   }
+
+  // Remove the HTML comment containing structured props data
+  cleaned = cleaned.replace(/<!--\s*STRUCTURED_PROPS_DATA:[\s\S]*?-->/g, '').trim()
 
   // Clean up extra newlines
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()

@@ -617,22 +617,37 @@ const SPORT_TO_LEAGUE: Record<string, LeagueId | undefined> = {
   icehockey_nhl: 'nhl',
 }
 
-const buildTeamInsightsFromDetails = (details: LiveScoreGameDetails) => {
+const buildTeamInsightsFromDetails = (details: LiveScoreGameDetails, sportKey?: string) => {
   if (!details?.teams?.length) return null
   const rows: string[] = []
-  const headers = [
-    'Team',
-    'Streak',
-    'Last 10',
-    'PPG',
-    'PAPG',
-    'FG%',
-    '3P%',
-    'REB',
-    'AST',
-    'BLK',
-    'STL',
-  ]
+
+  // Determine sport from sportKey or league
+  let sport = sportKey || 'basketball_nba'
+  if (!sportKey && details.league) {
+    const leagueToSport: Record<string, string> = {
+      'nba': 'basketball_nba',
+      'ncaab': 'basketball_ncaab',
+      'nfl': 'americanfootball_nfl',
+      'cfb': 'americanfootball_ncaaf',
+      'nhl': 'icehockey_nhl',
+    }
+    sport = leagueToSport[details.league] || 'basketball_nba'
+  }
+
+  const isBasketball = sport === 'basketball_nba' || sport === 'basketball_ncaab'
+  const isFootball = sport === 'americanfootball_nfl' || sport === 'americanfootball_ncaaf'
+  const isHockey = sport === 'icehockey_nhl'
+
+  let headers: string[]
+  if (isBasketball) {
+    headers = ['Team', 'Streak', 'Last 10', 'PPG', 'PAPG', 'FG%', '3P%', 'REB', 'AST', 'BLK', 'STL']
+  } else if (isFootball) {
+    headers = ['Team', 'Streak', 'Last 10', 'PPG', 'PAPG', 'Off Yds', 'Def Yds', 'Pass Yds', 'Rush Yds', 'TO', 'Sacks']
+  } else if (isHockey) {
+    headers = ['Team', 'Streak', 'Last 10', 'GPG', 'GAPG', 'Shots', 'SA', 'PP%', 'PK%', 'FOW%', 'Hits']
+  } else {
+    headers = ['Team', 'Streak', 'Last 10', 'PPG', 'PAPG', 'FG%', '3P%', 'REB', 'AST', 'BLK', 'STL']
+  }
   const pickVariant = (statMap: Record<string, string>, keys: string[]) => {
     for (const key of keys) {
       const direct = statMap[key.toLowerCase()]
@@ -655,11 +670,21 @@ const buildTeamInsightsFromDetails = (details: LiveScoreGameDetails) => {
     })
     const pick = (key: string) => statMap[key.toLowerCase()] || 'n/a'
     const last10 = pickVariant(statMap, ['last 10 games', 'last 10', 'last ten', 'lastten', 'last10'])
-    rows.push(
-      `| ${team.name} | ${pick('streak')} | ${last10} | ${pick('points per game')} | ${pick('points against')} | ${pick('field goal %')} | ${pick('three point %')} | ${pick('rebounds per game')} | ${pick('assists per game')} | ${pick('blocks per game')} | ${pick('steals per game')} |`
-    )
+
+    let row: string
+    if (isBasketball) {
+      row = `| ${team.name} | ${pick('streak')} | ${last10} | ${pick('points per game')} | ${pick('points against')} | ${pick('field goal %')} | ${pick('three point %')} | ${pick('rebounds per game')} | ${pick('assists per game')} | ${pick('blocks per game')} | ${pick('steals per game')} |`
+    } else if (isFootball) {
+      row = `| ${team.name} | ${pick('streak')} | ${last10} | ${pick('points per game')} | ${pick('points against')} | ${pickVariant(statMap, ['offensive yards', 'total yards', 'yards'])} | ${pickVariant(statMap, ['defensive yards', 'yards allowed'])} | ${pickVariant(statMap, ['passing yards', 'pass yards'])} | ${pickVariant(statMap, ['rushing yards', 'rush yards'])} | ${pickVariant(statMap, ['takeaways', 'turnovers forced'])} | ${pick('sacks')} |`
+    } else if (isHockey) {
+      row = `| ${team.name} | ${pick('streak')} | ${last10} | ${pickVariant(statMap, ['goals per game', 'goals'])} | ${pickVariant(statMap, ['goals against', 'goals allowed'])} | ${pickVariant(statMap, ['shots per game', 'shots'])} | ${pickVariant(statMap, ['shots against', 'shots allowed'])} | ${pickVariant(statMap, ['power play %', 'pp%'])} | ${pickVariant(statMap, ['penalty kill %', 'pk%'])} | ${pickVariant(statMap, ['faceoff win %', 'fow%'])} | ${pick('hits')} |`
+    } else {
+      row = `| ${team.name} | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |`
+    }
+    rows.push(row)
   })
-  const header = `| ${headers.join(' | ')} |\n| ${headers.map(() => '---').join(' | ')} |`
+  const sportLabel = sport.toUpperCase().replace(/_/g, ' ')
+  const header = `**${sportLabel} Team Insights**\n\n| ${headers.join(' | ')} |\n| ${headers.map(() => '---').join(' | ')} |`
   return `${header}\n${rows.join('\n')}`
 }
 
@@ -676,52 +701,109 @@ const buildTeamInsightsFromTeamStats = async (
         const key = norm(t.team)
         return key.includes(norm(name)) || norm(name).includes(key)
       })
-    const formatRow = (teamName: string, row?: ProviderTeamStats) => {
-      if (!row) {
+
+    // Sport-specific headers and formatters
+    const isBasketball = sportKey === 'basketball_nba' || sportKey === 'basketball_ncaab'
+    const isFootball = sportKey === 'americanfootball_nfl' || sportKey === 'americanfootball_ncaaf'
+    const isHockey = sportKey === 'icehockey_nhl'
+
+    let headers: string[]
+    let formatRow: (teamName: string, row?: ProviderTeamStats) => string
+
+    if (isBasketball) {
+      headers = ['Team', 'Streak', 'Last 10', 'PPG', 'PAPG', 'FG%', '3P%', 'REB', 'AST', 'BLK', 'STL']
+      formatRow = (teamName: string, row?: ProviderTeamStats) => {
+        if (!row) {
+          return `| ${teamName} | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |`
+        }
+        const gamesRaw = row.stats?.gamesPlayed ?? row.stats?.games
+        const games = Number(gamesRaw != null ? gamesRaw : (row.wins ?? 0) + (row.losses ?? 0))
+        const pointsForRaw = row.stats?.pointsFor ?? row.stats?.points_scored ?? row.stats?.pointsForPerGame
+        const pointsAgainstRaw = row.stats?.pointsAgainst ?? (row.stats as any)?.points_allowed ?? row.stats?.pointsAgainstPerGame
+        const pointsFor = Number(pointsForRaw ?? 0)
+        const pointsAgainst = Number(pointsAgainstRaw ?? 0)
+        const ppg = games > 0 && pointsFor > 0 ? (pointsFor / games).toFixed(1) : (pointsFor || 'n/a')
+        const papg = games > 0 && pointsAgainst > 0 ? (pointsAgainst / games).toFixed(1) : (pointsAgainst || 'n/a')
+        const fg = row.stats?.fieldGoalPct ?? row.stats?.fgPct
+        const fgPct = fg != null ? Number(fg).toFixed(1) : 'n/a'
+        const three = row.stats?.threePointPct ?? row.stats?.threePct
+        const threePct = three != null ? Number(three).toFixed(1) : 'n/a'
+        const reb = row.stats?.reboundsPerGame ?? row.stats?.rpg
+        const rebVal = reb != null ? Number(reb).toFixed(1) : 'n/a'
+        const ast = row.stats?.assistsPerGame ?? row.stats?.apg
+        const astVal = ast != null ? Number(ast).toFixed(1) : 'n/a'
+        const blk = row.stats?.blocksPerGame ?? row.stats?.bpg
+        const blkVal = blk != null ? Number(blk).toFixed(1) : 'n/a'
+        const stl = row.stats?.stealsPerGame ?? row.stats?.spg
+        const stlVal = stl != null ? Number(stl).toFixed(1) : 'n/a'
+        const last10 = row.stats?.lastTen ?? row.stats?.last10 ?? 'n/a'
+
+        return `| ${teamName} | ${row.stats?.streak ?? 'n/a'} | ${last10} | ${ppg} | ${papg} | ${fgPct} | ${threePct} | ${rebVal} | ${astVal} | ${blkVal} | ${stlVal} |`
+      }
+    } else if (isFootball) {
+      headers = ['Team', 'Streak', 'Last 10', 'PPG', 'PAPG', 'Off Yds', 'Def Yds', 'Pass Yds', 'Rush Yds', 'TO', 'Sacks']
+      formatRow = (teamName: string, row?: ProviderTeamStats) => {
+        if (!row) {
+          return `| ${teamName} | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |`
+        }
+        const gamesRaw = row.stats?.gamesPlayed ?? row.stats?.games
+        const games = Number(gamesRaw != null ? gamesRaw : (row.wins ?? 0) + (row.losses ?? 0))
+        const pointsForRaw = row.stats?.pointsFor ?? row.stats?.points_scored ?? row.stats?.pointsForPerGame
+        const pointsAgainstRaw = row.stats?.pointsAgainst ?? (row.stats as any)?.points_allowed ?? row.stats?.pointsAgainstPerGame
+        const pointsFor = Number(pointsForRaw ?? 0)
+        const pointsAgainst = Number(pointsAgainstRaw ?? 0)
+        const ppg = games > 0 && pointsFor > 0 ? (pointsFor / games).toFixed(1) : (pointsFor || 'n/a')
+        const papg = games > 0 && pointsAgainst > 0 ? (pointsAgainst / games).toFixed(1) : (pointsAgainst || 'n/a')
+
+        const offYds = row.stats?.offensiveYardsPerGame ?? row.stats?.totalYardsPerGame ?? 'n/a'
+        const defYds = row.stats?.defensiveYardsPerGame ?? row.stats?.yardsAllowedPerGame ?? 'n/a'
+        const passYds = row.stats?.passingYardsPerGame ?? row.stats?.passYds ?? 'n/a'
+        const rushYds = row.stats?.rushingYardsPerGame ?? row.stats?.rushYds ?? 'n/a'
+        const takeaways = row.stats?.takeaways ?? row.stats?.turnoversForced ?? 'n/a'
+        const sacks = row.stats?.sacks ?? row.stats?.sacksPerGame ?? 'n/a'
+        const last10 = row.stats?.lastTen ?? row.stats?.last10 ?? 'n/a'
+
+        return `| ${teamName} | ${row.stats?.streak ?? 'n/a'} | ${last10} | ${ppg} | ${papg} | ${offYds} | ${defYds} | ${passYds} | ${rushYds} | ${takeaways} | ${sacks} |`
+      }
+    } else if (isHockey) {
+      headers = ['Team', 'Streak', 'Last 10', 'GPG', 'GAPG', 'Shots', 'SA', 'PP%', 'PK%', 'FOW%', 'Hits']
+      formatRow = (teamName: string, row?: ProviderTeamStats) => {
+        if (!row) {
+          return `| ${teamName} | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |`
+        }
+        const gamesRaw = row.stats?.gamesPlayed ?? row.stats?.games
+        const games = Number(gamesRaw != null ? gamesRaw : (row.wins ?? 0) + (row.losses ?? 0))
+        const goalsForRaw = row.stats?.goalsFor ?? row.stats?.goalsForPerGame
+        const goalsAgainstRaw = row.stats?.goalsAgainst ?? row.stats?.goalsAgainstPerGame
+        const goalsFor = Number(goalsForRaw ?? 0)
+        const goalsAgainst = Number(goalsAgainstRaw ?? 0)
+        const gpg = games > 0 && goalsFor > 0 ? (goalsFor / games).toFixed(1) : (goalsFor || 'n/a')
+        const gapg = games > 0 && goalsAgainst > 0 ? (goalsAgainst / games).toFixed(1) : (goalsAgainst || 'n/a')
+
+        const shots = row.stats?.shotsPerGame ?? row.stats?.shots ?? 'n/a'
+        const shotsAgainst = row.stats?.shotsAgainstPerGame ?? row.stats?.shotsAgainst ?? 'n/a'
+        const powerPlayPct = row.stats?.powerPlayPct ?? row.stats?.ppPct ?? 'n/a'
+        const penaltyKillPct = row.stats?.penaltyKillPct ?? row.stats?.pkPct ?? 'n/a'
+        const faceoffWinPct = row.stats?.faceoffWinPct ?? row.stats?.fowPct ?? 'n/a'
+        const hits = row.stats?.hitsPerGame ?? row.stats?.hits ?? 'n/a'
+        const last10 = row.stats?.lastTen ?? row.stats?.last10 ?? 'n/a'
+
+        return `| ${teamName} | ${row.stats?.streak ?? 'n/a'} | ${last10} | ${gpg} | ${gapg} | ${shots} | ${shotsAgainst} | ${powerPlayPct} | ${penaltyKillPct} | ${faceoffWinPct} | ${hits} |`
+      }
+    } else {
+      // Fallback to basketball
+      headers = ['Team', 'Streak', 'Last 10', 'PPG', 'PAPG', 'FG%', '3P%', 'REB', 'AST', 'BLK', 'STL']
+      formatRow = (teamName: string, row?: ProviderTeamStats) => {
         return `| ${teamName} | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |`
       }
-      const gamesRaw = row.stats?.gamesPlayed ?? row.stats?.games
-      const games = Number(gamesRaw != null ? gamesRaw : (row.wins ?? 0) + (row.losses ?? 0))
-      const pointsForRaw = row.stats?.pointsFor ?? row.stats?.points_scored ?? row.stats?.pointsForPerGame
-      const pointsAgainstRaw = row.stats?.pointsAgainst ?? (row.stats as any)?.points_allowed ?? row.stats?.pointsAgainstPerGame
-      const pointsFor = Number(pointsForRaw ?? 0)
-      const pointsAgainst = Number(pointsAgainstRaw ?? 0)
-      const ppg = games > 0 && pointsFor > 0 ? (pointsFor / games).toFixed(1) : (pointsFor || 'n/a')
-      const papg = games > 0 && pointsAgainst > 0 ? (pointsAgainst / games).toFixed(1) : (pointsAgainst || 'n/a')
-      const fg = row.stats?.fieldGoalPct ?? row.stats?.fgPct
-      const fgPct = fg != null ? Number(fg).toFixed(1) : 'n/a'
-      const three = row.stats?.threePointPct ?? row.stats?.threePct
-      const threePct = three != null ? Number(three).toFixed(1) : 'n/a'
-      const reb = row.stats?.reboundsPerGame ?? row.stats?.rpg
-      const rebVal = reb != null ? Number(reb).toFixed(1) : 'n/a'
-      const ast = row.stats?.assistsPerGame ?? row.stats?.apg
-      const astVal = ast != null ? Number(ast).toFixed(1) : 'n/a'
-      const blk = row.stats?.blocksPerGame ?? row.stats?.bpg
-      const blkVal = blk != null ? Number(blk).toFixed(1) : 'n/a'
-      const stl = row.stats?.stealsPerGame ?? row.stats?.spg
-      const stlVal = stl != null ? Number(stl).toFixed(1) : 'n/a'
-
-      const last10 = row.stats?.lastTen ?? row.stats?.last10 ?? 'n/a'
-
-      return `| ${teamName} | ${row.stats?.streak ?? 'n/a'} | ${last10} | ${ppg} | ${papg} | ${fgPct} | ${threePct} | ${rebVal} | ${astVal} | ${blkVal} | ${stlVal} |`
     }
 
     const homeRow = formatRow(homeTeam, findTeam(homeTeam))
     const awayRow = formatRow(awayTeam, findTeam(awayTeam))
-    const headers = [
-      'Team',
-      'Streak',
-      'Last 10',
-      'PPG',
-      'PAPG',
-      'FG%',
-      '3P%',
-      'REB',
-      'AST',
-      'BLK',
-      'STL',
-    ]
-    const header = `| ${headers.join(' | ')} |\n| ${headers.map(() => '---').join(' | ')} |`
+
+    // Include sport key in the output so parser can detect it
+    const sportLabel = sportKey.toUpperCase().replace(/_/g, ' ')
+    const header = `**${sportLabel} Team Insights**\n\n| ${headers.join(' | ')} |\n| ${headers.map(() => '---').join(' | ')} |`
     return [header, homeRow, awayRow].join('\n')
   } catch (error) {
     console.warn('[ODDS] provider team stats lookup failed', error)
@@ -764,7 +846,7 @@ const findLiveScoreDetailsForOddsGame = async (
       }
       if (matched) {
         const details = await fetchGameDetails(league, matched.eventId)
-        const insight = buildTeamInsightsFromDetails(details)
+        const insight = buildTeamInsightsFromDetails(details, sportKey)
         if (insight) return insight
       }
     }
@@ -3279,6 +3361,7 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
         }
       } else if (functionName === 'get_player_props') {
         // Fetch player props from our API endpoint
+        console.log('[TOOL] get_player_props tool called')
         try {
           if (!functionArgs.player && !functionArgs.team) {
             functionResult = {
@@ -3313,6 +3396,7 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
               }
             } else {
               // Format props data for AI
+              console.log('[CHAT API] propsData:', !!propsData.data, 'length:', propsData.data?.length)
               let formatted = ''
               if (propsData.data && propsData.data.length > 0) {
                 for (const playerProp of propsData.data) {
@@ -3350,11 +3434,20 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
                 formatted = 'No player props available for the specified criteria.'
               }
 
+              // Embed structured data as hidden JSON block for parser
+              if (propsData.data && propsData.data.length > 0) {
+                console.log('[CHAT API] Adding structured data for', propsData.data.length, 'props')
+                console.log('[CHAT API] First prop markets:', Object.keys(propsData.data[0]?.markets || {}))
+                formatted += `\n\n<!-- STRUCTURED_PROPS_DATA:${JSON.stringify(propsData.data)} -->`
+                console.log('[CHAT API] Formatted length after adding comment:', formatted.length)
+              }
+
               functionResult = {
                 success: true,
                 data: propsData.data,
                 count: propsData.count,
-                formatted
+                formatted,
+                structuredData: propsData.data
               }
             }
           }
@@ -3900,6 +3993,7 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
 
     // If user clearly wants player props, short-circuit to props endpoint
     if (propIntent) {
+      console.log('[PLAYER_PROPS_SHORTCUT] Using shortcut path for player props')
       try {
         const inferredSport =
           msgLower.match(/nfl|football/) ? 'nfl' :
@@ -3952,10 +4046,19 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
             }
             formatted += `\n`
           }
+
+          // Embed structured data as hidden JSON block for parser
+          if (propsData.data && propsData.data.length > 0) {
+            console.log('[PLAYER_PROPS_SHORTCUT] Adding structured data for', propsData.data.length, 'props')
+            console.log('[PLAYER_PROPS_SHORTCUT] First prop markets:', Object.keys(propsData.data[0]?.markets || {}))
+            formatted += `\n\n<!-- STRUCTURED_PROPS_DATA:${JSON.stringify(propsData.data)} -->`
+            console.log('[PLAYER_PROPS_SHORTCUT] Formatted length after adding comment:', formatted.length)
+          }
         } else if (!propsRes.ok) {
           formatted = propsData?.error || 'Failed to fetch player props.'
         }
 
+        console.log('[PLAYER_PROPS_SHORTCUT] Returning response, should exit here')
         return streamTextResponse(formatted)
       } catch (err: any) {
         console.error('[PLAYER_PROPS_SHORTCUT] Failed:', err)
@@ -3963,6 +4066,7 @@ ${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data a
       }
     }
 
+    console.log('[CHAT] After propIntent check, continuing to tool calls')
     let handledToolCalls = false
     let lastText = initialResponse.choices[0].message.content || ''
 

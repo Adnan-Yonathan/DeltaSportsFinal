@@ -20,18 +20,32 @@ export default function AnimatedMessage({ content, isAnimating = true }: Animate
   const [parsedStats, setParsedStats] = useState<ParsedStats[]>([])
   const [cleanedContent, setCleanedContent] = useState(content)
 
-  // Parse stats from the content (async)
+  // Parse stats from the content (async) - debounced to wait for streaming to complete
   useEffect(() => {
-    const loadStats = async () => {
+    // For player props, wait until structured data is present (streaming complete)
+    const hasPropsData = content.includes('STRUCTURED_PROPS_DATA:')
+    const hasPropsTable = /\|\s*Market\s*\|.*\|\s*Best Over\s*\|/i.test(content)
+
+    // If props table exists but no structured data yet, skip parsing (wait for complete stream)
+    if (hasPropsTable && !hasPropsData) {
+      console.log('[AnimatedMessage] Props detected but structured data not yet received, waiting...')
+      return
+    }
+
+    // Debounce: wait for content to stop changing before parsing
+    const timeoutId = setTimeout(async () => {
+      console.log('[AnimatedMessage] Parsing content, length:', content.length)
       const stats = await parseStatsFromText(content)
+      console.log('[AnimatedMessage] Parsed', stats.length, 'stat blocks')
       setParsedStats(stats)
       if (stats.length > 0) {
         setCleanedContent(removeStatsFromText(content, stats))
       } else {
         setCleanedContent(content)
       }
-    }
-    loadStats()
+    }, 300) // Wait 300ms after content stops changing
+
+    return () => clearTimeout(timeoutId)
   }, [content])
 
   // Use word-by-word animation for smoother reading experience

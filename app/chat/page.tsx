@@ -24,6 +24,7 @@ export default function ChatPage() {
   const supabase = createClient()
   const profileMenuRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const hasWarmedUp = useRef(false)
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
@@ -67,6 +68,20 @@ export default function ChatPage() {
     }
 
     checkUser()
+  }, [])
+
+  // Warm up odds endpoints once on load to avoid first-request cold start
+  useEffect(() => {
+    if (hasWarmedUp.current) return
+    hasWarmedUp.current = true
+    const warm = async () => {
+      try {
+        await fetch('/api/warmup', { cache: 'no-store' })
+      } catch (err) {
+        console.warn('Warmup call failed (non-blocking):', err)
+      }
+    }
+    warm()
   }, [])
 
   const createInitialConversation = async (userId: string) => {

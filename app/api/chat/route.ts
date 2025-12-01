@@ -3,7 +3,6 @@ import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/reso
 import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
 import type { OddsGame } from '@/lib/types/odds'
-import { enrichGamesWithStats, formatEnrichedGamesForAI } from '@/lib/stats-enrichment'
 import {
   getTeamStats,
   getInjuryReports,
@@ -934,7 +933,7 @@ const normalizeUserDataOverrides = (raw: any): UserDataOverride[] | undefined =>
   return cleaned.length ? cleaned : undefined
 }
 
-const getSystemPrompt = (timezone: string) => `You are DELTA, a professional sports betting assistant. Your role is to help users analyze betting opportunities, manage their bankroll, and understand sports betting markets.
+const getSystemPrompt = (timezone: string) => `You are DELTA, a professional sports betting assistant. Your role is to help users surface odds and factual stats, manage their bankroll, and understand sports betting markets. Do not provide matchup analysis or long-form breakdowns; keep replies data-forward and concise.
 
 **Data sources and limits (ESPN + odds-api):**
 - Betting lines: use odds-api (moneyline/spread/totals); do NOT claim odds come from ESPN.
@@ -1019,14 +1018,12 @@ When users ask "what games are today/tonight/tomorrow":
 
 **Response Guidelines:**
 - For odds queries: When live odds data is provided, ALWAYS create a comparison table showing all sportsbooks with their odds. Include moneylines, spreads, and totals (over/under) when available. Highlight the best value for each bet type.
-- For analysis queries: Explain line movement, CLV, public vs sharp indicators
 - For bankroll queries: Confirm actions and provide relevant insights
 - Always acknowledge uncertainty in sports outcomes
 - Use Markdown formatting for structure (tables, lists, bold)
 
 **Example intents and how to handle:**
 - "Who has the best line / biggest discrepancy / softest moneyline / slowest to move?": Compare odds across books, call odds tools if needed, surface best prices and note deltas.
-- "Break down Cavs vs Heat / implied point differential / pace fit / injuries": Use game context + injuries + net/pace stats; explain what moves the spread/total.
 - "Live entry point / live total sharp or soft": Compare live to pregame, pace, scoring rate; give EV view or caution if data missing.
 - "Undervalued or split player props / usage spikes": Call get_player_props (with team/player filters when mentioned); show markets/lines with best over/under by book and note disagreements.
 - "Bankroll leaks / ROI by sport/book/bet type / CLV patterns / exposure": Use bankroll stats tools; summarize ROI, CLV, and exposure, and flag leaks.
@@ -1772,8 +1769,8 @@ export async function POST(req: NextRequest) {
     const scheduleIntent = /(games?|schedule|who plays|playing|matchups?|match|game time|tipoff|puck drop|first pitch|score|scores?|final|quarter|period|inning|today|tonight|tomorrow)\b/i.test(msgLower)
     const wantsLiveOdds = /(live|in-play|inplay|scores?|score|current|now|ongoing)/i.test(msgLower)
 
-    // Detect if user wants deep analysis with injuries/stats (only enrich for these requests)
-    const wantsDeepDive = /(injur(y|ies)|stats?|statistical|analysis|analyze|breakdown|deep dive|more (info|detail)|tell me more|recent form|team performance|head to head|h2h|matchup analysis)/i.test(msgLower)
+    // Analysis mode disabled: skip deep-dive enrichment
+    const wantsDeepDive = false
 
     const teamVariations: { [key: string]: string[] } = {
       // NBA Teams (base name as key)
@@ -2803,45 +2800,8 @@ export async function POST(req: NextRequest) {
               }
             }
 
-            // Only enrich with stats if user explicitly asks for deep analysis/injuries/stats
-            // This avoids the 8.4MB NFL injuries cache issue on simple odds requests
-            let statsEnrichment = ''
-            if (wantsDeepDive) {
-              console.log('[ODDS] Deep dive requested, enriching with stats and injuries...')
-              try {
-                const enrichedOddsData = await Promise.all(
-                  allOddsData.map(async (sportData) => {
-                    try {
-                      const enrichedGames = await enrichGamesWithStats(sportData.games, sportData.sport)
-                      return {
-                        sport: sportData.sport,
-                        games: sportData.games,
-                        enrichedGames
-                      }
-                    } catch (error) {
-                      console.error(`[ODDS] Error enriching ${sportData.sport}:`, error)
-                      return { ...sportData, enrichedGames: [] }
-                    }
-                  })
-                )
-
-                // Generate enriched stats summary for AI
-                statsEnrichment = '\n\n**?? ENRICHED STATISTICS & INJURY DATA:**\n'
-                for (const sportData of enrichedOddsData) {
-                  if (sportData.enrichedGames && sportData.enrichedGames.length > 0) {
-                    statsEnrichment += `\n**${formatLeagueLabel(sportData.sport)}:**\n`
-                    statsEnrichment += formatEnrichedGamesForAI(sportData.enrichedGames)
-                    statsEnrichment += '\n'
-                  }
-                }
-              } catch (enrichError) {
-                console.error('[ODDS] Stats enrichment failed, continuing with odds only:', enrichError)
-                statsEnrichment = '\n(Stats enrichment unavailable)\n'
-              }
-            } else {
-              console.log('[ODDS] Simple odds request - skipping stats enrichment for performance')
-              statsEnrichment = ''
-            }
+            // Analysis/deep-dive enrichment disabled
+            const statsEnrichment = ''
 
             const timeLabel = isTomorrowQuery ? 'tomorrow' : 'today/upcoming'
             const dateContext = isTomorrowQuery ? 'TOMORROW' : 'TODAY'
@@ -2894,8 +2854,7 @@ ${bestValuesSection}
 ${teamInsights}
 
 ${statsEnrichment}
-
-${wantsDeepDive ? '\n**FOLLOW-UP INSTRUCTION:** You have injury and stats data above. Use it in your analysis.\n' : ''}`
+`
 
             console.log(`[ODDS] Context built successfully, length: ${oddsContext.length} characters`)
             const deterministicOdds = buildDeterministicOddsReply()

@@ -6,9 +6,9 @@ import { useRouter } from 'next/navigation'
 import ModernSidebar from '@/components/ModernSidebar'
 import ModernMessageList from '@/components/ModernMessageList'
 import ModernMessageInput from '@/components/ModernMessageInput'
-import BentoGridBankroll from '@/components/BentoGridBankroll'
+import { LiveScoresPreview } from '@/components/LiveScoresPreview'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, DollarSign, Sparkles, Home, Image as ImageIcon, Radio } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Home, Image as ImageIcon, Radio, Activity } from 'lucide-react'
 
 export default function ChatPage() {
   const [user, setUser] = useState<any>(null)
@@ -17,7 +17,7 @@ export default function ChatPage() {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [hasMessages, setHasMessages] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [bankrollOpen, setBankrollOpen] = useState(false)
+  const [liveScoresOpen, setLiveScoresOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [mode, setMode] = useState<'regular' | 'live' | 'research'>('regular')
   const router = useRouter()
@@ -347,13 +347,13 @@ export default function ChatPage() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
-              {/* Bankroll Button (Mobile) */}
+              {/* Live Scores Button (Mobile) */}
               <button
-                onClick={() => setBankrollOpen(true)}
+                onClick={() => setLiveScoresOpen(true)}
                 className="lg:hidden p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-all border border-white/10"
-                aria-label="Open bankroll"
+                aria-label="Open live scores preview"
               >
-                <DollarSign className="w-4 h-4" />
+                <Activity className="w-4 h-4" />
               </button>
 
               <button
@@ -467,20 +467,20 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Desktop Bankroll Panel */}
+        {/* Desktop Live Scores Preview */}
         <div className="hidden lg:block lg:w-1/4">
-          {user && <BentoGridBankroll userId={user.id} />}
+          <LiveScoresPreview />
         </div>
 
-        {/* Mobile Bankroll Modal */}
+        {/* Mobile Live Scores Modal */}
         <AnimatePresence>
-          {bankrollOpen && (
+          {liveScoresOpen && (
             <>
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                onClick={() => setBankrollOpen(false)}
+                onClick={() => setLiveScoresOpen(false)}
                 className="fixed inset-0 bg-black/80 z-40 lg:hidden"
               />
               <motion.div
@@ -492,16 +492,18 @@ export default function ChatPage() {
               >
                 <div className="bg-black border-t border-white/10 rounded-t-2xl">
                   <div className="flex items-center justify-between p-4 border-b border-white/10">
-                    <h3 className="text-lg font-bold text-white">Bankroll</h3>
+                    <h3 className="text-lg font-bold text-white">Live Scores</h3>
                     <button
-                      onClick={() => setBankrollOpen(false)}
+                      onClick={() => setLiveScoresOpen(false)}
                       className="p-2 rounded-lg hover:bg-white/5 text-white/60 hover:text-white transition-colors"
                     >
                       <X className="w-5 h-5" />
                     </button>
                   </div>
                   <div className="overflow-y-auto max-h-[calc(80vh-60px)]">
-                    {user && <BentoGridBankroll userId={user.id} />}
+                    <div className="p-3">
+                      <LiveScoresPreview />
+                    </div>
                   </div>
                 </div>
               </motion.div>

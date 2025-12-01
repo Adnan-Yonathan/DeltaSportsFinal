@@ -2,9 +2,17 @@ export default function DocsOverviewPage() {
   return (
     <div className="space-y-4">
       <header className="space-y-2">
+        <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">
           Overview
         </p>
+          <a
+            href="/"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:text-white hover:border-white/40 transition-colors"
+          >
+            ← Back to Home
+          </a>
+        </div>
         <h2 className="text-2xl font-semibold">What Delta AI Does</h2>
         <p className="text-sm text-white/60">
           Delta AI is a sports betting assistant that turns live odds, ESPN stats, and your own
@@ -33,4 +41,3 @@ export default function DocsOverviewPage() {
     </div>
   )
 }
-

@@ -84,9 +84,9 @@ const ArticleList = ({ games }: { games: LiveScoreGame[] }) => {
     const collected: Array<{ title?: string; url?: string; published?: string; league?: string }> = []
     games.forEach((game) => {
       (game.articles || []).forEach((article) => {
-        if (!article?.url || !article?.headline) return
+        if (!article?.url || !article?.title) return
         collected.push({
-          title: article.headline,
+          title: article.title,
           url: article.url,
           published: article.published,
           league: game.leagueLabel || game.league,

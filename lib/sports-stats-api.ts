@@ -1,6 +1,14 @@
-import Papa from 'papaparse'
-import { buildRecentPerformances } from '@/lib/utils/recent-performances'
 import { RecentPerformance } from '@/lib/utils/recent-performances'
+import {
+  fetchAthleteStatistics,
+  fetchInjuries as fetchEspnNFLInjuries,
+  fetchRoster as fetchEspnNFLRoster,
+  fetchTeamList,
+  fetchTeamStatistics,
+  statHelpers,
+  type EspnStatCategory,
+  type EspnTeamMeta,
+} from '@/lib/providers/espn-nfl'
 
 // Comprehensive Sports Statistics API Integration
 // Supports NBA, NFL, MLB, NHL - Player stats, team stats, advanced analytics, injuries
@@ -13,7 +21,7 @@ export interface PlayerStats {
   season?: string
   headshot?: string
   sport?: string
-  recent?: ReturnType<typeof buildRecentPerformances>
+  recent?: RecentPerformance[]
 }
 
 export interface RosterPlayer {
@@ -57,10 +65,8 @@ export interface AdvancedTeamStats {
   successRate?: number
   passRate?: number
   rushRate?: number
+  yardsPerPlay?: number
 }
-
-const NFL_PLAYER_STATS_BASE =
-  'https://github.com/nflverse/nflverse-data/releases/download/player_stats'
 
 const SPORT_ALIASES: Record<string, string> = {
   nba: 'basketball_nba',
@@ -192,8 +198,10 @@ const getCurrentNFLSeasonYear = () => {
 
 const PLAYER_STATS_CACHE_TTL = 1000 * 60 * 15 // 15 minutes
 const playerStatsCache = new Map<string, { data: PlayerStats | null; ts: number }>()
-const nflSeasonRowsCache = new Map<number, { ts: number; rows: Record<string, any>[] }>()
-const nflEpaRankCache = new Map<number, Map<string, { rank: number; total: number; epaPerPlay: number }>>()
+const TEAM_STATS_CACHE_TTL = 1000 * 60 * 10 // 10 minutes
+let nflTeamStatsCache: { ts: number; data: Array<{ meta: EspnTeamMeta; categories: EspnStatCategory[] }> } | null = null
+let nflRosterCache: { ts: number; roster: RosterPlayer[] } | null = null
+const NFL_ROSTER_CACHE_TTL = 1000 * 60 * 60 // 1 hour
 
 const extractEspnId = (content: any): string | null => {
   const web = content?.link?.web
@@ -596,183 +604,48 @@ export async function getNFLPlayerSeasonStats(playerName: string): Promise<Playe
     return null
   }
   const seasonYear = getCurrentNFLSeasonYear()
-  const [baseStats, csvData] = await Promise.all([
-    fetchNFLPlayerBaseStats(rosterEntry.id, seasonYear),
-    loadNFLPlayerSeasonRows(rosterEntry.fullName, seasonYear),
+  const [statsResp, recent] = await Promise.all([
+    fetchAthleteStatistics(rosterEntry.id, seasonYear),
+    fetchEspnRecentGames(rosterEntry.id, ESPN_SPORT_PATH.americanfootball_nfl, {
+      season: seasonYear,
+      seasonType: 2,
+      maxGames: 5,
+    }),
   ])
 
-  if (!baseStats && !csvData) {
-    return null
-  }
-
+  const categories = statsResp?.splits?.categories ?? []
+  const pick = (keys: string[]) => statHelpers.pickStat(categories, keys)
   const stats: Record<string, number | string> = {}
-  if (baseStats) {
-    stats.PASSING_YARDS = baseStats.passingYards ?? 0
-    stats.PASSING_TDS = baseStats.passingTouchdowns ?? 0
-    stats.INTERCEPTIONS = baseStats.passingInterceptions ?? 0
-    stats.COMPLETIONS = baseStats.completions ?? 0
-    stats.ATTEMPTS = baseStats.passingAttempts ?? 0
-    stats.RUSHING_YARDS = baseStats.rushingYards ?? 0
-    stats.RUSHING_TDS = baseStats.rushingTouchdowns ?? 0
-    stats.RUSHING_ATTEMPTS = baseStats.rushingAttempts ?? 0
-    if ((baseStats.receptions ?? 0) > 0) {
-      stats.RECEPTIONS = baseStats.receptions ?? 0
-      stats.RECEIVING_YARDS = baseStats.receivingYards ?? 0
-      stats.RECEIVING_TDS = baseStats.receivingTouchdowns ?? 0
-      stats.TARGETS = baseStats.targets ?? 0
-    }
+  const set = (key: string, value: number | null) => {
+    if (value != null) stats[key] = value
   }
 
-    // EPA per play removed for NFL player stats (do not surface EPA metrics)
-    delete (stats as any).EPA_PER_PLAY
-    delete (stats as any).EPA_TOTAL
-    delete (stats as any).EPA_PER_PLAY_RANK
+  set('PASSING_YARDS', pick(['passingYards', 'netPassingYards']))
+  set('PASSING_TDS', pick(['passingTouchdowns']))
+  set('INTERCEPTIONS', pick(['interceptions']))
+  set('COMPLETIONS', pick(['completions']))
+  set('ATTEMPTS', pick(['passingAttempts', 'netPassingAttempts']))
+  set('RUSHING_YARDS', pick(['rushingYards', 'netRushingYards']))
+  set('RUSHING_TDS', pick(['rushingTouchdowns']))
+  set('RUSHING_ATTEMPTS', pick(['rushingAttempts', 'netRushingAttempts']))
+  set('RECEPTIONS', pick(['receptions']))
+  set('RECEIVING_YARDS', pick(['receivingYards']))
+  set('RECEIVING_TDS', pick(['receivingTouchdowns']))
+  set('TARGETS', pick(['receivingTargets', 'targets']))
 
   const result: PlayerStats = {
     name: rosterEntry.fullName,
     team: rosterEntry.team,
     position: rosterEntry.position,
-    season: String(baseStats?.season ?? csvData?.season ?? seasonYear),
+    season: String(seasonYear),
     stats,
     headshot: rosterEntry.headshot,
     sport: 'americanfootball_nfl',
-  }
-
-  // Recent performances (last 5 games from CSV rows)
-  if (csvData?.rows?.length) {
-    result.recent = buildRecentPerformances(csvData.rows, 5)
+    recent: recent && recent.length ? recent : undefined,
   }
 
   playerStatsCache.set(cacheKey, { data: result, ts: Date.now() })
   return result
-}
-
-const fetchNFLPlayerBaseStats = async (playerId: string, seasonYear: number) => {
-  const trySeason = async (year: number) => {
-    const url = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/${year}/types/2/athletes/${playerId}/statistics?lang=en&region=us`
-    const response = await fetch(url, { cache: 'no-store' })
-    if (!response.ok) {
-      return null
-    }
-    const data = await response.json()
-    const stats = data.splits?.categories?.flatMap((cat: any) => cat.stats) ?? []
-    const pick = (name: string) => {
-      const entry = stats.find((stat: any) => stat.name === name)
-      return entry?.value ?? null
-    }
-    return {
-      season: year,
-      passingYards: pick('passingYards'),
-      passingTouchdowns: pick('passingTouchdowns'),
-      passingInterceptions: pick('interceptions'),
-      passingAttempts: pick('passingAttempts'),
-      completions: pick('completions'),
-      rushingYards: pick('rushingYards'),
-      rushingTouchdowns: pick('rushingTouchdowns'),
-      rushingAttempts: pick('rushingAttempts'),
-      receptions: pick('receptions'),
-      receivingYards: pick('receivingYards'),
-      receivingTouchdowns: pick('receivingTouchdowns'),
-      targets: pick('receivingTargets'),
-    }
-  }
-
-  const primary = await trySeason(seasonYear)
-  if (primary) return primary
-  return trySeason(seasonYear - 1)
-}
-
-const MIN_PLAYS_FOR_EPA_RANK = 20
-
-const getEpaPerPlayPositionRanks = async (seasonYear: number) => {
-  const cache = nflEpaRankCache.get(seasonYear)
-  if (cache) return cache
-
-  const seasonRows = nflSeasonRowsCache.get(seasonYear)?.rows || (await loadNFLPlayerSeasonRows('', seasonYear))?.rows || []
-  if (!seasonRows.length) {
-    return new Map<string, { rank: number; total: number; epaPerPlay: number }>()
-  }
-
-  const positionGroups = new Map<string, Array<{ name: string; epaPerPlay: number }>>()
-
-  for (const row of seasonRows) {
-    const name =
-      String(row.player_display_name ?? row.player_name ?? '').trim()
-    const pos = String(row.position ?? '').trim().toUpperCase()
-    if (!name || !pos) continue
-
-    const attempts = Number(row.attempts ?? 0)
-    const carries = Number(row.carries ?? 0)
-    const targets = Number(row.targets ?? 0)
-    const totalPlays = attempts + carries + targets
-    if (!Number.isFinite(totalPlays) || totalPlays < MIN_PLAYS_FOR_EPA_RANK) continue
-
-    const passingEPA = Number(row.passing_epa ?? 0)
-    const rushingEPA = Number(row.rushing_epa ?? 0)
-    const receivingEPA = Number(row.receiving_epa ?? 0)
-    const totalEPA = passingEPA + rushingEPA + receivingEPA
-    const epaPerPlay = totalPlays > 0 ? totalEPA / totalPlays : 0
-
-    if (!positionGroups.has(pos)) {
-      positionGroups.set(pos, [])
-    }
-    positionGroups.get(pos)!.push({ name, epaPerPlay })
-  }
-
-  const rankMap = new Map<string, { rank: number; total: number; epaPerPlay: number }>()
-
-  for (const [pos, list] of positionGroups.entries()) {
-    const sorted = list.sort((a, b) => b.epaPerPlay - a.epaPerPlay)
-    sorted.forEach((entry, idx) => {
-      const key = `${normalizeName(entry.name)}|${pos}`
-      rankMap.set(key, { rank: idx + 1, total: sorted.length, epaPerPlay: entry.epaPerPlay })
-    })
-  }
-
-  nflEpaRankCache.set(seasonYear, rankMap)
-  return rankMap
-}
-
-const loadNFLPlayerSeasonRows = async (playerName: string, seasonYear: number) => {
-  const loadSeasonRows = async (year: number) => {
-    const cached = nflSeasonRowsCache.get(year)
-    if (cached && Date.now() - cached.ts < PLAYER_STATS_CACHE_TTL) {
-      return cached.rows
-    }
-
-    const url = `${NFL_PLAYER_STATS_BASE}/player_stats_${year}.csv`
-    const response = await fetch(url, { cache: 'no-store' })
-    if (!response.ok) {
-      return null
-    }
-    const text = await response.text()
-    const parsed = Papa.parse<Record<string, string | number>>(text, {
-      header: true,
-      dynamicTyping: true,
-      skipEmptyLines: true,
-    })
-    const rows = (parsed.data || []).filter(
-      (row) =>
-        Number(row.season) === year &&
-        String(row.season_type).toUpperCase() === 'REG'
-    )
-    nflSeasonRowsCache.set(year, { ts: Date.now(), rows })
-    return rows
-  }
-
-  const seasonRows = (await loadSeasonRows(seasonYear)) || (await loadSeasonRows(seasonYear - 1))
-  if (!seasonRows) return null
-
-  if (!playerName) {
-    return { rows: seasonRows, season: seasonRows?.[0]?.season ?? seasonYear }
-  }
-
-  const filtered = seasonRows.filter(
-    (row) =>
-      normalizeName(String(row.player_display_name ?? row.player_name ?? '')) === normalizeName(playerName)
-  )
-
-  return { rows: filtered, season: seasonRows?.[0]?.season ?? seasonYear }
 }
 
 export interface InjuryReport {
@@ -845,13 +718,16 @@ export async function getNBATeamStats(teamAbbr?: string): Promise<TeamStats[]> {
             pickStat(statsArray, 'last10') ||
             (lastTenWins != null && lastTenLosses != null ? `${lastTenWins}-${lastTenLosses}` : null)
 
-          const pointsForPerGame = numOrNull(pickStat(statsArray, ['pointsPerGame', 'pointsFor']))
-          const pointsAgainstPerGame = numOrNull(
-            pickStat(statsArray, ['pointsAgainstPerGame', 'pointsAgainst', 'oppPointsPerGame'])
-          )
-          const pointsFor = pointsForPerGame && gamesPlayed ? Number((pointsForPerGame * gamesPlayed).toFixed(1)) : null
+          const pointsForPerGame = numOrNull(pickStat(statsArray, ['pointsPerGame']))
+          const pointsAgainstPerGame = numOrNull(pickStat(statsArray, ['pointsAgainstPerGame', 'oppPointsPerGame']))
+          const pointsFor =
+            pointsForPerGame != null && gamesPlayed
+              ? Number((pointsForPerGame * gamesPlayed).toFixed(1))
+              : numOrNull(pickStat(statsArray, ['pointsFor', 'points_scored']))
           const pointsAgainst =
-            pointsAgainstPerGame && gamesPlayed ? Number((pointsAgainstPerGame * gamesPlayed).toFixed(1)) : null
+            pointsAgainstPerGame != null && gamesPlayed
+              ? Number((pointsAgainstPerGame * gamesPlayed).toFixed(1))
+              : numOrNull(pickStat(statsArray, ['pointsAgainst', 'points_allowed']))
           const fgPct = numOrNull(pickStat(statsArray, ['fieldGoalPct', 'fgPct', 'fieldGoalPercentage']))
           const threePct = numOrNull(pickStat(statsArray, ['threePointPct', 'threePointPercentage', '3PointPct']))
           const ftPct = numOrNull(pickStat(statsArray, ['freeThrowPct', 'freeThrowPercentage', 'ftPct']))
@@ -912,51 +788,16 @@ export async function getNBAAdvancedTeamStats(): Promise<AdvancedTeamStats[]> {
   return []
 }
 
-// ==================== NFL ADVANCED STATS (via nflfastR CSV) ====================
+// ==================== NFL ADVANCED STATS (ESPN-derived) ====================
 
 /**
- * Fetch team-level advanced metrics (EPA/Play, success rate, pass/run rate) from nflfastR public CSV.
- * Uses season summary file to avoid pulling full play-by-play.
+ * Fetch team-level efficiency metrics from ESPN team statistics.
+ * Uses yards/play and third-down rate as "success" proxy plus pass/run rate splits.
  */
 export async function getNFLAdvancedTeamStats(): Promise<AdvancedTeamStats[]> {
   try {
-    const season = new Date().getFullYear()
-    const csvUrl = `https://raw.githubusercontent.com/guga31bb/nflfastR-data/master/data/seasons/` +
-      `team_stats_${season}.csv`
-
-    const response = await fetch(csvUrl, { cache: 'no-store' })
-    if (!response.ok) {
-      console.warn('NFL advanced stats fetch failed:', response.statusText)
-      return []
-    }
-
-    const csvText = await response.text()
-    const lines = csvText.split('\n').filter(Boolean)
-    const header = lines.shift()
-    if (!header) return []
-
-    const cols = header.split(',')
-    const colIdx = (key: string) => cols.indexOf(key)
-
-    const requiredCols = ['posteam', 'epa_play', 'success_rate', 'pass_rate', 'rush_rate']
-    if (!requiredCols.every((c) => colIdx(c) !== -1)) {
-      console.warn('NFL advanced stats missing required columns')
-      return []
-    }
-
-    const results: AdvancedTeamStats[] = lines.map((line) => {
-      const parts = line.split(',')
-      return {
-        team: parts[colIdx('posteam')],
-        teamAbbr: parts[colIdx('posteam')],
-        epaPerPlay: parseFloat(parts[colIdx('epa_play')]),
-        successRate: parseFloat(parts[colIdx('success_rate')]),
-        passRate: parseFloat(parts[colIdx('pass_rate')]),
-        rushRate: parseFloat(parts[colIdx('rush_rate')]),
-      }
-    })
-
-    return results
+    const blocks = await loadNFLTeamStatBlocks()
+    return blocks.map((entry) => buildNFLTeamEntry(entry.meta, entry.categories).advanced)
   } catch (error) {
     console.error('Error fetching NFL advanced team stats:', error)
     return []
@@ -1110,26 +951,25 @@ export async function searchNBAPlayer(playerName: string): Promise<RosterPlayer 
 }
 
 export async function getNFLRoster(teamAbbr?: string): Promise<RosterPlayer[]> {
+  const useCache = !teamAbbr
+  const now = Date.now()
+  if (useCache && nflRosterCache && now - nflRosterCache.ts < NFL_ROSTER_CACHE_TTL) {
+    return nflRosterCache.roster
+  }
+
   try {
-    const url = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams'
-    const response = await fetch(url, { next: { revalidate: 3600 } })
-    if (!response.ok) return []
-    const data = await response.json()
+    const teams = await fetchTeamList()
+    const targets = teamAbbr
+      ? teams.filter((t) => t.abbreviation === teamAbbr)
+      : teams
+
     const roster: RosterPlayer[] = []
-    const teams = data.sports?.[0]?.leagues?.[0]?.teams ?? []
-    for (const entry of teams) {
-      const team = entry.team
-      if (!team) continue
-      if (teamAbbr && team.abbreviation !== teamAbbr) continue
-      try {
-        const rosterUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/${team.id}/roster`
-        const rosterResponse = await fetch(rosterUrl, { next: { revalidate: 3600 } })
-        if (!rosterResponse.ok) continue
-        const rosterData = await rosterResponse.json()
-        const groups = rosterData.athletes ?? []
-        for (const group of groups) {
-          const athletes = group.items ?? []
-          for (const athlete of athletes) {
+
+    await Promise.all(
+      targets.map(async (team) => {
+        try {
+          const players = await fetchEspnNFLRoster(team.id)
+          for (const athlete of players) {
             roster.push({
               id: athlete.id,
               name: athlete.displayName || athlete.fullName,
@@ -1146,15 +986,19 @@ export async function getNFLRoster(teamAbbr?: string): Promise<RosterPlayer[]> {
               headshot: athlete.headshot?.href,
             })
           }
+        } catch (error) {
+          console.error(`Error fetching roster for ${team.displayName}:`, error)
         }
-      } catch (error) {
-        console.error(`Error fetching roster for ${team.displayName}:`, error)
-      }
+      })
+    )
+
+    if (useCache && roster.length) {
+      nflRosterCache = { ts: Date.now(), roster }
     }
     return roster
   } catch (error) {
     console.error('Error fetching NFL rosters:', error)
-    return []
+    return useCache && nflRosterCache ? nflRosterCache.roster : []
   }
 }
 
@@ -1172,38 +1016,107 @@ export async function searchNFLPlayer(playerName: string): Promise<RosterPlayer 
   }
 }
 
+const loadNFLTeamStatBlocks = async () => {
+  const now = Date.now()
+  if (nflTeamStatsCache && now - nflTeamStatsCache.ts < TEAM_STATS_CACHE_TTL) {
+    return nflTeamStatsCache.data
+  }
+
+  const teams = await fetchTeamList()
+  const season = getCurrentNFLSeasonYear()
+  const results = await Promise.all(
+    teams.map(async (meta) => {
+      const statsResp = await fetchTeamStatistics(meta.id, season)
+      const categories = statsResp?.splits?.categories ?? []
+      return { meta, categories }
+    })
+  )
+
+  nflTeamStatsCache = { ts: now, data: results }
+  return results
+}
+
+const buildNFLTeamEntry = (teamMeta: EspnTeamMeta, categories: EspnStatCategory[]) => {
+  const pick = (names: string[]) => statHelpers.pickStat(categories, names)
+  const gamesPlayed =
+    pick(['gamesPlayed', 'teamGamesPlayed']) ??
+    ((teamMeta.wins ?? 0) + (teamMeta.losses ?? 0) || null)
+  const pointsFor =
+    pick(['totalPoints', 'totalPointsFor']) ??
+    teamMeta.pointsFor ??
+    (gamesPlayed && teamMeta.avgPointsFor != null ? teamMeta.avgPointsFor * gamesPlayed : null)
+  const pointsAgainst =
+    pick(['pointsAgainst']) ??
+    teamMeta.pointsAgainst ??
+    (gamesPlayed && teamMeta.avgPointsAgainst != null ? teamMeta.avgPointsAgainst * gamesPlayed : null)
+  const totalYards = pick(['totalYards', 'totalYardsFromScrimmage'])
+  const offensivePlays = pick(['totalOffensivePlays'])
+  const passAttempts = pick(['passingAttempts', 'netPassingAttempts'])
+  const rushAttempts = pick(['rushingAttempts', 'netRushingAttempts'])
+  const yardsPerPlay =
+    totalYards != null && offensivePlays && offensivePlays > 0
+      ? totalYards / offensivePlays
+      : null
+  const passRate =
+    offensivePlays && passAttempts != null && offensivePlays > 0
+      ? passAttempts / offensivePlays
+      : null
+  const rushRate =
+    offensivePlays && rushAttempts != null && offensivePlays > 0
+      ? rushAttempts / offensivePlays
+      : null
+  const thirdDownPct = pick(['thirdDownConvPct'])
+  const redzoneTdPct = pick(['redzoneTouchdownPct'])
+  const turnoverDifferential =
+    pick(['turnOverDifferential']) ??
+    (pick(['totalTakeaways']) != null && pick(['totalGiveaways']) != null
+      ? (pick(['totalTakeaways']) as number) - (pick(['totalGiveaways']) as number)
+      : null)
+
+  const teamStats: TeamStats = {
+    team: teamMeta.displayName,
+    wins: teamMeta.wins ?? 0,
+    losses: teamMeta.losses ?? 0,
+    winPct: (() => {
+      const total = (teamMeta.wins ?? 0) + (teamMeta.losses ?? 0)
+      return total > 0 ? (teamMeta.wins ?? 0) / total : 0
+    })(),
+    stats: {
+      gamesPlayed: gamesPlayed ?? 0,
+      pointsFor: pointsFor ?? null,
+      pointsAgainst: pointsAgainst ?? null,
+      totalYards: totalYards ?? null,
+      yardsPerPlay: yardsPerPlay ?? null,
+      passRate: passRate ?? null,
+      rushRate: rushRate ?? null,
+      thirdDownPct: thirdDownPct ?? null,
+      redZoneTdPct: redzoneTdPct ?? null,
+      turnoverDifferential: turnoverDifferential ?? null,
+      streak: teamMeta.recordSummary ?? null,
+    },
+  }
+
+  const advanced: AdvancedTeamStats = {
+    team: teamMeta.displayName,
+    teamAbbr: teamMeta.abbreviation,
+    epaPerPlay: yardsPerPlay ?? undefined,
+    yardsPerPlay: yardsPerPlay ?? undefined,
+    successRate: thirdDownPct != null ? thirdDownPct / 100 : undefined,
+    passRate: passRate ?? undefined,
+    rushRate: rushRate ?? undefined,
+  }
+
+  return { teamStats, advanced }
+}
+
 // ==================== NFL STATS (via ESPN) ====================
 
 export async function getNFLTeamStats(teamAbbr?: string): Promise<TeamStats[]> {
   try {
-    const url = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams'
-    const response = await fetch(url, { next: { revalidate: 3600 } })
-
-    if (!response.ok) return []
-
-    const data = await response.json()
-    const teams: TeamStats[] = []
-
-    if (data.sports?.[0]?.leagues?.[0]?.teams) {
-      for (const teamObj of data.sports[0].leagues[0].teams) {
-        const team = teamObj.team
-        if (teamAbbr && team.abbreviation !== teamAbbr) continue
-
-        teams.push({
-          team: team.displayName,
-          wins: team.record?.items?.[0]?.stats?.find((s: any) => s.name === 'wins')?.value || 0,
-          losses: team.record?.items?.[0]?.stats?.find((s: any) => s.name === 'losses')?.value || 0,
-          winPct: team.record?.items?.[0]?.stats?.find((s: any) => s.name === 'winPercent')?.value || 0,
-          stats: {
-            gamesPlayed: team.record?.items?.[0]?.stats?.find((s: any) => s.name === 'gamesPlayed')?.value || 0,
-            pointsFor: team.record?.items?.[0]?.stats?.find((s: any) => s.name === 'pointsFor')?.value || 0,
-            pointsAgainst: team.record?.items?.[0]?.stats?.find((s: any) => s.name === 'pointsAgainst')?.value || 0,
-            streak: team.record?.items?.[0]?.summary || '',
-          },
-        })
-      }
-    }
-
+    const blocks = await loadNFLTeamStatBlocks()
+    const teams = blocks
+      .filter((entry) => !teamAbbr || entry.meta.abbreviation === teamAbbr)
+      .map((entry) => buildNFLTeamEntry(entry.meta, entry.categories).teamStats)
     return teams
   } catch (error) {
     console.error('Error fetching NFL team stats:', error)
@@ -1213,30 +1126,21 @@ export async function getNFLTeamStats(teamAbbr?: string): Promise<TeamStats[]> {
 
 export async function getNFLInjuries(): Promise<InjuryReport[]> {
   try {
-    const url = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries'
-    // Disable Next.js caching - response is 8.4MB, exceeds 2MB cache limit
-    const response = await fetch(url, { cache: 'no-store' })
-
-    if (!response.ok) return []
-
-    const data = await response.json()
+    const data = await fetchEspnNFLInjuries()
+    if (!data || !data.length) return []
     const injuries: InjuryReport[] = []
 
-    if (data.teams) {
-      for (const teamData of data.teams) {
-        const team = teamData.team?.displayName || 'Unknown'
-
-        if (teamData.injuries) {
-          for (const injury of teamData.injuries) {
-            injuries.push({
-              player: injury.athlete?.displayName || 'Unknown',
-              team,
-              status: injury.status || 'Unknown',
-              injury: injury.details?.type || injury.longComment,
-              date: injury.date,
-            })
-          }
-        }
+    for (const teamData of data) {
+      const team = teamData.team?.displayName || 'Unknown'
+      if (!teamData.injuries) continue
+      for (const injury of teamData.injuries) {
+        injuries.push({
+          player: injury.athlete?.displayName || 'Unknown',
+          team,
+          status: injury.status || 'Unknown',
+          injury: injury.details?.type || injury.longComment,
+          date: injury.date,
+        })
       }
     }
 
@@ -1766,6 +1670,7 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
         if (adv) {
           const extras: Record<string, number> = {}
           if (adv.epaPerPlay != null) extras.epaPerPlay = adv.epaPerPlay
+          if (adv.yardsPerPlay != null) extras.yardsPerPlay = adv.yardsPerPlay
           if (adv.successRate != null) extras.successRate = adv.successRate
           if (adv.passRate != null) extras.passRate = adv.passRate
           if (adv.rushRate != null) extras.rushRate = adv.rushRate
@@ -2001,8 +1906,46 @@ export function formatStatsForAI(stats: TeamStats[] | PlayerStats[] | InjuryRepo
   } else {
     // Team stats
     const teams = stats as TeamStats[]
-    return teams.map(t =>
-      `${t.team}: ${t.wins}-${t.losses} (${(t.winPct * 100).toFixed(1)}%)\n${JSON.stringify(t.stats, null, 2)}`
-    ).join('\n\n')
+    const isBasketball =
+      teams.length > 0 &&
+      (teams[0].stats?.fieldGoalPct != null ||
+        teams[0].stats?.threePointPct != null ||
+        teams[0].stats?.reboundsPerGame != null)
+
+    if (isBasketball) {
+      const header = '| Team | Streak | Last 10 | PPG | PAPG | FG% | 3P% | REB | AST | BLK | STL |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |'
+      const rows = teams.map((team) => {
+        const games =
+          Number.isFinite(Number(team.stats?.gamesPlayed))
+            ? Number(team.stats?.gamesPlayed)
+            : Number((team.wins ?? 0) + (team.losses ?? 0))
+        const pointsFor = Number(team.stats?.pointsForPerGame ?? team.stats?.pointsFor ?? 0)
+        const pointsAgainst = Number(team.stats?.pointsAgainstPerGame ?? team.stats?.pointsAgainst ?? 0)
+        const ppg = games > 0 && pointsFor > 0 ? (pointsFor / (pointsFor > 200 ? games : 1)).toFixed(1) : 'n/a'
+        const papg = games > 0 && pointsAgainst > 0 ? (pointsAgainst / (pointsAgainst > 200 ? games : 1)).toFixed(1) : 'n/a'
+        const fgPct = team.stats?.fieldGoalPct != null ? Number(team.stats.fieldGoalPct).toFixed(1) : 'n/a'
+        const threePct = team.stats?.threePointPct != null ? Number(team.stats.threePointPct).toFixed(1) : 'n/a'
+        const reb = team.stats?.reboundsPerGame ?? team.stats?.rpg
+        const ast = team.stats?.assistsPerGame ?? team.stats?.apg
+        const blk = team.stats?.blocksPerGame ?? team.stats?.bpg
+        const stl = team.stats?.stealsPerGame ?? team.stats?.spg
+        const last10 =
+          team.stats?.lastTen ??
+          team.stats?.last10 ??
+          (team.stats?.lastTenWins != null && team.stats?.lastTenLosses != null
+            ? `${team.stats.lastTenWins}-${team.stats.lastTenLosses}`
+            : 'n/a')
+        const streak = team.stats?.streak ?? 'n/a'
+        return `| ${team.team} | ${streak} | ${last10} | ${ppg} | ${papg} | ${fgPct} | ${threePct} | ${reb ?? 'n/a'} | ${ast ?? 'n/a'} | ${blk ?? 'n/a'} | ${stl ?? 'n/a'} |`
+      })
+      return `${header}\n${rows.join('\n')}`
+    }
+
+    return teams
+      .map(
+        (t) =>
+          `${t.team}: ${t.wins}-${t.losses} (${(t.winPct * 100).toFixed(1)}%)\n${JSON.stringify(t.stats, null, 2)}`
+      )
+      .join('\n\n')
   }
 }

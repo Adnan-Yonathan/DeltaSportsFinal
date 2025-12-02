@@ -139,9 +139,11 @@ export function formatEnrichedGamesForAI(games: EnrichedGame[]): string {
         if (game.sport.toLowerCase().includes('basketball')) {
           gameInfo += `    ${game.homeTeam}: NetRtg ${adv.netRating?.toFixed(1) ?? 'n/a'}, Pace ${adv.pace?.toFixed(1) ?? 'n/a'}\n`
         } else if (game.sport.toLowerCase().includes('football')) {
-          const epa = adv.epaPerPlay != null ? adv.epaPerPlay.toFixed(3) : 'n/a'
+          const effValue = adv.epaPerPlay != null ? adv.epaPerPlay : adv.yardsPerPlay
+          const effLabel = adv.epaPerPlay != null ? 'EPA/play' : 'Yds/play'
+          const effText = effValue != null ? effValue.toFixed(3) : 'n/a'
           const success = adv.successRate != null ? (adv.successRate * 100).toFixed(1) : 'n/a'
-          gameInfo += `    ${game.homeTeam}: EPA/play ${epa}, Success% ${success}\n`
+          gameInfo += `    ${game.homeTeam}: ${effLabel} ${effText}, Conv% ${success}\n`
         }
       }
       if (game.awayAdvanced) {
@@ -149,9 +151,11 @@ export function formatEnrichedGamesForAI(games: EnrichedGame[]): string {
         if (game.sport.toLowerCase().includes('basketball')) {
           gameInfo += `    ${game.awayTeam}: NetRtg ${adv.netRating?.toFixed(1) ?? 'n/a'}, Pace ${adv.pace?.toFixed(1) ?? 'n/a'}\n`
         } else if (game.sport.toLowerCase().includes('football')) {
-          const epa = adv.epaPerPlay != null ? adv.epaPerPlay.toFixed(3) : 'n/a'
+          const effValue = adv.epaPerPlay != null ? adv.epaPerPlay : adv.yardsPerPlay
+          const effLabel = adv.epaPerPlay != null ? 'EPA/play' : 'Yds/play'
+          const effText = effValue != null ? effValue.toFixed(3) : 'n/a'
           const success = adv.successRate != null ? (adv.successRate * 100).toFixed(1) : 'n/a'
-          gameInfo += `    ${game.awayTeam}: EPA/play ${epa}, Success% ${success}\n`
+          gameInfo += `    ${game.awayTeam}: ${effLabel} ${effText}, Conv% ${success}\n`
         }
       }
     }

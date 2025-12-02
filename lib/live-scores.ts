@@ -107,11 +107,21 @@ export interface LiveScoreGame {
   articles?: LiveScoreArticle[]
 }
 
+export interface LeagueNewsItem {
+  title: string
+  url: string
+  published: string
+  description?: string
+  source?: string
+  league: LeagueId
+}
+
 export interface LiveScoresResponse {
   updatedAt: string
   requestedDate: string
   previousDate: string
   games: LiveScoreGame[]
+  news?: Record<LeagueId, LeagueNewsItem[]>
 }
 
 export interface GameLineScoreEntry {
@@ -207,6 +217,30 @@ const getLeagueConfig = (id: LeagueId) => {
     throw new Error(`Unsupported league: ${id}`)
   }
   return config
+}
+
+const fetchLeagueNews = async (league: LeagueId): Promise<LeagueNewsItem[]> => {
+  try {
+    const config = getLeagueConfig(league)
+    const url = `${ESPN_BASE_URL}/${config.sport}/${config.league}/news?limit=20`
+    const res = await fetch(url, { cache: "no-store" })
+    if (!res.ok) return []
+    const data = await res.json()
+    const items: any[] = data?.articles || data?.headlines || data?.news || data?.items || []
+    return items
+      .map((item) => ({
+        title: item?.headline || item?.title,
+        url: item?.links?.web?.href || item?.link || item?.href,
+        published: item?.published || item?.date || item?.lastUpdated || new Date().toISOString(),
+        description: item?.description || item?.summary,
+        source: item?.source || item?.byline,
+        league,
+      }))
+      .filter((n: LeagueNewsItem) => n.title && n.url)
+  } catch (err) {
+    console.warn("[live-scores] league news fetch failed", err)
+    return []
+  }
 }
 
 const toYMD = (date: Date) => {
@@ -496,6 +530,7 @@ async function fetchLeagueScores(config: (typeof ESPN_LEAGUES)[number], options:
 interface FetchAllOptions {
   date?: string
   includeCompletedForDate?: boolean
+  includeNews?: boolean
 }
 
 export async function fetchAllLiveScores(options: FetchAllOptions = {}): Promise<LiveScoresResponse> {
@@ -564,11 +599,25 @@ export async function fetchAllLiveScores(options: FetchAllOptions = {}): Promise
     )
   }
 
+  const news: Partial<Record<LeagueId, LeagueNewsItem[]>> = {}
+  if (options.includeNews) {
+    const newsEntries = await Promise.all(
+      ESPN_LEAGUES.map(async (league) => {
+        const items = await fetchLeagueNews(league.id)
+        return [league.id, items] as [LeagueId, LeagueNewsItem[]]
+      })
+    )
+    newsEntries.forEach(([id, items]) => {
+      if (items.length) news[id] = items
+    })
+  }
+
   return {
     updatedAt: new Date().toISOString(),
     requestedDate,
     previousDate,
     games,
+    news: options.includeNews ? (news as Record<LeagueId, LeagueNewsItem[]>) : undefined,
   }
 }
 

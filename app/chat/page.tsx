@@ -19,7 +19,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [liveScoresOpen, setLiveScoresOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
-  const [mode, setMode] = useState<'regular' | 'live' | 'research'>('regular')
+  const [mode, setMode] = useState<'regular' | 'live' | 'research' | 'statmuse'>('regular')
   const router = useRouter()
   const supabase = createClient()
   const profileMenuRef = useRef<HTMLDivElement | null>(null)

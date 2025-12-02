@@ -716,7 +716,7 @@ const buildTeamInsightsFromTeamStats = async (
           return `| ${teamName} | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |`
         }
         const gamesRaw = row.stats?.gamesPlayed ?? row.stats?.games
-        const games = Number(gamesRaw != null ? gamesRaw : (row.wins ?? 0) + (row.losses ?? 0))
+        const games = Number.isFinite(Number(gamesRaw)) ? Number(gamesRaw) : Number((row.wins ?? 0) + (row.losses ?? 0))
         const pointsForRaw = row.stats?.pointsFor ?? row.stats?.points_scored ?? row.stats?.pointsForPerGame
         const pointsAgainstRaw = row.stats?.pointsAgainst ?? (row.stats as any)?.points_allowed ?? row.stats?.pointsAgainstPerGame
         const pointsFor = Number(pointsForRaw ?? 0)
@@ -3219,8 +3219,11 @@ ${statsEnrichment}
                     `Advanced: NetRtg ${advMatch.netRating?.toFixed(1) ?? 'n/a'}, Pace ${advMatch.pace?.toFixed(1) ?? 'n/a'}, TS% ${advMatch.tsPct ? (advMatch.tsPct * 100).toFixed(1) : 'n/a'}`
                   )
                 } else if ((functionArgs.sport || '').toLowerCase().includes('football')) {
+                  const effValue = advMatch.epaPerPlay ?? advMatch.yardsPerPlay
+                  const effLabel = advMatch.epaPerPlay != null ? 'EPA/play' : 'Yds/play'
+                  const effText = effValue != null ? effValue.toFixed(3) : 'n/a'
                   advLines.push(
-                    `Advanced: EPA/play ${advMatch.epaPerPlay?.toFixed(3) ?? 'n/a'}, Success% ${advMatch.successRate ? (advMatch.successRate * 100).toFixed(1) : 'n/a'}, Pass% ${advMatch.passRate ? (advMatch.passRate * 100).toFixed(1) : 'n/a'}`
+                    `Advanced: ${effLabel} ${effText}, Conv% ${advMatch.successRate ? (advMatch.successRate * 100).toFixed(1) : 'n/a'}, Pass% ${advMatch.passRate ? (advMatch.passRate * 100).toFixed(1) : 'n/a'}`
                   )
                 }
               }

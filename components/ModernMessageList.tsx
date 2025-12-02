@@ -21,8 +21,8 @@ interface MessageListProps {
   conversationId: string
   userId: string
   onMessagesChange?: (hasMessages: boolean) => void
-  mode: 'regular' | 'live' | 'research'
-  onModeChange: (mode: 'regular' | 'live' | 'research') => void
+  mode: 'regular' | 'live' | 'research' | 'statmuse'
+  onModeChange: (mode: 'regular' | 'live' | 'research' | 'statmuse') => void
 }
 
 export default function ModernMessageList({ conversationId, userId, onMessagesChange, mode, onModeChange }: MessageListProps) {

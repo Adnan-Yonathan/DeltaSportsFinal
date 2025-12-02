@@ -5,7 +5,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get("date") ?? undefined
-    const data = await fetchAllLiveScores({ date })
+    const includeNews = searchParams.get("includeNews") === "true"
+    const data = await fetchAllLiveScores({ date, includeNews })
     return NextResponse.json(data, {
       headers: {
         "Cache-Control": "no-store",

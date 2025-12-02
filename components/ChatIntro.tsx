@@ -9,8 +9,8 @@ interface ChatIntroProps {
   conversationId: string
   userId: string
   onMessageSent: () => void
-  mode: 'regular' | 'live' | 'research'
-  onModeChange: (mode: 'regular' | 'live' | 'research') => void
+  mode: 'regular' | 'live' | 'research' | 'statmuse'
+  onModeChange: (mode: 'regular' | 'live' | 'research' | 'statmuse') => void
 }
 
 export default function ChatIntro({ conversationId, userId, onMessageSent, mode, onModeChange }: ChatIntroProps) {
@@ -42,7 +42,8 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
     setSending(true)
 
     try {
-      const response = await fetch('/api/chat', {
+      const endpoint = mode === 'statmuse' ? '/api/chat/statmuse' : '/api/chat'
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -116,7 +117,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
               title="Select mode"
             >
               <span className="text-xs font-semibold">
-                {mode === 'regular' ? 'Regular' : mode === 'live' ? 'Live' : 'Research'}
+                {mode === 'regular' ? 'Regular' : mode === 'live' ? 'Live' : mode === 'research' ? 'Research' : 'Statmuse'}
               </span>
               <ChevronDown className="w-3.5 h-3.5" />
             </motion.button>
@@ -173,8 +174,23 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
                           : 'text-white/80 hover:bg-white/5'
                       }`}
                     >
-                      <div className="font-semibold text-sm">Research</div>
-                      <div className="text-xs text-white/60 mt-0.5">Allow deeper scans (may take longer)</div>
+                        <div className="font-semibold text-sm">Research</div>
+                        <div className="text-xs text-white/60 mt-0.5">Allow deeper scans (may take longer)</div>
+                      </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onModeChange('statmuse')
+                        setModeDropdownOpen(false)
+                      }}
+                      className={`w-full px-4 py-3 text-left transition-colors ${
+                        mode === 'statmuse'
+                          ? 'bg-indigo-500/20 text-white'
+                          : 'text-white/80 hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="font-semibold text-sm">Statmuse</div>
+                      <div className="text-xs text-white/60 mt-0.5">Stats-only Q&A (NBA/NFL style)</div>
                     </button>
                   </div>
                 </motion.div>

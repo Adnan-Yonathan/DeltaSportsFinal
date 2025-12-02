@@ -65,3 +65,25 @@ npm run ingest:team-stats
 
 - Requires `.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
 - Mirrors the hourly GitHub Action (`team-stats-ingest.yml`) so local runs produce identical payloads
+
+## ingest-espn-data.ts
+
+Backfills season-level ESPN data to Supabase (teams, players, season stats, futures, ATS/odds records) per sport.
+
+### How to run
+
+```
+ts-node scripts/ingest-espn-data.ts --sport nfl --seasons 2020,2021,2022,2023,2024
+```
+
+Supported sports: `nfl`, `nba`, `mlb`, `nhl`.
+
+### What it does
+- Pulls team lists and season statistics
+- Pulls rosters and player season statistics
+- Writes team/player season stats to Supabase
+- Writes futures, ATS records, and odds records (no per-game odds lines)
+
+### Prerequisites
+- Apply `supabase/schema-extended.sql` in your project
+- `.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`

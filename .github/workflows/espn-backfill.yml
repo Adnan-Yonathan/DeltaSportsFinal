@@ -29,7 +29,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           cache: npm
 
       - name: Install deps
@@ -37,7 +37,7 @@ jobs:
 
       - name: Run ingest
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           npx ts-node -r tsconfig-paths/register -P tsconfig.scripts.json scripts/ingest-espn-data.ts --sport=${{ github.event.inputs.sport }} --seasons=${{ github.event.inputs.seasons }}

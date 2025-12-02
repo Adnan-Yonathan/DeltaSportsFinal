@@ -9,6 +9,7 @@ import { useLiveScores } from "@/hooks/use-live-scores"
 import { useGameDetails } from "@/hooks/use-game-details"
 import { ESPN_LEAGUES, type LeagueId, type LiveScoreArticle, type LiveScoreGame, type LiveScoreGameDetails, type GamePlayerSummary } from "@/lib/live-scores"
 import { DottedSurface } from "@/components/ui/dotted-surface"
+import { LiveScoresChat } from "@/components/LiveScoresChat"
 
 const LEAGUE_TABS: Array<{ id: LeagueId; label: string }> =
   ESPN_LEAGUES.map((league) => ({ id: league.id, label: league.label }))
@@ -427,6 +428,7 @@ export default function LiveScoresPage() {
           })
         )}
       </div>
+      <LiveScoresChat leagues={ESPN_LEAGUES.map((l) => l.id)} date={selectedDate} />
       {selectedGame && (
         <GameDetailsModal game={selectedGame} onClose={() => setSelectedGame(null)} detailsState={detailsState} />
       )}

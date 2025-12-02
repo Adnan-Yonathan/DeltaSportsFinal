@@ -623,45 +623,10 @@ export async function getNFLPlayerSeasonStats(playerName: string): Promise<Playe
     }
   }
 
-  if (csvData && csvData.rows.length) {
-    let passingEPA = 0
-    let rushingEPA = 0
-    let receivingEPA = 0
-    let passAttempts = 0
-    let rushAttempts = 0
-    let targets = 0
-
-    for (const row of csvData.rows) {
-      passingEPA += Number(row.passing_epa ?? 0)
-      rushingEPA += Number(row.rushing_epa ?? 0)
-      receivingEPA += Number(row.receiving_epa ?? 0)
-      passAttempts += Number(row.attempts ?? 0)
-      rushAttempts += Number(row.carries ?? 0)
-      targets += Number(row.targets ?? 0)
-    }
-
-    const totalPlays = passAttempts + rushAttempts + targets
-    const totalEPA = passingEPA + rushingEPA + receivingEPA
-    stats.EPA_TOTAL = Number(totalEPA.toFixed(2))
-    if (totalPlays > 0) {
-      stats.EPA_PER_PLAY = Number((totalEPA / totalPlays).toFixed(3))
-    }
-  }
-
-  // EPA/play position rank
-  try {
-    const ranks = await getEpaPerPlayPositionRanks(seasonYear)
-    const pos = (rosterEntry.position || '').trim().toUpperCase()
-    if (pos) {
-      const lookupKey = `${normalizeName(rosterEntry.fullName)}|${pos}`
-      const rankEntry = ranks.get(lookupKey)
-      if (rankEntry) {
-        stats.EPA_PER_PLAY_RANK = `${rankEntry.rank}/${rankEntry.total} ${pos}`
-      }
-    }
-  } catch (err) {
-    console.warn('[NFL] EPA rank lookup failed', err)
-  }
+    // EPA per play removed for NFL player stats (do not surface EPA metrics)
+    delete (stats as any).EPA_PER_PLAY
+    delete (stats as any).EPA_TOTAL
+    delete (stats as any).EPA_PER_PLAY_RANK
 
   const result: PlayerStats = {
     name: rosterEntry.fullName,
@@ -1975,14 +1940,9 @@ export function formatStatsForAI(stats: TeamStats[] | PlayerStats[] | InjuryRepo
       `${fmtNumber(s.RECEIVING_TDS ?? s.REC_TDS, 0)} TD`,
       `${fmtNumber(s.TARGETS, 0)} tgt`,
     ]
-    const epaLines: string[] = []
-    if (s.EPA_PER_PLAY != null) epaLines.push(`EPA/play: ${fmtNumber(s.EPA_PER_PLAY, 3)}`)
-    if (s.EPA_TOTAL != null) epaLines.push(`EPA total: ${fmtNumber(s.EPA_TOTAL, 2)}`)
-
     const lines = [`- Passing: ${pass.join(', ')}`]
     if (rush.some((v) => v.includes('n/a') === false)) lines.push(`- Rushing: ${rush.join(', ')}`)
     if (recv.some((v) => v.includes('n/a') === false)) lines.push(`- Receiving: ${recv.join(', ')}`)
-    if (epaLines.length) lines.push(`- Advanced: ${epaLines.join(' | ')}`)
 
     return `${formatHeader(p)}\n${lines.join('\n')}`
   }

@@ -135,10 +135,28 @@ export const getPlayerSeasonStats = async (sport: SportKey, athleteId: string, s
 }
 
 export const getPlayerGameLogs = async (sport: SportKey, athleteId: string, season: number, seasonType = 2) => {
-  if (sport === 'nfl') return fetchNflAthleteGamelog(athleteId, season, seasonType)
-  if (sport === 'nba') return fetchNbaAthleteGamelog(athleteId, season)
-  if (sport === 'mlb') return fetchMlbAthleteGamelog(athleteId, season)
-  return fetchNhlAthleteGamelog(athleteId, season)
+  const normalizeLogs = (raw: any) => {
+    if (!raw) return []
+    if (Array.isArray(raw)) return raw
+    if (Array.isArray(raw?.events)) return raw.events
+    if (Array.isArray(raw?.gameLog)) return raw.gameLog
+    if (Array.isArray(raw?.gamelog)) return raw.gamelog
+    if (Array.isArray(raw?.items)) return raw.items
+    if (Array.isArray(raw?.entries)) return raw.entries
+    if (typeof raw === 'object') return Object.values(raw)
+    return []
+  }
+
+  const raw =
+    sport === 'nfl'
+      ? await fetchNflAthleteGamelog(athleteId, season, seasonType)
+      : sport === 'nba'
+      ? await fetchNbaAthleteGamelog(athleteId, season)
+      : sport === 'mlb'
+      ? await fetchMlbAthleteGamelog(athleteId, season)
+      : await fetchNhlAthleteGamelog(athleteId, season)
+
+  return normalizeLogs(raw)
 }
 
 export const getInjuries = async (sport: SportKey) => {

@@ -3983,7 +3983,10 @@ ${statsEnrichment}
                       const logsRaw = await getPlayerGameLogs('nba', String(playerId), seasonYear, 2)
                       const logs: any[] = Array.isArray(logsRaw) ? logsRaw : []
                       const take = logs.slice(0, 20)
-                      let sumPts = 0, sumFga = 0, sumFgm = 0, sumFta = 0, sumTpm = 0, sumTov = 0, count = 0
+                      let sumPts = 0, sumFga = 0, sumFgm = 0, sumFta = 0, sumTpm = 0, sumTov = 0
+                      let tsSamples = 0
+                      let efgSamples = 0
+                      let tovSamples = 0
                       for (const g of take) {
                         const blocks: any[] = Array.isArray(g?.stats) ? g.stats : Array.isArray(g?.statistics) ? g.statistics : []
                         const statMap: Record<string, number> = {}
@@ -4007,24 +4010,46 @@ ${statsEnrichment}
                         const fta = n('FTA')
                         const tpm = n('3PM') ?? n('3PT')
                         const tov = n('TOV')
-                        if (pts != null) sumPts += pts
-                        if (fga != null) sumFga += fga
-                        if (fgm != null) sumFgm += fgm
-                        if (fta != null) sumFta += fta
+                        if (pts != null && fga != null && fta != null) {
+                          sumPts += pts
+                          sumFga += fga
+                          sumFta += fta
+                          tsSamples++
+                        }
+                        if (fgm != null && fga != null) {
+                          sumFgm += fgm
+                          sumFga += fga
+                          efgSamples++
+                        }
                         if (tpm != null) sumTpm += tpm
-                        if (tov != null) sumTov += tov
-                        count++
+                        if (tov != null && fga != null && fta != null) {
+                          sumTov += tov
+                          tovSamples++
+                        }
                       }
-                      if (count > 0) {
+                      if (tsSamples > 0 || efgSamples > 0 || tovSamples > 0) {
                         const perGame = {
-                          PTS: sumPts / count,
-                          FGA: sumFga / count,
-                          FGM: sumFgm / count,
-                          FTA: sumFta / count,
-                          '3PM': sumTpm / count,
-                          TOV: sumTov / count,
+                          PTS: tsSamples ? sumPts / tsSamples : null,
+                          FGA: efgSamples ? sumFga / efgSamples : tsSamples ? sumFga / tsSamples : null,
+                          FGM: efgSamples ? sumFgm / efgSamples : null,
+                          FTA: tsSamples ? sumFta / tsSamples : null,
+                          '3PM': tsSamples || efgSamples ? sumTpm / Math.max(tsSamples, efgSamples, 1) : null,
+                          TOV: tovSamples ? sumTov / tovSamples : null,
                         }
                         adv = computeSimpleAdvanced(perGame)
+                        // If any value stayed null, try a looser average across all games to avoid "not available" messaging
+                        if (adv.tsPct == null || adv.efgPct == null || adv.tovPct == null) {
+                          const totalGames = take.length || 1
+                          const loosePerGame = {
+                            PTS: sumPts / Math.max(tsSamples || efgSamples || 1, 1),
+                            FGA: sumFga / Math.max(tsSamples || efgSamples || 1, 1),
+                            FGM: sumFgm / Math.max(efgSamples || 1, 1),
+                            FTA: sumFta / Math.max(tsSamples || 1, 1),
+                            '3PM': sumTpm / Math.max(tsSamples || efgSamples || 1, 1),
+                            TOV: sumTov / Math.max(tovSamples || 1, 1),
+                          }
+                          adv = computeSimpleAdvanced(loosePerGame)
+                        }
                       }
                     }
                   } catch (err) {

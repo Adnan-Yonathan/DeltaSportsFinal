@@ -14,6 +14,7 @@ import {
 // Supports NBA, NFL, MLB, NHL - Player stats, team stats, advanced analytics, injuries
 
 export interface PlayerStats {
+  id?: string
   name: string
   team: string
   position?: string
@@ -118,13 +119,14 @@ const fetchEspnRecentGames = async (
     const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) return []
     const data = await res.json()
-    const games: any[] =
+    const gamesSource =
       data?.events ||
       data?.gameLog ||
       data?.gamelog ||
       data?.items ||
       data?.entries ||
       []
+    const games: any[] = Array.isArray(gamesSource) ? gamesSource : []
 
     const result: RecentPerformance[] = []
     for (const game of games) {

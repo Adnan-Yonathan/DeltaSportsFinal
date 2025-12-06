@@ -218,7 +218,7 @@ function SportsbookTicker() {
 function PromoMockSection() {
   return (
     <div className="w-full max-w-5xl mx-auto">
-      <div className="relative w-full overflow-hidden rounded-2xl border border-purple-500/20 bg-black/80 p-6 shadow-2xl">
+      <div className="relative w-full overflow-hidden rounded-2xl border border-purple-500/30 bg-black p-6 shadow-[0_0_60px_rgba(128,90,213,0.35)]">
         {/* Top bar mock */}
         <div className="flex items-center justify-between text-xs text-gray-300 mb-6">
           <div className="flex items-center gap-3">

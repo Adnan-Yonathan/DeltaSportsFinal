@@ -215,6 +215,79 @@ function SportsbookTicker() {
   )
 }
 
+function PromoMockSection() {
+  return (
+    <div className="w-full max-w-5xl mx-auto">
+      <div className="relative w-full overflow-hidden rounded-2xl border border-purple-500/20 bg-black/80 p-6 shadow-2xl">
+        {/* Top bar mock */}
+        <div className="flex items-center justify-between text-xs text-gray-300 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="h-6 w-6 rounded bg-purple-600/60" />
+            <div>
+              <div className="font-semibold">DELTA</div>
+              <div className="text-[11px] text-gray-400">Intelligent Sports Betting Assistant</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-white">
+            <div className="rounded-full border border-gray-600 px-3 py-1 text-[11px]">Live Scores</div>
+            <div className="h-8 w-8 rounded-full bg-gray-700" />
+          </div>
+        </div>
+
+        {/* Top performances mock */}
+        <div className="mb-6">
+          <div className="text-[11px] uppercase text-purple-200/80 tracking-[0.14em]">Top performances</div>
+          <div className="text-sm font-semibold text-white">Recent standout stat lines</div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            {["NBA", "NFL", "MLB", "NHL"].map((l) => (
+              <span key={l} className={`px-2 py-1 rounded-full ${l === "NBA" ? "bg-purple-500 text-white" : "bg-gray-800 text-gray-200"}`}>{l}</span>
+            ))}
+            <span className="ml-2 rounded border border-gray-600 px-2 py-1 text-gray-200">Team trends</span>
+          </div>
+          <div className="mt-2 grid gap-2 md:grid-cols-3 text-sm text-white">
+            {[
+              { team: "Oklahoma City Thunder", rec: "Last 5: 5-0 | PPG 121.0 / OPP 109.2" },
+              { team: "Boston Celtics", rec: "Last 5: 4-1 | PPG 125.4 / OPP 111.4" },
+              { team: "Houston Rockets", rec: "Last 5: 4-1 | PPG 118.6 / OPP 104.2" },
+            ].map((t) => (
+              <div key={t.team} className="rounded-lg border border-gray-700 bg-black/60 p-3">
+                <div className="text-[11px] uppercase text-gray-400">NBA · Team (last 5)</div>
+                <div className="font-semibold">{t.team}</div>
+                <div className="text-xs text-gray-300">{t.rec}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Hero mock */}
+        <div className="text-center py-4">
+          <h2 className="text-3xl font-bold text-white mb-3">How can I help you today?</h2>
+          <p className="text-gray-300 max-w-2xl mx-auto">
+            Get real-time stats, compare odds, analyze betting lines, track your bankroll,
+            and discover value plays across all major sports.
+          </p>
+          <div className="mt-6 mx-auto max-w-2xl">
+            <div className="rounded-2xl border border-gray-700 bg-black/70 p-4 text-left text-gray-400">
+              <div className="mb-2 text-sm text-gray-500">Message...</div>
+              <div className="flex items-center justify-between text-sm text-white/80">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-purple-500/40" />
+                  <span className="text-xs bg-gray-800 px-2 py-1 rounded">Regular</span>
+                </div>
+                <div className="flex items-center gap-3 text-gray-500">
+                  <span>🎤</span>
+                  <span className="rounded-full border border-gray-600 px-3 py-1">➚</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
 export default function LandingPage() {
   const heroAvatarUrls = [
     "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=120&q=80",
@@ -296,37 +369,17 @@ export default function LandingPage() {
         </div>
       </FadeInSection>
 
-      {/* Video Showcase */}
-      <FadeInSection className="w-full px-4 pb-10" delay={0.2}>
-        <div className="max-w-5xl mx-auto">
-          <div className="relative w-full overflow-hidden rounded-[30px] border-4 border-[#6C6C6C] bg-[#222222] p-2 md:p-6 shadow-2xl">
-            <div className="relative w-full overflow-hidden rounded-2xl bg-black aspect-video">
-              <video
-                className="h-full w-full object-cover"
-                autoPlay
-                loop
-                muted
-                playsInline
-                controls
-                preload="auto"
-                poster="/delta-experience.png"
-              >
-                <source src="/landingpagevideo-web.mp4" type="video/mp4" />
-                <source src="/landingpagevideo.mp4" type='video/mp4; codecs="hvc1"' />
-                <track kind="captions" />
-                Your browser does not support the video tag.
-              </video>
-            </div>
-          </div>
-        </div>
-      </FadeInSection>
-
       {/* Sportsbook Ticker */}
-      <FadeInSection className="w-full mb-20" delay={0.1}>
+      <FadeInSection className="w-full mb-12" delay={0.1}>
         <div className="text-center mb-4">
           <p className="text-sm text-white uppercase tracking-wider font-semibold">Compatible with All Sportsbooks</p>
         </div>
         <SportsbookTicker />
+      </FadeInSection>
+
+      {/* Promo Mock Showcase */}
+      <FadeInSection className="w-full px-4 pb-10" delay={0.2}>
+        <PromoMockSection />
       </FadeInSection>
 
       {/* Powerful Features */}

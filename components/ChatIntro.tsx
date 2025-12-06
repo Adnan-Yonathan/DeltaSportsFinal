@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
 import { ChevronDown } from 'lucide-react'
+import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
+import { TopPerformancesStrip } from '@/components/ui/top-performances'
 
 interface ChatIntroProps {
   conversationId: string
@@ -88,11 +90,14 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
   }
 
   return (
-    <div className="flex items-center justify-center min-h-full bg-black px-4 py-12">
+    <div className="flex flex-col items-center justify-center min-h-full bg-black px-4 py-8">
+      <div className="w-full max-w-5xl mx-auto pt-2 mb-12">
+        <TopPerformancesStrip />
+      </div>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center max-w-2xl w-full -mt-20"
+        className="text-center max-w-3xl w-full"
       >
         <h2 className="text-3xl font-bold text-white mb-4">
           How can I help you today?
@@ -198,6 +203,10 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
             </AnimatePresence>
           </div>
         </form>
+
+        <div className="mt-24 space-y-16">
+          <LatestNewsStrip />
+        </div>
       </motion.div>
     </div>
   )

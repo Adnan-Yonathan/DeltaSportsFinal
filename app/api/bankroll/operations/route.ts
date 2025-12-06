@@ -3,44 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { format } from 'date-fns'
 
 export async function POST(req: NextRequest) {
-  try {
-    const supabase = createClient()
-
-    // Verify user authentication
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const body = await req.json()
-    const { operation, data } = body
-
-    switch (operation) {
-      case 'log_bet':
-        return await logBet(supabase, user.id, data)
-
-      case 'settle_bet':
-        return await settleBet(supabase, user.id, data)
-
-      case 'adjust_bankroll':
-        return await adjustBankroll(supabase, user.id, data)
-
-      default:
-        return NextResponse.json(
-          { error: 'Invalid operation' },
-          { status: 400 }
-        )
-    }
-  } catch (error) {
-    console.error('Bankroll operations API error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
+  return NextResponse.json({ error: 'Bet tracking/settlement is disabled' }, { status: 410 })
 }
 
 async function logBet(supabase: any, userId: string, data: any) {

@@ -26,7 +26,21 @@ import { calculateKellyStake } from '@/lib/utils/kelly'
 import { summarizeSplitsForChat } from '@/lib/services/dk-splits'
 import { format } from 'date-fns'
 import { openai, AI_MODELS, runWebSearchResponse } from '@/lib/ai-gateway-client'
-
+import { espnTools } from '@/lib/llm/tools/espn-tools'
+import { toolResolvers as espnToolResolvers } from '@/lib/llm/tools/resolvers'
+import { resolveEspnTeamId } from '@/lib/utils/espn-team-lookup'
+import { searchAthlete, getEventSnapshot } from '@/lib/services/espn-orchestrator'
+import {
+  resolvePlayerThresholdQuery,
+  resolveLeaderboardThresholdQuery,
+  resolveAtsLeaderboard,
+  resolvePlayerOpponentAggregate,
+  resolvePlayerRestSplit,
+  resolveTeamAfterLossSplit,
+  resolveTeamHomeAwayDefense,
+  computeTeamLineSplits,
+  formatTeamLineSplits,
+} from '@/lib/services/espn-aggregations'
 export const runtime = 'nodejs'
 export const maxDuration = 300 // 5 minutes (max for Pro plan)
 
@@ -51,6 +65,155 @@ const mapSportToPropKey = (sport?: string): string => {
 }
 
 const normalizeToken = (value?: string) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+const formatAtsRecord = (resp: any) => {
+  if (!resp?.items?.length) return 'No ATS data available.'
+  const labelMap: Record<string, string> = {
+    atsOverall: 'Overall',
+    atsFavorite: 'As Favorite',
+    atsUnderdog: 'As Underdog',
+    atsHome: 'Home',
+    atsRoad: 'Road',
+    atsLast10: 'Last 10',
+    atsAfterWin: 'After Win',
+    atsAfterLoss: 'After Loss',
+  }
+  return resp.items
+    .map((item: any) => {
+      const label = labelMap[item?.type?.name] || item?.type?.description || 'ATS'
+      const wins = item?.wins ?? 0
+      const losses = item?.losses ?? 0
+      const pushes = item?.pushes ?? 0
+      const rec = pushes ? `${wins}-${losses}-${pushes}` : `${wins}-${losses}`
+      return `${label}: ${rec}`
+    })
+    .join('\n')
+}
+
+const detectIntent = (msgLower: string) => {
+  return {
+    ats: /\bats\b|against the spread|cover\b/.test(msgLower),
+    overUnder: /\bover the total\b|\bunder the total\b|\bwent over\b|\bwent under\b|\b(o\/u|over\/under)\b/.test(msgLower),
+    oddsRecord: /\b(odds record|as favorite|as underdog|fav(?:orite)? record|dog record)\b/.test(msgLower),
+    pastPerformances: /\bpast performances?\b|\bvs\.?\s+spread history\b/.test(msgLower),
+    predictor: /\bpredictor|power index|fpi|bpi|win probability\b/.test(msgLower),
+    futures: /\bfutures?\b|outright|to win (it|title|championship|division|conference)\b/.test(msgLower),
+    injuries: /\binjury|injuries|questionable|doubtful|out\b/.test(msgLower),
+    playerGameLine:
+      /\b(stat line|box score|game stats?|how many|line vs|vs\b.*?\d{1,2}|@|against)\b/.test(msgLower) &&
+      /\b(points|rebounds|assists|steals|blocks|yards|tds|passes|catches|receptions|shots|goals|pim|saves)?\b/.test(msgLower),
+    playerSeasonVsOpponent: /\b(this season|season)\b.*\b(vs|against)\b/.test(msgLower),
+  }
+}
+
+const getSeasonYearForSport = (sport: string) => {
+  const now = new Date()
+  const year = now.getUTCFullYear()
+  const month = now.getUTCMonth() // 0-based
+  if (sport === 'nba') {
+    // NBA seasons end in the following calendar year
+    return month >= 8 ? year + 1 : year
+  }
+  if (sport === 'nhl') {
+    return month >= 7 ? year + 1 : year
+  }
+  if (sport === 'nfl') {
+    // Use season start year (regular season kicks off Sep). Before August, assume prior season.
+    return month >= 7 ? year : year - 1
+  }
+  return year // mlb and default
+}
+
+const getSeasonYearForDate = (sport: string, isoDate: string | undefined) => {
+  if (!isoDate) return getSeasonYearForSport(sport)
+  const dt = new Date(`${isoDate}T00:00:00Z`)
+  const year = dt.getUTCFullYear()
+  const month = dt.getUTCMonth()
+  if (sport === 'nba') return month >= 8 ? year + 1 : year
+  if (sport === 'nhl') return month >= 7 ? year + 1 : year
+  if (sport === 'nfl') return month >= 7 ? year : year - 1
+  return year
+}
+
+const seasonTypeFromText = (msgLower: string) => {
+  if (/\bplayoffs?\b|\bpostseason\b/.test(msgLower)) return 3
+  if (/\bpreseason\b|\bpre-season\b/.test(msgLower)) return 1
+  return 2
+}
+
+const formatGameLogEntry = (entry: any) => {
+  const date = entry?.date || entry?.gameDate || entry?.game_date || ''
+  const opponent =
+    entry?.opponent?.displayName ||
+    entry?.opponent?.name ||
+    entry?.opponent ||
+    entry?.opponentName ||
+    entry?.gameOpponent ||
+    ''
+  const result = entry?.result || entry?.gameResult || entry?.outcome || ''
+  const statBlocks: any[] = Array.isArray(entry?.stats) ? entry.stats : Array.isArray(entry?.statistics) ? entry.statistics : []
+  const stats: Record<string, number | string> = {}
+  for (const block of statBlocks) {
+    const entries: any[] = Array.isArray(block?.stats) ? block.stats : Array.isArray(block) ? block : []
+    for (const s of entries) {
+      const label = s?.label || s?.displayName || s?.name
+      const value = typeof s?.value === 'number' ? s.value : Number(s?.value)
+      if (!label) continue
+      const key = label.toString().toUpperCase().replace(/\s+/g, '_')
+      stats[key] = Number.isFinite(value) ? value : s?.value ?? s?.displayValue ?? s?.display_value ?? s
+    }
+  }
+  const statLines = Object.entries(stats).map(([k, v]) => `  • ${k}: ${v}`)
+  const header = `${date}${opponent ? ` vs ${opponent}` : ''}${result ? ` (${result})` : ''}`
+  return statLines.length ? `${header}\n${statLines.join('\n')}` : header
+}
+
+const filterGameLogs = (logs: any[], opts: { date?: string; opponent?: string; lastN?: number }) => {
+  let filtered = logs || []
+  if (opts.date) {
+    const target = opts.date.slice(0, 10)
+    filtered = filtered.filter((g) => {
+      const d = String(g?.date || g?.gameDate || g?.game_date || '').slice(0, 10)
+      return d === target
+    })
+  }
+  if (opts.opponent) {
+    const opp = normalizeToken(opts.opponent.replace(/\bon\b$/i, '').trim())
+    filtered = filtered.filter((g) => {
+      const oppName =
+        g?.opponent?.displayName ||
+        g?.opponent?.name ||
+        g?.opponent ||
+        g?.opponentName ||
+        g?.gameOpponent ||
+        ''
+      const tokens = [normalizeToken(oppName)]
+      return tokens.some((t) => t && (t.includes(opp) || opp.includes(t)))
+    })
+  }
+  if (opts.lastN && opts.lastN > 0) {
+    filtered = filtered.slice(0, opts.lastN)
+  }
+  return filtered
+}
+
+const normalizeNameLoose = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+
+const findPlayerInGameDetails = (details: any, playerName: string) => {
+  const players = details?.teams
+    ? details.teams.flatMap((t: any) => [...(t.starters || []), ...(t.bench || []), ...(t as any).players || []])
+    : []
+  const normTarget = normalizeNameLoose(playerName)
+  return players.find((p: any) => {
+    const name = normalizeNameLoose(p?.name || '')
+    return name && (name === normTarget || name.includes(normTarget) || normTarget.includes(name))
+  })
+}
 
 const parseDateFromMessage = (input: string): string => {
   const lower = input.toLowerCase()
@@ -87,27 +250,34 @@ const parseDateFromMessage = (input: string): string => {
 const formatPlayerGameLine = (player: any): string => {
   if (!player?.statMap) return player?.summaryLine || ''
   const stats = player.statMap as Record<string, string>
-  const parts: string[] = []
-  const pick = (key: string) => stats[key] ?? stats[key.toUpperCase()] ?? stats[key.toLowerCase()]
-  const pushIf = (label: string, key: string | string[]) => {
-    const keys = Array.isArray(key) ? key : [key]
-    for (const k of keys) {
-      const val = pick(k)
-      if (val) {
-        parts.push(`${label} ${val}`)
-        break
-      }
+  const lines: string[] = []
+  const pick = (keys: string[]) => {
+    for (const key of keys) {
+      const val = stats[key] ?? stats[key.toUpperCase()] ?? stats[key.toLowerCase()]
+      if (val != null && val !== '') return val
     }
+    return undefined
   }
-  pushIf('PTS', ['PTS'])
-  pushIf('REB', ['REB', 'REBS'])
-  pushIf('AST', ['AST', 'ASSISTS'])
-  pushIf('STL', ['STL'])
-  pushIf('BLK', ['BLK'])
-  pushIf('FG', ['FGM/FGA', 'FG'])
-  pushIf('3PT', ['3PM/3PA', '3PT'])
-  if (parts.length === 0 && player.summaryLine) return player.summaryLine
-  return parts.join(' | ')
+
+  const entries: Array<[string, string[]]> = [
+    ['PTS', ['PTS']],
+    ['REB', ['REB', 'REBS']],
+    ['AST', ['AST', 'ASSISTS']],
+    ['STL', ['STL']],
+    ['BLK', ['BLK']],
+    ['FG', ['FGM/FGA', 'FG']],
+    ['3PT', ['3PM/3PA', '3PT']],
+    ['MIN', ['MIN']],
+  ]
+
+  for (const [label, keys] of entries) {
+    const val = pick(keys)
+    if (val != null) lines.push(`  • ${label}: ${val}`)
+  }
+
+  if (!lines.length && player.summaryLine) return player.summaryLine
+  if (!lines.length) return ''
+  return `\n${lines.join('\n')}`
 }
 
 const findPlayerGameStats = async (opts: {
@@ -879,20 +1049,136 @@ const extractPlayerName = (msg: string) => {
   const quoted = msg.match(/"([^"]+)"/)
   if (quoted && quoted[1]) return quoted[1].trim()
 
-  // Look for capitalized first + last name
+  // Look for capitalized first + last name; prefer the last match to avoid picking "How Many"
   const matches = msg.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g)
-  if (matches && matches.length) return matches[0].trim()
+  if (matches && matches.length) {
+    const stopwords = new Set(['how', 'what', 'when', 'where', 'who', 'why', 'which', 'can', 'does', 'do', 'will'])
+    for (let i = matches.length - 1; i >= 0; i--) {
+      const candidate = matches[i].trim()
+      const first = candidate.split(/\s+/)[0].toLowerCase()
+      if (!stopwords.has(first)) return candidate
+    }
+    return matches[matches.length - 1].trim()
+  }
 
   // Look for patterns like "lebron james" even if lowercased
   const lower = msg.toLowerCase()
   const parts = lower.split(/\s+/)
+  const stopwords = new Set([
+    'how',
+    'what',
+    'when',
+    'where',
+    'who',
+    'why',
+    'which',
+    'can',
+    'does',
+    'do',
+    'will',
+    'many',
+    'games',
+    'game',
+    'season',
+    'regular',
+    'playoffs',
+    'points',
+    'point',
+    'pts',
+    'plus',
+    'over',
+    'with',
+    'has',
+    'have',
+    'had',
+    'record',
+    'scored',
+    'score',
+    'most',
+    'get',
+    'got',
+    'been',
+    'is',
+    'are',
+    'was',
+    'were',
+    'the',
+    'a',
+    'an',
+    'made',
+    'make',
+    'makes',
+    'hit',
+    'hits',
+    'hitting',
+    'record',
+    'recorded',
+    'this',
+    'that',
+    'who',
+  ])
+  const candidates: string[] = []
   for (let i = 0; i < parts.length - 1; i++) {
     const first = parts[i]
     const last = parts[i + 1]
-    if (first.length > 2 && last.length > 2) {
-      return `${first} ${last}`
+    if (
+      first.length > 2 &&
+      last.length > 2 &&
+      !stopwords.has(first) &&
+      !stopwords.has(last) &&
+      !/\d|\+|>|</.test(first) &&
+      !/\d|\+|>|</.test(last)
+    ) {
+      candidates.push(`${first} ${last}`)
     }
   }
+  if (candidates.length) return candidates[candidates.length - 1]
+
+  // Fallback: single token (last non-stopword, alpha-only)
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const token = parts[i]
+    if (token.length > 2 && !stopwords.has(token) && /^[a-z]+$/i.test(token)) {
+      return token
+    }
+  }
+
+  // Fallback: try known star names/last names in message
+  const starKeys = [
+    'stephen curry',
+    'curry',
+    'luka doncic',
+    'doncic',
+    'lebron james',
+    'james',
+    'kevin durant',
+    'durant',
+    'giannis antetokounmpo',
+    'antetokounmpo',
+    'austin reaves',
+    'reaves',
+    'anthony davis',
+    'davis',
+    'patrick mahomes',
+    'mahomes',
+    'josh allen',
+    'allen',
+    'shohei ohtani',
+    'ohtani',
+    'aaron judge',
+    'judge',
+    'connor mcdavid',
+    'mcdavid',
+  ]
+  const lowerMsg = msg.toLowerCase()
+  for (const key of starKeys) {
+    if (lowerMsg.includes(key)) {
+      return key
+        .split(' ')
+        .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+        .join(' ')
+    }
+  }
+
   return undefined
 }
 
@@ -1156,6 +1442,15 @@ When analyzing betting stats, provide actionable insights:
 Always confirm what you're doing before calling functions and provide friendly responses after.`
 
 // OpenAI SDK tool definitions with JSON schema
+const ESPN_TOOLS: ChatCompletionTool[] = espnTools.map((tool) => ({
+  type: 'function',
+  function: {
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parameters as any,
+  },
+}))
+
 const ASSISTANT_TOOLS: ChatCompletionTool[] = [
   {
     type: 'function',
@@ -1604,6 +1899,7 @@ const ASSISTANT_TOOLS: ChatCompletionTool[] = [
       },
     },
   },
+  ...ESPN_TOOLS,
 ]
 
 export async function POST(req: NextRequest) {
@@ -1947,7 +2243,143 @@ export async function POST(req: NextRequest) {
     const webSearchToggle = /enable_web_search|enable\s+web\s+search/i.test(msgLower)
     const wantsEdgesOrValue = /(edge|ev|expected\s+value|value\s+bet|mispriced|best\s+bet)/i.test(msgLower)
     const mentionsModel = /model/i.test(msgLower)
+    const intent = detectIntent(msgLower)
+    type SportKey = 'nba' | 'nfl' | 'mlb' | 'nhl'
     const playerNameInMessage = extractPlayerName(message)
+    const leaderboardIntent = /\bwho has the most\b|\bmost\s+\d+[\s-]*point games\b/i.test(msgLower)
+    const leaderboardThresholdMatch = message.match(/most\s+(\d+)[\s-]*point games/i)
+    const noRestIntent = /\b(no rest|back to back|back-to-back|b2b)\b/i.test(msgLower)
+    const vsOpponentIntent = /\bvs\s+([a-zA-Z][a-zA-Z\s]+)\b/i.exec(message)
+    const atsLeadersIntent = /\bcover (the )?spread\b|\bats (leaders|records|best)\b|\bbest ats\b/i.test(msgLower)
+    const afterLossIntent = /\bafter a loss\b|\bfollowing a loss\b/i.test(msgLower)
+    const homeAwayDefenseIntent =
+      /\b(home vs away defense|home and away defense|defensive stats at home|defensive stats away|home away defense)\b/i.test(msgLower)
+
+    const playerGameIntent = (() => {
+      const isoMatch = message.match(/\b(\d{4})-(\d{2})-(\d{2})\b/)
+      const dateMatch =
+        isoMatch ||
+        message.match(/(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?/) ||
+        message.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2}/i)
+      const wantsLastNight = /\blast\s+night\b|yesterday|last game\b/i.test(msgLower)
+      const lastNMatch = message.match(/\blast\s+(\d+)\s+games?/i)
+      const lastN = lastNMatch ? Number(lastNMatch[1]) : undefined
+
+      const playerToken = normalizeToken(playerNameInMessage || '')
+      const matchupOpp = parsedMatchupTeams.find((t) => !normalizeToken(t).includes(playerToken))
+      const mentionedOpp = mentionedTeams.find((t) => !normalizeToken(t).includes(playerToken))
+      const opponentHint = matchupOpp || mentionedOpp
+
+      return {
+        wantsGameLine: intent.playerGameLine || Boolean(dateMatch) || wantsLastNight || Boolean(opponentHint),
+        dateHint: wantsLastNight
+          ? parseDateFromMessage('last night')
+          : isoMatch
+          ? isoMatch[0]
+          : dateMatch
+          ? parseDateFromMessage(dateMatch[0])
+          : undefined,
+        opponentHint,
+        lastN,
+      }
+    })()
+
+    // ESPN-only aggregation for player threshold/count queries (e.g., "how many games with 40+ points")
+    const maybeHandlePlayerThreshold = async () => {
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'nfl' :
+        msgLower.match(/mlb|baseball/) ? 'mlb' :
+        msgLower.match(/nhl|hockey/) ? 'nhl' :
+        'nba'
+
+      const response = await resolvePlayerThresholdQuery({
+        message,
+        playerNameHint: playerNameInMessage,
+        sportHint: sportGuess as SportKey,
+        opponentHint: playerGameIntent.opponentHint,
+      })
+      return response ? streamTextResponse(response) : null
+    }
+
+    // ESPN-first shortcuts for ATS / odds records / past performances / predictor / futures / injuries
+    const maybeHandleEspnTeamBetting = async () => {
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'nfl' :
+        msgLower.match(/mlb|baseball/) ? 'mlb' :
+        msgLower.match(/nhl|hockey/) ? 'nhl' :
+        msgLower.match(/nba|basketball/) ? 'nba' :
+        'nba'
+
+      const targetTeam = mentionedTeams[0] || parsedMatchupTeams[0]
+      if (!targetTeam) return null
+
+      const trySports: SportKey[] = [sportGuess as any, 'nfl', 'nba', 'mlb', 'nhl']
+      let resolved: { id: string; name: string; abbr?: string } | null = null
+      let resolvedSport: SportKey = sportGuess as any
+      for (const s of trySports) {
+        const res = await resolveEspnTeamId(s, targetTeam)
+        if (res) {
+          resolved = res
+          resolvedSport = s
+          break
+        }
+      }
+
+      if (!resolved) {
+        return streamTextResponse(`I couldn't find that team on ESPN (tried NFL/NBA/MLB/NHL). Try a more exact team name.`)
+      }
+
+      const season = getSeasonYearForSport(resolvedSport)
+      const seasonType = seasonTypeFromText(msgLower)
+
+      if (intent.ats || intent.overUnder) {
+        const splits = await computeTeamLineSplits({
+          sport: resolvedSport,
+          teamId: resolved.id,
+          season,
+          seasonType,
+          providerPriority: ['1304', '878', '879', '1695', '1385'],
+        })
+        const formatted = formatTeamLineSplits(resolved.name, season, seasonType, splits)
+        return streamTextResponse(formatted)
+      }
+
+      if (intent.oddsRecord) {
+        const data = await espnToolResolvers.espnTeamOddsRecord({
+          sport: resolvedSport,
+          teamId: resolved.id,
+          season,
+        })
+        return streamTextResponse(
+          `Odds record for ${resolved.name} (${season}):\n${JSON.stringify(data, null, 2)}`
+        )
+      }
+
+      if (intent.pastPerformances) {
+        const data = await espnToolResolvers.espnTeamPastPerformances({
+          sport: resolvedSport,
+          teamId: resolved.id,
+          providerId: '1003',
+          limit: 140,
+        })
+        return streamTextResponse(
+          `Past performances vs lines for ${resolved.name}:\n${JSON.stringify(data, null, 2)}`
+        )
+      }
+
+      if (intent.futures) {
+        const data = await espnToolResolvers.espnTeamFutures({
+          sport: resolvedSport,
+          season,
+        })
+        return streamTextResponse(
+          `Futures for ${sportGuess.toUpperCase()} ${season}:\n${JSON.stringify(data, null, 2)}`
+        )
+      }
+
+      return null
+    }
+
     const playerGameStatsIntent =
       Boolean(playerNameInMessage) &&
       /\b(stat line|box score|game stats?|how many|line vs|stats?\s+vs)\b/i.test(msgLower) &&
@@ -1967,12 +2399,240 @@ export async function POST(req: NextRequest) {
         return streamTextResponse('Team stats are temporarily unavailable. Please try again.')
       }
     }
+
+    // Leaderboard intent for thresholds (e.g., "who has the most 30 point games")
+    if (leaderboardIntent && leaderboardThresholdMatch) {
+      const points = Number(leaderboardThresholdMatch[1])
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'nfl' :
+        msgLower.match(/mlb|baseball/) ? 'mlb' :
+        msgLower.match(/nhl|hockey/) ? 'nhl' :
+        'nba'
+      const season = getSeasonYearForSport(sportGuess as any)
+      const seasonType = 2
+      const resp = await resolveLeaderboardThresholdQuery({
+        message,
+        sport: sportGuess as any,
+        season,
+        seasonType,
+        thresholdStat: 'PTS',
+        thresholdValue: points,
+        limit: 10,
+      })
+      return streamTextResponse(resp)
+    }
+
+    // ATS leaderboard intent
+    if (atsLeadersIntent) {
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'nfl' :
+        msgLower.match(/mlb|baseball/) ? 'mlb' :
+        msgLower.match(/nhl|hockey/) ? 'nhl' :
+        'nba'
+      const season = getSeasonYearForSport(sportGuess as any)
+      const resp = await resolveAtsLeaderboard({
+        sport: sportGuess as any,
+        season,
+        seasonType: 2,
+        limit: 10,
+      })
+      return streamTextResponse(resp)
+    }
+
+    // Team after-loss split
+    if (afterLossIntent && (mentionedTeams.length || parsedMatchupTeams.length)) {
+      const targetTeam = mentionedTeams[0] || parsedMatchupTeams[0]
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'nfl' :
+        msgLower.match(/mlb|baseball/) ? 'mlb' :
+        msgLower.match(/nhl|hockey/) ? 'nhl' :
+        'nba'
+      const resolved = await resolveEspnTeamId(sportGuess as any, targetTeam)
+      if (!resolved) {
+        return streamTextResponse(`I couldn't find that team on ESPN. Try a more exact name.`)
+      }
+      const season = getSeasonYearForSport(sportGuess as any)
+      const resp = await resolveTeamAfterLossSplit({
+        sport: sportGuess as any,
+        teamId: resolved.id,
+        season,
+        seasonType: 2,
+        teamName: resolved.name,
+      })
+      return streamTextResponse(resp)
+    }
+
+    // Team home/away defensive split
+    if (homeAwayDefenseIntent && (mentionedTeams.length || parsedMatchupTeams.length)) {
+      const targetTeam = mentionedTeams[0] || parsedMatchupTeams[0]
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'nfl' :
+        msgLower.match(/mlb|baseball/) ? 'mlb' :
+        msgLower.match(/nhl|hockey/) ? 'nhl' :
+        'nba'
+      const resolved = await resolveEspnTeamId(sportGuess as any, targetTeam)
+      if (!resolved) {
+        return streamTextResponse(`I couldn't find that team on ESPN. Try a more exact name.`)
+      }
+      const season = getSeasonYearForSport(sportGuess as any)
+      const resp = await resolveTeamHomeAwayDefense({
+        sport: sportGuess as any,
+        teamId: resolved.id,
+        season,
+        seasonType: 2,
+        teamName: resolved.name,
+      })
+      return streamTextResponse(resp)
+    }
+
+    // Player vs opponent aggregate (season)
+    if (playerNameInMessage && vsOpponentIntent) {
+      const opponentName = vsOpponentIntent[1]
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'nfl' :
+        msgLower.match(/mlb|baseball/) ? 'mlb' :
+        msgLower.match(/nhl|hockey/) ? 'nhl' :
+        'nba'
+      const season = getSeasonYearForSport(sportGuess as any)
+      const resp = await resolvePlayerOpponentAggregate({
+        playerName: playerNameInMessage,
+        sport: sportGuess as any,
+        season,
+        seasonType: 2,
+        opponent: opponentName,
+      })
+      return streamTextResponse(resp)
+    }
+
+    // Player no-rest/back-to-back split
+    if (playerNameInMessage && noRestIntent) {
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'nfl' :
+        msgLower.match(/mlb|baseball/) ? 'mlb' :
+        msgLower.match(/nhl|hockey/) ? 'nhl' :
+        'nba'
+      const season = getSeasonYearForSport(sportGuess as any)
+      const seasonType = seasonTypeFromText(msgLower)
+      const resp = await resolvePlayerRestSplit({
+        playerName: playerNameInMessage,
+        sport: sportGuess as any,
+        season,
+        seasonType,
+      })
+      return streamTextResponse(resp)
+    }
+
+    // Player threshold/count intents (ESPN-only; e.g., "how many 40-point games")
+    if (!leaderboardIntent) {
+      const thresholdHandled = await maybeHandlePlayerThreshold()
+      if (thresholdHandled) return thresholdHandled
+    }
+
     const modelApplicationIntent =
       /apply\s+.+?(model|confidence)|confidence\s+interval|run\s+my\s+model|use\s+my\s+model|custom\s+model/i.test(msgLower)
     const researchIntent =
       /research\s+(mode|tab)|recent\s+news|search\s+the\s+web|latest\s+updates|run\s+my\s+model|apply\s+my\s+model|statistical\s+projection/i.test(
         msgLower
       ) || webSearchToggle
+
+    // Player game line shortcut (ESPN gamelog)
+    if (playerNameInMessage && playerGameIntent.wantsGameLine && !propIntent && !oddsKeywordMatch) {
+      try {
+        const sportGuess =
+          msgLower.match(/nfl|football/) ? 'nfl' :
+          msgLower.match(/mlb|baseball/) ? 'mlb' :
+          msgLower.match(/nhl|hockey/) ? 'nhl' :
+          'nba'
+        const season = getSeasonYearForDate(sportGuess, playerGameIntent.dateHint)
+        const athleteSearch = await searchAthlete(sportGuess as any, playerNameInMessage)
+        const athleteId = athleteSearch?.id
+        const playerEntry = athleteId ? { id: athleteId } : await searchPlayer(playerNameInMessage, sportGuess)
+        if (!playerEntry?.id) {
+          return streamTextResponse(`I couldn't find ${playerNameInMessage}. Try a more exact name or specify the sport.`)
+        }
+        let logs = await espnToolResolvers.espnPlayerGameLogs({
+          sport: sportGuess,
+          playerId: playerEntry.id,
+          season,
+          seasonType: 2,
+        })
+        let filtered = filterGameLogs(logs as any[], {
+          date: playerGameIntent.dateHint,
+          opponent: playerGameIntent.opponentHint,
+          lastN: playerGameIntent.lastN,
+        })
+
+        if (!filtered?.length && playerGameIntent.opponentHint) {
+          filtered = filterGameLogs(logs as any[], {
+            date: playerGameIntent.dateHint,
+            lastN: playerGameIntent.lastN,
+          })
+        }
+
+        if (!filtered?.length) {
+          const prevSeason = season - 1
+          if (prevSeason > 2000) {
+            logs = await espnToolResolvers.espnPlayerGameLogs({
+              sport: sportGuess,
+              playerId: playerEntry.id,
+              season: prevSeason,
+              seasonType: 2,
+            })
+            filtered = filterGameLogs(logs as any[], {
+              date: playerGameIntent.dateHint,
+              opponent: playerGameIntent.opponentHint,
+              lastN: playerGameIntent.lastN,
+            })
+          }
+        }
+
+        // Fallback: use scoreboard + event summary for exact date/opponent
+        if (!filtered?.length && playerGameIntent.dateHint) {
+          try {
+            const scoreboard = await fetchAllLiveScores({ date: playerGameIntent.dateHint, includeCompletedForDate: true })
+            const targetOpp = normalizeToken((playerGameIntent.opponentHint || '').replace(/\bon\b$/i, '').trim())
+            let game = (scoreboard.games || []).find((g: any) => {
+              const teams = (g.competitors || []).map((c: any) => normalizeToken(c?.name || c?.shortName || c?.abbreviation || ''))
+              return teams.some((t: string) => (targetOpp ? t.includes(targetOpp) || targetOpp.includes(t) : true))
+            })
+            if (!game && (scoreboard.games || []).length) {
+              game = (scoreboard.games || [])[0]
+            }
+            if (game?.eventId) {
+              let playerFound: any = null
+              try {
+                const details = await fetchGameDetails(sportGuess as LeagueId, game.eventId)
+                playerFound = findPlayerInGameDetails(details, playerNameInMessage)
+              } catch (errSummary) {
+                console.warn('[PLAYER_GAME_LINE_SHORTCUT][EVENT_FALLBACK][LIVESCORES] Failed', errSummary)
+                try {
+                  const snapshot = await getEventSnapshot(sportGuess as any, String(game.eventId))
+                  const boxPlayers = snapshot?.boxscore?.players || []
+                  const flattenPlayers = boxPlayers.flatMap((p: any) => (p?.statistics || []).flatMap((s: any) => s?.athletes || []))
+                  playerFound = findPlayerInGameDetails({ teams: [{ starters: flattenPlayers }] }, playerNameInMessage)
+                } catch (errSnap) {
+                  console.warn('[PLAYER_GAME_LINE_SHORTCUT][EVENT_FALLBACK][SNAPSHOT] Failed', errSnap)
+                }
+              }
+              if (playerFound) {
+                const line = formatPlayerGameLine(playerFound)
+                return streamTextResponse(`${playerNameInMessage} vs ${playerGameIntent.opponentHint || 'opponent'} on ${playerGameIntent.dateHint}\n${line}`)
+              }
+            }
+          } catch (e) {
+            console.warn('[PLAYER_GAME_LINE_SHORTCUT][EVENT_FALLBACK] Failed', e)
+          }
+        }
+        if (filtered.length === 1) {
+          return streamTextResponse(formatGameLogEntry(filtered[0]))
+        }
+        const lines = filtered.slice(0, 5).map((g: any) => formatGameLogEntry(g))
+        return streamTextResponse(lines.join('\n\n'))
+      } catch (err) {
+        console.error('[PLAYER_GAME_LINE_SHORTCUT] Failed:', err)
+        // fall through to normal flow
+      }
+    }
 
     const shouldFetchOdds =
       !betIntent &&
@@ -1981,7 +2641,15 @@ export async function POST(req: NextRequest) {
       !modelApplicationIntent &&
       !playerGameStatsIntent &&
       !teamStatsIntent &&
+      !intent.ats &&
+      !intent.oddsRecord &&
+      !intent.pastPerformances &&
       (Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0)
+
+    if ((intent.ats || intent.oddsRecord || intent.pastPerformances || intent.futures) && (mentionedTeams.length || parsedMatchupTeams.length)) {
+      const handled = await maybeHandleEspnTeamBetting()
+      if (handled) return handled
+    }
 
     const loadNcaabSlateTeams = async () => {
       const today = new Date().toISOString().slice(0, 10)
@@ -3156,7 +3824,9 @@ ${statsEnrichment}
 
       const DISABLED_TOOLS = new Set([])
 
-      if (functionName === 'settle_bet') {
+      if (espnToolResolvers[functionName]) {
+        functionResult = await espnToolResolvers[functionName](functionArgs)
+      } else if (functionName === 'settle_bet') {
         const { data: pendingBets } = await supabase
           .from('bets')
           .select('*')

@@ -29,7 +29,7 @@ import { openai, AI_MODELS, runWebSearchResponse } from '@/lib/ai-gateway-client
 import { espnTools } from '@/lib/llm/tools/espn-tools'
 import { toolResolvers as espnToolResolvers } from '@/lib/llm/tools/resolvers'
 import { resolveEspnTeamId } from '@/lib/utils/espn-team-lookup'
-import { searchAthlete, getEventSnapshot } from '@/lib/services/espn-orchestrator'
+import { searchAthlete, getEventSnapshot, getPlayerGameLogs } from '@/lib/services/espn-orchestrator'
 import {
   resolvePlayerThresholdQuery,
   resolveLeaderboardThresholdQuery,
@@ -3972,7 +3972,65 @@ ${statsEnrichment}
               let formatted = formatStatsForAI([data])
               // Compute simple advanced metrics (TS%, eFG%, TOV%) from season stats when possible
               if (sportKey.includes('basketball') && data.stats) {
-                const adv = computeSimpleAdvanced(data.stats as Record<string, any>)
+                let adv = computeSimpleAdvanced(data.stats as Record<string, any>)
+                // If missing FGA/FTA, derive from gamelog averages
+                if ((adv.tsPct == null || adv.efgPct == null) && playerName) {
+                  try {
+                    const seasonYear = getSeasonYearForSport('nba')
+                    const searchHit = await searchPlayer(playerName, 'basketball_nba')
+                    const playerId = (searchHit as any)?.id || (searchHit as any)?.athleteId
+                    if (playerId) {
+                      const logsRaw = await getPlayerGameLogs('nba', String(playerId), seasonYear, 2)
+                      const logs: any[] = Array.isArray(logsRaw) ? logsRaw : []
+                      const take = logs.slice(0, 20)
+                      let sumPts = 0, sumFga = 0, sumFgm = 0, sumFta = 0, sumTpm = 0, sumTov = 0, count = 0
+                      for (const g of take) {
+                        const blocks: any[] = Array.isArray(g?.stats) ? g.stats : Array.isArray(g?.statistics) ? g.statistics : []
+                        const statMap: Record<string, number> = {}
+                        for (const blk of blocks) {
+                          const entries: any[] = Array.isArray(blk?.stats) ? blk.stats : Array.isArray(blk) ? blk : []
+                          for (const s of entries) {
+                            const label = s?.label || s?.displayName || s?.name
+                            const val = typeof s?.value === 'number' ? s.value : Number(s?.value ?? s?.displayValue)
+                            if (label && Number.isFinite(val)) {
+                              statMap[label.toString().toUpperCase().replace(/\s+/g, '_')] = val
+                            }
+                          }
+                        }
+                        const n = (k: string) => {
+                          const v = statMap[k]
+                          return typeof v === 'number' && Number.isFinite(v) ? v : null
+                        }
+                        const pts = n('PTS')
+                        const fga = n('FGA')
+                        const fgm = n('FGM')
+                        const fta = n('FTA')
+                        const tpm = n('3PM') ?? n('3PT')
+                        const tov = n('TOV')
+                        if (pts != null) sumPts += pts
+                        if (fga != null) sumFga += fga
+                        if (fgm != null) sumFgm += fgm
+                        if (fta != null) sumFta += fta
+                        if (tpm != null) sumTpm += tpm
+                        if (tov != null) sumTov += tov
+                        count++
+                      }
+                      if (count > 0) {
+                        const perGame = {
+                          PTS: sumPts / count,
+                          FGA: sumFga / count,
+                          FGM: sumFgm / count,
+                          FTA: sumFta / count,
+                          '3PM': sumTpm / count,
+                          TOV: sumTov / count,
+                        }
+                        adv = computeSimpleAdvanced(perGame)
+                      }
+                    }
+                  } catch (err) {
+                    console.warn('[PLAYER_ADVANCED_FALLBACK] failed', err)
+                  }
+                }
                 const parts: string[] = []
                 if (adv.tsPct != null) parts.push(`TS% ${(adv.tsPct * 100).toFixed(1)}`)
                 if (adv.efgPct != null) parts.push(`eFG% ${(adv.efgPct * 100).toFixed(1)}`)

@@ -215,6 +215,28 @@ const findPlayerInGameDetails = (details: any, playerName: string) => {
   })
 }
 
+const computeSimpleAdvanced = (stats: Record<string, any>) => {
+  const num = (v: any) => {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : null
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+  const pts = num(stats.PTS ?? stats.pointsPerGame ?? stats.points)
+  const fga = num(stats.FGA ?? stats.fieldGoalAttemptsPerGame ?? stats.fieldGoalAttempts)
+  const fgm = num(stats.FGM ?? stats.fieldGoalsPerGame ?? stats.fieldGoalsMade)
+  const fta = num(stats.FTA ?? stats.freeThrowAttemptsPerGame ?? stats.freeThrowAttempts)
+  const tpm = num(stats['3PM'] ?? stats.threePointFieldGoalsPerGame ?? stats.threes ?? stats['3PT'])
+  const tov = num(stats.TOV ?? stats.turnoversPerGame ?? stats.turnovers)
+
+  const tsPct =
+    pts != null && fga != null && fta != null && fga + 0.44 * fta > 0 ? pts / (2 * (fga + 0.44 * fta)) : null
+  const efgPct = fgm != null && fga != null && fga > 0 ? (fgm + 0.5 * (tpm ?? 0)) / fga : null
+  const tovPct =
+    fga != null && fta != null && tov != null && fga + 0.44 * fta + tov > 0 ? tov / (fga + 0.44 * fta + tov) : null
+
+  return { tsPct, efgPct, tovPct }
+}
+
 const parseDateFromMessage = (input: string): string => {
   const lower = input.toLowerCase()
   const today = new Date()
@@ -3946,9 +3968,23 @@ ${statsEnrichment}
             functionResult = { success: false, error: 'Player name is required' }
           } else {
             const data = await getPlayerSeasonStats(playerName, sportKey || undefined)
-            functionResult = data
-              ? { success: true, data, formatted: formatStatsForAI([data]) }
-              : { success: false, error: 'Player season stats not found' }
+            if (data) {
+              let formatted = formatStatsForAI([data])
+              // Compute simple advanced metrics (TS%, eFG%, TOV%) from season stats when possible
+              if (sportKey.includes('basketball') && data.stats) {
+                const adv = computeSimpleAdvanced(data.stats as Record<string, any>)
+                const parts: string[] = []
+                if (adv.tsPct != null) parts.push(`TS% ${(adv.tsPct * 100).toFixed(1)}`)
+                if (adv.efgPct != null) parts.push(`eFG% ${(adv.efgPct * 100).toFixed(1)}`)
+                if (adv.tovPct != null) parts.push(`TOV% ${(adv.tovPct * 100).toFixed(1)}`)
+                if (parts.length) {
+                  formatted += `\n\nAdvanced (derived): ${parts.join(' | ')}`
+                }
+              }
+              functionResult = { success: true, data, formatted }
+            } else {
+              functionResult = { success: false, error: 'Player season stats not found' }
+            }
           }
           console.log('[PERF][STATS][PLAYER]', {
             sport: sportKey,

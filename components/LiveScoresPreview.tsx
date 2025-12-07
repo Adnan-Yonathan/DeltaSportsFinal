@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
@@ -35,10 +35,14 @@ const formatStatus = (game: LiveScoreGame) => {
   if (game.bucket === "live") {
     const clock = game.status?.displayClock
     const period = game.status?.period
-    return [clock, period ? `P${period}` : null].filter(Boolean).join(" ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ ") || "Live"
+    const parts = [clock, period ? `P${period}` : null].filter(Boolean) as string[]
+    return parts.join(" • ") || "Live"
   }
   return formatTime(game.startTime)
 }
+
+const sanitizeText = (text?: string | null) =>
+  text ? text.replace(/[^\x09\x0A\x0D\x20-\x7E]+/g, "").trim() : ""
 
 const LeagueFilter = ({
   value,
@@ -126,7 +130,7 @@ const ArticleList = ({
               <ExternalLink className="w-4 h-4 text-white/40 group-hover:text-white/60 shrink-0" />
             </div>
             <div className="text-xs text-white/40 mt-1">
-              {article.league ? `${article.league} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ ` : ""}
+              {article.league ? `${article.league} ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ ` : ""}
               {article.published ? new Date(article.published).toLocaleString() : ""}
             </div>
           </Link>
@@ -159,7 +163,7 @@ const GameCard = ({
         <span className="uppercase tracking-wide">{game.leagueLabel}</span>
         <span className="flex items-center gap-1 text-white/60">
           <Clock className="w-3 h-3" />
-          {formatStatus(game)}
+          {sanitizeText(formatStatus(game))}
         </span>
       </div>
       <div className="space-y-2">
@@ -176,7 +180,7 @@ const GameCard = ({
           )
         })}
       </div>
-      {game.status?.detail && <div className="text-xs text-white/60">{game.status.detail}</div>}
+      {game.status?.detail && <div className="text-xs text-white/60">{sanitizeText(game.status.detail)}</div>}
     </button>
   )
 }
@@ -256,7 +260,7 @@ export function LiveScoresPreview({ variant = "default" }: { variant?: "default"
               className={`${dateInput} rounded-md px-2 py-1 text-white text-xs`}
             />
             {error && <span className="text-red-400 text-xs">{error}</span>}
-            {loading && <span className="text-white/60 text-xs">LoadingÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦</span>}
+            {loading && <span className="text-white/60 text-xs">LoadingÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦</span>}
           </div>
         </div>
       </div>
@@ -300,7 +304,7 @@ export function LiveScoresPreview({ variant = "default" }: { variant?: "default"
             <div className={`flex items-center justify-between px-4 py-3 border-b ${isChat ? 'border-[#1f1f1f]' : 'border-[#6b6b6b]'}`}>
               <div>
                 <div className="text-xs uppercase tracking-wide text-white/50">{selectedGame.leagueLabel}</div>
-                <div className="text-sm text-white/80">{formatStatus(selectedGame)}</div>
+                <div className="text-sm text-white/80">{sanitizeText(formatStatus(selectedGame))}</div>
               </div>
               <button
                 onClick={closeDetails}
@@ -327,7 +331,7 @@ export function LiveScoresPreview({ variant = "default" }: { variant?: "default"
                 })}
               </div>
 
-              {detailsState.loading && <div className="text-xs text-white/70">Loading statsÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦</div>}
+              {detailsState.loading && <div className="text-xs text-white/70">Loading statsÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦</div>}
               {detailsState.error && <div className="text-xs text-red-400">{detailsState.error}</div>}
 
               {detailsState.data && (
@@ -368,3 +372,6 @@ export function LiveScoresPreview({ variant = "default" }: { variant?: "default"
     </div>
   )
 }
+
+
+

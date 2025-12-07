@@ -74,6 +74,9 @@ function formatDisplayDate(dateString: string | undefined) {
   }
 }
 
+const sanitizeText = (text?: string | null) =>
+  text ? text.replace(/[^\x09\x0A\x0D\x20-\x7E]+/g, "").trim() : ""
+
 function adjustDate(date: string, delta: number) {
   const parsed = new Date(`${date}T00:00:00`)
   parsed.setDate(parsed.getDate() + delta)
@@ -370,17 +373,22 @@ export default function LiveScoresPage() {
                               setSelectedGame(game)
                             }
                           }}
-                          className="rounded-2xl border border-[#6b6b6b] bg-[#4a4a4a] p-2 sm:p-4 lg:p-5 shadow-md shadow-black/30 transition ring-offset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#34d399]/60 cursor-pointer"
-                        >
+                      className="rounded-2xl border border-[#6b6b6b] bg-[#4a4a4a] p-2 sm:p-4 lg:p-5 shadow-md shadow-black/30 transition ring-offset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#34d399]/60 cursor-pointer"
+                    >
+                      {(() => {
+                        const detail = sanitizeText(game.status?.detail)
+                        const shortDetail = sanitizeText(game.status?.shortDetail)
+                        const broadcast = sanitizeText(game.broadcast)
+                        const odds = sanitizeText(game.odds)
+                        const statusLabel =
+                          game.bucket === "upcoming"
+                            ? formatStartTime(game.startTime)
+                            : shortDetail || detail || (game.bucket === "completed" ? "Final" : "Live")
+                        return (
+                          <>
                           <div className="flex items-center justify-between text-[11px] text-white/60">
                             <span className="uppercase tracking-[0.3em]">{game.leagueLabel}</span>
-                            <span>
-                              {game.bucket === "upcoming"
-                                ? formatStartTime(game.startTime)
-                                : game.status?.shortDetail ??
-                                  game.status?.detail ??
-                                  (game.bucket === "completed" ? "Final" : "Live")}
-                            </span>
+                            <span>{statusLabel}</span>
                           </div>
 
                           <div className="mt-3 space-y-3">
@@ -409,14 +417,18 @@ export default function LiveScoresPage() {
                           </div>
 
                           {game.situation?.description && (
-                            <p className="mt-2 sm:mt-3 text-[11px] text-white/60">{game.situation.description}</p>
+                            <p className="mt-2 sm:mt-3 text-[11px] text-white/60">{sanitizeText(game.situation.description)}</p>
                           )}
 
                           <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white/40">
-                            {game.status?.detail && <span>{game.status.detail}</span>}
-                            {game.broadcast && <span>- {game.broadcast}</span>}
-                            {game.odds && <span>- {game.odds}</span>}
+                            {detail && <span>{detail}</span>}
+                            {broadcast && <span>- {broadcast}</span>}
+                            {odds && <span>- {odds}</span>}
                           </div>
+
+                          </>
+                        )
+                      })()}
 
                         </article>
                       ))}
@@ -469,7 +481,7 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-white/50">{game.leagueLabel}</p>
             <h3 className="text-2xl font-bold text-white">{game.shortName}</h3>
-            <p className="text-sm text-white/60">{data?.statusText || "Details"}</p>
+            <p className="text-sm text-white/60">{sanitizeText(data?.statusText) || "Details"}</p>
           </div>
           {data?.winProbability && (
             <div className="flex flex-col items-end text-sm text-white/80">
@@ -584,7 +596,7 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
                                     </span>
                                   )}
                                 </div>
-                                <p className="leading-snug">{play.text}</p>
+                                <p className="leading-snug">{sanitizeText(play.text)}</p>
                               </div>
                             ))}
                         </div>

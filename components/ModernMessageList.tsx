@@ -100,7 +100,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-[#4E4E4E]">
+      <div className="flex items-center justify-center h-full bg-black">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -130,7 +130,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-[#4E4E4E] px-2 sm:px-4 py-3 sm:py-6 custom-scrollbar">
+    <div className="h-full overflow-y-auto bg-black px-2 sm:px-4 py-3 sm:py-6 custom-scrollbar">
       <div className="max-w-4xl mx-auto space-y-3 sm:space-y-6">
         <AnimatePresence initial={false}>
           {messages.map((message, index) => (

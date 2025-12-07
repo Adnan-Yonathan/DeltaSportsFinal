@@ -224,7 +224,7 @@ export default function ChatPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#4E4E4E] text-white">
+      <div className="flex items-center justify-center min-h-screen bg-black text-white">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -243,7 +243,7 @@ export default function ChatPage() {
 
   return (
     <>
-      <div className="flex h-screen bg-[#4E4E4E] text-white overflow-hidden">
+      <div className="flex h-screen bg-black text-white overflow-hidden">
         {/* Mobile Sidebar Overlay */}
         <AnimatePresence>
           {sidebarOpen && (

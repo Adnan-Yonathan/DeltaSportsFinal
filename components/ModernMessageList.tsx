@@ -156,7 +156,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
                 className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 py-3 sm:px-5 sm:py-4 ${
                   message.role === 'user'
                     ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/20'
-                    : 'bg-[#3f3f3f] border border-[#6b6b6b] text-white'
+                    : 'bg-[#0f0f0f] border border-[#1f1f1f] text-white'
                 }`}
               >
                 {message.role === 'assistant' ? (
@@ -257,7 +257,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
                 <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
               </div>
             </div>
-            <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 py-3 sm:px-5 sm:py-4 bg-[#3f3f3f] border border-[#6b6b6b]">
+            <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 py-3 sm:px-5 sm:py-4 bg-[#0f0f0f] border border-[#1f1f1f]">
               <ShiningText text="DELTA is thinking..." />
             </div>
           </motion.div>

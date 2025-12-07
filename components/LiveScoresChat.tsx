@@ -56,7 +56,7 @@ export function LiveScoresChat({ leagues, date }: LiveScoresChatProps) {
   return (
     <div className="fixed bottom-4 right-4 z-50">
       {open ? (
-        <div className="w-[320px] sm:w-[380px] rounded-2xl border border-[#6b6b6b] bg-[#3f3f3f] p-4 shadow-2xl shadow-black/50 flex flex-col gap-3">
+        <div className="w-[320px] sm:w-[380px] rounded-2xl border border-[#1f1f1f] bg-black p-4 shadow-2xl shadow-black/50 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
               <MessageCircle className="w-4 h-4 text-emerald-400" />
@@ -83,14 +83,14 @@ export function LiveScoresChat({ leagues, date }: LiveScoresChatProps) {
             </div>
           </div>
 
-          <div className="flex-1 min-h-[220px] max-h-[360px] overflow-y-auto space-y-2 rounded-xl bg-[#4a4a4a] border border-[#6b6b6b] p-3">
+          <div className="flex-1 min-h-[220px] max-h-[360px] overflow-y-auto space-y-2 rounded-xl bg-[#0f0f0f] border border-[#1f1f1f] p-3">
             {messages.map((msg, idx) => (
               <div
                 key={idx}
                 className={`rounded-lg px-3 py-2 text-sm ${
                   msg.role === "user"
                     ? "bg-emerald-500/10 text-emerald-100 border border-emerald-500/30"
-                    : "bg-[#3f3f3f] text-white border border-[#6b6b6b]"
+                    : "bg-[#0f0f0f] text-white border border-[#1f1f1f]"
                 }`}
               >
                 {msg.content}
@@ -116,7 +116,7 @@ export function LiveScoresChat({ leagues, date }: LiveScoresChatProps) {
                 }
               }}
               placeholder="Ask about today's scores, a team, or a game..."
-              className="flex-1 rounded-lg bg-[#3f3f3f] border border-[#6b6b6b] px-3 py-2 text-sm text-white outline-none focus:border-emerald-500/60"
+              className="flex-1 rounded-lg bg-[#0f0f0f] border border-[#1f1f1f] px-3 py-2 text-sm text-white outline-none focus:border-emerald-500/60"
             />
             <button
               onClick={sendMessage}

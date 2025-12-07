@@ -90,7 +90,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full bg-[#4E4E4E] px-4 py-8">
+    <div className="flex flex-col items-center justify-center min-h-full bg-black px-4 py-8">
       <div className="w-full max-w-5xl mx-auto pt-2 mb-12">
         <TopPerformancesStrip />
       </div>
@@ -134,7 +134,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute bottom-full mb-2 left-0 w-56 rounded-xl border border-[#6b6b6b] bg-[#3f3f3f] shadow-2xl overflow-hidden"
+                  className="absolute bottom-full mb-2 left-0 w-56 rounded-xl border border-[#1f1f1f] bg-black shadow-2xl overflow-hidden"
                 >
                   <div className="py-1">
                     <button

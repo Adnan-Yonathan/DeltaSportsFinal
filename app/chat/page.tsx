@@ -253,7 +253,7 @@ export default function ChatPage() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setSidebarOpen(false)}
-                className="fixed inset-0 bg-[#2f2f2f]/80 z-40 lg:hidden"
+                className="fixed inset-0 bg-black/80 z-40 lg:hidden"
               />
               <motion.div
                 initial={{ x: '-100%' }}
@@ -262,7 +262,7 @@ export default function ChatPage() {
                 transition={{ type: 'spring', damping: 30, stiffness: 300 }}
                 className="fixed left-0 top-0 bottom-0 w-80 z-50 lg:hidden"
               >
-                <div className="flex h-full flex-col bg-[#3f3f3f]">
+                <div className="flex h-full flex-col bg-black">
                   <div className="flex-1 overflow-y-auto">
                     <ModernSidebar
                       userId={user?.id}
@@ -277,7 +277,7 @@ export default function ChatPage() {
                       }}
                     />
                   </div>
-                  <div className="border-t border-[#6b6b6b] p-4">
+                  <div className="border-t border-[#1f1f1f] p-4">
                     <button
                       type="button"
                       onClick={() => {
@@ -297,7 +297,7 @@ export default function ChatPage() {
         </AnimatePresence>
 
         {/* Desktop Sidebar */}
-        <div className="hidden lg:flex lg:w-1/5 flex-col border-r border-[#6b6b6b]">
+        <div className="hidden lg:flex lg:w-1/5 flex-col border-r border-[#1f1f1f]">
           <div className="flex-1 overflow-hidden">
             <ModernSidebar
               userId={user?.id}
@@ -306,7 +306,7 @@ export default function ChatPage() {
               onNewConversation={handleNewConversation}
             />
           </div>
-          <div className="border-t border-[#6b6b6b] p-4">
+          <div className="border-t border-[#1f1f1f] p-4">
             <button
               type="button"
               onClick={scrollToSavedModels}
@@ -321,7 +321,7 @@ export default function ChatPage() {
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <div className="bg-[#3f3f3f]/80 backdrop-blur-xl border-b border-[#6b6b6b] px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+          <div className="bg-black/80 backdrop-blur-xl border-b border-[#1f1f1f] px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
             <div className="flex items-center gap-2 sm:gap-3">
               {/* Mobile Menu Button */}
               <button
@@ -367,7 +367,7 @@ export default function ChatPage() {
               <div className="relative" ref={profileMenuRef}>
                 <button
                   onClick={() => setProfileMenuOpen((prev) => !prev)}
-                  className="h-10 w-10 rounded-full border border-white/20 hover:border-white/60 overflow-hidden transition-colors"
+                      className="h-10 w-10 rounded-full border border-[#2a2a2a] hover:border-white/60 overflow-hidden transition-colors"
                   aria-label="Profile menu"
                 >
                   {profileImage ? (
@@ -394,22 +394,22 @@ export default function ChatPage() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -6 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute right-0 mt-3 w-60 rounded-2xl border border-[#6b6b6b] bg-[#3f3f3f] text-white shadow-2xl z-50 overflow-hidden"
+                      className="absolute right-0 mt-3 w-60 rounded-2xl border border-[#1f1f1f] bg-black text-white shadow-2xl z-50 overflow-hidden"
                     >
-                      <div className="px-4 py-3 border-b border-[#6b6b6b]">
+                      <div className="px-4 py-3 border-b border-[#1f1f1f]">
                         <p className="text-sm font-semibold">{fallbackName}</p>
                         <p className="text-xs text-white/60 truncate">{user?.email}</p>
                       </div>
                       <button
                         onClick={triggerAvatarUpload}
-                        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 transition-colors"
+                        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/5 transition-colors"
                       >
                         <ImageIcon className="w-4 h-4" />
                         <span>Change Photo</span>
                       </button>
                       <button
                         onClick={handleSignOut}
-                        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-red-300 hover:bg-white/10 border-t border-[#6b6b6b] transition-colors"
+                        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-red-300 hover:bg-white/5 border-t border-[#1f1f1f] transition-colors"
                       >
                         <LogOut className="w-4 h-4" />
                         <span>Sign Out</span>
@@ -469,7 +469,7 @@ export default function ChatPage() {
 
         {/* Desktop Live Scores Preview */}
         <div className="hidden lg:block lg:w-1/4">
-          <LiveScoresPreview />
+          <LiveScoresPreview variant="chat" />
         </div>
 
         {/* Mobile Live Scores Modal */}
@@ -490,8 +490,8 @@ export default function ChatPage() {
                 transition={{ type: 'spring', damping: 30, stiffness: 300 }}
                 className="fixed left-0 right-0 bottom-0 max-h-[80vh] z-50 lg:hidden overflow-hidden"
               >
-                <div className="bg-[#3f3f3f] border-t border-[#6b6b6b] rounded-t-2xl">
-                  <div className="flex items-center justify-between p-4 border-b border-[#6b6b6b]">
+                <div className="bg-black border-t border-[#1f1f1f] rounded-t-2xl">
+                  <div className="flex items-center justify-between p-4 border-b border-[#1f1f1f]">
                     <h3 className="text-lg font-bold text-white">Live Scores</h3>
                     <button
                       onClick={() => setLiveScoresOpen(false)}
@@ -502,7 +502,7 @@ export default function ChatPage() {
                   </div>
                   <div className="overflow-y-auto max-h-[calc(80vh-60px)]">
                     <div className="p-3">
-                      <LiveScoresPreview />
+                      <LiveScoresPreview variant="chat" />
                     </div>
                   </div>
                 </div>

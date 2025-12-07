@@ -173,7 +173,7 @@ export default function ModernSidebar({
 
   if (loading) {
     return (
-      <div className="h-full bg-[#3f3f3f] border-r border-[#6b6b6b] p-4">
+      <div className="h-full bg-black border-r border-[#1f1f1f] p-4">
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-16 bg-white/10 rounded-lg animate-pulse" />
@@ -208,7 +208,7 @@ export default function ModernSidebar({
                 className={`group relative p-3 rounded-lg cursor-pointer transition-all ${
                   currentConversationId === conv.id
                     ? 'bg-gradient-to-r from-emerald-500/20 to-emerald-500/20 border border-emerald-500/30'
-                    : 'hover:bg-white/10 border border-transparent'
+                    : 'hover:bg-white/5 border border-transparent'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -230,7 +230,7 @@ export default function ModernSidebar({
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.8 }}
                         onClick={(e) => deleteConversation(conv.id, e)}
-                        className="text-white/40 hover:text-red-400 transition-colors p-1 rounded hover:bg-red-500/10"
+                        className="text-white/50 hover:text-red-400 transition-colors p-1 rounded hover:bg-red-500/10"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </motion.button>
@@ -246,9 +246,9 @@ export default function ModernSidebar({
   }
 
   return (
-    <div className="h-full bg-[#3f3f3f] border-r border-[#6b6b6b] flex flex-col">
+    <div className="h-full bg-black border-r border-[#1f1f1f] flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-[#6b6b6b]">
+      <div className="p-4 border-b border-[#1f1f1f]">
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-white">DELTA</h2>
           <p className="text-xs text-white/60">Chat History</p>
@@ -286,7 +286,7 @@ export default function ModernSidebar({
         </AnimatePresence>
 
         <div
-          className="mt-8 border-t border-[#6b6b6b] pt-4"
+          className="mt-8 border-t border-[#1f1f1f] pt-4"
           id="saved-models-section"
           data-section="saved-models"
         >
@@ -302,7 +302,7 @@ export default function ModernSidebar({
             </div>
             <button
               onClick={loadModels}
-              className="p-2 rounded-lg border border-[#6b6b6b] text-white/70 hover:text-white hover:border-white/40 transition-colors"
+              className="p-2 rounded-lg border border-[#1f1f1f] text-white/70 hover:text-white hover:border-white/40 transition-colors"
               title="Refresh models"
             >
               <RefreshCw className={`w-4 h-4 ${modelsLoading ? 'animate-spin' : ''}`} />
@@ -320,7 +320,7 @@ export default function ModernSidebar({
             </Link>
             <Link
               href="/models"
-              className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[#6b6b6b] hover:border-white/50 text-white/70 hover:text-white font-medium text-xs transition-all"
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[#1f1f1f] hover:border-white/50 text-white/70 hover:text-white font-medium text-xs transition-all"
             >
               <Eye className="w-3.5 h-3.5" />
               <span>View All</span>
@@ -343,7 +343,7 @@ export default function ModernSidebar({
                     className={`p-3 rounded-lg border ${
                       isResearch
                         ? 'border-[#34d399]/40 bg-[#34d399]/10 hover:border-[#34d399]/60'
-                        : 'border-[#6b6b6b] bg-[#4a4a4a] hover:border-[#34d399]/60'
+                        : 'border-[#1f1f1f] bg-[#0f0f0f] hover:border-[#34d399]/60'
                     } transition-all`}
                   >
                     <div className="flex items-start justify-between gap-3">

@@ -331,7 +331,7 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
   }
 
   return (
-    <div className="border-t border-[#6b6b6b] bg-[#3f3f3f]/90 backdrop-blur-xl p-2 sm:p-4">
+    <div className="border-t border-[#1f1f1f] bg-black/90 backdrop-blur-xl p-2 sm:p-4">
       <div className="max-w-4xl mx-auto">
         <motion.div
           animate={{
@@ -339,7 +339,7 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
               ? '0 0 0 2px rgba(52, 211, 153, 0.35)'
               : '0 0 0 0px rgba(52, 211, 153, 0)',
           }}
-          className="relative flex items-end gap-2 sm:gap-3 rounded-2xl bg-[#4a4a4a] border border-[#6b6b6b] p-2 sm:p-3 transition-all"
+          className="relative flex items-end gap-2 sm:gap-3 rounded-2xl bg-[#0f0f0f] border border-[#1f1f1f] p-2 sm:p-3 transition-all"
         >
           <div className="flex-1">
             <textarea
@@ -413,7 +413,7 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute bottom-full mb-2 left-0 w-56 rounded-xl border border-[#6b6b6b] bg-[#3f3f3f] shadow-2xl z-50 overflow-hidden"
+                    className="absolute bottom-full mb-2 left-0 w-56 rounded-xl border border-[#1f1f1f] bg-black shadow-2xl z-50 overflow-hidden"
                   >
                     <div className="py-1">
                       <button
@@ -487,7 +487,7 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
               className={`p-2.5 sm:p-2 rounded-lg transition-all border ${
                 webSearchEnabled
                   ? 'bg-[#34d399]/20 border-[#34d399]/50 text-white shadow-inner shadow-[#34d399]/30'
-                  : 'bg-[#4a4a4a] border-[#6b6b6b] text-white/70 hover:bg-white/10 hover:text-white'
+                  : 'bg-[#0f0f0f] border-[#1f1f1f] text-white/70 hover:bg-white/10 hover:text-white'
               }`}
               title="Toggle web search for research mode"
               aria-pressed={webSearchEnabled}

@@ -1,5 +1,11 @@
 import { RecentPerformance } from '@/lib/utils/recent-performances'
 import {
+  getSportsReferencePlayerSeasonStats,
+  getSportsReferenceTeamStats,
+} from '@/lib/providers/sports-reference'
+import { findNbaStaticPlayer } from '@/lib/nba-static-stats'
+import { findStaticNbaTeam, getStaticNbaTeams } from '@/lib/nba-static-team-stats'
+import {
   fetchAthleteStatistics,
   fetchInjuries as fetchEspnNFLInjuries,
   fetchRoster as fetchEspnNFLRoster,
@@ -50,6 +56,8 @@ export interface TeamStats {
   winPct: number
   stats: Record<string, number | string | null>
   rank?: number
+  season?: string
+  sport?: string
 }
 
 export interface AdvancedTeamStats {
@@ -1589,6 +1597,37 @@ export async function getPlayerSeasonStats(playerName: string, sport?: string): 
   const targets = resolved ? [resolved] : SPORT_PRIORITY
 
   for (const sportKey of targets) {
+    if (sportKey === 'basketball_nba') {
+      const staticHit = findNbaStaticPlayer(playerName)
+      if (staticHit) {
+        return {
+          name: staticHit.name,
+          team: staticHit.team,
+          position: staticHit.position,
+          season: staticHit.season,
+          stats: staticHit.stats,
+          sport: 'basketball_nba',
+        }
+      }
+    }
+
+    // Sports Reference first for non-live stats
+    try {
+      const refStats = await getSportsReferencePlayerSeasonStats(playerName, sportKey)
+      if (refStats) {
+        return {
+          name: refStats.name,
+          team: refStats.team || '',
+          position: refStats.position,
+          season: refStats.season,
+          stats: refStats.stats,
+          sport: refStats.sport || sportKey,
+        }
+      }
+    } catch (err) {
+      console.warn('[SportsReference] player fetch failed', sportKey, err)
+    }
+
     let data: PlayerStats | null = null
     if (sportKey === 'basketball_nba') {
       data = await getNBAPlayerSeasonStats(playerName)
@@ -1620,11 +1659,11 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
     if (!teamIdentifier) return teams
 
     const target = normalizeName(teamIdentifier)
-    return teams.filter((entry) => {
-      const name = normalizeName(entry.team)
-      const abbr = normalizeName((entry as any).teamAbbr || '')
-      return (
-        name.includes(target) ||
+      return teams.filter((entry) => {
+        const name = normalizeName(entry.team)
+        const abbr = normalizeName((entry as any).teamAbbr || '')
+        return (
+          name.includes(target) ||
         target.includes(name) ||
         (abbr && (abbr === target || target.includes(abbr) || abbr.includes(target)))
       )
@@ -1634,6 +1673,27 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
   switch (sportKey) {
     case 'nba':
     case 'basketball_nba': {
+      // Prefer static user-provided team table
+      const staticTeams = filterTeams(teamIdentifier ? findStaticNbaTeam(teamIdentifier) : getStaticNbaTeams())
+      if (staticTeams.length) return staticTeams
+
+      try {
+        const refTeams = await getSportsReferenceTeamStats('basketball_nba')
+        if (refTeams?.length) {
+          return filterTeams(
+            refTeams.map((t) => ({
+              team: t.team,
+              wins: t.wins ?? 0,
+              losses: t.losses ?? 0,
+              winPct: t.winPct ?? 0,
+              stats: t.stats,
+              sport: 'basketball_nba',
+            }))
+          )
+        }
+      } catch (err) {
+        console.warn('[SportsReference] NBA team fetch failed', err)
+      }
       const [basic, advanced] = await Promise.all([
         getNBATeamStats(),
         getNBAAdvancedTeamStats(),
@@ -1661,6 +1721,23 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
     }
     case 'nfl':
     case 'americanfootball_nfl': {
+      try {
+        const refTeams = await getSportsReferenceTeamStats('americanfootball_nfl')
+        if (refTeams?.length) {
+          return filterTeams(
+            refTeams.map((t) => ({
+              team: t.team,
+              wins: t.wins ?? 0,
+              losses: t.losses ?? 0,
+              winPct: t.winPct ?? 0,
+              stats: t.stats,
+              sport: 'americanfootball_nfl',
+            }))
+          )
+        }
+      } catch (err) {
+        console.warn('[SportsReference] NFL team fetch failed', err)
+      }
       const [basic, advanced] = await Promise.all([
         getNFLTeamStats(),
         getNFLAdvancedTeamStats(),

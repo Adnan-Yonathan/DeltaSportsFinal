@@ -21,7 +21,8 @@ export default function DataSourcesPage() {
           </li>
           <li>
             <span className="font-medium text-white">Team & player stats:</span> ESPN and official
-            league APIs, plus nflfastR for NFL advanced team metrics.
+            league APIs, plus nflfastR for NFL advanced team metrics. Historical and season-level
+            snapshots now pull from Sports Reference (NBA/CBB, NFL/CFB, MLB, NHL) when available.
           </li>
           <li>
             <span className="font-medium text-white">Odds & markets:</span> an external odds
@@ -41,4 +42,3 @@ export default function DataSourcesPage() {
     </div>
   )
 }
-

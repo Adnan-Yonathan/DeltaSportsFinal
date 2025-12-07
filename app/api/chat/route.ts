@@ -30,6 +30,8 @@ import { espnTools } from '@/lib/llm/tools/espn-tools'
 import { toolResolvers as espnToolResolvers } from '@/lib/llm/tools/resolvers'
 import { resolveEspnTeamId } from '@/lib/utils/espn-team-lookup'
 import { searchAthlete, getEventSnapshot, getPlayerGameLogs } from '@/lib/services/espn-orchestrator'
+import { getStaticNbaTeams, findStaticNbaTeam } from '@/lib/nba-static-team-stats'
+import { nbaTeamPerGame2025_26Csv } from '@/data/nba_team_per_game_2025_26'
 import {
   resolvePlayerThresholdQuery,
   resolveLeaderboardThresholdQuery,
@@ -91,9 +93,13 @@ const formatAtsRecord = (resp: any) => {
 }
 
 const detectIntent = (msgLower: string) => {
+  const hasNumber = /\d/.test(msgLower)
   return {
     ats: /\bats\b|against the spread|cover\b/.test(msgLower),
-    overUnder: /\bover the total\b|\bunder the total\b|\bwent over\b|\bwent under\b|\b(o\/u|over\/under)\b/.test(msgLower),
+    overUnder:
+      ((/\bover\b/.test(msgLower) || /\bunder\b/.test(msgLower)) && hasNumber) ||
+      /\bo\/u\s*\d+(\.\d+)?\b/.test(msgLower) ||
+      /\bover\/under\s+\d+(\.\d+)?\b/.test(msgLower),
     oddsRecord: /\b(odds record|as favorite|as underdog|fav(?:orite)? record|dog record)\b/.test(msgLower),
     pastPerformances: /\bpast performances?\b|\bvs\.?\s+spread history\b/.test(msgLower),
     predictor: /\bpredictor|power index|fpi|bpi|win probability\b/.test(msgLower),
@@ -2258,16 +2264,184 @@ export async function POST(req: NextRequest) {
         return streamTextResponse(lines.join('\n'))
       })
     }
-    const propIntent = /props?\b|player\s+(points|rebounds|assists|threes|blocks|steals|yards|tds|receptions|pra)\b|over\/under\s+\d+(\.\d+)?/i.test(
-      msgLower
-    )
+    const pickOpponentThrees = (stats: Record<string, any>): number | null => {
+      const candidates = [
+        stats?.opponentThreeMadePerGame,
+        stats?.opponentThreesMadePerGame,
+        stats?.threePointersAllowedPerGame,
+        stats?.threesAllowedPerGame,
+        stats?.OPP_3P,
+      ]
+      for (const c of candidates) {
+        const n = Number(c)
+        if (Number.isFinite(n)) return n
+      }
+      return null
+    }
+    const pickMadeThrees = (stats: Record<string, any>): number | null => {
+      const candidates = [
+        stats?.threesMadePerGame,
+        stats?.threePointersMadePerGame,
+        stats?.THREES_PER_G,
+        stats?.THREE_PM,
+        stats?.threeP,
+        stats?.threePointMade,
+      ]
+      for (const c of candidates) {
+        const n = Number(c)
+        if (Number.isFinite(n)) return n
+      }
+      return null
+    }
+    const pickStatValue = (stats: Record<string, any>, key: string): number | null => {
+      const num = (...vals: any[]) => {
+        for (const v of vals) {
+          const n = Number(v)
+          if (Number.isFinite(n)) return n
+        }
+        return null
+      }
+      switch (key) {
+        case '3pm':
+          return pickMadeThrees(stats)
+        case '3pa':
+          return num(stats?.threesAttemptedPerGame, stats?.threePointersAttemptedPerGame)
+        case 'opp3pm':
+          return pickOpponentThrees(stats)
+        case 'opp3pa':
+          return num(
+            stats?.opponentThreeAttemptedPerGame,
+            stats?.opponentThreesAttemptedPerGame,
+            stats?.threePointersAllowedAttemptedPerGame,
+            stats?.threesAllowedAttemptedPerGame
+          )
+        case 'ppg':
+          return num(stats?.pointsForPerGame, stats?.pointsFor)
+        case 'papg':
+          return num(stats?.pointsAgainstPerGame, stats?.pointsAgainst)
+        case 'ortg':
+          return num(stats?.offensiveRating, stats?.OFF_RTG, stats?.ortg)
+        case 'drtg':
+          return num(stats?.defensiveRating, stats?.DEF_RTG, stats?.drtg)
+        case 'net':
+          return num(
+            stats?.netRating,
+            stats?.NET_RTG,
+            stats?.offensiveRating != null && stats?.defensiveRating != null
+              ? Number(stats.offensiveRating) - Number(stats.defensiveRating)
+              : null
+          )
+        case 'pace':
+          return num(stats?.pace, stats?.PACE)
+        case 'fgpct':
+          return num(stats?.fieldGoalPct)
+        case 'threepct':
+          return num(stats?.threePointPct)
+        case 'ftpct':
+          return num(stats?.freeThrowPct)
+        case 'tspct':
+          return num(stats?.trueShootingPct, stats?.TS_PCT)
+        case 'efgpct':
+          return num(stats?.effectiveFgPct, stats?.EFG_PCT)
+        case 'reb':
+          return num(stats?.reboundsPerGame, stats?.TRB, stats?.REB)
+        case 'oreb':
+          return num(stats?.offensiveReboundsPerGame, stats?.ORB)
+        case 'dreb':
+          return num(stats?.defensiveReboundsPerGame, stats?.DRB)
+        case 'ast':
+          return num(stats?.assistsPerGame, stats?.AST)
+        case 'stl':
+          return num(stats?.stealsPerGame, stats?.STL)
+        case 'blk':
+          return num(stats?.blocksPerGame, stats?.BLK)
+        case 'tov':
+          return num(stats?.turnoversPerGame, stats?.TOV)
+        case 'pf':
+          return num(stats?.personalFoulsPerGame, stats?.PF)
+        default:
+          return null
+      }
+    }
+
+    let cachedOpponent3pm: Array<{ team: string; val: number }> | null = null
+    const getOpponent3pmFromCsv = () => {
+      if (cachedOpponent3pm) return cachedOpponent3pm
+      const rows = nbaTeamPerGame2025_26Csv
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l && /^\d+,/.test(l))
+        .map((line) => line.split(','))
+        .filter((cells) => cells.length >= 43)
+        .map((cells) => ({ team: cells[2], val: Number(cells[30]) }))
+        .filter((r) => Number.isFinite(r.val))
+      cachedOpponent3pm = rows as Array<{ team: string; val: number }>
+      return cachedOpponent3pm
+    }
+
+    let cachedMade3pm: Array<{ team: string; val: number }> | null = null
+    const getMade3pmFromCsv = () => {
+      if (cachedMade3pm) return cachedMade3pm
+      const rows = nbaTeamPerGame2025_26Csv
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l && /^\d+,/.test(l))
+        .map((line) => line.split(','))
+        .filter((cells) => cells.length >= 15)
+        .map((cells) => ({ team: cells[2], val: Number(cells[13]) }))
+        .filter((r) => Number.isFinite(r.val))
+      cachedMade3pm = rows as Array<{ team: string; val: number }>
+      return cachedMade3pm
+    }
+    type SportKey = 'nba' | 'nfl' | 'mlb' | 'nhl'
+    const playerNameInMessage = extractPlayerName(message)
+    const extractTwoPlayers = (): string[] => {
+      const vsSplit = message.split(/\bvs\.?\b|\bversus\b/i)
+      if (vsSplit.length === 2) {
+        const left = vsSplit[0].replace(/compare|stats?|versus|vs\.?/gi, '').trim()
+        const right = vsSplit[1].replace(/compare|stats?|versus|vs\.?/gi, '').trim()
+        return [left, right].filter(Boolean)
+      }
+      const andSplit: string[] = message.split(/\band\b/i)
+      if (andSplit.length === 2) {
+        return andSplit
+          .map((p: string) => p.replace(/compare|stats?/gi, '').trim())
+          .filter(Boolean)
+      }
+      return []
+    }
+    const playerCompareCandidates = extractTwoPlayers()
+    const playerCompareIntent = playerCompareCandidates.length === 2 && /\bcompare\b|\bvs\b|\bversus\b/i.test(msgLower)
+    const hasNumber = /\d/.test(msgLower)
+    const propIntent =
+      Boolean(playerNameInMessage) &&
+      (/\bplayer props?\b/.test(msgLower) ||
+        /\b(points|rebounds|assists|threes|blocks|steals|yards|tds|receptions|pra|fantasy)\s+(prop|line)\b/.test(
+          msgLower
+        ) ||
+        /\bprop\b.*\b(points|rebounds|assists|threes|blocks|steals|yards|tds|receptions|pra|fantasy)\b/.test(
+          msgLower
+        ))
     const betIntent = /(log|track|record)\s+(my\s+)?bet\b|i\s+bet\s+\$?\d+/i.test(msgLower) || /settle\s+my\s+bet/i.test(msgLower)
     const webSearchToggle = /enable_web_search|enable\s+web\s+search/i.test(msgLower)
     const wantsEdgesOrValue = /(edge|ev|expected\s+value|value\s+bet|mispriced|best\s+bet)/i.test(msgLower)
     const mentionsModel = /model/i.test(msgLower)
     const intent = detectIntent(msgLower)
-    type SportKey = 'nba' | 'nfl' | 'mlb' | 'nhl'
-    const playerNameInMessage = extractPlayerName(message)
+    const twoTeamOddsQuery =
+      /\b(vs|vs\.|versus)\b/.test(msgLower) && /\b(odds|line|over\/under|o\/u|total|spread)\b/.test(msgLower)
+    const conceptualStatsOnly =
+      !twoTeamOddsQuery &&
+      !propIntent &&
+      !hasNumber &&
+      /\badvanced stats?\b/.test(msgLower || '') &&
+      /why|best|which|what/.test(msgLower || '')
+
+    const pointTotalConceptualAsk =
+      /point total|points\s+(prop|line)?|scoring total/.test(msgLower || '') &&
+      (/\badvanced\b/.test(msgLower || '') || /\bstats?\b/.test(msgLower || '') || /\bmetrics?\b/.test(msgLower || '')) &&
+      /what|which|best|why|how\b/.test(msgLower || '') &&
+      !twoTeamOddsQuery &&
+      !propIntent
     const leaderboardIntent = /\bwho has the most\b|\bmost\s+\d+[\s-]*point games\b/i.test(msgLower)
     const leaderboardThresholdMatch = message.match(/most\s+(\d+)[\s-]*point games/i)
     const noRestIntent = /\b(no rest|back to back|back-to-back|b2b)\b/i.test(msgLower)
@@ -2305,6 +2479,20 @@ export async function POST(req: NextRequest) {
         lastN,
       }
     })()
+
+    // Conceptual advanced-stats questions (e.g., best metrics for point totals) should bypass odds/props
+    if (pointTotalConceptualAsk || (conceptualStatsOnly && /\b(advanced stats?|metrics?)\b/.test(msgLower) && /point total|points\b/.test(msgLower))) {
+      const lines = [
+        'Key advanced stats for evaluating a player points total:',
+        '- Usage rate + minutes: volume and opportunity ceiling.',
+        '- Shooting efficiency: TS% / eFG%, 3PA rate, FT rate (FTA per FGA), rim vs midrange mix.',
+        '- Volume drivers: FGA per 36, 3PA per 36, drives per game, touch time/on-ball rate.',
+        '- Pace/context: team pace and offensive rating; opponent defensive rating/pace; projected possessions.',
+        '- Matchup levers: opponent foul rate (helps FT), rim/paint defense, perimeter 3PA allowed, primary defender quality.',
+        '- Role stability: starting vs bench, blowout risk, back-to-back fatigue, recent minutes consistency.',
+      ]
+      return streamTextResponse(lines.join('\n'))
+    }
 
     // ESPN-only aggregation for player threshold/count queries (e.g., "how many games with 40+ points")
     const maybeHandlePlayerThreshold = async () => {
@@ -2354,7 +2542,7 @@ export async function POST(req: NextRequest) {
       const season = getSeasonYearForSport(resolvedSport)
       const seasonType = seasonTypeFromText(msgLower)
 
-      if (intent.ats || intent.overUnder) {
+      if (!conceptualStatsOnly && (intent.ats || intent.overUnder) && twoTeamOddsQuery) {
         const splits = await computeTeamLineSplits({
           sport: resolvedSport,
           teamId: resolved.id,
@@ -2406,11 +2594,367 @@ export async function POST(req: NextRequest) {
       Boolean(playerNameInMessage) &&
       /\b(stat line|box score|game stats?|how many|line vs|stats?\s+vs)\b/i.test(msgLower) &&
       (/\bvs\b|against|@/i.test(msgLower) || /\b\d{1,2}\/\d{1,2}\b/.test(msgLower) || /\blast\s+(night|game)\b/i.test(msgLower))
+    const netRatingIntent = /\bnet rating|net rtg\b/i.test(msgLower) || (/\b(o|d)rtg\b/i.test(msgLower) && mentionedTeams.length >= 2)
+    const compareTeamsIntent = (/\bcompare\b/i.test(msgLower) || /\bvs\b|\bversus\b/i.test(msgLower)) && mentionedTeams.length >= 2
     const teamStatsIntent =
       /\b(team stats?|team statistics|team form|team record|recent form|last\s*10|last ten)\b/i.test(msgLower) ||
       (mentionedTeams.length > 0 &&
         /\b(stats?|record|standings?)\b/i.test(msgLower) &&
         !playerNameInMessage)
+    const normalizedThreeText = msgLower.replace(/[\u2010-\u2015]/g, '-').replace(/\s+/g, '')
+    const threesToken =
+      /\b(3p|3pt|3s|three[-\s]?pointers?|threes?)\b/i.test(msgLower) ||
+      /(3pointers|3point|threepointers|threepoint|3ptshots|threept)/i.test(normalizedThreeText)
+    const threesAllowedIntent =
+      threesToken &&
+      /\b(allow|allowed|against|give up|given up|opp|opponent|concede|conceded|surrender)\b/i.test(msgLower)
+    const threesMadeIntent =
+      threesToken &&
+      /\b(score|scores|scoring|make|makes|made|hit|hits|per game|ppg)\b/i.test(msgLower) &&
+      !threesAllowedIntent
+    const threesAllowedLeaderboardIntent =
+      threesAllowedIntent &&
+      /\b(most|highest|worst|leaders|top)\b.*\b(3s|3s? made|3 pointers|three pointers|threes)\b.*\b(allowed|against|give up|given up|surrender|conceded|per game)\b/i.test(
+        msgLower
+      )
+    const threesAllowedSingleTeamIntent =
+      threesAllowedIntent && mentionedTeams.length > 0
+    const threesMadeLeaderboardIntent =
+      threesMadeIntent &&
+      /\b(most|highest|leaders|top)\b.*\b(3s|3s? made|3 pointers|three pointers|threes)\b/i.test(msgLower)
+    const threesMadeSingleTeamIntent = threesMadeIntent && mentionedTeams.length > 0
+    const statRankingIntent =
+      /\b(most|highest|lowest|fewest|least|leaders|top|rank|ranking|leaderboard)\b/i.test(msgLower) &&
+      (threesMadeIntent || threesAllowedIntent || /pace|ortg|drtg|net rating|ppg|points per game|papg|rebounds|reb\b|assists|blocks|steals|turnovers|fg%|3p%|ft%|ts%|efg%|offensive rating|defensive rating|ftr\b/i.test(msgLower))
+    const statCompareIntent =
+      mentionedTeams.length >= 2 &&
+      /\b(compare|vs|versus)\b/i.test(msgLower) &&
+      (threesMadeIntent || threesAllowedIntent || /pace|ortg|drtg|net rating|ppg|points per game|papg|rebounds|reb\b|assists|blocks|steals|turnovers|fg%|3p%|ft%|ts%|efg%|offensive rating|defensive rating|ftr\b/i.test(msgLower))
+
+    const detectStatKey = (msg: string): { key: string; label: string } | null => {
+      const entries: Array<{ key: string; label: string; regex: RegExp }> = [
+        { key: '3pm', label: '3PM per game', regex: /\b(3pm|3s made|3 pointers made|threes made|made threes|three-pointers made)\b/i },
+        { key: '3pa', label: '3PA per game', regex: /\b(3pa|3s attempted|3 pointers attempted|threes attempted|three-pointers attempted)\b/i },
+        { key: 'opp3pm', label: 'opponent 3PM per game', regex: /\b(opp|opponent|allowed|against)\b.*\b(3pm|3s made|3 pointers made|threes made|three-pointers made)\b/i },
+        { key: 'opp3pm', label: 'opponent 3PM per game', regex: /\b(3pm|3s made|3 pointers made|threes made|three-pointers made)\b.*\b(allowed|against|opp|opponent)\b/i },
+        { key: 'opp3pa', label: 'opponent 3PA per game', regex: /\b(opp|opponent|allowed|against)\b.*\b(3pa|3s attempted|3 pointers attempted|threes attempted|three-pointers attempted)\b/i },
+        { key: 'ppg', label: 'points per game', regex: /\b(ppg|points per game|points scored)\b/i },
+        { key: 'papg', label: 'points allowed per game', regex: /\b(papg|points allowed|points against|opp points)\b/i },
+        { key: 'ortg', label: 'Offensive Rating', regex: /\b(offensive rating|ortg|o-?rtg)\b/i },
+        { key: 'drtg', label: 'Defensive Rating', regex: /\b(defensive rating|drtg|d-?rtg)\b/i },
+        { key: 'net', label: 'Net Rating', regex: /\b(net rating|net rtg|net)\b/i },
+        { key: 'pace', label: 'Pace', regex: /\bpace\b/i },
+        { key: 'fgpct', label: 'FG%', regex: /\bfg%|field goal percentage\b/i },
+        { key: 'threepct', label: '3P%', regex: /\b3p%|three ?point percentage|3-point percentage\b/i },
+        { key: 'ftpct', label: 'FT%', regex: /\bft%|free throw percentage\b/i },
+        { key: 'tspct', label: 'TS%', regex: /\bts%|true shooting\b/i },
+        { key: 'efgpct', label: 'eFG%', regex: /\befg%|effective fg\b/i },
+        { key: 'reb', label: 'Rebounds per game', regex: /\breb(ounds)? per game\b|\breb\b|\brebounds\b/i },
+        { key: 'oreb', label: 'Offensive rebounds per game', regex: /\boffensive rebounds|\borb\b/i },
+        { key: 'dreb', label: 'Defensive rebounds per game', regex: /\bdefensive rebounds|\bdrb\b/i },
+        { key: 'ast', label: 'Assists per game', regex: /\bast( per game)?\b|\bassists?\b/i },
+        { key: 'stl', label: 'Steals per game', regex: /\bstl( per game)?\b|\bsteals?\b/i },
+        { key: 'blk', label: 'Blocks per game', regex: /\bblk( per game)?\b|\bblocks?\b/i },
+        { key: 'tov', label: 'Turnovers per game', regex: /\btov( per game)?\b|\bturnovers?\b/i },
+        { key: 'pf', label: 'Personal fouls per game', regex: /\bpf\b|\bpersonal fouls\b/i },
+      ]
+      for (const entry of entries) {
+        if (entry.regex.test(msg)) return { key: entry.key, label: entry.label }
+      }
+      // fallback: if threesMadeIntent
+      if (threesMadeIntent) return { key: '3pm', label: '3PM per game' }
+      if (threesAllowedIntent) return { key: 'opp3pm', label: 'opponent 3PM per game' }
+      return null
+    }
+    const statQuery = detectStatKey(message)
+
+    // Early return for opponent 3PM allowed queries using static CSV (faster, avoids ESPN/tool calls)
+    if (threesAllowedIntent) {
+      const fmtVal = (v: number | null | undefined) => (v == null ? null : Number(v).toFixed(1))
+
+      // Specific team path
+      if (mentionedTeams.length) {
+        const target = mentionedTeams[0]
+        const candidates = findStaticNbaTeam(target)
+        if (candidates.length) {
+          const statVal = pickOpponentThrees(candidates[0].stats || {})
+          if (statVal != null) {
+            return streamTextResponse(`${candidates[0].team}: ${fmtVal(statVal)} opponent 3PM per game`)
+          }
+        }
+        // CSV fallback for a single team
+        const csvMatch = getOpponent3pmFromCsv().find((r) => {
+          const rNorm = normalizeToken(r.team)
+          const tNorm = normalizeToken(target)
+          return rNorm === tNorm || rNorm.includes(tNorm) || tNorm.includes(rNorm)
+        })
+        if (csvMatch) {
+          return streamTextResponse(`${csvMatch.team}: ${fmtVal(csvMatch.val)} opponent 3PM per game`)
+        }
+      }
+
+      // Leaderboard fallback (top 10) using static teams, then CSV
+      try {
+        let teams = getStaticNbaTeams()
+          .map((t) => ({ team: t.team, val: pickOpponentThrees(t.stats || {}) }))
+          .filter((t) => t.val != null && Number.isFinite(t.val))
+          .sort((a, b) => b.val! - a.val!)
+          .slice(0, 10)
+
+        if (!teams.length) {
+          teams = getOpponent3pmFromCsv()
+            .slice()
+            .sort((a, b) => b.val - a.val)
+            .slice(0, 10)
+        }
+
+        if (teams.length) {
+        const lines = teams.map((t, idx) => `${idx + 1}) ${t.team}: ${fmtVal(t.val)} 3PM allowed per game`)
+        return streamTextResponse(lines.join('\n'))
+      }
+      } catch (err) {
+        console.error('[3PA_ALLOWED_EARLY] Failed', err)
+      }
+
+      return streamTextResponse('Opponent 3PM allowed data is unavailable in the static set right now.')
+    }
+
+    // Early return for team 3PM scored (offense) using static data
+    if (threesMadeIntent) {
+      const fmtVal = (v: number | null | undefined) => (v == null ? null : Number(v).toFixed(1))
+
+      if (threesMadeSingleTeamIntent) {
+        const target = mentionedTeams[0]
+        const candidates = findStaticNbaTeam(target)
+        if (candidates.length) {
+          const statVal = pickMadeThrees(candidates[0].stats || {})
+          if (statVal != null) {
+            return streamTextResponse(`${candidates[0].team}: ${fmtVal(statVal)} 3PM per game`)
+          }
+        }
+        const csvMatch = getMade3pmFromCsv().find((r) => {
+          const rNorm = normalizeToken(r.team)
+          const tNorm = normalizeToken(target)
+          return rNorm === tNorm || rNorm.includes(tNorm) || tNorm.includes(rNorm)
+        })
+        if (csvMatch) {
+          return streamTextResponse(`${csvMatch.team}: ${fmtVal(csvMatch.val)} 3PM per game`)
+        }
+      }
+
+      if (threesMadeLeaderboardIntent || !mentionedTeams.length) {
+        let teams = getStaticNbaTeams()
+          .map((t) => ({ team: t.team, val: pickMadeThrees(t.stats || {}) }))
+          .filter((t) => t.val != null && Number.isFinite(t.val))
+          .sort((a, b) => b.val! - a.val!)
+          .slice(0, 10)
+        if (!teams.length) {
+          teams = getMade3pmFromCsv()
+            .slice()
+            .sort((a, b) => b.val - a.val)
+            .slice(0, 10)
+        }
+        if (teams.length) {
+          const lines = teams.map((t, idx) => `${idx + 1}) ${t.team}: ${fmtVal(t.val)} 3PM per game`)
+          return streamTextResponse(lines.join('\n'))
+        }
+        return streamTextResponse('Team 3PM per game is unavailable in the static set right now.')
+      }
+    }
+
+    // Generic stat rankings/comparisons from static data (NBA)
+    const statKey = statQuery?.key
+    if (statKey && (statRankingIntent || statCompareIntent || mentionedTeams.length === 1)) {
+      const fmtVal = (v: number | null | undefined) => (v == null ? 'n/a' : Number(v).toFixed(1).replace(/\.0+$/, ''))
+      const label = statQuery?.label || 'stat'
+
+      // Single-team fetch
+      if (mentionedTeams.length === 1 && !statRankingIntent && !statCompareIntent) {
+        const team = findStaticNbaTeam(mentionedTeams[0])[0]
+        if (team) {
+          const val = pickStatValue(team.stats || {}, statKey)
+          if (val != null) return streamTextResponse(`${team.team}: ${fmtVal(val)} (${label})`)
+        }
+      }
+
+      // Comparison between two teams
+      if (statCompareIntent && mentionedTeams.length >= 2) {
+        const targets = mentionedTeams.slice(0, 2)
+        const teams = targets
+          .map((t) => {
+            const found = findStaticNbaTeam(t)[0]
+            if (!found) return null
+            const val = pickStatValue(found.stats || {}, statKey)
+            return val == null ? null : { team: found.team, val }
+          })
+          .filter(Boolean) as Array<{ team: string; val: number }>
+        if (teams.length) {
+          const lines = teams.map((t) => `- ${t.team}: ${fmtVal(t.val)} (${label})`)
+          return streamTextResponse(lines.join('\n'))
+        }
+      }
+
+      // Rankings (top/bottom)
+      if (statRankingIntent || !mentionedTeams.length) {
+        const wantLowest = /\b(lowest|fewest|least)\b/i.test(message)
+        const teams = getStaticNbaTeams()
+          .map((t) => ({ team: t.team, val: pickStatValue(t.stats || {}, statKey) }))
+          .filter((t) => t.val != null && Number.isFinite(t.val))
+          .sort((a, b) => (wantLowest ? (a.val! - b.val!) : (b.val! - a.val!)))
+          .slice(0, 10)
+        if (teams.length) {
+          const lines = teams.map((t, idx) => `${idx + 1}) ${t.team}: ${fmtVal(t.val)} (${label})`)
+          return streamTextResponse(lines.join('\n'))
+        }
+      }
+    }
+
+    if (netRatingIntent && mentionedTeams.length >= 2) {
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'americanfootball_nfl' :
+        msgLower.match(/mlb|baseball/) ? 'baseball_mlb' :
+        msgLower.match(/nhl|hockey/) ? 'icehockey_nhl' :
+        msgLower.match(/ncaab|college basketball|cbb/) ? 'basketball_ncaab' :
+        'basketball_nba'
+      const targets = mentionedTeams.slice(0, 3)
+      const fmt = (v: any) => (v == null ? 'n/a' : Number(v).toFixed(1).replace(/\.0+$/, ''))
+      try {
+        const teams = await Promise.all(
+          targets.map(async (t) => {
+            const stats = await getTeamStats(sportGuess, t)
+            return stats[0]
+          })
+        )
+        const lines = teams
+          .filter(Boolean)
+          .map((t) => {
+            const s = t!.stats as any
+            const off = s?.offensiveRating ?? s?.OFF_RTG ?? s?.ortg
+            const def = s?.defensiveRating ?? s?.DEF_RTG ?? s?.drtg
+            const pace = s?.pace ?? s?.PACE
+            const net =
+              s?.netRating ??
+              s?.NET_RTG ??
+              (off != null && def != null ? Number((off - def).toFixed(1)) : null)
+            return `- ${t!.team}: Net ${fmt(net)}, ORtg ${fmt(off)}, DRtg ${fmt(def)}, Pace ${fmt(pace)}`
+          })
+        if (lines.length) return streamTextResponse(lines.join('\n'))
+      } catch (err) {
+        console.error('[NET_RATING_SHORTCUT] Failed', err)
+      }
+    }
+
+    if (threesAllowedLeaderboardIntent) {
+      try {
+        const teams = getStaticNbaTeams()
+          .map((t) => ({ team: t.team, val: pickOpponentThrees(t.stats || {}) }))
+          .filter((t) => t.val != null)
+          .sort((a, b) => (b.val! - a.val!))
+          .slice(0, 10)
+        if (teams.length) {
+          const lines = teams.map((t, idx) => `${idx + 1}) ${t.team}: ${t.val!.toFixed(1)} 3PM allowed per game`)
+          return streamTextResponse(lines.join('\n'))
+        }
+      } catch (err) {
+        console.error('[3PA_ALLOWED_LEADERBOARD] Failed', err)
+      }
+    }
+
+    if (threesAllowedSingleTeamIntent) {
+      const target = mentionedTeams[0]
+      const candidates = findStaticNbaTeam(target)
+      if (candidates.length) {
+        const statVal = pickOpponentThrees(candidates[0].stats || {})
+        if (statVal != null) {
+          return streamTextResponse(
+            `${candidates[0].team}: ${statVal.toFixed(1)} opponent 3PM per game`
+          )
+        }
+      }
+    }
+    if (threesAllowedIntent && !mentionedTeams.length) {
+      try {
+        const teams = getStaticNbaTeams()
+          .map((t) => ({ team: t.team, val: pickOpponentThrees(t.stats || {}) }))
+          .filter((t) => t.val != null)
+          .sort((a, b) => (b.val! - a.val!))
+          .slice(0, 10)
+        if (teams.length) {
+          const lines = teams.map((t, idx) => `${idx + 1}) ${t.team}: ${t.val!.toFixed(1)} 3PM allowed per game`)
+          return streamTextResponse(lines.join('\n'))
+        }
+      } catch (err) {
+        console.error('[3PA_ALLOWED_FALLBACK] Failed', err)
+      }
+    }
+
+    if (compareTeamsIntent) {
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'americanfootball_nfl' :
+        msgLower.match(/mlb|baseball/) ? 'baseball_mlb' :
+        msgLower.match(/nhl|hockey/) ? 'icehockey_nhl' :
+        msgLower.match(/ncaab|college basketball|cbb/) ? 'basketball_ncaab' :
+        'basketball_nba'
+      const targets = mentionedTeams.slice(0, 2)
+      const fmt = (v: any, digits = 1) => {
+        if (v == null) return 'n/a'
+        const n = Number(v)
+        return Number.isNaN(n) ? String(v) : n.toFixed(digits).replace(/\.0+$/, '')
+      }
+      try {
+        const teams = await Promise.all(
+          targets.map(async (t) => {
+            const stats = await getTeamStats(sportGuess, t)
+            return stats[0]
+          })
+        )
+        const lines = teams
+          .filter(Boolean)
+          .map((t) => {
+            const s = t!.stats as any
+            const off = s?.offensiveRating ?? s?.OFF_RTG ?? s?.ortg
+            const def = s?.defensiveRating ?? s?.DEF_RTG ?? s?.drtg
+            const pace = s?.pace ?? s?.PACE
+            const ts = s?.trueShootingPct ?? s?.TS_PCT ?? s?.tsPct
+            const reb = s?.reboundsPerGame ?? s?.TRB_PER_G ?? s?.TRB ?? s?.REB
+            const net =
+              s?.netRating ??
+              s?.NET_RTG ??
+              (off != null && def != null ? Number((off - def).toFixed(1)) : null)
+            return `- ${t!.team}: Net ${fmt(net)}, ORtg ${fmt(off)}, DRtg ${fmt(def)}, Pace ${fmt(pace)}, TS% ${fmt(ts)}, REB ${fmt(reb)}`
+          })
+        if (lines.length) return streamTextResponse(lines.join('\n'))
+      } catch (err) {
+        console.error('[TEAM_COMPARE_SHORTCUT] Failed', err)
+      }
+    }
+
+    if (playerCompareIntent) {
+      const fmt = (v: any, digits = 1) => {
+        if (v == null) return 'n/a'
+        const n = Number(v)
+        return Number.isNaN(n) ? String(v) : n.toFixed(digits).replace(/\.0+$/, '')
+      }
+      try {
+        const stats = await Promise.all(
+          playerCompareCandidates.map(async (p) => {
+            const res = await getPlayerSeasonStats(p, 'basketball_nba')
+            return res
+          })
+        )
+        const lines = stats
+          .filter(Boolean)
+          .map((p) => {
+            const s = p!.stats as any
+            const ts = s.TS_PCT ?? s.tsPct ?? s.trueShootingPct
+            const usg = s.USG_PCT ?? s.usgPct ?? s.usagePct
+            return `${p!.name}: PPG ${fmt(s.PPG || s.PTS)}, RPG ${fmt(s.RPG || s.REB)}, APG ${fmt(s.APG || s.AST)}, TS% ${fmt(ts, 1)}, 3P% ${fmt(s.THREE_PERCENT)}, USG% ${fmt(usg, 1)}`
+          })
+        if (lines.length) return streamTextResponse(lines.join('\n'))
+      } catch (err) {
+        console.error('[PLAYER_COMPARE_SHORTCUT] Failed', err)
+      }
+    }
 
     // Early short-circuit for team stats to avoid odds fetches
     if (teamStatsIntent || (mentionedTeams.length && !oddsKeywordMatch && !wantsLiveOdds && !propIntent && !playerNameInMessage)) {
@@ -2656,7 +3200,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const explicitMatchup =
+      twoTeamOddsQuery &&
+      ((parsedMatchupTeams.length >= 2) || (mentionedTeams.length >= 2))
+
     const shouldFetchOdds =
+      !conceptualStatsOnly &&
       !betIntent &&
       !researchIntent &&
       !webSearchToggle &&
@@ -2666,7 +3215,7 @@ export async function POST(req: NextRequest) {
       !intent.ats &&
       !intent.oddsRecord &&
       !intent.pastPerformances &&
-      (Boolean(oddsKeywordMatch) || scheduleIntent || wantsLiveOdds || mentionedTeams.length > 0)
+      explicitMatchup
 
     if ((intent.ats || intent.oddsRecord || intent.pastPerformances || intent.futures) && (mentionedTeams.length || parsedMatchupTeams.length)) {
       const handled = await maybeHandleEspnTeamBetting()
@@ -3994,20 +4543,31 @@ ${statsEnrichment}
                           const entries: any[] = Array.isArray(blk?.stats) ? blk.stats : Array.isArray(blk) ? blk : []
                           for (const s of entries) {
                             const label = s?.label || s?.displayName || s?.name
-                            const val = typeof s?.value === 'number' ? s.value : Number(s?.value ?? s?.displayValue)
+                            const rawVal = s?.value ?? s?.displayValue ?? s?.display_value
+                            let val =
+                              typeof rawVal === 'number'
+                                ? rawVal
+                                : typeof rawVal === 'string'
+                                ? Number(rawVal)
+                                : Number(rawVal)
+                            if (typeof rawVal === 'string' && Number.isNaN(val) && rawVal.includes('-')) {
+                              const head = rawVal.split('-')[0]
+                              val = Number(head)
+                            }
                             if (label && Number.isFinite(val)) {
                               statMap[label.toString().toUpperCase().replace(/\s+/g, '_')] = val
                             }
                           }
                         }
-                        const n = (k: string) => {
+                        const n = (k: string, defaultZero = false) => {
                           const v = statMap[k]
-                          return typeof v === 'number' && Number.isFinite(v) ? v : null
+                          if (typeof v === 'number' && Number.isFinite(v)) return v
+                          return defaultZero ? 0 : null
                         }
                         const pts = n('PTS')
-                        const fga = n('FGA')
+                        const fga = n('FGA', true) // treat missing as 0 for possession math
                         const fgm = n('FGM')
-                        const fta = n('FTA')
+                        const fta = n('FTA', true)
                         const tpm = n('3PM') ?? n('3PT')
                         const tov = n('TOV')
                         if (pts != null && fga != null && fta != null) {
@@ -4039,7 +4599,6 @@ ${statsEnrichment}
                         adv = computeSimpleAdvanced(perGame)
                         // If any value stayed null, try a looser average across all games to avoid "not available" messaging
                         if (adv.tsPct == null || adv.efgPct == null || adv.tovPct == null) {
-                          const totalGames = take.length || 1
                           const loosePerGame = {
                             PTS: sumPts / Math.max(tsSamples || efgSamples || 1, 1),
                             FGA: sumFga / Math.max(tsSamples || efgSamples || 1, 1),
@@ -4060,9 +4619,7 @@ ${statsEnrichment}
                 if (adv.tsPct != null) parts.push(`TS% ${(adv.tsPct * 100).toFixed(1)}`)
                 if (adv.efgPct != null) parts.push(`eFG% ${(adv.efgPct * 100).toFixed(1)}`)
                 if (adv.tovPct != null) parts.push(`TOV% ${(adv.tovPct * 100).toFixed(1)}`)
-                if (parts.length) {
-                  formatted += `\n\nAdvanced (derived): ${parts.join(' | ')}`
-                }
+                if (parts.length) formatted += `\n\nAdvanced (derived): ${parts.join(' | ')}`
               }
               functionResult = { success: true, data, formatted }
             } else {
@@ -4743,7 +5300,7 @@ ${statsEnrichment}
     }
 
     // If user clearly wants player props, short-circuit to props endpoint
-    if (propIntent) {
+    if (!conceptualStatsOnly && propIntent) {
       console.log('[PLAYER_PROPS_SHORTCUT] Using shortcut path for player props')
       try {
         const inferredSport =

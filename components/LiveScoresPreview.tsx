@@ -81,7 +81,11 @@ const LeagueFilter = ({
   )
 }
 
-const ArticleList = ({ games }: { games: LiveScoreGame[] }) => {
+const ArticleList = ({
+  games,
+  surfaceClass,
+  borderClass,
+}: { games: LiveScoreGame[]; surfaceClass: string; borderClass: string }) => {
   const articles = useMemo(() => {
     const collected: Array<{ title?: string; url?: string; published?: string; league?: string }> = []
     games.forEach((game) => {
@@ -115,7 +119,7 @@ const ArticleList = ({ games }: { games: LiveScoreGame[] }) => {
             href={article.url!}
             target="_blank"
             rel="noreferrer"
-            className={`block group rounded-lg border ${border} ${surface} hover:bg-white/5 transition-colors px-3 py-2`}
+            className={`block group rounded-lg border ${borderClass} ${surfaceClass} hover:bg-white/5 transition-colors px-3 py-2`}
           >
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm text-white group-hover:text-white/90">{article.title}</p>
@@ -287,7 +291,7 @@ export function LiveScoresPreview({ variant = "default" }: { variant?: "default"
           })
         )}
 
-        <ArticleList games={filteredGames} />
+        <ArticleList games={filteredGames} surfaceClass={surface} borderClass={border} />
       </div>
 
       {selectedGame && (

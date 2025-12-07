@@ -44,6 +44,15 @@ const formatStatus = (game: LiveScoreGame) => {
 const sanitizeText = (text?: string | null) =>
   text ? text.replace(/[^\x09\x0A\x0D\x20-\x7E]+/g, "").trim() : ""
 
+const getPreviewStatus = (game: LiveScoreGame, isChat: boolean) => {
+  if (isChat) {
+    if (game.bucket === "live") return "Live"
+    if (game.bucket === "completed") return "Final"
+    return formatTime(game.startTime)
+  }
+  return sanitizeText(formatStatus(game))
+}
+
 const LeagueFilter = ({
   value,
   onChange,
@@ -145,14 +154,17 @@ const GameCard = ({
   onSelect,
   surfaceClass,
   borderClass,
+  isChat,
 }: {
   game: LiveScoreGame
   onSelect: (g: LiveScoreGame) => void
   surfaceClass: string
   borderClass: string
+  isChat: boolean
 }) => {
   const home = game.competitors.find((c) => c.homeAway === "home")
   const away = game.competitors.find((c) => c.homeAway === "away")
+  const statusLabel = getPreviewStatus(game, isChat)
 
   return (
     <button
@@ -163,7 +175,7 @@ const GameCard = ({
         <span className="uppercase tracking-wide">{game.leagueLabel}</span>
         <span className="flex items-center gap-1 text-white/60">
           <Clock className="w-3 h-3" />
-          {sanitizeText(formatStatus(game))}
+          {statusLabel}
         </span>
       </div>
       <div className="space-y-2">
@@ -287,6 +299,7 @@ export function LiveScoresPreview({ variant = "default" }: { variant?: "default"
                       onSelect={setSelectedGame}
                       surfaceClass={surface}
                       borderClass={border}
+                      isChat={isChat}
                     />
                   ))}
                 </div>
@@ -304,7 +317,7 @@ export function LiveScoresPreview({ variant = "default" }: { variant?: "default"
             <div className={`flex items-center justify-between px-4 py-3 border-b ${isChat ? 'border-[#1f1f1f]' : 'border-[#6b6b6b]'}`}>
               <div>
                 <div className="text-xs uppercase tracking-wide text-white/50">{selectedGame.leagueLabel}</div>
-                <div className="text-sm text-white/80">{sanitizeText(formatStatus(selectedGame))}</div>
+                <div className="text-sm text-white/80">{getPreviewStatus(selectedGame, isChat)}</div>
               </div>
               <button
                 onClick={closeDetails}

@@ -66,7 +66,7 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
       <div className="max-w-4xl mx-auto">
         {/* Toggle */}
         <div className="flex justify-center mb-8">
-          <div className="inline-flex items-center p-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/5 backdrop-blur">
+          <div className="inline-flex items-center p-1.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 backdrop-blur">
             {["Monthly", "Yearly"].map((period) => (
               <button
                 key={period}

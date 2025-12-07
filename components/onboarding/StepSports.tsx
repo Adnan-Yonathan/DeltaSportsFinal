@@ -62,7 +62,7 @@ export function StepSports({ value, onChange, onValidation }: StepSportsProps) {
                   relative p-6 rounded-xl border-2 transition-all
                   ${isSelected
                     ? "bg-gradient-to-br from-emerald-500/20 via-emerald-500/15 to-emerald-500/5 border-emerald-400/70 shadow-[0_10px_30px_rgba(16,185,129,0.25)]"
-                    : "bg-slate-900/70 border-emerald-400/15 hover:border-emerald-300/30"
+                    : "bg-neutral-850/80 border-emerald-300/15 hover:border-emerald-300/30"
                   }
                 `}
                 whileHover={{ scale: 1.02 }}

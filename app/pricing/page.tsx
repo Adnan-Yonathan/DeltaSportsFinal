@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function PricingPage() {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white animate-fade-in">
+    <main className="min-h-screen bg-gradient-to-b from-neutral-800 via-neutral-800 to-neutral-900 text-white animate-fade-in">
       <PricingSectionDemo />
     </main>
   )

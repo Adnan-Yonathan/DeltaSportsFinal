@@ -32,24 +32,24 @@ interface PricingSectionProps {
 
 const buttonStyles = {
   default: cn(
-    "h-12 bg-white text-black",
-    "hover:bg-zinc-100",
-    "border border-white/30",
-    "shadow-sm hover:shadow-lg",
-    "text-sm font-semibold",
+    "h-12 bg-gradient-to-r from-emerald-600 to-cyan-500 text-white",
+    "hover:from-emerald-500 hover:to-cyan-400",
+    "border border-emerald-400/30",
+    "shadow-[0_8px_24px_rgba(16,185,129,0.25)]",
+    "text-sm font-semibold"
   ),
   highlight: cn(
-    "h-12 bg-gradient-to-r from-amber-300 via-amber-200 to-white text-black",
-    "shadow-[0_8px_25px_rgba(0,0,0,0.35)]",
-    "hover:from-amber-200 hover:via-white hover:to-white",
-    "font-semibold text-base",
+    "h-12 bg-white text-slate-900",
+    "shadow-[0_10px_30px_rgba(16,185,129,0.25)]",
+    "hover:bg-emerald-50",
+    "font-semibold text-base"
   ),
 }
 
 const badgeStyles = cn(
   "px-4 py-1.5 text-xs font-semibold uppercase tracking-wide",
-  "bg-white text-black",
-  "rounded-full shadow-lg",
+  "bg-emerald-400 text-slate-900",
+  "rounded-full shadow-lg"
 )
 
 export function PricingSection({ tiers, className }: PricingSectionProps) {
@@ -58,7 +58,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
   return (
     <section
       className={cn(
-        "relative bg-black text-white",
+        "relative bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-50",
         "py-16 px-4 md:py-24 lg:py-32",
         "overflow-hidden",
         className,
@@ -66,13 +66,9 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
     >
       <div className="w-full max-w-5xl mx-auto">
         <div className="flex flex-col items-center gap-4 mb-12 text-center">
-          <p className="text-sm uppercase tracking-[0.3em] text-white/60">
-            Pricing
-          </p>
-          <h2 className="text-3xl font-bold text-white md:text-4xl">
-            Simple, transparent pricing
-          </h2>
-          <div className="inline-flex items-center p-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur">
+          <p className="text-sm uppercase tracking-[0.3em] text-emerald-200/80">Pricing</p>
+          <h2 className="text-3xl font-bold text-white md:text-4xl">Simple, transparent pricing</h2>
+          <div className="inline-flex items-center p-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/5 backdrop-blur">
             {(["Monthly", "Annual"] as const).map((period) => (
               <button
                 key={period}
@@ -80,8 +76,8 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                 className={cn(
                   "px-8 py-2.5 text-sm font-medium rounded-full transition-all duration-300",
                   (period === "Annual") === isYearly
-                    ? "bg-white text-black shadow-lg"
-                    : "text-white/70 hover:text-white",
+                    ? "bg-white text-slate-900 shadow-lg"
+                    : "text-slate-200/70 hover:text-white",
                 )}
               >
                 {period}
@@ -99,8 +95,8 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                 "rounded-3xl border",
                 "flex flex-col",
                 tier.highlight
-                  ? "bg-white/10 border-white/30 shadow-2xl"
-                  : "bg-white/5 border-white/10 shadow-lg",
+                  ? "bg-gradient-to-br from-emerald-500/15 via-emerald-500/10 to-cyan-500/10 border-emerald-300/40 shadow-2xl"
+                  : "bg-slate-900/70 border-emerald-400/15 shadow-lg",
                 "transition-transform duration-300 hover:-translate-y-1",
               )}
             >
@@ -112,7 +108,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
 
               <div className="p-8 flex-1">
                 <div className="flex items-center justify-between mb-6">
-                  <div className="p-3 rounded-2xl bg-white/10 text-white">
+                  <div className="p-3 rounded-2xl bg-emerald-500/15 text-emerald-200">
                     {tier.icon}
                   </div>
                   <h3 className="text-xl font-semibold">{tier.name}</h3>
@@ -123,11 +119,11 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                     <span className="text-4xl font-bold">
                       ${isYearly ? tier.price.yearly : tier.price.monthly}
                     </span>
-                    <span className="text-sm text-white/60">
+                    <span className="text-sm text-slate-200/70">
                       /month{isYearly ? " (billed annually)" : ""}
                     </span>
                   </div>
-                  <p className="mt-2 text-sm text-white/70">{tier.description}</p>
+                  <p className="mt-2 text-sm text-slate-200/70">{tier.description}</p>
                 </div>
 
                 <div className="space-y-4">
@@ -137,8 +133,8 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                         className={cn(
                           "mt-1 rounded-full border p-1",
                           feature.included
-                            ? "text-emerald-300 border-emerald-300/50"
-                            : "text-white/30 border-white/10",
+                            ? "text-emerald-300 border-emerald-300/50 bg-emerald-500/10"
+                            : "text-slate-300/40 border-emerald-400/10",
                         )}
                       >
                         <CheckIcon className="w-4 h-4" />

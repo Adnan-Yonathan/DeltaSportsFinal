@@ -69,8 +69,8 @@ export function StepExperience({ value, onChange, onValidation }: StepExperience
               className={`
                 relative w-full p-6 rounded-xl border-2 transition-all text-left
                 ${isSelected
-                  ? "bg-emerald-500/20 border-emerald-500"
-                  : "bg-zinc-900/50 border-white/10 hover:border-white/30"
+                  ? "bg-gradient-to-br from-emerald-500/20 via-emerald-500/15 to-cyan-500/10 border-emerald-400/70 shadow-[0_10px_30px_rgba(16,185,129,0.25)]"
+                  : "bg-slate-900/70 border-emerald-400/15 hover:border-emerald-300/30"
                 }
               `}
               whileHover={{ scale: 1.01 }}

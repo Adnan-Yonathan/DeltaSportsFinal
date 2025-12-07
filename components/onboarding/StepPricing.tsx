@@ -66,7 +66,7 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
       <div className="max-w-4xl mx-auto">
         {/* Toggle */}
         <div className="flex justify-center mb-8">
-          <div className="inline-flex items-center p-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur">
+          <div className="inline-flex items-center p-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/5 backdrop-blur">
             {["Monthly", "Yearly"].map((period) => (
               <button
                 key={period}
@@ -101,10 +101,10 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
                 className={`
                   relative rounded-2xl border-2 p-6 transition-all
                   ${isSelected
-                    ? "bg-emerald-500/20 border-emerald-500 ring-4 ring-emerald-500/20"
+                    ? "bg-gradient-to-br from-emerald-500/20 via-emerald-500/15 to-cyan-500/10 border-emerald-400/70 ring-4 ring-emerald-400/20 shadow-[0_10px_30px_rgba(16,185,129,0.25)]"
                     : plan.highlighted
-                    ? "bg-white/5 border-white/20"
-                    : "bg-white/5 border-white/10 hover:border-white/20"
+                    ? "bg-gradient-to-br from-emerald-500/15 via-emerald-500/10 to-cyan-500/10 border-emerald-400/50"
+                    : "bg-slate-900/70 border-emerald-400/15 hover:border-emerald-300/30"
                   }
                 `}
                 whileHover={{ scale: 1.02 }}

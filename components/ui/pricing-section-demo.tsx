@@ -10,7 +10,7 @@ const defaultTiers: PricingTier[] = [
       monthly: 29,
       yearly: 15, // annual price per month (50% off)
     },
-    description: "Unlimited bankroll tracking plus live scores and odds.",
+    description: "Full bankroll tracking plus live scores and odds you can trust.",
     highlight: true,
     badge: "Most Popular",
     icon: (
@@ -47,7 +47,7 @@ const defaultTiers: PricingTier[] = [
       monthly: 199,
       yearly: 99, // annual price per month (50% off)
     },
-    description: "Unlimited messaging plus custom statistical modeling.",
+    description: "Unlimited chat, custom model builder, and premium support.",
     icon: (
       <div className="relative">
         <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-300/40 to-cyan-200/40 blur-2xl" />
@@ -57,7 +57,7 @@ const defaultTiers: PricingTier[] = [
     features: [
       {
         name: "Unlimited Messages",
-        description: "Brainstorm without capsÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Âask Delta AI anything.",
+        description: "Brainstorm without limits�ask Delta AI anything, anytime.",
         included: true,
       },
       {

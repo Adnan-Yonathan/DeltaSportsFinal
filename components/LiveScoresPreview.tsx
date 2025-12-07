@@ -36,7 +36,7 @@ const formatStatus = (game: LiveScoreGame) => {
     const clock = game.status?.displayClock
     const period = game.status?.period
     const parts = [clock, period ? `P${period}` : null].filter(Boolean) as string[]
-    return parts.join(" • ") || "Live"
+    return parts.join(" - ") || "Live"
   }
   return formatTime(game.startTime)
 }
@@ -385,6 +385,9 @@ export function LiveScoresPreview({ variant = "default" }: { variant?: "default"
     </div>
   )
 }
+
+
+
 
 
 

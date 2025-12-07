@@ -2,7 +2,7 @@
 
 import React from "react"
 import { motion } from "framer-motion"
-import { ArrowUpRight } from "lucide-react"
+import { ArrowUpRight, Mic, Send } from "lucide-react"
 import Link from "next/link"
 import { FeaturesChat } from "@/components/ui/features-chat"
 import { ComparisonSection } from "@/components/ui/comparison-section"
@@ -280,8 +280,10 @@ function PromoMockSection() {
                   <span className="text-xs bg-white/15 px-2 py-1 rounded">Regular</span>
                 </div>
                 <div className="flex items-center gap-3 text-white/70">
-                  <span>dYZ_</span>
-                  <span className="rounded-full border border-white/20 px-3 py-1">fzs</span>
+                  <Mic className="h-4 w-4" />
+                  <span className="rounded-full border border-white/20 px-3 py-1">
+                    <Send className="h-4 w-4" />
+                  </span>
                 </div>
               </div>
             </div>

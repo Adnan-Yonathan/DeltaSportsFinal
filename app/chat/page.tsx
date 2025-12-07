@@ -443,7 +443,7 @@ export default function ChatPage() {
                     transition={{ duration: 2, repeat: Infinity }}
                     className="text-4xl sm:text-6xl mb-4"
                   >
-                    dYZ_
+                    <Sparkles className="w-10 h-10 sm:w-12 sm:h-12 text-[#34d399]" />
                   </motion.div>
                   <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">
                     Welcome to DELTA

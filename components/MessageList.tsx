@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { Sparkles } from 'lucide-react'
 
 interface Message {
   id: string
@@ -82,7 +83,11 @@ export default function MessageList({ conversationId, userId }: MessageListProps
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center max-w-2xl px-8">
-          <div className="text-6xl mb-6">dYZ_</div>
+          <div className="flex justify-center mb-6">
+            <div className="w-14 h-14 rounded-full bg-accent-green/10 border border-accent-green/30 flex items-center justify-center">
+              <Sparkles className="w-7 h-7 text-accent-green" />
+            </div>
+          </div>
           <h2 className="text-2xl font-bold text-accent-green mb-4">
             Start a conversation
           </h2>

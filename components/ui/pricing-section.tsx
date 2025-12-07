@@ -32,15 +32,15 @@ interface PricingSectionProps {
 
 const buttonStyles = {
   default: cn(
-    "h-12 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white",
-    "hover:from-emerald-500 hover:to-emerald-400",
-    "border border-emerald-400/30",
-    "shadow-[0_8px_24px_rgba(16,185,129,0.25)]",
+    "h-12 bg-gradient-to-r from-teal-500 to-emerald-500 text-white",
+    "hover:from-teal-400 hover:to-emerald-400",
+    "border border-teal-300/40",
+    "shadow-[0_8px_24px_rgba(20,184,166,0.22)]",
     "text-sm font-semibold"
   ),
   highlight: cn(
     "h-12 bg-white text-slate-900",
-    "shadow-[0_10px_30px_rgba(16,185,129,0.25)]",
+    "shadow-[0_10px_30px_rgba(20,184,166,0.28)]",
     "hover:bg-emerald-50",
     "font-semibold text-base"
   ),
@@ -48,7 +48,7 @@ const buttonStyles = {
 
 const badgeStyles = cn(
   "px-4 py-1.5 text-xs font-semibold uppercase tracking-wide",
-  "bg-emerald-400 text-slate-900",
+  "bg-teal-400 text-slate-900",
   "rounded-full shadow-lg"
 )
 
@@ -58,7 +58,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
   return (
     <section
       className={cn(
-        "relative bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-50",
+        "relative bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-50",
         "py-16 px-4 md:py-24 lg:py-32",
         "overflow-hidden",
         className,
@@ -66,9 +66,9 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
     >
       <div className="w-full max-w-5xl mx-auto">
         <div className="flex flex-col items-center gap-4 mb-12 text-center">
-          <p className="text-sm uppercase tracking-[0.3em] text-emerald-200/80">Pricing</p>
+          <p className="text-sm uppercase tracking-[0.3em] text-teal-200/80">Pricing</p>
           <h2 className="text-3xl font-bold text-white md:text-4xl">Simple, transparent pricing</h2>
-          <div className="inline-flex items-center p-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/5 backdrop-blur">
+          <div className="inline-flex items-center p-1.5 rounded-full border border-teal-300/30 bg-teal-500/10 backdrop-blur">
             {(["Monthly", "Annual"] as const).map((period) => (
               <button
                 key={period}
@@ -95,8 +95,8 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                 "rounded-3xl border",
                 "flex flex-col",
                 tier.highlight
-                  ? "bg-gradient-to-br from-emerald-500/15 via-emerald-500/10 to-emerald-500/5 border-emerald-300/40 shadow-2xl"
-                  : "bg-slate-900/70 border-emerald-400/15 shadow-lg",
+                  ? "bg-slate-900/70 border-teal-300/50 shadow-2xl"
+                  : "bg-slate-900/80 border-teal-300/20 shadow-lg",
                 "transition-transform duration-300 hover:-translate-y-1",
               )}
             >

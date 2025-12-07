@@ -331,15 +331,15 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
   }
 
   return (
-    <div className="border-t border-white/5 bg-black/60 backdrop-blur-xl p-2 sm:p-4">
+    <div className="border-t border-[#6b6b6b] bg-[#3f3f3f]/90 backdrop-blur-xl p-2 sm:p-4">
       <div className="max-w-4xl mx-auto">
         <motion.div
           animate={{
             boxShadow: isFocused
-              ? '0 0 0 2px rgba(99, 102, 241, 0.3)'
-              : '0 0 0 0px rgba(99, 102, 241, 0)',
+              ? '0 0 0 2px rgba(52, 211, 153, 0.35)'
+              : '0 0 0 0px rgba(52, 211, 153, 0)',
           }}
-          className="relative flex items-end gap-2 sm:gap-3 rounded-2xl bg-white/5 border border-white/10 p-2 sm:p-3 transition-all"
+          className="relative flex items-end gap-2 sm:gap-3 rounded-2xl bg-[#4a4a4a] border border-[#6b6b6b] p-2 sm:p-3 transition-all"
         >
           <div className="flex-1">
             <textarea
@@ -369,8 +369,8 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
                   isRecording
                     ? 'bg-red-500/20 text-red-400 animate-pulse'
                     : isTranscribing
-                      ? 'bg-white/5 text-white/30 cursor-not-allowed'
-                      : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                      ? 'bg-[#5c5c5c] text-white/40 cursor-not-allowed'
+                      : 'bg-white/10 text-white/80 hover:bg-white/20 hover:text-white'
                 }`}
                 title={
                   isRecording
@@ -397,7 +397,7 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setModeDropdownOpen((prev) => !prev)}
                 disabled={sending}
-                className="px-3 py-2 sm:px-2.5 sm:py-2 rounded-lg transition-all bg-indigo-500/10 border border-indigo-500/30 text-white hover:bg-indigo-500/20 hover:border-indigo-500/50 flex items-center gap-1.5"
+                className="px-3 py-2 sm:px-2.5 sm:py-2 rounded-lg transition-all bg-[#34d399]/15 border border-[#34d399]/40 text-white hover:bg-[#34d399]/25 hover:border-[#34d399]/60 flex items-center gap-1.5"
                 title="Select mode"
               >
                 <span className="text-xs font-semibold">
@@ -413,7 +413,7 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute bottom-full mb-2 left-0 w-56 rounded-xl border border-white/10 bg-[#0f132d] shadow-2xl z-50 overflow-hidden"
+                    className="absolute bottom-full mb-2 left-0 w-56 rounded-xl border border-[#6b6b6b] bg-[#3f3f3f] shadow-2xl z-50 overflow-hidden"
                   >
                     <div className="py-1">
                       <button
@@ -423,9 +423,9 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
                         }}
                         className={`w-full px-4 py-3 text-left transition-colors ${
                           mode === 'regular'
-                            ? 'bg-indigo-500/20 text-white'
-                            : 'text-white/80 hover:bg-white/5'
-                        }`}
+                          ? 'bg-[#34d399]/20 text-white'
+                          : 'text-white/80 hover:bg-white/10'
+                      }`}
                       >
                         <div className="font-semibold text-sm">Regular</div>
                         <div className="text-xs text-white/60 mt-0.5">Balanced chat with quick answers</div>
@@ -437,9 +437,9 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
                         }}
                         className={`w-full px-4 py-3 text-left transition-colors ${
                           mode === 'live'
-                            ? 'bg-indigo-500/20 text-white'
-                            : 'text-white/80 hover:bg-white/5'
-                        }`}
+                          ? 'bg-[#34d399]/20 text-white'
+                          : 'text-white/80 hover:bg-white/10'
+                      }`}
                       >
                         <div className="font-semibold text-sm">Live odds/props</div>
                         <div className="text-xs text-white/60 mt-0.5">Prioritize fresh odds & player props</div>
@@ -451,8 +451,8 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
                         }}
                     className={`w-full px-4 py-3 text-left transition-colors ${
                       mode === 'research'
-                        ? 'bg-indigo-500/20 text-white'
-                        : 'text-white/80 hover:bg-white/5'
+                        ? 'bg-[#34d399]/20 text-white'
+                        : 'text-white/80 hover:bg-white/10'
                     }`}
                   >
                     <div className="font-semibold text-sm">Research</div>
@@ -465,9 +465,9 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
                         }}
                         className={`w-full px-4 py-3 text-left transition-colors ${
                           mode === 'statmuse'
-                            ? 'bg-indigo-500/20 text-white'
-                            : 'text-white/80 hover:bg-white/5'
-                        }`}
+                          ? 'bg-[#34d399]/20 text-white'
+                          : 'text-white/80 hover:bg-white/10'
+                      }`}
                       >
                         <div className="font-semibold text-sm">Statmuse</div>
                         <div className="text-xs text-white/60 mt-0.5">Stats-only Q&A (NBA/NFL style)</div>
@@ -486,8 +486,8 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
               disabled={sending}
               className={`p-2.5 sm:p-2 rounded-lg transition-all border ${
                 webSearchEnabled
-                  ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300 shadow-inner shadow-indigo-500/30'
-                  : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white'
+                  ? 'bg-[#34d399]/20 border-[#34d399]/50 text-white shadow-inner shadow-[#34d399]/30'
+                  : 'bg-[#4a4a4a] border-[#6b6b6b] text-white/70 hover:bg-white/10 hover:text-white'
               }`}
               title="Toggle web search for research mode"
               aria-pressed={webSearchEnabled}
@@ -503,8 +503,8 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
               disabled={!message.trim() || sending}
               className={`p-2.5 sm:p-2 rounded-lg transition-all ${
                 message.trim() && !sending
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20'
-                  : 'bg-white/5 text-white/30 cursor-not-allowed'
+                  ? 'bg-[#34d399] hover:bg-[#16a34a] text-[#0f1f15] shadow-lg shadow-[#34d399]/30'
+                  : 'bg-[#5c5c5c] text-white/40 cursor-not-allowed'
               }`}
             >
               {sending ? (
@@ -544,9 +544,9 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
               exit={{ opacity: 0, y: -10 }}
               className="text-center mt-2"
             >
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full">
-                <Loader2 className="w-3 h-3 text-indigo-400 animate-spin" />
-                <span className="text-xs text-indigo-400 font-medium">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+                <Loader2 className="w-3 h-3 text-emerald-400 animate-spin" />
+                <span className="text-xs text-emerald-400 font-medium">
                   Transcribing audio...
                 </span>
               </div>
@@ -556,11 +556,11 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
 
         {!isRecording && !isTranscribing && (
           <div className="hidden sm:block text-xs text-white/40 mt-2 text-center">
-            Press <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Enter</kbd> to send •{' '}
+            Press <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Enter</kbd> to send ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢{' '}
             <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Shift + Enter</kbd> for new line
             {isMicSupported && (
               <>
-                {' • '}
+                {' ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ '}
                 <span className="inline-flex items-center gap-1">
                   <Mic className="w-3 h-3 inline" />
                   Voice input available

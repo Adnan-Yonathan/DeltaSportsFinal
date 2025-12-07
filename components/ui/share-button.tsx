@@ -43,7 +43,7 @@ export const ShareButton = ({ targetRef, filename = 'delta-card.png' }: ShareBut
       ) : (
         <Share2 className="w-3.5 h-3.5" />
       )}
-      {isSharing ? 'Preparing…' : status === 'ok' ? 'Copied' : status === 'error' ? 'Retry' : 'Share'}
+      {isSharing ? 'PreparingÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦' : status === 'ok' ? 'Copied' : status === 'error' ? 'Retry' : 'Share'}
     </button>
   )
 }

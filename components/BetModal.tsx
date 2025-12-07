@@ -106,13 +106,13 @@ export default function BetModal({
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-bg-secondary border border-gray-700 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-bg-secondary border border-[#2f343c] rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-bg-secondary border-b border-gray-700 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-accent-orange">Log New Bet</h2>
+        <div className="sticky top-0 bg-bg-secondary border-b border-[#2f343c] px-6 py-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-accent-emerald">Log New Bet</h2>
           <button
             onClick={onClose}
-            className="text-text-secondary hover:text-accent-cyan transition-colors"
+            className="text-text-secondary hover:text-accent-green transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

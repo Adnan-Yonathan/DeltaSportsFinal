@@ -98,7 +98,7 @@ const CheckIcon = () => {
             height="24"
             viewBox="0 0 24 24"
             fill="currentColor"
-            className="h-4 w-4 text-purple-500 mt-1 flex-shrink-0"
+            className="h-4 w-4 text-white mt-1 flex-shrink-0"
         >
             <path stroke="none" d="M0 0h24v24H0z" fill="none" />
             <path
@@ -144,7 +144,7 @@ export function HowWeHelpSection() {
                     <h2 className="text-3xl font-bold tracking-tight text-white md:text-4xl lg:text-5xl">
                         How We Make Your Life Easier
                     </h2>
-                    <p className="text-white/60 mt-4 text-base md:text-lg">
+                    <p className="text-white/80 mt-4 text-base md:text-lg">
                         Stop wasting time on manual research. Let Delta AI do the heavy lifting.
                     </p>
                 </AnimatedContainer>
@@ -160,13 +160,13 @@ export function HowWeHelpSection() {
                         >
                             <div className="relative z-20">
                                 <feature.icon
-                                    className="h-6 w-6 text-purple-500"
+                                    className="h-6 w-6 text-white"
                                     strokeWidth={1.5}
                                 />
                                 <p className="text-xl font-bold mt-4 text-white">
                                     {feature.title}
                                 </p>
-                                <p className="text-neutral-300 mt-2 text-sm">
+                                <p className="text-white/80 mt-2 text-sm">
                                     {feature.description}
                                 </p>
                                 <ul className="list-none mt-4 space-y-1">

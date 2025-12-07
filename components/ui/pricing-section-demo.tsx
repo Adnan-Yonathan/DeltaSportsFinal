@@ -57,7 +57,7 @@ const defaultTiers: PricingTier[] = [
     features: [
       {
         name: "Unlimited Messages",
-        description: "Brainstorm without caps—ask Delta AI anything.",
+        description: "Brainstorm without capsÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Âask Delta AI anything.",
         included: true,
       },
       {

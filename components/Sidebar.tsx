@@ -117,7 +117,7 @@ export default function Sidebar({
       onClick={() => onConversationSelect(conv.id)}
       className={`p-3 rounded-lg cursor-pointer transition-all group relative ${
         currentConversationId === conv.id
-          ? 'bg-accent-orange/20 border-l-2 border-accent-orange'
+          ? 'bg-accent-emerald/15 border-l-2 border-accent-emerald'
           : 'hover:bg-bg-secondary'
       }`}
     >
@@ -167,7 +167,7 @@ export default function Sidebar({
   return (
     <div className="h-full bg-bg-primary flex flex-col">
       {/* New Chat Button */}
-      <div className="p-4 border-b border-gray-800">
+      <div className="p-4 border-b border-[#2f343c]">
         <button
           onClick={onNewConversation}
           className="w-full btn-primary flex items-center justify-center gap-2"

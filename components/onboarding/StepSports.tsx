@@ -11,18 +11,18 @@ interface StepSportsProps {
 }
 
 const SPORTS = [
-  { id: "nfl", name: "NFL", emoji: "🏈" },
-  { id: "nba", name: "NBA", emoji: "🏀" },
-  { id: "mlb", name: "MLB", emoji: "⚾" },
-  { id: "nhl", name: "NHL", emoji: "🏒" },
-  { id: "ncaaf", name: "NCAAF", emoji: "🏈" },
-  { id: "ncaab", name: "NCAAB", emoji: "🏀" },
-  { id: "soccer", name: "Soccer", emoji: "⚽" },
-  { id: "mma", name: "MMA", emoji: "🥊" },
-  { id: "tennis", name: "Tennis", emoji: "🎾" },
-  { id: "golf", name: "Golf", emoji: "⛳" },
-  { id: "boxing", name: "Boxing", emoji: "🥊" },
-  { id: "esports", name: "Esports", emoji: "🎮" },
+  { id: "nfl", name: "NFL", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒâ€¹Ã¢â‚¬Â " },
+  { id: "nba", name: "NBA", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬" },
+  { id: "mlb", name: "MLB", emoji: "ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã‚Â¡Ãƒâ€šÃ‚Â¾" },
+  { id: "nhl", name: "NHL", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢" },
+  { id: "ncaaf", name: "NCAAF", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒâ€¹Ã¢â‚¬Â " },
+  { id: "ncaab", name: "NCAAB", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬" },
+  { id: "soccer", name: "Soccer", emoji: "ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã‚Â¡Ãƒâ€šÃ‚Â½" },
+  { id: "mma", name: "MMA", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â¥Ãƒâ€¦Ã‚Â " },
+  { id: "tennis", name: "Tennis", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â½Ãƒâ€šÃ‚Â¾" },
+  { id: "golf", name: "Golf", emoji: "ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂºÃƒâ€šÃ‚Â³" },
+  { id: "boxing", name: "Boxing", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â¥Ãƒâ€¦Ã‚Â " },
+  { id: "esports", name: "Esports", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â½Ãƒâ€šÃ‚Â®" },
 ]
 
 export function StepSports({ value, onChange, onValidation }: StepSportsProps) {
@@ -61,7 +61,7 @@ export function StepSports({ value, onChange, onValidation }: StepSportsProps) {
                 className={`
                   relative p-6 rounded-xl border-2 transition-all
                   ${isSelected
-                    ? "bg-purple-500/20 border-purple-500"
+                    ? "bg-emerald-500/20 border-emerald-500"
                     : "bg-zinc-900/50 border-white/10 hover:border-white/30"
                   }
                 `}
@@ -69,7 +69,7 @@ export function StepSports({ value, onChange, onValidation }: StepSportsProps) {
                 whileTap={{ scale: 0.98 }}
               >
                 {isSelected && (
-                  <div className="absolute top-2 right-2 bg-purple-500 rounded-full p-1">
+                  <div className="absolute top-2 right-2 bg-emerald-500 rounded-full p-1">
                     <Check className="w-4 h-4 text-white" />
                   </div>
                 )}

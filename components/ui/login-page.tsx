@@ -115,7 +115,7 @@ export const LoginPage = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 py-3 font-medium text-white transition-all hover:from-indigo-600 hover:to-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="w-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 py-3 font-medium text-white transition-all hover:from-emerald-600 hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {loading ? (
                       <span className="flex items-center justify-center gap-2">
@@ -132,7 +132,7 @@ export const LoginPage = () => {
                   Need an account?{" "}
                   <Link
                     href="/auth/signup"
-                    className="font-medium text-indigo-300 transition-colors hover:text-indigo-200"
+                    className="font-medium text-emerald-300 transition-colors hover:text-emerald-200"
                   >
                     Create one
                   </Link>

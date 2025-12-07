@@ -117,17 +117,17 @@ const ComparisonSection = ({
           <h2 className="max-w-2xl text-3xl font-bold text-white md:text-5xl">
             {heading}
           </h2>
-          <p className="text-white/60 max-w-xl">
+          <p className="text-white/70 max-w-xl">
             {description}
           </p>
         </div>
 
         {/* Comparison Table */}
         <div className="max-w-4xl mx-auto">
-          <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+          <div className="rounded-2xl border border-white/15 bg-[#4E4E4E] overflow-hidden">
             {/* Table Header */}
-            <div className="grid grid-cols-4 gap-4 p-4 md:p-6 border-b border-white/10 bg-white/5">
-              <div className="text-sm font-medium text-white/60 uppercase tracking-wider">
+            <div className="grid grid-cols-4 gap-4 p-4 md:p-6 border-b border-white/15 bg-[#4E4E4E]">
+              <div className="text-sm font-medium text-white/70 uppercase tracking-wider">
                 Features
               </div>
               {products.map((product) => (
@@ -141,7 +141,7 @@ const ComparisonSection = ({
                 >
                   <div className="text-sm md:text-base">{product.name}</div>
                   {product.highlight && (
-                    <Badge className="mt-1 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-[10px] border-0">
+                    <Badge className="mt-1 bg-white text-[#4E4E4E] text-[10px] border-0">
                       RECOMMENDED
                     </Badge>
                   )}
@@ -150,7 +150,7 @@ const ComparisonSection = ({
             </div>
 
             {/* Table Body */}
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-white/10">
               {features.map((feature, index) => (
                 <motion.div
                   key={feature.name}
@@ -170,7 +170,7 @@ const ComparisonSection = ({
                     <StatusIcon status={feature.oddsjam} />
                   </div>
                   <div className="flex justify-center items-center relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 -mx-4 md:-mx-6" />
+                    <div className="absolute inset-0 bg-white/5 -mx-4 md:-mx-6" />
                     <div className="relative">
                       <StatusIcon status={feature.delta} />
                     </div>
@@ -180,14 +180,14 @@ const ComparisonSection = ({
             </div>
 
             {/* Table Footer */}
-            <div className="grid grid-cols-4 gap-4 p-4 md:p-6 border-t border-white/10 bg-white/5">
-              <div className="text-sm font-medium text-white/60">
+            <div className="grid grid-cols-4 gap-4 p-4 md:p-6 border-t border-white/15 bg-[#4E4E4E]">
+              <div className="text-sm font-medium text-white/70">
                 Best For
               </div>
-              <div className="text-center text-xs md:text-sm text-white/60">
+              <div className="text-center text-xs md:text-sm text-white/70">
                 General AI tasks
               </div>
-              <div className="text-center text-xs md:text-sm text-white/60">
+              <div className="text-center text-xs md:text-sm text-white/70">
                 Odds comparison
               </div>
               <div className="text-center text-xs md:text-sm text-white font-medium">
@@ -196,35 +196,35 @@ const ComparisonSection = ({
             </div>
 
             {/* Pricing Row */}
-            <div className="grid grid-cols-4 gap-4 p-4 md:p-6 border-t border-white/10 bg-gradient-to-r from-white/5 to-white/10">
-              <div className="text-sm font-medium text-white/60">
+            <div className="grid grid-cols-4 gap-4 p-4 md:p-6 border-t border-white/15 bg-[#4E4E4E]">
+              <div className="text-sm font-medium text-white/70">
                 Price
               </div>
               <div className="text-center">
-                <span className="text-lg md:text-xl font-bold text-white/80">$20</span>
-                <span className="text-xs text-white/50">/mo</span>
+                <span className="text-lg md:text-xl font-bold text-white">$20</span>
+                <span className="text-xs text-white/70">/mo</span>
               </div>
               <div className="text-center">
-                <span className="text-lg md:text-xl font-bold text-white/80">$150</span>
-                <span className="text-xs text-white/50">/mo</span>
+                <span className="text-lg md:text-xl font-bold text-white">$150</span>
+                <span className="text-xs text-white/70">/mo</span>
               </div>
               <div className="text-center relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 -mx-4 md:-mx-6" />
+                <div className="absolute inset-0 bg-white/10 -mx-4 md:-mx-6" />
                 <div className="relative">
-                  <span className="text-lg md:text-xl font-bold text-emerald-400">$15</span>
-                  <span className="text-xs text-white/50">/mo*</span>
+                  <span className="text-lg md:text-xl font-bold text-white">$15</span>
+                  <span className="text-xs text-white/70">/mo*</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Pricing Note */}
-          <p className="text-center text-xs text-white/40 mt-3">
+          <p className="text-center text-xs text-white/70 mt-3">
             *Billed annually
           </p>
 
           {/* Legend */}
-          <div className="flex flex-wrap justify-center gap-6 mt-4 text-sm text-white/60">
+          <div className="flex flex-wrap justify-center gap-6 mt-4 text-sm text-white/70">
             <div className="flex items-center gap-2">
               <StatusIcon status="yes" />
               <span>Full Support</span>

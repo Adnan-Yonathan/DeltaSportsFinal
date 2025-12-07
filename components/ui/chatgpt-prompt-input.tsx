@@ -148,7 +148,7 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button type="submit" disabled={!hasValue} className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:pointer-events-none bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 disabled:from-white/10 disabled:to-white/10 disabled:text-white/40 shadow-lg shadow-indigo-500/20">
+                    <button type="submit" disabled={!hasValue} className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:pointer-events-none bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 disabled:from-white/10 disabled:to-white/10 disabled:text-white/40 shadow-lg shadow-emerald-500/20">
                       <SendIcon className="h-6 w-6 text-bold" />
                       <span className="sr-only">Send message</span>
                     </button>

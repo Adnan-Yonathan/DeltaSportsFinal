@@ -140,7 +140,7 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
   if (loading) {
     return (
       <div className="h-full bg-bg-primary p-4 flex items-center justify-center">
-        <div className="animate-pulse text-accent-cyan">Loading...</div>
+        <div className="animate-pulse text-accent-green">Loading...</div>
       </div>
     )
   }
@@ -153,7 +153,7 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
   return (
     <div className="h-full bg-bg-primary overflow-y-auto">
       {/* Current Bankroll */}
-      <div className="p-6 border-b border-gray-800">
+      <div className="p-6 border-b border-[#2f343c]">
         <div className="card-header">Current Bankroll</div>
         <div className="text-4xl font-bold text-text-primary mt-2">
           {formatCurrency(stats?.currentBalance || 0)}
@@ -170,7 +170,7 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
       </div>
 
       {/* Quick Stats */}
-      <div className="p-6 border-b border-gray-800 grid grid-cols-3 gap-2 text-center">
+      <div className="p-6 border-b border-[#2f343c] grid grid-cols-3 gap-2 text-center">
         <div>
           <div className="text-2xl font-bold text-success-green">
             {stats?.wonBets || 0}
@@ -184,7 +184,7 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
           <div className="text-xs text-text-secondary">Lost</div>
         </div>
         <div>
-          <div className="text-2xl font-bold text-accent-cyan">
+          <div className="text-2xl font-bold text-accent-green">
             {stats?.pendingBets || 0}
           </div>
           <div className="text-xs text-text-secondary">Pending</div>
@@ -192,7 +192,7 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
       </div>
 
       {/* Active Bets */}
-      <div className="p-6 border-b border-gray-800">
+      <div className="p-6 border-b border-[#2f343c]">
         <div className="card-header mb-3">Active Bets</div>
         {activeBets.length === 0 ? (
           <div className="text-text-secondary text-sm text-center py-4">
@@ -206,9 +206,9 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
                   {bet.bet_side}
                 </div>
                 <div className="text-xs text-text-secondary mb-2">
-                  {bet.game_description} • {bet.book}
+                  {bet.game_description} | {bet.book}
                 </div>
-                <div className="text-sm text-accent-cyan mb-2">
+                <div className="text-sm text-accent-green mb-2">
                   ${bet.stake} to win ${bet.potential_win.toFixed(2)}
                 </div>
                 <div className="flex gap-2">
@@ -238,7 +238,7 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
       </div>
 
       {/* Today&rsquo;s Bets */}
-      <div className="p-6 border-b border-gray-800">
+      <div className="p-6 border-b border-[#2f343c]">
         <div className="card-header mb-3">Today&rsquo;s Results</div>
         {todayBets.length === 0 ? (
           <div className="text-text-secondary text-sm text-center py-4">
@@ -261,7 +261,7 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
                         : 'text-text-secondary'
                     }`}
                   >
-                    {bet.status === 'won' ? '✓' : bet.status === 'lost' ? '✗' : '−'}
+                    {bet.status === 'won' ? 'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ' : bet.status === 'lost' ? 'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' : 'ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢'}
                   </span>
                   <span className="text-text-secondary truncate">
                     {bet.bet_side}
@@ -281,7 +281,7 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
                 </span>
               </div>
             ))}
-            <div className="pt-2 border-t border-gray-700 flex justify-between font-semibold">
+            <div className="pt-2 border-t border-[#2f343c] flex justify-between font-semibold">
               <span className="text-text-secondary">Net:</span>
               <span
                 className={
@@ -303,7 +303,7 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
       </div>
 
       {/* Performance Chart */}
-      <div className="p-6 border-b border-gray-800">
+      <div className="p-6 border-b border-[#2f343c]">
         <div className="card-header mb-3">7-Day Performance</div>
         {stats && stats.dailyBalances.length > 0 ? (
           <ResponsiveContainer width="100%" height={150}>
@@ -311,14 +311,14 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
               <XAxis
                 dataKey="date"
                 tickFormatter={(date) => format(new Date(date), 'MM/dd')}
-                stroke="#8B92A8"
+                stroke="#b3bac6"
                 style={{ fontSize: '10px' }}
               />
               <YAxis hide />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#131729',
-                  border: '1px solid #1a1f3a',
+                  backgroundColor: '#262b31',
+                  border: '1px solid #2f343c',
                   borderRadius: '8px',
                   fontSize: '12px',
                 }}
@@ -328,9 +328,9 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
               <Line
                 type="monotone"
                 dataKey="balance"
-                stroke="#00D9FF"
+                stroke="#34d399"
                 strokeWidth={2}
-                dot={{ fill: '#00D9FF', r: 3 }}
+                dot={{ fill: '#34d399', r: 3 }}
               />
             </LineChart>
           </ResponsiveContainer>

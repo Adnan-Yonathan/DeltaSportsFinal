@@ -122,7 +122,7 @@ export default function AnimatedMessage({ content, isAnimating = true }: Animate
               thead: ({ node, ...props }) => <thead className="bg-white/5" {...props} />,
               th: ({ node, ...props }) => (
                 <th
-                  className="text-left px-4 py-3 text-indigo-300 font-semibold text-xs uppercase tracking-wider"
+                  className="text-left px-4 py-3 text-emerald-300 font-semibold text-xs uppercase tracking-wider"
                   {...props}
                 />
               ),
@@ -132,7 +132,7 @@ export default function AnimatedMessage({ content, isAnimating = true }: Animate
               code: ({ node, inline, ...props }: any) =>
                 inline ? (
                   <code
-                    className="bg-white/10 px-1.5 py-0.5 rounded text-indigo-300 text-xs font-mono"
+                    className="bg-white/10 px-1.5 py-0.5 rounded text-emerald-300 text-xs font-mono"
                     {...props}
                   />
                 ) : (
@@ -156,7 +156,7 @@ export default function AnimatedMessage({ content, isAnimating = true }: Animate
               ),
               a: ({ node, ...props }) => (
                 <a
-                  className="text-indigo-300 underline hover:text-indigo-200"
+                  className="text-emerald-300 underline hover:text-emerald-200"
                   target="_blank"
                   rel="noopener noreferrer"
                   {...props}

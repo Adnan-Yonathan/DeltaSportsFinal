@@ -19,10 +19,10 @@ export function SimpleHeader() {
 
   return (
     <header className="sticky top-4 z-50 w-full">
-      <nav className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between rounded-full border border-white/10 bg-white/5 px-4 backdrop-blur">
+      <nav className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between rounded-full border border-white/15 bg-[#4E4E4E] px-4 backdrop-blur supports-[backdrop-filter]:bg-[#4E4E4E]/90 text-white">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-3 text-white">
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-900 text-white shadow">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/20 text-white shadow">
               <Grid2x2PlusIcon className="h-5 w-5" />
             </div>
             <p className="font-jakarta text-lg font-semibold">Delta AI</p>
@@ -34,21 +34,21 @@ export function SimpleHeader() {
             <Link
               key={link.label}
               href={link.href}
-              className={buttonVariants({ variant: "ghost" })}
+              className="px-3 py-2 text-white/70 hover:text-white transition-colors"
             >
               {link.label}
             </Link>
           ))}
-          <Button asChild variant="outline">
+          <Button asChild className="bg-[#34d399] text-[#0f1f15] border border-[#34d399] hover:bg-[#16a34a]">
             <Link href="/auth/login">Log In</Link>
           </Button>
-          <Button asChild>
+          <Button asChild className="bg-[#34d399] text-[#0f1f15] border border-[#34d399] hover:bg-[#16a34a]">
             <Link href="/auth/signup">Sign Up</Link>
           </Button>
         </div>
 
         <Sheet open={open} onOpenChange={setOpen}>
-          <Button size="icon" variant="outline" className="lg:hidden" onClick={() => setOpen(!open)}>
+          <Button size="icon" variant="outline" className="lg:hidden bg-[#4E4E4E] text-white border border-white/20 hover:bg-[#5a5a5a]" onClick={() => setOpen(!open)}>
             <MenuToggle
               strokeWidth={2.5}
               open={open}
@@ -57,7 +57,7 @@ export function SimpleHeader() {
             />
           </Button>
           <SheetContent
-            className="bg-background/95 supports-[backdrop-filter]:bg-background/80 gap-0 backdrop-blur"
+            className="bg-[#4E4E4E]/95 supports-[backdrop-filter]:bg-[#4E4E4E]/90 gap-0 backdrop-blur text-white"
             showClose={false}
             side="left"
           >
@@ -66,10 +66,7 @@ export function SimpleHeader() {
                 <Link
                   key={link.label}
                   href={link.href}
-                  className={buttonVariants({
-                    variant: "ghost",
-                    className: "justify-start",
-                  })}
+                  className="justify-start text-white/80 hover:text-white px-3 py-2 rounded-md transition-colors"
                   onClick={() => setOpen(false)}
                 >
                   {link.label}
@@ -77,10 +74,10 @@ export function SimpleHeader() {
               ))}
             </div>
             <SheetFooter>
-              <Button asChild variant="outline">
+              <Button asChild className="bg-[#34d399] text-[#0f1f15] border border-[#34d399] hover:bg-[#16a34a]">
                 <Link href="/auth/login">Log In</Link>
               </Button>
-              <Button asChild>
+              <Button asChild className="bg-[#34d399] text-[#0f1f15] border border-[#34d399] hover:bg-[#16a34a]">
                 <Link href="/auth/signup">Sign Up</Link>
               </Button>
             </SheetFooter>

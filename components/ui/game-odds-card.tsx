@@ -188,7 +188,7 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
                 {proxiedAwayLogo ? (
                   <img src={proxiedAwayLogo} alt={awayTeam} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
                 ) : (
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-600 flex-shrink-0">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-600 to-emerald-600 flex-shrink-0">
                     <span className="text-white text-xs font-bold">{getTeamAbbr(awayTeam)}</span>
                   </div>
                 )}
@@ -203,7 +203,7 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
                 {proxiedHomeLogo ? (
                   <img src={proxiedHomeLogo} alt={homeTeam} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
                 ) : (
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-600 flex-shrink-0">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-600 to-emerald-600 flex-shrink-0">
                     <span className="text-white text-xs font-bold">{getTeamAbbr(homeTeam)}</span>
                   </div>
                 )}
@@ -213,7 +213,7 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
             {/* Game Time */}
             {gameTime && (
               <motion.div
-                className="text-xs sm:text-sm text-purple-400"
+                className="text-xs sm:text-sm text-emerald-400"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
@@ -226,7 +226,7 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
           {/* Right rail */}
           <div className="flex flex-col items-end gap-2 flex-shrink-0">
             <motion.div
-              className="px-2.5 sm:px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold flex-shrink-0"
+              className="px-2.5 sm:px-3 py-1 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex-shrink-0"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.2 }}
@@ -273,7 +273,7 @@ export const GameOddsCard: React.FC<GameOddsCardProps> = ({
 
         {/* Footer */}
         <motion.div
-          className="mt-6 flex items-center gap-2 text-xs text-purple-400"
+          className="mt-6 flex items-center gap-2 text-xs text-emerald-400"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
@@ -381,9 +381,9 @@ const MarketSection: React.FC<MarketSectionProps> = ({
       >
         <span className="text-sm sm:text-base font-semibold text-white">{marketLabel}</span>
         {isExpanded ? (
-          <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
+          <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
         ) : (
-          <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
+          <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
         )}
       </button>
 
@@ -502,7 +502,7 @@ const MarketSection: React.FC<MarketSectionProps> = ({
                           e.stopPropagation()
                           toggleOutcomeExpansion(outcome1.label)
                         }}
-                        className="mt-2 w-full p-3 rounded-lg border border-white/10 bg-white/5 hover:border-white/20 transition-all text-[11px] sm:text-xs font-semibold text-purple-300 flex items-center justify-center"
+                        className="mt-2 w-full p-3 rounded-lg border border-white/10 bg-white/5 hover:border-white/20 transition-all text-[11px] sm:text-xs font-semibold text-emerald-300 flex items-center justify-center"
                       >
                         {isOutcomeExpanded(outcome1.label) ? 'Show less' : `+ ${hiddenCount1} more`}
                       </button>
@@ -539,7 +539,7 @@ const MarketSection: React.FC<MarketSectionProps> = ({
                             e.stopPropagation()
                             toggleOutcomeExpansion(outcome2.label)
                           }}
-                          className="mt-2 w-full p-3 rounded-lg border border-white/10 bg-white/5 hover:border-white/20 transition-all text-[11px] sm:text-xs font-semibold text-purple-300 flex items-center justify-center"
+                          className="mt-2 w-full p-3 rounded-lg border border-white/10 bg-white/5 hover:border-white/20 transition-all text-[11px] sm:text-xs font-semibold text-emerald-300 flex items-center justify-center"
                         >
                           {isOutcomeExpanded(outcome2.label) ? 'Show less' : `+ ${hiddenCount2} more`}
                         </button>
@@ -556,7 +556,7 @@ const MarketSection: React.FC<MarketSectionProps> = ({
                     e.stopPropagation()
                     toggleOutcomeExpansion('__totals__')
                   }}
-                  className="w-full mt-3 py-2 px-4 rounded-lg bg-purple-600/10 border border-purple-500/30 hover:bg-purple-600/20 hover:border-purple-500/50 transition-all text-xs sm:text-sm font-semibold text-purple-300"
+                  className="w-full mt-3 py-2 px-4 rounded-lg bg-emerald-600/10 border border-emerald-500/30 hover:bg-emerald-600/20 hover:border-emerald-500/50 transition-all text-xs sm:text-sm font-semibold text-emerald-300"
                 >
                   {isOutcomeExpanded('__totals__')
                     ? 'Show less'
@@ -615,7 +615,7 @@ const BookmakerCard: React.FC<BookmakerCardProps> = ({ name, odds, marketType, i
       href={odds.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-xs text-white/60 hover:text-purple-400 hover:underline transition-colors truncate block"
+      className="text-xs text-white/60 hover:text-emerald-400 hover:underline transition-colors truncate block"
       onClick={(e) => e.stopPropagation()} // Prevent accordion toggle
     >
       {name}

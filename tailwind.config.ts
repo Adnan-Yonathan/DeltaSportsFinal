@@ -9,15 +9,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Bloomberg Terminal Theme
-        'bg-primary': '#0A0E27',
-        'bg-secondary': '#131729',
-        'accent-orange': '#FF6B35',
-        'accent-cyan': '#00D9FF',
-        'text-primary': '#E8E8E8',
-        'text-secondary': '#8B92A8',
-        'success-green': '#00FF88',
-        'warning-red': '#FF4757',
+        // Graphite + Green Theme
+        'bg-primary': '#4E4E4E',
+        'bg-secondary': '#3f3f3f',
+        'accent-green': '#34d399',
+        'accent-emerald': '#16a34a',
+        'text-primary': '#f5f5f5',
+        'text-secondary': '#b3bac6',
+        'success-green': '#22c55e',
+        'warning-red': '#f87171',
       },
       maskImage: {
         'radial-gradient': 'radial-gradient(var(--tw-gradient-stops))',

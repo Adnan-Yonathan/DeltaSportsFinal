@@ -90,7 +90,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full bg-black px-4 py-8">
+    <div className="flex flex-col items-center justify-center min-h-full bg-[#4E4E4E] px-4 py-8">
       <div className="w-full max-w-5xl mx-auto pt-2 mb-12">
         <TopPerformancesStrip />
       </div>
@@ -118,7 +118,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
               whileTap={{ scale: 0.95 }}
               onClick={() => setModeDropdownOpen((prev) => !prev)}
               disabled={sending}
-              className="px-3 py-2 rounded-lg transition-all bg-indigo-500/10 border border-indigo-500/30 text-white hover:bg-indigo-500/20 hover:border-indigo-500/50 flex items-center gap-1.5"
+              className="px-3 py-2 rounded-lg transition-all bg-[#34d399]/15 border border-[#34d399]/40 text-white hover:bg-[#34d399]/25 hover:border-[#34d399]/60 flex items-center gap-1.5"
               title="Select mode"
             >
               <span className="text-xs font-semibold">
@@ -134,7 +134,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute bottom-full mb-2 left-0 w-56 rounded-xl border border-white/10 bg-[#0f132d] shadow-2xl overflow-hidden"
+                  className="absolute bottom-full mb-2 left-0 w-56 rounded-xl border border-[#6b6b6b] bg-[#3f3f3f] shadow-2xl overflow-hidden"
                 >
                   <div className="py-1">
                     <button
@@ -145,7 +145,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
                       }}
                       className={`w-full px-4 py-3 text-left transition-colors ${
                         mode === 'regular'
-                          ? 'bg-indigo-500/20 text-white'
+                          ? 'bg-emerald-500/20 text-white'
                           : 'text-white/80 hover:bg-white/5'
                       }`}
                     >
@@ -160,7 +160,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
                       }}
                       className={`w-full px-4 py-3 text-left transition-colors ${
                         mode === 'live'
-                          ? 'bg-indigo-500/20 text-white'
+                          ? 'bg-emerald-500/20 text-white'
                           : 'text-white/80 hover:bg-white/5'
                       }`}
                     >
@@ -175,7 +175,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
                       }}
                       className={`w-full px-4 py-3 text-left transition-colors ${
                         mode === 'research'
-                          ? 'bg-indigo-500/20 text-white'
+                          ? 'bg-emerald-500/20 text-white'
                           : 'text-white/80 hover:bg-white/5'
                       }`}
                     >
@@ -190,7 +190,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, mode,
                       }}
                       className={`w-full px-4 py-3 text-left transition-colors ${
                         mode === 'statmuse'
-                          ? 'bg-indigo-500/20 text-white'
+                          ? 'bg-emerald-500/20 text-white'
                           : 'text-white/80 hover:bg-white/5'
                       }`}
                     >

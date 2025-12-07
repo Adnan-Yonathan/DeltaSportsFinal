@@ -60,8 +60,8 @@ export function LatestNewsStrip() {
             onClick={() => setLeague(tab.key)}
             className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
               league === tab.key
-                ? "bg-purple-500 text-white"
-                : "border border-purple-500/30 text-purple-200 hover:bg-purple-900/40"
+                ? "bg-emerald-500 text-white"
+                : "border border-emerald-500/30 text-emerald-200 hover:bg-emerald-900/40"
             }`}
           >
             {tab.label}
@@ -72,8 +72,8 @@ export function LatestNewsStrip() {
       <div className="mt-2 space-y-2">
         {loading
           ? skeletons.map((_, idx) => (
-              <div key={idx} className="rounded-lg border border-purple-500/10 bg-transparent p-2.5 animate-pulse">
-                <div className="h-3 w-2/3 rounded bg-purple-900/40 mb-1.5" />
+              <div key={idx} className="rounded-lg border border-emerald-500/10 bg-transparent p-2.5 animate-pulse">
+                <div className="h-3 w-2/3 rounded bg-emerald-900/40 mb-1.5" />
                 <div className="h-3 w-1/3 rounded bg-gray-800/60" />
               </div>
             ))
@@ -84,17 +84,17 @@ export function LatestNewsStrip() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.04 }}
-                className="group relative flex items-start gap-3 rounded-lg border border-transparent px-2.5 py-2 hover:border-purple-500/30 hover:bg-purple-900/10"
+                className="group relative flex items-start gap-3 rounded-lg border border-transparent px-2.5 py-2 hover:border-emerald-500/30 hover:bg-emerald-900/10"
               >
                 <div className="flex-1">
-                  <div className="text-[10px] uppercase tracking-[0.12em] text-purple-200/70">{article.league}</div>
+                  <div className="text-[10px] uppercase tracking-[0.12em] text-emerald-200/70">{article.league}</div>
                   <Link href={article.url} target="_blank" className="block">
-                    <div className="text-[13px] font-semibold text-white leading-tight line-clamp-2 group-hover:text-purple-200">
+                    <div className="text-[13px] font-semibold text-white leading-tight line-clamp-2 group-hover:text-emerald-200">
                       {article.title}
                     </div>
                   </Link>
                 </div>
-                <div className="pointer-events-none absolute inset-x-2 bottom-0 h-px bg-gradient-to-r from-transparent via-purple-400/40 to-transparent opacity-70" />
+                <div className="pointer-events-none absolute inset-x-2 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent opacity-70" />
                 <Link
                   href={article.url}
                   target="_blank"
@@ -105,7 +105,7 @@ export function LatestNewsStrip() {
               </motion.div>
             ))
           : (
-              <div className="rounded-lg border border-purple-500/10 bg-transparent p-3 text-sm text-gray-300">
+              <div className="rounded-lg border border-emerald-500/10 bg-transparent p-3 text-sm text-gray-300">
                 {error || "No headlines available right now."}
               </div>
             )}

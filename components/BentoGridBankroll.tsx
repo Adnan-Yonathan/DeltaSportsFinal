@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -535,7 +535,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-          className="w-12 h-12 rounded-full border-2 border-indigo-500 border-t-transparent"
+          className="w-12 h-12 rounded-full border-2 border-emerald-500 border-t-transparent"
         />
       </div>
     )
@@ -600,7 +600,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
           {/* Header */}
           <div className="mb-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Wallet className="w-5 h-5 text-indigo-400" />
+              <Wallet className="w-5 h-5 text-emerald-400" />
               Bankroll
             </h2>
             <p className="text-xs text-white/40 mt-1">Track your performance</p>
@@ -644,7 +644,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                       placeholder="1000"
                       min="0"
                       step="0.01"
-                      className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-emerald-500"
                     />
                   </div>
                   <div>
@@ -656,7 +656,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                       placeholder="20"
                       min="0"
                       step="0.01"
-                      className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-emerald-500"
                     />
                   </div>
                 </div>
@@ -676,7 +676,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                   <button
                     onClick={handleSaveSettings}
                     disabled={savingSettings}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 transition-colors text-white text-sm disabled:opacity-50"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 transition-colors text-white text-sm disabled:opacity-50"
                   >
                     {savingSettings ? (
                       <>
@@ -708,7 +708,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                 <div className="text-sm text-white/70">Estimate stake using edge + odds</div>
               </div>
               <div className="text-xs text-white/50">
-                Bankroll: {formatCurrency(stats.currentBalance)} · Unit: {formatCurrency(stats.unitSize)}
+                Bankroll: {formatCurrency(stats.currentBalance)} Ãƒâ€šÃ‚Â· Unit: {formatCurrency(stats.unitSize)}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -719,7 +719,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                   value={kellyOdds}
                   onChange={(e) => setKellyOdds(e.target.value)}
                   placeholder="-110"
-                  className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
@@ -731,7 +731,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                   placeholder="55"
                   min="1"
                   max="99"
-                  className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
@@ -743,7 +743,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                   step="0.05"
                   min="0"
                   max="1"
-                  className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
@@ -755,30 +755,30 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                   step="0.01"
                   min="0"
                   max="1"
-                  className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-zinc-900/80 text-white placeholder:text-white/40 border border-white/10 rounded-lg py-2 px-3 focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
 
             {kellyResult ? (
               <div className="mt-4 grid grid-cols-3 gap-3 text-sm text-white">
-                <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                   <div className="text-xs text-white/60 uppercase tracking-wider">Suggested Stake</div>
                   <div className="text-lg font-semibold text-white mt-1">
-                    {kellyResult.suggestedStake != null ? formatCurrency(kellyResult.suggestedStake) : '—'}
+                    {kellyResult.suggestedStake != null ? formatCurrency(kellyResult.suggestedStake) : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'}
                   </div>
                   <div className="text-xs text-white/50">
                     {kellyResult.suggestedUnits != null ? `${kellyResult.suggestedUnits.toFixed(2)}u` : ''}
                   </div>
                 </div>
-                <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                   <div className="text-xs text-white/60 uppercase tracking-wider">Kelly % (applied)</div>
                   <div className="text-lg font-semibold text-white mt-1">
                     {kellyResult.appliedPercent.toFixed(2)}%
                   </div>
                   <div className="text-xs text-white/50">Raw: {kellyResult.kellyPercent.toFixed(2)}%</div>
                 </div>
-                <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                   <div className="text-xs text-white/60 uppercase tracking-wider">Edge</div>
                   <div className="text-lg font-semibold text-white mt-1">
                     {kellyResult.edgePercent.toFixed(2)}%
@@ -806,14 +806,14 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="p-6 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 backdrop-blur-sm"
+            className="p-6 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/10 border border-emerald-500/20 backdrop-blur-sm"
           >
             {/* Top Row: Units + Record */}
             <div className="flex items-start justify-between mb-6">
               {/* Current Units */}
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <Trophy className="w-5 h-5 text-indigo-400" />
+                  <Trophy className="w-5 h-5 text-emerald-400" />
                   <span className="text-xs text-white/60 uppercase tracking-wider font-semibold">Current Units</span>
                 </div>
                 <div className="text-5xl font-bold text-white">
@@ -839,7 +839,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                 {stats.unitsWon >= 0 ? '+' : ''}{stats.unitsWon?.toFixed(2) || '0.00'}u
               </div>
               <div className={`text-lg ${stats.unitsWon >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {stats.unitsWon >= 0 ? '↑' : '↓'} {Math.abs((stats.unitsWon / stats.startingUnits) * 100).toFixed(2)}% on bankroll
+                {stats.unitsWon >= 0 ? 'ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Ëœ' : 'ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Å“'} {Math.abs((stats.unitsWon / stats.startingUnits) * 100).toFixed(2)}% on bankroll
               </div>
             </div>
 
@@ -856,7 +856,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                       onClick={() => setChartRange(option.value)}
                       className={`px-3 py-1 rounded-full text-[10px] uppercase tracking-wider transition ${
                         chartRange === option.value
-                          ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                           : 'bg-white/5 text-white/40 border border-white/10'
                       }`}
                     >
@@ -880,15 +880,15 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
             transition={{ delay: 0.2 }}
             onClick={getAIInsights}
             disabled={insightsLoading || !hasEnoughHistory}
-            className="w-full p-4 rounded-xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border border-purple-500/30 backdrop-blur-sm hover:from-purple-500/30 hover:to-indigo-500/30 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full p-4 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/20 border border-emerald-500/30 backdrop-blur-sm hover:from-emerald-500/30 hover:to-emerald-500/30 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-purple-500/20 group-hover:bg-purple-500/30 transition-colors">
+                <div className="p-2 rounded-lg bg-emerald-500/20 group-hover:bg-emerald-500/30 transition-colors">
                   {insightsLoading ? (
-                    <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+                    <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
                   ) : (
-                    <Sparkles className="w-5 h-5 text-purple-400" />
+                    <Sparkles className="w-5 h-5 text-emerald-400" />
                   )}
                 </div>
                 <div className="text-left">
@@ -901,7 +901,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                 </div>
               </div>
               {!insightsLoading && (
-                <div className="text-purple-400 group-hover:translate-x-1 transition-transform">{'>'}</div>
+                <div className="text-emerald-400 group-hover:translate-x-1 transition-transform">{'>'}</div>
               )}
             </div>
           </motion.button>
@@ -937,7 +937,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                             {bet.game_description}
                           </div>
                           <div className="text-xs text-white/60 mt-1">
-                            {bet.bet_side} • {bet.odds > 0 ? '+' : ''}{bet.odds} • {bet.book}
+                            {bet.bet_side} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ {bet.odds > 0 ? '+' : ''}{bet.odds} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ {bet.book}
                           </div>
                         </div>
                         <div className="text-right">
@@ -953,7 +953,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                       {/* Live Score Display */}
                       {liveGame && (
                         <div className={`mb-2 p-2 rounded-md ${
-                          isLive ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30' : 'bg-white/5'
+                          isLive ? 'bg-gradient-to-r from-emerald-500/20 to-emerald-500/20 border border-emerald-500/30' : 'bg-white/5'
                         }`}>
                           <div className="flex justify-between items-center">
                             <div className="flex-1">
@@ -1018,7 +1018,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                         </button>
                         <button
                           onClick={() => settleBet(bet.id, 'push')}
-                          className="flex-1 px-2 py-1 rounded bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 text-xs font-medium transition-all"
+                          className="flex-1 px-2 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 text-xs font-medium transition-all"
                         >
                           Push
                         </button>
@@ -1067,11 +1067,11 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
             className="w-full max-w-3xl max-h-[80vh] bg-gradient-to-br from-gray-900 to-black border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
           >
             {/* Header */}
-            <div className="p-6 border-b border-white/10 bg-gradient-to-r from-purple-500/10 to-indigo-500/10">
+            <div className="p-6 border-b border-white/10 bg-gradient-to-r from-emerald-500/10 to-emerald-500/10">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-500/20">
-                    <Sparkles className="w-6 h-6 text-purple-400" />
+                  <div className="p-2 rounded-lg bg-emerald-500/20">
+                    <Sparkles className="w-6 h-6 text-emerald-400" />
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-white">AI Bankroll Analysis</h2>
@@ -1091,7 +1091,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
             <div className="p-6 overflow-y-auto custom-scrollbar max-h-[calc(80vh-120px)]">
               {insightsLoading && !insights ? (
                 <div className="flex flex-col items-center justify-center py-12">
-                  <Loader2 className="w-12 h-12 text-purple-400 animate-spin mb-4" />
+                  <Loader2 className="w-12 h-12 text-emerald-400 animate-spin mb-4" />
                   <p className="text-white/60">Analyzing your betting performance...</p>
                 </div>
               ) : (
@@ -1100,7 +1100,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                     {insights || 'No insights available'}
                   </div>
                   {insightsLoading && (
-                    <div className="mt-4 flex items-center gap-2 text-purple-400">
+                    <div className="mt-4 flex items-center gap-2 text-emerald-400">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span className="text-sm">Generating insights...</span>
                     </div>
@@ -1117,7 +1117,7 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
                 </p>
                 <button
                   onClick={() => setShowInsights(false)}
-                  className="px-4 py-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-400 text-sm font-medium transition-all"
+                  className="px-4 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 text-sm font-medium transition-all"
                 >
                   Close
                 </button>

@@ -638,7 +638,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium py-3 hover:from-indigo-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium py-3 hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <span className="flex items-center justify-center gap-2">

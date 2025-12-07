@@ -154,7 +154,7 @@ export function FileUploadZone({
           transition-colors
           ${
             isDragging
-              ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
+              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950'
               : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
           }
           ${files.length >= maxFiles ? 'opacity-50 cursor-not-allowed' : ''}
@@ -204,7 +204,7 @@ export function FileUploadZone({
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {formatFileSize(fileInfo.file.size)}
                     {fileInfo.status === 'uploading' && ' - Uploading...'}
-                    {fileInfo.status === 'success' && ' - ✓ Uploaded'}
+                    {fileInfo.status === 'success' && ' - ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Uploaded'}
                     {fileInfo.status === 'error' && ` - Error: ${fileInfo.error}`}
                   </p>
                 </div>
@@ -212,7 +212,7 @@ export function FileUploadZone({
 
               <div className="flex items-center space-x-2">
                 {fileInfo.status === 'uploading' && (
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
                 )}
                 {fileInfo.status === 'success' && (
                   <div className="w-2 h-2 bg-green-500 rounded-full" />

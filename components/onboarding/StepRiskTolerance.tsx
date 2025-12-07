@@ -15,7 +15,7 @@ const RISK_LEVELS = [
     id: "conservative",
     name: "Conservative",
     description: "Focus on bankroll preservation with smaller, safer bets",
-    details: "Typical bet size: 0.5-1% of bankroll • Lower variance strategies",
+    details: "Typical bet size: 0.5-1% of bankroll ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ Lower variance strategies",
     icon: Shield,
     color: "from-emerald-500 to-green-500",
   },
@@ -23,15 +23,15 @@ const RISK_LEVELS = [
     id: "moderate",
     name: "Moderate",
     description: "Balanced approach mixing safety with growth opportunities",
-    details: "Typical bet size: 1-3% of bankroll • Calculated risk taking",
+    details: "Typical bet size: 1-3% of bankroll ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ Calculated risk taking",
     icon: Scale,
-    color: "from-purple-500 to-violet-500",
+    color: "from-emerald-500 to-emerald-500",
   },
   {
     id: "aggressive",
     name: "Aggressive",
     description: "Maximize returns with larger bets and higher variance",
-    details: "Typical bet size: 3-5% of bankroll • Higher upside and downside",
+    details: "Typical bet size: 3-5% of bankroll ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ Higher upside and downside",
     icon: Zap,
     color: "from-orange-500 to-red-500",
   },
@@ -65,7 +65,7 @@ export function StepRiskTolerance({ value, onChange, onValidation }: StepRiskTol
               className={`
                 relative w-full p-6 rounded-xl border-2 transition-all text-left
                 ${isSelected
-                  ? "bg-purple-500/20 border-purple-500"
+                  ? "bg-emerald-500/20 border-emerald-500"
                   : "bg-zinc-900/50 border-white/10 hover:border-white/30"
                 }
               `}
@@ -83,8 +83,8 @@ export function StepRiskTolerance({ value, onChange, onValidation }: StepRiskTol
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="text-xl font-bold text-white">{level.name}</h3>
                     {isSelected && (
-                      <div className="flex items-center gap-2 text-purple-400 text-sm">
-                        <div className="w-2 h-2 rounded-full bg-purple-400" />
+                      <div className="flex items-center gap-2 text-emerald-400 text-sm">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400" />
                         Selected
                       </div>
                     )}

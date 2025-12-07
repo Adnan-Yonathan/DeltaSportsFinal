@@ -222,7 +222,7 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
           {/* Player Headshot */}
           {proxiedHeadshot ? (
             <motion.div
-              className="w-16 h-16 rounded-full overflow-hidden border-2 border-purple-500/30 flex-shrink-0"
+              className="w-16 h-16 rounded-full overflow-hidden border-2 border-emerald-500/30 flex-shrink-0"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.1 }}
@@ -238,7 +238,7 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
             </motion.div>
           ) : (
             <motion.div
-              className="w-16 h-16 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-600 flex-shrink-0"
+              className="w-16 h-16 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-600 to-emerald-600 flex-shrink-0"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.1 }}
@@ -266,7 +266,7 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
               <span className="font-medium truncate">{team}</span>
               {position && (
                 <>
-                  <span className="text-white/30">•</span>
+                  <span className="text-white/30">ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢</span>
                   <span className="truncate">{position}</span>
                 </>
               )}
@@ -276,7 +276,7 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
           {/* Right rail */}
           <div className="flex flex-col items-end gap-2 flex-shrink-0">
             <motion.div
-              className="px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold"
+              className="px-3 py-1 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.2 }}
@@ -304,7 +304,7 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
           {statEntries.map(([key, value], index) => (
             <motion.div
               key={key}
-              className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/5 backdrop-blur-sm border border-white/5 hover:border-purple-500/30 transition-colors"
+              className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/5 backdrop-blur-sm border border-white/5 hover:border-emerald-500/30 transition-colors"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1 * index + 0.4 }}
@@ -323,10 +323,10 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
         <div className="mt-4">
           <button
             onClick={() => setShowRecent(!showRecent)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs sm:text-sm text-white/80 transition-colors hover:border-purple-500/30"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs sm:text-sm text-white/80 transition-colors hover:border-emerald-500/30"
           >
             <span>Last 5 games</span>
-            <span className="text-purple-300 font-semibold text-xs">
+            <span className="text-emerald-300 font-semibold text-xs">
               {recentLoading ? 'Loading...' : showRecent ? 'Hide' : 'Show'}
             </span>
           </button>
@@ -376,7 +376,7 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
 
         {/* Performance Indicator */}
         <motion.div
-          className="mt-6 flex items-center gap-2 text-xs text-purple-400"
+          className="mt-6 flex items-center gap-2 text-xs text-emerald-400"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}

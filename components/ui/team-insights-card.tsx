@@ -76,15 +76,15 @@ export const TeamInsightsCard: React.FC<TeamInsightsCardProps> = ({
   const getSportIcon = (sportKey: string) => {
     // Map sport keys to emoji icons
     if (sportKey === 'basketball_nba' || sportKey === 'basketball_ncaab') {
-      return '🏀'
+      return 'ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬'
     } else if (sportKey === 'americanfootball_nfl' || sportKey === 'americanfootball_ncaaf') {
-      return '🏈'
+      return 'ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒâ€¹Ã¢â‚¬Â '
     } else if (sportKey === 'icehockey_nhl') {
-      return '🏒'
+      return 'ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢'
     } else if (sportKey === 'baseball_mlb') {
-      return '⚾'
+      return 'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã‚Â¡Ãƒâ€šÃ‚Â¾'
     }
-    return '🏆' // default for unknown sports
+    return 'ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ' // default for unknown sports
   }
 
   const priorityKeysBySport: Record<string, string[]> = {
@@ -237,7 +237,7 @@ export const TeamInsightsCard: React.FC<TeamInsightsCardProps> = ({
                 {proxiedAwayLogo ? (
                   <img src={proxiedAwayLogo} alt={awayTeam} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
                 ) : (
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-600 flex-shrink-0">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-600 to-emerald-600 flex-shrink-0">
                     <span className="text-white text-xs font-bold">{getTeamAbbr(awayTeam)}</span>
                   </div>
                 )}
@@ -252,7 +252,7 @@ export const TeamInsightsCard: React.FC<TeamInsightsCardProps> = ({
                 {proxiedHomeLogo ? (
                   <img src={proxiedHomeLogo} alt={homeTeam} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
                 ) : (
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-600 flex-shrink-0">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-600 to-emerald-600 flex-shrink-0">
                     <span className="text-white text-xs font-bold">{getTeamAbbr(homeTeam)}</span>
                   </div>
                 )}
@@ -263,7 +263,7 @@ export const TeamInsightsCard: React.FC<TeamInsightsCardProps> = ({
           {/* Right rail */}
           <div className="flex flex-col items-end gap-2 flex-shrink-0">
             <motion.div
-              className="px-2.5 sm:px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold flex-shrink-0"
+              className="px-2.5 sm:px-3 py-1 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex-shrink-0"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.2 }}
@@ -289,7 +289,7 @@ export const TeamInsightsCard: React.FC<TeamInsightsCardProps> = ({
         {/* Expandable Stats Toggle */}
         <button
           onClick={() => setShowAllStats(!showAllStats)}
-          className="w-full py-2 px-4 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/30 transition-all flex items-center justify-center gap-2 text-sm text-white/70 hover:text-purple-400"
+          className="w-full py-2 px-4 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/30 transition-all flex items-center justify-center gap-2 text-sm text-white/70 hover:text-emerald-400"
         >
           {showAllStats ? (
             <>
@@ -331,7 +331,7 @@ export const TeamInsightsCard: React.FC<TeamInsightsCardProps> = ({
 
         {/* Team Insights Indicator */}
         <motion.div
-          className="mt-6 flex items-center gap-2 text-xs text-purple-400"
+          className="mt-6 flex items-center gap-2 text-xs text-emerald-400"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}

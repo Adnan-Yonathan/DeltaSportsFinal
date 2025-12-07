@@ -159,7 +159,7 @@ export function FeaturesChat() {
           <h2 className="max-w-2xl text-3xl font-semibold md:text-4xl text-white">
             Powerful Features
           </h2>
-          <p className="text-white/60">
+          <p className="text-white/70">
             Everything you need to gain an edge in sports betting
           </p>
         </div>
@@ -176,7 +176,7 @@ export function FeaturesChat() {
           transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
         >
           <motion.div
-            className="relative backdrop-blur-2xl bg-[#0c0c12] rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
+          className="relative backdrop-blur-2xl bg-[#4E4E4E] rounded-2xl border border-white/15 shadow-2xl overflow-hidden"
             animate={{
               boxShadow: isExpanded
                 ? "0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1)"
@@ -185,17 +185,17 @@ export function FeaturesChat() {
             transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
           >
             {/* Chat Header */}
-            <div className="px-6 py-4 border-b border-white/10 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center">
+            <div className="px-6 py-4 border-b border-white/15 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shadow-lg shadow-black/20">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <div>
                 <p className="text-sm font-medium text-white">Delta AI</p>
-                <p className="text-xs text-white/40">Always online</p>
+                <p className="text-xs text-white/70">Always online</p>
               </div>
               <div className="ml-auto flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs text-white/40">Active</span>
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                <span className="text-xs text-white/70">Active</span>
               </div>
             </div>
 
@@ -219,16 +219,16 @@ export function FeaturesChat() {
                     )}
                   >
                     {message.type === "assistant" && (
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                        <Sparkles className="w-3.5 h-3.5 text-white" />
-                      </div>
+                    <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 shadow-md shadow-black/20">
+                      <Sparkles className="w-3.5 h-3.5 text-white" />
+                    </div>
                     )}
                     <div
                       className={cn(
                         "max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
                         message.type === "user"
-                          ? "bg-white text-black rounded-br-md"
-                          : "bg-white/5 text-white/80 rounded-bl-md"
+                          ? "bg-white text-[#4E4E4E] rounded-br-md shadow-lg shadow-black/20"
+                          : "bg-[#4E4E4E] text-white rounded-bl-md border border-white/15"
                       )}
                     >
                       {renderMessageContent(message.content)}
@@ -246,10 +246,10 @@ export function FeaturesChat() {
                     exit={{ opacity: 0, y: -10 }}
                     className="flex gap-3"
                   >
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                      <Sparkles className="w-3.5 h-3.5 text-white" />
-                    </div>
-                    <div className="bg-white/5 rounded-2xl rounded-bl-md px-4 py-3 text-sm text-white/80 leading-relaxed max-w-[80%]">
+                    <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 shadow-md shadow-black/20">
+                        <Sparkles className="w-3.5 h-3.5 text-white" />
+                      </div>
+                    <div className="bg-[#4E4E4E] rounded-2xl rounded-bl-md px-4 py-3 text-sm text-white leading-relaxed max-w-[80%] border border-white/15">
                       {displayedText ? (
                         <>
                           {renderMessageContent(displayedText)}
@@ -257,7 +257,7 @@ export function FeaturesChat() {
                         </>
                       ) : (
                         <div className="flex items-center gap-1">
-                          <span className="text-white/60">Thinking</span>
+                          <span className="text-white/70">Thinking</span>
                           <TypingDots />
                         </div>
                       )}
@@ -270,8 +270,8 @@ export function FeaturesChat() {
             </motion.div>
 
             {/* Feature Buttons */}
-            <div className="p-4 border-t border-white/10 bg-white/[0.02]">
-              <p className="text-xs text-white/40 mb-3 text-center">
+            <div className="p-4 border-t border-white/15 bg-[#4E4E4E]">
+              <p className="text-xs text-white/70 mb-3 text-center">
                 Click a feature to learn more
               </p>
               <div className="flex flex-wrap items-center justify-center gap-2">
@@ -282,10 +282,9 @@ export function FeaturesChat() {
                     disabled={isTyping}
                     className={cn(
                       "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all",
-                      "border border-white/10",
                       activeFeature === index
-                        ? "bg-white text-black"
-                        : "bg-white/[0.03] text-white/70 hover:bg-white/[0.08] hover:text-white hover:border-white/20",
+                        ? "bg-[#34d399] text-[#0f1f15] border border-[#34d399]"
+                        : "bg-[#34d399]/15 text-white hover:bg-[#34d399]/25 border border-[#34d399]/40",
                       isTyping && activeFeature !== index && "opacity-50 cursor-not-allowed"
                     )}
                     whileHover={!isTyping ? { scale: 1.02 } : {}}

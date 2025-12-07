@@ -142,7 +142,7 @@ export function TopPerformancesStrip() {
       <div className="w-full max-w-3xl mx-auto bg-transparent px-1">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-[11px] uppercase text-purple-200/80 tracking-[0.14em]">Top performances</div>
+            <div className="text-[11px] uppercase text-emerald-200/80 tracking-[0.14em]">Top performances</div>
             <div className="text-base font-semibold text-white">Recent standout stat lines</div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -152,8 +152,8 @@ export function TopPerformancesStrip() {
                 onClick={() => setLeague(tab.key)}
                 className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
                   league === tab.key
-                    ? "bg-purple-500 text-white"
-                    : "border border-purple-500/30 text-purple-200 hover:bg-purple-900/40"
+                    ? "bg-emerald-500 text-white"
+                    : "border border-emerald-500/30 text-emerald-200 hover:bg-emerald-900/40"
                 }`}
               >
                 {tab.label}
@@ -162,7 +162,7 @@ export function TopPerformancesStrip() {
             <select
               value={viewMode}
               onChange={(e) => setViewMode(e.target.value as "teams" | "players")}
-              className="rounded-md bg-black/70 text-purple-100 text-xs px-2 py-1 border border-purple-500/40"
+              className="rounded-md bg-black/70 text-emerald-100 text-xs px-2 py-1 border border-emerald-500/40"
             >
               <option value="teams">Team trends</option>
               <option value="players">Player trends</option>
@@ -173,7 +173,7 @@ export function TopPerformancesStrip() {
         <div className="mt-2 grid gap-2 md:grid-cols-3">
           {loading
             ? skeletons.slice(0, 3).map((_, idx) => (
-                <div key={idx} className="rounded-lg border border-purple-500/10 bg-transparent p-3 animate-pulse">
+                <div key={idx} className="rounded-lg border border-emerald-500/10 bg-transparent p-3 animate-pulse">
                   <div className="h-3 w-1/2 rounded bg-gray-800/70 mb-2" />
                   <div className="h-4 w-3/4 rounded bg-gray-800/70 mb-1.5" />
                   <div className="h-3 w-2/3 rounded bg-gray-800/70" />
@@ -186,7 +186,7 @@ export function TopPerformancesStrip() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.04 }}
-                  className="group relative rounded-lg border border-transparent bg-transparent px-3 py-2 hover:border-purple-500/30 hover:bg-purple-900/10"
+                  className="group relative rounded-lg border border-transparent bg-transparent px-3 py-2 hover:border-emerald-500/30 hover:bg-emerald-900/10"
                 >
                   <div className="flex items-center justify-between text-xs text-gray-400 uppercase tracking-[0.14em]">
                     <span>{item.league?.toUpperCase?.() || league.toUpperCase()}</span>
@@ -194,11 +194,11 @@ export function TopPerformancesStrip() {
                   </div>
                   <div className="mt-0.5 text-sm font-semibold text-white leading-tight">{item.name}</div>
                   {renderCardDetail(item)}
-                  <div className="pointer-events-none absolute inset-x-2 bottom-0 h-px bg-gradient-to-r from-transparent via-purple-400/40 to-transparent opacity-70" />
+                  <div className="pointer-events-none absolute inset-x-2 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent opacity-70" />
                 </motion.div>
               ))
             : (
-              <div className="col-span-3 rounded-lg border border-purple-500/10 bg-transparent p-3 text-sm text-gray-300">
+              <div className="col-span-3 rounded-lg border border-emerald-500/10 bg-transparent p-3 text-sm text-gray-300">
                 {error || "No trends available right now."}
               </div>
               )}
@@ -208,7 +208,7 @@ export function TopPerformancesStrip() {
           <div className="mt-2 flex justify-end">
             <button
               onClick={() => setExpanded(true)}
-              className="text-xs font-semibold text-indigo-300 hover:text-white transition"
+              className="text-xs font-semibold text-emerald-300 hover:text-white transition"
             >
               + more
             </button>
@@ -218,10 +218,10 @@ export function TopPerformancesStrip() {
 
       {expanded && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-4xl rounded-2xl border border-purple-500/30 bg-black/90 p-5 shadow-2xl shadow-purple-500/20 relative">
+          <div className="w-full max-w-4xl rounded-2xl border border-emerald-500/30 bg-black/90 p-5 shadow-2xl shadow-emerald-500/20 relative">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <div className="text-[11px] uppercase text-purple-200/80 tracking-[0.14em]">Top performances</div>
+                <div className="text-[11px] uppercase text-emerald-200/80 tracking-[0.14em]">Top performances</div>
                 <div className="text-base font-semibold text-white">{LEAGUE_TABS.find((l) => l.key === league)?.label}</div>
               </div>
               <div className="flex items-center gap-2">
@@ -231,8 +231,8 @@ export function TopPerformancesStrip() {
                     onClick={() => setLeague(tab.key)}
                     className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
                       league === tab.key
-                        ? "bg-purple-500 text-white"
-                        : "border border-purple-500/30 text-purple-200 hover:bg-purple-900/40"
+                        ? "bg-emerald-500 text-white"
+                        : "border border-emerald-500/30 text-emerald-200 hover:bg-emerald-900/40"
                     }`}
                   >
                     {tab.label}
@@ -241,14 +241,14 @@ export function TopPerformancesStrip() {
                 <select
                   value={viewMode}
                   onChange={(e) => setViewMode(e.target.value as "teams" | "players")}
-                  className="rounded-md bg-black/70 text-purple-100 text-xs px-2 py-1 border border-purple-500/40"
+                  className="rounded-md bg-black/70 text-emerald-100 text-xs px-2 py-1 border border-emerald-500/40"
                 >
                   <option value="teams">Team trends</option>
                   <option value="players">Player trends</option>
                 </select>
                 <button
                   onClick={() => setExpanded(false)}
-                  className="rounded-full px-3 py-1 text-xs font-semibold bg-purple-500/20 text-purple-100 hover:bg-purple-500/40 transition"
+                  className="rounded-full px-3 py-1 text-xs font-semibold bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/40 transition"
                 >
                   Close
                 </button>
@@ -258,7 +258,7 @@ export function TopPerformancesStrip() {
             <div className="grid gap-2 md:grid-cols-3 max-h-[70vh] overflow-y-auto pr-1">
               {loading
                 ? skeletons.map((_, idx) => (
-                    <div key={idx} className="rounded-lg border border-purple-500/10 bg-transparent p-3 animate-pulse">
+                    <div key={idx} className="rounded-lg border border-emerald-500/10 bg-transparent p-3 animate-pulse">
                       <div className="h-3 w-1/2 rounded bg-gray-800/70 mb-2" />
                       <div className="h-4 w-3/4 rounded bg-gray-800/70 mb-1.5" />
                       <div className="h-3 w-2/3 rounded bg-gray-800/70" />
@@ -266,18 +266,18 @@ export function TopPerformancesStrip() {
                   ))
                 : (viewMode === "teams" ? teamTrends.length : playerTrends.length) > 0
                 ? (viewMode === "teams" ? teamTrends : playerTrends).map((item: any, idx: number) => (
-                    <div key={`${item.name}-${idx}-${item.type}`} className="group relative rounded-lg border border-transparent bg-transparent px-3 py-2 hover:border-purple-500/30 hover:bg-purple-900/10">
+                    <div key={`${item.name}-${idx}-${item.type}`} className="group relative rounded-lg border border-transparent bg-transparent px-3 py-2 hover:border-emerald-500/30 hover:bg-emerald-900/10">
                       <div className="flex items-center justify-between text-xs text-gray-400 uppercase tracking-[0.14em]">
                         <span>{item.league?.toUpperCase?.() || league.toUpperCase()}</span>
                         <span>{item.type === "team" ? "Team (last 5)" : "Player (last 5)"}</span>
                       </div>
                       <div className="mt-0.5 text-sm font-semibold text-white leading-tight">{item.name}</div>
                       {renderCardDetail(item)}
-                      <div className="pointer-events-none absolute inset-x-2 bottom-0 h-px bg-gradient-to-r from-transparent via-purple-400/40 to-transparent opacity-70" />
+                      <div className="pointer-events-none absolute inset-x-2 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent opacity-70" />
                     </div>
                   ))
                 : (
-                  <div className="col-span-3 rounded-lg border border-purple-500/10 bg-transparent p-3 text-sm text-gray-300">
+                  <div className="col-span-3 rounded-lg border border-emerald-500/10 bg-transparent p-3 text-sm text-gray-300">
                     {error || "No trends available right now."}
                   </div>
                   )}
@@ -295,7 +295,7 @@ export function TopPerformancesStrip() {
                         {rows.slice(0, 3).map((p, idx) => (
                           <li key={`${cat.key}-${p.name}-${idx}`} className="flex justify-between text-[13px]">
                             <span className="truncate">{idx + 1}. {p.name}</span>
-                            <span className="text-indigo-200">
+                            <span className="text-emerald-200">
                               {cat.key === "pts" && (p.avgPts?.toFixed?.(1) ?? "--")}
                               {cat.key === "reb" && (p.avgReb?.toFixed?.(1) ?? "--")}
                               {cat.key === "ast" && (p.avgAst?.toFixed?.(1) ?? "--")}

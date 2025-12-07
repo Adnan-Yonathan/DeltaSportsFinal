@@ -37,7 +37,7 @@ function AnimatedHero({
         {rotatingTerms.map((term, index) => (
           <motion.span
             key={index}
-            className="absolute left-0 right-0 inset-y-0 font-semibold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent whitespace-nowrap flex items-center justify-center"
+            className="absolute left-0 right-0 inset-y-0 font-semibold bg-gradient-to-r from-emerald-400 to-emerald-400 bg-clip-text text-transparent whitespace-nowrap flex items-center justify-center"
             initial={{ opacity: 0, y: -50 }}
             transition={{ type: "spring", stiffness: 50 }}
             animate={

@@ -192,7 +192,7 @@ export function OnboardingFlow() {
       {/* Progress Bar */}
       <div className="fixed top-0 left-0 right-0 h-1 bg-white/10 z-50">
         <motion.div
-          className="h-full bg-gradient-to-r from-indigo-500 to-purple-500"
+          className="h-full bg-gradient-to-r from-emerald-500 to-emerald-500"
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
           transition={{ duration: 0.3 }}
@@ -260,7 +260,7 @@ export function OnboardingFlow() {
             <button
               onClick={handleNext}
               disabled={!isStepValid || saving}
-              className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold hover:from-indigo-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <>

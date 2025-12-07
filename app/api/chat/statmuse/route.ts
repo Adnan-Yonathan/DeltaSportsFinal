@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
           const stats = await fetchBalldontlieStats(player.id, thresholdNBA.season || new Date().getFullYear())
           const result = buildNBAThreeResult(stats, thresholdNBA)
           const replyLines = [
-            `${player.first_name} ${player.last_name} — games with ${thresholdNBA.value}${thresholdNBA.comparator === '>=' ? '+' : ''} threes (season ${thresholdNBA.season}): ${result.count}`,
+            `${player.first_name} ${player.last_name} â€” games with ${thresholdNBA.value}${thresholdNBA.comparator === '>=' ? '+' : ''} threes (season ${thresholdNBA.season}): ${result.count}`,
           ]
           if (result.sample.length) {
             replyLines.push('Examples:')
@@ -241,7 +241,7 @@ export async function POST(req: NextRequest) {
           const stats = await fetchBalldontlieStatsMulti(player.id, seasons)
           const result = buildTripleDoubleResult(stats)
           const replyLines = [
-            `${player.first_name} ${player.last_name} — triple-double games (${tripleDoubleQuery.scope === 'career' ? 'last 10 seasons' : `season ${currentSeason}`}): ${result.count}`,
+            `${player.first_name} ${player.last_name} â€” triple-double games (${tripleDoubleQuery.scope === 'career' ? 'last 10 seasons' : `season ${currentSeason}`}): ${result.count}`,
           ]
           if (result.sample.length) {
             replyLines.push('Examples:')

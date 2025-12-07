@@ -16,7 +16,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="flex min-h-screen flex-col bg-black text-white">
+      <body className="flex min-h-screen flex-col bg-bg-primary text-text-primary">
         <StagewiseToolbar />
         <SupabaseAuthListener />
         <main className="flex-1">{children}</main>

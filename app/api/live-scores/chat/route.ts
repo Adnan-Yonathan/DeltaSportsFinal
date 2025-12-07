@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       const status = formatStatus(game.bucket, game.status, game.startTime)
       const scoreLine =
         game.bucket === 'live' || game.bucket === 'completed'
-          ? ` — ${away?.shortName || away?.name} ${away?.score ?? ''} @ ${home?.shortName || home?.name} ${home?.score ?? ''}`
+          ? ` â€” ${away?.shortName || away?.name} ${away?.score ?? ''} @ ${home?.shortName || home?.name} ${home?.score ?? ''}`
           : ''
       return `${game.leagueLabel}: ${away?.shortName || away?.name} @ ${home?.shortName || home?.name} (${status})${scoreLine}`
     }
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
         })
       }
       const lines: string[] = []
-      lines.push(`Season stats for ${stats.name} (${stats.team || 'Unknown'})${stats.season ? ` • Season ${stats.season}` : ''}:`)
+      lines.push(`Season stats for ${stats.name} (${stats.team || 'Unknown'})${stats.season ? ` â€¢ Season ${stats.season}` : ''}:`)
       Object.entries(stats.stats || {}).forEach(([k, v]) => {
         lines.push(`- ${k.replace(/_/g, ' ')}: ${v}`)
       })
@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
                 return parts ? `${teamLabel} [${parts}]` : teamLabel
               })
               .join('\n') || null
-          const summary = `${away?.shortName || away?.name} @ ${home?.shortName || home?.name} — ${formatStatus(game.bucket, game.status, game.startTime)}`
+          const summary = `${away?.shortName || away?.name} @ ${home?.shortName || home?.name} â€” ${formatStatus(game.bucket, game.status, game.startTime)}`
           const replyLines = [summary]
           if (linescore) replyLines.push(linescore)
           if (details.teams?.length) {

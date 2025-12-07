@@ -244,7 +244,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
         {alternateLines.map(([line, rows]) => (
           <div key={line} className="border-t border-white/10">
             <div className="px-3 sm:px-4 py-2 bg-white/5">
-              <span className="text-xs font-medium text-purple-400">
+              <span className="text-xs font-medium text-emerald-400">
                 Alternate Line: {line}
               </span>
             </div>
@@ -438,7 +438,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
           {/* Player Headshot */}
           {proxiedHeadshot ? (
             <motion.div
-              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-purple-500/30 flex-shrink-0"
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-emerald-500/30 flex-shrink-0"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.1 }}
@@ -454,7 +454,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
             </motion.div>
           ) : (
             <motion.div
-              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-600 flex-shrink-0"
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-600 to-emerald-600 flex-shrink-0"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.1 }}
@@ -484,7 +484,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
                   <span className="font-medium truncate">{teamAbbr || team}</span>
                   {position && (
                     <>
-                      <span className="text-white/30">•</span>
+                      <span className="text-white/30">ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢</span>
                       <span className="truncate">{position}</span>
                     </>
                   )}
@@ -493,7 +493,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
             </motion.div>
             {game && (
               <motion.div
-                className="text-xs text-purple-400 mt-1 truncate"
+                className="text-xs text-emerald-400 mt-1 truncate"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
@@ -506,7 +506,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
           {/* Right rail controls */}
           <div className="flex flex-col items-end gap-2 flex-shrink-0">
             <motion.div
-              className="px-2.5 sm:px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold"
+              className="px-2.5 sm:px-3 py-1 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.2 }}
@@ -538,7 +538,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
                 <span className="text-xs sm:text-sm font-semibold text-white/90">
                   {formatMarketName(marketKey)}
                 </span>
-                <span className="text-sm sm:text-base font-bold text-purple-300">
+                <span className="text-sm sm:text-base font-bold text-emerald-300">
                   {openMarkets.has(marketKey) ? 'Hide lines' : 'Lines by book'}
                 </span>
               </button>
@@ -563,7 +563,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
           {hasMoreMarkets && (
             <motion.button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="w-full mt-3 py-3 px-4 rounded-lg bg-purple-600/10 border border-purple-500/30 hover:bg-purple-600/20 hover:border-purple-500/50 transition-all flex items-center justify-center gap-2 text-sm font-semibold text-purple-300"
+              className="w-full mt-3 py-3 px-4 rounded-lg bg-emerald-600/10 border border-emerald-500/30 hover:bg-emerald-600/20 hover:border-emerald-500/50 transition-all flex items-center justify-center gap-2 text-sm font-semibold text-emerald-300"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
@@ -587,7 +587,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
 
         {/* Footer */}
         <motion.div
-          className="mt-4 sm:mt-6 flex items-center gap-2 text-xs text-purple-400"
+          className="mt-4 sm:mt-6 flex items-center gap-2 text-xs text-emerald-400"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}

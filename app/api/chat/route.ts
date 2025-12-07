@@ -169,7 +169,7 @@ const formatGameLogEntry = (entry: any) => {
       stats[key] = Number.isFinite(value) ? value : s?.value ?? s?.displayValue ?? s?.display_value ?? s
     }
   }
-  const statLines = Object.entries(stats).map(([k, v]) => `  • ${k}: ${v}`)
+  const statLines = Object.entries(stats).map(([k, v]) => `  â€¢ ${k}: ${v}`)
   const header = `${date}${opponent ? ` vs ${opponent}` : ''}${result ? ` (${result})` : ''}`
   return statLines.length ? `${header}\n${statLines.join('\n')}` : header
 }
@@ -300,7 +300,7 @@ const formatPlayerGameLine = (player: any): string => {
 
   for (const [label, keys] of entries) {
     const val = pick(keys)
-    if (val != null) lines.push(`  • ${label}: ${val}`)
+    if (val != null) lines.push(`  â€¢ ${label}: ${val}`)
   }
 
   if (!lines.length && player.summaryLine) return player.summaryLine
@@ -489,7 +489,7 @@ async function generateConversationTitle(firstUserMessage: string): Promise<stri
   const cleaned = (firstUserMessage || '').replace(/\s+/g, ' ').trim()
   if (!cleaned) return 'New Chat'
   const maxLen = 50
-  return cleaned.length > maxLen ? `${cleaned.slice(0, maxLen).trimEnd()}…` : cleaned
+  return cleaned.length > maxLen ? `${cleaned.slice(0, maxLen).trimEnd()}â€¦` : cleaned
 }
 
 // Helper function to log a bet
@@ -1258,17 +1258,17 @@ const getSystemPrompt = (timezone: string) => `You are DELTA, a professional spo
 - NBA: season averages (PTS/REB/AST/FG%/3P%), box-score lines, minutes, injuries, team records. No usage, pace, DvP, potential assists, or rebounding chances.
 - NFL: pass/rush/receiving yards, attempts/receptions/TDs/INTs, completions/attempts, basic injuries and team scoring/allowed. No snap share, routes, advanced coverage/OL data.
 - NHL: goals/assists/points, shots on goal, time on ice (via box), goalie SV%, team records. No PP/PK%, no advanced pace.
-- MLB: minimal via ESPN feeds; no advanced K%, xFIP, barrel%, etc. (don’t promise them).
+- MLB: minimal via ESPN feeds; no advanced K%, xFIP, barrel%, etc. (donâ€™t promise them).
 - Soccer: basic goals/assists/shots/cards and team form; no xG/xA unless explicitly provided elsewhere.
 
 **General conversation & betting education layer (for non-odds / non-specific stats asks):**
 - Tone: conversational, sharp, concise, data-aware. Avoid hot takes/speculation/emotional language.
-- Allowed: explain sports rules, betting terminology (moneyline, spread, total, juice, CLV/EV, arbitrage/middles), sharp concepts (bankroll/line shopping/CLV), how to interpret stats, how to use the app. Keep it brief (≤4 sentences; bullets OK).
+- Allowed: explain sports rules, betting terminology (moneyline, spread, total, juice, CLV/EV, arbitrage/middles), sharp concepts (bankroll/line shopping/CLV), how to interpret stats, how to use the app. Keep it brief (â‰¤4 sentences; bullets OK).
 - Boundaries: decline politics/medical/legal/relationship/explicit/finance investment; politely pivot back to sports/betting.
 - Education: define terms simply and tie to actionable betting behavior; no picks/guarantees.
-- Redirect examples: “I stay out of that, but I can break down any matchup, trend, or stat you want.”
+- Redirect examples: â€œI stay out of that, but I can break down any matchup, trend, or stat you want.â€
 
-**Stats-only questions:** Answer directly with ESPN-derived data (season averages, box scores, injuries, standings). If something isn’t available, state the limitation instead of stalling.
+**Stats-only questions:** Answer directly with ESPN-derived data (season averages, box scores, injuries, standings). If something isnâ€™t available, state the limitation instead of stalling.
 
 **CURRENT DATE & TIME (${timezone}):**
 Today's date is ${new Date().toLocaleDateString('en-US', {
@@ -1326,8 +1326,8 @@ When users ask "what games are today/tonight/tomorrow":
 3. Always emphasize responsible gambling
 4. Keep responses concise (3-5 sentences for simple queries)
 5. Do NOT promise deeper player splits/advanced NBA metrics; if asked, say they are unavailable right now and stick to season averages
-6. Offer odds/player-prop fetching only after you have provided the requested stats/context (don’t pre-promise)
-7. Do NOT ask the user if they want deeper splits—those are not available; acknowledge unavailability instead
+6. Offer odds/player-prop fetching only after you have provided the requested stats/context (donâ€™t pre-promise)
+7. Do NOT ask the user if they want deeper splitsâ€”those are not available; acknowledge unavailability instead
 5. Use data and statistics to support insights
 
 **Response Guidelines:**
@@ -1366,7 +1366,7 @@ When users ask "what games are today/tonight/tomorrow":
 - **CRITICAL**: Display ALL sportsbooks returned by the API for each game (e.g., FanDuel, DraftKings, BetMGM, Caesars, Fanatics, Bet365, BetRivers, Hard Rock, Pinnacle, PointsBet, Bovada, Underdog, Fliff). Do not list books that are not present in the data.
 - Compare moneyline, spreads, and totals across ALL available sportsbooks for each game
 - Show every bookmaker's odds in the table - do NOT omit any bookmakers from the data
-- ALWAYS present odds using the standardized Market/Team/Sportsbook table layout (see the example below). The API response now includes fully-built Markdown tables�copy them directly so formatting never varies.
+- ALWAYS present odds using the standardized Market/Team/Sportsbook table layout (see the example below). The API response now includes fully-built Markdown tablesï¿½copy them directly so formatting never varies.
 - Make each sportsbook name clickable using Markdown hyperlinks (e.g., [FanDuel](https://sportsbook.fanduel.com/)). Use the provided URL data for EVERY book and apply hyperlinks no matter which bet type/market is shown. If a link is missing from the data, leave the name as plain text.
 - Highlight which sportsbook has the best VALUE for each market (see "Best Value" rules below)
 - NEVER suggest where to bet, only present the data objectively
@@ -1405,7 +1405,7 @@ When identifying the best odds/value, you MUST consider the line FIRST, then the
 **When presenting odds, ALWAYS:**
 - Show the best line/spread for each side (not just the best odds on any line)
 - Note if a book offers a better line even with slightly worse odds
-- Example: "Best value for Lakers: -4.5 at -110 (FanDuel) — Better than -5 at -105 elsewhere"
+- Example: "Best value for Lakers: -4.5 at -110 (FanDuel) â€” Better than -5 at -105 elsewhere"
 
 **Arbitrage Opportunities:**
 When users ask for arbitrage opportunities, you MUST:
@@ -1452,7 +1452,7 @@ When analyzing betting stats, provide actionable insights:
 - Always restate the configuration for confirmation before calling save_custom_model. Do not save without explicit user approval.
 - When a user says things like "apply my NBA model for totals" or "use my NFL rushing model for Derrick Henry", search the provided context for matching models, clarify if multiple exist, then call apply_custom_model with the model name and any matchup/team info mentioned.
 - Use list_custom_models when the user asks what models they have, or when you need to remind them of available names.
-- When models are applied, explain the weighted score, confidence interval, and how each stat contributed. Never fabricate stats�"if data is missing, state that limitation.
+- When models are applied, explain the weighted score, confidence interval, and how each stat contributed. Never fabricate statsï¿½"if data is missing, state that limitation.
 - Whenever someone asks about a specific matchup or you are creating/applying a projection, first ask **"Do you want to go more in depth on the matchup?"**. If they say yes (or ask for deeper analysis), call **get_game_context** to pull injuries, team form, and market trends before responding.
 
 **Research Models (Automated Opportunity Scanners):**
@@ -1993,7 +1993,7 @@ export async function POST(req: NextRequest) {
       .replace(/\s+/g, ' ')
     if (sanitizedTitle) {
       const fallbackTitle =
-        sanitizedTitle.length > 60 ? `${sanitizedTitle.slice(0, 57)}…` : sanitizedTitle
+        sanitizedTitle.length > 60 ? `${sanitizedTitle.slice(0, 57)}â€¦` : sanitizedTitle
       try {
         await supabase
           .from('conversations')
@@ -2049,9 +2049,9 @@ export async function POST(req: NextRequest) {
 
     // Build context
     const modeDirectives: Record<string, string> = {
-      regular: '- Mode: Regular — focus on education and betting know-how. Do NOT call live odds or player prop tools unless the user explicitly asks for data.',
-      live: '- Mode: Live — prioritize fresh odds/props; if data is missing, say so briefly. Keep replies concise.',
-      research: '- Mode: Research — confirm scope (sports, markets, filters, data to use) before running research tools. If a model_id is provided, prefer calling run_research_model with that ID.',
+      regular: '- Mode: Regular â€” focus on education and betting know-how. Do NOT call live odds or player prop tools unless the user explicitly asks for data.',
+      live: '- Mode: Live â€” prioritize fresh odds/props; if data is missing, say so briefly. Keep replies concise.',
+      research: '- Mode: Research â€” confirm scope (sports, markets, filters, data to use) before running research tools. If a model_id is provided, prefer calling run_research_model with that ID.',
     }
 
     let contextMessage = `\n\n**Current User Context:**\n`
@@ -3337,8 +3337,8 @@ export async function POST(req: NextRequest) {
         const messageLower = msgLower
 
         // Detect if user is asking about tomorrow
-        const isTomorrowQuery = messageLower.match(/(tomorrow(?:'|�)?s?|tmrw|next day)/i)
-        const isTodayQuery = messageLower.match(/(today(?:'|�)?s?|tonight|this evening)/i)
+        const isTomorrowQuery = messageLower.match(/(tomorrow(?:'|ï¿½)?s?|tmrw|next day)/i)
+        const isTodayQuery = messageLower.match(/(today(?:'|ï¿½)?s?|tonight|this evening)/i)
 
         // Decide whether to fetch LIVE vs PENDING odds
         // Fetch LIVE when the user explicitly asks for live context or mentions specific teams (implies current interest)
@@ -3669,7 +3669,7 @@ export async function POST(req: NextRequest) {
             }
 
             const formatAmericanOdds = (value?: number) => {
-              if (value == null || !isFinite(value)) return '�'
+              if (value == null || !isFinite(value)) return 'ï¿½'
               return value > 0 ? `+${value}` : String(value)
             }
 
@@ -3861,7 +3861,7 @@ export async function POST(req: NextRequest) {
               const body = tableRows
                 .map((row) => {
                   const cells = bookColumns.map((col) =>
-                    escapeTableCell(row.values[col.key] ?? '�')
+                    escapeTableCell(row.values[col.key] ?? 'ï¿½')
                   )
                   const marketLabel = row.marketLabel ? escapeTableCell(row.marketLabel) : '&nbsp;'
                   return `| ${marketLabel} | ${escapeTableCell(row.teamLabel)} | ${cells.join(' | ')} |`
@@ -4150,7 +4150,7 @@ ${statsEnrichment}
                       .map((g) => {
                         const [a, b] = g.competitors || []
                         const matchup = a && b ? `${a.name} @ ${b.name}` : g.shortName || 'Game'
-                        return `- ${matchup} — ${toLocal(g.startTime)}`
+                        return `- ${matchup} â€” ${toLocal(g.startTime)}`
                       })
                       .join('\n')
                 }
@@ -5232,10 +5232,10 @@ ${statsEnrichment}
         })
 
         const text = completion.choices[0]?.message?.content?.trim()
-        return streamTextResponse(text || 'Model-style projection unavailable—please provide more structured stats.')
+        return streamTextResponse(text || 'Model-style projection unavailableâ€”please provide more structured stats.')
       } catch (err: any) {
         console.error('[MODEL_EMULATION] Failed:', err?.message || err)
-        return streamTextResponse('I couldn’t run that model-like projection. Please share the matchup stats and target again.')
+        return streamTextResponse('I couldnâ€™t run that model-like projection. Please share the matchup stats and target again.')
       }
     }
 
@@ -5319,7 +5319,7 @@ ${statsEnrichment}
           params.set('player', playerName)
           console.log(`[PLAYER_PROPS] Player filter applied: ${playerName}`)
         } else if (!mentionedTeams.length) {
-          return streamTextResponse('I can pull player props—tell me the player name (and team if you\'d like) to narrow it down.')
+          return streamTextResponse('I can pull player propsâ€”tell me the player name (and team if you\'d like) to narrow it down.')
         }
         const propsRes = await fetch(`${baseUrl}/api/player-props?${params.toString()}`, { cache: 'no-store' })
         const propsData = await propsRes.json()

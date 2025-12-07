@@ -101,7 +101,7 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
                 className={`
                   relative rounded-2xl border-2 p-6 transition-all
                   ${isSelected
-                    ? "bg-purple-500/20 border-purple-500 ring-4 ring-purple-500/20"
+                    ? "bg-emerald-500/20 border-emerald-500 ring-4 ring-emerald-500/20"
                     : plan.highlighted
                     ? "bg-white/5 border-white/20"
                     : "bg-white/5 border-white/10 hover:border-white/20"
@@ -142,7 +142,7 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
                   className={`
                     w-full py-3 px-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2
                     ${isSelected
-                      ? "bg-purple-500 text-white hover:bg-purple-600"
+                      ? "bg-emerald-500 text-white hover:bg-emerald-600"
                       : plan.highlighted
                       ? "bg-white text-black hover:bg-gray-100"
                       : "bg-white/10 text-white hover:bg-white/20"

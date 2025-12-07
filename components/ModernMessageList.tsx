@@ -100,7 +100,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-black">
+      <div className="flex items-center justify-center h-full bg-[#4E4E4E]">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -109,7 +109,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-            className="w-12 h-12 rounded-full border-2 border-indigo-500 border-t-transparent"
+            className="w-12 h-12 rounded-full border-2 border-emerald-500 border-t-transparent"
           />
           <p className="text-white/60 text-sm">Loading messages...</p>
         </motion.div>
@@ -130,7 +130,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-black px-2 sm:px-4 py-3 sm:py-6 custom-scrollbar">
+    <div className="h-full overflow-y-auto bg-[#4E4E4E] px-2 sm:px-4 py-3 sm:py-6 custom-scrollbar">
       <div className="max-w-4xl mx-auto space-y-3 sm:space-y-6">
         <AnimatePresence initial={false}>
           {messages.map((message, index) => (
@@ -146,7 +146,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
             >
               {message.role === 'assistant' && (
                 <div className="flex-shrink-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
                     <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                   </div>
                 </div>
@@ -155,8 +155,8 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
               <div
                 className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 py-3 sm:px-5 sm:py-4 ${
                   message.role === 'user'
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/20'
-                    : 'bg-white/5 backdrop-blur-xl border border-white/10 text-white/90'
+                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/20'
+                    : 'bg-[#3f3f3f] border border-[#6b6b6b] text-white'
                 }`}
               >
                 {message.role === 'assistant' ? (
@@ -178,7 +178,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
                           <thead className="bg-white/5" {...props} />
                         ),
                         th: ({ node, ...props }) => (
-                          <th className="text-left px-4 py-3 text-indigo-300 font-semibold text-xs uppercase tracking-wider" {...props} />
+                          <th className="text-left px-4 py-3 text-emerald-300 font-semibold text-xs uppercase tracking-wider" {...props} />
                         ),
                         td: ({ node, ...props }) => (
                           <td className="px-4 py-3 border-t border-white/5 text-sm" {...props} />
@@ -186,7 +186,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
                         code: ({ node, inline, ...props }: any) =>
                           inline ? (
                             <code
-                              className="bg-white/10 px-1.5 py-0.5 rounded text-indigo-300 text-xs font-mono"
+                              className="bg-white/10 px-1.5 py-0.5 rounded text-emerald-300 text-xs font-mono"
                               {...props}
                             />
                           ) : (
@@ -218,7 +218,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
                         ),
                         a: ({ node, ...props }) => (
                           <a
-                            className="text-indigo-300 underline hover:text-indigo-200"
+                            className="text-emerald-300 underline hover:text-emerald-200"
                             target="_blank"
                             rel="noopener noreferrer"
                             {...props}
@@ -253,11 +253,11 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
             className="flex gap-2 sm:gap-4 justify-start"
           >
             <div className="flex-shrink-0">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
                 <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
               </div>
             </div>
-            <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 py-3 sm:px-5 sm:py-4 bg-white/5 backdrop-blur-xl border border-white/10">
+            <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 py-3 sm:px-5 sm:py-4 bg-[#3f3f3f] border border-[#6b6b6b]">
               <ShiningText text="DELTA is thinking..." />
             </div>
           </motion.div>

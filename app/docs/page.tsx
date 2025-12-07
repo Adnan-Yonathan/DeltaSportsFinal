@@ -10,7 +10,7 @@ export default function DocsOverviewPage() {
             href="/"
             className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:text-white hover:border-white/40 transition-colors"
           >
-            ← Back to Home
+            ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Ãƒâ€šÃ‚Â Back to Home
           </a>
         </div>
         <h2 className="text-2xl font-semibold">What Delta AI Does</h2>

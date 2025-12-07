@@ -121,7 +121,7 @@ export default function NewModelPage() {
                   }
                   required
                   placeholder="e.g., NBA Pace Model"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 />
               </div>
 
@@ -136,7 +136,7 @@ export default function NewModelPage() {
                   }
                   rows={2}
                   placeholder="Brief description of what this model does..."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 />
               </div>
 
@@ -152,7 +152,7 @@ export default function NewModelPage() {
                       modelType: e.target.value as 'prediction' | 'research',
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 >
                   <option value="prediction">Prediction Model (Statistical Scoring)</option>
                   <option value="research">Research Model (Opportunity Scanner)</option>
@@ -177,7 +177,7 @@ export default function NewModelPage() {
               }
               rows={6}
               placeholder="Example: When analyzing teams, focus on pace-adjusted efficiency metrics. Prioritize recent performance (last 10 games) over season averages. Consider home/away splits and back-to-back game situations..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent font-mono text-sm"
             />
           </div>
 
@@ -197,7 +197,7 @@ export default function NewModelPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, sportKey: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 >
                   <option value="basketball_nba">NBA</option>
                   <option value="basketball_ncaab">NCAA Basketball</option>
@@ -215,7 +215,7 @@ export default function NewModelPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, marketType: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 >
                   <option value="totals">Totals (Over/Under)</option>
                   <option value="spreads">Spreads</option>
@@ -234,7 +234,7 @@ export default function NewModelPage() {
                     setFormData({ ...formData, targetMetric: e.target.value })
                   }
                   placeholder="e.g., total_points, spread"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 />
               </div>
 
@@ -250,7 +250,7 @@ export default function NewModelPage() {
                       confidenceLevel: parseFloat(e.target.value),
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 >
                   <option value={0.8}>80% (Wider range)</option>
                   <option value={0.9}>90% (Balanced)</option>
@@ -285,7 +285,7 @@ export default function NewModelPage() {
           {createdModelId && (
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
               <p className="text-sm text-green-600 dark:text-green-400">
-                ✓ Model created successfully! You can now upload files or continue to chat.
+                ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Model created successfully! You can now upload files or continue to chat.
               </p>
             </div>
           )}
@@ -301,7 +301,7 @@ export default function NewModelPage() {
             <button
               type="submit"
               disabled={loading || !formData.modelName}
-              className="inline-flex items-center px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-md transition-colors disabled:cursor-not-allowed"
+              className="inline-flex items-center px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white rounded-md transition-colors disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4 mr-2" />
               {loading ? 'Creating...' : 'Create Model'}

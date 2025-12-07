@@ -81,7 +81,7 @@ export default function ModelsPage() {
             </div>
             <Link
               href="/models/new"
-              className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors"
             >
               <Plus className="w-4 h-4 mr-2" />
               Create Model
@@ -97,7 +97,7 @@ export default function ModelsPage() {
                 placeholder="Search models..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
             </div>
             <div className="flex gap-2">
@@ -105,7 +105,7 @@ export default function ModelsPage() {
                 onClick={() => setFilter('all')}
                 className={`px-4 py-2 rounded-md transition-colors ${
                   filter === 'all'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-emerald-600 text-white'
                     : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
                 }`}
               >
@@ -115,7 +115,7 @@ export default function ModelsPage() {
                 onClick={() => setFilter('prediction')}
                 className={`px-4 py-2 rounded-md transition-colors ${
                   filter === 'prediction'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-emerald-600 text-white'
                     : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
                 }`}
               >
@@ -125,7 +125,7 @@ export default function ModelsPage() {
                 onClick={() => setFilter('research')}
                 className={`px-4 py-2 rounded-md transition-colors ${
                   filter === 'research'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-emerald-600 text-white'
                     : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
                 }`}
               >
@@ -138,7 +138,7 @@ export default function ModelsPage() {
         {/* Models Grid */}
         {loading ? (
           <div className="text-center py-12">
-            <div className="inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="inline-block w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
             <p className="mt-4 text-gray-600 dark:text-gray-400">Loading models...</p>
           </div>
         ) : filteredModels.length === 0 ? (
@@ -155,7 +155,7 @@ export default function ModelsPage() {
             {!searchTerm && (
               <Link
                 href="/models/new"
-                className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                className="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create Your First Model
@@ -168,15 +168,15 @@ export default function ModelsPage() {
               <Link
                 key={model.id}
                 href={`/chat`}
-                className="group block bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md hover:border-blue-500 dark:hover:border-blue-500 transition-all p-6"
+                className="group block bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md hover:border-emerald-500 dark:hover:border-emerald-500 transition-all p-6"
               >
                 {/* Model Type Badge */}
                 <div className="flex items-center justify-between mb-3">
                   <span
                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       model.model_type === 'research'
-                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'
+                        : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200'
                     }`}
                   >
                     <TrendingUp className="w-3 h-3 mr-1" />
@@ -184,13 +184,13 @@ export default function ModelsPage() {
                   </span>
                   {model.file_metadata && model.file_metadata.length > 0 && (
                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                      📎 {model.file_metadata.length} files
+                      ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒâ€¦Ã‚Â½ {model.file_metadata.length} files
                     </span>
                   )}
                 </div>
 
                 {/* Model Name */}
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
                   {model.model_name}
                 </h3>
 

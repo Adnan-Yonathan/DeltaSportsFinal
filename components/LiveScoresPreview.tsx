@@ -35,7 +35,7 @@ const formatStatus = (game: LiveScoreGame) => {
   if (game.bucket === "live") {
     const clock = game.status?.displayClock
     const period = game.status?.period
-    return [clock, period ? `P${period}` : null].filter(Boolean).join(" • ") || "Live"
+    return [clock, period ? `P${period}` : null].filter(Boolean).join(" ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ ") || "Live"
   }
   return formatTime(game.startTime)
 }
@@ -67,8 +67,8 @@ const LeagueFilter = ({
             onClick={() => toggle(league.id)}
             className={`px-3 py-1 rounded-full text-xs border transition-colors ${
               active
-                ? "bg-emerald-500/10 border-emerald-500 text-emerald-100"
-                : "bg-white/5 border-white/10 text-white/60 hover:text-white"
+                ? "bg-[#34d399]/20 border-[#34d399] text-white"
+                : "bg-[#4a4a4a] border-[#6b6b6b] text-white/70 hover:text-white"
             }`}
           >
             {league.label}
@@ -113,14 +113,14 @@ const ArticleList = ({ games }: { games: LiveScoreGame[] }) => {
             href={article.url!}
             target="_blank"
             rel="noreferrer"
-            className="block group rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 transition-colors px-3 py-2"
+            className="block group rounded-lg border border-[#6b6b6b] bg-[#4a4a4a] hover:bg-[#5a5a5a] transition-colors px-3 py-2"
           >
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm text-white group-hover:text-white/90">{article.title}</p>
               <ExternalLink className="w-4 h-4 text-white/40 group-hover:text-white/60 shrink-0" />
             </div>
             <div className="text-xs text-white/40 mt-1">
-              {article.league ? `${article.league} • ` : ""}
+              {article.league ? `${article.league} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ ` : ""}
               {article.published ? new Date(article.published).toLocaleString() : ""}
             </div>
           </Link>
@@ -137,7 +137,7 @@ const GameCard = ({ game, onSelect }: { game: LiveScoreGame; onSelect: (g: LiveS
   return (
     <button
       onClick={() => onSelect(game)}
-      className="w-full text-left rounded-xl border border-white/5 bg-white/5 p-3 space-y-2 hover:border-white/15 hover:bg-white/10 transition-colors"
+      className="w-full text-left rounded-xl border border-[#6b6b6b] bg-[#4a4a4a] p-3 space-y-2 hover:border-[#34d399] hover:bg-[#5a5a5a] transition-colors"
     >
       <div className="flex items-center justify-between text-xs text-white/50">
         <span className="uppercase tracking-wide">{game.leagueLabel}</span>
@@ -192,7 +192,7 @@ export function LiveScoresPreview() {
 
   return (
     <div className="h-full flex flex-col gap-3">
-      <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
+      <div className="rounded-2xl border border-[#6b6b6b] bg-[#4a4a4a] p-4">
         <div className="flex items-center justify-between gap-2 mb-3">
           <div>
             <div className="text-sm font-semibold text-white flex items-center gap-2">
@@ -204,14 +204,14 @@ export function LiveScoresPreview() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => refetch()}
-              className="p-2 rounded-lg border border-white/10 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+              className="p-2 rounded-lg border border-[#6b6b6b] text-white/80 hover:text-white hover:bg-white/10 transition-colors"
               aria-label="Refresh live scores"
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
             </button>
             <Link
               href="/live-scores"
-              className="px-3 py-2 rounded-lg bg-emerald-500/10 text-emerald-100 border border-emerald-500/40 text-xs font-semibold hover:bg-emerald-500/20 transition-colors"
+              className="px-3 py-2 rounded-lg bg-[#34d399] text-[#0f1f15] border border-[#34d399] text-xs font-semibold hover:bg-[#16a34a] transition-colors"
             >
               Full page
             </Link>
@@ -226,17 +226,17 @@ export function LiveScoresPreview() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="bg-black/40 border border-white/10 rounded-md px-2 py-1 text-white text-xs"
+              className="bg-[#3f3f3f] border border-[#6b6b6b] rounded-md px-2 py-1 text-white text-xs"
             />
             {error && <span className="text-red-400 text-xs">{error}</span>}
-            {loading && <span className="text-white/60 text-xs">Loading…</span>}
+            {loading && <span className="text-white/60 text-xs">LoadingÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦</span>}
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-auto space-y-4">
         {filteredGames.length === 0 && !loading ? (
-          <div className="text-white/60 text-sm border border-dashed border-white/10 rounded-xl p-4 text-center">
+          <div className="text-white/70 text-sm border border-dashed border-[#6b6b6b] rounded-xl p-4 text-center">
             {selectedLeagues.length
               ? "No games for these leagues right now."
               : "Select at least one league to see live scores."}
@@ -262,16 +262,16 @@ export function LiveScoresPreview() {
       </div>
 
       {selectedGame && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/70 backdrop-blur-sm p-3">
-          <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-black/90 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-[#2f2f2f]/80 backdrop-blur-sm p-3">
+          <div className="w-full max-w-2xl rounded-2xl border border-[#6b6b6b] bg-[#3f3f3f] shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#6b6b6b]">
               <div>
                 <div className="text-xs uppercase tracking-wide text-white/50">{selectedGame.leagueLabel}</div>
                 <div className="text-sm text-white/80">{formatStatus(selectedGame)}</div>
               </div>
               <button
                 onClick={closeDetails}
-                className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                className="p-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors"
                 aria-label="Close game details"
               >
                 <X className="w-5 h-5" />
@@ -294,28 +294,28 @@ export function LiveScoresPreview() {
                 })}
               </div>
 
-              {detailsState.loading && <div className="text-xs text-white/60">Loading stats…</div>}
+              {detailsState.loading && <div className="text-xs text-white/70">Loading statsÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦</div>}
               {detailsState.error && <div className="text-xs text-red-400">{detailsState.error}</div>}
 
               {detailsState.data && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {detailsState.data.teams.map((team) => (
-                    <div key={team.id} className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-2">
-                      <div className="flex items-center justify-between text-sm text-white/80">
+                    <div key={team.id} className="rounded-lg border border-[#6b6b6b] bg-[#4a4a4a] p-3 space-y-2">
+                      <div className="flex items-center justify-between text-sm text-white/85">
                         <span className="font-semibold">{team.name}</span>
                         {Number.isFinite(team.score) && <span className="text-white">{team.score}</span>}
                       </div>
                       {team.linescore?.length ? (
-                        <div className="flex flex-wrap gap-2 text-xs text-white/60">
+                        <div className="flex flex-wrap gap-2 text-xs text-white/70">
                           {team.linescore.map((entry, idx) => (
-                            <div key={`${entry.label}-${idx}`} className="rounded bg-white/5 px-2 py-1 border border-white/10">
+                            <div key={`${entry.label}-${idx}`} className="rounded bg-[#3f3f3f] px-2 py-1 border border-[#6b6b6b]">
                               {entry.label}: <span className="text-white/90">{entry.value}</span>
                             </div>
                           ))}
                         </div>
                       ) : null}
                       {team.statistics?.length ? (
-                        <div className="grid grid-cols-2 gap-2 text-xs text-white/60">
+                        <div className="grid grid-cols-2 gap-2 text-xs text-white/70">
                           {team.statistics.slice(0, 6).map((stat, idx) => (
                             <div key={`${stat.label}-${idx}`} className="flex justify-between">
                               <span>{stat.label}</span>

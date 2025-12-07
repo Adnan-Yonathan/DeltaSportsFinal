@@ -185,7 +185,7 @@ export const TeamStatsCard: React.FC<TeamStatsCardProps> = ({
         <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
           {/* Team Icon */}
           <motion.div
-            className="w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-600 flex-shrink-0"
+            className="w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-600 to-emerald-600 flex-shrink-0"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.1 }}
@@ -212,8 +212,8 @@ export const TeamStatsCard: React.FC<TeamStatsCardProps> = ({
               <span className="font-bold text-white text-base sm:text-lg">
                 {wins}-{losses}
               </span>
-              <span className="text-white/40 mx-1 sm:mx-2">•</span>
-              <span className="text-purple-400 font-semibold">
+              <span className="text-white/40 mx-1 sm:mx-2">ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢</span>
+              <span className="text-emerald-400 font-semibold">
                 {(winPct * 100).toFixed(1)}%
               </span>
             </motion.div>
@@ -221,7 +221,7 @@ export const TeamStatsCard: React.FC<TeamStatsCardProps> = ({
 
           {/* Sport Badge */}
           <motion.div
-            className="px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold"
+            className="px-3 py-1 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2 }}
@@ -236,7 +236,7 @@ export const TeamStatsCard: React.FC<TeamStatsCardProps> = ({
             {displayStats.slice(0, 6).map(([key, value], index) => (
               <motion.div
                 key={key}
-                className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/5 backdrop-blur-sm border border-white/5 hover:border-purple-500/30 transition-colors"
+                className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/5 backdrop-blur-sm border border-white/5 hover:border-emerald-500/30 transition-colors"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 * index + 0.4 }}
@@ -254,7 +254,7 @@ export const TeamStatsCard: React.FC<TeamStatsCardProps> = ({
 
         {/* Team Performance Indicator */}
         <motion.div
-          className="mt-6 flex items-center gap-2 text-xs text-purple-400"
+          className="mt-6 flex items-center gap-2 text-xs text-emerald-400"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}

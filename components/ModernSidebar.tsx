@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -173,10 +173,10 @@ export default function ModernSidebar({
 
   if (loading) {
     return (
-      <div className="h-full bg-black/40 backdrop-blur-xl border-r border-white/5 p-4">
+      <div className="h-full bg-[#3f3f3f] border-r border-[#6b6b6b] p-4">
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 bg-white/5 rounded-lg animate-pulse" />
+            <div key={i} className="h-16 bg-white/10 rounded-lg animate-pulse" />
           ))}
         </div>
       </div>
@@ -207,19 +207,19 @@ export default function ModernSidebar({
                 onMouseLeave={() => setHoveredId(null)}
                 className={`group relative p-3 rounded-lg cursor-pointer transition-all ${
                   currentConversationId === conv.id
-                    ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30'
-                    : 'hover:bg-white/5 border border-transparent'
+                    ? 'bg-gradient-to-r from-emerald-500/20 to-emerald-500/20 border border-emerald-500/30'
+                    : 'hover:bg-white/10 border border-transparent'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <MessageSquare className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                       <div className="text-sm font-medium text-white truncate">
                         {conv.title || 'New Chat'}
                       </div>
                     </div>
-                    <div className="text-xs text-white/40">
+                    <div className="text-xs text-white/60">
                       {formatDistanceToNow(new Date(conv.updated_at), { addSuffix: true })}
                     </div>
                   </div>
@@ -246,19 +246,19 @@ export default function ModernSidebar({
   }
 
   return (
-    <div className="h-full bg-black/40 backdrop-blur-xl border-r border-white/5 flex flex-col">
+    <div className="h-full bg-[#3f3f3f] border-r border-[#6b6b6b] flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-white/5">
+      <div className="p-4 border-b border-[#6b6b6b]">
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-white">DELTA</h2>
-          <p className="text-xs text-white/40">Chat History</p>
+          <p className="text-xs text-white/60">Chat History</p>
         </div>
 
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={onNewConversation}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium shadow-lg shadow-indigo-500/20 transition-all"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#34d399] text-[#0f1f15] hover:bg-[#16a34a] font-medium shadow-lg shadow-[#34d399]/30 transition-all"
         >
           <Plus className="w-4 h-4" />
           <span>New Chat</span>
@@ -272,7 +272,7 @@ export default function ModernSidebar({
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-center text-white/30 text-sm mt-8"
+              className="text-center text-white/50 text-sm mt-8"
             >
               No conversations yet
             </motion.div>
@@ -286,23 +286,23 @@ export default function ModernSidebar({
         </AnimatePresence>
 
         <div
-          className="mt-8 border-t border-white/5 pt-4"
+          className="mt-8 border-t border-[#6b6b6b] pt-4"
           id="saved-models-section"
           data-section="saved-models"
         >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-full bg-white/5 text-indigo-300">
+              <div className="p-2 rounded-full bg-white/10 text-emerald-300">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">Saved Models</p>
-                <p className="text-xs text-white/40">Call conversationally (e.g., &quot;run my model&quot;)</p>
+                <p className="text-xs text-white/60">Call conversationally (e.g., &quot;run my model&quot;)</p>
               </div>
             </div>
             <button
               onClick={loadModels}
-              className="p-2 rounded-lg border border-white/10 text-white/60 hover:text-white hover:border-white/30 transition-colors"
+              className="p-2 rounded-lg border border-[#6b6b6b] text-white/70 hover:text-white hover:border-white/40 transition-colors"
               title="Refresh models"
             >
               <RefreshCw className={`w-4 h-4 ${modelsLoading ? 'animate-spin' : ''}`} />
@@ -313,14 +313,14 @@ export default function ModernSidebar({
           <div className="grid grid-cols-2 gap-2 mb-3">
             <Link
               href="/models/new"
-              className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-indigo-500/10 to-purple-600/10 border border-indigo-500/30 hover:border-indigo-400/50 text-white/80 hover:text-white font-medium text-xs transition-all"
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[#34d399] text-white hover:bg-[#34d399]/10 hover:text-white font-medium text-xs transition-all"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Create</span>
             </Link>
             <Link
               href="/models"
-              className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-white/10 hover:border-white/30 text-white/60 hover:text-white font-medium text-xs transition-all"
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[#6b6b6b] hover:border-white/50 text-white/70 hover:text-white font-medium text-xs transition-all"
             >
               <Eye className="w-3.5 h-3.5" />
               <span>View All</span>
@@ -330,7 +330,7 @@ export default function ModernSidebar({
           {modelsLoading ? (
             <div className="space-y-2">
               {[1, 2].map((i) => (
-                <div key={i} className="h-16 rounded-lg bg-white/5 animate-pulse" />
+                <div key={i} className="h-16 rounded-lg bg-white/10 animate-pulse" />
               ))}
             </div>
           ) : customModels.length > 0 ? (
@@ -342,8 +342,8 @@ export default function ModernSidebar({
                     key={model.id}
                     className={`p-3 rounded-lg border ${
                       isResearch
-                        ? 'border-purple-500/20 bg-purple-500/5 hover:border-purple-400/50'
-                        : 'border-white/10 bg-white/5 hover:border-indigo-400/50'
+                        ? 'border-[#34d399]/40 bg-[#34d399]/10 hover:border-[#34d399]/60'
+                        : 'border-[#6b6b6b] bg-[#4a4a4a] hover:border-[#34d399]/60'
                     } transition-all`}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -351,7 +351,7 @@ export default function ModernSidebar({
                         <div className="flex items-center gap-2 mb-1">
                           <p className="text-sm font-semibold text-white">{model.model_name}</p>
                           {isResearch && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#34d399]/20 text-[#0f1f15] font-semibold border border-[#34d399]/50">
                               SCANNER
                             </span>
                           )}
@@ -380,12 +380,12 @@ export default function ModernSidebar({
               })}
             </div>
           ) : (
-            <p className="text-xs text-white/40">
+            <p className="text-xs text-white/60">
               No saved models yet. Ask DELTA to &quot;create a custom model&quot; or &quot;create a research model&quot; and it will guide you.
             </p>
           )}
 
-          <p className="text-[11px] text-white/40 mt-3">
+          <p className="text-[11px] text-white/60 mt-3">
             <strong>Prediction models:</strong> Apply to matchups for projections<br/>
             <strong>Research models:</strong> Run to find betting opportunities
           </p>

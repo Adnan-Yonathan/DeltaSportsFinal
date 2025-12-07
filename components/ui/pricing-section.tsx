@@ -32,8 +32,8 @@ interface PricingSectionProps {
 
 const buttonStyles = {
   default: cn(
-    "h-12 bg-gradient-to-r from-emerald-600 to-cyan-500 text-white",
-    "hover:from-emerald-500 hover:to-cyan-400",
+    "h-12 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white",
+    "hover:from-emerald-500 hover:to-emerald-400",
     "border border-emerald-400/30",
     "shadow-[0_8px_24px_rgba(16,185,129,0.25)]",
     "text-sm font-semibold"
@@ -95,7 +95,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                 "rounded-3xl border",
                 "flex flex-col",
                 tier.highlight
-                  ? "bg-gradient-to-br from-emerald-500/15 via-emerald-500/10 to-cyan-500/10 border-emerald-300/40 shadow-2xl"
+                  ? "bg-gradient-to-br from-emerald-500/15 via-emerald-500/10 to-emerald-500/5 border-emerald-300/40 shadow-2xl"
                   : "bg-slate-900/70 border-emerald-400/15 shadow-lg",
                 "transition-transform duration-300 hover:-translate-y-1",
               )}

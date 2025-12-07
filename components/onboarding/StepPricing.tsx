@@ -101,9 +101,9 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
                 className={`
                   relative rounded-2xl border-2 p-6 transition-all
                   ${isSelected
-                    ? "bg-gradient-to-br from-emerald-500/20 via-emerald-500/15 to-cyan-500/10 border-emerald-400/70 ring-4 ring-emerald-400/20 shadow-[0_10px_30px_rgba(16,185,129,0.25)]"
+                    ? "bg-gradient-to-br from-emerald-500/20 via-emerald-500/15 to-emerald-500/5 border-emerald-400/70 ring-4 ring-emerald-400/20 shadow-[0_10px_30px_rgba(16,185,129,0.25)]"
                     : plan.highlighted
-                    ? "bg-gradient-to-br from-emerald-500/15 via-emerald-500/10 to-cyan-500/10 border-emerald-400/50"
+                    ? "bg-gradient-to-br from-emerald-500/15 via-emerald-500/10 to-emerald-500/5 border-emerald-400/50"
                     : "bg-slate-900/70 border-emerald-400/15 hover:border-emerald-300/30"
                   }
                 `}

@@ -50,14 +50,14 @@ const defaultTiers: PricingTier[] = [
     description: "Unlimited chat, custom model builder, and premium support.",
     icon: (
       <div className="relative">
-        <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-300/40 to-cyan-200/40 blur-2xl" />
+        <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-300/40 to-emerald-200/25 blur-2xl" />
         <Sigma className="relative z-10 h-7 w-7 text-white" />
       </div>
     ),
     features: [
       {
         name: "Unlimited Messages",
-        description: "Brainstorm without limits—ask Delta AI anything, anytime.",
+        description: "Brainstorm without limits - ask Delta AI anything, anytime.",
         included: true,
       },
       {

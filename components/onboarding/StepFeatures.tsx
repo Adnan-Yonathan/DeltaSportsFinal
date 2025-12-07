@@ -92,7 +92,7 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
                 className={`
                   relative p-5 rounded-xl border-2 transition-all text-left
                   ${isSelected
-                    ? "bg-gradient-to-br from-emerald-500/20 via-emerald-500/15 to-cyan-500/10 border-emerald-400/70 shadow-[0_10px_30px_rgba(16,185,129,0.25)]"
+                    ? "bg-gradient-to-br from-emerald-500/20 via-emerald-500/15 to-emerald-500/5 border-emerald-400/70 shadow-[0_10px_30px_rgba(16,185,129,0.25)]"
                     : "bg-slate-900/70 border-emerald-400/15 hover:border-emerald-300/30"
                   }
                 `}

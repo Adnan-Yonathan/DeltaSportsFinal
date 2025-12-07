@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { ArrowDownToDot, Sigma, Zap } from "lucide-react"
 import { PricingSection, type PricingTier } from "@/components/ui/pricing-section"
@@ -57,7 +57,7 @@ const defaultTiers: PricingTier[] = [
     features: [
       {
         name: "Unlimited Messages",
-        description: "Brainstorm without limits�ask Delta AI anything, anytime.",
+        description: "Brainstorm without limits—ask Delta AI anything, anytime.",
         included: true,
       },
       {
@@ -82,3 +82,4 @@ const defaultTiers: PricingTier[] = [
 export function PricingSectionDemo() {
   return <PricingSection tiers={defaultTiers} />
 }
+

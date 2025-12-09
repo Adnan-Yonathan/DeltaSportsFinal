@@ -12,6 +12,7 @@ import Image from "next/image"
 import { SimpleHeader } from "@/components/ui/simple-header"
 import { AvatarCircles } from "@/components/ui/avatar-circles"
 import { DottedSurface } from "@/components/ui/dotted-surface"
+import { TextEffect } from "@/components/ui/text-effect"
 
 /** Delta AI Landing Page - Revolut-inspired design */
 
@@ -323,12 +324,11 @@ export default function LandingPage() {
         <div className="container mx-auto">
           <div className="flex gap-4 pt-16 pb-6 lg:pt-24 lg:pb-10 items-center justify-center flex-col px-4">
             <div className="flex gap-4 flex-col items-center">
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white text-center">
-                The First Conversational Sports Betting{" "}
-                <span className="relative inline-block">
-                  <span className="bg-gradient-to-r from-[#34d399] via-[#34d399] to-[#16a34a] bg-clip-text text-transparent animate-pulse">
-                    Copilot
-                  </span>
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white text-center overflow-visible">
+                <TextEffect per="word" preset="blur" delay={0.2}>
+                  The First Conversational Sports Betting
+                </TextEffect>{" "}
+                <span className="relative inline-block px-1 pb-2 overflow-visible">
                   <motion.span
                     className="absolute -inset-1 bg-[#34d399]/25 blur-xl rounded-lg -z-10"
                     animate={{
@@ -341,39 +341,82 @@ export default function LandingPage() {
                       ease: "easeInOut",
                     }}
                   />
+                  <TextEffect
+                    per="word"
+                    preset="fade"
+                    delay={0.6}
+                    className="bg-gradient-to-r from-[#34d399] via-[#34d399] to-[#16a34a] bg-clip-text text-transparent relative z-10 overflow-visible pb-1"
+                  >
+                    Copilot
+                  </TextEffect>
                 </span>
               </h1>
-              <p className="text-base md:text-lg leading-relaxed tracking-tight text-white/80 max-w-2xl text-center mx-auto">
-                Betting made simple. Chat with the most advanced sports AI to get
-                <br />
-                <span className="font-medium text-white">odds, stats, and insights</span> in seconds.
-              </p>
+              <TextEffect
+                per="word"
+                preset="fade"
+                delay={1.0}
+                as="p"
+                className="text-base md:text-lg leading-relaxed tracking-tight text-white/80 max-w-2xl text-center mx-auto"
+              >
+                Betting made simple. Chat with the most advanced sports AI to get odds, stats, and insights in seconds.
+              </TextEffect>
             </div>
 
             <div className="w-full max-w-xs h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
 
-            <div className="flex flex-row gap-3">
-              <SoftButton href="/auth/signup">
-                Talk To Delta <ArrowUpRight className="ml-1 inline h-4 w-4" />
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.4, duration: 0.5 }}
+              className="flex flex-row gap-3"
+            >
+              <SoftButton href="/auth/signup" className="min-w-[160px]">
+                <span className="flex items-center justify-center gap-1">
+                  <TextEffect per="char" preset="fade" delay={1.6}>
+                    Talk To Delta
+                  </TextEffect>
+                  <ArrowUpRight className="h-4 w-4 flex-shrink-0" />
+                </span>
               </SoftButton>
-              <SoftButton href="/live-scores">
-                Live Scores <ArrowUpRight className="ml-1 inline h-4 w-4" />
+              <SoftButton href="/live-scores" className="min-w-[140px]">
+                <span className="flex items-center justify-center gap-1">
+                  <TextEffect per="char" preset="fade" delay={1.8}>
+                    Live Scores
+                  </TextEffect>
+                  <ArrowUpRight className="h-4 w-4 flex-shrink-0" />
+                </span>
               </SoftButton>
-            </div>
+            </motion.div>
 
-            <div className="flex flex-col items-center gap-3">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 2.0, duration: 0.5 }}
+              className="flex flex-col items-center gap-3"
+            >
               <div className="flex flex-col sm:flex-row items-center gap-4">
                 <AvatarCircles avatarUrls={heroAvatarUrls} numPeople={126} />
                 <div className="text-center sm:text-left">
-                  <p className="text-[0.75rem] uppercase tracking-[0.35em] text-white/70">
+                  <TextEffect
+                    per="char"
+                    preset="fade"
+                    delay={2.2}
+                    className="text-[0.75rem] uppercase tracking-[0.35em] text-white/70"
+                  >
                     The sharps&rsquo; favorite new tool
-                  </p>
-                  <p className="text-sm text-white">
+                  </TextEffect>
+                  <TextEffect
+                    per="word"
+                    preset="fade"
+                    delay={2.4}
+                    as="p"
+                    className="text-sm text-white"
+                  >
                     Trusted by sharps and syndicates around the world.
-                  </p>
+                  </TextEffect>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
         </div>
       </FadeInSection>

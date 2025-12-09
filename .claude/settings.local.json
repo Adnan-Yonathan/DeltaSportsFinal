@@ -6,7 +6,11 @@
       "Bash(dir:*)",
       "Bash(npm install:*)",
       "Bash(npm view:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

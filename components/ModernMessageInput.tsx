@@ -556,11 +556,11 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
 
         {!isRecording && !isTranscribing && (
           <div className="hidden sm:block text-xs text-white/40 mt-2 text-center">
-            Press <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Enter</kbd> to send ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢{' '}
+            Press <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Enter</kbd> to send •{' '}
             <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Shift + Enter</kbd> for new line
             {isMicSupported && (
               <>
-                {' ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ '}
+                {' • '}
                 <span className="inline-flex items-center gap-1">
                   <Mic className="w-3 h-3 inline" />
                   Voice input available
@@ -573,3 +573,4 @@ export default function ModernMessageInput({ conversationId, userId, mode, onMod
     </div>
   )
 }
+

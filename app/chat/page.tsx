@@ -8,7 +8,7 @@ import ModernMessageList from '@/components/ModernMessageList'
 import ModernMessageInput from '@/components/ModernMessageInput'
 import { LiveScoresPreview } from '@/components/LiveScoresPreview'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Home, Image as ImageIcon, Radio, Activity } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Home, Image as ImageIcon, Radio, Activity, Gift } from 'lucide-react'
 
 export default function ChatPage() {
   const [user, setUser] = useState<any>(null)
@@ -347,6 +347,24 @@ export default function ChatPage() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
+              {/* Promos Button (Mobile) */}
+              <button
+                onClick={() => router.push('/promos')}
+                className="lg:hidden p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all border border-white/20"
+                aria-label="View sportsbook promos"
+              >
+                <Gift className="w-4 h-4" />
+              </button>
+
+              {/* Promos Button (Desktop) */}
+              <button
+                onClick={() => router.push('/promos')}
+                className="hidden sm:inline-flex items-center gap-2 rounded-full border border-[#34d399] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+              >
+                <Gift className="w-4 h-4" />
+                Promos
+              </button>
+
               {/* Live Scores Button (Mobile) */}
               <button
                 onClick={() => setLiveScoresOpen(true)}

@@ -985,6 +985,117 @@ export const resolvePlayerRestSplit = async (opts: {
   ].join('\n')
 }
 
+/**
+ * Analyze team performance on back-to-back games vs rested games
+ */
+export const resolveTeamBackToBackSplit = async (opts: {
+  sport: SportKey
+  teamId: string
+  teamName: string
+  season: number
+  seasonType?: number
+}): Promise<{
+  team: string
+  backToBack: {
+    games: number
+    wins: number
+    losses: number
+    record: string
+    avgPoints: number
+    avgPointsAllowed: number
+    avgMargin: number
+  }
+  rested: {
+    games: number
+    wins: number
+    losses: number
+    record: string
+    avgPoints: number
+    avgPointsAllowed: number
+    avgMargin: number
+  }
+  insight: string
+}> => {
+  const { sport, teamId, teamName, season, seasonType = 2 } = opts
+
+  // Get team schedule with results
+  const schedule = await getTeamSchedule(sport, teamId, season, seasonType)
+  if (!schedule?.length) {
+    return {
+      team: teamName,
+      backToBack: { games: 0, wins: 0, losses: 0, record: '0-0', avgPoints: 0, avgPointsAllowed: 0, avgMargin: 0 },
+      rested: { games: 0, wins: 0, losses: 0, record: '0-0', avgPoints: 0, avgPointsAllowed: 0, avgMargin: 0 },
+      insight: 'No schedule data available',
+    }
+  }
+
+  // Sort by date and filter completed games (those with a result)
+  const completedGames = schedule
+    .filter((g) => g.result && g.date)
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  const b2bStats = { games: 0, wins: 0, points: 0, pointsAllowed: 0 }
+  const restedStats = { games: 0, wins: 0, points: 0, pointsAllowed: 0 }
+
+  for (let i = 0; i < completedGames.length; i++) {
+    const game = completedGames[i]
+    const prevGame = i > 0 ? completedGames[i - 1] : null
+
+    // Check if this is second game of back-to-back (within ~1 day of previous game)
+    let isB2B = false
+    if (prevGame) {
+      const prevDate = new Date(prevGame.date)
+      const curDate = new Date(game.date)
+      const diffDays = (curDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24)
+      isB2B = diffDays <= 1.5 // Allow some buffer for timezone differences
+    }
+
+    const teamScore = Number(game.ourScore) || 0
+    const oppScore = Number(game.oppScore) || 0
+    const won = game.result === 'W'
+
+    if (isB2B) {
+      b2bStats.games++
+      if (won) b2bStats.wins++
+      b2bStats.points += teamScore
+      b2bStats.pointsAllowed += oppScore
+    } else {
+      restedStats.games++
+      if (won) restedStats.wins++
+      restedStats.points += teamScore
+      restedStats.pointsAllowed += oppScore
+    }
+  }
+
+  const formatSplit = (stats: typeof b2bStats) => ({
+    games: stats.games,
+    wins: stats.wins,
+    losses: stats.games - stats.wins,
+    record: `${stats.wins}-${stats.games - stats.wins}`,
+    avgPoints: stats.games ? +(stats.points / stats.games).toFixed(1) : 0,
+    avgPointsAllowed: stats.games ? +(stats.pointsAllowed / stats.games).toFixed(1) : 0,
+    avgMargin: stats.games ? +((stats.points - stats.pointsAllowed) / stats.games).toFixed(1) : 0,
+  })
+
+  const b2b = formatSplit(b2bStats)
+  const rested = formatSplit(restedStats)
+
+  // Generate insight
+  const marginDiff = rested.avgMargin - b2b.avgMargin
+  let insight = ''
+  if (b2b.games === 0) {
+    insight = `${teamName} has not played any back-to-back games this season.`
+  } else if (marginDiff > 3) {
+    insight = `${teamName} struggles on back-to-backs, averaging ${marginDiff.toFixed(1)} fewer points of margin compared to rested games.`
+  } else if (marginDiff < -3) {
+    insight = `${teamName} actually plays better on back-to-backs, with ${Math.abs(marginDiff).toFixed(1)} better margin than rested games.`
+  } else {
+    insight = `${teamName}'s performance is similar on back-to-backs vs rested games (margin diff: ${marginDiff.toFixed(1)}).`
+  }
+
+  return { team: teamName, backToBack: b2b, rested, insight }
+}
+
 export const resolveAtsLeaderboard = async (opts: { sport: SportKey; season: number; seasonType?: number; limit?: number }) => {
   const { sport, season, seasonType = 2, limit = 10 } = opts
   const teams = await getTeams(sport)

@@ -1,0 +1,436 @@
+/**
+ * Tool definitions for the unified sports query system.
+ * These tools are used with OpenAI function calling to route queries to the correct data source.
+ */
+
+import type { ChatCompletionTool } from 'openai/resources/chat/completions'
+
+export const unifiedTools: ChatCompletionTool[] = [
+  // ========================================
+  // STATIC DATA TOOLS (fast, no API call)
+  // ========================================
+  {
+    type: 'function',
+    function: {
+      name: 'getStaticTeamStats',
+      description: `Get NBA team stats including OPPONENT/DEFENSIVE stats from static data.
+Use for questions about:
+- Team defense ("What's the Lakers defensive rating?")
+- Opponent shooting ("What 3pt% do opponents shoot vs Thunder?")
+- Points allowed ("How many points do the Celtics allow?")
+- Opponent rebounds ("How many offensive rebounds do the Pelicans allow?")
+
+Available opponent stats: opponentThreeMadePerGame, opponentEffectiveFgPct, opponentTrueShootingPct,
+pointsAgainstPerGame, opponentOffensiveReboundsPerGame, opponentReboundsPerGame, defensiveRating, etc.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: {
+            type: 'string',
+            description: 'Team name, city, or abbreviation (e.g., "Thunder", "OKC", "Oklahoma City")',
+          },
+          stats: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Specific stats to retrieve. Common stats: pointsForPerGame, pointsAgainstPerGame, defensiveRating, offensiveRating, pace, opponentThreeMadePerGame, opponentEffectiveFgPct, opponentOffensiveReboundsPerGame',
+          },
+        },
+        required: ['team'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getStaticPlayerStats',
+      description: `Get NBA player season averages from static data.
+Use for questions like:
+- "What's Curry's PPG?"
+- "How many assists does Trae Young average?"
+- "What's LeBron's shooting percentage?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          player: {
+            type: 'string',
+            description: 'Player full name (e.g., "Stephen Curry", "LeBron James")',
+          },
+        },
+        required: ['player'],
+      },
+    },
+  },
+
+  // ========================================
+  // ESPN LIVE DATA TOOLS
+  // ========================================
+  {
+    type: 'function',
+    function: {
+      name: 'getEspnTeamStats',
+      description: `Get current team season stats from ESPN for any sport.
+Use when static data is not available or for non-NBA sports.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: { type: 'string', description: 'Team name or ID' },
+          sport: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'], description: 'Sport league' },
+        },
+        required: ['team', 'sport'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getEspnPlayerStats',
+      description: `Get player season stats from ESPN.
+Use for non-NBA players or when you need the most up-to-date stats.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          player: { type: 'string', description: 'Player name' },
+          sport: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'] },
+        },
+        required: ['player', 'sport'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getEspnPlayerGameLogs',
+      description: `Get player game-by-game stats for the season.
+Use for:
+- Recent performance analysis
+- Game-by-game breakdowns
+- Trend analysis over multiple games`,
+      parameters: {
+        type: 'object',
+        properties: {
+          player: { type: 'string', description: 'Player name' },
+          sport: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'] },
+          lastNGames: { type: 'number', description: 'Limit to last N games (optional)' },
+        },
+        required: ['player', 'sport'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getLiveScores',
+      description: `Get current live scores and game information.
+Use for:
+- "What's the score of the Lakers game?"
+- "Who's winning the Celtics game?"
+- "Are there any games on right now?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: { type: 'string', description: 'Team name to filter (optional)' },
+          sport: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'] },
+          date: { type: 'string', description: 'Date in YYYY-MM-DD format (optional, defaults to today)' },
+        },
+        required: ['sport'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getInjuries',
+      description: `Get current injury report for a team or league.
+Use for:
+- "Who's injured on the Lakers?"
+- "What's the injury report for tonight's games?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: { type: 'string', description: 'Team name (optional - if omitted, returns league-wide)' },
+          sport: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'] },
+        },
+        required: ['sport'],
+      },
+    },
+  },
+
+  // ========================================
+  // AGGREGATION TOOLS (complex queries)
+  // ========================================
+  {
+    type: 'function',
+    function: {
+      name: 'getPlayerThresholdGames',
+      description: `Count games where a player exceeded a stat threshold.
+Use for questions like:
+- "How many 40-point games has Luka had?"
+- "How many triple-doubles does Jokic have?"
+- "How many games has Curry made 5+ threes?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          player: { type: 'string', description: 'Player name' },
+          stat: {
+            type: 'string',
+            enum: ['PTS', 'REB', 'AST', '3PM', 'STL', 'BLK', 'FGM', 'FTM'],
+            description: 'Stat to check',
+          },
+          threshold: { type: 'number', description: 'Minimum value' },
+          operator: { type: 'string', enum: ['>=', '>', '='], default: '>=' },
+          sport: { type: 'string', enum: ['nba', 'nfl'], default: 'nba' },
+        },
+        required: ['player', 'stat', 'threshold'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getPlayerVsOpponent',
+      description: `Get a player's stats against a specific opponent this season.
+Use for questions like:
+- "How does Giannis perform against the Celtics?"
+- "What are Tatum's stats vs the Heat?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          player: { type: 'string', description: 'Player name' },
+          opponent: { type: 'string', description: 'Opponent team name' },
+          sport: { type: 'string', enum: ['nba', 'nfl'], default: 'nba' },
+        },
+        required: ['player', 'opponent'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getPlayerRestSplit',
+      description: `Analyze player performance on back-to-back games vs well-rested games.
+Use for:
+- "How does Embiid play on back-to-backs?"
+- "Does LeBron's scoring drop on no rest?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          player: { type: 'string', description: 'Player name' },
+          sport: { type: 'string', enum: ['nba', 'nfl'], default: 'nba' },
+        },
+        required: ['player'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getTeamBackToBackSplit',
+      description: `Analyze team performance on back-to-back games (second game of B2B) vs well-rested games.
+Use for:
+- "How do the Lakers do on back-to-backs?"
+- "Thunder's record on no rest"
+- "Do the Celtics struggle on B2Bs?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: { type: 'string', description: 'Team name or abbreviation' },
+          sport: { type: 'string', enum: ['nba', 'nfl'], default: 'nba' },
+        },
+        required: ['team'],
+      },
+    },
+  },
+
+  // ========================================
+  // BETTING/ATS TOOLS
+  // ========================================
+  {
+    type: 'function',
+    function: {
+      name: 'getTeamAtsAnalysis',
+      description: `Get team Against The Spread (ATS) record with situational splits.
+Use for:
+- "What's the Thunder's ATS record?"
+- "How do the Lakers do against the spread as favorites?"
+- "Which teams cover best on the road?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: { type: 'string', description: 'Team name' },
+          situation: {
+            type: 'string',
+            enum: ['overall', 'home', 'away', 'favorite', 'underdog', 'home_favorite', 'away_underdog'],
+            description: 'Specific situation to analyze',
+          },
+          sport: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'], default: 'nba' },
+        },
+        required: ['team'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getTeamAfterLoss',
+      description: `Get team performance after a loss.
+Use for:
+- "How do the Warriors perform after a loss?"
+- "What's the Celtics record following losses?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: { type: 'string', description: 'Team name' },
+          sport: { type: 'string', enum: ['nba', 'nfl'], default: 'nba' },
+        },
+        required: ['team'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getTeamHomeAwayDefense',
+      description: `Get team defensive splits between home and away games.
+Use for:
+- "How does the Pacers defense compare at home vs away?"
+- "Do the Lakers defend better at home?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: { type: 'string', description: 'Team name' },
+          sport: { type: 'string', enum: ['nba', 'nfl'], default: 'nba' },
+        },
+        required: ['team'],
+      },
+    },
+  },
+
+  // ========================================
+  // SCHEDULE/CONTEXT TOOLS
+  // ========================================
+  {
+    type: 'function',
+    function: {
+      name: 'getTeamScheduleContext',
+      description: `Analyze team schedule for travel, rest, and back-to-backs.
+Use for:
+- "How will the Trail Blazers road trip affect them?"
+- "Is this a schedule spot for the Lakers?"
+- "How much rest do the Celtics have?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: { type: 'string', description: 'Team name' },
+          lookAhead: { type: 'number', description: 'Days to look ahead (default 7)' },
+          lookBack: { type: 'number', description: 'Days to look back (default 7)' },
+          sport: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'], default: 'nba' },
+        },
+        required: ['team'],
+      },
+    },
+  },
+
+  // ========================================
+  // LEADERBOARD TOOLS
+  // ========================================
+  {
+    type: 'function',
+    function: {
+      name: 'getLeaderboard',
+      description: `Get league leaders for a specific stat or category.
+Use for:
+- "Who leads the league in steals?"
+- "Who has the most triple-doubles?"
+- "Top scorers in the NBA"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          stat: {
+            type: 'string',
+            description: 'Stat category (PTS, REB, AST, STL, BLK, 3PM, etc.)',
+          },
+          sport: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'], default: 'nba' },
+          limit: { type: 'number', description: 'Number of players to return (default 10)' },
+        },
+        required: ['stat'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getAtsLeaderboard',
+      description: `Get teams with best ATS records.
+Use for:
+- "Which teams cover the spread most?"
+- "Best ATS teams as underdogs?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          situation: {
+            type: 'string',
+            enum: ['overall', 'home', 'away', 'favorite', 'underdog'],
+          },
+          sport: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'], default: 'nba' },
+          limit: { type: 'number', description: 'Number of teams to return (default 10)' },
+        },
+        required: [],
+      },
+    },
+  },
+
+  // ========================================
+  // FALLBACK TOOL
+  // ========================================
+  {
+    type: 'function',
+    function: {
+      name: 'webSearch',
+      description: `Search the web for information not available in other data sources.
+Use as a LAST RESORT when:
+- Question is about very recent news/events
+- Data is not available in static or ESPN sources
+- Question is about non-major sports
+- Historical data beyond current season`,
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Search query - be specific and include relevant context',
+          },
+        },
+        required: ['query'],
+      },
+    },
+  },
+]
+
+// Export tool names for easy reference
+export const TOOL_NAMES = {
+  // Static
+  STATIC_TEAM_STATS: 'getStaticTeamStats',
+  STATIC_PLAYER_STATS: 'getStaticPlayerStats',
+  // ESPN
+  ESPN_TEAM_STATS: 'getEspnTeamStats',
+  ESPN_PLAYER_STATS: 'getEspnPlayerStats',
+  ESPN_PLAYER_GAME_LOGS: 'getEspnPlayerGameLogs',
+  LIVE_SCORES: 'getLiveScores',
+  INJURIES: 'getInjuries',
+  // Aggregations
+  PLAYER_THRESHOLD: 'getPlayerThresholdGames',
+  PLAYER_VS_OPPONENT: 'getPlayerVsOpponent',
+  PLAYER_REST_SPLIT: 'getPlayerRestSplit',
+  // Betting
+  TEAM_ATS: 'getTeamAtsAnalysis',
+  TEAM_AFTER_LOSS: 'getTeamAfterLoss',
+  TEAM_HOME_AWAY_DEFENSE: 'getTeamHomeAwayDefense',
+  // Schedule
+  SCHEDULE_CONTEXT: 'getTeamScheduleContext',
+  // Leaderboards
+  LEADERBOARD: 'getLeaderboard',
+  ATS_LEADERBOARD: 'getAtsLeaderboard',
+  // Fallback
+  WEB_SEARCH: 'webSearch',
+} as const

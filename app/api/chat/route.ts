@@ -43,6 +43,7 @@ import {
   computeTeamLineSplits,
   formatTeamLineSplits,
 } from '@/lib/services/espn-aggregations'
+import { processQuery as processUnifiedQuery } from '@/lib/statmuse/intent-classifier'
 export const runtime = 'nodejs'
 export const maxDuration = 300 // 5 minutes (max for Pro plan)
 
@@ -2014,6 +2015,91 @@ export async function POST(req: NextRequest) {
       .limit(10)
 
     const messages = (history || []).reverse()
+
+    // ========================================
+    // UNIFIED QUERY PIPELINE (StatMuse-like)
+    // Handles stats questions, opponent splits, contextual analysis
+    // ========================================
+    const msgLowerForUnified = message.toLowerCase()
+    const isStatsQuery = (
+      // Direct stats patterns
+      /\bwhat(?:'s| is)\b.*\b(ppg|points|rebounds|assists|steals|blocks|fg%|3pt?%?|rating)\b/i.test(message) ||
+      /\bhow many\b.*\b(points?|rebounds?|assists?|steals?|blocks?|threes?|3s|games?)\b/i.test(message) ||
+      // Opponent/defensive patterns
+      /\bopponents?\b.*\b(shoot|shooting|3pt?|three|score|allow|average)\b/i.test(message) ||
+      /\b(allow|give up|against)\b.*\b(points?|rebounds?|offensive|3pt?)\b/i.test(message) ||
+      // Team defense patterns
+      /\b(defensive rating|points allowed|defense rank)\b/i.test(message) ||
+      // Player vs team patterns
+      /\bhow does?\b.*\b(perform|play|do|average)\b.*\b(vs|against|versus)\b/i.test(message) ||
+      // Schedule/context patterns
+      /\b(road trip|travel|back[- ]?to[- ]?back|schedule|rest)\b.*\b(affect|impact|hurt)\b/i.test(message) ||
+      // Back-to-back performance patterns
+      /\bhow\b.*\b(do|does|perform|play)\b.*\b(back[- ]?to[- ]?back|b2b|no rest)\b/i.test(message) ||
+      /\b(back[- ]?to[- ]?back|b2b)\b.*\b(record|stats?|performance)\b/i.test(message) ||
+      // ATS/betting stats patterns
+      /\bats\b.*\b(record|as favorite|as underdog|home|away)\b/i.test(message) ||
+      /\b(cover|spread)\b.*\b(record|best|worst)\b/i.test(message) ||
+      // Threshold queries
+      /\bhow many\b.*\b\d+[+-]?\b.*\bgames?\b/i.test(message)
+    )
+
+    // Skip unified pipeline for:
+    // - Explicit odds/betting line requests (need real-time odds)
+    // - Player prop requests (need prop data)
+    // - Model-related requests
+    // - Bank roll/bet tracking
+    const skipUnifiedPipeline = (
+      /\b(odds|moneyline|spread line|total line|prop|parlay|bet slip|bankroll|my bets|place bet)\b/i.test(message) ||
+      /\b(create model|run model|save model|research model)\b/i.test(message) ||
+      /\b(tonight|today|tomorrow).*\b(odds|lines|games)\b/i.test(message)
+    )
+
+    if (isStatsQuery && !skipUnifiedPipeline) {
+      try {
+        console.log('[UNIFIED] Processing query via unified pipeline')
+        const conversationHistory = messages
+          .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+          .map((m: any) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+
+        const unifiedResult = await processUnifiedQuery(message, { conversationHistory })
+
+        if (unifiedResult.reply && !unifiedResult.fallback) {
+          // Save the assistant response
+          await supabase.from('messages').insert({
+            conversation_id: conversationId,
+            role: 'assistant',
+            content: unifiedResult.reply,
+          })
+
+          console.log('[UNIFIED] Successfully processed, tools used:', unifiedResult.toolsUsed)
+
+          // Return streaming response
+          const encoder = new TextEncoder()
+          const stream = new ReadableStream({
+            start(controller) {
+              controller.enqueue(encoder.encode(unifiedResult.reply))
+              controller.close()
+            },
+          })
+
+          return new Response(stream, {
+            headers: {
+              'Content-Type': 'text/plain; charset=utf-8',
+              'Cache-Control': 'no-cache',
+            },
+          })
+        }
+        // If fallback, continue to existing logic
+        console.log('[UNIFIED] Falling back to existing pipeline')
+      } catch (unifiedError) {
+        console.error('[UNIFIED] Error, falling back:', unifiedError)
+        // Continue to existing logic on error
+      }
+    }
+    // ========================================
+    // END UNIFIED QUERY PIPELINE
+    // ========================================
 
     // Fetch user context
     const { data: userData } = await supabase

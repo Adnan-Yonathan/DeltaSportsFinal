@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState,useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -352,10 +352,26 @@ const ShaderMaterial = ({
 };
 
 const Shader: React.FC<ShaderProps> = ({ source, uniforms, maxFps = 60 }) => {
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return <div className="absolute inset-0 bg-black" />;
+  }
+
   return (
-    <Canvas className="absolute inset-0  h-full w-full">
-      <ShaderMaterial source={source} uniforms={uniforms} maxFps={maxFps} />
-    </Canvas>
+    <Suspense fallback={<div className="absolute inset-0 bg-black" />}>
+      <Canvas
+        className="absolute inset-0 h-full w-full"
+        onCreated={() => {}}
+        gl={{
+          antialias: false,
+          failIfMajorPerformanceCaveat: false,
+          powerPreference: "low-power",
+        }}
+      >
+        <ShaderMaterial source={source} uniforms={uniforms} maxFps={maxFps} />
+      </Canvas>
+    </Suspense>
   );
 };
 

@@ -164,10 +164,14 @@ Use for:
     function: {
       name: 'getPlayerThresholdGames',
       description: `Count games where a player exceeded a stat threshold.
-Use for questions like:
+Use for ANY question about counting games with stat thresholds including:
 - "How many 40-point games has Luka had?"
+- "How many 40+ point games has Luka had this season"
+- "How many games has Curry made 5+ threes?"
 - "How many triple-doubles does Jokic have?"
-- "How many games has Curry made 5+ threes?"`,
+- "Times LeBron scored 30+"
+- "Has Tatum had any 50 point games?"
+- "Luka games with 40 or more points"`,
       parameters: {
         type: 'object',
         properties: {

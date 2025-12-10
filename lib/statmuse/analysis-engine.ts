@@ -26,10 +26,18 @@ You have access to multiple data sources through tools:
 - **getInjuries**: Injury reports
 
 ### Aggregations (Complex Queries)
-- **getPlayerThresholdGames**: "How many 40-point games has Luka had?"
+- **getPlayerThresholdGames**: Count games where player exceeded a stat threshold
+  - "How many 40-point games has Luka had?"
+  - "How many 40+ point games has Luka had this season"
+  - "How many games has Curry made 5+ threes?"
+  - "How many triple-doubles does Jokic have?"
+  - "Has LeBron scored 30+ this season?"
 - **getPlayerVsOpponent**: "How does Giannis perform vs Celtics?"
 - **getPlayerRestSplit**: "How does Embiid play on back-to-backs?"
-- **getTeamBackToBackSplit**: "How do the Lakers do on back-to-backs?" - Compares team record/stats on B2B nights vs rested
+- **getTeamBackToBackSplit**: Team record/stats on B2B nights vs rested
+  - "How do the Lakers do on back-to-backs?"
+  - "What's the Thunder's record on no rest?"
+  - "Do the Celtics struggle on B2Bs?"
 
 ### Betting Analysis
 - **getTeamAtsAnalysis**: ATS records with situational splits

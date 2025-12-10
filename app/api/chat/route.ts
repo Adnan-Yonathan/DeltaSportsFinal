@@ -2037,11 +2037,18 @@ export async function POST(req: NextRequest) {
       // Back-to-back performance patterns
       /\bhow\b.*\b(do|does|perform|play)\b.*\b(back[- ]?to[- ]?back|b2b|no rest)\b/i.test(message) ||
       /\b(back[- ]?to[- ]?back|b2b)\b.*\b(record|stats?|performance)\b/i.test(message) ||
+      // Struggle/perform/record patterns
+      /\b(struggle|struggles?)\b.*\b(on|against|vs|when)\b/i.test(message) ||
+      /\bwhat('s| is)\b.*\brecord\b/i.test(message) ||
       // ATS/betting stats patterns
       /\bats\b.*\b(record|as favorite|as underdog|home|away)\b/i.test(message) ||
       /\b(cover|spread)\b.*\b(record|best|worst)\b/i.test(message) ||
-      // Threshold queries
-      /\bhow many\b.*\b\d+[+-]?\b.*\bgames?\b/i.test(message)
+      // Threshold queries (FIXED - multiple patterns for robustness)
+      /\bhow many\b.*\d+[+-]?\s*(point|pts?|rebound|assist|steal|block|three|3pm)/i.test(message) ||
+      /\bhow many\b.*\bgames?\b.*\b(with|over|above|at least)\b.*\d+/i.test(message) ||
+      /\b\d+[-+]?\s*(point|pts?)\s*games?\b/i.test(message) ||
+      /\b(triple[- ]?double|double[- ]?double)\b/i.test(message) ||
+      /\bhas\b.*\b(scored|had|gotten)\b.*\d+[+-]?/i.test(message)
     )
 
     // Skip unified pipeline for:
@@ -2054,6 +2061,9 @@ export async function POST(req: NextRequest) {
       /\b(create model|run model|save model|research model)\b/i.test(message) ||
       /\b(tonight|today|tomorrow).*\b(odds|lines|games)\b/i.test(message)
     )
+
+    // Debug logging for pattern matching
+    console.log('[UNIFIED] isStatsQuery:', isStatsQuery, 'skipUnifiedPipeline:', skipUnifiedPipeline, 'query:', message.substring(0, 100))
 
     if (isStatsQuery && !skipUnifiedPipeline) {
       try {

@@ -46,13 +46,15 @@ const toNumber = (val: any): number | null => {
 const lastN = <T>(arr: T[], n: number) => arr.slice(Math.max(0, arr.length - n))
 
 const seasonForSport = (sport: LeagueKey) => {
+  // ESPN uses the STARTING year of the season (e.g., 2025 for 2025-26 season)
   const now = new Date()
   const year = now.getUTCFullYear()
   const month = now.getUTCMonth() // 0-based
-  // ESPN uses the ending year for NBA/NHL season ids (e.g., 2025-26 -> 2026)
-  if (sport === "nba") return month >= 8 ? year + 1 : year
-  if (sport === "nhl") return month >= 7 ? year + 1 : year
-  if (sport === "nfl") return month >= 7 ? year : year - 1
+  // NBA/NHL: Oct-Dec uses current year, Jan-Sep uses previous year
+  if (sport === "nba") return month >= 9 ? year : year - 1
+  if (sport === "nhl") return month >= 9 ? year : year - 1
+  // NFL: Sep-Dec uses current year, Jan-Aug uses previous year
+  if (sport === "nfl") return month >= 8 ? year : year - 1
   if (sport === "mlb") return month >= 2 ? year : year - 1
   return year
 }

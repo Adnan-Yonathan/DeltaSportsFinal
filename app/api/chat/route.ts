@@ -113,20 +113,22 @@ const detectIntent = (msgLower: string) => {
   }
 }
 
+// ESPN uses the STARTING year of the season (e.g., 2025 for 2025-26 season)
 const getSeasonYearForSport = (sport: string) => {
   const now = new Date()
   const year = now.getUTCFullYear()
   const month = now.getUTCMonth() // 0-based
   if (sport === 'nba') {
-    // NBA seasons end in the following calendar year
-    return month >= 8 ? year + 1 : year
+    // NBA season starts in October, so Oct-Dec uses current year, Jan-Sep uses previous year
+    return month >= 9 ? year : year - 1
   }
   if (sport === 'nhl') {
-    return month >= 7 ? year + 1 : year
+    // NHL like NBA, starts in October
+    return month >= 9 ? year : year - 1
   }
   if (sport === 'nfl') {
-    // Use season start year (regular season kicks off Sep). Before August, assume prior season.
-    return month >= 7 ? year : year - 1
+    // NFL season starts in September
+    return month >= 8 ? year : year - 1
   }
   return year // mlb and default
 }
@@ -136,9 +138,10 @@ const getSeasonYearForDate = (sport: string, isoDate: string | undefined) => {
   const dt = new Date(`${isoDate}T00:00:00Z`)
   const year = dt.getUTCFullYear()
   const month = dt.getUTCMonth()
-  if (sport === 'nba') return month >= 8 ? year + 1 : year
-  if (sport === 'nhl') return month >= 7 ? year + 1 : year
-  if (sport === 'nfl') return month >= 7 ? year : year - 1
+  // ESPN uses STARTING year of season
+  if (sport === 'nba') return month >= 9 ? year : year - 1
+  if (sport === 'nhl') return month >= 9 ? year : year - 1
+  if (sport === 'nfl') return month >= 8 ? year : year - 1
   return year
 }
 

@@ -40,19 +40,20 @@ function getCurrentSeason(sport: SportKey): number {
   const year = now.getFullYear()
   const month = now.getMonth()
 
+  // ESPN uses the STARTING year of the season (e.g., 2025 for 2025-26 season)
   switch (sport) {
     case 'nba':
-      // NBA season starts in October, so Oct-Dec is current year, Jan-Sep is previous year
-      return month >= 9 ? year + 1 : year
+      // NBA season starts in October, so Oct-Dec uses current year, Jan-Sep uses previous year
+      return month >= 9 ? year : year - 1
     case 'nfl':
       // NFL season starts in September
-      return month >= 8 ? year : year
+      return month >= 8 ? year : year - 1
     case 'mlb':
       // MLB season is roughly March-October
       return year
     case 'nhl':
       // NHL like NBA, starts in October
-      return month >= 9 ? year + 1 : year
+      return month >= 9 ? year : year - 1
     default:
       return year
   }

@@ -8,6 +8,7 @@ import type { ScheduleAnalysis, ScheduleGame } from './types'
 
 /**
  * Get current season based on sport
+ * ESPN uses the STARTING year of the season (e.g., 2025 for 2025-26 season)
  */
 function getCurrentSeason(sport: SportKey): number {
   const now = new Date()
@@ -16,13 +17,16 @@ function getCurrentSeason(sport: SportKey): number {
 
   switch (sport) {
     case 'nba':
-      return month >= 9 ? year + 1 : year
+      // NBA season starts in October, so Oct-Dec uses current year, Jan-Sep uses previous year
+      return month >= 9 ? year : year - 1
     case 'nfl':
-      return month >= 8 ? year : year
+      // NFL season starts in September
+      return month >= 8 ? year : year - 1
     case 'mlb':
       return year
     case 'nhl':
-      return month >= 9 ? year + 1 : year
+      // NHL like NBA, starts in October
+      return month >= 9 ? year : year - 1
     default:
       return year
   }

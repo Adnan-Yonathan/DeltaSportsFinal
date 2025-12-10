@@ -132,12 +132,15 @@ const inferSport = (msgLower: string): SportKey => {
 }
 
 const seasonForSport = (sport: SportKey, isoDate?: string): number => {
+  // ESPN uses the STARTING year of the season (e.g., 2025 for 2025-26 season)
   const now = isoDate ? new Date(`${isoDate}T00:00:00Z`) : new Date()
   const year = now.getUTCFullYear()
   const month = now.getUTCMonth()
-  if (sport === 'nba') return month >= 8 ? year + 1 : year
-  if (sport === 'nhl') return month >= 7 ? year + 1 : year
-  if (sport === 'nfl') return month >= 7 ? year : year - 1
+  // NBA/NHL: Oct-Dec uses current year, Jan-Sep uses previous year
+  if (sport === 'nba') return month >= 9 ? year : year - 1
+  if (sport === 'nhl') return month >= 9 ? year : year - 1
+  // NFL: Sep-Dec uses current year, Jan-Aug uses previous year
+  if (sport === 'nfl') return month >= 8 ? year : year - 1
   return year
 }
 

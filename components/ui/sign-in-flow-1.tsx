@@ -49,8 +49,35 @@ export const CanvasRevealEffect = ({
   showGradient?: boolean;
   reverse?: boolean; // This prop determines the direction
 }) => {
+  const [webglSupported, setWebglSupported] = useState(true);
+
+  useEffect(() => {
+    // Check WebGL support on client
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!gl) {
+        setWebglSupported(false);
+      }
+    } catch {
+      setWebglSupported(false);
+    }
+  }, []);
+
+  // Fallback for no WebGL support
+  if (!webglSupported) {
+    return (
+      <div className={cn("h-full relative w-full", containerClassName)}>
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-black to-gray-800" />
+        {showGradient && (
+          <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent" />
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className={cn("h-full relative w-full", containerClassName)}> {/* Removed bg-white */}
+    <div className={cn("h-full relative w-full", containerClassName)}>
       <div className="h-full w-full">
         <DotMatrix
           colors={colors ?? [[0, 255, 255]]}
@@ -58,7 +85,6 @@ export const CanvasRevealEffect = ({
           opacities={
             opacities ?? [0.3, 0.3, 0.3, 0.5, 0.5, 0.5, 0.8, 0.8, 0.8, 1]
           }
-          // Pass reverse state and speed via string flags in the empty shader prop
           shader={`
             ${reverse ? 'u_reverse_active' : 'false'}_;
             animation_speed_factor_${animationSpeed.toFixed(1)}_;
@@ -67,8 +93,6 @@ export const CanvasRevealEffect = ({
         />
       </div>
       {showGradient && (
-        // Adjust gradient colors if needed based on background (was bg-white, now likely uses containerClassName bg)
-        // Example assuming a dark background like the SignInPage uses:
          <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent" />
       )}
     </div>
@@ -352,7 +376,17 @@ const ShaderMaterial = ({
 };
 
 const Shader: React.FC<ShaderProps> = ({ source, uniforms, maxFps = 60 }) => {
+  const [mounted, setMounted] = useState(false);
   const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Don't render on server - prevents hydration mismatch
+  if (!mounted) {
+    return <div className="absolute inset-0 bg-black" />;
+  }
 
   if (hasError) {
     return <div className="absolute inset-0 bg-black" />;
@@ -363,6 +397,7 @@ const Shader: React.FC<ShaderProps> = ({ source, uniforms, maxFps = 60 }) => {
       <Canvas
         className="absolute inset-0 h-full w-full"
         onCreated={() => {}}
+        onError={() => setHasError(true)}
         gl={{
           antialias: false,
           failIfMajorPerformanceCaveat: false,

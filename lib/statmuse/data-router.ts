@@ -375,6 +375,102 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
         break
       }
 
+      case 'get_team_ats_records': {
+        const { team_name } = args as { team_name: string }
+
+        const { getTeamATSData } = await import('@/lib/providers/covers')
+        const coversResult = await getTeamATSData(team_name, 'basketball_nba')
+
+        if (!coversResult.success) {
+          result = { error: coversResult.error }
+        } else {
+          const d = coversResult.data
+          result = {
+            team: d.team,
+            season: d.season,
+            overall_ats: d.overallATS,
+            home_ats: d.homeATS,
+            away_ats: d.awayATS,
+            as_favorite: d.favoriteATS,
+            as_underdog: d.underdogATS,
+            over_under: d.overUnder,
+            last_10: d.last10,
+            streak: d.streak,
+            last_updated: d.lastUpdated
+          }
+        }
+        break
+      }
+
+      case 'get_betting_splits': {
+        const { getCurrentBettingSplits } = await import('@/lib/providers/covers')
+        const splitsResult = await getCurrentBettingSplits('basketball_nba')
+
+        if (!splitsResult.success) {
+          result = { error: splitsResult.error }
+        } else {
+          result = {
+            games_count: splitsResult.data.length,
+            games: splitsResult.data,
+            has_sharp_action: splitsResult.data.some((g: any) => g.sharpAction.length > 0)
+          }
+        }
+        break
+      }
+
+      case 'analyze_game_splits': {
+        const { game_id, teams } = args as { game_id?: string; teams?: string }
+
+        let targetGameId = game_id
+
+        // If teams provided but no game_id, find the game_id by matching team names
+        if (!targetGameId && teams) {
+          const { getCurrentBettingSplits } = await import('@/lib/providers/covers')
+          const splitsResult = await getCurrentBettingSplits('basketball_nba')
+
+          if (splitsResult.success && splitsResult.data) {
+            // Normalize the teams input for matching
+            const teamTokens = teams.toLowerCase().replace(/\bvs\b|\bat\b/g, ' ').split(/\s+/).filter(t => t.length > 2)
+
+            // Find game that matches the team names
+            const matchingGame = splitsResult.data.find((g: any) => {
+              const homeTeam = (g.homeTeam || '').toLowerCase()
+              const awayTeam = (g.awayTeam || '').toLowerCase()
+
+              // Check if any token matches home or away team
+              return teamTokens.some(token =>
+                homeTeam.includes(token) || awayTeam.includes(token)
+              )
+            })
+
+            if (matchingGame) {
+              targetGameId = matchingGame.gameId
+            } else {
+              result = { error: `Could not find a game matching teams: "${teams}". Games today: ${splitsResult.data.map((g: any) => `${g.awayTeam} @ ${g.homeTeam}`).join(', ')}` }
+              break
+            }
+          } else {
+            result = { error: 'Could not retrieve today\'s games to find matching game' }
+            break
+          }
+        }
+
+        if (!targetGameId) {
+          result = { error: 'Must provide either game_id or teams parameter' }
+          break
+        }
+
+        const { analyzeGameSplits } = await import('@/lib/providers/covers')
+        const analysisResult = await analyzeGameSplits(targetGameId)
+
+        if (!analysisResult.success) {
+          result = { error: analysisResult.error }
+        } else {
+          result = analysisResult.data
+        }
+        break
+      }
+
       // ========================================
       // SCHEDULE/CONTEXT TOOLS
       // ========================================

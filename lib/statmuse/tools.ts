@@ -309,6 +309,61 @@ Use for:
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_team_ats_records',
+      description: `Get Against The Spread (ATS) betting records for an NBA team from Covers.com. Returns overall, home/away, favorite/underdog records, streaks, and last 10 games. Use when users ask about team betting performance, covering trends, or ATS records.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team_name: {
+            type: 'string',
+            description: 'Team name or abbreviation (e.g., "Lakers", "Boston Celtics", "BOS")'
+          }
+        },
+        required: ['team_name']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_betting_splits',
+      description: `Get public betting percentages and splits for ALL of today's NBA games from Covers.com. Shows what % of bets and money are on each side for every game, and detects sharp money (when money % diverges from bet % by 15%+). Use when users ask about:
+- Public betting trends for today's games (plural)
+- Where the money is going across all games
+- Sharp action or smart money in general
+- Today's betting splits without specifying teams
+Returns game details including teams, time, and game_id for each matchup.`,
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'analyze_game_splits',
+      description: `Deep analysis of betting splits for ONE SPECIFIC NBA game between two teams. Shows detailed bet %, money %, spread, total, and divergence analysis to identify sharp vs public action. Use when users ask about betting splits for a PARTICULAR MATCHUP like "Warriors vs Trail Blazers game", "Lakers Celtics betting", or "splits in the Bucks game". Provide team names and the system will find the matching game from today's schedule.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          game_id: {
+            type: 'string',
+            description: 'The game ID from Covers.com (only if you already have it from a previous get_betting_splits call)'
+          },
+          teams: {
+            type: 'string',
+            description: 'Team names from the game, like "Warriors Trail Blazers", "Lakers vs Celtics", or "Bucks". The system will match these to today\'s games.'
+          }
+        },
+        required: []
+      }
+    }
+  },
 
   // ========================================
   // SCHEDULE/CONTEXT TOOLS
@@ -430,6 +485,9 @@ export const TOOL_NAMES = {
   TEAM_ATS: 'getTeamAtsAnalysis',
   TEAM_AFTER_LOSS: 'getTeamAfterLoss',
   TEAM_HOME_AWAY_DEFENSE: 'getTeamHomeAwayDefense',
+  COVERS_ATS_RECORDS: 'get_team_ats_records',
+  COVERS_BETTING_SPLITS: 'get_betting_splits',
+  COVERS_ANALYZE_SPLITS: 'analyze_game_splits',
   // Schedule
   SCHEDULE_CONTEXT: 'getTeamScheduleContext',
   // Leaderboards

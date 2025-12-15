@@ -44,6 +44,7 @@ import {
   formatTeamLineSplits,
 } from '@/lib/services/espn-aggregations'
 import { processQuery as processUnifiedQuery } from '@/lib/statmuse/intent-classifier'
+import { unifiedTools } from '@/lib/statmuse/tools'
 export const runtime = 'nodejs'
 export const maxDuration = 300 // 5 minutes (max for Pro plan)
 
@@ -1932,6 +1933,7 @@ const ASSISTANT_TOOLS: ChatCompletionTool[] = [
     },
   },
   ...ESPN_TOOLS,
+  ...unifiedTools,
 ]
 
 export async function POST(req: NextRequest) {
@@ -2045,7 +2047,16 @@ export async function POST(req: NextRequest) {
       /\bwhat('s| is)\b.*\brecord\b/i.test(message) ||
       // ATS/betting stats patterns
       /\bats\b.*\b(record|as favorite|as underdog|home|away)\b/i.test(message) ||
+      /\b(record|as favorite|as underdog|home|away)\b.*\bats\b/i.test(message) ||
       /\b(cover|spread)\b.*\b(record|best|worst)\b/i.test(message) ||
+      // Betting splits/public betting patterns
+      /\b(betting|public)\s+(split|splits|percentage|percentages)\b/i.test(message) ||
+      /\bwhere\s+(?:is|are)\s+(?:the\s+)?(?:money|bets?|public)\s+(?:going|on)\b/i.test(message) ||
+      /\b(sharp|smart)\s+(money|action|bettors?)\b/i.test(message) ||
+      /\b(money|bet|bets)\s+(?:percentage|percent|split|distribution)\b/i.test(message) ||
+      /\b(?:what|show|get)\b.*\b(betting|public)\b.*\b(split|percentage|trend)\b/i.test(message) ||
+      /\bhow\s+(?:is|are)\s+(?:the\s+)?(?:public|bettors?|money)\s+betting\b/i.test(message) ||
+      /\bpublic\s+(?:vs|versus)\s+sharp\b/i.test(message) ||
       // Threshold queries (FIXED - multiple patterns for robustness)
       /\bhow many\b.*\d+[+-]?\s*(point|pts?|rebound|assist|steal|block|three|3pm)/i.test(message) ||
       /\bhow many\b.*\bgames?\b.*\b(with|over|above|at least)\b.*\d+/i.test(message) ||
@@ -2059,8 +2070,11 @@ export async function POST(req: NextRequest) {
     // - Player prop requests (need prop data)
     // - Model-related requests
     // - Bank roll/bet tracking
+    // BUT: Allow betting splits/public betting queries (those go through unified pipeline)
     const skipUnifiedPipeline = (
-      /\b(odds|moneyline|spread line|total line|prop|parlay|bet slip|bankroll|my bets|place bet)\b/i.test(message) ||
+      (/\b(odds|moneyline|spread line|total line|prop|parlay|bet slip|bankroll|my bets|place bet)\b/i.test(message) &&
+       !/\b(betting|public)\s+(split|splits|percentage)\b/i.test(message) &&
+       !/\b(sharp|smart)\s+(money|action)\b/i.test(message)) ||
       /\b(create model|run model|save model|research model)\b/i.test(message) ||
       /\b(tonight|today|tomorrow).*\b(odds|lines|games)\b/i.test(message)
     )

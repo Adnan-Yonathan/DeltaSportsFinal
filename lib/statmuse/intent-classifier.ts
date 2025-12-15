@@ -53,11 +53,15 @@ export async function processUnifiedQuery(
       messages,
       tools: unifiedTools,
       tool_choice: 'auto',
-      temperature: 0.3, // Lower temperature for more consistent tool selection
+      // GPT-5 only supports temperature: 1 (default)
+      ...(AI_MODELS.chat.includes('gpt-5') ? {} : { temperature: 0.3 }),
     })
 
     const assistantMessage = initialResponse.choices[0].message
     const toolCalls = assistantMessage.tool_calls
+
+    console.log('[INTENT-CLASSIFIER] Tool calls:', toolCalls ? toolCalls.map(tc => tc.function.name) : 'none')
+    console.log('[INTENT-CLASSIFIER] Assistant content:', assistantMessage.content?.substring(0, 100))
 
     // If no tools called, this is a general conversation
     if (!toolCalls || toolCalls.length === 0) {
@@ -77,7 +81,8 @@ export async function processUnifiedQuery(
           })),
           { role: 'user', content: message },
         ],
-        temperature: 0.7,
+        // GPT-5 only supports temperature: 1 (default)
+        ...(AI_MODELS.chat.includes('gpt-5') ? {} : { temperature: 0.7 }),
       })
 
       return { reply: generalResponse.choices[0].message.content || "I'm not sure how to help with that." }
@@ -103,7 +108,8 @@ export async function processUnifiedQuery(
     const analysisResponse = await openai.chat.completions.create({
       model: AI_MODELS.chat,
       messages: analysisMessages,
-      temperature: 0.5,
+      // GPT-5 only supports temperature: 1 (default)
+      ...(AI_MODELS.chat.includes('gpt-5') ? {} : { temperature: 0.5 }),
     })
 
     const reply = analysisResponse.choices[0].message.content

@@ -178,7 +178,7 @@ export default function LiveScoresPage() {
   const completedDateLabel = formatDisplayDate(data?.previousDate)
 
   return (
-    <div className="relative min-h-screen bg-[#4E4E4E] text-white">
+    <div className="relative min-h-screen bg-black text-white">
       {/* Dotted Surface Background */}
       <DottedSurface className="z-10" />
 
@@ -204,7 +204,7 @@ export default function LiveScoresPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 rounded-full border border-[#6b6b6b] px-3 py-1.5 bg-[#4a4a4a]">
+            <div className="flex items-center gap-2 rounded-full border border-[#6b6b6b] px-3 py-1.5 bg-black">
               <button
                 onClick={() => setSelectedDate((prev) => adjustDate(prev, -1))}
                 className="p-1 rounded-full hover:bg-white/10"
@@ -264,7 +264,7 @@ export default function LiveScoresPage() {
               <select
                 value={conference}
                 onChange={(event) => setConference(event.target.value)}
-                className="rounded-full border border-[#6b6b6b] bg-[#3f3f3f] px-3 py-2 text-sm text-white hover:border-white/60 focus:outline-none focus:ring-2 focus:ring-[#34d399]/60"
+                className="rounded-full border border-[#6b6b6b] bg-black px-3 py-2 text-sm text-white hover:border-white/60 focus:outline-none focus:ring-2 focus:ring-[#34d399]/60"
               >
                 <option value="">All Conferences</option>
                 {CONFERENCE_FILTERS[activeLeague]?.map((conf) => (
@@ -286,7 +286,7 @@ export default function LiveScoresPage() {
               <ChevronDown className="h-4 w-4" />
             </button>
             {showArticlesMenu && (
-              <div className="absolute right-0 z-20 mt-2 w-72 overflow-hidden rounded-2xl border border-[#6b6b6b] bg-[#3f3f3f] shadow-xl shadow-black/40">
+              <div className="absolute right-0 z-20 mt-2 w-72 overflow-hidden rounded-2xl border border-[#6b6b6b] bg-black shadow-xl shadow-black/40">
                 {relevantArticles.length === 0 ? (
                   <div className="px-4 py-3 text-sm text-white/60">No relevant articles</div>
                 ) : (
@@ -316,11 +316,11 @@ export default function LiveScoresPage() {
         </div>
 
         {loading ? (
-          <div className="rounded-3xl border border-[#6b6b6b] bg-[#4a4a4a] p-10 text-center text-white/70">Loading live scores...</div>
+          <div className="rounded-3xl border border-[#6b6b6b] bg-black p-10 text-center text-white/70">Loading live scores...</div>
         ) : error ? (
           <div className="rounded-3xl border border-red-500/30 bg-red-500/10 p-6 text-center text-sm text-red-200">{error}</div>
         ) : filteredGames.length === 0 ? (
-          <div className="rounded-3xl border border-[#6b6b6b] bg-[#4a4a4a] p-10 text-center text-white/70">No games found for this selection.</div>
+          <div className="rounded-3xl border border-[#6b6b6b] bg-black p-10 text-center text-white/70">No games found for this selection.</div>
         ) : (
           BUCKET_ORDER.map((section) => {
             const games = bucketed[section.key]
@@ -339,7 +339,7 @@ export default function LiveScoresPage() {
                     </div>
                     <span className="text-xs text-white/40 uppercase tracking-[0.3em]">0 games</span>
                   </div>
-                  <div className="rounded-3xl border border-[#6b6b6b] bg-[#4a4a4a] p-8 text-center text-white/70 text-sm">
+                  <div className="rounded-3xl border border-[#6b6b6b] bg-black p-8 text-center text-white/70 text-sm">
                     No {section.key === "completed" ? "final results" : section.key} for this selection.
                   </div>
                 </section>
@@ -373,7 +373,7 @@ export default function LiveScoresPage() {
                               setSelectedGame(game)
                             }
                           }}
-                      className="rounded-2xl border border-[#6b6b6b] bg-[#4a4a4a] p-2 sm:p-4 lg:p-5 shadow-md shadow-black/30 transition ring-offset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#34d399]/60 cursor-pointer"
+                      className="rounded-2xl border border-[#6b6b6b] bg-black p-2 sm:p-4 lg:p-5 shadow-md shadow-black/30 transition ring-offset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#34d399]/60 cursor-pointer"
                     >
                       {(() => {
                         const detail = sanitizeText(game.status?.detail)
@@ -394,7 +394,7 @@ export default function LiveScoresPage() {
                           <div className="mt-3 space-y-3">
                             {[...game.competitors].sort((a, b) => (a.homeAway === "home" ? 1 : -1)).map((team) => (
                               <div key={team.id} className="flex items-center gap-2">
-                                <div className="relative h-7 w-7 sm:h-9 sm:w-9 overflow-hidden rounded-lg border border-[#6b6b6b] bg-[#3f3f3f]">
+                                <div className="relative h-7 w-7 sm:h-9 sm:w-9 overflow-hidden rounded-lg border border-[#6b6b6b] bg-black">
                                   {team.logo ? (
                                     <Image src={team.logo} alt={team.shortName} fill sizes="36px" className="object-contain p-1" />
                                   ) : (
@@ -475,8 +475,8 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto">
-      <div className="absolute inset-0 bg-[#2f2f2f]/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-4xl rounded-3xl border border-[#6b6b6b] bg-[#3f3f3f] p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-4xl rounded-3xl border border-[#6b6b6b] bg-black p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-white/50">{game.leagueLabel}</p>
@@ -509,7 +509,7 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
 
         <div className="mt-6 space-y-6">
           {loading ? (
-            <div className="rounded-2xl border border-[#6b6b6b] bg-[#4a4a4a] p-6 text-center text-white/70">Loading box scoreÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</div>
+            <div className="rounded-2xl border border-[#6b6b6b] bg-black p-6 text-center text-white/70">Loading box score...</div>
           ) : error ? (
             <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-center text-sm text-red-200 space-y-3">
               <p>{error}</p>
@@ -522,7 +522,7 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
             </div>
           ) : data?.teams?.length ? (
             <>
-              <section className="rounded-2xl border border-[#6b6b6b] bg-[#4a4a4a] p-4">
+              <section className="rounded-2xl border border-[#6b6b6b] bg-black p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold uppercase tracking-[0.3em] text-white/70">Line Score</h4>
                   <span className="text-xs text-white/50">{data.venue || ""}</span>
@@ -564,7 +564,7 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
               </section>
 
               {data?.plays && data.plays.length > 0 && (
-                <section className="rounded-2xl border border-[#6b6b6b] bg-[#4a4a4a] p-4 space-y-3">
+                <section className="rounded-2xl border border-[#6b6b6b] bg-black p-4 space-y-3">
                   <div className="mb-2 flex items-center justify-between">
                     <h4 className="text-sm font-semibold uppercase tracking-[0.3em] text-white/70">Play by Play</h4>
                     <span className="text-xs text-white/50">Latest {Math.min(data.plays.length, 30)} plays</span>
@@ -587,7 +587,7 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
                             .slice()
                             .reverse()
                             .map((play) => (
-                              <div key={play.id} className="rounded-xl border border-[#6b6b6b] bg-[#3f3f3f] px-3 py-2 text-sm text-white/80">
+                              <div key={play.id} className="rounded-xl border border-[#6b6b6b] bg-black px-3 py-2 text-sm text-white/80">
                                 <div className="flex items-center justify-between text-[11px] text-white/50 mb-1">
                                   <span>{play.clock || "-"}</span>
                                   {(play.homeScore != null || play.awayScore != null) && (
@@ -608,9 +608,9 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
 
               <section className="grid gap-4 md:grid-cols-2">
                 {data.teams.map((team) => (
-                  <div key={`stats-${team.id}`} className="rounded-2xl border border-[#6b6b6b] bg-gradient-to-br from-[#4a4a4a] to-[#3f3f3f] p-4 space-y-4">
+                  <div key={`stats-${team.id}`} className="rounded-2xl border border-[#6b6b6b] bg-black p-4 space-y-4">
                     <div className="flex items-center gap-3">
-                      <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-[#6b6b6b] bg-[#4a4a4a]">
+                      <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-[#6b6b6b] bg-black">
                         {team.logo ? (
                           <Image src={team.logo} alt={team.name} fill sizes="40px" className="object-contain p-2" />
                         ) : (
@@ -624,7 +624,7 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       {team.statistics.slice(0, 10).map((stat) => (
-                        <div key={`${team.id}-${stat.label}`} className="rounded-xl border border-[#6b6b6b] bg-[#3f3f3f] px-3 py-2">
+                        <div key={`${team.id}-${stat.label}`} className="rounded-xl border border-[#6b6b6b] bg-black px-3 py-2">
                           <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">{stat.label}</p>
                           <p className="text-base font-semibold text-white">{stat.value}</p>
                         </div>
@@ -634,7 +634,7 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
                 ))}
               </section>
 
-              <section className="rounded-2xl border border-[#6b6b6b] bg-[#4a4a4a] p-4">
+              <section className="rounded-2xl border border-[#6b6b6b] bg-black p-4">
                 <div className="mb-4 flex items-center justify-between">
                   <h4 className="text-sm font-semibold uppercase tracking-[0.3em] text-white/70">Lineups</h4>
                   <span className="text-xs text-white/50">From latest box score</span>
@@ -702,7 +702,7 @@ function GameDetailsModal({ game, onClose, detailsState }: GameDetailsModalProps
               </section>
             </>
           ) : (
-            <div className="rounded-2xl border border-[#6b6b6b] bg-[#4a4a4a] p-6 text-center text-white/70">No box score data available yet.</div>
+            <div className="rounded-2xl border border-[#6b6b6b] bg-black p-6 text-center text-white/70">No box score data available yet.</div>
           )}
           {playerDetail && data?.teams && (
             <PlayerDetailDrawer
@@ -743,11 +743,11 @@ function PlayerDetailDrawer({ team, playerId, onClose }: PlayerDetailDrawerProps
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center sm:justify-center">
-      <div className="absolute inset-0 bg-[#2f2f2f]/80" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-3xl border border-[#6b6b6b] bg-[#3f3f3f] p-5 shadow-2xl">
+      <div className="absolute inset-0 bg-black/80" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md rounded-3xl border border-[#6b6b6b] bg-black p-5 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="relative h-12 w-12 overflow-hidden rounded-full bg-[#4a4a4a]">
+            <div className="relative h-12 w-12 overflow-hidden rounded-full bg-black">
               {headshotSrc ? (
                 <Image src={headshotSrc} alt={player.name} fill sizes="48px" className="object-cover" />
               ) : (
@@ -775,7 +775,7 @@ function PlayerDetailDrawer({ team, playerId, onClose }: PlayerDetailDrawerProps
         {statsEntries.length ? (
           <div className="grid grid-cols-2 gap-2 text-sm">
             {statsEntries.map(([label, value]) => (
-              <div key={`${playerId}-${label}`} className="rounded-xl border border-[#6b6b6b] bg-[#4a4a4a] px-3 py-2">
+              <div key={`${playerId}-${label}`} className="rounded-xl border border-[#6b6b6b] bg-black px-3 py-2">
                 <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">{label}</p>
                 <p className="text-base font-semibold text-white">{value}</p>
               </div>
@@ -810,13 +810,13 @@ function LineupGroup({ title, players, emptyMessage, compact, onSelect }: Lineup
                 key={`${title}-${player.id}`}
                 onClick={() => onSelect(player.id)}
                 className={clsx(
-                  "flex w-full items-center gap-3 rounded-2xl border bg-[#3f3f3f] px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#34d399]/60",
+                  "flex w-full items-center gap-3 rounded-2xl border bg-black px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#34d399]/60",
                   compact ? "border-[#6b6b6b]" : "border-[#6b6b6b]"
                 )}
               >
                 <div
                   className={clsx(
-                    "relative overflow-hidden bg-[#4a4a4a]",
+                    "relative overflow-hidden bg-black",
                     compact ? "h-8 w-8 rounded-full" : "h-10 w-10 rounded-full"
                   )}
                 >

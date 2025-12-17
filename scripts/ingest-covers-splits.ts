@@ -1,18 +1,21 @@
 /**
- * Ingest Covers.com Public Betting Splits
- * 
- * Scrapes public betting percentages and money splits for today's games
- * and upserts them into the public_betting_splits table.
- * 
+ * Ingest Multi-Source Public Betting Splits
+ *
+ * Scrapes public betting percentages and money splits from multiple sources:
+ * - Covers.com (primary source)
+ * - ScoresAndOdds.com (secondary source)
+ *
+ * Aggregates all sources to maximize game coverage.
+ *
  * Run: npm run ingest:covers-splits
  * Schedule: Every 30 minutes during game days
  */
 
 import { createClient } from '@supabase/supabase-js'
 import {
-  scrapeDailySplits,
-  mapSplitsToRows,
-} from '../lib/providers/covers'
+  aggregateBettingSplits,
+  mapBettingSplitsToRows,
+} from '../lib/providers/betting-splits'
 
 // Load environment
 import { config } from 'dotenv'
@@ -30,21 +33,27 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 async function main() {
   console.log('='.repeat(60))
-  console.log('Covers.com Public Betting Splits Ingestion')
+  console.log('Multi-Source Public Betting Splits Ingestion')
   console.log('='.repeat(60))
   console.log(`Started at: ${new Date().toISOString()}`)
   console.log()
 
-  // Scrape today's games
-  const result = await scrapeDailySplits('basketball', 'nba')
+  // Aggregate from all sources
+  const result = await aggregateBettingSplits('basketball', 'nba')
 
-  if (!result.success) {
-    console.error('Failed to scrape splits:', result.error)
-    process.exit(1)
+  console.log()
+  console.log('Source Breakdown:')
+  for (const source of result.sourceResults) {
+    const status = source.success ? '✓' : '✗'
+    console.log(`  ${status} ${source.source}: ${source.games} games`)
+    if (source.error) {
+      console.log(`    Error: ${source.error}`)
+    }
   }
 
-  const splits = result.data || []
-  console.log(`Scraped ${splits.length} games with betting splits`)
+  const splits = result.splits
+  console.log()
+  console.log(`Total coverage: ${splits.length} games (from ${result.totalSources} sources)`)
 
   if (splits.length === 0) {
     console.log('No games found today')
@@ -52,12 +61,7 @@ async function main() {
   }
 
   // Convert to database rows
-  const allRows: any[] = []
-  for (const split of splits) {
-    const rows = mapSplitsToRows(split)
-    allRows.push(...rows)
-  }
-
+  const allRows = mapBettingSplitsToRows(splits)
   console.log(`Generated ${allRows.length} market rows`)
 
   if (allRows.length === 0) {

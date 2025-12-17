@@ -12,7 +12,18 @@
       "Bash(grep:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push)"
+      "Bash(git push)",
+      "WebSearch",
+      "WebFetch(domain:www.covers.com)",
+      "Bash(npm run ingest:covers-splits:*)",
+      "Bash(npm run ingest:covers-ats:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run ingest:period-scores:*)",
+      "Bash(test:*)",
+      "Bash(ls:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "ask": []

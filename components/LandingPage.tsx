@@ -39,7 +39,7 @@ const FadeInSection = ({
   )
 }
 
-const pageGray = '#4E4E4E'
+const pageGray = '#000000'
 
 const SoftButton = ({ children, className = "", href, ...props }: any) => {
   const baseClasses =
@@ -74,7 +74,7 @@ function AnimatedOddsCard() {
   }, [])
 
   return (
-    <div className="mt-6 rounded-xl bg-[#4E4E4E] p-6 shadow-sm ring-1 ring-black/20">
+    <div className="mt-6 rounded-xl bg-black p-6 shadow-sm ring-1 ring-white/10">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <div className="text-xs text-white/70 uppercase tracking-wider">Live Odds</div>
@@ -106,7 +106,7 @@ function AnimatedOddsCard() {
 
 function MiniChart() {
   return (
-    <div className="mt-6 flex h-36 items-end gap-4 rounded-xl bg-[#4E4E4E] p-4 border border-black/15">
+    <div className="mt-6 flex h-36 items-end gap-4 rounded-xl bg-black p-4 border border-white/10">
       {[48, 72, 56, 88, 64, 96, 78].map((h, i) => (
         <motion.div
           key={i}
@@ -181,7 +181,7 @@ function SportsbookTicker() {
 
   return (
     <div className="relative overflow-hidden bg-transparent py-8">
-      <div className="absolute inset-0 bg-gradient-to-r from-[#4E4E4E] via-transparent to-[#4E4E4E] z-10 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black via-transparent to-black z-10 pointer-events-none" />
       <motion.div
         className="flex gap-12 items-center"
         animate={{
@@ -221,7 +221,7 @@ function SportsbookTicker() {
 function PromoMockSection() {
   return (
     <div className="w-full max-w-5xl mx-auto">
-      <div className="relative w-full overflow-hidden rounded-2xl border border-white/15 bg-[#4E4E4E] p-6 shadow-[0_0_60px_rgba(52,211,153,0.25)]">
+      <div className="relative w-full overflow-hidden rounded-2xl border border-white/15 bg-black p-6 shadow-[0_0_60px_rgba(52,211,153,0.25)]">
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-[#34d399] to-transparent" />
         {/* Top bar mock */}
         <div className="flex items-center justify-between text-xs text-white/80 mb-6">
@@ -459,7 +459,7 @@ export default function LandingPage() {
       {/* CTA Section */}
       <FadeInSection className="w-full py-20" delay={0.1}>
         <div className="max-w-4xl mx-auto px-4">
-          <div className="rounded-2xl bg-[#4E4E4E] p-8 md:p-12 text-center text-white shadow-xl border border-white/20">
+          <div className="rounded-2xl bg-black p-8 md:p-12 text-center text-white shadow-xl border border-white/20">
             <h3 className="text-3xl md:text-4xl font-bold mb-4">Ready to Elevate Your Betting Game?</h3>
             <p className="text-base md:text-lg text-white/80 mb-8">
               Join thousands of smart bettors using Delta AI. Get instant access to AI-powered insights, live odds from 10+ sportsbooks, and advanced bankroll management.

@@ -1,4 +1,4 @@
-import { nbaTeamPerGame2025_26Csv } from '../../data/nba_team_per_game_2025_26'
+import { nbaTeamPerGame2025_2026Csv } from '../../data/nba_team_per_game_2025_2026'
 
 type AllowanceRow = {
   abbrev: string
@@ -64,7 +64,7 @@ const parseCsv = (csv: string): AllowanceRow[] => {
     })
 }
 
-const nbaAllowance = parseCsv(nbaTeamPerGame2025_26Csv)
+const nbaAllowance = parseCsv(nbaTeamPerGame2025_2026Csv)
 const indexByAbbr = new Map<string, AllowanceRow>(
   nbaAllowance.map((r) => [r.abbrev.toUpperCase(), r])
 )

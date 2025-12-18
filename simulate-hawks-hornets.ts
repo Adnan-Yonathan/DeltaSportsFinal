@@ -27,15 +27,15 @@ async function simulateHawksHornets() {
       leagueLabel: 'NBA',
       league: 'nba',
       statusText: '7:30 - 2nd Quarter',
+      updatedAt: new Date().toISOString(),
       teams: [
         {
           id: 'hornets',
           name: 'Charlotte Hornets',
-          displayName: 'Charlotte Hornets',
           abbreviation: 'CHA',
           homeAway: 'home',
           score: 40,
-          linescore: [20, 20], // 20 in Q1, 20 in Q2 so far
+          linescore: [{ label: 'Q1', value: '20' }, { label: 'Q2', value: '20' }], // 20 in Q1, 20 in Q2 so far
           starters: [
             { id: '1', name: 'LaMelo Ball', position: 'PG', statMap: { MIN: '10' } },
             { id: '2', name: 'Brandon Miller', position: 'SG', statMap: { MIN: '10' } },
@@ -51,17 +51,14 @@ async function simulateHawksHornets() {
             { label: 'freeThrowsAttempted', value: '6' },
             { label: 'turnovers', value: '5' },
             { label: 'offensiveRebounds', value: '3' }
-          ],
-          injuries: []
-        },
+          ]        },
         {
           id: 'hawks',
           name: 'Atlanta Hawks',
-          displayName: 'Atlanta Hawks',
           abbreviation: 'ATL',
           homeAway: 'away',
           score: 36,
-          linescore: [18, 18], // 18 in Q1, 18 in Q2 so far
+          linescore: [{ label: 'Q1', value: '18' }, { label: 'Q2', value: '18' }], // 18 in Q1, 18 in Q2 so far
           starters: [
             { id: '1', name: 'Trae Young', position: 'PG', statMap: { MIN: '10' } },
             { id: '2', name: 'Dyson Daniels', position: 'SG', statMap: { MIN: '10' } },
@@ -77,9 +74,7 @@ async function simulateHawksHornets() {
             { label: 'freeThrowsAttempted', value: '8' },
             { label: 'turnovers', value: '6' },
             { label: 'offensiveRebounds', value: '2' }
-          ],
-          injuries: []
-        }
+          ]        }
       ],
       plays: []
     }

@@ -16,7 +16,7 @@ async function testRealGameData() {
   try {
     // Fetch today's NBA scoreboard
     console.log('Step 1: Fetching live NBA scoreboard from ESPN API...')
-    const scoreboard = await fetchAllLiveScores({ leagues: ['nba'] })
+    const scoreboard = await fetchAllLiveScores({})
 
     if (!scoreboard.games || scoreboard.games.length === 0) {
       console.log('❌ No NBA games found for today')
@@ -27,19 +27,19 @@ async function testRealGameData() {
 
     // Show first 10 games
     console.log('Available games today (first 10):')
-    scoreboard.games.slice(0, 10).filter(g => g.teams && Array.isArray(g.teams)).forEach((g, i) => {
-      const home = g.teams.find(t => t.homeAway === 'home')
-      const away = g.teams.find(t => t.homeAway === 'away')
+    scoreboard.games.slice(0, 10).filter(g => g.competitors && Array.isArray(g.competitors)).forEach((g, i) => {
+      const home = g.competitors.find(t => t.homeAway === 'home')
+      const away = g.competitors.find(t => t.homeAway === 'away')
       const homeScore = home?.score || 0
       const awayScore = away?.score || 0
-      console.log(`  ${i + 1}. ${away?.name || 'Unknown'} ${awayScore} @ ${home?.name || 'Unknown'} ${homeScore} - ${g.statusText}`)
+      console.log(`  ${i + 1}. ${away?.name || 'Unknown'} ${awayScore} @ ${home?.name || 'Unknown'} ${homeScore} - ${g.status?.shortDetail || g.status?.detail || 'Unknown'}`)
     })
 
     // Pick first game with actual scores (in progress or completed)
     const liveGame = scoreboard.games.find(g => {
-      if (!g.teams || !Array.isArray(g.teams)) return false
-      const home = g.teams.find(t => t.homeAway === 'home')
-      const away = g.teams.find(t => t.homeAway === 'away')
+      if (!g.competitors || !Array.isArray(g.competitors)) return false
+      const home = g.competitors.find(t => t.homeAway === 'home')
+      const away = g.competitors.find(t => t.homeAway === 'away')
       return (home?.score || 0) > 0 || (away?.score || 0) > 0
     })
 
@@ -48,13 +48,13 @@ async function testRealGameData() {
       return
     }
 
-    const homeTeam = liveGame.teams.find(t => t.homeAway === 'home')
-    const awayTeam = liveGame.teams.find(t => t.homeAway === 'away')
+    const homeTeam = liveGame.competitors.find(t => t.homeAway === 'home')
+    const awayTeam = liveGame.competitors.find(t => t.homeAway === 'away')
 
     console.log('\n============================================================')
     console.log(`Selected Game: ${awayTeam?.name} @ ${homeTeam?.name}`)
     console.log(`Event ID: ${liveGame.eventId}`)
-    console.log(`Status: ${liveGame.statusText}`)
+    console.log(`Status: ${liveGame.status?.shortDetail || liveGame.status?.detail || 'Unknown'}`)
     console.log('============================================================\n')
 
     // Fetch detailed game data
@@ -74,7 +74,7 @@ async function testRealGameData() {
     const away = gameDetails.teams.find(t => t.homeAway === 'away')
 
     console.log(`\nScore: ${away?.name} ${away?.score} - ${home?.score} ${home?.name}`)
-    console.log(`Time: ${gameDetails.statusText}`)
+    console.log(`Time: ${gameDetails.statusText || 'Unknown'}`)
 
     // Show real box score stats
     if (home?.statistics && home.statistics.length > 0) {
@@ -100,13 +100,15 @@ async function testRealGameData() {
       })
     }
 
-    // Show real injuries
-    if (away?.injuries && away.injuries.length > 0) {
-      console.log(`\n${away.name} Injuries (REAL):`)
-      away.injuries.forEach(inj => {
-        console.log(`  ${inj.status === 'out' ? '🔴' : '🟡'} ${inj.name} - ${inj.status}`)
-      })
-    }
+    // Show real injuries (injury data not available in GameDetailsTeam)
+    console.log('\n--- INJURIES ---')
+    console.log('Injury data would need to be fetched separately')
+    // if (away?.injuries && away.injuries.length > 0) {
+    //   console.log(`\n${away.name} Injuries (REAL):`)
+    //   away.injuries.forEach(inj => {
+    //     console.log(`  ${inj.status === 'out' ? '🔴' : '🟡'} ${inj.name} - ${inj.status}`)
+    //   })
+    // }
 
     console.log('\n--- ANALYZING WITH REAL DATA ---\n')
 

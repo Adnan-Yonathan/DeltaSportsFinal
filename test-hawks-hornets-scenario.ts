@@ -18,7 +18,7 @@ async function analyzeHawksHornets() {
   try {
     // Fetch today's NBA games
     console.log('Fetching NBA scoreboard...')
-    const scoreboard = await fetchAllLiveScores({ leagues: ['nba'] })
+    const scoreboard = await fetchAllLiveScores({})
 
     if (!scoreboard.games || scoreboard.games.length === 0) {
       console.log('❌ No NBA games found for today')
@@ -29,10 +29,10 @@ async function analyzeHawksHornets() {
 
     // Find Hawks @ Hornets game
     const game = scoreboard.games.find(g => {
-      if (!g.teams || !Array.isArray(g.teams)) return false
+      if (!g.competitors || !Array.isArray(g.competitors)) return false
 
-      const homeTeam = g.teams.find(t => t.homeAway === 'home')
-      const awayTeam = g.teams.find(t => t.homeAway === 'away')
+      const homeTeam = g.competitors.find(t => t.homeAway === 'home')
+      const awayTeam = g.competitors.find(t => t.homeAway === 'away')
 
       return (
         (homeTeam?.name?.toLowerCase().includes('hornets') || homeTeam?.name?.toLowerCase().includes('charlotte')) &&
@@ -43,64 +43,66 @@ async function analyzeHawksHornets() {
     if (!game) {
       console.log('❌ Hawks @ Hornets game not found on today\'s schedule')
       console.log('\nAll available games today:')
-      scoreboard.games.filter(g => g.teams && Array.isArray(g.teams)).forEach(g => {
-        const home = g.teams.find(t => t.homeAway === 'home')
-        const away = g.teams.find(t => t.homeAway === 'away')
+      scoreboard.games.filter(g => g.competitors && Array.isArray(g.competitors)).forEach(g => {
+        const home = g.competitors.find(t => t.homeAway === 'home')
+        const away = g.competitors.find(t => t.homeAway === 'away')
         console.log(`  ${away?.name || 'Unknown'} @ ${home?.name || 'Unknown'}`)
       })
       return
     }
 
-    const homeTeam = game.teams.find(t => t.homeAway === 'home')
-    const awayTeam = game.teams.find(t => t.homeAway === 'away')
+    const homeTeam = game.competitors.find(t => t.homeAway === 'home')
+    const awayTeam = game.competitors.find(t => t.homeAway === 'away')
 
     console.log(`✓ Found game: ${awayTeam?.name} @ ${homeTeam?.name}`)
     console.log(`Event ID: ${game.eventId}`)
-    console.log(`Status: ${game.statusText}\n`)
+    console.log(`Status: ${game.status?.shortDetail || game.status?.detail || 'Unknown'}\n`)
 
     // Display pregame info
     console.log('--- PREGAME ANALYSIS ---')
     console.log(`Spread: Hawks -5.0`)
 
-    // Check injuries
+    // Check injuries (injury data not available in LiveScoreCompetitor)
     console.log('\n--- INJURY REPORT ---')
-    if (awayTeam?.injuries && awayTeam.injuries.length > 0) {
-      console.log(`${awayTeam.name} (Hawks):`)
-      awayTeam.injuries.forEach(inj => {
-        console.log(`  ${inj.status === 'out' ? '🔴' : '🟡'} ${inj.name} - ${inj.status} (${inj.description})`)
-      })
-    } else {
-      console.log(`${awayTeam?.name}: No injuries reported`)
-    }
+    console.log('Injury data would need to be fetched separately')
+    // if (awayTeam?.injuries && awayTeam.injuries.length > 0) {
+    //   console.log(`${awayTeam.name} (Hawks):`)
+    //   awayTeam.injuries.forEach(inj => {
+    //     console.log(`  ${inj.status === 'out' ? '🔴' : '🟡'} ${inj.name} - ${inj.status} (${inj.description})`)
+    //   })
+    // } else {
+    //   console.log(`${awayTeam?.name}: No injuries reported`)
+    // }
 
-    if (homeTeam?.injuries && homeTeam.injuries.length > 0) {
-      console.log(`${homeTeam.name} (Hornets):`)
-      homeTeam.injuries.forEach(inj => {
-        console.log(`  ${inj.status === 'out' ? '🔴' : '🟡'} ${inj.name} - ${inj.status} (${inj.description})`)
-      })
-    } else {
-      console.log(`${homeTeam?.name}: No injuries reported`)
-    }
+    // if (homeTeam?.injuries && homeTeam.injuries.length > 0) {
+    //   console.log(`${homeTeam.name} (Hornets):`)
+    //   homeTeam.injuries.forEach(inj => {
+    //     console.log(`  ${inj.status === 'out' ? '🔴' : '🟡'} ${inj.name} - ${inj.status} (${inj.description})`)
+    //   })
+    // } else {
+    //   console.log(`${homeTeam?.name}: No injuries reported`)
+    // }
 
-    // Display lineups
+    // Display lineups (lineup data not available in LiveScoreCompetitor)
     console.log('\n--- STARTING LINEUPS ---')
-    if (awayTeam?.starters && awayTeam.starters.length > 0) {
-      console.log(`${awayTeam.name} (Hawks):`)
-      awayTeam.starters.forEach(player => {
-        console.log(`  ${player.name} - ${player.position || 'N/A'}`)
-      })
-    } else {
-      console.log(`${awayTeam?.name}: Starters not yet available`)
-    }
+    console.log('Lineup data would need to be fetched from game details')
+    // if (awayTeam?.starters && awayTeam.starters.length > 0) {
+    //   console.log(`${awayTeam.name} (Hawks):`)
+    //   awayTeam.starters.forEach(player => {
+    //     console.log(`  ${player.name} - ${player.position || 'N/A'}`)
+    //   })
+    // } else {
+    //   console.log(`${awayTeam?.name}: Starters not yet available`)
+    // }
 
-    if (homeTeam?.starters && homeTeam.starters.length > 0) {
-      console.log(`${homeTeam.name} (Hornets):`)
-      homeTeam.starters.forEach(player => {
-        console.log(`  ${player.name} - ${player.position || 'N/A'}`)
-      })
-    } else {
-      console.log(`${homeTeam?.name}: Starters not yet available`)
-    }
+    // if (homeTeam?.starters && homeTeam.starters.length > 0) {
+    //   console.log(`${homeTeam.name} (Hornets):`)
+    //   homeTeam.starters.forEach(player => {
+    //     console.log(`  ${player.name} - ${player.position || 'N/A'}`)
+    //   })
+    // } else {
+    //   console.log(`${homeTeam?.name}: Starters not yet available`)
+    // }
 
     // Create simulated live game state
     console.log('\n============================================================')
@@ -112,17 +114,24 @@ async function analyzeHawksHornets() {
     // Create a simulated live game state
     const simulatedGame: LiveScoreGameDetails = {
       ...game,
+      updatedAt: new Date().toISOString(),
       statusText: '7:30 - 2nd Quarter',
       teams: [
         {
           ...homeTeam!,
           score: 40,
-          linescore: [20, 20] // 20 in Q1, 20 so far in Q2
+          linescore: [{ label: 'Q1', value: '20' }, { label: 'Q2', value: '20' }], // 20 in Q1, 20 so far in Q2
+          statistics: [],
+          starters: [],
+          bench: []
         },
         {
           ...awayTeam!,
           score: 36,
-          linescore: [18, 18] // 18 in Q1, 18 so far in Q2
+          linescore: [{ label: 'Q1', value: '18' }, { label: 'Q2', value: '18' }], // 18 in Q1, 18 so far in Q2
+          statistics: [],
+          starters: [],
+          bench: []
         }
       ]
     }

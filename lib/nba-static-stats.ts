@@ -1,4 +1,4 @@
-import { nbaPerGame2025_26Csv } from '@/data/nba_per_game_2025_26'
+import { nbaPlayerPerGame2025_2026Csv } from '@/data/nba_player_per_game_2025_2026'
 
 export type NbaStaticPlayer = {
   name: string
@@ -23,7 +23,7 @@ const toNumber = (raw: string | undefined): number | null => {
 }
 
 const parsePlayers = (): NbaStaticPlayer[] => {
-  const lines = nbaPerGame2025_26Csv
+  const lines = nbaPlayerPerGame2025_2026Csv
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line && /^\d+[,]/.test(line))

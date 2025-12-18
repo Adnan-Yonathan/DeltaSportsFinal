@@ -386,7 +386,7 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
 
         if (!coversResult.success) {
           result = { error: coversResult.error }
-        } else {
+        } else if (coversResult.data) {
           const d = coversResult.data
           result = {
             team: d.team,
@@ -401,6 +401,8 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
             streak: d.streak,
             last_updated: d.lastUpdated
           }
+        } else {
+          result = { error: 'No data returned' }
         }
         break
       }
@@ -411,12 +413,14 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
 
         if (!splitsResult.success) {
           result = { error: splitsResult.error }
-        } else {
+        } else if (splitsResult.data) {
           result = {
             games_count: splitsResult.data.length,
             games: splitsResult.data,
             has_sharp_action: splitsResult.data.some((g: any) => g.sharpAction.length > 0)
           }
+        } else {
+          result = { error: 'No data returned' }
         }
         break
       }

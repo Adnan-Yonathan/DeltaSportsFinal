@@ -1,6 +1,6 @@
-import { nbaTeam2025_26Csv } from '@/data/nba_team_2025_26'
-import { nbaTeamAdv2025_26Csv } from '@/data/nba_team_adv_2025_26'
-import { nbaTeamPerGame2025_26Csv } from '@/data/nba_team_per_game_2025_26'
+import { nbaTeam2025_2026Csv } from '@/data/nba_team_2025_2026'
+import { nbaTeamAdvStats2025_2026Csv } from '@/data/nba_team_adv_stats_2025_2026'
+import { nbaTeamPerGame2025_2026Csv } from '@/data/nba_team_per_game_2025_2026'
 import type { TeamStats } from './sports-stats-api'
 
 const normalize = (value: string) =>
@@ -120,7 +120,7 @@ type AdvRow = {
 
 const parsePerGame = (): Map<string, PerGameRow> => {
   const map = new Map<string, PerGameRow>()
-  const lines = nbaTeamPerGame2025_26Csv
+  const lines = nbaTeamPerGame2025_2026Csv
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l && /^\d+,/.test(l))
@@ -222,7 +222,7 @@ const parsePerGame = (): Map<string, PerGameRow> => {
 
 const parseAdvanced = (): Map<string, AdvRow> => {
   const map = new Map<string, AdvRow>()
-  const lines = nbaTeamAdv2025_26Csv
+  const lines = nbaTeamAdvStats2025_2026Csv
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l && /^\d+,/.test(l))
@@ -288,7 +288,7 @@ const parseAdvanced = (): Map<string, AdvRow> => {
 const parseTeams = (): TeamStats[] => {
   const advancedRows = parseAdvanced()
   const perGameRows = parsePerGame()
-  const lines = nbaTeam2025_26Csv
+  const lines = nbaTeam2025_2026Csv
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l && /^\d+,/.test(l))

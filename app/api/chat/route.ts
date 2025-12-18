@@ -31,7 +31,7 @@ import { toolResolvers as espnToolResolvers } from '@/lib/llm/tools/resolvers'
 import { resolveEspnTeamId } from '@/lib/utils/espn-team-lookup'
 import { searchAthlete, getEventSnapshot, getPlayerGameLogs } from '@/lib/services/espn-orchestrator'
 import { getStaticNbaTeams, findStaticNbaTeam } from '@/lib/nba-static-team-stats'
-import { nbaTeamPerGame2025_26Csv } from '@/data/nba_team_per_game_2025_26'
+import { nbaTeamPerGame2025_2026Csv } from '@/data/nba_team_per_game_2025_2026'
 import {
   resolvePlayerThresholdQuery,
   resolveLeaderboardThresholdQuery,
@@ -2480,7 +2480,7 @@ export async function POST(req: NextRequest) {
     let cachedOpponent3pm: Array<{ team: string; val: number }> | null = null
     const getOpponent3pmFromCsv = () => {
       if (cachedOpponent3pm) return cachedOpponent3pm
-      const rows = nbaTeamPerGame2025_26Csv
+      const rows = nbaTeamPerGame2025_2026Csv
         .split(/\r?\n/)
         .map((l) => l.trim())
         .filter((l) => l && /^\d+,/.test(l))
@@ -2495,7 +2495,7 @@ export async function POST(req: NextRequest) {
     let cachedMade3pm: Array<{ team: string; val: number }> | null = null
     const getMade3pmFromCsv = () => {
       if (cachedMade3pm) return cachedMade3pm
-      const rows = nbaTeamPerGame2025_26Csv
+      const rows = nbaTeamPerGame2025_2026Csv
         .split(/\r?\n/)
         .map((l) => l.trim())
         .filter((l) => l && /^\d+,/.test(l))

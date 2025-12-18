@@ -8,6 +8,7 @@ import type { LiveScoreGameDetails, PlayByPlayEntry, GameDetailsTeam } from '@/l
 import { getTeamStats, getPlayerStats } from './matchup-analyzer'
 import { analyzeFatigue, type FatigueAnalysis } from './fatigue-analyzer'
 import { analyzeTimeoutImpact, type TimeoutImpactAnalysis } from './timeout-analyzer'
+import { nbaTeam2025_2026Csv } from '@/data/nba_team_2025_2026'
 
 // ============================================================================
 // INTERFACES
@@ -780,6 +781,32 @@ export function detectFoulingStrategy(
 // ============================================================================
 
 /**
+ * Get team's season three-point percentage from static data
+ */
+function getTeamThreePointPct(teamName: string): number {
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '')
+  const normalized = normalize(teamName)
+
+  const lines = nbaTeam2025_2026Csv
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(l => l && /^\d+,/.test(l))
+
+  for (const line of lines) {
+    const cells = line.split(',')
+    if (cells.length < 32) continue
+
+    const team = cells[2] // Team column
+    if (normalize(team) === normalized || team === teamName) {
+      const threePct = parseFloat(cells[28]) || 0 // 3P% column
+      return threePct // Already in decimal form (e.g., 0.355)
+    }
+  }
+
+  return 0.355 // League average
+}
+
+/**
  * Analyze three-point shooting variance and expected regression
  */
 export async function analyzeThreePointVariance(
@@ -807,11 +834,8 @@ export async function analyzeThreePointVariance(
   const awayCurrent3Pct = away3PA > 0 ? away3PM / away3PA : 0
 
   // Get season 3PT% from team stats
-  const homeStats = await getTeamStats(homeTeam?.name || '')
-  const awayStats = await getTeamStats(awayTeam?.name || '')
-
-  const homeSeason3Pct = homeStats?.three_point_pct || 0.355 // League avg
-  const awaySeason3Pct = awayStats?.three_point_pct || 0.355
+  const homeSeason3Pct = getTeamThreePointPct(homeTeam?.name || '')
+  const awaySeason3Pct = getTeamThreePointPct(awayTeam?.name || '')
 
   const homeDeviation = homeCurrent3Pct - homeSeason3Pct
   const awayDeviation = awayCurrent3Pct - awaySeason3Pct

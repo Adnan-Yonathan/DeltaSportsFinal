@@ -107,7 +107,7 @@ export function analyzeFatigue(
 
       // Get player stats to determine typical minutes and star status
       const playerStats = getPlayerStats(player.name || '', 'points')
-      const typicalMinutes = playerStats?.minutes || 32
+      const typicalMinutes = playerStats?.minutesPerGame || 32
       const bpm = playerStats?.bpm || 0
       const isStarPlayer = bpm > 3 // High BPM = star player
 

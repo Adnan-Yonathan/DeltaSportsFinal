@@ -42,15 +42,17 @@ export interface EspnTeamMeta {
 }
 
 export interface EspnInjuryItem {
-  athlete: { displayName?: string }
+  athlete?: { displayName?: string }
   status?: string
   details?: { type?: string }
   longComment?: string
+  shortComment?: string
   date?: string
 }
 
 export interface EspnInjuryTeam {
-  team?: { displayName?: string }
+  id?: string
+  displayName?: string
   injuries?: EspnInjuryItem[]
 }
 
@@ -114,8 +116,8 @@ export const fetchAthleteGamelog = async (
 export const fetchInjuries = async (): Promise<EspnInjuryTeam[]> => {
   const url = `${ESPN_SITE_BASE}/injuries`
   const data = await fetchJson<any>(url, 1000 * 60 * 15)
-  if (!data?.teams) return []
-  return data.teams as EspnInjuryTeam[]
+  if (!data?.injuries) return []
+  return data.injuries as EspnInjuryTeam[]
 }
 
 export const fetchRoster = async (teamId: string): Promise<any[]> => {

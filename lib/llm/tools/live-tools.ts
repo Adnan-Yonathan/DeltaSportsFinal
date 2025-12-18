@@ -59,4 +59,27 @@ export const liveDataTools: LlmToolDefinition[] = [
       required: ["league", "playerId"],
     },
   },
+  {
+    name: "getLiveBettingRecommendation",
+    description: "Get real-time betting recommendations with statistical confidence intervals for a live game. Analyzes current score, time remaining, momentum factors (scoring runs, pace changes, foul trouble), and generates updated spread/total lines with tight confidence ranges (±1 point max). Use this when user asks about live betting opportunities or wants to know what the fair line is RIGHT NOW for an in-progress game.",
+    parameters: {
+      type: "object",
+      properties: {
+        league: {
+          type: "string",
+          description: "League identifier (nba, nfl, nhl, cfb, ncaab).",
+        },
+        eventId: {
+          type: "string",
+          description: "The ESPN event ID for the live game.",
+        },
+        betType: {
+          type: "string",
+          enum: ["spread", "total", "both"],
+          description: "Which bet type to analyze: spread, total, or both. Defaults to 'both'.",
+        },
+      },
+      required: ["league", "eventId"],
+    },
+  },
 ]

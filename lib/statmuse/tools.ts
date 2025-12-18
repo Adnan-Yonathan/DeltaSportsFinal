@@ -364,6 +364,63 @@ Returns game details including teams, time, and game_id for each matchup.`,
       }
     }
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_game_recommendations',
+      description: `Calculate target betting lines for NBA spreads and totals based on statistical analysis. Analyzes team stats (ORtg, DRtg, Pace), rest/travel factors, ATS trends, and betting splits to project what the line SHOULD be. Does NOT reference external odds - purely model-based projections. Use when users ask:
+- "What should the Lakers spread be?"
+- "What's a fair line for Warriors vs Celtics?"
+- "What total makes sense for this game?"
+- "Calculate the target spread for the Thunder game"
+Returns target lines with confidence level and supporting statistical factors.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          gameIdentifier: {
+            type: 'string',
+            description: 'Team names for the matchup (e.g., "Lakers Celtics", "Warriors vs Heat", "Thunder")'
+          },
+          marketType: {
+            type: 'string',
+            enum: ['spread', 'total', 'all'],
+            description: 'Type of line to calculate (default: all)'
+          }
+        },
+        required: ['gameIdentifier']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_prop_recommendations',
+      description: `Calculate target player prop lines based on statistical analysis. Projects what the prop line SHOULD be using season averages, usage rate, pace, and rest factors. Does NOT reference external odds - purely model-based projections. Use when users ask:
+- "What should LeBron's points line be?"
+- "Fair target for Curry 3-pointers?"
+- "Calculate Jokic rebounds line"
+- "What's a reasonable line for Tatum points?"
+Supports points, rebounds, assists, threes, and PRA (points+rebounds+assists).`,
+      parameters: {
+        type: 'object',
+        properties: {
+          playerName: {
+            type: 'string',
+            description: 'Player full name (e.g., "LeBron James", "Stephen Curry")'
+          },
+          propType: {
+            type: 'string',
+            description: 'Type of prop: points, rebounds, assists, threes, PRA, etc.'
+          },
+          gameIdentifier: {
+            type: 'string',
+            description: 'Optional game or opponent info to provide context'
+          }
+        },
+        required: ['playerName', 'propType']
+      }
+    }
+  },
 
   // ========================================
   // SCHEDULE/CONTEXT TOOLS
@@ -488,6 +545,8 @@ export const TOOL_NAMES = {
   COVERS_ATS_RECORDS: 'get_team_ats_records',
   COVERS_BETTING_SPLITS: 'get_betting_splits',
   COVERS_ANALYZE_SPLITS: 'analyze_game_splits',
+  GAME_RECOMMENDATIONS: 'get_game_recommendations',
+  PROP_RECOMMENDATIONS: 'get_prop_recommendations',
   // Schedule
   SCHEDULE_CONTEXT: 'getTeamScheduleContext',
   // Leaderboards

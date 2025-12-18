@@ -30,7 +30,10 @@ import {
   resolveAtsLeaderboard,
   resolveTeamBackToBackSplit,
 } from '@/lib/services/espn-aggregations'
-import { fetchAllLiveScores, type LeagueId } from '@/lib/live-scores'
+import { fetchAllLiveScores, fetchGameDetails, type LeagueId } from '@/lib/live-scores'
+import { analyzeLiveGame } from '@/lib/services/live-game-analyzer'
+import { calculateLiveSpread, calculateLiveTotal, formatLiveRecommendation } from '@/lib/services/live-line-calculator'
+import { getTeamStats } from '@/lib/services/matchup-analyzer'
 
 /**
  * Get current season based on sport
@@ -467,6 +470,136 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
           result = { error: analysisResult.error }
         } else {
           result = analysisResult.data
+        }
+        break
+      }
+
+      case 'get_game_recommendations': {
+        const { gameIdentifier, marketType = 'all' } = args as {
+          gameIdentifier: string
+          marketType?: 'spread' | 'total' | 'all'
+        }
+
+        const { getGameRecommendations, formatRecommendationForChat } = await import(
+          '@/lib/services/recommendation-engine'
+        )
+        const recommendations = await getGameRecommendations(gameIdentifier, marketType)
+
+        if (!recommendations || recommendations.length === 0) {
+          result = {
+            message: `Could not calculate target lines for ${gameIdentifier}. Team stats may be unavailable.`,
+            recommendations: [],
+          }
+        } else {
+          result = {
+            message: `Calculated ${recommendations.length} target line(s) for ${gameIdentifier}`,
+            recommendations: recommendations.map((rec) => ({
+              type: rec.type,
+              homeTeam: rec.homeTeam,
+              awayTeam: rec.awayTeam,
+              recommendation: rec.recommendation,
+              targetLine: rec.targetLine,
+              confidence: rec.confidence,
+              factors: rec.factors,
+              formatted: formatRecommendationForChat(rec),
+            })),
+          }
+        }
+        break
+      }
+
+      case 'get_prop_recommendations': {
+        const { playerName, propType, gameIdentifier } = args as {
+          playerName: string
+          propType: string
+          gameIdentifier?: string
+        }
+
+        const { getPropRecommendations, formatRecommendationForChat } = await import(
+          '@/lib/services/recommendation-engine'
+        )
+        const recommendations = await getPropRecommendations(playerName, propType, gameIdentifier)
+
+        if (!recommendations || recommendations.length === 0) {
+          result = {
+            message: `Could not calculate target line for ${playerName} ${propType}. Player stats may be unavailable.`,
+            recommendations: [],
+          }
+        } else {
+          result = {
+            message: `Calculated target line for ${playerName} ${propType}`,
+            recommendations: recommendations.map((rec) => ({
+              type: rec.type,
+              playerName: rec.playerName,
+              statType: rec.statType,
+              recommendation: rec.recommendation,
+              targetLine: rec.targetLine,
+              confidence: rec.confidence,
+              factors: rec.factors,
+              formatted: formatRecommendationForChat(rec),
+            })),
+          }
+        }
+        break
+      }
+
+      case 'getLiveBettingRecommendation': {
+        const { league, eventId, betType = 'both' } = args as {
+          league: string
+          eventId: string
+          betType?: 'spread' | 'total' | 'both'
+        }
+
+        // 1. Fetch live game data
+        const liveGame = await fetchGameDetails(league as LeagueId, eventId)
+
+        if (!liveGame) {
+          result = { error: `Could not fetch live game data for event ${eventId}` }
+          break
+        }
+
+        // 2. Analyze momentum
+        const gameState = await analyzeLiveGame(liveGame)
+
+        // 3. Get pre-game team stats (with injuries)
+        const homeTeam = liveGame.teams.find((t) => t.homeAway === 'home')
+        const awayTeam = liveGame.teams.find((t) => t.homeAway === 'away')
+
+        if (!homeTeam || !awayTeam) {
+          result = { error: 'Could not find home/away teams in game data' }
+          break
+        }
+
+        const homeStats = await getTeamStats(homeTeam.name || '')
+        const awayStats = await getTeamStats(awayTeam.name || '')
+
+        if (!homeStats || !awayStats) {
+          result = { error: 'Could not load team stats for analysis' }
+          break
+        }
+
+        // 4. Calculate live lines
+        const recommendations: string[] = []
+
+        if (betType === 'spread' || betType === 'both') {
+          const spreadRec = calculateLiveSpread(gameState, { homeStats, awayStats })
+          recommendations.push(formatLiveRecommendation(spreadRec, gameState))
+        }
+
+        if (betType === 'total' || betType === 'both') {
+          const totalRec = calculateLiveTotal(gameState, { homeStats, awayStats })
+          recommendations.push(formatLiveRecommendation(totalRec, gameState))
+        }
+
+        // 5. Format for LLM
+        result = {
+          eventId,
+          gameState: {
+            score: `${gameState.awayTeam} ${gameState.awayScore} - ${gameState.homeScore} ${gameState.homeTeam}`,
+            period: `Q${gameState.period} ${gameState.displayClock}`,
+            timeRemaining: gameState.timeRemaining,
+          },
+          recommendations: recommendations.join('\n\n---\n\n'),
         }
         break
       }

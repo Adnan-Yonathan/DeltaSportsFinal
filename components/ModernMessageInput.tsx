@@ -204,10 +204,31 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
           const { done, value } = await reader.read()
           if (done) break
 
-          // Decode and log the chunk for debugging
           if (value) {
             const chunk = decoder.decode(value, { stream: true })
-            // Stream is being consumed (messages update via Supabase realtime)
+
+            // Parse SSE events to detect status updates
+            const lines = chunk.split('\n')
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const dataStr = line.slice(6)
+                try {
+                  const data = JSON.parse(dataStr)
+
+                  // Handle status events for dynamic operation messages
+                  if (data.type === 'status' && data.operation) {
+                    // Dispatch custom event for ModernMessageList to listen to
+                    const event = new CustomEvent('chat-operation-change', {
+                      detail: { operation: data.operation }
+                    })
+                    window.dispatchEvent(event)
+                  }
+                  // Content events are handled by Supabase realtime
+                } catch (e) {
+                  // Skip non-JSON lines (like keep-alive)
+                }
+              }
+            }
           }
         }
       }

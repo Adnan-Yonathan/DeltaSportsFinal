@@ -9,6 +9,7 @@ import { User, Sparkles } from 'lucide-react'
 import AnimatedMessage from './AnimatedMessage'
 import ChatIntro from './ChatIntro'
 import { ShiningText } from '@/components/ui/shining-text'
+import { getOperationMessage } from '@/lib/chat/operation-messages'
 
 interface Message {
   id: string
@@ -28,6 +29,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
   const [loading, setLoading] = useState(true)
   const [latestMessageId, setLatestMessageId] = useState<string | null>(null)
   const [isThinking, setIsThinking] = useState(false)
+  const [currentOperation, setCurrentOperation] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
@@ -73,6 +75,26 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Listen for operation changes
+  useEffect(() => {
+    const handleOperationChange = (event: CustomEvent<{ operation: string }>) => {
+      setCurrentOperation(event.detail.operation)
+    }
+
+    window.addEventListener('chat-operation-change', handleOperationChange as EventListener)
+
+    return () => {
+      window.removeEventListener('chat-operation-change', handleOperationChange as EventListener)
+    }
+  }, [])
+
+  // Reset operation when thinking stops
+  useEffect(() => {
+    if (!isThinking) {
+      setCurrentOperation(null)
+    }
+  }, [isThinking])
 
   const loadMessages = async () => {
     setLoading(true)
@@ -254,7 +276,9 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
               </div>
             </div>
             <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 py-3 sm:px-5 sm:py-4 bg-[#0f0f0f] border border-[#1f1f1f]">
-              <ShiningText text="DELTA is thinking..." />
+              <ShiningText
+                text={currentOperation ? getOperationMessage(currentOperation) : "DELTA is thinking..."}
+              />
             </div>
           </motion.div>
         )}

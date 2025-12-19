@@ -5493,58 +5493,118 @@ ${statsEnrichment}
 
     let skipModelResponse = false
 
-    while (toolCalls && toolCalls.length > 0) {
-      handledToolCalls = true
+    // If we have tool calls, handle them with status streaming
+    if (toolCalls && toolCalls.length > 0) {
+      const encoder = new TextEncoder()
 
-      // OpenAI SDK returns tool_calls with { id, type, function: { name, arguments } }
-      openaiMessages.push({
-        role: 'assistant',
-        content: lastText || undefined,
-        tool_calls: toolCalls,
-      } as any)
+      const toolStream = new ReadableStream({
+        async start(controller) {
+          try {
+            while (toolCalls && toolCalls.length > 0) {
+              handledToolCalls = true
 
-      for (const toolCall of toolCalls) {
-        const functionResult = await runToolCall(toolCall)
+              // OpenAI SDK returns tool_calls with { id, type, function: { name, arguments } }
+              openaiMessages.push({
+                role: 'assistant',
+                content: lastText || undefined,
+                tool_calls: toolCalls,
+              } as any)
 
-        // Short-circuit for player props: if we already have a formatted response, return it without another model pass
-        if (
-          toolCall.function?.name === 'get_player_props' &&
-          functionResult &&
-          typeof functionResult === 'object' &&
-          'formatted' in functionResult &&
-          (functionResult as any).formatted
-        ) {
-          lastText = (functionResult as any).formatted as string
-          skipModelResponse = true
-          toolCalls = []
-        }
+              for (const toolCall of toolCalls) {
+                // Emit status event BEFORE executing tool
+                const functionName = toolCall.function?.name
+                if (functionName) {
+                  const statusEvent = `data: ${JSON.stringify({
+                    type: 'status',
+                    operation: functionName,
+                    timestamp: Date.now()
+                  })}\n\n`
+                  controller.enqueue(encoder.encode(statusEvent))
+                }
 
-        const serializedResult =
-          typeof functionResult === 'string'
-            ? functionResult
-            : JSON.stringify(
-                functionResult ?? { success: false, error: 'Tool returned no result' }
-              ) || '{"success":false,"error":"Tool returned no result"}'
+                const functionResult = await runToolCall(toolCall)
 
-        openaiMessages.push({
-          role: 'tool',
-          content: serializedResult,
-          tool_call_id: toolCall.id,
-        } as any)
-      }
+                // Short-circuit for player props: if we already have a formatted response, return it without another model pass
+                if (
+                  toolCall.function?.name === 'get_player_props' &&
+                  functionResult &&
+                  typeof functionResult === 'object' &&
+                  'formatted' in functionResult &&
+                  (functionResult as any).formatted
+                ) {
+                  lastText = (functionResult as any).formatted as string
+                  skipModelResponse = true
+                  toolCalls = []
+                }
 
-      if (skipModelResponse) {
-        break
-      }
+                const serializedResult =
+                  typeof functionResult === 'string'
+                    ? functionResult
+                    : JSON.stringify(
+                        functionResult ?? { success: false, error: 'Tool returned no result' }
+                      ) || '{"success":false,"error":"Tool returned no result"}'
 
-      const followup = await openai.chat.completions.create(buildParams())
-      lastText = extractText(followup.choices[0].message.content || followup.choices[0].message)
-      toolCalls = followup.choices[0].message.tool_calls || []
-    }
+                openaiMessages.push({
+                  role: 'tool',
+                  content: serializedResult,
+                  tool_call_id: toolCall.id,
+                } as any)
+              }
 
-    if (handledToolCalls) {
-      const finalText = lastText && lastText.trim().length > 0 ? lastText : 'Done.'
-      return streamTextResponse(finalText)
+              if (skipModelResponse) {
+                break
+              }
+
+              const followup = await openai.chat.completions.create(buildParams())
+              lastText = extractText(followup.choices[0].message.content || followup.choices[0].message)
+              toolCalls = followup.choices[0].message.tool_calls || []
+            }
+
+            // After all tools complete, send final content
+            const finalText = lastText && lastText.trim().length > 0 ? lastText : 'Done.'
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: finalText })}\n\n`))
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+            controller.close()
+
+            // Persist message to database
+            try {
+              if (finalText.trim().length > 0) {
+                await supabase.from('messages').insert({
+                  conversation_id: conversationId,
+                  role: 'assistant',
+                  content: finalText,
+                })
+              }
+
+              const { count: messageCount } = await supabase
+                .from('messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('conversation_id', conversationId)
+
+              if (messageCount === 2) {
+                const title = await generateConversationTitle(message)
+                await supabase
+                  .from('conversations')
+                  .update({ title })
+                  .eq('id', conversationId)
+              }
+            } catch (persistError) {
+              console.error('[CHAT] Failed to persist message/title:', persistError)
+            }
+          } catch (error) {
+            console.error('[CHAT] Tool execution error:', error)
+            controller.error(error)
+          }
+        },
+      })
+
+      return new Response(toolStream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      })
     }
 
     // If GPT-5 and we already have odds tables, short-circuit to a deterministic reply to avoid streaming issues

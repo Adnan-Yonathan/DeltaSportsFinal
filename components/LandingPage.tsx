@@ -238,8 +238,34 @@ function PromoMockSection() {
           </div>
         </div>
 
+        {/* Hero mock */}
+        <div className="text-center py-4 mb-6">
+          <h2 className="text-3xl font-bold text-white mb-3">How can I help you today?</h2>
+          <p className="text-white/80 max-w-2xl mx-auto">
+            Get real-time stats, compare odds, analyze betting lines, track your bankroll,
+            and discover value plays across all major sports.
+          </p>
+          <div className="mt-6 mx-auto max-w-2xl">
+            <div className="rounded-2xl border border-white/15 bg-white/10 p-4 text-left text-white/80">
+              <div className="mb-2 text-sm text-white/70">Message...</div>
+              <div className="flex items-center justify-between text-sm text-white">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-white/25" />
+                  <span className="text-xs bg-white/15 px-2 py-1 rounded">Regular</span>
+                </div>
+                <div className="flex items-center gap-3 text-white/70">
+                  <Mic className="h-4 w-4" />
+                  <span className="rounded-full border border-white/20 px-3 py-1">
+                    <Send className="h-4 w-4" />
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Top performances mock */}
-        <div className="mb-6">
+        <div>
           <div className="text-[11px] uppercase text-white/80 tracking-[0.14em]">Top performances</div>
           <div className="text-sm font-semibold text-white">Recent standout stat lines</div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -262,32 +288,6 @@ function PromoMockSection() {
                 <div className="text-xs text-white/70">{t.rec}</div>
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* Hero mock */}
-        <div className="text-center py-4">
-          <h2 className="text-3xl font-bold text-white mb-3">How can I help you today?</h2>
-          <p className="text-white/80 max-w-2xl mx-auto">
-            Get real-time stats, compare odds, analyze betting lines, track your bankroll,
-            and discover value plays across all major sports.
-          </p>
-          <div className="mt-6 mx-auto max-w-2xl">
-            <div className="rounded-2xl border border-white/15 bg-white/10 p-4 text-left text-white/80">
-              <div className="mb-2 text-sm text-white/70">Message...</div>
-              <div className="flex items-center justify-between text-sm text-white">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-full bg-white/25" />
-                  <span className="text-xs bg-white/15 px-2 py-1 rounded">Regular</span>
-                </div>
-                <div className="flex items-center gap-3 text-white/70">
-                  <Mic className="h-4 w-4" />
-                  <span className="rounded-full border border-white/20 px-3 py-1">
-                    <Send className="h-4 w-4" />
-                  </span>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

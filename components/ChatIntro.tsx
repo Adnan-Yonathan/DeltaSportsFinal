@@ -72,55 +72,94 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
 
   return (
     <div className="flex flex-col items-center justify-center min-h-full bg-black px-4 py-8">
-      <div className="w-full max-w-5xl mx-auto pt-2 mb-12">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center max-w-3xl w-full mb-12"
+      >
+        <h2 className="text-3xl font-bold text-white mb-4">
+          How can I help you today?
+        </h2>
+        <p className="text-sm text-white/60">
+          Ask me anything about sports stats, betting analysis, live scores, player performance,
+          opponent matchups, or historical trends. I understand natural language questions.
+        </p>
+      </motion.div>
+
+      <div className="w-full max-w-5xl mx-auto mb-12">
         <TopPerformancesStrip />
       </div>
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="text-center max-w-3xl w-full"
       >
-        <h2 className="text-3xl font-bold text-white mb-4">
-          How can I help you today?
-        </h2>
-        <p className="text-white/60 mb-8">
-          Ask me anything about sports stats, betting analysis, live scores, player performance,
-          opponent matchups, or historical trends. I understand natural language questions.
-        </p>
-
         <form onSubmit={handleSubmit} className="w-full relative">
           <PromptBox name="message" disabled={sending} />
         </form>
 
-        {/* Example queries */}
-        <div className="mt-8 flex flex-wrap justify-center gap-2">
+        {/* Capabilities */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {[
-            "What's the Thunder's defensive rating?",
-            "How many 40-point games has Luka had?",
-            "Opponents 3pt% vs Celtics",
-            "How do the Lakers do on back-to-backs?",
-          ].map((example) => (
+            {
+              title: "Player Profiles",
+              description: "Access player stats, advanced metrics, and projections vs specific teams",
+              prompt: "how many times has lebron scored 18 points this season?"
+            },
+            {
+              title: "Team Profiles",
+              description: "Get comprehensive team stats, trends, and performance metrics",
+              prompt: "what is the thunders average margin of victory"
+            },
+            {
+              title: "Line Shopping",
+              description: "Compare lines from every major US sportsbook for any sporting event",
+              prompt: "which book has the best spread for the lakers game"
+            },
+            {
+              title: "Edge Factors",
+              description: "Advanced factors with high impact: travel distance, rest records, player matchups",
+              prompt: "what is the knicks record when traveling further than 500 miles?"
+            },
+            {
+              title: "Live Betting",
+              description: "AI-projected live spreads based on game flow, momentum, and in-game factors",
+              prompt: "what is your projected live line in the spurs game?"
+            },
+            {
+              title: "Betting Trends",
+              description: "Recent records vs spreads, prop covers, and public/sharp money splits",
+              prompt: "what is the Celtics record ATS this season?"
+            }
+          ].map((capability) => (
             <button
-              key={example}
+              key={capability.title}
               type="button"
               onClick={() => {
                 const textarea = document.querySelector('textarea')
                 if (textarea) {
-                  textarea.value = example
+                  textarea.value = capability.prompt
                   textarea.focus()
                 }
               }}
-              className="px-3 py-1.5 text-xs text-white/60 bg-white/5 hover:bg-white/10 rounded-full border border-white/10 transition-colors"
+              className="group text-left p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-emerald-500/30 transition-all"
             >
-              {example}
+              <h3 className="text-sm font-semibold text-white mb-1 group-hover:text-emerald-400 transition-colors">
+                {capability.title}
+              </h3>
+              <p className="text-xs text-white/60 leading-relaxed">
+                {capability.description}
+              </p>
             </button>
           ))}
         </div>
 
-        <div className="mt-24 space-y-16">
-          <LatestNewsStrip />
-        </div>
       </motion.div>
+
+      <div className="mt-8 w-full">
+        <LatestNewsStrip />
+      </div>
     </div>
   )
 }

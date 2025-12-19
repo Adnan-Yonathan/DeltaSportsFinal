@@ -8,7 +8,7 @@ import ModernMessageList from '@/components/ModernMessageList'
 import ModernMessageInput from '@/components/ModernMessageInput'
 import { LiveScoresPreview } from '@/components/LiveScoresPreview'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Home, Image as ImageIcon, Radio, Activity, Gift } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Home, Image as ImageIcon, Radio, Activity, Gift, ChevronLeft, ChevronRight } from 'lucide-react'
 
 export default function ChatPage() {
   const [user, setUser] = useState<any>(null)
@@ -17,7 +17,9 @@ export default function ChatPage() {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [hasMessages, setHasMessages] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const [liveScoresOpen, setLiveScoresOpen] = useState(false)
+  const [liveScoresExpanded, setLiveScoresExpanded] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const router = useRouter()
   const supabase = createClient()
@@ -295,32 +297,61 @@ export default function ChatPage() {
           )}
         </AnimatePresence>
 
-        {/* Desktop Sidebar */}
-        <div className="hidden lg:flex lg:w-1/5 flex-col border-r border-[#1f1f1f]">
-          <div className="flex-1 overflow-hidden">
-            <ModernSidebar
-              userId={user?.id}
-              currentConversationId={currentConversationId}
-              onConversationSelect={setCurrentConversationId}
-              onNewConversation={handleNewConversation}
-            />
-          </div>
-          <div className="border-t border-[#1f1f1f] p-4">
+        {/* Desktop Sidebar - Collapsible */}
+        <div className={`hidden lg:flex lg:flex-col border-r border-[#1f1f1f] transition-all duration-300 ${
+          sidebarExpanded ? 'lg:w-1/5' : 'lg:w-12'
+        }`}>
+          {sidebarExpanded ? (
+            <>
+              <div className="flex items-center justify-between p-3 border-b border-[#1f1f1f]">
+                <div className="flex items-center gap-2">
+                  <Menu className="w-4 h-4 text-emerald-400" />
+                  <span className="text-sm font-semibold text-white">Chat History</span>
+                </div>
+                <button
+                  onClick={() => setSidebarExpanded(false)}
+                  className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                  aria-label="Collapse sidebar"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <ModernSidebar
+                  userId={user?.id}
+                  currentConversationId={currentConversationId}
+                  onConversationSelect={setCurrentConversationId}
+                  onNewConversation={handleNewConversation}
+                />
+              </div>
+              <div className="border-t border-[#1f1f1f] p-4">
+                <button
+                  type="button"
+                  onClick={scrollToSavedModels}
+                  className="flex w-full items-center justify-center gap-2 rounded-full bg-[#34d399] text-[#0f1f15] px-4 py-2 text-sm font-semibold shadow-lg shadow-[#34d399]/30 transition hover:bg-[#16a34a]"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Saved Models
+                </button>
+              </div>
+            </>
+          ) : (
             <button
-              type="button"
-              onClick={scrollToSavedModels}
-              className="flex w-full items-center justify-center gap-2 rounded-full bg-[#34d399] text-[#0f1f15] px-4 py-2 text-sm font-semibold shadow-lg shadow-[#34d399]/30 transition hover:bg-[#16a34a]"
+              onClick={() => setSidebarExpanded(true)}
+              className="flex flex-col items-center justify-center h-full hover:bg-white/5 transition-colors cursor-pointer group"
+              aria-label="Expand sidebar"
             >
-              <Sparkles className="w-4 h-4" />
-              Saved Models
+              <div className="-rotate-90 whitespace-nowrap text-xs text-white/40 group-hover:text-white/60 uppercase tracking-wide transition-colors">
+                Chat History
+              </div>
             </button>
-          </div>
+          )}
         </div>
 
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Header */}
-          <div className="bg-black/80 backdrop-blur-xl border-b border-[#1f1f1f] px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+          {/* Header - Full Width */}
+          <div className="w-full bg-black/80 backdrop-blur-xl border-b border-[#1f1f1f] px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
             <div className="flex items-center gap-2 sm:gap-3">
               {/* Mobile Menu Button */}
               <button
@@ -384,7 +415,7 @@ export default function ChatPage() {
               <div className="relative" ref={profileMenuRef}>
                 <button
                   onClick={() => setProfileMenuOpen((prev) => !prev)}
-                      className="h-10 w-10 rounded-full border border-[#2a2a2a] hover:border-white/60 overflow-hidden transition-colors"
+                  className="h-10 w-10 rounded-full border border-[#2a2a2a] hover:border-white/60 overflow-hidden transition-colors"
                   aria-label="Profile menu"
                 >
                   {profileImage ? (
@@ -438,51 +469,87 @@ export default function ChatPage() {
             </div>
           </div>
 
-          {/* Messages Area */}
-          <div className="flex-1 overflow-hidden">
-            {currentConversationId ? (
-              <ModernMessageList
-                conversationId={currentConversationId}
-                userId={user?.id}
-                onMessagesChange={setHasMessages}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full bg-[#4E4E4E] px-4">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-center"
-                >
-                  <motion.div
-                    animate={{ rotate: [0, 10, -10, 0] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    className="text-4xl sm:text-6xl mb-4"
-                  >
-                    <Sparkles className="w-10 h-10 sm:w-12 sm:h-12 text-[#34d399]" />
-                  </motion.div>
-                  <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-                    Welcome to DELTA
-                  </h2>
-                  <p className="text-white/60 text-sm sm:text-base">
-                    Your intelligent sports betting assistant
-                  </p>
-                </motion.div>
+          {/* Centered Content Area */}
+          <div className="flex-1 flex flex-col items-center overflow-hidden">
+            <div className="w-full max-w-5xl flex flex-col h-full">
+              {/* Messages Area */}
+              <div className="flex-1 overflow-hidden">
+                {currentConversationId ? (
+                  <ModernMessageList
+                    conversationId={currentConversationId}
+                    userId={user?.id}
+                    onMessagesChange={setHasMessages}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full bg-[#4E4E4E] px-4">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-center"
+                    >
+                      <motion.div
+                        animate={{ rotate: [0, 10, -10, 0] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                        className="text-4xl sm:text-6xl mb-4"
+                      >
+                        <Sparkles className="w-10 h-10 sm:w-12 sm:h-12 text-[#34d399]" />
+                      </motion.div>
+                      <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">
+                        Welcome to DELTA
+                      </h2>
+                      <p className="text-white/60 text-sm sm:text-base">
+                        Your intelligent sports betting assistant
+                      </p>
+                    </motion.div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Message Input */}
-          {currentConversationId && hasMessages && (
-            <ModernMessageInput
-              conversationId={currentConversationId}
-              userId={user?.id}
-            />
-          )}
+              {/* Message Input */}
+              {currentConversationId && hasMessages && (
+                <ModernMessageInput
+                  conversationId={currentConversationId}
+                  userId={user?.id}
+                />
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Desktop Live Scores Preview */}
-        <div className="hidden lg:block lg:w-1/4">
-          <LiveScoresPreview variant="chat" />
+        {/* Desktop Live Scores Preview - Collapsible */}
+        <div className={`hidden lg:flex lg:flex-col border-l border-[#1f1f1f] transition-all duration-300 ${
+          liveScoresExpanded ? 'lg:w-1/4' : 'lg:w-12'
+        }`}>
+          {liveScoresExpanded ? (
+            <>
+              <div className="flex items-center justify-between p-3 border-b border-[#1f1f1f]">
+                <div className="flex items-center gap-2">
+                  <Radio className="w-4 h-4 text-emerald-400" />
+                  <span className="text-sm font-semibold text-white">Live Scores</span>
+                </div>
+                <button
+                  onClick={() => setLiveScoresExpanded(false)}
+                  className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                  aria-label="Collapse live scores"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <LiveScoresPreview variant="chat" />
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={() => setLiveScoresExpanded(true)}
+              className="flex flex-col items-center justify-center h-full hover:bg-white/5 transition-colors cursor-pointer group"
+              aria-label="Expand live scores"
+            >
+              <div className="-rotate-90 whitespace-nowrap text-xs text-white/40 group-hover:text-white/60 uppercase tracking-wide transition-colors">
+                Live Scores
+              </div>
+            </button>
+          )}
         </div>
 
         {/* Mobile Live Scores Modal */}

@@ -214,9 +214,11 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
                 const dataStr = line.slice(6)
                 try {
                   const data = JSON.parse(dataStr)
+                  console.log('[ModernMessageInput] Received SSE event:', data)
 
                   // Handle status events for dynamic operation messages
                   if (data.type === 'status' && data.operation) {
+                    console.log('[ModernMessageInput] Dispatching operation change:', data.operation)
                     // Dispatch custom event for ModernMessageList to listen to
                     const event = new CustomEvent('chat-operation-change', {
                       detail: { operation: data.operation }

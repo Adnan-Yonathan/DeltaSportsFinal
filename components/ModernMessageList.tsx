@@ -79,12 +79,15 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
   // Listen for operation changes
   useEffect(() => {
     const handleOperationChange = (event: CustomEvent<{ operation: string }>) => {
+      console.log('[ModernMessageList] Received operation change:', event.detail.operation)
       setCurrentOperation(event.detail.operation)
     }
 
+    console.log('[ModernMessageList] Setting up operation change listener')
     window.addEventListener('chat-operation-change', handleOperationChange as EventListener)
 
     return () => {
+      console.log('[ModernMessageList] Removing operation change listener')
       window.removeEventListener('chat-operation-change', handleOperationChange as EventListener)
     }
   }, [])
@@ -92,9 +95,15 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
   // Reset operation when thinking stops
   useEffect(() => {
     if (!isThinking) {
+      console.log('[ModernMessageList] Thinking stopped, resetting operation')
       setCurrentOperation(null)
     }
   }, [isThinking])
+
+  // Log current operation changes
+  useEffect(() => {
+    console.log('[ModernMessageList] Current operation changed to:', currentOperation)
+  }, [currentOperation])
 
   const loadMessages = async () => {
     setLoading(true)

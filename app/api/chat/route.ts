@@ -5514,6 +5514,7 @@ ${statsEnrichment}
                 // Emit status event BEFORE executing tool
                 const functionName = toolCall.function?.name
                 if (functionName) {
+                  console.log('[CHAT] Emitting status event for operation:', functionName)
                   const statusEvent = `data: ${JSON.stringify({
                     type: 'status',
                     operation: functionName,

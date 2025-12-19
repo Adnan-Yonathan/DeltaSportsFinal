@@ -4489,6 +4489,10 @@ ${statsEnrichment}
   let initialResponse = await openai.chat.completions.create(buildParams())
   console.log('[PERF][LLM][INITIAL_MS]', Date.now() - llmInitialStart)
     let toolCalls = initialResponse.choices[0].message.tool_calls || []
+    console.log('[CHAT] Initial LLM response - tool_calls:', toolCalls?.length || 0, 'tools')
+    if (toolCalls && toolCalls.length > 0) {
+      console.log('[CHAT] Tool names:', toolCalls.map((tc: any) => tc.function?.name).join(', '))
+    }
 
     const withTimeout = <T>(p: Promise<T>, ms = 8000) =>
       Promise.race<T>([
@@ -5488,6 +5492,8 @@ ${statsEnrichment}
     }
 
     console.log('[CHAT] After propIntent check, continuing to tool calls')
+    console.log('[CHAT] toolCalls value:', toolCalls)
+    console.log('[CHAT] toolCalls length:', toolCalls?.length)
     let handledToolCalls = false
     let lastText = initialResponse.choices[0].message.content || ''
 
@@ -5495,6 +5501,7 @@ ${statsEnrichment}
 
     // If we have tool calls, handle them with status streaming
     if (toolCalls && toolCalls.length > 0) {
+      console.log('[CHAT] ENTERING TOOL EXECUTION STREAM - Tool count:', toolCalls.length)
       const encoder = new TextEncoder()
 
       const toolStream = new ReadableStream({

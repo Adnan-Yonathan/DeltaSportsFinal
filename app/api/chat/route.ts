@@ -2101,19 +2101,35 @@ export async function POST(req: NextRequest) {
 
           console.log('[UNIFIED] Successfully processed, tools used:', unifiedResult.toolsUsed)
 
-          // Return streaming response
+          // Return streaming response with status events for tools that were used
           const encoder = new TextEncoder()
           const stream = new ReadableStream({
             start(controller) {
-              controller.enqueue(encoder.encode(unifiedResult.reply))
+              // Emit status events for each tool that was used
+              if (unifiedResult.toolsUsed && Array.isArray(unifiedResult.toolsUsed)) {
+                for (const toolName of unifiedResult.toolsUsed) {
+                  console.log('[UNIFIED] Emitting status event for tool:', toolName)
+                  const statusEvent = `data: ${JSON.stringify({
+                    type: 'status',
+                    operation: toolName,
+                    timestamp: Date.now()
+                  })}\n\n`
+                  controller.enqueue(encoder.encode(statusEvent))
+                }
+              }
+
+              // Emit the final content
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: unifiedResult.reply })}\n\n`))
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'))
               controller.close()
             },
           })
 
           return new Response(stream, {
             headers: {
-              'Content-Type': 'text/plain; charset=utf-8',
+              'Content-Type': 'text/event-stream',
               'Cache-Control': 'no-cache',
+              Connection: 'keep-alive',
             },
           })
         }

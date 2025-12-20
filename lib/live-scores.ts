@@ -634,13 +634,19 @@ const getPeriodLabel = (league: LeagueId, index: number) => {
 
 export async function fetchGameDetails(league: LeagueId, eventId: string): Promise<LiveScoreGameDetails> {
   const config = getLeagueConfig(league)
-  const url = `${ESPN_BASE_URL}/${config.sport}/${config.league}/summary?event=${eventId}`
+  // Strip league prefix if present (e.g., "nba-401810240" -> "401810240")
+  const cleanEventId = eventId.replace(/^[a-z]+-/i, '')
+  const url = `${ESPN_BASE_URL}/${config.sport}/${config.league}/summary?event=${cleanEventId}`
+
+  console.log('[LIVE_PROJECTION] Fetching game details:', { eventId, cleanEventId, url })
+
   const response = await fetch(url, {
     cache: "no-store",
   } as NextFetchInit)
 
   if (!response.ok) {
-    throw new Error(`Unable to fetch summary for event ${eventId}`)
+    console.error('[LIVE_PROJECTION] ESPN API error:', response.status, response.statusText)
+    throw new Error(`Unable to fetch summary for event ${eventId} (status: ${response.status})`)
   }
 
   const data = await response.json()

@@ -3230,7 +3230,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Player vs opponent aggregate (season)
-    if (playerNameInMessage && vsOpponentIntent) {
+    if (playerNameInMessage && vsOpponentIntent && !isProjectionQuery) {
       const opponentName = vsOpponentIntent[1]
       const sportGuess =
         msgLower.match(/nfl|football/) ? 'nfl' :

@@ -2341,18 +2341,34 @@ export async function POST(req: NextRequest) {
       const beforeVs = message.substring(0, vsIndex)
       const afterVs = message.substring(vsIndex)
 
+      console.log('[DEBUG] VS parsing:', { vsIndex, beforeVs: beforeVs.slice(-30), afterVs: afterVs.slice(0, 30) })
+
       // Extract up to 3 words before "vs" (from the end), filtering out common non-team words
       const team1Raw = beforeVs.match(/([a-z]+(?:\s+[a-z.'&-]+){0,2})$/i)?.[1] || ''
-      const team2Raw = afterVs.match(/^(?:vs\.?|v\.?|@)\s+([a-z]+(?:\s+[a-z.'&-]+){0,2})(?=\s+(?:game|match|tonight|today|tomorrow|in|at|on|for|and|or|the|versus)\b|[?!.]|$)/i)?.[1] || ''
+      // Simplified team2 pattern - just capture words after "vs" without restrictive lookahead
+      const team2Raw = afterVs.match(/^\s*(?:vs\.?|v\.?|@)\s+([a-z]+(?:\s+[a-z.'&-]+){0,2})/i)?.[1] || ''
 
       console.log('[DEBUG] Raw team matches:', { team1Raw, team2Raw })
 
       if (!team1Raw || !team2Raw) return []
 
-      // Remove common leading/trailing words that aren't part of team names
-      const stopWords = /^(the|in|at|on|for|with|against|versus|vs)\s+|\s+(game|match|tonight|today|tomorrow|in|at|on)$/gi
-      const team1Clean = team1Raw.replace(stopWords, '').trim()
-      const team2Clean = team2Raw.replace(stopWords, '').trim()
+      // Remove common leading/trailing words that aren't part of team names (iteratively)
+      const cleanTeamName = (name: string): string => {
+        let cleaned = name.trim()
+        let prevCleaned = ''
+        // Keep removing stop words until no more changes
+        while (cleaned !== prevCleaned) {
+          prevCleaned = cleaned
+          cleaned = cleaned
+            .replace(/^(the|in|at|on|for|with|against|versus|vs)\s+/i, '')
+            .replace(/\s+(game|match|tonight|today|tomorrow|in|at|on)$/i, '')
+            .trim()
+        }
+        return cleaned
+      }
+
+      const team1Clean = cleanTeamName(team1Raw)
+      const team2Clean = cleanTeamName(team2Raw)
 
       console.log('[DEBUG] Cleaned teams:', { team1Clean, team2Clean })
 

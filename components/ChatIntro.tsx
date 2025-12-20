@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
 import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
 import { TopPerformancesStrip } from '@/components/ui/top-performances'
+import { AnimatedHero } from '@/components/ui/animated-hero'
 
 interface ChatIntroProps {
   conversationId: string
@@ -77,13 +78,10 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
         animate={{ opacity: 1, y: 0 }}
         className="text-center max-w-3xl w-full mb-12"
       >
-        <h2 className="text-3xl font-bold text-white mb-4">
-          How can I help you today?
-        </h2>
-        <p className="text-sm text-white/60">
-          Ask me anything about sports stats, betting analysis, live scores, player performance,
-          opponent matchups, or historical trends. I understand natural language questions.
-        </p>
+        <AnimatedHero
+          staticText="How can I help you with"
+          interval={2500}
+        />
       </motion.div>
 
       <div className="w-full max-w-5xl mx-auto mb-12">

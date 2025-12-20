@@ -7,6 +7,7 @@ import ModernSidebar from '@/components/ModernSidebar'
 import ModernMessageList from '@/components/ModernMessageList'
 import ModernMessageInput from '@/components/ModernMessageInput'
 import { LiveScoresPreview } from '@/components/LiveScoresPreview'
+import { AnimatedHero } from '@/components/ui/animated-hero'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LogOut, Menu, X, Sparkles, Home, Image as ImageIcon, Radio, Activity, Gift, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -490,14 +491,15 @@ export default function ChatPage() {
                       <motion.div
                         animate={{ rotate: [0, 10, -10, 0] }}
                         transition={{ duration: 2, repeat: Infinity }}
-                        className="text-4xl sm:text-6xl mb-4"
+                        className="text-4xl sm:text-6xl mb-6"
                       >
-                        <Sparkles className="w-10 h-10 sm:w-12 sm:h-12 text-[#34d399]" />
+                        <Sparkles className="w-10 h-10 sm:w-12 sm:h-12 text-[#34d399] mx-auto" />
                       </motion.div>
-                      <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-                        Welcome to DELTA
-                      </h2>
-                      <p className="text-white/60 text-sm sm:text-base">
+                      <AnimatedHero
+                        staticText="Welcome to DELTA"
+                        interval={2500}
+                      />
+                      <p className="text-white/60 text-sm sm:text-base mt-4">
                         Your intelligent sports betting assistant
                       </p>
                     </motion.div>

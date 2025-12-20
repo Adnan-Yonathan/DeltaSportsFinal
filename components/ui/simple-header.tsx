@@ -2,6 +2,7 @@
 
 import React from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { Grid2x2PlusIcon } from "lucide-react"
 import { Sheet, SheetContent, SheetFooter } from "@/components/ui/sheet"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -19,13 +20,19 @@ export function SimpleHeader() {
 
   return (
     <header className="sticky top-4 z-50 w-full">
-      <nav className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between rounded-full border border-white/15 bg-[#4E4E4E] px-4 backdrop-blur supports-[backdrop-filter]:bg-[#4E4E4E]/90 text-white">
+      <nav className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between rounded-full border border-white/15 bg-black px-4 backdrop-blur supports-[backdrop-filter]:bg-black/90 text-white">
         <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-3 text-white">
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/20 text-white shadow">
-              <Grid2x2PlusIcon className="h-5 w-5" />
+          <Link href="/" className="flex items-center gap-2 text-white">
+            <div className="relative h-8 w-8">
+              <Image
+                src="/Screenshot 2025-12-20 140455.png"
+                alt="Delta Sports Logo"
+                fill
+                className="object-contain"
+                priority
+              />
             </div>
-            <p className="font-jakarta text-lg font-semibold">Delta AI</p>
+            <p className="font-jakarta text-lg font-semibold">Delta Sports</p>
           </Link>
         </div>
 
@@ -48,7 +55,7 @@ export function SimpleHeader() {
         </div>
 
         <Sheet open={open} onOpenChange={setOpen}>
-          <Button size="icon" variant="outline" className="lg:hidden bg-[#4E4E4E] text-white border border-white/20 hover:bg-[#5a5a5a]" onClick={() => setOpen(!open)}>
+          <Button size="icon" variant="outline" className="lg:hidden bg-black text-white border border-white/20 hover:bg-white/10" onClick={() => setOpen(!open)}>
             <MenuToggle
               strokeWidth={2.5}
               open={open}
@@ -57,7 +64,7 @@ export function SimpleHeader() {
             />
           </Button>
           <SheetContent
-            className="bg-[#4E4E4E]/95 supports-[backdrop-filter]:bg-[#4E4E4E]/90 gap-0 backdrop-blur text-white"
+            className="bg-black/95 supports-[backdrop-filter]:bg-black/90 gap-0 backdrop-blur text-white"
             showClose={false}
             side="left"
           >

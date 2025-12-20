@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, ChangeEvent } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import ModernSidebar from '@/components/ModernSidebar'
 import ModernMessageList from '@/components/ModernMessageList'
 import ModernMessageInput from '@/components/ModernMessageInput'
@@ -371,9 +372,14 @@ export default function ChatPage() {
                 <Home className="w-5 h-5" />
               </button>
 
-              <div>
-                <h1 className="text-base sm:text-xl font-bold text-white">DELTA</h1>
-                <p className="text-xs text-white/40 hidden sm:block">Intelligent Sports Betting Assistant</p>
+              <div className="relative h-6 w-6 sm:h-8 sm:w-8">
+                <Image
+                  src="/Screenshot 2025-12-20 140455.png"
+                  alt="Delta AI Logo"
+                  fill
+                  className="object-contain"
+                  priority
+                />
               </div>
             </div>
 

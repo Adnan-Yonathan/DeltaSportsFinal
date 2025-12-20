@@ -99,14 +99,23 @@ export const toolResolvers: Record<string, Resolver> = {
 
     console.log('[LIVE_PROJECTION] Teams found:', { home: homeTeam.name, away: awayTeam.name })
 
-    const homeStats = await getTeamStats('basketball_nba', homeTeam.name)
-    const awayStats = await getTeamStats('basketball_nba', awayTeam.name)
+    const homeStats = await getTeamStats(homeTeam.name)
+    const awayStats = await getTeamStats(awayTeam.name)
 
-    console.log('[LIVE_PROJECTION] Stats fetched, calculating projections...')
+    console.log('[LIVE_PROJECTION] Stats fetched:', {
+      homeStats: homeStats ? 'OK' : 'null',
+      awayStats: awayStats ? 'OK' : 'null'
+    })
+
+    if (!homeStats || !awayStats) {
+      throw new Error(`Could not fetch team stats. Home: ${homeStats ? 'OK' : 'MISSING'}, Away: ${awayStats ? 'OK' : 'MISSING'}`)
+    }
+
+    console.log('[LIVE_PROJECTION] Calculating projections...')
 
     // Calculate live spread and total
-    const liveSpread = calculateLiveSpread(gameState, homeStats[0]?.stats, awayStats[0]?.stats)
-    const liveTotal = calculateLiveTotal(gameState, homeStats[0]?.stats, awayStats[0]?.stats)
+    const liveSpread = calculateLiveSpread(gameState, homeStats, awayStats)
+    const liveTotal = calculateLiveTotal(gameState, homeStats, awayStats)
 
     console.log('[LIVE_PROJECTION] Projections calculated:', { liveSpread, liveTotal })
 

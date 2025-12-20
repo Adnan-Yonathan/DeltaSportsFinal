@@ -97,19 +97,25 @@ export const toolResolvers: Record<string, Resolver> = {
       throw new Error('Could not find home/away teams in game data')
     }
 
-    const homeStats = await getTeamStats('basketball_nba', homeTeam.team.displayName)
-    const awayStats = await getTeamStats('basketball_nba', awayTeam.team.displayName)
+    console.log('[LIVE_PROJECTION] Teams found:', { home: homeTeam.name, away: awayTeam.name })
+
+    const homeStats = await getTeamStats('basketball_nba', homeTeam.name)
+    const awayStats = await getTeamStats('basketball_nba', awayTeam.name)
+
+    console.log('[LIVE_PROJECTION] Stats fetched, calculating projections...')
 
     // Calculate live spread and total
     const liveSpread = calculateLiveSpread(gameState, homeStats[0]?.stats, awayStats[0]?.stats)
     const liveTotal = calculateLiveTotal(gameState, homeStats[0]?.stats, awayStats[0]?.stats)
 
+    console.log('[LIVE_PROJECTION] Projections calculated:', { liveSpread, liveTotal })
+
     return formatLiveRecommendation({
       gameState,
       liveSpread,
       liveTotal,
-      homeTeam: homeTeam.team.displayName,
-      awayTeam: awayTeam.team.displayName,
+      homeTeam: homeTeam.name,
+      awayTeam: awayTeam.name,
     })
   },
 }

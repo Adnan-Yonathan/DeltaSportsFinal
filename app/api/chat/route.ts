@@ -3393,6 +3393,7 @@ export async function POST(req: NextRequest) {
       !intent.ats &&
       !intent.oddsRecord &&
       !intent.pastPerformances &&
+      !isProjectionQuery &&
       explicitMatchup
 
     if ((intent.ats || intent.oddsRecord || intent.pastPerformances || intent.futures) && (mentionedTeams.length || parsedMatchupTeams.length)) {

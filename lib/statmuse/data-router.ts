@@ -548,7 +548,9 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
       }
 
       case 'get_live_betting_projection': {
+        console.log('[LIVE_PROJECTION] TOOL CALLED - Starting execution')
         const { gameIdentifier } = args as { gameIdentifier: string }
+        console.log('[LIVE_PROJECTION] Args received:', args)
 
         // Parse team names from gameIdentifier (e.g., "Spurs Hawks", "Lakers vs Celtics")
         const teamTokens = gameIdentifier

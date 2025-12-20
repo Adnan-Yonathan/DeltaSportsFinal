@@ -421,6 +421,28 @@ Supports points, rebounds, assists, threes, and PRA (points+rebounds+assists).`,
       }
     }
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_live_betting_projection',
+      description: `Project live betting lines (spread/total) for an IN-PROGRESS NBA game based on current game state, momentum, and team performance. Analyzes live score, game flow, team stats, pace, and execution to calculate what the live spread SHOULD be. Use ONLY when users ask about:
+- "What's your projected live line for [team] game?"
+- "Live spread projection for [team] vs [team]"
+- "What should the live line be for the [team] game?"
+- "Live betting projection for [matchup]"
+Returns projected live spread with confidence level and supporting factors like current score, momentum, team performance relative to expectations.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          gameIdentifier: {
+            type: 'string',
+            description: 'Team names for the live game (e.g., "Spurs Hawks", "Lakers vs Celtics", "Warriors")'
+          }
+        },
+        required: ['gameIdentifier']
+      }
+    }
+  },
 
   // ========================================
   // SCHEDULE/CONTEXT TOOLS

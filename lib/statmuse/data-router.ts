@@ -547,6 +547,121 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
         break
       }
 
+      case 'get_live_betting_projection': {
+        const { gameIdentifier } = args as { gameIdentifier: string }
+
+        // Parse team names from gameIdentifier (e.g., "Spurs Hawks", "Lakers vs Celtics")
+        const teamTokens = gameIdentifier
+          .toLowerCase()
+          .replace(/\bvs\b|\bat\b/g, ' ')
+          .split(/\s+/)
+          .filter((t) => t.length > 2)
+
+        // Fetch all live NBA games
+        const today = new Date().toISOString().slice(0, 10)
+        const allGames = await fetchAllLiveScores({ date: today })
+        const nbaGames = allGames.games.filter((g) => g.league === 'nba')
+
+        // Find matching live game
+        const matchingGame = nbaGames.find((g) => {
+          const competitors = g.competitors || []
+          return teamTokens.some((token) =>
+            competitors.some(
+              (c) =>
+                c.name?.toLowerCase().includes(token) ||
+                c.abbreviation?.toLowerCase().includes(token) ||
+                c.shortName?.toLowerCase().includes(token)
+            )
+          )
+        })
+
+        if (!matchingGame) {
+          const availableGames = nbaGames
+            .map((g) => {
+              const home = g.competitors?.find((c) => c.homeAway === 'home')
+              const away = g.competitors?.find((c) => c.homeAway === 'away')
+              return `${away?.name} @ ${home?.name}`
+            })
+            .join(', ')
+          result = {
+            error: `No live NBA game found matching "${gameIdentifier}". ${
+              availableGames ? `Available live games: ${availableGames}` : 'No live games currently.'
+            }`,
+          }
+          break
+        }
+
+        // Get full game details
+        const liveGame = await fetchGameDetails('nba', matchingGame.id)
+
+        if (!liveGame) {
+          result = { error: `Could not fetch detailed data for game ${matchingGame.id}` }
+          break
+        }
+
+        // Analyze momentum
+        const gameState = await analyzeLiveGame(liveGame)
+
+        // Get team stats
+        const homeTeam = liveGame.teams.find((t) => t.homeAway === 'home')
+        const awayTeam = liveGame.teams.find((t) => t.homeAway === 'away')
+
+        if (!homeTeam || !awayTeam) {
+          result = { error: 'Could not find home/away teams in game data' }
+          break
+        }
+
+        const homeStats = await getTeamStats(homeTeam.name || '')
+        const awayStats = await getTeamStats(awayTeam.name || '')
+
+        if (!homeStats || !awayStats) {
+          result = { error: 'Could not load team stats for analysis' }
+          break
+        }
+
+        // Calculate live spread projection
+        const spreadRec = calculateLiveSpread(gameState, { homeStats, awayStats })
+        const spreadFormatted = formatLiveRecommendation(spreadRec, gameState)
+
+        // Calculate live total projection
+        const totalRec = calculateLiveTotal(gameState, { homeStats, awayStats })
+        const totalFormatted = formatLiveRecommendation(totalRec, gameState)
+
+        // Format for LLM
+        result = {
+          gameIdentifier,
+          matchup: `${awayTeam.name} @ ${homeTeam.name}`,
+          gameState: {
+            score: `${gameState.awayTeam} ${gameState.awayScore} - ${gameState.homeScore} ${gameState.homeTeam}`,
+            period: `Q${gameState.period} ${gameState.displayClock}`,
+            timeRemaining: gameState.timeRemaining,
+          },
+          teamStats: {
+            [homeTeam.name || 'Home']: {
+              net: (homeStats.ortg - homeStats.drtg).toFixed(1),
+              offensiveRating: homeStats.ortg.toFixed(1),
+              defensiveRating: homeStats.drtg.toFixed(1),
+              pace: homeStats.pace.toFixed(1),
+              trueShootingPct: homeStats.ts?.toFixed(3) || 'N/A',
+              effectiveFieldGoalPct: homeStats.eFG?.toFixed(3) || 'N/A',
+            },
+            [awayTeam.name || 'Away']: {
+              net: (awayStats.ortg - awayStats.drtg).toFixed(1),
+              offensiveRating: awayStats.ortg.toFixed(1),
+              defensiveRating: awayStats.drtg.toFixed(1),
+              pace: awayStats.pace.toFixed(1),
+              trueShootingPct: awayStats.ts?.toFixed(3) || 'N/A',
+              effectiveFieldGoalPct: awayStats.eFG?.toFixed(3) || 'N/A',
+            },
+          },
+          projections: {
+            spread: spreadFormatted,
+            total: totalFormatted,
+          },
+        }
+        break
+      }
+
       case 'getLiveBettingRecommendation': {
         const { league, eventId, betType = 'both' } = args as {
           league: string

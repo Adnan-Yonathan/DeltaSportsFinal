@@ -1259,6 +1259,14 @@ const getSystemPrompt = (timezone: string) => `You are DELTA, a professional spo
 - Stats: use ESPN-derived data we fetch (box scores, season averages, injuries, standings). Advanced pace/usage/DvP/snap-share/xG are NOT available; do not invent them.
 - If a query mixes betting + stats, pull odds from odds-api and stats from ESPN, then synthesize with reasoning.
 
+**CRITICAL - Live Betting Projections:**
+When users ask "what is your projected live line" or "what should the live line be" for an in-progress game:
+- Use ONLY the get_live_betting_projection tool
+- Do NOT call any odds-api functions or fetch current market lines
+- This tool calculates what the line SHOULD be based on game state, NOT what sportsbooks are currently offering
+- The tool uses ESPN for live game data and Basketball Reference season stats only
+- Present the projection without comparing to actual market odds
+
 **What ESPN actually provides (use only these):**
 - NBA: season averages (PTS/REB/AST/FG%/3P%), box-score lines, minutes, injuries, team records. No usage, pace, DvP, potential assists, or rebounding chances.
 - NFL: pass/rush/receiving yards, attempts/receptions/TDs/INTs, completions/attempts, basic injuries and team scoring/allowed. No snap share, routes, advanced coverage/OL data.
@@ -2076,7 +2084,9 @@ export async function POST(req: NextRequest) {
        !/\b(betting|public)\s+(split|splits|percentage)\b/i.test(message) &&
        !/\b(sharp|smart)\s+(money|action)\b/i.test(message)) ||
       /\b(create model|run model|save model|research model)\b/i.test(message) ||
-      /\b(tonight|today|tomorrow).*\b(odds|lines|games)\b/i.test(message)
+      /\b(tonight|today|tomorrow).*\b(odds|lines|games)\b/i.test(message) ||
+      /\b(projected?|projection)(\s+live)?(\s+betting)?(\s+(line|spread|total|moneyline))/i.test(message) ||
+      /\blive\s+(betting\s+)?(projected?|projection)/i.test(message)
     )
 
     // Debug logging for pattern matching
@@ -2324,9 +2334,20 @@ export async function POST(req: NextRequest) {
     const mentionedTeams = extractTeamNames(msgLower)
     console.log('[DEBUG] Mentioned teams detected:', mentionedTeams)
     const parsedMatchupTeams = (() => {
-      const m = message.match(/([a-zA-Z][a-zA-Z\s.&'-]+?)\s+(?:vs\.?|v\.?|@)\s+([a-zA-Z][a-zA-Z\s.&'-]+)/i)
-      if (!m) return []
-      return normalizeTeamList([m[1], m[2]])
+      // Find "vs" pattern and extract team names immediately around it (max 3 words each)
+      const vsIndex = message.search(/\s+(?:vs\.?|v\.?|@)\s+/i)
+      if (vsIndex < 0) return []
+
+      const beforeVs = message.substring(0, vsIndex)
+      const afterVs = message.substring(vsIndex)
+
+      // Extract up to 3 words before "vs" (from the end)
+      const team1Match = beforeVs.match(/([a-z]+(?:\s+[a-z.'&-]+){0,2})$/i)
+      // Extract up to 3 words after "vs" (stopping at common non-team words)
+      const team2Match = afterVs.match(/^(?:vs\.?|v\.?|@)\s+([a-z]+(?:\s+[a-z.'&-]+){0,2})(?=\s+(?:game|match|tonight|today|tomorrow|in|at|on|$)|$)/i)
+
+      if (!team1Match || !team2Match) return []
+      return normalizeTeamList([team1Match[1], team2Match[1]])
     })()
     if (parsedMatchupTeams.length) {
       console.log('[DEBUG] Parsed matchup teams:', parsedMatchupTeams)

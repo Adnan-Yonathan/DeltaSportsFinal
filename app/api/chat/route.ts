@@ -2770,7 +2770,8 @@ export async function POST(req: NextRequest) {
     const playerGameStatsIntent =
       Boolean(playerNameInMessage) &&
       /\b(stat line|box score|game stats?|how many|line vs|stats?\s+vs)\b/i.test(msgLower) &&
-      (/\bvs\b|against|@/i.test(msgLower) || /\b\d{1,2}\/\d{1,2}\b/.test(msgLower) || /\blast\s+(night|game)\b/i.test(msgLower))
+      (/\bvs\b|against|@/i.test(msgLower) || /\b\d{1,2}\/\d{1,2}\b/.test(msgLower) || /\blast\s+(night|game)\b/i.test(msgLower)) &&
+      !isProjectionQuery
     const netRatingIntent = /\bnet rating|net rtg\b/i.test(msgLower) || (/\b(o|d)rtg\b/i.test(msgLower) && mentionedTeams.length >= 2)
     const compareTeamsIntent = (/\bcompare\b/i.test(msgLower) || /\bvs\b|\bversus\b/i.test(msgLower)) && mentionedTeams.length >= 2 && !isProjectionQuery
     const teamStatsIntent =

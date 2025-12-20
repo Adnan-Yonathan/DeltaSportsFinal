@@ -76,7 +76,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center max-w-3xl w-full mb-12"
+        className="text-center max-w-3xl w-full mb-6"
       >
         <AnimatedHero
           staticText="How can I help you with"

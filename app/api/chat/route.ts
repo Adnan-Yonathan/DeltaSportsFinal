@@ -2341,13 +2341,23 @@ export async function POST(req: NextRequest) {
       const beforeVs = message.substring(0, vsIndex)
       const afterVs = message.substring(vsIndex)
 
-      // Extract up to 3 words before "vs" (from the end)
-      const team1Match = beforeVs.match(/([a-z]+(?:\s+[a-z.'&-]+){0,2})$/i)
-      // Extract up to 3 words after "vs" (stopping at common non-team words)
-      const team2Match = afterVs.match(/^(?:vs\.?|v\.?|@)\s+([a-z]+(?:\s+[a-z.'&-]+){0,2})(?=\s+(?:game|match|tonight|today|tomorrow|in|at|on|$)|$)/i)
+      // Extract up to 3 words before "vs" (from the end), filtering out common non-team words
+      const team1Raw = beforeVs.match(/([a-z]+(?:\s+[a-z.'&-]+){0,2})$/i)?.[1] || ''
+      const team2Raw = afterVs.match(/^(?:vs\.?|v\.?|@)\s+([a-z]+(?:\s+[a-z.'&-]+){0,2})(?=\s+(?:game|match|tonight|today|tomorrow|in|at|on|for|and|or|the|versus)\b|[?!.]|$)/i)?.[1] || ''
 
-      if (!team1Match || !team2Match) return []
-      return normalizeTeamList([team1Match[1], team2Match[1]])
+      console.log('[DEBUG] Raw team matches:', { team1Raw, team2Raw })
+
+      if (!team1Raw || !team2Raw) return []
+
+      // Remove common leading/trailing words that aren't part of team names
+      const stopWords = /^(the|in|at|on|for|with|against|versus|vs)\s+|\s+(game|match|tonight|today|tomorrow|in|at|on)$/gi
+      const team1Clean = team1Raw.replace(stopWords, '').trim()
+      const team2Clean = team2Raw.replace(stopWords, '').trim()
+
+      console.log('[DEBUG] Cleaned teams:', { team1Clean, team2Clean })
+
+      if (!team1Clean || !team2Clean) return []
+      return normalizeTeamList([team1Clean, team2Clean])
     })()
     if (parsedMatchupTeams.length) {
       console.log('[DEBUG] Parsed matchup teams:', parsedMatchupTeams)

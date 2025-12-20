@@ -557,10 +557,22 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
           .split(/\s+/)
           .filter((t) => t.length > 2)
 
+        console.log('[LIVE_PROJECTION] gameIdentifier:', gameIdentifier)
+        console.log('[LIVE_PROJECTION] teamTokens:', teamTokens)
+
         // Fetch all live NBA games
         const today = new Date().toISOString().slice(0, 10)
+        console.log('[LIVE_PROJECTION] Fetching live scores for date:', today)
         const allGames = await fetchAllLiveScores({ date: today })
         const nbaGames = allGames.games.filter((g) => g.league === 'nba')
+
+        console.log('[LIVE_PROJECTION] Total games found:', allGames.games.length)
+        console.log('[LIVE_PROJECTION] NBA games found:', nbaGames.length)
+        console.log('[LIVE_PROJECTION] NBA games:', nbaGames.map(g => ({
+          id: g.id,
+          status: g.status,
+          competitors: g.competitors?.map(c => ({ name: c.name, abbrev: c.abbreviation, short: c.shortName }))
+        })))
 
         // Find matching live game
         const matchingGame = nbaGames.find((g) => {
@@ -574,6 +586,8 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
             )
           )
         })
+
+        console.log('[LIVE_PROJECTION] Matching game found:', matchingGame ? matchingGame.id : 'NONE')
 
         if (!matchingGame) {
           const availableGames = nbaGames

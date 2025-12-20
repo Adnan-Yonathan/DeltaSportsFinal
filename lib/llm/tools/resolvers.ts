@@ -114,17 +114,29 @@ export const toolResolvers: Record<string, Resolver> = {
     console.log('[LIVE_PROJECTION] Calculating projections...')
 
     // Calculate live spread and total
-    const liveSpread = calculateLiveSpread(gameState, homeStats, awayStats)
-    const liveTotal = calculateLiveTotal(gameState, homeStats, awayStats)
+    const spreadRec = calculateLiveSpread(gameState, { homeStats, awayStats })
+    const totalRec = calculateLiveTotal(gameState, { homeStats, awayStats })
 
-    console.log('[LIVE_PROJECTION] Projections calculated:', { liveSpread, liveTotal })
+    console.log('[LIVE_PROJECTION] Projections calculated:', { spreadRec, totalRec })
 
-    return formatLiveRecommendation({
-      gameState,
-      liveSpread,
-      liveTotal,
-      homeTeam: homeTeam.name,
-      awayTeam: awayTeam.name,
-    })
+    // Format recommendations
+    const spreadFormatted = formatLiveRecommendation(spreadRec, gameState)
+    const totalFormatted = formatLiveRecommendation(totalRec, gameState)
+
+    console.log('[LIVE_PROJECTION] Formatting complete')
+
+    // Return structured data for LLM
+    return {
+      matchup: `${gameState.awayTeam} @ ${gameState.homeTeam}`,
+      gameState: {
+        score: `${gameState.awayTeam} ${gameState.awayScore} - ${gameState.homeScore} ${gameState.homeTeam}`,
+        period: `Q${gameState.period} ${gameState.displayClock}`,
+        timeRemaining: gameState.timeRemaining,
+      },
+      projections: {
+        spread: spreadFormatted,
+        total: totalFormatted,
+      },
+    }
   },
 }

@@ -9,6 +9,7 @@ import { executeTools, formatToolResultsForLLM } from './data-router'
 import { QUERY_SYSTEM_PROMPT, ANALYSIS_SYSTEM_PROMPT, GENERAL_CONVERSATION_PROMPT } from './analysis-engine'
 import type { UnifiedQueryResponse } from './types'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import { preprocessQuery, enhanceQueryForLLM } from './query-preprocessor'
 
 const MAX_TOOL_ITERATIONS = 3 // Prevent infinite loops
 
@@ -27,6 +28,55 @@ export async function processUnifiedQuery(
 ): Promise<UnifiedQueryResponse> {
   const { conversationHistory = [], sportHint } = options
 
+  // Preprocess query to extract player/team names
+  const preprocessed = preprocessQuery(message)
+  console.log('[INTENT-CLASSIFIER] Preprocessed query:', {
+    matched: preprocessed.matched,
+    queryType: preprocessed.queryType,
+    playerName: preprocessed.playerName,
+    teamName: preprocessed.teamName,
+  })
+
+  // For simple player/team stat queries, bypass OpenAI and call tool directly
+  if (preprocessed.matched && preprocessed.queryType === 'player_stats' && preprocessed.playerName) {
+    try {
+      const { executeStaticPlayerStats } = await import('./static-data-tools')
+      const result = await executeStaticPlayerStats({ player: preprocessed.playerName })
+
+      if (!result.error) {
+        console.log('[INTENT-CLASSIFIER] Direct execution successful for player stats')
+        return {
+          reply: result.formatted || `Stats for ${result.player} (${result.team}):\n\n${JSON.stringify(result.stats, null, 2)}`,
+          data: { playerStats: result },
+          toolsUsed: ['getStaticPlayerStats'],
+        }
+      }
+    } catch (error) {
+      console.error('[INTENT-CLASSIFIER] Direct execution failed, falling back to LLM:', error)
+    }
+  }
+
+  if (preprocessed.matched && preprocessed.queryType === 'team_stats' && preprocessed.teamName) {
+    try {
+      const { executeStaticTeamStats } = await import('./static-data-tools')
+      const result = await executeStaticTeamStats({ team: preprocessed.teamName })
+
+      if (!result.error) {
+        console.log('[INTENT-CLASSIFIER] Direct execution successful for team stats')
+        return {
+          reply: result.formatted || `Stats for ${result.team}:\n\n${JSON.stringify(result.stats, null, 2)}`,
+          data: { teamStats: result },
+          toolsUsed: ['getStaticTeamStats'],
+        }
+      }
+    } catch (error) {
+      console.error('[INTENT-CLASSIFIER] Direct execution failed, falling back to LLM:', error)
+    }
+  }
+
+  // Enhance query with hints if we detected player/team names (for LLM fallback)
+  const enhancedMessage = enhanceQueryForLLM(message, preprocessed)
+
   // Build initial messages
   const messages: ChatCompletionMessageParam[] = [
     { role: 'system', content: QUERY_SYSTEM_PROMPT },
@@ -35,7 +85,7 @@ export async function processUnifiedQuery(
       role: msg.role as 'user' | 'assistant',
       content: msg.content,
     })),
-    { role: 'user', content: message },
+    { role: 'user', content: enhancedMessage },
   ]
 
   // If there's a sport hint, add it to the context

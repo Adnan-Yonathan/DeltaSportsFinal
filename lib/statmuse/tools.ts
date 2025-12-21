@@ -54,7 +54,7 @@ Use for questions like:
         properties: {
           player: {
             type: 'string',
-            description: 'Player full name (e.g., "Stephen Curry", "LeBron James")',
+            description: 'Player name - can be first name, last name, or full name. Examples: "LeBron", "Curry", "Stephen Curry", "LeBron James". Extract ONLY the player name from the query, not words like "stats" or "for".',
           },
         },
         required: ['player'],
@@ -242,6 +242,105 @@ Use for:
           sport: { type: 'string', enum: ['nba', 'nfl'], default: 'nba' },
         },
         required: ['team'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getTeamQuarterThreshold',
+      description: `Count games where a team exceeded a scoring threshold in a specific quarter.
+Use for questions like:
+- "How many times did the Lakers score 30+ in Q1?"
+- "How often do the Celtics score under 25 in the 4th quarter?"
+- "Times the Warriors scored over 35 in Q3"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: { type: 'string', description: 'Team name or abbreviation' },
+          quarter: { type: 'number', description: 'Quarter number (1-4)', minimum: 1, maximum: 4 },
+          threshold: { type: 'number', description: 'Points threshold' },
+          operator: { type: 'string', enum: ['>=', '>', '<', '<=', '='], default: '>=' },
+          sport: { type: 'string', enum: ['nba', 'nfl'], default: 'nba' },
+        },
+        required: ['team', 'quarter', 'threshold'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getTeamQuarterAverages',
+      description: `Get a team's average points per quarter (Q1, Q2, Q3, Q4).
+Use for questions like:
+- "What's the Lakers average first quarter score?"
+- "How many points do the Celtics average in Q3?"
+- "Which quarter do the Warriors score most in?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: { type: 'string', description: 'Team name or abbreviation' },
+          sport: { type: 'string', enum: ['nba', 'nfl'], default: 'nba' },
+        },
+        required: ['team'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getQuarterWinners',
+      description: `Analyze which team won each quarter across games.
+Use for questions like:
+- "How often do the Celtics win Q1?"
+- "Do the Lakers win more 3rd quarters or 4th quarters?"
+- "What's the Thunder's quarter-by-quarter win rate?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: { type: 'string', description: 'Team name or abbreviation' },
+          sport: { type: 'string', enum: ['nba', 'nfl'], default: 'nba' },
+        },
+        required: ['team'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getTeamFirstToScore',
+      description: `Analyze how often a team scores first in games.
+Use for questions like:
+- "How often do the Lakers score first?"
+- "What's the Warriors first-to-score percentage?"
+- "Does Boston usually score first?"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: { type: 'string', description: 'Team name or abbreviation' },
+          sport: { type: 'string', enum: ['nba', 'nfl'], default: 'nba' },
+        },
+        required: ['team'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getFirstBasketScorer',
+      description: `Get how many times a specific player scored the first basket for their team.
+Use for questions like:
+- "How many times has LeBron scored the first basket?"
+- "Does Curry often score first for the Warriors?"
+- "First basket scorer frequency for Giannis"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          player: { type: 'string', description: 'Player name' },
+          team: { type: 'string', description: 'Team name (optional, helps filter games)' },
+          sport: { type: 'string', enum: ['nba'], default: 'nba' },
+        },
+        required: ['player'],
       },
     },
   },
@@ -560,6 +659,13 @@ export const TOOL_NAMES = {
   PLAYER_THRESHOLD: 'getPlayerThresholdGames',
   PLAYER_VS_OPPONENT: 'getPlayerVsOpponent',
   PLAYER_REST_SPLIT: 'getPlayerRestSplit',
+  TEAM_B2B_SPLIT: 'getTeamBackToBackSplit',
+  // Quarter Analytics
+  TEAM_QUARTER_THRESHOLD: 'getTeamQuarterThreshold',
+  TEAM_QUARTER_AVERAGES: 'getTeamQuarterAverages',
+  QUARTER_WINNERS: 'getQuarterWinners',
+  TEAM_FIRST_TO_SCORE: 'getTeamFirstToScore',
+  FIRST_BASKET_SCORER: 'getFirstBasketScorer',
   // Betting
   TEAM_ATS: 'getTeamAtsAnalysis',
   TEAM_AFTER_LOSS: 'getTeamAfterLoss',

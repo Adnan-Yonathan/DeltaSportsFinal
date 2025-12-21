@@ -136,12 +136,27 @@ const NBA_STATIC_PLAYERS = parsePlayers()
 export const findNbaStaticPlayer = (query: string): NbaStaticPlayer | null => {
   const target = normalize(query)
   if (!target) return null
-  const direct = NBA_STATIC_PLAYERS.find((p) => normalize(p.name) === target || normalize(p.slug || '') === target)
-  if (direct) return direct
+
+  // 1. Try exact match on full name or slug
+  const exact = NBA_STATIC_PLAYERS.find((p) => normalize(p.name) === target || normalize(p.slug || '') === target)
+  if (exact) return exact
+
+  // 2. Try matching last name exactly (for "lebron" -> "LeBron James")
+  const lastNameMatch = NBA_STATIC_PLAYERS.find((p) => {
+    const nameParts = p.name.split(/\s+/)
+    const lastName = normalize(nameParts[nameParts.length - 1])
+    const firstName = normalize(nameParts[0])
+    return lastName === target || firstName === target
+  })
+  if (lastNameMatch) return lastNameMatch
+
+  // 3. Try substring match, but only if target is longer (to avoid matching "Ron" when searching "lebron")
   return (
     NBA_STATIC_PLAYERS.find((p) => {
       const norm = normalize(p.name)
-      return norm.includes(target) || target.includes(norm)
+      // Only match if the player's name contains the target (not the other way around)
+      // This prevents "lebron" from matching players named "Ron" or "Bron"
+      return norm.includes(target)
     }) || null
   )
 }

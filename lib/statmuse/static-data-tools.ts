@@ -129,10 +129,28 @@ export async function executeStaticTeamStats(args: {
   }
 
   // Return all stats if none specified
+  // Add formatted output with betting context
+  const { formatTeamStats } = await import('@/lib/formatters/team-formatter')
+  const formatted = await formatTeamStats(
+    {
+      team: team.team,
+      wins: team.wins,
+      losses: team.losses,
+      winPct: team.winPct,
+      stats: allStats,
+    },
+    {
+      includeBettingAngles: true,
+      includeLeagueContext: true,
+      includeEmoji: true,
+    }
+  )
+
   return {
     team: team.team,
     stats: allStats,
     record: `${team.wins}-${team.losses}`,
+    formatted: formatted.formatted, // Add formatted string
   }
 }
 
@@ -150,10 +168,26 @@ export async function executeStaticPlayerStats(args: { player: string }): Promis
     }
   }
 
+  // Add formatted output with prop implications
+  const { formatPlayerStats } = await import('@/lib/formatters/player-formatter')
+  const formatted = await formatPlayerStats(
+    {
+      name: player.name,
+      team: player.team,
+      stats: player.stats,
+    },
+    {
+      includeBettingAngles: true,
+      includeLeagueContext: true,
+      includeEmoji: true,
+    }
+  )
+
   return {
     player: player.name,
     team: player.team,
     stats: player.stats,
+    formatted: formatted.formatted, // Add formatted string
   }
 }
 

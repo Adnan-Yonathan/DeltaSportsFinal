@@ -31,6 +31,13 @@ import {
   resolveTeamBackToBackSplit,
 } from '@/lib/services/espn-aggregations'
 import { fetchAllLiveScores, fetchGameDetails, type LeagueId } from '@/lib/live-scores'
+import {
+  getTeamQuarterThreshold,
+  getTeamQuarterAverages,
+  getQuarterWinners,
+  getTeamFirstToScore,
+  getFirstBasketScorer,
+} from '@/lib/services/quarter-analytics'
 import { analyzeLiveGame } from '@/lib/services/live-game-analyzer'
 import { calculateLiveSpread, calculateLiveTotal, formatLiveRecommendation } from '@/lib/services/live-line-calculator'
 import { getTeamStats } from '@/lib/services/matchup-analyzer'
@@ -280,6 +287,61 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
           sport,
           season,
           seasonType: 2,
+        })
+        break
+      }
+
+      // ========================================
+      // QUARTER ANALYTICS TOOLS
+      // ========================================
+      case 'getTeamQuarterThreshold': {
+        const sport = args.sport === 'nfl' ? 'americanfootball_nfl' : 'basketball_nba'
+        result = await getTeamQuarterThreshold({
+          team: args.team,
+          quarter: args.quarter,
+          threshold: args.threshold,
+          operator: args.operator || '>=',
+          sport,
+          limit: 100,
+        })
+        break
+      }
+
+      case 'getTeamQuarterAverages': {
+        const sport = args.sport === 'nfl' ? 'americanfootball_nfl' : 'basketball_nba'
+        result = await getTeamQuarterAverages({
+          team: args.team,
+          sport,
+        })
+        break
+      }
+
+      case 'getQuarterWinners': {
+        const sport = args.sport === 'nfl' ? 'americanfootball_nfl' : 'basketball_nba'
+        result = await getQuarterWinners({
+          team: args.team,
+          sport,
+          limit: 50,
+        })
+        break
+      }
+
+      case 'getTeamFirstToScore': {
+        const sport = args.sport === 'nfl' ? 'americanfootball_nfl' : 'basketball_nba'
+        result = await getTeamFirstToScore({
+          team: args.team,
+          sport,
+          limit: 20,
+        })
+        break
+      }
+
+      case 'getFirstBasketScorer': {
+        result = await getFirstBasketScorer({
+          player: args.player,
+          team: args.team,
+          sport: 'basketball_nba',
+          limit: 20,
         })
         break
       }

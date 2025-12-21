@@ -1149,6 +1149,14 @@ const extractPlayerName = (msg: string) => {
     'this',
     'that',
     'who',
+    'stats',
+    'stat',
+    'for',
+    'from',
+    'averages',
+    'averaging',
+    'average',
+    'against',
   ])
   const candidates: string[] = []
   for (let i = 0; i < parts.length - 1; i++) {
@@ -1165,13 +1173,24 @@ const extractPlayerName = (msg: string) => {
       candidates.push(`${first} ${last}`)
     }
   }
-  if (candidates.length) return candidates[candidates.length - 1]
+  if (candidates.length) {
+    const candidate = candidates[candidates.length - 1]
+    // Strip possessive 's' from the last word if present
+    const words = candidate.split(' ')
+    const lastWord = words[words.length - 1]
+    if (lastWord.endsWith('s') && lastWord.length > 3) {
+      words[words.length - 1] = lastWord.slice(0, -1)
+      return words.join(' ')
+    }
+    return candidate
+  }
 
   // Fallback: single token (last non-stopword, alpha-only)
   for (let i = parts.length - 1; i >= 0; i--) {
     const token = parts[i]
     if (token.length > 2 && !stopwords.has(token) && /^[a-z]+$/i.test(token)) {
-      return token
+      // Strip possessive 's' ending (e.g., "lebrons" -> "lebron")
+      return token.endsWith('s') && token.length > 3 ? token.slice(0, -1) : token
     }
   }
 
@@ -1282,6 +1301,14 @@ When users ask "what is your projected live line" or "what should the live line 
 - Redirect examples: â€œI stay out of that, but I can break down any matchup, trend, or stat you want.â€
 
 **Stats-only questions:** Answer directly with ESPN-derived data (season averages, box scores, injuries, standings). If something isnâ€™t available, state the limitation instead of stalling.
+
+**FORMATTED DATA USAGE:**
+Many stats tools now return pre-formatted data with betting context already included:
+1. Present formatted stats and betting angles directly - they already include league comparisons, prop implications, and ATS context
+2. Do not strip emoji, confidence indicators (🔥 high, ✓ medium, ⚠️ low), or structural formatting
+3. If a tool returns a 'formatted' field, prioritize presenting that over raw stats
+4. Add your own analysis only if the user asks for interpretation beyond what's provided
+5. Keep responses concise but complete - the formatted data is designed to be presentation-ready
 
 **CURRENT DATE & TIME (${timezone}):**
 Today's date is ${new Date().toLocaleDateString('en-US', {
@@ -2070,7 +2097,15 @@ export async function POST(req: NextRequest) {
       /\bhow many\b.*\bgames?\b.*\b(with|over|above|at least)\b.*\d+/i.test(message) ||
       /\b\d+[-+]?\s*(point|pts?)\s*games?\b/i.test(message) ||
       /\b(triple[- ]?double|double[- ]?double)\b/i.test(message) ||
-      /\bhas\b.*\b(scored|had|gotten)\b.*\d+[+-]?/i.test(message)
+      /\bhas\b.*\b(scored|had|gotten)\b.*\d+[+-]?/i.test(message) ||
+      // Quarter analytics patterns
+      /\bhow many times\b.*\bscored?\b.*\d+/i.test(message) ||
+      /\b(first|1st|second|2nd|third|3rd|fourth|4th)\s*(quarter|q)\b/i.test(message) ||
+      /\b(q1|q2|q3|q4)\b/i.test(message) ||
+      /\b(quarter|quarters)\b.*\b(score|scored|average|avg|win|won)\b/i.test(message) ||
+      /\b(score|scored)\b.*\b(quarter|q1|q2|q3|q4)\b/i.test(message) ||
+      /\b(first|score first|first to score|first basket)\b/i.test(message) ||
+      /\bwho (scores?|wins?)\b.*\bquarter\b/i.test(message)
     )
 
     // Skip unified pipeline for:

@@ -683,11 +683,25 @@ export const resolveTeamAfterLossSplit = async (opts: {
   const record = `${wins}-${losses}${ties ? `-${ties}` : ''}`
   const label = `${seasonType === 3 ? 'Playoffs' : 'Regular'} ${season}`
 
-  return [
-    `${teamName || teamId} after a loss (${label}):`,
-    `Games: ${afterLossGames}, Record: ${record}`,
-    `Avg points scored: ${fmt(ourPts)}, Avg points allowed: ${fmt(oppPts)}`,
-  ].join('\n')
+  // Use new formatter
+  const { formatTeamSplit } = await import('@/lib/formatters/team-formatter')
+  return formatTeamSplit({
+    splitType: 'after_loss',
+    team: teamName || teamId,
+    seasonLabel: label,
+    splits: [
+      {
+        label: 'After Loss',
+        games: afterLossGames,
+        record,
+        winPct: wins / afterLossGames,
+        ptsScored: parseFloat(fmt(ourPts)),
+        ptsAllowed: parseFloat(fmt(oppPts)),
+      },
+    ],
+    includeBettingAngles: true,
+    includeEmoji: true,
+  })
 }
 
 export const resolveTeamHomeAwayDefense = async (opts: {
@@ -709,7 +723,7 @@ export const resolveTeamHomeAwayDefense = async (opts: {
   const sum = (arr: any[], field: 'oppScore' | 'ourScore') =>
     arr.reduce((acc, g) => acc + (Number.isFinite(g[field]) ? (g as any)[field] : 0), 0)
 
-  const fmt = (total: number, count: number) => (count ? (total / count).toFixed(1) : 'N/A')
+  const fmt = (total: number, count: number) => (count ? parseFloat((total / count).toFixed(1)) : 0)
   const label = `${seasonType === 3 ? 'Playoffs' : 'Regular'} ${season}`
 
   const homeOpp = sum(home, 'oppScore')
@@ -717,11 +731,26 @@ export const resolveTeamHomeAwayDefense = async (opts: {
   const homeOur = sum(home, 'ourScore')
   const awayOur = sum(away, 'ourScore')
 
-  return [
-    `${teamName || teamId} defensive split (home vs away) - ${label}:`,
-    `Home: ${home.length} games, Opp PPG ${fmt(homeOpp, home.length)}, Our PPG ${fmt(homeOur, home.length)}`,
-    `Away: ${away.length} games, Opp PPG ${fmt(awayOpp, away.length)}, Our PPG ${fmt(awayOur, away.length)}`,
-  ].join('\n')
+  // Use new formatter
+  const { formatDefensiveSplit } = await import('@/lib/formatters/team-formatter')
+  return formatDefensiveSplit(
+    teamName || teamId,
+    {
+      games: home.length,
+      oppPpg: fmt(homeOpp, home.length),
+      ourPpg: fmt(homeOur, home.length),
+    },
+    {
+      games: away.length,
+      oppPpg: fmt(awayOpp, away.length),
+      ourPpg: fmt(awayOur, away.length),
+    },
+    {
+      seasonLabel: label,
+      includeBettingAngles: true,
+      includeEmoji: true,
+    }
+  )
 }
 
 type LineSplitBucket = {
@@ -926,12 +955,28 @@ export const resolvePlayerOpponentAggregate = async (opts: {
     { games: 0, pts: 0, reb: 0, ast: 0, t3: 0 }
   )
 
-  const fmt = (sum: number) => (agg.games ? (sum / agg.games).toFixed(1) : 'N/A')
-  return [
-    `${playerName} vs ${opponent} - ${season} ${seasonType === 3 ? 'Playoffs' : 'Regular'}`,
-    `Games: ${agg.games}`,
-    `PPG: ${fmt(agg.pts)}, RPG: ${fmt(agg.reb)}, APG: ${fmt(agg.ast)}, 3PM/G: ${fmt(agg.t3)}`,
-  ].join('\n')
+  const fmt = (sum: number) => (agg.games ? (sum / agg.games) : 0)
+
+  // Use new formatter
+  const { formatPlayerVsOpponent } = await import('@/lib/formatters/player-formatter')
+  return formatPlayerVsOpponent(
+    playerName,
+    '', // Team not available here
+    opponent,
+    {
+      games: agg.games,
+      ppg: fmt(agg.pts),
+      rpg: fmt(agg.reb),
+      apg: fmt(agg.ast),
+      threePMade: fmt(agg.t3),
+    },
+    undefined, // Season stats not available
+    {
+      seasonLabel: `${season} ${seasonType === 3 ? 'Playoffs' : 'Regular'}`,
+      includeBettingAngles: true,
+      includeEmoji: true,
+    }
+  )
 }
 
 export const resolvePlayerRestSplit = async (opts: {
@@ -980,12 +1025,35 @@ export const resolvePlayerRestSplit = async (opts: {
   }
 
   if (!noRestGames) return `${playerName}: no games on no rest/back-to-back for ${season} ${seasonType === 3 ? 'Playoffs' : 'Regular'}.`
-  const fmt = (sum: number) => (sum / noRestGames).toFixed(1)
-  return [
-    `${playerName} on no rest/back-to-back - ${season} ${seasonType === 3 ? 'Playoffs' : 'Regular'}`,
-    `Games: ${noRestGames}`,
-    `Averages: PTS ${fmt(accum.pts)}, REB ${fmt(accum.reb)}, AST ${fmt(accum.ast)}, 3PM ${fmt(accum.t3)}`,
-  ].join('\n')
+  const fmt = (sum: number) => (sum / noRestGames)
+
+  // Use new formatter
+  const { formatPlayerRestSplit } = await import('@/lib/formatters/player-formatter')
+  return formatPlayerRestSplit({
+    splitType: 'rest',
+    player: playerName,
+    team: '', // Team not available here
+    seasonLabel: `${season} ${seasonType === 3 ? 'Playoffs' : 'Regular'}`,
+    splits: [
+      {
+        label: 'Back-to-Back',
+        games: noRestGames,
+        ptsScored: fmt(accum.pts),
+        stats: {
+          reb: fmt(accum.reb),
+          ast: fmt(accum.ast),
+          threePM: fmt(accum.t3),
+        },
+      },
+      {
+        label: 'Rested',
+        games: 0, // Not calculated in this function
+        ptsScored: 0,
+      },
+    ],
+    includeBettingAngles: true,
+    includeEmoji: true,
+  })
 }
 
 /**

@@ -76,6 +76,7 @@ export interface TeamStatsResult {
   stats: Record<string, number | string | null>
   record?: string
   error?: string
+  formatted?: string // Formatted output with betting context
 }
 
 export interface PlayerStatsResult {
@@ -83,6 +84,7 @@ export interface PlayerStatsResult {
   team?: string
   stats: Record<string, number | string | null>
   error?: string
+  formatted?: string // Formatted output with prop implications
 }
 
 // Schedule analysis types

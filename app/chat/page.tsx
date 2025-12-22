@@ -477,7 +477,7 @@ export default function ChatPage() {
                 animate={{ x: 0 }}
                 exit={{ x: '-100%' }}
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="pointer-events-auto absolute inset-y-0 left-0 z-50 w-full max-w-xs border-r border-white/10 bg-black/80 backdrop-blur-xl shadow-2xl"
+                className="pointer-events-auto absolute inset-y-0 left-0 z-50 w-full max-w-xs border-r border-white/10 bg-black/80 backdrop-blur-xl shadow-2xl overflow-y-auto"
               >
                 <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -492,7 +492,7 @@ export default function ChatPage() {
                     <ChevronLeft className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-y-auto">
                   <ModernSidebar
                     userId={user?.id}
                     currentConversationId={currentConversationId}
@@ -532,7 +532,7 @@ export default function ChatPage() {
                 animate={{ x: 0 }}
                 exit={{ x: '100%' }}
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="pointer-events-auto absolute inset-y-0 right-0 z-50 w-full max-w-sm border-l border-white/10 bg-black/80 backdrop-blur-xl shadow-2xl"
+                className="pointer-events-auto absolute inset-y-0 right-0 z-50 w-full max-w-sm border-l border-white/10 bg-black/80 backdrop-blur-xl shadow-2xl overflow-y-auto"
               >
                 <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -547,7 +547,7 @@ export default function ChatPage() {
                     <ChevronRight className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-y-auto">
                   <LiveScoresPreview variant="chat" />
                 </div>
               </motion.aside>

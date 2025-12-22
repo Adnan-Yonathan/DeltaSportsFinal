@@ -1,18 +1,18 @@
 /**
- * Capture live player prop lines for supported sports.
+ * Capture live player prop lines via SportsBettingDime gameprops feed.
  * Run with:
  *   npx ts-node --project tsconfig.scripts.json scripts/ingest-player-props.ts
  */
 
 import 'dotenv/config'
-import { fetchOdds } from '@/lib/api/odds-api'
 import { createServiceClient } from '@/lib/supabase/service'
+import { fetchSbdGamePropsList, resolveSbdLeague, resolveSportKey, formatBookmaker } from '@/lib/api/sbd'
 
 const SPORT_PROP_MARKETS: Record<string, string[]> = {
-  basketball_nba: ['player_points', 'player_rebounds', 'player_assists', 'player_threes'],
-  americanfootball_nfl: ['player_pass_tds', 'player_pass_yds', 'player_rush_yds', 'player_receptions'],
-  baseball_mlb: ['player_hits', 'player_total_bases', 'player_rbis', 'player_runs_scored'],
-  icehockey_nhl: ['player_points', 'player_shots_on_goal', 'player_blocked_shots'],
+  basketball_nba: ['points', 'rebounds', 'assists', 'threes'],
+  americanfootball_nfl: ['passing_yards', 'rushing_yards', 'receiving_yards', 'receptions'],
+  baseball_mlb: ['hits', 'total_bases', 'rbis', 'runs'],
+  icehockey_nhl: ['points', 'shots_on_goal', 'blocked_shots'],
 }
 
 type PropEntry = {
@@ -28,90 +28,125 @@ type PropEntry = {
   captured_at: string
 }
 
-const stripPlayerName = (value?: string | null) => {
-  if (!value) return ''
-  return value.replace(/\b(over|under)\b.*$/i, '').trim()
+const normalizeMarketKey = (value: string): string => {
+  const cleaned = value.toLowerCase().replace(/\(.*?\)/g, '').trim()
+  if (cleaned.includes('points plus assists plus rebounds')) return 'pra'
+  if (cleaned.includes('points plus rebounds')) return 'points_rebounds'
+  if (cleaned.includes('points plus assists')) return 'points_assists'
+  if (cleaned.includes('rebounds plus assists')) return 'rebounds_assists'
+  if (cleaned.includes('blocks plus steals')) return 'blocks_steals'
+  if (cleaned.includes('3-point')) return 'threes'
+  if (cleaned.includes('points')) return 'points'
+  if (cleaned.includes('rebounds')) return 'rebounds'
+  if (cleaned.includes('assists')) return 'assists'
+  if (cleaned.includes('steals')) return 'steals'
+  if (cleaned.includes('blocks')) return 'blocks'
+  return cleaned.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
 }
 
-const detectDirection = (label: string, index: number): 'over' | 'under' => {
-  const normalized = label.toLowerCase()
-  if (normalized.includes('under') || normalized.includes('less')) return 'under'
-  if (normalized.includes('over') || normalized.includes('more')) return 'over'
-  return index === 0 ? 'over' : 'under'
+const parseOddsValue = (value: any): number | null => {
+  if (value == null) return null
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return null
+  if (parsed > 1 && parsed < 10) {
+    if (parsed >= 2) return Math.round((parsed - 1) * 100)
+    return Math.round(-100 / (parsed - 1))
+  }
+  return Math.round(parsed)
+}
+
+const parseLineValue = (value: any): number | null => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 async function capturePlayerProps() {
   const supabase = createServiceClient()
   const captured_at = new Date().toISOString()
 
-  for (const [sport, markets] of Object.entries(SPORT_PROP_MARKETS)) {
-    console.log(`[PROPS] Fetching ${sport} markets: ${markets.join(', ')}`)
+  for (const [sportKey, markets] of Object.entries(SPORT_PROP_MARKETS)) {
+    const league = resolveSbdLeague(sportKey)
+    if (!league) {
+      console.warn(`[PROPS] No SBD league for ${sportKey}, skipping`)
+      continue
+    }
 
-    const games = await fetchOdds(sport, markets, { live: true })
+    console.log(`[PROPS] Fetching ${sportKey} props from SBD (${league})`)
+    const payload = await fetchSbdGamePropsList(league as any, { limit: 2500 })
+    const items = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : []
     const rows: PropEntry[] = []
     const propMap = new Map<string, PropEntry>()
+    const sport_key = resolveSportKey(league) || sportKey
 
-    for (const game of games) {
-      for (const bookmaker of game.bookmakers) {
-        for (const market of bookmaker.markets) {
-          if (!market.key.startsWith('player_')) continue
+    for (const entry of items) {
+      const playerName = entry?.player_name || entry?.player?.name
+      if (!playerName) continue
+      const marketKey = normalizeMarketKey(entry?.name || '')
+      if (markets.length && !markets.includes(marketKey)) continue
 
-          market.outcomes.forEach((outcome, index) => {
-            const label = outcome.name || ''
-            const playerName = stripPlayerName(label) || outcome.name || 'Unknown Player'
-            const direction = detectDirection(label || '', index)
-            const key = [
-              sport,
-              game.id,
-              bookmaker.title,
-              market.key,
-              playerName,
-            ].join('|')
+      const eventId = String(entry?.sport_event?.id || entry?.sport_event || entry?.sde_id || '')
+      if (!eventId) continue
 
-            if (!propMap.has(key)) {
-              propMap.set(key, {
-                sport_key: sport,
-                event_id: String(game.id),
-                player_name: playerName,
-                team_name: undefined,
-                market_key: market.key,
-                line: outcome.point ?? null,
-                over_odds: null,
-                under_odds: null,
-                book: bookmaker.title,
-                captured_at,
-              })
-            }
+      const line = parseLineValue(
+        entry?.sportsbooks?.[0]?.odds?.over_points ??
+          entry?.sportsbooks?.[0]?.odds?.under_points ??
+          entry?.sportsbooks?.[0]?.over_points ??
+          entry?.sportsbooks?.[0]?.under_points
+      )
 
-            const entry = propMap.get(key)!
-            if (outcome.point != null) {
-              entry.line = outcome.point
-            }
-            if (direction === 'over') {
-              entry.over_odds = outcome.price ?? entry.over_odds
-            } else {
-              entry.under_odds = outcome.price ?? entry.under_odds
-            }
+      for (const sportsbook of entry?.sportsbooks || []) {
+        const name = String(sportsbook?.name || '')
+        if (!name || name.toLowerCase() === 'consensus') continue
+        const formatted = formatBookmaker(name)
+        const odds = sportsbook?.odds || {}
+        const overOdds = parseOddsValue(odds?.over_american ?? odds?.over_decimal ?? sportsbook?.over_odds)
+        const underOdds = parseOddsValue(odds?.under_american ?? odds?.under_decimal ?? sportsbook?.under_odds)
+
+        const key = [
+          sport_key,
+          eventId,
+          formatted.title,
+          marketKey,
+          playerName,
+        ].join('|')
+
+        if (!propMap.has(key)) {
+          propMap.set(key, {
+            sport_key,
+            event_id: eventId,
+            player_name: playerName,
+            team_name: entry?.player?.team || null,
+            market_key: `player_${marketKey}`,
+            line,
+            over_odds: null,
+            under_odds: null,
+            book: formatted.title,
+            captured_at,
           })
         }
+
+        const row = propMap.get(key)!
+        if (line != null) row.line = line
+        if (overOdds != null) row.over_odds = overOdds
+        if (underOdds != null) row.under_odds = underOdds
       }
     }
 
     rows.push(...propMap.values())
 
     if (!rows.length) {
-      console.log(`[PROPS] No prop rows captured for ${sport}`)
+      console.log(`[PROPS] No prop rows captured for ${sportKey}`)
       continue
     }
 
-    console.log(`[PROPS] Inserting ${rows.length} prop rows for ${sport}`)
+    console.log(`[PROPS] Inserting ${rows.length} prop rows for ${sportKey}`)
     const chunkSize = 500
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, i + chunkSize)
       // @ts-expect-error - TypeScript struggles with insert type inference in Node module resolution
       const { error } = await supabase.from('player_prop_snapshots').insert(chunk)
       if (error) {
-        console.error(`[PROPS] Failed to insert prop chunk for ${sport}:`, error.message)
+        console.error(`[PROPS] Failed to insert prop chunk for ${sportKey}:`, error.message)
         throw error
       }
     }

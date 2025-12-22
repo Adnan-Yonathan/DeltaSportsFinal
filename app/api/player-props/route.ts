@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchPlayerProps, mapBookmakersIO, fetchEventsIO, fetchMultiEventOdds } from '@/lib/api/odds-api'
+import { fetchSbdGamePropsList, resolveSbdLeague, formatBookmaker } from '@/lib/api/sbd'
 import { searchPlayer } from '@/lib/sports-stats-api'
 import type { RosterPlayer } from '@/lib/sports-stats-api'
 import { resolveSportKey } from '@/lib/utils/live-game'
-import type { OddsGame } from '@/lib/types/odds'
 
 interface PropOdds {
   book: string
@@ -42,456 +41,77 @@ const SUPPORTED_PROP_SPORTS = new Set([
   'icehockey_nhl',
 ])
 
+const MARKET_TO_SBD_PROP: Record<string, string> = {
+  points: 'total points',
+  rebounds: 'total rebounds',
+  assists: 'total assists',
+  threes: 'total 3-point field goals',
+  points_rebounds: 'total points plus rebounds (incl. extra overtime)',
+  points_assists: 'total points plus assists (incl. extra overtime)',
+  pra: 'total points plus assists plus rebounds (incl. extra overtime)',
+  rebounds_assists: 'total rebounds plus assists (incl. extra overtime)',
+  blocks: 'total blocks (incl. extra overtime)',
+  steals: 'total steals (incl. extra overtime)',
+  blocks_steals: 'total blocks plus steals (incl. extra overtime)',
+}
+
 const DEFAULT_MARKETS: Record<string, string[]> = {
-  basketball_nba: ['player_points', 'player_rebounds', 'player_assists', 'player_threes'],
-  americanfootball_nfl: [
-    'player_pass_tds',
-    'player_pass_yds',
-    'player_rush_yds',
-    'player_receptions',
-    'player_receiving_yds',
-    'player_rush_tds',
-    'player_anytime_td',
-    'player_receiving_tds',
-  ],
-  baseball_mlb: ['player_hits', 'player_total_bases', 'player_rbis', 'player_runs_scored'],
-  icehockey_nhl: ['player_points', 'player_shots_on_goal', 'player_blocked_shots'],
+  basketball_nba: ['points', 'rebounds', 'assists', 'threes'],
+  americanfootball_nfl: ['passing_yards', 'rushing_yards', 'receiving_yards', 'receptions'],
+  baseball_mlb: ['hits', 'total_bases', 'rbis', 'runs'],
+  icehockey_nhl: ['points', 'shots_on_goal', 'blocked_shots'],
 }
 
 const CACHE_TTL_MS = 60 * 1000
-type CacheEntry = { expires: number; data: OddsGame[] }
-const oddsCache = new Map<string, CacheEntry>()
+type CacheEntry = { expires: number; data: any[] }
+const gamePropsCache = new Map<string, CacheEntry>()
 const playerLookupCache = new Map<string, Promise<RosterPlayer | null>>()
 
-const SAFE_PROP_BOOKMAKERS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365', 'Fanatics', 'Bovada', 'Underdog', 'Fliff', 'BetRivers', 'Pinnacle']
-const FALLBACK_SINGLE_BOOK = ['FanDuel', 'DraftKings', 'BetMGM']
-const EXCLUDED_FANTASY_BOOKS = new Set(['PrizePicks', 'ThriveFantasy', 'Sleeper'])
+const EXCLUDED_BOOKS = new Set(['consensus', 'prizepicks', 'thrivefantasy', 'sleeper'])
 
-const STAT_KEY_MAP: Record<string, string> = {
-  'passing attempts': 'player_pass_atts',
-  'passing yards': 'player_pass_yds',
-  'td passes': 'player_pass_tds',
-  'passing tds': 'player_pass_tds',
-  'completions': 'player_pass_completions',
-  'passing completions': 'player_pass_completions',
-  'passing + rushing yards': 'player_pass_rush_yds',
-  'rushing yards': 'player_rush_yds',
-  'rush attempts': 'player_rush_attempts',
-  'rushing + receiving yards': 'player_rush_rec_yds',
-  'receiving yards': 'player_receiving_yds',
-  'receptions': 'player_receptions',
-  'receiving receptions': 'player_receptions',
-  'longest reception': 'player_longest_rec',
-  'interceptions': 'player_interceptions',
-  'anytime td': 'player_anytime_td',
-  'rushing tds': 'player_rush_tds',
-  'rushing touchdowns': 'player_rush_tds',
-  'rush tds': 'player_rush_tds',
-  'receiving tds': 'player_receiving_tds',
-  'receiving touchdowns': 'player_receiving_tds',
-  'touchdowns': 'player_anytime_td',
+const normalizeToken = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, '')
+
+const normalizeMarketKey = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+
+const normalizeSbdPropName = (value: string): string => {
+  const cleaned = value.toLowerCase().replace(/\(.*?\)/g, '').trim()
+  if (cleaned.includes('points plus assists plus rebounds')) return 'pra'
+  if (cleaned.includes('points plus rebounds')) return 'points_rebounds'
+  if (cleaned.includes('points plus assists')) return 'points_assists'
+  if (cleaned.includes('rebounds plus assists')) return 'rebounds_assists'
+  if (cleaned.includes('blocks plus steals')) return 'blocks_steals'
+  if (cleaned.includes('3-point')) return 'threes'
+  if (cleaned.includes('points')) return 'points'
+  if (cleaned.includes('rebounds')) return 'rebounds'
+  if (cleaned.includes('assists')) return 'assists'
+  if (cleaned.includes('steals')) return 'steals'
+  if (cleaned.includes('blocks')) return 'blocks'
+  return normalizeMarketKey(cleaned)
 }
 
-const normalizeStatKey = (label: string): string => {
-  const key = label.trim().toLowerCase()
-  return STAT_KEY_MAP[key] || `player_prop_${key.replace(/\s+/g, '_')}`
+const parseOddsValue = (value: any): number | null => {
+  if (value == null) return null
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return null
+  if (parsed > 1 && parsed < 10) {
+    if (parsed >= 2) return Math.round((parsed - 1) * 100)
+    return Math.round(-100 / (parsed - 1))
+  }
+  return Math.round(parsed)
 }
 
-// Normalize odds to American format; incoming data can be decimal (e.g., 1.9x)
-const toAmericanOdds = (price: number): number => {
-  if (!Number.isFinite(price)) return price
-  // Treat values between 1 and 10 as decimal odds and convert
-  if (price > 1 && price < 10) {
-    const decimal = price
-    if (decimal >= 2) return Math.round((decimal - 1) * 100)
-    return Math.round(-100 / (decimal - 1))
-  }
-  return price
-}
-
-const parsePlayerPropsFromBookmaker = (
-  bookName: string,
-  markets: any[],
-  requestedMarkets: string[],
-  allowedKeys: Set<string> | null,
-  playerFilter?: string[]
-) => {
-  const marketsOut: any[] = []
-  const seen = new Set<string>() // de-dupe by player + key
-
-  for (const market of markets || []) {
-    if (typeof market?.name !== 'string') continue
-    if (market.name.toLowerCase() !== 'player props') continue
-    if (!Array.isArray(market.odds)) continue
-
-    for (const entry of market.odds) {
-      const rawLabel = String(entry?.label || '')
-      const match = rawLabel.match(/^(.*?)\s*\((.+)\)$/)
-      const playerName = (match?.[1] || rawLabel).trim()
-      const statLabel = (match?.[2] || '').trim()
-      if (!playerName || !statLabel) continue
-
-      if (playerFilter && playerFilter.length) {
-        const lower = playerName.toLowerCase()
-        if (!playerFilter.some(p => lower.includes(p.toLowerCase()))) continue
-      }
-
-      const key = normalizeStatKey(statLabel)
-      if (allowedKeys && !allowedKeys.has(key)) continue
-      // Do not drop markets solely because they aren't in requestedMarkets; we normalize and keep first per player/key
-
-      const line = typeof entry.hdp === 'number' ? entry.hdp : parseFloat(entry.hdp)
-      const dedupeKey = `${playerName.toLowerCase()}|${key}`
-      if (seen.has(dedupeKey)) continue
-
-      const outcomes: any[] = []
-      if (entry.over != null && entry.over !== 'N/A') {
-        outcomes.push({
-          name: `${playerName} Over`,
-          price: toAmericanOdds(parseFloat(entry.over)),
-          point: line,
-        })
-      }
-      if (entry.under != null && entry.under !== 'N/A') {
-        outcomes.push({
-          name: `${playerName} Under`,
-          price: toAmericanOdds(parseFloat(entry.under)),
-          point: line,
-        })
-      }
-      if (!outcomes.length && entry.price != null) {
-        outcomes.push({
-          name: `${playerName} Over`,
-          price: toAmericanOdds(parseFloat(entry.price)),
-          point: line,
-        })
-      }
-      if (!outcomes.length) continue
-
-      seen.add(dedupeKey)
-      marketsOut.push({
-        key,
-        outcomes,
-      })
-    }
-  }
-
-  if (!marketsOut.length) return null
-  return {
-    key: bookName.toLowerCase(),
-    title: bookName,
-    markets: marketsOut,
-  }
-}
-
-const parsePlayerPropBookmakers = (
-  bookmakers: Record<string, any>,
-  requestedMarkets: string[],
-  allowedKeys: Set<string> | null,
-  playerFilter?: string[]
-) => {
-  const result: any[] = []
-  for (const [bookName, markets] of Object.entries(bookmakers || {})) {
-    if (EXCLUDED_FANTASY_BOOKS.has(bookName)) continue
-    const parsed = parsePlayerPropsFromBookmaker(bookName, markets as any[], requestedMarkets, allowedKeys, playerFilter)
-    if (parsed) result.push(parsed)
-  }
-  return result
-}
-
-// Fallback parser when provider returns flat prop markets (e.g., key: player_points)
-const parseFlatPlayerPropBookmakers = (
-  bookmakers: Record<string, any>,
-  requestedMarkets: string[],
-  playerFilter?: string[]
-) => {
-  const marketsSet = requestedMarkets && requestedMarkets.length ? new Set(requestedMarkets) : null
-  const result: any[] = []
-
-  for (const [bookName, markets] of Object.entries(bookmakers || {})) {
-    if (EXCLUDED_FANTASY_BOOKS.has(bookName)) continue
-    if (!Array.isArray(markets)) continue
-
-    const mappedMarkets: any[] = []
-    for (const market of markets) {
-      const key = typeof market?.key === 'string' ? market.key : ''
-      if (!key.startsWith('player_')) continue
-      if (marketsSet && !marketsSet.has(key)) continue
-
-      const rawOutcomes = Array.isArray(market?.odds) ? market.odds : Array.isArray(market?.outcomes) ? market.outcomes : []
-      if (!rawOutcomes.length) continue
-
-      const outcomes = rawOutcomes
-        .map((o: any, idx: number) => {
-          const name = o?.name || o?.label || ''
-          const playerName = stripPlayerName(name) || name
-          if (!playerName) return null
-          if (playerFilter && playerFilter.length) {
-            const lower = playerName.toLowerCase()
-            if (!playerFilter.some(p => lower.includes(p.toLowerCase()))) return null
-          }
-          const price = toAmericanOdds(o?.price ?? o?.odds ?? o?.lineOdds ?? o?.over ?? o?.under)
-          if (!Number.isFinite(price)) return null
-          const point = normalizeLineValue(o?.point ?? o?.line ?? o?.threshold ?? o?.hdp)
-          const direction = inferDirection(o, idx)
-          const label = direction === 'under' ? `${playerName} Under` : `${playerName} Over`
-          return {
-            name: label,
-            price,
-            point,
-          }
-        })
-        .filter(Boolean)
-
-      if (outcomes.length) {
-        mappedMarkets.push({
-          key,
-          outcomes,
-        })
-      }
-    }
-
-    if (mappedMarkets.length) {
-      result.push({
-        key: bookName.toLowerCase(),
-        title: bookName,
-        markets: mappedMarkets,
-      })
-    }
-  }
-
-  return result
-}
-
-const normalizeSportKey = (raw: string) => {
-  const resolved = resolveSportKey(raw)
-  if (resolved && SUPPORTED_PROP_SPORTS.has(resolved)) {
-    return resolved
-  }
-  const lowered = raw.trim().toLowerCase()
-  return SUPPORTED_PROP_SPORTS.has(lowered) ? lowered : null
-}
-
-const cacheKeyFor = (
-  sport: string,
-  markets: string[],
-  teamFilter?: string[],
-  playerFilter?: string[]
-) =>
-  `${sport}:${markets.slice().sort().join(',')}:${teamFilter?.slice().sort().join(',') || 'all'}:${playerFilter?.slice().sort().join(',') || 'all'}`
-
-async function getCachedOdds(
-  sport: string,
-  markets: string[],
-  teamFilter?: string[],
-  playerFilter?: string[]
-): Promise<OddsGame[]> {
-  let sampleLogged = false
-  const key = cacheKeyFor(sport, markets, teamFilter, playerFilter)
-  const cached = oddsCache.get(key)
-  if (cached && cached.expires > Date.now()) {
-    console.log(`[PLAYER_PROPS] Cache hit for ${key}`)
-    return cached.data
-  }
-
-  // Allow all prop markets; do not restrict NFL props to a narrow subset
-  const allowedKeys = null
-
-  // Try fetching by eventId (per provider docs)
-  const logNoBooks = (ev: any, markets: string[]) => {
-    console.warn(
-      '[PLAYER_PROPS] No bookmakers mapped for event',
-      ev.id,
-      'market keys:',
-      ev.bookmakers ? Object.keys(ev.bookmakers) : [],
-      'requested markets:',
-      markets
-    )
-  }
-
-  const mapEventsToGames = (eventOdds: any[]): OddsGame[] => {
-    return eventOdds
-      .map((ev: any) => {
-        const parsedBooks = parsePlayerPropBookmakers(ev.bookmakers || {}, markets, allowedKeys, playerFilter)
-        const flatParsed =
-          parsedBooks && parsedBooks.length
-            ? parsedBooks
-            : parseFlatPlayerPropBookmakers(ev.bookmakers || {}, markets, playerFilter)
-        const mapped =
-          flatParsed && flatParsed.length
-            ? flatParsed
-            : mapBookmakersIO(ev.bookmakers || {}, ev.home || '', ev.away || '', undefined)
-                .map(book => ({
-                  ...book,
-                  markets: book.markets.filter(mkt =>
-                    (!markets || !markets.length) ? true : markets.includes(mkt.key)
-                  ),
-                }))
-                .filter(book => book.markets.length > 0 && !EXCLUDED_FANTASY_BOOKS.has(book.title))
-
-        if (!mapped.length) {
-          logNoBooks(ev, markets)
-          if (!sampleLogged) {
-            const firstBook = Object.entries(ev.bookmakers || {})[0]
-            if (firstBook) {
-              console.log(
-                '[PLAYER_PROPS][DEBUG] sample bookmaker payload:',
-                firstBook[0],
-                JSON.stringify(firstBook[1], null, 2).slice(0, 1200)
-              )
-              sampleLogged = true
-            }
-          }
-        } else if (mapped[0]?.markets?.length) {
-          console.log('[PLAYER_PROPS] Mapped bookmaker markets example:', mapped[0].key, mapped[0].markets.map((m: any) => m.key))
-        }
-
-        return {
-          id: String(ev.id),
-          sport_key: sport,
-          sport_title: ev.league?.toString() || '',
-          commence_time: String(ev.date || ''),
-          home_team: String(ev.home || ''),
-          away_team: String(ev.away || ''),
-          bookmakers: mapped,
-        }
-      })
-      .filter(g => g.bookmakers && g.bookmakers.length)
-  }
-
-  const tryDirectPlayerProps = async (): Promise<OddsGame[] | null> => {
-    try {
-      const propsEvents = await fetchPlayerProps(sport, markets, {
-        teamFilter,
-        playerFilter,
-      })
-      console.log(`[PLAYER_PROPS] /player-props returned ${propsEvents.length} events for ${sport}`)
-      const games = mapEventsToGames(propsEvents)
-      if (games.length) {
-        oddsCache.set(key, { data: games, expires: Date.now() + CACHE_TTL_MS })
-        return games
-      }
-    } catch (err) {
-      console.warn('[PLAYER_PROPS] Direct /player-props fetch failed:', err instanceof Error ? err.message : err)
-    }
-    return null
-  }
-
-  const fetchEventBatch = async (bookmakers: string[] | null, live: boolean) => {
-    const events = await fetchEventsIO(sport, { status: live ? 'live' : 'pending' })
-    console.log(`[PLAYER_PROPS] Loaded ${events.length} ${live ? 'live' : 'pending'} events for ${sport}`)
-    const filteredEvents = teamFilter && teamFilter.length
-      ? events.filter(ev => {
-          const home = (ev.home || '').toLowerCase()
-          const away = (ev.away || '').toLowerCase()
-          return teamFilter.some(t => {
-            const lower = t.toLowerCase()
-            return home.includes(lower) || away.includes(lower)
-          })
-        })
-      : events
-
-    const maxEvents = playerFilter && playerFilter.length ? 10 : 25
-    const eventIds = filteredEvents.slice(0, maxEvents).map(ev => String(ev.id))
-    console.log(`[PLAYER_PROPS] Using ${eventIds.length} eventIds (${live ? 'live' : 'pending'}) for props fetch with books=${bookmakers?.join(',') || 'ALL'}`)
-    if (!eventIds.length) return []
-
-    const eventOdds = await fetchMultiEventOdds(
-      eventIds,
-      bookmakers,
-      { cache: 'no-store' },
-      markets
-    )
-    console.log(`[PLAYER_PROPS] eventOdds length: ${eventOdds.length}`)
-    return mapEventsToGames(eventOdds)
-  }
-
-  // Try pending events with safe bookmaker set, then single-book fallback, then no filter; repeat for live
-  const attempts: Array<{ live: boolean; books: string[] | null }> =
-    playerFilter && playerFilter.length
-      ? [
-          { live: false, books: SAFE_PROP_BOOKMAKERS },
-          { live: false, books: null },
-          { live: true, books: SAFE_PROP_BOOKMAKERS },
-          { live: true, books: null },
-        ]
-      : [
-          { live: false, books: SAFE_PROP_BOOKMAKERS },
-          { live: false, books: FALLBACK_SINGLE_BOOK },
-          { live: false, books: null },
-          { live: true, books: SAFE_PROP_BOOKMAKERS },
-          { live: true, books: FALLBACK_SINGLE_BOOK },
-          { live: true, books: null },
-        ]
-
-  // Fast-path: provider's player-props endpoint returns all props in one request
-  const direct = await tryDirectPlayerProps()
-  if (direct && direct.length) return direct
-
-  for (const attempt of attempts) {
-    try {
-      const games = await fetchEventBatch(attempt.books, attempt.live)
-      if (games.length) {
-        oddsCache.set(key, { data: games, expires: Date.now() + CACHE_TTL_MS })
-        return games
-      }
-    } catch (err) {
-      console.warn('[PLAYER_PROPS] Event batch fetch failed:', err instanceof Error ? err.message : err)
-    }
-  }
-
-  console.warn(`[PLAYER_PROPS] No props returned for ${key}`)
-
-  return []
-}
-
-const playerCacheKey = (sport: string, player: string) =>
-  `${sport}:${player.toLowerCase()}`
-
-function getPlayerLookup(sport: string, playerName: string) {
-  const key = playerCacheKey(sport, playerName)
-  if (!playerLookupCache.has(key)) {
-    playerLookupCache.set(
-      key,
-      searchPlayer(playerName, sport).catch((error) => {
-        console.error(`Player lookup failed for ${playerName} (${sport}):`, error)
-        return null
-      })
-    )
-  }
-  return playerLookupCache.get(key)!
-}
-
-const stripPlayerName = (value?: string | null) => {
-  if (!value) return ''
-  return value.replace(/\b(over|under)\b.*$/i, '').trim()
-}
-
-const inferDirection = (outcome: any, index: number): 'over' | 'under' => {
-  const label = `${outcome.description ?? ''} ${outcome.name ?? ''}`.toLowerCase()
-  if (label.includes('under') || label.includes('less')) return 'under'
-  if (label.includes('over') || label.includes('more')) return 'over'
-  return index === 0 ? 'over' : 'under'
-}
-
-const isBetterOdds = (current: number, candidate: number): boolean => {
-  if (!Number.isFinite(candidate)) return false
-  if (current === Number.NEGATIVE_INFINITY) return true
-  if (candidate >= 0 && current >= 0) return candidate > current
-  if (candidate >= 0 && current < 0) return true
-  if (candidate < 0 && current < 0) return candidate > current
-  return false
-}
-
-const normalizeLineValue = (value: any): number => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  const parsed = typeof value === 'string' ? parseFloat(value) : NaN
+const parseLineValue = (value: any): number => {
+  const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 0
 }
 
 const lineKeyFor = (value: any): string => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value.toString()
-  const parsed = typeof value === 'string' ? parseFloat(value) : NaN
+  const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed.toString() : 'no-line'
 }
 
@@ -509,10 +129,18 @@ const createEmptyMarketBucket = (line: number): PropMarket => ({
   },
 })
 
+const isBetterOdds = (current: number, candidate: number): boolean => {
+  if (!Number.isFinite(candidate)) return false
+  if (current === Number.NEGATIVE_INFINITY) return true
+  if (candidate >= 0 && current >= 0) return candidate > current
+  if (candidate >= 0 && current < 0) return true
+  if (candidate < 0 && current < 0) return candidate > current
+  return false
+}
+
 const pickPrimaryLine = (lineBuckets: Map<string, PropMarket>): PropMarket | null => {
-  // Build per-book-per-line rows to preserve alternates
   const lineMap = new Map<string, { book: string; line: number; overOdds?: number; underOdds?: number }>()
-  const priority = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365', 'Pinnacle', 'Bovada', 'BetRivers', 'Fanatics', 'Fliff']
+  const priority = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365', 'Pinnacle', 'BetRivers']
 
   for (const bucket of lineBuckets.values()) {
     const line = bucket.line
@@ -560,7 +188,6 @@ const pickPrimaryLine = (lineBuckets: Map<string, PropMarket>): PropMarket | nul
     }
   }
 
-  // Select up to 6 rows, ensuring best over/under are included
   const selected: typeof rows = []
   const used = new Set<string>()
   const pushUnique = (row: typeof rows[number]) => {
@@ -571,11 +198,11 @@ const pickPrimaryLine = (lineBuckets: Map<string, PropMarket>): PropMarket | nul
   }
 
   if (bestOver) {
-    const r = rows.find(r => r.book === bestOver!.book && r.line === bestOver!.line)
+    const r = rows.find((r) => r.book === bestOver!.book && r.line === bestOver!.line)
     if (r) pushUnique(r)
   }
   if (bestUnder) {
-    const r = rows.find(r => r.book === bestUnder!.book && r.line === bestUnder!.line)
+    const r = rows.find((r) => r.book === bestUnder!.book && r.line === bestUnder!.line)
     if (r) pushUnique(r)
   }
 
@@ -589,11 +216,10 @@ const pickPrimaryLine = (lineBuckets: Map<string, PropMarket>): PropMarket | nul
       if (a.line !== b.line) return (a.line ?? 0) - (b.line ?? 0)
       return a.book.localeCompare(b.book)
     })
-    .forEach(r => pushUnique(r))
+    .forEach((r) => pushUnique(r))
 
   merged.lines = selected.slice(0, 6)
 
-  // Set best odds from the best found (allBooks already has ALL bookmakers from lines 559-572)
   if (bestOver) {
     merged.over.best = bestOver.odds
     merged.over.bestBook = bestOver.book
@@ -604,9 +230,70 @@ const pickPrimaryLine = (lineBuckets: Map<string, PropMarket>): PropMarket | nul
     merged.under.bestBook = bestUnder.book
   }
 
-  console.log('[PLAYER-PROPS API] Returning market with', merged.over.allBooks.length, 'over bookmakers,', merged.under.allBooks.length, 'under bookmakers')
-
   return merged
+}
+
+const cacheKeyFor = (
+  league: string,
+  props: string[],
+  teamFilter?: string[],
+  playerFilter?: string[]
+) =>
+  `${league}:${props.slice().sort().join(',')}:${teamFilter?.slice().sort().join(',') || 'all'}:${playerFilter?.slice().sort().join(',') || 'all'}`
+
+async function getCachedGameProps(
+  league: string,
+  props: string[],
+  teamFilter?: string[],
+  playerFilter?: string[]
+): Promise<any[]> {
+  const key = cacheKeyFor(league, props, teamFilter, playerFilter)
+  const cached = gamePropsCache.get(key)
+  if (cached && cached.expires > Date.now()) {
+    return cached.data
+  }
+
+  const payload = await fetchSbdGamePropsList(league as any, {
+    props,
+    limit: 2500,
+  })
+  const items = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : []
+
+  const filtered = items.filter((entry: any) => {
+    if (playerFilter && playerFilter.length) {
+      const playerName = (entry.player_name || entry?.player?.name || '').toLowerCase()
+      if (!playerFilter.some((name) => playerName.includes(name.toLowerCase()))) return false
+    }
+    if (teamFilter && teamFilter.length) {
+      const home = normalizeToken(entry?.home_team?.name || '')
+      const away = normalizeToken(entry?.away_team?.name || '')
+      const playerTeam = normalizeToken(entry?.player?.team || '')
+      if (!teamFilter.some((team) => home.includes(team) || away.includes(team) || playerTeam.includes(team))) {
+        return false
+      }
+    }
+    return true
+  })
+
+  gamePropsCache.set(key, { data: filtered, expires: Date.now() + CACHE_TTL_MS })
+  return filtered
+}
+
+const playerCacheKey = (sport: string, player: string) =>
+  `${sport}:${player.toLowerCase()}`
+
+function getPlayerLookup(sport: string, playerName: string) {
+  const key = playerCacheKey(sport, playerName)
+  if (!playerLookupCache.has(key)) {
+    playerLookupCache.set(
+      key,
+      searchPlayer(playerName, sport).catch((error) => {
+        console.error(`Player lookup failed for ${playerName} (${sport}):`, error)
+        return null
+      })
+    )
+  }
+  return playerLookupCache.get(key)!
 }
 
 export async function GET(req: NextRequest) {
@@ -624,8 +311,8 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const normalizedSport = normalizeSportKey(sport)
-    if (!normalizedSport) {
+    const normalizedSport = resolveSportKey(sport)
+    if (!normalizedSport || !SUPPORTED_PROP_SPORTS.has(normalizedSport)) {
       return NextResponse.json(
         {
           error: `Unsupported sport "${sport}". Supported options: ${Array.from(
@@ -636,104 +323,101 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Determine which prop markets to fetch
-    let markets: string[]
-    if (marketParam) {
-      markets = marketParam.split(',').map(m => `player_${m.trim()}`)
-    } else {
-      // Narrow markets when a specific player is requested to speed up lookups
-      if (playerFilter) {
-        markets = ['player_points']
-      } else {
-        markets = DEFAULT_MARKETS[normalizedSport] || ['player_points']
-      }
+    const league = resolveSbdLeague(normalizedSport)
+    if (!league) {
+      return NextResponse.json(
+        { error: `No SportsBettingDime props feed for "${normalizedSport}"` },
+        { status: 400 }
+      )
     }
 
-    // Parse team filter (comma-separated list of teams)
+    const requestedMarkets = marketParam
+      ? marketParam.split(',').map((m) => normalizeMarketKey(m.trim()))
+      : DEFAULT_MARKETS[normalizedSport] || ['points']
+
+    const propsFilter = requestedMarkets
+      .map((key) => MARKET_TO_SBD_PROP[key])
+      .filter(Boolean)
+
     const teamFilter = teamParam
-      ? teamParam.split(',').map(t => t.trim()).filter(Boolean)
+      ? teamParam.split(',').map((t) => normalizeToken(t))
       : undefined
 
-    if (teamFilter && teamFilter.length > 0) {
-      console.log(`[PLAYER_PROPS] Filtering to teams: ${teamFilter.join(', ')}`)
-    }
-
-    // Fetch odds data with only prop markets (cached briefly)
-    const oddsData = await getCachedOdds(
-      normalizedSport,
-      markets,
+    const entries = await getCachedGameProps(
+      league,
+      propsFilter.length ? propsFilter : Object.values(MARKET_TO_SBD_PROP),
       teamFilter,
       playerFilter ? [playerFilter] : undefined
     )
 
-    // Aggregate props by player
     type PlayerPropAccumulator = Omit<PlayerProp, 'markets'> & {
       marketLines: Map<string, Map<string, PropMarket>>
     }
     const playerPropsMap = new Map<string, PlayerPropAccumulator>()
 
-    for (const game of oddsData) {
-      const gameDescription = `${game.away_team} @ ${game.home_team}`
+    for (const entry of entries) {
+      const playerName = entry.player_name || entry?.player?.name
+      if (!playerName) continue
 
-      for (const bookmaker of game.bookmakers) {
-        for (const market of bookmaker.markets) {
-          if (!market.key.startsWith('player_')) continue
+      const marketType = normalizeSbdPropName(entry.name || '')
+      if (requestedMarkets.length && !requestedMarkets.includes(marketType)) continue
 
-          const marketType = market.key.replace('player_', '')
+      const homeTeam = entry?.home_team?.name || ''
+      const awayTeam = entry?.away_team?.name || ''
+      const gameDescription = homeTeam && awayTeam ? `${awayTeam} @ ${homeTeam}` : undefined
 
-          market.outcomes.forEach((outcome, index) => {
-            const rawName = stripPlayerName(outcome.name)
-            const playerName = rawName || outcome.name || 'Unknown Player'
+      if (!playerPropsMap.has(playerName)) {
+        playerPropsMap.set(playerName, {
+          player: playerName,
+          game: gameDescription,
+          team: entry?.player?.team || undefined,
+          teamAbbr: entry?.player?.alias || entry?.player?.code || undefined,
+          marketLines: new Map(),
+        })
+      }
 
-            if (
-              playerFilter &&
-              !playerName.toLowerCase().includes(playerFilter.toLowerCase())
-            ) {
-              return
-            }
+      const playerProp = playerPropsMap.get(playerName)!
+      if (!playerProp.marketLines.has(marketType)) {
+        playerProp.marketLines.set(marketType, new Map())
+      }
 
-            if (!playerPropsMap.has(playerName)) {
-              playerPropsMap.set(playerName, {
-                player: playerName,
-                game: gameDescription,
-                marketLines: new Map(),
-              })
-            }
+      const lineBuckets = playerProp.marketLines.get(marketType)!
+      const sportsbooks = Array.isArray(entry?.sportsbooks) ? entry.sportsbooks : []
 
-            const playerProp = playerPropsMap.get(playerName)!
-            if (!playerProp.marketLines.has(marketType)) {
-              playerProp.marketLines.set(marketType, new Map())
-            }
+      for (const sportsbook of sportsbooks) {
+        const name = String(sportsbook?.name || '')
+        if (EXCLUDED_BOOKS.has(name.toLowerCase())) continue
+        const formatted = formatBookmaker(name)
+        const odds = sportsbook?.odds || {}
+        const line = parseLineValue(
+          odds?.over_points ?? odds?.under_points ?? sportsbook?.over_points ?? sportsbook?.under_points
+        )
+        const lineKey = lineKeyFor(line)
+        if (!lineBuckets.has(lineKey)) {
+          lineBuckets.set(lineKey, createEmptyMarketBucket(line))
+        }
+        const bucket = lineBuckets.get(lineKey)!
 
-            const lineBuckets = playerProp.marketLines.get(marketType)!
-            const lineKey = lineKeyFor(outcome.point)
-            const normalizedLine = normalizeLineValue(outcome.point)
-            if (!lineBuckets.has(lineKey)) {
-              lineBuckets.set(lineKey, createEmptyMarketBucket(normalizedLine))
-            }
+        const overOdds = parseOddsValue(odds?.over_american ?? odds?.over_decimal ?? sportsbook?.over_odds)
+        const underOdds = parseOddsValue(odds?.under_american ?? odds?.under_decimal ?? sportsbook?.under_odds)
 
-            const marketData = lineBuckets.get(lineKey)!
-
-            const direction = inferDirection(outcome, index)
-            const bucket = marketData[direction]
-            const price = toAmericanOdds(outcome.price)
-
-            bucket.allBooks.push({
-              book: bookmaker.title,
-              odds: price,
-              line: normalizedLine,
-            })
-
-            if (isBetterOdds(bucket.best, price)) {
-              bucket.best = price
-              bucket.bestBook = bookmaker.title
-            }
-          })
+        if (Number.isFinite(overOdds)) {
+          bucket.over.allBooks.push({ book: formatted.title, odds: overOdds!, line })
+          if (isBetterOdds(bucket.over.best, overOdds!)) {
+            bucket.over.best = overOdds!
+            bucket.over.bestBook = formatted.title
+          }
+        }
+        if (Number.isFinite(underOdds)) {
+          bucket.under.allBooks.push({ book: formatted.title, odds: underOdds!, line })
+          if (isBetterOdds(bucket.under.best, underOdds!)) {
+            bucket.under.best = underOdds!
+            bucket.under.bestBook = formatted.title
+          }
         }
       }
     }
 
-    // Convert map to array and enrich with player data
     const playerProps = await Promise.all(
       Array.from(playerPropsMap.values()).map(async (prop) => {
         const markets: Record<string, PropMarket> = {}
@@ -745,6 +429,8 @@ export async function GET(req: NextRequest) {
         }
         const hydrated: PlayerProp = {
           player: prop.player,
+          team: prop.team,
+          teamAbbr: prop.teamAbbr,
           game: prop.game,
           markets,
         }
@@ -758,7 +444,6 @@ export async function GET(req: NextRequest) {
       })
     )
 
-    // Sort by player name
     playerProps.sort((a, b) => a.player.localeCompare(b.player))
 
     return NextResponse.json({
@@ -766,7 +451,6 @@ export async function GET(req: NextRequest) {
       count: playerProps.length,
       data: playerProps
     })
-
   } catch (error: any) {
     console.error('Player props API error:', error)
     return NextResponse.json(

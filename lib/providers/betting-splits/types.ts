@@ -4,7 +4,7 @@
 
 export interface BettingSplit {
   // Source identification
-  source: 'covers' | 'scoresandodds' | 'betql' | 'oddsshark' | 'custom'
+  source: 'sportsbettingdime' | 'scoresandodds' | 'betql' | 'oddsshark' | 'custom'
 
   // Game identification
   gameId?: string

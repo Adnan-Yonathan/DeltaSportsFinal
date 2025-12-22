@@ -1,336 +1,202 @@
 /**
- * Covers.com ATS Trends Scraper
- * 
- * Scrapes team ATS (Against The Spread) records from Covers team pages.
- * URL pattern: https://www.covers.com/sport/basketball/nba/teams/main/{team-slug}/ats-trends
+ * SportsBettingDime ATS Trends Fetcher
+ *
+ * Replaces Covers.com scraping with SBD trends API.
+ * Source: https://srfeeds.sportsbettingdime.com/v2/trends/{league}
  */
 
-import {
-  fetchCoversHtml,
-  buildATSTrendsUrl,
-  getTeamName,
-  getAllTeamSlugs,
-  type CoversFetchOptions,
-} from './client'
+import { fetchSbdTrends, resolveSbdLeague, resolveSportKey } from '@/lib/api/sbd'
+import { formatATSRecord, getCurrentNBASeason } from './mapper'
 import type { CoversATSRecord, CoversATSScraperResult } from './types'
-import { getCurrentNBASeason, parseATSRecord } from './mapper'
+import type { CoversFetchOptions } from './client'
 
-// =============================================================================
-// HTML Parsing Helpers
-// =============================================================================
+type TrendEntry = any
 
-/**
- * Extract text content between two markers in HTML
- */
-function extractBetween(html: string, startMarker: string, endMarker: string): string | null {
-  const startIdx = html.indexOf(startMarker)
-  if (startIdx === -1) return null
-  
-  const searchStart = startIdx + startMarker.length
-  const endIdx = html.indexOf(endMarker, searchStart)
-  if (endIdx === -1) return null
-  
-  return html.substring(searchStart, endIdx).trim()
+const slugifyTeam = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+
+const teamDisplayName = (entry: TrendEntry): string => {
+  const stage = typeof entry?.stageName === 'string' ? entry.stageName.trim() : ''
+  const name = typeof entry?.name === 'string' ? entry.name.trim() : ''
+  const nickname = typeof entry?.nickname === 'string' ? entry.nickname.trim() : ''
+  if (stage) return stage
+  if (name && nickname) return `${name} ${nickname}`.trim()
+  return name || nickname || 'Unknown'
 }
 
-/**
- * Extract all matches of a pattern
- */
-function extractAllMatches(html: string, pattern: RegExp): string[] {
-  const matches: string[] = []
-  let match
-  while ((match = pattern.exec(html)) !== null) {
-    matches.push(match[1])
+const recordFromSpread = (entry?: TrendEntry) => {
+  if (!entry?.spread) return null
+  return formatATSRecord(entry.spread.wins || 0, entry.spread.loses || 0, entry.spread.ties || 0)
+}
+
+const recordFromTotals = (entry?: TrendEntry) => {
+  if (!entry?.totals) return null
+  return formatATSRecord(entry.totals.overs || 0, entry.totals.unders || 0, entry.totals.ties || 0)
+}
+
+const resolveSeason = (sportKey: string): number => {
+  if (sportKey.includes('basketball_nba') || sportKey.includes('icehockey_nhl')) {
+    return getCurrentNBASeason()
   }
-  return matches
+  return new Date().getFullYear()
 }
 
-/**
- * Clean HTML tags from string
- */
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/\s+/g, ' ')
-    .trim()
+const fetchTrendSafe = async (
+  league: string,
+  filters: { location?: 'home' | 'away'; expectation?: 'favorite' | 'underdog' }
+): Promise<Record<string, TrendEntry> | null> => {
+  try {
+    return await fetchSbdTrends(league as any, filters)
+  } catch (error) {
+    console.warn('[SBD ATS] Trend fetch failed:', filters, error)
+    return null
+  }
 }
 
-// =============================================================================
-// ATS Record Extraction
-// =============================================================================
+const buildRecord = (
+  entry: TrendEntry,
+  sportKey: string,
+  season: number,
+  splits: {
+    home?: TrendEntry
+    away?: TrendEntry
+    favorite?: TrendEntry
+    underdog?: TrendEntry
+    homeFavorite?: TrendEntry
+    homeUnderdog?: TrendEntry
+    awayFavorite?: TrendEntry
+    awayUnderdog?: TrendEntry
+  }
+): CoversATSRecord => {
+  const teamName = teamDisplayName(entry)
+  const teamSlug = slugifyTeam(teamName)
+  const atsRecord = recordFromSpread(entry) || '0-0'
+  const totalsRecord = recordFromTotals(entry)
 
-/**
- * Extract ATS record from a table row or section
- * Looks for patterns like "18-12-2" or "18-12"
- */
-function extractATSRecordFromText(text: string): string | null {
-  // Match record patterns: "18-12-2" or "18-12"
-  const match = text.match(/\b(\d{1,2})-(\d{1,2})(?:-(\d{1,2}))?\b/)
-  if (!match) return null
-  
-  const wins = parseInt(match[1], 10)
-  const losses = parseInt(match[2], 10)
-  const pushes = match[3] ? parseInt(match[3], 10) : 0
-  
-  // Sanity check: wins + losses + pushes should be reasonable (< 100 games)
-  if (wins + losses + pushes > 100) return null
-  
-  return pushes > 0 ? `${wins}-${losses}-${pushes}` : `${wins}-${losses}`
-}
+  const extraSplits: Record<string, string> = {}
+  const pushSplit = (key: string, value: string | null) => {
+    if (value) extraSplits[key] = value
+  }
 
-/**
- * Extract streak from text (e.g., "W3", "L2", "P1")
- */
-function extractStreak(text: string): string | null {
-  const match = text.match(/\b([WLP])(\d{1,2})\b/i)
-  if (!match) return null
-  return `${match[1].toUpperCase()}${match[2]}`
-}
+  pushSplit('homeFavorite', recordFromSpread(splits.homeFavorite))
+  pushSplit('homeUnderdog', recordFromSpread(splits.homeUnderdog))
+  pushSplit('awayFavorite', recordFromSpread(splits.awayFavorite))
+  pushSplit('awayUnderdog', recordFromSpread(splits.awayUnderdog))
+  pushSplit('homeTotals', recordFromTotals(splits.home))
+  pushSplit('awayTotals', recordFromTotals(splits.away))
+  pushSplit('favoriteTotals', recordFromTotals(splits.favorite))
+  pushSplit('underdogTotals', recordFromTotals(splits.underdog))
+  pushSplit('homeFavoriteTotals', recordFromTotals(splits.homeFavorite))
+  pushSplit('homeUnderdogTotals', recordFromTotals(splits.homeUnderdog))
+  pushSplit('awayFavoriteTotals', recordFromTotals(splits.awayFavorite))
+  pushSplit('awayUnderdogTotals', recordFromTotals(splits.awayUnderdog))
 
-/**
- * Parse the ATS trends page HTML to extract all records
- * 
- * Covers.com structure (as of 2024):
- * - Main records in "record-block" divs with "record-label" and "record-value"
- * - Game-by-game results in table with ATS column showing "W -9.5" or "L -3.5"
- */
-function parseATSTrendsPage(html: string, teamSlug: string, sportKey: string): CoversATSRecord | null {
-  const teamName = getTeamName(teamSlug, sportKey) || teamSlug
-  const season = getCurrentNBASeason()
-  
-  // Initialize record with defaults
-  const record: CoversATSRecord = {
+  return {
     teamName,
     teamSlug,
     sportKey,
     season,
-    atsWins: 0,
-    atsLosses: 0,
-    atsPushes: 0,
-    atsRecord: '0-0',
+    atsWins: entry.spread?.wins || 0,
+    atsLosses: entry.spread?.loses || 0,
+    atsPushes: entry.spread?.ties || 0,
+    atsRecord,
+    homeAtsRecord: recordFromSpread(splits.home) || undefined,
+    awayAtsRecord: recordFromSpread(splits.away) || undefined,
+    favoriteAtsRecord: recordFromSpread(splits.favorite) || undefined,
+    underdogAtsRecord: recordFromSpread(splits.underdog) || undefined,
+    overUnderRecord: totalsRecord || undefined,
+    last10Ats: undefined,
+    atsStreak: undefined,
     capturedAt: new Date(),
+    extraSplits,
   }
-  
-  // ==========================================================================
-  // Strategy 1: Look for record-block structure (main summary)
-  // <div class="record-label">Against the Spread</div>
-  // <div class="record-value">14-11-0</div>
-  // ==========================================================================
-  
-  // ATS Record
-  const atsBlockPattern = /record-label[^>]*>Against the Spread<\/div>\s*<div[^>]*class="record-value"[^>]*>(\d+-\d+(?:-\d+)?)</i
-  const atsMatch = html.match(atsBlockPattern)
-  if (atsMatch) {
-    record.atsRecord = atsMatch[1]
-    const parsed = parseATSRecord(atsMatch[1])
-    if (parsed) {
-      record.atsWins = parsed.wins
-      record.atsLosses = parsed.losses
-      record.atsPushes = parsed.pushes
-    }
-  }
-  
-  // Over/Under (Totals) Record
-  const ouBlockPattern = /record-label[^>]*>Totals<\/div>\s*<div[^>]*class="record-value"[^>]*>(\d+-\d+(?:-\d+)?)</i
-  const ouMatch = html.match(ouBlockPattern)
-  if (ouMatch) {
-    record.overUnderRecord = ouMatch[1]
-  }
-  
-  // ==========================================================================
-  // Strategy 2: Calculate home/away from game-by-game table
-  // Table rows contain: @ TOR (away) or LAL (home) + ATS result (W/L/P)
-  // ==========================================================================
-  
-  // Extract game results from table
-  // Pattern: <td>...<span class="covers-CoversMatchups-boldTextHelper">W</span> -9.5</td>
-  const gameResultPattern = /<tr>[\s\S]*?(?:@ ([A-Z]{2,3})|([A-Z]{2,3}))[\s\S]*?<td><span[^>]*>([WLP])<\/span>/gi
-  
-  let homeWins = 0, homeLosses = 0, homePushes = 0
-  let awayWins = 0, awayLosses = 0, awayPushes = 0
-  let last10Results: string[] = []
-  
-  let match
-  while ((match = gameResultPattern.exec(html)) !== null) {
-    const isAway = !!match[1] // Has @ prefix
-    const result = match[3]?.toUpperCase()
-    
-    if (result === 'W') {
-      if (isAway) awayWins++
-      else homeWins++
-    } else if (result === 'L') {
-      if (isAway) awayLosses++
-      else homeLosses++
-    } else if (result === 'P') {
-      if (isAway) awayPushes++
-      else homePushes++
-    }
-    
-    // Track last 10
-    if (last10Results.length < 10 && result) {
-      last10Results.push(result)
-    }
-  }
-  
-  // Set home/away records if we found game data
-  if (homeWins + homeLosses + homePushes > 0) {
-    record.homeAtsRecord = formatRecord(homeWins, homeLosses, homePushes)
-  }
-  if (awayWins + awayLosses + awayPushes > 0) {
-    record.awayAtsRecord = formatRecord(awayWins, awayLosses, awayPushes)
-  }
-  
-  // Calculate last 10 ATS
-  if (last10Results.length > 0) {
-    const l10Wins = last10Results.filter(r => r === 'W').length
-    const l10Losses = last10Results.filter(r => r === 'L').length
-    const l10Pushes = last10Results.filter(r => r === 'P').length
-    record.last10Ats = formatRecord(l10Wins, l10Losses, l10Pushes)
-    
-    // Calculate streak from most recent games
-    let streak = 0
-    let streakType = last10Results[0]
-    for (const r of last10Results) {
-      if (r === streakType) streak++
-      else break
-    }
-    if (streak > 0 && streakType) {
-      record.atsStreak = `${streakType}${streak}`
-    }
-  }
-  
-  // ==========================================================================
-  // Fallback: If we still don't have main ATS record, calculate from games
-  // ==========================================================================
-  
-  if (record.atsRecord === '0-0') {
-    const totalWins = homeWins + awayWins
-    const totalLosses = homeLosses + awayLosses
-    const totalPushes = homePushes + awayPushes
-    
-    if (totalWins + totalLosses + totalPushes > 0) {
-      record.atsWins = totalWins
-      record.atsLosses = totalLosses
-      record.atsPushes = totalPushes
-      record.atsRecord = formatRecord(totalWins, totalLosses, totalPushes)
-    }
-  }
-  
-  // Validate we got at least some data
-  if (record.atsRecord === '0-0' && !record.homeAtsRecord && !record.awayAtsRecord) {
-    console.warn(`[Covers ATS] No ATS data found for ${teamSlug}`)
-    return null
-  }
-  
-  return record
 }
 
-/**
- * Format wins/losses/pushes into record string
- */
-function formatRecord(wins: number, losses: number, pushes: number = 0): string {
-  if (pushes > 0) {
-    return `${wins}-${losses}-${pushes}`
-  }
-  return `${wins}-${losses}`
-}
-
-// =============================================================================
-// Public API
-// =============================================================================
-
-/**
- * Scrape ATS trends for a single team
- */
 export async function scrapeTeamATSTrends(
   teamSlug: string,
-  sport: string = 'basketball',
-  league: string = 'nba',
-  options?: CoversFetchOptions
+  sportKey: string = 'basketball_nba',
+  _options?: CoversFetchOptions
 ): Promise<CoversATSScraperResult> {
-  const url = buildATSTrendsUrl(sport, league, teamSlug)
-  const scrapedAt = new Date()
-  
-  try {
-    const html = await fetchCoversHtml(url, options)
-    const record = parseATSTrendsPage(html, teamSlug, `${sport}_${league}`)
-    
-    if (!record) {
-      return {
-        success: false,
-        error: 'Could not parse ATS data from page',
-        url,
-        scrapedAt,
-      }
-    }
-    
-    return {
-      success: true,
-      data: record,
-      url,
-      scrapedAt,
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      url,
-      scrapedAt,
-    }
+  const results = await scrapeAllNBAATSTrends(sportKey)
+  const record = results.get(teamSlug)
+  if (record) return record
+  return {
+    success: false,
+    error: `Team ${teamSlug} not found in SBD trends`,
+    url: '',
+    scrapedAt: new Date(),
   }
 }
 
-/**
- * Scrape ATS trends for all NBA teams
- */
 export async function scrapeAllNBAATSTrends(
-  options?: CoversFetchOptions
+  sportKey: string = 'basketball_nba',
+  _options?: CoversFetchOptions
 ): Promise<Map<string, CoversATSScraperResult>> {
   const results = new Map<string, CoversATSScraperResult>()
-  const slugs = getAllTeamSlugs('basketball_nba')
-  
-  console.log(`[Covers ATS] Scraping ${slugs.length} NBA teams...`)
-  
-  for (const slug of slugs) {
-    console.log(`[Covers ATS] Scraping ${slug}...`)
-    const result = await scrapeTeamATSTrends(slug, 'basketball', 'nba', options)
-    results.set(slug, result)
-    
-    if (result.success) {
-      console.log(`[Covers ATS] ${slug}: ${result.data?.atsRecord}`)
-    } else {
-      console.warn(`[Covers ATS] ${slug}: Failed - ${result.error}`)
-    }
+  const league = resolveSbdLeague(sportKey)
+  const scrapedAt = new Date()
+
+  if (!league) {
+    return results
   }
-  
-  const successCount = Array.from(results.values()).filter(r => r.success).length
-  console.log(`[Covers ATS] Complete: ${successCount}/${slugs.length} teams scraped successfully`)
-  
+
+  const season = resolveSeason(sportKey)
+  const base = await fetchTrendSafe(league, {})
+  if (!base) {
+    return results
+  }
+
+  const [
+    home,
+    away,
+    favorite,
+    underdog,
+    homeFavorite,
+    homeUnderdog,
+    awayFavorite,
+    awayUnderdog,
+  ] = await Promise.all([
+    fetchTrendSafe(league, { location: 'home' }),
+    fetchTrendSafe(league, { location: 'away' }),
+    fetchTrendSafe(league, { expectation: 'favorite' }),
+    fetchTrendSafe(league, { expectation: 'underdog' }),
+    fetchTrendSafe(league, { location: 'home', expectation: 'favorite' }),
+    fetchTrendSafe(league, { location: 'home', expectation: 'underdog' }),
+    fetchTrendSafe(league, { location: 'away', expectation: 'favorite' }),
+    fetchTrendSafe(league, { location: 'away', expectation: 'underdog' }),
+  ])
+
+  const sbdSportKey = resolveSportKey(league) || sportKey
+
+  for (const [key, entry] of Object.entries(base)) {
+    const record = buildRecord(entry, sbdSportKey, season, {
+      home: home?.[key],
+      away: away?.[key],
+      favorite: favorite?.[key],
+      underdog: underdog?.[key],
+      homeFavorite: homeFavorite?.[key],
+      homeUnderdog: homeUnderdog?.[key],
+      awayFavorite: awayFavorite?.[key],
+      awayUnderdog: awayUnderdog?.[key],
+    })
+
+    results.set(record.teamSlug, {
+      success: true,
+      data: record,
+      url: `https://srfeeds.sportsbettingdime.com/v2/trends/${league}`,
+      scrapedAt,
+    })
+  }
+
   return results
 }
 
-/**
- * Quick test scrape for a single team (for debugging)
- */
-export async function testScrapeATSTrends(teamSlug: string = 'los-angeles-lakers'): Promise<void> {
-  console.log(`[Test] Scraping ATS trends for ${teamSlug}...`)
-  const result = await scrapeTeamATSTrends(teamSlug)
-  
-  if (result.success && result.data) {
-    console.log('[Test] Success!')
-    console.log('  Team:', result.data.teamName)
-    console.log('  Overall ATS:', result.data.atsRecord)
-    console.log('  Home ATS:', result.data.homeAtsRecord || 'N/A')
-    console.log('  Away ATS:', result.data.awayAtsRecord || 'N/A')
-    console.log('  As Favorite:', result.data.favoriteAtsRecord || 'N/A')
-    console.log('  As Underdog:', result.data.underdogAtsRecord || 'N/A')
-    console.log('  O/U Record:', result.data.overUnderRecord || 'N/A')
-    console.log('  Last 10:', result.data.last10Ats || 'N/A')
-    console.log('  Streak:', result.data.atsStreak || 'N/A')
-  } else {
-    console.log('[Test] Failed:', result.error)
+export async function testScrapeATSTrends(): Promise<void> {
+  console.log('[Test] Fetching SBD ATS trends...')
+  const results = await scrapeAllNBAATSTrends()
+  const sample = Array.from(results.values()).slice(0, 3)
+  for (const entry of sample) {
+    if (!entry.success || !entry.data) continue
+    console.log(`${entry.data.teamName}: ${entry.data.atsRecord} (Home: ${entry.data.homeAtsRecord})`)
   }
 }
-

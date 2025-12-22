@@ -23,7 +23,7 @@ import type { UserDataOverride } from '@/lib/models/model-runner'
 import { buildGameContext } from '@/lib/context/game-context'
 import { normalizePropMarketKey, normalizePropSelection, extractPropLine } from '@/lib/utils/props'
 import { calculateKellyStake } from '@/lib/utils/kelly'
-import { summarizeSplitsForChat } from '@/lib/services/dk-splits'
+import { summarizeCoversGameSplitsForChat, summarizeCoversSplitsForChat } from '@/lib/providers/covers'
 import { format } from 'date-fns'
 import { openai, AI_MODELS, runWebSearchResponse } from '@/lib/ai-gateway-client'
 import { espnTools } from '@/lib/llm/tools/espn-tools'
@@ -112,6 +112,23 @@ const detectIntent = (msgLower: string) => {
       /\b(points|rebounds|assists|steals|blocks|yards|tds|passes|catches|receptions|shots|goals|pim|saves)?\b/.test(msgLower),
     playerSeasonVsOpponent: /\b(this season|season)\b.*\b(vs|against)\b/.test(msgLower),
   }
+}
+
+const inferFuturesMarketHint = (msgLower: string): string | undefined => {
+  if (/\bmvp\b|most valuable player/.test(msgLower)) return 'most valuable player'
+  if (/rookie of the year|\broty\b|\brookie\b/.test(msgLower)) return 'rookie of the year'
+  if (/coach of the year|\bcoty\b|coach/.test(msgLower)) return 'coach of the year'
+  if (/defensive player of the year|defensive player|dpoy/.test(msgLower)) return 'defensive player'
+  if (/sixth man|6th man/.test(msgLower)) return 'sixth man'
+  if (/most improved/.test(msgLower)) return 'most improved'
+  if (/finals mvp|finals most valuable/.test(msgLower)) return 'finals mvp'
+  if (/play-?in/.test(msgLower)) return 'play-in'
+  if (/make (the )?playoffs|to make the playoffs|make playoffs/.test(msgLower)) return 'make the playoffs'
+  if (/seed/.test(msgLower)) return 'seed'
+  if (/division/.test(msgLower)) return 'division'
+  if (/conference/.test(msgLower)) return 'conference'
+  if (/championship|title|win (it|the league)|outright/.test(msgLower)) return 'championship'
+  return undefined
 }
 
 // ESPN uses the STARTING year of the season (e.g., 2025 for 2025-26 season)
@@ -1273,15 +1290,15 @@ const normalizeUserDataOverrides = (raw: any): UserDataOverride[] | undefined =>
 
 const getSystemPrompt = (timezone: string) => `You are DELTA, a professional sports betting assistant. Your role is to help users surface odds and factual stats, manage their bankroll, and understand sports betting markets. Do not provide matchup analysis or long-form breakdowns; keep replies data-forward and concise.
 
-**Data sources and limits (ESPN + odds-api):**
-- Betting lines: use odds-api (moneyline/spread/totals); do NOT claim odds come from ESPN.
+**Data sources and limits (ESPN + SportsBettingDime):**
+- Betting lines and public splits: use SportsBettingDime (moneyline/spread/totals + bets/handle); do NOT claim odds come from ESPN.
 - Stats: use ESPN-derived data we fetch (box scores, season averages, injuries, standings). Advanced pace/usage/DvP/snap-share/xG are NOT available; do not invent them.
-- If a query mixes betting + stats, pull odds from odds-api and stats from ESPN, then synthesize with reasoning.
+- If a query mixes betting + stats, pull odds from SportsBettingDime and stats from ESPN, then synthesize with reasoning.
 
 **CRITICAL - Live Betting Projections:**
 When users ask "what is your projected live line" or "what should the live line be" for an in-progress game:
 - Use ONLY the get_live_betting_projection tool
-- Do NOT call any odds-api functions or fetch current market lines
+- Do NOT call any odds-api functions or claim odds-api as the source
 - This tool calculates what the line SHOULD be based on game state, NOT what sportsbooks are currently offering
 - The tool uses ESPN for live game data and Basketball Reference season stats only
 - Present the projection without comparing to actual market odds
@@ -1326,7 +1343,7 @@ Current time is ${new Date().toLocaleString('en-US', {
 
   **IMPORTANT - YOU HAVE ACCESS TO ODDS DATA AND TEAM/PLAYER STATISTICS:**
 You have REAL-TIME access to:
-  1. Live odds data for NBA, NCAA Basketball (NCAAB), NFL, NCAA Football (NCAAF), MLB, and NHL via Odds-API.io (provider)
+  1. Live odds data for NBA, NCAA Basketball (NCAAB), NFL, NCAA Football (NCAAF), MLB, and NHL via SportsBettingDime (provider)
 2. Team statistics (records, rankings, offensive/defensive stats)
 3. Player statistics (season averages only for NBA/NFL; no deep NBA splits/advanced metrics are available right now)
 4. Injury reports and lineup information
@@ -1982,15 +1999,15 @@ export async function POST(req: NextRequest) {
     } = await req.json()
 
     const environmentName = process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown'
-    const oddsProvider = process.env.ODDS_PROVIDER || 'odds-api-io'
-    const oddsApiKey = process.env.ODDS_API_KEY
+    const oddsProvider = process.env.ODDS_PROVIDER || 'sportsbettingdime'
+    const sbdBookIds = process.env.SBD_BOOK_IDS || process.env.ODDS_BOOKMAKERS
     const openaiApiKey = process.env.OPENAI_API_KEY
 
     console.log('[CONFIG] Environment validation:', {
       environment: environmentName,
       oddsProvider,
-      hasOddsApiKey: Boolean(oddsApiKey),
-      oddsApiKeyLength: oddsApiKey?.length || 0,
+      hasSbdBookIds: Boolean(sbdBookIds),
+      sbdBookIdsLength: sbdBookIds?.length || 0,
       hasOpenAIApiKey: Boolean(openaiApiKey),
       openaiApiKeyLength: openaiApiKey?.length || 0,
     })
@@ -2060,7 +2077,6 @@ export async function POST(req: NextRequest) {
     // UNIFIED QUERY PIPELINE (StatMuse-like)
     // Handles stats questions, opponent splits, contextual analysis
     // ========================================
-    const msgLowerForUnified = message.toLowerCase()
     const isStatsQuery = (
       // Direct stats patterns
       /\bwhat(?:'s| is)\b.*\b(ppg|points|rebounds|assists|steals|blocks|fg%|3pt?%?|rating)\b/i.test(message) ||
@@ -2108,12 +2124,19 @@ export async function POST(req: NextRequest) {
       /\bwho (scores?|wins?)\b.*\bquarter\b/i.test(message)
     )
 
+    const bettingSplitsIntent =
+      /\b(public money|sharp money|betting\s+splits?|betting\s+split|% of bets|% of money|handle%|tickets%|handle share|ticket share|public side)\b/i.test(
+        message
+      ) ||
+      /\bwhere (is|are) the (public|money)\b/i.test(message) ||
+      /\b(all|today|tonight|games?)\b.*\bsplits\b/i.test(message)
+
     // Skip unified pipeline for:
     // - Explicit odds/betting line requests (need real-time odds)
     // - Player prop requests (need prop data)
     // - Model-related requests
     // - Bank roll/bet tracking
-    // BUT: Allow betting splits/public betting queries (those go through unified pipeline)
+    // BUT: Skip betting splits (handled with deterministic SBD formatting)
     const skipUnifiedPipeline = (
       (/\b(odds|moneyline|spread line|total line|prop|parlay|bet slip|bankroll|my bets|place bet)\b/i.test(message) &&
        !/\b(betting|public)\s+(split|splits|percentage)\b/i.test(message) &&
@@ -2121,7 +2144,8 @@ export async function POST(req: NextRequest) {
       /\b(create model|run model|save model|research model)\b/i.test(message) ||
       /\b(tonight|today|tomorrow).*\b(odds|lines|games)\b/i.test(message) ||
       /\b(projected?|projection)(\s+live)?(\s+betting)?(\s+(line|spread|total|moneyline))/i.test(message) ||
-      /\blive\s+(betting\s+)?(projected?|projection)/i.test(message)
+      /\blive\s+(betting\s+)?(projected?|projection)/i.test(message) ||
+      bettingSplitsIntent
     )
 
     // Debug logging for pattern matching
@@ -2351,7 +2375,8 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizeTeamList = (names: string[]): string[] => {
-      const banned = /\b(odds?|lines?|ncaab|ncaa|college|basketball)\b/gi
+      const banned =
+        /\b(odds?|lines?|spread|total|moneyline|betting|bets?|public|sharp|money|handle|tickets?|split|splits|percent(?:age)?s?|ncaab|ncaa|college|basketball)\b/gi
       const cleaned = names
         .map((name) =>
           name
@@ -2396,7 +2421,10 @@ export async function POST(req: NextRequest) {
           prevCleaned = cleaned
           cleaned = cleaned
             .replace(/^(the|in|at|on|for|with|against|versus|vs)\s+/i, '')
-            .replace(/\s+(game|match|tonight|today|tomorrow|in|at|on)$/i, '')
+            .replace(
+              /\s+(game|match|tonight|today|tomorrow|in|at|on|betting|splits?|public|sharp|money|bets?|handle|tickets?|percent(?:age)?s?|odds?|lines?|spread|total|moneyline)$/i,
+              ''
+            )
             .trim()
         }
         return cleaned
@@ -2605,7 +2633,7 @@ export async function POST(req: NextRequest) {
       return cachedMade3pm
     }
     type SportKey = 'nba' | 'nfl' | 'mlb' | 'nhl'
-    const playerNameInMessage = extractPlayerName(message)
+    const playerNameInMessage = bettingSplitsIntent ? undefined : extractPlayerName(message)
     const isProjectionQuery = /\b(projected?|projection)\s+(live\s+)?(line|spread|total|moneyline)|live\s+(betting\s+)?(projected?|projection)/i.test(msgLower)
     const extractTwoPlayers = (): string[] => {
       const vsSplit = message.split(/\bvs\.?\b|\bversus\b/i)
@@ -2623,7 +2651,7 @@ export async function POST(req: NextRequest) {
       return []
     }
     const playerCompareCandidates = extractTwoPlayers()
-    const playerCompareIntent = playerCompareCandidates.length === 2 && /\bcompare\b|\bvs\b|\bversus\b/i.test(msgLower) && !isProjectionQuery
+    const playerCompareIntent = playerCompareCandidates.length === 2 && /\bcompare\b|\bvs\b|\bversus\b/i.test(msgLower) && !isProjectionQuery && !bettingSplitsIntent
     const hasNumber = /\d/.test(msgLower)
     const propIntent =
       Boolean(playerNameInMessage) &&
@@ -2790,9 +2818,11 @@ export async function POST(req: NextRequest) {
       }
 
       if (intent.futures) {
+        const marketHint = inferFuturesMarketHint(msgLower)
         const data = await espnToolResolvers.espnTeamFutures({
           sport: resolvedSport,
           season,
+          market: marketHint,
         })
         return streamTextResponse(
           `Futures for ${sportGuess.toUpperCase()} ${season}:\n${JSON.stringify(data, null, 2)}`
@@ -2808,7 +2838,11 @@ export async function POST(req: NextRequest) {
       (/\bvs\b|against|@/i.test(msgLower) || /\b\d{1,2}\/\d{1,2}\b/.test(msgLower) || /\blast\s+(night|game)\b/i.test(msgLower)) &&
       !isProjectionQuery
     const netRatingIntent = /\bnet rating|net rtg\b/i.test(msgLower) || (/\b(o|d)rtg\b/i.test(msgLower) && mentionedTeams.length >= 2)
-    const compareTeamsIntent = (/\bcompare\b/i.test(msgLower) || /\bvs\b|\bversus\b/i.test(msgLower)) && mentionedTeams.length >= 2 && !isProjectionQuery
+    const compareTeamsIntent =
+      (/\bcompare\b/i.test(msgLower) || /\bvs\b|\bversus\b/i.test(msgLower)) &&
+      mentionedTeams.length >= 2 &&
+      !isProjectionQuery &&
+      !bettingSplitsIntent
     const teamStatsIntent =
       /\b(team stats?|team statistics|team form|team record|recent form|last\s*10|last ten)\b/i.test(msgLower) ||
       (mentionedTeams.length > 0 &&
@@ -2842,6 +2876,7 @@ export async function POST(req: NextRequest) {
     const statCompareIntent =
       mentionedTeams.length >= 2 &&
       /\b(compare|vs|versus)\b/i.test(msgLower) &&
+      !bettingSplitsIntent &&
       (threesMadeIntent || threesAllowedIntent || /pace|ortg|drtg|net rating|ppg|points per game|papg|rebounds|reb\b|assists|blocks|steals|turnovers|fg%|3p%|ft%|ts%|efg%|offensive rating|defensive rating|ftr\b/i.test(msgLower))
 
     const detectStatKey = (msg: string): { key: string; label: string } | null => {
@@ -3518,21 +3553,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const splitsIntent =
-      /\b(public money|sharp money|betting\s+splits?|betting\s+split|% of bets|% of money|handle%|tickets%|handle share|ticket share|public side)\b/i.test(
-        msgLower
-      ) || /\bwhere (is|are) the (public|money)\b/i.test(msgLower)
-
-    if (splitsIntent) {
+    if (bettingSplitsIntent) {
       try {
-        const splitsResponse = await summarizeSplitsForChat({
-          message,
-          teams: parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams,
-          timezone,
-        })
+        const wantsAllGames = /\b(all games|every game|full slate|all splits)\b/i.test(msgLower)
+        const teams = parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams
+        const splitsResponse =
+          !wantsAllGames && teams.length > 0
+            ? await summarizeCoversGameSplitsForChat({
+                message,
+                teams,
+                timezone,
+              })
+            : await summarizeCoversSplitsForChat({
+                message,
+                teams,
+                timezone,
+              })
+
         return streamTextResponse(splitsResponse)
       } catch (err: any) {
-        console.error('[SPLITS] Failed to fetch DK splits', err)
+        console.error('[SPLITS] Failed to fetch SBD splits', err)
         return streamTextResponse('Betting splits are unavailable right now. Try again in a bit or specify the league.')
       }
     }
@@ -4384,8 +4424,8 @@ ${statsEnrichment}
         const oddsError: any = error
         const statusCode = oddsError?.statusCode ?? oddsError?.status ?? oddsError?.response?.status
         const message = oddsError?.message || String(oddsError)
-        const oddsKeyLength = oddsApiKey?.length || 0
-        const hasOddsKey = Boolean(oddsApiKey)
+        const bookIdsLength = sbdBookIds?.length || 0
+        const hasBookIds = Boolean(sbdBookIds)
 
         console.error('[ODDS] Critical error fetching odds:', {
           name: oddsError?.name || 'UnknownError',
@@ -4396,12 +4436,12 @@ ${statsEnrichment}
           stack: oddsError?.stack,
           environment: environmentName,
           oddsProvider,
-          oddsApiKeyPresent: hasOddsKey,
-          oddsApiKeyLength: oddsKeyLength,
+          sbdBookIdsPresent: hasBookIds,
+          sbdBookIdsLength: bookIdsLength,
           openaiApiKeyPresent: Boolean(openaiApiKey),
         })
 
-        oddsContext = `\n\n(Odds data unavailable due to API error: ${message}. status=${statusCode ?? 'unknown'}, provider=${oddsProvider}, env=${environmentName}, oddsKey=${hasOddsKey ? 'present' : 'MISSING'} len=${oddsKeyLength})\n`
+        oddsContext = `\n\n(Odds data unavailable due to API error: ${message}. status=${statusCode ?? 'unknown'}, provider=${oddsProvider}, env=${environmentName}, bookIds=${hasBookIds ? 'present' : 'MISSING'} len=${bookIdsLength})\n`
       }
     }
 
@@ -5361,6 +5401,27 @@ ${statsEnrichment}
           success: true,
           ...result,
         }
+      } else if (functionName === 'get_betting_splits') {
+        const { summarizeCoversSplitsForChat } = await import('@/lib/providers/covers')
+        const teams = parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams
+        const formatted = await summarizeCoversSplitsForChat({
+          message,
+          teams,
+          timezone,
+        })
+        functionResult = { success: true, formatted }
+      } else if (functionName === 'analyze_game_splits') {
+        const { summarizeCoversGameSplitsForChat } = await import('@/lib/providers/covers')
+        const fallbackTeams = parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams
+        const teams =
+          functionArgs.teams != null ? [String(functionArgs.teams)] : fallbackTeams
+        const formatted = await summarizeCoversGameSplitsForChat({
+          message,
+          teams,
+          gameId: functionArgs.game_id,
+          timezone,
+        })
+        functionResult = { success: true, formatted }
       }
 
       return functionResult
@@ -5634,8 +5695,14 @@ ${statsEnrichment}
                 const functionResult = await runToolCall(toolCall)
 
                 // Short-circuit for player props: if we already have a formatted response, return it without another model pass
+                const formattedTools = new Set([
+                  'get_player_props',
+                  'get_betting_splits',
+                  'analyze_game_splits',
+                ])
+
                 if (
-                  toolCall.function?.name === 'get_player_props' &&
+                  formattedTools.has(toolCall.function?.name) &&
                   functionResult &&
                   typeof functionResult === 'object' &&
                   'formatted' in functionResult &&
@@ -5831,6 +5898,8 @@ ${statsEnrichment}
     );
   }
 }
+
+
 
 
 

@@ -1,5 +1,5 @@
 /**
- * Lightweight ESPN ingest for Supabase: season-level team/player stats and optional betting context (futures/ATS/odds records/predictor).
+ * Lightweight ESPN ingest for Supabase: season-level team/player stats and optional betting context (SBD futures + ESPN ATS/odds records/predictor).
  * Usage: ts-node scripts/ingest-espn-data.ts --sport nfl --seasons 2020,2021,2022,2023,2024
  */
 import { createServiceClient } from '@/lib/supabase/service'
@@ -8,13 +8,13 @@ import { fetchTeamList as fetchNbaTeams, fetchRoster as fetchNbaRoster, fetchTea
 import { fetchTeamList as fetchMlbTeams, fetchRoster as fetchMlbRoster, fetchTeamStatistics as fetchMlbTeamStats, fetchAthleteStatistics as fetchMlbAthleteStats } from '@/lib/providers/espn-mlb'
 import { fetchTeamList as fetchNhlTeams, fetchRoster as fetchNhlRoster, fetchTeamStatistics as fetchNhlTeamStats, fetchAthleteStatistics as fetchNhlAthleteStats } from '@/lib/providers/espn-nhl'
 import {
-  fetchFutures,
   fetchTeamAts,
   fetchTeamOddsRecord,
   fetchPredictor,
   fetchPowerIndex,
   fetchTeamPastPerformances,
 } from '@/lib/providers/espn-betting'
+import { fetchSbdFuturesMarket, fetchSbdFuturesMarkets, resolveBookIds, resolveSbdLeague } from '@/lib/api/sbd'
 import { fetchInjuries as fetchNflInjuries } from '@/lib/providers/espn-nfl'
 import { fetchInjuries as fetchNbaInjuries } from '@/lib/providers/espn-nba'
 import { fetchInjuries as fetchMlbInjuries } from '@/lib/providers/espn-mlb'
@@ -54,6 +54,29 @@ const fetchJson = async (url: string) => {
   const res = await fetch(url, { cache: 'no-store' as RequestCache })
   if (!res.ok) return null
   return res.json()
+}
+
+const fetchSbdFutures = async (sport: SportKey) => {
+  const league = resolveSbdLeague(sport)
+  if (!league) return []
+  const marketsPayload = await fetchSbdFuturesMarkets(league)
+  const markets = Array.isArray(marketsPayload?.data) ? marketsPayload.data : []
+  const bookIds = resolveBookIds(process.env.SBD_BOOK_IDS || process.env.ODDS_BOOKMAKERS || null)
+  const futures: any[] = []
+
+  for (const market of markets) {
+    if (!market?.id || !market?.name) continue
+    const details = await fetchSbdFuturesMarket(league, market.id, { books: bookIds })
+    futures.push({
+      market_id: market.id,
+      market_name: market.name,
+      selections: details?.data || [],
+      source: 'sportsbettingdime',
+      fetched_at: new Date().toISOString(),
+    })
+  }
+
+  return futures
 }
 
 const parseArgs = (): IngestConfig => {
@@ -295,11 +318,11 @@ const ingestSeason = async (cfg: IngestConfig) => {
     console.log(`[INGEST][${cfg.sport}] season ${season} teams=${teams.length}`)
 
     // Futures (once per season)
-    const futures = await fetchFutures(sportPath, season)
-    if (futures?.items?.length) {
+    const futures = await fetchSbdFutures(cfg.sport)
+    if (futures.length) {
       await upsertFutures(
         supabase,
-        futures.items.map((item: any) => ({
+        futures.map((item: any) => ({
           sport_key: cfg.sport,
           season,
           market: item,

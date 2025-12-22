@@ -9,11 +9,11 @@ Last updated: 2025-12-11
 - **Quarter/OT caches:** period-level scoring stored per event for split queries.
 - **Closing lines:** for CLV/backtesting (side/total/props).
 - **Odds history/line moves:** to support “why did the line move” narratives.
-- **Public vs sharp splits:** live bets%/handle% per market (spread/ML/total/props) from a stable source.
+- **Public vs sharp splits:** live bets%/handle% per market (spread/ML/total/props); SBD covers spread/total/moneyline for supported leagues, props still limited.
 - **Arena metadata completeness:** we added NBA travel matrix; need equivalent for other leagues if we want cross-sport travel/rest tagging.
 
 ### Betting Data We’re Missing
-- **Public/handle splits feed:** DraftKings/FD/Covers endpoints blocked/undiscovered; need a reliable splits API or proxy to provide bets%/handle% by event/market.
+- **Public/handle splits feed:** Covered for major leagues via SportsBettingDime (spread/total/moneyline). Still missing: prop splits and historical backfill.
 - **Line history:** opening/closing and intra-day moves to explain moves and run backtests.
 - **State-specific promos feed:** not wired; needed for “promo aggregator” claims.
 - **Arbitrage/stale detection:** requires multi-book odds snapshots and basic consensus price to flag outliers.
@@ -22,7 +22,7 @@ Last updated: 2025-12-11
 - **Explanations of line movement / public vs sharp:** needs splits + line history (bets/handle + prices over time).
 - **Edge Creation Toolkit (backtesting/CLV):** needs closing lines, line history; optional: backfill historical odds.
 - **Advanced stats & trends:** needs derived opponent-allowed stats (paint/FB/2nd-chance/points off TO/bench) and quarter/OT caches.
-- **Public vs sharp % splits:** requires a working splits feed (or alternate provider) and odds history.
+- **Public vs sharp % splits:** SBD covers live splits; still needs odds history for full narratives/backtests.
 - **Promo aggregator:** requires a maintained promo feed per state/book.
 
 ### Nice-to-Haves (Risk & UX)

@@ -1,7 +1,7 @@
 /**
- * Covers.com Data Mappers
- * 
- * Maps scraped Covers data to internal database types.
+ * SportsBettingDime Data Mappers
+ *
+ * Maps SBD betting data to internal database types.
  */
 
 import type {
@@ -93,6 +93,7 @@ export function mapATSRecordToRow(
       losses: record.atsLosses,
       pushes: record.atsPushes,
       formatted: record.atsRecord,
+      splits: record.extraSplits || undefined,
     },
     team_name: record.teamName,
     covers_slug: record.teamSlug,
@@ -146,7 +147,7 @@ export function mapSplitsToRows(
     home_team: splits.homeTeam,
     away_team: splits.awayTeam,
     game_time: splits.gameTime || null,
-    source: 'covers',
+    source: 'sportsbettingdime',
     covers_game_id: splits.coversGameId || null,
     captured_at: capturedAt,
   }

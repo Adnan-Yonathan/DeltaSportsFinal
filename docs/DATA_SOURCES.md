@@ -5,17 +5,21 @@ This document maps all data types to their sources in the DeltaSports applicatio
 ## Betting Odds
 
 ### Primary Provider
-**Odds-API.io** (Default)
-- Base URL: `https://api.odds-api.io/v3`
-- Environment variable: `ODDS_API_KEY`
+**SportsBettingDime (SBD)** (Default)
+- Base URL: `https://www.sportsbettingdime.com/wp-json/adpt/v1`
+- Supplementary feeds:
+  - Trends: `https://srfeeds.sportsbettingdime.com/v2/trends/{league}`
+  - Game props: `https://cdn-sde.sbdfuel.com/gameprops/{league}/list`
+- Environment variables:
+  - `ODDS_PROVIDER`: `sportsbettingdime` (default)
+  - `SBD_BOOK_IDS` or `ODDS_BOOKMAKERS` for book selection
 - Provides:
   - Moneyline, spreads, totals (h2h, spreads, totals markets)
-  - Player props (points, rebounds, assists, passing yards, etc.)
-  - Arbitrage opportunities
-  - Multi-event odds fetching
-  - Line movements and updated odds
-  - Sports/leagues listings
-  - Bookmaker selection
+  - Betting splits (bets% + handle% for spread/total/moneyline)
+  - ATS + O/U trends (home/away/fav/dog situational splits)
+  - Player props (game props list + filters)
+  - Futures odds (championships, awards, divisions)
+  - Sports/leagues listings + multi-event odds fetching
 - File: `lib/api/odds-api.ts`
 
 ### Fallback Provider
@@ -34,13 +38,16 @@ This document maps all data types to their sources in the DeltaSports applicatio
   - NFL: passing TDs, passing yards, rushing yards, receptions
   - MLB: hits, total bases, RBIs, runs scored
   - NHL: points, shots on goal, blocked shots
+- Futures:
+  - Championships, conferences, divisions
+  - Awards (MVP, Rookie, Coach, Defensive, Sixth Man, Most Improved)
 
 ### Line Tracking & CLV
 - **Storage**: Supabase `lines` table
 - **Recording Service**: `lib/services/line-recorder.ts`
 - **CLV Calculation**: `lib/services/clv.ts`
 - Tracks: opening lines, current lines, closing lines, line movements
-- Uses odds data from Odds-API.io to record line snapshots
+- Uses SBD odds data to record line snapshots
 
 ---
 
@@ -189,7 +196,7 @@ This document maps all data types to their sources in the DeltaSports applicatio
 - Line movements tracked over time
 - Storage: Supabase `lines` table
 - Recording: `lib/services/line-recorder.ts`
-- Source: Odds-API.io odds data
+- Source: SportsBettingDime odds data
 - Used for CLV calculation
 
 ---
@@ -244,7 +251,7 @@ This document maps all data types to their sources in the DeltaSports applicatio
 - File: `lib/espn-api.ts`, `lib/live-scores.ts`
 
 **Odds Providers**
-- Event listings from Odds-API.io
+- Event listings from SportsBettingDime feeds
 - File: `lib/api/odds-api.ts`
 
 ---
@@ -283,7 +290,7 @@ This document maps all data types to their sources in the DeltaSports applicatio
 
 ## Data Flow Summary
 
-1. **Odds Data**: Odds-API.io → Line Recorder → Supabase `lines` table
+1. **Odds Data**: SportsBettingDime → Line Recorder → Supabase `lines` table
 2. **Live Scores**: ESPN → Live Scores Service → Frontend / Chat API
 3. **Player Stats**: ESPN / Sports Reference / Static Data → Stats API → Chat API
 4. **Team Stats**: ESPN / Sports Reference / Static Data → Stats API → Chat API
@@ -297,10 +304,10 @@ This document maps all data types to their sources in the DeltaSports applicatio
 
 Key environment variables that control data sources:
 
-- `ODDS_API_KEY`: Odds-API.io API key
-- `ODDS_PROVIDER`: `odds-api-io` (default)
-- `ODDS_BOOKMAKERS`: Comma-separated list of bookmakers to use
-- `ODDS_REGIONS`: Regions for odds (default: 'us')
+- `ODDS_PROVIDER`: `sportsbettingdime` (default)
+- `SBD_BOOK_IDS`: Comma-separated SBD book IDs (e.g., `sr:book:18149`)
+- `ODDS_BOOKMAKERS`: Comma-separated book slugs (mapped to SBD IDs)
+- `ODDS_REGIONS`: Legacy (not used by SBD; retained for compatibility)
 - `SUPABASE_URL`: Supabase project URL
 - `SUPABASE_SERVICE_ROLE_KEY`: For backend operations
 - `OPENAI_API_KEY`: OpenAI access for chat/models
@@ -313,7 +320,7 @@ Key environment variables that control data sources:
 
 - **Caching**: Most data sources implement caching (TTL varies by source)
 - **Fallback Chains**: Most stats APIs have multiple fallback sources (ESPN → Sports Reference → Static Data)
-- **Rate Limiting**: Odds-API.io has rate limits; implement retry logic when rate-limited
+- **Rate Limiting**: SportsBettingDime endpoints can rate limit; implement retry logic when rate-limited
 - **Web Scraping**: Sports Reference uses web scraping (may be brittle)
 - **Real-time vs Batch**: Live scores are real-time; line recording is batch (via cron)
 - **Calculated Metrics**: Advanced stats are derived from base statistics, not sourced directly

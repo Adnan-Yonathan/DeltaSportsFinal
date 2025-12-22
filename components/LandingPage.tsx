@@ -311,12 +311,6 @@ export default function LandingPage() {
       {/* Dotted Surface Background */}
       <DottedSurface />
 
-      {/* Fonts */}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-        :root { --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
-        .font-jakarta { font-family: var(--font-sans); }
-      `}</style>
       <SimpleHeader />
 
       {/* Hero area */}

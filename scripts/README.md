@@ -68,7 +68,7 @@ npm run ingest:team-stats
 
 ## ingest-espn-data.ts
 
-Backfills season-level ESPN data to Supabase (teams, players, season stats, futures, ATS/odds records) per sport.
+Backfills season-level ESPN data to Supabase (teams, players, season stats, plus SBD futures + ESPN ATS/odds records) per sport.
 
 ### How to run
 
@@ -82,7 +82,7 @@ Supported sports: `nfl`, `nba`, `mlb`, `nhl`.
 - Pulls team lists and season statistics
 - Pulls rosters and player season statistics
 - Writes team/player season stats to Supabase
-- Writes futures, ATS records, and odds records (no per-game odds lines)
+- Writes SBD futures, plus ATS/odds records (no per-game odds lines)
 
 ### Prerequisites
 - Apply `supabase/schema-extended.sql` in your project

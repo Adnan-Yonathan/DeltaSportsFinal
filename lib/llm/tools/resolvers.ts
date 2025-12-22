@@ -13,7 +13,7 @@ export const toolResolvers: Record<string, Resolver> = {
     espn.getTeamOddsRecord(sport, teamId, season),
   espnTeamPastPerformances: ({ sport, teamId, providerId = '1003', limit }) =>
     espn.getTeamPastPerformances(sport, teamId, providerId, limit),
-  espnTeamFutures: ({ sport, season }) => espn.getFutures(sport, season),
+  espnTeamFutures: ({ sport, season, market, books }) => espn.getFutures(sport, season, market, books),
   espnPredictor: ({ sport, eventId }) => espn.getPredictor(sport, eventId),
   espnTeamSeasonStats: ({ sport, teamId, season, seasonType = 2 }) =>
     espn.getTeamSeasonStats(sport, teamId, season, seasonType),

@@ -1,7 +1,7 @@
 /**
- * Ingest Covers.com ATS Records
- * 
- * Scrapes ATS (Against The Spread) records for all NBA teams from Covers.com
+ * Ingest SportsBettingDime ATS Records
+ *
+ * Pulls ATS (Against The Spread) records for all NBA teams from SBD trends
  * and upserts them into the team_ats_records table.
  * 
  * Run: npm run ingest:covers-ats
@@ -31,7 +31,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 async function main() {
   console.log('='.repeat(60))
-  console.log('Covers.com ATS Records Ingestion')
+  console.log('SportsBettingDime ATS Records Ingestion')
   console.log('='.repeat(60))
   console.log(`Started at: ${new Date().toISOString()}`)
   console.log(`Season: ${getCurrentNBASeason()}`)

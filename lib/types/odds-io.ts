@@ -25,7 +25,7 @@ export interface SportDto {
 }
 
 export interface SimpleEventDto {
-  id: number
+  id: string | number
   date: string
   home: string
   away: string
@@ -118,7 +118,7 @@ export interface OptimalStakeDto {
 
 export interface ArbitrageOpportunityDto {
   id: string
-  eventId: number
+  eventId: string | number
   event?: {
     home: string
     away: string

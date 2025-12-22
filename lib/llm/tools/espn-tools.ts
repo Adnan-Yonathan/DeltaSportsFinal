@@ -44,12 +44,21 @@ export const espnTools: LlmToolDefinition[] = [
   },
   {
     name: 'espnTeamFutures',
-    description: 'Fetch futures markets for a sport and season.',
+    description: 'Fetch futures markets and odds for a sport and season (SportsBettingDime).',
     parameters: {
       type: 'object',
       properties: {
         sport: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'] },
         season: { type: 'number' },
+        market: {
+          type: 'string',
+          description: 'Optional market name or SBD market id (e.g., championship, MVP, division).',
+        },
+        books: {
+          type: ['string', 'array'],
+          description: 'Optional book ids or slugs (comma-separated or array).',
+          items: { type: 'string' },
+        },
       },
       required: ['sport', 'season'],
     },

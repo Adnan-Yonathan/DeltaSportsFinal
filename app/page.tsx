@@ -1,7 +1,7 @@
-import LandingPage from '@/components/LandingPage'
+import ChatPage from './chat/page'
 
 export const dynamic = 'force-dynamic'
 
 export default function Home() {
-  return <LandingPage />
+  return <ChatPage />
 }

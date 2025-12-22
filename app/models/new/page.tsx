@@ -71,7 +71,7 @@ export default function NewModelPage() {
       setCreatedModelId(model.id)
       // Redirect to model details or chat after creation
       setTimeout(() => {
-        router.push(`/chat`)
+        router.push("/")
       }, 1500)
     } catch (err: any) {
       console.error('Error creating model:', err)
@@ -86,7 +86,7 @@ export default function NewModelPage() {
         {/* Header */}
         <div className="mb-8">
           <Link
-            href="/chat"
+            href="/"
             className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-1" />
@@ -293,7 +293,7 @@ export default function NewModelPage() {
           {/* Submit Button */}
           <div className="flex justify-end space-x-3">
             <Link
-              href="/chat"
+              href="/"
               className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
               Cancel

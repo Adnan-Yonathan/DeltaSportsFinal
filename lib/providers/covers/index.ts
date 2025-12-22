@@ -1,7 +1,7 @@
 /**
- * Covers.com Provider
- * 
- * Exports scraping utilities for ATS records and public betting splits.
+ * SportsBettingDime Provider (Covers replacement)
+ *
+ * Exports SBD-backed utilities for ATS records and public betting splits.
  */
 
 // Client
@@ -57,6 +57,7 @@ export {
   getDailyMatchups,
   scrapeGameSplits,
   scrapeDailySplits,
+  scrapePublicMoneySplits,
   testScrapeSplits,
 } from './splits-scraper'
 
@@ -65,5 +66,7 @@ export {
   getTeamATSData,
   getCurrentBettingSplits,
   analyzeGameSplits,
+  summarizeCoversSplitsForChat,
+  summarizeCoversGameSplitsForChat,
 } from './chat-helpers'
 

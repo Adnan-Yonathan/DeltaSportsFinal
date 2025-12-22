@@ -247,7 +247,7 @@ Configured in `vercel.json`:
 **Schedule:** Every 30 minutes
 
 **What it does:**
-1. Fetches current odds from odds provider (Odds-API.io)
+1. Fetches current odds from odds provider (SportsBettingDime)
 2. Records all lines to database
 3. Marks opening lines for new games
 4. Enables CLV calculations later
@@ -262,8 +262,9 @@ Configured in `vercel.json`:
 Required in `.env.local`:
 
 ```bash
-# Odds Provider (Odds-API.io)
-ODDS_API_KEY=your_odds_api_key
+# Odds Provider (SportsBettingDime)
+# Optional: override book selection
+SBD_BOOK_IDS=sr:book:18149,sr:book:18186
 
 # Cron authentication (required for production)
 CRON_SECRET=your_random_secret_here

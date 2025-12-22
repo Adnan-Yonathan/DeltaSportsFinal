@@ -26,7 +26,7 @@ export default function DataSourcesPage() {
           </li>
           <li>
             <span className="font-medium text-white">Odds & markets:</span> an external odds
-            provider (Odds-API.io) for spreads, totals, moneylines, and some props.
+            provider (SportsBettingDime) for spreads, totals, moneylines, splits, futures, and props.
           </li>
           <li>
             <span className="font-medium text-white">User data:</span> Supabase stores bets,

@@ -31,13 +31,13 @@ import {
   fetchInjuries as fetchNhlInjuries,
 } from '@/lib/providers/espn-nhl'
 import {
-  fetchFutures,
   fetchTeamAts,
   fetchTeamOddsRecord,
   fetchPredictor,
   fetchPowerIndex,
   fetchTeamPastPerformances,
 } from '@/lib/providers/espn-betting'
+import { fetchSbdFuturesSnapshot } from '@/lib/services/sbd-futures'
 
 export type SportKey = 'nba' | 'nfl' | 'mlb' | 'nhl'
 
@@ -231,9 +231,15 @@ export const getTeamSchedule = async (sport: SportKey, teamId: string, season: n
     .filter((g) => g.date)
 }
 
-export const getFutures = async (sport: SportKey, season: number) => {
-  const sportPath = SPORT_PATH[sport]
-  return fetchFutures(sportPath, season)
+export const getFutures = async (
+  sport: SportKey,
+  season: number,
+  market?: string,
+  books?: string[] | string
+) => {
+  const snapshot = await fetchSbdFuturesSnapshot({ sport, market, books })
+  if (!snapshot) return null
+  return { season, sport, ...snapshot }
 }
 
 export const getPredictor = async (sport: SportKey, eventId: string) => {

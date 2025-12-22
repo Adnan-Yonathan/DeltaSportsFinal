@@ -1,5 +1,5 @@
 /**
- * Covers.com Scraper Types
+ * SportsBettingDime Types (Covers replacement)
  */
 
 // =============================================================================
@@ -28,7 +28,10 @@ export interface CoversATSRecord {
   // Recent performance
   last10Ats?: string
   atsStreak?: string // "W3", "L2", "P1"
-  
+
+  // Extra situational splits (e.g., home favorite, away underdog)
+  extraSplits?: Record<string, string>
+
   // Metadata
   capturedAt: Date
 }

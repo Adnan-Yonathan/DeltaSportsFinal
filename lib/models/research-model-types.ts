@@ -185,7 +185,7 @@ export interface ResearchOpportunity {
   id: string // Unique identifier
   sport: string // Sport key
   event: string // Game description (e.g., "Lakers @ Celtics")
-  eventId: string // odds-api event ID
+  eventId: string // SBD event ID
   market: string // 'spreads', 'totals', 'h2h', etc.
   book: string // Sportsbook name
 

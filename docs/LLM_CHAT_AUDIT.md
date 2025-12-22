@@ -1,5 +1,7 @@
 # LLM Chat System Audit Report
 
+> NOTE: Betting data sources have since migrated from Covers/Odds-API to SportsBettingDime (SBD). Treat Covers references below as historical.
+
 **Date**: December 15, 2025
 **Auditor**: Claude Code
 **Scope**: Intent detection, tool capabilities, data sources, and gaps vs app goals

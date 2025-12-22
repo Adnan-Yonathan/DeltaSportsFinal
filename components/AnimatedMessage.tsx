@@ -17,99 +17,19 @@ interface AnimatedMessageProps {
 }
 
 export default function AnimatedMessage({ content, isAnimating = true }: AnimatedMessageProps) {
-  const [parsedStats, setParsedStats] = useState<ParsedStats[]>([])
-  const [cleanedContent, setCleanedContent] = useState(content)
-
-  // Parse stats from the content (async) - debounced to wait for streaming to complete
-  useEffect(() => {
-    // For player props, wait until structured data is present (streaming complete)
-    const hasPropsData = content.includes('STRUCTURED_PROPS_DATA:')
-    const hasPropsTable = /\|\s*Market\s*\|.*\|\s*Best Over\s*\|/i.test(content)
-
-    // If props table exists but no structured data yet, skip parsing (wait for complete stream)
-    if (hasPropsTable && !hasPropsData) {
-      console.log('[AnimatedMessage] Props detected but structured data not yet received, waiting...')
-      return
-    }
-
-    // Debounce: wait for content to stop changing before parsing
-    const timeoutId = setTimeout(async () => {
-      console.log('[AnimatedMessage] Parsing content, length:', content.length)
-      const stats = await parseStatsFromText(content)
-      console.log('[AnimatedMessage] Parsed', stats.length, 'stat blocks')
-      setParsedStats(stats)
-      if (stats.length > 0) {
-        setCleanedContent(removeStatsFromText(content, stats))
-      } else {
-        setCleanedContent(content)
-      }
-    }, 300) // Wait 300ms after content stops changing
-
-    return () => clearTimeout(timeoutId)
-  }, [content])
+  // DISABLED: Stats card UI rendering - just show text content
+  // const [parsedStats, setParsedStats] = useState<ParsedStats[]>([])
+  // const [cleanedContent, setCleanedContent] = useState(content)
 
   // Use word-by-word animation for smoother reading experience
-  const animatedContent = useAnimatedText(isAnimating ? cleanedContent : cleanedContent, ' ')
+  const animatedContent = useAnimatedText(isAnimating ? content : content, ' ')
 
   return (
     <div className="space-y-4">
-      {/* Render stats cards */}
-      {parsedStats.map((stat, index) => (
-        <div key={index} className="my-4">
-          {stat.type === 'player' ? (
-            <PlayerStatsCard
-              name={stat.name}
-              team={stat.team}
-              position={stat.position}
-              sport={stat.sport}
-              season={stat.season}
-              headshot={stat.headshot}
-              stats={stat.stats}
-            />
-          ) : stat.type === 'props' ? (
-            <PlayerPropsCard
-              player={stat.player}
-              team={stat.team}
-              teamAbbr={stat.teamAbbr}
-              position={stat.position}
-              sport={stat.sport}
-              game={stat.game}
-              headshot={stat.headshot}
-              markets={stat.markets}
-            />
-          ) : stat.type === 'game_odds' ? (
-            <GameOddsCard
-              awayTeam={stat.awayTeam}
-              homeTeam={stat.homeTeam}
-              awayLogo={stat.awayLogo}
-              homeLogo={stat.homeLogo}
-              sport={stat.sport}
-              gameTime={stat.gameTime}
-              markets={stat.markets}
-            />
-          ) : stat.type === 'team_insights' ? (
-            <TeamInsightsCard
-              sport={stat.sport}
-              awayTeam={stat.awayTeam}
-              homeTeam={stat.homeTeam}
-              awayStats={stat.awayStats}
-              homeStats={stat.homeStats}
-            />
-          ) : (
-            <TeamStatsCard
-              team={stat.team}
-              sport={stat.sport}
-              wins={stat.wins}
-              losses={stat.losses}
-              winPct={stat.winPct}
-              stats={stat.stats}
-            />
-          )}
-        </div>
-      ))}
+      {/* DISABLED: Stats card UI rendering */}
 
-      {/* Render remaining text content */}
-      {cleanedContent.trim() && (
+      {/* Render text content only */}
+      {content.trim() && (
         <div className="prose prose-invert prose-sm max-w-none">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}

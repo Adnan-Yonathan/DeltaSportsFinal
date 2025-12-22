@@ -32,7 +32,7 @@ export const LoginPage = () => {
       if (error) throw error
 
       if (data.user) {
-        router.push("/chat")
+        router.push("/")
       }
     } catch (err: any) {
       setError(err.message || "Failed to sign in")

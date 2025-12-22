@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import StagewiseToolbar from '@/components/StagewiseToolbar'
 import { SupabaseAuthListener } from '@/components/SupabaseAuthListener'
 import { AppFooter } from '@/components/AppFooter'
 
@@ -17,7 +16,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="flex min-h-screen flex-col bg-bg-primary text-text-primary">
-        <StagewiseToolbar />
         <SupabaseAuthListener />
         <main className="flex-1">{children}</main>
         <AppFooter />

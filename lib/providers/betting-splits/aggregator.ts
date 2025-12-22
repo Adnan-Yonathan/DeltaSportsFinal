@@ -2,7 +2,7 @@
  * Multi-Source Betting Splits Aggregator
  *
  * Combines betting splits from multiple sources to maximize coverage.
- * Priority: Covers.com > ScoresAndOdds > Others
+ * Priority: SportsBettingDime > ScoresAndOdds > Others
  *
  * Strategy:
  * 1. Scrape from all available sources
@@ -11,7 +11,7 @@
  * 4. Return consolidated results
  */
 
-import { scrapeDailySplits as scrapeCovers } from '../covers/splits-scraper'
+import { scrapeDailySplits as scrapeSbd } from '../covers/splits-scraper'
 import { scrapeScoresAndOddsSplits } from './scoresandodds'
 import type {
   BettingSplit,
@@ -119,11 +119,11 @@ export async function aggregateBettingSplits(
   const splitsMap = new Map<string, BettingSplit>() // gameId -> BettingSplit
 
   // ============================================================================
-  // SOURCE 1: Covers.com (Highest Priority)
+  // SOURCE 1: SportsBettingDime (Highest Priority)
   // ============================================================================
   try {
-    console.log('[Aggregator] Source 1: Covers.com')
-    const coversResult = await scrapeCovers(sport, league)
+    console.log('[Aggregator] Source 1: SportsBettingDime')
+    const coversResult = await scrapeSbd(sport, league)
 
     if (coversResult.success && coversResult.data) {
       let addedCount = 0
@@ -132,36 +132,36 @@ export async function aggregateBettingSplits(
         const gameId = generateGameId(split.awayTeam, split.homeTeam)
         splitsMap.set(gameId, {
           ...split,
-          source: 'covers' as const,
+          source: 'sportsbettingdime' as const,
         })
         addedCount++
       }
 
       sourceResults.push({
-        source: 'covers',
+        source: 'sportsbettingdime',
         games: addedCount,
         success: true,
       })
 
-      console.log(`[Aggregator] ✓ Covers: ${addedCount} games`)
+      console.log(`[Aggregator] ✓ SportsBettingDime: ${addedCount} games`)
     } else {
       sourceResults.push({
-        source: 'covers',
+        source: 'sportsbettingdime',
         games: 0,
         success: false,
         error: coversResult.error,
       })
-      console.log(`[Aggregator] ✗ Covers failed: ${coversResult.error}`)
+      console.log(`[Aggregator] ✗ SportsBettingDime failed: ${coversResult.error}`)
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error'
     sourceResults.push({
-      source: 'covers',
+      source: 'sportsbettingdime',
       games: 0,
       success: false,
       error: errorMsg,
     })
-    console.error('[Aggregator] ✗ Covers exception:', errorMsg)
+    console.error('[Aggregator] ✗ SportsBettingDime exception:', errorMsg)
   }
 
   // ============================================================================
@@ -178,11 +178,11 @@ export async function aggregateBettingSplits(
       const gameId = generateGameId(split.awayTeam, split.homeTeam)
 
       if (!splitsMap.has(gameId)) {
-        // New game not in Covers - add it
+        // New game not in SBD - add it
         splitsMap.set(gameId, split)
         addedCount++
       } else {
-        // Game already exists - merge data (Covers has priority)
+        // Game already exists - merge data (SBD has priority)
         const existing = splitsMap.get(gameId)!
         const merged = mergeSplits(existing, split)
         splitsMap.set(gameId, merged)

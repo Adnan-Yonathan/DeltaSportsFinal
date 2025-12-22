@@ -4,7 +4,7 @@
 
 **Issue:** When users ask about games "today" or "tonight", the app shows incorrect results because:
 1. The system is hardcoded to use America/New_York (EST) timezone
-2. All game times are sourced from the odds provider (Odds-API.io) and converted to user timezone
+2. All game times are sourced from the odds provider (SportsBettingDime) and converted to user timezone
 3. Users in different timezones see wrong game dates
 4. A game at 8:30 PM PST on Nov 9 shows as Nov 10 in UTC
 

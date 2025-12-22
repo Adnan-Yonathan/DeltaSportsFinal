@@ -2,7 +2,7 @@
  * Ingest Multi-Source Public Betting Splits
  *
  * Scrapes public betting percentages and money splits from multiple sources:
- * - Covers.com (primary source)
+ * - SportsBettingDime (primary source)
  * - ScoresAndOdds.com (secondary source)
  *
  * Aggregates all sources to maximize game coverage.

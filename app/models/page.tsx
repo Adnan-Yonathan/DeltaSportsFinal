@@ -167,7 +167,7 @@ export default function ModelsPage() {
             {filteredModels.map((model) => (
               <Link
                 key={model.id}
-                href={`/chat`}
+                href="/"
                 className="group block bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md hover:border-emerald-500 dark:hover:border-emerald-500 transition-all p-6"
               >
                 {/* Model Type Badge */}

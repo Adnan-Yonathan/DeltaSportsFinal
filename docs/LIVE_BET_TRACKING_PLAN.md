@@ -28,7 +28,7 @@ Users want to:
    - Missing: live tracking data, player prop details
 
 3. **Player Props API** (`app/api/player-props/route.ts`)
-   - Fetches player prop odds from the odds provider (Odds-API.io)
+   - Fetches player prop odds from the odds provider (SportsBettingDime)
    - Supports: NBA, NFL, MLB, NHL
    - Markets: points, rebounds, assists, passing yards, etc.
 
@@ -224,7 +224,7 @@ CREATE TABLE IF NOT EXISTS lines (
   away_team TEXT NOT NULL,
   game_time TIMESTAMP WITH TIME ZONE NOT NULL,
   espn_game_id TEXT, -- Link to ESPN if available
-  odds_provider_id TEXT, -- Provider game ID (Odds-API.io)
+  odds_provider_id TEXT, -- Provider game ID (SportsBettingDime)
 
   -- Line Data
   market_type TEXT NOT NULL, -- 'spread', 'total', 'moneyline'
@@ -1403,7 +1403,7 @@ function calculatePlayerPropProbability(
 
 ### External APIs
 - ✅ ESPN Scoreboard API (free, unofficial)
-- ✅ Odds-API.io (already integrated)
+- ✅ SportsBettingDime (already integrated)
 - Optional: ESPN Player Stats API
 - Optional: Sports Reference API for historical data
 

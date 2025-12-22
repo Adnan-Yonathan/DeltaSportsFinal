@@ -31,7 +31,7 @@ export default async function OnboardingPage() {
 
   // If onboarding is completed, redirect to chat
   if (userData?.onboarding_completed) {
-    redirect('/chat')
+    redirect('/')
   }
 
   return <OnboardingFlow />

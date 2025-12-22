@@ -459,6 +459,7 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
             as_favorite: d.favoriteATS,
             as_underdog: d.underdogATS,
             over_under: d.overUnder,
+            situational_splits: d.extraSplits,
             last_10: d.last10,
             streak: d.streak,
             last_updated: d.lastUpdated

@@ -412,7 +412,7 @@ Use for:
     type: 'function',
     function: {
       name: 'get_team_ats_records',
-      description: `Get Against The Spread (ATS) betting records for an NBA team from Covers.com. Returns overall, home/away, favorite/underdog records, streaks, and last 10 games. Use when users ask about team betting performance, covering trends, or ATS records.`,
+      description: `Get Against The Spread (ATS) betting records for an NBA team from SportsBettingDime trends. Returns overall, home/away, favorite/underdog records, and situational splits. Use when users ask about team betting performance, covering trends, or ATS records.`,
       parameters: {
         type: 'object',
         properties: {
@@ -429,7 +429,7 @@ Use for:
     type: 'function',
     function: {
       name: 'get_betting_splits',
-      description: `Get public betting percentages and splits for ALL of today's NBA games from Covers.com. Shows what % of bets and money are on each side for every game, and detects sharp money (when money % diverges from bet % by 15%+). Use when users ask about:
+      description: `Get public betting percentages and splits for ALL of today's NBA games from SportsBettingDime. Shows what % of bets and money are on each side for every game, and detects sharp money (when money % diverges from bet % by 15%+). Use when users ask about:
 - Public betting trends for today's games (plural)
 - Where the money is going across all games
 - Sharp action or smart money in general
@@ -452,7 +452,7 @@ Returns game details including teams, time, and game_id for each matchup.`,
         properties: {
           game_id: {
             type: 'string',
-            description: 'The game ID from Covers.com (only if you already have it from a previous get_betting_splits call)'
+            description: 'The game ID from SportsBettingDime (only if you already have it from a previous get_betting_splits call)'
           },
           teams: {
             type: 'string',

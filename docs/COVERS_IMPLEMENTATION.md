@@ -1,5 +1,7 @@
 # Covers.com Scraper - Implementation Guide
 
+> NOTE: Covers.com integration has been superseded by SportsBettingDime. This guide is retained for historical reference only.
+
 ## Overview
 Complete the Covers.com integration by adding chat tool support for betting data.
 

@@ -177,9 +177,9 @@ export function OnboardingFlow() {
       if (data.subscription_tier) {
         // TODO: Redirect to payment/checkout
         // For now, just go to chat
-        router.push("/chat")
+        router.push("/")
       } else {
-        router.push("/chat")
+        router.push("/")
       }
     } catch (err: any) {
       setError(err.message || "Something went wrong")

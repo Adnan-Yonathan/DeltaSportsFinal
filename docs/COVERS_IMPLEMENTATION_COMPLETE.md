@@ -1,5 +1,7 @@
 # Covers.com Integration - Implementation Complete ✅
 
+> NOTE: Covers.com has been replaced by SportsBettingDime for splits/ATS/futures. This document is kept for historical context.
+
 ## Summary
 
 Successfully implemented full Covers.com betting data integration with LLM chat tools.

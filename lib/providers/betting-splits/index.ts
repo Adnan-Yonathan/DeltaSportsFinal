@@ -2,7 +2,7 @@
  * Multi-Source Betting Splits Provider
  *
  * Aggregates public betting percentages from multiple sources:
- * - Covers.com (primary)
+ * - SportsBettingDime (primary)
  * - ScoresAndOdds.com (secondary)
  *
  * Usage:

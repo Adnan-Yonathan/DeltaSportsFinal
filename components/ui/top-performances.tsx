@@ -183,14 +183,16 @@ export function TopPerformancesStrip() {
                 {tab.label}
               </button>
             ))}
-            <select
-              value={viewMode}
-              onChange={(e) => setViewMode(e.target.value as "teams" | "players")}
-              className="rounded-md bg-black/70 text-emerald-100 text-xs md:text-sm px-3 py-1 border border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-            >
-              <option value="teams">Team trends</option>
-              <option value="players">Player trends</option>
-            </select>
+            <div className="relative z-10">
+              <select
+                value={viewMode}
+                onChange={(e) => setViewMode(e.target.value as "teams" | "players")}
+                className="rounded-md bg-black/70 text-emerald-100 text-xs md:text-sm px-3 py-1 border border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              >
+                <option value="teams">Team trends</option>
+                <option value="players">Player trends</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -262,14 +264,16 @@ export function TopPerformancesStrip() {
                     {tab.label}
                   </button>
                 ))}
-                <select
-                  value={viewMode}
-                  onChange={(e) => setViewMode(e.target.value as "teams" | "players")}
-                  className="rounded-md bg-black/70 text-emerald-100 text-xs px-3 py-1 border border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                >
-                  <option value="teams">Team trends</option>
-                  <option value="players">Player trends</option>
-                </select>
+                <div className="relative z-10">
+                  <select
+                    value={viewMode}
+                    onChange={(e) => setViewMode(e.target.value as "teams" | "players")}
+                    className="rounded-md bg-black/70 text-emerald-100 text-xs px-3 py-1 border border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  >
+                    <option value="teams">Team trends</option>
+                    <option value="players">Player trends</option>
+                  </select>
+                </div>
                 <button
                   onClick={() => setExpanded(false)}
                   className="rounded-full px-3 py-1 text-xs font-semibold bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/40 transition"

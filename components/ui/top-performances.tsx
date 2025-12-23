@@ -183,25 +183,14 @@ export function TopPerformancesStrip() {
                 {tab.label}
               </button>
             ))}
-            <div className="flex rounded-md border border-emerald-500/40 text-xs font-semibold overflow-hidden">
-              {[
-                { value: "teams", label: "Team trends" },
-                { value: "players", label: "Player trends" },
-              ].map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setViewMode(opt.value as "teams" | "players")}
-                  className={`px-3 py-1 transition ${
-                    viewMode === opt.value
-                      ? "bg-emerald-500 text-white"
-                      : "bg-black/70 text-emerald-100 hover:bg-emerald-900/40"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+            <select
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value as "teams" | "players")}
+              className="rounded-md bg-black/70 text-emerald-100 text-xs md:text-sm px-3 py-1 border border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            >
+              <option value="teams">Team trends</option>
+              <option value="players">Player trends</option>
+            </select>
           </div>
         </div>
 
@@ -273,25 +262,14 @@ export function TopPerformancesStrip() {
                     {tab.label}
                   </button>
                 ))}
-                <div className="flex rounded-md border border-emerald-500/40 text-xs font-semibold overflow-hidden">
-                  {[
-                    { value: "teams", label: "Team trends" },
-                    { value: "players", label: "Player trends" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setViewMode(opt.value as "teams" | "players")}
-                      className={`px-3 py-1 transition ${
-                        viewMode === opt.value
-                          ? "bg-emerald-500 text-white"
-                          : "bg-black/70 text-emerald-100 hover:bg-emerald-900/40"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+                <select
+                  value={viewMode}
+                  onChange={(e) => setViewMode(e.target.value as "teams" | "players")}
+                  className="rounded-md bg-black/70 text-emerald-100 text-xs px-3 py-1 border border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                >
+                  <option value="teams">Team trends</option>
+                  <option value="players">Player trends</option>
+                </select>
                 <button
                   onClick={() => setExpanded(false)}
                   className="rounded-full px-3 py-1 text-xs font-semibold bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/40 transition"

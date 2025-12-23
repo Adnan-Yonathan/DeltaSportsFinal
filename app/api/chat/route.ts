@@ -2200,13 +2200,13 @@ export async function POST(req: NextRequest) {
         ? data.playerLeaders.recentTop
         : []
 
-      const filteredPool = teamTokens.length
-        ? playerPool.filter((player) => {
-            const teamName = player.team || player.teamName || player.teamAbbr || ''
-            const teamNorm = normalizeToken(String(teamName))
-            return teamNorm && teamTokens.some((token) => teamNorm.includes(token) || token.includes(teamNorm))
-          })
-        : playerPool
+        const filteredPool = teamTokens.length
+          ? playerPool.filter((player) => {
+              const teamName = player.team || player.teamName || player.teamAbbr || ''
+              const teamNorm = normalizeToken(String(teamName))
+              return teamNorm && teamTokens.some((token: string) => teamNorm.includes(token) || token.includes(teamNorm))
+            })
+          : playerPool
 
       if (!filteredPool.length) {
         return { success: false, error: 'No recent players available for that team or league.' }

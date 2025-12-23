@@ -2205,6 +2205,8 @@ export async function POST(req: NextRequest) {
     // - Model-related requests
     // - Bank roll/bet tracking
     // BUT: Skip betting splits (handled with deterministic SBD formatting)
+    let analysisIntent = false
+
     const skipUnifiedPipeline = (
       (/\b(odds|moneyline|spread line|total line|prop|parlay|bet slip|bankroll|my bets|place bet)\b/i.test(message) &&
        !/\b(betting|public)\s+(split|splits|percentage)\b/i.test(message) &&
@@ -2740,7 +2742,7 @@ export async function POST(req: NextRequest) {
           msgLower
         )
       const explicitAnalysisIntent = /\b(analy(?:ze|sis)|breakdown|edge|value|mispriced|line makes sense)\b/i.test(msgLower)
-      const analysisIntent =
+      analysisIntent =
         explicitAnalysisIntent ||
         (marketKeywordIntent && (hasSpecificMatchup || hasSpecificProp))
       const pickGuidanceIntent =

@@ -82,7 +82,31 @@ export function TopPerformancesStrip() {
         if (!res.ok) throw new Error(`status ${res.status}`)
         const data = await res.json()
         setTeamTrends(Array.isArray(data?.teamRecent) ? data.teamRecent : [])
-        setPlayerTrends(Array.isArray(data?.playerRecent) ? data.playerRecent : [])
+        const normalizedPlayerRecent: any[] = Array.isArray(data?.playerRecent)
+          ? data.playerRecent.map((item: any) => ({
+              type: "player",
+              league: league,
+              sample: item.sample ?? 5,
+              avgPts: item.avgPts ?? item.pts ?? null,
+              avgReb: item.avgReb ?? null,
+              avgAst: item.avgAst ?? null,
+              avgThrees: item.avgThrees ?? item?.tpm ?? null,
+              ...item,
+            }))
+          : []
+        const leaderFallback: any[] = Array.isArray(data?.playerLeaders?.recentTop)
+          ? data.playerLeaders.recentTop.map((item: any) => ({
+              type: "player",
+              league: league,
+              sample: item.sample ?? 5,
+              avgPts: item.avgPts ?? null,
+              avgReb: item.avgReb ?? null,
+              avgAst: item.avgAst ?? null,
+              avgThrees: item.avgThrees ?? null,
+              ...item,
+            }))
+          : []
+        setPlayerTrends(normalizedPlayerRecent.length ? normalizedPlayerRecent : leaderFallback)
         setPlayerLeaders(data?.playerLeaders || null)
       } catch (err) {
         console.warn("[TopPerformancesStrip] fetch failed", err)

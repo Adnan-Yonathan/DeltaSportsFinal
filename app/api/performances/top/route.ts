@@ -117,7 +117,7 @@ const firstDefined = <T,>(...values: Array<T | null | undefined>) => {
 
 const normalizeStatKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "")
 
-const readStatValue = (stats: any, keys: string[]) => {
+const readStatValue = (stats: any, keys: string[]): number | null => {
   if (!stats) return null
   const normalizedKeys = keys.map(normalizeStatKey)
   const tryMatch = (candidate: any) => {

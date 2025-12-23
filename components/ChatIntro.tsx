@@ -84,7 +84,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
         />
       </motion.div>
 
-      <div className="w-full max-w-5xl mx-auto mb-12">
+      <div className="w-full max-w-5xl mx-auto mb-6">
         <TopPerformancesStrip />
       </div>
 

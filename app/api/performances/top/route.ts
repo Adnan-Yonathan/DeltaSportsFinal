@@ -371,7 +371,9 @@ const buildPlayerTrendEntry = (player: any, league: LeagueKey) => {
     { key: "AST", label: "assists", avg: avgAstNum, seasonAvg: seasonAvgAstNum },
     { key: "3PM", label: "threes", avg: avgThreesNum, seasonAvg: seasonAvgThreesNum },
   ]
-    .filter((stat) => stat.avg != null && stat.seasonAvg != null)
+    .filter((stat): stat is { key: string; label: string; avg: number; seasonAvg: number } =>
+      stat.avg != null && stat.seasonAvg != null
+    )
     .map((stat) => ({
       ...stat,
       delta: stat.avg - stat.seasonAvg,
@@ -505,9 +507,9 @@ const computePlayerScore = (player: any) => {
     player.avgRec,
   ]
     .map((value) => (typeof value === "number" ? value : toNumber(value)))
-    .filter((v: any) => typeof v === "number" && Number.isFinite(v))
+    .filter((v): v is number => typeof v === "number" && Number.isFinite(v))
   if (!values.length) return 0
-  return values.reduce((sum: number, val: number) => sum + val, 0)
+  return values.reduce((sum, val) => sum + val, 0)
 }
 
 const buildTeamRecent = async (league: LeagueKey, window = 5) => {

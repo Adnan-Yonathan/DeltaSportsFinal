@@ -72,6 +72,8 @@ export default function PromosDropdown({ variant = 'desktop' }: PromosDropdownPr
       case 'active_user': return 'Active User'
       case 'sport_specific': return 'Sport-Specific'
       case 'seasonal': return 'Seasonal'
+      case PROMO_CATEGORIES.DAILY: return 'Daily'
+      case PROMO_CATEGORIES.PEER_TO_PEER: return 'P2P Exchange'
       default: return category
     }
   }

@@ -867,10 +867,10 @@ const SPREAD_URL = 'https://www.covers.com/sport/basketball/nba/matchups'
 // Update parseConsensusGames() to handle new HTML structure
 ```
 
-**Testing**:
+**Testing** (historical):
 ```bash
 # After updating scraper
-npm run ingest:covers-splits
+# `ingest:covers-splits` used to push betting splits into Supabase, but SBD now provides those splits live, so this helper has been retired.
 
 # Should see 8 games instead of 2
 # Scraped 8 games with betting splits
@@ -890,7 +890,7 @@ npm run ingest:covers-splits
 
 **Files to modify**:
 - `lib/providers/covers/splits-scraper.ts` (update URLs and parser)
-- Test with `npm run ingest:covers-splits`
+- Legacy test: `npm run ingest:covers-splits` (splits now stream from the live SBD aggregator)
 
 ---
 

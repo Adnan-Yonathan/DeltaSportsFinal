@@ -191,10 +191,9 @@ npm run cache:live              # Cache ESPN live scores
 npm run ingest:injuries         # Ingest injury reports
 npm run ingest:team-stats       # Ingest team statistics
 npm run ingest:player-props     # Ingest player props
-npm run ingest:market-trends    # Ingest market trends
 ```
 
-**Note**: Ingestion scripts require `SUPABASE_SERVICE_ROLE_KEY` and `CRON_SECRET`
+**Note**: Ingestion scripts require `SUPABASE_SERVICE_ROLE_KEY` and `CRON_SECRET`. Betting splits and current market snapshots are populated automatically from SportsBettingDime (SBD) via the live aggregator and the `POST /api/lines/record` cron job, so those datasets no longer need manual scripts.
 
 ---
 

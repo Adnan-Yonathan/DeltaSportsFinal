@@ -11,6 +11,8 @@ export const PROMO_CATEGORIES = {
   ACTIVE_USER: 'active_user',
   SPORT_SPECIFIC: 'sport_specific',
   SEASONAL: 'seasonal',
+  DAILY: 'daily',
+  PEER_TO_PEER: 'peer_to_peer',
 } as const
 
 export type PromoCategory = typeof PROMO_CATEGORIES[keyof typeof PROMO_CATEGORIES]
@@ -93,6 +95,8 @@ export interface PromosByCategory {
   [PROMO_CATEGORIES.ACTIVE_USER]: SportsbookPromo[]
   [PROMO_CATEGORIES.SPORT_SPECIFIC]: SportsbookPromo[]
   [PROMO_CATEGORIES.SEASONAL]: SportsbookPromo[]
+  [PROMO_CATEGORIES.DAILY]: SportsbookPromo[]
+  [PROMO_CATEGORIES.PEER_TO_PEER]: SportsbookPromo[]
 }
 
 /**

@@ -46,11 +46,6 @@ export function SimpleHeader({ rightSlot }: { rightSlot?: React.ReactNode } = {}
 
   return (
     <header className="sticky top-4 z-50 w-full">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-        :root { --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
-        .font-jakarta { font-family: var(--font-sans); }
-      `}</style>
       <div className="mx-auto flex w-full max-w-5xl items-center gap-3">
         <nav className="flex h-16 min-w-0 flex-1 items-center justify-between rounded-full border border-white/15 bg-black px-4 backdrop-blur supports-[backdrop-filter]:bg-black/90 text-white">
           <div className="flex items-center gap-3">
@@ -64,7 +59,7 @@ export function SimpleHeader({ rightSlot }: { rightSlot?: React.ReactNode } = {}
                   priority
                 />
               </div>
-              <p className="font-jakarta text-lg font-semibold">Delta Sports</p>
+              <p className="text-lg font-semibold">Delta Sports</p>
             </Link>
           </div>
 

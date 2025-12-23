@@ -79,7 +79,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
         className="text-center max-w-3xl w-full mb-6"
       >
         <AnimatedHero
-          staticText="How can I help you with"
+          staticText="Make money with"
           interval={2500}
         />
       </motion.div>
@@ -98,7 +98,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
         </form>
 
         {/* Capabilities */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 auto-rows-fr">
           {[
             {
               title: "Player Profiles",
@@ -129,6 +129,21 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
               title: "Betting Trends",
               description: "Recent records vs spreads, prop covers, and public/sharp money splits",
               prompt: "what is the Celtics record ATS this season?"
+            },
+            {
+              title: "Pick Guidance",
+              description: "Walk through the best bets, tools, and edge signals for a matchup",
+              prompt: "what gives me the most edge tonight?"
+            },
+            {
+              title: "Market Analysis",
+              description: "Break down matchups with splits, injuries, stats, and edge alerts",
+              prompt: "analyze the thunder spread"
+            },
+            {
+              title: "Edge Awareness",
+              description: "Flag when a line or prop doesn’t line up with the data",
+              prompt: "does this lebron points line make sense?"
             }
           ].map((capability) => (
             <button
@@ -141,12 +156,12 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
                   textarea.focus()
                 }
               }}
-              className="group text-left p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-emerald-500/30 transition-all"
+            className="group text-left p-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-emerald-500/30 transition-all h-full min-h-[78px]"
             >
               <h3 className="text-sm font-semibold text-white mb-1 group-hover:text-emerald-400 transition-colors">
                 {capability.title}
               </h3>
-              <p className="text-xs text-white/60 leading-relaxed">
+              <p className="text-[11px] text-white/60 leading-relaxed">
                 {capability.description}
               </p>
             </button>

@@ -24,6 +24,8 @@ export const OPERATION_MESSAGES: Record<string, string> = {
 
   // Game Analysis (1)
   'get_game_context': 'Analyzing game matchup...',
+  'get_pick_guidance': 'Building a best-bet map...',
+  'analyze_bet_market': 'Analyzing the betting market...',
 
   // Research Models (3)
   'save_research_model': 'Saving research model...',

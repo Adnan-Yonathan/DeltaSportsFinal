@@ -23,7 +23,23 @@ import type { UserDataOverride } from '@/lib/models/model-runner'
 import { buildGameContext } from '@/lib/context/game-context'
 import { normalizePropMarketKey, normalizePropSelection, extractPropLine } from '@/lib/utils/props'
 import { calculateKellyStake } from '@/lib/utils/kelly'
-import { summarizeCoversGameSplitsForChat, summarizeCoversSplitsForChat } from '@/lib/providers/covers'
+import {
+  summarizeCoversGameSplitsForChat,
+  summarizeCoversSplitsForChat,
+  getTeamATSData,
+} from '@/lib/providers/covers'
+import { getGameRecommendations } from '@/lib/services/recommendation-engine'
+import { getTeamQuarterAverages, getTeamQuarterThreshold } from '@/lib/services/quarter-analytics'
+import {
+  buildPickGuidanceResponse,
+  buildAnalysisResponse,
+  evaluateLineEdge,
+  evaluatePropEdge,
+  formatPercent,
+  inferMarketType,
+  inferQuarter,
+  type MarketType,
+} from '@/lib/analysis/bet-tools'
 import { format } from 'date-fns'
 import { openai, AI_MODELS, runWebSearchResponse } from '@/lib/ai-gateway-client'
 import { espnTools } from '@/lib/llm/tools/espn-tools'
@@ -1295,15 +1311,21 @@ const getSystemPrompt = (timezone: string) => `You are DELTA, a professional spo
 - Stats: use ESPN-derived data we fetch (box scores, season averages, injuries, standings). Advanced pace/usage/DvP/snap-share/xG are NOT available; do not invent them.
 - If a query mixes betting + stats, pull odds from SportsBettingDime and stats from ESPN, then synthesize with reasoning.
 
-**CRITICAL - Live Betting Projections:**
-When users ask "what is your projected live line" or "what should the live line be" for an in-progress game:
-- Use ONLY the get_live_betting_projection tool
-- Do NOT call any odds-api functions or claim odds-api as the source
-- This tool calculates what the line SHOULD be based on game state, NOT what sportsbooks are currently offering
-- The tool uses ESPN for live game data and Basketball Reference season stats only
-- Present the projection without comparing to actual market odds
+  **CRITICAL - Live Betting Projections:**
+  When users ask "what is your projected live line" or "what should the live line be" for an in-progress game:
+  - Use ONLY the get_live_betting_projection tool
+  - Do NOT call any odds-api functions or claim odds-api as the source
+  - This tool calculates what the line SHOULD be based on game state, NOT what sportsbooks are currently offering
+  - The tool uses ESPN for live game data and Basketball Reference season stats only
+  - Present the projection without comparing to actual market odds
 
-**What ESPN actually provides (use only these):**
+  **Pick requests and market analysis:**
+  - If the user asks for the "best bet", "pick", "lock", or "who wins" without a specific market/line, call get_pick_guidance.
+  - If the user asks to analyze a specific game/prop/market or provides a line, call analyze_bet_market.
+  - Betting splits are ONLY for spread/moneyline/total markets (never for props or quarter markets).
+  - Do not give a direct pick unless the user explicitly asks to run a custom model.
+  
+  **What ESPN actually provides (use only these):**
 - NBA: season averages (PTS/REB/AST/FG%/3P%), box-score lines, minutes, injuries, team records. No usage, pace, DvP, potential assists, or rebounding chances.
 - NFL: pass/rush/receiving yards, attempts/receptions/TDs/INTs, completions/attempts, basic injuries and team scoring/allowed. No snap share, routes, advanced coverage/OL data.
 - NHL: goals/assists/points, shots on goal, time on ice (via box), goalie SV%, team records. No PP/PK%, no advanced pace.
@@ -1870,11 +1892,11 @@ const ASSISTANT_TOOLS: ChatCompletionTool[] = [
       },
     },
   },
-  {
-    type: 'function',
-    function: {
-      name: 'get_game_context',
-      description: 'Pull injuries, recent form, team summaries, and market trends for a specific matchup to enrich analysis.',
+    {
+      type: 'function',
+      function: {
+        name: 'get_game_context',
+        description: 'Pull injuries, recent form, team summaries, and market trends for a specific matchup to enrich analysis.',
       parameters: {
         type: 'object',
         properties: {
@@ -1884,14 +1906,60 @@ const ASSISTANT_TOOLS: ChatCompletionTool[] = [
           include_market_trends: { type: 'boolean', description: 'Whether to include best spread/moneyline snapshots (defaults to true).' },
         },
         required: ['sport', 'home_team', 'away_team'],
+        },
       },
     },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'save_research_model',
-      description: 'Save a research model that scans betting markets for opportunities matching user-defined criteria (e.g., "find NBA spreads 1 point better than Pinnacle", "find player props over 25.5"). Always confirm configuration before saving.',
+    {
+      type: 'function',
+      function: {
+        name: 'get_pick_guidance',
+        description:
+          'Provide a structured guide for how to find the best bet (no direct picks). Use when a user asks for the best bet/pick without specifying a market or line.',
+        parameters: {
+          type: 'object',
+          properties: {
+            matchup: { type: 'string', description: 'Matchup or prompt context (e.g., "Missouri vs Illinois").' },
+            league: { type: 'string', description: 'League or sport (nba, nfl, ncaab, etc.).' },
+            market_hint: { type: 'string', description: 'Optional market focus mentioned by the user.' },
+          },
+          required: [],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'analyze_bet_market',
+        description:
+          'Analyze a specific game or prop market with splits, injuries, stats, trends, and an edge check. Do not provide a direct pick.',
+        parameters: {
+          type: 'object',
+          properties: {
+            marketType: {
+              type: 'string',
+              enum: ['spread', 'total', 'moneyline', 'player_prop', 'team_prop', 'quarter', 'live'],
+              description: 'Market to analyze.',
+            },
+            gameIdentifier: { type: 'string', description: 'Matchup (e.g., "Lakers vs Celtics").' },
+            league: { type: 'string', description: 'League or sport (nba, nfl, ncaab, etc.).' },
+            date: { type: 'string', description: 'Game date (YYYY-MM-DD).' },
+            line: { type: 'number', description: 'Market line (spread/total/prop line).' },
+            odds: { type: 'number', description: 'American odds (e.g., -110, +120).' },
+            book: { type: 'string', description: 'Sportsbook name if provided.' },
+            playerName: { type: 'string', description: 'Player name for prop markets.' },
+            propType: { type: 'string', description: 'Prop type (points, rebounds, assists, threes, PRA, yards).' },
+            direction: { type: 'string', enum: ['over', 'under'], description: 'Over/under direction.' },
+            quarter: { type: 'number', description: 'Quarter number for quarter markets (1-4).' },
+          },
+          required: [],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'save_research_model',
+        description: 'Save a research model that scans betting markets for opportunities matching user-defined criteria (e.g., "find NBA spreads 1 point better than Pinnacle", "find player props over 25.5"). Always confirm configuration before saving.',
       parameters: {
         type: 'object',
         properties: {
@@ -2143,10 +2211,12 @@ export async function POST(req: NextRequest) {
        !/\b(sharp|smart)\s+(money|action)\b/i.test(message)) ||
       /\b(create model|run model|save model|research model)\b/i.test(message) ||
       /\b(tonight|today|tomorrow).*\b(odds|lines|games)\b/i.test(message) ||
-      /\b(projected?|projection)(\s+live)?(\s+betting)?(\s+(line|spread|total|moneyline))/i.test(message) ||
-      /\blive\s+(betting\s+)?(projected?|projection)/i.test(message) ||
-      bettingSplitsIntent
-    )
+        /\b(projected?|projection)(\s+live)?(\s+betting)?(\s+(line|spread|total|moneyline))/i.test(message) ||
+        /\blive\s+(betting\s+)?(projected?|projection)/i.test(message) ||
+        bettingSplitsIntent ||
+        analysisIntent ||
+        pickGuidanceIntent
+      )
 
     // Debug logging for pattern matching
     console.log('[UNIFIED] isStatsQuery:', isStatsQuery, 'skipUnifiedPipeline:', skipUnifiedPipeline, 'query:', message.substring(0, 100))
@@ -2653,16 +2723,31 @@ export async function POST(req: NextRequest) {
     const playerCompareCandidates = extractTwoPlayers()
     const playerCompareIntent = playerCompareCandidates.length === 2 && /\bcompare\b|\bvs\b|\bversus\b/i.test(msgLower) && !isProjectionQuery && !bettingSplitsIntent
     const hasNumber = /\d/.test(msgLower)
-    const propIntent =
-      Boolean(playerNameInMessage) &&
-      (/\bplayer props?\b/.test(msgLower) ||
-        /\b(points|rebounds|assists|threes|blocks|steals|yards|tds|receptions|pra|fantasy)\s+(prop|line)\b/.test(
+      const propIntent =
+        Boolean(playerNameInMessage) &&
+        (/\bplayer props?\b/.test(msgLower) ||
+          /\b(points|rebounds|assists|threes|blocks|steals|yards|tds|receptions|pra|fantasy)\s+(prop|line)\b/.test(
+            msgLower
+          ) ||
+          /\bprop\b.*\b(points|rebounds|assists|threes|blocks|steals|yards|tds|receptions|pra|fantasy)\b/.test(
+            msgLower
+          ))
+      const marketTypeHint = inferMarketType(message)
+      const hasSpecificMatchup = parsedMatchupTeams.length >= 2 || mentionedTeams.length >= 2
+      const hasSpecificProp = Boolean(playerNameInMessage) && marketTypeHint === 'player_prop'
+      const marketKeywordIntent =
+        /\b(spread|moneyline|total|over|under|prop|line|o\/u|quarter|q1|q2|q3|q4|first half|1h|second half|2h)\b/i.test(
           msgLower
-        ) ||
-        /\bprop\b.*\b(points|rebounds|assists|threes|blocks|steals|yards|tds|receptions|pra|fantasy)\b/.test(
+        )
+      const explicitAnalysisIntent = /\b(analy(?:ze|sis)|breakdown|edge|value|mispriced|line makes sense)\b/i.test(msgLower)
+      const analysisIntent =
+        explicitAnalysisIntent ||
+        (marketKeywordIntent && (hasSpecificMatchup || hasSpecificProp))
+      const pickGuidanceIntent =
+        /\b(best bet|best pick|pick\b|lock\b|who wins|winner|what should i bet|what's the play|should i bet)\b/i.test(
           msgLower
-        ))
-    const betIntent = /(log|track|record)\s+(my\s+)?bet\b|i\s+bet\s+\$?\d+/i.test(msgLower) || /settle\s+my\s+bet/i.test(msgLower)
+        ) && !analysisIntent
+      const betIntent = /(log|track|record)\s+(my\s+)?bet\b|i\s+bet\s+\$?\d+/i.test(msgLower) || /settle\s+my\s+bet/i.test(msgLower)
     const webSearchToggle = /enable_web_search|enable\s+web\s+search/i.test(msgLower)
     const wantsEdgesOrValue = /(edge|ev|expected\s+value|value\s+bet|mispriced|best\s+bet)/i.test(msgLower)
     const mentionsModel = /model/i.test(msgLower)
@@ -3448,14 +3533,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const explicitMatchup =
-      twoTeamOddsQuery &&
-      ((parsedMatchupTeams.length >= 2) || (mentionedTeams.length >= 2))
+      const explicitMatchup =
+        twoTeamOddsQuery &&
+        ((parsedMatchupTeams.length >= 2) || (mentionedTeams.length >= 2))
 
-    const shouldFetchOdds =
-      !conceptualStatsOnly &&
-      !betIntent &&
-      !researchIntent &&
+      if (analysisIntent && !modelApplicationIntent && !researchIntent) {
+        const analysisResult = await runBetMarketAnalysis({})
+        return streamTextResponse(analysisResult.formatted)
+      }
+
+      if (pickGuidanceIntent && !modelApplicationIntent && !researchIntent) {
+        const guidanceResult = await runPickGuidance({})
+        return streamTextResponse(guidanceResult.formatted)
+      }
+
+      const shouldFetchOdds =
+        !conceptualStatsOnly &&
+        !betIntent &&
+        !researchIntent &&
       !webSearchToggle &&
       !modelApplicationIntent &&
       !playerGameStatsIntent &&
@@ -4635,13 +4730,627 @@ ${statsEnrichment}
       console.log('[CHAT] Tool names:', toolCalls.map((tc: any) => tc.function?.name).join(', '))
     }
 
-    const withTimeout = <T>(p: Promise<T>, ms = 8000) =>
-      Promise.race<T>([
-        p,
-        new Promise<T>((_, reject) => setTimeout(() => reject(new Error('tool timeout')), ms)) as Promise<T>,
-      ])
+      const withTimeout = <T>(p: Promise<T>, ms = 8000) =>
+        Promise.race<T>([
+          p,
+          new Promise<T>((_, reject) => setTimeout(() => reject(new Error('tool timeout')), ms)) as Promise<T>,
+        ])
 
-    const runToolCall = async (toolCall: any) => {
+      async function runPickGuidance(functionArgs: any) {
+        const matchupFromArgs = functionArgs?.matchup ? String(functionArgs.matchup) : ''
+        const fallbackTeams = parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams
+        const matchup =
+          matchupFromArgs ||
+          (fallbackTeams.length >= 2
+            ? `${fallbackTeams[0]} vs ${fallbackTeams[1]}`
+            : fallbackTeams[0] || undefined)
+        const marketHintRaw =
+          functionArgs?.market_hint ||
+          (marketTypeHint !== 'unknown' ? marketTypeHint : null)
+        const marketHint =
+          marketHintRaw ? String(marketHintRaw).replace(/_/g, ' ') : null
+        const formatted = buildPickGuidanceResponse({
+          subject: matchup,
+          marketHint,
+        })
+        return { success: true, formatted }
+      }
+
+      async function runBetMarketAnalysis(functionArgs: any) {
+        const toNumber = (value: any): number | null => {
+          const n = Number(value)
+          return Number.isFinite(n) ? n : null
+        }
+
+        const formatOdds = (value?: number | null): string | null => {
+          if (value == null || !Number.isFinite(value)) return null
+          return value > 0 ? `+${value}` : `${value}`
+        }
+
+        const parseTeamsFromIdentifier = (identifier: string): string[] => {
+          return identifier
+            .split(/\bvs\b|\bversus\b|\bat\b|@/i)
+            .map((part) => part.trim())
+            .filter(Boolean)
+        }
+
+        const inferPropTypeFromMessage = (input: string): string | null => {
+          const lower = input.toLowerCase()
+          if (/\bpra\b|points\s*\+\s*rebounds\s*\+\s*assists/.test(lower)) return 'pra'
+          if (/\bpoints\b|\bpts\b/.test(lower)) return 'points'
+          if (/\brebounds\b|\brebs\b|\breb\b/.test(lower)) return 'rebounds'
+          if (/\bassists\b|\basts\b|\bast\b/.test(lower)) return 'assists'
+          if (/\b(threes|3s|3pm|three pointers?)\b/.test(lower)) return 'threes'
+          if (/\bpassing yards\b|\bpass yds\b/.test(lower)) return 'passing_yards'
+          if (/\brushing yards\b|\brush yds\b/.test(lower)) return 'rushing_yards'
+          if (/\breceiving yards\b|\brec yds\b/.test(lower)) return 'receiving_yards'
+          if (/\breceptions?\b|\bcatches?\b/.test(lower)) return 'receptions'
+          if (/\btouchdowns?\b|\btds?\b/.test(lower)) return 'touchdowns'
+          return null
+        }
+
+        const extractLineFromMessage = (input: string, type: MarketType): number | null => {
+          if (type === 'total') {
+            const match = input.match(/\b(?:over|under|total|o\/u)\s*([0-9]+(?:\.[0-9]+)?)/i)
+            if (match) return parseFloat(match[1])
+          }
+          if (type === 'quarter') {
+            const signedMatch = input.match(/([+-]\d+(?:\.\d+)?)/)
+            if (signedMatch) return parseFloat(signedMatch[1])
+            const ouMatch = input.match(/\b(?:over|under|total|o\/u)\s*([0-9]+(?:\.[0-9]+)?)/i)
+            if (ouMatch) return parseFloat(ouMatch[1])
+            return null
+          }
+          if (type === 'spread') {
+            const match = input.match(/([+-]\d+(?:\.\d+)?)/)
+            if (match) return parseFloat(match[1])
+          }
+          return extractPropLine(input)
+        }
+
+        const extractLineTeam = (input: string): { team?: string; line?: number | null } => {
+          const match = input.match(/\b([A-Za-z][A-Za-z .&'-]{2,})\s+([+-]\d+(?:\.\d+)?)/)
+          if (!match) return { team: undefined, line: null }
+          const team = match[1]?.trim()
+          if (!team || /\b(over|under|total|o\/u)\b/i.test(team)) return { team: undefined, line: null }
+          const line = parseFloat(match[2])
+          return { team, line: Number.isFinite(line) ? line : null }
+        }
+
+        const summarizeInjuries = async (teams: string[], sportKey: string) => {
+          if (!teams.length) return 'No team specified.'
+          const injuries = await getInjuryReports(sportKey)
+          if (!injuries || injuries.length === 0) return 'No major injuries reported.'
+          const teamTokens = teams.map((t) => normalizeToken(t))
+          const filtered = injuries.filter((injury) =>
+            teamTokens.some((token) => normalizeToken(injury.team).includes(token))
+          )
+          if (!filtered.length) return 'No major injuries reported.'
+          return filtered
+            .slice(0, 4)
+            .map((injury) => `${injury.team}: ${injury.player} (${injury.status})`)
+            .join('; ')
+        }
+
+        const parseAtsRecord = (record?: string | null) => {
+          if (!record) return null
+          const match = record.match(/(\d+)-(\d+)(?:-(\d+))?/)
+          if (!match) return null
+          const wins = Number(match[1])
+          const losses = Number(match[2])
+          const pushes = match[3] ? Number(match[3]) : 0
+          const total = wins + losses
+          const winPct = total > 0 ? wins / total : null
+          return { wins, losses, pushes, winPct }
+        }
+
+        const marketType: MarketType =
+          (functionArgs?.marketType as MarketType) ||
+          marketTypeHint ||
+          inferMarketType(message)
+
+        const quarter =
+          Number.isFinite(functionArgs?.quarter) ? Number(functionArgs.quarter) : inferQuarter(message)
+        const direction =
+          (functionArgs?.direction as 'over' | 'under') ||
+          normalizePropSelection(message) ||
+          null
+        const playerName =
+          (functionArgs?.playerName ? String(functionArgs.playerName) : playerNameInMessage) || ''
+        const propType =
+          (functionArgs?.propType ? String(functionArgs.propType) : inferPropTypeFromMessage(message)) || null
+
+        const lineFromMessage = extractLineFromMessage(message, marketType)
+        const line = extractPropLine(functionArgs?.line ?? lineFromMessage)
+        const odds = extractPropLine(functionArgs?.odds)
+        const book = functionArgs?.book ? String(functionArgs.book) : null
+
+        const teamsFromArgs = functionArgs?.gameIdentifier
+          ? parseTeamsFromIdentifier(String(functionArgs.gameIdentifier))
+          : []
+        const fallbackTeams = parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams
+        const matchupTeams = teamsFromArgs.length ? teamsFromArgs : fallbackTeams
+
+        const matchupLabel =
+          matchupTeams.length >= 2
+            ? `${matchupTeams[0]} vs ${matchupTeams[1]}`
+            : matchupTeams[0] || functionArgs?.gameIdentifier || 'Requested market'
+
+        const sportKey =
+          (functionArgs?.league ? String(functionArgs.league) : sportHintFromMessage(message)) ||
+          'basketball_nba'
+
+        const snapshotLines: string[] = []
+        const nextActions: string[] = []
+        const missingInfo: string[] = []
+
+        const oddsLabel = formatOdds(odds)
+        const lineLabel =
+          line != null
+            ? `${direction ? `${direction} ` : ''}${line.toFixed(1)}${oddsLabel ? ` @ ${oddsLabel}` : ''}${book ? ` (${book})` : ''}`
+            : 'not provided'
+        snapshotLines.push(`Line/price: ${lineLabel}`)
+
+        if (marketType === 'player_prop') {
+          if (!playerName) missingInfo.push('Player name')
+          if (!propType) missingInfo.push('Prop type')
+          if (line == null) missingInfo.push('Prop line')
+        } else if (marketType === 'quarter') {
+          if (!quarter) missingInfo.push('Quarter (Q1-Q4)')
+          if (!matchupTeams[0]) missingInfo.push('Team for the quarter bet')
+          if (line == null) missingInfo.push('Quarter line')
+        } else if (marketType === 'spread' || marketType === 'total') {
+          if (matchupTeams.length < 2) missingInfo.push('Matchup teams')
+          if (line == null) missingInfo.push('Market line')
+        } else if (marketType === 'moneyline') {
+          if (matchupTeams.length < 2) missingInfo.push('Matchup teams')
+          if (odds == null) missingInfo.push('Moneyline price')
+        }
+
+        let supportingSignals = 0
+        if (marketType === 'spread' || marketType === 'total' || marketType === 'moneyline') {
+          let splitsText = ''
+          try {
+            splitsText = await summarizeCoversGameSplitsForChat({
+              message,
+              teams: matchupTeams,
+              timezone,
+            })
+          } catch (error) {
+            splitsText = 'splits unavailable'
+          }
+          const splitLines = splitsText.split('\n').map((lineItem) => lineItem.trim()).filter(Boolean)
+          const targetLabel =
+            marketType === 'spread'
+              ? 'spread'
+              : marketType === 'total'
+              ? 'total'
+              : 'moneyline'
+          const marketLine = splitLines.find((lineItem) =>
+            lineItem.toLowerCase().startsWith(`- ${targetLabel}`)
+          )
+          const splitSummary = marketLine
+            ? marketLine.replace(/^- /, '')
+            : splitLines.find((lineItem) => lineItem.startsWith('- '))?.replace(/^- /, '') ||
+              splitLines[0] ||
+              'splits unavailable'
+          snapshotLines.push(`Public vs sharp: ${splitSummary}`)
+          if (/sharp|divergence|handle/i.test(splitSummary)) supportingSignals += 1
+        }
+
+        const injuryLine = await summarizeInjuries(matchupTeams, sportKey)
+        snapshotLines.push(`Injuries/availability: ${injuryLine}`)
+
+        if (marketType === 'spread' || marketType === 'total' || marketType === 'moneyline') {
+          const [teamA, teamB] = matchupTeams
+          const teamStats = await Promise.all(
+            matchupTeams.slice(0, 2).map(async (teamName) => {
+              const stats = await getTeamStats(sportKey, teamName)
+              const primary = stats?.[0]
+              const staticStats =
+                sportKey === 'basketball_nba' ? findStaticNbaTeam(teamName)?.[0] : undefined
+              return { teamName, primary, staticStats }
+            })
+          )
+
+          const contextParts: string[] = []
+          const trendParts: string[] = []
+          for (const entry of teamStats) {
+            if (!entry.teamName) continue
+            const statBlock = entry.primary?.stats || {}
+            const ppg = toNumber(statBlock.pointsForPerGame)
+            const papg = toNumber(statBlock.pointsAgainstPerGame)
+            const mov =
+              toNumber(entry.staticStats?.stats?.marginOfVictory) ??
+              (ppg != null && papg != null ? Number((ppg - papg).toFixed(1)) : null)
+            const netRating = toNumber(entry.staticStats?.stats?.netRating)
+            const pace = toNumber(entry.staticStats?.stats?.pace)
+            const lastTen = statBlock.lastTen ? String(statBlock.lastTen) : null
+            const streak = statBlock.streak ? String(statBlock.streak) : null
+
+            const pieces: string[] = []
+            if (ppg != null && papg != null) {
+              pieces.push(`PPG ${ppg.toFixed(1)}, PAPG ${papg.toFixed(1)}`)
+            }
+            if (mov != null) pieces.push(`MOV ${mov.toFixed(1)}`)
+            if (netRating != null) pieces.push(`NetRtg ${netRating.toFixed(1)}`)
+            if (pace != null) pieces.push(`Pace ${pace.toFixed(1)}`)
+            if (lastTen) pieces.push(`Last10 ${lastTen}`)
+            if (streak) pieces.push(`Streak ${streak}`)
+            if (pieces.length) {
+              contextParts.push(`${entry.teamName}: ${pieces.join('; ')}`)
+            }
+
+            const ats = await getTeamATSData(entry.teamName, sportKey)
+            if (ats?.success && ats.data) {
+              const atsPieces: string[] = []
+              if (ats.data.overallATS) atsPieces.push(`ATS ${ats.data.overallATS}`)
+              if (ats.data.last10) atsPieces.push(`Last10 ${ats.data.last10}`)
+              if (ats.data.streak) atsPieces.push(`Streak ${ats.data.streak}`)
+              if (atsPieces.length) {
+                trendParts.push(`${entry.teamName}: ${atsPieces.join(', ')}`)
+              }
+              const atsParsed = parseAtsRecord(ats.data.overallATS)
+              if (atsParsed?.winPct != null && (atsParsed.winPct >= 0.6 || atsParsed.winPct <= 0.4)) {
+                supportingSignals += 1
+              }
+            }
+          }
+
+          if (contextParts.length) snapshotLines.push(`Context stats: ${contextParts.join(' | ')}`)
+          if (trendParts.length) snapshotLines.push(`Trends: ${trendParts.join(' | ')}`)
+
+          const recommendations = await getGameRecommendations(matchupLabel, marketType === 'total' ? 'total' : 'spread')
+          const targetRec =
+            marketType === 'total'
+              ? recommendations.find((rec) => rec.type === 'total')
+              : recommendations.find((rec) => rec.type === 'spread')
+
+          let targetLine: number | null = targetRec?.targetLine ?? null
+          let normalizedLine = line
+
+          if (marketType === 'spread' && line != null) {
+            const lineTeamMatch = extractLineTeam(message)
+            const lineTeam = lineTeamMatch.team
+            const lineValue = lineTeamMatch.line ?? line
+            const homeTeam = targetRec?.homeTeam || teamA
+            const awayTeam = targetRec?.awayTeam || teamB
+            if (lineTeam && homeTeam && awayTeam) {
+              const lineToken = normalizeToken(lineTeam)
+              const homeToken = normalizeToken(homeTeam)
+              const awayToken = normalizeToken(awayTeam)
+              if (lineToken && homeToken && (lineToken.includes(homeToken) || homeToken.includes(lineToken))) {
+                normalizedLine = lineValue < 0 ? Math.abs(lineValue) : -Math.abs(lineValue)
+              } else if (lineToken && awayToken && (lineToken.includes(awayToken) || awayToken.includes(lineToken))) {
+                normalizedLine = lineValue < 0 ? -Math.abs(lineValue) : Math.abs(lineValue)
+              }
+            }
+          }
+
+          const edge =
+            marketType === 'moneyline'
+              ? {
+                  verdict: 'none',
+                  confidence: 'low',
+                  reason: odds == null
+                    ? 'Need a moneyline price to evaluate edge.'
+                    : 'Moneyline edge needs implied probability vs model.',
+                }
+              : evaluateLineEdge({
+                  marketType,
+                  line: normalizedLine,
+                  targetLine,
+                  supportingSignals,
+                })
+
+          nextActions.push('Compare best price across books')
+          nextActions.push('Re-check injuries and starting lineups')
+          if (marketType !== 'moneyline') {
+            nextActions.push('Compare model target line vs market')
+          }
+          if (marketType === 'spread' || marketType === 'total') {
+            nextActions.push('Review public vs sharp splits for this market')
+          }
+
+          const marketLabel =
+            marketType === 'spread'
+              ? `spread ${line != null ? line.toFixed(1) : ''}`.trim()
+              : marketType === 'total'
+              ? `total ${line != null ? line.toFixed(1) : ''}`.trim()
+              : 'moneyline'
+
+          return {
+            success: true,
+            formatted: buildAnalysisResponse({
+              title: matchupLabel,
+              marketLabel,
+              snapshotLines,
+              edge,
+              nextActions,
+              missingInfo,
+            }),
+          }
+        }
+
+        if (marketType === 'quarter') {
+          const primaryTeam = matchupTeams[0]
+          let quarterAvg: number | null = null
+          let quarterHitRate: number | null = null
+          if (primaryTeam && quarter) {
+            try {
+              const averages = await getTeamQuarterAverages({
+                team: primaryTeam,
+                sport: sportKey,
+              })
+              const avg = averages?.averages?.[`Q${quarter}` as keyof typeof averages.averages]
+              if (avg != null) {
+                quarterAvg = avg
+                snapshotLines.push(`Quarter average: ${primaryTeam} Q${quarter} ${avg.toFixed(1)} PPG`)
+              }
+
+              if (line != null) {
+                const threshold = await getTeamQuarterThreshold({
+                  team: primaryTeam,
+                  quarter,
+                  threshold: line,
+                  operator: '>=',
+                  sport: sportKey,
+                })
+                if (threshold && threshold.totalGames > 0) {
+                  quarterHitRate = threshold.percentage / 100
+                  snapshotLines.push(
+                    `Trend: Q${quarter} >= ${line.toFixed(1)} in ${threshold.gamesOver}/${threshold.totalGames} (${Math.round(
+                      threshold.percentage
+                    )}%)`
+                  )
+                }
+              }
+            } catch (error) {
+              snapshotLines.push('Quarter data unavailable right now.')
+            }
+          }
+
+          const opponent = matchupTeams[1]
+          if (opponent) {
+            const opponentStats = await getTeamStats(sportKey, opponent)
+            const oppPrimary = opponentStats?.[0]
+            const papg = toNumber(oppPrimary?.stats?.pointsAgainstPerGame)
+            if (papg != null) {
+              snapshotLines.push(`Opponent defense proxy: ${opponent} allows ${papg.toFixed(1)} PPG`)
+            }
+          }
+
+          const edge = evaluatePropEdge({
+            line,
+            direction,
+            seasonHitRate: quarterHitRate,
+            lastTenHitRate: undefined,
+            seasonAvg: quarterAvg,
+            lineDeltaThreshold: 2,
+          })
+
+          nextActions.push('Pull quarter averages for both teams')
+          nextActions.push('Check any pace or lineup news before tip')
+
+          const quarterLabel = quarter ? `Q${quarter}` : 'Quarter'
+
+          return {
+            success: true,
+            formatted: buildAnalysisResponse({
+              title: quarter ? `${matchupLabel} ${quarterLabel}` : matchupLabel,
+              marketLabel: quarter ? `quarter ${quarter}` : 'quarter',
+              snapshotLines,
+              edge,
+              nextActions,
+              missingInfo,
+            }),
+          }
+        }
+
+        if (marketType === 'player_prop') {
+          const propKey = propType || 'prop'
+          const propLabel = propKey.replace(/_/g, ' ')
+          let seasonAvg: number | null = null
+          let lastTenAvg: number | null = null
+          let seasonHitRate: number | null = null
+          let lastTenHitRate: number | null = null
+          let seasonHits: number | null = null
+          let seasonGames: number | null = null
+          let lastTenHits: number | null = null
+          let lastTenGames: number | null = null
+
+          const sportGuess =
+            msgLower.match(/nfl|football/) ? 'nfl' :
+            msgLower.match(/mlb|baseball/) ? 'mlb' :
+            msgLower.match(/nhl|hockey/) ? 'nhl' :
+            'nba'
+          const season = getSeasonYearForSport(sportGuess as any)
+
+          if (playerName) {
+            const athleteSearch = await searchAthlete(sportGuess as any, playerName)
+            const athleteId = athleteSearch?.id
+            const playerEntry = athleteId ? { id: athleteId } : await searchPlayer(playerName, sportGuess)
+            if (playerEntry?.id) {
+              const logs = await espnToolResolvers.espnPlayerGameLogs({
+                sport: sportGuess,
+                playerId: playerEntry.id,
+                season,
+                seasonType: 2,
+              })
+
+              const collectStats = (entry: any) => {
+                const statBlocks: any[] = Array.isArray(entry?.stats)
+                  ? entry.stats
+                  : Array.isArray(entry?.statistics)
+                  ? entry.statistics
+                  : []
+                const stats: Record<string, number> = {}
+                const pushStat = (label: string, raw: any) => {
+                  const key = label.toUpperCase().replace(/\s+/g, '_')
+                  const num = typeof raw === 'number' ? raw : Number(raw)
+                  if (Number.isFinite(num)) stats[key] = num
+                }
+                for (const block of statBlocks) {
+                  const entries: any[] = Array.isArray(block?.stats) ? block.stats : Array.isArray(block) ? block : []
+                  for (const s of entries) {
+                    const label = s?.label || s?.displayName || s?.name
+                    const value = s?.value ?? s?.displayValue ?? s?.display_value
+                    if (!label) continue
+                    pushStat(label, value)
+                  }
+                }
+                const directMap: Record<string, string> = {
+                  points: 'PTS',
+                  pts: 'PTS',
+                  rebounds: 'REB',
+                  assists: 'AST',
+                  blocks: 'BLK',
+                  steals: 'STL',
+                  '3p': '3PM',
+                  threePointersMade: '3PM',
+                  passingYards: 'PASSYDS',
+                  rushingYards: 'RUSHYDS',
+                  receivingYards: 'RECYDS',
+                  receptions: 'REC',
+                  touchdowns: 'TD',
+                }
+                Object.entries(directMap).forEach(([field, key]) => {
+                  const v = (entry as any)[field]
+                  const num = typeof v === 'number' ? v : Number(v)
+                  if (Number.isFinite(num) && stats[key] == null) stats[key] = num
+                })
+                return stats
+              }
+
+              const getPropStatValue = (stats: Record<string, number>) => {
+                const key = propKey.toLowerCase()
+                const pick = (keys: string[]) => {
+                  for (const k of keys) {
+                    if (Number.isFinite(stats[k])) return stats[k]
+                  }
+                  return null
+                }
+
+                if (key === 'points') return pick(['PTS'])
+                if (key === 'rebounds') return pick(['REB'])
+                if (key === 'assists') return pick(['AST'])
+                if (key === 'threes') return pick(['3PM', '3PT'])
+                if (key === 'pra') {
+                  const pts = pick(['PTS']) ?? 0
+                  const reb = pick(['REB']) ?? 0
+                  const ast = pick(['AST']) ?? 0
+                  return pts + reb + ast
+                }
+                if (key === 'passing_yards') return pick(['PASSYDS'])
+                if (key === 'rushing_yards') return pick(['RUSHYDS'])
+                if (key === 'receiving_yards') return pick(['RECYDS'])
+                if (key === 'receptions') return pick(['REC', 'RECEPTIONS'])
+                if (key === 'touchdowns') return pick(['TD'])
+                return null
+              }
+
+              const rawLogs = Array.isArray(logs) ? logs : []
+              const values = rawLogs
+                .map((entry) => {
+                  const stats = collectStats(entry)
+                  return getPropStatValue(stats)
+                })
+                .filter((value) => Number.isFinite(value)) as number[]
+
+              seasonGames = values.length
+              if (values.length) {
+                const sum = values.reduce((acc, v) => acc + v, 0)
+                seasonAvg = sum / values.length
+              }
+              const lastTenValues = values.slice(0, 10)
+              lastTenGames = lastTenValues.length
+              if (lastTenValues.length) {
+                const sum = lastTenValues.reduce((acc, v) => acc + v, 0)
+                lastTenAvg = sum / lastTenValues.length
+              }
+
+              if (line != null && values.length) {
+                const isOver = direction !== 'under'
+                const seasonHit = values.filter((v) => (isOver ? v >= line : v <= line)).length
+                seasonHits = seasonHit
+                seasonHitRate = seasonHit / values.length
+                if (lastTenValues.length) {
+                  const lastTenHit = lastTenValues.filter((v) => (isOver ? v >= line : v <= line)).length
+                  lastTenHits = lastTenHit
+                  lastTenHitRate = lastTenHit / lastTenValues.length
+                }
+              }
+            }
+          }
+
+          if (seasonAvg != null) {
+            snapshotLines.push(`Context stats: season avg ${seasonAvg.toFixed(1)}`)
+          }
+          if (lastTenAvg != null) {
+            snapshotLines.push(`Recent form: last 10 avg ${lastTenAvg.toFixed(1)}`)
+          }
+          if (line != null && seasonHitRate != null && seasonGames != null) {
+            const seasonLine = `${seasonHits ?? 0}/${seasonGames} (${formatPercent(seasonHitRate)})`
+            const lastTenLine =
+              lastTenHitRate != null && lastTenGames != null
+                ? `; last 10 ${lastTenHits ?? 0}/${lastTenGames} (${formatPercent(lastTenHitRate)})`
+                : ''
+            snapshotLines.push(
+              `Trend: ${direction || 'over'} ${line.toFixed(1)} hit ${seasonLine}${lastTenLine}`
+            )
+          }
+
+          const lineDeltaThreshold =
+            propKey === 'threes' ? 0.5 : propKey === 'pra' ? 3 : propKey.includes('yards') ? 10 : propKey === 'touchdowns' ? 0.5 : 2
+
+          const edge = evaluatePropEdge({
+            line,
+            direction,
+            seasonHitRate,
+            lastTenHitRate,
+            seasonAvg,
+            lineDeltaThreshold,
+          })
+
+          nextActions.push('Pull best over/under prices across books')
+          nextActions.push('Compare alt lines for better EV')
+          nextActions.push('Check injury report and projected minutes')
+
+          const marketLabel = `${propLabel} ${direction ? `${direction} ` : ''}${line != null ? line.toFixed(1) : ''}`.trim()
+
+          return {
+            success: true,
+            formatted: buildAnalysisResponse({
+              title: `${playerName || 'Player'} ${propLabel}`.trim(),
+              marketLabel,
+              snapshotLines,
+              edge,
+              nextActions,
+              missingInfo,
+            }),
+          }
+        }
+
+        const fallbackEdge = {
+          verdict: 'none',
+          confidence: 'low',
+          reason: 'Need more market detail to analyze edge.',
+        }
+
+        return {
+          success: true,
+          formatted: buildAnalysisResponse({
+            title: matchupLabel,
+            marketLabel: marketType.replace(/_/g, ' '),
+            snapshotLines,
+            edge: fallbackEdge,
+            nextActions: ['Share the market type and line you want analyzed'],
+            missingInfo,
+          }),
+        }
+      }
+
+      const runToolCall = async (toolCall: any) => {
       const functionName = toolCall.function.name
       const functionArgs = JSON.parse(toolCall.function.arguments || '{}')
       let functionResult: any
@@ -5265,6 +5974,10 @@ ${statsEnrichment}
             error: error.message || 'Failed to gather matchup context',
           }
         }
+      } else if (functionName === 'get_pick_guidance') {
+        functionResult = await runPickGuidance(functionArgs)
+      } else if (functionName === 'analyze_bet_market') {
+        functionResult = await runBetMarketAnalysis(functionArgs)
       } else if (functionName === 'save_research_model') {
         try {
           const { save_research_model } = await import('@/lib/models/research-crud')
@@ -5579,7 +6292,7 @@ ${statsEnrichment}
     }
 
     // If user clearly wants player props, short-circuit to props endpoint
-    if (!conceptualStatsOnly && propIntent) {
+    if (!conceptualStatsOnly && propIntent && !analysisIntent) {
       console.log('[PLAYER_PROPS_SHORTCUT] Using shortcut path for player props')
       try {
         const inferredSport =
@@ -5699,6 +6412,8 @@ ${statsEnrichment}
                   'get_player_props',
                   'get_betting_splits',
                   'analyze_game_splits',
+                  'get_pick_guidance',
+                  'analyze_bet_market',
                 ])
 
                 if (

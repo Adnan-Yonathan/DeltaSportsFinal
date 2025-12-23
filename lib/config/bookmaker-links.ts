@@ -36,6 +36,14 @@ const BOOKMAKER_LINKS: Record<string, string> = {
 
   pointsbet: 'https://join.pointsbet.com/',
   'points-bet': 'https://join.pointsbet.com/',
+  desertdiamond: 'https://www.ddcaz.com/white-tanks/gaming/sportsbook',
+  action247: 'https://www.action247.com/',
+  betsaracen: 'https://sportsbook.betsaracen.com/',
+  oaklawn: 'https://oaklawnsports.com/promotions.shtml',
+  betly: 'https://ar.betly.com/promotions',
+  si: 'https://www.si.com/betting/',
+  crabsports: 'https://www.crabsports.com/',
+  prophetx: 'https://www.prophetx.co/promotions',
 }
 
 export function getBookmakerLink(slug: string): string | undefined {

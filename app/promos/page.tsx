@@ -10,10 +10,12 @@ import { DottedSurface } from '@/components/ui/dotted-surface'
 
 const CATEGORY_TABS: Array<{ id: PromoCategory | 'all'; label: string }> = [
   { id: 'all', label: 'All Promos' },
-  { id: 'new_user', label: 'New User' },
-  { id: 'active_user', label: 'Active User' },
-  { id: 'sport_specific', label: 'Sport-Specific' },
-  { id: 'seasonal', label: 'Seasonal' },
+  { id: PROMO_CATEGORIES.NEW_USER, label: 'New User' },
+  { id: PROMO_CATEGORIES.ACTIVE_USER, label: 'Active User' },
+  { id: PROMO_CATEGORIES.SPORT_SPECIFIC, label: 'Sport-Specific' },
+  { id: PROMO_CATEGORIES.SEASONAL, label: 'Seasonal' },
+  { id: PROMO_CATEGORIES.DAILY, label: 'Daily' },
+  { id: PROMO_CATEGORIES.PEER_TO_PEER, label: 'P2P Exchange' },
 ]
 
 export default function PromosPage() {

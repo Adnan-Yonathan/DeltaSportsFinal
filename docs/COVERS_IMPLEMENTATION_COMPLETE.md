@@ -61,8 +61,9 @@ Added 3 case handlers in the main routing switch statement that:
 Added convenient npm scripts:
 ```bash
 npm run ingest:covers-ats      # Scrape ATS records
-npm run ingest:covers-splits   # Scrape betting splits
 ```
+
+> **Note:** Betting splits now stream directly from SportsBettingDime (SBD) via the live aggregator, so the `ingest:covers-splits` helper is retired.
 
 ### 6. Environment Loading Fix ✅
 **Files**: `scripts/ingest-covers-ats.ts`, `scripts/ingest-covers-splits.ts`
@@ -97,10 +98,9 @@ Run the ingestion scripts manually to scrape data from Covers.com:
 ```bash
 # Scrape ATS records for all 30 NBA teams (takes ~2-3 min with rate limiting)
 npm run ingest:covers-ats
-
-# Scrape today's betting splits (takes ~30 sec)
-npm run ingest:covers-splits
 ```
+
+> **Note:** Betting splits now stream directly from SportsBettingDime, so there is no longer a manual `ingest:covers-splits` step—it retired when the live aggregator went online.
 
 **When to run**:
 - **ATS records**: Once per day after games finish (ideally morning)
@@ -194,7 +194,7 @@ Once data is populated, users can ask:
 
 ### ✅ Data Ingestion
 - [x] `npm run ingest:covers-ats` runs successfully
-- [x] `npm run ingest:covers-splits` runs successfully
+- [x] Betting splits flow automatically from the live SBD aggregator (no manual script required)
 - [x] Database receives data (check Supabase dashboard)
 
 ### 🔄 API Endpoints (Already Exist)
@@ -214,13 +214,11 @@ Once data is populated, users can ask:
 ```bash
 # Morning routine (after games finish)
 npm run ingest:covers-ats
-
-# Before games start (for fresh splits)
-npm run ingest:covers-splits
 ```
 
 ### Data Freshness
 - **ATS records**: Changes after each game, scrape daily
+- **Betting splits**: Automatically refreshed via SBD aggregator; no manual action required
 - **Betting splits**: Changes hourly as game approaches, scrape as needed
 
 ### If Scraping Fails
@@ -336,7 +334,7 @@ Once manual testing is successful, consider:
 ### Issue: "No betting splits found for today"
 **Solutions**:
 - Check if there are games today (off-season?)
-- Run `npm run ingest:covers-splits`
+- Confirm the SBD aggregator is running and the latest splits are being cached
 - Data may not be available until closer to game time
 
 ### Issue: Environment variables not found
@@ -380,7 +378,7 @@ The Covers.com integration is **complete and ready to use**. All code has been w
 
 **Next Steps**:
 1. ✅ Run `npm run ingest:covers-ats` to populate ATS data
-2. ✅ Run `npm run ingest:covers-splits` to populate betting splits
+2. ✅ Confirm the live SBD aggregator is streaming betting splits (no manual script)
 3. ✅ Test in chat: Ask about ATS records and betting splits
 4. ✅ Set up daily routine to keep data fresh
 

@@ -64,7 +64,7 @@ function AnimatedHero({
   }, [termIndex, bettingPhrases, interval])
 
   return (
-    <h2 className="text-3xl font-bold text-white text-center">
+    <h2 className="text-3xl font-bold text-white text-center font-mono">
       {staticText}
       <br />
       <span className="relative block min-h-[1.2em] w-full pt-8">

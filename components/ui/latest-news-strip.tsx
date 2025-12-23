@@ -40,10 +40,12 @@ export function LatestNewsStrip() {
         if (!res.ok) throw new Error(`status ${res.status}`)
         const data = await res.json()
         setArticles(Array.isArray(data?.articles) ? data.articles : [])
+        setInjuries([])
       } catch (err) {
         console.warn("[LatestNewsStrip] fetch failed", err)
-        setError("News unavailable right now")
+        setError(feedMode === "injuries" ? "Injuries unavailable right now" : "News unavailable right now")
         setArticles([])
+        setInjuries([])
       } finally {
         setLoading(false)
       }

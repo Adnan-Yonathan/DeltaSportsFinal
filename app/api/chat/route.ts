@@ -1720,6 +1720,24 @@ const ASSISTANT_TOOLS: ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'get_trending_players',
+      description: 'Find players trending recently by comparing last-N game averages to season averages.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sport: { type: 'string', enum: ['nba', 'basketball_nba', 'nfl', 'americanfootball_nfl', 'mlb', 'baseball_mlb', 'nhl', 'icehockey_nhl'], description: 'Sport to search.' },
+          stat_focus: { type: 'string', enum: ['points', 'rebounds', 'assists', 'threes'], description: 'Optional stat focus for the trend.' },
+          window: { type: 'number', description: 'Recent games window (default 5).' },
+          limit: { type: 'number', description: 'Number of players to return (default 5).' },
+          teams: { type: 'array', items: { type: 'string' }, description: 'Optional team filters (one team or matchup teams).', },
+        },
+        required: ['sport'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_player_props',
       description: 'Get player prop betting odds and lines. Use this ONLY when users explicitly ask about player props, player bets, or specific player performance lines (e.g., "What are LeBron\'s props?", "Show me player props for tonight", "What\'s the over/under for Giannis points?"). DO NOT use for general odds queries.',
       parameters: {
@@ -2098,6 +2116,190 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient()
+
+    const runTrendingPlayers = async (functionArgs: any) => {
+      const normalizeLeague = (raw: string) => {
+        const val = raw.toLowerCase()
+        if (val.includes('nba')) return 'nba'
+        if (val.includes('nfl')) return 'nfl'
+        if (val.includes('mlb')) return 'mlb'
+        if (val.includes('nhl')) return 'nhl'
+        return 'nba'
+      }
+      const statFocus = (functionArgs.stat_focus || '').toString().toLowerCase()
+      const focusKey =
+        statFocus === 'points' ? 'PTS' :
+        statFocus === 'rebounds' ? 'REB' :
+        statFocus === 'assists' ? 'AST' :
+        statFocus === 'threes' ? '3PM' :
+        null
+      const window = Number(functionArgs.window || 5)
+      const limit = Math.max(1, Math.min(Number(functionArgs.limit || 5), 10))
+      const leagueKey = normalizeLeague(functionArgs.sport || 'nba')
+      const teamFilters = Array.isArray(functionArgs.teams)
+        ? functionArgs.teams.filter(Boolean)
+        : functionArgs.team
+        ? [functionArgs.team]
+        : []
+      const teamTokens = teamFilters.map((t: string) => normalizeToken(String(t)))
+
+      const normalizeStatKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
+      const readStatValue = (stats: any, keys: string[]) => {
+        if (!stats) return null
+        const normalizedKeys = keys.map(normalizeStatKey)
+        const matches = (label: any) => normalizedKeys.includes(normalizeStatKey(String(label || '')))
+
+        if (Array.isArray(stats)) {
+          for (const entry of stats) {
+            const label = entry?.name || entry?.shortDisplayName || entry?.displayName || entry?.abbrev || entry?.label
+            if (!label || !matches(label)) continue
+            const raw = entry?.value ?? entry?.displayValue ?? entry?.stat ?? entry?.amount
+            const num = typeof raw === 'number' ? raw : Number(String(raw).replace(/[^\d.-]/g, ''))
+            if (Number.isFinite(num)) return num
+          }
+        } else if (typeof stats === 'object') {
+          for (const key of keys) {
+            const raw = stats[key as keyof typeof stats]
+            const num = typeof raw === 'number' ? raw : Number(String(raw).replace(/[^\d.-]/g, ''))
+            if (Number.isFinite(num)) return num
+          }
+          if (Array.isArray(stats.stats)) {
+            const nested = readStatValue(stats.stats, keys)
+            if (nested != null) return nested
+          }
+          if (Array.isArray(stats.categories)) {
+            for (const cat of stats.categories) {
+              const nested = readStatValue(cat?.stats || cat?.statistics, keys)
+              if (nested != null) return nested
+            }
+          }
+        }
+        return null
+      }
+      const extractSeasonAverages = (stats: any) => ({
+        pts: readStatValue(stats?.stats ?? stats, ['pointsPerGame', 'ptsPerGame', 'ppg', 'PTS', 'points']),
+        reb: readStatValue(stats?.stats ?? stats, ['reboundsPerGame', 'totalReboundsPerGame', 'rebPerGame', 'rpg', 'REB', 'TRB']),
+        ast: readStatValue(stats?.stats ?? stats, ['assistsPerGame', 'assistAvg', 'astPerGame', 'apg', 'AST']),
+        threes: readStatValue(stats?.stats ?? stats, [
+          'threePointFieldGoalsPerGame',
+          'threePointFieldGoalsMadePerGame',
+          'threePointersMadePerGame',
+          'threePMade',
+          '3PM',
+          '3PT',
+          'threesPerGame',
+        ]),
+      })
+
+      const resp = await fetch(`${baseUrl}/api/performances/top?league=${leagueKey}&window=${window}`, { cache: 'no-store' })
+      if (!resp.ok) throw new Error(`Trending fetch failed (${resp.status})`)
+      const data = await resp.json()
+      const playerPool: any[] = Array.isArray(data?.playerRecent) && data.playerRecent.length
+        ? data.playerRecent
+        : Array.isArray(data?.playerLeaders?.recentTop)
+        ? data.playerLeaders.recentTop
+        : []
+
+      const filteredPool = teamTokens.length
+        ? playerPool.filter((player) => {
+            const teamName = player.team || player.teamName || player.teamAbbr || ''
+            const teamNorm = normalizeToken(String(teamName))
+            return teamNorm && teamTokens.some((token) => teamNorm.includes(token) || token.includes(teamNorm))
+          })
+        : playerPool
+
+      if (!filteredPool.length) {
+        return { success: false, error: 'No recent players available for that team or league.' }
+      }
+
+      const sportKeyMap: Record<string, string> = {
+        nba: 'basketball_nba',
+        nfl: 'americanfootball_nfl',
+        mlb: 'baseball_mlb',
+        nhl: 'icehockey_nhl',
+      }
+      const sportKey = sportKeyMap[leagueKey] || 'basketball_nba'
+      const season = getSeasonYearForSport(leagueKey)
+      const ids = filteredPool.map((p) => String(p.id || p.playerId || '')).filter(Boolean)
+      const { data: seasonRows } = await supabase
+        .from('player_season_stats')
+        .select('player_provider_id, stats')
+        .eq('sport_key', sportKey)
+        .eq('season', season)
+        .in('player_provider_id', ids)
+
+      const seasonMap = new Map<string, any>()
+      for (const row of seasonRows || []) {
+        seasonMap.set(String(row.player_provider_id), extractSeasonAverages(row.stats))
+      }
+
+      const trends = filteredPool
+        .map((player) => {
+          const id = String(player.id || player.playerId || '')
+          const seasonAvg = seasonMap.get(id)
+          if (!seasonAvg) return null
+
+          const avgPts = player.avgPts ?? player.pts ?? null
+          const avgReb = player.avgReb ?? null
+          const avgAst = player.avgAst ?? null
+          const avgThrees = player.avgThrees ?? player.tpm ?? null
+          const sample = player.sample ?? window
+
+          const stats = [
+            { key: 'PTS', label: 'points', avg: avgPts, seasonAvg: seasonAvg.pts },
+            { key: 'REB', label: 'rebounds', avg: avgReb, seasonAvg: seasonAvg.reb },
+            { key: 'AST', label: 'assists', avg: avgAst, seasonAvg: seasonAvg.ast },
+            { key: '3PM', label: 'threes', avg: avgThrees, seasonAvg: seasonAvg.threes },
+          ].filter((s) => s.avg != null && s.seasonAvg != null) as Array<{
+            key: string
+            label: string
+            avg: number
+            seasonAvg: number
+          }>
+
+          const filtered = focusKey ? stats.filter((s) => s.key === focusKey) : stats
+          if (!filtered.length) return null
+
+          const best = filtered
+            .map((s) => ({
+              ...s,
+              delta: s.avg - s.seasonAvg,
+              score: s.seasonAvg ? (s.avg - s.seasonAvg) / s.seasonAvg : 0,
+            }))
+            .filter((s) => s.delta > 0)
+            .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0]
+
+          if (!best) return null
+          return {
+            name: player.name || player.fullName || 'Player',
+            team: player.team || player.teamName || player.teamAbbr,
+            stat: best.label,
+            key: best.key,
+            avg: best.avg,
+            seasonAvg: best.seasonAvg,
+            delta: best.delta,
+            sample,
+            score: best.score,
+          }
+        })
+        .filter(Boolean) as any[]
+
+      const top = trends.sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, limit)
+      if (!top.length) {
+        return { success: false, error: 'No players are exceeding their season averages right now.' }
+      }
+      const header = teamFilters.length
+        ? `Trending players (${leagueKey.toUpperCase()}): ${teamFilters.join(' vs ')}`
+        : `Trending players (${leagueKey.toUpperCase()}):`
+      const lines = top.map((t: any, idx: number) => {
+        const avg = typeof t.avg === 'number' ? t.avg.toFixed(1) : t.avg
+        const seasonAvg = typeof t.seasonAvg === 'number' ? t.seasonAvg.toFixed(1) : t.seasonAvg
+        const delta = typeof t.delta === 'number' ? t.delta.toFixed(1) : t.delta
+        const teamLabel = t.team ? ` (${t.team})` : ''
+        return `${idx + 1}) ${t.name}${teamLabel} — Exceeding ${t.stat} avg (last ${t.sample}): ${avg} vs ${seasonAvg} (+${delta})`
+      })
+      return { success: true, data: top, formatted: `${header}\n${lines.join('\n')}` }
+    }
 
     // Verify user authentication
     const {
@@ -2938,6 +3140,23 @@ export async function POST(req: NextRequest) {
       (mentionedTeams.length > 0 &&
         /\b(stats?|record|standings?)\b/i.test(msgLower) &&
         !playerNameInMessage)
+    const trendingStatFocus =
+      /\b(rebounds?|reb)\b/i.test(msgLower) ? 'rebounds' :
+      /\b(assists?|ast)\b/i.test(msgLower) ? 'assists' :
+      /\b(3pm|threes?|three\s?points?)\b/i.test(msgLower) ? 'threes' :
+      /\b(points?|pts)\b/i.test(msgLower) ? 'points' :
+      undefined
+    const trendingPlayersIntent =
+      !playerNameInMessage &&
+      !propIntent &&
+      (
+        /\b(players?\s+(to\s+watch|to\s+look\s+for|to\s+know|to\s+target))\b/i.test(msgLower) ||
+        /\b(trending\s+players?|hot\s+players?|recent\s+standouts?|recent\s+performers?|best\s+recent\s+players?)\b/i.test(msgLower) ||
+        /\b(who('?s| is)\s+hot|who('?s| has)\s+been\s+hot)\b/i.test(msgLower) ||
+        (/\b(players?|guys|names)\b/i.test(msgLower) && /\b(trending|hot|on\s+a\s+tear|performing\s+well|recently|lately)\b/i.test(msgLower))
+      )
+    const trendingTeams = parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams
+    const trendingHasTeamContext = trendingTeams.length > 0
     const normalizedThreeText = msgLower.replace(/[\u2010-\u2015]/g, '-').replace(/\s+/g, '')
     const threesToken =
       /\b(3p|3pt|3s|three[-\s]?pointers?|threes?)\b/i.test(msgLower) ||
@@ -3005,6 +3224,25 @@ export async function POST(req: NextRequest) {
       return null
     }
     const statQuery = detectStatKey(message)
+
+    if (trendingPlayersIntent) {
+      const trendSportGuess =
+        msgLower.match(/nfl|football/) ? 'nfl' :
+        msgLower.match(/mlb|baseball/) ? 'mlb' :
+        msgLower.match(/nhl|hockey/) ? 'nhl' :
+        'nba'
+      const result = await runTrendingPlayers({
+        sport: trendSportGuess,
+        stat_focus: trendingStatFocus,
+        window: 5,
+        limit: 5,
+        teams: trendingHasTeamContext ? trendingTeams : undefined,
+      })
+      if (result?.success && result.formatted) {
+        return streamTextResponse(result.formatted)
+      }
+      return streamTextResponse(result?.error || 'Trending players are unavailable right now.')
+    }
 
     // Early return for opponent 3PM allowed queries using static CSV (faster, avoids ESPN/tool calls)
     if (threesAllowedIntent) {
@@ -5609,6 +5847,8 @@ ${statsEnrichment}
             error: err?.message || 'Failed to fetch player season stats',
           }
         }
+      } else if (functionName === 'get_trending_players') {
+        functionResult = await runTrendingPlayers(functionArgs)
       } else if (functionName === 'create_parlay') {
         try {
           const response = await fetch(`${baseUrl}/api/parlays`, {

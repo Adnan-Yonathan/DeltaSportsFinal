@@ -67,7 +67,8 @@ export function TopPerformancesStrip() {
   const [teamTrends, setTeamTrends] = useState<TeamTrend[]>([])
   const [playerTrends, setPlayerTrends] = useState<PlayerTrend[]>([])
   const [playerLeaders, setPlayerLeaders] = useState<PlayerLeaders | null>(null)
-  const [viewMode, setViewMode] = useState<"teams" | "players">("teams")
+  const [bettingTrends, setBettingTrends] = useState<any[]>([])
+  const [viewMode, setViewMode] = useState<"teams" | "players" | "betting">("teams")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
@@ -108,6 +109,7 @@ export function TopPerformancesStrip() {
           : []
         setPlayerTrends(normalizedPlayerRecent.length ? normalizedPlayerRecent : leaderFallback)
         setPlayerLeaders(data?.playerLeaders || null)
+        setBettingTrends(Array.isArray(data?.bettingTrends) ? data.bettingTrends : [])
       } catch (err) {
         console.warn("[TopPerformancesStrip] fetch failed", err)
         setError("Top trends unavailable right now.")
@@ -123,6 +125,20 @@ export function TopPerformancesStrip() {
 
   const visibleTeams = expanded ? teamTrends : teamTrends.slice(0, 3)
   const visiblePlayers = expanded ? playerTrends : playerTrends.slice(0, 3)
+  const visibleBetting = expanded ? bettingTrends : bettingTrends.slice(0, 3)
+
+  const displayItems =
+    viewMode === "teams"
+      ? visibleTeams
+      : viewMode === "players"
+      ? visiblePlayers
+      : visibleBetting
+  const totalItems =
+    viewMode === "teams"
+      ? teamTrends.length
+      : viewMode === "players"
+      ? playerTrends.length
+      : bettingTrends.length
 
   const leaderCats =
     league === "nfl"
@@ -140,6 +156,20 @@ export function TopPerformancesStrip() {
         ]
 
   const renderCardDetail = (item: any) => {
+    if (item.type === "betting") {
+      return (
+        <div className="text-[12px] text-gray-300 space-y-1">
+          {item.marketLabel ? (
+            <div className="text-[11px] uppercase tracking-[0.2em] text-emerald-200/70">
+              {`Market: ${item.marketLabel.replace(/_/g, " ")}`}
+            </div>
+          ) : null}
+          <div>{item.bets}</div>
+          {item.money && <div>{item.money}</div>}
+          <div>{item.sharp}</div>
+        </div>
+      )
+    }
     if (item.type === "team") {
       return (
         <div className="text-[12px] text-gray-300">
@@ -159,6 +189,13 @@ export function TopPerformancesStrip() {
         Last {item.sample}: {item.avgPts?.toFixed?.(1) ?? "--"} PTS | {item.avgReb?.toFixed?.(1) ?? "--"} REB | {item.avgAst?.toFixed?.(1) ?? "--"} AST | {item.avgThrees?.toFixed?.(1) ?? "--"} 3PM
       </div>
     )
+  }
+
+  const getTrendLabel = (item: any) => {
+    if (item.type === "team") return "Team (last 5)"
+    if (item.type === "player") return "Player (last 5)"
+    if (item.type === "betting") return "Betting trends"
+    return "Trend"
   }
 
   return (
@@ -186,11 +223,12 @@ export function TopPerformancesStrip() {
             <div className="relative z-10">
               <select
                 value={viewMode}
-                onChange={(e) => setViewMode(e.target.value as "teams" | "players")}
+                onChange={(e) => setViewMode(e.target.value as "teams" | "players" | "betting")}
                 className="rounded-md bg-black/70 text-emerald-100 text-xs md:text-sm px-3 py-1 border border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
               >
                 <option value="teams">Team trends</option>
                 <option value="players">Player trends</option>
+                <option value="betting">Betting trends</option>
               </select>
             </div>
           </div>
@@ -205,8 +243,8 @@ export function TopPerformancesStrip() {
                   <div className="h-3 w-2/3 rounded bg-gray-800/70" />
                 </div>
               ))
-            : (viewMode === "teams" ? visibleTeams.length : visiblePlayers.length) > 0
-            ? (viewMode === "teams" ? visibleTeams : visiblePlayers).slice(0, 3).map((item: any, idx: number) => (
+            : displayItems.length > 0
+            ? displayItems.slice(0, 3).map((item: any, idx: number) => (
                 <motion.div
                   key={`${item.name}-${idx}-${item.type}`}
                   initial={{ opacity: 0, y: 10 }}
@@ -216,7 +254,7 @@ export function TopPerformancesStrip() {
                 >
                   <div className="flex items-center justify-between text-xs text-gray-400 uppercase tracking-[0.14em]">
                     <span>{item.league?.toUpperCase?.() || league.toUpperCase()}</span>
-                    <span>{item.type === "team" ? "Team (last 5)" : "Player (last 5)"}</span>
+                    <span>{getTrendLabel(item)}</span>
                   </div>
                   <div className="mt-0.5 text-sm font-semibold text-white leading-tight">{item.name}</div>
                   {renderCardDetail(item)}
@@ -230,7 +268,7 @@ export function TopPerformancesStrip() {
               )}
         </div>
 
-        {((viewMode === "teams" ? teamTrends.length : playerTrends.length) > 3) && !loading ? (
+        {(totalItems > 3) && !loading ? (
           <div className="mt-2 flex justify-end">
             <button
               onClick={() => setExpanded(true)}
@@ -267,11 +305,12 @@ export function TopPerformancesStrip() {
                 <div className="relative z-10">
                   <select
                     value={viewMode}
-                    onChange={(e) => setViewMode(e.target.value as "teams" | "players")}
+                    onChange={(e) => setViewMode(e.target.value as "teams" | "players" | "betting")}
                     className="rounded-md bg-black/70 text-emerald-100 text-xs px-3 py-1 border border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
                   >
                     <option value="teams">Team trends</option>
                     <option value="players">Player trends</option>
+                    <option value="betting">Betting trends</option>
                   </select>
                 </div>
                 <button
@@ -292,12 +331,12 @@ export function TopPerformancesStrip() {
                       <div className="h-3 w-2/3 rounded bg-gray-800/70" />
                     </div>
                   ))
-                : (viewMode === "teams" ? teamTrends.length : playerTrends.length) > 0
-                ? (viewMode === "teams" ? teamTrends : playerTrends).map((item: any, idx: number) => (
+                : displayItems.length > 0
+                ? displayItems.map((item: any, idx: number) => (
                     <div key={`${item.name}-${idx}-${item.type}`} className="group relative rounded-lg border border-transparent bg-transparent px-3 py-2 hover:border-emerald-500/30 hover:bg-emerald-900/10">
                       <div className="flex items-center justify-between text-xs text-gray-400 uppercase tracking-[0.14em]">
                         <span>{item.league?.toUpperCase?.() || league.toUpperCase()}</span>
-                        <span>{item.type === "team" ? "Team (last 5)" : "Player (last 5)"}</span>
+                        <span>{getTrendLabel(item)}</span>
                       </div>
                       <div className="mt-0.5 text-sm font-semibold text-white leading-tight">{item.name}</div>
                       {renderCardDetail(item)}
@@ -347,3 +386,7 @@ export function TopPerformancesStrip() {
     </>
   )
 }
+
+
+
+

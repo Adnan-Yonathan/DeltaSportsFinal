@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server"
-import { getTeams, getTeamSchedule, getPlayerGameLogs, getRoster, getEventSnapshot } from "@/lib/services/espn-orchestrator"
+import {
+  getTeams,
+  getTeamSchedule,
+  getPlayerGameLogs,
+  getRoster,
+  getEventSnapshot,
+  getPlayerSeasonStats,
+} from "@/lib/services/espn-orchestrator"
+import { createClient } from '@/lib/supabase/server'
 
 type LeagueKey = "nba" | "nfl" | "mlb" | "nhl"
 
@@ -75,6 +83,431 @@ const fetchRecentScoreboard = async (league: LeagueKey, days = 30) => {
   if (!res.ok) return []
   const data = await res.json()
   return data?.events || []
+}
+
+const SPORT_KEY_MAP: Record<LeagueKey, string> = {
+  nba: "basketball_nba",
+  nfl: "americanfootball_nfl",
+  mlb: "baseball_mlb",
+  nhl: "icehockey_nhl",
+}
+
+const formatPct = (value: number | string | null | undefined) => {
+  if (value == null) return "n/a"
+  const numeric = typeof value === "string" ? Number(value.replace(/[^\d.-]/g, "")) : value
+  if (!Number.isFinite(numeric)) return "n/a"
+  return `${numeric.toFixed(1)}%`
+}
+
+const formatPair = (label: string, away?: number | null, home?: number | null) => {
+  if (away == null && home == null) return null
+  return `${label}: ${formatPct(away)} / ${formatPct(home)}`
+}
+
+const firstDefined = <T,>(...values: Array<T | null | undefined>) => {
+  for (const value of values) {
+    if (value == null) continue
+    const text = String(value).trim()
+    if (!text) continue
+    if (["n/a", "na", "none", "null", "--", "-"].includes(text.toLowerCase())) continue
+    return value
+  }
+  return undefined
+}
+
+const normalizeStatKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "")
+
+const readStatValue = (stats: any, keys: string[]) => {
+  if (!stats) return null
+  const normalizedKeys = keys.map(normalizeStatKey)
+  const tryMatch = (candidate: any) => {
+    const label = String(candidate ?? "")
+    const norm = normalizeStatKey(label)
+    return normalizedKeys.includes(norm)
+  }
+
+  if (Array.isArray(stats)) {
+    for (const entry of stats) {
+      if (!entry) continue
+      const label = entry.name || entry.shortDisplayName || entry.displayName || entry.abbrev || entry.label
+      if (!label || !tryMatch(label)) continue
+      const raw = firstDefined(entry.value, entry.displayValue, entry.stat, entry.amount)
+      const num = toNumber(raw)
+      if (num != null) return num
+    }
+  } else if (typeof stats === "object") {
+    for (const key of keys) {
+      const value = (stats as any)[key]
+      const num = toNumber(value)
+      if (num != null) return num
+    }
+    if (Array.isArray((stats as any).stats)) {
+      const nested = readStatValue((stats as any).stats, keys)
+      if (nested != null) return nested
+    }
+    if (Array.isArray((stats as any).categories)) {
+      for (const category of (stats as any).categories) {
+        const nested = readStatValue(category?.stats || category?.statistics, keys)
+        if (nested != null) return nested
+      }
+    }
+  }
+  return null
+}
+
+const collectStatPayloads = (stats: any) => {
+  const payloads: any[] = []
+  const push = (value: any) => {
+    if (!value) return
+    payloads.push(value)
+  }
+
+  push(stats)
+  push(stats?.stats)
+
+  const statistics = stats?.statistics || stats?.splits || stats?.categories
+  if (Array.isArray(statistics)) {
+    for (const block of statistics) {
+      push(block?.stats)
+      if (Array.isArray(block?.splits)) {
+        for (const split of block.splits) {
+          push(split?.stats)
+          if (Array.isArray(split?.categories)) {
+            for (const cat of split.categories) {
+              push(cat?.stats)
+              push(cat?.statistics)
+            }
+          }
+        }
+      }
+      if (Array.isArray(block?.categories)) {
+        for (const cat of block.categories) {
+          push(cat?.stats)
+          push(cat?.statistics)
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(stats?.categories)) {
+    for (const cat of stats.categories) {
+      push(cat?.stats)
+      push(cat?.statistics)
+    }
+  }
+
+  if (Array.isArray(stats?.splits)) {
+    for (const split of stats.splits) {
+      push(split?.stats)
+      if (Array.isArray(split?.categories)) {
+        for (const cat of split.categories) {
+          push(cat?.stats)
+          push(cat?.statistics)
+        }
+      }
+    }
+  }
+
+  return payloads
+}
+
+const extractSeasonAverages = (stats: any) => {
+  const payloads = collectStatPayloads(stats)
+  let pts: number | null = null
+  let reb: number | null = null
+  let ast: number | null = null
+  let threes: number | null = null
+
+  for (const payload of payloads) {
+    if (pts == null) pts = readStatValue(payload, ["pointsPerGame", "ptsPerGame", "ppg", "PTS", "points"])
+    if (reb == null) reb = readStatValue(payload, ["reboundsPerGame", "totalReboundsPerGame", "rebPerGame", "rpg", "REB", "TRB"])
+    if (ast == null) ast = readStatValue(payload, ["assistsPerGame", "assistAvg", "astPerGame", "apg", "AST"])
+    if (threes == null) {
+      threes = readStatValue(payload, [
+        "threePointFieldGoalsPerGame",
+        "threePointFieldGoalsMadePerGame",
+        "threePointersMadePerGame",
+        "threePMade",
+        "3PM",
+        "3PT",
+        "threesPerGame",
+      ])
+    }
+    if (pts != null && reb != null && ast != null && threes != null) break
+  }
+
+  return { pts, reb, ast, threes }
+}
+
+const fetchSeasonAveragesForPlayers = async (league: LeagueKey, playerIds: string[]) => {
+  const sportKey = SPORT_KEY_MAP[league]
+  if (!sportKey || !playerIds.length) return new Map<string, any>()
+  const season = seasonForSport(league)
+  const supa = createClient()
+  const seasonMap = new Map<string, any>()
+  const chunkSize = 200
+  for (let i = 0; i < playerIds.length; i += chunkSize) {
+    const chunk = playerIds.slice(i, i + chunkSize)
+    const { data, error } = await supa
+      .from("player_season_stats")
+      .select("player_provider_id, stats")
+      .eq("sport_key", sportKey)
+      .eq("season", season)
+      .in("player_provider_id", chunk)
+    if (error) {
+      console.warn("[performances/top] season stats query failed", error)
+      continue
+    }
+    for (const row of data || []) {
+      seasonMap.set(String(row.player_provider_id), extractSeasonAverages(row.stats))
+    }
+  }
+  return seasonMap
+}
+
+const fetchSeasonAveragesFromEspn = async (league: LeagueKey, playerIds: string[], limit = 20) => {
+  const season = seasonForSport(league)
+  const results = new Map<string, any>()
+  const slice = playerIds.slice(0, limit)
+  for (const playerId of slice) {
+    try {
+      const payload = await getPlayerSeasonStats(league, playerId, season)
+      if (!payload) continue
+      const averages = extractSeasonAverages(payload)
+      if (averages.pts != null || averages.reb != null || averages.ast != null || averages.threes != null) {
+        results.set(String(playerId), averages)
+      }
+    } catch (error) {
+      console.warn("[performances/top] ESPN season stats failed", error)
+    }
+  }
+  return results
+}
+
+const buildBettingSplitEntry = (split: any, league: LeagueKey) => {
+  const betsParts = [
+    formatPair("Spread bets", split.spreadAwayBetsPct, split.spreadHomeBetsPct),
+    formatPair("Total bets", split.totalOverBetsPct, split.totalUnderBetsPct),
+    formatPair("ML bets", split.mlAwayBetsPct, split.mlHomeBetsPct),
+  ].filter(Boolean)
+
+  const moneyParts = [
+    formatPair("Spread money", split.spreadAwayMoneyPct, split.spreadHomeMoneyPct),
+    formatPair("Total money", split.totalOverMoneyPct, split.totalUnderMoneyPct),
+    formatPair("ML money", split.mlAwayMoneyPct, split.mlHomeMoneyPct),
+  ].filter(Boolean)
+
+  const markets: string[] = []
+  if (split.spreadAwayBetsPct != null || split.spreadHomeBetsPct != null) markets.push("Spread")
+  if (split.totalOverBetsPct != null || split.totalUnderBetsPct != null) markets.push("Total")
+  if (split.mlAwayBetsPct != null || split.mlHomeBetsPct != null) markets.push("Moneyline")
+
+  return {
+    type: "betting",
+    league,
+    name: `${split.awayTeam || split.away_team || "Away"} @ ${split.homeTeam || split.home_team || "Home"}`,
+    sample: 5,
+    marketLabel: markets.join(" + ") || split.market_type || "Betting",
+    bets: betsParts.join(" | "),
+    money: moneyParts.join(" | "),
+    sharp: split.sharpIndicator
+      ? `Signal: ${split.sharpIndicator.replace("_", " ")}`
+      : "Signal: neutral",
+    capturedAt: split.capturedAt || split.captured_at,
+  }
+}
+
+const buildAtsTrendEntry = (record: any, league: LeagueKey) => {
+  const team = record.team_name || record.team_provider_id || "Team"
+  const atsRecord = record.record?.formatted || record.record || record.ats_record || "n/a"
+  const last10 = record.last_10_ats || "n/a"
+  const overUnder = record.over_under_record || "n/a"
+  const streakValue =
+    record.ats_streak || "n/a"
+  const streak = record.ats_streak ? `Streak: ${record.ats_streak}` : "Streak: n/a"
+
+  return {
+    type: "betting",
+    league,
+    name: team,
+    sample: 5,
+    marketLabel: "ATS / O-U",
+    bets: `Season ATS: ${atsRecord}`,
+    money: `O/U: ${overUnder}`,
+    sharp: "Signal: ATS streak",
+    streak,
+    capturedAt: record.captured_at,
+    sortScore: computeAtsScore(atsRecord, last10, record.ats_streak),
+  }
+}
+
+const buildPlayerTrendEntry = (player: any, league: LeagueKey) => {
+  const avgPts = firstDefined(player.avgPts, player.pts, player.points, player.avg_points)
+  const avgReb = firstDefined(player.avgReb, player.reb, player.rebounds, player.avg_reb)
+  const avgAst = firstDefined(player.avgAst, player.ast, player.assists, player.avg_ast)
+  const avgThrees = firstDefined(player.avgThrees, player.tpm, player.threes, player.avg_threes)
+  const seasonAvgPts = firstDefined(player.seasonAvgPts, player.seasonPts, player.season_avg_pts)
+  const seasonAvgReb = firstDefined(player.seasonAvgReb, player.seasonReb, player.season_avg_reb)
+  const seasonAvgAst = firstDefined(player.seasonAvgAst, player.seasonAst, player.season_avg_ast)
+  const seasonAvgThrees = firstDefined(player.seasonAvgThrees, player.seasonThrees, player.season_avg_threes)
+  const avgPtsNum = typeof avgPts === "number" ? avgPts : toNumber(avgPts)
+  const avgRebNum = typeof avgReb === "number" ? avgReb : toNumber(avgReb)
+  const avgAstNum = typeof avgAst === "number" ? avgAst : toNumber(avgAst)
+  const avgThreesNum = typeof avgThrees === "number" ? avgThrees : toNumber(avgThrees)
+  const seasonAvgPtsNum = typeof seasonAvgPts === "number" ? seasonAvgPts : toNumber(seasonAvgPts)
+  const seasonAvgRebNum = typeof seasonAvgReb === "number" ? seasonAvgReb : toNumber(seasonAvgReb)
+  const seasonAvgAstNum = typeof seasonAvgAst === "number" ? seasonAvgAst : toNumber(seasonAvgAst)
+  const seasonAvgThreesNum = typeof seasonAvgThrees === "number" ? seasonAvgThrees : toNumber(seasonAvgThrees)
+
+  const parts: string[] = []
+  if (avgPtsNum != null) parts.push(`${avgPtsNum.toFixed?.(1) ?? avgPtsNum} PTS`)
+  if (avgRebNum != null) parts.push(`${avgRebNum.toFixed?.(1) ?? avgRebNum} REB`)
+  if (avgAstNum != null) parts.push(`${avgAstNum.toFixed?.(1) ?? avgAstNum} AST`)
+  if (avgThreesNum != null) parts.push(`${avgThreesNum.toFixed?.(1) ?? avgThreesNum} 3PM`)
+
+  const trendStats = [
+    { key: "PTS", label: "points", avg: avgPtsNum, seasonAvg: seasonAvgPtsNum },
+    { key: "REB", label: "rebounds", avg: avgRebNum, seasonAvg: seasonAvgRebNum },
+    { key: "AST", label: "assists", avg: avgAstNum, seasonAvg: seasonAvgAstNum },
+    { key: "3PM", label: "threes", avg: avgThreesNum, seasonAvg: seasonAvgThreesNum },
+  ]
+    .filter((stat) => stat.avg != null && stat.seasonAvg != null)
+    .map((stat) => ({
+      ...stat,
+      delta: stat.avg - stat.seasonAvg,
+      score: stat.seasonAvg ? (stat.avg - stat.seasonAvg) / stat.seasonAvg : 0,
+    })) as Array<{
+    key: string
+    label: string
+    avg: number
+    seasonAvg: number
+    delta: number
+    score: number
+  }>
+  const topTrend = trendStats
+    .filter((stat) => stat.delta > 0)
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0]
+  const sampleSize = player.sample ?? 5
+  const trendLabel = topTrend ? `Exceeding ${topTrend.label} avg (last ${sampleSize})` : `Player streak (last ${sampleSize})`
+  const trendDelta = topTrend?.delta ?? null
+  const trendDetail =
+    topTrend && trendDelta != null
+      ? `Avg: ${topTrend.avg.toFixed?.(1) ?? topTrend.avg} ${topTrend.key} (Season ${topTrend.seasonAvg.toFixed?.(1) ?? topTrend.seasonAvg}, +${trendDelta.toFixed?.(1) ?? trendDelta})`
+      : parts.length
+      ? `Avg: ${parts.join(" | ")}`
+      : "Recent averages unavailable"
+
+  return {
+    type: "betting",
+    league,
+    name: player.name || "Player",
+    sample: player.sample ?? 5,
+    marketLabel: trendLabel,
+    bets: trendDetail,
+    money: null,
+    sharp: "Signal: hot streak",
+    streak: `Streak: last ${player.sample ?? 5} games`,
+    capturedAt: new Date().toISOString(),
+    trendDelta,
+    trendScore: topTrend?.score ?? null,
+    sortScore: computePlayerScore({ ...player, trendDelta, trendScore: topTrend?.score }),
+  }
+}
+
+const fetchAtsRecords = async (league: LeagueKey, limit = 5) => {
+  const sportKey = SPORT_KEY_MAP[league]
+  if (!sportKey) return []
+  const supa = createClient()
+  const { data, error } = await supa
+    .from("team_ats_records")
+    .select("*")
+    .eq("sport_key", sportKey)
+    .order("captured_at", { ascending: false })
+    .limit(Math.max(10, limit))
+
+  if (error) {
+    console.error("[performances/top] ATS records query failed", error)
+    return []
+  }
+  return data || []
+}
+
+const buildBettingTrends = async (
+  league: LeagueKey,
+  players: any[],
+  fallbackPlayers: any[] = [],
+  atsLimit = 5,
+  playerLimit = 5
+) => {
+  const atsRecords = await fetchAtsRecords(league, atsLimit)
+  const atsItems = atsRecords.map((record) => buildAtsTrendEntry(record, league))
+  const basePlayers = players && players.length ? players : fallbackPlayers
+  const playerItems = (basePlayers || [])
+    .map((player) => buildPlayerTrendEntry(player, league))
+    .filter((item) => typeof item.trendDelta === "number" && item.trendDelta > 0)
+
+  const sortedAts = atsItems.sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0)).slice(0, atsLimit)
+  const sortedPlayers = playerItems.sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0)).slice(0, playerLimit)
+
+  const mixed: any[] = []
+  const max = Math.max(sortedAts.length, sortedPlayers.length)
+  for (let i = 0; i < max; i += 1) {
+    if (sortedAts[i]) mixed.push(sortedAts[i])
+    if (sortedPlayers[i]) mixed.push(sortedPlayers[i])
+  }
+  return mixed
+}
+
+const parseRecord = (value?: string | null) => {
+  if (!value) return null
+  const match = String(value).match(/(\d+)\s*-\s*(\d+)(?:\s*-\s*(\d+))?/)
+  if (!match) return null
+  const wins = Number(match[1])
+  const losses = Number(match[2])
+  const pushes = match[3] ? Number(match[3]) : 0
+  const total = wins + losses + pushes
+  if (!total) return null
+  return { wins, losses, pushes, total, winPct: wins / total }
+}
+
+const parseStreak = (value?: string | null) => {
+  if (!value) return null
+  const match = String(value).match(/([WL])\s*(\d+)/i)
+  if (!match) return null
+  const dir = match[1].toUpperCase()
+  const len = Number(match[2])
+  if (!Number.isFinite(len)) return null
+  return { dir, len }
+}
+
+const computeAtsScore = (record?: string | null, last10?: string | null, streak?: string | null) => {
+  const recordStats = parseRecord(record)
+  const last10Stats = parseRecord(last10)
+  const streakStats = parseStreak(streak)
+  const winPct = recordStats?.winPct ?? 0
+  const last10Pct = last10Stats?.winPct ?? winPct
+  const streakScore = streakStats ? (streakStats.dir === "W" ? streakStats.len : -streakStats.len) : 0
+  return winPct * 100 + last10Pct * 50 + streakScore * 5
+}
+
+const computePlayerScore = (player: any) => {
+  const trendScore = typeof player.trendScore === "number" ? player.trendScore : toNumber(player.trendScore)
+  if (trendScore != null && Number.isFinite(trendScore)) return trendScore
+  const trendDelta = typeof player.trendDelta === "number" ? player.trendDelta : toNumber(player.trendDelta)
+  if (trendDelta != null && Number.isFinite(trendDelta)) return trendDelta
+  const values = [
+    player.avgPts,
+    player.avgReb,
+    player.avgAst,
+    player.avgThrees,
+    player.avgPass,
+    player.avgRush,
+    player.avgRec,
+  ]
+    .map((value) => (typeof value === "number" ? value : toNumber(value)))
+    .filter((v: any) => typeof v === "number" && Number.isFinite(v))
+  if (!values.length) return 0
+  return values.reduce((sum: number, val: number) => sum + val, 0)
 }
 
 const buildTeamRecent = async (league: LeagueKey, window = 5) => {
@@ -224,6 +657,8 @@ const extractGameStats = (g: any, league: LeagueKey) => {
 type BoxPlayerTotals = {
   id: string
   name: string
+  team?: string
+  teamAbbr?: string
   games: number
   pts: number
   reb: number
@@ -253,6 +688,13 @@ const buildPlayerLeadersFromBox = async (league: LeagueKey, topN = 5, days = 10,
       const snap = await getEventSnapshot(league, eventId)
       const players = snap?.boxscore?.players || []
       for (const group of players) {
+        const teamName =
+          group?.team?.displayName ||
+          group?.team?.name ||
+          group?.team?.shortDisplayName ||
+          group?.team?.abbreviation ||
+          undefined
+        const teamAbbr = group?.team?.abbreviation || undefined
         const statsBlocks: any[] = Array.isArray(group?.statistics) ? group.statistics : []
         for (const block of statsBlocks) {
           const labels: string[] = Array.isArray(block?.labels) ? block.labels : []
@@ -280,9 +722,11 @@ const buildPlayerLeadersFromBox = async (league: LeagueKey, topN = 5, days = 10,
               else if (label === "YDS" && league === "nfl") passYds = num
             })
             if (!totals[aid]) {
-              totals[aid] = { id: aid, name, games: 0, pts: 0, reb: 0, ast: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, passYds: 0, rushYds: 0, recYds: 0 }
+              totals[aid] = { id: aid, name, team: teamName, teamAbbr, games: 0, pts: 0, reb: 0, ast: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, passYds: 0, rushYds: 0, recYds: 0 }
             }
             const slot = totals[aid]
+            if (!slot.team && teamName) slot.team = teamName
+            if (!slot.teamAbbr && teamAbbr) slot.teamAbbr = teamAbbr
             slot.games += 1
             slot.pts += pts
             slot.reb += reb
@@ -313,6 +757,36 @@ const buildPlayerLeadersFromBox = async (league: LeagueKey, topN = 5, days = 10,
     avgRush: p.games ? (p.rushYds ?? 0) / p.games : null,
     avgRec: p.games ? (p.recYds ?? 0) / p.games : null,
   }))
+  const seasonAverages = await fetchSeasonAveragesForPlayers(league, summaries.map((p) => String(p.id)))
+  const missing = summaries
+    .filter((p) => {
+      const entry = seasonAverages.get(String(p.id))
+      if (!entry) return true
+      return entry.pts == null && entry.reb == null && entry.ast == null && entry.threes == null
+    })
+    .map((p) => ({
+      id: String(p.id),
+      score: (p.avgPts ?? 0) + (p.avgReb ?? 0) + (p.avgAst ?? 0) + (p.avgPass ?? 0) + (p.avgRush ?? 0) + (p.avgRec ?? 0),
+    }))
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, 25)
+    .map((p) => p.id)
+  if (missing.length) {
+    const espnAverages = await fetchSeasonAveragesFromEspn(league, missing, 25)
+    for (const [key, value] of espnAverages.entries()) {
+      seasonAverages.set(key, value)
+    }
+  }
+  const summariesWithSeason = summaries.map((p) => {
+    const seasonStats = seasonAverages.get(String(p.id))
+    return {
+      ...p,
+      seasonAvgPts: seasonStats?.pts ?? null,
+      seasonAvgReb: seasonStats?.reb ?? null,
+      seasonAvgAst: seasonStats?.ast ?? null,
+      seasonAvgThrees: seasonStats?.threes ?? null,
+    }
+  })
 
   const sortTop = (arr: any[], key: string) =>
     arr
@@ -320,20 +794,20 @@ const buildPlayerLeadersFromBox = async (league: LeagueKey, topN = 5, days = 10,
       .sort((a, b) => (b[key] ?? 0) - (a[key] ?? 0))
       .slice(0, topN)
 
-  const passTop = sortTop(summaries, "avgPass")
-  const rushTop = sortTop(summaries, "avgRush")
-  const recTop = sortTop(summaries, "avgRec")
+  const passTop = sortTop(summariesWithSeason, "avgPass")
+  const rushTop = sortTop(summariesWithSeason, "avgRush")
+  const recTop = sortTop(summariesWithSeason, "avgRec")
   const recentTop =
     league === "nfl"
       ? [...passTop.slice(0, topN), ...rushTop.slice(0, topN), ...recTop.slice(0, topN)].slice(0, Math.max(1, topN * 3))
-      : sortTop(summaries, "avgPts")
+      : sortTop(summariesWithSeason, "avgPts")
 
   return {
-    pts: sortTop(summaries, "avgPts"),
-    reb: sortTop(summaries, "avgReb"),
-    ast: sortTop(summaries, "avgAst"),
-    fgPct: sortTop(summaries, "fgPct"),
-    tpPct: sortTop(summaries, "tpPct"),
+    pts: sortTop(summariesWithSeason, "avgPts"),
+    reb: sortTop(summariesWithSeason, "avgReb"),
+    ast: sortTop(summariesWithSeason, "avgAst"),
+    fgPct: sortTop(summariesWithSeason, "fgPct"),
+    tpPct: sortTop(summariesWithSeason, "tpPct"),
     passYds: passTop,
     rushYds: rushTop,
     recYds: recTop,
@@ -366,6 +840,8 @@ const buildPlayerLeaders = async (league: LeagueKey, window = 5, topN = 5) => {
     if (!recent.length) continue
     playersWithLogs++
     let pts = 0, reb = 0, ast = 0, fgm = 0, fga = 0, tpm = 0, tpa = 0
+    let seasonPts = 0, seasonReb = 0, seasonAst = 0, seasonFgm = 0, seasonFga = 0, seasonTpm = 0, seasonTpa = 0
+    let seasonGames = 0
     for (const gRaw of recent) {
       const g = gRaw || {}
       const gs: any = extractGameStats(g, league)
@@ -377,6 +853,19 @@ const buildPlayerLeaders = async (league: LeagueKey, window = 5, topN = 5) => {
       tpm += gs.tpm ?? 0
       tpa += gs.tpa ?? 0
     }
+    for (const gRaw of base as any[]) {
+      const g = gRaw || {}
+      const gs: any = extractGameStats(g, league)
+      if (gs.pts == null && gs.reb == null && gs.ast == null && gs.fgm == null && gs.fga == null && gs.tpm == null && gs.tpa == null) continue
+      seasonGames += 1
+      seasonPts += gs.pts ?? 0
+      seasonReb += gs.reb ?? 0
+      seasonAst += gs.ast ?? 0
+      seasonFgm += gs.fgm ?? 0
+      seasonFga += gs.fga ?? 0
+      seasonTpm += gs.tpm ?? 0
+      seasonTpa += gs.tpa ?? 0
+    }
     const first = recent[0] as any
     const name = (first?.athlete?.displayName || first?.athlete?.fullName || first?.athlete?.name || p.name || "").trim() || p.id
     summaries.push({
@@ -386,6 +875,10 @@ const buildPlayerLeaders = async (league: LeagueKey, window = 5, topN = 5) => {
       avgPts: recent.length ? pts / recent.length : null,
       avgReb: recent.length ? reb / recent.length : null,
       avgAst: recent.length ? ast / recent.length : null,
+      seasonAvgPts: seasonGames ? seasonPts / seasonGames : null,
+      seasonAvgReb: seasonGames ? seasonReb / seasonGames : null,
+      seasonAvgAst: seasonGames ? seasonAst / seasonGames : null,
+      seasonAvgThrees: seasonGames ? seasonTpm / seasonGames : null,
       fgPct: fga ? fgm / fga : null,
       tpPct: tpa ? tpm / tpa : null,
       avgPass: league === "nfl" ? recent.length ? pts / recent.length : null : null,
@@ -435,11 +928,39 @@ export const GET = async (req: Request) => {
     ])
     const finalLeaders = boxLeaders?.pts?.length ? boxLeaders : playerLeaders
     const playerRecent = finalLeaders?.recentTop || []
+    const bettingSource = playerLeaders?.recentTop?.length ? playerLeaders : finalLeaders
+    const bettingRecent = bettingSource?.recentTop || playerRecent
+    const fallbackPlayers = bettingSource
+      ? [
+          ...(bettingSource.recentTop || []),
+          ...(bettingSource.pts || []),
+          ...(bettingSource.reb || []),
+          ...(bettingSource.ast || []),
+          ...(bettingSource.fgPct || []),
+          ...(bettingSource.tpPct || []),
+          ...(bettingSource.passYds || []),
+          ...(bettingSource.rushYds || []),
+          ...(bettingSource.recYds || []),
+        ]
+      : bettingRecent
+    const uniquePlayers = (() => {
+      const seen = new Set<string>()
+      const result: any[] = []
+      for (const player of fallbackPlayers) {
+        const key = String(player?.id || player?.name || "").trim()
+        if (!key || seen.has(key)) continue
+        seen.add(key)
+        result.push(player)
+      }
+      return result
+    })()
+    const bettingTrends = await buildBettingTrends(leagueKey, bettingRecent, uniquePlayers, 5, 5)
     return NextResponse.json({
       league: leagueKey,
       teamRecent,
       playerRecent,
       playerLeaders: finalLeaders,
+      bettingTrends,
       window,
       ...(debug
         ? { seasonUsed: seasonForSport(leagueKey), playerDebug: finalLeaders?.debug }

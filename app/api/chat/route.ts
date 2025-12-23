@@ -38,6 +38,7 @@ import {
   formatPercent,
   inferMarketType,
   inferQuarter,
+  type EdgeAssessment,
   type MarketType,
 } from '@/lib/analysis/bet-tools'
 import { format } from 'date-fns'
@@ -2199,6 +2200,7 @@ export async function POST(req: NextRequest) {
       /\bwhere (is|are) the (public|money)\b/i.test(message) ||
       /\b(all|today|tonight|games?)\b.*\bsplits\b/i.test(message)
 
+
     // Skip unified pipeline for:
     // - Explicit odds/betting line requests (need real-time odds)
     // - Player prop requests (need prop data)
@@ -2206,6 +2208,7 @@ export async function POST(req: NextRequest) {
     // - Bank roll/bet tracking
     // BUT: Skip betting splits (handled with deterministic SBD formatting)
     let analysisIntent = false
+    let pickGuidanceIntent = false
 
     const skipUnifiedPipeline = (
       (/\b(odds|moneyline|spread line|total line|prop|parlay|bet slip|bankroll|my bets|place bet)\b/i.test(message) &&
@@ -2745,7 +2748,7 @@ export async function POST(req: NextRequest) {
       analysisIntent =
         explicitAnalysisIntent ||
         (marketKeywordIntent && (hasSpecificMatchup || hasSpecificProp))
-      const pickGuidanceIntent =
+      pickGuidanceIntent =
         /\b(best bet|best pick|pick\b|lock\b|who wins|winner|what should i bet|what's the play|should i bet)\b/i.test(
           msgLower
         ) && !analysisIntent
@@ -5029,7 +5032,7 @@ ${statsEnrichment}
             }
           }
 
-          const edge =
+          const edge: EdgeAssessment =
             marketType === 'moneyline'
               ? {
                   verdict: 'none',
@@ -5333,7 +5336,7 @@ ${statsEnrichment}
           }
         }
 
-        const fallbackEdge = {
+        const fallbackEdge: EdgeAssessment = {
           verdict: 'none',
           confidence: 'low',
           reason: 'Need more market detail to analyze edge.',

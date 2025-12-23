@@ -14,7 +14,7 @@ body {
   overflow-x: hidden;
   background-color: #4E4E4E;
   color: #f5f5f5;
-  font-family: var(--font-sans);
+  font-family: var(--font-hero);
   scroll-behavior: smooth;
 }
 
@@ -239,7 +239,7 @@ a {
 
 /* Custom CSS Variables for PromptBox */
 :root {
-  --font-sans: "Saira Condensed", "Space Grotesk", "Sora", "Inter", sans-serif;
+  --font-hero: ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace;
   --radius: 0.65rem;
   --background: 0 0% 31%;
   --foreground: 0 0% 98%;

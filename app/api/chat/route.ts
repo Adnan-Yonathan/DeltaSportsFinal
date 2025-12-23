@@ -2144,7 +2144,7 @@ export async function POST(req: NextRequest) {
       const teamTokens = teamFilters.map((t: string) => normalizeToken(String(t)))
 
       const normalizeStatKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
-      const readStatValue = (stats: any, keys: string[]) => {
+      const readStatValue = (stats: any, keys: string[]): number | null => {
         if (!stats) return null
         const normalizedKeys = keys.map(normalizeStatKey)
         const matches = (label: any) => normalizedKeys.includes(normalizeStatKey(String(label || '')))

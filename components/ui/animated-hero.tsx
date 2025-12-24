@@ -1,6 +1,8 @@
-﻿"use client"
-import { useEffect, useState } from "react"
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
+import { useLiveScores } from "@/hooks/use-live-scores"
 import type { LiveScoreGame } from "@/lib/live-scores"
 
 interface AnimatedHeroProps {
@@ -15,98 +17,61 @@ function AnimatedHero({
   interval = 2000,
 }: AnimatedHeroProps) {
   const [termIndex, setTermIndex] = useState(0)
-  const [bettingPhrases, setBettingPhrases] = useState<string[]>(rotatingTerms)
+  const { data } = useLiveScores({ refreshInterval: 30000 })
 
-  useEffect(() => {
-    let isCancelled = false
-    const DAY_MS = 24 * 60 * 60 * 1000
+  // Generate phrases from upcoming and live games only
+  const bettingPhrases = useMemo(() => {
+    if (!data?.games) return rotatingTerms
 
-    const fetchPhrases = async () => {
-      try {
-        const today = new Date()
-        const dates = Array.from({ length: 4 }, (_, index) => {
-          const future = new Date(today.getTime() + index * DAY_MS)
-          return future.toISOString().slice(0, 10)
-        })
+    const phrases: string[] = []
+    const nbaGames = data.games.filter((game: LiveScoreGame) => game.league === "nba")
+    const upcomingGames = nbaGames.filter((game: LiveScoreGame) => game.bucket === "upcoming")
+    const liveGames = nbaGames.filter((game: LiveScoreGame) => game.bucket === "live")
 
-        const responses = await Promise.all(
-          dates.map((date) =>
-            fetch(`/api/live-scores?date=${encodeURIComponent(date)}`, { cache: "no-store" })
-          )
-        )
+    // Add phrases based on live games
+    liveGames.forEach((game: LiveScoreGame) => {
+      const awayTeam = game.competitors.find(c => c.homeAway === "away")
+      const homeTeam = game.competitors.find(c => c.homeAway === "home")
 
-        const payloads = await Promise.all(
-          responses.map(async (res) => {
-            if (!res.ok) return null
-            return res.json().catch(() => null)
-          })
-        )
-
-        const nbaGames = payloads
-          .flatMap((payload) => (payload?.games ?? []))
-          .filter(
-            (game: LiveScoreGame) =>
-              game.league === "nba" && (game.bucket === "live" || game.bucket === "upcoming")
-          )
-
-        const phrases: string[] = []
-
-        nbaGames
-          .filter((game) => game.bucket === "live")
-          .forEach((game) => {
-            const awayTeam = game.competitors.find((c) => c.homeAway === "away")
-            const homeTeam = game.competitors.find((c) => c.homeAway === "home")
-            if (awayTeam && homeTeam) {
-              phrases.push(`${awayTeam.abbreviation} @ ${homeTeam.abbreviation} LIVE`)
-            }
-          })
-
-        nbaGames
-          .filter((game) => game.bucket === "upcoming")
-          .forEach((game) => {
-            const awayTeam = game.competitors.find((c) => c.homeAway === "away")
-            const homeTeam = game.competitors.find((c) => c.homeAway === "home")
-            if (awayTeam && homeTeam) {
-              phrases.push(`${awayTeam.shortName} vs ${homeTeam.shortName}`)
-            }
-          })
-
-        if (!isCancelled) {
-          setBettingPhrases(phrases.length ? phrases : rotatingTerms)
-        }
-      } catch (error) {
-        console.error("[AnimatedHero] failed to fetch NBA games", error)
-        if (!isCancelled) {
-          setBettingPhrases(rotatingTerms)
-        }
+      if (awayTeam && homeTeam) {
+        phrases.push(`${awayTeam.abbreviation} @ ${homeTeam.abbreviation} LIVE`)
       }
-    }
+    })
 
-    fetchPhrases()
-    const intervalId = setInterval(fetchPhrases, 60_000)
+    // Add phrases based on upcoming games
+    upcomingGames.forEach((game: LiveScoreGame) => {
+      const awayTeam = game.competitors.find(c => c.homeAway === "away")
+      const homeTeam = game.competitors.find(c => c.homeAway === "home")
 
-    return () => {
-      isCancelled = true
-      clearInterval(intervalId)
-    }
-  }, [rotatingTerms])
+      if (awayTeam && homeTeam) {
+        // Format like "Lakers vs Celtics"
+        phrases.push(`${awayTeam.shortName} vs ${homeTeam.shortName}`)
+      }
+    })
 
-  const phrasesToShow = bettingPhrases.length ? bettingPhrases : rotatingTerms
+    // If we have game phrases, return them; otherwise fall back to default terms
+    return phrases.length > 0 ? phrases : rotatingTerms
+  }, [data, rotatingTerms])
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      setTermIndex((prev) => (prev === phrasesToShow.length - 1 ? 0 : prev + 1))
+      if (termIndex === bettingPhrases.length - 1) {
+        setTermIndex(0)
+      } else {
+        setTermIndex(termIndex + 1)
+      }
     }, interval)
     return () => clearTimeout(timeoutId)
-  }, [termIndex, phrasesToShow, interval])
+  }, [termIndex, bettingPhrases, interval])
 
   return (
     <h2 className="text-3xl font-bold text-white text-center font-mono">
       {staticText}
       <br />
       <span className="relative block min-h-[1.2em] w-full pt-8">
+        {/* Invisible placeholder to maintain height and proper spacing */}
         <span className="invisible font-bold">analytics.</span>
-        {phrasesToShow.map((term, index) => (
+        {bettingPhrases.map((term, index) => (
           <motion.span
             key={index}
             className="absolute left-0 right-0 inset-y-0 font-bold bg-gradient-to-r from-emerald-400 to-emerald-400 bg-clip-text text-transparent whitespace-nowrap flex items-center justify-center"

@@ -16,6 +16,12 @@ import {
   type EspnTeamMeta,
 } from '@/lib/providers/espn-nfl'
 
+type NextFetchInit = RequestInit & { next?: { revalidate?: number } }
+
+const fetchWithRevalidate = (url: string, revalidateSeconds: number) => {
+  return fetch(url, { next: { revalidate: revalidateSeconds } } as NextFetchInit)
+}
+
 // Comprehensive Sports Statistics API Integration
 // Supports NBA, NFL, MLB, NHL - Player stats, team stats, advanced analytics, injuries
 
@@ -681,7 +687,7 @@ export async function getNBATeamStats(teamAbbr?: string): Promise<TeamStats[]> {
   try {
     // Use standings API which has current, accurate records
     const url = 'https://site.api.espn.com/apis/v2/sports/basketball/nba/standings'
-    const response = await fetch(url, { next: { revalidate: 3600 } })
+    const response = await fetchWithRevalidate(url, 3600)
 
     if (!response.ok) return []
 
@@ -817,7 +823,7 @@ export async function getNFLAdvancedTeamStats(): Promise<AdvancedTeamStats[]> {
 export async function getNBAInjuries(): Promise<InjuryReport[]> {
   try {
     const url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries'
-    const response = await fetch(url, { next: { revalidate: 1800 } })
+    const response = await fetchWithRevalidate(url, 1800)
 
     if (!response.ok) return []
 
@@ -858,7 +864,7 @@ export async function getNBARoster(teamAbbr?: string): Promise<RosterPlayer[]> {
 
   try {
     const url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams'
-    const response = await fetch(url, { next: { revalidate: 3600 } })
+    const response = await fetchWithRevalidate(url, 3600)
 
     if (!response.ok) return useCache && nbaRosterCache ? nbaRosterCache.roster : []
 
@@ -871,7 +877,7 @@ export async function getNBARoster(teamAbbr?: string): Promise<RosterPlayer[]> {
       const rosterUrl = `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${team.id}/roster`
 
       try {
-        const rosterResponse = await fetch(rosterUrl, { next: { revalidate: 3600 } })
+        const rosterResponse = await fetchWithRevalidate(rosterUrl, 3600)
 
         if (!rosterResponse.ok) return players
 
@@ -1244,7 +1250,7 @@ export async function getMLBTeamStats(teamId?: number): Promise<TeamStats[]> {
   try {
     const season = new Date().getFullYear()
     const url = `https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=${season}&standingsTypes=regularSeason`
-    const response = await fetch(url, { next: { revalidate: 3600 } })
+    const response = await fetchWithRevalidate(url, 3600)
 
     if (!response.ok) return []
 
@@ -1287,7 +1293,7 @@ export async function getMLBPlayerStats(playerId?: number): Promise<PlayerStats[
 
     const season = new Date().getFullYear()
     const url = `https://statsapi.mlb.com/api/v1/people/${playerId}/stats?stats=season&season=${season}&group=hitting,pitching`
-    const response = await fetch(url, { next: { revalidate: 3600 } })
+    const response = await fetchWithRevalidate(url, 3600)
 
     if (!response.ok) return []
 
@@ -1439,7 +1445,7 @@ export async function searchNHLPlayer(playerName: string): Promise<RosterPlayer 
 export async function getNHLTeamStats(teamAbbr?: string): Promise<TeamStats[]> {
   try {
     const url = 'https://api-web.nhle.com/v1/standings/now'
-    const response = await fetch(url, { next: { revalidate: 3600 } })
+    const response = await fetchWithRevalidate(url, 3600)
 
     if (!response.ok) return []
 
@@ -1482,7 +1488,7 @@ export async function getNHLPlayerStats(playerId?: number): Promise<PlayerStats[
 
   const season = `${new Date().getFullYear() - 1}${new Date().getFullYear()}`
   const url = `https://api-web.nhle.com/v1/player/${playerId}/landing`
-    const response = await fetch(url, { next: { revalidate: 3600 } })
+    const response = await fetchWithRevalidate(url, 3600)
 
     if (!response.ok) return []
 

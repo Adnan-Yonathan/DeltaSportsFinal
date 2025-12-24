@@ -19,11 +19,13 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
+import { fileURLToPath } from 'url'
 
 interface Prompt {
   id: number
   category: string
   text: string
+  capability?: string
 }
 
 interface TestResult {
@@ -49,6 +51,7 @@ const CONCURRENCY = parseInt(process.env.CONCURRENCY || '1', 10)
 const START_FROM = parseInt(process.env.START_FROM || '1', 10)
 const END_AT = parseInt(process.env.END_AT || '100', 10)
 const DRY_RUN = process.env.DRY_RUN === 'true'
+const TEST_BYPASS = process.env.TEST_BYPASS === 'true'
 
 // Colors for console output
 const colors = {
@@ -80,6 +83,8 @@ async function sendPrompt(prompt: Prompt): Promise<TestResult> {
         userId: TEST_USER_ID,
         timezone: 'America/New_York',
         mode: 'regular',
+        ...(prompt.capability ? { capability: prompt.capability } : {}),
+        ...(TEST_BYPASS ? { testBypass: true } : {}),
       }),
     })
 
@@ -134,6 +139,9 @@ async function sendPrompt(prompt: Prompt): Promise<TestResult> {
     }
   }
 }
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 async function runTests() {
   // Load prompts

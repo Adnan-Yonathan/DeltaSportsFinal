@@ -499,6 +499,274 @@
       "id": 100,
       "category": "Education & Strategy",
       "text": "Give me things to watch before placing props."
+    },
+    {
+      "id": 101,
+      "category": "Capability Cards",
+      "capability": "player_profiles",
+      "text": "how many times has lebron scored 18 points this season?"
+    },
+    {
+      "id": 102,
+      "category": "Capability Cards",
+      "capability": "team_profiles",
+      "text": "what is the thunders average margin of victory"
+    },
+    {
+      "id": 103,
+      "category": "Capability Cards",
+      "capability": "line_shopping",
+      "text": "hornets vs wizards"
+    },
+    {
+      "id": 104,
+      "category": "Capability Cards",
+      "capability": "edge_factors",
+      "text": "what is the knicks record when traveling further than 500 miles?"
+    },
+    {
+      "id": 105,
+      "category": "Capability Cards",
+      "capability": "live_betting",
+      "text": "what is your projected live line in the spurs game?"
+    },
+    {
+      "id": 106,
+      "category": "Capability Cards",
+      "capability": "betting_trends",
+      "text": "what is the Celtics record ATS this season?"
+    },
+    {
+      "id": 107,
+      "category": "Capability Cards",
+      "capability": "pick_guidance",
+      "text": "what gives me the most edge tonight?"
+    },
+    {
+      "id": 108,
+      "category": "Capability Cards",
+      "capability": "market_analysis",
+      "text": "analyze the thunder spread"
+    },
+    {
+      "id": 109,
+      "category": "Capability Cards",
+      "capability": "edge_awareness",
+      "text": "lakers vs knicks"
+    },
+    {
+      "id": 110,
+      "category": "Player Stats & Trends",
+      "text": "kevin durant last 5 games points and scores"
+    },
+    {
+      "id": 111,
+      "category": "Player Stats & Trends",
+      "text": "how many times has luka scored 30+ this season?"
+    },
+    {
+      "id": 112,
+      "category": "Player Stats & Trends",
+      "text": "shai gilgeous-alexander season PPG"
+    },
+    {
+      "id": 113,
+      "category": "Player Stats & Trends",
+      "text": "donovan mitchell assists last 5 games"
+    },
+    {
+      "id": 114,
+      "category": "Player Stats & Trends",
+      "text": "jayson tatum rebounds last 10 games average"
+    },
+    {
+      "id": 115,
+      "category": "Player Stats & Trends",
+      "text": "how many times has giannis recorded 12+ rebounds this season?"
+    },
+    {
+      "id": 116,
+      "category": "Team Stats & Matchups",
+      "text": "thunder net rating"
+    },
+    {
+      "id": 117,
+      "category": "Team Stats & Matchups",
+      "text": "spurs points per game"
+    },
+    {
+      "id": 118,
+      "category": "Team Stats & Matchups",
+      "text": "celtics opponent 3PM allowed per game"
+    },
+    {
+      "id": 119,
+      "category": "Team Stats & Matchups",
+      "text": "knicks defensive rating"
+    },
+    {
+      "id": 120,
+      "category": "Team Stats & Matchups",
+      "text": "lakers pace and offensive rating"
+    },
+    {
+      "id": 121,
+      "category": "Team Stats & Matchups",
+      "text": "which team has the defensive edge: lakers vs knicks"
+    },
+    {
+      "id": 122,
+      "category": "Team Stats & Matchups",
+      "text": "compare celtics vs heat team stats"
+    },
+    {
+      "id": 123,
+      "category": "Odds & Line Shopping",
+      "text": "nets vs 76ers betting odds"
+    },
+    {
+      "id": 124,
+      "category": "Odds & Line Shopping",
+      "text": "rockets vs clippers 1st half total odds"
+    },
+    {
+      "id": 125,
+      "category": "Odds & Line Shopping",
+      "text": "lakers vs knicks moneyline odds"
+    },
+    {
+      "id": 126,
+      "category": "Odds & Line Shopping",
+      "text": "nuggets vs mavericks spread odds"
+    },
+    {
+      "id": 127,
+      "category": "Odds & Line Shopping",
+      "text": "suns vs warriors total odds"
+    },
+    {
+      "id": 128,
+      "category": "Odds & Line Shopping",
+      "text": "line shop bulls vs pacers spread"
+    },
+    {
+      "id": 129,
+      "category": "Odds & Line Shopping",
+      "text": "cavs vs pelicans betting odds"
+    },
+    {
+      "id": 130,
+      "category": "Odds & Line Shopping",
+      "text": "spurs vs thunder Q1 total odds"
+    },
+    {
+      "id": 131,
+      "category": "Custom Model",
+      "text": "project lakers vs knicks spread"
+    },
+    {
+      "id": 132,
+      "category": "Custom Model",
+      "text": "project kevin durant points vs clippers"
+    },
+    {
+      "id": 133,
+      "category": "Custom Model",
+      "text": "project jokic rebounds vs mavericks"
+    },
+    {
+      "id": 134,
+      "category": "Custom Model",
+      "text": "project sga assists vs suns"
+    },
+    {
+      "id": 135,
+      "category": "Custom Model",
+      "text": "project tatum threes vs heat"
+    },
+    {
+      "id": 136,
+      "category": "Live Game Context",
+      "text": "live line for the lakers game"
+    },
+    {
+      "id": 137,
+      "category": "Live Game Context",
+      "text": "what is your projected live line in the warriors game?"
+    },
+    {
+      "id": 138,
+      "category": "Live Game Context",
+      "text": "give me the live win probability for the nuggets game"
+    },
+    {
+      "id": 139,
+      "category": "Education & Strategy",
+      "text": "how should i compare season vs last 5 for props?"
+    },
+    {
+      "id": 140,
+      "category": "Education & Strategy",
+      "text": "what does an inflated spread look like?"
+    },
+    {
+      "id": 141,
+      "category": "Education & Strategy",
+      "text": "how do i use opponent pace for totals?"
+    },
+    {
+      "id": 142,
+      "category": "Capability Cards",
+      "capability": "edge_awareness",
+      "text": "does kevin durant points prop make sense vs clippers"
+    },
+    {
+      "id": 143,
+      "category": "Capability Cards",
+      "capability": "edge_awareness",
+      "text": "edge awareness lakers vs knicks"
+    },
+    {
+      "id": 144,
+      "category": "Capability Cards",
+      "capability": "market_analysis",
+      "text": "analyze cavs vs pelicans spread 6.5"
+    },
+    {
+      "id": 145,
+      "category": "Capability Cards",
+      "capability": "line_shopping",
+      "text": "rockets vs clippers 1st half total odds"
+    },
+    {
+      "id": 146,
+      "category": "Capability Cards",
+      "capability": "team_profiles",
+      "text": "okc team profile"
+    },
+    {
+      "id": 147,
+      "category": "Capability Cards",
+      "capability": "player_profiles",
+      "text": "kevin durant profile"
+    },
+    {
+      "id": 148,
+      "category": "Capability Cards",
+      "capability": "betting_trends",
+      "text": "celtics ATS last 10"
+    },
+    {
+      "id": 149,
+      "category": "Capability Cards",
+      "capability": "edge_factors",
+      "text": "which team has rest advantage in lakers vs knicks"
+    },
+    {
+      "id": 150,
+      "category": "Capability Cards",
+      "capability": "pick_guidance",
+      "text": "best nba edge tonight"
     }
   ]
 }

@@ -347,6 +347,62 @@ function parseNumber(value: any): number | undefined {
   return undefined
 }
 
+function resolveTotalsMarketKey(normalizedName: string, normalizedKey: string): string | null {
+  const combined = `${normalizedName} ${normalizedKey}`.trim()
+
+  if (
+    combined.includes('team total') ||
+    normalizedKey.includes('team_total') ||
+    normalizedKey.includes('teamtotal')
+  ) {
+    return null
+  }
+
+  const firstHalf =
+    combined.includes('1st half') ||
+    combined.includes('first half') ||
+    /\b1h\b/.test(combined) ||
+    normalizedKey.includes('1st_half') ||
+    normalizedKey.includes('first_half') ||
+    normalizedKey.includes('1h')
+  const secondHalf =
+    combined.includes('2nd half') ||
+    combined.includes('second half') ||
+    /\b2h\b/.test(combined) ||
+    normalizedKey.includes('2nd_half') ||
+    normalizedKey.includes('second_half') ||
+    normalizedKey.includes('2h')
+
+  if (firstHalf) return MARKETS.TOTALS_1H
+  if (secondHalf) return MARKETS.TOTALS_2H
+
+  const quarterMatch =
+    combined.match(/\bq([1-4])\b/) ||
+    combined.match(/\b([1-4])(st|nd|rd|th)\s*quarter\b/) ||
+    combined.match(/\bquarter\s*([1-4])\b/)
+  if (quarterMatch) {
+    const quarter = quarterMatch[1]
+    switch (quarter) {
+      case '1':
+        return MARKETS.TOTALS_Q1
+      case '2':
+        return MARKETS.TOTALS_Q2
+      case '3':
+        return MARKETS.TOTALS_Q3
+      case '4':
+        return MARKETS.TOTALS_Q4
+      default:
+        break
+    }
+  }
+
+  if (combined.includes('half')) {
+    return null
+  }
+
+  return MARKETS.TOTALS
+}
+
 // Check if odds are within the allowed spread range (currently unbounded to include all spreads)
 function isStandardSpreadOdds(price: number | null | undefined): boolean {
   if (price == null) return false
@@ -489,18 +545,8 @@ export function mapBookmakersIO(
         normalizedKey.includes('over_under')
 
       if (isTotal && oddsEntries.length) {
-        const isTeamOrPartialTotal =
-          normalizedName.includes('team total') ||
-          normalizedName.includes('totals ht') ||
-          normalizedName.includes('total ht') ||
-          normalizedName.includes('1st half') ||
-          normalizedName.includes('first half') ||
-          normalizedName.includes('half total') ||
-          normalizedName.includes('quarter') ||
-          normalizedKey.includes('team_total') ||
-          normalizedKey.includes('totals_ht')
-
-        if (isTeamOrPartialTotal) {
+        const totalsMarketKey = resolveTotalsMarketKey(normalizedName, normalizedKey)
+        if (!totalsMarketKey) {
           continue
         }
 
@@ -540,7 +586,7 @@ export function mapBookmakersIO(
           if (overPrice != null) outcomes.push({ name: 'Over', price: overPrice, point: totalLine })
           if (underPrice != null)
             outcomes.push({ name: 'Under', price: underPrice, point: totalLine })
-          if (outcomes.length && shouldInclude('totals')) {
+          if (outcomes.length && shouldInclude(totalsMarketKey)) {
             const prices = outcomes.map((o) => o.price).filter((p) => isFinite(p))
             if (!prices.length) continue
             const candidate = { outcomes, last_update, prices, point: totalLine }
@@ -563,7 +609,7 @@ export function mapBookmakersIO(
 
         if (bestTotals) {
           mappedMarkets.push({
-            key: 'totals',
+            key: totalsMarketKey,
             outcomes: bestTotals.outcomes,
             last_update: bestTotals.last_update,
           })
@@ -677,8 +723,18 @@ const filterSbdMarkets = (markets: any, allowedMarkets?: string[] | null) => {
   if (allowed.has(MARKETS.SPREADS) || allowed.has('spread')) {
     if (markets.spread) filtered.spread = markets.spread
   }
-  if (allowed.has(MARKETS.TOTALS) || allowed.has('total')) {
+  const wantsTotals = allowed.has(MARKETS.TOTALS) || allowed.has('total')
+  const wantsPartialTotals = Array.from(allowed).some((key) => key.startsWith('totals_'))
+  if (wantsTotals) {
     if (markets.total) filtered.total = markets.total
+  }
+  if (wantsPartialTotals) {
+    for (const key of Object.keys(markets)) {
+      const normalized = key.toLowerCase()
+      if (normalized === 'total' || normalized === 'totals') continue
+      if (!normalized.includes('total')) continue
+      filtered[key] = markets[key]
+    }
   }
   return filtered
 }

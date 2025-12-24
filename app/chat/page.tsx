@@ -343,7 +343,9 @@ export default function ChatPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-white overflow-hidden">
-      <SimpleHeader rightSlot={headerActions} />
+      <div className="sticky top-0 z-50">
+        <SimpleHeader rightSlot={headerActions} />
+      </div>
       <div className="flex flex-1 relative overflow-hidden">
         <AnimatePresence>
           {sidebarOpen && (
@@ -433,10 +435,12 @@ export default function ChatPage() {
               </div>
 
               {currentConversationId && hasMessages && (
-                <ModernMessageInput
-                  conversationId={currentConversationId}
-                  userId={user?.id}
-                />
+                <div className="sticky bottom-0 z-40 border-t border-white/10 bg-black/90 backdrop-blur">
+                  <ModernMessageInput
+                    conversationId={currentConversationId}
+                    userId={user?.id}
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -444,7 +448,7 @@ export default function ChatPage() {
 
         <button
           type="button"
-          className="hidden lg:flex absolute left-4 top-1/2 z-40 -translate-y-1/2 items-center justify-center rounded-full border border-[#34d399] bg-black/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#34d399] transition hover:bg-[#34d399] hover:text-[#0f1f15] backdrop-blur"
+          className="hidden lg:flex fixed left-4 top-1/2 z-40 -translate-y-1/2 items-center justify-center rounded-full border border-[#34d399] bg-black/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#34d399] transition hover:bg-[#34d399] hover:text-[#0f1f15] backdrop-blur"
           onClick={() => setSidebarExpanded(true)}
           aria-label="Open chat history"
         >
@@ -453,7 +457,7 @@ export default function ChatPage() {
 
         <button
           type="button"
-          className="hidden lg:flex absolute right-4 top-1/2 z-40 -translate-y-1/2 items-center justify-center rounded-full border border-[#34d399] bg-black/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#34d399] transition hover:bg-[#34d399] hover:text-[#0f1f15] backdrop-blur"
+          className="hidden lg:flex fixed right-4 top-1/2 z-40 -translate-y-1/2 items-center justify-center rounded-full border border-[#34d399] bg-black/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#34d399] transition hover:bg-[#34d399] hover:text-[#0f1f15] backdrop-blur"
           onClick={() => setLiveScoresExpanded(true)}
           aria-label="Open live scores"
         >

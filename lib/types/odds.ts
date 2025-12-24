@@ -66,6 +66,12 @@ export const MARKETS = {
   H2H: 'h2h', // Moneyline
   SPREADS: 'spreads',
   TOTALS: 'totals',
+  TOTALS_1H: 'totals_1h',
+  TOTALS_2H: 'totals_2h',
+  TOTALS_Q1: 'totals_q1',
+  TOTALS_Q2: 'totals_q2',
+  TOTALS_Q3: 'totals_q3',
+  TOTALS_Q4: 'totals_q4',
 } as const
 
 export const BOOKMAKERS = [

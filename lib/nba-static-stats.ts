@@ -133,6 +133,8 @@ const parsePlayers = (): NbaStaticPlayer[] => {
 
 const NBA_STATIC_PLAYERS = parsePlayers()
 
+export const getStaticNbaPlayers = () => NBA_STATIC_PLAYERS
+
 export const findNbaStaticPlayer = (query: string): NbaStaticPlayer | null => {
   const target = normalize(query)
   if (!target) return null

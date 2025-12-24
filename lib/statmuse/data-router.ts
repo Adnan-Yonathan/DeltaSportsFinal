@@ -356,6 +356,61 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
           result = { error: `Team "${args.team}" not found` }
         } else {
           const season = getCurrentSeason(sport)
+          const { getTeamATSData } = await import('@/lib/providers/covers')
+          const sportKey = sport === 'nba' ? 'basketball_nba' : sport
+          const coversResult = await getTeamATSData(args.team, sportKey)
+          if (coversResult.success && coversResult.data) {
+            const parseRecord = (record?: string | null) => {
+              if (!record) return null
+              const match = record.match(/^(\d+)-(\d+)(?:-(\d+))?$/)
+              if (!match) return null
+              return {
+                wins: Number(match[1]),
+                losses: Number(match[2]),
+                pushes: match[3] ? Number(match[3]) : 0,
+              }
+            }
+            const toBucket = (record?: string | null) => {
+              const parsed = parseRecord(record)
+              if (!parsed) return null
+              const games = parsed.wins + parsed.losses + parsed.pushes
+              return {
+                games,
+                cover: parsed.wins,
+                fail: parsed.losses,
+                push: parsed.pushes,
+                over: 0,
+                under: 0,
+                ouPush: 0,
+                missingOdds: 0,
+              }
+            }
+            const extra = coversResult.data.extraSplits || {}
+            result = {
+              team: coversResult.data.team || args.team,
+              season: coversResult.data.season,
+              source: 'SBD',
+              splits: {
+                buckets: {
+                  overall: toBucket(coversResult.data.overallATS),
+                  home: toBucket(coversResult.data.homeATS),
+                  away: toBucket(coversResult.data.awayATS),
+                  favorite: toBucket(coversResult.data.favoriteATS),
+                  underdog: toBucket(coversResult.data.underdogATS),
+                  homeFavorite: toBucket(extra.homeFavorite),
+                  homeUnderdog: toBucket(extra.homeUnderdog),
+                  awayFavorite: toBucket(extra.awayFavorite),
+                  awayUnderdog: toBucket(extra.awayUnderdog),
+                },
+                meta: {
+                  last10: coversResult.data.last10,
+                  streak: coversResult.data.streak,
+                  lastUpdated: coversResult.data.lastUpdated,
+                },
+              },
+            }
+            break
+          }
           const splits = await computeTeamLineSplits({
             sport,
             teamId,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchSbdGamePropsList, resolveSbdLeague, formatBookmaker } from '@/lib/api/sbd'
+import { fetchSbdGamePropsList, resolveSbdLeague, formatBookmaker, resolveBookSlugs } from '@/lib/api/sbd'
 import { searchPlayer } from '@/lib/sports-stats-api'
 import type { RosterPlayer } from '@/lib/sports-stats-api'
 import { resolveSportKey } from '@/lib/utils/live-game'
@@ -42,10 +42,10 @@ const SUPPORTED_PROP_SPORTS = new Set([
 ])
 
 const MARKET_TO_SBD_PROP: Record<string, string> = {
-  points: 'total points',
-  rebounds: 'total rebounds',
-  assists: 'total assists',
-  threes: 'total 3-point field goals',
+  points: 'total points (incl. overtime)',
+  rebounds: 'total rebounds (incl. overtime)',
+  assists: 'total assists (incl. overtime)',
+  threes: 'total 3-point field goals (incl. overtime)',
   points_rebounds: 'total points plus rebounds (incl. extra overtime)',
   points_assists: 'total points plus assists (incl. extra overtime)',
   pra: 'total points plus assists plus rebounds (incl. extra overtime)',
@@ -56,7 +56,19 @@ const MARKET_TO_SBD_PROP: Record<string, string> = {
 }
 
 const DEFAULT_MARKETS: Record<string, string[]> = {
-  basketball_nba: ['points', 'rebounds', 'assists', 'threes'],
+  basketball_nba: [
+    'points',
+    'rebounds',
+    'assists',
+    'threes',
+    'points_rebounds',
+    'points_assists',
+    'pra',
+    'rebounds_assists',
+    'blocks',
+    'steals',
+    'blocks_steals',
+  ],
   americanfootball_nfl: ['passing_yards', 'rushing_yards', 'receiving_yards', 'receptions'],
   baseball_mlb: ['hits', 'total_bases', 'rbis', 'runs'],
   icehockey_nhl: ['points', 'shots_on_goal', 'blocked_shots'],
@@ -71,6 +83,24 @@ const EXCLUDED_BOOKS = new Set(['consensus', 'prizepicks', 'thrivefantasy', 'sle
 
 const normalizeToken = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]+/g, '')
+
+const normalizeNameTokens = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+
+const matchesPlayerName = (playerName: string, filter: string): boolean => {
+  const playerTokens = normalizeNameTokens(playerName)
+  const filterTokens = normalizeNameTokens(filter)
+  if (!filterTokens.length) return true
+  if (!playerTokens.length) return false
+  if (filterTokens.length === 1) {
+    return playerTokens.includes(filterTokens[0])
+  }
+  return filterTokens.every((token) => playerTokens.includes(token))
+}
 
 const normalizeMarketKey = (value: string): string =>
   value
@@ -235,34 +265,38 @@ const pickPrimaryLine = (lineBuckets: Map<string, PropMarket>): PropMarket | nul
 
 const cacheKeyFor = (
   league: string,
-  props: string[],
+  props?: string[],
   teamFilter?: string[],
-  playerFilter?: string[]
+  playerFilter?: string[],
+  books?: string[]
 ) =>
-  `${league}:${props.slice().sort().join(',')}:${teamFilter?.slice().sort().join(',') || 'all'}:${playerFilter?.slice().sort().join(',') || 'all'}`
+  `${league}:${props?.slice().sort().join(',') || 'all'}:${teamFilter?.slice().sort().join(',') || 'all'}:${playerFilter?.slice().sort().join(',') || 'all'}:${books?.slice().sort().join(',') || 'all'}`
 
 async function getCachedGameProps(
   league: string,
-  props: string[],
+  props?: string[],
   teamFilter?: string[],
-  playerFilter?: string[]
+  playerFilter?: string[],
+  books?: string[]
 ): Promise<any[]> {
-  const key = cacheKeyFor(league, props, teamFilter, playerFilter)
+  const key = cacheKeyFor(league, props, teamFilter, playerFilter, books)
   const cached = gamePropsCache.get(key)
   if (cached && cached.expires > Date.now()) {
     return cached.data
   }
 
+  const limit = props && props.length ? 2500 : 800
   const payload = await fetchSbdGamePropsList(league as any, {
     props,
-    limit: 2500,
+    limit,
+    books,
   })
   const items = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : []
 
   const filtered = items.filter((entry: any) => {
     if (playerFilter && playerFilter.length) {
       const playerName = (entry.player_name || entry?.player?.name || '').toLowerCase()
-      if (!playerFilter.some((name) => playerName.includes(name.toLowerCase()))) return false
+      if (!playerFilter.some((name) => matchesPlayerName(playerName, name))) return false
     }
     if (teamFilter && teamFilter.length) {
       const home = normalizeToken(entry?.home_team?.name || '')
@@ -303,6 +337,7 @@ export async function GET(req: NextRequest) {
     const playerFilter = searchParams.get('player')
     const marketParam = searchParams.get('market')
     const teamParam = searchParams.get('team')
+    const booksParam = searchParams.get('books')
 
     if (!sport) {
       return NextResponse.json(
@@ -342,13 +377,25 @@ export async function GET(req: NextRequest) {
     const teamFilter = teamParam
       ? teamParam.split(',').map((t) => normalizeToken(t))
       : undefined
+    const books = resolveBookSlugs(booksParam)
 
-    const entries = await getCachedGameProps(
-      league,
-      propsFilter.length ? propsFilter : Object.values(MARKET_TO_SBD_PROP),
-      teamFilter,
-      playerFilter ? [playerFilter] : undefined
-    )
+    const usePerMarketFetch = !!playerFilter && propsFilter.length > 1 && !marketParam
+    const playerFilters = playerFilter ? [playerFilter] : undefined
+    const entries = usePerMarketFetch
+      ? (
+          await Promise.all(
+            propsFilter.map((prop) =>
+              getCachedGameProps(league, [prop], teamFilter, playerFilters, books)
+            )
+          )
+        ).flat()
+      : await getCachedGameProps(
+          league,
+          propsFilter.length === 1 ? propsFilter : undefined,
+          teamFilter,
+          playerFilters,
+          books
+        )
 
     type PlayerPropAccumulator = Omit<PlayerProp, 'markets'> & {
       marketLines: Map<string, Map<string, PropMarket>>

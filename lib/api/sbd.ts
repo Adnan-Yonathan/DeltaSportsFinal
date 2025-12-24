@@ -70,6 +70,16 @@ const BOOK_NAME_TO_TITLE: Record<string, string> = {
   pinnacle: 'Pinnacle',
 }
 
+const BOOK_ID_TO_SLUG: Record<string, string> = {
+  'sr:book:17324': 'betmgm',
+  'sr:book:18149': 'draftkings',
+  'sr:book:18186': 'fanduel',
+  'sr:book:28901': 'bet365',
+  'sr:book:32219': 'caesars',
+  'sr:book:27447': 'betrivers',
+  'sr:book:30334': 'pinnacle',
+}
+
 const normalizeBookName = (value: string): string =>
   value.toLowerCase().replace(/[^a-z0-9]/g, '')
 
@@ -86,6 +96,46 @@ const parseAmerican = (value: unknown): number | null => {
   const parsed = parseNumber(value)
   if (parsed == null) return null
   return Math.round(parsed)
+}
+
+const resolveSbdTotalsMarketKey = (rawKey: string): string | null => {
+  if (!rawKey) return null
+  const normalized = rawKey.toLowerCase().replace(/_/g, ' ')
+  if (!normalized.includes('total')) return null
+  if (normalized.includes('team')) return null
+
+  const firstHalf =
+    normalized.includes('1st half') ||
+    normalized.includes('first half') ||
+    /\b1h\b/.test(normalized)
+  const secondHalf =
+    normalized.includes('2nd half') ||
+    normalized.includes('second half') ||
+    /\b2h\b/.test(normalized)
+  if (firstHalf) return MARKETS.TOTALS_1H
+  if (secondHalf) return MARKETS.TOTALS_2H
+
+  const quarterMatch =
+    normalized.match(/\bq([1-4])\b/) ||
+    normalized.match(/\b([1-4])(st|nd|rd|th)\s*quarter\b/) ||
+    normalized.match(/\bquarter\s*([1-4])\b/)
+  if (quarterMatch) {
+    const quarter = quarterMatch[1]
+    switch (quarter) {
+      case '1':
+        return MARKETS.TOTALS_Q1
+      case '2':
+        return MARKETS.TOTALS_Q2
+      case '3':
+        return MARKETS.TOTALS_Q3
+      case '4':
+        return MARKETS.TOTALS_Q4
+      default:
+        break
+    }
+  }
+
+  return MARKETS.TOTALS
 }
 
 export const buildTeamLabel = (team: any): string => {
@@ -168,6 +218,28 @@ export const resolveBookIds = (bookmakers?: string | string[] | null): string[] 
   const mapped = entries.map(resolveBookSlug).filter(Boolean)
   const resolvedIds = mapped.map(resolveBookId).filter(Boolean)
   return resolvedIds.length ? resolvedIds : getDefaultBookIds()
+}
+
+export const resolveBookSlugs = (bookmakers?: string | string[] | null): string[] => {
+  const fallback = DEFAULT_BOOK_IDS.map((id) => BOOK_ID_TO_SLUG[id]).filter(Boolean)
+  if (!bookmakers) return fallback.slice()
+  const entries = Array.isArray(bookmakers)
+    ? bookmakers.map((entry) => String(entry).trim()).filter(Boolean)
+    : String(bookmakers)
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+
+  if (!entries.length) return fallback.slice()
+
+  const resolved = entries
+    .map((entry) => {
+      if (entry.startsWith('sr:book:')) return BOOK_ID_TO_SLUG[entry]
+      return resolveBookSlug(entry)
+    })
+    .filter(Boolean)
+
+  return resolved.length ? resolved : fallback.slice()
 }
 
 export const formatBookmaker = (name: string) => {
@@ -261,6 +333,30 @@ export const mapSbdMarketsToBookmakers = (
       }
       if (outcomes.length) {
         addMarket(book, { key: MARKETS.TOTALS, outcomes })
+      }
+    }
+  }
+
+  for (const [key, market] of Object.entries(markets)) {
+    const normalizedKey = key.toLowerCase()
+    if (normalizedKey === 'total' || normalizedKey === 'totals') continue
+    if (!normalizedKey.includes('total')) continue
+    const totalsKey = resolveSbdTotalsMarketKey(normalizedKey)
+    if (!totalsKey || !shouldInclude(totalsKey)) continue
+    const books = (market as any)?.books || []
+    for (const book of books) {
+      const overOdds = parseAmerican(book?.over?.odds)
+      const underOdds = parseAmerican(book?.under?.odds)
+      const total = parseNumber(book?.total)
+      const outcomes: OddsOutcome[] = []
+      if (overOdds != null && total != null) {
+        outcomes.push({ name: 'Over', price: overOdds, point: total })
+      }
+      if (underOdds != null && total != null) {
+        outcomes.push({ name: 'Under', price: underOdds, point: total })
+      }
+      if (outcomes.length) {
+        addMarket(book, { key: totalsKey, outcomes })
       }
     }
   }

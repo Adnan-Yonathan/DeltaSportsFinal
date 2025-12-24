@@ -78,6 +78,9 @@ export function calculatePlayerImpact(
  */
 export function formatInjuryExplanation(impact: InjuryImpact): string {
   const { playerName, stats, impact: impactValues } = impact
+  if (stats.ppg === 0 && stats.usage === 0 && stats.mpg === 0) {
+    return `${playerName} (${impact.status}): impact unknown`
+  }
 
   // Use PPG and usage for user-friendly explanation
   return `${playerName} (${impact.status}): ${stats.ppg.toFixed(1)} PPG, ${stats.usage.toFixed(1)}% usage → ${impactValues.ortgDrop > 0.5 ? `-${impactValues.ortgDrop.toFixed(1)} ORtg` : 'minor impact'}`
@@ -120,7 +123,15 @@ export async function detectInjuries(
     // Filter for definite absences (Out, Doubtful)
     const significantInjuries = teamData.injuries.filter((injury) => {
       const status = injury.status?.toLowerCase() || ''
-      return status === 'out' || status === 'doubtful'
+      return (
+        status.includes('out') ||
+        status.includes('doubt') ||
+        status.includes('question') ||
+        status.includes('gtd') ||
+        status.includes('day-to-day') ||
+        status.includes('suspend') ||
+        status.includes('inj')
+      )
     })
 
     if (significantInjuries.length === 0) {
@@ -146,14 +157,32 @@ export async function detectInjuries(
       if (!playerName) continue
 
       const playerStats = getPlayerStats(playerName, 'points')
-
       if (!playerStats) {
         console.warn(`[INJURY DETECTOR] Player not found in stats: ${playerName}`)
+        impacts.push({
+          playerName,
+          status: injury.status || 'Out',
+          stats: { ppg: 0, usage: 0, mpg: 0, bpm: 0, vorp: 0 },
+          impact: { ortgDrop: 0, drtgIncrease: 0, paceDrop: 0 },
+          explanation: '',
+        })
         continue
       }
 
-      // Skip players with minimal minutes (< 10 MPG)
       if (playerStats.minutesPerGame < 10) {
+        impacts.push({
+          playerName,
+          status: injury.status || 'Out',
+          stats: {
+            ppg: playerStats.seasonAverage,
+            usage: playerStats.usage,
+            mpg: playerStats.minutesPerGame,
+            bpm: playerStats.bpm || 0,
+            vorp: playerStats.vorp || 0,
+          },
+          impact: { ortgDrop: 0, drtgIncrease: 0, paceDrop: 0 },
+          explanation: '',
+        })
         continue
       }
 

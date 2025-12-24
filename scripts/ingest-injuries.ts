@@ -47,7 +47,7 @@ async function ingestSport(supabase: ReturnType<typeof createServiceClient>, spo
   const chunkSize = 500
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize)
-    const { error } = await supabase.from('injury_reports').insert(chunk)
+    const { error } = await supabase.from('injury_reports').insert(chunk as any)
     if (error) {
       console.error(`[INGEST] Failed to insert chunk for ${sport}:`, error.message)
       throw error

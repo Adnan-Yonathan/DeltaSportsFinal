@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions'
 import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
@@ -46,9 +46,11 @@ import { openai, AI_MODELS, runWebSearchResponse } from '@/lib/ai-gateway-client
 import { espnTools } from '@/lib/llm/tools/espn-tools'
 import { toolResolvers as espnToolResolvers } from '@/lib/llm/tools/resolvers'
 import { resolveEspnTeamId } from '@/lib/utils/espn-team-lookup'
-import { searchAthlete, getEventSnapshot, getPlayerGameLogs } from '@/lib/services/espn-orchestrator'
+import { searchAthlete, getEventSnapshot, getPlayerGameLogs, getRoster } from '@/lib/services/espn-orchestrator'
 import { getStaticNbaTeams, findStaticNbaTeam } from '@/lib/nba-static-team-stats'
 import { nbaTeamPerGame2025_2026Csv } from '@/data/nba_team_per_game_2025_2026'
+import { nbaPlayerPerGame2025_2026Csv } from '@/data/nba_player_per_game_2025_2026'
+import { getPlayerStats as getStaticPlayerStats } from '@/lib/services/matchup-analyzer'
 import {
   resolvePlayerThresholdQuery,
   resolveLeaderboardThresholdQuery,
@@ -76,6 +78,8 @@ const formatLeagueLabel = (sportKey: string): string => {
   }
   return map[sportKey] || sportKey.toUpperCase()
 }
+
+const buildDataSourceLine = (sources: string[]) => `Data sources: ${sources.join(', ')}`
 
 const mapSportToPropKey = (sport?: string): string => {
   const value = (sport || '').toLowerCase()
@@ -168,7 +172,7 @@ const getSeasonYearForSport = (sport: string) => {
   return year // mlb and default
 }
 
-const getSeasonYearForDate = (sport: string, isoDate: string | undefined) => {
+const getSeasonYearForDate = (sport: string, isoDate: string | undefined) => {  
   if (!isoDate) return getSeasonYearForSport(sport)
   const dt = new Date(`${isoDate}T00:00:00Z`)
   const year = dt.getUTCFullYear()
@@ -177,6 +181,22 @@ const getSeasonYearForDate = (sport: string, isoDate: string | undefined) => {
   if (sport === 'nba') return month >= 9 ? year : year - 1
   if (sport === 'nhl') return month >= 9 ? year : year - 1
   if (sport === 'nfl') return month >= 8 ? year : year - 1
+  return year
+}
+
+// ESPN gamelogs use the ENDING season year for NBA/NHL (e.g., 2026 for 2025-26)
+const getEspnSeasonYearForLogs = (sport: string, isoDate?: string) => {
+  const key = sport.toLowerCase()
+  const dt = isoDate ? new Date(`${isoDate}T00:00:00Z`) : new Date()
+  const year = dt.getUTCFullYear()
+  const month = dt.getUTCMonth()
+  if (key.includes('nba') || key.includes('nhl')) {
+    const startYear = month >= 8 ? year : year - 1
+    return startYear + 1
+  }
+  if (key.includes('nfl')) {
+    return month >= 6 ? year : year - 1
+  }
   return year
 }
 
@@ -208,7 +228,7 @@ const formatGameLogEntry = (entry: any) => {
       stats[key] = Number.isFinite(value) ? value : s?.value ?? s?.displayValue ?? s?.display_value ?? s
     }
   }
-  const statLines = Object.entries(stats).map(([k, v]) => `  â€¢ ${k}: ${v}`)
+  const statLines = Object.entries(stats).map(([k, v]) => `  +óGé¼-ó ${k}: ${v}`)
   const header = `${date}${opponent ? ` vs ${opponent}` : ''}${result ? ` (${result})` : ''}`
   return statLines.length ? `${header}\n${statLines.join('\n')}` : header
 }
@@ -258,6 +278,150 @@ const findPlayerInGameDetails = (details: any, playerName: string) => {
     const name = normalizeNameLoose(p?.name || '')
     return name && (name === normTarget || name.includes(normTarget) || normTarget.includes(name))
   })
+}
+
+const buildStatMapFromEspnEntry = (entry: any): Record<string, number> => {
+  const statBlocks: any[] = Array.isArray(entry?.stats)
+    ? entry.stats
+    : Array.isArray(entry?.statistics)
+    ? entry.statistics
+    : []
+  const statMap: Record<string, number> = {}
+  for (const block of statBlocks) {
+    const entries: any[] = Array.isArray(block?.stats) ? block.stats : Array.isArray(block) ? block : []
+    for (const s of entries) {
+      const label = s?.label || s?.displayName || s?.name
+      const rawVal = s?.value ?? s?.displayValue ?? s?.display_value
+      let val =
+        typeof rawVal === 'number'
+          ? rawVal
+          : typeof rawVal === 'string'
+          ? Number(rawVal)
+          : Number(rawVal)
+      if (typeof rawVal === 'string' && Number.isNaN(val) && rawVal.includes('-')) {
+        val = Number(rawVal.split('-')[0])
+      }
+      if (label && Number.isFinite(val)) {
+        statMap[label.toString().toUpperCase().replace(/\s+/g, '_')] = val
+      }
+    }
+  }
+  return statMap
+}
+
+const extractStatMapFromSnapshot = (
+  snapshot: any,
+  playerId: string,
+  playerName: string
+): Record<string, number> | null => {
+  const targetToken = normalizeToken(playerName)
+  const players = snapshot?.boxscore?.players || []
+  for (const team of players) {
+    for (const group of team?.statistics || []) {
+      const labels = Array.isArray(group?.labels)
+        ? group.labels
+        : Array.isArray(group?.displayLabels)
+        ? group.displayLabels
+        : Array.isArray(group?.names)
+        ? group.names
+        : null
+      for (const athlete of group?.athletes || []) {
+        const athleteId = String(athlete?.id || athlete?.athlete?.id || '')
+        const athleteName =
+          athlete?.athlete?.displayName ||
+          athlete?.athlete?.fullName ||
+          athlete?.displayName ||
+          athlete?.name ||
+          ''
+        const nameToken = normalizeToken(athleteName)
+        if (
+          (playerId && athleteId === String(playerId)) ||
+          (nameToken && (nameToken.includes(targetToken) || targetToken.includes(nameToken)))
+        ) {
+          const statMap: Record<string, number> = {}
+          if (labels && Array.isArray(athlete?.stats)) {
+            for (let i = 0; i < labels.length; i++) {
+              const rawVal = athlete.stats[i]
+              let val =
+                typeof rawVal === 'number'
+                  ? rawVal
+                  : typeof rawVal === 'string'
+                  ? Number(rawVal)
+                  : Number(rawVal)
+              if (typeof rawVal === 'string' && Number.isNaN(val) && rawVal.includes('-')) {
+                val = Number(rawVal.split('-')[0])
+              }
+              const label = labels[i]
+              if (label && Number.isFinite(val)) {
+                statMap[label.toString().toUpperCase().replace(/\s+/g, '_')] = val
+              }
+            }
+          } else if (Array.isArray(athlete?.stats)) {
+            for (const stat of athlete.stats) {
+              const label = stat?.label || stat?.displayName || stat?.name
+              const rawVal = stat?.value ?? stat?.displayValue ?? stat?.display_value
+              let val =
+                typeof rawVal === 'number'
+                  ? rawVal
+                  : typeof rawVal === 'string'
+                  ? Number(rawVal)
+                  : Number(rawVal)
+              if (typeof rawVal === 'string' && Number.isNaN(val) && rawVal.includes('-')) {
+                val = Number(rawVal.split('-')[0])
+              }
+              if (label && Number.isFinite(val)) {
+                statMap[label.toString().toUpperCase().replace(/\s+/g, '_')] = val
+              }
+            }
+          }
+          return Object.keys(statMap).length ? statMap : null
+        }
+      }
+    }
+  }
+  return null
+}
+
+const getPropStatFromMap = (statMap: Record<string, number>, propType: string): number | null => {
+  const pick = (keys: string[]) => {
+    for (const key of keys) {
+      const val = statMap[key]
+      if (typeof val === 'number' && Number.isFinite(val)) return val
+    }
+    return null
+  }
+  const pts = pick(['PTS', 'POINTS'])
+  const reb = pick(['REB', 'REBOUNDS', 'TRB'])
+  const ast = pick(['AST', 'ASSISTS'])
+  const threes = pick(['3PM', '3PT', '3P'])
+  const blk = pick(['BLK', 'BLOCKS'])
+  const stl = pick(['STL', 'STEALS'])
+
+  switch (propType) {
+    case 'points':
+    default:
+      return pts
+    case 'rebounds':
+      return reb
+    case 'assists':
+      return ast
+    case 'threes':
+      return threes
+    case 'blocks':
+      return blk
+    case 'steals':
+      return stl
+    case 'points_rebounds':
+      return pts != null && reb != null ? pts + reb : null
+    case 'points_assists':
+      return pts != null && ast != null ? pts + ast : null
+    case 'rebounds_assists':
+      return reb != null && ast != null ? reb + ast : null
+    case 'pra':
+      return pts != null && reb != null && ast != null ? pts + reb + ast : null
+    case 'blocks_steals':
+      return blk != null && stl != null ? blk + stl : null
+  }
 }
 
 const computeSimpleAdvanced = (stats: Record<string, any>) => {
@@ -339,7 +503,7 @@ const formatPlayerGameLine = (player: any): string => {
 
   for (const [label, keys] of entries) {
     const val = pick(keys)
-    if (val != null) lines.push(`  â€¢ ${label}: ${val}`)
+    if (val != null) lines.push(`  +óGé¼-ó ${label}: ${val}`)
   }
 
   if (!lines.length && player.summaryLine) return player.summaryLine
@@ -528,7 +692,7 @@ async function generateConversationTitle(firstUserMessage: string): Promise<stri
   const cleaned = (firstUserMessage || '').replace(/\s+/g, ' ').trim()
   if (!cleaned) return 'New Chat'
   const maxLen = 50
-  return cleaned.length > maxLen ? `${cleaned.slice(0, maxLen).trimEnd()}â€¦` : cleaned
+  return cleaned.length > maxLen ? `${cleaned.slice(0, maxLen).trimEnd()}+óGé¼-ª` : cleaned
 }
 
 // Helper function to log a bet
@@ -1330,22 +1494,22 @@ const getSystemPrompt = (timezone: string) => `You are DELTA, a professional spo
 - NBA: season averages (PTS/REB/AST/FG%/3P%), box-score lines, minutes, injuries, team records. No usage, pace, DvP, potential assists, or rebounding chances.
 - NFL: pass/rush/receiving yards, attempts/receptions/TDs/INTs, completions/attempts, basic injuries and team scoring/allowed. No snap share, routes, advanced coverage/OL data.
 - NHL: goals/assists/points, shots on goal, time on ice (via box), goalie SV%, team records. No PP/PK%, no advanced pace.
-- MLB: minimal via ESPN feeds; no advanced K%, xFIP, barrel%, etc. (donâ€™t promise them).
+- MLB: minimal via ESPN feeds; no advanced K%, xFIP, barrel%, etc. (don+óGé¼Gäót promise them).
 - Soccer: basic goals/assists/shots/cards and team form; no xG/xA unless explicitly provided elsewhere.
 
 **General conversation & betting education layer (for non-odds / non-specific stats asks):**
 - Tone: conversational, sharp, concise, data-aware. Avoid hot takes/speculation/emotional language.
-- Allowed: explain sports rules, betting terminology (moneyline, spread, total, juice, CLV/EV, arbitrage/middles), sharp concepts (bankroll/line shopping/CLV), how to interpret stats, how to use the app. Keep it brief (â‰¤4 sentences; bullets OK).
+- Allowed: explain sports rules, betting terminology (moneyline, spread, total, juice, CLV/EV, arbitrage/middles), sharp concepts (bankroll/line shopping/CLV), how to interpret stats, how to use the app. Keep it brief (+óGÇ¦-ñ4 sentences; bullets OK).
 - Boundaries: decline politics/medical/legal/relationship/explicit/finance investment; politely pivot back to sports/betting.
 - Education: define terms simply and tie to actionable betting behavior; no picks/guarantees.
-- Redirect examples: â€œI stay out of that, but I can break down any matchup, trend, or stat you want.â€
+- Redirect examples: +óGé¼+ôI stay out of that, but I can break down any matchup, trend, or stat you want.+óGé¼-¥
 
-**Stats-only questions:** Answer directly with ESPN-derived data (season averages, box scores, injuries, standings). If something isnâ€™t available, state the limitation instead of stalling.
+**Stats-only questions:** Answer directly with ESPN-derived data (season averages, box scores, injuries, standings). If something isn+óGé¼Gäót available, state the limitation instead of stalling.
 
 **FORMATTED DATA USAGE:**
 Many stats tools now return pre-formatted data with betting context already included:
 1. Present formatted stats and betting angles directly - they already include league comparisons, prop implications, and ATS context
-2. Do not strip emoji, confidence indicators (🔥 high, ✓ medium, ⚠️ low), or structural formatting
+2. Do not strip emoji, confidence indicators (=ƒöÑ high, G£ô medium, GÜán+Å low), or structural formatting
 3. If a tool returns a 'formatted' field, prioritize presenting that over raw stats
 4. Add your own analysis only if the user asks for interpretation beyond what's provided
 5. Keep responses concise but complete - the formatted data is designed to be presentation-ready
@@ -1406,8 +1570,8 @@ When users ask "what games are today/tonight/tomorrow":
 3. Always emphasize responsible gambling
 4. Keep responses concise (3-5 sentences for simple queries)
 5. Do NOT promise deeper player splits/advanced NBA metrics; if asked, say they are unavailable right now and stick to season averages
-6. Offer odds/player-prop fetching only after you have provided the requested stats/context (donâ€™t pre-promise)
-7. Do NOT ask the user if they want deeper splitsâ€”those are not available; acknowledge unavailability instead
+6. Offer odds/player-prop fetching only after you have provided the requested stats/context (don+óGé¼Gäót pre-promise)
+7. Do NOT ask the user if they want deeper splits+óGé¼GÇ¥those are not available; acknowledge unavailability instead
 5. Use data and statistics to support insights
 
 **Response Guidelines:**
@@ -1446,7 +1610,7 @@ When users ask "what games are today/tonight/tomorrow":
 - **CRITICAL**: Display ALL sportsbooks returned by the API for each game (e.g., FanDuel, DraftKings, BetMGM, Caesars, Fanatics, Bet365, BetRivers, Hard Rock, Pinnacle, PointsBet, Bovada, Underdog, Fliff). Do not list books that are not present in the data.
 - Compare moneyline, spreads, and totals across ALL available sportsbooks for each game
 - Show every bookmaker's odds in the table - do NOT omit any bookmakers from the data
-- ALWAYS present odds using the standardized Market/Team/Sportsbook table layout (see the example below). The API response now includes fully-built Markdown tablesï¿½copy them directly so formatting never varies.
+- ALWAYS present odds using the standardized Market/Team/Sportsbook table layout (see the example below). The API response now includes fully-built Markdown tables+»-+-+copy them directly so formatting never varies.
 - Make each sportsbook name clickable using Markdown hyperlinks (e.g., [FanDuel](https://sportsbook.fanduel.com/)). Use the provided URL data for EVERY book and apply hyperlinks no matter which bet type/market is shown. If a link is missing from the data, leave the name as plain text.
 - Highlight which sportsbook has the best VALUE for each market (see "Best Value" rules below)
 - NEVER suggest where to bet, only present the data objectively
@@ -1485,7 +1649,7 @@ When identifying the best odds/value, you MUST consider the line FIRST, then the
 **When presenting odds, ALWAYS:**
 - Show the best line/spread for each side (not just the best odds on any line)
 - Note if a book offers a better line even with slightly worse odds
-- Example: "Best value for Lakers: -4.5 at -110 (FanDuel) â€” Better than -5 at -105 elsewhere"
+- Example: "Best value for Lakers: -4.5 at -110 (FanDuel) +óGé¼GÇ¥ Better than -5 at -105 elsewhere"
 
 **Arbitrage Opportunities:**
 When users ask for arbitrage opportunities, you MUST:
@@ -1532,7 +1696,7 @@ When analyzing betting stats, provide actionable insights:
 - Always restate the configuration for confirmation before calling save_custom_model. Do not save without explicit user approval.
 - When a user says things like "apply my NBA model for totals" or "use my NFL rushing model for Derrick Henry", search the provided context for matching models, clarify if multiple exist, then call apply_custom_model with the model name and any matchup/team info mentioned.
 - Use list_custom_models when the user asks what models they have, or when you need to remind them of available names.
-- When models are applied, explain the weighted score, confidence interval, and how each stat contributed. Never fabricate statsï¿½"if data is missing, state that limitation.
+- When models are applied, explain the weighted score, confidence interval, and how each stat contributed. Never fabricate stats+»-+-+"if data is missing, state that limitation.
 - Whenever someone asks about a specific matchup or you are creating/applying a projection, first ask **"Do you want to go more in depth on the matchup?"**. If they say yes (or ask for deeper analysis), call **get_game_context** to pull injuries, team form, and market trends before responding.
 
 **Research Models (Automated Opportunity Scanners):**
@@ -2082,7 +2246,8 @@ export async function POST(req: NextRequest) {
       conversationId,
       userId,
       timezone = 'America/New_York', // Default fallback
-      mode = 'regular'
+      mode = 'regular',
+      testBypass = false
     } = await req.json()
 
     const environmentName = process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown'
@@ -2116,6 +2281,16 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient()
+    const allowTestBypass = Boolean(testBypass) && process.env.NODE_ENV !== 'production'
+    const sportHintFromMessage = (msg: string): string | undefined => {
+      const lower = msg.toLowerCase()
+      if (lower.includes('mlb') || lower.includes('baseball')) return 'baseball_mlb'
+      if (lower.includes('nhl') || lower.includes('hockey')) return 'icehockey_nhl'
+      if (lower.includes('nfl') || lower.includes('football')) return 'americanfootball_nfl'
+      if (lower.includes('nba') || lower.includes('basketball')) return 'basketball_nba'
+      return undefined
+    }
+    const sportHint = sportHintFromMessage(message)
 
     const runTrendingPlayers = async (functionArgs: any) => {
       const normalizeLeague = (raw: string) => {
@@ -2296,33 +2471,37 @@ export async function POST(req: NextRequest) {
         const seasonAvg = typeof t.seasonAvg === 'number' ? t.seasonAvg.toFixed(1) : t.seasonAvg
         const delta = typeof t.delta === 'number' ? t.delta.toFixed(1) : t.delta
         const teamLabel = t.team ? ` (${t.team})` : ''
-        return `${idx + 1}) ${t.name}${teamLabel} — Exceeding ${t.stat} avg (last ${t.sample}): ${avg} vs ${seasonAvg} (+${delta})`
+        return `${idx + 1}) ${t.name}${teamLabel} GÇö Exceeding ${t.stat} avg (last ${t.sample}): ${avg} vs ${seasonAvg} (+${delta})`
       })
       return { success: true, data: top, formatted: `${header}\n${lines.join('\n')}` }
     }
 
     // Verify user authentication
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    if (!allowTestBypass) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-    if (!user || user.id !== userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      if (!user || user.id !== userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      // Save user message
+      await supabase.from('messages').insert({
+        conversation_id: conversationId,
+        role: 'user',
+        content: message,
+      })
+    } else {
+      console.log('[AUTH] Test bypass enabled; skipping auth + message persistence')
     }
-
-    // Save user message
-    await supabase.from('messages').insert({
-      conversation_id: conversationId,
-      role: 'user',
-      content: message,
-    })
     const sanitizedTitle = message
       .replace(/^enable\s+web\s+search:\s*/i, '')
       .trim()
       .replace(/\s+/g, ' ')
-    if (sanitizedTitle) {
+    if (sanitizedTitle && !allowTestBypass) {
       const fallbackTitle =
-        sanitizedTitle.length > 60 ? `${sanitizedTitle.slice(0, 57)}â€¦` : sanitizedTitle
+        sanitizedTitle.length > 60 ? `${sanitizedTitle.slice(0, 57)}+óGé¼-ª` : sanitizedTitle
       try {
         await supabase
           .from('conversations')
@@ -2524,9 +2703,9 @@ export async function POST(req: NextRequest) {
 
     // Build context
     const modeDirectives: Record<string, string> = {
-      regular: '- Mode: Regular â€” focus on education and betting know-how. Do NOT call live odds or player prop tools unless the user explicitly asks for data.',
-      live: '- Mode: Live â€” prioritize fresh odds/props; if data is missing, say so briefly. Keep replies concise.',
-      research: '- Mode: Research â€” confirm scope (sports, markets, filters, data to use) before running research tools. If a model_id is provided, prefer calling run_research_model with that ID.',
+      regular: '- Mode: Regular +óGé¼GÇ¥ focus on education and betting know-how. Do NOT call live odds or player prop tools unless the user explicitly asks for data.',
+      live: '- Mode: Live +óGé¼GÇ¥ prioritize fresh odds/props; if data is missing, say so briefly. Keep replies concise.',
+      research: '- Mode: Research +óGé¼GÇ¥ confirm scope (sports, markets, filters, data to use) before running research tools. If a model_id is provided, prefer calling run_research_model with that ID.',
     }
 
     let contextMessage = `\n\n**Current User Context:**\n`
@@ -2653,7 +2832,7 @@ export async function POST(req: NextRequest) {
 
     const normalizeTeamList = (names: string[]): string[] => {
       const banned =
-        /\b(odds?|lines?|spread|total|moneyline|betting|bets?|public|sharp|money|handle|tickets?|split|splits|percent(?:age)?s?|ncaab|ncaa|college|basketball)\b/gi
+        /\b(odds?|lines?|spread|total|moneyline|betting|bets?|public|sharp|money|handle|tickets?|split|splits|percent(?:age)?s?|ncaab|ncaa|college|basketball|prop|props|make|sense|analysis|analyze|edge|value|project|projection|proj)\b/gi
       const cleaned = names
         .map((name) =>
           name
@@ -2699,7 +2878,7 @@ export async function POST(req: NextRequest) {
           cleaned = cleaned
             .replace(/^(the|in|at|on|for|with|against|versus|vs)\s+/i, '')
             .replace(
-              /\s+(game|match|tonight|today|tomorrow|in|at|on|betting|splits?|public|sharp|money|bets?|handle|tickets?|percent(?:age)?s?|odds?|lines?|spread|total|moneyline)$/i,
+              /\s+(game|match|tonight|today|tomorrow|in|at|on|betting|splits?|public|sharp|money|bets?|handle|tickets?|percent(?:age)?s?|odds?|lines?|spread|total|moneyline|prop|props|make|sense|analysis|analyze|edge|value|project|projection|proj)$/i,
               ''
             )
             .trim()
@@ -2928,7 +3107,15 @@ export async function POST(req: NextRequest) {
       return []
     }
     const playerCompareCandidates = extractTwoPlayers()
-    const playerCompareIntent = playerCompareCandidates.length === 2 && /\bcompare\b|\bvs\b|\bversus\b/i.test(msgLower) && !isProjectionQuery && !bettingSplitsIntent
+    const hasPropLanguage = /\bprop\b/.test(msgLower)
+    const hasMakeSense = /\bmake\s+sense\b/.test(msgLower)
+    const playerCompareIntent =
+      playerCompareCandidates.length === 2 &&
+      /\bcompare\b|\bvs\b|\bversus\b/i.test(msgLower) &&
+      !isProjectionQuery &&
+      !bettingSplitsIntent &&
+      !hasPropLanguage &&
+      !hasMakeSense
     const hasNumber = /\d/.test(msgLower)
       const propIntent =
         Boolean(playerNameInMessage) &&
@@ -2941,19 +3128,37 @@ export async function POST(req: NextRequest) {
           ))
       const marketTypeHint = inferMarketType(message)
       const hasSpecificMatchup = parsedMatchupTeams.length >= 2 || mentionedTeams.length >= 2
-      const hasSpecificProp = Boolean(playerNameInMessage) && marketTypeHint === 'player_prop'
-      const marketKeywordIntent =
-        /\b(spread|moneyline|total|over|under|prop|line|o\/u|quarter|q1|q2|q3|q4|first half|1h|second half|2h)\b/i.test(
+    const hasSpecificProp = Boolean(playerNameInMessage) && marketTypeHint === 'player_prop'
+    const marketKeywordIntent =
+      /\b(spread|moneyline|total|over|under|prop|line|o\/u|quarter|q1|q2|q3|q4|first half|1h|second half|2h)\b/i.test(
+        msgLower
+      )
+    const edgeAwarenessIntent =
+      /\bedge awareness\b/i.test(msgLower) ||
+      /\b(edge alert|edge check)\b/i.test(msgLower) ||
+      /\bline(s)?\s+(doesn'?t|does\s+not|dont)\s+make\s+sense\b/i.test(msgLower) ||
+      /\bprop(s)?\s+(doesn'?t|does\s+not|dont)\s+make\s+sense\b/i.test(msgLower) ||
+      /\b(points|rebounds|assists|threes|blocks|steals|pra)\s+prop\s+make\s+sense\b/i.test(msgLower) ||
+      /\bline\s+looks?\s+off\b/i.test(msgLower) ||
+      /\bis\s+there\s+an?\s+edge\b/i.test(msgLower) ||
+      (playerNameInMessage &&
+        propIntent &&
+        /\b(analy(?:ze|sis)|edge|value|mispriced|make\s+sense|worth|overvalued|undervalued)\b/i.test(
           msgLower
-        )
-      const explicitAnalysisIntent = /\b(analy(?:ze|sis)|breakdown|edge|value|mispriced|line makes sense)\b/i.test(msgLower)
-      analysisIntent =
-        explicitAnalysisIntent ||
-        (marketKeywordIntent && (hasSpecificMatchup || hasSpecificProp))
-      pickGuidanceIntent =
-        /\b(best bet|best pick|pick\b|lock\b|who wins|winner|what should i bet|what's the play|should i bet)\b/i.test(
-          msgLower
-        ) && !analysisIntent
+        )) ||
+      (playerNameInMessage && propIntent && /\bproject(?:ion|ed)?\b|\bproject\b/i.test(msgLower)) ||
+      (playerNameInMessage &&
+        /\bproject(?:ion|ed)?\b|\bproject\b/i.test(msgLower) &&
+        /\b(points|rebounds|assists|threes|blocks|steals|pra)\b/i.test(msgLower))
+    const explicitAnalysisIntent = /\b(analy(?:ze|sis)|breakdown|edge|value|mispriced|line makes sense)\b/i.test(msgLower)
+    analysisIntent =
+      !edgeAwarenessIntent &&
+      (explicitAnalysisIntent ||
+        (marketKeywordIntent && (hasSpecificMatchup || hasSpecificProp)))
+    pickGuidanceIntent =
+      /\b(best bet|best pick|pick\b|lock\b|who wins|winner|what should i bet|what's the play|should i bet)\b/i.test(
+        msgLower
+      ) && !analysisIntent && !edgeAwarenessIntent
       const betIntent = /(log|track|record)\s+(my\s+)?bet\b|i\s+bet\s+\$?\d+/i.test(msgLower) || /settle\s+my\s+bet/i.test(msgLower)
     const webSearchToggle = /enable_web_search|enable\s+web\s+search/i.test(msgLower)
     const wantsEdgesOrValue = /(edge|ev|expected\s+value|value\s+bet|mispriced|best\s+bet)/i.test(msgLower)
@@ -3011,6 +3216,122 @@ export async function POST(req: NextRequest) {
         lastN,
       }
     })()
+
+    const getRecentLogStats = async (opts: {
+      sport: string
+      playerId: string
+      playerName: string
+      propType: string
+      seasonYear: number
+      maxGames?: number
+      minSamples?: number
+    }) => {
+      const labelMap: Record<string, string> = {
+        points: 'PTS',
+        rebounds: 'REB',
+        assists: 'AST',
+        threes: '3PM',
+        blocks: 'BLK',
+        steals: 'STL',
+        points_rebounds: 'PTS+REB',
+        points_assists: 'PTS+AST',
+        rebounds_assists: 'REB+AST',
+        pra: 'PRA',
+        blocks_steals: 'BLK+STL',
+      }
+      const maxGames = opts.maxGames ?? 5
+      const minSamples = opts.minSamples ?? 3
+      const statLabel = labelMap[opts.propType] || 'PTS'
+      const logsRaw = await getPlayerGameLogs(
+        opts.sport as any,
+        String(opts.playerId),
+        opts.seasonYear,
+        2
+      ).catch(() => [])
+      const logs = Array.isArray(logsRaw) ? logsRaw : Object.values(logsRaw || {})
+      logs.sort((a: any, b: any) => {
+        const tA = new Date(String(a?.date || a?.gameDate || a?.game_date || '')).getTime()
+        const tB = new Date(String(b?.date || b?.gameDate || b?.game_date || '')).getTime()
+        return (Number.isFinite(tB) ? tB : 0) - (Number.isFinite(tA) ? tA : 0)
+      })
+      const recent = logs.slice(0, maxGames)
+      const lines: string[] = []
+      const values: number[] = []
+      for (const entry of recent) {
+        const date = String(entry?.date || entry?.gameDate || entry?.game_date || '').slice(0, 10)
+        const opp =
+          entry?.opponent?.displayName ||
+          entry?.opponent?.name ||
+          entry?.opponent ||
+          entry?.opponentName ||
+          entry?.gameOpponent ||
+          ''
+        let statMap = buildStatMapFromEspnEntry(entry)
+        let value = getPropStatFromMap(statMap, opts.propType)
+        if (value == null) {
+          const eventId = String(entry?.id || entry?.eventId || '')
+          if (eventId) {
+            const snapshot = await getEventSnapshot('nba', eventId)
+            const snapshotMap = extractStatMapFromSnapshot(snapshot, opts.playerId, opts.playerName)
+            if (snapshotMap) {
+              value = getPropStatFromMap(snapshotMap, opts.propType)
+            }
+          }
+        }
+        if (value != null) {
+          values.push(value)
+        }
+        lines.push(`- ${date}${opp ? ` vs ${opp}` : ''}: ${value ?? 'n/a'} ${statLabel}`)
+      }
+      const average =
+        values.length >= minSamples
+          ? Number((values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(1))
+          : null
+      return { average, lines }
+    }
+
+    const lastNGamesMatch = message.match(/\blast\s+(\d+)\s+games?\b/i)
+    if (lastNGamesMatch && !propIntent && !isProjectionQuery) {
+      try {
+        let playerName = extractPlayerName(message)
+        if (!playerName) {
+          return streamTextResponse('Tell me which player you want last-game logs for (e.g., "KD last 5 games").')
+        }
+        const cleanedTokens = playerName
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((token) => !['avg', 'average', 'last', 'games', 'game', 'points', 'pts', 'scored'].includes(token))
+        if (cleanedTokens.length) playerName = cleanedTokens.join(' ')
+        const normalizedName = playerName.toLowerCase()
+        if (normalizedName === 'kd' || normalizedName === 'kds') playerName = 'kevin durant'
+
+        const seasonYear = getEspnSeasonYearForLogs('nba')
+        const searchHit = await searchPlayer(playerName, 'basketball_nba')
+        const playerId = searchHit?.id
+        if (!playerId) {
+          return streamTextResponse(`I couldn't resolve ${playerName} for recent games.`)
+        }
+        const lastN = Number(lastNGamesMatch[1]) || 5
+        const recent = await getRecentLogStats({
+          sport: 'nba',
+          playerId: String(playerId),
+          playerName,
+          propType: 'points',
+          seasonYear,
+          maxGames: lastN,
+          minSamples: 1,
+        })
+        if (!recent.lines.length) {
+          return streamTextResponse(`No recent game logs found for ${playerName}.`)
+        }
+        const avg = recent.average ?? 0
+        const header = `${playerName} last ${lastN} games average: ${avg.toFixed(1)} PPG`
+        return streamTextResponse([header, ...recent.lines, buildDataSourceLine(['ESPN'])].join('\n'))
+      } catch (err) {
+        console.error('[LAST_N_GAMES] Failed:', err)
+        return streamTextResponse('Recent game logs are temporarily unavailable. Please try again.')
+      }
+    }
 
     // Conceptual advanced-stats questions (e.g., best metrics for point totals) should bypass odds/props
     if (pointTotalConceptualAsk || (conceptualStatsOnly && /\b(advanced stats?|metrics?)\b/.test(msgLower) && /point total|points\b/.test(msgLower))) {
@@ -3677,6 +3998,501 @@ export async function POST(req: NextRequest) {
         msgLower
       ) || webSearchToggle
 
+    const runEdgeAwareness = async () => {
+      const matchupTeams = (parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams).filter(
+        (team) => normalizeToken(team).length > 0
+      )
+      let playerName = extractPlayerName(message)
+      if (playerName && /\b(player|prop|props)\b/i.test(playerName)) {
+        const cleanedMessage = message
+          .replace(/\bplayer props?\b/gi, '')
+          .replace(/\bprops?\b/gi, '')
+          .trim()
+        const altName = extractPlayerName(cleanedMessage)
+        playerName = altName && !/\b(player|prop|props)\b/i.test(altName) ? altName : undefined
+      }
+
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'nfl' :
+        msgLower.match(/mlb|baseball/) ? 'mlb' :
+        msgLower.match(/nhl|hockey/) ? 'nhl' :
+        'nba'
+      if (sportGuess !== 'nba') {
+        return {
+          success: false,
+          formatted: 'Edge awareness is currently optimized for NBA matchups. Please try an NBA matchup.',
+        }
+      }
+
+      const inferPropType = (text: string) => {
+        const t = text.toLowerCase()
+        if (/\bpoints\s*\+\s*rebounds\b/.test(t)) return 'points_rebounds'
+        if (/\bpoints\s*\+\s*assists\b/.test(t)) return 'points_assists'
+        if (/\bpoints\s*\+\s*rebounds\s*\+\s*assists\b|\bpra\b/.test(t)) return 'pra'
+        if (/\brebounds\s*\+\s*assists\b/.test(t)) return 'rebounds_assists'
+        if (/\bblocks\s*\+\s*steals\b/.test(t)) return 'blocks_steals'
+        if (/\bpoints\b|\bpts\b/.test(t)) return 'points'
+        if (/\brebounds\b|\brebs\b|\breb\b/.test(t)) return 'rebounds'
+        if (/\bassists\b|\basts\b|\bast\b/.test(t)) return 'assists'
+        if (/\b(threes|3s|3pm|three pointers?)\b/.test(t)) return 'threes'
+        if (/\bblocks\b|\bblk\b/.test(t)) return 'blocks'
+        if (/\bsteals\b|\bstl\b/.test(t)) return 'steals'
+        return 'points'
+      }
+
+      const seasonStatValue = (stats: Record<string, any> | undefined, propType: string) => {
+        if (!stats) return null
+        const num = (v: any) => {
+          const n = typeof v === 'number' ? v : Number(v)
+          return Number.isFinite(n) ? n : null
+        }
+        const pts = num(stats.PPG ?? stats.PTS ?? stats.POINTS)
+        const reb = num(stats.RPG ?? stats.REB ?? stats.TRB)
+        const ast = num(stats.APG ?? stats.AST)
+        const threes = num(stats['3PM'] ?? stats.THREE_PM ?? stats.THREE_P)
+        const blk = num(stats.BLK ?? stats.BLOCKS)
+        const stl = num(stats.STL ?? stats.STEALS)
+        switch (propType) {
+          case 'points':
+          default:
+            return pts
+          case 'rebounds':
+            return reb
+          case 'assists':
+            return ast
+          case 'threes':
+            return threes
+          case 'blocks':
+            return blk
+          case 'steals':
+            return stl
+          case 'points_rebounds':
+            return pts != null && reb != null ? pts + reb : null
+          case 'points_assists':
+            return pts != null && ast != null ? pts + ast : null
+          case 'rebounds_assists':
+            return reb != null && ast != null ? reb + ast : null
+          case 'pra':
+            return pts != null && reb != null && ast != null ? pts + reb + ast : null
+          case 'blocks_steals':
+            return blk != null && stl != null ? blk + stl : null
+        }
+      }
+
+      const recentFromArray = (recent: any[] | undefined, propType: string) => {
+        if (!recent?.length) return { average: null, lines: [] as string[] }
+        const values: number[] = []
+        const lines: string[] = []
+        const labelMap: Record<string, string> = {
+          points: 'PTS',
+          rebounds: 'REB',
+          assists: 'AST',
+          threes: '3PM',
+          blocks: 'BLK',
+          steals: 'STL',
+          points_rebounds: 'PTS+REB',
+          points_assists: 'PTS+AST',
+          rebounds_assists: 'REB+AST',
+          pra: 'PRA',
+          blocks_steals: 'BLK+STL',
+        }
+        const statLabel = labelMap[propType] || 'PTS'
+        for (const game of recent.slice(0, 5)) {
+          const date = String(game?.date || '').slice(0, 10)
+          const opp = game?.opponent || ''
+          const rawStats = game?.stats || {}
+          const statMap: Record<string, number> = {}
+          for (const [key, value] of Object.entries(rawStats)) {
+            const num = typeof value === 'number' ? value : Number(value)
+            if (Number.isFinite(num)) {
+              statMap[key.toString().toUpperCase().replace(/\s+/g, '_')] = num
+            }
+          }
+          const value = getPropStatFromMap(statMap, propType)
+          if (value != null) values.push(value)
+          lines.push(`- ${date}${opp ? ` vs ${opp}` : ''}: ${value ?? 'n/a'} ${statLabel}`)
+        }
+        const average =
+          values.length >= 3
+            ? Number((values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(1))
+            : null
+        return { average, lines }
+      }
+
+      const opponentAllowedValue = (stats: Record<string, any> | undefined, propType: string) => {
+        if (!stats) return null
+        const num = (v: any) => {
+          const n = typeof v === 'number' ? v : Number(v)
+          return Number.isFinite(n) ? n : null
+        }
+        switch (propType) {
+          case 'points':
+          case 'points_rebounds':
+          case 'points_assists':
+          case 'pra':
+          default:
+            return num(stats.pointsAgainstPerGame)
+          case 'rebounds':
+          case 'rebounds_assists':
+            return num(stats.opponentReboundsPerGame)
+          case 'assists':
+            return num(stats.opponentAssistsPerGame)
+          case 'threes':
+            return num(stats.opponentThreeMadePerGame)
+          case 'blocks':
+          case 'blocks_steals':
+            return num(stats.opponentBlocksPerGame)
+          case 'steals':
+            return num(stats.opponentStealsPerGame)
+        }
+      }
+
+      if (playerName) {
+        const propType = inferPropType(message)
+        const seasonStats = await getPlayerSeasonStats(playerName, 'basketball_nba')
+        const playerLabel = seasonStats?.name || playerName
+        const playerTeam = seasonStats?.team || ''
+        const opponent = (() => {
+          if (matchupTeams.length >= 2) {
+            if (playerTeam) {
+              const teamToken = normalizeToken(playerTeam)
+              const first = matchupTeams[0]
+              const second = matchupTeams[1]
+              if (teamToken && normalizeToken(first).includes(teamToken)) return second
+              if (teamToken && normalizeToken(second).includes(teamToken)) return first
+            }
+            return matchupTeams[1]
+          }
+          if (matchupTeams.length === 1) return matchupTeams[0]
+          if (mentionedTeams.length === 1) return mentionedTeams[0]
+          return ''
+        })()
+        if (!opponent) {
+          return {
+            success: false,
+            formatted: 'Edge awareness for player props needs a matchup (e.g., "Kevin Durant points prop vs Clippers").',
+          }
+        }
+
+        const seasonAvg = seasonStatValue(seasonStats?.stats as Record<string, any> | undefined, propType)
+        let last5Avg: number | null = null
+        let last5Lines: string[] = []
+        const fromRecent = recentFromArray(seasonStats?.recent, propType)
+        last5Avg = fromRecent.average
+        last5Lines = fromRecent.lines
+
+        if (last5Avg == null || !last5Lines.length) {
+          const seasonYear = getEspnSeasonYearForLogs('nba')
+          const searchHit = await searchPlayer(playerLabel, 'basketball_nba')
+          const fallback = searchHit?.id ? null : await searchAthlete('nba', playerLabel, 5)
+          const playerId = searchHit?.id || fallback?.id
+          if (playerId) {
+            const recent = await getRecentLogStats({
+              sport: 'nba',
+              playerId: String(playerId),
+              playerName: playerLabel,
+              propType,
+              seasonYear,
+              maxGames: 5,
+              minSamples: 3,
+            })
+            last5Avg = recent.average
+            last5Lines = recent.lines
+          }
+        }
+
+        let opponentAllowed: number | null = null
+        let leagueAvg: number | null = null
+        if (opponent) {
+          const oppTeam = findStaticNbaTeam(opponent)[0]
+          opponentAllowed = opponentAllowedValue(oppTeam?.stats, propType)
+          const leagueVals = getStaticNbaTeams()
+            .map((team) => opponentAllowedValue(team.stats, propType))
+            .filter((val): val is number => typeof val === 'number' && Number.isFinite(val))
+          if (leagueVals.length) {
+            leagueAvg = Number((leagueVals.reduce((sum, v) => sum + v, 0) / leagueVals.length).toFixed(1))
+          }
+        }
+
+        let sbdLine = 'No SBD prop line found for this player on the current slate.'
+        try {
+          const propsRes = await fetch(
+            `${baseUrl}/api/player-props?sport=basketball_nba&player=${encodeURIComponent(playerLabel)}&market=${encodeURIComponent(propType)}`,
+            { cache: 'no-store' }
+          )
+          const propsData = await propsRes.json()
+          const market = propsData?.data?.[0]?.markets?.[propType]
+          if (propsRes.ok && market) {
+            const line = market.line ?? '?'
+            const over = market.over?.best != null ? market.over.best : '?'
+            const overBook = market.over?.bestBook || '?'
+            const under = market.under?.best != null ? market.under.best : '?'
+            const underBook = market.under?.bestBook || '?'
+            sbdLine = `SBD line: ${line} | Over ${over} (${overBook}) | Under ${under} (${underBook})`
+          }
+        } catch (err) {
+          sbdLine = 'SBD props lookup failed for this player.'
+        }
+
+        const focusLabel =
+          {
+            points: 'Points',
+            rebounds: 'Rebounds',
+            assists: 'Assists',
+            threes: '3PT Made',
+            points_rebounds: 'Points + Rebounds',
+            points_assists: 'Points + Assists',
+            pra: 'Points + Rebounds + Assists',
+            rebounds_assists: 'Rebounds + Assists',
+            blocks: 'Blocks',
+            steals: 'Steals',
+            blocks_steals: 'Blocks + Steals',
+          }[propType] || 'Points'
+
+        const lines = [
+          `Edge awareness: ${playerLabel} vs ${opponent}`,
+          'Inputs',
+          `- Player: ${playerLabel}`,
+          `- Matchup: ${playerTeam ? `${playerTeam} vs ${opponent}` : opponent}`,
+          `- Focus: ${focusLabel}`,
+          '- Window: last 5 games vs season average',
+          'Results',
+        ]
+        if (seasonAvg != null) {
+          lines.push(`- Season avg: ${seasonAvg.toFixed(1)}`)
+        } else {
+          lines.push('- Season avg: unavailable')
+        }
+        if (last5Avg != null) {
+          const delta = seasonAvg != null ? Number((last5Avg - seasonAvg).toFixed(1)) : null
+          const deltaLabel = delta != null ? ` (${delta >= 0 ? '+' : ''}${delta})` : ''
+          lines.push(`- Last 5 avg: ${last5Avg.toFixed(1)}${deltaLabel}`)
+        } else {
+          lines.push('- Last 5 avg: unavailable')
+        }
+        if (last5Lines.length) {
+          lines.push('Last 5 games')
+          lines.push(...last5Lines)
+        }
+        if (opponentAllowed != null) {
+          const label =
+            propType === 'points'
+              ? 'Opponent PPG allowed'
+              : propType === 'threes'
+              ? 'Opponent 3PM allowed'
+              : propType === 'rebounds'
+              ? 'Opponent rebounds allowed'
+              : propType === 'assists'
+              ? 'Opponent assists allowed'
+              : propType === 'blocks'
+              ? 'Opponent blocks allowed'
+              : propType === 'steals'
+              ? 'Opponent steals allowed'
+              : 'Opponent allowed'
+          const leagueLabel = leagueAvg != null ? ` (league avg ${leagueAvg.toFixed(1)})` : ''
+          lines.push(`- ${label}: ${opponentAllowed.toFixed(1)}${leagueLabel}`)
+        }
+        lines.push(`- ${sbdLine}`)
+        if (seasonAvg != null && last5Avg != null) {
+          const diff = last5Avg - seasonAvg
+          const judgement =
+            Math.abs(diff) >= 1
+              ? `recent form is ${diff > 0 ? 'above' : 'below'} season by ${Math.abs(diff).toFixed(1)}`
+              : 'recent form is close to season average'
+          lines.push(`Judgement: ${judgement}; compare this to the SBD line.`)
+        } else {
+          lines.push('Judgement: not enough recent data to weigh the line; use the SBD line as the anchor.')
+        }
+        lines.push(buildDataSourceLine(['ESPN', 'Basketball Reference', 'SBD']))
+        return { success: true, formatted: lines.join('\n') }
+      }
+
+      if (matchupTeams.length < 2) {
+        return {
+          success: false,
+          formatted: 'Please provide a specific matchup (e.g., "Lakers vs Knicks") for edge awareness.',
+        }
+      }
+
+      const [teamAName, teamBName] = matchupTeams.slice(0, 2)
+      const resolvedTeams = await Promise.all([teamAName, teamBName].map((team) => resolveEspnTeamId('nba', team)))
+      if (resolvedTeams.some((team) => !team)) {
+        return {
+          success: false,
+          formatted: 'I could not resolve both teams on ESPN. Try a clearer matchup like "Lakers vs Knicks".',
+        }
+      }
+      const [teamA, teamB] = resolvedTeams as Array<{ id: string; name: string; abbr?: string }>
+      const rosters = await Promise.all([
+        getRoster('nba', teamA.id).catch(() => []),
+        getRoster('nba', teamB.id).catch(() => []),
+      ])
+      const toCandidatePlayers = (roster: any[], teamName: string) => {
+        const players = roster
+          .map((player: any) => {
+            const name =
+              String(
+                player?.fullName ||
+                  player?.displayName ||
+                  player?.shortName ||
+                  player?.name ||
+                  ''
+              ).trim()
+            if (!name) return null
+            const metrics = getStaticPlayerStats(name, 'points')
+            const mpg = Number(metrics?.minutesPerGame ?? 0)
+            return {
+              id: player?.id ? String(player.id) : '',
+              name,
+              team: teamName,
+              mpg: Number.isFinite(mpg) ? mpg : 0,
+            }
+          })
+          .filter(Boolean) as Array<{ id: string; name: string; team: string; mpg: number }>
+        players.sort((a, b) => (b.mpg || 0) - (a.mpg || 0))
+        const core = players.filter((p) => p.mpg >= 18)
+        return (core.length ? core : players).slice(0, 6)
+      }
+      const candidates = [
+        ...toCandidatePlayers(rosters[0] || [], teamA.name || teamAName),
+        ...toCandidatePlayers(rosters[1] || [], teamB.name || teamBName),
+      ]
+      const seen = new Set<string>()
+      const uniqueCandidates = candidates.filter((player) => {
+        const token = normalizeToken(player.name)
+        if (!token || seen.has(token)) return false
+        seen.add(token)
+        return true
+      })
+
+      if (!uniqueCandidates.length) {
+        return { success: false, formatted: 'I could not identify player candidates for that matchup.' }
+      }
+
+      const seasonYear = getEspnSeasonYearForLogs('nba')
+      const candidateSignals: Array<{
+        name: string
+        team: string
+        statLabel: string
+        seasonAvg: number
+        recentAvg: number
+        delta: number
+        usage?: number
+        bpm?: number
+        per?: number
+      }> = []
+
+      const getRecentAverages = async (playerId: string, name: string) => {
+        if (!playerId) return { points: null, assists: null, rebounds: null }
+        const logsRaw = await getPlayerGameLogs('nba', playerId, seasonYear, 2).catch(() => [])
+        const logs = Array.isArray(logsRaw) ? logsRaw : Object.values(logsRaw || {})
+        logs.sort((a: any, b: any) => {
+          const tA = new Date(String(a?.date || a?.gameDate || a?.game_date || '')).getTime()
+          const tB = new Date(String(b?.date || b?.gameDate || b?.game_date || '')).getTime()
+          return (Number.isFinite(tB) ? tB : 0) - (Number.isFinite(tA) ? tA : 0)
+        })
+        const recent = logs.slice(0, 5)
+        const ptsVals: number[] = []
+        const astVals: number[] = []
+        const rebVals: number[] = []
+        for (const entry of recent) {
+          let statMap = buildStatMapFromEspnEntry(entry)
+          if (!Object.keys(statMap).length) {
+            const eventId = String(entry?.id || entry?.eventId || '')
+            if (eventId) {
+              const snapshot = await getEventSnapshot('nba', eventId)
+              const snapshotMap = extractStatMapFromSnapshot(snapshot, playerId, name)
+              if (snapshotMap) statMap = snapshotMap
+            }
+          }
+          const pts = getPropStatFromMap(statMap, 'points')
+          const ast = getPropStatFromMap(statMap, 'assists')
+          const reb = getPropStatFromMap(statMap, 'rebounds')
+          if (pts != null) ptsVals.push(pts)
+          if (ast != null) astVals.push(ast)
+          if (reb != null) rebVals.push(reb)
+        }
+        const avg = (vals: number[]) =>
+          vals.length >= 3 ? Number((vals.reduce((sum, v) => sum + v, 0) / vals.length).toFixed(1)) : null
+        return { points: avg(ptsVals), assists: avg(astVals), rebounds: avg(rebVals) }
+      }
+
+      await Promise.all(
+        uniqueCandidates.map(async (player) => {
+          const seasonData = await getPlayerSeasonStats(player.name, 'basketball_nba')
+          if (!seasonData?.stats) return
+          const seasonPts = seasonStatValue(seasonData.stats as Record<string, any>, 'points')
+          const seasonAst = seasonStatValue(seasonData.stats as Record<string, any>, 'assists')
+          const seasonReb = seasonStatValue(seasonData.stats as Record<string, any>, 'rebounds')
+          const recent = await getRecentAverages(player.id, player.name)
+          const candidates = [
+            { stat: 'points', label: 'Points', season: seasonPts, recent: recent.points, minDelta: 2.5 },
+            { stat: 'assists', label: 'Assists', season: seasonAst, recent: recent.assists, minDelta: 1.2 },
+            { stat: 'rebounds', label: 'Rebounds', season: seasonReb, recent: recent.rebounds, minDelta: 1.2 },
+          ]
+            .map((entry) => {
+              if (entry.season == null || entry.recent == null) return null
+              const delta = Number((entry.recent - entry.season).toFixed(1))
+              return delta < entry.minDelta ? null : { ...entry, delta }
+            })
+            .filter(Boolean)
+            .sort((a: any, b: any) => (b?.delta || 0) - (a?.delta || 0))[0] as
+            | { stat: string; label: string; season: number; recent: number; delta: number }
+            | undefined
+          if (!candidates) return
+          const metrics = getStaticPlayerStats(player.name, candidates.stat)
+          candidateSignals.push({
+            name: player.name,
+            team: player.team,
+            statLabel: candidates.label,
+            seasonAvg: candidates.season,
+            recentAvg: candidates.recent,
+            delta: candidates.delta,
+            usage: metrics?.usage,
+            bpm: metrics?.bpm,
+            per: metrics?.per,
+          })
+        })
+      )
+
+      if (!candidateSignals.length) {
+        return {
+          success: false,
+          formatted: `No strong recent-over-season signals found for ${teamA.name} vs ${teamB.name}. Try another matchup or specify a player.`,
+        }
+      }
+
+      const signals = candidateSignals
+        .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+        .slice(0, 5)
+      const lines = [
+        `Edge awareness: ${teamA.name} vs ${teamB.name}`,
+        'Inputs',
+        `- Matchup: ${teamA.name} vs ${teamB.name}`,
+        '- Window: last 5 games vs season average',
+        'Results',
+        'Players trending above season averages (last 5 games):',
+      ]
+      for (const signal of signals) {
+        const extras: string[] = []
+        if (typeof signal.usage === 'number') extras.push(`Usage ${signal.usage.toFixed(1)}%`)
+        if (typeof signal.bpm === 'number') extras.push(`BPM ${signal.bpm.toFixed(1)}`)
+        if (typeof signal.per === 'number') extras.push(`PER ${signal.per.toFixed(1)}`)
+        const extraText = extras.length ? ` | ${extras.join(', ')}` : ''
+        lines.push(
+          `- ${signal.name} (${signal.team}): ${signal.statLabel} last 5 = ${signal.recentAvg.toFixed(1)} vs season ${signal.seasonAvg.toFixed(1)} (+${signal.delta.toFixed(1)})${extraText}`
+        )
+      }
+      lines.push(buildDataSourceLine(['ESPN', 'Basketball Reference']))
+      lines.push('If you want prop lines or books, ask for player props and I will compare to SBD lines.')
+      return { success: true, formatted: lines.join('\n') }
+    }
+
+    if (edgeAwarenessIntent && !modelApplicationIntent && !researchIntent) {
+      const edgeResult = await runEdgeAwareness()
+      if (edgeResult?.formatted) return streamTextResponse(edgeResult.formatted)
+    }
+
     // Player game line shortcut (ESPN gamelog)
     if (playerNameInMessage && playerGameIntent.wantsGameLine && !propIntent && !oddsKeywordMatch) {
       try {
@@ -3685,7 +4501,7 @@ export async function POST(req: NextRequest) {
           msgLower.match(/mlb|baseball/) ? 'mlb' :
           msgLower.match(/nhl|hockey/) ? 'nhl' :
           'nba'
-        const season = getSeasonYearForDate(sportGuess, playerGameIntent.dateHint)
+        const season = getEspnSeasonYearForLogs(sportGuess, playerGameIntent.dateHint)
         const athleteSearch = await searchAthlete(sportGuess as any, playerNameInMessage)
         const athleteId = athleteSearch?.id
         const playerEntry = athleteId ? { id: athleteId } : await searchPlayer(playerNameInMessage, sportGuess)
@@ -3929,8 +4745,8 @@ export async function POST(req: NextRequest) {
         const messageLower = msgLower
 
         // Detect if user is asking about tomorrow
-        const isTomorrowQuery = messageLower.match(/(tomorrow(?:'|ï¿½)?s?|tmrw|next day)/i)
-        const isTodayQuery = messageLower.match(/(today(?:'|ï¿½)?s?|tonight|this evening)/i)
+        const isTomorrowQuery = messageLower.match(/(tomorrow(?:'s)?|tmrw|next day)/i)
+        const isTodayQuery = messageLower.match(/(today(?:'s)?|tonight|this evening)/i)
 
         // Decide whether to fetch LIVE vs PENDING odds
         // Fetch LIVE when the user explicitly asks for live context or mentions specific teams (implies current interest)
@@ -3938,6 +4754,46 @@ export async function POST(req: NextRequest) {
         const requestedLive = fetchLive
         let usedLive = false
         let usedFallback = false
+
+        const requestedOddsMarkets = (() => {
+          const markets = new Set(['h2h', 'spreads', 'totals'])
+          const wantsAnyHalf =
+            /\b(half|halftime|1h|2h|1st half|2nd half|first half|second half)\b/i.test(messageLower)
+          const wantsAnyQuarter =
+            /\b(q1|q2|q3|q4|quarter|1st quarter|2nd quarter|3rd quarter|4th quarter)\b/i.test(
+              messageLower
+            )
+
+          if (wantsAnyHalf) {
+            const wantsFirstHalf = /\b(1st|first)\s*half\b|\b1h\b/i.test(messageLower)
+            const wantsSecondHalf = /\b(2nd|second)\s*half\b|\b2h\b/i.test(messageLower)
+            if (wantsFirstHalf) markets.add('totals_1h')
+            if (wantsSecondHalf) markets.add('totals_2h')
+            if (!wantsFirstHalf && !wantsSecondHalf) {
+              markets.add('totals_1h')
+              markets.add('totals_2h')
+            }
+          }
+
+          if (wantsAnyQuarter) {
+            const wantsQ1 = /\bq1\b|\b1st quarter\b|\bfirst quarter\b/i.test(messageLower)
+            const wantsQ2 = /\bq2\b|\b2nd quarter\b|\bsecond quarter\b/i.test(messageLower)
+            const wantsQ3 = /\bq3\b|\b3rd quarter\b|\bthird quarter\b/i.test(messageLower)
+            const wantsQ4 = /\bq4\b|\b4th quarter\b|\bfourth quarter\b/i.test(messageLower)
+            if (wantsQ1) markets.add('totals_q1')
+            if (wantsQ2) markets.add('totals_q2')
+            if (wantsQ3) markets.add('totals_q3')
+            if (wantsQ4) markets.add('totals_q4')
+            if (!wantsQ1 && !wantsQ2 && !wantsQ3 && !wantsQ4) {
+              markets.add('totals_q1')
+              markets.add('totals_q2')
+              markets.add('totals_q3')
+              markets.add('totals_q4')
+            }
+          }
+
+          return Array.from(markets)
+        })()
 
         // Simple team lists for league detection
         const nbaTeams = ['lakers', 'celtics', 'warriors', 'bulls', 'heat', 'knicks', 'nets',
@@ -4069,7 +4925,7 @@ export async function POST(req: NextRequest) {
               let pendingData: OddsGame[] = []
               try {
                 pendingData = await withHardTimeout(
-                  fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+                  fetchOdds(sport, requestedOddsMarkets, {
                     live: false,
                     teamFilter: teamFilterList
                   }),
@@ -4079,7 +4935,7 @@ export async function POST(req: NextRequest) {
               } catch (firstErr) {
                 console.log(`[DEBUG] Pending fetch timed out for ${sport}, retrying once without team filter`)
                 pendingData = await withHardTimeout(
-                  fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+                  fetchOdds(sport, requestedOddsMarkets, {
                     live: false,
                     teamFilter: undefined
                   }),
@@ -4094,7 +4950,7 @@ export async function POST(req: NextRequest) {
               if (fetchLive) {
                 try {
                   liveData = await withHardTimeout(
-                    fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+                    fetchOdds(sport, requestedOddsMarkets, {
                       live: true,
                       teamFilter: teamFilterList
                     }),
@@ -4252,16 +5108,32 @@ export async function POST(req: NextRequest) {
               h2h: 'Moneyline',
               spreads: 'Spread',
               totals: 'Total',
+              totals_1h: '1H Total',
+              totals_2h: '2H Total',
+              totals_q1: 'Q1 Total',
+              totals_q2: 'Q2 Total',
+              totals_q3: 'Q3 Total',
+              totals_q4: 'Q4 Total',
             }
 
-            const PRIORITY_MARKETS = ['h2h', 'spreads', 'totals']
+            const PRIORITY_MARKETS = [
+              'h2h',
+              'spreads',
+              'totals',
+              'totals_1h',
+              'totals_2h',
+              'totals_q1',
+              'totals_q2',
+              'totals_q3',
+              'totals_q4',
+            ]
 
             const formatNumber = (value: number) => {
               return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0+$/, '')
             }
 
             const formatAmericanOdds = (value?: number) => {
-              if (value == null || !isFinite(value)) return 'ï¿½'
+              if (value == null || !isFinite(value)) return '+»-+-+'
               return value > 0 ? `+${value}` : String(value)
             }
 
@@ -4282,7 +5154,7 @@ export async function POST(req: NextRequest) {
                 const pointText = formatSpreadPoint(outcome?.point)
                 return pointText ? `${pointText} (${priceText})` : priceText
               }
-              if (marketKey === 'totals') {
+              if (marketKey.startsWith('totals')) {
                 const lineText = formatTotalPoint(outcome?.point)
                 return lineText ? `${lineText} (${priceText})` : priceText
               }
@@ -4363,7 +5235,7 @@ export async function POST(req: NextRequest) {
                 pushIfPresent(awayTeam)
                 pushIfPresent(homeTeam)
                 pushIfPresent('Draw')
-              } else if (marketKey === 'totals') {
+              } else if (marketKey.startsWith('totals')) {
                 pushIfPresent('Over')
                 pushIfPresent('Under')
               }
@@ -4453,7 +5325,7 @@ export async function POST(req: NextRequest) {
               const body = tableRows
                 .map((row) => {
                   const cells = bookColumns.map((col) =>
-                    escapeTableCell(row.values[col.key] ?? 'ï¿½')
+                    escapeTableCell(row.values[col.key] ?? '+»-+-+')
                   )
                   const marketLabel = row.marketLabel ? escapeTableCell(row.marketLabel) : '&nbsp;'
                   return `| ${marketLabel} | ${escapeTableCell(row.teamLabel)} | ${cells.join(' | ')} |`
@@ -4464,7 +5336,7 @@ export async function POST(req: NextRequest) {
             }
 
             const hasTotalsMarket = (book: { markets: Array<{ key: string }> }) =>
-              book.markets.some((m) => m.key === 'totals')
+              book.markets.some((m) => m.key.startsWith('totals'))
 
             const ensureTotalsInSelection = (
               books: Array<{ name: string; link?: string; markets: any[] }>,
@@ -4573,7 +5445,17 @@ export async function POST(req: NextRequest) {
 
             // Compute automatic best-book highlights across all books per market/outcome
             const bestValueLines: string[] = []
-            const marketsOfInterest = ['h2h', 'spreads', 'totals']
+            const marketsOfInterest = [
+              'h2h',
+              'spreads',
+              'totals',
+              'totals_1h',
+              'totals_2h',
+              'totals_q1',
+              'totals_q2',
+              'totals_q3',
+              'totals_q4',
+            ]
             for (const sport of formattedOdds) {
               for (const game of sport.games) {
                 const bestByMarket: Record<string, Record<string, { book: string; price: number; point?: number }>> = {}
@@ -4742,7 +5624,7 @@ ${statsEnrichment}
                       .map((g) => {
                         const [a, b] = g.competitors || []
                         const matchup = a && b ? `${a.name} @ ${b.name}` : g.shortName || 'Game'
-                        return `- ${matchup} â€” ${toLocal(g.startTime)}`
+                        return `- ${matchup} +óGé¼GÇ¥ ${toLocal(g.startTime)}`
                       })
                       .join('\n')
                 }
@@ -4845,15 +5727,6 @@ ${statsEnrichment}
   const llmInitialStart = Date.now()
 
   const wantsTeamInsightsOnly = /team insight|team insights|advanced stats|more info|deeper (stats|info)/i.test(message)
-  const sportHintFromMessage = (msg: string): string | undefined => {
-    const lower = msg.toLowerCase()
-    if (lower.includes('mlb') || lower.includes('baseball')) return 'baseball_mlb'
-    if (lower.includes('nhl') || lower.includes('hockey')) return 'icehockey_nhl'
-    if (lower.includes('nfl') || lower.includes('football')) return 'americanfootball_nfl'
-    if (lower.includes('nba') || lower.includes('basketball')) return 'basketball_nba'
-    return undefined
-  }
-  const sportHint = sportHintFromMessage(message)
 
   if (
     wantsTeamInsightsOnly &&
@@ -5075,8 +5948,34 @@ ${statsEnrichment}
             .join('; ')
         }
 
-        const parseAtsRecord = (record?: string | null) => {
+        const parseAtsRecord = (record?: string | { formatted?: string; wins?: number; losses?: number; pushes?: number } | null) => {
           if (!record) return null
+          if (typeof record === 'object') {
+            const winsRaw = (record as any).wins
+            const lossesRaw = (record as any).losses
+            const pushesRaw = (record as any).pushes
+            const wins = Number(winsRaw)
+            const losses = Number(lossesRaw)
+            const pushes = Number.isFinite(Number(pushesRaw)) ? Number(pushesRaw) : 0
+            if (Number.isFinite(wins) && Number.isFinite(losses)) {
+              const total = wins + losses
+              const winPct = total > 0 ? wins / total : null
+              return { wins, losses, pushes, winPct }
+            }
+            const formatted = (record as any).formatted
+            if (typeof formatted === 'string') {
+              const match = formatted.match(/(\d+)-(\d+)(?:-(\d+))?/)
+              if (match) {
+                const fWins = Number(match[1])
+                const fLosses = Number(match[2])
+                const fPushes = match[3] ? Number(match[3]) : 0
+                const total = fWins + fLosses
+                const winPct = total > 0 ? fWins / total : null
+                return { wins: fWins, losses: fLosses, pushes: fPushes, winPct }
+              }
+            }
+            return null
+          }
           const match = record.match(/(\d+)-(\d+)(?:-(\d+))?/)
           if (!match) return null
           const wins = Number(match[1])
@@ -5407,7 +6306,7 @@ ${statsEnrichment}
             msgLower.match(/mlb|baseball/) ? 'mlb' :
             msgLower.match(/nhl|hockey/) ? 'nhl' :
             'nba'
-          const season = getSeasonYearForSport(sportGuess as any)
+          const season = getEspnSeasonYearForLogs(sportGuess)
 
           if (playerName) {
             const athleteSearch = await searchAthlete(sportGuess as any, playerName)
@@ -5608,22 +6507,26 @@ ${statsEnrichment}
       if (espnToolResolvers[functionName]) {
         functionResult = await espnToolResolvers[functionName](functionArgs)
       } else if (functionName === 'settle_bet') {
-        const { data: pendingBets } = await supabase
-          .from('bets')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('status', 'pending')
-          .order('placed_at', { ascending: false })
-
-        // Find the bet matching the game description
-        const matchingBet = pendingBets?.find((bet: any) =>
-          bet.game_description.toLowerCase().includes(functionArgs.game_description.toLowerCase())
-        )
-
-        if (!matchingBet) {
-          functionResult = { success: false, error: 'No pending bet found for that game' }
+        if (!supabase) {
+          functionResult = { success: false, error: 'Supabase is not configured.' }
         } else {
-          functionResult = await settleBet(supabase, userId, matchingBet.id, functionArgs.result)
+          const { data: pendingBets } = await supabase
+            .from('bets')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('status', 'pending')
+            .order('placed_at', { ascending: false })
+
+          // Find the bet matching the game description
+          const matchingBet = pendingBets?.find((bet: any) =>
+            bet.game_description.toLowerCase().includes(functionArgs.game_description.toLowerCase())
+          )
+
+          if (!matchingBet) {
+            functionResult = { success: false, error: 'No pending bet found for that game' }
+          } else {
+            functionResult = await settleBet(supabase, userId, matchingBet.id, functionArgs.result)
+          }
         }
       } else if (functionName === 'log_bet') {
         functionResult = await logBet(supabase, userId, functionArgs, conversationId)
@@ -5735,7 +6638,7 @@ ${statsEnrichment}
                 // If missing FGA/FTA, derive from gamelog averages
                 if ((adv.tsPct == null || adv.efgPct == null) && playerName) {
                   try {
-                    const seasonYear = getSeasonYearForSport('nba')
+                    const seasonYear = getEspnSeasonYearForLogs('nba')
                     const searchHit = await searchPlayer(playerName, 'basketball_nba')
                     const playerId = (searchHit as any)?.id || (searchHit as any)?.athleteId
                     if (playerId) {
@@ -5954,12 +6857,8 @@ ${statsEnrichment}
                 formatted = 'No player props available for the specified criteria.'
               }
 
-              // Embed structured data as hidden JSON block for parser
               if (propsData.data && propsData.data.length > 0) {
-                console.log('[CHAT API] Adding structured data for', propsData.data.length, 'props')
-                console.log('[CHAT API] First prop markets:', Object.keys(propsData.data[0]?.markets || {}))
-                formatted += `\n\n<!-- STRUCTURED_PROPS_DATA:${JSON.stringify(propsData.data)} -->`
-                console.log('[CHAT API] Formatted length after adding comment:', formatted.length)
+                formatted += `\n${buildDataSourceLine(['SBD'])}`
               }
 
               functionResult = {
@@ -6054,6 +6953,10 @@ ${statsEnrichment}
         }
       } else if (functionName === 'save_custom_model') {
         try {
+          if (!supabase) {
+            functionResult = { success: false, error: 'Supabase is not configured.' }
+            return
+          }
           const statsInput = buildStatInputs(functionArgs.stats)
           const hierarchy = normalizeHierarchyInput(functionArgs.hierarchy)
           const savedModel = await saveCustomModel(supabase, userId, {
@@ -6088,6 +6991,10 @@ ${statsEnrichment}
         }
       } else if (functionName === 'list_custom_models') {
         try {
+          if (!supabase) {
+            functionResult = { success: false, error: 'Supabase is not configured.' }
+            return
+          }
           const limit = functionArgs.limit || 5
           const models = await listCustomModels(supabase, userId, limit)
 
@@ -6104,6 +7011,10 @@ ${statsEnrichment}
         }
       } else if (functionName === 'apply_custom_model') {
         try {
+          if (!supabase) {
+            functionResult = { success: false, error: 'Supabase is not configured.' }
+            return
+          }
           let modelRecord: CustomModelRow | null = null
           if (functionArgs.model_id) {
             const { data, error } = await supabase
@@ -6469,10 +7380,10 @@ ${statsEnrichment}
         })
 
         const text = completion.choices[0]?.message?.content?.trim()
-        return streamTextResponse(text || 'Model-style projection unavailableâ€”please provide more structured stats.')
+        return streamTextResponse(text || 'Model-style projection unavailable+óGé¼GÇ¥please provide more structured stats.')
       } catch (err: any) {
         console.error('[MODEL_EMULATION] Failed:', err?.message || err)
-        return streamTextResponse('I couldnâ€™t run that model-like projection. Please share the matchup stats and target again.')
+        return streamTextResponse('I couldn+óGé¼Gäót run that model-like projection. Please share the matchup stats and target again.')
       }
     }
 
@@ -6551,12 +7462,20 @@ ${statsEnrichment}
         if (mentionedTeams.length) {
           params.set('team', mentionedTeams.join(','))
         }
-        const playerName = extractPlayerName(message)
+        let playerName = extractPlayerName(message)
+        if (playerName && /\b(player|prop|props)\b/i.test(playerName)) {
+          const cleanedMessage = message
+            .replace(/\bplayer props?\b/gi, '')
+            .replace(/\bprops?\b/gi, '')
+            .trim()
+          const altName = extractPlayerName(cleanedMessage)
+          playerName = altName && !/\b(player|prop|props)\b/i.test(altName) ? altName : undefined
+        }
         if (playerName) {
           params.set('player', playerName)
           console.log(`[PLAYER_PROPS] Player filter applied: ${playerName}`)
         } else if (!mentionedTeams.length) {
-          return streamTextResponse('I can pull player propsâ€”tell me the player name (and team if you\'d like) to narrow it down.')
+          return streamTextResponse('I can pull player props. Tell me the player name (and team if you\'d like) to narrow it down.')
         }
         const propsRes = await fetch(`${baseUrl}/api/player-props?${params.toString()}`, { cache: 'no-store' })
         const propsData = await propsRes.json()
@@ -6592,13 +7511,7 @@ ${statsEnrichment}
             formatted += `\n`
           }
 
-          // Embed structured data as hidden JSON block for parser
-          if (propsData.data && propsData.data.length > 0) {
-            console.log('[PLAYER_PROPS_SHORTCUT] Adding structured data for', propsData.data.length, 'props')
-            console.log('[PLAYER_PROPS_SHORTCUT] First prop markets:', Object.keys(propsData.data[0]?.markets || {}))
-            formatted += `\n\n<!-- STRUCTURED_PROPS_DATA:${JSON.stringify(propsData.data)} -->`
-            console.log('[PLAYER_PROPS_SHORTCUT] Formatted length after adding comment:', formatted.length)
-          }
+          formatted += `\n${buildDataSourceLine(['SBD'])}`
         } else if (!propsRes.ok) {
           formatted = propsData?.error || 'Failed to fetch player props.'
         }
@@ -6858,6 +7771,9 @@ ${statsEnrichment}
     );
   }
 }
+
+
+
 
 
 

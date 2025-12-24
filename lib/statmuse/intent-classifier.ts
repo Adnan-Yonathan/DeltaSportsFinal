@@ -41,10 +41,27 @@ export async function processUnifiedQuery(
   if (preprocessed.matched && preprocessed.queryType === 'player_stats' && preprocessed.playerName) {
     try {
       const { executeStaticPlayerStats } = await import('./static-data-tools')
-      const result = await executeStaticPlayerStats({ player: preprocessed.playerName })
+      const result = await executeStaticPlayerStats({
+        player: preprocessed.playerName,
+        stats: preprocessed.stats,
+      })
 
       if (!result.error) {
         console.log('[INTENT-CLASSIFIER] Direct execution successful for player stats')
+        if (result.stats && Object.keys(result.stats).length === 1) {
+          const [[label, value]] = Object.entries(result.stats)
+          const formattedValue =
+            typeof value === 'number'
+              ? /pct|%/i.test(label)
+                ? `${value.toFixed(1)}%`
+                : value.toFixed(1)
+              : String(value)
+          return {
+            reply: `${result.player} ${label}: ${formattedValue}`,
+            data: { playerStats: result },
+            toolsUsed: ['getStaticPlayerStats'],
+          }
+        }
         return {
           reply: result.formatted || `Stats for ${result.player} (${result.team}):\n\n${JSON.stringify(result.stats, null, 2)}`,
           data: { playerStats: result },
@@ -59,10 +76,27 @@ export async function processUnifiedQuery(
   if (preprocessed.matched && preprocessed.queryType === 'team_stats' && preprocessed.teamName) {
     try {
       const { executeStaticTeamStats } = await import('./static-data-tools')
-      const result = await executeStaticTeamStats({ team: preprocessed.teamName })
+      const result = await executeStaticTeamStats({
+        team: preprocessed.teamName,
+        stats: preprocessed.stats,
+      })
 
       if (!result.error) {
         console.log('[INTENT-CLASSIFIER] Direct execution successful for team stats')
+        if (result.stats && Object.keys(result.stats).length === 1) {
+          const [[label, value]] = Object.entries(result.stats)
+          const formattedValue =
+            typeof value === 'number'
+              ? /pct|%/i.test(label)
+                ? `${value.toFixed(1)}%`
+                : value.toFixed(1)
+              : String(value)
+          return {
+            reply: `${result.team} ${label}: ${formattedValue}`,
+            data: { teamStats: result },
+            toolsUsed: ['getStaticTeamStats'],
+          }
+        }
         return {
           reply: result.formatted || `Stats for ${result.team}:\n\n${JSON.stringify(result.stats, null, 2)}`,
           data: { teamStats: result },

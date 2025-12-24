@@ -370,8 +370,20 @@ export const searchAthlete = async (sport: SportKey, query: string, limit = 5) =
   const items: any[] = data?.items || []
   if (!items.length) return null
   const first = items[0]
+  let id: string | undefined = first?.id ? String(first.id) : undefined
+  if (!id && first?.$ref) {
+    try {
+      const refUrl = new URL(first.$ref)
+      id = refUrl.pathname.split('/').pop()
+    } catch {
+      id = String(first.$ref).split('/').pop()
+    }
+  }
+  if (id && id.includes('?')) {
+    id = id.split('?')[0]
+  }
   return {
-    id: first?.id ? String(first.id) : first?.$ref?.split('/').pop(),
+    id,
     items,
   }
 }

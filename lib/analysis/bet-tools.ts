@@ -177,7 +177,9 @@ export function buildPickGuidanceResponse(opts: {
 export function buildAnalysisResponse(opts: {
   title: string
   marketLabel?: string
+  inputs?: string[]
   snapshotLines: string[]
+  deltas?: string[]
   edge: EdgeAssessment
   nextActions: string[]
   missingInfo?: string[]
@@ -188,8 +190,14 @@ export function buildAnalysisResponse(opts: {
 
   const lines: string[] = [
     header,
+    ...(opts.inputs && opts.inputs.length
+      ? ['\nInputs', ...opts.inputs.map((line) => `- ${line}`)]
+      : []),
     '\nMarket snapshot',
     ...opts.snapshotLines.map((line) => `- ${line}`),
+    ...(opts.deltas && opts.deltas.length
+      ? ['\nDeltas', ...opts.deltas.map((line) => `- ${line}`)]
+      : []),
     '\nEdge check',
     `- Verdict: ${opts.edge.verdict}`,
     `- Why: ${opts.edge.reason}`,

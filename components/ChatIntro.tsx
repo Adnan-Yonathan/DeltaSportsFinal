@@ -15,6 +15,7 @@ interface ChatIntroProps {
 
 export default function ChatIntro({ conversationId, userId, onMessageSent }: ChatIntroProps) {
   const [sending, setSending] = useState(false)
+  const [selectedCapability, setSelectedCapability] = useState<string | null>(null)
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -37,6 +38,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
           message,
           conversationId,
           userId,
+          capability: selectedCapability,
         }),
       })
 
@@ -68,6 +70,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
       alert('Failed to send message. Please try again.')
     } finally {
       setSending(false)
+      setSelectedCapability(null)
     }
   }
 
@@ -101,46 +104,55 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 auto-rows-fr">
           {[
             {
+              id: "player_profiles",
               title: "Player Profiles",
               description: "Access player stats, advanced metrics, and projections vs specific teams",
               prompt: "how many times has lebron scored 18 points this season?"
             },
             {
+              id: "team_profiles",
               title: "Team Profiles",
               description: "Get comprehensive team stats, trends, and performance metrics",
               prompt: "what is the thunders average margin of victory"
             },
             {
+              id: "line_shopping",
               title: "Line Shopping",
               description: "Compare lines from every major US sportsbook for any sporting event",
               prompt: "which book has the best spread for the lakers game"
             },
             {
+              id: "edge_factors",
               title: "Edge Factors",
               description: "Advanced factors with high impact: travel distance, rest records, player matchups",
               prompt: "what is the knicks record when traveling further than 500 miles?"
             },
             {
+              id: "live_betting",
               title: "Live Betting",
               description: "AI-projected live spreads based on game flow, momentum, and in-game factors",
               prompt: "what is your projected live line in the spurs game?"
             },
             {
+              id: "betting_trends",
               title: "Betting Trends",
               description: "Recent records vs spreads, prop covers, and public/sharp money splits",
               prompt: "what is the Celtics record ATS this season?"
             },
             {
+              id: "pick_guidance",
               title: "Pick Guidance",
               description: "Walk through the best bets, tools, and edge signals for a matchup",
               prompt: "what gives me the most edge tonight?"
             },
             {
+              id: "market_analysis",
               title: "Market Analysis",
               description: "Break down matchups with splits, injuries, stats, and edge alerts",
               prompt: "analyze the thunder spread"
             },
             {
+              id: "edge_awareness",
               title: "Edge Awareness",
               description: "Flag when a line or prop doesn’t line up with the data",
               prompt: "does this lebron points line make sense?"
@@ -155,6 +167,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
                   textarea.value = capability.prompt
                   textarea.focus()
                 }
+                setSelectedCapability(capability.id)
               }}
             className="group text-left p-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-emerald-500/30 transition-all h-full min-h-[78px]"
             >

@@ -296,7 +296,7 @@ const parseTeams = (): TeamStats[] => {
   const teams: TeamStats[] = []
   for (const line of lines) {
     const cells = line.split(',')
-    if (cells.length < 33) continue
+    if (cells.length < 32) continue
 
     const [
       _rk,

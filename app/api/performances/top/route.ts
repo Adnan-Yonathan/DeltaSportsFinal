@@ -46,8 +46,11 @@ const STAR_PLAYERS: Record<LeagueKey, string[]> = {
 }
 
 const toNumber = (val: any): number | null => {
+  if (val == null) return null
   if (typeof val === "number") return Number.isFinite(val) ? val : null
-  const num = Number(String(val).replace(/[^\d.-]/g, ""))
+  const stripped = String(val).replace(/[^\d.-]/g, "")
+  if (!stripped) return null
+  const num = Number(stripped)
   return Number.isFinite(num) ? num : null
 }
 
@@ -131,7 +134,7 @@ const readStatValue = (stats: any, keys: string[]): number | null => {
       if (!entry) continue
       const label = entry.name || entry.shortDisplayName || entry.displayName || entry.abbrev || entry.label
       if (!label || !tryMatch(label)) continue
-      const raw = firstDefined(entry.value, entry.displayValue, entry.stat, entry.amount)
+      const raw = firstDefined(entry.perGameValue, entry.perGame, entry.value, entry.displayValue, entry.stat, entry.amount)
       const num = toNumber(raw)
       if (num != null) return num
     }
@@ -143,6 +146,10 @@ const readStatValue = (stats: any, keys: string[]): number | null => {
     }
     if (Array.isArray((stats as any).stats)) {
       const nested = readStatValue((stats as any).stats, keys)
+      if (nested != null) return nested
+    }
+    if (Array.isArray((stats as any).splits?.categories)) {
+      const nested = readStatValue((stats as any).splits.categories, keys)
       if (nested != null) return nested
     }
     if (Array.isArray((stats as any).categories)) {
@@ -207,6 +214,12 @@ const collectStatPayloads = (stats: any) => {
       }
     }
   }
+  if (Array.isArray(stats?.splits?.categories)) {
+    for (const cat of stats.splits.categories) {
+      push(cat?.stats)
+      push(cat?.statistics)
+    }
+  }
 
   return payloads
 }
@@ -219,19 +232,39 @@ const extractSeasonAverages = (stats: any) => {
   let threes: number | null = null
 
   for (const payload of payloads) {
-    if (pts == null) pts = readStatValue(payload, ["pointsPerGame", "ptsPerGame", "ppg", "PTS", "points"])
-    if (reb == null) reb = readStatValue(payload, ["reboundsPerGame", "totalReboundsPerGame", "rebPerGame", "rpg", "REB", "TRB"])
-    if (ast == null) ast = readStatValue(payload, ["assistsPerGame", "assistAvg", "astPerGame", "apg", "AST"])
+    if (pts == null) {
+      pts =
+        readStatValue(payload, ["avgPoints", "avgPts", "pointsPerGame", "ptsPerGame", "ppg"]) ??
+        readStatValue(payload, ["PTS", "points"])
+    }
+    if (reb == null) {
+      reb =
+        readStatValue(payload, [
+          "avgRebounds",
+          "avgReb",
+          "reboundsPerGame",
+          "totalReboundsPerGame",
+          "rebPerGame",
+          "rpg",
+        ]) ??
+        readStatValue(payload, ["REB", "TRB"])
+    }
+    if (ast == null) {
+      ast =
+        readStatValue(payload, ["avgAssists", "avgAst", "assistsPerGame", "assistAvg", "astPerGame", "apg"]) ??
+        readStatValue(payload, ["AST"])
+    }
     if (threes == null) {
-      threes = readStatValue(payload, [
-        "threePointFieldGoalsPerGame",
-        "threePointFieldGoalsMadePerGame",
-        "threePointersMadePerGame",
-        "threePMade",
-        "3PM",
-        "3PT",
-        "threesPerGame",
-      ])
+      threes =
+        readStatValue(payload, [
+          "avgThreePointFieldGoalsMade",
+          "avgThreePointFieldGoals",
+          "threePointFieldGoalsPerGame",
+          "threePointFieldGoalsMadePerGame",
+          "threePointersMadePerGame",
+          "threesPerGame",
+        ]) ??
+        readStatValue(payload, ["threePMade", "3PM", "3PT"])
     }
     if (pts != null && reb != null && ast != null && threes != null) break
   }
@@ -259,7 +292,13 @@ const fetchSeasonAveragesForPlayers = async (league: LeagueKey, playerIds: strin
       continue
     }
     for (const row of data || []) {
-      seasonMap.set(String(row.player_provider_id), extractSeasonAverages(row.stats))
+      const averages = extractSeasonAverages(row.stats)
+      const hasPositive =
+        (averages.pts ?? 0) > 0 ||
+        (averages.reb ?? 0) > 0 ||
+        (averages.ast ?? 0) > 0 ||
+        (averages.threes ?? 0) > 0
+      seasonMap.set(String(row.player_provider_id), hasPositive ? averages : { pts: null, reb: null, ast: null, threes: null })
     }
   }
   return seasonMap
@@ -271,11 +310,15 @@ const fetchSeasonAveragesFromEspn = async (league: LeagueKey, playerIds: string[
   const slice = playerIds.slice(0, limit)
   for (const playerId of slice) {
     try {
-      const payload = await getPlayerSeasonStats(league, playerId, season)
-      if (!payload) continue
-      const averages = extractSeasonAverages(payload)
-      if (averages.pts != null || averages.reb != null || averages.ast != null || averages.threes != null) {
-        results.set(String(playerId), averages)
+      const seasonCandidates = [season, season + 1].filter((value, index, arr) => arr.indexOf(value) === index)
+      for (const seasonValue of seasonCandidates) {
+        const payload = await getPlayerSeasonStats(league, playerId, seasonValue)
+        if (!payload) continue
+        const averages = extractSeasonAverages(payload)
+        if (averages.pts != null || averages.reb != null || averages.ast != null || averages.threes != null) {
+          results.set(String(playerId), averages)
+          break
+        }
       }
     } catch (error) {
       console.warn("[performances/top] ESPN season stats failed", error)
@@ -780,7 +823,7 @@ const buildPlayerLeadersFromBox = async (league: LeagueKey, topN = 5, days = 10,
     }
   }
   const summariesWithSeason = summaries.map((p) => {
-    const seasonStats = seasonAverages.get(String(p.id))
+      const seasonStats = seasonAverages.get(String(p.id))
     return {
       ...p,
       seasonAvgPts: seasonStats?.pts ?? null,

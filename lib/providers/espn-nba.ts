@@ -100,7 +100,10 @@ export const fetchAthleteStatistics = async (
   season: number
 ): Promise<EspnStatsResponse | null> => {
   const url = `${ESPN_CORE_BASE}/seasons/${season}/athletes/${athleteId}/statistics`
-  return fetchJson<EspnStatsResponse>(url)
+  const seasonal = await fetchJson<EspnStatsResponse>(url)
+  if (seasonal) return seasonal
+  const fallbackUrl = `${ESPN_CORE_BASE}/athletes/${athleteId}/statistics`
+  return fetchJson<EspnStatsResponse>(fallbackUrl)
 }
 
 export const fetchAthleteGamelog = async (

@@ -107,55 +107,55 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
               id: "player_profiles",
               title: "Player Profiles",
               description: "Access player stats, advanced metrics, and projections vs specific teams",
-              prompt: "how many times has lebron scored 18 points this season?"
+              detail: "NBA player profile with season averages, advanced stats, recent form (last 5-10 games), and matchup context vs an opponent to support prop analysis and edge checks."
             },
             {
               id: "team_profiles",
               title: "Team Profiles",
               description: "Get comprehensive team stats, trends, and performance metrics",
-              prompt: "what is the thunders average margin of victory"
+              detail: "NBA team profile with full basic and advanced stats, pace, offensive/defensive ratings, recent form, and betting context like ATS and split trends when available."
             },
             {
               id: "line_shopping",
               title: "Line Shopping",
               description: "Compare lines from every major US sportsbook for any sporting event",
-              prompt: "which book has the best spread for the lakers game"
+              detail: "Line shop NBA games and props across SBD books for spread, total, moneyline, and player props; returns best price and book-by-book lines."
             },
             {
               id: "edge_factors",
               title: "Edge Factors",
               description: "Advanced factors with high impact: travel distance, rest records, player matchups",
-              prompt: "what is the knicks record when traveling further than 500 miles?"
+              detail: "Surface high-impact NBA situational edges like rest, travel, back-to-back, opponent style, and matchup-specific factors that can move a line."
             },
             {
               id: "live_betting",
               title: "Live Betting",
               description: "AI-projected live spreads based on game flow, momentum, and in-game factors",
-              prompt: "what is your projected live line in the spurs game?"
+              detail: "Live NBA projections with updated fair lines using current score, time, pace, and in-game trends; includes live odds when available."
             },
             {
               id: "betting_trends",
               title: "Betting Trends",
               description: "Recent records vs spreads, prop covers, and public/sharp money splits",
-              prompt: "what is the Celtics record ATS this season?"
+              detail: "NBA betting trends: ATS, O/U, last 5/10, home/away, favorite/underdog splits, plus public vs sharp splits when available."
             },
             {
               id: "pick_guidance",
               title: "Pick Guidance",
               description: "Walk through the best bets, tools, and edge signals for a matchup",
-              prompt: "what gives me the most edge tonight?"
+              detail: "Walk through how Delta helps decide a pick: compare model vs market, highlight key stats, and show what data would change the call."
             },
             {
               id: "market_analysis",
               title: "Market Analysis",
               description: "Break down matchups with splits, injuries, stats, and edge alerts",
-              prompt: "analyze the thunder spread"
+              detail: "Full NBA matchup analysis with odds snapshot, injuries, team stats, recent form, betting splits, and model vs market edge summary."
             },
             {
               id: "edge_awareness",
               title: "Edge Awareness",
-              description: "Flag when a line or prop doesn’t line up with the data",
-              prompt: "does this lebron points line make sense?"
+              description: "Flag when a line or prop does not line up with the data",
+              detail: "Check whether an NBA line or prop looks mispriced vs season averages, recent form, and matchup context; call out specific players/teams and explain why."
             }
           ].map((capability) => (
             <button
@@ -164,7 +164,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
               onClick={() => {
                 const textarea = document.querySelector('textarea')
                 if (textarea) {
-                  textarea.value = capability.prompt
+                  textarea.value = capability.detail
                   textarea.focus()
                 }
                 setSelectedCapability(capability.id)

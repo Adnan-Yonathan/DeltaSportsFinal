@@ -343,10 +343,8 @@ export default function ChatPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-white overflow-hidden">
-      <div className="sticky top-0 z-50">
-        <SimpleHeader rightSlot={headerActions} />
-      </div>
-      <div className="flex flex-1 relative overflow-hidden">
+      <SimpleHeader rightSlot={headerActions} />
+      <div className="flex flex-1 min-h-0 relative overflow-hidden">
         <AnimatePresence>
           {sidebarOpen && (
             <>
@@ -398,10 +396,10 @@ export default function ChatPage() {
           )}
         </AnimatePresence>
 
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 flex flex-col items-center overflow-hidden">
-            <div className="w-full max-w-5xl flex flex-col h-full">
-              <div className="flex-1 overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          <div className="flex-1 flex flex-col items-center overflow-hidden min-h-0">
+            <div className="w-full max-w-5xl flex flex-col h-full min-h-0">
+              <div className="flex-1 overflow-hidden min-h-0 pt-[96px] pb-[160px]">
                 {currentConversationId ? (
                   <ModernMessageList
                     conversationId={currentConversationId}
@@ -434,14 +432,6 @@ export default function ChatPage() {
                 )}
               </div>
 
-              {currentConversationId && hasMessages && (
-                <div className="sticky bottom-0 z-40 border-t border-white/10 bg-black/90 backdrop-blur">
-                  <ModernMessageInput
-                    conversationId={currentConversationId}
-                    userId={user?.id}
-                  />
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -571,8 +561,8 @@ export default function ChatPage() {
               onClick={() => setLiveScoresOpen(false)}
               className="fixed inset-0 bg-[#2f2f2f]/80 z-[60] lg:hidden"
             />
-            <motion.div
-              initial={{ y: '100%' }}
+              <motion.div
+                initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
@@ -598,6 +588,16 @@ export default function ChatPage() {
           </>
         )}
       </AnimatePresence>
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-black/90 backdrop-blur">
+        <div className="mx-auto max-w-5xl px-4 py-3">
+          {currentConversationId && hasMessages && (
+            <ModernMessageInput
+              conversationId={currentConversationId}
+              userId={user?.id}
+            />
+          )}
+        </div>
+      </div>
     </div>
   )
 }

@@ -45,7 +45,7 @@ export function SimpleHeader({ rightSlot }: { rightSlot?: React.ReactNode } = {}
   }, [supabase])
 
   return (
-    <header className="sticky top-4 z-50 w-full">
+    <header className="fixed top-0 left-0 right-0 z-50 w-full bg-black/95 backdrop-blur border-b border-white/10">
       <div className="mx-auto flex w-full max-w-5xl items-center gap-3">
         <nav className="flex h-16 min-w-0 flex-1 items-center justify-between rounded-full border border-white/15 bg-black px-4 backdrop-blur supports-[backdrop-filter]:bg-black/90 text-white">
           <div className="flex items-center gap-3">

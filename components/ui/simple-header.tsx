@@ -59,7 +59,12 @@ export function SimpleHeader({ rightSlot }: { rightSlot?: React.ReactNode } = {}
                   priority
                 />
               </div>
+              <div className="flex items-center gap-2">
               <p className="text-lg font-semibold">Delta Sports</p>
+              <span className="rounded-full border border-white/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-400">
+                Beta
+              </span>
+              </div>
             </Link>
           </div>
 

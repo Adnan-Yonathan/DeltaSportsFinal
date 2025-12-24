@@ -589,7 +589,7 @@ export default function ChatPage() {
         )}
       </AnimatePresence>
       {currentConversationId && hasMessages && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-black/90 backdrop-blur">
+        <div className="fixed bottom-0 left-0 right-0 z-40">
           <div className="mx-auto max-w-5xl px-4 py-3">
             <ModernMessageInput
               conversationId={currentConversationId}

@@ -343,7 +343,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-white overflow-hidden">
-      <SimpleHeader rightSlot={headerActions} />
+      <SimpleHeader rightSlot={headerActions} onLogoClick={() => handleNewConversation()} />
       <div className="flex flex-1 min-h-0 relative overflow-hidden">
         <AnimatePresence>
           {sidebarOpen && (

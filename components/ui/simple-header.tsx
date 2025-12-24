@@ -14,7 +14,13 @@ const navLinks = [
   { label: "Pricing", href: "/pricing" },
 ]
 
-export function SimpleHeader({ rightSlot }: { rightSlot?: React.ReactNode } = {}) {
+export function SimpleHeader({
+  rightSlot,
+  onLogoClick,
+}: {
+  rightSlot?: React.ReactNode
+  onLogoClick?: () => void
+} = {}) {
   const [open, setOpen] = React.useState(false)
   const [showAuthButtons, setShowAuthButtons] = React.useState(false)
   const supabase = React.useMemo(() => createClient(), [])
@@ -46,33 +52,37 @@ export function SimpleHeader({ rightSlot }: { rightSlot?: React.ReactNode } = {}
     }
   }, [supabase])
 
+  const handleLogoClick = () => {
+    onLogoClick ? onLogoClick() : router.push("/")
+  }
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 w-full bg-black/95 backdrop-blur border-b border-white/10">
       <div className="mx-auto flex w-full max-w-5xl items-center gap-3">
         <nav className="flex h-16 min-w-0 flex-1 items-center justify-between rounded-full border border-white/15 bg-black px-4 backdrop-blur supports-[backdrop-filter]:bg-black/90 text-white">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                className="flex items-center gap-2 text-white"
-                onClick={() => router.push("/")}
-              >
-                <div className="relative h-8 w-8">
-                  <Image
-                    src="/Screenshot 2025-12-20 140455.png"
-                    alt="Delta Sports Logo"
-                    fill
-                    className="object-contain"
-                    priority
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <p className="text-lg font-semibold">Delta Sports</p>
-                  <span className="rounded-full border border-white/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-400">
-                    Beta
-                  </span>
-                </div>
-              </button>
-            </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="flex items-center gap-2 text-white"
+              onClick={handleLogoClick}
+            >
+              <div className="relative h-8 w-8">
+                <Image
+                  src="/Screenshot 2025-12-20 140455.png"
+                  alt="Delta Sports Logo"
+                  fill
+                  className="object-contain"
+                  priority
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <p className="text-lg font-semibold">Delta Sports</p>
+                <span className="rounded-full border border-white/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-400">
+                  Beta
+                </span>
+              </div>
+            </button>
+          </div>
 
           <div className="flex items-center gap-2">
             <div className="hidden items-center gap-2 lg:flex">

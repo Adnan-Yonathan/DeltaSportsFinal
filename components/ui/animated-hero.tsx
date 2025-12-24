@@ -24,8 +24,9 @@ function AnimatedHero({
     if (!data?.games) return rotatingTerms
 
     const phrases: string[] = []
-    const upcomingGames = data.games.filter((game: LiveScoreGame) => game.bucket === "upcoming")
-    const liveGames = data.games.filter((game: LiveScoreGame) => game.bucket === "live")
+    const nbaGames = data.games.filter((game: LiveScoreGame) => game.league === "nba")
+    const upcomingGames = nbaGames.filter((game: LiveScoreGame) => game.bucket === "upcoming")
+    const liveGames = nbaGames.filter((game: LiveScoreGame) => game.bucket === "live")
 
     // Add phrases based on live games
     liveGames.forEach((game: LiveScoreGame) => {

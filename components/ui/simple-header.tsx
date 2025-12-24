@@ -66,15 +66,15 @@ export function SimpleHeader({
               className="flex items-center gap-2 text-white"
               onClick={handleLogoClick}
             >
-              <div className="relative h-8 w-8">
-                <Image
-                  src="/Screenshot 2025-12-20 140455.png"
-                  alt="Delta Sports Logo"
-                  fill
-                  className="object-contain"
-                  priority
-                />
-              </div>
+                <div className="relative h-8 w-8">
+                  <Image
+                    src="/delta-logo.png"
+                    alt="Delta Sports Logo"
+                    fill
+                    className="object-contain"
+                    priority
+                  />
+                </div>
               <div className="flex items-center gap-2">
                 <p className="text-lg font-semibold">Delta Sports</p>
                 <span className="rounded-full border border-white/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-400">

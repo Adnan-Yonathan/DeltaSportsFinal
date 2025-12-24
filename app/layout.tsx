@@ -7,6 +7,11 @@ import { Saira_Condensed } from 'next/font/google'
 export const metadata: Metadata = {
   title: 'Delta AI - Intelligent Sports Betting Assistant',
   description: 'AI-powered sports betting analytics, odds tracking, and bankroll management',
+  icons: {
+    icon: '/delta-logo.png',
+    shortcut: '/delta-logo.png',
+    apple: '/delta-logo.png',
+  },
 }
 
 const saira = Saira_Condensed({

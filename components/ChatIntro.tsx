@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { UserPlus } from 'lucide-react'
 import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
 import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
 import { TopPerformancesStrip } from '@/components/ui/top-performances'
@@ -11,14 +12,22 @@ interface ChatIntroProps {
   conversationId: string
   userId: string
   onMessageSent: () => void
+  isGuest?: boolean
+  onSignUpClick?: () => void
 }
 
-export default function ChatIntro({ conversationId, userId, onMessageSent }: ChatIntroProps) {
+export default function ChatIntro({ conversationId, userId, onMessageSent, isGuest = false, onSignUpClick }: ChatIntroProps) {
   const [sending, setSending] = useState(false)
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null)
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
+    // If guest, redirect to sign up
+    if (isGuest && onSignUpClick) {
+      onSignUpClick()
+      return
+    }
 
     const textarea = event.currentTarget.querySelector('textarea')
     const message = textarea?.value?.trim()
@@ -97,7 +106,21 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
         className="text-center max-w-3xl w-full"
       >
         <form onSubmit={handleSubmit} className="w-full relative">
-          <PromptBox name="message" disabled={sending} />
+          {isGuest ? (
+            <button
+              type="button"
+              onClick={onSignUpClick}
+              className="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-500/20 to-emerald-600/20 border border-emerald-500/30 hover:border-emerald-400/50 transition-all group"
+            >
+              <div className="flex items-center justify-center gap-3">
+                <UserPlus className="w-5 h-5 text-emerald-400" />
+                <span className="text-white font-medium">Sign up to start chatting</span>
+              </div>
+              <p className="text-white/50 text-sm mt-2">Create a free account to ask questions about odds, stats, and betting analysis</p>
+            </button>
+          ) : (
+            <PromptBox name="message" disabled={sending} />
+          )}
         </form>
 
         {/* Capabilities */}
@@ -234,6 +257,12 @@ Example queries:
               key={capability.title}
               type="button"
               onClick={() => {
+                // If guest, redirect to sign up
+                if (isGuest && onSignUpClick) {
+                  onSignUpClick()
+                  return
+                }
+
                 const textarea = document.querySelector('textarea') as HTMLTextAreaElement | null
                 if (textarea) {
                   // Use native setter to update the value and trigger React's onChange

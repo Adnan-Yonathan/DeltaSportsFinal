@@ -4,6 +4,7 @@ import React, { useState } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
+import { getMembershipStatus } from "@/lib/utils/membership"
 import { useRouter } from "next/navigation"
 import {
   CanvasRevealEffect,
@@ -32,7 +33,8 @@ export const LoginPage = () => {
       if (error) throw error
 
       if (data.user) {
-        router.push("/")
+        const membership = getMembershipStatus(data.user.user_metadata)
+        router.push(membership.isActive ? "/" : "/pricing")
       }
     } catch (err: any) {
       setError(err.message || "Failed to sign in")

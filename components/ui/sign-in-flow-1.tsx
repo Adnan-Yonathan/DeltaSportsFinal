@@ -594,7 +594,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
       if (error) throw error;
 
       if (data.session) {
-        router.push('/onboarding');
+        router.push('/pricing');
       }
     } catch (err: any) {
       setError(err.message || "Failed to create account");

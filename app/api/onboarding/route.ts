@@ -9,7 +9,6 @@ interface OnboardingData {
   starting_bankroll: number
   unit_size: number
   signup_reasons: string[]
-  subscription_tier?: 'pro' | 'unlimited' | null
 }
 
 export async function POST(request: NextRequest) {
@@ -113,7 +112,6 @@ export async function POST(request: NextRequest) {
         current_bankroll: body.starting_bankroll,
         unit_size: body.unit_size,
         signup_reasons: body.signup_reasons,
-        subscription_tier: body.subscription_tier || null,
         onboarding_completed: true,
         updated_at: new Date().toISOString()
       })

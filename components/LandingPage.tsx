@@ -364,7 +364,7 @@ export default function LandingPage() {
               transition={{ delay: 1.4, duration: 0.5 }}
               className="flex flex-row gap-3"
             >
-              <SoftButton href="/auth/signup" className="min-w-[160px]">
+              <SoftButton href="/chat" className="min-w-[160px]">
                 <span className="flex items-center justify-center gap-1">
                   <TextEffect per="char" preset="fade" delay={1.6}>
                     Talk To Delta

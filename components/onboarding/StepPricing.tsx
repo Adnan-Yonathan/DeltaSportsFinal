@@ -10,36 +10,62 @@ interface StepPricingProps {
   onValidation: (isValid: boolean) => void
 }
 
+const STRIPE_LINKS = {
+  proTrial: "https://buy.stripe.com/fZu7sE6OY4Ct2Nr3Vyawo00",
+  proMonthly: "https://buy.stripe.com/bJe6oAa1aglbds53Vyawo03",
+  proAnnual: "https://buy.stripe.com/28E5kw8X6fh74VzgIkawo04",
+  unlimitedMonthly: "https://buy.stripe.com/14A7sE1uE6KBfAd4ZCawo01",
+  unlimitedAnnual: "https://buy.stripe.com/aFa3coc9i8SJ0Fj3Vyawo02",
+}
+
 const PLANS = [
+  {
+    id: "pro_trial",
+    name: "Pro Trial",
+    monthlyPrice: 0,
+    yearlyPrice: 0,
+    description: "Free 7-day trial. No card required.",
+    features: [
+      "25 messages per day",
+      "Live score tracking",
+      "Live odds tracking",
+    ],
+    highlighted: false,
+    badge: "Trial",
+    checkoutMonthly: STRIPE_LINKS.proTrial,
+    checkoutYearly: STRIPE_LINKS.proTrial,
+  },
   {
     id: "pro",
     name: "Pro",
-    monthlyPrice: 25,
-    yearlyPrice: 15,
-    description: "Perfect for serious bettors",
+    monthlyPrice: 29,
+    yearlyPrice: 9,
+    description: "Full access to all core features.",
     features: [
-      "100 AI messages per week",
-      "Live odds from 10+ books",
-      "Advanced statistics",
+      "25 messages per day",
       "Live score tracking",
-      "Smart line shopping",
+      "Live odds tracking",
     ],
     highlighted: true,
+    badge: "Most Popular",
+    checkoutMonthly: STRIPE_LINKS.proMonthly,
+    checkoutYearly: STRIPE_LINKS.proAnnual,
   },
   {
     id: "unlimited",
     name: "Unlimited",
-    monthlyPrice: 149,
-    yearlyPrice: 99,
-    description: "For professional bettors",
+    monthlyPrice: 199,
+    yearlyPrice: 83,
+    description: "Unlimited chat and premium features.",
     features: [
-      "Unlimited AI messages",
+      "Unlimited messages",
       "Custom model builder",
-      "Advanced research tools",
-      "Priority support",
+      "VIP support",
       "All Pro features",
     ],
     highlighted: false,
+    checkoutMonthly: STRIPE_LINKS.unlimitedMonthly,
+    checkoutYearly: STRIPE_LINKS.unlimitedAnnual,
   },
 ]
 
@@ -47,9 +73,23 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
   const [isYearly, setIsYearly] = useState(true)
 
   useEffect(() => {
-    // Pricing is optional, always valid
-    onValidation(true)
-  }, [onValidation])
+    // Require a plan selection to proceed
+    onValidation(value !== null)
+  }, [value, onValidation])
+
+  const handleSelectPlan = (planId: string) => {
+    const plan = PLANS.find((p) => p.id === planId)
+    if (!plan) return
+
+    // Set the selected plan
+    onChange(planId)
+
+    // Open checkout in new tab
+    const checkoutUrl = isYearly ? plan.checkoutYearly : plan.checkoutMonthly
+    if (checkoutUrl) {
+      window.open(checkoutUrl, "_blank")
+    }
+  }
 
   return (
     <motion.div
@@ -60,28 +100,28 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
     >
       <div className="text-center space-y-2">
         <h2 className="text-4xl font-bold text-white">Choose Your Plan</h2>
-        <p className="text-white/60">Start your free trial or skip for now</p>
+        <p className="text-white/60">Select a plan to get started</p>
       </div>
 
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         {/* Toggle */}
         <div className="flex justify-center mb-8">
           <div className="inline-flex items-center p-1.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 backdrop-blur">
-            {["Monthly", "Yearly"].map((period) => (
+            {["Monthly", "Annual"].map((period) => (
               <button
                 key={period}
-                onClick={() => setIsYearly(period === "Yearly")}
+                onClick={() => setIsYearly(period === "Annual")}
                 className={`
                   px-6 py-2 text-sm font-medium rounded-full transition-all duration-300
-                  ${(period === "Yearly") === isYearly
+                  ${(period === "Annual") === isYearly
                     ? "bg-white text-black shadow-lg"
                     : "text-white/70 hover:text-white"
                   }
                 `}
               >
                 {period}
-                {period === "Yearly" && (
-                  <span className="ml-2 text-xs text-emerald-600 font-semibold">Save 40%</span>
+                {period === "Annual" && (
+                  <span className="ml-2 text-xs text-emerald-600 font-semibold">Save 70%</span>
                 )}
               </button>
             ))}
@@ -89,17 +129,17 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
         </div>
 
         {/* Plans */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {PLANS.map((plan) => {
             const isSelected = value === plan.id
             const price = isYearly ? plan.yearlyPrice : plan.monthlyPrice
-            const priceLabel = "/month"
+            const priceLabel = plan.id === "pro_trial" ? "" : isYearly ? "/mo (billed annually)" : "/month"
 
             return (
               <motion.div
                 key={plan.id}
                 className={`
-                  relative rounded-2xl border-2 p-6 transition-all
+                  relative rounded-2xl border-2 p-6 transition-all flex flex-col
                   ${isSelected
                     ? "bg-gradient-to-br from-emerald-500/20 via-emerald-500/15 to-emerald-500/5 border-emerald-400/70 ring-4 ring-emerald-400/20 shadow-[0_10px_30px_rgba(16,185,129,0.25)]"
                     : plan.highlighted
@@ -109,20 +149,24 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
                 `}
                 whileHover={{ scale: 1.02 }}
               >
-                {plan.highlighted && !isSelected && (
+                {plan.badge && (
                   <div className="absolute -top-4 left-6">
-                    <div className="px-4 py-1 text-xs font-semibold uppercase tracking-wide bg-white text-black rounded-full shadow-lg">
-                      Most Popular
+                    <div className={`px-4 py-1 text-xs font-semibold uppercase tracking-wide rounded-full shadow-lg ${
+                      plan.highlighted ? "bg-white text-black" : "bg-emerald-500 text-white"
+                    }`}>
+                      {plan.badge}
                     </div>
                   </div>
                 )}
 
-                <div className="mb-6">
+                <div className="mb-6 flex-1">
                   <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
                   <p className="text-white/60 text-sm mb-4">{plan.description}</p>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-bold text-white">${price}</span>
-                    <span className="text-white/60">{priceLabel}</span>
+                    <span className="text-4xl font-bold text-white">
+                      {price === 0 ? "Free" : `$${price}`}
+                    </span>
+                    {priceLabel && <span className="text-white/60">{priceLabel}</span>}
                   </div>
                 </div>
 
@@ -138,9 +182,9 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
                 </div>
 
                 <button
-                  onClick={() => onChange(isSelected ? null : plan.id)}
+                  onClick={() => handleSelectPlan(plan.id)}
                   className={`
-                    w-full py-3 px-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2
+                    w-full py-3 px-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 mt-auto
                     ${isSelected
                       ? "bg-emerald-500 text-white hover:bg-emerald-600"
                       : plan.highlighted
@@ -149,18 +193,12 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
                     }
                   `}
                 >
-                  {isSelected ? "Selected" : "Select Plan"}
+                  {isSelected ? "Selected" : plan.id === "pro_trial" ? "Start Free Trial" : "Select Plan"}
                   {!isSelected && <ArrowRight className="w-4 h-4" />}
                 </button>
               </motion.div>
             )
           })}
-        </div>
-
-        <div className="text-center mt-6">
-          <p className="text-white/40 text-sm">
-            You can skip this step and explore for free, or choose a plan to unlock all features
-          </p>
         </div>
       </div>
     </motion.div>

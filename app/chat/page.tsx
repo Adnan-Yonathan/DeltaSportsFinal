@@ -10,7 +10,8 @@ import { LiveScoresPreview } from '@/components/LiveScoresPreview'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { SimpleHeader } from '@/components/ui/simple-header'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, Activity, Gift, ChevronLeft, ChevronRight } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, Activity, Gift, ChevronLeft, ChevronRight, UserPlus } from 'lucide-react'
+import ChatIntro from '@/components/ChatIntro'
 
 export default function ChatPage() {
   const [user, setUser] = useState<any>(null)
@@ -45,23 +46,22 @@ export default function ChatPage() {
         data: { user },
       } = await supabase.auth.getUser()
 
+      // Allow unauthenticated users to view the chat page
       if (!user) {
-        router.push('/auth/login')
+        setLoading(false)
         return
       }
 
       setUser(user)
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('users')
-        .select('display_name, onboarding_completed')
+        .select('display_name')
         .eq('id', user.id)
         .single()
 
-      // Check if onboarding is completed
-      if (!profile?.onboarding_completed) {
-        router.push('/onboarding')
-        return
+      if (profileError) {
+        console.warn('Profile lookup failed:', profileError.message)
       }
 
       setProfileName(profile?.display_name || user.email || 'Guest')
@@ -227,13 +227,15 @@ export default function ChatPage() {
 
   const headerActions = (
     <div className="flex items-center gap-2 lg:border-l lg:border-white/10 lg:pl-3">
-      <button
-        onClick={() => setSidebarOpen(true)}
-        className="lg:hidden p-2 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors"
-        aria-label="Open chat history"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
+      {user && (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="lg:hidden p-2 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+          aria-label="Open chat history"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+      )}
 
       <button
         onClick={() => router.push('/promos')}
@@ -265,60 +267,70 @@ export default function ChatPage() {
         Live Scores
       </button>
 
-      <div className="relative" ref={profileMenuRef}>
-        <button
-          onClick={() => setProfileMenuOpen((prev) => !prev)}
-          className="h-9 w-9 sm:h-10 sm:w-10 rounded-full border border-[#2a2a2a] hover:border-white/60 overflow-hidden transition-colors"
-          aria-label="Profile menu"
-        >
-          {profileImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={profileImage} alt="Profile" className="h-full w-full object-cover" />
-          ) : (
-            <div className="h-full w-full flex items-center justify-center text-sm font-semibold bg-white/10 text-white">
-              {profileInitials}
-            </div>
-          )}
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleAvatarFileChange}
-        />
-
-        <AnimatePresence>
-          {profileMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.15 }}
-              className="absolute right-0 mt-3 w-60 rounded-2xl border border-[#1f1f1f] bg-black text-white shadow-2xl z-50 overflow-hidden"
-            >
-              <div className="px-4 py-3 border-b border-[#1f1f1f]">
-                <p className="text-sm font-semibold">{fallbackName}</p>
-                <p className="text-xs text-white/60 truncate">{user?.email}</p>
+      {user ? (
+        <div className="relative" ref={profileMenuRef}>
+          <button
+            onClick={() => setProfileMenuOpen((prev) => !prev)}
+            className="h-9 w-9 sm:h-10 sm:w-10 rounded-full border border-[#2a2a2a] hover:border-white/60 overflow-hidden transition-colors"
+            aria-label="Profile menu"
+          >
+            {profileImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={profileImage} alt="Profile" className="h-full w-full object-cover" />
+            ) : (
+              <div className="h-full w-full flex items-center justify-center text-sm font-semibold bg-white/10 text-white">
+                {profileInitials}
               </div>
-              <button
-                onClick={triggerAvatarUpload}
-                className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/5 transition-colors"
+            )}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarFileChange}
+          />
+
+          <AnimatePresence>
+            {profileMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-0 mt-3 w-60 rounded-2xl border border-[#1f1f1f] bg-black text-white shadow-2xl z-50 overflow-hidden"
               >
-                <ImageIcon className="w-4 h-4" />
-                <span>Change Photo</span>
-              </button>
-              <button
-                onClick={handleSignOut}
-                className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-red-300 hover:bg-white/5 border-t border-[#1f1f1f] transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Sign Out</span>
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+                <div className="px-4 py-3 border-b border-[#1f1f1f]">
+                  <p className="text-sm font-semibold">{fallbackName}</p>
+                  <p className="text-xs text-white/60 truncate">{user?.email}</p>
+                </div>
+                <button
+                  onClick={triggerAvatarUpload}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/5 transition-colors"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  <span>Change Photo</span>
+                </button>
+                <button
+                  onClick={handleSignOut}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-red-300 hover:bg-white/5 border-t border-[#1f1f1f] transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      ) : (
+        <button
+          onClick={() => router.push('/auth/signup')}
+          className="flex items-center gap-2 rounded-full bg-[#34d399] px-4 py-2 text-sm font-semibold text-[#0f1f15] hover:bg-[#16a34a] transition-colors"
+        >
+          <UserPlus className="w-4 h-4" />
+          Sign Up
+        </button>
+      )}
     </div>
   )
 
@@ -400,7 +412,18 @@ export default function ChatPage() {
           <div className="flex-1 flex flex-col items-center overflow-hidden min-h-0">
             <div className="w-full max-w-5xl flex flex-col h-full min-h-0">
               <div className="flex-1 overflow-hidden min-h-0 pt-[96px] pb-[160px]">
-                {currentConversationId ? (
+                {!user ? (
+                  // Guest view - show intro with sign-up prompt
+                  <div className="h-full overflow-y-auto">
+                    <ChatIntro
+                      conversationId=""
+                      userId=""
+                      onMessageSent={() => {}}
+                      isGuest={true}
+                      onSignUpClick={() => router.push('/auth/signup')}
+                    />
+                  </div>
+                ) : currentConversationId ? (
                   <ModernMessageList
                     conversationId={currentConversationId}
                     userId={user?.id}

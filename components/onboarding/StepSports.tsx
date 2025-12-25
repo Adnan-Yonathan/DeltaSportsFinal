@@ -11,18 +11,18 @@ interface StepSportsProps {
 }
 
 const SPORTS = [
-  { id: "nfl", name: "NFL", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒâ€¹Ã¢â‚¬Â " },
-  { id: "nba", name: "NBA", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬" },
-  { id: "mlb", name: "MLB", emoji: "ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã‚Â¡Ãƒâ€šÃ‚Â¾" },
-  { id: "nhl", name: "NHL", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢" },
-  { id: "ncaaf", name: "NCAAF", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒâ€¹Ã¢â‚¬Â " },
-  { id: "ncaab", name: "NCAAB", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬" },
-  { id: "soccer", name: "Soccer", emoji: "ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã‚Â¡Ãƒâ€šÃ‚Â½" },
-  { id: "mma", name: "MMA", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â¥Ãƒâ€¦Ã‚Â " },
-  { id: "tennis", name: "Tennis", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â½Ãƒâ€šÃ‚Â¾" },
-  { id: "golf", name: "Golf", emoji: "ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂºÃƒâ€šÃ‚Â³" },
-  { id: "boxing", name: "Boxing", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â¥Ãƒâ€¦Ã‚Â " },
-  { id: "esports", name: "Esports", emoji: "ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â½Ãƒâ€šÃ‚Â®" },
+  { id: "nfl", name: "NFL", emoji: "🏈" },
+  { id: "nba", name: "NBA", emoji: "🏀" },
+  { id: "mlb", name: "MLB", emoji: "⚾" },
+  { id: "nhl", name: "NHL", emoji: "🏒" },
+  { id: "ncaaf", name: "NCAAF", emoji: "🏈" },
+  { id: "ncaab", name: "NCAAB", emoji: "🏀" },
+  { id: "soccer", name: "Soccer", emoji: "⚽" },
+  { id: "mma", name: "MMA", emoji: "🥊" },
+  { id: "tennis", name: "Tennis", emoji: "🎾" },
+  { id: "golf", name: "Golf", emoji: "⛳" },
+  { id: "boxing", name: "Boxing", emoji: "🥊" },
+  { id: "esports", name: "Esports", emoji: "🎮" },
 ]
 
 export function StepSports({ value, onChange, onValidation }: StepSportsProps) {

@@ -10,9 +10,54 @@ import { fetchSbdGamePropsList, resolveSbdLeague, resolveSportKey, formatBookmak
 
 const SPORT_PROP_MARKETS: Record<string, string[]> = {
   basketball_nba: ['points', 'rebounds', 'assists', 'threes'],
-  americanfootball_nfl: ['passing_yards', 'rushing_yards', 'receiving_yards', 'receptions'],
   baseball_mlb: ['hits', 'total_bases', 'rbis', 'runs'],
   icehockey_nhl: ['points', 'shots_on_goal', 'blocked_shots'],
+}
+
+const NFL_PROP_MARKETS_BY_POSITION: Record<string, string[]> = {
+  QB: [
+    'passing_yards',
+    'passing_completions',
+    'passing_attempts',
+    'passing_touchdowns',
+    'interceptions',
+    'rushing_yards',
+    'rushing_touchdowns',
+    'anytime_td',
+  ],
+  RB: [
+    'rushing_yards',
+    'rushing_touchdowns',
+    'receiving_yards',
+    'receptions',
+    'receiving_touchdowns',
+    'anytime_td',
+  ],
+  WR: [
+    'receiving_yards',
+    'receptions',
+    'receiving_touchdowns',
+    'anytime_td',
+  ],
+  TE: [
+    'receiving_yards',
+    'receptions',
+    'receiving_touchdowns',
+    'anytime_td',
+  ],
+  DEFAULT: [
+    'passing_yards',
+    'passing_completions',
+    'passing_attempts',
+    'passing_touchdowns',
+    'interceptions',
+    'rushing_yards',
+    'rushing_touchdowns',
+    'receiving_yards',
+    'receptions',
+    'receiving_touchdowns',
+    'anytime_td',
+  ],
 }
 
 type PropEntry = {
@@ -36,12 +81,34 @@ const normalizeMarketKey = (value: string): string => {
   if (cleaned.includes('rebounds plus assists')) return 'rebounds_assists'
   if (cleaned.includes('blocks plus steals')) return 'blocks_steals'
   if (cleaned.includes('3-point')) return 'threes'
+  if (cleaned.includes('passing completions')) return 'passing_completions'
+  if (cleaned.includes('passing attempts')) return 'passing_attempts'
+  if (cleaned.includes('passing yards')) return 'passing_yards'
+  if (cleaned.includes('passing tds') || cleaned.includes('passing touchdowns')) return 'passing_touchdowns'
+  if (cleaned.includes('interceptions')) return 'interceptions'
+  if (cleaned.includes('rushing yards')) return 'rushing_yards'
+  if (cleaned.includes('rushing tds') || cleaned.includes('rushing touchdowns')) return 'rushing_touchdowns'
+  if (cleaned.includes('receiving yards')) return 'receiving_yards'
+  if (cleaned.includes('receiving tds') || cleaned.includes('receiving touchdowns')) return 'receiving_touchdowns'
+  if (cleaned.includes('receptions')) return 'receptions'
+  if (cleaned.includes('anytime touchdown')) return 'anytime_td'
+  if (cleaned.includes('anytime td')) return 'anytime_td'
   if (cleaned.includes('points')) return 'points'
   if (cleaned.includes('rebounds')) return 'rebounds'
   if (cleaned.includes('assists')) return 'assists'
   if (cleaned.includes('steals')) return 'steals'
   if (cleaned.includes('blocks')) return 'blocks'
   return cleaned.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+}
+
+const resolveNflAllowedMarkets = (entry: any): string[] => {
+  const position =
+    entry?.player?.position?.abbreviation ||
+    entry?.player?.position ||
+    entry?.position ||
+    ''
+  const normalized = String(position).toUpperCase().trim()
+  return NFL_PROP_MARKETS_BY_POSITION[normalized] || NFL_PROP_MARKETS_BY_POSITION.DEFAULT
 }
 
 const parseOddsValue = (value: any): number | null => {
@@ -64,7 +131,12 @@ async function capturePlayerProps() {
   const supabase = createServiceClient()
   const captured_at = new Date().toISOString()
 
-  for (const [sportKey, markets] of Object.entries(SPORT_PROP_MARKETS)) {
+  const sportEntries: Array<[string, string[]]> = [
+    ...Object.entries(SPORT_PROP_MARKETS),
+    ['americanfootball_nfl', []],
+  ]
+
+  for (const [sportKey, markets] of sportEntries) {
     const league = resolveSbdLeague(sportKey)
     if (!league) {
       console.warn(`[PROPS] No SBD league for ${sportKey}, skipping`)
@@ -82,7 +154,11 @@ async function capturePlayerProps() {
       const playerName = entry?.player_name || entry?.player?.name
       if (!playerName) continue
       const marketKey = normalizeMarketKey(entry?.name || '')
-      if (markets.length && !markets.includes(marketKey)) continue
+      const allowedMarkets =
+        sportKey === 'americanfootball_nfl'
+          ? resolveNflAllowedMarkets(entry)
+          : markets
+      if (allowedMarkets.length && !allowedMarkets.includes(marketKey)) continue
 
       const eventId = String(entry?.sport_event?.id || entry?.sport_event || entry?.sde_id || '')
       if (!eventId) continue

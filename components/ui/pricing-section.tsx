@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowRightIcon, CheckIcon } from "@radix-ui/react-icons"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
 
 interface Feature {
   name: string
@@ -23,6 +24,10 @@ export interface PricingTier {
   highlight?: boolean
   badge?: string
   icon: ReactNode
+  checkoutUrlMonthly?: string
+  checkoutUrlYearly?: string
+  planKeyMonthly?: string
+  planKeyYearly?: string
 }
 
 interface PricingSectionProps {
@@ -52,8 +57,36 @@ const badgeStyles = cn(
   "rounded-full shadow-lg"
 )
 
-export function PricingSection({ tiers, className }: PricingSectionProps) {
+export function PricingSection({ tiers, className }: PricingSectionProps) {     
   const [isYearly, setIsYearly] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const supabase = createClient()
+      const { data } = await supabase.auth.getUser()
+      if (data?.user) {
+        setUserId(data.user.id)
+        setUserEmail(data.user.email ?? null)
+      }
+    }
+    loadUser()
+  }, [])
+
+  const buildCheckoutUrl = (baseUrl?: string, planKey?: string) => {
+    if (!baseUrl) return undefined
+    const params = new URLSearchParams()
+    if (userId && planKey) {
+      params.set("client_reference_id", `${userId}:${planKey}`)
+    }
+    if (userEmail) {
+      params.set("prefilled_email", userEmail)
+    }
+    const query = params.toString()
+    if (!query) return baseUrl
+    return `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}${query}`
+  }
 
   return (
     <section
@@ -86,7 +119,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
           {tiers.map((tier) => (
             <div
               key={tier.name}
@@ -149,17 +182,39 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
               </div>
 
               <div className="p-8 pt-0 mt-auto">
-                <Button
-                  className={cn(
-                    "w-full transition-all duration-300",
-                    tier.highlight ? buttonStyles.highlight : buttonStyles.default,
-                  )}
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    {tier.highlight ? "Buy now" : "Get started"}
-                    <ArrowRightIcon className="w-4 h-4" />
-                  </span>
-                </Button>
+                {(() => {
+                  const checkoutUrl = buildCheckoutUrl(
+                    isYearly ? tier.checkoutUrlYearly : tier.checkoutUrlMonthly,
+                    isYearly ? tier.planKeyYearly : tier.planKeyMonthly
+                  )
+                  return (
+                    <Button
+                      asChild={Boolean(checkoutUrl)}
+                      className={cn(
+                        "w-full transition-all duration-300",
+                        tier.highlight ? buttonStyles.highlight : buttonStyles.default,
+                      )}
+                    >
+                      {checkoutUrl ? (
+                        <a
+                          href={checkoutUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <span className="flex items-center justify-center gap-2">
+                            {tier.highlight ? "Buy now" : "Get started"}
+                            <ArrowRightIcon className="w-4 h-4" />
+                          </span>
+                        </a>
+                      ) : (
+                        <span className="flex items-center justify-center gap-2">
+                          {tier.highlight ? "Buy now" : "Get started"}
+                          <ArrowRightIcon className="w-4 h-4" />
+                        </span>
+                      )}
+                    </Button>
+                  )
+                })()}
               </div>
             </div>
           ))}

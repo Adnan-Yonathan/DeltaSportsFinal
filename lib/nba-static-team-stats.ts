@@ -43,6 +43,114 @@ const TEAM_ALIAS_MAP: Record<string, string> = {
   washingtonwizards: 'was',
 }
 
+// Reverse lookup: nickname -> full normalized team name
+const NICKNAME_TO_TEAM: Record<string, string> = {
+  // NBA nicknames
+  hawks: 'atlantahawks',
+  celtics: 'bostonceltics',
+  boston: 'bostonceltics',
+  nets: 'brooklynnets',
+  brooklyn: 'brooklynnets',
+  hornets: 'charlottehornets',
+  charlotte: 'charlottehornets',
+  bulls: 'chicagobulls',
+  chicago: 'chicagobulls',
+  cavs: 'clevelandcavaliers',
+  cavaliers: 'clevelandcavaliers',
+  cleveland: 'clevelandcavaliers',
+  mavs: 'dallasmavericks',
+  mavericks: 'dallasmavericks',
+  dallas: 'dallasmavericks',
+  nuggets: 'denvernuggets',
+  denver: 'denvernuggets',
+  pistons: 'detroitpistons',
+  detroit: 'detroitpistons',
+  warriors: 'goldenstatewarriors',
+  goldenstate: 'goldenstatewarriors',
+  gsw: 'goldenstatewarriors',
+  rockets: 'houstonrockets',
+  houston: 'houstonrockets',
+  pacers: 'indianapacers',
+  indiana: 'indianapacers',
+  clippers: 'losangelesclippers',
+  laclippers: 'losangelesclippers',
+  lac: 'losangelesclippers',
+  lakers: 'losangeleslakers',
+  lalakers: 'losangeleslakers',
+  lal: 'losangeleslakers',
+  grizzlies: 'memphisgrizzlies',
+  memphis: 'memphisgrizzlies',
+  heat: 'miamiheat',
+  miami: 'miamiheat',
+  bucks: 'milwaukeebucks',
+  milwaukee: 'milwaukeebucks',
+  timberwolves: 'minnesotatimberwolves',
+  wolves: 'minnesotatimberwolves',
+  twolves: 'minnesotatimberwolves',
+  minnesota: 'minnesotatimberwolves',
+  pelicans: 'neworleanspelicans',
+  pels: 'neworleanspelicans',
+  neworleans: 'neworleanspelicans',
+  knicks: 'newyorkknicks',
+  nyknicks: 'newyorkknicks',
+  newyork: 'newyorkknicks',
+  thunder: 'oklahomacitythunder',
+  okc: 'oklahomacitythunder',
+  oklahomacity: 'oklahomacitythunder',
+  magic: 'orlandomagic',
+  orlando: 'orlandomagic',
+  sixers: 'philadelphia76ers',
+  '76ers': 'philadelphia76ers',
+  philly: 'philadelphia76ers',
+  philadelphia: 'philadelphia76ers',
+  suns: 'phoenixsuns',
+  phoenix: 'phoenixsuns',
+  blazers: 'portlandtrailblazers',
+  trailblazers: 'portlandtrailblazers',
+  portland: 'portlandtrailblazers',
+  kings: 'sacramentokings',
+  sacramento: 'sacramentokings',
+  spurs: 'sanantoniospurs',
+  sanantonio: 'sanantoniospurs',
+  raptors: 'torontoraptors',
+  toronto: 'torontoraptors',
+  jazz: 'utahjazz',
+  utah: 'utahjazz',
+  wizards: 'washingtonwizards',
+  washington: 'washingtonwizards',
+  // Abbreviations
+  atl: 'atlantahawks',
+  bos: 'bostonceltics',
+  brk: 'brooklynnets',
+  bkn: 'brooklynnets',
+  cho: 'charlottehornets',
+  cha: 'charlottehornets',
+  chi: 'chicagobulls',
+  cle: 'clevelandcavaliers',
+  dal: 'dallasmavericks',
+  den: 'denvernuggets',
+  det: 'detroitpistons',
+  hou: 'houstonrockets',
+  ind: 'indianapacers',
+  mem: 'memphisgrizzlies',
+  mia: 'miamiheat',
+  mil: 'milwaukeebucks',
+  min: 'minnesotatimberwolves',
+  nop: 'neworleanspelicans',
+  nyk: 'newyorkknicks',
+  orl: 'orlandomagic',
+  phi: 'philadelphia76ers',
+  pho: 'phoenixsuns',
+  phx: 'phoenixsuns',
+  por: 'portlandtrailblazers',
+  sac: 'sacramentokings',
+  sas: 'sanantoniospurs',
+  tor: 'torontoraptors',
+  uta: 'utahjazz',
+  was: 'washingtonwizards',
+  wsh: 'washingtonwizards',
+}
+
 const toNumber = (raw: string | undefined) => {
   if (!raw) return null
   const n = Number(raw)
@@ -450,12 +558,79 @@ const TEAMS = parseTeams()
 
 export const getStaticNbaTeams = () => TEAMS
 
+// Reverse lookup: abbreviation -> full team name (for display purposes)
+const ABBR_TO_FULL_NAME: Record<string, string> = {
+  atl: 'Atlanta Hawks',
+  bos: 'Boston Celtics',
+  brk: 'Brooklyn Nets',
+  bkn: 'Brooklyn Nets',
+  cho: 'Charlotte Hornets',
+  cha: 'Charlotte Hornets',
+  chi: 'Chicago Bulls',
+  cle: 'Cleveland Cavaliers',
+  dal: 'Dallas Mavericks',
+  den: 'Denver Nuggets',
+  det: 'Detroit Pistons',
+  gsw: 'Golden State Warriors',
+  hou: 'Houston Rockets',
+  ind: 'Indiana Pacers',
+  lac: 'LA Clippers',
+  lal: 'LA Lakers',
+  mem: 'Memphis Grizzlies',
+  mia: 'Miami Heat',
+  mil: 'Milwaukee Bucks',
+  min: 'Minnesota Timberwolves',
+  nop: 'New Orleans Pelicans',
+  nyk: 'New York Knicks',
+  okc: 'Oklahoma City Thunder',
+  orl: 'Orlando Magic',
+  phi: 'Philadelphia 76ers',
+  pho: 'Phoenix Suns',
+  phx: 'Phoenix Suns',
+  por: 'Portland Trail Blazers',
+  sac: 'Sacramento Kings',
+  sas: 'San Antonio Spurs',
+  tor: 'Toronto Raptors',
+  uta: 'Utah Jazz',
+  was: 'Washington Wizards',
+  wsh: 'Washington Wizards',
+}
+
+export const getFullTeamName = (abbr: string): string => {
+  const key = normalize(abbr)
+  return ABBR_TO_FULL_NAME[key] || abbr
+}
+
 export const findStaticNbaTeam = (identifier?: string): TeamStats[] => {
   if (!identifier) return TEAMS
   const targetRaw = normalize(identifier)
-  const target = TEAM_ALIAS_MAP[targetRaw] || targetRaw
+
+  // First check if it's a known nickname/abbreviation -> get full team name -> get abbreviation
+  const resolvedTeamName = NICKNAME_TO_TEAM[targetRaw]
+  if (resolvedTeamName) {
+    // Get the abbreviation for this team (CSV uses abbreviations as team names)
+    const abbr = TEAM_ALIAS_MAP[resolvedTeamName]
+    if (abbr) {
+      return TEAMS.filter((t) => normalize(t.team) === abbr)
+    }
+    // Fallback to full team name match
+    return TEAMS.filter((t) => normalize(t.team) === resolvedTeamName)
+  }
+
+  // Check if it's a full team name in the alias map -> get abbreviation
+  const abbr = TEAM_ALIAS_MAP[targetRaw]
+  if (abbr) {
+    return TEAMS.filter((t) => normalize(t.team) === abbr)
+  }
+
+  // Direct abbreviation match (e.g., "brk", "lal")
+  const directMatch = TEAMS.filter((t) => normalize(t.team) === targetRaw)
+  if (directMatch.length) return directMatch
+
+  // Fallback: try to match but avoid substring issues like "nets" matching "hornets"
+  // Only match if target is at the END of the team name (nickname position)
   return TEAMS.filter((t) => {
     const n = normalize(t.team)
-    return n === target || n.includes(target) || target.includes(n)
+    return n.endsWith(targetRaw)
   })
 }

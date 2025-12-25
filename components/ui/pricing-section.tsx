@@ -83,6 +83,12 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
     if (userEmail) {
       params.set("prefilled_email", userEmail)
     }
+    // Add success URL to redirect back to our app after checkout
+    const successUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}/stripe/success`
+      : '/stripe/success'
+    params.set("success_url", successUrl)
+
     const query = params.toString()
     if (!query) return baseUrl
     return `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}${query}`

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Check, ArrowRight } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 interface StepPricingProps {
   value: string | null
@@ -71,11 +72,45 @@ const PLANS = [
 
 export function StepPricing({ value, onChange, onValidation }: StepPricingProps) {
   const [isYearly, setIsYearly] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
 
   useEffect(() => {
     // Require a plan selection to proceed
     onValidation(value !== null)
   }, [value, onValidation])
+
+  // Load user ID and email for Stripe checkout identification
+  useEffect(() => {
+    const loadUser = async () => {
+      const supabase = createClient()
+      const { data } = await supabase.auth.getUser()
+      if (data?.user) {
+        setUserId(data.user.id)
+        setUserEmail(data.user.email ?? null)
+      }
+    }
+    loadUser()
+  }, [])
+
+  // Build checkout URL with user identification and success redirect
+  const buildCheckoutUrl = (baseUrl: string, planKey: string) => {
+    const params = new URLSearchParams()
+    if (userId) {
+      params.set("client_reference_id", `${userId}:${planKey}`)
+    }
+    if (userEmail) {
+      params.set("prefilled_email", userEmail)
+    }
+    // Add success URL to redirect back to our app after checkout
+    const successUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}/stripe/success`
+      : '/stripe/success'
+    params.set("success_url", successUrl)
+
+    const query = params.toString()
+    return query ? `${baseUrl}?${query}` : baseUrl
+  }
 
   const handleSelectPlan = (planId: string) => {
     const plan = PLANS.find((p) => p.id === planId)
@@ -84,9 +119,20 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
     // Set the selected plan
     onChange(planId)
 
-    // Open checkout in new tab
-    const checkoutUrl = isYearly ? plan.checkoutYearly : plan.checkoutMonthly
-    if (checkoutUrl) {
+    // Determine plan key for webhook identification
+    let planKey: string
+    if (plan.id === "pro_trial") {
+      planKey = "pro_trial"
+    } else if (plan.id === "pro") {
+      planKey = isYearly ? "pro_annual" : "pro_monthly"
+    } else {
+      planKey = isYearly ? "unlimited_annual" : "unlimited_monthly"
+    }
+
+    // Open checkout with user identification
+    const baseUrl = isYearly ? plan.checkoutYearly : plan.checkoutMonthly
+    if (baseUrl) {
+      const checkoutUrl = buildCheckoutUrl(baseUrl, planKey)
       window.open(checkoutUrl, "_blank")
     }
   }

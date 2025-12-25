@@ -16,6 +16,7 @@ export interface Database {
           display_name: string | null
           starting_bankroll: number
           current_bankroll: number
+          subscription_tier: 'free' | 'pro' | 'unlimited' | null
           created_at: string
           updated_at: string
         }
@@ -25,6 +26,7 @@ export interface Database {
           display_name?: string | null
           starting_bankroll?: number
           current_bankroll?: number
+          subscription_tier?: 'free' | 'pro' | 'unlimited' | null
           created_at?: string
           updated_at?: string
         }
@@ -34,6 +36,7 @@ export interface Database {
           display_name?: string | null
           starting_bankroll?: number
           current_bankroll?: number
+          subscription_tier?: 'free' | 'pro' | 'unlimited' | null
           created_at?: string
           updated_at?: string
         }

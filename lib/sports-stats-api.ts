@@ -382,6 +382,9 @@ type ESPNPlayerSummary = {
   ppg: number | null
   rpg: number | null
   apg: number | null
+  spg: number | null
+  bpg: number | null
+  threepm: number | null
   fgPct: number | null
   threePct: number | null
   seasonLabel: string
@@ -445,6 +448,9 @@ const fetchESPNNBAPlayerStats = async (espnId: string): Promise<ESPNPlayerSummar
       ppg: getVal('PTS'),
       rpg: getVal('REB'),
       apg: getVal('AST'),
+      spg: getVal('STL'),
+      bpg: getVal('BLK'),
+      threepm: getVal('3PM'),
       fgPct: getVal('FG%'),
       threePct: getVal('3P%'),
       seasonLabel,
@@ -478,6 +484,9 @@ export async function getNBAPlayerSeasonStats(playerName: string): Promise<Playe
   if (espnStats.ppg != null) stats.PPG = Number(espnStats.ppg.toFixed(1))
   if (espnStats.rpg != null) stats.RPG = Number(espnStats.rpg.toFixed(1))
   if (espnStats.apg != null) stats.APG = Number(espnStats.apg.toFixed(1))
+  if (espnStats.spg != null) stats.STL = Number(espnStats.spg.toFixed(1))
+  if (espnStats.bpg != null) stats.BLK = Number(espnStats.bpg.toFixed(1))
+  if (espnStats.threepm != null) stats['3PM'] = Number(espnStats.threepm.toFixed(1))
   if (espnStats.fgPct != null) stats.FG_PERCENT = Number(espnStats.fgPct.toFixed(1))
   // Always return a 3P% value (default 0.0 if missing) so the UI can display it consistently
   stats.THREE_PERCENT = Number((espnStats.threePct ?? 0).toFixed(1))
@@ -1665,13 +1674,16 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
     if (!teamIdentifier) return teams
 
     const target = normalizeName(teamIdentifier)
-      return teams.filter((entry) => {
-        const name = normalizeName(entry.team)
-        const abbr = normalizeName((entry as any).teamAbbr || '')
-        return (
-          name.includes(target) ||
-        target.includes(name) ||
-        (abbr && (abbr === target || target.includes(abbr) || abbr.includes(target)))
+    return teams.filter((entry) => {
+      const name = normalizeName(entry.team)
+      const abbr = normalizeName((entry as any).teamAbbr || '')
+      // Fixed matching: avoid substring issues like "nets" matching "hornets"
+      // Match if: exact match, name ends with target (nickname), or abbreviation matches
+      return (
+        name === target ||
+        name.endsWith(target) ||
+        target.endsWith(name) ||
+        (abbr && (abbr === target || abbr.endsWith(target) || target.endsWith(abbr)))
       )
     })
   }
@@ -1680,7 +1692,13 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
     case 'nba':
     case 'basketball_nba': {
       // Prefer static user-provided team table
-      const staticTeams = filterTeams(teamIdentifier ? findStaticNbaTeam(teamIdentifier) : getStaticNbaTeams())
+      const rawStaticTeams = teamIdentifier ? findStaticNbaTeam(teamIdentifier) : getStaticNbaTeams()
+      // Skip filterTeams if findStaticNbaTeam already found a specific team
+      // (findStaticNbaTeam has proper nickname->abbreviation resolution)
+      if (teamIdentifier && rawStaticTeams.length > 0) {
+        return rawStaticTeams
+      }
+      const staticTeams = filterTeams(rawStaticTeams)
       if (staticTeams.length) return staticTeams
 
       try {

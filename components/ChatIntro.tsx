@@ -107,64 +107,146 @@ export default function ChatIntro({ conversationId, userId, onMessageSent }: Cha
               id: "player_profiles",
               title: "Player Profiles",
               description: "Access player stats, advanced metrics, and projections vs specific teams",
-              detail: "NBA player profile with season averages, advanced stats, recent form (last 5-10 games), and matchup context vs an opponent to support prop analysis and edge checks."
+              detail: `PLAYER PROFILES - Get detailed player stats, advanced metrics, and matchup context.
+
+What it does: Returns season averages, advanced stats (TS%, usage, etc.), recent form (last 5-10 games), and performance vs specific opponents.
+
+Example queries:
+• "LeBron James stats"
+• "Jayson Tatum profile vs Celtics"
+• "Wemby season averages and recent form"
+• "Anthony Edwards advanced stats"`
             },
             {
               id: "team_profiles",
               title: "Team Profiles",
               description: "Get comprehensive team stats, trends, and performance metrics",
-              detail: "NBA team profile with full basic and advanced stats, pace, offensive/defensive ratings, recent form, and betting context like ATS and split trends when available."
+              detail: `TEAM PROFILES - Get comprehensive team stats, ratings, and betting trends.
+
+What it does: Returns basic stats (PPG, rebounds, assists), advanced metrics (pace, offensive/defensive ratings, net rating), recent form, and ATS/O-U trends.
+
+Example queries:
+• "Lakers team stats"
+• "Thunder offensive rating and pace"
+• "Celtics defensive stats"
+• "Heat team profile with ATS record"`
             },
             {
               id: "line_shopping",
               title: "Line Shopping",
               description: "Compare lines from every major US sportsbook for any sporting event",
-              detail: "Line shop NBA games and props across SBD books for spread, total, moneyline, and player props; returns best price and book-by-book lines."
+              detail: `LINE SHOPPING - Compare odds across all major US sportsbooks.
+
+What it does: Fetches spread, moneyline, total, and player prop lines from DraftKings, FanDuel, BetMGM, Caesars, and more. Shows best available price and book-by-book comparison.
+
+Example queries:
+• "Lakers vs Celtics odds"
+• "Best line for Heat spread"
+• "Shop Curry points prop"
+• "Compare Thunder moneyline across books"`
             },
             {
-              id: "edge_factors",
-              title: "Edge Factors",
-              description: "Advanced factors with high impact: travel distance, rest records, player matchups",
-              detail: "Surface high-impact NBA situational edges like rest, travel, back-to-back, opponent style, and matchup-specific factors that can move a line."
+              id: "cross_market_ev",
+              title: "Cross Market EV",
+              description: "Find +EV plays where sportsbooks disagree on odds",
+              detail: `CROSS MARKET EV - Find positive expected value opportunities.
+
+What it does: Scans betting markets to find plays where one sportsbook offers significantly better odds than the market consensus. Calculates EV% based on implied probability differences.
+
+Example queries:
+• "Cross market EV opportunities"
+• "Show me +EV plays"
+• "Where do sportsbooks disagree on odds"
+• "Find value bets tonight"`
             },
             {
               id: "live_betting",
               title: "Live Betting",
               description: "AI-projected live spreads based on game flow, momentum, and in-game factors",
-              detail: "Live NBA projections with updated fair lines using current score, time, pace, and in-game trends; includes live odds when available."
+              detail: `LIVE BETTING - Get AI-projected lines for games in progress.
+
+What it does: Calculates fair live spreads and totals using current score, time remaining, pace, and momentum factors. Compares projections to live odds to find edges.
+
+Example queries:
+• "Live projections"
+• "In-game betting lines"
+• "Live betting Lakers game"
+• "Current fair spread for the Celtics game"`
             },
             {
               id: "betting_trends",
               title: "Betting Trends",
               description: "Recent records vs spreads, prop covers, and public/sharp money splits",
-              detail: "NBA betting trends: ATS, O/U, last 5/10, home/away, favorite/underdog splits, plus public vs sharp splits when available."
+              detail: `BETTING TRENDS - Track ATS records, O/U trends, and money splits.
+
+What it does: Shows team records against the spread, over/under trends (last 5/10 games, home/away, favorite/underdog), and public vs sharp betting percentages when available.
+
+Example queries:
+• "Lakers ATS record"
+• "Public vs sharp money on Heat vs Celtics"
+• "Betting splits for Thunder game"
+• "Which teams cover as underdogs"`
             },
             {
               id: "pick_guidance",
               title: "Pick Guidance",
               description: "Walk through the best bets, tools, and edge signals for a matchup",
-              detail: "Walk through how Delta helps decide a pick: compare model vs market, highlight key stats, and show what data would change the call."
+              detail: `PICK GUIDANCE - Get help deciding on a bet with data-driven analysis.
+
+What it does: Walks through the key factors for a matchup - model projections vs market lines, relevant stats, injury impacts, and what would change the recommendation.
+
+Example queries:
+• "Best bet for Lakers vs Celtics"
+• "Should I bet the over tonight"
+• "Who wins Heat vs Thunder"
+• "What's the play on the Knicks game"`
             },
             {
               id: "market_analysis",
               title: "Market Analysis",
               description: "Break down matchups with splits, injuries, stats, and edge alerts",
-              detail: "Full NBA matchup analysis with odds snapshot, injuries, team stats, recent form, betting splits, and model vs market edge summary."
+              detail: `MARKET ANALYSIS - Full matchup breakdown with all relevant data.
+
+What it does: Comprehensive analysis including current odds, injury report, team stats comparison, recent form, betting splits, pace/style matchup factors, and model vs market edge summary.
+
+Example queries:
+• "Analyze Lakers vs Celtics"
+• "Full breakdown of the Heat game"
+• "Matchup analysis Thunder vs Spurs"
+• "Break down tonight's Knicks game"`
             },
             {
               id: "edge_awareness",
               title: "Edge Awareness",
               description: "Flag when a line or prop does not line up with the data",
-              detail: "Check whether an NBA line or prop looks mispriced vs season averages, recent form, and matchup context; call out specific players/teams and explain why."
+              detail: `EDGE AWARENESS - Check if a line or prop looks mispriced.
+
+What it does: Compares betting lines to season averages, recent form, and matchup context. For player props, checks season avg vs last 5 games vs opponent allowed stats. For spreads/totals, compares net ratings to the line.
+
+Example queries:
+• "Edge awareness for Wemby rebounds vs Thunder"
+• "Is there edge on the Lakers spread"
+• "Check value on Curry points prop"
+• "Edge awareness Celtics vs Heat total"`
             }
           ].map((capability) => (
             <button
               key={capability.title}
               type="button"
               onClick={() => {
-                const textarea = document.querySelector('textarea')
+                const textarea = document.querySelector('textarea') as HTMLTextAreaElement | null
                 if (textarea) {
-                  textarea.value = capability.detail
+                  // Use native setter to update the value and trigger React's onChange
+                  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                    window.HTMLTextAreaElement.prototype,
+                    'value'
+                  )?.set
+                  if (nativeInputValueSetter) {
+                    nativeInputValueSetter.call(textarea, capability.detail)
+                  }
+                  // Dispatch input event so React picks up the change
+                  const inputEvent = new Event('input', { bubbles: true })
+                  textarea.dispatchEvent(inputEvent)
                   textarea.focus()
                 }
                 setSelectedCapability(capability.id)

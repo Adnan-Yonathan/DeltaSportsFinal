@@ -137,6 +137,24 @@ Copy `.env.example` to `.env.local` and configure:
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key for server operations |
 | `OPENAI_API_KEY` | OpenAI API key for chat assistant |
 
+### Stripe Configuration (Subscriptions)
+
+| Variable | Purpose |
+| --- | --- |
+| `STRIPE_SECRET_KEY` | Stripe secret key (starts with `sk_live_` or `sk_test_`) |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret (starts with `whsec_`) |
+| `STRIPE_PRICE_PRO_TRIAL` | Price ID for Pro trial plan |
+| `STRIPE_PRICE_PRO_MONTHLY` | Price ID for Pro monthly plan |
+| `STRIPE_PRICE_PRO_ANNUAL` | Price ID for Pro annual plan |
+| `STRIPE_PRICE_UNLIMITED_MONTHLY` | Price ID for Unlimited monthly plan |
+| `STRIPE_PRICE_UNLIMITED_ANNUAL` | Price ID for Unlimited annual plan |
+
+**Important**: Stripe price IDs must start with `price_` (e.g., `price_1ABC123xyz`). Product IDs (`prod_*`) will not work. To get price IDs:
+1. Go to Stripe Dashboard → Products
+2. Select or create a product
+3. Add a price (set amount, billing interval, trial period if needed)
+4. Copy the price ID from the price details
+
 ### Optional Variables
 
 | Variable | Purpose |

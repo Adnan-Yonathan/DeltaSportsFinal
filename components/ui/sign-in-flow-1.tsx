@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { getMembershipStatus } from '@/lib/utils/membership';
 
 import * as THREE from "three";
 
@@ -594,7 +595,9 @@ export const SignInPage = ({ className }: SignInPageProps) => {
       if (error) throw error;
 
       if (data.session) {
-        router.push('/pricing');
+        // Check if user already has an active subscription
+        const membership = getMembershipStatus(data.session.user.user_metadata);
+        router.push(membership.isActive ? '/chat' : '/pricing');
       }
     } catch (err: any) {
       setError(err.message || "Failed to create account");

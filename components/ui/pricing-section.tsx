@@ -1,12 +1,14 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useState, useEffect, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowRightIcon, CheckIcon } from "@radix-ui/react-icons"
 import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
+import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
 
 interface Feature {
   name: string
@@ -63,6 +65,37 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
   const router = useRouter()
   const [isYearly, setIsYearly] = useState(true)
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
+  const [membership, setMembership] = useState<MembershipInfo | null>(null)
+  const [isLoadingMembership, setIsLoadingMembership] = useState(true)
+
+  useEffect(() => {
+    const fetchMembership = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (user) {
+        const membershipInfo = getMembershipStatus(user.user_metadata)
+        setMembership(membershipInfo)
+      }
+      setIsLoadingMembership(false)
+    }
+    fetchMembership()
+  }, [])
+
+  const handleManageSubscription = async () => {
+    setLoadingPlan('manage')
+    try {
+      const res = await fetch('/api/stripe/portal', { method: 'POST' })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      }
+    } catch (err) {
+      console.error('Failed to open billing portal:', err)
+    } finally {
+      setLoadingPlan(null)
+    }
+  }
 
   const handleCheckout = async (planKey: string) => {
     setLoadingPlan(planKey)
@@ -131,7 +164,15 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
           {tiers.map((tier) => {
             // Get the appropriate plan key based on billing period
             const planKey = tier.planKey || (isYearly ? tier.planKeyYearly : tier.planKeyMonthly)
-            const isLoading = loadingPlan === planKey
+            const isLoading = loadingPlan === planKey || loadingPlan === 'manage'
+
+            // Check if this tier is the user's current plan
+            const tierNameLower = tier.name.toLowerCase()
+            const isCurrentPlan = membership?.isActive && (
+              (tierNameLower.includes('unlimited') && membership.tier === 'unlimited') ||
+              (tierNameLower === 'pro' && membership.tier === 'pro' && !membership.isTrial) ||
+              (tierNameLower.includes('trial') && membership.tier === 'pro' && membership.isTrial)
+            )
 
             return (
               <div
@@ -141,10 +182,15 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                   tier.highlight
                     ? "bg-neutral-800/90 border-emerald-300/40 shadow-2xl"
                     : "bg-neutral-850/90 border-emerald-300/15 shadow-lg",
+                  isCurrentPlan && "ring-2 ring-emerald-400",
                   "transition-transform duration-300 hover:-translate-y-1",
                 )}
               >
-                {tier.badge && tier.highlight && (
+                {isCurrentPlan ? (
+                  <div className="absolute -top-4 left-6">
+                    <Badge className={cn(badgeStyles, "bg-emerald-500")}>Current Plan</Badge>
+                  </div>
+                ) : tier.badge && tier.highlight && (
                   <div className="absolute -top-4 left-6">
                     <Badge className={badgeStyles}>{tier.badge}</Badge>
                   </div>
@@ -206,28 +252,51 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                 </div>
 
                 <div className="p-8 pt-0 mt-auto">
-                  <Button
-                    onClick={() => planKey && handleCheckout(planKey)}
-                    disabled={!planKey || isLoading}
-                    className={cn(
-                      "w-full transition-all duration-300",
-                      tier.highlight ? buttonStyles.highlight : buttonStyles.default,
-                    )}
-                  >
-                    <span className="flex items-center justify-center gap-2">
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          {tier.highlight ? "Buy now" : "Get started"}
-                          <ArrowRightIcon className="w-4 h-4" />
-                        </>
+                  {isCurrentPlan ? (
+                    <Button
+                      onClick={handleManageSubscription}
+                      disabled={isLoading}
+                      className={cn(
+                        "w-full transition-all duration-300",
+                        "h-12 bg-white/10 text-white border border-white/20",
+                        "hover:bg-white/20",
                       )}
-                    </span>
-                  </Button>
+                    >
+                      <span className="flex items-center justify-center gap-2">
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Loading...
+                          </>
+                        ) : (
+                          "Manage Subscription"
+                        )}
+                      </span>
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => planKey && handleCheckout(planKey)}
+                      disabled={!planKey || isLoading}
+                      className={cn(
+                        "w-full transition-all duration-300",
+                        tier.highlight ? buttonStyles.highlight : buttonStyles.default,
+                      )}
+                    >
+                      <span className="flex items-center justify-center gap-2">
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            {tier.highlight ? "Buy now" : "Get started"}
+                            <ArrowRightIcon className="w-4 h-4" />
+                          </>
+                        )}
+                      </span>
+                    </Button>
+                  )}
                 </div>
               </div>
             )

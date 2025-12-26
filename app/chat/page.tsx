@@ -10,8 +10,10 @@ import { LiveScoresPreview } from '@/components/LiveScoresPreview'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { SimpleHeader } from '@/components/ui/simple-header'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, Activity, Gift, ChevronLeft, ChevronRight, UserPlus } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, Activity, Gift, ChevronLeft, ChevronRight, UserPlus, Crown, CreditCard } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
+import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
+import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
 
 export default function ChatPage() {
   const [user, setUser] = useState<any>(null)
@@ -24,6 +26,8 @@ export default function ChatPage() {
   const [liveScoresOpen, setLiveScoresOpen] = useState(false)
   const [liveScoresExpanded, setLiveScoresExpanded] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [membership, setMembership] = useState<MembershipInfo | null>(null)
+  const [messagesToday, setMessagesToday] = useState<number>(0)
   const router = useRouter()
   const supabase = createClient()
   const profileMenuRef = useRef<HTMLDivElement | null>(null)
@@ -53,6 +57,16 @@ export default function ChatPage() {
       }
 
       setUser(user)
+
+      // Get membership status from user metadata
+      const membershipInfo = getMembershipStatus(user.user_metadata)
+      setMembership(membershipInfo)
+
+      // Fetch message count for Pro users
+      if (membershipInfo.tier === 'pro' && membershipInfo.isActive) {
+        const count = await countUserMessagesToday(supabase, user.id)
+        setMessagesToday(count)
+      }
 
       const { data: profile, error: profileError } = await supabase
         .from('users')
@@ -304,6 +318,62 @@ export default function ChatPage() {
                   <p className="text-sm font-semibold">{fallbackName}</p>
                   <p className="text-xs text-white/60 truncate">{user?.email}</p>
                 </div>
+                {/* Subscription Status */}
+                {membership && (
+                  <div className="px-4 py-3 border-b border-[#1f1f1f]">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Crown className="w-4 h-4 text-emerald-400" />
+                      <span className="text-sm font-medium">
+                        {membership.tier === 'unlimited' ? 'Unlimited' : 'Pro'}
+                        {membership.isTrial && (
+                          <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-emerald-500/20 text-emerald-400 rounded">
+                            Trial
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    {membership.tier === 'pro' && membership.isActive && (
+                      <p className="text-xs text-white/50">
+                        {messagesToday} / {PRO_DAILY_MESSAGE_LIMIT} messages today
+                      </p>
+                    )}
+                    {membership.tier === 'unlimited' && (
+                      <p className="text-xs text-white/50">Unlimited messages</p>
+                    )}
+                  </div>
+                )}
+                {!membership?.isActive && (
+                  <button
+                    onClick={() => {
+                      setProfileMenuOpen(false)
+                      router.push('/pricing')
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-emerald-400 hover:bg-white/5 transition-colors"
+                  >
+                    <Crown className="w-4 h-4" />
+                    <span>Upgrade Plan</span>
+                  </button>
+                )}
+                {membership?.isActive && (
+                  <button
+                    onClick={async () => {
+                      setProfileMenuOpen(false)
+                      try {
+                        const res = await fetch('/api/stripe/portal', { method: 'POST' })
+                        const data = await res.json()
+                        if (data.url) {
+                          window.location.href = data.url
+                        }
+                      } catch (err) {
+                        console.error('Failed to open billing portal:', err)
+                      }
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/5 transition-colors"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    <span>Manage Subscription</span>
+                  </button>
+                )}
                 <button
                   onClick={triggerAvatarUpload}
                   className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/5 transition-colors"

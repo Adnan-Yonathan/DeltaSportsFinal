@@ -66,10 +66,9 @@ import {
 import { processQuery as processUnifiedQuery } from '@/lib/statmuse/intent-classifier'
 import { unifiedTools } from '@/lib/statmuse/tools'
 import { getMembershipStatus } from '@/lib/utils/membership'
+import { countUserMessagesToday, countUserMessagesTotal, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
 export const runtime = 'nodejs'
 export const maxDuration = 300 // 5 minutes (max for Pro plan)
-
-const PRO_DAILY_MESSAGE_LIMIT = 25
 
 const formatLeagueLabel = (sportKey: string): string => {
   const map: Record<string, string> = {
@@ -864,50 +863,6 @@ async function logMultipleBets(supabase: any, userId: string, bets: any[], conve
     count: results.length,
     message: `Successfully logged ${results.length} bet(s) totaling $${totalStake.toFixed(2)}`,
   }
-}
-
-async function countUserMessagesToday(supabase: any, userId: string) {
-  const startOfDay = new Date()
-  startOfDay.setUTCHours(0, 0, 0, 0)
-
-  const { data: conversations, error: convError } = await supabase
-    .from('conversations')
-    .select('id')
-    .eq('user_id', userId)
-
-  if (convError || !conversations?.length) {
-    return 0
-  }
-
-  const conversationIds = conversations.map((conv: any) => conv.id)
-  const { count } = await supabase
-    .from('messages')
-    .select('id', { count: 'exact', head: true })
-    .in('conversation_id', conversationIds)
-    .eq('role', 'user')
-    .gte('created_at', startOfDay.toISOString())
-
-  return count || 0
-}
-
-async function countUserMessagesTotal(supabase: any, userId: string) {
-  const { data: conversations, error: convError } = await supabase
-    .from('conversations')
-    .select('id')
-    .eq('user_id', userId)
-
-  if (convError || !conversations?.length) {
-    return 0
-  }
-
-  const conversationIds = conversations.map((conv: any) => conv.id)
-  const { count } = await supabase
-    .from('messages')
-    .select('id', { count: 'exact', head: true })
-    .in('conversation_id', conversationIds)
-    .eq('role', 'user')
-
-  return count || 0
 }
 
 // Helper function to settle a bet

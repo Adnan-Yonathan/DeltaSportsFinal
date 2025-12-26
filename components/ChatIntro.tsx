@@ -225,32 +225,32 @@ Example queries:
 • "What's the play on the Knicks game"`
             },
             {
-              id: "market_analysis",
-              title: "Market Analysis",
-              description: "Break down matchups with splits, injuries, stats, and edge alerts",
-              detail: `MARKET ANALYSIS - Full matchup breakdown with all relevant data.
+              id: "matchup_analysis",
+              title: "Matchup Analysis",
+              description: "Team vs team analysis with spread, total, and moneyline edge detection",
+              detail: `MATCHUP ANALYSIS - Full team vs team market analysis.
 
-What it does: Comprehensive analysis including current odds, injury report, team stats comparison, recent form, betting splits, pace/style matchup factors, and model vs market edge summary.
+What it does: Analyzes team matchups with current odds (spread, total, moneyline), team stats comparison, ATS trends, and edge detection based on net rating differentials.
 
 Example queries:
-• "Analyze Lakers vs Celtics"
-• "Full breakdown of the Heat game"
-• "Matchup analysis Thunder vs Spurs"
-• "Break down tonight's Knicks game"`
+• "Matchup analysis Lakers vs Celtics"
+• "Is there an edge on the Lakers vs Rockets game"
+• "Analyze the spread for Heat vs Thunder"
+• "Edge on the Knicks Pacers total"`
             },
             {
-              id: "edge_awareness",
-              title: "Edge Awareness",
-              description: "Flag when a line or prop does not line up with the data",
-              detail: `EDGE AWARENESS - Check if a line or prop looks mispriced.
+              id: "player_analysis",
+              title: "Player Analysis",
+              description: "Analyze player props with season stats, recent form, and opponent context",
+              detail: `PLAYER ANALYSIS - Detailed player prop analysis.
 
-What it does: Compares betting lines to season averages, recent form, and matchup context. For player props, checks season avg vs last 5 games vs opponent allowed stats. For spreads/totals, compares net ratings to the line.
+What it does: Compares player season averages to recent form (last 5 games), opponent allowed stats, and current SBD prop lines to assess value.
 
 Example queries:
-• "Edge awareness for Wemby rebounds vs Thunder"
-• "Is there edge on the Lakers spread"
-• "Check value on Curry points prop"
-• "Edge awareness Celtics vs Heat total"`
+• "Player analysis Wemby rebounds vs Thunder"
+• "Analyze Curry points prop"
+• "Is there edge on LeBron assists"
+• "Check value on Tatum rebounds"`
             }
           ].map((capability) => (
             <button

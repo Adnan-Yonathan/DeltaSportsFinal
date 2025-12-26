@@ -178,8 +178,10 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {PLANS.map((plan) => {
             const isSelected = value === plan.id
-            const price = isYearly ? plan.yearlyPrice : plan.monthlyPrice
-            const priceLabel = plan.id === "pro_trial" ? "" : isYearly ? "/mo (billed annually)" : "/month"
+            const monthlyPrice = isYearly ? plan.yearlyPrice : plan.monthlyPrice
+            const dailyPrice = monthlyPrice > 0 ? (monthlyPrice / 30).toFixed(2) : 0
+            const isFree = monthlyPrice === 0
+            const priceLabel = isFree ? "" : isYearly ? "/day (billed annually)" : "/day"
 
             return (
               <motion.div
@@ -210,7 +212,7 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
                   <p className="text-white/60 text-sm mb-4">{plan.description}</p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-4xl font-bold text-white">
-                      {price === 0 ? "Free" : `$${price}`}
+                      {isFree ? "Free" : `$${dailyPrice}`}
                     </span>
                     {priceLabel && <span className="text-white/60">{priceLabel}</span>}
                   </div>

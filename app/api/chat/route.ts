@@ -3304,44 +3304,62 @@ export async function POST(req: NextRequest) {
       /\b(spread|moneyline|total|over|under|prop|line|o\/u|quarter|q1|q2|q3|q4|first half|1h|second half|2h)\b/i.test(
         msgLower
       )
-    const edgeAwarenessIntent =
-      /\bedge\s*awareness\b/i.test(msgLower) ||
-      /\b(run|do|check|show)\s+edge\s*awareness\b/i.test(msgLower) ||
-      /\b(edge alert|edge check|edge finder|edge scan)\b/i.test(msgLower) ||
-      /\b(check|find|spot|show|get)\s+(me\s+)?(the\s+)?edges?\b/i.test(msgLower) ||
-      /\b(any|where('?s| is| are)?|what('?s| is| are)?)\s+(the\s+)?edges?\b/i.test(msgLower) ||
-      /\bedge\s+opportunit(y|ies)\b/i.test(msgLower) ||
-      /\b(value check|check value|is there value)\b/i.test(msgLower) ||
-      /\bmispriced\s+(line|prop|odds)\b/i.test(msgLower) ||
-      /\bline(s)?\s+(doesn'?t|does\s+not|dont)\s+make\s+sense\b/i.test(msgLower) ||
-      /\bprop(s)?\s+(doesn'?t|does\s+not|dont)\s+make\s+sense\b/i.test(msgLower) ||
-      /\b(points|rebounds|assists|threes|blocks|steals|pra)\s+prop\s+make\s+sense\b/i.test(msgLower) ||
-      /\bline\s+looks?\s+(off|wrong|mispriced|soft)\b/i.test(msgLower) ||
-      /\bis\s+there\s+an?\s+edge\b/i.test(msgLower) ||
-      /\b(soft|sharp|bad)\s+line\b/i.test(msgLower) ||
-      // "find an edge" / "find edge" + matchup context
-      (/\b(find|spot|get|check)\s+(an?\s+)?edge\b/i.test(msgLower) && (hasSpecificMatchup || mentionedTeams.length >= 1)) ||
-      // "edge in" + matchup (e.g., "edge in the lakers vs celtics game")
-      (/\bedge\s+in\b/i.test(msgLower) && (hasSpecificMatchup || mentionedTeams.length >= 1)) ||
-      // "edge" + "vs/versus" pattern (e.g., "is there edge in lakers vs celtics")
-      (/\bedge\b/i.test(msgLower) && /\b(vs\.?|versus)\b/i.test(msgLower)) ||
-      // "edge" + matchup/game + teams
-      (/\bedge\b/i.test(msgLower) && /\b(matchup|game)\b/i.test(msgLower) && mentionedTeams.length >= 1) ||
-      // "edge on" + team or matchup
-      (/\bedge\s+on\b/i.test(msgLower) && mentionedTeams.length >= 1) ||
-      (playerNameInMessage &&
-        propIntent &&
-        /\b(analy(?:ze|sis)|edge|value|mispriced|make\s+sense|worth|overvalued|undervalued)\b/i.test(
-          msgLower
-        )) ||
-      (playerNameInMessage && propIntent && /\bproject(?:ion|ed)?\b|\bproject\b/i.test(msgLower)) ||
-      (playerNameInMessage &&
-        /\bproject(?:ion|ed)?\b|\bproject\b/i.test(msgLower) &&
-        /\b(points|rebounds|assists|threes|blocks|steals|pra)\b/i.test(msgLower))
+    // NEW: Matchup Analysis intent (team vs team markets - spread, ML, totals)
+    const matchupAnalysisIntent =
+      /\b(matchup analysis|analyze matchup|matchup breakdown)\b/i.test(msgLower) ||
+      /\b(analyze|breakdown|analysis)\s+(the\s+)?(spread|total|over|under|moneyline|ml)\b/i.test(msgLower) ||
+      // Edge/value on team markets (no player name)
+      (/\b(edge|value|mispriced)\b/i.test(msgLower) && mentionedTeams.length >= 2 && !playerNameInMessage) ||
+      (/\b(spread|total|over.?under|moneyline)\b/i.test(msgLower) && /\b(edge|analysis|value)\b/i.test(msgLower) && !playerNameInMessage) ||
+      // "is there an edge" + matchup (no player)
+      (/\bis\s+there\s+an?\s+edge\b/i.test(msgLower) && mentionedTeams.length >= 2 && !playerNameInMessage) ||
+      // "edge in" + matchup (no player)
+      (/\bedge\s+in\b/i.test(msgLower) && mentionedTeams.length >= 2 && !playerNameInMessage) ||
+      // "edge" + "vs/versus" pattern (no player)
+      (/\bedge\b/i.test(msgLower) && /\b(vs\.?|versus)\b/i.test(msgLower) && !playerNameInMessage) ||
+      // "edge" + matchup/game + teams (no player)
+      (/\bedge\b/i.test(msgLower) && /\b(matchup|game)\b/i.test(msgLower) && mentionedTeams.length >= 1 && !playerNameInMessage) ||
+      // "edge on" + team (no player)
+      (/\bedge\s+on\b/i.test(msgLower) && mentionedTeams.length >= 1 && !playerNameInMessage) ||
+      // "find edge" + matchup (no player)
+      (/\b(find|spot|get|check)\s+(an?\s+)?edge\b/i.test(msgLower) && mentionedTeams.length >= 2 && !playerNameInMessage) ||
+      // "line looks off/wrong" for team markets
+      (/\bline\s+looks?\s+(off|wrong|mispriced|soft)\b/i.test(msgLower) && !playerNameInMessage) ||
+      // "soft/sharp/bad line" for team markets
+      (/\b(soft|sharp|bad)\s+line\b/i.test(msgLower) && !playerNameInMessage)
 
-    if (edgeAwarenessIntent) {
-      console.log('[DEBUG] edgeAwarenessIntent triggered:', { playerNameInMessage, propIntent, mentionedTeams })
+    // NEW: Player Analysis intent (player props only)
+    const playerAnalysisIntent =
+      /\b(player analysis|analyze player|player breakdown)\b/i.test(msgLower) ||
+      // Player + prop stat + analysis/edge/value keywords
+      (playerNameInMessage && propIntent && /\b(analy(?:ze|sis)|edge|value|mispriced|make\s+sense|worth|overvalued|undervalued)\b/i.test(msgLower)) ||
+      // Player + projection
+      (playerNameInMessage && propIntent && /\bproject(?:ion|ed)?\b|\bproject\b/i.test(msgLower)) ||
+      (playerNameInMessage && /\bproject(?:ion|ed)?\b|\bproject\b/i.test(msgLower) && /\b(points|rebounds|assists|threes|blocks|steals|pra)\b/i.test(msgLower)) ||
+      // "is there edge on [player] [stat]"
+      (/\bis\s+there\s+an?\s+edge\b/i.test(msgLower) && playerNameInMessage) ||
+      // "edge on [player]"
+      (/\bedge\s+on\b/i.test(msgLower) && playerNameInMessage) ||
+      // "[stat] prop make sense" (with player context)
+      (/\b(points|rebounds|assists|threes|blocks|steals|pra)\s+prop\s+make\s+sense\b/i.test(msgLower)) ||
+      // "prop doesn't make sense" (player prop)
+      (/\bprop(s)?\s+(doesn'?t|does\s+not|dont)\s+make\s+sense\b/i.test(msgLower)) ||
+      // "mispriced prop"
+      (/\bmispriced\s+prop\b/i.test(msgLower)) ||
+      // "value check" with player
+      (/\b(value check|check value|is there value)\b/i.test(msgLower) && playerNameInMessage) ||
+      // "check edge on [player]"
+      (/\b(check|find|spot)\s+(the\s+)?edge\b/i.test(msgLower) && playerNameInMessage)
+
+    if (matchupAnalysisIntent) {
+      console.log('[DEBUG] matchupAnalysisIntent triggered:', { mentionedTeams, playerNameInMessage })
     }
+    if (playerAnalysisIntent) {
+      console.log('[DEBUG] playerAnalysisIntent triggered:', { playerNameInMessage, propIntent, mentionedTeams })
+    }
+
+    // Legacy alias for backward compatibility (will be removed after full migration)
+    const edgeAwarenessIntent = matchupAnalysisIntent || playerAnalysisIntent
 
     const explicitAnalysisIntent = /\b(analy(?:ze|sis)|breakdown|edge|value|mispriced|line makes sense)\b/i.test(msgLower)
     analysisIntent =
@@ -4198,6 +4216,481 @@ export async function POST(req: NextRequest) {
       ) &&
       /\b(bet|bets|betting|bettor|sportsbook)\b/i.test(msgLower)
 
+    // ===== NEW: Player Analysis function (player props only) =====
+    const runPlayerAnalysis = async () => {
+      const matchupTeams = (parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams).filter(
+        (team) => normalizeToken(team).length > 0
+      )
+      let playerName = extractPlayerName(message)
+      if (playerName && /\b(player|prop|props)\b/i.test(playerName)) {
+        const cleanedMessage = message
+          .replace(/\bplayer props?\b/gi, '')
+          .replace(/\bprops?\b/gi, '')
+          .trim()
+        const altName = extractPlayerName(cleanedMessage)
+        playerName = altName && !/\b(player|prop|props)\b/i.test(altName) ? altName : undefined
+      }
+
+      // Clear playerName if it matches a detected team name
+      if (playerName) {
+        const playerToken = normalizeToken(playerName)
+        const isTeamName = mentionedTeams.some(team => {
+          const teamToken = normalizeToken(team)
+          if (teamToken === playerToken) return true
+          if (teamToken === playerToken + 's') return true
+          if (playerToken === teamToken + 's') return true
+          if (teamToken.startsWith(playerToken) && teamToken.length - playerToken.length <= 1) return true
+          if (playerToken.startsWith(teamToken) && playerToken.length - teamToken.length <= 1) return true
+          return false
+        })
+        if (isTeamName) {
+          playerName = undefined
+        }
+      }
+
+      if (!playerName) {
+        return {
+          success: false,
+          formatted: 'Please specify a player for analysis (e.g., "LeBron James points prop" or "analyze Curry rebounds").',
+        }
+      }
+
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'nfl' :
+        msgLower.match(/mlb|baseball/) ? 'mlb' :
+        msgLower.match(/nhl|hockey/) ? 'nhl' :
+        'nba'
+      if (sportGuess !== 'nba') {
+        return {
+          success: false,
+          formatted: 'Player analysis is currently optimized for NBA players. Please try an NBA player.',
+        }
+      }
+
+      const inferPropType = (text: string) => {
+        const t = text.toLowerCase()
+        if (/\bpoints\s*\+\s*rebounds\b/.test(t)) return 'points_rebounds'
+        if (/\bpoints\s*\+\s*assists\b/.test(t)) return 'points_assists'
+        if (/\bpoints\s*\+\s*rebounds\s*\+\s*assists\b|\bpra\b/.test(t)) return 'pra'
+        if (/\brebounds\s*\+\s*assists\b/.test(t)) return 'rebounds_assists'
+        if (/\bblocks\s*\+\s*steals\b/.test(t)) return 'blocks_steals'
+        if (/\bpoints\b|\bpts\b/.test(t)) return 'points'
+        if (/\brebounds\b|\brebs\b|\breb\b/.test(t)) return 'rebounds'
+        if (/\bassists\b|\basts\b|\bast\b/.test(t)) return 'assists'
+        if (/\b(threes|3s|3pm|three pointers?)\b/.test(t)) return 'threes'
+        if (/\bblocks\b|\bblk\b/.test(t)) return 'blocks'
+        if (/\bsteals\b|\bstl\b/.test(t)) return 'steals'
+        return 'points'
+      }
+
+      const seasonStatValue = (stats: Record<string, any> | undefined, propType: string) => {
+        if (!stats) return null
+        const num = (v: any) => {
+          const n = typeof v === 'number' ? v : Number(v)
+          return Number.isFinite(n) ? n : null
+        }
+        const pts = num(stats.PPG ?? stats.PTS ?? stats.POINTS)
+        const reb = num(stats.RPG ?? stats.REB ?? stats.TRB ?? stats.REBOUNDS)
+        const ast = num(stats.APG ?? stats.AST ?? stats.ASSISTS)
+        const threes = num(stats['3PM'] ?? stats.THREE_PM ?? stats.THREE_P ?? stats.THREEPM)
+        const blk = num(stats.BLK ?? stats.BPG ?? stats.BLOCKS)
+        const stl = num(stats.STL ?? stats.SPG ?? stats.STEALS)
+        switch (propType) {
+          case 'points': default: return pts
+          case 'rebounds': return reb
+          case 'assists': return ast
+          case 'threes': return threes
+          case 'blocks': return blk
+          case 'steals': return stl
+          case 'points_rebounds': return pts != null && reb != null ? pts + reb : null
+          case 'points_assists': return pts != null && ast != null ? pts + ast : null
+          case 'rebounds_assists': return reb != null && ast != null ? reb + ast : null
+          case 'pra': return pts != null && reb != null && ast != null ? pts + reb + ast : null
+          case 'blocks_steals': return blk != null && stl != null ? blk + stl : null
+        }
+      }
+
+      const recentFromArray = (recent: any[] | undefined, propType: string) => {
+        if (!recent?.length) return { average: null, lines: [] as string[] }
+        const values: number[] = []
+        const lines: string[] = []
+        const labelMap: Record<string, string> = {
+          points: 'PTS', rebounds: 'REB', assists: 'AST', threes: '3PM',
+          blocks: 'BLK', steals: 'STL', points_rebounds: 'PTS+REB',
+          points_assists: 'PTS+AST', rebounds_assists: 'REB+AST',
+          pra: 'PRA', blocks_steals: 'BLK+STL',
+        }
+        const statLabel = labelMap[propType] || 'PTS'
+        for (const game of recent.slice(0, 5)) {
+          const date = String(game?.date || '').slice(0, 10)
+          const opp = game?.opponent || ''
+          const rawStats = game?.stats || {}
+          const statMap: Record<string, number> = {}
+          for (const [key, value] of Object.entries(rawStats)) {
+            const num = typeof value === 'number' ? value : Number(value)
+            if (Number.isFinite(num)) {
+              statMap[key.toString().toUpperCase().replace(/\s+/g, '_')] = num
+            }
+          }
+          const value = getPropStatFromMap(statMap, propType)
+          if (value != null) values.push(value)
+          lines.push(`- ${date}${opp ? ` vs ${opp}` : ''}: ${value ?? 'n/a'} ${statLabel}`)
+        }
+        const average = values.length >= 3
+          ? Number((values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(1))
+          : null
+        return { average, lines }
+      }
+
+      const opponentAllowedValue = (stats: Record<string, any> | undefined, propType: string) => {
+        if (!stats) return null
+        const num = (v: any) => {
+          const n = typeof v === 'number' ? v : Number(v)
+          return Number.isFinite(n) ? n : null
+        }
+        switch (propType) {
+          case 'points': case 'points_rebounds': case 'points_assists': case 'pra': default:
+            return num(stats.pointsAgainstPerGame)
+          case 'rebounds': case 'rebounds_assists':
+            return num(stats.opponentReboundsPerGame)
+          case 'assists': return num(stats.opponentAssistsPerGame)
+          case 'threes': return num(stats.opponentThreeMadePerGame)
+          case 'blocks': case 'blocks_steals': return num(stats.opponentBlocksPerGame)
+          case 'steals': return num(stats.opponentStealsPerGame)
+        }
+      }
+
+      const propType = inferPropType(message)
+      const seasonStats = await getPlayerSeasonStats(playerName, 'basketball_nba')
+      const playerLabel = seasonStats?.name || playerName
+      const playerTeam = seasonStats?.team || ''
+
+      const opponent = (() => {
+        const validTeams = mentionedTeams.filter(team => {
+          const teamToken = normalizeToken(team)
+          const playerToken = normalizeToken(playerLabel)
+          return !teamToken.includes(playerToken) && !playerToken.includes(teamToken)
+        })
+        if (validTeams.length >= 1) {
+          if (playerTeam) {
+            const teamToken = normalizeToken(playerTeam)
+            const nonPlayerTeam = validTeams.find(t => !normalizeToken(t).includes(teamToken))
+            if (nonPlayerTeam) return nonPlayerTeam
+          }
+          return validTeams[0]
+        }
+        if (matchupTeams.length >= 2) {
+          if (playerTeam) {
+            const teamToken = normalizeToken(playerTeam)
+            const first = matchupTeams[0]
+            const second = matchupTeams[1]
+            if (teamToken && normalizeToken(first).includes(teamToken)) return second
+            if (teamToken && normalizeToken(second).includes(teamToken)) return first
+          }
+          return matchupTeams[1]
+        }
+        if (matchupTeams.length === 1) return matchupTeams[0]
+        return ''
+      })()
+
+      const seasonAvg = seasonStatValue(seasonStats?.stats as Record<string, any> | undefined, propType)
+      let last5Avg: number | null = null
+      let last5Lines: string[] = []
+      const fromRecent = recentFromArray(seasonStats?.recent, propType)
+      last5Avg = fromRecent.average
+      last5Lines = fromRecent.lines
+
+      if (last5Avg == null || !last5Lines.length) {
+        const seasonYear = getEspnSeasonYearForLogs('nba')
+        const searchHit = await searchPlayer(playerLabel, 'basketball_nba')
+        const fallback = searchHit?.id ? null : await searchAthlete('nba', playerLabel, 5)
+        const playerId = searchHit?.id || fallback?.id
+        if (playerId) {
+          const recent = await getRecentLogStats({
+            sport: 'nba',
+            playerId: String(playerId),
+            playerName: playerLabel,
+            propType,
+            seasonYear,
+            maxGames: 5,
+            minSamples: 3,
+          })
+          last5Avg = recent.average
+          last5Lines = recent.lines
+        }
+      }
+
+      let opponentAllowed: number | null = null
+      let leagueAvg: number | null = null
+      if (opponent) {
+        const oppTeam = findStaticNbaTeam(opponent)[0]
+        opponentAllowed = opponentAllowedValue(oppTeam?.stats, propType)
+        const leagueVals = getStaticNbaTeams()
+          .map((team) => opponentAllowedValue(team.stats, propType))
+          .filter((val): val is number => typeof val === 'number' && Number.isFinite(val))
+        if (leagueVals.length) {
+          leagueAvg = Number((leagueVals.reduce((sum, v) => sum + v, 0) / leagueVals.length).toFixed(1))
+        }
+      }
+
+      let sbdLine = 'No SBD prop line found for this player on the current slate.'
+      try {
+        const propsRes = await fetch(
+          `${baseUrl}/api/player-props?sport=basketball_nba&player=${encodeURIComponent(playerLabel)}&market=${encodeURIComponent(propType)}`,
+          { cache: 'no-store' }
+        )
+        const propsData = await propsRes.json()
+        const market = propsData?.data?.[0]?.markets?.[propType]
+        if (propsRes.ok && market) {
+          const line = market.line ?? '?'
+          const over = market.over?.best != null ? market.over.best : '?'
+          const overBook = market.over?.bestBook || '?'
+          const under = market.under?.best != null ? market.under.best : '?'
+          const underBook = market.under?.bestBook || '?'
+          sbdLine = `SBD line: ${line} | Over ${over} (${overBook}) | Under ${under} (${underBook})`
+        }
+      } catch (err) {
+        sbdLine = 'SBD props lookup failed for this player.'
+      }
+
+      const focusLabel = {
+        points: 'Points', rebounds: 'Rebounds', assists: 'Assists', threes: '3PT Made',
+        points_rebounds: 'Points + Rebounds', points_assists: 'Points + Assists',
+        pra: 'Points + Rebounds + Assists', rebounds_assists: 'Rebounds + Assists',
+        blocks: 'Blocks', steals: 'Steals', blocks_steals: 'Blocks + Steals',
+      }[propType] || 'Points'
+
+      const lines = [
+        `**Player Analysis: ${playerLabel}${opponent ? ` vs ${opponent}` : ''}**`,
+        '',
+        '**Inputs**',
+        `- Player: ${playerLabel}`,
+        `- Matchup: ${playerTeam ? `${playerTeam} vs ${opponent || 'TBD'}` : opponent || 'TBD'}`,
+        `- Focus: ${focusLabel}`,
+        '- Window: last 5 games vs season average',
+        '',
+        '**Results**',
+      ]
+      if (seasonAvg != null) {
+        lines.push(`- Season avg: ${seasonAvg.toFixed(1)}`)
+      } else {
+        lines.push('- Season avg: unavailable')
+      }
+      if (last5Avg != null) {
+        const delta = seasonAvg != null ? Number((last5Avg - seasonAvg).toFixed(1)) : null
+        const deltaLabel = delta != null ? ` (${delta >= 0 ? '+' : ''}${delta})` : ''
+        lines.push(`- Last 5 avg: ${last5Avg.toFixed(1)}${deltaLabel}`)
+      } else {
+        lines.push('- Last 5 avg: unavailable')
+      }
+      if (last5Lines.length) {
+        lines.push('')
+        lines.push('**Last 5 Games**')
+        lines.push(...last5Lines)
+      }
+      lines.push('')
+      if (opponentAllowed != null) {
+        const label =
+          propType === 'points' ? 'Opponent PPG allowed' :
+          propType === 'threes' ? 'Opponent 3PM allowed' :
+          propType === 'rebounds' ? 'Opponent rebounds allowed' :
+          propType === 'assists' ? 'Opponent assists allowed' :
+          propType === 'blocks' ? 'Opponent blocks allowed' :
+          propType === 'steals' ? 'Opponent steals allowed' : 'Opponent allowed'
+        const leagueLabel = leagueAvg != null ? ` (league avg ${leagueAvg.toFixed(1)})` : ''
+        lines.push(`**Opponent Context**`)
+        lines.push(`- ${label}: ${opponentAllowed.toFixed(1)}${leagueLabel}`)
+        lines.push('')
+      }
+      lines.push('**Prop Line**')
+      lines.push(`- ${sbdLine}`)
+      lines.push('')
+      lines.push('**Edge Assessment**')
+      if (seasonAvg != null && last5Avg != null) {
+        const diff = last5Avg - seasonAvg
+        const judgement =
+          Math.abs(diff) >= 1
+            ? `Recent form is ${diff > 0 ? 'above' : 'below'} season by ${Math.abs(diff).toFixed(1)}`
+            : 'Recent form is close to season average'
+        lines.push(`- ${judgement}`)
+        lines.push('- Compare this to the SBD line to assess value.')
+      } else {
+        lines.push('- Not enough recent data to weigh the line; use the SBD line as the anchor.')
+      }
+      lines.push('')
+      lines.push(buildDataSourceLine(['ESPN', 'Basketball Reference', 'SBD']))
+      return { success: true, formatted: lines.join('\n') }
+    }
+
+    // ===== NEW: Matchup Analysis function (team vs team markets) =====
+    const runMatchupAnalysis = async () => {
+      const matchupTeams = (parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams).filter(
+        (team) => normalizeToken(team).length > 0
+      )
+
+      if (matchupTeams.length < 2) {
+        return {
+          success: false,
+          formatted: 'Please provide a specific matchup (e.g., "Lakers vs Knicks") for matchup analysis.',
+        }
+      }
+
+      const sportGuess =
+        msgLower.match(/nfl|football/) ? 'nfl' :
+        msgLower.match(/mlb|baseball/) ? 'mlb' :
+        msgLower.match(/nhl|hockey/) ? 'nhl' :
+        'nba'
+      if (sportGuess !== 'nba') {
+        return {
+          success: false,
+          formatted: 'Matchup analysis is currently optimized for NBA games. Please try an NBA matchup.',
+        }
+      }
+
+      const [teamAName, teamBName] = matchupTeams.slice(0, 2)
+
+      const lines: string[] = []
+      lines.push(`**Matchup Analysis: ${teamAName} vs ${teamBName}**`)
+      lines.push('')
+
+      // Fetch current odds
+      let oddsData: any = null
+      try {
+        const oddsGames = await fetchOdds('basketball_nba', ['h2h', 'spreads', 'totals'], { revalidateSeconds: 60 })
+        oddsData = oddsGames.find((g: any) => {
+          const home = (g.home_team || '').toLowerCase()
+          const away = (g.away_team || '').toLowerCase()
+          const t1 = teamAName.toLowerCase()
+          const t2 = teamBName.toLowerCase()
+          return (home.includes(t1) || home.includes(t2) || away.includes(t1) || away.includes(t2))
+        })
+      } catch (err) {
+        console.error('[MATCHUP_ANALYSIS] Odds fetch failed:', err)
+      }
+
+      if (oddsData && oddsData.bookmakers?.length) {
+        lines.push('**Current Lines**')
+        const book = oddsData.bookmakers[0]
+        const spreads = book.markets?.find((m: any) => m.key === 'spreads')
+        const totals = book.markets?.find((m: any) => m.key === 'totals')
+        const h2h = book.markets?.find((m: any) => m.key === 'h2h')
+
+        if (spreads?.outcomes?.length) {
+          for (const o of spreads.outcomes) {
+            lines.push(`- Spread: ${o.name} ${o.point > 0 ? '+' : ''}${o.point} (${o.price > 0 ? '+' : ''}${o.price})`)
+          }
+        }
+        if (totals?.outcomes?.length) {
+          for (const o of totals.outcomes) {
+            lines.push(`- Total: ${o.name} ${o.point} (${o.price > 0 ? '+' : ''}${o.price})`)
+          }
+        }
+        if (h2h?.outcomes?.length) {
+          for (const o of h2h.outcomes) {
+            lines.push(`- Moneyline: ${o.name} ${o.price > 0 ? '+' : ''}${o.price}`)
+          }
+        }
+        lines.push(`- Book: ${book.title}`)
+        lines.push('')
+      } else {
+        lines.push('_No current odds found for this matchup_')
+        lines.push('')
+      }
+
+      // Fetch team stats
+      lines.push('**Team Stats**')
+      const teamStats = await Promise.all([teamAName, teamBName].map(async (team) => {
+        const stats = await getTeamStats('basketball_nba', team)
+        const primary = stats?.[0]
+        const staticTeam = findStaticNbaTeam(team)?.[0]
+        return { team, primary, staticTeam }
+      }))
+
+      for (const entry of teamStats) {
+        const s = entry.primary?.stats || {}
+        const st = entry.staticTeam?.stats || {}
+        const record = s.record || (s.wins != null && s.losses != null ? `${s.wins}-${s.losses}` : 'N/A')
+        const ppg = s.pointsForPerGame ?? st.pointsPerGame ?? 'N/A'
+        const papg = s.pointsAgainstPerGame ?? st.pointsAgainstPerGame ?? 'N/A'
+        const ortg = st.offensiveRating ?? s.offensiveRating ?? 'N/A'
+        const drtg = st.defensiveRating ?? s.defensiveRating ?? 'N/A'
+        const net = st.netRating ?? (typeof ortg === 'number' && typeof drtg === 'number' ? (ortg - drtg).toFixed(1) : 'N/A')
+        const pace = st.pace ?? s.pace ?? 'N/A'
+
+        lines.push(`**${entry.team}**: ${record}`)
+        lines.push(`- PPG: ${typeof ppg === 'number' ? ppg.toFixed(1) : ppg} | PAPG: ${typeof papg === 'number' ? papg.toFixed(1) : papg}`)
+        lines.push(`- ORtg: ${typeof ortg === 'number' ? ortg.toFixed(1) : ortg} | DRtg: ${typeof drtg === 'number' ? drtg.toFixed(1) : drtg} | Net: ${typeof net === 'number' ? (net > 0 ? '+' : '') + net.toFixed(1) : net}`)
+        lines.push(`- Pace: ${typeof pace === 'number' ? pace.toFixed(1) : pace}`)
+      }
+      lines.push('')
+
+      // Fetch ATS trends
+      lines.push('**Betting Trends**')
+      for (const entry of teamStats) {
+        const ats = await getTeamATSData(entry.team, 'basketball_nba')
+        if (ats?.success && ats.data) {
+          const parts: string[] = []
+          if (ats.data.overallATS) parts.push(`ATS: ${ats.data.overallATS}`)
+          if (ats.data.homeATS) parts.push(`Home: ${ats.data.homeATS}`)
+          if (ats.data.awayATS) parts.push(`Away: ${ats.data.awayATS}`)
+          if (ats.data.last10) parts.push(`L10: ${ats.data.last10}`)
+          if (parts.length) {
+            lines.push(`- ${entry.team}: ${parts.join(' | ')}`)
+          }
+        }
+      }
+      lines.push('')
+
+      // Edge analysis based on stats
+      lines.push('**Edge Analysis**')
+      const team1Stats = teamStats[0]?.staticTeam?.stats || teamStats[0]?.primary?.stats || {} as any
+      const team2Stats = teamStats[1]?.staticTeam?.stats || teamStats[1]?.primary?.stats || {} as any
+
+      const t1Ortg = typeof team1Stats.offensiveRating === 'number' ? team1Stats.offensiveRating : null
+      const t1Drtg = typeof team1Stats.defensiveRating === 'number' ? team1Stats.defensiveRating : null
+      const t2Ortg = typeof team2Stats.offensiveRating === 'number' ? team2Stats.offensiveRating : null
+      const t2Drtg = typeof team2Stats.defensiveRating === 'number' ? team2Stats.defensiveRating : null
+
+      const t1Net = typeof team1Stats.netRating === 'number' ? team1Stats.netRating : (t1Ortg != null && t1Drtg != null ? t1Ortg - t1Drtg : null)
+      const t2Net = typeof team2Stats.netRating === 'number' ? team2Stats.netRating : (t2Ortg != null && t2Drtg != null ? t2Ortg - t2Drtg : null)
+
+      if (typeof t1Net === 'number' && typeof t2Net === 'number') {
+        const netDiff = t1Net - t2Net
+        const projectedSpread = -(netDiff / 2.5).toFixed(1) // Rough conversion: ~2.5 net rating per point
+        lines.push(`- Net rating differential: ${netDiff > 0 ? '+' : ''}${netDiff.toFixed(1)} (${teamAName} vs ${teamBName})`)
+        lines.push(`- Implied spread projection: ${teamAName} ${Number(projectedSpread) > 0 ? '+' : ''}${projectedSpread}`)
+
+        // Compare to market if we have odds
+        if (oddsData?.bookmakers?.[0]) {
+          const spreads = oddsData.bookmakers[0].markets?.find((m: any) => m.key === 'spreads')
+          if (spreads?.outcomes?.length) {
+            const t1Spread = spreads.outcomes.find((o: any) =>
+              o.name.toLowerCase().includes(teamAName.toLowerCase())
+            )
+            if (t1Spread) {
+              const marketSpread = t1Spread.point
+              const projNum = Number(projectedSpread)
+              const diff = projNum - marketSpread
+              if (Math.abs(diff) >= 1.5) {
+                lines.push(`- **Edge detected**: Model projects ${teamAName} at ${projectedSpread}, market has ${marketSpread > 0 ? '+' : ''}${marketSpread}`)
+                lines.push(`- Lean: ${diff > 0 ? teamBName : teamAName} (${Math.abs(diff).toFixed(1)} pts of value)`)
+              } else {
+                lines.push(`- No significant edge: projection aligns with market (within 1.5 pts)`)
+              }
+            }
+          }
+        }
+      } else {
+        lines.push('- Insufficient stats data to project edge')
+      }
+
+      lines.push('')
+      lines.push(buildDataSourceLine(['The Odds API', 'ESPN', 'Basketball Reference']))
+
+      return { success: true, formatted: lines.join('\n') }
+    }
+
+    // ===== LEGACY: Edge Awareness function (will be deprecated) =====
     const runEdgeAwareness = async () => {
       const matchupTeams = (parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams).filter(
         (team) => normalizeToken(team).length > 0
@@ -4901,9 +5394,16 @@ export async function POST(req: NextRequest) {
       return streamTextResponse(reply)
     }
 
-    if (edgeAwarenessIntent && !modelApplicationIntent && !researchIntent) {    
-      const edgeResult = await runEdgeAwareness()
-      if (edgeResult?.formatted) return streamTextResponse(edgeResult.formatted)
+    // Route to Player Analysis (player props)
+    if (playerAnalysisIntent && !modelApplicationIntent && !researchIntent) {
+      const result = await runPlayerAnalysis()
+      if (result?.formatted) return streamTextResponse(result.formatted)
+    }
+
+    // Route to Matchup Analysis (team vs team markets)
+    if (matchupAnalysisIntent && !modelApplicationIntent && !researchIntent) {
+      const result = await runMatchupAnalysis()
+      if (result?.formatted) return streamTextResponse(result.formatted)
     }
 
     // Player game line shortcut (ESPN gamelog)

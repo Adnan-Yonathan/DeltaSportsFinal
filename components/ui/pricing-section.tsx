@@ -152,15 +152,26 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                 </div>
 
                 <div className="mb-6">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-bold">
-                      ${isYearly ? tier.price.yearly : tier.price.monthly}
-                    </span>
-                    <span className="text-sm text-slate-200/70">
-                      /month{isYearly ? " (billed annually)" : ""}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm text-slate-200/70">{tier.description}</p>
+                  {(() => {
+                    const monthlyPrice = isYearly ? tier.price.yearly : tier.price.monthly
+                    const dailyPrice = monthlyPrice > 0 ? (monthlyPrice / 30).toFixed(2) : 0
+                    const isFree = monthlyPrice === 0
+                    return (
+                      <>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-4xl font-bold">
+                            {isFree ? "Free" : `$${dailyPrice}`}
+                          </span>
+                          {!isFree && (
+                            <span className="text-sm text-slate-200/70">
+                              /day{isYearly ? " (billed annually)" : ""}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-2 text-sm text-slate-200/70">{tier.description}</p>
+                      </>
+                    )
+                  })()}
                 </div>
 
                 <div className="space-y-4">

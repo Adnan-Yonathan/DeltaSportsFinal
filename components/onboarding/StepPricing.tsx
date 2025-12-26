@@ -2,21 +2,12 @@
 
 import React, { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Check, ArrowRight } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { Check, ArrowRight, Loader2 } from "lucide-react"
 
 interface StepPricingProps {
   value: string | null
   onChange: (value: string | null) => void
   onValidation: (isValid: boolean) => void
-}
-
-const STRIPE_LINKS = {
-  proTrial: "https://buy.stripe.com/fZu7sE6OY4Ct2Nr3Vyawo00",
-  proMonthly: "https://buy.stripe.com/bJe6oAa1aglbds53Vyawo03",
-  proAnnual: "https://buy.stripe.com/28E5kw8X6fh74VzgIkawo04",
-  unlimitedMonthly: "https://buy.stripe.com/14A7sE1uE6KBfAd4ZCawo01",
-  unlimitedAnnual: "https://buy.stripe.com/aFa3coc9i8SJ0Fj3Vyawo02",
 }
 
 const PLANS = [
@@ -33,8 +24,7 @@ const PLANS = [
     ],
     highlighted: false,
     badge: "Trial",
-    checkoutMonthly: STRIPE_LINKS.proTrial,
-    checkoutYearly: STRIPE_LINKS.proTrial,
+    planKey: "pro_trial",
   },
   {
     id: "pro",
@@ -49,8 +39,8 @@ const PLANS = [
     ],
     highlighted: true,
     badge: "Most Popular",
-    checkoutMonthly: STRIPE_LINKS.proMonthly,
-    checkoutYearly: STRIPE_LINKS.proAnnual,
+    planKeyMonthly: "pro_monthly",
+    planKeyYearly: "pro_annual",
   },
   {
     id: "unlimited",
@@ -65,75 +55,55 @@ const PLANS = [
       "All Pro features",
     ],
     highlighted: false,
-    checkoutMonthly: STRIPE_LINKS.unlimitedMonthly,
-    checkoutYearly: STRIPE_LINKS.unlimitedAnnual,
+    planKeyMonthly: "unlimited_monthly",
+    planKeyYearly: "unlimited_annual",
   },
 ]
 
 export function StepPricing({ value, onChange, onValidation }: StepPricingProps) {
   const [isYearly, setIsYearly] = useState(true)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
 
   useEffect(() => {
     // Require a plan selection to proceed
     onValidation(value !== null)
   }, [value, onValidation])
 
-  // Load user ID and email for Stripe checkout identification
-  useEffect(() => {
-    const loadUser = async () => {
-      const supabase = createClient()
-      const { data } = await supabase.auth.getUser()
-      if (data?.user) {
-        setUserId(data.user.id)
-        setUserEmail(data.user.email ?? null)
-      }
-    }
-    loadUser()
-  }, [])
-
-  // Build checkout URL with user identification and success redirect
-  const buildCheckoutUrl = (baseUrl: string, planKey: string) => {
-    const params = new URLSearchParams()
-    if (userId) {
-      params.set("client_reference_id", `${userId}:${planKey}`)
-    }
-    if (userEmail) {
-      params.set("prefilled_email", userEmail)
-    }
-    // Add success URL to redirect back to our app after checkout
-    const successUrl = typeof window !== 'undefined'
-      ? `${window.location.origin}/stripe/success`
-      : '/stripe/success'
-    params.set("success_url", successUrl)
-
-    const query = params.toString()
-    return query ? `${baseUrl}?${query}` : baseUrl
-  }
-
-  const handleSelectPlan = (planId: string) => {
+  const handleSelectPlan = async (planId: string) => {
     const plan = PLANS.find((p) => p.id === planId)
     if (!plan) return
 
     // Set the selected plan
     onChange(planId)
 
-    // Determine plan key for webhook identification
-    let planKey: string
-    if (plan.id === "pro_trial") {
-      planKey = "pro_trial"
-    } else if (plan.id === "pro") {
-      planKey = isYearly ? "pro_annual" : "pro_monthly"
-    } else {
-      planKey = isYearly ? "unlimited_annual" : "unlimited_monthly"
-    }
+    // Determine plan key
+    const planKey = plan.planKey || (isYearly ? plan.planKeyYearly : plan.planKeyMonthly)
+    if (!planKey) return
 
-    // Open checkout with user identification
-    const baseUrl = isYearly ? plan.checkoutYearly : plan.checkoutMonthly
-    if (baseUrl) {
-      const checkoutUrl = buildCheckoutUrl(baseUrl, planKey)
-      window.open(checkoutUrl, "_blank")
+    setLoadingPlan(planId)
+
+    try {
+      const response = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planKey }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout session')
+      }
+
+      // Redirect to Stripe checkout
+      if (data.url) {
+        window.location.href = data.url
+      }
+    } catch (error) {
+      console.error('Checkout error:', error)
+      alert(error instanceof Error ? error.message : 'Failed to start checkout')
+    } finally {
+      setLoadingPlan(null)
     }
   }
 
@@ -182,6 +152,7 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
             const dailyPrice = monthlyPrice > 0 ? (monthlyPrice / 30).toFixed(2) : 0
             const isFree = monthlyPrice === 0
             const priceLabel = isFree ? "" : isYearly ? "/day (billed annually)" : "/day"
+            const isLoading = loadingPlan === plan.id
 
             return (
               <motion.div
@@ -231,6 +202,7 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
 
                 <button
                   onClick={() => handleSelectPlan(plan.id)}
+                  disabled={isLoading}
                   className={`
                     w-full py-3 px-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 mt-auto
                     ${isSelected
@@ -239,10 +211,27 @@ export function StepPricing({ value, onChange, onValidation }: StepPricingProps)
                       ? "bg-white text-black hover:bg-gray-100"
                       : "bg-white/10 text-white hover:bg-white/20"
                     }
+                    ${isLoading ? "opacity-50 cursor-not-allowed" : ""}
                   `}
                 >
-                  {isSelected ? "Selected" : plan.id === "pro_trial" ? "Start Free Trial" : "Select Plan"}
-                  {!isSelected && <ArrowRight className="w-4 h-4" />}
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : isSelected ? (
+                    "Selected"
+                  ) : plan.id === "pro_trial" ? (
+                    <>
+                      Start Free Trial
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  ) : (
+                    <>
+                      Select Plan
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </motion.div>
             )

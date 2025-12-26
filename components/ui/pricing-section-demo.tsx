@@ -1,15 +1,7 @@
-﻿"use client"
+"use client"
 
-import { ArrowDownToDot, Sigma, Zap } from "lucide-react"
+import { ArrowDownToDot, Sigma } from "lucide-react"
 import { PricingSection, type PricingTier } from "@/components/ui/pricing-section"
-
-const STRIPE_LINKS = {
-  proTrial: "https://buy.stripe.com/fZu7sE6OY4Ct2Nr3Vyawo00",
-  proMonthly: "https://buy.stripe.com/bJe6oAa1aglbds53Vyawo03",
-  proAnnual: "https://buy.stripe.com/28E5kw8X6fh74VzgIkawo04",
-  unlimitedMonthly: "https://buy.stripe.com/14A7sE1uE6KBfAd4ZCawo01",
-  unlimitedAnnual: "https://buy.stripe.com/aFa3coc9i8SJ0Fj3Vyawo02",
-}
 
 const defaultTiers: PricingTier[] = [
   {
@@ -20,6 +12,7 @@ const defaultTiers: PricingTier[] = [
     },
     description: "Free 7-day trial. No card required to start.",
     badge: "Trial",
+    planKey: "pro_trial",
     icon: (
       <div className="relative">
         <ArrowDownToDot className="relative z-10 h-7 w-7 text-black" />
@@ -42,10 +35,6 @@ const defaultTiers: PricingTier[] = [
         included: true,
       },
     ],
-    checkoutUrlMonthly: STRIPE_LINKS.proTrial,
-    checkoutUrlYearly: STRIPE_LINKS.proTrial,
-    planKeyMonthly: "pro_trial",
-    planKeyYearly: "pro_trial",
   },
   {
     name: "Pro",
@@ -56,6 +45,8 @@ const defaultTiers: PricingTier[] = [
     description: "Full bankroll tracking plus live scores and odds you can trust.",
     highlight: true,
     badge: "Most Popular",
+    planKeyMonthly: "pro_monthly",
+    planKeyYearly: "pro_annual",
     icon: (
       <div className="relative">
         <ArrowDownToDot className="relative z-10 h-7 w-7 text-black" />
@@ -78,10 +69,6 @@ const defaultTiers: PricingTier[] = [
         included: true,
       },
     ],
-    checkoutUrlMonthly: STRIPE_LINKS.proMonthly,
-    checkoutUrlYearly: STRIPE_LINKS.proAnnual,
-    planKeyMonthly: "pro_monthly",
-    planKeyYearly: "pro_annual",
   },
   {
     name: "Unlimited",
@@ -90,6 +77,8 @@ const defaultTiers: PricingTier[] = [
       yearly: 83, // annual price per month
     },
     description: "Unlimited chat, custom model builder, and premium support.",
+    planKeyMonthly: "unlimited_monthly",
+    planKeyYearly: "unlimited_annual",
     icon: (
       <div className="relative">
         <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-300/40 to-emerald-200/25 blur-2xl" />
@@ -118,14 +107,9 @@ const defaultTiers: PricingTier[] = [
         included: true,
       },
     ],
-    checkoutUrlMonthly: STRIPE_LINKS.unlimitedMonthly,
-    checkoutUrlYearly: STRIPE_LINKS.unlimitedAnnual,
-    planKeyMonthly: "unlimited_monthly",
-    planKeyYearly: "unlimited_annual",
   },
 ]
 
 export function PricingSectionDemo() {
   return <PricingSection tiers={defaultTiers} />
 }
-

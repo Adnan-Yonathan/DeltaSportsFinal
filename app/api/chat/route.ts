@@ -1445,6 +1445,19 @@ const extractPlayerName = (msg: string) => {
     '3pt',
     'pra',
     'fantasy',
+    // NBA team names - prevent team names from being extracted as player names
+    'lakers', 'laker', 'celtics', 'celtic', 'warriors', 'warrior', 'bulls', 'bull',
+    'heat', 'knicks', 'knick', 'nets', 'net', 'sixers', 'sixer', '76ers',
+    'bucks', 'buck', 'suns', 'sun', 'nuggets', 'nugget', 'clippers', 'clipper',
+    'mavericks', 'maverick', 'mavs', 'mav', 'rockets', 'rocket', 'grizzlies', 'grizzly',
+    'pelicans', 'pelican', 'spurs', 'spur', 'thunder', 'jazz', 'timberwolves', 'timberwolf',
+    'wolves', 'wolf', 'blazers', 'blazer', 'kings', 'king', 'hawks', 'hawk',
+    'hornets', 'hornet', 'cavaliers', 'cavalier', 'cavs', 'cav', 'pistons', 'piston',
+    'pacers', 'pacer', 'magic', 'wizards', 'wizard', 'raptors', 'raptor',
+    // City/location names that could be parsed
+    'boston', 'chicago', 'miami', 'dallas', 'houston', 'denver', 'phoenix',
+    'brooklyn', 'atlanta', 'cleveland', 'detroit', 'indiana', 'milwaukee',
+    'minnesota', 'orleans', 'sacramento', 'antonio', 'portland', 'toronto', 'utah', 'washington', 'memphis', 'charlotte', 'orlando', 'oklahoma', 'golden', 'state', 'angeles',
   ])
   const candidates: string[] = []
   for (let i = 0; i < parts.length - 1; i++) {
@@ -4199,15 +4212,22 @@ export async function POST(req: NextRequest) {
         playerName = altName && !/\b(player|prop|props)\b/i.test(altName) ? altName : undefined
       }
 
-      // Clear playerName if it exactly matches a detected team name (e.g., "thunder" extracted as player)
+      // Clear playerName if it matches a detected team name (e.g., "laker" extracted from "lakers vs rockets")
       // Only use mentionedTeams (properly detected) not parsedMatchupTeams (may have parsing artifacts)
       if (playerName) {
         const playerToken = normalizeToken(playerName)
-        // Only clear if it's an exact match with a properly detected team
+        // Check for exact match or singular/plural variations
         const isTeamName = mentionedTeams.some(team => {
           const teamToken = normalizeToken(team)
-          // Exact match only - don't clear "dylan harper" just because "dylanharperpoints" contains it
-          return teamToken === playerToken
+          // Exact match
+          if (teamToken === playerToken) return true
+          // Singular/plural match (e.g., "laker" vs "lakers", "rocket" vs "rockets")
+          if (teamToken === playerToken + 's') return true
+          if (playerToken === teamToken + 's') return true
+          // Partial match for common team name patterns (e.g., "laker" contained in "lakers")
+          if (teamToken.startsWith(playerToken) && teamToken.length - playerToken.length <= 1) return true
+          if (playerToken.startsWith(teamToken) && playerToken.length - teamToken.length <= 1) return true
+          return false
         })
         if (isTeamName) {
           playerName = undefined

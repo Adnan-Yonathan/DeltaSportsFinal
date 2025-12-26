@@ -1,10 +1,19 @@
 import Stripe from 'stripe'
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('STRIPE_SECRET_KEY is not set')
-}
+// Lazy-initialize Stripe client to avoid build-time errors
+let _stripe: Stripe | null = null
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+export const stripe: Stripe = new Proxy({} as Stripe, {
+  get(_, prop) {
+    if (!_stripe) {
+      if (!process.env.STRIPE_SECRET_KEY) {
+        throw new Error('STRIPE_SECRET_KEY is not set')
+      }
+      _stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+    }
+    return (_stripe as any)[prop]
+  },
+})
 
 // Price IDs - set these in your environment variables after creating products in Stripe Dashboard
 export const PRICE_IDS = {

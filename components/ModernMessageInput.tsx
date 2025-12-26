@@ -58,7 +58,10 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        throw new Error('Failed to send message')
+        const errorData = await response.json().catch(() => ({}))
+        const error = new Error(errorData.error || 'Failed to send message') as Error & { status?: number }
+        error.status = response.status
+        throw error
       }
 
       const reader = response.body?.getReader()
@@ -102,6 +105,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
       console.error('Error sending message:', error)
 
       let errorMessage = 'Failed to send message. Please try again.'
+      let shouldRedirectToPricing = false
 
       if (error.name === 'AbortError') {
         errorMessage = 'Request timed out. The message may still be processing. Please check your conversation.'
@@ -109,9 +113,26 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
         errorMessage = 'No internet connection. Please check your network and try again.'
       } else if (error.message?.includes('Failed to fetch')) {
         errorMessage = 'Network error. Please check your connection and try again.'
+      } else if (error.status === 401) {
+        errorMessage = 'Please sign in to send messages.'
+        shouldRedirectToPricing = true
+      } else if (error.status === 403) {
+        // Free message used or subscription required
+        errorMessage = error.message || 'Subscription required to continue. Upgrade your plan to keep chatting!'
+        shouldRedirectToPricing = true
+      } else if (error.status === 429) {
+        // Rate limit reached (Pro tier)
+        errorMessage = error.message || 'Daily message limit reached. Upgrade to Unlimited for unrestricted access!'
+        shouldRedirectToPricing = true
+      } else if (error.message) {
+        errorMessage = error.message
       }
 
       alert(errorMessage)
+
+      if (shouldRedirectToPricing) {
+        window.location.href = '/pricing'
+      }
 
       // Restore message if send failed
       if (error.name === 'AbortError') {

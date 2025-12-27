@@ -1572,6 +1572,11 @@ Many stats tools now return pre-formatted data with betting context already incl
 4. Add your own analysis only if the user asks for interpretation beyond what's provided
 5. Keep responses concise but complete - the formatted data is designed to be presentation-ready
 
+**TOOL SELECTION - Edge Analysis:**
+- For SINGLE GAME analysis (user names a specific matchup): use analyze_bet_market
+- For SLATE-WIDE/ALL GAMES analysis (user says "slate", "all games", "tonight", "today's games"): use get_slate_edge_detection
+- Keywords like "run edge detection on the NBA slate" or "edges for all games today" = get_slate_edge_detection
+
 **CURRENT DATE & TIME (${timezone}):**
 Today's date is ${new Date().toLocaleDateString('en-US', {
   timeZone: timezone,
@@ -2172,7 +2177,7 @@ const ASSISTANT_TOOLS: ChatCompletionTool[] = [
       function: {
         name: 'analyze_bet_market',
         description:
-          'Analyze a specific game or prop market with splits, injuries, stats, trends, and an edge check. Do not provide a direct pick.',
+          'Analyze a SINGLE specific game or prop market with splits, injuries, stats, trends, and an edge check. Use when user specifies ONE matchup like "Lakers vs Celtics". Do NOT use for slate-wide/all-games analysis - use get_slate_edge_detection instead.',
         parameters: {
           type: 'object',
           properties: {

@@ -494,14 +494,17 @@ Returns target lines with confidence level and supporting statistical factors.`,
     type: 'function',
     function: {
       name: 'get_slate_edge_detection',
-      description: `Analyze ALL games for a sport today to find betting edges across the entire slate. Compares model projections to market lines for spreads and totals. Use when users ask:
-- "Find edges for all NBA games today"
-- "Edge detection for today's NBA slate"
-- "Which NBA games have value today?"
-- "Scan all games for betting edges"
-- "What edges are there across the NBA tonight?"
-- "Run edge detection on today's games"
-Returns a summary of all games analyzed with strong edges, soft edges, and market vs model line gaps.`,
+      description: `SLATE-WIDE edge detection - analyzes ALL games for a sport to find betting edges across the ENTIRE slate. This is for MULTI-GAME analysis, NOT single matchups.
+
+TRIGGER PHRASES (use this tool when user says):
+- "edge detection" + "slate" or "all games" or "tonight" or "today"
+- "run edge detection on nba/nfl/etc"
+- "find edges for all games"
+- "which games have value today"
+- "scan the slate for edges"
+
+Compares model projections to market lines for spreads and totals across all upcoming games.
+Returns summary of games analyzed with strong/soft/no edges and line gaps.`,
       parameters: {
         type: 'object',
         properties: {

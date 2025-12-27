@@ -2688,6 +2688,44 @@ export async function POST(req: NextRequest) {
     const earlyEdgeAwarenessCheck = /\bedge\s*awareness\b/i.test(message) ||
       /\b(run|do|check|show)\s+edge\s*awareness\b/i.test(message)
 
+    // Early slate edge detection check - handles "edge detection for slate/all games"
+    const slateEdgeDetectionIntent =
+      (/\bedge\s*detection\b/i.test(message) && /\b(slate|all\s*games?|tonight|today)\b/i.test(message)) ||
+      /\b(run|do|check|scan)\s+edge\s*detection\b.*\b(nba|nfl|mlb|nhl|ncaa)\b/i.test(message) ||
+      /\b(nba|nfl|mlb|nhl|ncaa)\b.*\bedge\s*detection\b/i.test(message) ||
+      /\bslate.*edge/i.test(message) ||
+      /\bedges?\s+(for|on|across)\s+(the\s+)?(all\s+)?games?\b/i.test(message)
+
+    if (slateEdgeDetectionIntent) {
+      console.log('[SLATE EDGE] Detected slate edge detection intent, bypassing LLM')
+      const { analyzeSlateEdges, formatSlateEdgesForChat } = await import('@/lib/services/slate-edge-detector')
+
+      // Detect sport from message
+      let sport = 'basketball_nba'
+      if (/\bnfl\b/i.test(message)) sport = 'americanfootball_nfl'
+      else if (/\bmlb\b/i.test(message)) sport = 'baseball_mlb'
+      else if (/\bnhl\b/i.test(message)) sport = 'icehockey_nhl'
+      else if (/\bncaab\b|college\s*basketball\b/i.test(message)) sport = 'basketball_ncaab'
+      else if (/\bncaaf\b|college\s*football\b/i.test(message)) sport = 'americanfootball_ncaaf'
+
+      // Detect minEdge filter
+      let minEdge: 'soft' | 'strong' | undefined = undefined
+      if (/\bstrong\b/i.test(message)) minEdge = 'strong'
+      else if (/\bsoft\b/i.test(message)) minEdge = 'soft'
+
+      const result = await analyzeSlateEdges(sport, { minEdge })
+      const formatted = formatSlateEdgesForChat(result)
+
+      // Save to database
+      await supabase.from('messages').insert({
+        conversation_id: conversationId,
+        role: 'assistant',
+        content: formatted,
+      })
+
+      return streamTextResponse(formatted)
+    }
+
     const skipUnifiedPipeline = (
       (/\b(odds|moneyline|spread line|total line|prop|parlay|bet slip|bankroll|my bets|place bet)\b/i.test(message) &&
        !/\b(betting|public)\s+(split|splits|percentage)\b/i.test(message) &&

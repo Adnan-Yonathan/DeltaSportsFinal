@@ -136,10 +136,17 @@ export async function analyzeSlateEdges(
     }
   }
 
-  // Filter to upcoming games only
+  // Filter to games happening today only (not started yet)
   const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+
   const upcomingGames = oddsGames
-    .filter((g) => new Date(g.commence_time) > now)
+    .filter((g) => {
+      const gameTime = new Date(g.commence_time)
+      // Game must be today and not started yet
+      return gameTime > now && gameTime >= todayStart && gameTime < todayEnd
+    })
     .slice(0, limit)
 
   const edges: GameEdgeAnalysis[] = []

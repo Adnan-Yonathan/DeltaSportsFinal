@@ -104,7 +104,9 @@ export async function getGameRecommendations(
     }
 
     // Calculate target lines
-    const targetSpread = calculateFairSpread(
+    // calculateFairSpread returns raw margin (positive = home wins by X)
+    // Betting spreads use opposite convention (negative = favorite)
+    const rawMargin = calculateFairSpread(
       matchup.homeTeam.stats,
       matchup.awayTeam.stats,
       matchup.homeTeam.rest,
@@ -112,6 +114,8 @@ export async function getGameRecommendations(
       matchup.homeTeam.travel,
       matchup.awayTeam.travel
     )
+    // Convert to betting spread convention: negate so positive margin = negative spread
+    const targetSpread = -rawMargin
 
     const targetTotal = calculateFairTotal(
       matchup.homeTeam.stats,
@@ -122,7 +126,8 @@ export async function getGameRecommendations(
 
     // Generate spread recommendation
     if (marketType === 'spread' || marketType === 'all') {
-      const favoredTeam = targetSpread > 0 ? homeTeam : awayTeam
+      // In betting convention: negative spread = favorite
+      const favoredTeam = targetSpread < 0 ? homeTeam : awayTeam
       const spreadAbs = Math.abs(targetSpread)
 
       recommendations.push({

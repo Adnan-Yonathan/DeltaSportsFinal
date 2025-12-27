@@ -227,9 +227,10 @@ export async function analyzeSlateEdges(
       }
 
       // Determine which team the model spread favors
+      // In betting convention: negative spread = favorite (that team gives points)
       const modelFavoredTeam = spreadRec && spreadRec.targetLine < 0
-        ? game.home_team
-        : game.away_team
+        ? game.home_team  // Home is favorite (negative spread)
+        : game.away_team  // Away is favorite (home has positive spread)
 
       const gameAnalysis: GameEdgeAnalysis = {
         matchup: matchupLabel,

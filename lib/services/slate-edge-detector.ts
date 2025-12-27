@@ -5,6 +5,7 @@
 
 import { fetchOdds } from '@/lib/api/odds-api'
 import { getGameRecommendations, type GameRecommendation } from './recommendation-engine'
+import { analyzeMatchup } from './matchup-analyzer'
 import { evaluateLineEdge, type EdgeAssessment } from '@/lib/analysis/bet-tools'
 import type { OddsGame } from '@/lib/types/odds'
 
@@ -19,6 +20,7 @@ export interface GameEdgeAnalysis {
     edge: EdgeAssessment
     bestBook?: string
     bestOdds?: number
+    favoredTeam: string // Which team the model favors
   }
   total?: {
     marketLine: number
@@ -29,6 +31,8 @@ export interface GameEdgeAnalysis {
   }
   confidence: 'low' | 'medium' | 'high'
   factors: string[]
+  injuries: string[] // Injury factors
+  matchupFactors: string[] // ORtg, DRtg, pace factors
 }
 
 export interface SlateEdgeResult {
@@ -145,7 +149,10 @@ export async function analyzeSlateEdges(
 
   for (const game of upcomingGames) {
     try {
-      const matchup = `${game.away_team} @ ${game.home_team}`
+      const matchupLabel = `${game.away_team} @ ${game.home_team}`
+
+      // Get detailed matchup analysis (includes injuries, stats, ATS)
+      const matchupAnalysis = await analyzeMatchup(game.home_team, game.away_team)
 
       // Get model recommendations for this game
       const recommendations = await getGameRecommendations(
@@ -195,13 +202,37 @@ export async function analyzeSlateEdges(
       if (minEdge === 'strong' && !hasStrongEdge) continue
       if (minEdge === 'soft' && !hasStrongEdge && !hasSoftEdge) continue
 
+      // Separate injuries from other factors
+      const allFactors = matchupAnalysis.context || []
+      const injuries: string[] = []
+      const matchupFactors: string[] = []
+
+      for (const factor of allFactors) {
+        const lowerFactor = factor.toLowerCase()
+        if (lowerFactor.includes('injur') || lowerFactor.includes('out)') ||
+            lowerFactor.includes('(out') || lowerFactor.includes('(doubtful') ||
+            lowerFactor.includes('(questionable')) {
+          injuries.push(factor)
+        } else if (lowerFactor.includes('ortg') || lowerFactor.includes('drtg') ||
+                   lowerFactor.includes('pace') || lowerFactor.includes('ats')) {
+          matchupFactors.push(factor)
+        }
+      }
+
+      // Determine which team the model spread favors
+      const modelFavoredTeam = spreadRec && spreadRec.targetLine < 0
+        ? game.home_team
+        : game.away_team
+
       const gameAnalysis: GameEdgeAnalysis = {
-        matchup,
+        matchup: matchupLabel,
         homeTeam: game.home_team,
         awayTeam: game.away_team,
         commenceTime: game.commence_time,
         confidence: spreadRec?.confidence || totalRec?.confidence || 'low',
         factors: spreadRec?.factors || totalRec?.factors || [],
+        injuries,
+        matchupFactors,
       }
 
       if (spreadRec && marketSpread && spreadEdge) {
@@ -211,6 +242,7 @@ export async function analyzeSlateEdges(
           edge: spreadEdge,
           bestBook: marketSpread.book,
           bestOdds: marketSpread.odds,
+          favoredTeam: modelFavoredTeam,
         }
       }
 
@@ -321,8 +353,16 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
   if (game.spread) {
     const edgeEmoji = game.spread.edge.verdict === 'strong' ? '🔥' : game.spread.edge.verdict === 'soft' ? '✓' : '—'
     const gap = Math.abs(game.spread.marketLine - game.spread.targetLine).toFixed(1)
+
+    // Format with team name for clarity
+    const marketLineFormatted = game.spread.marketLine > 0 ? `+${game.spread.marketLine}` : `${game.spread.marketLine}`
+    const modelLineFormatted = game.spread.targetLine > 0 ? `+${game.spread.targetLine.toFixed(1)}` : game.spread.targetLine.toFixed(1)
+
+    // Get short team name for model line
+    const favoredTeamShort = game.spread.favoredTeam.split(' ').pop() || game.spread.favoredTeam
+
     lines.push(
-      `- ${edgeEmoji} **Spread:** Market ${game.spread.marketLine > 0 ? '+' : ''}${game.spread.marketLine} | Model ${game.spread.targetLine > 0 ? '+' : ''}${game.spread.targetLine.toFixed(1)} | Gap: ${gap} pts`
+      `- ${edgeEmoji} **Spread:** Market ${marketLineFormatted} ${game.homeTeam.split(' ').pop()} | Model ${modelLineFormatted} ${favoredTeamShort} | Gap: ${gap} pts`
     )
     if (game.spread.edge.flag) {
       lines.push(`  - ⚠️ ${game.spread.edge.flag}`)
@@ -341,9 +381,15 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
     }
   }
 
-  if (game.factors.length > 0) {
-    const keyFactors = game.factors.slice(0, 3)
-    lines.push(`- Factors: ${keyFactors.join(', ')}`)
+  // Show injuries prominently if present
+  if (game.injuries.length > 0) {
+    lines.push(`- 🏥 **Injuries:** ${game.injuries.slice(0, 3).join('; ')}`)
+  }
+
+  // Show key matchup factors (ORtg, DRtg, pace, ATS)
+  if (game.matchupFactors.length > 0) {
+    const keyFactors = game.matchupFactors.slice(0, 2)
+    lines.push(`- 📊 **Matchup:** ${keyFactors.join(' | ')}`)
   }
 
   return lines.join('\n')

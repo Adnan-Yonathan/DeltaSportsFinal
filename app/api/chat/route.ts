@@ -8588,6 +8588,7 @@ ${statsEnrichment}
                   'analyze_game_splits',
                   'get_pick_guidance',
                   'analyze_bet_market',
+                  'get_slate_edge_detection',
                 ])
 
                 if (

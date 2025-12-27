@@ -8300,6 +8300,13 @@ ${statsEnrichment}
           timezone,
         })
         functionResult = { success: true, formatted }
+      } else if (functionName === 'get_slate_edge_detection') {
+        const { analyzeSlateEdges, formatSlateEdgesForChat } = await import('@/lib/services/slate-edge-detector')
+        const sport = functionArgs.sport || 'basketball_nba'
+        const minEdge = functionArgs.minEdge as 'soft' | 'strong' | undefined
+        const result = await analyzeSlateEdges(sport, { minEdge })
+        const formatted = formatSlateEdgesForChat(result)
+        functionResult = { success: true, formatted }
       }
 
       return functionResult

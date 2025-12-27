@@ -493,6 +493,36 @@ Returns target lines with confidence level and supporting statistical factors.`,
   {
     type: 'function',
     function: {
+      name: 'get_slate_edge_detection',
+      description: `Analyze ALL games for a sport today to find betting edges across the entire slate. Compares model projections to market lines for spreads and totals. Use when users ask:
+- "Find edges for all NBA games today"
+- "Edge detection for today's NBA slate"
+- "Which NBA games have value today?"
+- "Scan all games for betting edges"
+- "What edges are there across the NBA tonight?"
+- "Run edge detection on today's games"
+Returns a summary of all games analyzed with strong edges, soft edges, and market vs model line gaps.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          sport: {
+            type: 'string',
+            enum: ['basketball_nba', 'basketball_ncaab', 'americanfootball_nfl', 'americanfootball_ncaaf', 'baseball_mlb', 'icehockey_nhl'],
+            description: 'Sport to analyze (default: basketball_nba)'
+          },
+          minEdge: {
+            type: 'string',
+            enum: ['soft', 'strong'],
+            description: 'Only return games with at least this edge level (optional - returns all by default)'
+          }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_prop_recommendations',
       description: `Calculate target player prop lines based on statistical analysis. Projects what the prop line SHOULD be using season averages, usage rate, pace, and rest factors. Does NOT reference external odds - purely model-based projections. Use when users ask:
 - "What should LeBron's points line be?"
@@ -674,6 +704,7 @@ export const TOOL_NAMES = {
   COVERS_BETTING_SPLITS: 'get_betting_splits',
   COVERS_ANALYZE_SPLITS: 'analyze_game_splits',
   GAME_RECOMMENDATIONS: 'get_game_recommendations',
+  SLATE_EDGE_DETECTION: 'get_slate_edge_detection',
   PROP_RECOMMENDATIONS: 'get_prop_recommendations',
   // Schedule
   SCHEDULE_CONTEXT: 'getTeamScheduleContext',

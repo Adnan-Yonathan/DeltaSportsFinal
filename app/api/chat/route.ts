@@ -66,7 +66,7 @@ import {
 import { processQuery as processUnifiedQuery } from '@/lib/statmuse/intent-classifier'
 import { unifiedTools } from '@/lib/statmuse/tools'
 import { getMembershipStatus } from '@/lib/utils/membership'
-import { countUserMessagesToday, countUserMessagesTotal, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
+import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
 export const runtime = 'nodejs'
 export const maxDuration = 300 // 5 minutes (max for Pro plan)
 
@@ -2550,15 +2550,10 @@ export async function POST(req: NextRequest) {
       }
 
       const membership = getMembershipStatus(user.user_metadata)
-      if (!membership.isActive) {
-        const totalMessages = await countUserMessagesTotal(supabase, user.id)
-        if (totalMessages >= 1) {
-          return NextResponse.json(
-            { error: 'Free message already used. Please visit /pricing to continue.' },
-            { status: 403 }
-          )
-        }
-      } else if (membership.tier === 'pro') {
+
+      // TEMPORARY WORKAROUND: All signed-up users get Pro access (25 messages/day)
+      // This bypasses membership checks until auth issues are resolved
+      if (membership.tier !== 'unlimited') {
         const todayCount = await countUserMessagesToday(supabase, user.id)
         if (todayCount >= PRO_DAILY_MESSAGE_LIMIT) {
           return NextResponse.json(

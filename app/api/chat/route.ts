@@ -2716,13 +2716,7 @@ export async function POST(req: NextRequest) {
       const result = await analyzeSlateEdges(sport, { minEdge })
       const formatted = formatSlateEdgesForChat(result)
 
-      // Save to database
-      await supabase.from('messages').insert({
-        conversation_id: conversationId,
-        role: 'assistant',
-        content: formatted,
-      })
-
+      // streamTextResponse handles saving to database
       return streamTextResponse(formatted)
     }
 

@@ -10,7 +10,7 @@ import { LiveScoresPreview } from '@/components/LiveScoresPreview'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { SimpleHeader } from '@/components/ui/simple-header'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, Activity, Gift, ChevronLeft, ChevronRight, UserPlus, Crown, CreditCard } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, Activity, Gift, ChevronLeft, ChevronRight, Crown, CreditCard } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
@@ -281,7 +281,7 @@ export default function ChatPage() {
         Live Scores
       </button>
 
-      {user ? (
+      {user && (
         <div className="relative" ref={profileMenuRef}>
           <button
             onClick={() => setProfileMenuOpen((prev) => !prev)}
@@ -392,14 +392,6 @@ export default function ChatPage() {
             )}
           </AnimatePresence>
         </div>
-      ) : (
-        <button
-          onClick={() => router.push('/auth/signup')}
-          className="flex items-center gap-2 rounded-full bg-[#34d399] px-4 py-2 text-sm font-semibold text-[#0f1f15] hover:bg-[#16a34a] transition-colors"
-        >
-          <UserPlus className="w-4 h-4" />
-          Sign Up
-        </button>
       )}
     </div>
   )

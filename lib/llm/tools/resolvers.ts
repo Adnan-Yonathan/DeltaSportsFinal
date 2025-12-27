@@ -99,8 +99,12 @@ export const toolResolvers: Record<string, Resolver> = {
 
     console.log('[LIVE_PROJECTION] Teams found:', { home: homeTeam.name, away: awayTeam.name })
 
-    const homeStats = await getTeamStats(homeTeam.name)
-    const awayStats = await getTeamStats(awayTeam.name)
+    const homeStats =
+      (await getTeamStats(homeTeam.name)) ||
+      (homeTeam.abbreviation ? await getTeamStats(homeTeam.abbreviation) : null)
+    const awayStats =
+      (await getTeamStats(awayTeam.name)) ||
+      (awayTeam.abbreviation ? await getTeamStats(awayTeam.abbreviation) : null)
 
     console.log('[LIVE_PROJECTION] Stats fetched:', {
       homeStats: homeStats ? 'OK' : 'null',

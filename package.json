@@ -38,6 +38,7 @@
     "@supabase/supabase-js": "^2.39.0",
     "@tabler/icons-react": "^3.35.0",
     "@types/three": "^0.160.0",
+    "@vercel/analytics": "^1.6.1",
     "date-fns": "^3.0.6",
     "html-to-image": "^1.11.13",
     "next": "^14.2.33",

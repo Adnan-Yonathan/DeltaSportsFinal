@@ -401,7 +401,7 @@ export function formatLiveRecommendation(rec: LiveLineRecommendation, liveGame: 
 
     output += `${emoji} LIVE SPREAD\n`
     output += `   Fair Line: ${favoredTeam} -${rec.confidenceInterval.lower.toFixed(1)} to -${rec.confidenceInterval.upper.toFixed(1)}\n`
-    output += `   Best Estimate: ${favoredTeam} -${spreadValue.toFixed(1)}\n`
+    output += `   Model Projection: ${favoredTeam} -${spreadValue.toFixed(1)}\n`
     output += `   Confidence: ${rec.confidence.toUpperCase()}\n\n`
 
     output += `📈 Win Probability\n`
@@ -410,7 +410,7 @@ export function formatLiveRecommendation(rec: LiveLineRecommendation, liveGame: 
   } else {
     output += `${emoji} LIVE TOTAL\n`
     output += `   Fair Line: ${rec.confidenceInterval.lower.toFixed(1)} to ${rec.confidenceInterval.upper.toFixed(1)}\n`
-    output += `   Best Estimate: ${rec.fairLine.toFixed(1)}\n`
+    output += `   Model Projection: ${rec.fairLine.toFixed(1)}\n`
     output += `   Confidence: ${rec.confidence.toUpperCase()}\n\n`
 
     output += `📈 Over/Under Probability\n`

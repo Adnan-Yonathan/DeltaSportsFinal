@@ -790,6 +790,7 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
           },
           projections: {
             spread: spreadFormatted,
+            spreadType: 'projection',
             total: totalFormatted,
           },
         }

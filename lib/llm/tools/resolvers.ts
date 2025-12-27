@@ -139,6 +139,7 @@ export const toolResolvers: Record<string, Resolver> = {
       },
       projections: {
         spread: spreadFormatted,
+        spreadType: 'projection',
         total: totalFormatted,
       },
     }

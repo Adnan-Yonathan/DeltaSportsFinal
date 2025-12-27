@@ -61,7 +61,8 @@ export function getTeamAbbrev(teamName: string): string | null {
 }
 
 /**
- * Parse team advanced stats from CSV (fallback)
+ * Parse team advanced stats from CSV
+ * Uses static data which includes ORtg, DRtg, pace from Basketball Reference
  */
 function parseTeamAdvStats(): Map<string, any> {
   const map = new Map()
@@ -88,59 +89,18 @@ function parseTeamAdvStats(): Map<string, any> {
 }
 
 /**
- * Get team stats from database first, fallback to static CSV
+ * Get team stats from static CSV data with injury adjustments
  */
 export async function getTeamStats(teamName: string): Promise<TeamStats | null> {
   const abbrev = getTeamAbbrev(teamName)
   if (!abbrev) return null
 
-  // Try database first (fresh data)
-  try {
-    const supabase = createClient()
-    const { data: dbStats, error } = await supabase
-      .from('team_stats')
-      .select('offensive_rating, defensive_rating, pace, points_per_game, points_allowed_per_game')
-      .eq('sport_key', 'basketball_nba')
-      .or(`team_name.ilike.%${teamName}%,team_name.ilike.%${abbrev}%`)
-      .order('captured_at', { ascending: false })
-      .limit(1)
-      .single()
-
-    if (!error && dbStats && dbStats.offensive_rating && dbStats.defensive_rating) {
-      console.log(`[MATCHUP ANALYZER] Using live DB stats for ${teamName}`)
-      const baseStats: TeamStats = {
-        ortg: dbStats.offensive_rating,
-        drtg: dbStats.defensive_rating,
-        pace: dbStats.pace || 100,
-        eFG: 0, // Not in DB, use 0 as placeholder
-        ts: 0,
-      }
-
-      // Check for injuries and adjust
-      const injuryReport = await detectInjuries(teamName)
-      if (injuryReport && injuryReport.injuries.length > 0) {
-        console.log(`[MATCHUP ANALYZER] Applying injury adjustments for ${teamName}`)
-        return {
-          ortg: baseStats.ortg - injuryReport.totalImpact.ortgDrop,
-          drtg: baseStats.drtg + injuryReport.totalImpact.drtgIncrease,
-          pace: baseStats.pace + injuryReport.totalImpact.paceDrop,
-          eFG: baseStats.eFG,
-          ts: baseStats.ts,
-        }
-      }
-      return baseStats
-    }
-  } catch (err) {
-    console.warn(`[MATCHUP ANALYZER] DB fetch failed for ${teamName}, using static fallback`)
-  }
-
-  // Fallback to static CSV
   const advStats = parseTeamAdvStats()
   const stats = advStats.get(abbrev)
 
   if (!stats) return null
 
-  // Base team stats
+  // Base team stats from static CSV
   const baseStats: TeamStats = {
     ortg: stats.ortg,
     drtg: stats.drtg,

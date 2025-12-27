@@ -162,8 +162,10 @@ export async function analyzeSlateEdges(
       const matchupAnalysis = await analyzeMatchup(game.home_team, game.away_team)
 
       // Get model recommendations for this game
+      // Pass home and away team names separately to avoid parsing issues with multi-word names
       const recommendations = await getGameRecommendations(
-        `${game.home_team} ${game.away_team}`,
+        game.home_team,
+        game.away_team,
         'all'
       )
 
@@ -362,15 +364,14 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
     const edgeEmoji = game.spread.edge.verdict === 'strong' ? '🔥' : game.spread.edge.verdict === 'soft' ? '✓' : '—'
     const gap = Math.abs(game.spread.marketLine - game.spread.targetLine).toFixed(1)
 
-    // Format with team name for clarity
+    // Format spreads from HOME team's perspective for consistency
+    // Positive = home is underdog, Negative = home is favorite
+    const homeTeamShort = game.homeTeam.split(' ').pop() || game.homeTeam
     const marketLineFormatted = game.spread.marketLine > 0 ? `+${game.spread.marketLine}` : `${game.spread.marketLine}`
     const modelLineFormatted = game.spread.targetLine > 0 ? `+${game.spread.targetLine.toFixed(1)}` : game.spread.targetLine.toFixed(1)
 
-    // Get short team name for model line
-    const favoredTeamShort = game.spread.favoredTeam.split(' ').pop() || game.spread.favoredTeam
-
     lines.push(
-      `- ${edgeEmoji} **Spread:** Market ${marketLineFormatted} ${game.homeTeam.split(' ').pop()} | Model ${modelLineFormatted} ${favoredTeamShort} | Gap: ${gap} pts`
+      `- ${edgeEmoji} **Spread:** Market ${marketLineFormatted} ${homeTeamShort} | Model ${modelLineFormatted} ${homeTeamShort} | Gap: ${gap} pts`
     )
     if (game.spread.edge.flag) {
       lines.push(`  - ⚠️ ${game.spread.edge.flag}`)

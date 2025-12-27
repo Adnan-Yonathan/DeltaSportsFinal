@@ -12,11 +12,14 @@ import {
   type PlayerStats,
   type RestFactors,
   type TravelFactors,
+  type RecentForm,
+  type StyleMatchupAdjustment,
 } from './pregame-value-calculator'
 import {
   analyzeMatchup,
   getTeamStats,
   getPlayerStats,
+  calculateStyleMatchupAdjustment,
   type MatchupAnalysis,
 } from './matchup-analyzer'
 
@@ -69,31 +72,51 @@ function determineConfidence(
 
 /**
  * Get game target lines (spread, total)
+ * Accepts either a game identifier string OR separate home/away team names
  */
 export async function getGameRecommendations(
-  gameIdentifier: string,
-  marketType: 'spread' | 'total' | 'all' = 'all'
+  gameIdentifierOrHomeTeam: string,
+  marketTypeOrAwayTeam: 'spread' | 'total' | 'all' | string = 'all',
+  marketTypeIfSeparate?: 'spread' | 'total' | 'all'
 ): Promise<GameRecommendation[]> {
   const recommendations: GameRecommendation[] = []
 
   try {
-    // Parse team names from identifier
-    // Support formats: "Lakers", "Lakers Celtics", "Lakers vs Celtics"
-    const parts = gameIdentifier
-      .replace(/\bvs\b|\bat\b/gi, ' ')
-      .split(/\s+/)
-      .filter((p) => p.length > 2)
+    let homeTeam: string
+    let awayTeam: string
+    let marketType: 'spread' | 'total' | 'all'
 
-    if (parts.length === 0) {
-      console.warn(`[RECOMMENDATION ENGINE] Could not parse teams from: ${gameIdentifier}`)
-      return []
+    // Check if called with separate team names (new API) or single identifier (legacy)
+    if (marketTypeIfSeparate !== undefined) {
+      // New API: getGameRecommendations(homeTeam, awayTeam, marketType)
+      homeTeam = gameIdentifierOrHomeTeam
+      awayTeam = marketTypeOrAwayTeam
+      marketType = marketTypeIfSeparate
+    } else if (['spread', 'total', 'all'].includes(marketTypeOrAwayTeam)) {
+      // Legacy API: getGameRecommendations(gameIdentifier, marketType)
+      // Parse team names from identifier
+      // Support formats: "Lakers", "Lakers Celtics", "Lakers vs Celtics"
+      const gameIdentifier = gameIdentifierOrHomeTeam
+      marketType = marketTypeOrAwayTeam as 'spread' | 'total' | 'all'
+
+      const parts = gameIdentifier
+        .replace(/\bvs\b|\bat\b/gi, ' ')
+        .split(/\s+/)
+        .filter((p) => p.length > 2)
+
+      if (parts.length === 0) {
+        console.warn(`[RECOMMENDATION ENGINE] Could not parse teams from: ${gameIdentifier}`)
+        return []
+      }
+
+      homeTeam = parts[0]
+      awayTeam = parts.length > 1 ? parts[1] : parts[0]
+    } else {
+      // Assume it's home/away with default market type
+      homeTeam = gameIdentifierOrHomeTeam
+      awayTeam = marketTypeOrAwayTeam
+      marketType = 'all'
     }
-
-    let homeTeam = parts[0]
-    let awayTeam = parts.length > 1 ? parts[1] : parts[0]
-
-    // If only one team specified, we need context - for now just analyze that team's stats
-    // In a real scenario, we'd need to know the opponent from a schedule
 
     // Analyze matchup (get stats, ATS, splits, etc.)
     const matchup = await analyzeMatchup(homeTeam, awayTeam)
@@ -101,6 +124,18 @@ export async function getGameRecommendations(
     if (!matchup.homeTeam.stats || !matchup.awayTeam.stats) {
       console.warn(`[RECOMMENDATION ENGINE] Missing stats for ${homeTeam} vs ${awayTeam}`)
       return []
+    }
+
+    // Calculate style matchup adjustment
+    let styleMatchup: StyleMatchupAdjustment | undefined
+    if (matchup.homeTeam.stats && matchup.awayTeam.stats) {
+      styleMatchup = calculateStyleMatchupAdjustment(
+        matchup.homeTeam.stats,
+        matchup.awayTeam.stats
+      )
+      if (styleMatchup.reason) {
+        console.log(`[RECOMMENDATION ENGINE] Style matchup: ${styleMatchup.reason} (${styleMatchup.adjustment > 0 ? '+' : ''}${styleMatchup.adjustment.toFixed(1)} pts)`)
+      }
     }
 
     // Calculate target lines
@@ -112,7 +147,10 @@ export async function getGameRecommendations(
       matchup.homeTeam.rest,
       matchup.awayTeam.rest,
       matchup.homeTeam.travel,
-      matchup.awayTeam.travel
+      matchup.awayTeam.travel,
+      matchup.homeTeam.recentForm,
+      matchup.awayTeam.recentForm,
+      styleMatchup
     )
     // Convert to betting spread convention: negate so positive margin = negative spread
     const targetSpread = -rawMargin

@@ -38,8 +38,50 @@ export interface TeamInjuryReport {
 }
 
 /**
+ * Determine player tier based on statistical thresholds
+ * This is purely stats-based, not name recognition
+ */
+export type PlayerTier = 'elite' | 'star' | 'starter' | 'role'
+
+export function getPlayerTier(playerStats: PlayerStats): PlayerTier {
+  const bpm = playerStats.bpm || 0
+  const vorp = playerStats.vorp || 0
+  const usage = playerStats.usage || 0
+  const mpg = playerStats.minutesPerGame || 0
+
+  // Elite: Top-tier impact players based on advanced stats
+  // BPM >= 5 is All-NBA level, VORP >= 3 is MVP-caliber contribution
+  if (bpm >= 5 || vorp >= 3 || (usage >= 28 && mpg >= 32 && bpm >= 3)) {
+    return 'elite'
+  }
+
+  // Star: High-impact starters
+  // BPM >= 2 is All-Star level, VORP >= 1.5 is significant contribution
+  if (bpm >= 2 || vorp >= 1.5 || (usage >= 25 && mpg >= 28 && bpm >= 1)) {
+    return 'star'
+  }
+
+  // Starter: Regular rotation player
+  if (mpg >= 20 && usage >= 18) {
+    return 'starter'
+  }
+
+  // Role player: Limited minutes/impact
+  return 'role'
+}
+
+// Tier-based impact multipliers
+const TIER_MULTIPLIERS: Record<PlayerTier, number> = {
+  elite: 2.5,    // Elite players have 2.5x impact
+  star: 1.8,     // Star players have 1.8x impact
+  starter: 1.2,  // Starters have 1.2x impact
+  role: 0.8,     // Role players have reduced impact
+}
+
+/**
  * Calculate the impact of a single injured player
- * Uses BPM (Box Plus/Minus) and VORP for accuracy
+ * Uses BPM (Box Plus/Minus), VORP, and stat-based tier system
+ * Impact is scaled by player's statistical contribution, NOT name recognition
  */
 export function calculatePlayerImpact(
   playerStats: PlayerStats,
@@ -52,19 +94,27 @@ export function calculatePlayerImpact(
   const dbpm = playerStats.dbpm || 0
   const vorp = playerStats.vorp || 0
 
+  // Get stat-based tier multiplier
+  const tier = getPlayerTier(playerStats)
+  const tierMultiplier = TIER_MULTIPLIERS[tier]
+
   // Offensive Rating Impact
-  // Formula: (OBPM * 0.5 + VORP * 2) * (mpg / 36) scaled by team context
-  const rawOrtgImpact = (obpm * 0.5 + vorp * 2) * (mpg / 36)
-  const ortgDrop = rawOrtgImpact * (teamStats.ortg / 115.0)
+  // Increased multipliers: OBPM * 1.2 + VORP * 4 (up from 0.5 and 2)
+  // OBPM measures points above average per 100 possessions
+  // VORP measures overall value contribution
+  const rawOrtgImpact = (obpm * 1.2 + vorp * 4) * (mpg / 36)
+  const ortgDrop = rawOrtgImpact * (teamStats.ortg / 115.0) * tierMultiplier
 
   // Defensive Rating Impact
+  // Increased multiplier: DBPM * 1.5 (up from 1.0)
   // Positive DBPM helps defense; when player is out, defense worsens (DRtg increases)
-  const rawDrtgImpact = dbpm * (mpg / 36)
-  const drtgIncrease = -rawDrtgImpact * (teamStats.drtg / 115.0)
+  const rawDrtgImpact = dbpm * 1.5 * (mpg / 36)
+  const drtgIncrease = -rawDrtgImpact * (teamStats.drtg / 115.0) * tierMultiplier
 
-  // Pace Impact
-  // High-usage players often slow the pace slightly
-  const paceDrop = (usage / 100) * (mpg / 48) * -0.5
+  // Usage-based pace impact
+  // High-usage players affect pace more when out
+  const usageImpact = (usage / 100) * (mpg / 48)
+  const paceDrop = usageImpact * -0.8 * tierMultiplier
 
   return {
     ortgDrop: Math.max(0, ortgDrop), // Can't be negative
@@ -76,14 +126,25 @@ export function calculatePlayerImpact(
 /**
  * Format injury impact into user-friendly explanation
  */
-export function formatInjuryExplanation(impact: InjuryImpact): string {
+export function formatInjuryExplanation(impact: InjuryImpact, playerStats?: PlayerStats): string {
   const { playerName, stats, impact: impactValues } = impact
   if (stats.ppg === 0 && stats.usage === 0 && stats.mpg === 0) {
     return `${playerName} (${impact.status}): impact unknown`
   }
 
-  // Use PPG and usage for user-friendly explanation
-  return `${playerName} (${impact.status}): ${stats.ppg.toFixed(1)} PPG, ${stats.usage.toFixed(1)}% usage → ${impactValues.ortgDrop > 0.5 ? `-${impactValues.ortgDrop.toFixed(1)} ORtg` : 'minor impact'}`
+  // Get tier if player stats available
+  let tierLabel = ''
+  if (playerStats) {
+    const tier = getPlayerTier(playerStats)
+    tierLabel = tier !== 'role' ? ` [${tier.toUpperCase()}]` : ''
+  }
+
+  // Calculate total impact for display
+  const totalImpact = impactValues.ortgDrop + Math.abs(impactValues.drtgIncrease)
+  const impactDesc = totalImpact > 3 ? 'HIGH' : totalImpact > 1.5 ? 'MODERATE' : 'minor'
+
+  // Use PPG, BPM and usage for user-friendly explanation
+  return `${playerName}${tierLabel} (${impact.status}): ${stats.ppg.toFixed(1)} PPG, ${stats.bpm.toFixed(1)} BPM → ${impactDesc} impact (-${impactValues.ortgDrop.toFixed(1)} ORtg)`
 }
 
 /**
@@ -139,6 +200,7 @@ export async function detectInjuries(
     }
 
     const impacts: InjuryImpact[] = []
+    const playerStatsMap = new Map<string, PlayerStats>() // Store playerStats for tier display
 
     // Get base team stats for context (we'll need this for calculations)
     // Note: We can't import getTeamStats here due to circular dependency
@@ -168,6 +230,9 @@ export async function detectInjuries(
         })
         continue
       }
+
+      // Store player stats for later tier display
+      playerStatsMap.set(playerName, playerStats)
 
       if (playerStats.minutesPerGame < 10) {
         impacts.push({
@@ -203,9 +268,10 @@ export async function detectInjuries(
       })
     }
 
-    // Fill in explanations
+    // Fill in explanations with tier information
     for (const impact of impacts) {
-      impact.explanation = formatInjuryExplanation(impact)
+      const playerStats = playerStatsMap.get(impact.playerName)
+      impact.explanation = formatInjuryExplanation(impact, playerStats)
     }
 
     if (impacts.length === 0) {

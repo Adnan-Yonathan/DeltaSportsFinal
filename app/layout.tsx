@@ -4,6 +4,7 @@ import { SupabaseAuthListener } from '@/components/SupabaseAuthListener'
 import { AppFooter } from '@/components/AppFooter'
 import { Saira_Condensed } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata: Metadata = {
   title: 'Delta AI - Intelligent Sports Betting Assistant',
@@ -36,6 +37,7 @@ export default function RootLayout({
         <main className="flex-1">{children}</main>
         <AppFooter />
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )

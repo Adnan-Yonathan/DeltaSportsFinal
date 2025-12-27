@@ -10,7 +10,7 @@ const defaultTiers: PricingTier[] = [
       monthly: 0,
       yearly: 0,
     },
-    description: "Free 7-day trial. No card required to start.",
+    description: "Free 7-day trial. Cancel anytime.",
     badge: "Trial",
     planKey: "pro_trial",
     icon: (

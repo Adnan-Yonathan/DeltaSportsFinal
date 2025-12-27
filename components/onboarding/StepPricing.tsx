@@ -16,7 +16,7 @@ const PLANS = [
     name: "Pro Trial",
     monthlyPrice: 0,
     yearlyPrice: 0,
-    description: "Free 7-day trial. No card required.",
+    description: "Free 7-day trial. Cancel anytime.",
     features: [
       "25 messages per day",
       "Live score tracking",

@@ -73,6 +73,19 @@ You have access to multiple data sources through tools:
   - "Splits for Lakers vs Celtics"
   - "Where's the money in the Warriors game?"
 
+### Edge Detection
+- **get_slate_edge_detection**: Analyze ALL games for a sport to find betting edges
+  - Combines model projections with sharp money signals (RLM, steam moves, bet%/money% divergence)
+  - "Run edge detection on NBA"
+  - "Find edges in tonight's slate"
+  - "What are the best edges today?"
+  - "Sharp edges for NFL"
+  - Shows strong/soft edges with sharp confirmation indicators
+- **get_live_betting_projection**: Real-time live betting analysis during games
+  - "What's the live projection for Lakers game?"
+  - "Live betting edge for Celtics vs Heat"
+  - "Should I bet the live spread?"
+
 ### Recommendations
 - **get_game_recommendations**: Get betting recommendations for today's games
   - "What games should I bet today?"

@@ -252,90 +252,131 @@ async function findPlayerPropEVOpportunities(
 ): Promise<EVOpportunity[]> {
   const opportunities: EVOpportunity[] = []
 
-  for (const sport of sports) {
-    const league = SPORT_TO_SBD_LEAGUE[sport]
-    if (!league) continue
+  // Only check NBA for now (most reliable prop data)
+  const propsLeagues: SbdLeague[] = ['nba']
 
+  for (const league of propsLeagues) {
     try {
+      console.log(`[CROSS-MARKET-EV] Fetching player props for ${league}...`)
+
       // Fetch player props from SBD
       const propsData = await fetchSbdPlayerProps(league, {
         markets: propMarkets,
-        limit: 100, // Limit to prevent huge payloads
+        limit: 50, // Limit to prevent huge payloads
       })
 
-      if (!propsData || !Array.isArray(propsData)) {
-        console.log(`[CROSS-MARKET-EV] No props data for ${league}`)
+      console.log(`[CROSS-MARKET-EV] Props response for ${league}:`, {
+        hasData: !!propsData,
+        isArray: Array.isArray(propsData),
+        length: Array.isArray(propsData) ? propsData.length : 0,
+        sample: Array.isArray(propsData) && propsData[0] ? Object.keys(propsData[0]).slice(0, 10) : null,
+      })
+
+      if (!propsData) {
+        console.log(`[CROSS-MARKET-EV] No props data returned for ${league}`)
         continue
       }
+
+      // Handle different response formats
+      let props: any[] = []
+      if (Array.isArray(propsData)) {
+        props = propsData
+      } else if (propsData.props && Array.isArray(propsData.props)) {
+        props = propsData.props
+      } else if (propsData.data && Array.isArray(propsData.data)) {
+        props = propsData.data
+      } else if (propsData.players && Array.isArray(propsData.players)) {
+        props = propsData.players
+      }
+
+      if (props.length === 0) {
+        console.log(`[CROSS-MARKET-EV] Empty props array for ${league}`)
+        continue
+      }
+
+      console.log(`[CROSS-MARKET-EV] Processing ${props.length} props for ${league}`)
+      console.log(`[CROSS-MARKET-EV] Sample prop structure:`, JSON.stringify(props[0], null, 2).slice(0, 500))
 
       // Filter to today's games only
       const today = new Date()
       const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
       const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
 
-      for (const prop of propsData) {
-        // Check if game is today
-        const gameTime = prop.game_time ? new Date(prop.game_time) : null
-        if (gameTime && (gameTime < todayStart || gameTime >= todayEnd)) {
-          continue
+      let propsProcessed = 0
+      let propsWithEnoughBooks = 0
+
+      for (const prop of props) {
+        propsProcessed++
+
+        // Check if game is today (skip check if no game time)
+        const gameTime = prop.game_time || prop.gameTime || prop.commence_time
+        if (gameTime) {
+          const gameDate = new Date(gameTime)
+          if (gameDate < todayStart || gameDate >= todayEnd) {
+            continue
+          }
         }
 
         // Collect odds from different books for this prop
         const bookOdds: BookOdds[] = []
-        const books = prop.books || prop.sportsbooks || []
+        const books = prop.books || prop.sportsbooks || prop.odds || prop.lines || []
 
-        for (const book of books) {
-          const bookName = book.name || book.book || book.sportsbook
-          const overOdds = book.over_odds || book.over || book.odds_over
-          const underOdds = book.under_odds || book.under || book.odds_under
-          const line = book.line || book.point || prop.line
+        for (const book of (Array.isArray(books) ? books : [])) {
+          const bookName = book.name || book.book || book.sportsbook || book.bookmaker
+          const overOdds = book.over_odds || book.over || book.odds_over || book.overOdds
+          const line = book.line || book.point || prop.line || prop.point
 
           if (overOdds && bookName) {
             bookOdds.push({
               bookmaker: bookName,
-              odds: overOdds,
-              point: line,
+              odds: typeof overOdds === 'string' ? parseInt(overOdds) : overOdds,
+              point: typeof line === 'string' ? parseFloat(line) : line,
             })
           }
         }
 
-        if (bookOdds.length < minBooks) continue
+        if (bookOdds.length >= minBooks) {
+          propsWithEnoughBooks++
 
-        // Calculate consensus and find best odds
-        const consensus = findMarketConsensus(bookOdds)
-        const bestBook = bookOdds.reduce((best, current) =>
-          current.odds > best.odds ? current : best
-        )
+          // Calculate consensus and find best odds
+          const consensus = findMarketConsensus(bookOdds)
+          const bestBook = bookOdds.reduce((best, current) =>
+            current.odds > best.odds ? current : best
+          )
 
-        const ev = calculateEV(consensus.impliedProbability, bestBook.odds)
+          const ev = calculateEV(consensus.impliedProbability, bestBook.odds)
 
-        if (ev >= minEV) {
-          const playerName = prop.player_name || prop.player || 'Unknown'
-          const propType = prop.market || prop.prop_type || prop.stat || 'Prop'
-          const line = bestBook.point || prop.line || 0
-          const gameDesc = prop.matchup || prop.game || `${prop.away_team || ''} @ ${prop.home_team || ''}`
+          if (ev >= minEV) {
+            const playerName = prop.player_name || prop.playerName || prop.player || prop.name || 'Unknown'
+            const propType = prop.market || prop.prop_type || prop.propType || prop.stat || prop.statType || 'Prop'
+            const line = bestBook.point || prop.line || prop.point || 0
+            const gameDesc = prop.matchup || prop.game || prop.gameTitle ||
+              `${prop.away_team || prop.awayTeam || ''} @ ${prop.home_team || prop.homeTeam || ''}`
 
-          const bestImplied = calculateImpliedProbabilityDecimal(bestBook.odds)
-          const edgePercent = (consensus.impliedProbability - bestImplied) * 100
+            const bestImplied = calculateImpliedProbabilityDecimal(bestBook.odds)
+            const edgePercent = (consensus.impliedProbability - bestImplied) * 100
 
-          opportunities.push({
-            game: gameDesc.trim() || 'Today',
-            gameId: prop.game_id || prop.event_id || '',
-            market: `${playerName} ${propType}`,
-            selection: 'Over',
-            point: line,
-            bestBook: bestBook.bookmaker,
-            bestOdds: bestBook.odds,
-            consensus,
-            ev: Math.round(ev * 10) / 10,
-            edgePercent: Math.round(edgePercent * 10) / 10,
-            allBooks: bookOdds,
-            commenceTime: prop.game_time || new Date().toISOString(),
-          })
+            console.log(`[CROSS-MARKET-EV] Found prop EV: ${playerName} ${propType} o${line} @ ${bestBook.bookmaker} ${bestBook.odds}, EV=${ev.toFixed(1)}%`)
+
+            opportunities.push({
+              game: gameDesc.trim() || 'Today',
+              gameId: prop.game_id || prop.gameId || prop.event_id || '',
+              market: `${playerName} ${propType}`,
+              selection: 'Over',
+              point: line,
+              bestBook: bestBook.bookmaker,
+              bestOdds: bestBook.odds,
+              consensus,
+              ev: Math.round(ev * 10) / 10,
+              edgePercent: Math.round(edgePercent * 10) / 10,
+              allBooks: bookOdds,
+              commenceTime: gameTime || new Date().toISOString(),
+            })
+          }
         }
       }
 
-      console.log(`[CROSS-MARKET-EV] Found ${opportunities.length} prop opportunities for ${league}`)
+      console.log(`[CROSS-MARKET-EV] Props summary for ${league}: ${propsProcessed} processed, ${propsWithEnoughBooks} with ${minBooks}+ books, ${opportunities.length} opportunities`)
     } catch (error) {
       console.error(`[CROSS-MARKET-EV] Failed to fetch props for ${league}:`, error)
     }
@@ -373,16 +414,16 @@ Try again later when more games are posted or lines are moving.`
   // Team markets table
   if (teamMarkets.length > 0) {
     lines.push('### Team Markets\n')
-    lines.push('| Bet | Book | Best Odds | Consensus | EV |')
-    lines.push('|-----|------|-----------|-----------|-----|')
+    lines.push('| Matchup | Bet | Book | Best Odds | Consensus | EV |')
+    lines.push('|---------|-----|------|-----------|-----------|-----|')
 
     for (const opp of teamMarkets) {
       const oddsStr = formatAmericanOdds(opp.bestOdds)
       const consensusStr = formatAmericanOdds(Math.round(opp.consensus.averageOdds))
       const pointStr = opp.point !== undefined ? ` ${opp.point > 0 ? '+' : ''}${opp.point}` : ''
-      const betDesc = `${opp.game.split(' @ ')[0]?.split(' ').pop() || opp.selection}${pointStr} (${opp.market})`
+      const betDesc = `${opp.selection}${pointStr} (${opp.market})`
 
-      lines.push(`| ${betDesc} | ${opp.bestBook} | ${oddsStr} | ${consensusStr} | **+${opp.ev.toFixed(1)}%** |`)
+      lines.push(`| ${opp.game} | ${betDesc} | ${opp.bestBook} | ${oddsStr} | ${consensusStr} | **+${opp.ev.toFixed(1)}%** |`)
     }
     lines.push('')
   }

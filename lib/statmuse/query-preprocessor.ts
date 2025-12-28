@@ -6,6 +6,23 @@
 import { findNbaStaticPlayer, getStaticNbaPlayers } from '@/lib/nba-static-stats'
 import { findStaticNbaTeam, getStaticNbaTeams } from '@/lib/nba-static-team-stats'
 
+export type QueryType =
+  | 'player_stats'
+  | 'team_stats'
+  | 'player_vs_opponent'
+  | 'threshold'
+  | 'prop_ranking'
+  | 'ats'
+  | 'injuries'
+  | 'live_scores'
+  | 'schedule'
+  | 'leaderboard'
+  | 'betting_splits'
+  | 'game_recommendation'
+  | 'unknown'
+
+export type SportType = 'nba' | 'nfl' | 'mlb' | 'nhl' | 'ncaab' | 'cfb' | 'unknown'
+
 export interface PreprocessedQuery {
   /** Original query text */
   originalQuery: string
@@ -13,62 +30,460 @@ export interface PreprocessedQuery {
   playerName?: string
   /** Detected team name (if any) */
   teamName?: string
+  /** Second team for matchups */
+  opponentTeam?: string
   /** Detected stats being requested */
   stats?: string[]
   /** Query type */
-  queryType?: 'player_stats' | 'team_stats' | 'player_vs_opponent' | 'threshold' | 'unknown'
+  queryType?: QueryType
   /** Whether preprocessing found a match */
   matched: boolean
+  /** For prop_ranking queries: the prop type detected */
+  propType?: string
+  /** For prop_ranking/threshold queries: the threshold detected */
+  propThreshold?: number
+  /** Detected sport */
+  sport?: SportType
+  /** Stat type for leaderboard queries */
+  leaderboardStat?: string
+  /** Suggested tool to use */
+  suggestedTool?: string
 }
 
+// ============================================================
+// SPORT DETECTION PATTERNS
+// ============================================================
+
+const SPORT_PATTERNS: { sport: SportType; patterns: RegExp[] }[] = [
+  {
+    sport: 'nfl',
+    patterns: [
+      /\b(nfl|football|quarterback|qb|touchdown|yards|rushing|passing|receivers?|wr|rb|te|defense|sack)\b/i,
+      /\b(chiefs|eagles|bills|49ers|cowboys|ravens|bengals|lions|dolphins|jets|patriots|packers|chargers|seahawks|vikings|broncos|raiders|bears|browns|steelers|saints|buccaneers|rams|cardinals|falcons|panthers|commanders|giants|jaguars|texans|colts|titans)\b/i,
+    ],
+  },
+  {
+    sport: 'mlb',
+    patterns: [
+      /\b(mlb|baseball|pitcher|batting|era|rbi|home\s*runs?|strikeouts?|innings?|pitching)\b/i,
+      /\b(yankees|dodgers|astros|braves|mets|phillies|padres|mariners|guardians|orioles|rangers|rays|twins|blue\s*jays|red\s*sox|cubs|cardinals|brewers|diamondbacks|marlins|giants|reds|pirates|rockies|royals|tigers|angels|athletics|nationals|white\s*sox)\b/i,
+    ],
+  },
+  {
+    sport: 'nhl',
+    patterns: [
+      /\b(nhl|hockey|goalie|puck|ice|slap\s*shot|power\s*play|penalty)\b/i,
+      /\b(bruins|avalanche|panthers|hurricanes|devils|rangers|maple\s*leafs|oilers|stars|knights|wild|jets|kings|flames|lightning|kraken|blues|senators|red\s*wings|canucks|islanders|penguins|capitals|predators|sabres|flyers|ducks|coyotes|sharks|blackhawks|canadiens|blue\s*jackets)\b/i,
+    ],
+  },
+  {
+    sport: 'ncaab',
+    patterns: [
+      /\b(ncaab|college\s*basketball|march\s*madness|ncaa\s*basketball)\b/i,
+    ],
+  },
+  {
+    sport: 'cfb',
+    patterns: [
+      /\b(cfb|college\s*football|ncaa\s*football)\b/i,
+    ],
+  },
+]
+
+function detectSport(query: string): SportType {
+  const lower = query.toLowerCase()
+
+  for (const { sport, patterns } of SPORT_PATTERNS) {
+    for (const pattern of patterns) {
+      if (pattern.test(lower)) {
+        return sport
+      }
+    }
+  }
+
+  // Check for NBA-specific terms or default to NBA
+  if (/\b(nba|basketball|three[- ]?pointer|dunk|rebound|assist)\b/i.test(lower)) {
+    return 'nba'
+  }
+
+  // Check if query mentions an NBA team or player
+  const teamMatch = findTeamInQuery(query)
+  const playerMatch = findPlayerInQuery(query)
+  if (teamMatch || playerMatch) {
+    return 'nba'
+  }
+
+  return 'unknown'
+}
+
+// ============================================================
+// QUERY TYPE PATTERNS
+// ============================================================
+
 /**
- * Common player stat query patterns:
- * - "what are lebrons stats"
- * - "show me curry's stats"
- * - "lebron james stats this season"
- * - "how many points does luka average"
- * - "what's giannis averaging"
+ * ATS (Against The Spread) patterns
+ */
+const ATS_PATTERNS = [
+  /\b(ats|against\s+the\s+spread)\s+(record|history|stats?|performance)/i,
+  /\bats\b/i,
+  /\b(cover|covers|covering)\s+(the\s+)?spread/i,
+  /\bspread\s+(record|history|performance)/i,
+  /\b(do|does|how\s+do)\s+.+\s+(cover|ats|against\s+the\s+spread)/i,
+  /\b(best|worst|top)\s+(ats|spread\s+covering)\s+teams?/i,
+  /\b(home|away|road)\s+ats/i,
+  /\bats\s+(home|away|road|as\s+favorite|as\s+underdog)/i,
+]
+
+/**
+ * Injury patterns
+ */
+const INJURY_PATTERNS = [
+  /\b(injur|injured|injuries|injury\s+report|injury\s+list)\b/i,
+  /\b(who'?s|who\s+is)\s+(out|injured|questionable|doubtful|probable)/i,
+  /\b(out|questionable|doubtful|probable|gtd|day-to-day)\b.*\b(for|on)\b/i,
+  /\b(health|healthy|status)\s+(report|update|check)/i,
+  /\b(missing|sitting\s+out|ruled\s+out|dnp)\b/i,
+  /\b(availability|available)\b/i,
+]
+
+/**
+ * Live scores patterns
+ */
+const LIVE_SCORE_PATTERNS = [
+  /\b(score|scores|scoring)\b/i,
+  /\b(live|current|right\s+now|currently)\s+(game|score|play)/i,
+  /\bwhat'?s?\s+(the\s+)?(score|happening)/i,
+  /\b(games?\s+)?(today|tonight|on\s+now|playing|live)\b/i,
+  /\b(who'?s|who\s+is)\s+(playing|winning|leading)/i,
+  /\bare\s+there\s+(any\s+)?games/i,
+  /\b(halftime|quarter|period|inning)\s+(score|update)/i,
+]
+
+/**
+ * Schedule/rest patterns
+ */
+const SCHEDULE_PATTERNS = [
+  /\b(back[- ]?to[- ]?back|b2b)\b/i,
+  /\b(road\s+trip|home\s+stand|schedule)\b/i,
+  /\b(rest|rested|tired|fatigue|fatigued)\b/i,
+  /\b(travel|traveling|flew|flight)\b/i,
+  /\b(days?\s+off|days?\s+rest)\b/i,
+  /\b(last\s+game|previous\s+game|played\s+yesterday)\b/i,
+  /\bscheduled?\s+(advantage|disadvantage|spot)\b/i,
+]
+
+/**
+ * Leaderboard patterns
+ */
+const LEADERBOARD_PATTERNS = [
+  /\b(who\s+)?lead(s|ing|ers?)?\s+(the\s+)?(league|nba|nfl|mlb|nhl)\s+(in|for)/i,
+  /\b(top|best|highest|most)\s+(\d+\s+)?(scorers?|rebounders?|passers?|shooters?)/i,
+  /\bleague\s+leaders?\s+(in|for)/i,
+  /\b(scoring|rebounding|assist|steals?|blocks?)\s+leaders?/i,
+  /\bwho\s+(has|averages?)\s+the\s+(most|highest|best)/i,
+  /\b(rank|ranking|rankings)\s+(players?|teams?)\s+by/i,
+  /\bmost\s+(points|rebounds|assists|steals|blocks|threes|3s|home\s*runs?|touchdowns?|yards)/i,
+]
+
+/**
+ * Player vs opponent patterns
+ */
+const PLAYER_VS_OPPONENT_PATTERNS = [
+  /(.+?)\s+(?:vs?|versus|against|playing|matchup\s+(?:vs?|against)?)\s+(?:the\s+)?(.+)/i,
+  /(.+?)\s+stats?\s+(?:vs?|versus|against)\s+(?:the\s+)?(.+)/i,
+  /\bhow\s+(?:does|do|did)\s+(.+?)\s+(?:perform|do|play)\s+(?:vs?|versus|against)\s+(?:the\s+)?(.+)/i,
+  /(.+?)\s+(?:performance|history)\s+(?:vs?|versus|against)\s+(?:the\s+)?(.+)/i,
+]
+
+/**
+ * Threshold/counting patterns (e.g., "how many 40-point games")
+ */
+const THRESHOLD_PATTERNS = [
+  /how\s+many\s+(\d+)[+\-]?\s*[- ]?(point|pts?|rebound|reb|assist|ast|three|3|steal|block)\s*(games?)?/i,
+  /(\d+)[+]?\s*[- ]?(point|pts?|rebound|reb|assist|ast)\s+games?\s+(has|does|did)\s+(.+)/i,
+  /times?\s+(.+?)\s+(?:scored?|had|got|recorded?)\s+(\d+)\+?/i,
+  /games?\s+(?:where|with|when)\s+(.+?)\s+(?:scored?|had|got)\s+(\d+)\+?/i,
+  /\b(double[- ]?double|triple[- ]?double)s?\s+(?:by|for|has)\b/i,
+  /\bhow\s+many\s+(double[- ]?double|triple[- ]?double)s?/i,
+]
+
+/**
+ * Betting splits patterns
+ */
+const BETTING_SPLITS_PATTERNS = [
+  /\b(betting|public|sharp|money)\s+(splits?|action|percentage|%)/i,
+  /\b(where|what)\s+(is\s+)?(the\s+)?(money|public|sharps?)\s+(on|betting)/i,
+  /\b(fade|fading)\s+(the\s+)?public/i,
+  /\bcontrarian\s+(play|bet|pick)/i,
+  /\bsharp\s+(action|money|bets?|play)/i,
+]
+
+/**
+ * Game recommendation patterns
+ */
+const GAME_RECOMMENDATION_PATTERNS = [
+  /\b(what|calculate|project|fair)\s+(should|is)\s+(the\s+)?(spread|line|total|over\s*\/?\s*under)/i,
+  /\b(model|projected?|fair)\s+(spread|line|total)/i,
+  /\b(edge|value)\s+(on|in|for)\s+.+\s+(game|spread|total)/i,
+  /\btarget\s+(spread|line|total)/i,
+  /\b(over\s*\/?\s*under|o\s*\/?\s*u)\s+(projection|target|fair)/i,
+]
+
+/**
+ * Prop ranking patterns
+ */
+const PROP_RANKING_PATTERNS = [
+  /which\s+player\s+(?:is\s+)?(?:most\s+)?likely\s+to\s+(?:hit|score|get|make)\s+(\d+)\+?\s+(threes?|three[- ]?pointers?|3s?|3pm|points?|pts|rebounds?|reb|assists?|ast)/i,
+  /who\s+(?:has\s+the\s+)?(?:best|highest)\s+chance\s+(?:of\s+)?(?:hitting|scoring|getting|making)\s+(\d+)\+?\s+(threes?|three[- ]?pointers?|3s?|3pm|points?|pts|rebounds?|reb|assists?|ast)/i,
+  /rank\s+players?\s+(?:by\s+)?(?:probability|likelihood|chance)\s+(?:of\s+)?(?:hitting|scoring|getting)\s+(\d+)\+?\s+(threes?|three[- ]?pointers?|3s?|3pm|points?|pts|rebounds?|reb|assists?|ast)/i,
+  /top\s+(?:\d+\s+)?players?\s+(?:to\s+)?(?:hit|go)\s+over\s+(\d+\.?\d*)\s+(threes?|three[- ]?pointers?|3s?|3pm|points?|pts|rebounds?|reb|assists?|ast)/i,
+  /best\s+(?:\d+\s+)?players?\s+(?:for|to\s+hit)\s+(\d+)\+?\s+(threes?|three[- ]?pointers?|3s?|3pm|points?|pts|rebounds?|reb|assists?|ast)/i,
+  /players?\s+(?:most\s+)?likely\s+to\s+(?:hit|score|get|make)\s+(\d+)\+?\s+(threes?|three[- ]?pointers?|3s?|3pm|points?|pts|rebounds?|reb|assists?|ast)/i,
+  /who'?s?\s+(?:going\s+)?(?:hitting|making|scoring)\s+(\d+)\+?\s+(threes?|three[- ]?pointers?|3s?|points?|rebounds?|assists?)/i,
+]
+
+/**
+ * Player stat patterns
  */
 const PLAYER_STAT_PATTERNS = [
-  // "what are/is [player] stats/averaging"
   /what\s+(?:are|is|\'s)\s+([a-z\s]+?)(?:\'?s?)?\s+(?:stats|averaging|season stats|numbers)/i,
-  // "show me [player] stats"
   /show\s+(?:me\s+)?([a-z\s]+?)(?:\'?s?)?\s+stats/i,
-  // "[player] stats"
   /^([a-z\s]+)\s+stats(?:\s+(?:this|for|the)\s+season)?$/i,
-  // "[player]'s stats"
   /^([a-z\s]+)\'s\s+stats/i,
-  // "how many [stat] does [player] average/have"
   /how\s+many\s+(?:points|rebounds|assists|steals|blocks)\s+(?:does|has)\s+([a-z\s]+?)\s+(?:average|have|get)/i,
-  // "what's [player] [stat]"
   /what\'s\s+([a-z\s]+?)(?:\'?s?)?\s+(?:ppg|rpg|apg|points|rebounds|assists|shooting|fg%|3p%)/i,
-  // "[player] averages" / "[player] season averages"
   /^([a-z\s]+?)\s+(?:season\s+)?averages?$/i,
-  // "[player] ppg/points" style
   /^([a-z\s]+?)\s+(?:ppg|rpg|apg|mpg|pts|points|rebounds|assists|steals|blocks|fg%|3p%|3pt%|ft%|ts%|efg%|turnovers?|tov|reb|ast|stl|blk)\b/i,
-  // "[player] points per game" style
   /^([a-z\s]+?)\s+(?:points per game|rebounds per game|assists per game|steals per game|blocks per game|minutes per game|field goal %|three point %|free throw %|true shooting %|effective fg %)\b/i,
 ]
 
 /**
- * Common team stat query patterns:
- * - "lakers stats"
- * - "show me celtics team stats"
- * - "what are the warriors stats"
+ * Team stat patterns
  */
 const TEAM_STAT_PATTERNS = [
-  // "what are/is [team] stats"
   /what\s+(?:are|is)\s+(?:the\s+)?([a-z\s]+?)\s+(?:team\s+)?stats/i,
-  // "show me [team] stats"
   /show\s+(?:me\s+)?(?:the\s+)?([a-z\s]+?)\s+(?:team\s+)?stats/i,
-  // "[team] stats"
   /^([a-z\s]+?)\s+(?:team\s+)?stats$/i,
 ]
 
-type TeamStatRequest = { teamName: string; statLabel: string }
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
 
 const normalizeToken = (text: string): string =>
   text.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+function normalize(text: string): string {
+  return text.trim().toLowerCase().replace(/[^a-z\s]/g, '')
+}
+
+function normalizePropType(rawPropType: string): string {
+  const prop = rawPropType.toLowerCase().trim()
+  if (/threes?|three[- ]?pointers?|3s?|3pm/i.test(prop)) return 'threes'
+  if (/points?|pts/i.test(prop)) return 'points'
+  if (/rebounds?|reb/i.test(prop)) return 'rebounds'
+  if (/assists?|ast/i.test(prop)) return 'assists'
+  if (/steals?|stl/i.test(prop)) return 'steals'
+  if (/blocks?|blk/i.test(prop)) return 'blocks'
+  return prop
+}
+
+// Team nickname/abbreviation mappings for better matching
+const TEAM_ALIASES: Record<string, string[]> = {
+  'Atlanta Hawks': ['hawks', 'atl', 'atlanta'],
+  'Boston Celtics': ['celtics', 'bos', 'boston', 'cs'],
+  'Brooklyn Nets': ['nets', 'bkn', 'brooklyn', 'brk'],
+  'Charlotte Hornets': ['hornets', 'cha', 'charlotte', 'cho'],
+  'Chicago Bulls': ['bulls', 'chi', 'chicago'],
+  'Cleveland Cavaliers': ['cavaliers', 'cavs', 'cle', 'cleveland'],
+  'Dallas Mavericks': ['mavericks', 'mavs', 'dal', 'dallas'],
+  'Denver Nuggets': ['nuggets', 'den', 'denver'],
+  'Detroit Pistons': ['pistons', 'det', 'detroit'],
+  'Golden State Warriors': ['warriors', 'gsw', 'dubs', 'golden state', 'gs'],
+  'Houston Rockets': ['rockets', 'hou', 'houston'],
+  'Indiana Pacers': ['pacers', 'ind', 'indiana'],
+  'Los Angeles Clippers': ['clippers', 'lac', 'la clippers'],
+  'Los Angeles Lakers': ['lakers', 'lal', 'la lakers'],
+  'Memphis Grizzlies': ['grizzlies', 'grizz', 'mem', 'memphis'],
+  'Miami Heat': ['heat', 'mia', 'miami'],
+  'Milwaukee Bucks': ['bucks', 'mil', 'milwaukee'],
+  'Minnesota Timberwolves': ['timberwolves', 'wolves', 'min', 'minnesota', 'twolves'],
+  'New Orleans Pelicans': ['pelicans', 'pels', 'nop', 'new orleans'],
+  'New York Knicks': ['knicks', 'nyk', 'new york', 'ny'],
+  'Oklahoma City Thunder': ['thunder', 'okc', 'oklahoma city', 'oklahoma'],
+  'Orlando Magic': ['magic', 'orl', 'orlando'],
+  'Philadelphia 76ers': ['76ers', 'sixers', 'phi', 'philly', 'philadelphia'],
+  'Phoenix Suns': ['suns', 'phx', 'pho', 'phoenix'],
+  'Portland Trail Blazers': ['trail blazers', 'blazers', 'por', 'portland'],
+  'Sacramento Kings': ['kings', 'sac', 'sacramento'],
+  'San Antonio Spurs': ['spurs', 'sas', 'san antonio'],
+  'Toronto Raptors': ['raptors', 'raps', 'tor', 'toronto'],
+  'Utah Jazz': ['jazz', 'uta', 'utah'],
+  'Washington Wizards': ['wizards', 'wiz', 'was', 'washington'],
+}
+
+function findTeamByAlias(query: string): string | null {
+  const normalized = normalizeToken(query)
+
+  for (const [fullName, aliases] of Object.entries(TEAM_ALIASES)) {
+    for (const alias of aliases) {
+      if (normalized.includes(normalizeToken(alias))) {
+        return fullName
+      }
+    }
+  }
+
+  return null
+}
+
+function findTeamInQuery(query: string): string | null {
+  // First try alias matching (includes abbreviations, nicknames)
+  const aliasMatch = findTeamByAlias(query)
+  if (aliasMatch) return aliasMatch
+
+  // Fall back to static data matching
+  const normalizedQuery = normalize(query).replace(/\s+/g, '')
+  for (const team of getStaticNbaTeams()) {
+    const teamName = normalize(team.team).replace(/\s+/g, '')
+    if (!teamName) continue
+    if (normalizedQuery.includes(teamName)) return team.team
+    const nickname = team.team.split(' ').pop() || team.team
+    const nicknameNorm = normalize(nickname).replace(/\s+/g, '')
+    if (nicknameNorm && normalizedQuery.includes(nicknameNorm)) return team.team
+  }
+  return null
+}
+
+function findPlayerInQuery(query: string): string | null {
+  const normalizedQuery = normalize(query).replace(/\s+/g, '')
+  for (const player of getStaticNbaPlayers()) {
+    const nameNorm = normalize(player.name).replace(/\s+/g, '')
+    if (nameNorm.length >= 4 && normalizedQuery.includes(nameNorm)) return player.name
+    const lastName = player.name.split(/\s+/).pop() || ''
+    const lastNorm = normalize(lastName).replace(/\s+/g, '')
+    if (lastNorm.length >= 4 && normalizedQuery.includes(lastNorm)) return player.name
+  }
+  return null
+}
+
+function extractLeaderboardStat(query: string): string | null {
+  const lower = query.toLowerCase()
+
+  if (/\b(scoring|points?|pts|ppg)\b/.test(lower)) return 'points'
+  if (/\b(rebounding|rebounds?|reb|rpg)\b/.test(lower)) return 'rebounds'
+  if (/\b(assists?|ast|apg)\b/.test(lower)) return 'assists'
+  if (/\b(steals?|stl|spg)\b/.test(lower)) return 'steals'
+  if (/\b(blocks?|blk|bpg)\b/.test(lower)) return 'blocks'
+  if (/\b(threes?|3s|3pm|three[- ]?pointers?)\b/.test(lower)) return 'threes'
+  if (/\b(fg%|field\s*goal|shooting)\b/.test(lower)) return 'fg_pct'
+  if (/\b(3p%|three[- ]?point\s*%)\b/.test(lower)) return 'three_pct'
+  if (/\b(minutes?|mpg)\b/.test(lower)) return 'minutes'
+
+  return null
+}
+
+// ============================================================
+// QUERY TYPE DETECTION
+// ============================================================
+
+function detectQueryType(query: string): { type: QueryType; tool?: string; extra?: Record<string, any> } {
+  const lower = query.toLowerCase()
+
+  // Check for prop ranking first (most specific)
+  for (const pattern of PROP_RANKING_PATTERNS) {
+    const match = query.match(pattern)
+    if (match && match[1] && match[2]) {
+      const threshold = parseFloat(match[1])
+      const propType = normalizePropType(match[2])
+      if (!isNaN(threshold)) {
+        return {
+          type: 'prop_ranking',
+          tool: 'get_ranked_players_by_prop_threshold',
+          extra: { propType, threshold: Math.ceil(threshold) }
+        }
+      }
+    }
+  }
+
+  // Check for threshold/counting queries
+  for (const pattern of THRESHOLD_PATTERNS) {
+    if (pattern.test(lower)) {
+      return { type: 'threshold', tool: 'getPlayerThresholdGames' }
+    }
+  }
+
+  // Check for ATS queries
+  for (const pattern of ATS_PATTERNS) {
+    if (pattern.test(lower)) {
+      return { type: 'ats', tool: 'getTeamAtsAnalysis' }
+    }
+  }
+
+  // Check for injury queries
+  for (const pattern of INJURY_PATTERNS) {
+    if (pattern.test(lower)) {
+      return { type: 'injuries', tool: 'getInjuries' }
+    }
+  }
+
+  // Check for live score queries
+  for (const pattern of LIVE_SCORE_PATTERNS) {
+    if (pattern.test(lower)) {
+      return { type: 'live_scores', tool: 'getLiveScores' }
+    }
+  }
+
+  // Check for schedule/rest queries
+  for (const pattern of SCHEDULE_PATTERNS) {
+    if (pattern.test(lower)) {
+      return { type: 'schedule', tool: 'getTeamScheduleContext' }
+    }
+  }
+
+  // Check for leaderboard queries
+  for (const pattern of LEADERBOARD_PATTERNS) {
+    if (pattern.test(lower)) {
+      const stat = extractLeaderboardStat(query)
+      return { type: 'leaderboard', tool: 'getLeaderboard', extra: { stat } }
+    }
+  }
+
+  // Check for betting splits
+  for (const pattern of BETTING_SPLITS_PATTERNS) {
+    if (pattern.test(lower)) {
+      return { type: 'betting_splits', tool: 'get_betting_splits' }
+    }
+  }
+
+  // Check for game recommendation
+  for (const pattern of GAME_RECOMMENDATION_PATTERNS) {
+    if (pattern.test(lower)) {
+      return { type: 'game_recommendation', tool: 'get_game_recommendations' }
+    }
+  }
+
+  // Check for player vs opponent
+  for (const pattern of PLAYER_VS_OPPONENT_PATTERNS) {
+    const match = query.match(pattern)
+    if (match) {
+      const player = findPlayerInQuery(match[1])
+      const opponent = findTeamInQuery(match[2])
+      if (player && opponent) {
+        return {
+          type: 'player_vs_opponent',
+          tool: 'getPlayerVsOpponent',
+          extra: { player, opponent }
+        }
+      }
+    }
+  }
+
+  return { type: 'unknown' }
+}
+
+// ============================================================
+// STAT INDEX BUILDING
+// ============================================================
 
 const expandStatVariants = (key: string, baseLabel?: string): string[] => {
   const variants = new Set<string>()
@@ -82,22 +497,15 @@ const expandStatVariants = (key: string, baseLabel?: string): string[] => {
   variants.add(spaced)
   variants.add(spaced.replace(/\bpercent\b/gi, 'pct'))
   variants.add(spaced.replace(/\bpct\b/gi, 'percent'))
-  variants.add(spaced.replace(/\bper game\b/gi, 'per game'))
   variants.add(spaced.replace(/\bper game\b/gi, 'pg'))
   variants.add(spaced.replace(/\bopponent\b/gi, 'opp'))
-  variants.add(spaced.replace(/\bopponents\b/gi, 'opp'))
   variants.add(spaced.replace(/\bthree\b/gi, '3'))
-  variants.add(spaced.replace(/\btwo\b/gi, '2'))
-  variants.add(spaced.replace(/\bagainst\b/gi, 'allowed'))
-  variants.add(spaced.replace(/\bopponent\b/gi, 'allowed'))
   variants.add(spaced.replace(/\bfield goal\b/gi, 'fg'))
   variants.add(spaced.replace(/\bfree throw\b/gi, 'ft'))
   variants.add(spaced.replace(/\bturnovers\b/gi, 'tov'))
   variants.add(spaced.replace(/\bassists\b/gi, 'ast'))
   variants.add(spaced.replace(/\brebounds\b/gi, 'reb'))
   variants.add(spaced.replace(/\bpoints\b/gi, 'pts'))
-  variants.add(spaced.replace(/\bminutes\b/gi, 'min'))
-  variants.add(spaced.replace(/\bpercentage\b/gi, 'pct'))
 
   if (normalizeToken(spaced).includes('pointspergame')) variants.add('ppg')
   if (normalizeToken(spaced).includes('reboundspergame')) variants.add('rpg')
@@ -105,17 +513,6 @@ const expandStatVariants = (key: string, baseLabel?: string): string[] => {
   if (normalizeToken(spaced).includes('minutespergame')) variants.add('mpg')
   if (normalizeToken(spaced).includes('offensiverating')) variants.add('ortg')
   if (normalizeToken(spaced).includes('defensiverating')) variants.add('drtg')
-  if (normalizeToken(spaced).includes('netrating')) variants.add('netrtg')
-  if (normalizeToken(spaced).includes('effectivfgpct')) variants.add('efg%')
-  if (normalizeToken(spaced).includes('trueshootingpct')) variants.add('ts%')
-  if (normalizeToken(spaced).includes('threepointpct')) variants.add('3p%')
-  if (normalizeToken(spaced).includes('threepm')) variants.add('3pm')
-  if (normalizeToken(spaced).includes('threepa')) variants.add('3pa')
-  if (normalizeToken(spaced).includes('fieldgoalpct')) variants.add('fg%')
-  if (normalizeToken(spaced).includes('freethrowpct')) variants.add('ft%')
-  if (normalizeToken(spaced).includes('marginofvictory')) variants.add('mov')
-  if (normalizeToken(spaced).includes('strengthofschedule')) variants.add('sos')
-  if (normalizeToken(spaced).includes('simpleratingsystem')) variants.add('srs')
 
   return Array.from(variants)
 }
@@ -141,13 +538,6 @@ const buildPlayerStatIndex = () => {
 const TEAM_STAT_INDEX = buildTeamStatIndex()
 const PLAYER_STAT_INDEX = buildPlayerStatIndex()
 
-/**
- * Normalize text for matching (remove special chars, lowercase)
- */
-function normalize(text: string): string {
-  return text.trim().toLowerCase().replace(/[^a-z\s]/g, '')
-}
-
 function findStatRequest(query: string, index: Array<{ key: string; variants: string[] }>): string | null {
   const normalizedQuery = normalizeToken(query)
   for (const entry of index) {
@@ -160,63 +550,6 @@ function findStatRequest(query: string, index: Array<{ key: string; variants: st
   return null
 }
 
-function findTeamInQuery(query: string): string | null {
-  const normalizedQuery = normalize(query).replace(/\s+/g, '')
-  for (const team of getStaticNbaTeams()) {
-    const teamName = normalize(team.team).replace(/\s+/g, '')
-    if (!teamName) continue
-    if (normalizedQuery.includes(teamName)) return team.team
-    const nickname = team.team.split(' ').pop() || team.team
-    const nicknameNorm = normalize(nickname).replace(/\s+/g, '')
-    if (nicknameNorm && normalizedQuery.includes(nicknameNorm)) return team.team
-  }
-  return null
-}
-
-function findPlayerInQuery(query: string): string | null {
-  const normalizedQuery = normalize(query).replace(/\s+/g, '')
-  for (const player of getStaticNbaPlayers()) {
-    const nameNorm = normalize(player.name).replace(/\s+/g, '')
-    if (nameNorm.length >= 4 && normalizedQuery.includes(nameNorm)) return player.name
-    const lastName = player.name.split(/\s+/).pop() || ''
-    const lastNorm = normalize(lastName).replace(/\s+/g, '')
-    if (lastNorm.length >= 4 && normalizedQuery.includes(lastNorm)) return player.name
-  }
-  return null
-}
-
-function extractTeamStatRequest(query: string): TeamStatRequest | null {
-  const statLabel = findStatRequest(query, TEAM_STAT_INDEX)
-  if (!statLabel) return null
-
-  let candidateTeam = ''
-  const normalized = normalize(query)
-  const teamMatch = normalized.match(
-    /^(?:the\s+)?([a-z\s]+?)\s+(?:ppg|rpg|apg|mpg|net rating|net rtg|ortg|drtg|pace|points per game|points allowed|rebounds per game|assists per game|fg%|3p%|ft%|ts%|efg%)/i
-  )
-  if (teamMatch && teamMatch[1]) {
-    candidateTeam = teamMatch[1].trim()
-  }
-
-  const teamGuess = candidateTeam ? findStaticNbaTeam(candidateTeam)[0]?.team : null
-  const fallbackTeam = teamGuess || findTeamInQuery(query)
-  if (!fallbackTeam) return null
-
-  return { teamName: fallbackTeam, statLabel }
-}
-
-function extractPlayerStatRequest(query: string): TeamStatRequest | null {
-  const statLabel = findStatRequest(query, PLAYER_STAT_INDEX)
-  if (!statLabel) return null
-  const playerGuess = extractPlayerName(query)
-  const fallbackPlayer = playerGuess || findPlayerInQuery(query)
-  if (!fallbackPlayer) return null
-  return { teamName: fallbackPlayer, statLabel }
-}
-
-/**
- * Extract player name from query using pattern matching
- */
 function extractPlayerName(query: string): string | undefined {
   const normalized = normalize(query)
 
@@ -224,16 +557,12 @@ function extractPlayerName(query: string): string | undefined {
     const match = normalized.match(pattern)
     if (match && match[1]) {
       const extracted = match[1].trim()
-
-      // Filter out common stop words that aren't player names
       const stopWords = ['stats', 'for', 'the', 'this', 'season', 'averaging', 'average', 'show', 'me', 'what', 'are', 'is']
       const cleaned = extracted.split(/\s+/).filter(word => !stopWords.includes(word)).join(' ')
 
       if (cleaned.length > 1) {
-        // Verify this player exists in our data
         const player = findNbaStaticPlayer(cleaned)
         if (player) {
-          console.log('[PREPROCESSOR] Extracted player name:', cleaned, '→ found:', player.name)
           return cleaned
         }
       }
@@ -243,9 +572,6 @@ function extractPlayerName(query: string): string | undefined {
   return undefined
 }
 
-/**
- * Extract team name from query using pattern matching
- */
 function extractTeamName(query: string): string | undefined {
   const normalized = normalize(query)
 
@@ -253,11 +579,8 @@ function extractTeamName(query: string): string | undefined {
     const match = normalized.match(pattern)
     if (match && match[1]) {
       const extracted = match[1].trim()
-
-      // Verify this team exists in our data
       const teams = findStaticNbaTeam(extracted)
       if (teams && teams.length > 0) {
-        console.log('[PREPROCESSOR] Extracted team name:', extracted, '→ found:', teams[0].team)
         return extracted
       }
     }
@@ -266,17 +589,51 @@ function extractTeamName(query: string): string | undefined {
   return undefined
 }
 
-/**
- * Preprocess a query to extract player/team names and query intent.
- * This helps ensure correct parameter extraction before OpenAI function calling.
- */
+// ============================================================
+// MAIN PREPROCESSING FUNCTION
+// ============================================================
+
 export function preprocessQuery(query: string): PreprocessedQuery {
   const result: PreprocessedQuery = {
     originalQuery: query,
     matched: false,
   }
 
-  // Try to extract player name
+  // Detect sport
+  result.sport = detectSport(query)
+
+  // Detect query type and suggested tool
+  const detection = detectQueryType(query)
+
+  if (detection.type !== 'unknown') {
+    result.queryType = detection.type
+    result.suggestedTool = detection.tool
+    result.matched = true
+
+    // Handle specific query type extras
+    if (detection.type === 'prop_ranking' && detection.extra) {
+      result.propType = detection.extra.propType
+      result.propThreshold = detection.extra.threshold
+    }
+
+    if (detection.type === 'player_vs_opponent' && detection.extra) {
+      result.playerName = detection.extra.player
+      result.opponentTeam = detection.extra.opponent
+    }
+
+    if (detection.type === 'leaderboard' && detection.extra) {
+      result.leaderboardStat = detection.extra.stat
+    }
+
+    // Try to extract team for team-based queries
+    if (['ats', 'injuries', 'schedule'].includes(detection.type)) {
+      result.teamName = findTeamInQuery(query) || undefined
+    }
+
+    return result
+  }
+
+  // Fall back to player/team stat patterns
   const playerName = extractPlayerName(query)
   if (playerName) {
     result.playerName = playerName
@@ -285,25 +642,6 @@ export function preprocessQuery(query: string): PreprocessedQuery {
       result.stats = [statLabel]
     }
     result.queryType = 'player_stats'
-    result.matched = true
-    return result
-  }
-
-  const playerStat = extractPlayerStatRequest(query)
-  if (playerStat) {
-    result.playerName = playerStat.teamName
-    result.stats = [playerStat.statLabel]
-    result.queryType = 'player_stats'
-    result.matched = true
-    return result
-  }
-
-  // Try to extract team name
-  const statRequest = extractTeamStatRequest(query)
-  if (statRequest) {
-    result.teamName = statRequest.teamName
-    result.stats = [statRequest.statLabel]
-    result.queryType = 'team_stats'
     result.matched = true
     return result
   }
@@ -320,29 +658,107 @@ export function preprocessQuery(query: string): PreprocessedQuery {
     return result
   }
 
-  // No match found
+  // Try to find any team or player mention
+  const foundTeam = findTeamInQuery(query)
+  const foundPlayer = findPlayerInQuery(query)
+
+  if (foundPlayer) {
+    result.playerName = foundPlayer
+    result.queryType = 'player_stats'
+    result.matched = true
+    return result
+  }
+
+  if (foundTeam) {
+    result.teamName = foundTeam
+    result.queryType = 'team_stats'
+    result.matched = true
+    return result
+  }
+
   result.queryType = 'unknown'
   return result
 }
 
-/**
- * Enhance a query with extracted information.
- * This adds explicit hints to the query to help OpenAI extract correct parameters.
- */
+// ============================================================
+// QUERY ENHANCEMENT FOR LLM
+// ============================================================
+
 export function enhanceQueryForLLM(query: string, preprocessed: PreprocessedQuery): string {
   if (!preprocessed.matched) {
     return query
   }
 
-  // For player stats queries, append a hint
-  if (preprocessed.queryType === 'player_stats' && preprocessed.playerName) {
-    return `${query}\n\n[HINT: This query is about player "${preprocessed.playerName}"]`
+  const hints: string[] = []
+
+  // Sport hint
+  if (preprocessed.sport && preprocessed.sport !== 'unknown') {
+    hints.push(`Sport: ${preprocessed.sport.toUpperCase()}`)
   }
 
-  // For team stats queries, append a hint
-  if (preprocessed.queryType === 'team_stats' && preprocessed.teamName) {
-    return `${query}\n\n[HINT: This query is about team "${preprocessed.teamName}"]`
+  // Query type specific hints
+  switch (preprocessed.queryType) {
+    case 'prop_ranking':
+      if (preprocessed.propType && preprocessed.propThreshold) {
+        hints.push(`Use get_ranked_players_by_prop_threshold with propType="${preprocessed.propType}" and threshold=${preprocessed.propThreshold}`)
+      }
+      break
+
+    case 'ats':
+      hints.push(`Use getTeamAtsAnalysis for ATS/spread analysis`)
+      if (preprocessed.teamName) hints.push(`Team: "${preprocessed.teamName}"`)
+      break
+
+    case 'injuries':
+      hints.push(`Use getInjuries for injury report`)
+      if (preprocessed.teamName) hints.push(`Team: "${preprocessed.teamName}"`)
+      break
+
+    case 'live_scores':
+      hints.push(`Use getLiveScores for current games/scores`)
+      break
+
+    case 'schedule':
+      hints.push(`Use getTeamScheduleContext or getTeamBackToBackSplit for schedule/rest analysis`)
+      if (preprocessed.teamName) hints.push(`Team: "${preprocessed.teamName}"`)
+      break
+
+    case 'leaderboard':
+      hints.push(`Use getLeaderboard for league leaders`)
+      if (preprocessed.leaderboardStat) hints.push(`Stat: "${preprocessed.leaderboardStat}"`)
+      break
+
+    case 'betting_splits':
+      hints.push(`Use get_betting_splits for public/sharp betting action`)
+      break
+
+    case 'game_recommendation':
+      hints.push(`Use get_game_recommendations for projected spreads/totals`)
+      break
+
+    case 'player_vs_opponent':
+      hints.push(`Use getPlayerVsOpponent for matchup analysis`)
+      if (preprocessed.playerName) hints.push(`Player: "${preprocessed.playerName}"`)
+      if (preprocessed.opponentTeam) hints.push(`Opponent: "${preprocessed.opponentTeam}"`)
+      break
+
+    case 'threshold':
+      hints.push(`Use getPlayerThresholdGames for counting stat threshold games`)
+      if (preprocessed.playerName) hints.push(`Player: "${preprocessed.playerName}"`)
+      break
+
+    case 'player_stats':
+      if (preprocessed.playerName) hints.push(`Player: "${preprocessed.playerName}"`)
+      break
+
+    case 'team_stats':
+      if (preprocessed.teamName) hints.push(`Team: "${preprocessed.teamName}"`)
+      break
   }
 
-  return query
+  if (hints.length === 0) {
+    return query
+  }
+
+  return `${query}\n\n[HINTS: ${hints.join(' | ')}]`
 }

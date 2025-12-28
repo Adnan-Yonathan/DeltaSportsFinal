@@ -5,7 +5,7 @@
 
 import type { ChatCompletionMessageToolCall } from 'openai/resources/chat/completions'
 import type { Sport, ToolResult } from './types'
-import { executeStaticTeamStats, executeStaticPlayerStats, getLeagueAverage, getTeamStatRank } from './static-data-tools'
+import { executeStaticTeamStats, executeStaticPlayerStats, getLeagueAverage, getTeamStatRank, getPlayerLeaderboard } from './static-data-tools'
 import { analyzeTeamSchedule } from './schedule-analyzer'
 import { runWebSearchResponse } from '@/lib/ai-gateway-client'
 import {
@@ -495,35 +495,6 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
         break
       }
 
-      case 'get_team_ats_records': {
-        const { team_name } = args as { team_name: string }
-
-        const { getTeamATSData } = await import('@/lib/providers/covers')
-        const coversResult = await getTeamATSData(team_name, 'basketball_nba')
-
-        if (!coversResult.success) {
-          result = { error: coversResult.error }
-        } else if (coversResult.data) {
-          const d = coversResult.data
-          result = {
-            team: d.team,
-            season: d.season,
-            overall_ats: d.overallATS,
-            home_ats: d.homeATS,
-            away_ats: d.awayATS,
-            as_favorite: d.favoriteATS,
-            as_underdog: d.underdogATS,
-            over_under: d.overUnder,
-            situational_splits: d.extraSplits,
-            last_10: d.last10,
-            streak: d.streak,
-            last_updated: d.lastUpdated
-          }
-        } else {
-          result = { error: 'No data returned' }
-        }
-        break
-      }
 
       case 'get_betting_splits': {
         const { getCurrentBettingSplits } = await import('@/lib/providers/covers')
@@ -660,6 +631,95 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
               factors: rec.factors,
               formatted: formatRecommendationForChat(rec),
             })),
+          }
+        }
+        break
+      }
+
+      case 'get_ranked_players_by_prop_threshold': {
+        const { propType, threshold, todayOnly, limit } = args as {
+          propType: string
+          threshold: number
+          todayOnly?: boolean
+          limit?: number
+        }
+        const { getRankedPlayersByPropThreshold, formatRankedPlayersForChat } = await import(
+          '@/lib/services/prop-threshold-ranker'
+        )
+        const rankedPlayers = await getRankedPlayersByPropThreshold(propType, threshold, {
+          todayOnly: todayOnly ?? true,
+          limit: Math.min(limit ?? 20, 50),
+        })
+
+        if (!rankedPlayers || rankedPlayers.length === 0) {
+          result = {
+            message: `No players found for ${propType} ≥ ${threshold}`,
+            players: [],
+          }
+        } else {
+          result = {
+            message: `Found ${rankedPlayers.length} players ranked by probability of ${propType} ≥ ${threshold}`,
+            players: rankedPlayers,
+            formatted: formatRankedPlayersForChat(rankedPlayers, propType, threshold),
+          }
+        }
+        break
+      }
+
+      case 'combo_analysis': {
+        const { legs } = args as {
+          legs: Array<{
+            type: 'player_prop' | 'game_spread' | 'game_total' | 'game_moneyline'
+            player?: string
+            propType?: string
+            threshold?: number
+            propDirection?: 'over' | 'under'
+            homeTeam?: string
+            awayTeam?: string
+            line?: number
+            direction?: 'home' | 'away' | 'over' | 'under'
+            marketOdds?: number
+          }>
+        }
+
+        const { calculateParlayProbability, formatParlayResultForChat } = await import(
+          '@/lib/services/parlay-probability-engine'
+        )
+
+        // Map the LLM args to engine format
+        const mappedLegs = legs.map(leg => ({
+          type: leg.type,
+          playerName: leg.player,
+          propType: leg.propType,
+          threshold: leg.threshold,
+          propDirection: leg.propDirection,
+          homeTeam: leg.homeTeam,
+          awayTeam: leg.awayTeam,
+          line: leg.line,
+          direction: leg.direction,
+          marketOdds: leg.marketOdds,
+        }))
+
+        const parlayResult = await calculateParlayProbability(mappedLegs)
+
+        if (!parlayResult) {
+          result = {
+            error: 'Could not calculate parlay probability. Check that player names and teams are valid.',
+          }
+        } else {
+          result = {
+            legCount: parlayResult.legs.length,
+            independentProbability: `${(parlayResult.independentProbability * 100).toFixed(1)}%`,
+            correlatedProbability: `${(parlayResult.correlatedProbability * 100).toFixed(1)}%`,
+            correlationAdjustments: parlayResult.correlationAdjustments,
+            impliedOdds: parlayResult.impliedOdds,
+            confidence: parlayResult.confidence,
+            legs: parlayResult.legs.map(leg => ({
+              description: leg.description,
+              probability: `${(leg.probability * 100).toFixed(1)}%`,
+              confidence: leg.confidence,
+            })),
+            formatted: formatParlayResultForChat(parlayResult),
           }
         }
         break
@@ -876,12 +936,40 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
       // LEADERBOARD TOOLS
       // ========================================
       case 'getLeaderboard': {
-        // For leaderboards, we'd need to implement a stat-based ranking
-        // For now, return a placeholder that indicates we need this data
-        result = {
-          stat: args.stat,
-          sport: args.sport || 'nba',
-          message: 'Leaderboard data - to be implemented with full roster scan',
+        const sport = args.sport || 'nba'
+        const limit = args.limit || 10
+
+        // Currently only NBA is supported with static data
+        if (sport !== 'nba') {
+          result = {
+            stat: args.stat,
+            sport,
+            error: `Leaderboard data for ${sport.toUpperCase()} not yet available. NBA only for now.`,
+          }
+          break
+        }
+
+        const leaderboard = getPlayerLeaderboard(args.stat, limit)
+
+        if (leaderboard.error) {
+          result = {
+            stat: args.stat,
+            sport,
+            error: leaderboard.error,
+          }
+        } else {
+          // Format for easy LLM consumption
+          const formatted = leaderboard.leaders
+            .map((entry) => `${entry.rank}. ${entry.player} (${entry.team}) - ${entry.value.toFixed(1)}`)
+            .join('\n')
+
+          result = {
+            stat: leaderboard.stat,
+            sport,
+            count: leaderboard.leaders.length,
+            leaders: leaderboard.leaders,
+            formatted: `NBA Leaders - ${leaderboard.stat}:\n${formatted}`,
+          }
         }
         break
       }

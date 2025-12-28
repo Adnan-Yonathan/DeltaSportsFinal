@@ -411,23 +411,6 @@ Use for:
   {
     type: 'function',
     function: {
-      name: 'get_team_ats_records',
-      description: `Get Against The Spread (ATS) betting records for an NBA team from SportsBettingDime trends. Returns overall, home/away, favorite/underdog records, and situational splits. Use when users ask about team betting performance, covering trends, or ATS records.`,
-      parameters: {
-        type: 'object',
-        properties: {
-          team_name: {
-            type: 'string',
-            description: 'Team name or abbreviation (e.g., "Lakers", "Boston Celtics", "BOS")'
-          }
-        },
-        required: ['team_name']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
       name: 'get_betting_splits',
       description: `Get public betting percentages and splits for ALL of today's NBA games from SportsBettingDime. Shows what % of bets and money are on each side for every game, and detects sharp money (when money % diverges from bet % by 15%+). Use when users ask about:
 - Public betting trends for today's games (plural)
@@ -577,6 +560,118 @@ Returns projected live spread with confidence level and supporting factors like 
   },
 
   // ========================================
+  // PROP PROBABILITY TOOLS
+  // ========================================
+  {
+    type: 'function',
+    function: {
+      name: 'get_ranked_players_by_prop_threshold',
+      description: `Rank players by probability of hitting a specific prop threshold. Uses statistical probability models with matchup adjustments (opponent defense, pace, home/away, rest) to find who is most likely to hit over a given number.
+Use for:
+- "Which player is most likely to hit 2+ threes?"
+- "Who has the best chance of scoring 25+ points?"
+- "Top 10 players most likely to grab 10+ rebounds"
+- "Rank players by likelihood of hitting 3 assists"
+- "Best three-point shooters to go over 2.5 threes"
+Returns ranked list with probability percentages and matchup adjustments. Only includes players from teams playing today by default.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          propType: {
+            type: 'string',
+            description: 'Type of prop: threes, points, rebounds, assists, PRA (points+rebounds+assists)'
+          },
+          threshold: {
+            type: 'number',
+            description: 'The threshold number to hit or exceed (e.g., 2 for "2+ threes", 25 for "25+ points")'
+          },
+          todayOnly: {
+            type: 'boolean',
+            description: 'If true (default), only include players from teams playing today'
+          },
+          limit: {
+            type: 'number',
+            description: 'Number of players to return (default 20, max 50)'
+          }
+        },
+        required: ['propType', 'threshold']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'combo_analysis',
+      description: `Analyze combined bet probability for parlays and multi-leg bets. Calculates probability considering correlations between related events (same-player props, same-game outcomes).
+Use for:
+- "What's the chance Curry scores 25+ AND hits 4+ threes?"
+- "Probability of Warriors winning AND Lakers losing"
+- "Parlay probability: Jokic triple-double + Nuggets cover"
+- "Combo analysis: LeBron 30 pts + Lakers cover"
+- "What are the odds of hitting both props?"
+Returns individual leg probabilities, correlation adjustments, and combined probability with implied fair odds.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          legs: {
+            type: 'array',
+            description: 'Array of bet legs to analyze',
+            items: {
+              type: 'object',
+              properties: {
+                type: {
+                  type: 'string',
+                  enum: ['player_prop', 'game_spread', 'game_total', 'game_moneyline'],
+                  description: 'Type of bet'
+                },
+                player: {
+                  type: 'string',
+                  description: 'Player name (for player_prop)'
+                },
+                propType: {
+                  type: 'string',
+                  description: 'Prop stat type: points, threes, rebounds, assists, PRA (for player_prop)'
+                },
+                threshold: {
+                  type: 'number',
+                  description: 'Prop line/threshold (for player_prop)'
+                },
+                propDirection: {
+                  type: 'string',
+                  enum: ['over', 'under'],
+                  description: 'Over or under (for player_prop)'
+                },
+                homeTeam: {
+                  type: 'string',
+                  description: 'Home team name (for game bets)'
+                },
+                awayTeam: {
+                  type: 'string',
+                  description: 'Away team name (for game bets)'
+                },
+                line: {
+                  type: 'number',
+                  description: 'Spread or total line (for game_spread or game_total)'
+                },
+                direction: {
+                  type: 'string',
+                  enum: ['home', 'away', 'over', 'under'],
+                  description: 'Bet direction (for game bets)'
+                },
+                marketOdds: {
+                  type: 'number',
+                  description: 'American odds from sportsbook (optional, for edge calculation)'
+                }
+              }
+            }
+          }
+        },
+        required: ['legs']
+      }
+    }
+  },
+
+  // ========================================
   // SCHEDULE/CONTEXT TOOLS
   // ========================================
   {
@@ -703,12 +798,13 @@ export const TOOL_NAMES = {
   TEAM_ATS: 'getTeamAtsAnalysis',
   TEAM_AFTER_LOSS: 'getTeamAfterLoss',
   TEAM_HOME_AWAY_DEFENSE: 'getTeamHomeAwayDefense',
-  COVERS_ATS_RECORDS: 'get_team_ats_records',
   COVERS_BETTING_SPLITS: 'get_betting_splits',
   COVERS_ANALYZE_SPLITS: 'analyze_game_splits',
   GAME_RECOMMENDATIONS: 'get_game_recommendations',
   SLATE_EDGE_DETECTION: 'get_slate_edge_detection',
   PROP_RECOMMENDATIONS: 'get_prop_recommendations',
+  PROP_THRESHOLD_RANKING: 'get_ranked_players_by_prop_threshold',
+  COMBO_ANALYSIS: 'combo_analysis',
   // Schedule
   SCHEDULE_CONTEXT: 'getTeamScheduleContext',
   // Leaderboards

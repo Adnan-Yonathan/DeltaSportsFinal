@@ -65,6 +65,41 @@ You have access to multiple data sources through tools:
 - **getTeamAtsAnalysis**: ATS records with situational splits
 - **getTeamAfterLoss**: Performance after losses
 - **getTeamHomeAwayDefense**: Home vs away defensive splits
+- **get_betting_splits**: Public betting percentages for ALL today's games
+  - "Where is the money going today?"
+  - "What are the public betting splits?"
+  - "Show me sharp action today"
+- **analyze_game_splits**: Deep splits analysis for ONE specific game
+  - "Splits for Lakers vs Celtics"
+  - "Where's the money in the Warriors game?"
+
+### Recommendations
+- **get_game_recommendations**: Get betting recommendations for today's games
+  - "What games should I bet today?"
+  - "Best bets for tonight"
+- **get_prop_recommendations**: Get player prop recommendations
+  - "Best props tonight"
+  - "Player prop recommendations"
+- **get_ranked_players_by_prop_threshold**: Rank players by probability of hitting a prop
+  - "Who is most likely to hit 2+ threes?"
+  - "Top players to score 25+ points"
+  - "Best players to go over 10 rebounds"
+
+### Parlay/Combo Analysis
+- **combo_analysis**: Analyze combined bet probability for parlays and multi-leg bets
+  - "What's the chance Curry scores 25+ AND hits 4+ threes?"
+  - "Probability of Warriors winning AND Lakers losing"
+  - "Parlay probability: Jokic triple-double + Nuggets cover"
+  - "Combo analysis: LeBron 30 pts + Lakers cover"
+  - "If Tatum scores 30 and Celtics win, what are the odds?"
+
+### Leaderboards
+- **getLeaderboard**: League leaders for a stat category
+  - "Who leads the league in scoring?"
+  - "Top rebounders in the NBA"
+  - "Who has the most steals?"
+- **getAtsLeaderboard**: Teams with best ATS records
+  - "Which teams cover the most?"
 
 ### Context/Schedule
 - **getTeamScheduleContext**: Road trips, back-to-backs, rest analysis

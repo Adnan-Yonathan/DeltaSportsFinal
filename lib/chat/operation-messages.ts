@@ -69,11 +69,12 @@ export const OPERATION_MESSAGES: Record<string, string> = {
   'getTeamAtsAnalysis': 'Getting ATS analysis...',
   'getTeamAfterLoss': 'Analyzing post-loss performance...',
   'getTeamHomeAwayDefense': 'Getting defensive splits...',
-  'get_team_ats_records': 'Fetching ATS betting records...',
   'get_betting_splits': 'Getting public betting splits...',
   'analyze_game_splits': 'Analyzing game betting action...',
   'get_game_recommendations': 'Calculating game recommendations...',
   'get_prop_recommendations': 'Calculating prop recommendations...',
+  'get_ranked_players_by_prop_threshold': 'Ranking players by prop probability...',
+  'combo_analysis': 'Analyzing combined bet probability...',
   'getAtsLeaderboard': 'Getting ATS leaderboard...',
 
   // Unified Query Tools - Schedule/Context (1)

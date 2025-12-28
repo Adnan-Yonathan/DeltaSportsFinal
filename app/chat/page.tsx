@@ -253,10 +253,10 @@ export default function ChatPage() {
 
       <button
         onClick={() => router.push('/promos')}
-        className="sm:hidden p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all border border-white/20"
+        className="sm:hidden p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all border border-white/20"
         aria-label="View sportsbook promos"
       >
-        <Gift className="w-4 h-4" />
+        <Gift className="w-3.5 h-3.5" />
       </button>
       <button
         onClick={() => router.push('/promos')}
@@ -268,10 +268,10 @@ export default function ChatPage() {
 
       <button
         onClick={() => setLiveScoresOpen(true)}
-        className="sm:hidden p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all border border-white/20"
+        className="sm:hidden p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all border border-white/20"
         aria-label="Open live scores preview"
       >
-        <Activity className="w-4 h-4" />
+        <Activity className="w-3.5 h-3.5" />
       </button>
       <button
         onClick={() => router.push('/live-scores')}
@@ -285,7 +285,7 @@ export default function ChatPage() {
         <div className="relative" ref={profileMenuRef}>
           <button
             onClick={() => setProfileMenuOpen((prev) => !prev)}
-            className="h-9 w-9 sm:h-10 sm:w-10 rounded-full border border-[#2a2a2a] hover:border-white/60 overflow-hidden transition-colors"
+            className="h-7 w-7 sm:h-10 sm:w-10 rounded-full border border-[#2a2a2a] hover:border-white/60 overflow-hidden transition-colors"
             aria-label="Profile menu"
           >
             {profileImage ? (
@@ -473,7 +473,7 @@ export default function ChatPage() {
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           <div className="flex-1 flex flex-col items-center overflow-hidden min-h-0">
             <div className="w-full max-w-5xl flex flex-col h-full min-h-0">
-              <div className="flex-1 overflow-hidden min-h-0 pt-[96px] pb-[160px]">
+              <div className="flex-1 overflow-hidden min-h-0 pt-[56px] pb-[90px] sm:pt-[96px] sm:pb-[160px]">
                 {!user ? (
                   // Guest view - show intro with sign-up prompt
                   <div className="h-full overflow-y-auto">
@@ -675,7 +675,7 @@ export default function ChatPage() {
       </AnimatePresence>
       {currentConversationId && hasMessages && (
         <div className="fixed bottom-0 left-0 right-0 z-40">
-          <div className="mx-auto max-w-5xl px-4 py-3">
+          <div className="mx-auto max-w-5xl px-2 py-1.5 sm:px-4 sm:py-3">
             <ModernMessageInput
               conversationId={currentConversationId}
               userId={user?.id}

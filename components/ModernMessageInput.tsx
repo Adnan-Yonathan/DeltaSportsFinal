@@ -221,7 +221,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
   }
 
   return (
-    <div className="border-t border-[#1f1f1f] bg-black/90 backdrop-blur-xl p-2 sm:p-4">
+    <div className="border-t border-[#1f1f1f] bg-black/90 backdrop-blur-xl p-1.5 sm:p-4">
       <div className="max-w-4xl mx-auto">
         <motion.div
           animate={{
@@ -229,7 +229,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
               ? '0 0 0 2px rgba(52, 211, 153, 0.35)'
               : '0 0 0 0px rgba(52, 211, 153, 0)',
           }}
-          className="relative flex items-end gap-2 sm:gap-3 rounded-2xl bg-[#0f0f0f] border border-[#1f1f1f] p-2 sm:p-3 transition-all"
+          className="relative flex items-end gap-1.5 sm:gap-3 rounded-xl sm:rounded-2xl bg-[#0f0f0f] border border-[#1f1f1f] p-1.5 sm:p-3 transition-all"
         >
           <div className="flex-1">
             <textarea
@@ -254,16 +254,16 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
               whileTap={{ scale: 0.9 }}
               onClick={() => void sendMessage()}
               disabled={!message.trim() || sending}
-              className={`p-2.5 sm:p-2 rounded-lg transition-all ${
+              className={`p-1.5 sm:p-2 rounded-md sm:rounded-lg transition-all ${
                 message.trim() && !sending
                   ? 'bg-[#34d399] hover:bg-[#16a34a] text-[#0f1f15] shadow-lg shadow-[#34d399]/30'
                   : 'bg-[#5c5c5c] text-white/40 cursor-not-allowed'
               }`}
             >
               {sending ? (
-                <Loader2 className="w-5 h-5 sm:w-4 sm:h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 sm:w-4 sm:h-4 animate-spin" />
               ) : (
-                <Send className="w-5 h-5 sm:w-4 sm:h-4" />
+                <Send className="w-4 h-4 sm:w-4 sm:h-4" />
               )}
             </motion.button>
           </div>

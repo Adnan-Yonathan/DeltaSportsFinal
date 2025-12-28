@@ -58,15 +58,15 @@ export function SimpleHeader({
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 w-full bg-black/95 backdrop-blur border-b border-white/10">
-      <div className="mx-auto flex w-full max-w-5xl items-center gap-3">
-        <nav className="flex h-16 min-w-0 flex-1 items-center justify-between rounded-full border border-white/15 bg-black px-4 backdrop-blur supports-[backdrop-filter]:bg-black/90 text-white">
-          <div className="flex items-center gap-3">
+      <div className="mx-auto flex w-full max-w-5xl items-center gap-2 sm:gap-3">
+        <nav className="flex h-12 sm:h-16 min-w-0 flex-1 items-center justify-between rounded-full border border-white/15 bg-black px-2 sm:px-4 backdrop-blur supports-[backdrop-filter]:bg-black/90 text-white">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               type="button"
-              className="flex items-center gap-2 text-white"
+              className="flex items-center gap-1.5 sm:gap-2 text-white"
               onClick={handleLogoClick}
             >
-                <div className="relative h-8 w-8">
+                <div className="relative h-6 w-6 sm:h-8 sm:w-8">
                   <Image
                     src="/delta-logo.png"
                     alt="Delta Sports Logo"
@@ -75,10 +75,10 @@ export function SimpleHeader({
                     priority
                   />
                 </div>
-              <div className="flex items-center gap-2">
-                <p className="text-lg font-semibold">Delta Sports</p>
-                <span className="rounded-full border border-white/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-400">
-                  Beta (NBA)
+              <div className="flex items-center gap-1 sm:gap-2">
+                <p className="text-sm sm:text-lg font-semibold">Delta Sports</p>
+                <span className="hidden xs:inline-flex rounded-full border border-white/30 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[10px] font-semibold uppercase tracking-[0.1em] sm:tracking-[0.2em] text-emerald-400">
+                  Beta
                 </span>
               </div>
             </button>

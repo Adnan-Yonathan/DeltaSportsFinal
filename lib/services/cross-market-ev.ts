@@ -6,7 +6,7 @@
  */
 
 import { fetchOdds } from '@/lib/api/odds-api'
-import { fetchSbdPlayerProps, type SbdLeague } from '@/lib/api/sbd'
+import { fetchSbdGamePropsList, type SbdLeague } from '@/lib/api/sbd'
 import { OddsGame, Bookmaker, OddsMarket, MARKETS, SPORTS } from '@/lib/types/odds'
 import {
   BookOdds,
@@ -20,8 +20,9 @@ import { formatAmericanOdds } from '@/lib/utils/odds'
 
 export interface CrossMarketEVOptions {
   sports?: string[] // Which sports to scan
-  minEV?: number // Minimum EV threshold (default 2%)
-  minBooks?: number // Minimum books required for consensus (default 3)
+  minEV?: number // Minimum EV threshold for team markets (default 3%)
+  minPropEV?: number // Minimum EV threshold for player props (default 10%)
+  minBooks?: number // Minimum books required for consensus (default 2)
   markets?: string[] // Which markets to include
   limit?: number // Max opportunities to return
   includeProps?: boolean // Include player props (today only)
@@ -30,12 +31,13 @@ export interface CrossMarketEVOptions {
 
 const DEFAULT_OPTIONS: Required<CrossMarketEVOptions> = {
   sports: [SPORTS.NBA, SPORTS.NFL, SPORTS.MLB, SPORTS.NHL],
-  minEV: 2,
-  minBooks: 3,
+  minEV: 3, // 3% for team markets
+  minPropEV: 10, // 10% for player props
+  minBooks: 2,
   markets: [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS],
-  limit: 20,
+  limit: 50, // Increased limit
   includeProps: true,
-  propMarkets: ['points', 'rebounds', 'assists', 'threes'],
+  propMarkets: [], // Empty = all markets
 }
 
 // Map sport keys to SBD league format
@@ -44,6 +46,16 @@ const SPORT_TO_SBD_LEAGUE: Record<string, SbdLeague> = {
   [SPORTS.NFL]: 'nfl',
   [SPORTS.MLB]: 'mlb',
   [SPORTS.NHL]: 'nhl',
+}
+
+// Sport-specific prop markets for filtering
+const SPORT_PROP_MARKETS: Partial<Record<SbdLeague, string[]>> = {
+  nba: ['points', 'rebounds', 'assists', 'threes', 'steals', 'blocks', 'pra', 'points_rebounds', 'points_assists', 'rebounds_assists', 'blocks_steals'],
+  nfl: ['passing_yards', 'passing_touchdowns', 'passing_completions', 'passing_attempts', 'interceptions', 'rushing_yards', 'rushing_touchdowns', 'receiving_yards', 'receptions', 'receiving_touchdowns', 'anytime_td', 'carries', 'longest_rush', 'longest_reception', 'longest_completion'],
+  mlb: ['hits', 'total_bases', 'rbis', 'runs', 'strikeouts', 'home_runs'],
+  nhl: ['points', 'goals', 'assists', 'shots', 'blocked_shots', 'saves', 'powerplay_points'],
+  ncaamb: ['points', 'rebounds', 'assists', 'threes'],
+  ncaafb: ['passing_yards', 'rushing_yards', 'receiving_yards', 'touchdowns'],
 }
 
 /**
@@ -89,11 +101,11 @@ export async function findEVOpportunities(
   }
 
   // Fetch player props (today only) if enabled
-  console.log(`[CROSS-MARKET-EV] includeProps=${opts.includeProps}, propMarkets=${opts.propMarkets?.join(',')}`)
+  console.log(`[CROSS-MARKET-EV] includeProps=${opts.includeProps}, minPropEV=${opts.minPropEV}%`)
   if (opts.includeProps) {
     const propOpportunities = await findPlayerPropEVOpportunities(
       opts.sports,
-      opts.minEV,
+      opts.minPropEV, // Use separate threshold for props
       opts.minBooks,
       opts.propMarkets
     )
@@ -243,6 +255,78 @@ function formatMarketName(marketKey: string): string {
 }
 
 /**
+ * Normalize market key from SBD format to standard format
+ */
+function normalizeMarketKey(value: string): string {
+  const cleaned = value.toLowerCase().replace(/\(.*?\)/g, '').trim()
+
+  // NBA props
+  if (cleaned.includes('points plus assists plus rebounds') || cleaned.includes('pts + reb + ast')) return 'pra'
+  if (cleaned.includes('points plus rebounds') || cleaned.includes('pts + reb')) return 'points_rebounds'
+  if (cleaned.includes('points plus assists') || cleaned.includes('pts + ast')) return 'points_assists'
+  if (cleaned.includes('rebounds plus assists') || cleaned.includes('reb + ast')) return 'rebounds_assists'
+  if (cleaned.includes('blocks plus steals')) return 'blocks_steals'
+  if (cleaned.includes('3-point') || cleaned.includes('three')) return 'threes'
+  if (cleaned.includes('steals')) return 'steals'
+  if (cleaned.includes('blocks')) return 'blocks'
+
+  // NFL props
+  if (cleaned.includes('pass completions') || cleaned.includes('passing completions')) return 'passing_completions'
+  if (cleaned.includes('pass attempts') || cleaned.includes('passing attempts')) return 'passing_attempts'
+  if (cleaned.includes('passing yards')) return 'passing_yards'
+  if (cleaned.includes('passing tds') || cleaned.includes('passing touchdowns')) return 'passing_touchdowns'
+  if (cleaned.includes('passing interceptions') || cleaned.includes('interceptions')) return 'interceptions'
+  if (cleaned.includes('rushing yards')) return 'rushing_yards'
+  if (cleaned.includes('rushing tds') || cleaned.includes('rushing touchdowns')) return 'rushing_touchdowns'
+  if (cleaned.includes('rushing attempts') || cleaned.includes('carries')) return 'carries'
+  if (cleaned.includes('longest rush')) return 'longest_rush'
+  if (cleaned.includes('longest reception')) return 'longest_reception'
+  if (cleaned.includes('longest passing completion') || cleaned.includes('longest completion')) return 'longest_completion'
+  if (cleaned.includes('receiving yards')) return 'receiving_yards'
+  if (cleaned.includes('receiving tds') || cleaned.includes('receiving touchdowns')) return 'receiving_touchdowns'
+  if (cleaned.includes('receptions')) return 'receptions'
+  if (cleaned.includes('anytime touchdown') || cleaned.includes('anytime td')) return 'anytime_td'
+
+  // MLB props
+  if (cleaned.includes('total bases')) return 'total_bases'
+  if (cleaned.includes('hits')) return 'hits'
+  if (cleaned.includes('rbis') || cleaned.includes('runs batted')) return 'rbis'
+  if (cleaned.includes('runs scored') || cleaned.includes('runs')) return 'runs'
+  if (cleaned.includes('strikeouts')) return 'strikeouts'
+  if (cleaned.includes('home runs') || cleaned.includes('homers')) return 'home_runs'
+
+  // NHL props
+  if (cleaned.includes('power play points') || cleaned.includes('powerplay points')) return 'powerplay_points'
+  if (cleaned.includes('shots on goal')) return 'shots'
+  if (cleaned.includes('total shots') || (cleaned.includes('shots') && !cleaned.includes('blocked'))) return 'shots'
+  if (cleaned.includes('blocked shots')) return 'blocked_shots'
+  if (cleaned.includes('saves')) return 'saves'
+  if (cleaned.includes('goals')) return 'goals'
+
+  // Generic fallbacks
+  if (cleaned.includes('points')) return 'points'
+  if (cleaned.includes('rebounds')) return 'rebounds'
+  if (cleaned.includes('assists')) return 'assists'
+
+  return cleaned.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+}
+
+/**
+ * Parse American odds from various formats
+ */
+function parseOddsValue(value: any): number | null {
+  if (value == null) return null
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return null
+  // Convert decimal odds to American if needed
+  if (parsed > 1 && parsed < 10) {
+    if (parsed >= 2) return Math.round((parsed - 1) * 100)
+    return Math.round(-100 / (parsed - 1))
+  }
+  return Math.round(parsed)
+}
+
+/**
  * Find +EV opportunities in player props (today's games only)
  */
 async function findPlayerPropEVOpportunities(
@@ -251,88 +335,94 @@ async function findPlayerPropEVOpportunities(
   minBooks: number,
   propMarkets: string[]
 ): Promise<EVOpportunity[]> {
-  console.log(`[CROSS-MARKET-EV] findPlayerPropEVOpportunities called with minEV=${minEV}, minBooks=${minBooks}`)
+  console.log(`[CROSS-MARKET-EV] findPlayerPropEVOpportunities called with minEV=${minEV}, minBooks=${minBooks}, sports=${sports.length}`)
   const opportunities: EVOpportunity[] = []
 
-  // Only check NBA for now (most reliable prop data)
-  const propsLeagues: SbdLeague[] = ['nba']
+  // Map sports to SBD leagues for props
+  // MLB is in offseason, NCAAMB has no props available
+  const propsLeagues: SbdLeague[] = sports
+    .map((s) => SPORT_TO_SBD_LEAGUE[s])
+    .filter((league): league is SbdLeague =>
+      league != null && ['nba', 'nfl', 'nhl'].includes(league)
+    )
+
+  console.log(`[CROSS-MARKET-EV] Checking props for leagues: ${propsLeagues.join(', ')}`)
 
   for (const league of propsLeagues) {
     try {
       console.log(`[CROSS-MARKET-EV] Fetching player props for ${league}...`)
 
-      // Fetch player props from SBD
-      const propsData = await fetchSbdPlayerProps(league, {
-        markets: propMarkets,
-        limit: 50, // Limit to prevent huge payloads
+      // Fetch player props from SBD using the game props list API
+      // Note: NFL/NHL APIs don't support the limit parameter (returns 500 error)
+      // NBA supports limit up to 500
+      const propsData = await fetchSbdGamePropsList(league, {
+        ...(league === 'nba' ? { limit: 500 } : {}),
       })
 
-      console.log(`[CROSS-MARKET-EV] Props response for ${league}:`, {
-        hasData: !!propsData,
-        isArray: Array.isArray(propsData),
-        length: Array.isArray(propsData) ? propsData.length : 0,
-        sample: Array.isArray(propsData) && propsData[0] ? Object.keys(propsData[0]).slice(0, 10) : null,
-      })
+      // Handle response format
+      const props = Array.isArray(propsData) ? propsData : Array.isArray(propsData?.data) ? propsData.data : []
 
-      if (!propsData) {
-        console.log(`[CROSS-MARKET-EV] No props data returned for ${league}`)
-        continue
-      }
-
-      // Handle different response formats
-      let props: any[] = []
-      if (Array.isArray(propsData)) {
-        props = propsData
-      } else if (propsData.props && Array.isArray(propsData.props)) {
-        props = propsData.props
-      } else if (propsData.data && Array.isArray(propsData.data)) {
-        props = propsData.data
-      } else if (propsData.players && Array.isArray(propsData.players)) {
-        props = propsData.players
-      }
+      console.log(`[CROSS-MARKET-EV] Props response for ${league}: ${props.length} entries`)
 
       if (props.length === 0) {
-        console.log(`[CROSS-MARKET-EV] Empty props array for ${league}`)
+        console.log(`[CROSS-MARKET-EV] No props data for ${league}`)
         continue
       }
 
-      console.log(`[CROSS-MARKET-EV] Processing ${props.length} props for ${league}`)
-      console.log(`[CROSS-MARKET-EV] Sample prop structure:`, JSON.stringify(props[0], null, 2).slice(0, 500))
-
-      // Filter to today's games only
-      const today = new Date()
-      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-      const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+      // Get allowed markets for this sport (use sport-specific or all if propMarkets is empty)
+      const allowedMarkets = propMarkets.length > 0 ? propMarkets : SPORT_PROP_MARKETS[league] || []
 
       let propsProcessed = 0
       let propsWithEnoughBooks = 0
+      let skippedNoPlayer = 0
+      let skippedMarketFilter = 0
+      let skippedNotEnoughBooks = 0
+      const marketKeysSeen = new Set<string>()
 
-      for (const prop of props) {
-        propsProcessed++
-
-        // Check if game is today (skip check if no game time)
-        const gameTime = prop.game_time || prop.gameTime || prop.commence_time
-        if (gameTime) {
-          const gameDate = new Date(gameTime)
-          if (gameDate < todayStart || gameDate >= todayEnd) {
-            continue
-          }
+      for (const entry of props) {
+        // Get player name
+        const playerName = entry?.player_name || entry?.player?.name
+        if (!playerName) {
+          skippedNoPlayer++
+          continue
         }
 
-        // Collect odds from different books for this prop
+        // Get and filter market type
+        const rawMarketName = entry?.name || ''
+        const marketKey = normalizeMarketKey(rawMarketName)
+        marketKeysSeen.add(marketKey)
+
+        // Only filter if we have allowed markets defined
+        if (allowedMarkets.length > 0 && !allowedMarkets.includes(marketKey)) {
+          skippedMarketFilter++
+          continue
+        }
+
+        propsProcessed++
+
+        // Get sportsbooks array
+        const sportsbooks = entry?.sportsbooks || []
+        if (!Array.isArray(sportsbooks) || sportsbooks.length < minBooks) {
+          skippedNotEnoughBooks++
+          continue
+        }
+
+        // Collect odds from each sportsbook
         const bookOdds: BookOdds[] = []
-        const books = prop.books || prop.sportsbooks || prop.odds || prop.lines || []
 
-        for (const book of (Array.isArray(books) ? books : [])) {
-          const bookName = book.name || book.book || book.sportsbook || book.bookmaker
-          const overOdds = book.over_odds || book.over || book.odds_over || book.overOdds
-          const line = book.line || book.point || prop.line || prop.point
+        for (const sportsbook of sportsbooks) {
+          const bookName = String(sportsbook?.name || '')
+          if (!bookName || bookName.toLowerCase() === 'consensus') continue
 
-          if (overOdds && bookName) {
+          const odds = sportsbook?.odds || {}
+          const overOdds = parseOddsValue(odds?.over_american ?? odds?.over_decimal ?? sportsbook?.over_odds)
+          const line = Number(odds?.over_points ?? odds?.under_points ?? sportsbook?.over_points ?? sportsbook?.under_points)
+
+          if (overOdds && Number.isFinite(line)) {
             bookOdds.push({
               bookmaker: bookName,
-              odds: typeof overOdds === 'string' ? parseInt(overOdds) : overOdds,
-              point: typeof line === 'string' ? parseFloat(line) : line,
+              odds: overOdds,
+              point: line,
             })
           }
         }
@@ -349,21 +439,19 @@ async function findPlayerPropEVOpportunities(
           const ev = calculateEV(consensus.impliedProbability, bestBook.odds)
 
           if (ev >= minEV) {
-            const playerName = prop.player_name || prop.playerName || prop.player || prop.name || 'Unknown'
-            const propType = prop.market || prop.prop_type || prop.propType || prop.stat || prop.statType || 'Prop'
-            const line = bestBook.point || prop.line || prop.point || 0
-            const gameDesc = prop.matchup || prop.game || prop.gameTitle ||
-              `${prop.away_team || prop.awayTeam || ''} @ ${prop.home_team || prop.homeTeam || ''}`
+            const line = bestBook.point || 0
+            const team = entry?.player?.team || ''
+            const leagueLabel = league.toUpperCase()
 
             const bestImplied = calculateImpliedProbabilityDecimal(bestBook.odds)
             const edgePercent = (consensus.impliedProbability - bestImplied) * 100
 
-            console.log(`[CROSS-MARKET-EV] Found prop EV: ${playerName} ${propType} o${line} @ ${bestBook.bookmaker} ${bestBook.odds}, EV=${ev.toFixed(1)}%`)
+            console.log(`[CROSS-MARKET-EV] Found ${league} prop EV: ${playerName} ${marketKey} o${line} @ ${bestBook.bookmaker} ${bestBook.odds}, EV=${ev.toFixed(1)}%`)
 
             opportunities.push({
-              game: gameDesc.trim() || 'Today',
-              gameId: prop.game_id || prop.gameId || prop.event_id || '',
-              market: `${playerName} ${propType}`,
+              game: team ? `${team} (${leagueLabel})` : leagueLabel,
+              gameId: entry?.sport_event?.id || entry?.sde_id || '',
+              market: `${playerName} ${marketKey}`,
               selection: 'Over',
               point: line,
               bestBook: bestBook.bookmaker,
@@ -372,13 +460,21 @@ async function findPlayerPropEVOpportunities(
               ev: Math.round(ev * 10) / 10,
               edgePercent: Math.round(edgePercent * 10) / 10,
               allBooks: bookOdds,
-              commenceTime: gameTime || new Date().toISOString(),
+              commenceTime: new Date().toISOString(),
             })
           }
         }
       }
 
-      console.log(`[CROSS-MARKET-EV] Props summary for ${league}: ${propsProcessed} processed, ${propsWithEnoughBooks} with ${minBooks}+ books, ${opportunities.length} opportunities`)
+      console.log(`[CROSS-MARKET-EV] Props summary for ${league}:`, {
+        total: props.length,
+        processed: propsProcessed,
+        withEnoughBooks: propsWithEnoughBooks,
+        opportunities: opportunities.length,
+        skipped: { noPlayer: skippedNoPlayer, marketFilter: skippedMarketFilter, notEnoughBooks: skippedNotEnoughBooks },
+        marketsFound: Array.from(marketKeysSeen).slice(0, 10),
+        allowedMarkets: allowedMarkets.slice(0, 5),
+      })
     } catch (error) {
       console.error(`[CROSS-MARKET-EV] Failed to fetch props for ${league}:`, error)
     }

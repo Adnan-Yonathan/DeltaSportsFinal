@@ -5859,9 +5859,10 @@ export async function POST(req: NextRequest) {
       try {
         console.log('[CROSS-MARKET-EV] Intent detected, scanning for +EV opportunities...')
         const opportunities = await findEVOpportunities({
-          minEV: 1.5,
+          minEV: 3, // 3% for team markets
+          minPropEV: 10, // 10% for player props
           minBooks: 2,
-          limit: 20,
+          limit: 50,
           includeProps: true,
         })
         const evResponse = formatEVResults(opportunities)

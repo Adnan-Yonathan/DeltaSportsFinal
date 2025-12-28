@@ -87,18 +87,30 @@ export function calculateLiveSpread(
   // Step 4: Apply momentum adjustments
   const factors: string[] = []
 
-  // Scoring run adjustment
+  // Scoring run adjustment with recency bias dampening
   if (momentum.scoringRun.currentRun) {
     const runPoints = momentum.scoringRun.currentRun.points
     const runTeam = momentum.scoringRun.currentRun.team
+    const dampening = momentum.scoringRun.currentRun.confidenceDampening || 1
 
     if (runPoints >= 8) {
-      const adjustment = runPoints >= 12 ? 0.5 : 0.3
+      // Base adjustment dampened by recency bias factor
+      const baseAdjustment = runPoints >= 12 ? 0.5 : 0.3
+      const adjustment = baseAdjustment * (1 - dampening)
       fairLine += runTeam === 'home' ? adjustment : -adjustment
       const teamName = runTeam === 'home' ? liveGame.homeTeam : liveGame.awayTeam
+
+      // Include statistical context in factor
+      const runContext = momentum.scoringRun.currentRun.runFrequencyContext || ''
+      const normalWarning = momentum.scoringRun.currentRun.isStatisticallyNormal
+        ? ' (normal variance - don\'t overreact)'
+        : ''
       factors.push(
-        `${teamName} on ${runPoints}-0 run (${momentum.scoringRun.currentRun.duration})`
+        `${teamName} on ${runPoints}-0 run (${momentum.scoringRun.currentRun.duration})${normalWarning}`
       )
+      if (runContext && dampening > 0.5) {
+        factors.push(`📊 ${runContext}`)
+      }
     }
   }
 
@@ -161,6 +173,36 @@ export function calculateLiveSpread(
       momentum.threePointVariance.expectedRegression.awayPtsAdjustment
     fairLine += spreadAdjustment
     factors.push(...momentum.threePointVariance.factors)
+  }
+
+  // Bonus situation adjustment
+  if (momentum.bonusSituation) {
+    // Total impact is already home-relative (positive = home advantage)
+    fairLine += momentum.bonusSituation.totalImpact * 0.3 // Scale down for spread
+    factors.push(...momentum.bonusSituation.factors)
+  }
+
+  // Player availability adjustment (ejections, DNP, reduced minutes)
+  if (momentum.playerAvailability) {
+    fairLine += momentum.playerAvailability.lineAdjustment
+    factors.push(...momentum.playerAvailability.factors)
+  }
+
+  // Rotation pattern adjustment
+  if (momentum.rotation) {
+    fairLine += momentum.rotation.lineAdjustment
+    factors.push(...momentum.rotation.factors)
+  }
+
+  // Pre-game edge carry-forward
+  if (liveGame.pregameEdges) {
+    fairLine += liveGame.pregameEdges.totalLineImpact
+    // Only show high-relevance edges in factors
+    for (const edge of liveGame.pregameEdges.relevantEdges) {
+      if (edge.currentRelevance === 'high') {
+        factors.push(`🔄 ${edge.edge}: ${edge.explanation} (+${edge.lineImpact.toFixed(1)} pts)`)
+      }
+    }
   }
 
   // Garbage time check
@@ -299,6 +341,17 @@ export function calculateLiveTotal(
   if (momentum.foulingStrategy?.isFouling) {
     fairLine += momentum.foulingStrategy.impactOnTotal
     factors.push(...momentum.foulingStrategy.factors)
+  }
+
+  // Bonus situation adjustment (affects total via free throws)
+  if (momentum.bonusSituation) {
+    // Both teams' projected FT attempts add to total
+    const totalFTImpact = momentum.bonusSituation.home.projectedFTAttempts * 0.77 +
+                          momentum.bonusSituation.away.projectedFTAttempts * 0.77
+    if (totalFTImpact > 2) {
+      fairLine += totalFTImpact * 0.5 // Scale down, already partially in pace
+      factors.push(`Bonus situation: +${totalFTImpact.toFixed(1)} projected FT pts`)
+    }
   }
 
   // Garbage time check

@@ -5,10 +5,33 @@
  */
 
 import type { LiveScoreGameDetails, PlayByPlayEntry, GameDetailsTeam } from '@/lib/live-scores'
-import { getTeamStats, getPlayerStats } from './matchup-analyzer'
+import { getTeamStats, getPlayerStats, getRestFactors } from './matchup-analyzer'
 import { analyzeFatigue, type FatigueAnalysis } from './fatigue-analyzer'
 import { analyzeTimeoutImpact, type TimeoutImpactAnalysis } from './timeout-analyzer'
+import { analyzeBonusSituation, type BonusSituationAnalysis } from './bonus-tracker'
+import { analyzePlayerAvailability, type PlayerAvailabilityAnalysis } from './player-availability-analyzer'
 import { nbaTeam2025_2026Csv } from '@/data/nba_team_2025_2026'
+
+// Forward declaration for rotation analyzer (created separately)
+export interface RotationAnalysis {
+  homeAnomalies: Array<{
+    playerName: string
+    anomalyType: 'starter_benched_early' | 'bench_extended_run'
+    minutesInQuarter: number
+    typicalMinutesInQuarter: number
+    bpm: number
+  }>
+  awayAnomalies: Array<{
+    playerName: string
+    anomalyType: 'starter_benched_early' | 'bench_extended_run'
+    minutesInQuarter: number
+    typicalMinutesInQuarter: number
+    bpm: number
+  }>
+  lineupQualityDelta: number
+  lineAdjustment: number
+  factors: string[]
+}
 
 // ============================================================================
 // INTERFACES
@@ -37,7 +60,33 @@ export interface LiveGameState {
     threePointVariance: ThreePointVarianceAnalysis
     fatigue: FatigueAnalysis
     timeoutImpact: TimeoutImpactAnalysis
+    bonusSituation?: BonusSituationAnalysis
+    playerAvailability?: PlayerAvailabilityAnalysis
+    rotation?: RotationAnalysis
   }
+
+  pregameEdges?: PregameEdgeContext
+}
+
+// ============================================================================
+// PRE-GAME EDGE INTERFACES
+// ============================================================================
+
+export interface PregameEdgeRelevance {
+  edge: string                    // "Rest edge", "Depth edge", "ATS momentum"
+  team: 'home' | 'away'
+  applicableQuarters: number[]    // [3, 4] = relevant in Q3/Q4
+  currentRelevance: 'high' | 'medium' | 'low'
+  explanation: string             // "B2B fatigue compounds in Q4"
+  lineImpact: number              // +/- points
+}
+
+export interface PregameEdgeContext {
+  restAdvantage: { home: number; away: number }
+  injuryImpact: { home: number; away: number }
+  depthAdvantage: 'home' | 'away' | 'neutral'
+  relevantEdges: PregameEdgeRelevance[]
+  totalLineImpact: number
 }
 
 export interface ScoringRunAnalysis {
@@ -55,6 +104,9 @@ export interface ScoringRunAnalysis {
     team: 'home' | 'away'
     points: number // unanswered points
     duration: string // e.g., "8-0 run in last 3:24"
+    isStatisticallyNormal: boolean // True if run size is common variance
+    runFrequencyContext: string // e.g., "8-0 runs occur ~5x per game"
+    confidenceDampening: number // 0-1 factor to reduce line adjustment weight
   } | null
 }
 
@@ -202,6 +254,39 @@ export async function analyzeLiveGame(
     awayTeam.name || 'Away'
   )
 
+  // New analyzers for gap patches
+  // Calculate quarter seconds elapsed for player availability
+  const quarterSeconds = 12 * 60 // 12 min quarter
+  const quarterSecondsElapsed = Math.min(
+    clockState.elapsedSeconds % quarterSeconds,
+    quarterSeconds
+  )
+  const quarterSecondsRemaining = quarterSeconds - quarterSecondsElapsed
+
+  const bonusSituation = analyzeBonusSituation(
+    liveGame,
+    clockState.periodIndex,
+    quarterSecondsRemaining
+  )
+
+  const playerAvailability = analyzePlayerAvailability(
+    liveGame,
+    clockState.periodIndex,
+    quarterSecondsElapsed
+  )
+
+  // Import rotation analyzer dynamically to avoid circular deps
+  const { analyzeRotation } = await import('./rotation-analyzer')
+  const rotation = analyzeRotation(liveGame, clockState.periodIndex)
+
+  // Pre-game edge analysis
+  const pregameEdges = await analyzePregameEdges(
+    homeTeam.name || 'Home',
+    awayTeam.name || 'Away',
+    clockState.periodIndex,
+    liveGame.eventId
+  )
+
   return {
     eventId: liveGame.eventId,
     homeTeam: homeTeam.name || 'Home',
@@ -225,7 +310,12 @@ export async function analyzeLiveGame(
       threePointVariance,
       fatigue,
       timeoutImpact,
+      bonusSituation,
+      playerAvailability,
+      rotation,
     },
+
+    pregameEdges,
   }
 }
 
@@ -277,6 +367,72 @@ function calculateClockState(homeTeam: GameDetailsTeam, awayTeam: GameDetailsTea
 // ============================================================================
 // SCORING RUN ANALYSIS
 // ============================================================================
+
+/**
+ * Assess the statistical significance of a scoring run
+ * NBA games typically have multiple runs of various sizes - this helps
+ * identify when a run is normal variance vs. a meaningful momentum shift
+ *
+ * Statistical context (based on NBA averages):
+ * - 6-0 runs: ~8-10 per game (very common)
+ * - 8-0 runs: ~4-6 per game (common)
+ * - 10-0 runs: ~2-3 per game (notable)
+ * - 12-0 runs: ~1-1.5 per game (significant)
+ * - 15-0+ runs: ~0.3-0.5 per game (rare)
+ */
+function assessRunSignificance(
+  runPoints: number,
+  durationSeconds: number
+): { isNormal: boolean; dampening: number; context: string } {
+  // Run frequency data (approximate occurrences per game)
+  const runFrequency: Record<number, { perGame: number; isNormal: boolean }> = {
+    6: { perGame: 9, isNormal: true },
+    7: { perGame: 7, isNormal: true },
+    8: { perGame: 5, isNormal: true },
+    9: { perGame: 4, isNormal: true },
+    10: { perGame: 2.5, isNormal: true },
+    11: { perGame: 2, isNormal: true },
+    12: { perGame: 1.2, isNormal: false },
+    13: { perGame: 0.8, isNormal: false },
+    14: { perGame: 0.5, isNormal: false },
+    15: { perGame: 0.3, isNormal: false },
+  }
+
+  // Get frequency data for this run size (cap at 15 for lookup)
+  const lookupPoints = Math.min(runPoints, 15)
+  const freqData = runFrequency[lookupPoints] || { perGame: 0.2, isNormal: false }
+
+  // Calculate dampening factor
+  // Higher frequency = more dampening (less weight in line adjustment)
+  // Range: 0.3 (rare, high weight) to 0.9 (common, low weight)
+  let dampening: number
+
+  if (freqData.perGame >= 5) {
+    dampening = 0.85 // Very common, heavily dampen
+  } else if (freqData.perGame >= 3) {
+    dampening = 0.7 // Common, moderate dampening
+  } else if (freqData.perGame >= 1.5) {
+    dampening = 0.5 // Notable, some dampening
+  } else if (freqData.perGame >= 0.5) {
+    dampening = 0.35 // Significant, light dampening
+  } else {
+    dampening = 0.2 // Rare, minimal dampening
+  }
+
+  // Duration factor: quick runs (< 2 min) are more volatile
+  if (durationSeconds < 120) {
+    dampening = Math.min(dampening + 0.1, 0.95) // Quick runs = more dampening
+  }
+
+  // Build context string
+  const context = `${runPoints}-0 runs occur ~${freqData.perGame.toFixed(1)}x per game${freqData.isNormal ? ' (normal variance)' : ''}`
+
+  return {
+    isNormal: freqData.isNormal,
+    dampening,
+    context,
+  }
+}
 
 export function analyzeScoringRun(
   plays: PlayByPlayEntry[],
@@ -411,10 +567,16 @@ export function analyzeScoringRun(
     const minutes = Math.floor(durationSeconds / 60)
     const seconds = durationSeconds % 60
 
+    // Assess run significance for recency bias discounting
+    const runSignificance = assessRunSignificance(currentRun.points, durationSeconds)
+
     currentRunResult = {
       team: currentRun.team,
       points: currentRun.points,
       duration: `${minutes}:${seconds.toString().padStart(2, '0')}`,
+      isStatisticallyNormal: runSignificance.isNormal,
+      runFrequencyContext: runSignificance.context,
+      confidenceDampening: runSignificance.dampening,
     }
   }
 
@@ -1092,5 +1254,177 @@ export async function analyzeQuarterTrends(
       deviation: awayDeviation,
       trend: classifyTrend(awayDeviation),
     },
+  }
+}
+
+// ============================================================================
+// PRE-GAME EDGE ANALYSIS
+// ============================================================================
+
+// Cache for pre-game edge context (per event)
+const pregameEdgeCache = new Map<string, { data: PregameEdgeContext; timestamp: number }>()
+const PREGAME_EDGE_CACHE_TTL = 600000 // 10 minutes
+
+/**
+ * Assess which pre-game edges are currently relevant based on game period
+ *
+ * Edge relevance by quarter:
+ * - Rest/B2B: Peak in Q3-Q4 (fatigue compounds)
+ * - Depth: Peak in Q4/OT (bench minutes matter more)
+ * - Travel: Peak in Q1-Q2 (early lag, fades later)
+ */
+export async function analyzePregameEdges(
+  homeTeamName: string,
+  awayTeamName: string,
+  currentPeriod: number,
+  eventId: string
+): Promise<PregameEdgeContext> {
+  // Check cache first
+  const cached = pregameEdgeCache.get(eventId)
+  if (cached && Date.now() - cached.timestamp < PREGAME_EDGE_CACHE_TTL) {
+    // Update relevance based on current period
+    return updateEdgeRelevance(cached.data, currentPeriod)
+  }
+
+  // Fetch rest factors for both teams
+  const homeRest = await getRestFactors(homeTeamName)
+  const awayRest = await getRestFactors(awayTeamName)
+
+  const relevantEdges: PregameEdgeRelevance[] = []
+  let totalLineImpact = 0
+
+  // Calculate rest advantage
+  const restAdvantage = { home: 0, away: 0 }
+
+  if (homeRest && awayRest) {
+    // Back-to-back penalty: ~2-3 points
+    if (homeRest.isBackToBack && !awayRest.isBackToBack) {
+      restAdvantage.away = 2.5
+      relevantEdges.push({
+        edge: 'Back-to-back fatigue',
+        team: 'away',
+        applicableQuarters: [3, 4],
+        currentRelevance: currentPeriod >= 3 ? 'high' : 'low',
+        explanation: `${homeTeamName} on B2B - fatigue compounds in Q3-Q4`,
+        lineImpact: 2.5,
+      })
+    } else if (awayRest.isBackToBack && !homeRest.isBackToBack) {
+      restAdvantage.home = 2.5
+      relevantEdges.push({
+        edge: 'Back-to-back fatigue',
+        team: 'home',
+        applicableQuarters: [3, 4],
+        currentRelevance: currentPeriod >= 3 ? 'high' : 'low',
+        explanation: `${awayTeamName} on B2B - fatigue compounds in Q3-Q4`,
+        lineImpact: 2.5,
+      })
+    }
+
+    // Rest differential: ~0.5 pts per day difference
+    const restDiff = (homeRest.daysRest || 0) - (awayRest.daysRest || 0)
+    if (Math.abs(restDiff) >= 2) {
+      const advantageTeam = restDiff > 0 ? 'home' : 'away'
+      const disadvantageTeam = restDiff > 0 ? awayTeamName : homeTeamName
+      const impact = Math.min(Math.abs(restDiff) * 0.5, 2.0)
+
+      if (advantageTeam === 'home') {
+        restAdvantage.home += impact
+      } else {
+        restAdvantage.away += impact
+      }
+
+      relevantEdges.push({
+        edge: 'Rest advantage',
+        team: advantageTeam,
+        applicableQuarters: [3, 4],
+        currentRelevance: currentPeriod >= 3 ? 'medium' : 'low',
+        explanation: `${disadvantageTeam} on ${restDiff > 0 ? awayRest.daysRest : homeRest.daysRest} days rest vs ${restDiff > 0 ? homeRest.daysRest : awayRest.daysRest}`,
+        lineImpact: impact,
+      })
+    }
+
+    // Heavy schedule: games in last 5 days
+    if ((homeRest.gamesInLast5Days || 0) >= 4 && (awayRest.gamesInLast5Days || 0) < 3) {
+      relevantEdges.push({
+        edge: 'Schedule fatigue',
+        team: 'away',
+        applicableQuarters: [4],
+        currentRelevance: currentPeriod >= 4 ? 'high' : 'low',
+        explanation: `${homeTeamName} played ${homeRest.gamesInLast5Days} games in 5 days - legs heavy in Q4`,
+        lineImpact: 1.5,
+      })
+      restAdvantage.away += 1.5
+    } else if ((awayRest.gamesInLast5Days || 0) >= 4 && (homeRest.gamesInLast5Days || 0) < 3) {
+      relevantEdges.push({
+        edge: 'Schedule fatigue',
+        team: 'home',
+        applicableQuarters: [4],
+        currentRelevance: currentPeriod >= 4 ? 'high' : 'low',
+        explanation: `${awayTeamName} played ${awayRest.gamesInLast5Days} games in 5 days - legs heavy in Q4`,
+        lineImpact: 1.5,
+      })
+      restAdvantage.home += 1.5
+    }
+  }
+
+  // Calculate total line impact (only for currently relevant edges)
+  for (const edge of relevantEdges) {
+    if (edge.currentRelevance === 'high') {
+      totalLineImpact += edge.team === 'home' ? edge.lineImpact : -edge.lineImpact
+    } else if (edge.currentRelevance === 'medium') {
+      totalLineImpact += (edge.team === 'home' ? edge.lineImpact : -edge.lineImpact) * 0.5
+    }
+  }
+
+  // Determine depth advantage (placeholder - would need roster analysis)
+  const depthAdvantage: 'home' | 'away' | 'neutral' = 'neutral'
+
+  const result: PregameEdgeContext = {
+    restAdvantage,
+    injuryImpact: { home: 0, away: 0 }, // Would come from injury-detector
+    depthAdvantage,
+    relevantEdges,
+    totalLineImpact,
+  }
+
+  // Cache the result
+  pregameEdgeCache.set(eventId, { data: result, timestamp: Date.now() })
+
+  return result
+}
+
+/**
+ * Update edge relevance based on current period
+ */
+function updateEdgeRelevance(
+  context: PregameEdgeContext,
+  currentPeriod: number
+): PregameEdgeContext {
+  const updatedEdges = context.relevantEdges.map(edge => {
+    let relevance: 'high' | 'medium' | 'low' = 'low'
+
+    if (edge.applicableQuarters.includes(currentPeriod)) {
+      relevance = 'high'
+    } else if (edge.applicableQuarters.some(q => q === currentPeriod + 1)) {
+      relevance = 'medium'
+    }
+
+    return { ...edge, currentRelevance: relevance }
+  })
+
+  // Recalculate total impact
+  let totalLineImpact = 0
+  for (const edge of updatedEdges) {
+    if (edge.currentRelevance === 'high') {
+      totalLineImpact += edge.team === 'home' ? edge.lineImpact : -edge.lineImpact
+    } else if (edge.currentRelevance === 'medium') {
+      totalLineImpact += (edge.team === 'home' ? edge.lineImpact : -edge.lineImpact) * 0.5
+    }
+  }
+
+  return {
+    ...context,
+    relevantEdges: updatedEdges,
+    totalLineImpact,
   }
 }

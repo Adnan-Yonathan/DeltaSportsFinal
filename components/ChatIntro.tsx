@@ -211,18 +211,18 @@ Example queries:
 • "Which teams cover as underdogs"`
             },
             {
-              id: "pick_guidance",
-              title: "Pick Guidance",
-              description: "Walk through the best bets, tools, and edge signals for a matchup",
-              detail: `PICK GUIDANCE - Get help deciding on a bet with data-driven analysis.
+              id: "combo_analysis",
+              title: "Combo Analysis",
+              description: "Calculate parlay probability with correlation adjustments",
+              detail: `COMBO ANALYSIS - Parlay and multi-leg bet probability calculator.
 
-What it does: Walks through the key factors for a matchup - model projections vs market lines, relevant stats, injury impacts, and what would change the recommendation.
+What it does: Calculates combined probability for parlays considering correlations between related events. Shows individual leg probabilities, correlation adjustments (same-player props, same-game outcomes), and implied fair odds.
 
 Example queries:
-• "Best bet for Lakers vs Celtics"
-• "Should I bet the over tonight"
-• "Who wins Heat vs Thunder"
-• "What's the play on the Knicks game"`
+• "What's the chance Curry scores 25+ AND hits 4+ threes?"
+• "Probability of Warriors winning AND Lakers losing"
+• "Parlay odds: LeBron 30 pts + Lakers cover"
+• "Combo analysis: Jokic 10+ rebounds AND 8+ assists"`
             },
             {
               id: "matchup_analysis",

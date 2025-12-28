@@ -89,6 +89,7 @@ export async function findEVOpportunities(
   }
 
   // Fetch player props (today only) if enabled
+  console.log(`[CROSS-MARKET-EV] includeProps=${opts.includeProps}, propMarkets=${opts.propMarkets?.join(',')}`)
   if (opts.includeProps) {
     const propOpportunities = await findPlayerPropEVOpportunities(
       opts.sports,
@@ -250,6 +251,7 @@ async function findPlayerPropEVOpportunities(
   minBooks: number,
   propMarkets: string[]
 ): Promise<EVOpportunity[]> {
+  console.log(`[CROSS-MARKET-EV] findPlayerPropEVOpportunities called with minEV=${minEV}, minBooks=${minBooks}`)
   const opportunities: EVOpportunity[] = []
 
   // Only check NBA for now (most reliable prop data)

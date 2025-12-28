@@ -4269,6 +4269,22 @@ export async function POST(req: NextRequest) {
         if (/\bsteals\b|\bstl\b/.test(t)) return 'steals'
         return 'points'
       }
+      const hasExplicitPropType = (text: string) => {
+        const t = text.toLowerCase()
+        return (
+          /\bpoints\s*\+\s*rebounds\b/.test(t) ||
+          /\bpoints\s*\+\s*assists\b/.test(t) ||
+          /\bpoints\s*\+\s*rebounds\s*\+\s*assists\b|\bpra\b/.test(t) ||
+          /\brebounds\s*\+\s*assists\b/.test(t) ||
+          /\bblocks\s*\+\s*steals\b/.test(t) ||
+          /\bpoints\b|\bpts\b/.test(t) ||
+          /\brebounds\b|\brebs\b|\breb\b/.test(t) ||
+          /\bassists\b|\basts\b|\bast\b/.test(t) ||
+          /\b(threes|3s|3pm|three pointers?)\b/.test(t) ||
+          /\bblocks\b|\bblk\b/.test(t) ||
+          /\bsteals\b|\bstl\b/.test(t)
+        )
+      }
 
       const seasonStatValue = (stats: Record<string, any> | undefined, propType: string) => {
         if (!stats) return null
@@ -4347,6 +4363,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      const explicitProp = hasExplicitPropType(message)
       const propType = inferPropType(message)
       const seasonStats = await getPlayerSeasonStats(playerName, 'basketball_nba')
       const playerLabel = seasonStats?.name || playerName
@@ -4379,6 +4396,97 @@ export async function POST(req: NextRequest) {
         if (matchupTeams.length === 1) return matchupTeams[0]
         return ''
       })()
+      const leagueAverageAllowed = (propType: string) => {
+        const leagueVals = getStaticNbaTeams()
+          .map((team) => opponentAllowedValue(team.stats, propType))
+          .filter((val): val is number => typeof val === 'number' && Number.isFinite(val))
+        if (!leagueVals.length) return null
+        return leagueVals.reduce((sum, v) => sum + v, 0) / leagueVals.length
+      }
+      const projectPropLine = (propType: string) => {
+        if (!seasonStats?.stats && !seasonStats?.recent?.length) return null
+        const seasonAvg = seasonStatValue(seasonStats?.stats as Record<string, any> | undefined, propType)
+        const recent = recentFromArray(seasonStats?.recent, propType)
+        const last5Avg = recent.average
+        if (seasonAvg == null && last5Avg == null) return null
+        let sum = 0
+        let weight = 0
+        if (seasonAvg != null) {
+          sum += seasonAvg * 0.65
+          weight += 0.65
+        }
+        if (last5Avg != null) {
+          sum += last5Avg * 0.25
+          weight += 0.25
+        }
+        let projection = weight > 0 ? sum / weight : null
+        if (projection == null) return null
+        if (opponent) {
+          const oppTeam = findStaticNbaTeam(opponent)[0]
+          const opponentAllowed = opponentAllowedValue(oppTeam?.stats, propType)
+          const leagueAvg = leagueAverageAllowed(propType)
+          if (opponentAllowed != null && leagueAvg != null) {
+            projection += (opponentAllowed - leagueAvg) * 0.35
+          }
+        }
+        return Number(projection.toFixed(1))
+      }
+
+      if (!explicitProp) {
+        let propsBlock = 'No player props available for the specified criteria.'
+        try {
+          const propsRes = await fetch(
+            `${baseUrl}/api/player-props?sport=basketball_nba&player=${encodeURIComponent(playerLabel)}`,
+            { cache: 'no-store' }
+          )
+          const propsData = await propsRes.json()
+          if (propsRes.ok && propsData?.data?.length) {
+            const playerProp = propsData.data[0]
+            const headerParts = [`**${playerProp.player}**`]
+            if (playerProp.team) {
+              headerParts.push(
+                `(${playerProp.teamAbbr || playerProp.team}${playerProp.position ? ', ' + playerProp.position : ''})`
+              )
+            }
+            let formatted = `${headerParts.join(' ')}\n`
+            if (playerProp.game) {
+              formatted += `Game: ${playerProp.game}\n`
+            }
+            formatted += `| Market | Line | Best Over | Best Under |\n`
+            formatted += `| --- | --- | --- | --- |\n`
+            for (const [marketType, marketData] of Object.entries(playerProp.markets) as [string, any][]) {
+              const modelLine = projectPropLine(marketType)
+              const modelLabel = modelLine != null ? modelLine.toFixed(1) : 'n/a'
+              const lineLabel =
+                marketData.line !== undefined && marketData.line !== null
+                  ? `${marketData.line} (Model ${modelLabel})`
+                  : `? (Model ${modelLabel})`
+              const bestOver =
+                marketData.over.bestBook
+                  ? `${marketData.over.best > 0 ? '+' : ''}${marketData.over.best} (${marketData.over.bestBook})`
+                  : '?'
+              const bestUnder =
+                marketData.under.bestBook
+                  ? `${marketData.under.best > 0 ? '+' : ''}${marketData.under.best} (${marketData.under.bestBook})`
+                  : '?'
+              formatted += `| ${marketType.toUpperCase()} | ${lineLabel} | ${bestOver} | ${bestUnder} |\n`
+            }
+            propsBlock = `${formatted}\nModel lines blend season average, last 5, and opponent strength.\n${buildDataSourceLine(['SBD'])}`
+          }
+        } catch (err) {
+          propsBlock = 'SBD props lookup failed for this player.'
+        }
+
+        const lines = [
+          `**Player Analysis: ${playerLabel}${opponent ? ` vs ${opponent}` : ''}**`,
+          '',
+          '**Props on Board**',
+          propsBlock,
+          '',
+          'Ask for a specific prop if you want a stat-based edge breakdown.',
+        ]
+        return { success: true, formatted: lines.join('\n') }
+      }
 
       const seasonAvg = seasonStatValue(seasonStats?.stats as Record<string, any> | undefined, propType)
       let last5Avg: number | null = null
@@ -4741,6 +4849,22 @@ export async function POST(req: NextRequest) {
         if (/\bsteals\b|\bstl\b/.test(t)) return 'steals'
         return 'points'
       }
+      const hasExplicitPropType = (text: string) => {
+        const t = text.toLowerCase()
+        return (
+          /\bpoints\s*\+\s*rebounds\b/.test(t) ||
+          /\bpoints\s*\+\s*assists\b/.test(t) ||
+          /\bpoints\s*\+\s*rebounds\s*\+\s*assists\b|\bpra\b/.test(t) ||
+          /\brebounds\s*\+\s*assists\b/.test(t) ||
+          /\bblocks\s*\+\s*steals\b/.test(t) ||
+          /\bpoints\b|\bpts\b/.test(t) ||
+          /\brebounds\b|\brebs\b|\breb\b/.test(t) ||
+          /\bassists\b|\basts\b|\bast\b/.test(t) ||
+          /\b(threes|3s|3pm|three pointers?)\b/.test(t) ||
+          /\bblocks\b|\bblk\b/.test(t) ||
+          /\bsteals\b|\bstl\b/.test(t)
+        )
+      }
 
       const seasonStatValue = (stats: Record<string, any> | undefined, propType: string) => {
         if (!stats) return null
@@ -4850,6 +4974,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (playerName) {
+        const explicitProp = hasExplicitPropType(message)
         const propType = inferPropType(message)
         const seasonStats = await getPlayerSeasonStats(playerName, 'basketball_nba')
         const playerLabel = seasonStats?.name || playerName
@@ -4892,6 +5017,98 @@ export async function POST(req: NextRequest) {
             success: false,
             formatted: 'Edge awareness for player props needs a matchup (e.g., "Kevin Durant points prop vs Clippers").',
           }
+        }
+
+        const leagueAverageAllowed = (propType: string) => {
+          const leagueVals = getStaticNbaTeams()
+            .map((team) => opponentAllowedValue(team.stats, propType))
+            .filter((val): val is number => typeof val === 'number' && Number.isFinite(val))
+          if (!leagueVals.length) return null
+          return leagueVals.reduce((sum, v) => sum + v, 0) / leagueVals.length
+        }
+        const projectPropLine = (propType: string) => {
+          if (!seasonStats?.stats && !seasonStats?.recent?.length) return null
+          const seasonAvg = seasonStatValue(seasonStats?.stats as Record<string, any> | undefined, propType)
+          const recent = recentFromArray(seasonStats?.recent, propType)
+          const last5Avg = recent.average
+          if (seasonAvg == null && last5Avg == null) return null
+          let sum = 0
+          let weight = 0
+          if (seasonAvg != null) {
+            sum += seasonAvg * 0.65
+            weight += 0.65
+          }
+          if (last5Avg != null) {
+            sum += last5Avg * 0.25
+            weight += 0.25
+          }
+          let projection = weight > 0 ? sum / weight : null
+          if (projection == null) return null
+          const oppTeam = findStaticNbaTeam(opponent)[0]
+          const opponentAllowed = opponentAllowedValue(oppTeam?.stats, propType)
+          const leagueAvg = leagueAverageAllowed(propType)
+          if (opponentAllowed != null && leagueAvg != null) {
+            projection += (opponentAllowed - leagueAvg) * 0.35
+          }
+          return Number(projection.toFixed(1))
+        }
+
+        if (!explicitProp) {
+          let propsBlock = 'No player props available for the specified criteria.'
+          try {
+            const propsRes = await fetch(
+              `${baseUrl}/api/player-props?sport=basketball_nba&player=${encodeURIComponent(playerLabel)}`,
+              { cache: 'no-store' }
+            )
+            const propsData = await propsRes.json()
+            if (propsRes.ok && propsData?.data?.length) {
+              const playerProp = propsData.data[0]
+              const headerParts = [`**${playerProp.player}**`]
+              if (playerProp.team) {
+                headerParts.push(
+                  `(${playerProp.teamAbbr || playerProp.team}${playerProp.position ? ', ' + playerProp.position : ''})`
+                )
+              }
+              let formatted = `${headerParts.join(' ')}\n`
+              if (playerProp.game) {
+                formatted += `Game: ${playerProp.game}\n`
+              }
+              formatted += `| Market | Line | Best Over | Best Under |\n`
+              formatted += `| --- | --- | --- | --- |\n`
+              for (const [marketType, marketData] of Object.entries(playerProp.markets) as [string, any][]) {
+                const modelLine = projectPropLine(marketType)
+                const modelLabel = modelLine != null ? modelLine.toFixed(1) : 'n/a'
+                const lineLabel =
+                  marketData.line !== undefined && marketData.line !== null
+                    ? `${marketData.line} (Model ${modelLabel})`
+                    : `? (Model ${modelLabel})`
+                const bestOver =
+                  marketData.over.bestBook
+                    ? `${marketData.over.best > 0 ? '+' : ''}${marketData.over.best} (${marketData.over.bestBook})`
+                    : '?'
+                const bestUnder =
+                  marketData.under.bestBook
+                    ? `${marketData.under.best > 0 ? '+' : ''}${marketData.under.best} (${marketData.under.bestBook})`
+                    : '?'
+                formatted += `| ${marketType.toUpperCase()} | ${lineLabel} | ${bestOver} | ${bestUnder} |\n`
+              }
+              propsBlock = `${formatted}\nModel lines blend season average, last 5, and opponent strength.\n${buildDataSourceLine(['SBD'])}`
+            }
+          } catch (err) {
+            propsBlock = 'SBD props lookup failed for this player.'
+          }
+
+          const lines = [
+            `Edge awareness: ${playerLabel} vs ${opponent}`,
+            'Inputs',
+            `- Player: ${playerLabel}`,
+            `- Matchup: ${playerTeam ? `${playerTeam} vs ${opponent}` : opponent}`,
+            'Results',
+            'Props on board',
+            propsBlock,
+            'Ask for a specific prop if you want a stat-based edge breakdown.',
+          ]
+          return { success: true, formatted: lines.join('\n') }
         }
 
         const seasonAvg = seasonStatValue(seasonStats?.stats as Record<string, any> | undefined, propType)

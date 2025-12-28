@@ -21,7 +21,8 @@ async function updateUserSubscription(
   supabase: ReturnType<typeof createServiceClient>,
   userId: string,
   subscription: Stripe.Subscription | null,
-  planKey?: string
+  planKey?: string,
+  customerId?: string
 ) {
   const config = planKey ? PLAN_CONFIG[planKey as PlanKey] : null
 
@@ -50,12 +51,17 @@ async function updateUserSubscription(
   // Update user metadata with subscription info
   const currentPeriodEnd = (subscription as any).current_period_end
   const cancelAt = (subscription as any).cancel_at
-  const metadataUpdate = {
+  const metadataUpdate: Record<string, any> = {
     membership_tier: tier,
     membership_status: subscription.status,
     stripe_subscription_id: subscription.id,
     stripe_current_period_end: currentPeriodEnd ? new Date(currentPeriodEnd * 1000).toISOString() : null,
     subscription_cancel_at: cancelAt ? new Date(cancelAt * 1000).toISOString() : null,
+  }
+
+  // Include customer ID if provided
+  if (customerId) {
+    metadataUpdate.stripe_customer_id = customerId
   }
 
   console.log('[STRIPE_WEBHOOK] Updating user metadata:', { userId, metadataUpdate })
@@ -175,16 +181,8 @@ export async function POST(req: NextRequest) {
           metadata: { supabase_user_id: userId, plan_key: planKey || '' },
         })
 
-        // Store customer ID on user if not already stored
-        if (session.customer) {
-          await supabase.auth.admin.updateUserById(userId, {
-            user_metadata: {
-              stripe_customer_id: session.customer as string,
-            },
-          })
-        }
-
-        await updateUserSubscription(supabase, userId, subscription, planKey)
+        // Update user with subscription info (includes customer ID)
+        await updateUserSubscription(supabase, userId, subscription, planKey, session.customer as string)
         console.log(`[STRIPE_WEBHOOK] Subscription created for user ${userId}`)
         break
       }

@@ -21,7 +21,7 @@ import { formatAmericanOdds } from '@/lib/utils/odds'
 export interface CrossMarketEVOptions {
   sports?: string[] // Which sports to scan
   minEV?: number // Minimum EV threshold for team markets (default 3%)
-  minPropEV?: number // Minimum EV threshold for player props (default 10%)
+  minPropEV?: number // Minimum EV threshold for player props (default 3%)
   minBooks?: number // Minimum books required for consensus (default 2)
   markets?: string[] // Which markets to include
   limit?: number // Max opportunities to return
@@ -32,7 +32,7 @@ export interface CrossMarketEVOptions {
 const DEFAULT_OPTIONS: Required<CrossMarketEVOptions> = {
   sports: [SPORTS.NBA, SPORTS.NFL, SPORTS.MLB, SPORTS.NHL],
   minEV: 3, // 3% for team markets
-  minPropEV: 10, // 10% for player props
+  minPropEV: 3, // 3% for player props
   minBooks: 2,
   markets: [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS],
   limit: 50, // Increased limit

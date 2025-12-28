@@ -1,6 +1,12 @@
 /**
  * Slate Edge Detector
  * Analyzes all games for a sport on a given day to find betting edges
+ *
+ * Combines:
+ * 1. Model projections (target spread/total from matchup analysis)
+ * 2. Sharp money signals (RLM, steam moves, bet%/money% divergence)
+ *
+ * Sharp confirmation boosts edge confidence when sharps agree with model
  */
 
 import { fetchOdds } from '@/lib/api/odds-api'
@@ -8,6 +14,13 @@ import { getGameRecommendations, type GameRecommendation } from './recommendatio
 import { analyzeMatchup } from './matchup-analyzer'
 import { evaluateLineEdge, type EdgeAssessment } from '@/lib/analysis/bet-tools'
 import type { OddsGame } from '@/lib/types/odds'
+import {
+  detectEdges as detectSharpEdges,
+  type SharpSignal,
+  type LineMovement,
+  type BettingSplits,
+  type EdgeDetectionResult as SharpEdgeResult,
+} from './edge-detection'
 
 export interface GameEdgeAnalysis {
   matchup: string
@@ -21,6 +34,7 @@ export interface GameEdgeAnalysis {
     bestBook?: string
     bestOdds?: number
     favoredTeam: string // Which team the model favors
+    sharpConfirmed?: boolean // Sharp signals agree with model
   }
   total?: {
     marketLine: number
@@ -28,11 +42,21 @@ export interface GameEdgeAnalysis {
     edge: EdgeAssessment
     bestBook?: string
     bestOdds?: number
+    sharpConfirmed?: boolean // Sharp signals agree with model
   }
   confidence: 'low' | 'medium' | 'high'
   factors: string[]
   injuries: string[] // Injury factors
   matchupFactors: string[] // ORtg, DRtg, pace factors
+  // Sharp money signals
+  sharpSignals: SharpSignal[]
+  lineMovements: LineMovement[]
+  splits?: BettingSplits
+  sharpConfirmation?: {
+    agrees: boolean
+    signals: string[]
+    boost: number // Confidence boost factor (0-2)
+  }
 }
 
 export interface SlateEdgeResult {
@@ -45,6 +69,7 @@ export interface SlateEdgeResult {
     strongEdges: number
     softEdges: number
     noEdges: number
+    sharpConfirmed: number // Edges with sharp confirmation
   }
 }
 
@@ -55,6 +80,50 @@ const SPORT_LABELS: Record<string, string> = {
   americanfootball_ncaaf: 'NCAAF',
   baseball_mlb: 'MLB',
   icehockey_nhl: 'NHL',
+}
+
+// Map odds-api sport keys to SBD league keys
+const ODDS_API_TO_SBD: Record<string, 'nba' | 'nfl' | 'nhl' | 'mlb' | 'ncaamb' | 'ncaafb'> = {
+  basketball_nba: 'nba',
+  basketball_ncaab: 'ncaamb',
+  americanfootball_nfl: 'nfl',
+  americanfootball_ncaaf: 'ncaafb',
+  baseball_mlb: 'mlb',
+  icehockey_nhl: 'nhl',
+}
+
+/**
+ * Determine if sharp signals agree with model projection
+ */
+function analyzeSharpConfirmation(
+  sharpResult: SharpEdgeResult | undefined,
+  modelFavoredTeam: string,
+  modelDirection?: 'over' | 'under'
+): { agrees: boolean; signals: string[]; boost: number } {
+  if (!sharpResult || sharpResult.sharpSignals.length === 0) {
+    return { agrees: false, signals: [], boost: 0 }
+  }
+
+  const agreeingSignals: string[] = []
+  let totalStrength = 0
+
+  for (const signal of sharpResult.sharpSignals) {
+    // Check if signal agrees with model
+    const signalAgrees =
+      (signal.market === 'spread' && signal.side === modelFavoredTeam) ||
+      (signal.market === 'total' && modelDirection && signal.side.toLowerCase() === modelDirection)
+
+    if (signalAgrees) {
+      agreeingSignals.push(`${signal.type}: ${signal.description}`)
+      totalStrength += signal.strength
+    }
+  }
+
+  const agrees = agreeingSignals.length > 0
+  // Boost: 0-2 based on agreeing signal strength (5 strength = 1.0 boost, 10+ = 2.0)
+  const boost = agrees ? Math.min(2, totalStrength / 5) : 0
+
+  return { agrees, signals: agreeingSignals, boost }
 }
 
 /**
@@ -132,7 +201,20 @@ export async function analyzeSlateEdges(
       date: new Date().toISOString().split('T')[0],
       gamesAnalyzed: 0,
       edges: [],
-      summary: { strongEdges: 0, softEdges: 0, noEdges: 0 },
+      summary: { strongEdges: 0, softEdges: 0, noEdges: 0, sharpConfirmed: 0 },
+    }
+  }
+
+  // Fetch sharp signals for this sport (line movement, RLM, bet%/money% divergence)
+  const sbdLeague = ODDS_API_TO_SBD[sportKey]
+  let sharpResults: SharpEdgeResult[] = []
+  if (sbdLeague) {
+    try {
+      console.log(`[SLATE EDGE] Fetching sharp signals for ${sbdLeague}...`)
+      sharpResults = await detectSharpEdges([sbdLeague])
+      console.log(`[SLATE EDGE] Found ${sharpResults.filter(r => r.hasEdge).length} games with sharp signals`)
+    } catch (error) {
+      console.error(`[SLATE EDGE] Failed to fetch sharp signals:`, error)
     }
   }
 
@@ -153,10 +235,20 @@ export async function analyzeSlateEdges(
   let strongEdges = 0
   let softEdges = 0
   let noEdges = 0
+  let sharpConfirmedCount = 0
 
   for (const game of upcomingGames) {
     try {
       const matchupLabel = `${game.away_team} @ ${game.home_team}`
+
+      // Match sharp signals for this game by team name
+      const sharpResult = sharpResults.find((r) => {
+        const homeMatch = game.home_team.toLowerCase().includes(r.homeTeam.toLowerCase().split(' ').pop() || '') ||
+                          r.homeTeam.toLowerCase().includes(game.home_team.toLowerCase().split(' ').pop() || '')
+        const awayMatch = game.away_team.toLowerCase().includes(r.awayTeam.toLowerCase().split(' ').pop() || '') ||
+                          r.awayTeam.toLowerCase().includes(game.away_team.toLowerCase().split(' ').pop() || '')
+        return homeMatch && awayMatch
+      })
 
       // Get detailed matchup analysis (includes injuries, stats, ATS)
       const matchupAnalysis = await analyzeMatchup(game.home_team, game.away_team)
@@ -234,15 +326,45 @@ export async function analyzeSlateEdges(
         ? game.home_team  // Home is favorite (negative spread)
         : game.away_team  // Away is favorite (home has positive spread)
 
+      // Determine model direction for total (over/under)
+      const modelTotalDirection: 'over' | 'under' | undefined = totalRec && marketTotal
+        ? totalRec.targetLine > marketTotal.line ? 'over' : 'under'
+        : undefined
+
+      // Analyze if sharp signals confirm model projection
+      const spreadConfirmation = analyzeSharpConfirmation(sharpResult, modelFavoredTeam)
+      const totalConfirmation = analyzeSharpConfirmation(sharpResult, '', modelTotalDirection)
+
+      // Combine confirmations
+      const hasSharpConfirmation = spreadConfirmation.agrees || totalConfirmation.agrees
+      if (hasSharpConfirmation) sharpConfirmedCount++
+
+      // Boost confidence if sharp signals agree
+      let adjustedConfidence = spreadRec?.confidence || totalRec?.confidence || 'low'
+      const totalBoost = spreadConfirmation.boost + totalConfirmation.boost
+      if (totalBoost >= 1.5 && adjustedConfidence === 'medium') {
+        adjustedConfidence = 'high'
+      } else if (totalBoost >= 1.0 && adjustedConfidence === 'low') {
+        adjustedConfidence = 'medium'
+      }
+
       const gameAnalysis: GameEdgeAnalysis = {
         matchup: matchupLabel,
         homeTeam: game.home_team,
         awayTeam: game.away_team,
         commenceTime: game.commence_time,
-        confidence: spreadRec?.confidence || totalRec?.confidence || 'low',
+        confidence: adjustedConfidence,
         factors: spreadRec?.factors || totalRec?.factors || [],
         injuries,
         matchupFactors,
+        sharpSignals: sharpResult?.sharpSignals || [],
+        lineMovements: sharpResult?.lineMovements || [],
+        splits: sharpResult?.splits,
+        sharpConfirmation: hasSharpConfirmation ? {
+          agrees: true,
+          signals: [...spreadConfirmation.signals, ...totalConfirmation.signals],
+          boost: totalBoost,
+        } : undefined,
       }
 
       if (spreadRec && marketSpread && spreadEdge) {
@@ -253,6 +375,7 @@ export async function analyzeSlateEdges(
           bestBook: marketSpread.book,
           bestOdds: marketSpread.odds,
           favoredTeam: modelFavoredTeam,
+          sharpConfirmed: spreadConfirmation.agrees,
         }
       }
 
@@ -263,6 +386,7 @@ export async function analyzeSlateEdges(
           edge: totalEdge,
           bestBook: marketTotal.book,
           bestOdds: marketTotal.overOdds,
+          sharpConfirmed: totalConfirmation.agrees,
         }
       }
 
@@ -272,7 +396,7 @@ export async function analyzeSlateEdges(
     }
   }
 
-  // Sort by edge strength (strong first, then soft)
+  // Sort by edge strength (strong first, then soft), with sharp confirmation as tiebreaker
   edges.sort((a, b) => {
     const getEdgeScore = (g: GameEdgeAnalysis) => {
       let score = 0
@@ -280,6 +404,10 @@ export async function analyzeSlateEdges(
       else if (g.spread?.edge.verdict === 'soft') score += 5
       if (g.total?.edge.verdict === 'strong') score += 10
       else if (g.total?.edge.verdict === 'soft') score += 5
+      // Bonus for sharp confirmation
+      if (g.sharpConfirmation?.agrees) score += 3
+      if (g.spread?.sharpConfirmed) score += 2
+      if (g.total?.sharpConfirmed) score += 2
       return score
     }
     return getEdgeScore(b) - getEdgeScore(a)
@@ -291,7 +419,7 @@ export async function analyzeSlateEdges(
     date: new Date().toISOString().split('T')[0],
     gamesAnalyzed: upcomingGames.length,
     edges,
-    summary: { strongEdges, softEdges, noEdges },
+    summary: { strongEdges, softEdges, noEdges, sharpConfirmed: sharpConfirmedCount },
   }
 }
 
@@ -308,7 +436,7 @@ export function formatSlateEdgesForChat(result: SlateEdgeResult): string {
   lines.push(`## ${result.sportLabel} Edge Detection - ${result.date}`)
   lines.push('')
   lines.push(`**Games Analyzed:** ${result.gamesAnalyzed}`)
-  lines.push(`**Summary:** ${result.summary.strongEdges} strong edges | ${result.summary.softEdges} soft edges | ${result.summary.noEdges} no edge`)
+  lines.push(`**Summary:** ${result.summary.strongEdges} strong edges | ${result.summary.softEdges} soft edges | ${result.summary.noEdges} no edge | ${result.summary.sharpConfirmed} sharp-confirmed`)
   lines.push('')
 
   if (result.edges.length === 0) {
@@ -362,6 +490,7 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
 
   if (game.spread) {
     const edgeEmoji = game.spread.edge.verdict === 'strong' ? '🔥' : game.spread.edge.verdict === 'soft' ? '✓' : '—'
+    const sharpEmoji = game.spread.sharpConfirmed ? ' ⚡' : ''
     const gap = Math.abs(game.spread.marketLine - game.spread.targetLine).toFixed(1)
 
     // Format spreads from HOME team's perspective for consistency
@@ -371,7 +500,7 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
     const modelLineFormatted = game.spread.targetLine > 0 ? `+${game.spread.targetLine.toFixed(1)}` : game.spread.targetLine.toFixed(1)
 
     lines.push(
-      `- ${edgeEmoji} **Spread:** Market ${marketLineFormatted} ${homeTeamShort} | Model ${modelLineFormatted} ${homeTeamShort} | Gap: ${gap} pts`
+      `- ${edgeEmoji} **Spread:** Market ${marketLineFormatted} ${homeTeamShort} | Model ${modelLineFormatted} ${homeTeamShort} | Gap: ${gap} pts${sharpEmoji}`
     )
     if (game.spread.edge.flag) {
       lines.push(`  - ⚠️ ${game.spread.edge.flag}`)
@@ -380,10 +509,11 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
 
   if (game.total) {
     const edgeEmoji = game.total.edge.verdict === 'strong' ? '🔥' : game.total.edge.verdict === 'soft' ? '✓' : '—'
+    const sharpEmoji = game.total.sharpConfirmed ? ' ⚡' : ''
     const gap = Math.abs(game.total.marketLine - game.total.targetLine).toFixed(1)
     const direction = game.total.targetLine > game.total.marketLine ? 'OVER' : 'UNDER'
     lines.push(
-      `- ${edgeEmoji} **Total:** Market ${game.total.marketLine} | Model ${game.total.targetLine.toFixed(1)} | Gap: ${gap} pts → ${direction}`
+      `- ${edgeEmoji} **Total:** Market ${game.total.marketLine} | Model ${game.total.targetLine.toFixed(1)} | Gap: ${gap} pts → ${direction}${sharpEmoji}`
     )
     if (game.total.edge.flag) {
       lines.push(`  - ⚠️ ${game.total.edge.flag}`)
@@ -399,6 +529,25 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
   if (game.matchupFactors.length > 0) {
     const keyFactors = game.matchupFactors.slice(0, 2)
     lines.push(`- 📊 **Matchup:** ${keyFactors.join(' | ')}`)
+  }
+
+  // Show sharp signals if present
+  if (game.sharpSignals.length > 0) {
+    const signalSummary = game.sharpSignals
+      .slice(0, 3)
+      .map((s) => `${s.type}(${s.side})`)
+      .join(', ')
+    lines.push(`- ⚡ **Sharp Signals:** ${signalSummary}`)
+  }
+
+  // Show line movement if significant
+  const significantMoves = game.lineMovements.filter((m) => m.isSharp || m.isSignificant)
+  if (significantMoves.length > 0) {
+    const moveSummary = significantMoves
+      .slice(0, 2)
+      .map((m) => `${m.market}: ${m.openingLine}→${m.currentLine}`)
+      .join(', ')
+    lines.push(`- 📈 **Line Movement:** ${moveSummary}`)
   }
 
   return lines.join('\n')

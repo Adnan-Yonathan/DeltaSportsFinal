@@ -129,6 +129,18 @@ export const toolResolvers: Record<string, Resolver> = {
 
     console.log('[LIVE_PROJECTION] Formatting complete')
 
+    const formatted = [
+      `**Live Projection: ${gameState.awayTeam} @ ${gameState.homeTeam}**`,
+      `- Score: ${gameState.awayTeam} ${gameState.awayScore} - ${gameState.homeScore} ${gameState.homeTeam}`,
+      `- Period: Q${gameState.period} ${gameState.displayClock}`,
+      '',
+      '**Spread Projection**',
+      spreadFormatted,
+      '',
+      '**Total Projection**',
+      totalFormatted,
+    ].join('\n')
+
     // Return structured data for LLM
     return {
       matchup: `${gameState.awayTeam} @ ${gameState.homeTeam}`,
@@ -142,6 +154,7 @@ export const toolResolvers: Record<string, Resolver> = {
         spreadType: 'projection',
         total: totalFormatted,
       },
+      formatted,
     }
   },
 }

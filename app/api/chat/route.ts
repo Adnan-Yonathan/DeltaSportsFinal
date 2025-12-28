@@ -8838,6 +8838,7 @@ ${statsEnrichment}
                   'get_pick_guidance',
                   'analyze_bet_market',
                   'get_slate_edge_detection',
+                  'get_live_betting_projection',
                 ])
 
                 if (

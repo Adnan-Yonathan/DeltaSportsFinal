@@ -373,8 +373,8 @@ Try again later when more games are posted or lines are moving.`
   // Team markets table
   if (teamMarkets.length > 0) {
     lines.push('### Team Markets\n')
-    lines.push('| Bet | Book | Best Odds | Consensus | EV | Edge |')
-    lines.push('|-----|------|-----------|-----------|-----|------|')
+    lines.push('| Bet | Book | Best Odds | Consensus | EV |')
+    lines.push('|-----|------|-----------|-----------|-----|')
 
     for (const opp of teamMarkets) {
       const oddsStr = formatAmericanOdds(opp.bestOdds)
@@ -382,7 +382,7 @@ Try again later when more games are posted or lines are moving.`
       const pointStr = opp.point !== undefined ? ` ${opp.point > 0 ? '+' : ''}${opp.point}` : ''
       const betDesc = `${opp.game.split(' @ ')[0]?.split(' ').pop() || opp.selection}${pointStr} (${opp.market})`
 
-      lines.push(`| ${betDesc} | ${opp.bestBook} | ${oddsStr} | ${consensusStr} | **+${opp.ev.toFixed(1)}%** | ${opp.edgePercent.toFixed(1)}% |`)
+      lines.push(`| ${betDesc} | ${opp.bestBook} | ${oddsStr} | ${consensusStr} | **+${opp.ev.toFixed(1)}%** |`)
     }
     lines.push('')
   }
@@ -390,8 +390,8 @@ Try again later when more games are posted or lines are moving.`
   // Player props table
   if (propMarkets.length > 0) {
     lines.push('### Player Props (Today Only)\n')
-    lines.push('| Player Prop | Book | Best Odds | Consensus | EV | Edge |')
-    lines.push('|-------------|------|-----------|-----------|-----|------|')
+    lines.push('| Player Prop | Book | Best Odds | Consensus | EV |')
+    lines.push('|-------------|------|-----------|-----------|-----|')
 
     for (const opp of propMarkets) {
       const oddsStr = formatAmericanOdds(opp.bestOdds)
@@ -399,7 +399,7 @@ Try again later when more games are posted or lines are moving.`
       const pointStr = opp.point !== undefined ? ` o${opp.point}` : ''
       const betDesc = `${opp.market}${pointStr}`
 
-      lines.push(`| ${betDesc} | ${opp.bestBook} | ${oddsStr} | ${consensusStr} | **+${opp.ev.toFixed(1)}%** | ${opp.edgePercent.toFixed(1)}% |`)
+      lines.push(`| ${betDesc} | ${opp.bestBook} | ${oddsStr} | ${consensusStr} | **+${opp.ev.toFixed(1)}%** |`)
     }
     lines.push('')
   }

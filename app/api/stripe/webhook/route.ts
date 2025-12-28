@@ -50,15 +50,27 @@ async function updateUserSubscription(
   // Update user metadata with subscription info
   const currentPeriodEnd = (subscription as any).current_period_end
   const cancelAt = (subscription as any).cancel_at
-  await supabase.auth.admin.updateUserById(userId, {
-    user_metadata: {
-      membership_tier: tier,
-      membership_status: subscription.status,
-      stripe_subscription_id: subscription.id,
-      stripe_current_period_end: currentPeriodEnd ? new Date(currentPeriodEnd * 1000).toISOString() : null,
-      subscription_cancel_at: cancelAt ? new Date(cancelAt * 1000).toISOString() : null,
-    },
+  const metadataUpdate = {
+    membership_tier: tier,
+    membership_status: subscription.status,
+    stripe_subscription_id: subscription.id,
+    stripe_current_period_end: currentPeriodEnd ? new Date(currentPeriodEnd * 1000).toISOString() : null,
+    subscription_cancel_at: cancelAt ? new Date(cancelAt * 1000).toISOString() : null,
+  }
+
+  console.log('[STRIPE_WEBHOOK] Updating user metadata:', { userId, metadataUpdate })
+
+  const { data: updateData, error: updateError } = await supabase.auth.admin.updateUserById(userId, {
+    user_metadata: metadataUpdate,
   })
+
+  if (updateError) {
+    console.error('[STRIPE_WEBHOOK] Failed to update user metadata:', JSON.stringify(updateError, null, 2))
+    throw new Error(`Failed to update user: ${updateError.message}`)
+  }
+
+  console.log('[STRIPE_WEBHOOK] Successfully updated user metadata for:', userId)
+  console.log('[STRIPE_WEBHOOK] Updated user data:', JSON.stringify(updateData?.user?.user_metadata, null, 2))
 
   // Also update users table if it exists
   const usersUpdate = supabase.from('users') as any
@@ -87,9 +99,17 @@ async function getUserIdFromCustomer(
 }
 
 export async function POST(req: NextRequest) {
+  console.log('[STRIPE_WEBHOOK] Webhook endpoint hit')
+
   const body = await req.text()
   const signature = req.headers.get('stripe-signature')
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+
+  console.log('[STRIPE_WEBHOOK] Verification check:', {
+    hasSignature: Boolean(signature),
+    hasWebhookSecret: Boolean(webhookSecret),
+    webhookSecretLength: webhookSecret?.length || 0,
+  })
 
   if (!signature || !webhookSecret) {
     console.error('[STRIPE_WEBHOOK] Missing signature or webhook secret')
@@ -100,14 +120,20 @@ export async function POST(req: NextRequest) {
 
   try {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+    console.log('[STRIPE_WEBHOOK] Signature verified successfully, event type:', event.type)
   } catch (err) {
     console.error('[STRIPE_WEBHOOK] Signature verification failed:', err)
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
   if (!relevantEvents.has(event.type)) {
+    console.log('[STRIPE_WEBHOOK] Ignoring irrelevant event type:', event.type)
     return NextResponse.json({ received: true })
   }
+
+  console.log('[STRIPE_WEBHOOK] Processing relevant event:', event.type)
+  console.log('[STRIPE_WEBHOOK] Service role key present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
+  console.log('[STRIPE_WEBHOOK] Supabase URL present:', !!process.env.NEXT_PUBLIC_SUPABASE_URL)
 
   const supabase = createServiceClient()
 
@@ -115,8 +141,16 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
+        console.log('[STRIPE_WEBHOOK] checkout.session.completed received:', {
+          sessionId: session.id,
+          mode: session.mode,
+          metadata: session.metadata,
+          subscriptionId: session.subscription,
+          customerId: session.customer,
+        })
 
         if (session.mode !== 'subscription') {
+          console.log('[STRIPE_WEBHOOK] Ignoring non-subscription checkout')
           return NextResponse.json({ received: true })
         }
 
@@ -125,7 +159,11 @@ export async function POST(req: NextRequest) {
         const subscriptionId = session.subscription as string
 
         if (!userId || !subscriptionId) {
-          console.error('[STRIPE_WEBHOOK] Missing userId or subscriptionId in checkout session')
+          console.error('[STRIPE_WEBHOOK] Missing userId or subscriptionId in checkout session:', {
+            userId,
+            subscriptionId,
+            allMetadata: session.metadata,
+          })
           return NextResponse.json({ received: true, warning: 'Missing metadata' })
         }
 

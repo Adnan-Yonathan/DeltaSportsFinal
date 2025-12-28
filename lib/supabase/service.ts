@@ -9,5 +9,10 @@ export function createServiceClient() {
     throw new Error('Missing Supabase service credentials')
   }
 
-  return createClient<Database>(url, serviceRoleKey)
+  return createClient<Database>(url, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
 }

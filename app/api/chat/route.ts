@@ -2551,9 +2551,16 @@ export async function POST(req: NextRequest) {
 
       const membership = getMembershipStatus(user.user_metadata)
 
-      // TEMPORARY WORKAROUND: All signed-up users get Pro access (25 messages/day)
-      // This bypasses membership checks until auth issues are resolved
-      if (membership.tier !== 'unlimited') {
+      // Check if user has an active membership
+      if (!membership.isActive) {
+        return NextResponse.json(
+          { error: 'Active subscription required. Please subscribe to continue chatting.' },
+          { status: 403 }
+        )
+      }
+
+      // Enforce daily message limit for Pro tier (unlimited tier has no limit)
+      if (membership.tier === 'pro') {
         const todayCount = await countUserMessagesToday(supabase, user.id)
         if (todayCount >= PRO_DAILY_MESSAGE_LIMIT) {
           return NextResponse.json(

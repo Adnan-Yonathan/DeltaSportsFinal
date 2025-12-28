@@ -5862,6 +5862,7 @@ export async function POST(req: NextRequest) {
           minEV: 1.5,
           minBooks: 2,
           limit: 20,
+          includeProps: true,
         })
         const evResponse = formatEVResults(opportunities)
         return streamTextResponse(evResponse)

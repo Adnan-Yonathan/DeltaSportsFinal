@@ -70,18 +70,29 @@ export function getPlayerTier(playerStats: PlayerStats): PlayerTier {
   return 'role'
 }
 
-// Tier-based impact multipliers
+// Tier-based impact multipliers (reduced from previous aggressive values)
 const TIER_MULTIPLIERS: Record<PlayerTier, number> = {
-  elite: 2.5,    // Elite players have 2.5x impact
-  star: 1.8,     // Star players have 1.8x impact
-  starter: 1.2,  // Starters have 1.2x impact
-  role: 0.8,     // Role players have reduced impact
+  elite: 1.5,    // Elite players have 1.5x impact (was 2.5)
+  star: 1.2,     // Star players have 1.2x impact (was 1.8)
+  starter: 1.0,  // Starters have 1.0x impact (was 1.2)
+  role: 0.6,     // Role players have reduced impact (was 0.8)
 }
+
+// Maximum impact caps per player (in rating points)
+const MAX_ORTG_DROP_PER_PLAYER = 6.0  // No single player can drop ORtg more than 6 points
+const MAX_DRTG_INCREASE_PER_PLAYER = 4.0  // No single player can worsen DRtg more than 4 points
+const MAX_TOTAL_INJURY_IMPACT = 12.0  // Maximum total ORtg or DRtg impact from all injuries
 
 /**
  * Calculate the impact of a single injured player
- * Uses BPM (Box Plus/Minus), VORP, and stat-based tier system
+ * Uses BPM (Box Plus/Minus) rate stats - NOT VORP (which is cumulative)
  * Impact is scaled by player's statistical contribution, NOT name recognition
+ *
+ * Formula rationale:
+ * - BPM measures points above average per 100 possessions
+ * - OBPM/DBPM split that into offense/defense components
+ * - Minutes played determines how much of the game they affect
+ * - Tier multiplier accounts for star vs role player replacement quality
  */
 export function calculatePlayerImpact(
   playerStats: PlayerStats,
@@ -89,36 +100,40 @@ export function calculatePlayerImpact(
 ): InjuryImpact['impact'] {
   const mpg = playerStats.minutesPerGame
   const usage = playerStats.usage
-  const bpm = playerStats.bpm || 0
   const obpm = playerStats.obpm || 0
   const dbpm = playerStats.dbpm || 0
-  const vorp = playerStats.vorp || 0
 
   // Get stat-based tier multiplier
   const tier = getPlayerTier(playerStats)
   const tierMultiplier = TIER_MULTIPLIERS[tier]
 
+  // Minutes factor: how much of the game this player is on court
+  // 36 mpg = 75% of game, so that's our reference point
+  const minutesFactor = mpg / 48
+
   // Offensive Rating Impact
-  // Increased multipliers: OBPM * 1.2 + VORP * 4 (up from 0.5 and 2)
-  // OBPM measures points above average per 100 possessions
-  // VORP measures overall value contribution
-  const rawOrtgImpact = (obpm * 1.2 + vorp * 4) * (mpg / 36)
-  const ortgDrop = rawOrtgImpact * (teamStats.ortg / 115.0) * tierMultiplier
+  // OBPM is points above average per 100 possessions
+  // A +5 OBPM player missing ~30 min affects maybe 2-3 points of team ORtg
+  // Scale: OBPM * 0.4 * (mpg/48) gives us base impact
+  const rawOrtgImpact = obpm * 0.4 * minutesFactor * tierMultiplier
+  // Cap at maximum per-player impact
+  const ortgDrop = Math.min(Math.max(0, rawOrtgImpact), MAX_ORTG_DROP_PER_PLAYER)
 
   // Defensive Rating Impact
-  // Increased multiplier: DBPM * 1.5 (up from 1.0)
-  // Positive DBPM helps defense; when player is out, defense worsens (DRtg increases)
-  const rawDrtgImpact = dbpm * 1.5 * (mpg / 36)
-  const drtgIncrease = -rawDrtgImpact * (teamStats.drtg / 115.0) * tierMultiplier
+  // Positive DBPM = good defender. When out, defense worsens (DRtg increases)
+  // So we negate: -DBPM becomes the increase
+  const rawDrtgImpact = -dbpm * 0.35 * minutesFactor * tierMultiplier
+  // Cap at maximum per-player impact
+  const drtgIncrease = Math.min(Math.max(-MAX_DRTG_INCREASE_PER_PLAYER, rawDrtgImpact), MAX_DRTG_INCREASE_PER_PLAYER)
 
-  // Usage-based pace impact
-  // High-usage players affect pace more when out
-  const usageImpact = (usage / 100) * (mpg / 48)
-  const paceDrop = usageImpact * -0.8 * tierMultiplier
+  // Usage-based pace impact (minimal effect)
+  // High-usage players affect pace slightly when out
+  const usageImpact = (usage / 100) * minutesFactor
+  const paceDrop = usageImpact * -0.3 * tierMultiplier
 
   return {
-    ortgDrop: Math.max(0, ortgDrop), // Can't be negative
-    drtgIncrease, // Can be positive or negative
+    ortgDrop,
+    drtgIncrease,
     paceDrop,
   }
 }
@@ -279,22 +294,27 @@ export async function detectInjuries(
     }
 
     // Calculate total impact with diminishing returns (root sum of squares)
-    const totalOrtgDrop = Math.sqrt(
+    // Then cap at maximum to prevent unrealistic projections
+    const rawOrtgDrop = Math.sqrt(
       impacts.reduce((sum, i) => sum + Math.pow(i.impact.ortgDrop, 2), 0)
     )
+    const totalOrtgDrop = Math.min(rawOrtgDrop, MAX_TOTAL_INJURY_IMPACT)
 
-    const totalDrtgIncrease = Math.sqrt(
+    const rawDrtgIncrease = Math.sqrt(
       impacts.reduce((sum, i) => sum + Math.pow(Math.abs(i.impact.drtgIncrease), 2), 0)
     ) * (impacts.some(i => i.impact.drtgIncrease > 0) ? 1 : -1)
+    const totalDrtgIncrease = Math.sign(rawDrtgIncrease) * Math.min(Math.abs(rawDrtgIncrease), MAX_TOTAL_INJURY_IMPACT)
 
     const totalPaceDrop = impacts.reduce((sum, i) => sum + i.impact.paceDrop, 0)
 
     const summary = `${impacts.length} key ${impacts.length === 1 ? 'player' : 'players'} out`
 
     console.log(`[INJURY DETECTOR] ${teamName}: ${summary}`, {
+      espnTeamName: teamData.displayName,
       totalOrtgDrop: totalOrtgDrop.toFixed(1),
       totalDrtgIncrease: totalDrtgIncrease.toFixed(1),
-      players: impacts.map(i => i.playerName),
+      rawOrtgDrop: rawOrtgDrop.toFixed(1),
+      players: impacts.map(i => `${i.playerName} (ORtg: -${i.impact.ortgDrop.toFixed(1)}, DRtg: +${i.impact.drtgIncrease.toFixed(1)})`),
     })
 
     return {

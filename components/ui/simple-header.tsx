@@ -100,13 +100,15 @@ export function SimpleHeader({
             {rightSlot}
 
             <Sheet open={open} onOpenChange={setOpen}>
-              <Button size="icon" variant="outline" className="lg:hidden bg-black text-white border border-white/20 hover:bg-white/10" onClick={() => setOpen(!open)}>
-                <MenuToggle
-                  strokeWidth={2.5}
-                  open={open}
-                  onOpenChange={setOpen}
-                  className="h-6 w-6"
-                />
+              <Button size="icon" variant="outline" className="lg:hidden bg-black text-white border border-white/20 hover:bg-white/10" asChild>
+                <div>
+                  <MenuToggle
+                    strokeWidth={2.5}
+                    open={open}
+                    onOpenChange={setOpen}
+                    className="h-6 w-6"
+                  />
+                </div>
               </Button>
               <SheetContent
                 className="bg-black/95 supports-[backdrop-filter]:bg-black/90 gap-0 backdrop-blur text-white"

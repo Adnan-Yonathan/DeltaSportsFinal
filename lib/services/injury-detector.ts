@@ -201,6 +201,7 @@ export async function detectInjuries(
 
     const impacts: InjuryImpact[] = []
     const playerStatsMap = new Map<string, PlayerStats>() // Store playerStats for tier display
+    const missingStatsPlayers: string[] = []
 
     // Get base team stats for context (we'll need this for calculations)
     // Note: We can't import getTeamStats here due to circular dependency
@@ -220,14 +221,7 @@ export async function detectInjuries(
 
       const playerStats = getPlayerStats(playerName, 'points')
       if (!playerStats) {
-        console.warn(`[INJURY DETECTOR] Player not found in stats: ${playerName}`)
-        impacts.push({
-          playerName,
-          status: injury.status || 'Out',
-          stats: { ppg: 0, usage: 0, mpg: 0, bpm: 0, vorp: 0 },
-          impact: { ortgDrop: 0, drtgIncrease: 0, paceDrop: 0 },
-          explanation: '',
-        })
+        missingStatsPlayers.push(playerName)
         continue
       }
 
@@ -272,6 +266,12 @@ export async function detectInjuries(
     for (const impact of impacts) {
       const playerStats = playerStatsMap.get(impact.playerName)
       impact.explanation = formatInjuryExplanation(impact, playerStats)
+    }
+
+    if (missingStatsPlayers.length) {
+      console.log(`[INJURY DETECTOR] Skipping players without stats for ${teamName}`, {
+        players: missingStatsPlayers,
+      })
     }
 
     if (impacts.length === 0) {

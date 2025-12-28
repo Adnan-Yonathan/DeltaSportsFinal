@@ -454,3 +454,117 @@ export function getLeagueAverage(statName: string): number | null {
 
   return count > 0 ? Number((sum / count).toFixed(2)) : null
 }
+
+/**
+ * Player stat key mappings for leaderboards
+ */
+const PLAYER_STAT_KEY_MAPPINGS: Record<string, string[]> = {
+  points: ['PTS', 'PPG'],
+  rebounds: ['TRB', 'REB', 'RPG'],
+  assists: ['AST', 'APG'],
+  steals: ['STL'],
+  blocks: ['BLK'],
+  threes: ['THREE_PM', '3PM', '3P'],
+  minutes: ['MPG'],
+  turnovers: ['TOV'],
+  field_goal_pct: ['FG_PERCENT'],
+  three_pct: ['THREE_PERCENT', '3P_PCT'],
+  free_throw_pct: ['FT_PERCENT', 'FT_PCT'],
+  true_shooting: ['TS_PERCENT'],
+  effective_fg: ['EFG_PERCENT'],
+}
+
+/**
+ * Find the player stat key for a given stat name
+ */
+function findPlayerStatKey(requested: string, stats: Record<string, number>): string | null {
+  const normalized = requested.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+  // Check mappings
+  for (const [key, aliases] of Object.entries(PLAYER_STAT_KEY_MAPPINGS)) {
+    const keyNormalized = key.replace(/[^a-z0-9]/g, '')
+    if (keyNormalized === normalized || normalized.includes(keyNormalized) || keyNormalized.includes(normalized)) {
+      for (const alias of aliases) {
+        if (alias in stats) return alias
+      }
+    }
+    for (const alias of aliases) {
+      const aliasNormalized = alias.toLowerCase().replace(/[^a-z0-9]/g, '')
+      if (aliasNormalized === normalized || normalized.includes(aliasNormalized)) {
+        if (alias in stats) return alias
+      }
+    }
+  }
+
+  // Direct match on stats keys
+  for (const key of Object.keys(stats)) {
+    const keyNormalized = key.toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (keyNormalized === normalized || keyNormalized.includes(normalized) || normalized.includes(keyNormalized)) {
+      return key
+    }
+  }
+
+  return null
+}
+
+/**
+ * Get player leaderboard for a specific stat
+ */
+export interface PlayerLeaderboardEntry {
+  rank: number
+  player: string
+  team: string
+  value: number
+  gamesPlayed: number
+}
+
+export function getPlayerLeaderboard(
+  statName: string,
+  limit: number = 10,
+  minGames: number = 10
+): { stat: string; leaders: PlayerLeaderboardEntry[]; error?: string } {
+  const { getStaticNbaPlayers } = require('@/lib/nba-static-stats')
+  const players = getStaticNbaPlayers()
+
+  if (!players || players.length === 0) {
+    return { stat: statName, leaders: [], error: 'No player data available' }
+  }
+
+  // Find the stat key using the first player's stats as reference
+  const sampleStats = players[0]?.stats || {}
+  const statKey = findPlayerStatKey(statName, sampleStats)
+
+  if (!statKey) {
+    const availableStats = Object.keys(sampleStats).slice(0, 15).join(', ')
+    return {
+      stat: statName,
+      leaders: [],
+      error: `Stat "${statName}" not found. Available stats: ${availableStats}...`,
+    }
+  }
+
+  // Filter and sort players
+  const playersWithStat = players
+    .filter((p: any) => {
+      const gp = p.stats?.GP || 0
+      const value = p.stats?.[statKey]
+      return gp >= minGames && typeof value === 'number' && value > 0
+    })
+    .map((p: any) => ({
+      player: p.name,
+      team: p.team,
+      value: p.stats[statKey] as number,
+      gamesPlayed: p.stats.GP || 0,
+    }))
+    .sort((a: any, b: any) => b.value - a.value)
+    .slice(0, limit)
+    .map((entry: any, idx: number) => ({
+      ...entry,
+      rank: idx + 1,
+    }))
+
+  return {
+    stat: statKey,
+    leaders: playersWithStat,
+  }
+}

@@ -407,8 +407,9 @@ async function findPlayerPropEVOpportunities(
           continue
         }
 
-        // Collect odds from each sportsbook
-        const bookOdds: BookOdds[] = []
+        // Collect odds from each sportsbook, grouped by line
+        // This ensures we only compare odds at the SAME line (e.g., all o2.5, not o1.5 vs o2.5)
+        const oddsByLine = new Map<number, BookOdds[]>()
 
         for (const sportsbook of sportsbooks) {
           const bookName = String(sportsbook?.name || '')
@@ -419,7 +420,10 @@ async function findPlayerPropEVOpportunities(
           const line = Number(odds?.over_points ?? odds?.under_points ?? sportsbook?.over_points ?? sportsbook?.under_points)
 
           if (overOdds && Number.isFinite(line)) {
-            bookOdds.push({
+            if (!oddsByLine.has(line)) {
+              oddsByLine.set(line, [])
+            }
+            oddsByLine.get(line)!.push({
               bookmaker: bookName,
               odds: overOdds,
               point: line,
@@ -427,10 +431,15 @@ async function findPlayerPropEVOpportunities(
           }
         }
 
-        if (bookOdds.length >= minBooks) {
+        // Process each line separately - only compare books offering the SAME line
+        for (const [line, bookOdds] of oddsByLine.entries()) {
+          if (bookOdds.length < minBooks) {
+            continue
+          }
+
           propsWithEnoughBooks++
 
-          // Calculate consensus and find best odds
+          // Calculate consensus and find best odds (all at the same line now)
           const consensus = findMarketConsensus(bookOdds)
           const bestBook = bookOdds.reduce((best, current) =>
             current.odds > best.odds ? current : best
@@ -439,14 +448,13 @@ async function findPlayerPropEVOpportunities(
           const ev = calculateEV(consensus.impliedProbability, bestBook.odds)
 
           if (ev >= minEV) {
-            const line = bestBook.point || 0
             const team = entry?.player?.team || ''
             const leagueLabel = league.toUpperCase()
 
             const bestImplied = calculateImpliedProbabilityDecimal(bestBook.odds)
             const edgePercent = (consensus.impliedProbability - bestImplied) * 100
 
-            console.log(`[CROSS-MARKET-EV] Found ${league} prop EV: ${playerName} ${marketKey} o${line} @ ${bestBook.bookmaker} ${bestBook.odds}, EV=${ev.toFixed(1)}%`)
+            console.log(`[CROSS-MARKET-EV] Found ${league} prop EV: ${playerName} ${marketKey} o${line} @ ${bestBook.bookmaker} ${bestBook.odds}, EV=${ev.toFixed(1)}% (${bookOdds.length} books at same line)`)
 
             opportunities.push({
               game: team ? `${team} (${leagueLabel})` : leagueLabel,

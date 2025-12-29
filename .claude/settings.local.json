@@ -24,7 +24,11 @@
       "Bash(npm run typecheck:*)",
       "Bash(npm run build:*)",
       "Bash(npm run:*)",
-      "Bash(claude doctor:*)"
+      "Bash(claude doctor:*)",
+      "WebFetch(domain:docs.stripe.com)",
+      "Bash(git push:*)",
+      "WebFetch(domain:www.sportsbettingdime.com)",
+      "WebFetch(domain:cdn-sde.sbdfuel.com)"
     ],
     "deny": [],
     "ask": []

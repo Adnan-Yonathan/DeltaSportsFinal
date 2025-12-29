@@ -1287,7 +1287,7 @@ const extractPlayerName = (msg: string) => {
   // Look for capitalized first + last name; prefer the last match to avoid picking "How Many"
   const matches = msg.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g)
   if (matches && matches.length) {
-    const stopwords = new Set(['how', 'what', 'when', 'where', 'who', 'why', 'which', 'can', 'does', 'do', 'will'])
+    const stopwords = new Set(['how', 'what', 'when', 'where', 'who', 'why', 'which', 'can', 'does', 'do', 'will', 'there', 'the', 'is', 'are'])
     for (let i = matches.length - 1; i >= 0; i--) {
       const candidate = matches[i].trim()
       const first = candidate.split(/\s+/)[0].toLowerCase()
@@ -1338,6 +1338,7 @@ const extractPlayerName = (msg: string) => {
     'was',
     'were',
     'the',
+    'there',
     'a',
     'an',
     'made',

@@ -119,7 +119,9 @@ export async function getGameRecommendations(
     }
 
     // Analyze matchup (get stats, ATS, splits, etc.)
+    console.log('[RECOMMENDATION ENGINE] Calling analyzeMatchup for:', homeTeam, 'vs', awayTeam)
     const matchup = await analyzeMatchup(homeTeam, awayTeam)
+    console.log('[RECOMMENDATION ENGINE] analyzeMatchup completed, homeStats:', !!matchup.homeTeam.stats, 'awayStats:', !!matchup.awayTeam.stats)
 
     if (!matchup.homeTeam.stats || !matchup.awayTeam.stats) {
       console.warn(`[RECOMMENDATION ENGINE] Missing stats for ${homeTeam} vs ${awayTeam}`)

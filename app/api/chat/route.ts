@@ -7289,7 +7289,9 @@ ${statsEnrichment}
           if (contextParts.length) snapshotLines.push(`Context stats: ${contextParts.join(' | ')}`)
           if (trendParts.length) snapshotLines.push(`Trends: ${trendParts.join(' | ')}`)
 
+          console.log('[ANALYZE_BET_MARKET] Calling getGameRecommendations for:', matchupLabel)
           const recommendations = await getGameRecommendations(matchupLabel, marketType === 'total' ? 'total' : 'spread')
+          console.log('[ANALYZE_BET_MARKET] Got recommendations:', recommendations.length)
           const targetRec =
             marketType === 'total'
               ? recommendations.find((rec) => rec.type === 'total')
@@ -8400,7 +8402,15 @@ ${statsEnrichment}
       } else if (functionName === 'get_pick_guidance') {
         functionResult = await runPickGuidance(functionArgs)
       } else if (functionName === 'analyze_bet_market') {
-        functionResult = await runBetMarketAnalysis(functionArgs)
+        try {
+          functionResult = await runBetMarketAnalysis(functionArgs)
+        } catch (error: any) {
+          console.error('[CHAT] analyze_bet_market error:', error)
+          functionResult = {
+            success: false,
+            error: error.message || 'Failed to analyze bet market',
+          }
+        }
       } else if (functionName === 'save_research_model') {
         try {
           const { save_research_model } = await import('@/lib/models/research-crud')

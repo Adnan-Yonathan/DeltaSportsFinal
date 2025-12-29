@@ -748,6 +748,7 @@ export async function analyzeMatchup(
     }
   }
 
+  console.log('[MATCHUP ANALYZER] Returning matchup result for:', homeTeam, 'vs', awayTeam)
   return {
     homeTeam: {
       name: homeTeam,

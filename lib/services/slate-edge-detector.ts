@@ -218,18 +218,38 @@ export async function analyzeSlateEdges(
     }
   }
 
-  // Filter to games happening today only (not started yet)
+  // Filter to games happening today (including games that may have started recently)
+  // Use US Eastern timezone as primary reference for "today's slate"
   const now = new Date()
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+
+  // Calculate "today" boundaries in US Eastern time
+  const easternFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const [month, day, year] = easternFormatter.format(now).split('/')
+  const todayEasternStr = `${year}-${month}-${day}`
+
+  // Today's start and end in Eastern time (converted to UTC for comparison)
+  const todayStartEastern = new Date(`${todayEasternStr}T00:00:00-05:00`)
+  const todayEndEastern = new Date(`${todayEasternStr}T23:59:59-05:00`)
+
+  // Allow games that started up to 3 hours ago (still in progress)
+  const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000)
 
   const upcomingGames = oddsGames
     .filter((g) => {
       const gameTime = new Date(g.commence_time)
-      // Game must be today and not started yet
-      return gameTime > now && gameTime >= todayStart && gameTime < todayEnd
+      // Game is today (in Eastern time) and either hasn't started OR started within last 3 hours
+      const isToday = gameTime >= todayStartEastern && gameTime <= todayEndEastern
+      const notTooOld = gameTime > threeHoursAgo
+      return isToday && notTooOld
     })
     .slice(0, limit)
+
+  console.log(`[SLATE EDGE] Filtered ${oddsGames.length} odds games to ${upcomingGames.length} today's games`)
 
   const edges: GameEdgeAnalysis[] = []
   let strongEdges = 0

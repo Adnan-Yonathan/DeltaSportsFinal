@@ -37,6 +37,14 @@ export interface RotationAnalysis {
 // INTERFACES
 // ============================================================================
 
+export interface PregameSpreadContext {
+  openingSpread: number // Home team spread (negative = favorite)
+  currentSpread?: number // Current live spread from books (if available)
+  openingTotal: number
+  currentTotal?: number
+  source: string // e.g., 'SBD', 'consensus'
+}
+
 export interface LiveGameState {
   eventId: string
   homeTeam: string
@@ -66,6 +74,7 @@ export interface LiveGameState {
   }
 
   pregameEdges?: PregameEdgeContext
+  pregameSpread?: PregameSpreadContext // Pre-game spread from sportsbooks
 }
 
 // ============================================================================

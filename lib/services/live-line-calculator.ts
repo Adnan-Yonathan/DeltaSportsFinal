@@ -49,43 +49,102 @@ export function calculateLiveSpread(
   liveGame: LiveGameState,
   pregameStats: { homeStats: TeamStats; awayStats: TeamStats }
 ): LiveLineRecommendation {
-  const { homeScore, awayScore, timeRemaining, timeElapsed, sport, momentum } = liveGame
+  const { homeScore, awayScore, timeRemaining, timeElapsed, sport, momentum, pregameSpread } = liveGame
 
   // Step 1: Current margin
   const currentMargin = homeScore - awayScore
 
-  // Step 2: Project final margin based on current pace and remaining time
+  // Step 2: Calculate time fractions
   const remainingMinutes = timeRemaining / 60
   const elapsedMinutes = timeElapsed / 60
   const totalMinutes = (timeRemaining + timeElapsed) / 60
+  const timeElapsedPct = elapsedMinutes / Math.max(totalMinutes, 1)
+  const timeRemainPct = 1 - timeElapsedPct
 
-  // Expected points remaining for each team
-  const homePointsPerMinute = elapsedMinutes > 0 ? homeScore / elapsedMinutes : 0
-  const awayPointsPerMinute = elapsedMinutes > 0 ? awayScore / elapsedMinutes : 0
+  const factors: string[] = []
 
-  let projectedHomeRemaining = homePointsPerMinute * remainingMinutes
-  let projectedAwayRemaining = awayPointsPerMinute * remainingMinutes
+  // ============================================================================
+  // PRE-GAME SPREAD ANCHORED PROJECTION (if available)
+  // ============================================================================
+  let fairLine: number
 
-  // Apply pace adjustment
-  if (momentum.paceChange.deviation !== 0) {
-    const paceMultiplier = momentum.paceChange.currentPace / momentum.paceChange.seasonPace
-    projectedHomeRemaining *= paceMultiplier
-    projectedAwayRemaining *= paceMultiplier
+  if (pregameSpread && pregameSpread.openingSpread !== undefined) {
+    // Use pre-game spread as anchor
+    // Logic: The pre-game spread represents the market's expected final margin
+    // As the game progresses, we adjust based on how the actual margin differs from expected
+
+    const openingSpread = pregameSpread.openingSpread // Home team perspective (negative = favorite)
+
+    // Expected margin at current game time if game was going "as expected"
+    // At 50% elapsed, expected margin = 50% of final expected margin
+    const expectedMarginNow = openingSpread * timeElapsedPct
+
+    // Actual deviation from expected
+    const deviationFromExpected = currentMargin - expectedMarginNow
+
+    // Project remaining margin to add
+    // Blend: weight pre-game expectation more early, current pace more late
+    const pregameWeight = Math.max(0.3, timeRemainPct) // Never go below 30% pre-game weight
+    const paceWeight = 1 - pregameWeight
+
+    // Pace-based remaining margin projection
+    const homePointsPerMinute = elapsedMinutes > 0 ? homeScore / elapsedMinutes : 0
+    const awayPointsPerMinute = elapsedMinutes > 0 ? awayScore / elapsedMinutes : 0
+    let projectedHomeRemaining = homePointsPerMinute * remainingMinutes
+    let projectedAwayRemaining = awayPointsPerMinute * remainingMinutes
+
+    // Apply pace adjustment
+    if (momentum.paceChange.deviation !== 0) {
+      const paceMultiplier = momentum.paceChange.currentPace / momentum.paceChange.seasonPace
+      projectedHomeRemaining *= paceMultiplier
+      projectedAwayRemaining *= paceMultiplier
+    }
+
+    const paceBasedFinalMargin = currentMargin + (projectedHomeRemaining - projectedAwayRemaining)
+
+    // Pre-game anchored projection: current margin + remaining expected margin from opener
+    const pregameAnchoredFinal = currentMargin + (openingSpread * timeRemainPct)
+
+    // Blend the two projections
+    fairLine = (pregameAnchoredFinal * pregameWeight) + (paceBasedFinalMargin * paceWeight)
+
+    // Add pre-game context to factors
+    factors.push(`📊 Pre-game spread: ${liveGame.homeTeam} ${openingSpread > 0 ? '+' : ''}${openingSpread.toFixed(1)}`)
+    factors.push(`📈 Expected margin now: ${expectedMarginNow > 0 ? '+' : ''}${expectedMarginNow.toFixed(1)} | Actual: ${currentMargin > 0 ? '+' : ''}${currentMargin}`)
+
+    if (Math.abs(deviationFromExpected) >= 3) {
+      const direction = deviationFromExpected > 0 ? 'better' : 'worse'
+      const teamPerforming = deviationFromExpected > 0 ? liveGame.homeTeam : liveGame.awayTeam
+      factors.push(`⚡ ${teamPerforming} performing ${Math.abs(deviationFromExpected).toFixed(1)} pts ${direction} than expected`)
+    }
+  } else {
+    // Fallback: Pure pace-based projection (original logic)
+    const homePointsPerMinute = elapsedMinutes > 0 ? homeScore / elapsedMinutes : 0
+    const awayPointsPerMinute = elapsedMinutes > 0 ? awayScore / elapsedMinutes : 0
+
+    let projectedHomeRemaining = homePointsPerMinute * remainingMinutes
+    let projectedAwayRemaining = awayPointsPerMinute * remainingMinutes
+
+    // Apply pace adjustment
+    if (momentum.paceChange.deviation !== 0) {
+      const paceMultiplier = momentum.paceChange.currentPace / momentum.paceChange.seasonPace
+      projectedHomeRemaining *= paceMultiplier
+      projectedAwayRemaining *= paceMultiplier
+    }
+
+    const projectedFinalHome = homeScore + projectedHomeRemaining
+    const projectedFinalAway = awayScore + projectedAwayRemaining
+
+    fairLine = projectedFinalHome - projectedFinalAway
+
+    // Add scaled home court advantage (only in fallback mode)
+    const homeCourtAdj = NBA_HOME_COURT_ADVANTAGE * timeRemainPct
+    fairLine += homeCourtAdj
+
+    factors.push(`⚠️ No pre-game spread available - using pace projection only`)
   }
 
-  const projectedFinalHome = homeScore + projectedHomeRemaining
-  const projectedFinalAway = awayScore + projectedAwayRemaining
-
-  let fairLine = projectedFinalHome - projectedFinalAway
-
-  // Step 3: Add scaled home court advantage
-  // Full 3.0 points at tipoff, 0.0 points at buzzer
-  const timeRemainPct = timeRemaining / (timeRemaining + timeElapsed)
-  const homeCourtAdj = NBA_HOME_COURT_ADVANTAGE * timeRemainPct
-  fairLine += homeCourtAdj
-
   // Step 4: Apply momentum adjustments
-  const factors: string[] = []
 
   // Scoring run adjustment with recency bias dampening
   if (momentum.scoringRun.currentRun) {
@@ -288,29 +347,80 @@ export function calculateLiveTotal(
   liveGame: LiveGameState,
   pregameStats: { homeStats: TeamStats; awayStats: TeamStats }
 ): LiveLineRecommendation {
-  const { homeScore, awayScore, timeRemaining, timeElapsed, sport, momentum } = liveGame
+  const { homeScore, awayScore, timeRemaining, timeElapsed, sport, momentum, pregameSpread } = liveGame
 
   // Step 1: Current total
   const currentTotal = homeScore + awayScore
 
-  // Step 2: Project final total based on current pace
+  // Step 2: Calculate time fractions
   const remainingMinutes = timeRemaining / 60
   const elapsedMinutes = timeElapsed / 60
+  const totalMinutes = (timeRemaining + timeElapsed) / 60
+  const timeElapsedPct = elapsedMinutes / Math.max(totalMinutes, 1)
+  const timeRemainPct = 1 - timeElapsedPct
 
-  const pointsPerMinute = elapsedMinutes > 0 ? currentTotal / elapsedMinutes : 0
+  const factors: string[] = []
+  let fairLine: number
 
-  let projectedRemaining = pointsPerMinute * remainingMinutes
+  // ============================================================================
+  // PRE-GAME TOTAL ANCHORED PROJECTION (if available)
+  // ============================================================================
 
-  // Apply pace adjustment
-  if (momentum.paceChange.deviation !== 0) {
-    const paceMultiplier = momentum.paceChange.currentPace / momentum.paceChange.seasonPace
-    projectedRemaining *= paceMultiplier
+  if (pregameSpread && pregameSpread.openingTotal) {
+    const openingTotal = pregameSpread.openingTotal
+
+    // Expected total at current game time if game was going "as expected"
+    const expectedTotalNow = openingTotal * timeElapsedPct
+
+    // Actual deviation from expected
+    const deviationFromExpected = currentTotal - expectedTotalNow
+
+    // Blend: weight pre-game expectation more early, current pace more late
+    const pregameWeight = Math.max(0.3, timeRemainPct)
+    const paceWeight = 1 - pregameWeight
+
+    // Pace-based projection
+    const pointsPerMinute = elapsedMinutes > 0 ? currentTotal / elapsedMinutes : 0
+    let projectedRemaining = pointsPerMinute * remainingMinutes
+
+    // Apply pace adjustment
+    if (momentum.paceChange.deviation !== 0) {
+      const paceMultiplier = momentum.paceChange.currentPace / momentum.paceChange.seasonPace
+      projectedRemaining *= paceMultiplier
+    }
+
+    const paceBasedFinalTotal = currentTotal + projectedRemaining
+
+    // Pre-game anchored projection
+    const pregameAnchoredFinal = currentTotal + (openingTotal * timeRemainPct)
+
+    // Blend the two projections
+    fairLine = (pregameAnchoredFinal * pregameWeight) + (paceBasedFinalTotal * paceWeight)
+
+    // Add pre-game context to factors
+    factors.push(`📊 Pre-game total: ${openingTotal.toFixed(1)}`)
+    factors.push(`📈 Expected total now: ${expectedTotalNow.toFixed(1)} | Actual: ${currentTotal}`)
+
+    if (Math.abs(deviationFromExpected) >= 5) {
+      const direction = deviationFromExpected > 0 ? 'higher' : 'lower'
+      factors.push(`⚡ Scoring ${Math.abs(deviationFromExpected).toFixed(1)} pts ${direction} than expected`)
+    }
+  } else {
+    // Fallback: Pure pace-based projection
+    const pointsPerMinute = elapsedMinutes > 0 ? currentTotal / elapsedMinutes : 0
+    let projectedRemaining = pointsPerMinute * remainingMinutes
+
+    // Apply pace adjustment
+    if (momentum.paceChange.deviation !== 0) {
+      const paceMultiplier = momentum.paceChange.currentPace / momentum.paceChange.seasonPace
+      projectedRemaining *= paceMultiplier
+    }
+
+    fairLine = currentTotal + projectedRemaining
+    factors.push(`⚠️ No pre-game total available - using pace projection only`)
   }
 
-  let fairLine = currentTotal + projectedRemaining
-
   // Step 3: Apply momentum adjustments
-  const factors: string[] = []
 
   // Pace impact on total
   if (Math.abs(momentum.paceChange.deviation) > 3) {

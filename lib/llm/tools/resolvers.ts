@@ -1,10 +1,103 @@
 import * as espn from '@/lib/services/espn-orchestrator'
 import { fetchAllLiveScores, fetchGameDetails } from '@/lib/live-scores'
-import { analyzeLiveGame } from '@/lib/services/live-game-analyzer'
+import { analyzeLiveGame, type PregameSpreadContext } from '@/lib/services/live-game-analyzer'
 import { calculateLiveSpread, calculateLiveTotal, formatLiveRecommendation } from '@/lib/services/live-line-calculator'
 import { getTeamStats } from '@/lib/services/matchup-analyzer'
+import { fetchSbdOdds } from '@/lib/api/sbd'
 
 type Resolver = (args: any) => Promise<any>
+
+/**
+ * Fetch pre-game spread data from SBD for a specific game
+ */
+async function fetchPregameSpread(
+  homeTeam: string,
+  awayTeam: string
+): Promise<PregameSpreadContext | undefined> {
+  try {
+    console.log('[LIVE_PROJECTION] Fetching pre-game spread from SBD...')
+    const sbdData = await fetchSbdOdds('nba', { init: { cache: 'no-store' } })
+
+    if (!sbdData || !Array.isArray(sbdData)) {
+      console.log('[LIVE_PROJECTION] No SBD data returned')
+      return undefined
+    }
+
+    // Find matching game by team names
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '')
+    const homeNorm = normalize(homeTeam)
+    const awayNorm = normalize(awayTeam)
+
+    const matchingGame = sbdData.find((game: any) => {
+      const gameHome = normalize(game?.home_team || game?.homeTeam || '')
+      const gameAway = normalize(game?.away_team || game?.awayTeam || '')
+      return (
+        (gameHome.includes(homeNorm) || homeNorm.includes(gameHome.split(' ').pop() || '')) &&
+        (gameAway.includes(awayNorm) || awayNorm.includes(gameAway.split(' ').pop() || ''))
+      )
+    })
+
+    if (!matchingGame) {
+      console.log('[LIVE_PROJECTION] No matching game found in SBD data for:', { homeTeam, awayTeam })
+      return undefined
+    }
+
+    console.log('[LIVE_PROJECTION] Found matching SBD game:', matchingGame?.home_team, 'vs', matchingGame?.away_team)
+
+    // Extract opening spread from the first available book
+    const markets = matchingGame?.markets || {}
+    const spreadBooks = markets?.spread?.books || []
+    const totalBooks = markets?.total?.books || []
+
+    let openingSpread: number | null = null
+    let currentSpread: number | null = null
+    let openingTotal: number | null = null
+    let currentTotal: number | null = null
+
+    // Get spread data (home team perspective)
+    for (const book of spreadBooks) {
+      const homeOpenSpread = parseFloat(book?.home?.opening_spread)
+      const homeSpread = parseFloat(book?.home?.spread)
+
+      if (!Number.isNaN(homeOpenSpread)) {
+        openingSpread = homeOpenSpread
+        currentSpread = !Number.isNaN(homeSpread) ? homeSpread : null
+        break
+      }
+    }
+
+    // Get total data
+    for (const book of totalBooks) {
+      const openTotal = parseFloat(book?.over?.opening_total ?? book?.opening_total)
+      const total = parseFloat(book?.over?.total ?? book?.total)
+
+      if (!Number.isNaN(openTotal)) {
+        openingTotal = openTotal
+        currentTotal = !Number.isNaN(total) ? total : null
+        break
+      }
+    }
+
+    if (openingSpread === null && openingTotal === null) {
+      console.log('[LIVE_PROJECTION] No opening lines found in SBD data')
+      return undefined
+    }
+
+    const result: PregameSpreadContext = {
+      openingSpread: openingSpread ?? 0,
+      currentSpread: currentSpread ?? undefined,
+      openingTotal: openingTotal ?? 220, // Default NBA total
+      currentTotal: currentTotal ?? undefined,
+      source: 'SBD',
+    }
+
+    console.log('[LIVE_PROJECTION] Pre-game spread context:', result)
+    return result
+  } catch (error) {
+    console.error('[LIVE_PROJECTION] Failed to fetch pre-game spread:', error)
+    return undefined
+  }
+}
 
 export const toolResolvers: Record<string, Resolver> = {
   espnTeamAtsRecord: ({ sport, teamId, season, seasonType = 2 }) =>
@@ -86,15 +179,25 @@ export const toolResolvers: Record<string, Resolver> = {
       throw new Error(`Could not fetch detailed data for game ${matchingGame.id}`)
     }
 
-    // Analyze momentum
-    const gameState = await analyzeLiveGame(liveGame)
-
-    // Get team stats
+    // Get team info first
     const homeTeam = liveGame.teams.find((t) => t.homeAway === 'home')
     const awayTeam = liveGame.teams.find((t) => t.homeAway === 'away')
 
     if (!homeTeam || !awayTeam) {
       throw new Error('Could not find home/away teams in game data')
+    }
+
+    // Fetch pre-game spread from SBD (parallel with other data)
+    const pregameSpreadPromise = fetchPregameSpread(homeTeam.name || '', awayTeam.name || '')
+
+    // Analyze momentum
+    const gameState = await analyzeLiveGame(liveGame)
+
+    // Attach pre-game spread to game state
+    const pregameSpread = await pregameSpreadPromise
+    if (pregameSpread) {
+      gameState.pregameSpread = pregameSpread
+      console.log('[LIVE_PROJECTION] Attached pre-game spread to game state:', pregameSpread)
     }
 
     console.log('[LIVE_PROJECTION] Teams found:', { home: homeTeam.name, away: awayTeam.name })

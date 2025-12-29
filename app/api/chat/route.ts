@@ -2723,6 +2723,45 @@ export async function POST(req: NextRequest) {
       return streamTextResponse(formatted)
     }
 
+    // Combo/Parlay analysis help intent - educational queries about how to use combo analysis
+    const comboHelpIntent =
+      /\b(how\s+(does|do|to)|what\s+is|explain|help\s+with)\b.*\b(combo|parlay)\s*(analysis|analyzer|tool)?\b/i.test(message) ||
+      /\b(combo|parlay)\s*(analysis|analyzer|tool)?\b.*\b(how|what|explain|help)\b/i.test(message)
+
+    if (comboHelpIntent) {
+      console.log('[COMBO] Detected combo analysis help intent')
+      const helpText = [
+        '## Combo/Parlay Analysis',
+        '',
+        'The combo analysis tool calculates the combined probability of multiple bets hitting, accounting for correlations between related events.',
+        '',
+        '### How to use it:',
+        'Just describe your parlay legs naturally:',
+        '- "What\'s the chance Curry scores 25+ AND hits 4+ threes?"',
+        '- "Parlay probability: Jokic triple-double + Nuggets cover -5.5"',
+        '- "Analyze this combo: LeBron 30 pts, Lakers win, game goes over 225"',
+        '- "What are the odds of Tatum 25+ pts AND Celtics -4.5?"',
+        '',
+        '### What it returns:',
+        '- Individual leg probabilities',
+        '- Correlation adjustment (same-player props are positively correlated)',
+        '- Combined probability',
+        '- Implied fair odds',
+        '',
+        '### Example:',
+        'Try: "What\'s the probability of Curry scoring 30+ and Warriors winning?"',
+      ].join('\n')
+      return streamTextResponse(helpText)
+    }
+
+    // Combo/Parlay analysis intent - actual analysis requests should skip unified pipeline
+    const comboAnalysisIntent =
+      /\b(combo|parlay)\s*(analysis|probability|odds|chance)/i.test(message) ||
+      /\b(analy[sz]e|calculate|what('s| is| are))\s+(this\s+)?(combo|parlay|combination)\b/i.test(message) ||
+      /\b(probability|odds|chance)\s+of\s+(this\s+)?(parlay|combo|combination)\b/i.test(message) ||
+      /\bwhat('s| is| are)\s+the\s+(chance|probability|odds)\s+of\b.*\b(and|plus|\+|,)\b/i.test(message) ||
+      /\b(hitting|hit)\s+(both|all)\s+(props?|bets?|legs?)\b/i.test(message)
+
     const skipUnifiedPipeline = (
       (/\b(odds|moneyline|spread line|total line|prop|parlay|bet slip|bankroll|my bets|place bet)\b/i.test(message) &&
        !/\b(betting|public)\s+(split|splits|percentage)\b/i.test(message) &&
@@ -2736,7 +2775,8 @@ export async function POST(req: NextRequest) {
         hasExplicitAnalysisKeyword ||
         analysisIntent ||
         pickGuidanceIntent ||
-        earlyEdgeAwarenessCheck
+        earlyEdgeAwarenessCheck ||
+        comboAnalysisIntent
       )
 
     // Debug logging for pattern matching

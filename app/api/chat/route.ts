@@ -2755,12 +2755,49 @@ export async function POST(req: NextRequest) {
     }
 
     // Combo/Parlay analysis intent - actual analysis requests should skip unified pipeline
+    // Catches: parlays, SGPs, multi-leg bets, "X and Y", correlations, combined probabilities
     const comboAnalysisIntent =
-      /\b(combo|parlay)\s*(analysis|probability|odds|chance)/i.test(message) ||
-      /\b(analy[sz]e|calculate|what('s| is| are))\s+(this\s+)?(combo|parlay|combination)\b/i.test(message) ||
-      /\b(probability|odds|chance)\s+of\s+(this\s+)?(parlay|combo|combination)\b/i.test(message) ||
-      /\bwhat('s| is| are)\s+the\s+(chance|probability|odds)\s+of\b.*\b(and|plus|\+|,)\b/i.test(message) ||
-      /\b(hitting|hit)\s+(both|all)\s+(props?|bets?|legs?)\b/i.test(message)
+      // Direct parlay/combo keywords
+      /\b(combo|parlay|sgp|same.?game.?parlay)\s*(analysis|probability|odds|chance|calculator)?/i.test(message) ||
+      /\b(analy[sz]e|calculate|evaluate|check)\s+(this\s+|my\s+)?(combo|parlay|combination|sgp)\b/i.test(message) ||
+      /\b(probability|odds|chance|likelihood)\s+of\s+(this\s+|my\s+)?(parlay|combo|combination|sgp)\b/i.test(message) ||
+
+      // "What are the chances/odds/probability of X AND Y"
+      /\b(what('s| is| are)|calculate|find)\s+(the\s+)?(chance|probability|odds|likelihood)\s+(of|that)\b.*\b(and|plus|\+|&|,)\b/i.test(message) ||
+
+      // "Will X and Y both hit/happen"
+      /\b(will|can|would|could|should)\b.*\b(and|plus|\+|&)\b.*\b(hit|happen|come through|cash|cover)\b/i.test(message) ||
+      /\b(hit|happen|cash|cover)\b.*\b(both|all|together)\b/i.test(message) ||
+
+      // "Both/all props/bets/legs hitting"
+      /\b(both|all)\s+(of\s+)?(these\s+|my\s+|the\s+)?(props?|bets?|legs?|picks?)\b/i.test(message) ||
+      /\b(hitting|hit|cash|cashing)\s+(both|all)\b/i.test(message) ||
+
+      // "X and Y together" or "X plus Y"
+      /\b(together|combined|correlation|correlated)\b/i.test(message) && /\b(props?|bets?|odds|probability)\b/i.test(message) ||
+
+      // Multi-leg patterns
+      /\b(multi.?leg|multiple\s+legs?|2.?leg|3.?leg|4.?leg|5.?leg)\b/i.test(message) ||
+      /\b(\d+)\s*(leg|pick|bet)\s*(parlay|combo)?\b/i.test(message) ||
+
+      // Player prop + team outcome patterns (common parlay structure)
+      /\b(scores?|points?|rebounds?|assists?|threes?|3s)\b.*\b(and|plus|\+|&)\b.*\b(win|cover|spread|over|under)\b/i.test(message) ||
+      /\b(win|cover|spread)\b.*\b(and|plus|\+|&)\b.*\b(scores?|points?|rebounds?|assists?)\b/i.test(message) ||
+
+      // "If X and Y" conditional probability
+      /\bif\b.*\b(and|plus|\+|&)\b.*\b(odds|probability|chance|payout)\b/i.test(message) ||
+      /\b(odds|probability|chance|payout)\b.*\bif\b.*\b(and|plus|\+|&)\b/i.test(message) ||
+
+      // "X, Y, and Z" list patterns (3+ items suggests parlay)
+      /\b\w+\s+(and|\+|&|,)\s+\w+\s+(and|\+|&|,)\s+\w+\b.*\b(hit|cash|probability|odds|chance)\b/i.test(message) ||
+
+      // Common parlay phrases
+      /\b(parlay\s+these|add\s+to\s+parlay|parlay\s+with|combine\s+these)\b/i.test(message) ||
+      /\b(what\s+does|calculate)\s+(a|the|this)?\s*parlay\s+pay\b/i.test(message) ||
+      /\b(fair\s+odds|true\s+odds|implied\s+probability)\b.*\b(parlay|combo|combined)\b/i.test(message) ||
+
+      // "Chances of [player] [stat] and [team] [outcome]"
+      /\bchances?\s+of\b.*\band\b/i.test(message)
 
     const skipUnifiedPipeline = (
       (/\b(odds|moneyline|spread line|total line|prop|parlay|bet slip|bankroll|my bets|place bet)\b/i.test(message) &&

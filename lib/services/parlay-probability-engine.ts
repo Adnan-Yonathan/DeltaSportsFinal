@@ -15,7 +15,7 @@ import {
   getConfidenceLevel,
   formatProbability
 } from '@/lib/utils/prop-probability'
-import { getStaticNbaTeams } from '@/lib/nba-static-team-stats'
+import { findStaticNbaTeam } from '@/lib/nba-static-team-stats'
 import { nbaPlayerPerGame2025_2026Csv } from '@/data/nba_player_per_game_2025_2026'
 import { fetchAllLiveScores } from '@/lib/live-scores'
 import { fetchSbdGamePropsList, fetchSbdOdds, type SbdLeague } from '@/lib/api/sbd'
@@ -678,15 +678,8 @@ export async function calculateGameOutcomeProbability(
   direction?: 'home' | 'away' | 'over' | 'under',
   marketOdds?: number
 ): Promise<GameOutcomeLeg | null> {
-  const teams = getStaticNbaTeams()
-
-  // Find teams
-  const normalizeTeam = (name: string) => name.toLowerCase().replace(/[^a-z]/g, '')
-  const homeNorm = normalizeTeam(homeTeam)
-  const awayNorm = normalizeTeam(awayTeam)
-
-  const homeStats = teams.find(t => normalizeTeam(t.team).includes(homeNorm) || homeNorm.includes(normalizeTeam(t.team)))
-  const awayStats = teams.find(t => normalizeTeam(t.team).includes(awayNorm) || awayNorm.includes(normalizeTeam(t.team)))
+  const homeStats = findStaticNbaTeam(homeTeam)[0]
+  const awayStats = findStaticNbaTeam(awayTeam)[0]
 
   if (!homeStats || !awayStats) return null
 
@@ -723,13 +716,11 @@ export async function calculateGameOutcomeProbability(
   switch (betType) {
     case 'spread':
       if (line !== undefined && direction) {
-        // Z-score: how many standard deviations is the line from projection
-        const effectiveSpread = direction === 'home' ? -line : line
-        const margin = projectedSpread - effectiveSpread
-        const zScore = margin / spreadStdDev
-
-        // Use normal CDF approximation
-        modelProbability = normalCDF(zScore)
+        // projectedSpread is away margin; compute win probability based on bet side
+        const threshold = direction === 'home' ? line : -line
+        const zScore = (threshold - projectedSpread) / spreadStdDev
+        modelProbability =
+          direction === 'home' ? normalCDF(zScore) : 1 - normalCDF(zScore)
 
         const team = direction === 'home' ? homeTeam : awayTeam
         const lineStr = line > 0 ? `+${line}` : `${line}`

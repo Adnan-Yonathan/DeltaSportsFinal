@@ -482,6 +482,41 @@ const parseDateFromMessage = (input: string): string => {
   return toYmd(today)
 }
 
+const parseComboSpreadLegs = (input: string) => {
+  const legs: Array<{
+    type: 'game_spread'
+    homeTeam: string
+    awayTeam: string
+    line: number
+    betLine: number
+    direction: 'home' | 'away'
+  }> = []
+  const cleanTeamName = (value: string) =>
+    value
+      .replace(/^[^a-z]+/i, '')
+      .replace(/\b(and|the)\b\s+/i, '')
+      .replace(/[.,;:]+$/g, '')
+      .trim()
+  const regex =
+    /([A-Za-z][A-Za-z .&'-]{1,})\s+spread\s+vs\s+([A-Za-z][A-Za-z .&'-]{1,})\s*(?:\(|\s)([-+]?\d+(?:\.\d+)?)/gi
+  for (const match of input.matchAll(regex)) {
+    const team = cleanTeamName(match[1] || '')
+    const opponent = cleanTeamName(match[2] || '')
+    const rawLine = Number(match[3])
+    if (!team || !opponent || !Number.isFinite(rawLine)) continue
+    const line = rawLine
+    legs.push({
+      type: 'game_spread',
+      homeTeam: opponent,
+      awayTeam: team,
+      line,
+      betLine: rawLine,
+      direction: 'away',
+    })
+  }
+  return legs
+}
+
 const formatPlayerGameLine = (player: any): string => {
   if (!player?.statMap) return player?.summaryLine || ''
   const stats = player.statMap as Record<string, string>
@@ -2608,6 +2643,26 @@ export async function POST(req: NextRequest) {
 
     const messages = (history || []).reverse()
 
+    const lineMovementEducationIntent =
+      /\b(line movement|line moved|line move|spread moved|moved\s+\d+(\.\d+)?\s*points?)\b/i.test(message) &&
+      /\b(what does that mean|what does it mean|explain|meaning|why)\b/i.test(message)
+    if (lineMovementEducationIntent) {
+      const movementMatch = message.match(
+        /\b(?:line|spread)?\s*(?:moved|move|movement)\b[^0-9]*([0-9]+(?:\.\d+)?)\s*points?\b/i
+      )
+      const teamMatch = message.match(/\b(?:in favor of|toward|to|for)\s+([A-Za-z][A-Za-z .&'-]{2,})/i)
+      const points = movementMatch ? parseFloat(movementMatch[1]) : null
+      const team = teamMatch?.[1]?.trim()
+      const pointsLabel = points != null ? points.toFixed(1) : 'a few'
+      const teamLabel = team ? team : 'the favored side'
+      const reply = [
+        `It means the market shifted the spread ${pointsLabel} points toward ${teamLabel}.`,
+        `For example, if the Warriors were -4.5 and it moved 3 points in their favor, the line is now about -7.5 (harder for Warriors backers; better for the other side).`,
+        `A move that size usually reflects new information or sharper betting pressure, not a guarantee of the outcome.`,
+      ].join(' ')
+      return streamTextResponse(reply)
+    }
+
     // ========================================
     // UNIFIED QUERY PIPELINE (StatMuse-like)
     // Handles stats questions, opponent splits, contextual analysis
@@ -2799,6 +2854,14 @@ export async function POST(req: NextRequest) {
       // "Chances of [player] [stat] and [team] [outcome]"
       /\bchances?\s+of\b.*\band\b/i.test(message)
 
+    const parsedComboLegs = parseComboSpreadLegs(message)
+    const forceComboAnalysis = comboAnalysisIntent || parsedComboLegs.length >= 2
+    console.log('[COMBO] Intent:', {
+      comboAnalysisIntent,
+      parsedComboLegs: parsedComboLegs.length,
+      forceComboAnalysis,
+    })
+
     const skipUnifiedPipeline = (
       (/\b(odds|moneyline|spread line|total line|prop|parlay|bet slip|bankroll|my bets|place bet)\b/i.test(message) &&
        !/\b(betting|public)\s+(split|splits|percentage)\b/i.test(message) &&
@@ -2813,8 +2876,245 @@ export async function POST(req: NextRequest) {
         analysisIntent ||
         pickGuidanceIntent ||
         earlyEdgeAwarenessCheck ||
-        comboAnalysisIntent
+        forceComboAnalysis
       )
+
+    if (forceComboAnalysis && parsedComboLegs.length >= 2) {
+      console.log('[COMBO] Direct execution via parsed legs')
+      console.log('[COMBO] Parsed legs:', parsedComboLegs)
+      const { fetchOdds } = await import('@/lib/api/odds-api')
+      const { MARKETS } = await import('@/lib/types/odds')
+      const { getGameRecommendations } = await import(
+        '@/lib/services/recommendation-engine'
+      )
+
+      const normalizeTeam = (value: string) =>
+        normalizeToken(value).replace(/(the|and)/g, '')
+
+      const teamFilter = Array.from(
+        new Set(parsedComboLegs.flatMap((leg) => [leg.homeTeam, leg.awayTeam]))
+      )
+
+      let oddsGames: any[] = []
+      try {
+        oddsGames = await fetchOdds('basketball_nba', [MARKETS.SPREADS], {
+          revalidateSeconds: 60,
+          teamFilter,
+        })
+      } catch (err) {
+        console.warn('[COMBO] Failed to fetch spread odds:', err)
+      }
+
+      const bestOddsForLeg = (leg: typeof parsedComboLegs[number]) => {
+        if (!oddsGames.length) return null
+        const homeKey = normalizeTeam(leg.homeTeam)
+        const awayKey = normalizeTeam(leg.awayTeam)
+        const targetPoint =
+          typeof leg.betLine === 'number' ? leg.betLine : -leg.line
+        const match = oddsGames.find((game) => {
+          const home = normalizeTeam(game.home_team || '')
+          const away = normalizeTeam(game.away_team || '')
+          return home.includes(homeKey) && away.includes(awayKey)
+        })
+        if (!match) return null
+        let best: { odds: number; book?: string; point?: number } | null = null
+        for (const book of match.bookmakers || []) {
+          const market = (book.markets || []).find((m: any) => m.key === 'spreads')
+          if (!market) continue
+          for (const outcome of market.outcomes || []) {
+            const name = normalizeTeam(outcome.name || '')
+            if (!name || !name.includes(awayKey)) continue
+            const point = Number(outcome.point)
+            if (!Number.isFinite(point)) continue
+            if (Math.abs(point - targetPoint) > 0.25) continue
+            const odds = Number(outcome.price)
+            if (!Number.isFinite(odds)) continue
+            if (!best || odds > best.odds) {
+              best = { odds, book: book.title || book.key, point }
+            }
+          }
+        }
+        return best
+      }
+
+      const impliedProb = (odds?: number) => {
+        if (odds == null || !Number.isFinite(odds)) return null
+        return odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100)
+      }
+
+      const normalCDF = (z: number) => {
+        const t = 1 / (1 + 0.2316419 * Math.abs(z))
+        const d = 0.3989423 * Math.exp(-z * z / 2)
+        const probability =
+          d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))))
+        return z > 0 ? 1 - probability : probability
+      }
+
+      const americanFromProbability = (p: number) => {
+        if (p <= 0) return 0
+        if (p >= 1) return -10000
+        return p >= 0.5 ? Math.round(-(p / (1 - p)) * 100) : Math.round(((1 - p) / p) * 100)
+      }
+
+      const decimalFromProbability = (p: number) => (p > 0 ? 1 / p : 0)
+
+      const spreadStdDev = 12
+      const projectionMap = new Map<string, number>()
+      const confidenceMap = new Map<string, string>()
+      const bookLegOdds = new Map<string, number[]>()
+      const legOddsList: number[] = []
+      for (const leg of parsedComboLegs) {
+        try {
+          const recs = await getGameRecommendations(leg.homeTeam, leg.awayTeam, 'spread')
+          const rec = recs.find((r: any) => r.type === 'spread')
+          if (rec && typeof rec.targetLine === 'number') {
+            const key = `${normalizeTeam(leg.homeTeam)}_${normalizeTeam(leg.awayTeam)}`
+            projectionMap.set(key, rec.targetLine)
+            if (rec.confidence) confidenceMap.set(key, rec.confidence)
+          }
+        } catch (err) {
+          console.warn('[COMBO] Projection failed for leg', leg, err)
+        }
+      }
+
+      const lines: string[] = []
+      lines.push('Parlay Projection vs Market')
+      lines.push('')
+      lines.push('Individual Legs')
+      let combinedProbability = 1
+      let combinedHasAll = true
+      const confidenceLevels: string[] = []
+      for (const leg of parsedComboLegs) {
+        const best = bestOddsForLeg(leg)
+        const projKey = `${normalizeTeam(leg.homeTeam)}_${normalizeTeam(leg.awayTeam)}`
+        const modelTarget = projectionMap.get(projKey)
+        const modelProb = modelTarget != null
+          ? (() => {
+              const awayMargin = modelTarget
+              const threshold = -leg.betLine
+              const z = (threshold - awayMargin) / spreadStdDev
+              return 1 - normalCDF(z)
+            })()
+          : null
+        const implied = impliedProb(best?.odds)
+        if (modelProb == null) {
+          combinedHasAll = false
+        } else {
+          combinedProbability *= modelProb
+        }
+        const confidence = confidenceMap.get(projKey)
+        if (confidence) confidenceLevels.push(String(confidence))
+        const marketOddsStr =
+          best?.odds != null
+            ? `${best.odds > 0 ? '+' : ''}${best.odds}${best.book ? ` (${best.book})` : ''}`
+            : 'n/a'
+        const marketLineStr =
+          best?.point != null ? `${best.point > 0 ? '+' : ''}${best.point}` : 'n/a'
+        const impliedStr = implied != null ? `${(implied * 100).toFixed(1)}%` : 'n/a'
+        const modelProbStr = modelProb != null ? `${(modelProb * 100).toFixed(1)}%` : 'n/a'
+        const formatLine = (value: number) =>
+          value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1)
+        const modelLineStr =
+          modelTarget != null ? `${leg.awayTeam} ${formatLine(-modelTarget)}` : 'n/a'
+        const edge =
+          implied != null && modelProb != null ? `${((modelProb - implied) * 100).toFixed(1)}%` : 'n/a'
+        const betLine =
+          typeof leg.betLine === 'number' ? leg.betLine : -leg.line
+        const lineStr = betLine > 0 ? `+${betLine}` : `${betLine}`
+        const lineMismatch =
+          best?.point != null && Math.abs(best.point - betLine) > 0.1
+            ? `, line mismatch (market ${marketLineStr} vs requested ${lineStr})`
+            : ''
+        if (best?.odds != null) legOddsList.push(best.odds)
+
+        // Track per-book parlay eligibility
+        if (oddsGames.length) {
+          const homeKey = normalizeTeam(leg.homeTeam)
+          const awayKey = normalizeTeam(leg.awayTeam)
+          const targetPoint = betLine
+          const match = oddsGames.find((game) => {
+            const home = normalizeTeam(game.home_team || '')
+            const away = normalizeTeam(game.away_team || '')
+            return home.includes(homeKey) && away.includes(awayKey)
+          })
+          if (match) {
+            for (const book of match.bookmakers || []) {
+              const market = (book.markets || []).find((m: any) => m.key === 'spreads')
+              if (!market) continue
+              const outcome = (market.outcomes || []).find((o: any) => {
+                const name = normalizeTeam(o.name || '')
+                const point = Number(o.point)
+                return name.includes(awayKey) && Number.isFinite(point) && Math.abs(point - targetPoint) <= 0.25
+              })
+              if (!outcome) continue
+              const odds = Number(outcome.price)
+              if (!Number.isFinite(odds)) continue
+              const key = String(book.title || book.key)
+              const list = bookLegOdds.get(key) || []
+              list.push(odds)
+              bookLegOdds.set(key, list)
+            }
+          }
+        }
+        lines.push(
+          `- ${leg.awayTeam} ${lineStr} @ ${leg.homeTeam}: odds ${marketOddsStr}, implied ${impliedStr}, model ${modelProbStr}, model line ${modelLineStr}, edge ${edge}${lineMismatch}`
+        )
+      }
+
+      lines.push('')
+      lines.push('Combined Probability')
+      const combinedProbText = combinedHasAll
+        ? `${(combinedProbability * 100).toFixed(1)}%`
+        : 'n/a'
+      lines.push(`- Independent (naive): ${combinedProbText}`)
+      lines.push(`- Final (no correlations): ${combinedProbText}`)
+      lines.push('')
+      lines.push('Implied Fair Odds')
+      if (combinedHasAll) {
+        const american = americanFromProbability(combinedProbability)
+        const decimal = decimalFromProbability(combinedProbability)
+        lines.push(`- American: ${american > 0 ? '+' : ''}${american}`)
+        lines.push(`- Decimal: ${decimal.toFixed(2)}`)
+      } else {
+        lines.push('- American: n/a')
+        lines.push('- Decimal: n/a')
+      }
+      lines.push('')
+      if (legOddsList.length === parsedComboLegs.length) {
+        const { calculateParlayOdds } = await import('@/lib/utils/odds')
+        const bestSynthetic = calculateParlayOdds(legOddsList)
+        let bestBook: { name: string; odds: number } | null = null
+        for (const [name, odds] of bookLegOdds.entries()) {
+          if (odds.length !== parsedComboLegs.length) continue
+          const combined = calculateParlayOdds(odds)
+          if (!bestBook || combined.american > bestBook.odds) {
+            bestBook = { name, odds: combined.american }
+          }
+        }
+        lines.push('Market Parlay Price')
+        lines.push(
+          `- Best same-book price: ${
+            bestBook ? `${bestBook.odds > 0 ? '+' : ''}${bestBook.odds} (${bestBook.name})` : 'n/a'
+          }`
+        )
+        lines.push(
+          `- Best leg-by-leg (synthetic): ${bestSynthetic.american > 0 ? '+' : ''}${bestSynthetic.american}`
+        )
+        lines.push('')
+      }
+      const confidence =
+        confidenceLevels.length
+          ? confidenceLevels.includes('low')
+            ? 'LOW'
+            : confidenceLevels.includes('medium')
+            ? 'MEDIUM'
+            : 'HIGH'
+          : 'LOW'
+      lines.push(`Confidence: ${confidence}`)
+      if (oddsGames.length) lines.push(`\n${buildDataSourceLine(['SBD'])}`)
+
+      return streamTextResponse(lines.join('\n'))
+    }
 
     // Debug logging for pattern matching
     console.log('[UNIFIED] isStatsQuery:', isStatsQuery, 'skipUnifiedPipeline:', skipUnifiedPipeline, 'query:', message.substring(0, 100))
@@ -3435,6 +3735,7 @@ export async function POST(req: NextRequest) {
 
     const explicitAnalysisIntent = /\b(analy(?:ze|sis)|breakdown|edge|value|mispriced|line makes sense)\b/i.test(msgLower)
     analysisIntent =
+      !forceComboAnalysis &&
       !edgeAwarenessIntent &&
       (explicitAnalysisIntent ||
         (marketKeywordIntent && (hasSpecificMatchup || hasSpecificProp)))
@@ -3945,7 +4246,12 @@ export async function POST(req: NextRequest) {
     // Generic stat rankings/comparisons from static data (NBA)
     // Skip if edge awareness intent is detected (user wants player prop analysis, not team stats)
     const statKey = statQuery?.key
-    if (statKey && !edgeAwarenessIntent && (statRankingIntent || statCompareIntent || mentionedTeams.length === 1)) {
+    if (
+      statKey &&
+      !edgeAwarenessIntent &&
+      !forceComboAnalysis &&
+      (statRankingIntent || statCompareIntent || mentionedTeams.length === 1)
+    ) {
       const fmtVal = (v: number | null | undefined) => (v == null ? 'n/a' : Number(v).toFixed(1).replace(/\.0+$/, ''))
       const label = statQuery?.label || 'stat'
 
@@ -3990,7 +4296,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (netRatingIntent && mentionedTeams.length >= 2) {
+    if (netRatingIntent && mentionedTeams.length >= 2 && !forceComboAnalysis) {
       const sportGuess =
         msgLower.match(/nfl|football/) ? 'americanfootball_nfl' :
         msgLower.match(/mlb|baseball/) ? 'baseball_mlb' :
@@ -4069,7 +4375,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (compareTeamsIntent && !analysisIntent && !edgeAwarenessIntent) {
+    if (
+      compareTeamsIntent &&
+      !analysisIntent &&
+      !edgeAwarenessIntent &&
+      !forceComboAnalysis
+    ) {
       const sportGuess =
         msgLower.match(/nfl|football/) ? 'americanfootball_nfl' :
         msgLower.match(/mlb|baseball/) ? 'baseball_mlb' :
@@ -6931,17 +7242,18 @@ ${statsEnrichment}
       return streamTextResponse(pendingOddsReply)
     }
 
-  const buildParams = () => {
+  const buildParams = (overrides: Record<string, any> = {}) => {
     const params: any = {
       model: chatModel,
       messages: openaiMessages,
       tools: allowedTools,
       max_completion_tokens: 1500,
-      }
-      if (!chatModel.includes('gpt-5')) {
-        params.temperature = 0.7
-      }
-      return params
+      ...overrides,
+    }
+    if (!chatModel.includes('gpt-5') && params.temperature == null) {
+      params.temperature = 0.7
+    }
+    return params
   }
 
   const llmInitialStart = Date.now()
@@ -7011,7 +7323,17 @@ ${statsEnrichment}
 
   // Handle team stats before odds to avoid unnecessary odds fetches
   // Skip if user explicitly asks for analysis/breakdown or edge awareness
-  if ((teamStatsIntent || (mentionedTeams.length && !oddsKeywordMatch && !wantsLiveOdds && !propIntent && !playerNameInMessage)) && !analysisIntent && !edgeAwarenessIntent) {
+  if (
+    (teamStatsIntent ||
+      (mentionedTeams.length &&
+        !oddsKeywordMatch &&
+        !wantsLiveOdds &&
+        !propIntent &&
+        !playerNameInMessage)) &&
+    !analysisIntent &&
+    !edgeAwarenessIntent &&
+    !forceComboAnalysis
+  ) {
     try {
       return await resolveTeamStats(mentionedTeams.length ? mentionedTeams : parsedMatchupTeams)
     } catch (err: any) {
@@ -7059,9 +7381,57 @@ ${statsEnrichment}
     }
   }
 
-  let initialResponse = await openai.chat.completions.create(buildParams())
+  const comboTool = allowedTools.find(
+    (tool: any) => tool?.function?.name === 'combo_analysis'
+  )
+  const initialParams = forceComboAnalysis
+    ? buildParams({
+        tool_choice: { type: 'function', function: { name: 'combo_analysis' } },
+      })
+    : buildParams()
+  let initialResponse = await openai.chat.completions.create(initialParams)
   console.log('[PERF][LLM][INITIAL_MS]', Date.now() - llmInitialStart)
     let toolCalls = initialResponse.choices[0].message.tool_calls || []
+    if (
+      forceComboAnalysis &&
+      (!toolCalls.length ||
+        !toolCalls.some((tc: any) => tc.function?.name === 'combo_analysis'))
+    ) {
+      console.log('[COMBO] Forcing combo_analysis tool selection')
+      const comboOnlyParams = buildParams({
+        tools: comboTool ? [comboTool] : allowedTools,
+        tool_choice: comboTool
+          ? { type: 'function', function: { name: 'combo_analysis' } }
+          : undefined,
+      })
+      initialResponse = await openai.chat.completions.create(comboOnlyParams)
+      toolCalls = initialResponse.choices[0].message.tool_calls || []
+    }
+    if (forceComboAnalysis) {
+      const comboCalls = toolCalls.filter(
+        (tc: any) => tc.function?.name === 'combo_analysis'
+      )
+      if (comboCalls.length) {
+        toolCalls = comboCalls
+      } else {
+        if (parsedComboLegs.length >= 2) {
+          console.log(
+            '[COMBO] Falling back to parsed spread legs:',
+            parsedComboLegs.length
+          )
+          toolCalls = [
+            {
+              id: `combo_fallback_${Date.now()}`,
+              type: 'function',
+              function: {
+                name: 'combo_analysis',
+                arguments: JSON.stringify({ legs: parsedComboLegs }),
+              },
+            },
+          ]
+        }
+      }
+    }
     console.log('[CHAT] Initial LLM response - tool_calls:', toolCalls?.length || 0, 'tools')
     if (toolCalls && toolCalls.length > 0) {
       console.log('[CHAT] Tool names:', toolCalls.map((tc: any) => tc.function?.name).join(', '))
@@ -7154,6 +7524,17 @@ ${statsEnrichment}
           return { team, line: Number.isFinite(line) ? line : null }
         }
 
+        const extractLineMovement = (input: string): { points: number | null; team?: string } => {
+          const movementMatch = input.match(
+            /\b(?:line|spread|total)?\s*(?:moved|move|movement)\b[^0-9]*([0-9]+(?:\.\d+)?)\s*points?\b/i
+          )
+          const teamMatch = input.match(/\b(?:in favor of|toward|to|for)\s+([A-Za-z][A-Za-z .&'-]{2,})/i)
+          const points = movementMatch ? parseFloat(movementMatch[1]) : null
+          let team = teamMatch?.[1]?.trim()
+          if (team && /\b(over|under|total|o\/u)\b/i.test(team)) team = undefined
+          return { points: Number.isFinite(points) ? points : null, team }
+        }
+
         const summarizeInjuries = async (teams: string[], sportKey: string) => {
           if (!teams.length) return 'No team specified.'
           const injuries = await getInjuryReports(sportKey)
@@ -7244,6 +7625,7 @@ ${statsEnrichment}
           'basketball_nba'
 
         const snapshotLines: string[] = []
+        const deltas: string[] = []
         const nextActions: string[] = []
         const missingInfo: string[] = []
 
@@ -7253,6 +7635,18 @@ ${statsEnrichment}
             ? `${direction ? `${direction} ` : ''}${line.toFixed(1)}${oddsLabel ? ` @ ${oddsLabel}` : ''}${book ? ` (${book})` : ''}`
             : 'not provided'
         snapshotLines.push(`Line/price: ${lineLabel}`)
+
+        const movement = extractLineMovement(message)
+        if (movement.points != null) {
+          const pointsLabel = movement.points.toFixed(1)
+          const teamLabel = movement.team ? ` toward ${movement.team}` : ''
+          const meaning = movement.team
+            ? `Market made ${movement.team} ${pointsLabel} points more favored (or ${pointsLabel} points less of an underdog).`
+            : `Market shifted the spread ${pointsLabel} points toward one side.`
+          deltas.push(
+            `Line movement: ${pointsLabel} points${teamLabel}. ${meaning} Often driven by new info or betting action.`
+          )
+        }
 
         // Determine if this is a general matchup analysis (no specific market type)
         const isGeneralMatchupAnalysis = matchupTeams.length >= 2 &&
@@ -7428,17 +7822,18 @@ ${statsEnrichment}
               ? `total ${line != null ? line.toFixed(1) : ''}`.trim()
               : 'moneyline'
 
-          return {
-            success: true,
-            formatted: buildAnalysisResponse({
-              title: matchupLabel,
-              marketLabel,
-              snapshotLines,
-              edge,
-              nextActions,
-              missingInfo,
-            }),
-          }
+              return {
+                success: true,
+                formatted: buildAnalysisResponse({
+                  title: matchupLabel,
+                  marketLabel,
+                  snapshotLines,
+                  deltas,
+                  edge,
+                  nextActions,
+                  missingInfo,
+                }),
+              }
         }
 
         if (marketType === 'quarter') {
@@ -7509,6 +7904,7 @@ ${statsEnrichment}
               title: quarter ? `${matchupLabel} ${quarterLabel}` : matchupLabel,
               marketLabel: quarter ? `quarter ${quarter}` : 'quarter',
               snapshotLines,
+              deltas,
               edge,
               nextActions,
               missingInfo,
@@ -7693,6 +8089,7 @@ ${statsEnrichment}
               title: `${playerName || 'Player'} ${propLabel}`.trim(),
               marketLabel,
               snapshotLines,
+              deltas,
               edge,
               nextActions,
               missingInfo,
@@ -7832,6 +8229,7 @@ ${statsEnrichment}
             title: matchupLabel,
             marketLabel: marketType.replace(/_/g, ' '),
             snapshotLines,
+            deltas,
             edge: fallbackEdge,
             nextActions: ['Share the market type and line you want analyzed'],
             missingInfo,
@@ -8115,6 +8513,17 @@ ${statsEnrichment}
           functionResult = data
         } catch (error: any) {
           functionResult = { error: error?.message || 'Failed to create parlay' }
+        }
+      } else if (functionName === 'combo_analysis') {
+        const { executeTools } = await import('@/lib/statmuse/data-router')
+        const [result] = await executeTools([toolCall])
+        if (result?.error) {
+          functionResult = { success: false, error: result.error }
+        } else {
+          functionResult = result?.result ?? {
+            success: false,
+            error: 'Tool returned no result',
+          }
         }
       } else if (functionName === 'get_parlays') {
         try {
@@ -8936,6 +9345,7 @@ ${statsEnrichment}
                   'analyze_bet_market',
                   'get_slate_edge_detection',
                   'get_live_betting_projection',
+                  'combo_analysis',
                 ])
 
                 if (

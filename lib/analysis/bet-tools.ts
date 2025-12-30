@@ -225,6 +225,12 @@ export function inferMarketType(message: string): MarketType {
   if (/\b(q1|q2|q3|q4|quarter|1st quarter|2nd quarter|3rd quarter|4th quarter)\b/.test(msg)) {
     return 'quarter'
   }
+  const mentionsLineMove = /\b(line movement|line moved|line move|spread moved|total moved|moved\s+\d+(\.\d+)?\s*points?)\b/.test(msg)
+  if (mentionsLineMove) {
+    if (/\b(total|over\/under|o\/u|over|under)\b/.test(msg)) return 'total'
+    if (/\b(moneyline|ml)\b/.test(msg)) return 'moneyline'
+    return 'spread'
+  }
   if (/\b(prop|points|rebounds|assists|threes|pra|yards|receptions|touchdowns)\b/.test(msg)) {
     return 'player_prop'
   }

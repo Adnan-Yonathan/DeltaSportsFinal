@@ -84,11 +84,11 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full bg-black px-4 py-8">
+    <div className="flex flex-col items-center justify-center min-h-full bg-black px-3 sm:px-4 py-6 sm:py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center max-w-3xl w-full mb-6"
+        className="text-center max-w-3xl w-full mb-4 sm:mb-6"
       >
         <AnimatedHero
           staticText="Make money with"
@@ -96,7 +96,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
         />
       </motion.div>
 
-      <div className="w-full max-w-5xl mx-auto mb-6">
+      <div className="w-full max-w-5xl mx-auto mb-4 sm:mb-6">
         <TopPerformancesStrip />
       </div>
 

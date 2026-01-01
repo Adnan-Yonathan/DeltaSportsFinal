@@ -72,6 +72,7 @@ export function TopPerformancesStrip() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
   const skeletons = useMemo(() => Array.from({ length: 6 }), [])
 
   useEffect(() => {
@@ -198,86 +199,105 @@ export function TopPerformancesStrip() {
     return "Trend"
   }
 
+  const content = (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-[11px] uppercase text-emerald-200/80 tracking-[0.14em]">Top performances</div>
+          <div className="text-base font-semibold text-white">Recent standout stat lines</div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {LEAGUE_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setLeague(tab.key)}
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                league === tab.key
+                  ? "bg-emerald-500 text-white"
+                  : "border border-emerald-500/30 text-emerald-200 hover:bg-emerald-900/40"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+          <div className="relative z-10">
+            <select
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value as "teams" | "players" | "betting")}
+              className="rounded-md bg-black/70 text-emerald-100 text-xs md:text-sm px-3 py-1 border border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            >
+              <option value="teams">Team trends</option>
+              <option value="players">Player trends</option>
+              <option value="betting">Betting trends</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-2 grid gap-2 md:grid-cols-3">
+        {loading
+          ? skeletons.slice(0, 3).map((_, idx) => (
+              <div key={idx} className="rounded-lg border border-emerald-500/10 bg-transparent p-3 animate-pulse">
+                <div className="h-3 w-1/2 rounded bg-gray-800/70 mb-2" />
+                <div className="h-4 w-3/4 rounded bg-gray-800/70 mb-1.5" />
+                <div className="h-3 w-2/3 rounded bg-gray-800/70" />
+              </div>
+            ))
+          : displayItems.length > 0
+          ? displayItems.slice(0, 3).map((item: any, idx: number) => (
+              <motion.div
+                key={`${item.name}-${idx}-${item.type}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.04 }}
+                className="group relative rounded-lg border border-transparent bg-transparent px-3 py-2 hover:border-emerald-500/30 hover:bg-emerald-900/10"
+              >
+                <div className="flex items-center justify-between text-xs text-gray-400 uppercase tracking-[0.14em]">
+                  <span>{item.league?.toUpperCase?.() || league.toUpperCase()}</span>
+                  <span>{getTrendLabel(item)}</span>
+                </div>
+                <div className="mt-0.5 text-sm font-semibold text-white leading-tight">{item.name}</div>
+                {renderCardDetail(item)}
+                <div className="pointer-events-none absolute inset-x-2 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent opacity-70" />
+              </motion.div>
+            ))
+          : (
+            <div className="col-span-3 rounded-lg border border-emerald-500/10 bg-transparent p-3 text-sm text-gray-300">
+              {error || "No trends available right now."}
+            </div>
+            )}
+      </div>
+
+      {(totalItems > 3) && !loading ? (
+        <div className="mt-2 flex justify-end">
+          <button
+            onClick={() => setExpanded(true)}
+            className="text-xs font-semibold text-emerald-300 hover:text-white transition"
+          >
+            + more
+          </button>
+        </div>
+      ) : null}
+    </>
+  )
+
   return (
     <>
-      <div className="w-full max-w-3xl mx-auto bg-transparent px-1">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase text-emerald-200/80 tracking-[0.14em]">Top performances</div>
-            <div className="text-base font-semibold text-white">Recent standout stat lines</div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {LEAGUE_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setLeague(tab.key)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                  league === tab.key
-                    ? "bg-emerald-500 text-white"
-                    : "border border-emerald-500/30 text-emerald-200 hover:bg-emerald-900/40"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-            <div className="relative z-10">
-              <select
-                value={viewMode}
-                onChange={(e) => setViewMode(e.target.value as "teams" | "players" | "betting")}
-                className="rounded-md bg-black/70 text-emerald-100 text-xs md:text-sm px-3 py-1 border border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              >
-                <option value="teams">Team trends</option>
-                <option value="players">Player trends</option>
-                <option value="betting">Betting trends</option>
-              </select>
-            </div>
-          </div>
-        </div>
+      <div className="w-full max-w-3xl mx-auto bg-transparent px-1 md:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileOpen((prev) => !prev)}
+          className="w-full rounded-lg border border-emerald-500/20 bg-emerald-900/10 px-3 py-2 text-left text-sm font-semibold text-emerald-100 flex items-center justify-between"
+          aria-expanded={mobileOpen}
+        >
+          <span>Top performances</span>
+          <span className="text-xs text-emerald-300">{mobileOpen ? "Hide" : "Show"}</span>
+        </button>
+        {mobileOpen ? <div className="mt-2">{content}</div> : null}
+      </div>
 
-        <div className="mt-2 grid gap-2 md:grid-cols-3">
-          {loading
-            ? skeletons.slice(0, 3).map((_, idx) => (
-                <div key={idx} className="rounded-lg border border-emerald-500/10 bg-transparent p-3 animate-pulse">
-                  <div className="h-3 w-1/2 rounded bg-gray-800/70 mb-2" />
-                  <div className="h-4 w-3/4 rounded bg-gray-800/70 mb-1.5" />
-                  <div className="h-3 w-2/3 rounded bg-gray-800/70" />
-                </div>
-              ))
-            : displayItems.length > 0
-            ? displayItems.slice(0, 3).map((item: any, idx: number) => (
-                <motion.div
-                  key={`${item.name}-${idx}-${item.type}`}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.04 }}
-                  className="group relative rounded-lg border border-transparent bg-transparent px-3 py-2 hover:border-emerald-500/30 hover:bg-emerald-900/10"
-                >
-                  <div className="flex items-center justify-between text-xs text-gray-400 uppercase tracking-[0.14em]">
-                    <span>{item.league?.toUpperCase?.() || league.toUpperCase()}</span>
-                    <span>{getTrendLabel(item)}</span>
-                  </div>
-                  <div className="mt-0.5 text-sm font-semibold text-white leading-tight">{item.name}</div>
-                  {renderCardDetail(item)}
-                  <div className="pointer-events-none absolute inset-x-2 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent opacity-70" />
-                </motion.div>
-              ))
-            : (
-              <div className="col-span-3 rounded-lg border border-emerald-500/10 bg-transparent p-3 text-sm text-gray-300">
-                {error || "No trends available right now."}
-              </div>
-              )}
-        </div>
-
-        {(totalItems > 3) && !loading ? (
-          <div className="mt-2 flex justify-end">
-            <button
-              onClick={() => setExpanded(true)}
-              className="text-xs font-semibold text-emerald-300 hover:text-white transition"
-            >
-              + more
-            </button>
-          </div>
-        ) : null}
+      <div className="hidden md:block w-full max-w-3xl mx-auto bg-transparent px-1">
+        {content}
       </div>
 
       {expanded && (

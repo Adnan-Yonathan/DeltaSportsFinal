@@ -66,15 +66,15 @@ function AnimatedHero({
   }, [bettingPhrases, interval, termIndex])
 
   return (
-    <h2 className="text-3xl font-bold text-white text-center font-mono">
+    <h2 className="text-2xl sm:text-3xl font-bold text-white text-center font-mono leading-tight">
       {staticText}
       <br />
-      <span className="relative block min-h-[1.2em] w-full pt-8">
+      <span className="relative block min-h-[2.2em] sm:min-h-[1.2em] w-full pt-4 sm:pt-8 px-2">
         <span className="invisible font-bold">analytics.</span>
         {bettingPhrases.map((term, index) => (
           <motion.span
             key={index}
-            className="absolute left-0 right-0 inset-y-0 font-bold bg-gradient-to-r from-emerald-400 to-emerald-400 bg-clip-text text-transparent whitespace-nowrap flex items-center justify-center"
+            className="absolute left-0 right-0 inset-y-0 font-bold bg-gradient-to-r from-emerald-400 to-emerald-400 bg-clip-text text-transparent whitespace-normal sm:whitespace-nowrap flex items-center justify-center text-center leading-tight"
             initial={{ opacity: 0, y: -50 }}
             transition={{ type: "spring", stiffness: 50 }}
             animate={

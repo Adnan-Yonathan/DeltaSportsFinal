@@ -56,6 +56,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
   const [isExpanded, setIsExpanded] = useState(false)
   const [openMarkets, setOpenMarkets] = useState<Set<string>>(new Set())
+  const [mobileExpanded, setMobileExpanded] = useState(false)
 
   const toggleMarket = (key: string) => {
     setOpenMarkets((prev) => {
@@ -520,8 +521,20 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
           </div>
         </div>
 
+        <button
+          type="button"
+          onClick={() => setMobileExpanded((prev) => !prev)}
+          className="md:hidden w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-emerald-200 flex items-center justify-between"
+          aria-expanded={mobileExpanded}
+        >
+          <span>Recommended props</span>
+          <span className="text-[11px] text-emerald-300">{mobileExpanded ? "Hide" : "Show"}</span>
+        </button>
+
         {/* Props Markets */}
-        <div className="space-y-3 sm:space-y-4">
+        <div
+          className={`space-y-3 sm:space-y-4 ${mobileExpanded ? 'block' : 'hidden'} md:block`}
+        >
           {visibleMarkets.map(([marketKey, market], index) => (
             <motion.div
               key={marketKey}
@@ -587,7 +600,7 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
 
         {/* Footer */}
         <motion.div
-          className="mt-4 sm:mt-6 flex items-center gap-2 text-xs text-emerald-400"
+          className={`mt-4 sm:mt-6 items-center gap-2 text-xs text-emerald-400 ${mobileExpanded ? 'flex' : 'hidden'} md:flex`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}

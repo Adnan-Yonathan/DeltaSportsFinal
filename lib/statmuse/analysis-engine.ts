@@ -81,6 +81,11 @@ You have access to multiple data sources through tools:
   - "What are the best edges today?"
   - "Sharp edges for NFL"
   - Shows strong/soft edges with sharp confirmation indicators
+- **get_slate_prop_edge_detection**: Analyze ALL player props for a sport's slate (NBA/NCAAB/NFL/NCAAF/NHL)
+  - "Best props tonight"
+  - "Prop edges for the slate"
+  - "Run prop edge detection on NBA/NCAAB/NFL/NCAAF/NHL"
+  - Returns strong/soft prop edges with model gaps
 - **get_live_betting_projection**: Real-time live betting analysis during games
   - "What's the live projection for Lakers game?"
   - "Live betting edge for Celtics vs Heat"
@@ -90,9 +95,9 @@ You have access to multiple data sources through tools:
 - **get_game_recommendations**: Get betting recommendations for today's games
   - "What games should I bet today?"
   - "Best bets for tonight"
-- **get_prop_recommendations**: Get player prop recommendations
-  - "Best props tonight"
-  - "Player prop recommendations"
+- **get_prop_recommendations**: Get target lines for a specific player prop
+  - "What should LeBron's points line be?"
+  - "Calculate Jokic rebounds line"
 - **get_ranked_players_by_prop_threshold**: Rank players by probability of hitting a prop
   - "Who is most likely to hit 2+ threes?"
   - "Top players to score 25+ points"
@@ -126,7 +131,7 @@ You have access to multiple data sources through tools:
    - "opponents 3pt% vs Thunder" → getStaticTeamStats(team: "Thunder", stats: ["opponentThreeMadePerGame"])
    - "points allowed by Celtics" → getStaticTeamStats(team: "Celtics", stats: ["pointsAgainstPerGame"])
 
-2. **Prefer static data for NBA** - it's faster and always available
+2. **Prefer ESPN NBA stats** - cached and refreshed regularly
 
 3. **Call multiple tools if needed** - complex questions may require data from multiple sources
 

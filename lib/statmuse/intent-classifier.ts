@@ -5,17 +5,46 @@
 
 import { openai, AI_MODELS } from '@/lib/ai-gateway-client'
 import { unifiedTools } from './tools'
+import { resolveSportKey, type CanonicalSportKey } from '@/lib/identity/sport'
+import { SPORT_TOOL_MAP } from './tool-sport-map'
 import { executeTools, formatToolResultsForLLM } from './data-router'
 import { QUERY_SYSTEM_PROMPT, ANALYSIS_SYSTEM_PROMPT, GENERAL_CONVERSATION_PROMPT } from './analysis-engine'
 import type { UnifiedQueryResponse } from './types'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
-import { preprocessQuery, enhanceQueryForLLM } from './query-preprocessor'
+import {
+  preprocessQuery,
+  enhanceQueryForLLM,
+  type PreprocessedQuery,
+} from './query-preprocessor'
 
 const MAX_TOOL_ITERATIONS = 3 // Prevent infinite loops
 
 interface ProcessQueryOptions {
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
   sportHint?: string
+}
+
+const needsExplicitSport = (
+  message: string,
+  preprocessed: PreprocessedQuery,
+  resolvedSport?: CanonicalSportKey
+) => {
+  if (resolvedSport) return false
+  if (preprocessed.sport && preprocessed.sport !== 'unknown') return false
+  if (preprocessed.matched) return true
+  return /\b(odds?|bet|bets|betting|props?|line|spread|total|moneyline|stats?|injur|schedule|leaderboard|rank|record|edge|slate)\b/i.test(
+    message
+  )
+}
+
+const filterToolsForSport = (resolvedSport?: CanonicalSportKey) => {
+  if (!resolvedSport) return unifiedTools
+  const allowed = SPORT_TOOL_MAP[resolvedSport]
+  if (!allowed || !allowed.length) return unifiedTools
+  const allowedSet = new Set(allowed)
+  return unifiedTools.filter((tool) =>
+    tool.type !== 'function' ? false : allowedSet.has(tool.function.name)
+  )
 }
 
 /**
@@ -36,6 +65,17 @@ export async function processUnifiedQuery(
     playerName: preprocessed.playerName,
     teamName: preprocessed.teamName,
   })
+
+  const resolvedSport =
+    resolveSportKey(sportHint) ??
+    resolveSportKey(preprocessed.sport ? String(preprocessed.sport) : '')
+
+  if (needsExplicitSport(message, preprocessed, resolvedSport)) {
+    return {
+      reply:
+        'Which sport is this for? Please specify NBA, NCAAB, NFL, NCAAF, NHL, or MLB.',
+    }
+  }
 
   // For simple player/team stat queries, bypass OpenAI and call tool directly
   if (preprocessed.matched && preprocessed.queryType === 'player_stats' && preprocessed.playerName) {
@@ -135,7 +175,7 @@ export async function processUnifiedQuery(
     const initialResponse = await openai.chat.completions.create({
       model: AI_MODELS.chat,
       messages,
-      tools: unifiedTools,
+      tools: filterToolsForSport(resolvedSport),
       tool_choice: 'auto',
       // GPT-5 only supports temperature: 1 (default)
       ...(AI_MODELS.chat.includes('gpt-5') ? {} : { temperature: 0.3 }),

@@ -76,6 +76,34 @@ const LEAGUE_TO_SPORT: Record<string, SportKey> = {
   baseball_mlb: 'mlb',
 }
 
+const normalizeTeamName = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const buildMatchTokens = (value: string) =>
+  normalizeTeamName(value)
+    .split(' ')
+    .filter((token) => token.length > 2)
+
+const scoreGameMatch = (
+  homeTeam: string,
+  awayTeam: string,
+  query: string,
+  tokens: string[]
+) => {
+  let score = 0
+  if (homeTeam && query.includes(homeTeam)) score += 4
+  if (awayTeam && query.includes(awayTeam)) score += 4
+  for (const token of tokens) {
+    if (homeTeam.includes(token) || awayTeam.includes(token)) score += 1
+  }
+  return score
+}
+
 export interface LineMovement {
   market: 'spread' | 'total' | 'moneyline'
   side: string // team name or Over/Under
@@ -572,6 +600,41 @@ export async function detectEdges(
   return results
 }
 
+export async function detectEdgeForGame(
+  league: SbdLeague,
+  gameIdentifier: string
+): Promise<EdgeDetectionResult | null> {
+  const sport = LEAGUE_TO_SPORT[league]
+  if (!sport || !gameIdentifier) return null
+
+  try {
+    console.log(`[EDGE-DETECTION] Fetching ${league} games for matchup...`)
+    const data = await fetchSbdOdds(league)
+    const games = Array.isArray(data?.data) ? data.data : []
+    if (!games.length) return null
+
+    const query = normalizeTeamName(gameIdentifier)
+    const tokens = buildMatchTokens(gameIdentifier)
+    let best: { game: any; score: number } | null = null
+
+    for (const game of games) {
+      const home = normalizeTeamName(buildTeamLabel(game?.competitors?.home) || '')
+      const away = normalizeTeamName(buildTeamLabel(game?.competitors?.away) || '')
+      if (!home || !away) continue
+      const score = scoreGameMatch(home, away, query, tokens)
+      if (score > 0 && (!best || score > best.score)) {
+        best = { game, score }
+      }
+    }
+
+    if (!best) return null
+    return analyzeGame(best.game, sport)
+  } catch (error) {
+    console.error(`[EDGE-DETECTION] Failed to match ${league} game:`, error)
+    return null
+  }
+}
+
 /**
  * Format edge detection results for display
  */
@@ -598,6 +661,48 @@ export function formatEdgeResults(results: EdgeDetectionResult[]): string {
   }
 
   return output
+}
+
+export function formatEdgeResultForGame(
+  result: EdgeDetectionResult | null
+): string {
+  if (!result) {
+    return 'No matching game found for edge detection.'
+  }
+
+  const lines: string[] = []
+  lines.push(`## Sharp Edge Detection - ${result.awayTeam} @ ${result.homeTeam}`)
+  lines.push('')
+  lines.push(`Summary: ${result.summary}`)
+
+  if (!result.hasEdge) {
+    lines.push('No significant sharp signals detected for this game.')
+    return lines.join('\n')
+  }
+
+  lines.push(
+    `Edge: ${result.edgeSide || 'n/a'} ${result.edgeMarket || ''}`.trim()
+  )
+
+  if (result.sharpSignals.length) {
+    const signals = result.sharpSignals
+      .map((signal) => `${signal.type}(${signal.side})`)
+      .join(', ')
+    lines.push(`Signals: ${signals}`)
+  }
+
+  const notableMoves = result.lineMovements.filter(
+    (move) => move.isSharp || move.isSignificant
+  )
+  if (notableMoves.length) {
+    const moveSummary = notableMoves
+      .slice(0, 2)
+      .map((move) => `${move.market} ${move.side}: ${move.openingLine} -> ${move.currentLine}`)
+      .join('; ')
+    lines.push(`Line movement: ${moveSummary}`)
+  }
+
+  return lines.join('\n')
 }
 
 export { SHARP_THRESHOLDS }

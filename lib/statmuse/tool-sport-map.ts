@@ -1,0 +1,231 @@
+import type { CanonicalSportKey } from '@/lib/identity/sport'
+import { TOOL_NAMES } from './tools'
+
+export const SPORT_TOOL_MAP: Record<CanonicalSportKey, readonly string[]> = {
+  basketball_nba: [
+    TOOL_NAMES.STATIC_TEAM_STATS,
+    TOOL_NAMES.STATIC_PLAYER_STATS,
+    TOOL_NAMES.ESPN_TEAM_STATS,
+    TOOL_NAMES.ESPN_PLAYER_STATS,
+    TOOL_NAMES.ESPN_PLAYER_GAME_LOGS,
+    TOOL_NAMES.LIVE_SCORES,
+    TOOL_NAMES.INJURIES,
+    TOOL_NAMES.PLAYER_THRESHOLD,
+    TOOL_NAMES.PLAYER_VS_OPPONENT,
+    TOOL_NAMES.PLAYER_REST_SPLIT,
+    TOOL_NAMES.TEAM_B2B_SPLIT,
+    TOOL_NAMES.TEAM_QUARTER_THRESHOLD,
+    TOOL_NAMES.TEAM_QUARTER_AVERAGES,
+    TOOL_NAMES.QUARTER_WINNERS,
+    TOOL_NAMES.TEAM_FIRST_TO_SCORE,
+    TOOL_NAMES.FIRST_BASKET_SCORER,
+    TOOL_NAMES.TEAM_ATS,
+    TOOL_NAMES.TEAM_AFTER_LOSS,
+    TOOL_NAMES.TEAM_HOME_AWAY_DEFENSE,
+    TOOL_NAMES.COVERS_BETTING_SPLITS,
+    TOOL_NAMES.COVERS_ANALYZE_SPLITS,
+    TOOL_NAMES.GAME_RECOMMENDATIONS,
+    TOOL_NAMES.SLATE_EDGE_DETECTION,
+    TOOL_NAMES.SLATE_PROP_EDGE_DETECTION,
+    TOOL_NAMES.PROP_RECOMMENDATIONS,
+    TOOL_NAMES.LIVE_BOXSCORE_STATS,
+    TOOL_NAMES.LIVE_BETTING_PROJECTION,
+    TOOL_NAMES.PROP_THRESHOLD_RANKING,
+    TOOL_NAMES.COMBO_ANALYSIS,
+    TOOL_NAMES.SCHEDULE_CONTEXT,
+    TOOL_NAMES.LEADERBOARD,
+    TOOL_NAMES.ATS_LEADERBOARD,
+    TOOL_NAMES.WEB_SEARCH,
+  ],
+  basketball_ncaab: [
+    TOOL_NAMES.SLATE_EDGE_DETECTION,
+    TOOL_NAMES.SLATE_PROP_EDGE_DETECTION,
+    TOOL_NAMES.LIVE_BOXSCORE_STATS,
+    TOOL_NAMES.LIVE_BETTING_PROJECTION,
+    TOOL_NAMES.WEB_SEARCH,
+  ],
+  americanfootball_nfl: [
+    TOOL_NAMES.ESPN_TEAM_STATS,
+    TOOL_NAMES.ESPN_PLAYER_STATS,
+    TOOL_NAMES.ESPN_PLAYER_GAME_LOGS,
+    TOOL_NAMES.LIVE_SCORES,
+    TOOL_NAMES.INJURIES,
+    TOOL_NAMES.PLAYER_THRESHOLD,
+    TOOL_NAMES.PLAYER_VS_OPPONENT,
+    TOOL_NAMES.PLAYER_REST_SPLIT,
+    TOOL_NAMES.TEAM_B2B_SPLIT,
+    TOOL_NAMES.TEAM_QUARTER_THRESHOLD,
+    TOOL_NAMES.TEAM_QUARTER_AVERAGES,
+    TOOL_NAMES.QUARTER_WINNERS,
+    TOOL_NAMES.TEAM_FIRST_TO_SCORE,
+    TOOL_NAMES.TEAM_ATS,
+    TOOL_NAMES.TEAM_AFTER_LOSS,
+    TOOL_NAMES.TEAM_HOME_AWAY_DEFENSE,
+    TOOL_NAMES.SLATE_EDGE_DETECTION,
+    TOOL_NAMES.SLATE_PROP_EDGE_DETECTION,
+    TOOL_NAMES.LIVE_BOXSCORE_STATS,
+    TOOL_NAMES.SCHEDULE_CONTEXT,
+    TOOL_NAMES.LEADERBOARD,
+    TOOL_NAMES.ATS_LEADERBOARD,
+    TOOL_NAMES.WEB_SEARCH,
+  ],
+  americanfootball_ncaaf: [
+    TOOL_NAMES.SLATE_EDGE_DETECTION,
+    TOOL_NAMES.SLATE_PROP_EDGE_DETECTION,
+    TOOL_NAMES.LIVE_BOXSCORE_STATS,
+    TOOL_NAMES.WEB_SEARCH,
+  ],
+  baseball_mlb: [
+    TOOL_NAMES.ESPN_TEAM_STATS,
+    TOOL_NAMES.ESPN_PLAYER_STATS,
+    TOOL_NAMES.ESPN_PLAYER_GAME_LOGS,
+    TOOL_NAMES.LIVE_SCORES,
+    TOOL_NAMES.INJURIES,
+    TOOL_NAMES.TEAM_ATS,
+    TOOL_NAMES.SLATE_EDGE_DETECTION,
+    TOOL_NAMES.SCHEDULE_CONTEXT,
+    TOOL_NAMES.LEADERBOARD,
+    TOOL_NAMES.ATS_LEADERBOARD,
+    TOOL_NAMES.WEB_SEARCH,
+  ],
+  icehockey_nhl: [
+    TOOL_NAMES.ESPN_TEAM_STATS,
+    TOOL_NAMES.ESPN_PLAYER_STATS,
+    TOOL_NAMES.ESPN_PLAYER_GAME_LOGS,
+    TOOL_NAMES.LIVE_SCORES,
+    TOOL_NAMES.INJURIES,
+    TOOL_NAMES.TEAM_ATS,
+    TOOL_NAMES.SLATE_EDGE_DETECTION,
+    TOOL_NAMES.SLATE_PROP_EDGE_DETECTION,
+    TOOL_NAMES.LIVE_BOXSCORE_STATS,
+    TOOL_NAMES.SCHEDULE_CONTEXT,
+    TOOL_NAMES.LEADERBOARD,
+    TOOL_NAMES.ATS_LEADERBOARD,
+    TOOL_NAMES.WEB_SEARCH,
+  ],
+} as const
+
+export const TOOL_SPORT_PARAM_MAP: Record<
+  string,
+  Partial<Record<CanonicalSportKey, string>>
+> = {
+  [TOOL_NAMES.ESPN_TEAM_STATS]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+    baseball_mlb: 'mlb',
+    icehockey_nhl: 'nhl',
+  },
+  [TOOL_NAMES.ESPN_PLAYER_STATS]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+    baseball_mlb: 'mlb',
+    icehockey_nhl: 'nhl',
+  },
+  [TOOL_NAMES.ESPN_PLAYER_GAME_LOGS]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+    baseball_mlb: 'mlb',
+    icehockey_nhl: 'nhl',
+  },
+  [TOOL_NAMES.LIVE_SCORES]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+    baseball_mlb: 'mlb',
+    icehockey_nhl: 'nhl',
+  },
+  [TOOL_NAMES.INJURIES]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+    baseball_mlb: 'mlb',
+    icehockey_nhl: 'nhl',
+  },
+  [TOOL_NAMES.PLAYER_THRESHOLD]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+  },
+  [TOOL_NAMES.PLAYER_VS_OPPONENT]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+  },
+  [TOOL_NAMES.PLAYER_REST_SPLIT]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+  },
+  [TOOL_NAMES.TEAM_B2B_SPLIT]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+  },
+  [TOOL_NAMES.TEAM_QUARTER_THRESHOLD]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+  },
+  [TOOL_NAMES.TEAM_QUARTER_AVERAGES]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+  },
+  [TOOL_NAMES.QUARTER_WINNERS]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+  },
+  [TOOL_NAMES.TEAM_FIRST_TO_SCORE]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+  },
+  [TOOL_NAMES.FIRST_BASKET_SCORER]: {
+    basketball_nba: 'nba',
+  },
+  [TOOL_NAMES.TEAM_ATS]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+    baseball_mlb: 'mlb',
+    icehockey_nhl: 'nhl',
+  },
+  [TOOL_NAMES.TEAM_AFTER_LOSS]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+  },
+  [TOOL_NAMES.TEAM_HOME_AWAY_DEFENSE]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+  },
+  [TOOL_NAMES.SCHEDULE_CONTEXT]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+    baseball_mlb: 'mlb',
+    icehockey_nhl: 'nhl',
+  },
+  [TOOL_NAMES.LEADERBOARD]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+    baseball_mlb: 'mlb',
+    icehockey_nhl: 'nhl',
+  },
+  [TOOL_NAMES.ATS_LEADERBOARD]: {
+    basketball_nba: 'nba',
+    americanfootball_nfl: 'nfl',
+    baseball_mlb: 'mlb',
+    icehockey_nhl: 'nhl',
+  },
+  [TOOL_NAMES.LIVE_BOXSCORE_STATS]: {
+    basketball_nba: 'nba',
+    basketball_ncaab: 'ncaab',
+    americanfootball_nfl: 'nfl',
+    americanfootball_ncaaf: 'cfb',
+    icehockey_nhl: 'nhl',
+  },
+  [TOOL_NAMES.LIVE_BETTING_PROJECTION]: {
+    basketball_nba: 'nba',
+    basketball_ncaab: 'ncaab',
+  },
+}
+
+export const TOOL_SPORT_MAP = Object.entries(SPORT_TOOL_MAP).reduce(
+  (acc, [sport, tools]) => {
+    for (const tool of tools) {
+      if (!acc[tool]) acc[tool] = []
+      acc[tool].push(sport as CanonicalSportKey)
+    }
+    return acc
+  },
+  {} as Record<string, CanonicalSportKey[]>
+)

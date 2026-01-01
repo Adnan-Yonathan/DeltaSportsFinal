@@ -4,10 +4,12 @@
  * Factors in: opponent defense, pace, home/away, rest days, recent form
  */
 
-import { nbaPlayerPerGame2025_2026Csv } from '@/data/nba_player_per_game_2025_2026'
-import { nbaPlayerAdvStats2025_2026Csv } from '@/data/nba_player_advanced_stats_2025_2026'
 import { fetchAllLiveScores, type LiveScoreGame } from '@/lib/live-scores'
-import { getStaticNbaTeams } from '@/lib/nba-static-team-stats'
+import {
+  getNBARoster,
+  getNBAPlayerSeasonStats,
+  getNBATeamStats,
+} from '@/lib/sports-stats-api'
 import {
   calculateOverProbability,
   calculateOverProbabilityNormal,
@@ -18,14 +20,14 @@ import {
 
 // Team abbreviation mappings
 const TEAM_ABBREV_MAP: Record<string, string> = {
-  hawks: 'ATL', celtics: 'BOS', nets: 'BRK', brooklyn: 'BRK',
-  hornets: 'CHO', charlotte: 'CHO', bulls: 'CHI', cavaliers: 'CLE', cavs: 'CLE',
+  hawks: 'ATL', celtics: 'BOS', nets: 'BKN', brooklyn: 'BKN',
+  hornets: 'CHA', charlotte: 'CHA', bulls: 'CHI', cavaliers: 'CLE', cavs: 'CLE',
   mavericks: 'DAL', mavs: 'DAL', nuggets: 'DEN', pistons: 'DET',
   warriors: 'GSW', goldenstate: 'GSW', rockets: 'HOU', pacers: 'IND',
   clippers: 'LAC', lakers: 'LAL', grizzlies: 'MEM', heat: 'MIA',
   bucks: 'MIL', timberwolves: 'MIN', wolves: 'MIN', pelicans: 'NOP',
   knicks: 'NYK', thunder: 'OKC', magic: 'ORL', '76ers': 'PHI', sixers: 'PHI',
-  suns: 'PHO', phoenix: 'PHO', trailblazers: 'POR', blazers: 'POR', portland: 'POR',
+  suns: 'PHX', phoenix: 'PHX', trailblazers: 'POR', blazers: 'POR', portland: 'POR',
   kings: 'SAC', spurs: 'SAS', sanantonio: 'SAS', raptors: 'TOR',
   jazz: 'UTA', utah: 'UTA', wizards: 'WAS', washington: 'WAS',
   atlanta: 'ATL', boston: 'BOS', chicago: 'CHI', cleveland: 'CLE',
@@ -37,12 +39,12 @@ const TEAM_ABBREV_MAP: Record<string, string> = {
 
 // Reverse map for abbreviation to full name lookup
 const ABBREV_TO_NAME: Record<string, string> = {
-  ATL: 'hawks', BOS: 'celtics', BRK: 'nets', CHO: 'hornets', CHI: 'bulls',
+  ATL: 'hawks', BOS: 'celtics', BKN: 'nets', BRK: 'nets', CHA: 'hornets', CHO: 'hornets', CHI: 'bulls',
   CLE: 'cavaliers', DAL: 'mavericks', DEN: 'nuggets', DET: 'pistons',
   GSW: 'warriors', HOU: 'rockets', IND: 'pacers', LAC: 'clippers',
   LAL: 'lakers', MEM: 'grizzlies', MIA: 'heat', MIL: 'bucks',
   MIN: 'timberwolves', NOP: 'pelicans', NYK: 'knicks', OKC: 'thunder',
-  ORL: 'magic', PHI: '76ers', PHO: 'suns', POR: 'trailblazers',
+  ORL: 'magic', PHI: '76ers', PHX: 'suns', PHO: 'suns', POR: 'trailblazers',
   SAC: 'kings', SAS: 'spurs', TOR: 'raptors', UTA: 'jazz', WAS: 'wizards',
 }
 
@@ -102,74 +104,117 @@ const LEAGUE_AVG = {
   oppAST: 26.0,
 }
 
-/**
- * Parse all players from static CSV data
- */
-function getAllPlayers(): Map<string, ParsedPlayer> {
-  const map = new Map<string, ParsedPlayer>()
+const PLAYER_CACHE_TTL = 1000 * 60 * 15
+const playerCache = new Map<string, { ts: number; players: Map<string, ParsedPlayer> }>()
 
-  const perGameLines = nbaPlayerPerGame2025_2026Csv
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l && /^\d+,/.test(l))
-
-  for (const line of perGameLines) {
-    const cells = line.split(',')
-    if (cells.length < 30) continue
-
-    const player = cells[1].trim()
-    const key = normalize(player)
-    const team = cells[5]?.trim() || ''
-
-    map.set(key, {
-      name: player,
-      team,
-      mpg: parseFloat(cells[2]) || 0,
-      points: parseFloat(cells[26]) || 0,
-      rebounds: parseFloat(cells[20]) || 0,
-      assists: parseFloat(cells[21]) || 0,
-      threes: parseFloat(cells[14]) || 0,
-      threeAttempts: parseFloat(cells[15]) || 0,
-      fg: parseFloat(cells[10]) || 0,
-      fga: parseFloat(cells[11]) || 0,
-    })
+const toNumber = (value: unknown): number | null => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string') {
+    const num = Number(value)
+    return Number.isFinite(num) ? num : null
   }
+  return null
+}
 
-  const advLines = nbaPlayerAdvStats2025_2026Csv
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l && /^\d+,/.test(l))
-
-  for (const line of advLines) {
-    const cells = line.split(',')
-    if (cells.length < 28) continue
-
-    const player = cells[1].trim()
-    const key = normalize(player)
-
-    if (map.has(key)) {
-      const existing = map.get(key)!
-      existing.usage = parseFloat(cells[27]) || 0
-      existing.bpm = parseFloat(cells[17]) || 0
-    }
+const pickStat = (stats: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    const value = toNumber(stats[key])
+    if (value != null) return value
   }
+  return null
+}
 
-  return map
+const mapWithConcurrency = async <T>(
+  items: T[],
+  limit: number,
+  handler: (item: T) => Promise<void>
+) => {
+  for (let i = 0; i < items.length; i += limit) {
+    const slice = items.slice(i, i + limit)
+    await Promise.all(slice.map((item) => handler(item)))
+  }
 }
 
 /**
- * Get team defensive stats from static data
+ * Load players and season stats from ESPN (cached).
  */
-function getTeamDefenseStats(): Map<string, TeamDefenseStats> {
+async function getAllPlayers(
+  teamFilter?: Set<string>
+): Promise<Map<string, ParsedPlayer>> {
+  const key =
+    teamFilter && teamFilter.size
+      ? Array.from(teamFilter).sort().join(',')
+      : 'all'
+  const cached = playerCache.get(key)
+  if (cached && Date.now() - cached.ts < PLAYER_CACHE_TTL) {
+    return cached.players
+  }
+
+  const roster = await getNBARoster()
+  const targets = teamFilter && teamFilter.size
+    ? roster.filter((player) => teamFilter.has(player.teamAbbr))
+    : roster
+
+  const players = new Map<string, ParsedPlayer>()
+
+  const buildPlayer = (name: string, teamAbbr: string, stats: Record<string, unknown>) => {
+    const mpg = pickStat(stats, ['MPG', 'minutesPerGame', 'minutes']) ?? 0
+    const points = pickStat(stats, ['PTS', 'PPG', 'points', 'pointsPerGame']) ?? 0
+    const rebounds = pickStat(stats, ['REB', 'RPG', 'TRB', 'rebounds']) ?? 0
+    const assists = pickStat(stats, ['AST', 'APG', 'assists']) ?? 0
+    const threes =
+      pickStat(stats, ['THREE_PM', '3P', 'threePointersMade', 'threesMadePerGame']) ??
+      0
+    const threeAttempts =
+      pickStat(stats, ['THREE_PA', '3PA', 'threePointersAttempted', 'threesAttemptedPerGame']) ??
+      0
+    const fg = pickStat(stats, ['FGM', 'fieldGoalsMade']) ?? 0
+    const fga = pickStat(stats, ['FGA', 'fieldGoalsAttempted']) ?? 0
+    const usage = pickStat(stats, ['USG_PERCENT', 'usageRate', 'USG%']) ?? 0
+    const bpm = pickStat(stats, ['BPM']) ?? 0
+
+    return {
+      name,
+      team: teamAbbr,
+      mpg,
+      points,
+      rebounds,
+      assists,
+      threes,
+      threeAttempts,
+      fg,
+      fga,
+      usage,
+      bpm,
+    } as ParsedPlayer
+  }
+
+  await mapWithConcurrency(targets, 6, async (player) => {
+    const statsData = await getNBAPlayerSeasonStats(player.name)
+    const stats = (statsData?.stats || {}) as Record<string, unknown>
+    if (!Object.keys(stats).length) return
+    const parsed = buildPlayer(player.name, player.teamAbbr, stats)
+    const key = normalize(parsed.name)
+    players.set(key, parsed)
+  })
+
+  playerCache.set(key, { ts: Date.now(), players })
+  return players
+}
+
+/**
+ * Get team defensive stats from ESPN-derived team stats.
+ */
+async function getTeamDefenseStats(): Promise<Map<string, TeamDefenseStats>> {
   const statsMap = new Map<string, TeamDefenseStats>()
-  const teams = getStaticNbaTeams()
+  const teams = await getNBATeamStats()
 
   for (const team of teams) {
-    const abbrev = getTeamAbbrev(team.team)
+    const abbrev = (team.teamAbbr || getTeamAbbrev(team.team)) ?? ''
     if (!abbrev) continue
 
     const stats = team.stats as Record<string, number | null>
-    statsMap.set(abbrev, {
+    statsMap.set(abbrev.toUpperCase(), {
       opp3PM: stats.opponentThreeMadePerGame ?? stats.threesAllowedPerGame ?? LEAGUE_AVG.opp3PM,
       opp3PA: stats.opponentThreeAttemptedPerGame ?? LEAGUE_AVG.opp3PA,
       oppPTS: stats.pointsAgainstPerGame ?? LEAGUE_AVG.oppPTS,
@@ -456,9 +501,10 @@ export async function getRankedPlayersByPropThreshold(
 
   console.log('[PROP RANKER] Starting analysis with adjustments:', { propType, threshold, todayOnly })
 
-  const allPlayers = getAllPlayers()
   const matchups = todayOnly ? await getTodaysMatchups() : new Map()
-  const teamDefenseStats = getTeamDefenseStats()
+  const teamFilter = matchups.size > 0 ? new Set(Array.from(matchups.keys())) : undefined
+  const allPlayers = await getAllPlayers(teamFilter)
+  const teamDefenseStats = await getTeamDefenseStats()
 
   // Get rest factors for all teams playing today
   const teamAbbrevs = Array.from(matchups.keys())

@@ -3,8 +3,6 @@
  * This runs BEFORE OpenAI function calling to ensure correct parameter extraction.
  */
 
-import { findNbaStaticPlayer, getStaticNbaPlayers } from '@/lib/nba-static-stats'
-import { findStaticNbaTeam, getStaticNbaTeams } from '@/lib/nba-static-team-stats'
 
 export type QueryType =
   | 'player_stats'
@@ -341,28 +339,12 @@ function findTeamInQuery(query: string): string | null {
   const aliasMatch = findTeamByAlias(query)
   if (aliasMatch) return aliasMatch
 
-  // Fall back to static data matching
-  const normalizedQuery = normalize(query).replace(/\s+/g, '')
-  for (const team of getStaticNbaTeams()) {
-    const teamName = normalize(team.team).replace(/\s+/g, '')
-    if (!teamName) continue
-    if (normalizedQuery.includes(teamName)) return team.team
-    const nickname = team.team.split(' ').pop() || team.team
-    const nicknameNorm = normalize(nickname).replace(/\s+/g, '')
-    if (nicknameNorm && normalizedQuery.includes(nicknameNorm)) return team.team
-  }
   return null
 }
 
 function findPlayerInQuery(query: string): string | null {
-  const normalizedQuery = normalize(query).replace(/\s+/g, '')
-  for (const player of getStaticNbaPlayers()) {
-    const nameNorm = normalize(player.name).replace(/\s+/g, '')
-    if (nameNorm.length >= 4 && normalizedQuery.includes(nameNorm)) return player.name
-    const lastName = player.name.split(/\s+/).pop() || ''
-    const lastNorm = normalize(lastName).replace(/\s+/g, '')
-    if (lastNorm.length >= 4 && normalizedQuery.includes(lastNorm)) return player.name
-  }
+  const nameMatch = query.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/)
+  if (nameMatch?.[1]) return nameMatch[1]
   return null
 }
 
@@ -517,26 +499,42 @@ const expandStatVariants = (key: string, baseLabel?: string): string[] => {
   return Array.from(variants)
 }
 
-const buildTeamStatIndex = () => {
-  const teams = getStaticNbaTeams()
-  const sample = teams[0]?.stats || {}
-  return Object.keys(sample).map((key) => ({
-    key,
-    variants: expandStatVariants(key),
-  }))
-}
+const TEAM_STAT_KEYS = [
+  'pointsForPerGame',
+  'pointsAgainstPerGame',
+  'offensiveRating',
+  'defensiveRating',
+  'netRating',
+  'pace',
+  'fieldGoalPct',
+  'threePointPct',
+  'freeThrowPct',
+  'reboundsPerGame',
+  'assistsPerGame',
+  'opponentThreeMadePerGame',
+  'opponentReboundsPerGame',
+  'opponentAssistsPerGame',
+]
 
-const buildPlayerStatIndex = () => {
-  const players = getStaticNbaPlayers()
-  const sample = players[0]?.stats || {}
-  return Object.keys(sample).map((key) => ({
-    key,
-    variants: expandStatVariants(key),
-  }))
-}
+const PLAYER_STAT_KEYS = [
+  'PTS',
+  'REB',
+  'AST',
+  'THREE_PM',
+  'MPG',
+  'USG_PERCENT',
+  'BPM',
+]
 
-const TEAM_STAT_INDEX = buildTeamStatIndex()
-const PLAYER_STAT_INDEX = buildPlayerStatIndex()
+const TEAM_STAT_INDEX = TEAM_STAT_KEYS.map((key) => ({
+  key,
+  variants: expandStatVariants(key),
+}))
+
+const PLAYER_STAT_INDEX = PLAYER_STAT_KEYS.map((key) => ({
+  key,
+  variants: expandStatVariants(key),
+}))
 
 function findStatRequest(query: string, index: Array<{ key: string; variants: string[] }>): string | null {
   const normalizedQuery = normalizeToken(query)
@@ -561,10 +559,7 @@ function extractPlayerName(query: string): string | undefined {
       const cleaned = extracted.split(/\s+/).filter(word => !stopWords.includes(word)).join(' ')
 
       if (cleaned.length > 1) {
-        const player = findNbaStaticPlayer(cleaned)
-        if (player) {
-          return cleaned
-        }
+        return cleaned
       }
     }
   }
@@ -579,10 +574,8 @@ function extractTeamName(query: string): string | undefined {
     const match = normalized.match(pattern)
     if (match && match[1]) {
       const extracted = match[1].trim()
-      const teams = findStaticNbaTeam(extracted)
-      if (teams && teams.length > 0) {
-        return extracted
-      }
+      const team = findTeamInQuery(extracted)
+      if (team) return team
     }
   }
 

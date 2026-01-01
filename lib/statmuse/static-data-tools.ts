@@ -1,15 +1,18 @@
 /**
- * Static data tools for querying CSV-based sports statistics.
- * These are fast (no API calls) and should be prioritized for NBA data.
+ * NBA team/player stat tools sourced from ESPN endpoints.
  */
 
-import { findStaticNbaTeam, getStaticNbaTeams } from '@/lib/nba-static-team-stats'
-import { findNbaStaticPlayer } from '@/lib/nba-static-stats'
-import type { TeamStats } from '@/lib/sports-stats-api'
+import {
+  getNBARoster,
+  getNBAPlayerSeasonStats,
+  getPlayerSeasonStats,
+  getTeamStats as getSportsTeamStats,
+  type TeamStats,
+} from '@/lib/sports-stats-api'
 import type { TeamStatsResult, PlayerStatsResult } from './types'
 
 /**
- * Mapping of common stat name variations to actual keys in the static data
+ * Mapping of common stat name variations to actual keys in the ESPN data
  */
 const STAT_KEY_MAPPINGS: Record<string, string[]> = {
   // Opponent/Defensive stats
@@ -88,7 +91,7 @@ function findStatKey(requested: string, stats: Record<string, any>): string | nu
 }
 
 /**
- * Get team stats from static NBA data
+ * Get team stats from ESPN NBA data
  */
 type TeamStatsMode = 'summary' | 'profile'
 
@@ -104,7 +107,10 @@ const formatStatValue = (key: string, value: number): string => {
   return value.toFixed(1)
 }
 
-const buildTeamProfile = (team: TeamStats, stats: Record<string, any>): string => {
+const buildTeamProfile = async (
+  team: TeamStats,
+  stats: Record<string, any>
+): Promise<string> => {
   const regularStats = [
     { key: 'gamesPlayed', label: 'Games' },
     { key: 'minutesPerGame', label: 'MPG' },
@@ -199,11 +205,13 @@ const buildTeamProfile = (team: TeamStats, stats: Record<string, any>): string =
   const net = stats.netRating as number | undefined
   const ppg = stats.pointsForPerGame as number | undefined
   const papg = stats.pointsAgainstPerGame as number | undefined
-  const paceAvg = getLeagueAverage('pace')
-  const ortgAvg = getLeagueAverage('offensiveRating')
-  const drtgAvg = getLeagueAverage('defensiveRating')
-  const ppgAvg = getLeagueAverage('pointsForPerGame')
-  const papgAvg = getLeagueAverage('pointsAgainstPerGame')
+  const [paceAvg, ortgAvg, drtgAvg, ppgAvg, papgAvg] = await Promise.all([
+    getLeagueAverage('pace'),
+    getLeagueAverage('offensiveRating'),
+    getLeagueAverage('defensiveRating'),
+    getLeagueAverage('pointsForPerGame'),
+    getLeagueAverage('pointsAgainstPerGame'),
+  ])
 
   if (pace != null && paceAvg != null) {
     if (pace >= paceAvg + 1.5) bettingOutlook.push('Fast pace -> higher totals and more possessions.')
@@ -248,13 +256,13 @@ export async function executeStaticTeamStats(args: {
   stats?: string[]
   mode?: TeamStatsMode
 }): Promise<TeamStatsResult> {
-  const teams = findStaticNbaTeam(args.team)
+  const teams = await getSportsTeamStats('basketball_nba', args.team)
 
   if (!teams.length) {
     return {
       team: args.team,
       stats: {},
-      error: `Team "${args.team}" not found in static data. Try using full team name or city.`,
+      error: `Team "${args.team}" not found in ESPN data. Try using full team name or city.`,
     }
   }
 
@@ -289,7 +297,7 @@ export async function executeStaticTeamStats(args: {
       team: team.team,
       stats: allStats,
       record: `${team.wins}-${team.losses}`,
-      formatted: buildTeamProfile(team, allStats),
+      formatted: await buildTeamProfile(team, allStats),
     }
   }
 
@@ -319,16 +327,16 @@ export async function executeStaticTeamStats(args: {
 }
 
 /**
- * Get player stats from static NBA data
+ * Get player stats from ESPN NBA data
  */
 export async function executeStaticPlayerStats(args: { player: string; stats?: string[] }): Promise<PlayerStatsResult> {
-  const player = findNbaStaticPlayer(args.player)
+  const player = await getPlayerSeasonStats(args.player, 'basketball_nba')
 
   if (!player) {
     return {
       player: args.player,
       stats: {},
-      error: `Player "${args.player}" not found in static data. Check spelling or try a different name format.`,
+      error: `Player "${args.player}" not found in ESPN data. Check spelling or try a different name format.`,
     }
   }
 
@@ -347,10 +355,10 @@ export async function executeStaticPlayerStats(args: { player: string; stats?: s
 
     return {
       player: player.name,
-      team: player.team,
-      stats: filtered,
-      ...(notFound.length > 0 && { error: `Stats not found: ${notFound.join(', ')}` }),
-    }
+    team: player.team,
+    stats: filtered,
+    ...(notFound.length > 0 && { error: `Stats not found: ${notFound.join(', ')}` }),
+  }
   }
 
   // Add formatted output with prop implications
@@ -379,8 +387,8 @@ export async function executeStaticPlayerStats(args: { player: string; stats?: s
 /**
  * Get all team stats for comparison/ranking purposes
  */
-export function getAllStaticTeamStats(): TeamStatsResult[] {
-  const teams = getStaticNbaTeams()
+export async function getAllStaticTeamStats(): Promise<TeamStatsResult[]> {
+  const teams = await getSportsTeamStats('basketball_nba')
   return teams.map((team) => ({
     team: team.team,
     stats: team.stats,
@@ -391,8 +399,8 @@ export function getAllStaticTeamStats(): TeamStatsResult[] {
 /**
  * Get a specific stat across all teams for ranking
  */
-export function getStatRankings(statName: string): Array<{ team: string; value: number | null; rank: number }> {
-  const teams = getStaticNbaTeams()
+export async function getStatRankings(statName: string): Promise<Array<{ team: string; value: number | null; rank: number }>> {
+  const teams = await getSportsTeamStats('basketball_nba')
   const results: Array<{ team: string; value: number | null }> = []
 
   for (const team of teams) {
@@ -416,11 +424,11 @@ export function getStatRankings(statName: string): Array<{ team: string; value: 
 /**
  * Find team rank for a specific stat
  */
-export function getTeamStatRank(
+export async function getTeamStatRank(
   teamName: string,
   statName: string
-): { team: string; value: number | null; rank: number; total: number } | null {
-  const rankings = getStatRankings(statName)
+): Promise<{ team: string; value: number | null; rank: number; total: number } | null> {
+  const rankings = await getStatRankings(statName)
   const teamRanking = rankings.find(
     (r) =>
       r.team.toLowerCase().includes(teamName.toLowerCase()) ||
@@ -438,8 +446,8 @@ export function getTeamStatRank(
 /**
  * Get league average for a stat
  */
-export function getLeagueAverage(statName: string): number | null {
-  const teams = getStaticNbaTeams()
+export async function getLeagueAverage(statName: string): Promise<number | null> {
+  const teams = await getSportsTeamStats('basketball_nba')
   let sum = 0
   let count = 0
 
@@ -518,53 +526,78 @@ export interface PlayerLeaderboardEntry {
   gamesPlayed: number
 }
 
-export function getPlayerLeaderboard(
+const LEADERBOARD_CACHE_TTL = 1000 * 60 * 10
+const leaderboardCache = new Map<
+  string,
+  { ts: number; result: { stat: string; leaders: PlayerLeaderboardEntry[]; error?: string } }
+>()
+
+const mapWithConcurrency = async <T>(
+  items: T[],
+  limit: number,
+  handler: (item: T) => Promise<void>
+) => {
+  for (let i = 0; i < items.length; i += limit) {
+    const slice = items.slice(i, i + limit)
+    await Promise.all(slice.map((item) => handler(item)))
+  }
+}
+
+export async function getPlayerLeaderboard(
   statName: string,
   limit: number = 10,
   minGames: number = 10
-): { stat: string; leaders: PlayerLeaderboardEntry[]; error?: string } {
-  const { getStaticNbaPlayers } = require('@/lib/nba-static-stats')
-  const players = getStaticNbaPlayers()
+): Promise<{ stat: string; leaders: PlayerLeaderboardEntry[]; error?: string }> {
+  const cacheKey = `${statName}:${limit}:${minGames}`
+  const cached = leaderboardCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < LEADERBOARD_CACHE_TTL) {
+    return cached.result
+  }
 
-  if (!players || players.length === 0) {
+  const roster = await getNBARoster()
+  if (!roster || roster.length === 0) {
     return { stat: statName, leaders: [], error: 'No player data available' }
   }
 
-  // Find the stat key using the first player's stats as reference
-  const sampleStats = players[0]?.stats || {}
-  const statKey = findPlayerStatKey(statName, sampleStats)
+  let statKey: string | null = null
+  const leaders: Array<{ player: string; team: string; value: number; gamesPlayed: number }> = []
+
+  await mapWithConcurrency(roster, 6, async (player) => {
+    const data = await getNBAPlayerSeasonStats(player.name)
+    const stats = data?.stats || {}
+    if (!Object.keys(stats).length) return
+
+    if (!statKey) {
+      statKey = findPlayerStatKey(statName, stats as Record<string, any>)
+    }
+    if (!statKey) return
+
+    const gp = (stats as any).GP || 0
+    const value = (stats as any)[statKey]
+    if (gp < minGames || typeof value !== 'number' || value <= 0) return
+
+    leaders.push({
+      player: data?.name || player.name,
+      team: data?.team || player.teamAbbr,
+      value,
+      gamesPlayed: gp,
+    })
+  })
 
   if (!statKey) {
-    const availableStats = Object.keys(sampleStats).slice(0, 15).join(', ')
     return {
       stat: statName,
       leaders: [],
-      error: `Stat "${statName}" not found. Available stats: ${availableStats}...`,
+      error: `Stat "${statName}" not found in ESPN data.`,
     }
   }
 
-  // Filter and sort players
-  const playersWithStat = players
-    .filter((p: any) => {
-      const gp = p.stats?.GP || 0
-      const value = p.stats?.[statKey]
-      return gp >= minGames && typeof value === 'number' && value > 0
-    })
-    .map((p: any) => ({
-      player: p.name,
-      team: p.team,
-      value: p.stats[statKey] as number,
-      gamesPlayed: p.stats.GP || 0,
-    }))
-    .sort((a: any, b: any) => b.value - a.value)
+  const sorted = leaders
+    .sort((a, b) => b.value - a.value)
     .slice(0, limit)
-    .map((entry: any, idx: number) => ({
-      ...entry,
-      rank: idx + 1,
-    }))
+    .map((entry, idx) => ({ ...entry, rank: idx + 1 }))
 
-  return {
-    stat: statKey,
-    leaders: playersWithStat,
-  }
+  const result = { stat: statKey, leaders: sorted }
+  leaderboardCache.set(cacheKey, { ts: Date.now(), result })
+  return result
 }

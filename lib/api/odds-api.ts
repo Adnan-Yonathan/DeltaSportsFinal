@@ -403,6 +403,56 @@ function resolveTotalsMarketKey(normalizedName: string, normalizedKey: string): 
   return MARKETS.TOTALS
 }
 
+function resolveTeamTotalsMarketKey(
+  normalizedName: string,
+  normalizedKey: string
+): string | null {
+  const combined = `${normalizedName} ${normalizedKey}`.trim()
+  if (
+    !combined.includes('team') ||
+    !(combined.includes('total') || combined.includes('over/under'))
+  ) {
+    return null
+  }
+
+  const firstHalf =
+    combined.includes('1st half') ||
+    combined.includes('first half') ||
+    /\b1h\b/.test(combined)
+  const secondHalf =
+    combined.includes('2nd half') ||
+    combined.includes('second half') ||
+    /\b2h\b/.test(combined)
+
+  if (firstHalf) return MARKETS.TEAM_TOTALS_1H
+  if (secondHalf) return MARKETS.TEAM_TOTALS_2H
+  return MARKETS.TEAM_TOTALS
+}
+
+function resolveSpreadMarketKey(
+  normalizedName: string,
+  normalizedKey: string
+): string | null {
+  const combined = `${normalizedName} ${normalizedKey}`.trim()
+  if (!combined.includes('spread') && !combined.includes('handicap')) {
+    return null
+  }
+
+  const firstHalf =
+    combined.includes('1st half') ||
+    combined.includes('first half') ||
+    /\b1h\b/.test(combined)
+  const secondHalf =
+    combined.includes('2nd half') ||
+    combined.includes('second half') ||
+    /\b2h\b/.test(combined)
+
+  if (firstHalf) return MARKETS.SPREADS_1H
+  if (secondHalf) return MARKETS.SPREADS_2H
+  if (combined.includes('half')) return null
+  return MARKETS.SPREADS
+}
+
 // Check if odds are within the allowed spread range (currently unbounded to include all spreads)
 function isStandardSpreadOdds(price: number | null | undefined): boolean {
   if (price == null) return false
@@ -487,12 +537,11 @@ export function mapBookmakersIO(
         }
       }
 
-      const isSpread =
-        normalizedName.includes('spread') ||
-        normalizedName.includes('handicap') ||
-        normalizedName.includes('point spread') ||
-        normalizedKey.includes('spread') ||
-        normalizedKey.includes('handicap')
+      const spreadMarketKey = resolveSpreadMarketKey(
+        normalizedName,
+        normalizedKey
+      )
+      const isSpread = !!spreadMarketKey
 
       if (isSpread && oddsEntries.length) {
         let filteredCount = 0
@@ -524,8 +573,8 @@ export function mapBookmakersIO(
           const out: OddsOutcome[] = []
           if (homePrice != null) out.push({ name: home, price: homePrice, point: hdp })
           if (awayPrice != null) out.push({ name: away, price: awayPrice, point: -hdp })
-          if (out.length && shouldInclude('spreads')) {
-            mappedMarkets.push({ key: 'spreads', outcomes: out, last_update })
+          if (out.length && spreadMarketKey && shouldInclude(spreadMarketKey)) {
+            mappedMarkets.push({ key: spreadMarketKey, outcomes: out, last_update })
           }
         }
 
@@ -546,7 +595,12 @@ export function mapBookmakersIO(
 
       if (isTotal && oddsEntries.length) {
         const totalsMarketKey = resolveTotalsMarketKey(normalizedName, normalizedKey)
-        if (!totalsMarketKey) {
+        const teamTotalsMarketKey = resolveTeamTotalsMarketKey(
+          normalizedName,
+          normalizedKey
+        )
+        const activeTotalsKey = totalsMarketKey ?? teamTotalsMarketKey
+        if (!activeTotalsKey) {
           continue
         }
 
@@ -582,11 +636,25 @@ export function mapBookmakersIO(
           if (totalLine == null || totalLine < 5 || totalLine > 400) continue
           const overPrice = normalizePrice(row?.over ?? row?.overOdds ?? row?.over_price)
           const underPrice = normalizePrice(row?.under ?? row?.underOdds ?? row?.under_price)
+          const teamLabel =
+            teamTotalsMarketKey &&
+            (row?.label || row?.team || row?.name || row?.side || row?.participant)
           const outcomes: OddsOutcome[] = []
-          if (overPrice != null) outcomes.push({ name: 'Over', price: overPrice, point: totalLine })
+          const teamPrefix =
+            teamLabel && typeof teamLabel === 'string' ? `${teamLabel} ` : ''
+          if (overPrice != null)
+            outcomes.push({
+              name: `${teamPrefix}Over`.trim(),
+              price: overPrice,
+              point: totalLine,
+            })
           if (underPrice != null)
-            outcomes.push({ name: 'Under', price: underPrice, point: totalLine })
-          if (outcomes.length && shouldInclude(totalsMarketKey)) {
+            outcomes.push({
+              name: `${teamPrefix}Under`.trim(),
+              price: underPrice,
+              point: totalLine,
+            })
+          if (outcomes.length && shouldInclude(activeTotalsKey)) {
             const prices = outcomes.map((o) => o.price).filter((p) => isFinite(p))
             if (!prices.length) continue
             const candidate = { outcomes, last_update, prices, point: totalLine }
@@ -609,7 +677,7 @@ export function mapBookmakersIO(
 
         if (bestTotals) {
           mappedMarkets.push({
-            key: totalsMarketKey,
+            key: activeTotalsKey,
             outcomes: bestTotals.outcomes,
             last_update: bestTotals.last_update,
           })
@@ -720,19 +788,30 @@ const filterSbdMarkets = (markets: any, allowedMarkets?: string[] | null) => {
   if (allowed.has(MARKETS.H2H) || allowed.has('moneyline')) {
     if (markets.moneyline) filtered.moneyline = markets.moneyline
   }
-  if (allowed.has(MARKETS.SPREADS) || allowed.has('spread')) {
+  const wantsSpreads =
+    allowed.has(MARKETS.SPREADS) ||
+    allowed.has('spread') ||
+    allowed.has(MARKETS.SPREADS_1H) ||
+    allowed.has(MARKETS.SPREADS_2H)
+  if (wantsSpreads) {
     if (markets.spread) filtered.spread = markets.spread
   }
   const wantsTotals = allowed.has(MARKETS.TOTALS) || allowed.has('total')
   const wantsPartialTotals = Array.from(allowed).some((key) => key.startsWith('totals_'))
+  const wantsTeamTotals = Array.from(allowed).some((key) =>
+    key.startsWith('team_totals')
+  )
   if (wantsTotals) {
     if (markets.total) filtered.total = markets.total
   }
-  if (wantsPartialTotals) {
+  if (wantsPartialTotals || wantsTeamTotals || wantsSpreads) {
     for (const key of Object.keys(markets)) {
       const normalized = key.toLowerCase()
       if (normalized === 'total' || normalized === 'totals') continue
-      if (!normalized.includes('total')) continue
+      if (normalized === 'spread' || normalized === 'spreads') continue
+      const hasTotal = normalized.includes('total')
+      const hasSpread = normalized.includes('spread')
+      if (!hasTotal && !hasSpread) continue
       filtered[key] = markets[key]
     }
   }

@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { fetchOdds } from '@/lib/api/odds-api'
-import { getInjuryReports, getTeamStats } from '@/lib/sports-stats-api'
+import { getSportProvider } from '@/lib/providers/sport-registry'
 import { Database } from '@/lib/supabase/types'
 
 type MarketSnapshotRow = Database['public']['Tables']['market_snapshots']['Row']
@@ -143,7 +143,8 @@ async function loadInjuries({
     }
   }
 
-  const live = await getInjuryReports(sport)
+  const provider = getSportProvider(sport)
+  const live = await provider.getInjuryReports()
   return live.map(mapRow)
 }
 
@@ -342,6 +343,7 @@ export async function buildGameContext({
   supabase,
 }: BuildContextParams): Promise<GameContextPayload> {
   const notes: string[] = []
+  const provider = getSportProvider(sport)
   const normalizedHome = normalizeTeamName(homeTeam)
   const normalizedAway = normalizeTeamName(awayTeam)
 
@@ -398,7 +400,7 @@ export async function buildGameContext({
       notes.push('Injury feed unavailable.')
       return []
     }),
-    getTeamStats(sport).catch((error) => {
+    provider.getTeamStats().catch((error) => {
       console.error('[CONTEXT] Failed to fetch team stats:', error)
       notes.push('Team stats unavailable.')
       return []

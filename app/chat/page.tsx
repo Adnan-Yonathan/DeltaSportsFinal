@@ -68,14 +68,27 @@ export default function ChatPage() {
         setMessagesToday(count)
       }
 
+      const metadataCompleted = Boolean(
+        (user.user_metadata as { onboarding_completed?: boolean })?.onboarding_completed
+      )
+
       const { data: profile, error: profileError } = await supabase
         .from('users')
-        .select('display_name')
+        .select('display_name, onboarding_completed')
         .eq('id', user.id)
         .single()
 
       if (profileError) {
         console.warn('Profile lookup failed:', profileError.message)
+        if (!metadataCompleted) {
+          router.push('/onboarding')
+          setLoading(false)
+          return
+        }
+      } else if (profile?.onboarding_completed === false && !metadataCompleted) {
+        router.push('/onboarding')
+        setLoading(false)
+        return
       }
 
       setProfileName(profile?.display_name || user.email || 'Guest')

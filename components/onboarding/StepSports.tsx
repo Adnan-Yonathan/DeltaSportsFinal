@@ -1,5 +1,4 @@
 "use client"
-
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Check } from "lucide-react"
@@ -11,18 +10,14 @@ interface StepSportsProps {
 }
 
 const SPORTS = [
-  { id: "nfl", name: "NFL", emoji: "🏈" },
-  { id: "nba", name: "NBA", emoji: "🏀" },
-  { id: "mlb", name: "MLB", emoji: "⚾" },
-  { id: "nhl", name: "NHL", emoji: "🏒" },
-  { id: "ncaaf", name: "NCAAF", emoji: "🏈" },
-  { id: "ncaab", name: "NCAAB", emoji: "🏀" },
-  { id: "soccer", name: "Soccer", emoji: "⚽" },
-  { id: "mma", name: "MMA", emoji: "🥊" },
-  { id: "tennis", name: "Tennis", emoji: "🎾" },
-  { id: "golf", name: "Golf", emoji: "⛳" },
-  { id: "boxing", name: "Boxing", emoji: "🥊" },
-  { id: "esports", name: "Esports", emoji: "🎮" },
+  { id: "nba", label: "NBA", detail: "Pro basketball" },
+  { id: "ncaab", label: "NCAAB", detail: "College basketball" },
+  { id: "nfl", label: "NFL", detail: "Pro football" },
+  { id: "ncaaf", label: "NCAAF", detail: "College football" },
+  { id: "mlb", label: "MLB", detail: "Baseball" },
+  { id: "nhl", label: "NHL", detail: "Hockey" },
+  { id: "soccer", label: "Soccer", detail: "Club and international" },
+  { id: "other", label: "Other", detail: "Everything else" },
 ]
 
 export function StepSports({ value, onChange, onValidation }: StepSportsProps) {
@@ -46,35 +41,40 @@ export function StepSports({ value, onChange, onValidation }: StepSportsProps) {
       className="space-y-6"
     >
       <div className="text-center space-y-2">
-        <h2 className="text-4xl font-bold text-white">What Sports Do You Bet On?</h2>
-        <p className="text-white/60">Select all that apply</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-white/40">Sports</p>
+        <h2 className="text-4xl font-bold text-white tracking-tight">
+          Which sports do you follow?
+        </h2>
+        <p className="text-white/60">Select all that apply.</p>
       </div>
 
-      <div className="max-w-3xl mx-auto">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {SPORTS.map((sport) => {
             const isSelected = value.includes(sport.id)
             return (
               <motion.button
                 key={sport.id}
                 onClick={() => toggleSport(sport.id)}
-              className={`
-                  relative p-6 rounded-xl border-2 transition-all
+                className={`
+                  relative p-5 rounded-2xl border transition-all text-left
                   ${isSelected
-                    ? "bg-gradient-to-br from-emerald-500/20 via-emerald-500/15 to-emerald-500/5 border-emerald-400/70 shadow-[0_10px_30px_rgba(16,185,129,0.25)]"
-                    : "bg-neutral-850/80 border-emerald-300/15 hover:border-emerald-300/30"
+                    ? "bg-gradient-to-b from-emerald-500/15 via-emerald-500/10 to-transparent border-emerald-400/70 shadow-[0_14px_40px_rgba(16,185,129,0.2)]"
+                    : "bg-white/[0.03] border-white/10 hover:border-emerald-300/40"
                   }
                 `}
-                whileHover={{ scale: 1.02 }}
+                whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
               >
                 {isSelected && (
-                  <div className="absolute top-2 right-2 bg-emerald-500 rounded-full p-1">
+                  <div className="absolute top-3 right-3 bg-emerald-500 rounded-full p-1">
                     <Check className="w-4 h-4 text-white" />
                   </div>
                 )}
-                <div className="text-4xl mb-2">{sport.emoji}</div>
-                <div className="text-white font-medium">{sport.name}</div>
+                <div className="space-y-1">
+                  <div className="text-lg font-semibold text-white">{sport.label}</div>
+                  <div className="text-xs text-white/50">{sport.detail}</div>
+                </div>
               </motion.button>
             )
           })}

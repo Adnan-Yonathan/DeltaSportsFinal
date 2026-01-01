@@ -132,6 +132,8 @@ export interface GameLineScoreEntry {
 export interface GameTeamStatistic {
   label: string
   value: string
+  name?: string
+  abbreviation?: string
 }
 
 export interface GamePlayerSummary {
@@ -195,6 +197,17 @@ export interface LiveScoreGameDetails {
   leagueLabel: string
   updatedAt: string
   statusText?: string
+  status?: {
+    displayClock?: string
+    period?: number
+    displayPeriod?: string
+    type?: {
+      state?: string
+      detail?: string
+      shortDetail?: string
+      completed?: boolean
+    }
+  }
   venue?: string
   teams: GameDetailsTeam[]
   articles?: LiveScoreArticle[]
@@ -622,6 +635,11 @@ export async function fetchAllLiveScores(options: FetchAllOptions = {}): Promise
 }
 
 const getPeriodLabel = (league: LeagueId, index: number) => {
+  if (league === "ncaab") {
+    const base = ["H1", "H2"]
+    if (index < base.length) return base[index]
+    return `OT${index - base.length + 1}`
+  }
   if (league === "nhl") {
     const base = ["1st", "2nd", "3rd"]
     if (index < base.length) return base[index]
@@ -651,6 +669,12 @@ export async function fetchGameDetails(league: LeagueId, eventId: string): Promi
 
   const data = await response.json()
   const competition = data?.header?.competitions?.[0]
+  const status = competition?.status
+  const statusDetail = status?.type?.shortDetail ?? status?.type?.detail
+  const statusText =
+    status?.displayClock && statusDetail
+      ? `${status.displayClock} - ${statusDetail}`
+      : statusDetail
 
   const playerSections = data?.boxscore?.players ?? []
 
@@ -707,7 +731,9 @@ export async function fetchGameDetails(league: LeagueId, eventId: string): Promi
       const stats: GameTeamStatistic[] = (boxTeam?.statistics ?? [])
         .map((stat: any) => ({
           label: stat?.label ?? stat?.abbreviation ?? stat?.name ?? "",
-          value: stat?.displayValue ?? "",
+          value: stat?.displayValue ?? stat?.value ?? "",
+          name: stat?.name,
+          abbreviation: stat?.abbreviation,
         }))
         .filter((entry: GameTeamStatistic) => entry.label && entry.value)
 
@@ -738,7 +764,22 @@ export async function fetchGameDetails(league: LeagueId, eventId: string): Promi
     league,
     leagueLabel: config.label,
     updatedAt: new Date().toISOString(),
-    statusText: competition?.status?.type?.shortDetail ?? competition?.status?.type?.detail,
+    statusText,
+    status: status
+      ? {
+          displayClock: status?.displayClock,
+          period: status?.period,
+          displayPeriod: status?.displayPeriod,
+          type: status?.type
+            ? {
+                state: status?.type?.state,
+                detail: status?.type?.detail,
+                shortDetail: status?.type?.shortDetail,
+                completed: status?.type?.completed,
+              }
+            : undefined,
+        }
+      : undefined,
     venue: data?.gameInfo?.venue?.fullName ?? competition?.venue?.fullName,
     teams,
     articles:

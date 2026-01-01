@@ -6,6 +6,7 @@
 
 import type { PlayByPlayEntry, LiveScoreGameDetails, GameDetailsTeam } from '@/lib/live-scores'
 import { getPlayerStats } from './matchup-analyzer'
+import { getPlayerImpactScore } from './player-impact'
 
 // ============================================================================
 // INTERFACES
@@ -17,7 +18,7 @@ export interface RotationAnomaly {
   anomalyType: 'starter_benched_early' | 'bench_extended_run'
   minutesInQuarter: number
   typicalMinutesInQuarter: number
-  bpm: number
+  impactScore: number
   reason: string
 }
 
@@ -150,14 +151,14 @@ function calculateQuarterMinutes(
 /**
  * Detect rotation anomalies for a team
  */
-function analyzeTeamRotation(
+async function analyzeTeamRotation(
   team: GameDetailsTeam | undefined,
   teamSide: 'home' | 'away',
   currentPeriod: number,
   subs: SubstitutionEvent[],
   homeTeamId: string,
   awayTeamId: string
-): RotationAnomaly[] {
+): Promise<RotationAnomaly[]> {
   const anomalies: RotationAnomaly[] = []
 
   if (!team || currentPeriod < 1) return anomalies
@@ -169,8 +170,8 @@ function analyzeTeamRotation(
 
   // Analyze starters
   for (const starter of team.starters) {
-    const playerStats = getPlayerStats(starter.name || '', 'points')
-    const bpm = playerStats?.bpm || 0
+    const playerStats = await getPlayerStats(starter.name || '', 'points')
+    const impactScore = getPlayerImpactScore(playerStats)
     const typicalMPG = playerStats?.minutesPerGame || 30
 
     // Calculate typical minutes per quarter (rough estimate)
@@ -188,14 +189,14 @@ function analyzeTeamRotation(
     )
 
     // Check for starter benched early (< 2 mins in quarter when typically plays 6+)
-    if (quarterMinutes < 2 && typicalQuarterMins > 5 && bpm > 0) {
+    if (quarterMinutes < 2 && typicalQuarterMins > 5 && impactScore > 0.5) {
       anomalies.push({
         playerName: starter.name || 'Unknown',
         team: teamSide,
         anomalyType: 'starter_benched_early',
         minutesInQuarter: quarterMinutes,
         typicalMinutesInQuarter: typicalQuarterMins,
-        bpm,
+        impactScore,
         reason: `Only ${quarterMinutes.toFixed(1)} min in Q${currentPeriod} (typically ${typicalQuarterMins.toFixed(1)})`,
       })
     }
@@ -203,8 +204,8 @@ function analyzeTeamRotation(
 
   // Analyze bench players for extended runs
   for (const bench of team.bench) {
-    const playerStats = getPlayerStats(bench.name || '', 'points')
-    const bpm = playerStats?.bpm || 0
+    const playerStats = await getPlayerStats(bench.name || '', 'points')
+    const impactScore = getPlayerImpactScore(playerStats)
     const typicalMPG = playerStats?.minutesPerGame || 15
 
     // Bench players typically play less per quarter
@@ -226,7 +227,7 @@ function analyzeTeamRotation(
         anomalyType: 'bench_extended_run',
         minutesInQuarter: quarterMinutes,
         typicalMinutesInQuarter: typicalQuarterMins,
-        bpm,
+        impactScore,
         reason: `${quarterMinutes.toFixed(1)} min in Q${currentPeriod} (typically ${typicalQuarterMins.toFixed(1)})`,
       })
     }
@@ -242,10 +243,10 @@ function analyzeTeamRotation(
 /**
  * Analyze rotation patterns for both teams
  */
-export function analyzeRotation(
+export async function analyzeRotation(
   liveGame: LiveScoreGameDetails,
   currentPeriod: number
-): RotationAnalysis {
+): Promise<RotationAnalysis> {
   const homeTeam = liveGame.teams.find(t => t.homeAway === 'home')
   const awayTeam = liveGame.teams.find(t => t.homeAway === 'away')
 
@@ -257,23 +258,24 @@ export function analyzeRotation(
   const subs = parseSubstitutions(plays)
 
   // Analyze both teams
-  const homeAnomalies = analyzeTeamRotation(homeTeam, 'home', currentPeriod, subs, homeTeamId, awayTeamId)
-  const awayAnomalies = analyzeTeamRotation(awayTeam, 'away', currentPeriod, subs, homeTeamId, awayTeamId)
+  const [homeAnomalies, awayAnomalies] = await Promise.all([
+    analyzeTeamRotation(homeTeam, 'home', currentPeriod, subs, homeTeamId, awayTeamId),
+    analyzeTeamRotation(awayTeam, 'away', currentPeriod, subs, homeTeamId, awayTeamId),
+  ])
 
   // Calculate lineup quality delta
-  // Positive BPM = good player, so missing a high BPM player hurts
   let homeQualityLoss = 0
   let awayQualityLoss = 0
 
   for (const anomaly of homeAnomalies) {
     if (anomaly.anomalyType === 'starter_benched_early') {
-      homeQualityLoss += anomaly.bpm * 0.5 // Losing a starter hurts
+      homeQualityLoss += anomaly.impactScore * 0.5
     }
   }
 
   for (const anomaly of awayAnomalies) {
     if (anomaly.anomalyType === 'starter_benched_early') {
-      awayQualityLoss += anomaly.bpm * 0.5
+      awayQualityLoss += anomaly.impactScore * 0.5
     }
   }
 
@@ -286,7 +288,7 @@ export function analyzeRotation(
   const factors: string[] = []
 
   for (const anomaly of [...homeAnomalies, ...awayAnomalies]) {
-    if (anomaly.anomalyType === 'starter_benched_early' && anomaly.bpm > 2) {
+    if (anomaly.anomalyType === 'starter_benched_early' && anomaly.impactScore > 2) {
       factors.push(`📉 ${anomaly.playerName} benched early in Q${currentPeriod} - ${anomaly.reason}`)
     } else if (anomaly.anomalyType === 'bench_extended_run') {
       factors.push(`📈 ${anomaly.playerName} extended run in Q${currentPeriod} - ${anomaly.reason}`)

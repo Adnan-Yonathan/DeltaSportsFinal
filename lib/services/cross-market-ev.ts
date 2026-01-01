@@ -30,7 +30,7 @@ export interface CrossMarketEVOptions {
 }
 
 const DEFAULT_OPTIONS: Required<CrossMarketEVOptions> = {
-  sports: [SPORTS.NBA, SPORTS.NFL, SPORTS.MLB, SPORTS.NHL],
+  sports: [SPORTS.NBA, SPORTS.NCAA_BB, SPORTS.NFL, SPORTS.MLB, SPORTS.NHL],
   minEV: 3, // 3% for team markets
   minPropEV: 3, // 3% for player props
   minBooks: 2,
@@ -40,9 +40,20 @@ const DEFAULT_OPTIONS: Required<CrossMarketEVOptions> = {
   propMarkets: [], // Empty = all markets
 }
 
+const MAX_POSITIVE_ODDS = 500
+const MAX_ODDS = 1000
+
+const withinOddsCaps = (odds: number): boolean => {
+  if (!Number.isFinite(odds)) return false
+  if (odds > MAX_ODDS) return false
+  if (odds > 0 && odds > MAX_POSITIVE_ODDS) return false
+  return true
+}
+
 // Map sport keys to SBD league format
 const SPORT_TO_SBD_LEAGUE: Record<string, SbdLeague> = {
   [SPORTS.NBA]: 'nba',
+  [SPORTS.NCAA_BB]: 'ncaamb',
   [SPORTS.NFL]: 'nfl',
   [SPORTS.MLB]: 'mlb',
   [SPORTS.NHL]: 'nhl',
@@ -114,7 +125,8 @@ export async function findEVOpportunities(
 
   // Rank by EV and limit results
   const ranked = rankByEV(allOpportunities)
-  return ranked.slice(0, opts.limit)
+  const filtered = ranked.filter((opp) => withinOddsCaps(opp.bestOdds))
+  return filtered.slice(0, opts.limit)
 }
 
 /**

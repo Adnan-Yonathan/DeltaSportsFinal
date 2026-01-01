@@ -7,6 +7,7 @@ import { fetchGameDetails } from './lib/live-scores'
 import { analyzeLiveGame } from './lib/services/live-game-analyzer'
 import { calculateLiveSpread, calculateLiveTotal } from './lib/services/live-line-calculator'
 import { getTeamStats } from './lib/services/matchup-analyzer'
+import type { TeamStats } from './lib/services/pregame-value-calculator'
 
 async function testLiveEnhancements() {
   console.log('============================================================')
@@ -127,8 +128,8 @@ async function testLiveEnhancements() {
     console.log('--- LIVE BETTING RECOMMENDATIONS ---')
 
     // Get team stats for fair line calculation
-    const homeStats = await getTeamStats(analysis.homeTeam)
-    const awayStats = await getTeamStats(analysis.awayTeam)
+    const homeStats = (await getTeamStats(analysis.homeTeam)) as TeamStats | null
+    const awayStats = (await getTeamStats(analysis.awayTeam)) as TeamStats | null
 
     if (homeStats && awayStats) {
       const spreadRec = calculateLiveSpread(analysis, { homeStats, awayStats })

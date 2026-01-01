@@ -7,13 +7,13 @@ import type { ChatCompletionTool } from 'openai/resources/chat/completions'
 
 export const unifiedTools: ChatCompletionTool[] = [
   // ========================================
-  // STATIC DATA TOOLS (fast, no API call)
+  // NBA TEAM/PLAYER STATS (ESPN-sourced)
   // ========================================
   {
     type: 'function',
     function: {
       name: 'getStaticTeamStats',
-      description: `Get NBA team stats including OPPONENT/DEFENSIVE stats from static data.
+      description: `Get NBA team stats including OPPONENT/DEFENSIVE stats from ESPN data.
 Use for questions about:
 - Team defense ("What's the Lakers defensive rating?")
 - Opponent shooting ("What 3pt% do opponents shoot vs Thunder?")
@@ -44,7 +44,7 @@ pointsAgainstPerGame, opponentOffensiveReboundsPerGame, opponentReboundsPerGame,
     type: 'function',
     function: {
       name: 'getStaticPlayerStats',
-      description: `Get NBA player season averages from static data.
+      description: `Get NBA player season averages from ESPN data.
 Use for questions like:
 - "What's Curry's PPG?"
 - "How many assists does Trae Young average?"
@@ -70,7 +70,7 @@ Use for questions like:
     function: {
       name: 'getEspnTeamStats',
       description: `Get current team season stats from ESPN for any sport.
-Use when static data is not available or for non-NBA sports.`,
+Use for non-NBA sports or when you need ESPN team stats directly.`,
       parameters: {
         type: 'object',
         properties: {
@@ -450,7 +450,7 @@ Returns game details including teams, time, and game_id for each matchup.`,
     type: 'function',
     function: {
       name: 'get_game_recommendations',
-      description: `Calculate target betting lines for NBA spreads and totals based on statistical analysis. Analyzes team stats (ORtg, DRtg, Pace), rest/travel factors, ATS trends, and betting splits to project what the line SHOULD be. Does NOT reference external odds - purely model-based projections. Use when users ask:
+      description: `Calculate target betting lines for NBA spreads and totals based on statistical analysis. Analyzes team stats (ORtg, DRtg, Pace), rest/travel factors, ATS trends, and betting splits, then applies sharp signal weighting (splits/line movement) when available to project what the line SHOULD be. Use when users ask:
 - "What should the Lakers spread be?"
 - "What's a fair line for Warriors vs Celtics?"
 - "What total makes sense for this game?"
@@ -487,6 +487,7 @@ TRIGGER PHRASES (use this tool when user says):
 - "scan the slate for edges"
 
 Compares model projections to market lines for spreads and totals across all upcoming games.
+For NBA, NCAAB, NFL, NCAAF, and NHL, this can include player prop edges; for props-only scanning, use get_slate_prop_edge_detection.
 Returns summary of games analyzed with strong/soft/no edges and line gaps.`,
       parameters: {
         type: 'object',
@@ -500,6 +501,10 @@ Returns summary of games analyzed with strong/soft/no edges and line gaps.`,
             type: 'string',
             enum: ['soft', 'strong'],
             description: 'Only return games with at least this edge level (optional - returns all by default)'
+          },
+          date: {
+            type: 'string',
+            description: 'Target date in YYYY-MM-DD (America/New_York). Defaults to today.'
           }
         },
         required: []
@@ -509,8 +514,59 @@ Returns summary of games analyzed with strong/soft/no edges and line gaps.`,
   {
     type: 'function',
     function: {
+      name: 'get_slate_prop_edge_detection',
+      description: `SLATE-WIDE prop edge detection - analyzes ALL player props for a sport's slate to find the best prop edges across the ENTIRE slate. This is for MULTI-GAME prop scanning, NOT single player requests.
+
+TRIGGER PHRASES (use this tool when user says):
+- "best props tonight/today"
+- "prop edges for the slate"
+- "run prop edge detection on nba/ncaab/nfl/ncaaf/nhl"
+- "scan the slate for props"
+
+Returns summary of props analyzed with strong/soft/no edges and line gaps.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          sport: {
+            type: 'string',
+            enum: [
+              'basketball_nba',
+              'basketball_ncaab',
+              'americanfootball_nfl',
+              'americanfootball_ncaaf',
+              'icehockey_nhl',
+            ],
+            description: 'Sport to analyze (default: basketball_nba)',
+          },
+          minEdge: {
+            type: 'string',
+            enum: ['soft', 'strong'],
+            description: 'Only return props with at least this edge level (optional)',
+          },
+          limit: {
+            type: 'number',
+            description: 'Max number of prop edges to return (optional)',
+          },
+          markets: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Optional filter for prop markets (e.g., points, rebounds, assists, threes, pra, passing_yards, rushing_yards, receiving_yards, goals, shots)',
+          },
+          date: {
+            type: 'string',
+            description: 'Target date in YYYY-MM-DD (America/New_York). Defaults to today.',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_prop_recommendations',
-      description: `Calculate target player prop lines based on statistical analysis. Projects what the prop line SHOULD be using season averages, usage rate, pace, and rest factors. Does NOT reference external odds - purely model-based projections. Use when users ask:
+      description: `Calculate a target line for a SPECIFIC player prop based on statistical analysis. Projects what the prop line SHOULD be using season averages, usage rate, pace, and rest factors. Does NOT reference external odds - purely model-based projections. Use when users ask:
 - "What should LeBron's points line be?"
 - "Fair target for Curry 3-pointers?"
 - "Calculate Jokic rebounds line"
@@ -539,8 +595,30 @@ Supports points, rebounds, assists, threes, and PRA (points+rebounds+assists).`,
   {
     type: 'function',
     function: {
+      name: 'get_live_boxscore_stats',
+      description: `Fetch the latest live boxscore stats (team + player) for a specific ESPN event. Returns team stats, player stat maps, and live status for use in projections and in-game analysis.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          league: {
+            type: 'string',
+            description: 'League key (nba, ncaab, nfl, nhl, cfb).',
+            enum: ['nba', 'ncaab', 'nfl', 'nhl', 'cfb']
+          },
+          eventId: {
+            type: 'string',
+            description: 'ESPN event id for the live game.'
+          }
+        },
+        required: ['league', 'eventId']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_live_betting_projection',
-      description: `Project live betting lines (spread/total) for an IN-PROGRESS NBA game based on current game state, momentum, and team performance. Analyzes live score, game flow, team stats, pace, and execution to calculate what the live spread SHOULD be. Use ONLY when users ask about:
+      description: `Project live betting lines (spread/total) for an IN-PROGRESS NBA or NCAAB game based on current game state, momentum, and team performance. Analyzes live score, game flow, team stats, pace, and execution to calculate what the live spread SHOULD be. Use ONLY when users ask about:
 - "What's your projected live line for [team] game?"
 - "Live spread projection for [team] vs [team]"
 - "What should the live line be for the [team] game?"
@@ -552,6 +630,11 @@ Returns projected live spread with confidence level and supporting factors like 
           gameIdentifier: {
             type: 'string',
             description: 'Team names for the live game (e.g., "Spurs Hawks", "Lakers vs Celtics", "Warriors")'
+          },
+          sport: {
+            type: 'string',
+            description: 'Optional sport override (nba or ncaab). Defaults to auto-detect.',
+            enum: ['nba', 'ncaab']
           }
         },
         required: ['gameIdentifier']
@@ -755,7 +838,7 @@ Use for:
       description: `Search the web for information not available in other data sources.
 Use as a LAST RESORT when:
 - Question is about very recent news/events
-- Data is not available in static or ESPN sources
+- Data is not available in ESPN sources
 - Question is about non-major sports
 - Historical data beyond current season`,
       parameters: {
@@ -783,6 +866,8 @@ export const TOOL_NAMES = {
   ESPN_PLAYER_GAME_LOGS: 'getEspnPlayerGameLogs',
   LIVE_SCORES: 'getLiveScores',
   INJURIES: 'getInjuries',
+  LIVE_BOXSCORE_STATS: 'get_live_boxscore_stats',
+  LIVE_BETTING_PROJECTION: 'get_live_betting_projection',
   // Aggregations
   PLAYER_THRESHOLD: 'getPlayerThresholdGames',
   PLAYER_VS_OPPONENT: 'getPlayerVsOpponent',
@@ -802,6 +887,7 @@ export const TOOL_NAMES = {
   COVERS_ANALYZE_SPLITS: 'analyze_game_splits',
   GAME_RECOMMENDATIONS: 'get_game_recommendations',
   SLATE_EDGE_DETECTION: 'get_slate_edge_detection',
+  SLATE_PROP_EDGE_DETECTION: 'get_slate_prop_edge_detection',
   PROP_RECOMMENDATIONS: 'get_prop_recommendations',
   PROP_THRESHOLD_RANKING: 'get_ranked_players_by_prop_threshold',
   COMBO_ANALYSIS: 'combo_analysis',

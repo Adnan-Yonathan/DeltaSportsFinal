@@ -3,28 +3,35 @@
  * Aggregates all relevant data for a matchup: stats, travel, rest, ATS, splits
  */
 
+import { resolveSportKey } from '@/lib/identity/sport'
 import { createClient } from '@/lib/supabase/server'
 
 // ESPN API for schedule data
 const ESPN_SITE_API_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba'
-import { nbaTeamAdvStats2025_2026Csv } from '@/data/nba_team_adv_stats_2025_2026'
-import { nbaTeamPerGame2025_2026Csv } from '@/data/nba_team_per_game_2025_2026'
-import { nbaPlayerAdvStats2025_2026Csv } from '@/data/nba_player_advanced_stats_2025_2026'
-import { nbaPlayerPerGame2025_2026Csv } from '@/data/nba_player_per_game_2025_2026'
 import { nbaTravelMeta, type ArenaMeta } from '@/data/nba_travel_meta'
-import type { TeamStats, RestFactors, TravelFactors, PlayerStats, OpponentDefense } from './pregame-value-calculator'
+import type {
+  TeamStats,
+  FootballTeamStats,
+  HockeyTeamStats,
+  RestFactors,
+  TravelFactors,
+  PlayerStats,
+  OpponentDefense,
+} from './pregame-value-calculator'
+import { getCbbAdvancedRatingsForTeam } from '@/lib/services/cbb-advanced-ratings'
+import { getPlayerSeasonStats, getTeamStats as getSportsTeamStats } from '@/lib/sports-stats-api'
 import { detectInjuries } from './injury-detector'
 
 // Team abbreviation mappings
 const TEAM_ALIAS_MAP: Record<string, string> = {
-  atlantahawks: 'ATL', bostonceltics: 'BOS', brooklynnets: 'BRK',
-  charlottehornets: 'CHO', chicagobulls: 'CHI', clevelandcavaliers: 'CLE',
+  atlantahawks: 'ATL', bostonceltics: 'BOS', brooklynnets: 'BKN',
+  charlottehornets: 'CHA', chicagobulls: 'CHI', clevelandcavaliers: 'CLE',
   dallasmavericks: 'DAL', denvernuggets: 'DEN', detroitpistons: 'DET',
   goldenstatewarriors: 'GSW', houstonrockets: 'HOU', indianapacers: 'IND',
   losangelesclippers: 'LAC', losangeleslakers: 'LAL', memphisgrizzlies: 'MEM',
   miamiheat: 'MIA', milwaukeebucks: 'MIL', minnesotatimberwolves: 'MIN',
   neworleanspelicans: 'NOP', newyorkknicks: 'NYK', oklahomacitythunder: 'OKC',
-  orlandomagic: 'ORL', philadelphia76ers: 'PHI', phoenixsuns: 'PHO',
+  orlandomagic: 'ORL', philadelphia76ers: 'PHI', phoenixsuns: 'PHX',
   portlandtrailblazers: 'POR', sacramentokings: 'SAC', sanantoniospurs: 'SAS',
   torontoraptors: 'TOR', utahjazz: 'UTA', washingtonwizards: 'WAS',
 }
@@ -64,53 +71,342 @@ export function getTeamAbbrev(teamName: string): string | null {
 }
 
 /**
- * Parse team advanced stats from CSV
- * Uses static data which includes ORtg, DRtg, pace from Basketball Reference
+ * Helpers for ESPN-derived team and player stats with injury adjustments
  */
-function parseTeamAdvStats(): Map<string, any> {
-  const map = new Map()
-  const lines = nbaTeamAdvStats2025_2026Csv
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l && /^\d+,/.test(l))
-
-  for (const line of lines) {
-    const cells = line.split(',')
-    if (cells.length < 20) continue
-
-    const team = cells[2] // Team column
-    map.set(team, {
-      ortg: parseFloat(cells[12]) || 0,
-      drtg: parseFloat(cells[13]) || 0,
-      pace: parseFloat(cells[11]) || 100,
-      eFG: parseFloat(cells[14]) || 0,
-      ts: parseFloat(cells[15]) || 0,
-    })
+const toNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
   }
-
-  return map
+  return null
 }
 
-/**
- * Get team stats from static CSV data with injury adjustments
- */
-export async function getTeamStats(teamName: string): Promise<TeamStats | null> {
-  const abbrev = getTeamAbbrev(teamName)
-  if (!abbrev) return null
+const toPctDecimal = (value: unknown): number | undefined => {
+  const num = toNumber(value)
+  if (num == null) return undefined
+  return num > 1 ? num / 100 : num
+}
 
-  const advStats = parseTeamAdvStats()
-  const stats = advStats.get(abbrev)
+const formatPct = (value?: number | null): string => {
+  if (value == null || !Number.isFinite(value)) return '0.0'
+  const normalized = value > 1 ? value : value * 100
+  return normalized.toFixed(1)
+}
 
-  if (!stats) return null
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value))
 
-  // Base team stats from static CSV
-  const baseStats: TeamStats = {
-    ortg: stats.ortg,
-    drtg: stats.drtg,
-    pace: stats.pace,
-    eFG: stats.eFG,
-    ts: stats.ts,
+const formatSigned = (value?: number | null) => {
+  const num = value ?? 0
+  return num > 0 ? `+${num.toFixed(1)}` : num.toFixed(1)
+}
+
+const DEFAULT_NBA_TEAM_STATS: TeamStats = {
+  ortg: 115,
+  drtg: 115,
+  pace: 100,
+  eFG: 0.54,
+  ts: 0.57,
+}
+
+const DEFAULT_NFL_TEAM_STATS: FootballTeamStats = {
+  pointsForPerGame: 22,
+  pointsAgainstPerGame: 22,
+  yardsPerPlay: 5.5,
+  yardsAllowedPerPlay: 5.5,
+  playsPerGame: 63,
+  drivesPerGame: 11,
+  pointsPerDrive: 2.05,
+  thirdDownConvPct: 0.38,
+  redZoneTouchdownPct: 0.55,
+  redZoneScoringPct: 0.82,
+  explosivePlayRate: 0.1,
+  sackRate: 0.07,
+  defensiveSackRate: 0.07,
+  turnoverDifferential: 0,
+}
+
+const DEFAULT_NCAAF_TEAM_STATS: FootballTeamStats = {
+  pointsForPerGame: 28,
+  pointsAgainstPerGame: 28,
+  yardsPerPlay: 6.0,
+  yardsAllowedPerPlay: 6.0,
+  playsPerGame: 70,
+  drivesPerGame: 12,
+  pointsPerDrive: 2.4,
+  thirdDownConvPct: 0.41,
+  redZoneTouchdownPct: 0.62,
+  redZoneScoringPct: 0.85,
+  explosivePlayRate: 0.11,
+  sackRate: 0.06,
+  defensiveSackRate: 0.06,
+  turnoverDifferential: 0,
+}
+
+const DEFAULT_NHL_TEAM_STATS: HockeyTeamStats = {
+  goalsForPerGame: 3.1,
+  goalsAgainstPerGame: 3.1,
+  shotsForPerGame: 30,
+  shotsAgainstPerGame: 30,
+}
+
+const getCbbTeamStats = async (teamName: string): Promise<TeamStats | null> => {
+  const [advanced, teams] = await Promise.all([
+    getCbbAdvancedRatingsForTeam(teamName),
+    getSportsTeamStats('basketball_ncaab', teamName),
+  ])
+  const entry = teams?.[0]
+  const stats = entry?.stats || {}
+
+  const ortg = advanced?.adjO ?? toNumber(stats.offensiveRating)
+  const drtg = advanced?.adjD ?? toNumber(stats.defensiveRating)
+  const pace = advanced?.tempo ?? toNumber(stats.pace)
+
+  if (ortg == null || drtg == null || pace == null) return null
+
+  return {
+    ortg,
+    drtg,
+    pace,
+    eFG: toPctDecimal(stats.effectiveFieldGoalPct ?? stats.effectiveFgPct),
+    ts: toPctDecimal(stats.trueShootingPct),
   }
+}
+
+const getNbaTeamStats = async (teamName: string): Promise<TeamStats | null> => {
+  const teams = await getSportsTeamStats('basketball_nba', teamName)
+  const entry = teams?.[0]
+  const stats = entry?.stats || {}
+
+  const gamesPlayed = toNumber(stats.gamesPlayed)
+  const pointsFor = toNumber(stats.pointsFor)
+  const pointsAgainst = toNumber(stats.pointsAgainst)
+  const rawPpg = toNumber(stats.pointsForPerGame) ?? (pointsFor != null && gamesPlayed ? pointsFor / gamesPlayed : null)
+  const rawPapg =
+    toNumber(stats.pointsAgainstPerGame) ??
+    (pointsAgainst != null && gamesPlayed ? pointsAgainst / gamesPlayed : null)
+
+  const validRating = (value: number | null) =>
+    value != null && value >= 50 && value <= 150 ? value : null
+  const validPace = (value: number | null) =>
+    value != null && value >= 70 && value <= 120 ? value : null
+  const validPpg = (value: number | null) =>
+    value != null && value >= 70 && value <= 140 ? value : null
+
+  const pace = validPace(toNumber(stats.pace)) ?? DEFAULT_NBA_TEAM_STATS.pace
+  const ppg = validPpg(rawPpg)
+  const papg = validPpg(rawPapg)
+  const ortg =
+    validRating(toNumber(stats.offensiveRating)) ??
+    (ppg != null && pace ? Number(((ppg / pace) * 100).toFixed(1)) : null) ??
+    DEFAULT_NBA_TEAM_STATS.ortg
+  const drtg =
+    validRating(toNumber(stats.defensiveRating)) ??
+    (papg != null && pace ? Number(((papg / pace) * 100).toFixed(1)) : null) ??
+    DEFAULT_NBA_TEAM_STATS.drtg
+
+  return {
+    ortg,
+    drtg,
+    pace,
+    eFG: toPctDecimal(stats.effectiveFieldGoalPct ?? stats.effectiveFgPct),
+    ts: toPctDecimal(stats.trueShootingPct),
+  }
+}
+
+const calculateNflQbValue = (stats: {
+  passerRating?: number | null
+  passingYardsPerAttempt?: number | null
+  completionPct?: number | null
+  interceptionPct?: number | null
+  sackRate?: number | null
+}) => {
+  const passerRating = stats.passerRating ?? null
+  const ypa = stats.passingYardsPerAttempt ?? null
+  const completionPct = stats.completionPct ?? null
+  const interceptionPct = stats.interceptionPct ?? null
+  const sackRate = stats.sackRate ?? null
+
+  if (
+    passerRating == null &&
+    ypa == null &&
+    completionPct == null &&
+    interceptionPct == null
+  ) {
+    return null
+  }
+
+  const ratingAdj = passerRating != null ? (passerRating - 90) * 0.22 : 0
+  const ypaAdj = ypa != null ? (ypa - 7.0) * 1.5 : 0
+  const compAdj = completionPct != null ? (completionPct - 0.65) * 24 : 0
+  const intAdj = interceptionPct != null ? (0.022 - interceptionPct) * 60 : 0
+  const sackAdj = sackRate != null ? (0.07 - sackRate) * 30 : 0
+
+  return clamp(ratingAdj + ypaAdj + compAdj + intAdj + sackAdj, -7.5, 7.5)
+}
+
+const getFootballTeamStats = async (
+  teamName: string,
+  sportKey: 'americanfootball_nfl' | 'americanfootball_ncaaf'
+): Promise<FootballTeamStats | null> => {
+  const teams = await getSportsTeamStats(sportKey, teamName)
+  const entry = teams?.[0]
+  const stats = entry?.stats || {}
+
+  const gamesPlayed = toNumber(stats.gamesPlayed)
+  const pointsFor =
+    toNumber(stats.pointsFor) ??
+    (gamesPlayed && toNumber(stats.pointsForPerGame) != null
+      ? Number(stats.pointsForPerGame) * gamesPlayed
+      : null)
+  const pointsAgainst =
+    toNumber(stats.pointsAgainst) ??
+    (gamesPlayed && toNumber(stats.pointsAgainstPerGame) != null
+      ? Number(stats.pointsAgainstPerGame) * gamesPlayed
+      : null)
+  const pointsForPerGame =
+    toNumber(stats.pointsForPerGame) ??
+    (pointsFor != null && gamesPlayed ? pointsFor / gamesPlayed : null)
+  const pointsAgainstPerGame =
+    toNumber(stats.pointsAgainstPerGame) ??
+    (pointsAgainst != null && gamesPlayed ? pointsAgainst / gamesPlayed : null)
+  const yardsPerPlay = toNumber(stats.yardsPerPlay)
+  const totalPlays = toNumber(stats.totalOffensivePlays)
+  const playsPerGame =
+    toNumber(stats.playsPerGame) ??
+    (totalPlays != null && gamesPlayed ? totalPlays / gamesPlayed : null)
+  const totalDrives = toNumber(stats.totalDrives)
+  const drivesPerGame =
+    toNumber(stats.drivesPerGame) ??
+    (totalDrives != null && gamesPlayed ? totalDrives / gamesPlayed : null)
+  const pointsPerDrive =
+    toNumber(stats.pointsPerDrive) ??
+    (pointsFor != null && totalDrives ? pointsFor / totalDrives : null)
+  const thirdDownConvPct = toPctDecimal(stats.thirdDownPct)
+  const redZoneTouchdownPct = toPctDecimal(stats.redZoneTdPct)
+  const redZoneScoringPct = toPctDecimal(stats.redZoneScoringPct)
+  const explosivePlayRate = toPctDecimal(stats.explosivePlayRate) ?? toNumber(stats.explosivePlayRate)
+  const passingYardsPerAttempt =
+    toNumber(stats.passingYardsPerAttempt) ??
+    toNumber(stats.yardsPerPassAttempt) ??
+    (toNumber(stats.passingYards) != null && toNumber(stats.passingAttempts)
+      ? Number(stats.passingYards) / Number(stats.passingAttempts)
+      : null)
+  const completionPct = toPctDecimal(stats.completionPct)
+  const interceptionPct = toPctDecimal(stats.interceptionPct)
+  const passerRating =
+    toNumber(stats.passerRating) ??
+    toNumber(stats.passingRating) ??
+    toNumber(stats.quarterbackRating)
+  const sacksAllowed = toNumber(stats.sacksAllowed)
+  const passAttempts = toNumber(stats.passingAttempts)
+  const sackRate =
+    toPctDecimal(stats.sackRate) ??
+    (sacksAllowed != null && passAttempts != null
+      ? sacksAllowed / (sacksAllowed + passAttempts)
+      : null)
+  const defensiveSackRate = toPctDecimal(stats.defensiveSackRate) ?? toNumber(stats.defensiveSackRate)
+  const yardsAllowedPerGame =
+    toNumber(stats.yardsAllowedPerGame) ??
+    (toNumber(stats.yardsAllowed) != null && gamesPlayed
+      ? Number(stats.yardsAllowed) / gamesPlayed
+      : null)
+  const yardsAllowedPerPlay =
+    yardsAllowedPerGame != null && (playsPerGame ?? 0) > 0
+      ? yardsAllowedPerGame / (playsPerGame ?? 1)
+      : toNumber(stats.yardsAllowedPerPlay)
+  const turnoverDifferential = toNumber(stats.turnoverDifferential)
+  const qbValue =
+    sportKey === 'americanfootball_nfl'
+      ? calculateNflQbValue({
+          passerRating,
+          passingYardsPerAttempt,
+          completionPct,
+          interceptionPct,
+          sackRate,
+        })
+      : null
+
+  if (pointsForPerGame == null || pointsAgainstPerGame == null) {
+    return sportKey === 'americanfootball_nfl'
+      ? DEFAULT_NFL_TEAM_STATS
+      : DEFAULT_NCAAF_TEAM_STATS
+  }
+
+  return {
+    pointsForPerGame: Number(pointsForPerGame.toFixed(1)),
+    pointsAgainstPerGame: Number(pointsAgainstPerGame.toFixed(1)),
+    yardsPerPlay,
+    yardsAllowedPerPlay,
+    playsPerGame,
+    drivesPerGame,
+    pointsPerDrive,
+    thirdDownConvPct,
+    redZoneTouchdownPct,
+    redZoneScoringPct,
+    explosivePlayRate,
+    sackRate,
+    defensiveSackRate,
+    turnoverDifferential,
+    qbValue,
+    passerRating,
+    passingYardsPerAttempt,
+    completionPct,
+    interceptionPct,
+  }
+}
+
+const getHockeyTeamStats = async (
+  teamName: string
+): Promise<HockeyTeamStats | null> => {
+  const teams = await getSportsTeamStats('icehockey_nhl', teamName)
+  const entry = teams?.[0]
+  const stats = entry?.stats || {}
+  const gamesPlayed = toNumber(stats.gamesPlayed) ?? null
+  const goalsFor = toNumber(stats.goalsFor)
+  const goalsAgainst = toNumber(stats.goalsAgainst)
+  const goalsForPerGame =
+    toNumber(stats.goalsForPerGame) ??
+    (goalsFor != null && gamesPlayed ? goalsFor / gamesPlayed : null)
+  const goalsAgainstPerGame =
+    toNumber(stats.goalsAgainstPerGame) ??
+    (goalsAgainst != null && gamesPlayed ? goalsAgainst / gamesPlayed : null)
+  const shotsForPerGame = toNumber(stats.shotsForPerGame)
+  const shotsAgainstPerGame = toNumber(stats.shotsAgainstPerGame)
+
+  if (goalsForPerGame == null || goalsAgainstPerGame == null) {
+    return DEFAULT_NHL_TEAM_STATS
+  }
+
+  return {
+    goalsForPerGame: Number(goalsForPerGame.toFixed(2)),
+    goalsAgainstPerGame: Number(goalsAgainstPerGame.toFixed(2)),
+    shotsForPerGame,
+    shotsAgainstPerGame,
+  }
+}
+
+export async function getTeamStats(
+  teamName: string,
+  sportKey?: string
+): Promise<TeamStats | FootballTeamStats | HockeyTeamStats | null> {
+  const resolvedSport = resolveSportKey(sportKey) ?? 'basketball_nba'
+  if (resolvedSport === 'basketball_ncaab') {
+    return getCbbTeamStats(teamName)
+  }
+  if (resolvedSport === 'americanfootball_nfl') {
+    return getFootballTeamStats(teamName, resolvedSport)
+  }
+  if (resolvedSport === 'americanfootball_ncaaf') {
+    return getFootballTeamStats(teamName, resolvedSport)
+  }
+  if (resolvedSport === 'icehockey_nhl') {
+    return getHockeyTeamStats(teamName)
+  }
+
+  const baseStats = await getNbaTeamStats(teamName)
+  if (!baseStats) return null
 
   // Check for injuries and adjust
   const injuryReport = await detectInjuries(teamName)
@@ -134,116 +430,79 @@ export async function getTeamStats(teamName: string): Promise<TeamStats | null> 
   return baseStats
 }
 
-/**
- * Parse player stats from CSV
- */
-function parsePlayerStats(): Map<string, any> {
-  const map = new Map()
-
-  // Parse per-game stats
-  const perGameLines = nbaPlayerPerGame2025_2026Csv
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l && /^\d+,/.test(l))
-
-  for (const line of perGameLines) {
-    const cells = line.split(',')
-    if (cells.length < 30) continue
-
-    const player = cells[1].trim() // Player name
-    const key = normalize(player)
-
-    map.set(key, {
-      name: player,
-      team: cells[5],
-      mpg: parseFloat(cells[2]) || 0,
-      points: parseFloat(cells[26]) || 0,
-      rebounds: parseFloat(cells[20]) || 0,
-      assists: parseFloat(cells[21]) || 0,
-      threes: parseFloat(cells[14]) || 0,
-      fg: parseFloat(cells[10]) || 0,
-      fga: parseFloat(cells[11]) || 0,
-    })
+const pickStat = (stats: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    const value = toNumber(stats[key])
+    if (value != null) return value
   }
-
-  // Parse advanced stats for usage
-  const advLines = nbaPlayerAdvStats2025_2026Csv
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l && /^\d+,/.test(l))
-
-  for (const line of advLines) {
-    const cells = line.split(',')
-    if (cells.length < 28) continue
-
-    const player = cells[1].trim()
-    const key = normalize(player)
-
-    if (map.has(key)) {
-      const existing = map.get(key)
-      existing.usage = parseFloat(cells[27]) || 0 // USG% column
-      existing.pace = parseFloat(cells[2]) || 0 // MP/G as pace proxy
-      existing.ws48 = parseFloat(cells[14]) || 0 // WS/48
-      existing.obpm = parseFloat(cells[15]) || 0 // OBPM
-      existing.dbpm = parseFloat(cells[16]) || 0 // DBPM
-      existing.bpm = parseFloat(cells[17]) || 0 // BPM
-      existing.vorp = parseFloat(cells[18]) || 0 // VORP
-      existing.per = parseFloat(cells[19]) || 0 // PER
-    }
-  }
-
-  return map
+  return null
 }
 
-/**
- * Get player stats from static data
- */
-export function getPlayerStats(playerName: string, statType: string): PlayerStats | null {
-  const playerMap = parsePlayerStats()
-  const key = normalize(playerName)
-  const player = playerMap.get(key)
+export async function getPlayerStats(
+  playerName: string,
+  statType: string
+): Promise<PlayerStats | null> {
+  const data = await getPlayerSeasonStats(playerName, 'basketball_nba')
+  const stats = (data?.stats || {}) as Record<string, unknown>
+  if (!Object.keys(stats).length) return null
 
-  if (!player) return null
+  const points = pickStat(stats, ['PTS', 'PPG', 'points', 'pointsPerGame']) ?? 0
+  const rebounds = pickStat(stats, ['REB', 'RPG', 'TRB', 'rebounds']) ?? 0
+  const assists = pickStat(stats, ['AST', 'APG', 'assists']) ?? 0
+  const threes =
+    pickStat(stats, ['THREE_PM', '3P', 'threePointersMade', 'threesMadePerGame']) ??
+    0
 
-  let seasonAverage = 0
+  let seasonAverage = points
   switch (statType.toLowerCase()) {
     case 'points':
     case 'pts':
-      seasonAverage = player.points
+      seasonAverage = points
       break
     case 'rebounds':
     case 'reb':
     case 'trb':
-      seasonAverage = player.rebounds
+      seasonAverage = rebounds
       break
     case 'assists':
     case 'ast':
-      seasonAverage = player.assists
+      seasonAverage = assists
       break
     case 'threes':
     case '3pm':
     case 'three_pointers':
-      seasonAverage = player.threes
+      seasonAverage = threes
       break
     case 'pra':
     case 'pts_reb_ast':
-      seasonAverage = player.points + player.rebounds + player.assists
+      seasonAverage = points + rebounds + assists
       break
     default:
-      seasonAverage = player.points // default to points
+      seasonAverage = points
   }
 
   return {
     seasonAverage,
-    usage: player.usage || 25,
-    minutesPerGame: player.mpg,
-    pace: player.pace,
-    bpm: player.bpm,
-    obpm: player.obpm,
-    dbpm: player.dbpm,
-    vorp: player.vorp,
-    per: player.per,
-    ws48: player.ws48,
+    usage: pickStat(stats, ['USG_PERCENT', 'usageRate', 'USG%']) ?? 25,
+    minutesPerGame: pickStat(stats, ['MPG', 'minutesPerGame', 'minutes']) ?? 0,
+    pace: pickStat(stats, ['pace', 'PACE']) ?? undefined,
+    vorp: pickStat(stats, ['VORP']) ?? undefined,
+    per: pickStat(stats, ['PER']) ?? undefined,
+    ws48: pickStat(stats, ['WS48', 'winSharesPer48']) ?? undefined,
+    nbaRating: pickStat(stats, ['NBA_RATING', 'NBARating', 'nbaRating']) ?? undefined,
+    trueShootingPct: pickStat(stats, ['TS_PERCENT', 'trueShootingPct', 'TS%']) ?? undefined,
+    effectiveFgPct: pickStat(stats, ['EFG_PERCENT', 'effectiveFGPct', 'EFG%']) ?? undefined,
+    scoringEfficiency: pickStat(stats, ['SCORING_EFFICIENCY', 'scoringEfficiency']) ?? undefined,
+    shootingEfficiency: pickStat(stats, ['SHOOTING_EFFICIENCY', 'shootingEfficiency']) ?? undefined,
+    pointsPerEstimatedPossessions:
+      pickStat(stats, ['POINTS_PER_EST_POSSESSIONS', 'pointsPerEstimatedPossessions']) ?? undefined,
+    assistsPerGame: assists,
+    stealsPerGame: pickStat(stats, ['STL', 'SPG', 'steals', 'stealsPerGame']) ?? undefined,
+    blocksPerGame: pickStat(stats, ['BLK', 'BPG', 'blocks', 'blocksPerGame']) ?? undefined,
+    defensiveReboundsPerGame:
+      pickStat(stats, ['DRB', 'DREB', 'defensiveRebounds', 'defensiveReboundsPerGame']) ?? undefined,
+    defensiveReboundRate:
+      pickStat(stats, ['DRB_PERCENT', 'defReboundRate', 'defensiveReboundRate']) ?? undefined,
   }
 }
 
@@ -621,7 +880,7 @@ export async function getRecentForm(teamName: string): Promise<RecentForm | null
 export interface MatchupAnalysis {
   homeTeam: {
     name: string
-    stats: TeamStats | null
+    stats: TeamStats | FootballTeamStats | HockeyTeamStats | null
     rest?: RestFactors
     travel?: TravelFactors
     trends?: any
@@ -630,7 +889,7 @@ export interface MatchupAnalysis {
   }
   awayTeam: {
     name: string
-    stats: TeamStats | null
+    stats: TeamStats | FootballTeamStats | HockeyTeamStats | null
     rest?: RestFactors
     travel?: TravelFactors
     trends?: any
@@ -645,34 +904,119 @@ export async function analyzeMatchup(
   homeTeam: string,
   awayTeam: string,
   gameId?: string,
-  gameDate?: Date
+  gameDate?: Date,
+  sportKey?: string
 ): Promise<MatchupAnalysis> {
   const context: string[] = []
+  const resolvedSport = resolveSportKey(sportKey) ?? 'basketball_nba'
+  const isNba = resolvedSport === 'basketball_nba'
+  const isFootball =
+    resolvedSport === 'americanfootball_nfl' ||
+    resolvedSport === 'americanfootball_ncaaf'
+  const isHockey = resolvedSport === 'icehockey_nhl'
 
   // Get team stats (now includes injury adjustments)
-  const homeStats = await getTeamStats(homeTeam)
-  const awayStats = await getTeamStats(awayTeam)
+  const homeStats = await getTeamStats(homeTeam, resolvedSport)
+  const awayStats = await getTeamStats(awayTeam, resolvedSport)
 
   if (homeStats && awayStats) {
-    context.push(`${homeTeam} ORtg: ${homeStats.ortg.toFixed(1)}, ${awayTeam} DRtg: ${awayStats.drtg.toFixed(1)}`)
-    context.push(`${awayTeam} ORtg: ${awayStats.ortg.toFixed(1)}, ${homeTeam} DRtg: ${homeStats.drtg.toFixed(1)}`)
-    context.push(`Pace: ${homeTeam} ${homeStats.pace.toFixed(1)}, ${awayTeam} ${awayStats.pace.toFixed(1)}`)
+    if (isNba || resolvedSport === 'basketball_ncaab') {
+      const home = homeStats as TeamStats
+      const away = awayStats as TeamStats
+      context.push(
+        `${homeTeam} ORtg: ${home.ortg.toFixed(1)}, ${awayTeam} DRtg: ${away.drtg.toFixed(1)}`
+      )
+      context.push(
+        `${awayTeam} ORtg: ${away.ortg.toFixed(1)}, ${homeTeam} DRtg: ${home.drtg.toFixed(1)}`
+      )
+      context.push(
+        `Pace: ${homeTeam} ${home.pace.toFixed(1)}, ${awayTeam} ${away.pace.toFixed(1)}`
+      )
+    } else if (isFootball) {
+      const home = homeStats as FootballTeamStats
+      const away = awayStats as FootballTeamStats
+      context.push(
+        `${homeTeam} PPG: ${home.pointsForPerGame.toFixed(1)}, ${awayTeam} PAPG: ${away.pointsAgainstPerGame.toFixed(1)}`
+      )
+      context.push(
+        `${awayTeam} PPG: ${away.pointsForPerGame.toFixed(1)}, ${homeTeam} PAPG: ${home.pointsAgainstPerGame.toFixed(1)}`
+      )
+      if (home.yardsPerPlay != null || away.yardsPerPlay != null) {
+        context.push(
+          `Yards/play: ${homeTeam} ${(home.yardsPerPlay ?? 0).toFixed(2)}, ${awayTeam} ${(away.yardsPerPlay ?? 0).toFixed(2)}`
+        )
+      }
+      if (home.pointsPerDrive != null || away.pointsPerDrive != null) {
+        context.push(
+          `Points/drive: ${homeTeam} ${(home.pointsPerDrive ?? 0).toFixed(2)}, ${awayTeam} ${(away.pointsPerDrive ?? 0).toFixed(2)}`
+        )
+      }
+      if (home.thirdDownConvPct != null || away.thirdDownConvPct != null) {
+        context.push(
+          `3rd down: ${homeTeam} ${formatPct(home.thirdDownConvPct)}%, ${awayTeam} ${formatPct(away.thirdDownConvPct)}%`
+        )
+      }
+      if (home.redZoneTouchdownPct != null || away.redZoneTouchdownPct != null) {
+        context.push(
+          `Red zone TD: ${homeTeam} ${formatPct(home.redZoneTouchdownPct)}%, ${awayTeam} ${formatPct(away.redZoneTouchdownPct)}%`
+        )
+      }
+      if (home.explosivePlayRate != null || away.explosivePlayRate != null) {
+        context.push(
+          `Explosive rate: ${homeTeam} ${((home.explosivePlayRate ?? 0) * 100).toFixed(1)}%, ${awayTeam} ${((away.explosivePlayRate ?? 0) * 100).toFixed(1)}%`
+        )
+      }
+      if (home.sackRate != null || away.sackRate != null) {
+        context.push(
+          `Sack rate: ${homeTeam} ${((home.sackRate ?? 0) * 100).toFixed(1)}%, ${awayTeam} ${((away.sackRate ?? 0) * 100).toFixed(1)}%`
+        )
+      }
+      if (home.qbValue != null || away.qbValue != null) {
+        context.push(
+          `QB value: ${homeTeam} ${formatSigned(home.qbValue)}, ${awayTeam} ${formatSigned(away.qbValue)}`
+        )
+      }
+      if (home.yardsAllowedPerPlay != null || away.yardsAllowedPerPlay != null) {
+        context.push(
+          `Yards allowed/play: ${homeTeam} ${(home.yardsAllowedPerPlay ?? 0).toFixed(2)}, ${awayTeam} ${(away.yardsAllowedPerPlay ?? 0).toFixed(2)}`
+        )
+      }
+      if (home.turnoverDifferential != null || away.turnoverDifferential != null) {
+        context.push(
+          `Turnover diff: ${homeTeam} ${home.turnoverDifferential ?? 0}, ${awayTeam} ${away.turnoverDifferential ?? 0}`
+        )
+      }
+    } else if (isHockey) {
+      const home = homeStats as HockeyTeamStats
+      const away = awayStats as HockeyTeamStats
+      context.push(
+        `${homeTeam} GPG: ${home.goalsForPerGame.toFixed(2)}, ${awayTeam} GAA: ${away.goalsAgainstPerGame.toFixed(2)}`
+      )
+      context.push(
+        `${awayTeam} GPG: ${away.goalsForPerGame.toFixed(2)}, ${homeTeam} GAA: ${home.goalsAgainstPerGame.toFixed(2)}`
+      )
+    }
 
-    // Add team style classification
-    const homeStyle = classifyTeamStyle(homeStats)
-    const awayStyle = classifyTeamStyle(awayStats)
-    context.push(`🎯 Styles: ${homeTeam} (${homeStyle}) vs ${awayTeam} (${awayStyle})`)
+    if (isNba) {
+      // Add team style classification
+      const homeStyle = classifyTeamStyle(homeStats as TeamStats)
+      const awayStyle = classifyTeamStyle(awayStats as TeamStats)
+      context.push(`🎯 Styles: ${homeTeam} (${homeStyle}) vs ${awayTeam} (${awayStyle})`)
 
-    // Add style matchup adjustment if applicable
-    const styleMatchup = calculateStyleMatchupAdjustment(homeStats, awayStats)
-    if (styleMatchup.reason) {
-      context.push(`🎲 ${styleMatchup.reason}`)
+      // Add style matchup adjustment if applicable
+      const styleMatchup = calculateStyleMatchupAdjustment(
+        homeStats as TeamStats,
+        awayStats as TeamStats
+      )
+      if (styleMatchup.reason) {
+        context.push(`🎲 ${styleMatchup.reason}`)
+      }
     }
   }
 
-  // Get rest factors for both teams
-  const homeRest = await getRestFactors(homeTeam, gameDate)
-  const awayRest = await getRestFactors(awayTeam, gameDate)
+  // Get rest factors for both teams (NBA only for now)
+  const homeRest = isNba ? await getRestFactors(homeTeam, gameDate) : null
+  const awayRest = isNba ? await getRestFactors(awayTeam, gameDate) : null
 
   // Add rest context
   if (homeRest) {
@@ -697,9 +1041,9 @@ export async function analyzeMatchup(
     }
   }
 
-  // Get injury reports
-  const homeInjuries = await detectInjuries(homeTeam)
-  const awayInjuries = await detectInjuries(awayTeam)
+  // Get injury reports (NBA only for now)
+  const homeInjuries = isNba ? await detectInjuries(homeTeam) : null
+  const awayInjuries = isNba ? await detectInjuries(awayTeam) : null
 
   if (homeInjuries && homeInjuries.injuries.length > 0) {
     context.push(`${homeTeam} injuries: ${homeInjuries.summary}`)
@@ -715,9 +1059,9 @@ export async function analyzeMatchup(
     }
   }
 
-  // Get ATS trends
-  const homeTrends = await getATSTrends(homeTeam)
-  const awayTrends = await getATSTrends(awayTeam)
+  // Get ATS trends (NBA only)
+  const homeTrends = isNba ? await getATSTrends(homeTeam) : null
+  const awayTrends = isNba ? await getATSTrends(awayTeam) : null
 
   if (homeTrends) {
     context.push(`${homeTeam} ATS: ${homeTrends.overall}, Last 10: ${homeTrends.last10}`)
@@ -726,9 +1070,9 @@ export async function analyzeMatchup(
     context.push(`${awayTeam} ATS: ${awayTrends.overall}, Last 10: ${awayTrends.last10}`)
   }
 
-  // Get recent form (L10)
-  const homeForm = await getRecentForm(homeTeam)
-  const awayForm = await getRecentForm(awayTeam)
+  // Get recent form (NBA only)
+  const homeForm = isNba ? await getRecentForm(homeTeam) : null
+  const awayForm = isNba ? await getRecentForm(awayTeam) : null
 
   if (homeForm) {
     const streakLabel = homeForm.streak > 0 ? `W${homeForm.streak}` : `L${Math.abs(homeForm.streak)}`
@@ -770,3 +1114,4 @@ export async function analyzeMatchup(
     context,
   }
 }
+

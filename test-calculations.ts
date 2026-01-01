@@ -5,6 +5,7 @@
 
 import { getTeamStats, getTeamAbbrev } from './lib/services/matchup-analyzer'
 import { calculateFairSpread, calculateFairTotal } from './lib/services/pregame-value-calculator'
+import type { TeamStats } from './lib/services/pregame-value-calculator'
 
 async function test() {
   console.log('='.repeat(60))
@@ -20,13 +21,13 @@ async function test() {
 
   // Get team stats
   console.log('2. Loading team stats:')
-  const wolvesStats = await getTeamStats('Timberwolves')
-  const grizzliesStats = await getTeamStats('Grizzlies')
+  const wolvesStats = (await getTeamStats('Timberwolves')) as TeamStats | null
+  const grizzliesStats = (await getTeamStats('Grizzlies')) as TeamStats | null
 
   if (!wolvesStats) {
     console.log('   ❌ Wolves stats not found')
     console.log('   Trying: MIN, Minnesota')
-    const minStats = await getTeamStats('MIN')
+    const minStats = (await getTeamStats('MIN')) as TeamStats | null
     if (minStats) {
       console.log('   ✅ Found with "MIN"')
     }
@@ -40,7 +41,7 @@ async function test() {
   if (!grizzliesStats) {
     console.log('   ❌ Grizzlies stats not found')
     console.log('   Trying: MEM, Memphis')
-    const memStats = await getTeamStats('MEM')
+    const memStats = (await getTeamStats('MEM')) as TeamStats | null
     if (memStats) {
       console.log('   ✅ Found with "MEM"')
     }

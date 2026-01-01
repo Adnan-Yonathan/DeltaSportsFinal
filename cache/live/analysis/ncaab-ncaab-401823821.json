@@ -1,0 +1,184 @@
+{
+  "eventId": "ncaab-401823821",
+  "homeTeam": "Boise State Broncos",
+  "awayTeam": "New Mexico Lobos",
+  "homeScore": 25,
+  "awayScore": 34,
+  "timeRemaining": 965,
+  "timeElapsed": 1435,
+  "period": 2,
+  "displayClock": "16:05",
+  "sport": "ncaab",
+  "momentum": {
+    "scoringRun": {
+      "last5Minutes": {
+        "homePoints": 8,
+        "awayPoints": 21,
+        "netMargin": -13
+      },
+      "lastQuarter": {
+        "homePoints": 21,
+        "awayPoints": 19,
+        "netMargin": 2
+      },
+      "currentRun": null
+    },
+    "paceChange": {
+      "currentPace": 68.43763066202091,
+      "seasonPace": 70,
+      "deviation": -1.5623693379790922,
+      "impactOnTotal": -1.562369337979096
+    },
+    "foulTrouble": {
+      "homePlayers": [],
+      "awayPlayers": [],
+      "totalImpact": {
+        "homeAdjustment": 0,
+        "awayAdjustment": 0
+      }
+    },
+    "comebackProbability": {
+      "currentDeficit": 9,
+      "historicalComebackRate": 0.12,
+      "requiredPace": 0.5595854922279793,
+      "probability": 0.12
+    },
+    "quarterTrends": {
+      "homeTeam": {
+        "currentQuarter": 2,
+        "currentQuarterScore": 0,
+        "avgQuarterScore": 35,
+        "deviation": -35,
+        "trend": "cold"
+      },
+      "awayTeam": {
+        "currentQuarter": 2,
+        "currentQuarterScore": 0,
+        "avgQuarterScore": 35,
+        "deviation": -35,
+        "trend": "cold"
+      }
+    },
+    "garbageTime": {
+      "isGarbageTime": false,
+      "reason": "",
+      "recommendationAdjustment": "monitor",
+      "marginalLineImpact": 0
+    },
+    "foulingStrategy": {
+      "isFouling": false,
+      "reason": "",
+      "expectedFouls": 0,
+      "impactOnPace": 0,
+      "impactOnTotal": 0,
+      "factors": []
+    },
+    "threePointVariance": {
+      "homeThreePointInfo": {
+        "currentMade": 2,
+        "currentAttempted": 19,
+        "currentPercentage": 0.10526315789473684,
+        "seasonPercentage": 0.335,
+        "deviation": -0.22973684210526318,
+        "isOutlier": true
+      },
+      "awayThreePointInfo": {
+        "currentMade": 2,
+        "currentAttempted": 15,
+        "currentPercentage": 0.13333333333333333,
+        "seasonPercentage": 0.335,
+        "deviation": -0.2016666666666667,
+        "isOutlier": true
+      },
+      "expectedRegression": {
+        "homePtsAdjustment": 7.205121710526315,
+        "awayPtsAdjustment": 6.324770833333332,
+        "totalAdjustment": 13.529892543859647
+      },
+      "factors": [
+        "Boise State Broncos 3PT: 10.5% (2/19) vs 33.5% season → expect regression (+7.2 pts)",
+        "New Mexico Lobos 3PT: 13.3% (2/15) vs 33.5% season → expect regression (+6.3 pts)"
+      ]
+    },
+    "killshot": {
+      "isKillshot": false
+    },
+    "fatigue": {
+      "homeFatigued": [],
+      "awayFatigued": [],
+      "teamFatigueImpact": {
+        "home": 0,
+        "away": 0
+      },
+      "lineAdjustment": 0,
+      "factors": []
+    },
+    "timeoutImpact": {
+      "homeCoach": null,
+      "awayCoach": {
+        "name": "James Borrego",
+        "team": "New Orleans Pelicans",
+        "tier": "D",
+        "grade": 55,
+        "atoPPP": 0.92,
+        "timeoutImpact": -0.3,
+        "runStoppingRate": 0.48
+      },
+      "recentTimeouts": {
+        "home": 4,
+        "away": 4
+      },
+      "lineAdjustment": 1.2,
+      "factors": [
+        "James Borrego (D-tier) called timeout: -1.2 pts expected impact"
+      ]
+    },
+    "bonusSituation": {
+      "home": {
+        "foulsThisQuarter": 0,
+        "foulsToBonus": 7,
+        "foulsToDoubleBonus": 10,
+        "bonusStatus": "none",
+        "projectedFTAttempts": 0,
+        "foulRate": 0
+      },
+      "away": {
+        "foulsThisQuarter": 0,
+        "foulsToBonus": 7,
+        "foulsToDoubleBonus": 10,
+        "bonusStatus": "none",
+        "projectedFTAttempts": 0,
+        "foulRate": 0
+      },
+      "freeThrowAdvantage": "neutral",
+      "totalImpact": 0,
+      "factors": []
+    },
+    "playerAvailability": {
+      "homeIssues": [],
+      "awayIssues": [],
+      "lineAdjustment": 0,
+      "factors": []
+    },
+    "rotation": {
+      "homeAnomalies": [],
+      "awayAnomalies": [],
+      "lineupQualityDelta": 0,
+      "lineAdjustment": 0,
+      "factors": []
+    }
+  },
+  "pregameEdges": {
+    "restAdvantage": {
+      "home": 0,
+      "away": 0
+    },
+    "injuryImpact": {
+      "home": 0,
+      "away": 0
+    },
+    "depthAdvantage": "neutral",
+    "relevantEdges": [],
+    "totalLineImpact": 0
+  }
+}

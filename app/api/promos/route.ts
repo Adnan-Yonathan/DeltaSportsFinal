@@ -4,6 +4,7 @@ import type { PromoFilterOptions } from '@/lib/types/promos'
 import { PROMO_CATEGORIES } from '@/lib/types/promos'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 export const revalidate = 21600 // 6 hours
 
 export async function GET(req: NextRequest) {

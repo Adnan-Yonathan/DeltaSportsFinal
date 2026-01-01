@@ -9,6 +9,29 @@ import { oddsToImpliedProbability } from '@/lib/utils/statistics'
 const NBA_HOME_COURT_ADVANTAGE = 3.0 // points
 const NBA_LEAGUE_AVG_ORTG = 115.0 // average offensive rating
 const NBA_LEAGUE_AVG_PACE = 100.0 // average possessions per 48 min
+const NCAAB_HOME_COURT_ADVANTAGE = 3.2 // points
+const NCAAB_LEAGUE_AVG_ORTG = 105.0 // average offensive rating
+const NCAAB_LEAGUE_AVG_PACE = 70.0 // average possessions per 40 min
+const NFL_HOME_FIELD_ADVANTAGE = 1.7 // points
+const NFL_LEAGUE_AVG_PPG = 22.0
+const NFL_LEAGUE_AVG_YPP = 5.5
+const NFL_LEAGUE_AVG_PPD = 2.05
+const NFL_LEAGUE_AVG_PLAYS = 63
+const NFL_LEAGUE_AVG_THIRD_DOWN = 0.38
+const NFL_LEAGUE_AVG_REDZONE_TD = 0.55
+const NFL_LEAGUE_AVG_EXPLOSIVE = 0.1
+const NFL_LEAGUE_AVG_SACK_RATE = 0.07
+const NCAAF_HOME_FIELD_ADVANTAGE = 2.8 // points
+const NCAAF_LEAGUE_AVG_PPG = 28.0
+const NCAAF_LEAGUE_AVG_YPP = 6.0
+const NCAAF_LEAGUE_AVG_PPD = 2.4
+const NCAAF_LEAGUE_AVG_PLAYS = 70
+const NCAAF_LEAGUE_AVG_THIRD_DOWN = 0.41
+const NCAAF_LEAGUE_AVG_REDZONE_TD = 0.62
+const NCAAF_LEAGUE_AVG_EXPLOSIVE = 0.11
+const NCAAF_LEAGUE_AVG_SACK_RATE = 0.06
+const NHL_HOME_ICE_ADVANTAGE = 0.25 // goals
+const NHL_LEAGUE_AVG_GPG = 3.1
 const BACK_TO_BACK_PENALTY = 2.5 // points
 const TRAVEL_PENALTY_PER_1000_MILES = 0.3 // points
 const TIMEZONE_PENALTY_PER_HOUR = 0.5 // points
@@ -26,9 +49,38 @@ const MAX_FORM_ADJUSTMENT = 2.0 // Maximum +/- points adjustment for form
 export interface TeamStats {
   ortg: number // offensive rating
   drtg: number // defensive rating
-  pace: number // possessions per 48 min
+  pace: number // possessions per game
   eFG?: number // effective field goal %
   ts?: number // true shooting %
+}
+
+export interface FootballTeamStats {
+  pointsForPerGame: number
+  pointsAgainstPerGame: number
+  yardsPerPlay?: number | null
+  yardsAllowedPerPlay?: number | null
+  playsPerGame?: number | null
+  drivesPerGame?: number | null
+  pointsPerDrive?: number | null
+  thirdDownConvPct?: number | null
+  redZoneTouchdownPct?: number | null
+  redZoneScoringPct?: number | null
+  explosivePlayRate?: number | null
+  sackRate?: number | null
+  defensiveSackRate?: number | null
+  turnoverDifferential?: number | null
+  qbValue?: number | null
+  passerRating?: number | null
+  passingYardsPerAttempt?: number | null
+  completionPct?: number | null
+  interceptionPct?: number | null
+}
+
+export interface HockeyTeamStats {
+  goalsForPerGame: number
+  goalsAgainstPerGame: number
+  shotsForPerGame?: number | null
+  shotsAgainstPerGame?: number | null
 }
 
 export interface RestFactors {
@@ -67,11 +119,29 @@ export interface PlayerStats {
   vorp?: number // Value Over Replacement Player
   per?: number // Player Efficiency Rating
   ws48?: number // Win Shares per 48 minutes
+  nbaRating?: number
+  trueShootingPct?: number
+  effectiveFgPct?: number
+  scoringEfficiency?: number
+  shootingEfficiency?: number
+  pointsPerEstimatedPossessions?: number
+  assistsPerGame?: number
+  stealsPerGame?: number
+  blocksPerGame?: number
+  defensiveReboundsPerGame?: number
+  defensiveReboundRate?: number
 }
 
 export interface OpponentDefense {
   allowedStatPerGame: number // how much opponent allows this stat
   defensiveRating?: number
+}
+
+export interface LeagueContext {
+  homeCourtAdvantage?: number
+  leagueAvgOrtg?: number
+  leagueAvgPace?: number
+  paceBase?: number
 }
 
 /**
@@ -86,23 +156,30 @@ export function calculateFairSpread(
   awayTravel?: TravelFactors,
   homeForm?: RecentForm,
   awayForm?: RecentForm,
-  styleMatchup?: StyleMatchupAdjustment
+  styleMatchup?: StyleMatchupAdjustment,
+  leagueContext?: LeagueContext
 ): number {
+  const leagueAvgOrtg = leagueContext?.leagueAvgOrtg ?? NBA_LEAGUE_AVG_ORTG
+  const leagueAvgPace = leagueContext?.leagueAvgPace ?? NBA_LEAGUE_AVG_PACE
+  const paceBase = leagueContext?.paceBase ?? 100
+  const homeCourtAdvantage =
+    leagueContext?.homeCourtAdvantage ?? NBA_HOME_COURT_ADVANTAGE
+
   // Step 1: Calculate expected scores using Four Factors approach
   // Home team expected score = their ORtg * (opponent DRtg / league avg DRtg) * pace factor
-  const homePaceFactor = (homeTeamStats.pace + awayTeamStats.pace) / (2 * NBA_LEAGUE_AVG_PACE)
+  const homePaceFactor = (homeTeamStats.pace + awayTeamStats.pace) / (2 * paceBase)
 
   const homeExpectedScore =
-    homeTeamStats.ortg * (awayTeamStats.drtg / NBA_LEAGUE_AVG_ORTG) * homePaceFactor
+    homeTeamStats.ortg * (awayTeamStats.drtg / leagueAvgOrtg) * homePaceFactor
 
   const awayExpectedScore =
-    awayTeamStats.ortg * (homeTeamStats.drtg / NBA_LEAGUE_AVG_ORTG) * homePaceFactor
+    awayTeamStats.ortg * (homeTeamStats.drtg / leagueAvgOrtg) * homePaceFactor
 
   // Step 2: Start with base differential
   let fairSpread = homeExpectedScore - awayExpectedScore
 
   // Step 3: Add home court advantage
-  fairSpread += NBA_HOME_COURT_ADVANTAGE
+  fairSpread += homeCourtAdvantage
 
   // Step 4: Adjust for rest
   if (homeRest?.isBackToBack) {
@@ -135,7 +212,7 @@ export function calculateFairSpread(
   // Step 7: Apply pace-based margin scaling
   // Fast games amplify margins, slow games compress them
   const combinedPace = (homeTeamStats.pace + awayTeamStats.pace) / 2
-  const paceDeviation = combinedPace - NBA_LEAGUE_AVG_PACE
+  const paceDeviation = combinedPace - leagueAvgPace
   const paceScaleFactor = 1 + (paceDeviation * PACE_MARGIN_SCALE_FACTOR)
   fairSpread = fairSpread * paceScaleFactor
 
@@ -179,24 +256,347 @@ export function calculateFairSpread(
  */
 export function calculateFairTotal(
   homeTeamStats: TeamStats,
-  awayTeamStats: TeamStats
+  awayTeamStats: TeamStats,
+  leagueContext?: LeagueContext
 ): number {
+  const leagueAvgOrtg = leagueContext?.leagueAvgOrtg ?? NBA_LEAGUE_AVG_ORTG
+  const paceBase = leagueContext?.paceBase ?? 100
   // Pace-adjusted scoring projection
   const combinedPace = (homeTeamStats.pace + awayTeamStats.pace) / 2
-  const paceFactor = combinedPace / NBA_LEAGUE_AVG_PACE
+  const paceFactor = combinedPace / paceBase
 
   // Home team expected score
   const homeExpectedScore =
-    homeTeamStats.ortg * (awayTeamStats.drtg / NBA_LEAGUE_AVG_ORTG) * paceFactor
+    homeTeamStats.ortg * (awayTeamStats.drtg / leagueAvgOrtg) * paceFactor
 
   // Away team expected score
   const awayExpectedScore =
-    awayTeamStats.ortg * (homeTeamStats.drtg / NBA_LEAGUE_AVG_ORTG) * paceFactor
+    awayTeamStats.ortg * (homeTeamStats.drtg / leagueAvgOrtg) * paceFactor
 
   // Fair total is the sum
   const fairTotal = homeExpectedScore + awayExpectedScore
 
   return fairTotal
+}
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value))
+
+const adjustByYpp = (
+  base: number,
+  offenseYpp?: number | null,
+  defenseYpp?: number | null,
+  leagueAvg = NFL_LEAGUE_AVG_YPP
+) => {
+  const offenseFactor =
+    offenseYpp != null && leagueAvg > 0 ? offenseYpp / leagueAvg : 1
+  const defenseFactor =
+    defenseYpp != null && leagueAvg > 0 ? defenseYpp / leagueAvg : 1
+  const combined = clamp(offenseFactor / defenseFactor, 0.9, 1.1)
+  return base * combined
+}
+
+const adjustByTurnovers = (
+  value: number,
+  turnoverDiff?: number | null,
+  weight = 0.35
+) => {
+  if (turnoverDiff == null || !Number.isFinite(turnoverDiff)) return value
+  return value + turnoverDiff * weight
+}
+
+const normalizeRateFactor = (
+  value: number | null | undefined,
+  leagueAvg: number,
+  clampMin = 0.9,
+  clampMax = 1.1,
+  invert = false
+) => {
+  if (value == null || !Number.isFinite(value) || leagueAvg <= 0) return 1
+  const ratio = invert ? leagueAvg / value : value / leagueAvg
+  return clamp(ratio, clampMin, clampMax)
+}
+
+const buildFootballEfficiencyFactor = (stats: FootballTeamStats, league: {
+  ypp: number
+  ppd: number
+  thirdDown: number
+  redZoneTd: number
+  explosive: number
+  sackRate: number
+}) => {
+  const yppFactor = normalizeRateFactor(stats.yardsPerPlay, league.ypp, 0.9, 1.1)
+  const ppdFactor = normalizeRateFactor(stats.pointsPerDrive, league.ppd, 0.9, 1.1)
+  const thirdDownFactor = normalizeRateFactor(
+    stats.thirdDownConvPct != null ? stats.thirdDownConvPct / 100 : null,
+    league.thirdDown,
+    0.88,
+    1.12
+  )
+  const redZoneFactor = normalizeRateFactor(
+    stats.redZoneTouchdownPct != null ? stats.redZoneTouchdownPct / 100 : null,
+    league.redZoneTd,
+    0.88,
+    1.12
+  )
+  const explosiveFactor = normalizeRateFactor(
+    stats.explosivePlayRate,
+    league.explosive,
+    0.9,
+    1.1
+  )
+  const sackFactor = normalizeRateFactor(
+    stats.sackRate,
+    league.sackRate,
+    0.9,
+    1.08,
+    true
+  )
+
+  const combined =
+    1 +
+    (yppFactor - 1) * 0.35 +
+    (ppdFactor - 1) * 0.35 +
+    (thirdDownFactor - 1) * 0.2 +
+    (redZoneFactor - 1) * 0.2 +
+    (explosiveFactor - 1) * 0.2 +
+    (sackFactor - 1) * 0.15
+
+  return clamp(combined, 0.85, 1.15)
+}
+
+const buildFootballDefenseFactor = (stats: FootballTeamStats, league: {
+  ppg: number
+  ypp: number
+}) => {
+  const pointsAllowedFactor = normalizeRateFactor(
+    stats.pointsAgainstPerGame,
+    league.ppg,
+    0.9,
+    1.1,
+    true
+  )
+  const yppAllowedFactor = normalizeRateFactor(
+    stats.yardsAllowedPerPlay,
+    league.ypp,
+    0.9,
+    1.08,
+    true
+  )
+  const combined =
+    1 +
+    (pointsAllowedFactor - 1) * 0.6 +
+    (yppAllowedFactor - 1) * 0.4
+  return clamp(combined, 0.9, 1.1)
+}
+
+export function calculateFairSpreadFootball(
+  homeTeamStats: FootballTeamStats,
+  awayTeamStats: FootballTeamStats,
+  opts?: {
+    homeFieldAdvantage?: number
+    leagueAvgPpg?: number
+    leagueAvgYpp?: number
+    leagueAvgPpd?: number
+    leagueAvgPlays?: number
+    leagueAvgThirdDown?: number
+    leagueAvgRedZoneTd?: number
+    leagueAvgExplosive?: number
+    leagueAvgSackRate?: number
+    matchupWeight?: number
+    maxSpread?: number
+    qbValueWeight?: number
+  }
+): number {
+  const homeField = opts?.homeFieldAdvantage ?? NFL_HOME_FIELD_ADVANTAGE
+  const leagueAvg = opts?.leagueAvgPpg ?? NFL_LEAGUE_AVG_PPG
+  const leagueAvgYpp = opts?.leagueAvgYpp ?? NFL_LEAGUE_AVG_YPP
+  const leagueAvgPpd = opts?.leagueAvgPpd ?? NFL_LEAGUE_AVG_PPD
+  const leagueAvgPlays = opts?.leagueAvgPlays ?? NFL_LEAGUE_AVG_PLAYS
+  const leagueAvgThirdDown = opts?.leagueAvgThirdDown ?? NFL_LEAGUE_AVG_THIRD_DOWN
+  const leagueAvgRedZoneTd = opts?.leagueAvgRedZoneTd ?? NFL_LEAGUE_AVG_REDZONE_TD
+  const leagueAvgExplosive = opts?.leagueAvgExplosive ?? NFL_LEAGUE_AVG_EXPLOSIVE
+  const leagueAvgSackRate = opts?.leagueAvgSackRate ?? NFL_LEAGUE_AVG_SACK_RATE
+  const matchupWeight = opts?.matchupWeight ?? 1
+  const maxSpread = opts?.maxSpread ?? 17
+  const qbValueWeight = opts?.qbValueWeight ?? 1
+
+  const homeBase = (homeTeamStats.pointsForPerGame + awayTeamStats.pointsAgainstPerGame) / 2
+  const awayBase = (awayTeamStats.pointsForPerGame + homeTeamStats.pointsAgainstPerGame) / 2
+
+  const homeAdjusted = adjustByYpp(
+    homeBase,
+    homeTeamStats.yardsPerPlay,
+    awayTeamStats.yardsAllowedPerPlay ?? awayTeamStats.yardsPerPlay,
+    leagueAvgYpp
+  )
+  const awayAdjusted = adjustByYpp(
+    awayBase,
+    awayTeamStats.yardsPerPlay,
+    homeTeamStats.yardsAllowedPerPlay ?? homeTeamStats.yardsPerPlay,
+    leagueAvgYpp
+  )
+
+  const efficiencyLeague = {
+    ypp: leagueAvgYpp,
+    ppd: leagueAvgPpd,
+    thirdDown: leagueAvgThirdDown,
+    redZoneTd: leagueAvgRedZoneTd,
+    explosive: leagueAvgExplosive,
+    sackRate: leagueAvgSackRate,
+  }
+  const homeEfficiency = buildFootballEfficiencyFactor(homeTeamStats, efficiencyLeague)
+  const awayEfficiency = buildFootballEfficiencyFactor(awayTeamStats, efficiencyLeague)
+  const homeDefense = buildFootballDefenseFactor(awayTeamStats, {
+    ppg: leagueAvg,
+    ypp: leagueAvgYpp,
+  })
+  const awayDefense = buildFootballDefenseFactor(homeTeamStats, {
+    ppg: leagueAvg,
+    ypp: leagueAvgYpp,
+  })
+
+  const paceAvg =
+    homeTeamStats.playsPerGame != null && awayTeamStats.playsPerGame != null
+      ? (homeTeamStats.playsPerGame + awayTeamStats.playsPerGame) / 2
+      : homeTeamStats.playsPerGame ?? awayTeamStats.playsPerGame ?? leagueAvgPlays
+  const paceFactor = normalizeRateFactor(paceAvg, leagueAvgPlays, 0.9, 1.1)
+
+  const homeEfficiencyAdj =
+    1 + (homeEfficiency * homeDefense * paceFactor - 1) * matchupWeight
+  const awayEfficiencyAdj =
+    1 + (awayEfficiency * awayDefense * paceFactor - 1) * matchupWeight
+
+  const homeTurnoverAdj = adjustByTurnovers(
+    homeAdjusted * homeEfficiencyAdj,
+    homeTeamStats.turnoverDifferential
+  )
+  const awayTurnoverAdj = adjustByTurnovers(
+    awayAdjusted * awayEfficiencyAdj,
+    awayTeamStats.turnoverDifferential
+  )
+
+  const homeExpected = clamp(homeTurnoverAdj, leagueAvg * 0.5, leagueAvg * 1.6)
+  const awayExpected = clamp(awayTurnoverAdj, leagueAvg * 0.5, leagueAvg * 1.6)
+
+  const qbAdj =
+    ((homeTeamStats.qbValue ?? 0) - (awayTeamStats.qbValue ?? 0)) * qbValueWeight
+
+  const margin = homeExpected - awayExpected + homeField + qbAdj
+  return clamp(margin, -maxSpread, maxSpread)
+}
+
+export function calculateFairTotalFootball(
+  homeTeamStats: FootballTeamStats,
+  awayTeamStats: FootballTeamStats,
+  opts?: {
+    leagueAvgPpg?: number
+    leagueAvgYpp?: number
+    leagueAvgPpd?: number
+    leagueAvgPlays?: number
+    leagueAvgThirdDown?: number
+    leagueAvgRedZoneTd?: number
+    leagueAvgExplosive?: number
+    leagueAvgSackRate?: number
+    totalMatchupWeight?: number
+  }
+): number {
+  const leagueAvg = opts?.leagueAvgPpg ?? NFL_LEAGUE_AVG_PPG
+  const leagueAvgYpp = opts?.leagueAvgYpp ?? NFL_LEAGUE_AVG_YPP
+  const leagueAvgPpd = opts?.leagueAvgPpd ?? NFL_LEAGUE_AVG_PPD
+  const leagueAvgPlays = opts?.leagueAvgPlays ?? NFL_LEAGUE_AVG_PLAYS
+  const leagueAvgThirdDown = opts?.leagueAvgThirdDown ?? NFL_LEAGUE_AVG_THIRD_DOWN
+  const leagueAvgRedZoneTd = opts?.leagueAvgRedZoneTd ?? NFL_LEAGUE_AVG_REDZONE_TD
+  const leagueAvgExplosive = opts?.leagueAvgExplosive ?? NFL_LEAGUE_AVG_EXPLOSIVE
+  const leagueAvgSackRate = opts?.leagueAvgSackRate ?? NFL_LEAGUE_AVG_SACK_RATE
+  const totalMatchupWeight = opts?.totalMatchupWeight ?? 1
+
+  const homeBase = (homeTeamStats.pointsForPerGame + awayTeamStats.pointsAgainstPerGame) / 2
+  const awayBase = (awayTeamStats.pointsForPerGame + homeTeamStats.pointsAgainstPerGame) / 2
+
+  const homeAdjusted = adjustByYpp(
+    homeBase,
+    homeTeamStats.yardsPerPlay,
+    awayTeamStats.yardsAllowedPerPlay ?? awayTeamStats.yardsPerPlay,
+    leagueAvgYpp
+  )
+  const awayAdjusted = adjustByYpp(
+    awayBase,
+    awayTeamStats.yardsPerPlay,
+    homeTeamStats.yardsAllowedPerPlay ?? homeTeamStats.yardsPerPlay,
+    leagueAvgYpp
+  )
+
+  const efficiencyLeague = {
+    ypp: leagueAvgYpp,
+    ppd: leagueAvgPpd,
+    thirdDown: leagueAvgThirdDown,
+    redZoneTd: leagueAvgRedZoneTd,
+    explosive: leagueAvgExplosive,
+    sackRate: leagueAvgSackRate,
+  }
+  const homeEfficiency = buildFootballEfficiencyFactor(homeTeamStats, efficiencyLeague)
+  const awayEfficiency = buildFootballEfficiencyFactor(awayTeamStats, efficiencyLeague)
+  const homeDefense = buildFootballDefenseFactor(awayTeamStats, {
+    ppg: leagueAvg,
+    ypp: leagueAvgYpp,
+  })
+  const awayDefense = buildFootballDefenseFactor(homeTeamStats, {
+    ppg: leagueAvg,
+    ypp: leagueAvgYpp,
+  })
+
+  const paceAvg =
+    homeTeamStats.playsPerGame != null && awayTeamStats.playsPerGame != null
+      ? (homeTeamStats.playsPerGame + awayTeamStats.playsPerGame) / 2
+      : homeTeamStats.playsPerGame ?? awayTeamStats.playsPerGame ?? leagueAvgPlays
+  const paceFactor = normalizeRateFactor(paceAvg, leagueAvgPlays, 0.9, 1.1)
+
+  const homeEfficiencyAdj =
+    1 + (homeEfficiency * homeDefense - 1) * totalMatchupWeight
+  const awayEfficiencyAdj =
+    1 + (awayEfficiency * awayDefense - 1) * totalMatchupWeight
+
+  const total =
+    (homeAdjusted * homeEfficiencyAdj + awayAdjusted * awayEfficiencyAdj) *
+    paceFactor
+
+  return clamp(total, leagueAvg * 1.3, leagueAvg * 2.6)
+}
+
+export function calculateFairSpreadHockey(
+  homeTeamStats: HockeyTeamStats,
+  awayTeamStats: HockeyTeamStats,
+  opts?: { homeIceAdvantage?: number; leagueAvgGpg?: number }
+): number {
+  const homeIce = opts?.homeIceAdvantage ?? NHL_HOME_ICE_ADVANTAGE
+  const leagueAvg = opts?.leagueAvgGpg ?? NHL_LEAGUE_AVG_GPG
+
+  const homeBase = (homeTeamStats.goalsForPerGame + awayTeamStats.goalsAgainstPerGame) / 2
+  const awayBase = (awayTeamStats.goalsForPerGame + homeTeamStats.goalsAgainstPerGame) / 2
+
+  const homeExpected = clamp(homeBase, leagueAvg * 0.6, leagueAvg * 1.5) + homeIce
+  const awayExpected = clamp(awayBase, leagueAvg * 0.6, leagueAvg * 1.5)
+
+  return homeExpected - awayExpected
+}
+
+export function calculateFairTotalHockey(
+  homeTeamStats: HockeyTeamStats,
+  awayTeamStats: HockeyTeamStats,
+  opts?: { leagueAvgGpg?: number }
+): number {
+  const leagueAvg = opts?.leagueAvgGpg ?? NHL_LEAGUE_AVG_GPG
+  const homeBase = (homeTeamStats.goalsForPerGame + awayTeamStats.goalsAgainstPerGame) / 2
+  const awayBase = (awayTeamStats.goalsForPerGame + homeTeamStats.goalsAgainstPerGame) / 2
+  return clamp(homeBase + awayBase, leagueAvg * 1.4, leagueAvg * 2.6)
+}
+
+export const NCAAB_LEAGUE_CONTEXT: LeagueContext = {
+  homeCourtAdvantage: NCAAB_HOME_COURT_ADVANTAGE,
+  leagueAvgOrtg: NCAAB_LEAGUE_AVG_ORTG,
+  leagueAvgPace: NCAAB_LEAGUE_AVG_PACE,
+  paceBase: 100,
 }
 
 /**

@@ -1,0 +1,273 @@
+{
+  "eventId": "401822879",
+  "league": "ncaab",
+  "leagueLabel": "NCAAB",
+  "updatedAt": "2026-01-01T00:16:55.214Z",
+  "statusText": "12/31 - 8:00 PM EST",
+  "status": {
+    "type": {
+      "state": "pre",
+      "detail": "Wed, December 31st at 8:00 PM EST",
+      "shortDetail": "12/31 - 8:00 PM EST",
+      "completed": false
+    }
+  },
+  "venue": "Capital One Arena",
+  "teams": [
+    {
+      "id": "46",
+      "name": "Georgetown Hoyas",
+      "abbreviation": "GTWN",
+      "homeAway": "home",
+      "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/46.png",
+      "score": 0,
+      "linescore": [],
+      "statistics": [
+        {
+          "label": "Streak",
+          "value": "W1",
+          "name": "streak",
+          "abbreviation": "STRK"
+        },
+        {
+          "label": "Points Against",
+          "value": "73.6",
+          "name": "avgPointsAgainst",
+          "abbreviation": "OPP PPG"
+        },
+        {
+          "label": "Points Per Game",
+          "value": "79.5",
+          "name": "avgPoints",
+          "abbreviation": "PTS"
+        },
+        {
+          "label": "Field Goal %",
+          "value": "45",
+          "name": "fieldGoalPct",
+          "abbreviation": "FG%"
+        },
+        {
+          "label": "Three Point %",
+          "value": "30",
+          "name": "threePointFieldGoalPct",
+          "abbreviation": "3P%"
+        },
+        {
+          "label": "Rebounds Per Game",
+          "value": "37.2",
+          "name": "avgRebounds",
+          "abbreviation": "REB"
+        },
+        {
+          "label": "Assists Per Game",
+          "value": "16.2",
+          "name": "avgAssists",
+          "abbreviation": "AST"
+        },
+        {
+          "label": "Blocks Per Game",
+          "value": "4.8",
+          "name": "avgBlocks",
+          "abbreviation": "BLK"
+        },
+        {
+          "label": "Steals Per Game",
+          "value": "7.5",
+          "name": "avgSteals",
+          "abbreviation": "STL"
+        },
+        {
+          "label": "Team Turnovers Per Game",
+          "value": "0.5",
+          "name": "avgTeamTurnovers",
+          "abbreviation": "TTO"
+        },
+        {
+          "label": "Total Turnovers Per Game",
+          "value": "9.3",
+          "name": "avgTotalTurnovers",
+          "abbreviation": "ToTO"
+        },
+        {
+          "label": "Points Against",
+          "value": "73.6",
+          "name": "avgPointsAgainst",
+          "abbreviation": "PA"
+        }
+      ],
+      "starters": [],
+      "bench": [],
+      "offense": [],
+      "defense": [],
+      "specialTeams": [],
+      "forwards": [],
+      "defensemen": [],
+      "goalies": []
+    },
+    {
+      "id": "2599",
+      "name": "St. John's Red Storm",
+      "abbreviation": "SJU",
+      "homeAway": "away",
+      "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2599.png",
+      "score": 0,
+      "linescore": [],
+      "statistics": [
+        {
+          "label": "Streak",
+          "value": "W1",
+          "name": "streak",
+          "abbreviation": "STRK"
+        },
+        {
+          "label": "Points Against",
+          "value": "71.7",
+          "name": "avgPointsAgainst",
+          "abbreviation": "OPP PPG"
+        },
+        {
+          "label": "Points Per Game",
+          "value": "85.8",
+          "name": "avgPoints",
+          "abbreviation": "PTS"
+        },
+        {
+          "label": "Field Goal %",
+          "value": "47",
+          "name": "fieldGoalPct",
+          "abbreviation": "FG%"
+        },
+        {
+          "label": "Three Point %",
+          "value": "35",
+          "name": "threePointFieldGoalPct",
+          "abbreviation": "3P%"
+        },
+        {
+          "label": "Rebounds Per Game",
+          "value": "38.8",
+          "name": "avgRebounds",
+          "abbreviation": "REB"
+        },
+        {
+          "label": "Assists Per Game",
+          "value": "16.3",
+          "name": "avgAssists",
+          "abbreviation": "AST"
+        },
+        {
+          "label": "Blocks Per Game",
+          "value": "5.6",
+          "name": "avgBlocks",
+          "abbreviation": "BLK"
+        },
+        {
+          "label": "Steals Per Game",
+          "value": "8.7",
+          "name": "avgSteals",
+          "abbreviation": "STL"
+        },
+        {
+          "label": "Team Turnovers Per Game",
+          "value": "0.5",
+          "name": "avgTeamTurnovers",
+          "abbreviation": "TTO"
+        },
+        {
+          "label": "Total Turnovers Per Game",
+          "value": "13.4",
+          "name": "avgTotalTurnovers",
+          "abbreviation": "ToTO"
+        },
+        {
+          "label": "Points Against",
+          "value": "71.7",
+          "name": "avgPointsAgainst",
+          "abbreviation": "PA"
+        }
+      ],
+      "starters": [],
+      "bench": [],
+      "offense": [],
+      "defense": [],
+      "specialTeams": [],
+      "forwards": [],
+      "defensemen": [],
+      "goalies": []
+    }
+  ],
+  "articles": [
+    {
+      "type": "pregame",
+      "title": "NC State's Will Wade defends Darrion Williams amid criticism",
+      "url": "https://www.espn.com/mens-college-basketball/story/_/id/47466870/nc-state-wade-defends-darrion-williams-amid-criticism",
+      "published": "2026-01-01T00:16:06.000Z",
+      "image": "https://a.espncdn.com/photo/2026/0101/r1595432_1296x729_16-9.jpg"
+    },
+    {
+      "type": "pregame",
+      "title": "Wichita State defeats UAB 75-70",
+      "url": "http://www.espn.com/ncb/recap?gameId=401828150",
+      "published": "2026-01-01T00:06:01.000Z",
+      "image": "https://s.espncdn.com/stitcher/sports/basketball/mens-college-basketball/events/401828150.png?templateId=espn.applewatch.awayhome.1"
+    },
+    {
+      "type": "pregame",
+      "title": "Davis scores 12 off the bench, Memphis downs North Texas 57-48",
+      "url": "http://www.espn.com/ncb/recap?gameId=401828154",
+      "published": "2025-12-31T23:54:00.000Z",
+      "image": "https://s.espncdn.com/stitcher/sports/basketball/mens-college-basketball/events/401828154.png?templateId=espn.applewatch.awayhome.1"
+    },
+    {
+      "type": "pregame",
+      "title": "Stephen F. Austin Lumberjacks vs. Northwestern State Demons: Game Highlights",
+      "url": "https://www.espn.com/video/clip?id=47466650",
+      "published": "2025-12-31T23:49:26.000Z",
+      "image": "https://a.espncdn.com/media/motion/wsc/2025/1231/5607e61a-8c03-433c-99f7-dc08312af5ae/5607e61a-8c03-433c-99f7-dc08312af5ae.jpg"
+    },
+    {
+      "type": "pregame",
+      "title": "Avila's 20 lead Saint Louis past Saint Joseph's 102-79",
+      "url": "http://www.espn.com/ncb/recap?gameId=401828349",
+      "published": "2025-12-31T23:44:01.000Z",
+      "image": "https://s.espncdn.com/stitcher/sports/basketball/mens-college-basketball/events/401828349.png?templateId=espn.applewatch.awayhome.1"
+    },
+    {
+      "type": "pregame",
+      "title": "New Orleans Privateers vs. Texas A&M-CC Islanders: Game Highlights",
+      "url": "https://www.espn.com/video/clip?id=47466574",
+      "published": "2025-12-31T23:41:38.000Z",
+      "image": "https://a.espncdn.com/media/motion/wsc/2025/1231/71159979-75fb-421b-a1d6-fe2aca43fe00/71159979-75fb-421b-a1d6-fe2aca43fe00.jpg"
+    },
+    {
+      "type": "pregame",
+      "title": "Boozer's double-double helps No. 6 Duke hold off Georgia Tech 85-79 in ACC opener",
+      "url": "http://www.espn.com/ncb/recap?gameId=401820636",
+      "published": "2025-12-31T23:39:01.000Z",
+      "image": "https://s.espncdn.com/stitcher/sports/basketball/mens-college-basketball/events/401820636.png?templateId=espn.applewatch.awayhome.1"
+    },
+    {
+      "type": "pregame",
+      "title": "Georgia Tech Yellow Jackets vs. Duke Blue Devils: Game Highlights",
+      "url": "https://www.espn.com/video/clip?id=47466519",
+      "published": "2025-12-31T23:37:18.000Z",
+      "image": "https://a.espncdn.com/media/motion/wsc/2025/1231/5f38c0d7-9f3a-4243-ad12-c8caad1de398/5f38c0d7-9f3a-4243-ad12-c8caad1de398.jpg"
+    },
+    {
+      "type": "pregame",
+      "title": "North Texas Mean Green vs. Memphis Tigers: Game Highlights",
+      "url": "https://www.espn.com/video/clip?id=47466485",
+      "published": "2025-12-31T23:33:27.000Z",
+      "image": "https://a.espncdn.com/media/motion/wsc/2025/1231/503efbd5-d1e9-42ff-a0eb-429a8e001a5d/503efbd5-d1e9-42ff-a0eb-429a8e001a5d.jpg"
+    },
+    {
+      "type": "pregame",
+      "title": "Wichita State Shockers vs. UAB Blazers: Game Highlights",
+      "url": "https://www.espn.com/video/clip?id=47466471",
+      "published": "2025-12-31T23:31:07.000Z",
+      "image": "https://a.espncdn.com/media/motion/wsc/2025/1231/2fe46ff0-fd5e-4996-816a-5976d62e67a1/2fe46ff0-fd5e-4996-816a-5976d62e67a1.jpg"
+    }
+  ],
+  "plays": []
+}

@@ -56,6 +56,13 @@ export interface EspnInjuryTeam {
   injuries?: EspnInjuryItem[]
 }
 
+const getCurrentSeason = () => {
+  const now = new Date()
+  const month = now.getUTCMonth()
+  const startYear = month >= 8 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
+  return startYear + 1
+}
+
 const fetchJson = async <T>(url: string, cacheTtl = CACHE_TTL): Promise<T | null> => {
   const cached = cache.get(url)
   if (cached && Date.now() - cached.ts < cacheTtl) return cached.data as T
@@ -89,21 +96,29 @@ export const fetchTeamList = async (): Promise<EspnTeamMeta[]> => {
 
 export const fetchTeamStatistics = async (
   teamId: string,
-  season: number
+  season = getCurrentSeason(),
+  seasonType = 2
 ): Promise<EspnStatsResponse | null> => {
-  const url = `${ESPN_CORE_BASE}/seasons/${season}/teams/${teamId}/statistics`
-  return fetchJson<EspnStatsResponse>(url)
+  const url = `${ESPN_CORE_BASE}/seasons/${season}/types/${seasonType}/teams/${teamId}/statistics`
+  const data = await fetchJson<EspnStatsResponse>(url)
+  if (data) return data
+  const fallbackUrl = `${ESPN_CORE_BASE}/seasons/${season}/teams/${teamId}/statistics`
+  return fetchJson<EspnStatsResponse>(fallbackUrl)
 }
 
 export const fetchAthleteStatistics = async (
   athleteId: string,
-  season: number
+  season = getCurrentSeason(),
+  seasonType = 2
 ): Promise<EspnStatsResponse | null> => {
-  const url = `${ESPN_CORE_BASE}/seasons/${season}/athletes/${athleteId}/statistics`
+  const url = `${ESPN_CORE_BASE}/seasons/${season}/types/${seasonType}/athletes/${athleteId}/statistics`
   const seasonal = await fetchJson<EspnStatsResponse>(url)
   if (seasonal) return seasonal
-  const fallbackUrl = `${ESPN_CORE_BASE}/athletes/${athleteId}/statistics`
-  return fetchJson<EspnStatsResponse>(fallbackUrl)
+  const fallbackUrl = `${ESPN_CORE_BASE}/seasons/${season}/athletes/${athleteId}/statistics`
+  const fallback = await fetchJson<EspnStatsResponse>(fallbackUrl)
+  if (fallback) return fallback
+  const legacyUrl = `${ESPN_CORE_BASE}/athletes/${athleteId}/statistics`
+  return fetchJson<EspnStatsResponse>(legacyUrl)
 }
 
 export const fetchAthleteGamelog = async (
@@ -155,5 +170,9 @@ export const statHelpers = {
     }
     return null
   },
+}
+
+export const seasonHelpers = {
+  getCurrentSeason,
 }
 

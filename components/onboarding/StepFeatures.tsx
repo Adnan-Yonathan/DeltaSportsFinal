@@ -1,8 +1,15 @@
 "use client"
-
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
-import { Brain, DollarSign, Search, BarChart3, LineChart, TrendingUp, Check } from "lucide-react"
+import {
+  Brain,
+  Search,
+  BarChart3,
+  LineChart,
+  TrendingUp,
+  Bell,
+  Check,
+} from "lucide-react"
 
 interface StepFeaturesProps {
   value: string[]
@@ -10,47 +17,48 @@ interface StepFeaturesProps {
   onValidation: (isValid: boolean) => void
 }
 
-const FEATURES = [
+const MAX_SELECTIONS = 2
+const GOALS = [
   {
-    id: "ai-insights",
-    name: "AI Insights",
-    description: "Chat with AI for game analysis and betting strategies",
-    icon: Brain,
-    color: "from-emerald-500 to-emerald-500",
-  },
-  {
-    id: "odds-comparison",
-    name: "Real-Time Odds",
-    description: "Compare odds across 10+ sportsbooks instantly",
-    icon: Search,
-    color: "from-emerald-500 to-emerald-500",
-  },
-  {
-    id: "statistics",
-    name: "Advanced Statistics",
-    description: "Access comprehensive stats for every team and player",
-    icon: BarChart3,
-    color: "from-emerald-500 to-emerald-500",
-  },
-  {
-    id: "custom-models",
-    name: "Custom Models",
-    description: "Build personalized models with your own criteria",
-    icon: LineChart,
-    color: "from-emerald-500 to-emerald-500",
-  },
-  {
-    id: "live-tracking",
-    name: "Live Game Tracking",
-    description: "Real-time scores, stats, and updates as games happen",
+    id: "live-lines",
+    name: "Live lines",
+    description: "Track live movement and spot fast shifts",
     icon: TrendingUp,
     color: "from-emerald-500 to-emerald-500",
   },
   {
-    id: "line-shopping",
-    name: "Smart Line Shopping",
-    description: "Never miss the best line with automated comparison",
-    icon: DollarSign,
+    id: "prop-edges",
+    name: "Prop edges",
+    description: "Find mispriced player props quickly",
+    icon: BarChart3,
+    color: "from-emerald-500 to-emerald-500",
+  },
+  {
+    id: "matchup-research",
+    name: "Matchup research",
+    description: "Build clean game notes and trend context",
+    icon: Search,
+    color: "from-emerald-500 to-emerald-500",
+  },
+  {
+    id: "arbitrage-ev",
+    name: "Arbitrage and EV scans",
+    description: "Surface pricing gaps and value windows",
+    icon: LineChart,
+    color: "from-emerald-500 to-emerald-500",
+  },
+  {
+    id: "education",
+    name: "Betting education",
+    description: "Learn terminology, risk, and modeling basics",
+    icon: Brain,
+    color: "from-emerald-500 to-emerald-500",
+  },
+  {
+    id: "alerts",
+    name: "Alerts and notifications",
+    description: "Get notified when lines move in your favor",
+    icon: Bell,
     color: "from-emerald-500 to-emerald-500",
   },
 ]
@@ -63,9 +71,12 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
   const toggleFeature = (featureId: string) => {
     if (value.includes(featureId)) {
       onChange(value.filter((id) => id !== featureId))
-    } else {
-      onChange([...value, featureId])
+      return
     }
+    if (value.length >= MAX_SELECTIONS) {
+      return
+    }
+    onChange([...value, featureId])
   }
 
   return (
@@ -76,28 +87,36 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
       className="space-y-6"
     >
       <div className="text-center space-y-2">
-        <h2 className="text-4xl font-bold text-white">What Brought You Here?</h2>
-        <p className="text-white/60">Select the features you&apos;re most interested in</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-white/40">Your goals</p>
+        <h2 className="text-4xl font-bold text-white tracking-tight">
+          What do you want to get out of Delta?
+        </h2>
+        <p className="text-white/60">
+          Pick up to {MAX_SELECTIONS} so we can tailor your feed.
+        </p>
       </div>
 
       <div className="max-w-3xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {FEATURES.map((feature) => {
-            const isSelected = value.includes(feature.id)
-            const Icon = feature.icon
+          {GOALS.map((goal) => {
+            const isSelected = value.includes(goal.id)
+            const Icon = goal.icon
+            const isDisabled = !isSelected && value.length >= MAX_SELECTIONS
             return (
               <motion.button
-                key={feature.id}
-                onClick={() => toggleFeature(feature.id)}
+                key={goal.id}
+                onClick={() => toggleFeature(goal.id)}
                 className={`
-                  relative p-5 rounded-xl border-2 transition-all text-left
+                  relative p-5 rounded-2xl border transition-all text-left
                   ${isSelected
-                  ? "bg-gradient-to-br from-emerald-500/20 via-emerald-500/15 to-emerald-500/5 border-emerald-400/70 shadow-[0_10px_30px_rgba(16,185,129,0.25)]"
-                  : "bg-neutral-850/80 border-emerald-300/15 hover:border-emerald-300/30"
+                    ? "bg-gradient-to-b from-emerald-500/15 via-emerald-500/10 to-transparent border-emerald-400/70 shadow-[0_14px_40px_rgba(16,185,129,0.2)]"
+                    : "bg-white/[0.03] border-white/10 hover:border-emerald-300/40"
                   }
+                  ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}
                 `}
-                whileHover={{ scale: 1.02 }}
+                whileHover={isDisabled ? {} : { scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
+                disabled={isDisabled}
               >
                 {isSelected && (
                   <div className="absolute top-3 right-3 bg-emerald-500 rounded-full p-1">
@@ -105,14 +124,17 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
                   </div>
                 )}
                 <div className="flex items-start gap-4">
-                  <div className={`
-                    p-2.5 rounded-lg bg-gradient-to-br ${feature.color} flex-shrink-0
-                  `}>
+                  <div
+                    className={`
+                      p-2.5 rounded-xl bg-gradient-to-br ${goal.color} flex-shrink-0
+                      ${isSelected ? "ring-2 ring-white/20" : ""}
+                    `}
+                  >
                     <Icon className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1 pr-6">
-                    <h3 className="text-lg font-bold text-white mb-1">{feature.name}</h3>
-                    <p className="text-white/60 text-sm">{feature.description}</p>
+                    <h3 className="text-lg font-semibold text-white mb-1">{goal.name}</h3>
+                    <p className="text-white/60 text-sm">{goal.description}</p>
                   </div>
                 </div>
               </motion.button>
@@ -122,13 +144,19 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
 
         {value.length === 0 && (
           <p className="text-center text-red-400 text-sm mt-4">
-            Please select at least one feature
+            Please select at least one goal
           </p>
         )}
 
         {value.length > 0 && (
           <p className="text-center text-emerald-400 text-sm mt-4">
-            {value.length} feature{value.length > 1 ? "s" : ""} selected
+            {value.length} selected
+          </p>
+        )}
+
+        {value.length >= MAX_SELECTIONS && (
+          <p className="text-center text-white/50 text-xs mt-2">
+            You can choose up to {MAX_SELECTIONS}. Deselect to change.
           </p>
         )}
       </div>

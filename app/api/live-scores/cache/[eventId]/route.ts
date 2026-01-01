@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { loadCachedGameDetails } from "@/lib/live-score-cache"
+import { loadCachedGameDetails, saveCachedGameDetails } from "@/lib/live-score-cache"
 import { fetchGameDetails, type LeagueId } from "@/lib/live-scores"
 
 interface Params {
@@ -21,6 +21,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   try {
     const fresh = await fetchGameDetails(league, params.eventId)
+    saveCachedGameDetails(league, params.eventId, fresh)
     return NextResponse.json({ source: "live", data: fresh })
   } catch (error) {
     console.error("[live-cache] detail fallback", error)

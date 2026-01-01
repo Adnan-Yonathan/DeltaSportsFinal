@@ -15,8 +15,7 @@ import {
   getConfidenceLevel,
   formatProbability
 } from '@/lib/utils/prop-probability'
-import { findStaticNbaTeam } from '@/lib/nba-static-team-stats'
-import { nbaPlayerPerGame2025_2026Csv } from '@/data/nba_player_per_game_2025_2026'
+import { getNBAPlayerSeasonStats, getNBATeamStats } from '@/lib/sports-stats-api'
 import { fetchAllLiveScores } from '@/lib/live-scores'
 import { fetchSbdGamePropsList, fetchSbdOdds, type SbdLeague } from '@/lib/api/sbd'
 
@@ -176,68 +175,60 @@ interface ParsedPlayer {
   pra: number
 }
 
-let playerCache: Map<string, ParsedPlayer> | null = null
+let playerCache = new Map<string, ParsedPlayer>()
 
-function getAllPlayers(): Map<string, ParsedPlayer> {
-  if (playerCache) return playerCache
-
-  const map = new Map<string, ParsedPlayer>()
-  const lines = nbaPlayerPerGame2025_2026Csv
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l && /^\d+,/.test(l))
-
-  for (const line of lines) {
-    const cells = line.split(',')
-    if (cells.length < 30) continue
-
-    const player = cells[1].trim()
-    const key = normalize(player)
-    const team = cells[5]?.trim() || ''
-    const points = parseFloat(cells[26]) || 0
-    const rebounds = parseFloat(cells[20]) || 0
-    const assists = parseFloat(cells[21]) || 0
-    const threes = parseFloat(cells[14]) || 0
-
-    map.set(key, {
-      name: player,
-      team,
-      mpg: parseFloat(cells[2]) || 0,
-      points,
-      rebounds,
-      assists,
-      threes,
-      pra: points + rebounds + assists,
-    })
+const toNumber = (value: unknown): number | null => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string') {
+    const num = Number(value)
+    return Number.isFinite(num) ? num : null
   }
-
-  playerCache = map
-  return map
+  return null
 }
 
-function findPlayer(playerName: string): ParsedPlayer | null {
-  const players = getAllPlayers()
-  const normalized = normalize(playerName)
-
-  // Exact match first
-  if (players.has(normalized)) return players.get(normalized)!
-
-  // Partial match
-  for (const [key, player] of players) {
-    if (key.includes(normalized) || normalized.includes(key)) {
-      return player
-    }
+const pickStat = (stats: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    const value = toNumber(stats[key])
+    if (value != null) return value
   }
-
-  // Try by last name
-  const lastName = playerName.split(' ').pop()?.toLowerCase() || ''
-  for (const [key, player] of players) {
-    if (key.endsWith(normalize(lastName))) {
-      return player
-    }
-  }
-
   return null
+}
+
+const buildParsedPlayer = (
+  name: string,
+  team: string,
+  stats: Record<string, unknown>
+): ParsedPlayer => {
+  const points = pickStat(stats, ['PTS', 'PPG', 'points', 'pointsPerGame']) ?? 0
+  const rebounds = pickStat(stats, ['REB', 'RPG', 'TRB', 'rebounds']) ?? 0
+  const assists = pickStat(stats, ['AST', 'APG', 'assists']) ?? 0
+  const threes =
+    pickStat(stats, ['THREE_PM', '3P', 'threePointersMade', 'threesMadePerGame']) ??
+    0
+
+  return {
+    name,
+    team,
+    mpg: pickStat(stats, ['MPG', 'minutesPerGame', 'minutes']) ?? 0,
+    points,
+    rebounds,
+    assists,
+    threes,
+    pra: points + rebounds + assists,
+  }
+}
+
+async function findPlayer(playerName: string): Promise<ParsedPlayer | null> {
+  const normalized = normalize(playerName)
+  if (playerCache.has(normalized)) return playerCache.get(normalized) || null
+
+  const data = await getNBAPlayerSeasonStats(playerName)
+  const stats = (data?.stats || {}) as Record<string, unknown>
+  if (!Object.keys(stats).length) return null
+
+  const parsed = buildParsedPlayer(data?.name || playerName, data?.team || '', stats)
+  playerCache.set(normalized, parsed)
+  return parsed
 }
 
 function getStatValue(player: ParsedPlayer, propType: string): number {
@@ -458,7 +449,7 @@ export async function calculatePlayerPropProbability(
   threshold: number,
   direction: 'over' | 'under' = 'over'
 ): Promise<PlayerPropLeg | null> {
-  const player = findPlayer(playerName)
+  const player = await findPlayer(playerName)
   if (!player) return null
 
   const seasonAverage = getStatValue(player, propType)
@@ -678,8 +669,21 @@ export async function calculateGameOutcomeProbability(
   direction?: 'home' | 'away' | 'over' | 'under',
   marketOdds?: number
 ): Promise<GameOutcomeLeg | null> {
-  const homeStats = findStaticNbaTeam(homeTeam)[0]
-  const awayStats = findStaticNbaTeam(awayTeam)[0]
+  const teams = await getNBATeamStats()
+  const targetHome = normalize(homeTeam)
+  const targetAway = normalize(awayTeam)
+  const matchTeam = (team: any, target: string) => {
+    const name = normalize(team.team || '')
+    const abbr = normalize(team.teamAbbr || '')
+    return (
+      name === target ||
+      name.endsWith(target) ||
+      target.endsWith(name) ||
+      (abbr && (abbr === target || target.endsWith(abbr) || abbr.endsWith(target)))
+    )
+  }
+  const homeStats = teams.find((team) => matchTeam(team, targetHome))
+  const awayStats = teams.find((team) => matchTeam(team, targetAway))
 
   if (!homeStats || !awayStats) return null
 
@@ -1044,3 +1048,4 @@ function normalCDF(z: number): number {
 export function formatParlayResultForChat(result: ParlayProbabilityResult): string {
   return result.formatted
 }
+

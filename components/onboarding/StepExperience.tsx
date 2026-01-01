@@ -1,8 +1,7 @@
 "use client"
-
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
-import { Sparkles, TrendingUp, Target, Trophy } from "lucide-react"
+import { Sparkles, TrendingUp, Target } from "lucide-react"
 
 interface StepExperienceProps {
   value: string
@@ -13,31 +12,24 @@ interface StepExperienceProps {
 const EXPERIENCE_LEVELS = [
   {
     id: "beginner",
-    name: "Beginner",
-    description: "Just starting out or betting casually for fun",
+    name: "New",
+    description: "Just getting started or betting casually.",
     icon: Sparkles,
     color: "from-emerald-500 to-emerald-500",
   },
   {
     id: "intermediate",
     name: "Intermediate",
-    description: "Have some experience, tracking bets and learning strategies",
+    description: "Comfortable with lines and tracking results.",
     icon: TrendingUp,
     color: "from-emerald-500 to-emerald-500",
   },
   {
     id: "advanced",
     name: "Advanced",
-    description: "Experienced bettor with proven strategies and consistent tracking",
+    description: "Consistent strategies and deeper analysis.",
     icon: Target,
-    color: "from-orange-500 to-red-500",
-  },
-  {
-    id: "professional",
-    name: "Professional",
-    description: "Serious about betting as an investment with statistical models",
-    icon: Trophy,
-    color: "from-amber-500 to-yellow-500",
+    color: "from-emerald-500 to-emerald-500",
   },
 ]
 
@@ -54,8 +46,11 @@ export function StepExperience({ value, onChange, onValidation }: StepExperience
       className="space-y-6"
     >
       <div className="text-center space-y-2">
-        <h2 className="text-4xl font-bold text-white">What&apos;s Your Experience Level?</h2>
-        <p className="text-white/60">This helps us personalize your experience</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-white/40">Experience</p>
+        <h2 className="text-4xl font-bold text-white tracking-tight">
+          How would you describe your betting experience?
+        </h2>
+        <p className="text-white/60">This helps us tune recommendations.</p>
       </div>
 
       <div className="max-w-2xl mx-auto space-y-4">
@@ -67,25 +62,27 @@ export function StepExperience({ value, onChange, onValidation }: StepExperience
               key={level.id}
               onClick={() => onChange(level.id)}
               className={`
-                relative w-full p-6 rounded-xl border-2 transition-all text-left
+                relative w-full p-6 rounded-2xl border transition-all text-left
                 ${isSelected
-                  ? "bg-gradient-to-br from-emerald-500/20 via-emerald-500/15 to-emerald-500/5 border-emerald-400/70 shadow-[0_10px_30px_rgba(16,185,129,0.25)]"
-                  : "bg-neutral-850/80 border-emerald-300/15 hover:border-emerald-300/30"
+                  ? "bg-gradient-to-b from-emerald-500/15 via-emerald-500/10 to-transparent border-emerald-400/70 shadow-[0_14px_40px_rgba(16,185,129,0.2)]"
+                  : "bg-white/[0.03] border-white/10 hover:border-emerald-300/40"
                 }
               `}
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
             >
               <div className="flex items-start gap-4">
-                <div className={`
-                  p-3 rounded-lg bg-gradient-to-br ${level.color}
-                  ${isSelected ? "ring-2 ring-white/20" : ""}
-                `}>
+                <div
+                  className={`
+                    p-3 rounded-xl bg-gradient-to-br ${level.color}
+                    ${isSelected ? "ring-2 ring-white/20" : ""}
+                  `}
+                >
                   <Icon className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
-                    <h3 className="text-xl font-bold text-white">{level.name}</h3>
+                    <h3 className="text-xl font-semibold text-white">{level.name}</h3>
                     {isSelected && (
                       <div className="flex items-center gap-2 text-emerald-400 text-sm">
                         <div className="w-2 h-2 rounded-full bg-emerald-400" />

@@ -14,6 +14,14 @@ import { getGameRecommendations, type GameRecommendation } from './recommendatio
 import { analyzeMatchup } from './matchup-analyzer'
 import { evaluateLineEdge, type EdgeAssessment } from '@/lib/analysis/bet-tools'
 import type { OddsGame } from '@/lib/types/odds'
+import { MARKETS } from '@/lib/types/odds'
+import {
+  analyzeSlatePropEdges,
+  formatSlatePropEdgesForChat,
+  type PlayerPropEdge,
+} from '@/lib/services/slate-prop-edge-detector'
+import { findEVOpportunities } from '@/lib/services/cross-market-ev'
+import type { EVOpportunity } from '@/lib/utils/ev-calculator'
 import {
   detectEdges as detectSharpEdges,
   type SharpSignal,
@@ -57,6 +65,10 @@ export interface GameEdgeAnalysis {
     signals: string[]
     boost: number // Confidence boost factor (0-2)
   }
+  highEv?: {
+    spread?: EVOpportunity
+    total?: EVOpportunity
+  }
 }
 
 export interface SlateEdgeResult {
@@ -65,6 +77,13 @@ export interface SlateEdgeResult {
   date: string
   gamesAnalyzed: number
   edges: GameEdgeAnalysis[]
+  propEdges?: PlayerPropEdge[]
+  propSummary?: {
+    strongEdges: number
+    softEdges: number
+    noEdges: number
+    propsAnalyzed: number
+  }
   summary: {
     strongEdges: number
     softEdges: number
@@ -91,6 +110,57 @@ const ODDS_API_TO_SBD: Record<string, 'nba' | 'nfl' | 'nhl' | 'mlb' | 'ncaamb' |
   baseball_mlb: 'mlb',
   icehockey_nhl: 'nhl',
 }
+
+const normalizeSelection = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const buildTokens = (value: string) =>
+  normalizeSelection(value)
+    .split(' ')
+    .filter((token) => token.length > 2)
+
+const selectionMatchesTeam = (selection: string, team: string) => {
+  const selectionTokens = buildTokens(selection)
+  const teamTokens = buildTokens(team)
+  if (!selectionTokens.length || !teamTokens.length) return false
+  const selectionJoined = selectionTokens.join(' ')
+  const teamJoined = teamTokens.join(' ')
+  if (selectionJoined.includes(teamJoined) || teamJoined.includes(selectionJoined)) {
+    return true
+  }
+  return (
+    teamTokens.every((token) => selectionTokens.includes(token)) ||
+    selectionTokens.every((token) => teamTokens.includes(token))
+  )
+}
+
+const pickBestEv = (
+  opportunities: EVOpportunity[],
+  market: string,
+  predicate: (opportunity: EVOpportunity) => boolean,
+  line?: number
+) => {
+  const candidates = opportunities.filter(
+    (opportunity) => opportunity.market === market && predicate(opportunity)
+  )
+  if (!candidates.length) return null
+  return candidates
+    .sort((a, b) => {
+      if (b.ev !== a.ev) return b.ev - a.ev
+      if (line != null && a.point != null && b.point != null) {
+        return Math.abs(a.point - line) - Math.abs(b.point - line)
+      }
+      return 0
+    })
+    [0]
+}
+
+const formatOdds = (odds: number) => (odds > 0 ? `+${odds}` : `${odds}`)
 
 /**
  * Determine if sharp signals agree with model projection
@@ -184,9 +254,11 @@ export async function analyzeSlateEdges(
   options: {
     limit?: number
     minEdge?: 'soft' | 'strong' // Only return games with at least this edge level
+    includeProps?: boolean
+    date?: string // YYYY-MM-DD (America/New_York)
   } = {}
 ): Promise<SlateEdgeResult> {
-  const { limit = 15, minEdge } = options
+  const { limit = 15, minEdge, date } = options
   const sportLabel = SPORT_LABELS[sportKey] || sportKey
 
   console.log(`[SLATE EDGE] Analyzing ${sportLabel} slate...`)
@@ -198,7 +270,7 @@ export async function analyzeSlateEdges(
     return {
       sport: sportKey,
       sportLabel,
-      date: new Date().toISOString().split('T')[0],
+      date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().split('T')[0],
       gamesAnalyzed: 0,
       edges: [],
       summary: { strongEdges: 0, softEdges: 0, noEdges: 0, sharpConfirmed: 0 },
@@ -222,29 +294,34 @@ export async function analyzeSlateEdges(
   // Use US Eastern timezone as primary reference for "today's slate"
   const now = new Date()
 
-  // Calculate "today" boundaries in US Eastern time
+  // Calculate target date boundaries in US Eastern time
   const easternFormatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   })
-  const [month, day, year] = easternFormatter.format(now).split('/')
-  const todayEasternStr = `${year}-${month}-${day}`
+  const resolveTargetDate = () => {
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date
+    const [month, day, year] = easternFormatter.format(now).split('/')
+    return `${year}-${month}-${day}`
+  }
+  const targetDate = resolveTargetDate()
 
-  // Today's start and end in Eastern time (converted to UTC for comparison)
-  const todayStartEastern = new Date(`${todayEasternStr}T00:00:00-05:00`)
-  const todayEndEastern = new Date(`${todayEasternStr}T23:59:59-05:00`)
+  // Target start and end in Eastern time (converted to UTC for comparison)
+  const todayStartEastern = new Date(`${targetDate}T00:00:00-05:00`)
+  const todayEndEastern = new Date(`${targetDate}T23:59:59-05:00`)
 
   // Allow games that started up to 3 hours ago (still in progress)
   const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000)
+  const useDateOverride = Boolean(date)
 
   const upcomingGames = oddsGames
     .filter((g) => {
       const gameTime = new Date(g.commence_time)
       // Game is today (in Eastern time) and either hasn't started OR started within last 3 hours
       const isToday = gameTime >= todayStartEastern && gameTime <= todayEndEastern
-      const notTooOld = gameTime > threeHoursAgo
+      const notTooOld = useDateOverride ? true : gameTime > threeHoursAgo
       return isToday && notTooOld
     })
     .slice(0, limit)
@@ -256,6 +333,25 @@ export async function analyzeSlateEdges(
   let softEdges = 0
   let noEdges = 0
   let sharpConfirmedCount = 0
+  const evByGameId = new Map<string, EVOpportunity[]>()
+
+  try {
+    const evOpps = await findEVOpportunities({
+      sports: [sportKey],
+      minEV: 3,
+      includeProps: false,
+      markets: [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS],
+      limit: 200,
+    })
+    for (const opportunity of evOpps) {
+      if (!evByGameId.has(opportunity.gameId)) {
+        evByGameId.set(opportunity.gameId, [])
+      }
+      evByGameId.get(opportunity.gameId)!.push(opportunity)
+    }
+  } catch (error) {
+    console.error('[SLATE EDGE] Failed to fetch EV opportunities:', error)
+  }
 
   for (const game of upcomingGames) {
     try {
@@ -270,23 +366,39 @@ export async function analyzeSlateEdges(
         return homeMatch && awayMatch
       })
 
+      // Get market lines (needed for NCAAB market anchoring)
+      const marketSpread = getBestSpread(game, 'home')
+      const marketTotal = getBestTotal(game)
+
       // Get detailed matchup analysis (includes injuries, stats, ATS)
-      const matchupAnalysis = await analyzeMatchup(game.home_team, game.away_team)
+      const matchupAnalysis = await analyzeMatchup(
+        game.home_team,
+        game.away_team,
+        undefined,
+        undefined,
+        sportKey
+      )
+
+      const marketContext = {
+        marketSpread: marketSpread?.line,
+        marketTotal: marketTotal?.line,
+        sharpSignals: sharpResult?.sharpSignals,
+        sharpSplits: sharpResult?.splits,
+      }
 
       // Get model recommendations for this game
       // Pass home and away team names separately to avoid parsing issues with multi-word names
       const recommendations = await getGameRecommendations(
         game.home_team,
         game.away_team,
-        'all'
+        'all',
+        sportKey,
+        marketContext,
+        matchupAnalysis
       )
 
       const spreadRec = recommendations.find((r) => r.type === 'spread')
       const totalRec = recommendations.find((r) => r.type === 'total')
-
-      // Get market lines
-      const marketSpread = getBestSpread(game, 'home')
-      const marketTotal = getBestTotal(game)
 
       let spreadEdge: EdgeAssessment | undefined
       let totalEdge: EdgeAssessment | undefined
@@ -334,8 +446,25 @@ export async function analyzeSlateEdges(
             lowerFactor.includes('(out') || lowerFactor.includes('(doubtful') ||
             lowerFactor.includes('(questionable')) {
           injuries.push(factor)
-        } else if (lowerFactor.includes('ortg') || lowerFactor.includes('drtg') ||
-                   lowerFactor.includes('pace') || lowerFactor.includes('ats')) {
+        } else if (
+          lowerFactor.includes('ortg') ||
+          lowerFactor.includes('drtg') ||
+          lowerFactor.includes('pace') ||
+          lowerFactor.includes('ppg') ||
+          lowerFactor.includes('papg') ||
+          lowerFactor.includes('yards/play') ||
+          lowerFactor.includes('points/drive') ||
+          lowerFactor.includes('3rd down') ||
+          lowerFactor.includes('red zone') ||
+          lowerFactor.includes('explosive') ||
+          lowerFactor.includes('sack rate') ||
+          lowerFactor.includes('yards allowed') ||
+          lowerFactor.includes('turnover') ||
+          lowerFactor.includes('gpg') ||
+          lowerFactor.includes('gaa') ||
+          lowerFactor.includes('goals') ||
+          lowerFactor.includes('ats')
+        ) {
           matchupFactors.push(factor)
         }
       }
@@ -387,6 +516,39 @@ export async function analyzeSlateEdges(
         } : undefined,
       }
 
+      const evOpportunities = evByGameId.get(game.id) || []
+      const highEv: GameEdgeAnalysis['highEv'] = {}
+
+      if (spreadRec && spreadEdge && spreadEdge.verdict !== 'none') {
+        const evPick = pickBestEv(
+          evOpportunities,
+          'Spread',
+          (opportunity) => selectionMatchesTeam(opportunity.selection, modelFavoredTeam),
+          marketSpread?.line
+        )
+        if (evPick) {
+          highEv.spread = evPick
+        }
+      }
+
+      if (totalRec && totalEdge && totalEdge.verdict !== 'none') {
+        const direction = modelTotalDirection === 'over' ? 'over' : 'under'
+        const evPick = pickBestEv(
+          evOpportunities,
+          'Total',
+          (opportunity) =>
+            opportunity.selection.toLowerCase().includes(direction),
+          marketTotal?.line
+        )
+        if (evPick) {
+          highEv.total = evPick
+        }
+      }
+
+      if (highEv.spread || highEv.total) {
+        gameAnalysis.highEv = highEv
+      }
+
       if (spreadRec && marketSpread && spreadEdge) {
         gameAnalysis.spread = {
           marketLine: marketSpread.line,
@@ -433,12 +595,32 @@ export async function analyzeSlateEdges(
     return getEdgeScore(b) - getEdgeScore(a)
   })
 
+  const shouldIncludeProps =
+    options.includeProps !== false &&
+    (sportKey === 'basketball_nba' ||
+      sportKey === 'basketball_ncaab' ||
+      sportKey === 'americanfootball_nfl' ||
+      sportKey === 'americanfootball_ncaaf' ||
+      sportKey === 'icehockey_nhl')
+  const propResult = shouldIncludeProps
+    ? await analyzeSlatePropEdges(sportKey, { limit: 25 })
+    : null
+
   return {
     sport: sportKey,
     sportLabel,
-    date: new Date().toISOString().split('T')[0],
+    date: targetDate,
     gamesAnalyzed: upcomingGames.length,
     edges,
+    propEdges: propResult?.edges,
+    propSummary: propResult
+      ? {
+          strongEdges: propResult.summary.strongEdges,
+          softEdges: propResult.summary.softEdges,
+          noEdges: propResult.summary.noEdges,
+          propsAnalyzed: propResult.propsAnalyzed,
+        }
+      : undefined,
     summary: { strongEdges, softEdges, noEdges, sharpConfirmed: sharpConfirmedCount },
   }
 }
@@ -448,7 +630,7 @@ export async function analyzeSlateEdges(
  */
 export function formatSlateEdgesForChat(result: SlateEdgeResult): string {
   if (result.gamesAnalyzed === 0) {
-    return `No ${result.sportLabel} games found for today.`
+    return `No ${result.sportLabel} games found for ${result.date}.`
   }
 
   const lines: string[] = []
@@ -457,14 +639,21 @@ export function formatSlateEdgesForChat(result: SlateEdgeResult): string {
   lines.push('')
   lines.push(`**Games Analyzed:** ${result.gamesAnalyzed}`)
   lines.push(`**Summary:** ${result.summary.strongEdges} strong edges | ${result.summary.softEdges} soft edges | ${result.summary.noEdges} no edge | ${result.summary.sharpConfirmed} sharp-confirmed`)
+  if (result.summary.sharpConfirmed > 0) {
+    lines.push('Sharp confirmations are highlighted below.')
+  }
   lines.push('')
 
-  if (result.edges.length === 0) {
-    lines.push('No significant edges detected in today\'s slate.')
+  if (result.edges.length === 0 && (!result.propEdges || result.propEdges.length === 0)) {
+    lines.push("No significant edges detected in today's slate.")
     return lines.join('\n')
   }
 
-  // Group by edge strength
+  if (result.edges.length === 0) {
+    lines.push("No significant game edges detected in today's slate.")
+    lines.push('')
+  }
+
   const strongEdgeGames = result.edges.filter(
     (g) => g.spread?.edge.verdict === 'strong' || g.total?.edge.verdict === 'strong'
   )
@@ -475,7 +664,7 @@ export function formatSlateEdgesForChat(result: SlateEdgeResult): string {
   )
 
   if (strongEdgeGames.length > 0) {
-    lines.push('### 🔥 Strong Edges')
+    lines.push('### Strong Edges')
     lines.push('')
     for (const game of strongEdgeGames) {
       lines.push(formatGameEdge(game))
@@ -484,7 +673,7 @@ export function formatSlateEdgesForChat(result: SlateEdgeResult): string {
   }
 
   if (softEdgeGames.length > 0) {
-    lines.push('### ✓ Soft Edges')
+    lines.push('### Soft Edges')
     lines.push('')
     for (const game of softEdgeGames) {
       lines.push(formatGameEdge(game))
@@ -492,12 +681,27 @@ export function formatSlateEdgesForChat(result: SlateEdgeResult): string {
     }
   }
 
+  if (result.propEdges && result.propEdges.length > 0) {
+    lines.push('')
+    lines.push(
+      formatSlatePropEdgesForChat({
+        sport: result.sport,
+        sportLabel: result.sportLabel,
+        date: result.date,
+        propsAnalyzed: result.propSummary?.propsAnalyzed || result.propEdges.length,
+        edges: result.propEdges,
+        summary: {
+          strongEdges: result.propSummary?.strongEdges || 0,
+          softEdges: result.propSummary?.softEdges || 0,
+          noEdges: result.propSummary?.noEdges || 0,
+        },
+      })
+    )
+  }
+
   return lines.join('\n')
 }
 
-/**
- * Format a single game's edge analysis
- */
 function formatGameEdge(game: GameEdgeAnalysis): string {
   const lines: string[] = []
   const time = new Date(game.commenceTime).toLocaleTimeString('en-US', {
@@ -506,7 +710,26 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
     timeZoneName: 'short',
   })
 
-  lines.push(`**${game.matchup}** (${time})`)
+  const sharpTag = game.sharpConfirmation?.agrees ? ' [SHARP CONFIRMED]' : ''
+  lines.push(`**${game.matchup}** (${time})${sharpTag}`)
+
+  if (game.sharpSignals.length > 0) {
+    const signalSummary = game.sharpSignals
+      .slice(0, 3)
+      .map(
+        (signal) =>
+          `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
+      )
+      .join('; ')
+    const notes = game.sharpSignals
+      .slice(0, 2)
+      .map((signal) => signal.description)
+      .join(' | ')
+    lines.push(`- SHARP LEAN: ${signalSummary}`)
+    if (notes) {
+      lines.push(`- Sharp notes: ${notes}`)
+    }
+  }
 
   if (game.spread) {
     const edgeEmoji = game.spread.edge.verdict === 'strong' ? '🔥' : game.spread.edge.verdict === 'soft' ? '✓' : '—'
@@ -525,6 +748,15 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
     if (game.spread.edge.flag) {
       lines.push(`  - ⚠️ ${game.spread.edge.flag}`)
     }
+    if (game.highEv?.spread) {
+      const ev = game.highEv.spread
+      const point = ev.point != null ? ` ${ev.point > 0 ? '+' : ''}${ev.point}` : ''
+      lines.push(
+        `- HIGH EV + EDGE: Spread ${ev.selection}${point} at ${ev.bestBook} ${formatOdds(
+          ev.bestOdds
+        )} (EV ${ev.ev.toFixed(1)}%)`
+      )
+    }
   }
 
   if (game.total) {
@@ -538,6 +770,15 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
     if (game.total.edge.flag) {
       lines.push(`  - ⚠️ ${game.total.edge.flag}`)
     }
+    if (game.highEv?.total) {
+      const ev = game.highEv.total
+      const point = ev.point != null ? ` ${ev.point > 0 ? '+' : ''}${ev.point}` : ''
+      lines.push(
+        `- HIGH EV + EDGE: Total ${ev.selection}${point} at ${ev.bestBook} ${formatOdds(
+          ev.bestOdds
+        )} (EV ${ev.ev.toFixed(1)}%)`
+      )
+    }
   }
 
   // Show injuries prominently if present
@@ -549,15 +790,6 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
   if (game.matchupFactors.length > 0) {
     const keyFactors = game.matchupFactors.slice(0, 2)
     lines.push(`- 📊 **Matchup:** ${keyFactors.join(' | ')}`)
-  }
-
-  // Show sharp signals if present
-  if (game.sharpSignals.length > 0) {
-    const signalSummary = game.sharpSignals
-      .slice(0, 3)
-      .map((s) => `${s.type}(${s.side})`)
-      .join(', ')
-    lines.push(`- ⚡ **Sharp Signals:** ${signalSummary}`)
   }
 
   // Show line movement if significant

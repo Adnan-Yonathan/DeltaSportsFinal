@@ -1,39 +1,41 @@
 "use client"
-
 import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
-import { StepUsername } from "./onboarding/StepUsername"
+import { createClient } from "@/lib/supabase/client"
 import { StepSports } from "./onboarding/StepSports"
+import { StepMarkets } from "./onboarding/StepMarkets"
 import { StepExperience } from "./onboarding/StepExperience"
 import { StepRiskTolerance } from "./onboarding/StepRiskTolerance"
 import { StepFeatures } from "./onboarding/StepFeatures"
 import { StepPricing } from "./onboarding/StepPricing"
 
 interface OnboardingData {
-  username: string
   favorite_sports: string[]
+  preferred_markets: string[]
   experience_level: string
   risk_tolerance: string
   signup_reasons: string[]
-  subscription_tier: string | null
+  pricing_intent: string | null
 }
 
 export function OnboardingFlow() {
   const router = useRouter()
+  const supabase = createClient()
   const [currentStep, setCurrentStep] = useState(0)
   const [isStepValid, setIsStepValid] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const [hasSaved, setHasSaved] = useState(false)
 
   const [data, setData] = useState<OnboardingData>({
-    username: "",
     favorite_sports: [],
+    preferred_markets: [],
     experience_level: "",
     risk_tolerance: "",
     signup_reasons: [],
-    subscription_tier: null,
+    pricing_intent: null,
   })
 
   // Load from localStorage on mount
@@ -56,13 +58,14 @@ export function OnboardingFlow() {
 
   const totalSteps = 6
   const progress = ((currentStep + 1) / totalSteps) * 100
+  const isPricingStep = currentStep === totalSteps - 1
 
   const steps = [
     {
       component: (
-        <StepUsername
-          value={data.username}
-          onChange={(value) => setData({ ...data, username: value })}
+        <StepFeatures
+          value={data.signup_reasons}
+          onChange={(value) => setData({ ...data, signup_reasons: value })}
           onValidation={setIsStepValid}
         />
       ),
@@ -72,6 +75,15 @@ export function OnboardingFlow() {
         <StepSports
           value={data.favorite_sports}
           onChange={(value) => setData({ ...data, favorite_sports: value })}
+          onValidation={setIsStepValid}
+        />
+      ),
+    },
+    {
+      component: (
+        <StepMarkets
+          value={data.preferred_markets}
+          onChange={(value) => setData({ ...data, preferred_markets: value })}
           onValidation={setIsStepValid}
         />
       ),
@@ -96,30 +108,55 @@ export function OnboardingFlow() {
     },
     {
       component: (
-        <StepFeatures
-          value={data.signup_reasons}
-          onChange={(value) => setData({ ...data, signup_reasons: value })}
-          onValidation={setIsStepValid}
-        />
-      ),
-    },
-    {
-      component: (
         <StepPricing
-          value={data.subscription_tier}
-          onChange={(value) => setData({ ...data, subscription_tier: value })}
+          value={data.pricing_intent}
+          onChange={(value) => setData({ ...data, pricing_intent: value })}
           onValidation={setIsStepValid}
         />
       ),
     },
   ]
 
+  const saveOnboarding = async () => {
+    setSaving(true)
+    setError("")
+
+    try {
+      const { pricing_intent, ...payload } = data
+      const response = await fetch("/api/onboarding", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to save onboarding data")
+      }
+
+      localStorage.removeItem("onboarding_data")
+      setHasSaved(true)
+      return true
+    } catch (err: any) {
+      setError(err.message || "Something went wrong")
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleNext = async () => {
     if (currentStep < totalSteps - 1) {
+      if (currentStep === totalSteps - 2 && !hasSaved) {
+        const saved = await saveOnboarding()
+        if (!saved) return
+      }
       setCurrentStep(currentStep + 1)
       setIsStepValid(false)
     } else {
-      // Last step - save onboarding data
       await handleComplete()
     }
   }
@@ -130,59 +167,53 @@ export function OnboardingFlow() {
     }
   }
 
-  const handleSkip = async () => {
-    await handleComplete()
+  const handleComplete = async () => {
+    if (hasSaved) {
+      router.push("/pricing")
+      return
+    }
+    const saved = await saveOnboarding()
+    if (saved) {
+      router.push("/pricing")
+    }
   }
 
-  const handleComplete = async () => {
-    setSaving(true)
-    setError("")
-
-    try {
-      const response = await fetch("/api/onboarding", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to save onboarding data")
-      }
-
-      // Clear localStorage
-      localStorage.removeItem("onboarding_data")
-
-      // Redirect based on subscription tier
-      if (data.subscription_tier) {
-        router.push("/")
-      } else {
-        router.push("/pricing")
-      }
-    } catch (err: any) {
-      setError(err.message || "Something went wrong")
-      setSaving(false)
-    }
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.push("/auth/login")
   }
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
       {/* Progress Bar */}
-      <div className="fixed top-0 left-0 right-0 h-1 bg-white/10 z-50">
-        <motion.div
-          className="h-full bg-gradient-to-r from-emerald-500 to-emerald-500"
-          initial={{ width: 0 }}
-          animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.3 }}
-        />
+      {!isPricingStep && (
+        <div className="fixed top-0 left-0 right-0 h-1 bg-white/10 z-50">
+          <motion.div
+            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-500"
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.3 }}
+          />
+        </div>
+      )}
+
+      <div className="fixed top-4 right-6 z-50">
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="rounded-full border border-white/15 bg-black/70 px-4 py-2 text-xs font-medium text-white/70 transition-colors hover:border-white/40 hover:text-white"
+        >
+          Sign out
+        </button>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex items-center justify-center px-4 py-20">
-        <div className="w-full max-w-4xl">
+      <div
+        className={`flex-1 flex ${isPricingStep ? "items-start" : "items-center"} justify-center ${
+          isPricingStep ? "px-0 py-0" : "px-4 py-20"
+        }`}
+      >
+        <div className={`w-full ${isPricingStep ? "max-w-none" : "max-w-5xl"}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -208,48 +239,48 @@ export function OnboardingFlow() {
       </div>
 
       {/* Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/10 p-6">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            {currentStep > 0 && (
-              <button
-                onClick={handleBack}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-white"
-                disabled={saving}
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Back
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-white/60">
-              Step {currentStep + 1} of {totalSteps}
+      {!isPricingStep && (
+        <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/10 p-6">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {currentStep > 0 && (
+                <button
+                  onClick={handleBack}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-white"
+                  disabled={saving}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Back
+                </button>
+              )}
             </div>
 
-            <button
-              onClick={handleNext}
-              disabled={!isStepValid || saving}
-              className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Saving...
-                </>
-              ) : currentStep === totalSteps - 1 ? (
-                "Complete"
-              ) : (
-                <>
-                  Next
-                  <ChevronRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-white/60">
+                Step {currentStep + 1} of {totalSteps}
+              </div>
+
+              <button
+                onClick={handleNext}
+                disabled={!isStepValid || saving}
+                className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    Next
+                    <ChevronRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

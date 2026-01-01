@@ -5,6 +5,7 @@
 
 import type { LiveScoreGameDetails, GameDetailsTeam } from '@/lib/live-scores'
 import { getPlayerStats } from './matchup-analyzer'
+import { getPlayerImpactScore } from './player-impact'
 
 // ============================================================================
 // INTERFACES
@@ -85,14 +86,14 @@ function calculateFatigueImpact(
 /**
  * Analyze player fatigue across both teams
  */
-export function analyzeFatigue(
+export async function analyzeFatigue(
   liveGame: LiveScoreGameDetails,
   period: number
-): FatigueAnalysis {
+): Promise<FatigueAnalysis> {
   const homeTeam = liveGame.teams.find(t => t.homeAway === 'home')
   const awayTeam = liveGame.teams.find(t => t.homeAway === 'away')
 
-  const analyzePlayers = (team: GameDetailsTeam | undefined) => {
+  const analyzePlayers = async (team: GameDetailsTeam | undefined) => {
     const fatigued: PlayerFatigue[] = []
 
     if (!team) return fatigued
@@ -106,10 +107,10 @@ export function analyzeFatigue(
       if (minutesPlayed < 20) continue
 
       // Get player stats to determine typical minutes and star status
-      const playerStats = getPlayerStats(player.name || '', 'points')
+      const playerStats = await getPlayerStats(player.name || '', 'points')
       const typicalMinutes = playerStats?.minutesPerGame || 32
-      const bpm = playerStats?.bpm || 0
-      const isStarPlayer = bpm > 3 // High BPM = star player
+      const impactScore = getPlayerImpactScore(playerStats)
+      const isStarPlayer = impactScore > 2.5
 
       const fatigueLevel = calculateFatigueLevel(minutesPlayed, typicalMinutes, period)
 
@@ -131,8 +132,10 @@ export function analyzeFatigue(
     return fatigued
   }
 
-  const homeFatigued = analyzePlayers(homeTeam)
-  const awayFatigued = analyzePlayers(awayTeam)
+  const [homeFatigued, awayFatigued] = await Promise.all([
+    analyzePlayers(homeTeam),
+    analyzePlayers(awayTeam),
+  ])
 
   // Calculate team-level fatigue impact
   const homeFatigueImpact = homeFatigued.reduce((sum, p) => sum + p.performanceImpact, 0)

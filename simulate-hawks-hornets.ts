@@ -8,6 +8,7 @@ import { analyzeLiveGame } from './lib/services/live-game-analyzer'
 import { calculateLiveSpread, calculateLiveTotal } from './lib/services/live-line-calculator'
 import { getTeamStats } from './lib/services/matchup-analyzer'
 import type { LiveScoreGameDetails } from './lib/live-scores'
+import type { TeamStats } from './lib/services/pregame-value-calculator'
 
 async function simulateHawksHornets() {
   console.log('============================================================')
@@ -133,8 +134,8 @@ async function simulateHawksHornets() {
     console.log(`   Deviation: ${analysis.momentum.paceChange.deviation > 0 ? '+' : ''}${analysis.momentum.paceChange.deviation.toFixed(1)}\n`)
 
     // Get team stats
-    const hawksStats = await getTeamStats('Hawks')
-    const hornetsStats = await getTeamStats('Hornets')
+    const hawksStats = (await getTeamStats('Hawks')) as TeamStats | null
+    const hornetsStats = (await getTeamStats('Hornets')) as TeamStats | null
 
     if (!hawksStats || !hornetsStats) {
       console.log('❌ Could not load team stats')

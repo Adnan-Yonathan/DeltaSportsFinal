@@ -30,7 +30,8 @@ import {
   resolveAtsLeaderboard,
   resolveTeamBackToBackSplit,
 } from '@/lib/services/espn-aggregations'
-import { fetchAllLiveScores, fetchGameDetails, type LeagueId } from '@/lib/live-scores'
+import { fetchAllLiveScores, type LeagueId } from '@/lib/live-scores'
+import { getCachedGameDetails, getCachedLiveGameAnalysis } from '@/lib/services/live-game-cache'
 import {
   getTeamQuarterThreshold,
   getTeamQuarterAverages,
@@ -38,9 +39,19 @@ import {
   getTeamFirstToScore,
   getFirstBasketScorer,
 } from '@/lib/services/quarter-analytics'
-import { analyzeLiveGame } from '@/lib/services/live-game-analyzer'
-import { calculateLiveSpread, calculateLiveTotal, formatLiveRecommendation } from '@/lib/services/live-line-calculator'
-import { getTeamStats } from '@/lib/services/matchup-analyzer'
+import {
+  calculateLiveSpread,
+  calculateLiveTotal,
+  formatLiveRecommendation,
+  formatLivePeriodLabel,
+} from '@/lib/services/live-line-calculator'
+import { getLiveTeamStats } from '@/lib/services/live-team-stats'
+import { fetchOdds } from '@/lib/api/odds-api'
+import { detectEdgeForGame } from '@/lib/services/edge-detection'
+import {
+  buildSharpSignalsFromSplits,
+  calculateSharpBiasFromSignals,
+} from '@/lib/services/sharp-bias'
 
 /**
  * Get current season based on sport
@@ -118,6 +129,204 @@ async function findAthleteId(playerName: string, sport: SportKey): Promise<strin
   return null
 }
 
+const normalizeTeamName = (value?: string) => {
+  const cleaned = (value || '')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!cleaned) return ''
+  const tokens = cleaned
+    .split(' ')
+    .map((token) => {
+      if (token === 'state' || token === 'st' || token === 'saint') return 'st'
+      if (token === 'university' || token === 'college' || token === 'the') {
+        return ''
+      }
+      return token
+    })
+    .filter(Boolean)
+  return tokens.join('')
+}
+
+const matchesTeamName = (candidate: string, target: string) => {
+  const a = normalizeTeamName(candidate)
+  const b = normalizeTeamName(target)
+  if (!a || !b) return false
+  return a === b || a.includes(b) || b.includes(a)
+}
+
+const buildTeamFilters = (team: string) => {
+  const cleaned = (team || '')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!cleaned) return []
+  const tokens = cleaned.split(' ')
+  const withoutCommon = tokens
+    .filter((t) => t !== 'university' && t !== 'college' && t !== 'the')
+    .join(' ')
+  const replaceState = cleaned.replace(/\bstate\b/g, 'st').replace(/\bsaint\b/g, 'st')
+  const replaceSaint = cleaned.replace(/\bsaint\b/g, 'st')
+  const expandStState = cleaned.replace(/\bst\b/g, 'state')
+  const expandStSaint = cleaned.replace(/\bst\b/g, 'saint')
+  const candidates = new Set([
+    cleaned,
+    withoutCommon,
+    replaceState,
+    replaceSaint,
+    expandStState,
+    expandStSaint,
+  ])
+  return Array.from(candidates).filter((entry) => entry.length >= 3)
+}
+
+const median = (values: number[]): number | null => {
+  const nums = values.filter((v) => Number.isFinite(v)).sort((a, b) => a - b)
+  if (!nums.length) return null
+  const mid = Math.floor(nums.length / 2)
+  return nums.length % 2 === 0 ? (nums[mid - 1] + nums[mid]) / 2 : nums[mid]
+}
+
+const resolveSportKeyForLeague = (league: LeagueId): string => {
+  if (league === 'ncaab') return 'basketball_ncaab'
+  if (league === 'nba') return 'basketball_nba'
+  if (league === 'nfl') return 'americanfootball_nfl'
+  if (league === 'cfb') return 'americanfootball_ncaaf'
+  if (league === 'nhl') return 'icehockey_nhl'
+  return 'basketball_nba'
+}
+
+const resolveSbdLeagueForLive = (
+  league: LeagueId
+): 'nba' | 'nfl' | 'nhl' | 'mlb' | 'ncaamb' | 'ncaafb' | null => {
+  if (league === 'nba') return 'nba'
+  if (league === 'nfl') return 'nfl'
+  if (league === 'ncaab') return 'ncaamb'
+  if (league === 'cfb') return 'ncaafb'
+  if (league === 'nhl') return 'nhl'
+  return null
+}
+
+const buildPregameSpreadContext = async (
+  league: LeagueId,
+  homeTeam: string,
+  awayTeam: string
+) => {
+  try {
+    const sportKey = resolveSportKeyForLeague(league)
+    const teamFilter = Array.from(
+      new Set([
+        homeTeam,
+        awayTeam,
+        ...buildTeamFilters(homeTeam),
+        ...buildTeamFilters(awayTeam),
+      ])
+    ).filter(Boolean)
+    let oddsGames = await fetchOdds(sportKey, ['spreads', 'totals'], {
+      live: false,
+      teamFilter: teamFilter.length ? teamFilter : [homeTeam, awayTeam],
+      revalidateSeconds: 60,
+    })
+    if (!oddsGames.length) {
+      oddsGames = await fetchOdds(sportKey, ['spreads', 'totals'], {
+        live: false,
+        revalidateSeconds: 60,
+      })
+    }
+    if (!oddsGames.length) return null
+
+    const matches = oddsGames.map((game) => {
+      const directScore =
+        (matchesTeamName(game.home_team, homeTeam) ? 1 : 0) +
+        (matchesTeamName(game.away_team, awayTeam) ? 1 : 0)
+      const reverseScore =
+        (matchesTeamName(game.home_team, awayTeam) ? 1 : 0) +
+        (matchesTeamName(game.away_team, homeTeam) ? 1 : 0)
+      const score = Math.max(directScore, reverseScore)
+      return { game, score }
+    })
+    const bestMatch = matches.sort((a, b) => b.score - a.score)[0]
+    if (!bestMatch || bestMatch.score <= 0) return null
+    const best = bestMatch.game
+    if (!best) return null
+
+    const spreadPoints: number[] = []
+    const totalPoints: number[] = []
+
+    for (const book of best.bookmakers || []) {
+      for (const market of book.markets || []) {
+        if (market.key === 'spreads') {
+          for (const outcome of market.outcomes || []) {
+            if (matchesTeamName(outcome.name, homeTeam) && outcome.point != null) {
+              spreadPoints.push(outcome.point)
+            }
+          }
+        }
+        if (market.key === 'totals') {
+          const total = market.outcomes?.find((o) => o.point != null)?.point
+          if (total != null) totalPoints.push(total)
+        }
+      }
+    }
+
+    const openingSpread = median(spreadPoints)
+    const openingTotal = median(totalPoints)
+    if (openingSpread == null) return null
+
+    let sharpSpreadBias: number | undefined
+    let sharpTotalBias: number | undefined
+    let sharpNotes: string[] | undefined
+    const sbdLeague = resolveSbdLeagueForLive(league)
+    if (sbdLeague) {
+      try {
+        const sharpResult = await detectEdgeForGame(
+          sbdLeague,
+          `${awayTeam} @ ${homeTeam}`
+        )
+        let sharpSignals = sharpResult?.sharpSignals || []
+        if (!sharpSignals.length && sharpResult?.splits) {
+          sharpSignals = buildSharpSignalsFromSplits({
+            splits: sharpResult.splits,
+            homeTeam,
+            awayTeam,
+          })
+        }
+        const sharpBias = calculateSharpBiasFromSignals({
+          sharpSignals,
+          homeTeam,
+          awayTeam,
+          sport: sportKey,
+        })
+        sharpSpreadBias = sharpBias.spreadBias || undefined
+        sharpTotalBias = sharpBias.totalBias || undefined
+        const notes = [...sharpBias.spreadNotes, ...sharpBias.totalNotes]
+        sharpNotes = notes.length ? notes : undefined
+      } catch {
+        sharpSpreadBias = undefined
+        sharpTotalBias = undefined
+        sharpNotes = undefined
+      }
+    }
+
+    return {
+      openingSpread,
+      openingTotal: openingTotal ?? 0,
+      currentSpread: openingSpread,
+      currentTotal: openingTotal ?? undefined,
+      source: 'SBD',
+      sharpSpreadBias,
+      sharpTotalBias,
+      sharpNotes,
+    }
+  } catch {
+    return null
+  }
+}
+
 /**
  * Execute a single tool call and return the result
  */
@@ -140,8 +349,8 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
           for (const stat of args.stats) {
             const value = teamResult.stats[stat]
             if (value != null) {
-              const rank = getTeamStatRank(args.team, stat)
-              const leagueAvg = getLeagueAverage(stat)
+              const rank = await getTeamStatRank(args.team, stat)
+              const leagueAvg = await getLeagueAverage(stat)
               enriched[stat] = {
                 value,
                 rank: rank?.rank,
@@ -601,6 +810,45 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
         break
       }
 
+      case 'get_slate_prop_edge_detection': {
+        const { sport = 'basketball_nba', minEdge, limit, markets, date } = args as {
+          sport?: 'basketball_nba' | 'basketball_ncaab' | 'americanfootball_nfl' | 'americanfootball_ncaaf' | 'icehockey_nhl'
+          minEdge?: 'soft' | 'strong'
+          limit?: number
+          markets?: string[]
+          date?: string
+        }
+        const supported = new Set([
+          'basketball_nba',
+          'basketball_ncaab',
+          'americanfootball_nfl',
+          'americanfootball_ncaaf',
+          'icehockey_nhl',
+        ])
+        if (!supported.has(sport)) {
+          result = {
+            message: 'Prop edge detection is available for NBA, NCAAB, NFL, NCAAF, and NHL.',
+            edges: [],
+          }
+        } else {
+          const { analyzeSlatePropEdges, formatSlatePropEdgesForChat } = await import(
+            '@/lib/services/slate-prop-edge-detector'
+          )
+          const propResult = await analyzeSlatePropEdges(sport, {
+            limit,
+            minEdge,
+            markets,
+            date,
+          })
+          result = {
+            message: `Analyzed ${propResult.propsAnalyzed} props for ${propResult.sportLabel}`,
+            edges: propResult.edges,
+            formatted: formatSlatePropEdgesForChat(propResult),
+          }
+        }
+        break
+      }
+
       case 'get_prop_recommendations': {
         const { playerName, propType, gameIdentifier } = args as {
           playerName: string
@@ -724,10 +972,79 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
         }
         break
       }
+      case 'get_live_boxscore_stats': {
+        const { league, eventId } = args as { league: LeagueId; eventId: string }
+        if (!league || !eventId) {
+          result = { error: 'league and eventId are required' }
+          break
+        }
+
+        const liveGame = await getCachedGameDetails(league as LeagueId, eventId)
+        if (!liveGame) {
+          result = { error: `Could not fetch live game data for event ${eventId}` }
+          break
+        }
+
+        const buildStatMap = (stats: any[] = []) => {
+          const map: Record<string, string> = {}
+          for (const stat of stats) {
+            const key =
+              stat?.abbreviation ||
+              stat?.label ||
+              stat?.name ||
+              ''
+            if (!key) continue
+            map[key] = stat?.value ?? stat?.displayValue ?? ''
+          }
+          return map
+        }
+
+        const mapPlayer = (player: any) => ({
+          id: player.id,
+          name: player.name,
+          position: player.position,
+          jersey: player.jersey,
+          summaryLine: player.summaryLine,
+          statMap: player.statMap || {},
+        })
+
+        const teams = liveGame.teams.map((team) => ({
+          id: team.id,
+          name: team.name,
+          abbreviation: team.abbreviation,
+          homeAway: team.homeAway,
+          score: team.score,
+          linescore: team.linescore,
+          stats: buildStatMap(team.statistics),
+          players: {
+            starters: team.starters.map(mapPlayer),
+            bench: team.bench.map(mapPlayer),
+            offense: team.offense?.map(mapPlayer) || [],
+            defense: team.defense?.map(mapPlayer) || [],
+            specialTeams: team.specialTeams?.map(mapPlayer) || [],
+            forwards: team.forwards?.map(mapPlayer) || [],
+            defensemen: team.defensemen?.map(mapPlayer) || [],
+            goalies: team.goalies?.map(mapPlayer) || [],
+          },
+        }))
+
+        result = {
+          eventId,
+          league,
+          status: liveGame.status,
+          statusText: liveGame.statusText,
+          venue: liveGame.venue,
+          teams,
+        }
+        break
+      }
 
       case 'get_live_betting_projection': {
         console.log('[LIVE_PROJECTION] TOOL CALLED - Starting execution')
-        const { gameIdentifier } = args as { gameIdentifier: string }
+        const { gameIdentifier, sport } = args as {
+          gameIdentifier: string
+          sport?: string
+        }
         console.log('[LIVE_PROJECTION] Args received:', args)
 
         // Parse team names from gameIdentifier (e.g., "Spurs Hawks", "Lakers vs Celtics")
@@ -737,56 +1054,99 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
           .split(/\s+/)
           .filter((t) => t.length > 2)
 
+        const sportHint = (sport || '').toLowerCase()
+        const requestedLeague: LeagueId | null = sportHint.includes('ncaab') ||
+          sportHint.includes('college')
+          ? 'ncaab'
+          : sportHint.includes('nba')
+            ? 'nba'
+            : null
+
         console.log('[LIVE_PROJECTION] gameIdentifier:', gameIdentifier)
         console.log('[LIVE_PROJECTION] teamTokens:', teamTokens)
 
-        // Fetch all live NBA games
+        // Fetch all live games (NBA + NCAAB unless sport override provided)
         const today = new Date().toISOString().slice(0, 10)
         console.log('[LIVE_PROJECTION] Fetching live scores for date:', today)
         const allGames = await fetchAllLiveScores({ date: today })
-        const nbaGames = allGames.games.filter((g) => g.league === 'nba')
+        const candidateLeagues: LeagueId[] = requestedLeague
+          ? [requestedLeague]
+          : ['nba', 'ncaab']
+        const candidateGames = allGames.games.filter((g) =>
+          candidateLeagues.includes(g.league)
+        )
 
         console.log('[LIVE_PROJECTION] Total games found:', allGames.games.length)
-        console.log('[LIVE_PROJECTION] NBA games found:', nbaGames.length)
-        console.log('[LIVE_PROJECTION] NBA games:', nbaGames.map(g => ({
+        console.log('[LIVE_PROJECTION] Candidate games found:', candidateGames.length)
+        console.log('[LIVE_PROJECTION] Candidate games:', candidateGames.map((g) => ({
           id: g.id,
+          league: g.league,
           status: g.status,
-          competitors: g.competitors?.map(c => ({ name: c.name, abbrev: c.abbreviation, short: c.shortName }))
+          competitors: g.competitors?.map((c) => ({
+            name: c.name,
+            abbrev: c.abbreviation,
+            short: c.shortName,
+          })),
         })))
 
-        // Find matching live game
-        const matchingGame = nbaGames.find((g) => {
-          const competitors = g.competitors || []
-          return teamTokens.some((token) =>
-            competitors.some(
-              (c) =>
-                c.name?.toLowerCase().includes(token) ||
-                c.abbreviation?.toLowerCase().includes(token) ||
-                c.shortName?.toLowerCase().includes(token)
-            )
-          )
-        })
+        const getMatchScore = (game: (typeof candidateGames)[number]) => {
+          const competitors = game.competitors || []
+          let score = 0
+          for (const token of teamTokens) {
+            for (const comp of competitors) {
+              if (
+                comp.name?.toLowerCase().includes(token) ||
+                comp.abbreviation?.toLowerCase().includes(token) ||
+                comp.shortName?.toLowerCase().includes(token)
+              ) {
+                score += 1
+              }
+            }
+          }
+          return score
+        }
 
-        console.log('[LIVE_PROJECTION] Matching game found:', matchingGame ? matchingGame.id : 'NONE')
+        const rankedMatches = candidateGames
+          .map((game) => ({ game, score: getMatchScore(game) }))
+          .filter((entry) => entry.score > 0)
+          .sort((a, b) => b.score - a.score)
+
+        const matchingGame = rankedMatches[0]?.game
+
+        console.log(
+          '[LIVE_PROJECTION] Matching game found:',
+          matchingGame ? matchingGame.id : 'NONE'
+        )
 
         if (!matchingGame) {
-          const availableGames = nbaGames
+          const availableGames = candidateGames
             .map((g) => {
               const home = g.competitors?.find((c) => c.homeAway === 'home')
               const away = g.competitors?.find((c) => c.homeAway === 'away')
               return `${away?.name} @ ${home?.name}`
             })
             .join(', ')
+          const leagueLabel =
+            requestedLeague === 'ncaab'
+              ? 'NCAAB'
+              : requestedLeague === 'nba'
+                ? 'NBA'
+                : 'NBA/NCAAB'
           result = {
-            error: `No live NBA game found matching "${gameIdentifier}". ${
-              availableGames ? `Available live games: ${availableGames}` : 'No live games currently.'
+            error: `No live ${leagueLabel} game found matching "${gameIdentifier}". ${
+              availableGames
+                ? `Available live games: ${availableGames}`
+                : 'No live games currently.'
             }`,
           }
           break
         }
 
         // Get full game details
-        const liveGame = await fetchGameDetails('nba', matchingGame.id)
+        const liveGame = await getCachedGameDetails(
+          matchingGame.league as LeagueId,
+          matchingGame.id
+        )
 
         if (!liveGame) {
           result = { error: `Could not fetch detailed data for game ${matchingGame.id}` }
@@ -794,7 +1154,10 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
         }
 
         // Analyze momentum
-        const gameState = await analyzeLiveGame(liveGame)
+        const gameState = await getCachedLiveGameAnalysis(
+          matchingGame.league as LeagueId,
+          matchingGame.id
+        )
 
         // Get team stats
         const homeTeam = liveGame.teams.find((t) => t.homeAway === 'home')
@@ -805,12 +1168,21 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
           break
         }
 
-        const homeStats = await getTeamStats(homeTeam.name || '')
-        const awayStats = await getTeamStats(awayTeam.name || '')
+        const homeStats = await getLiveTeamStats(homeTeam.name || '', liveGame.league)
+        const awayStats = await getLiveTeamStats(awayTeam.name || '', liveGame.league)
 
         if (!homeStats || !awayStats) {
           result = { error: 'Could not load team stats for analysis' }
           break
+        }
+
+        const pregameSpread = await buildPregameSpreadContext(
+          liveGame.league,
+          homeTeam.name || 'Home',
+          awayTeam.name || 'Away'
+        )
+        if (pregameSpread) {
+          gameState.pregameSpread = pregameSpread
         }
 
         // Calculate live spread projection
@@ -827,9 +1199,10 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
           matchup: `${awayTeam.name} @ ${homeTeam.name}`,
           gameState: {
             score: `${gameState.awayTeam} ${gameState.awayScore} - ${gameState.homeScore} ${gameState.homeTeam}`,
-            period: `Q${gameState.period} ${gameState.displayClock}`,
+            period: `${formatLivePeriodLabel(gameState.sport, gameState.period)} ${gameState.displayClock}`,
             timeRemaining: gameState.timeRemaining,
           },
+          pregameSpread: gameState.pregameSpread ?? null,
           teamStats: {
             [homeTeam.name || 'Home']: {
               net: (homeStats.ortg - homeStats.drtg).toFixed(1),
@@ -865,7 +1238,7 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
         }
 
         // 1. Fetch live game data
-        const liveGame = await fetchGameDetails(league as LeagueId, eventId)
+        const liveGame = await getCachedGameDetails(league as LeagueId, eventId)
 
         if (!liveGame) {
           result = { error: `Could not fetch live game data for event ${eventId}` }
@@ -873,7 +1246,10 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
         }
 
         // 2. Analyze momentum
-        const gameState = await analyzeLiveGame(liveGame)
+        const gameState = await getCachedLiveGameAnalysis(
+          league as LeagueId,
+          eventId
+        )
 
         // 3. Get pre-game team stats (with injuries)
         const homeTeam = liveGame.teams.find((t) => t.homeAway === 'home')
@@ -884,12 +1260,21 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
           break
         }
 
-        const homeStats = await getTeamStats(homeTeam.name || '')
-        const awayStats = await getTeamStats(awayTeam.name || '')
+        const homeStats = await getLiveTeamStats(homeTeam.name || '', liveGame.league)
+        const awayStats = await getLiveTeamStats(awayTeam.name || '', liveGame.league)
 
         if (!homeStats || !awayStats) {
           result = { error: 'Could not load team stats for analysis' }
           break
+        }
+
+        const pregameSpread = await buildPregameSpreadContext(
+          liveGame.league,
+          homeTeam.name || 'Home',
+          awayTeam.name || 'Away'
+        )
+        if (pregameSpread) {
+          gameState.pregameSpread = pregameSpread
         }
 
         // 4. Calculate live lines
@@ -910,9 +1295,10 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
           eventId,
           gameState: {
             score: `${gameState.awayTeam} ${gameState.awayScore} - ${gameState.homeScore} ${gameState.homeTeam}`,
-            period: `Q${gameState.period} ${gameState.displayClock}`,
+            period: `${formatLivePeriodLabel(gameState.sport, gameState.period)} ${gameState.displayClock}`,
             timeRemaining: gameState.timeRemaining,
           },
+          pregameSpread: gameState.pregameSpread ?? null,
           recommendations: recommendations.join('\n\n---\n\n'),
         }
         break
@@ -939,7 +1325,7 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
         const sport = args.sport || 'nba'
         const limit = args.limit || 10
 
-        // Currently only NBA is supported with static data
+        // Currently only NBA is supported with ESPN stats
         if (sport !== 'nba') {
           result = {
             stat: args.stat,
@@ -949,7 +1335,7 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
           break
         }
 
-        const leaderboard = getPlayerLeaderboard(args.stat, limit)
+        const leaderboard = await getPlayerLeaderboard(args.stat, limit)
 
         if (leaderboard.error) {
           result = {

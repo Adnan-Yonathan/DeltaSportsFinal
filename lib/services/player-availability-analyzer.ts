@@ -1,11 +1,12 @@
 /**
  * Player Availability Analyzer
  * Detects ejections, unexpected DNP, reduced minutes, and fouled out players
- * Calculates impact on spread based on player value (BPM)
+ * Calculates impact on spread based on player impact score
  */
 
 import type { PlayByPlayEntry, LiveScoreGameDetails, GameDetailsTeam } from '@/lib/live-scores'
 import { getPlayerStats } from './matchup-analyzer'
+import { getPlayerImpactScore } from './player-impact'
 
 // ============================================================================
 // INTERFACES
@@ -136,12 +137,12 @@ function getExpectedMinutesByPeriod(
 /**
  * Detect players with unexpected minute patterns
  */
-function analyzePlayerMinutes(
+async function analyzePlayerMinutes(
   team: GameDetailsTeam | undefined,
   teamSide: 'home' | 'away',
   currentPeriod: number,
   quarterMinutesElapsed: number
-): PlayerAvailabilityIssue[] {
+): Promise<PlayerAvailabilityIssue[]> {
   const issues: PlayerAvailabilityIssue[] = []
 
   if (!team) return issues
@@ -150,12 +151,12 @@ function analyzePlayerMinutes(
 
   for (const player of allPlayers) {
     const minutesPlayed = parseFloat(player.statMap?.MIN || '0')
-    const playerStats = getPlayerStats(player.name || '', 'points')
+    const playerStats = await getPlayerStats(player.name || '', 'points')
 
     if (!playerStats) continue
 
     const typicalMPG = playerStats.minutesPerGame || 0
-    const bpm = playerStats.bpm || 0
+    const impactScore = getPlayerImpactScore(playerStats)
     const isStarter = team.starters.some(s => s.id === player.id)
 
     // Skip players who don't play much anyway
@@ -172,8 +173,10 @@ function analyzePlayerMinutes(
     // Check for fouled out (6 personal fouls)
     const fouls = parseInt(player.statMap?.PF || '0', 10)
     if (fouls >= 6) {
-      const severity = bpm > 3 ? 'critical' : bpm > 0 ? 'moderate' : 'minor'
-      const impactOnSpread = bpm > 3 ? -3.0 : bpm > 0 ? -1.5 : -0.5
+      const severity =
+        impactScore > 2.5 ? 'critical' : impactScore > 0.5 ? 'moderate' : 'minor'
+      const impactOnSpread =
+        impactScore > 2.5 ? -3.0 : impactScore > 0.5 ? -1.5 : -0.5
 
       issues.push({
         playerName: player.name || 'Unknown',
@@ -191,8 +194,11 @@ function analyzePlayerMinutes(
     // Check for reduced minutes (playing significantly less than expected)
     // Only flag if difference is significant (>5 minutes behind)
     if (minutesDiff > 5 && isStarter && currentPeriod >= 2) {
-      const severity = bpm > 3 ? 'critical' : bpm > 0 ? 'moderate' : 'minor'
-      const impactOnSpread = (bpm > 3 ? -2.0 : bpm > 0 ? -1.0 : -0.3) * (minutesDiff / 10)
+      const severity =
+        impactScore > 2.5 ? 'critical' : impactScore > 0.5 ? 'moderate' : 'minor'
+      const impactOnSpread =
+        (impactScore > 2.5 ? -2.0 : impactScore > 0.5 ? -1.0 : -0.3) *
+        (minutesDiff / 10)
 
       issues.push({
         playerName: player.name || 'Unknown',
@@ -208,8 +214,9 @@ function analyzePlayerMinutes(
 
     // Check for unexpected DNP (starter with 0 minutes after Q1)
     if (minutesPlayed === 0 && isStarter && currentPeriod >= 2) {
-      const severity = bpm > 3 ? 'critical' : 'moderate'
-      const impactOnSpread = bpm > 3 ? -4.0 : bpm > 0 ? -2.0 : -1.0
+      const severity = impactScore > 2.5 ? 'critical' : 'moderate'
+      const impactOnSpread =
+        impactScore > 2.5 ? -4.0 : impactScore > 0.5 ? -2.0 : -1.0
 
       issues.push({
         playerName: player.name || 'Unknown',
@@ -234,11 +241,11 @@ function analyzePlayerMinutes(
 /**
  * Analyze player availability for both teams
  */
-export function analyzePlayerAvailability(
+export async function analyzePlayerAvailability(
   liveGame: LiveScoreGameDetails,
   currentPeriod: number,
   quarterSecondsElapsed: number
-): PlayerAvailabilityAnalysis {
+): Promise<PlayerAvailabilityAnalysis> {
   const homeTeam = liveGame.teams.find(t => t.homeAway === 'home')
   const awayTeam = liveGame.teams.find(t => t.homeAway === 'away')
 
@@ -252,27 +259,33 @@ export function analyzePlayerAvailability(
   const ejections = detectEjections(plays, homeTeamId, awayTeamId)
 
   // Convert ejections to issues
-  const ejectionIssues: PlayerAvailabilityIssue[] = ejections.map(ejection => {
-    const playerStats = getPlayerStats(ejection.playerName, 'points')
-    const bpm = playerStats?.bpm || 0
-    const severity = bpm > 3 ? 'critical' : bpm > 0 ? 'moderate' : 'minor'
-    const impactOnSpread = bpm > 3 ? -4.0 : bpm > 0 ? -2.0 : -0.5
+  const ejectionIssues: PlayerAvailabilityIssue[] = await Promise.all(
+    ejections.map(async (ejection) => {
+      const playerStats = await getPlayerStats(ejection.playerName, 'points')
+      const impactScore = getPlayerImpactScore(playerStats)
+      const severity =
+        impactScore > 2.5 ? 'critical' : impactScore > 0.5 ? 'moderate' : 'minor'
+      const impactOnSpread =
+        impactScore > 2.5 ? -4.0 : impactScore > 0.5 ? -2.0 : -0.5
 
-    return {
-      playerName: ejection.playerName,
-      team: ejection.team,
-      issueType: 'ejection' as const,
-      severity,
-      minutesPlayed: 0,
-      expectedMinutes: 0,
-      impactOnSpread,
-      reason: 'Ejected from game',
-    }
-  })
+      return {
+        playerName: ejection.playerName,
+        team: ejection.team,
+        issueType: 'ejection' as const,
+        severity,
+        minutesPlayed: 0,
+        expectedMinutes: 0,
+        impactOnSpread,
+        reason: 'Ejected from game',
+      }
+    })
+  )
 
   // Analyze minute patterns
-  const homeMinuteIssues = analyzePlayerMinutes(homeTeam, 'home', currentPeriod, quarterMinutesElapsed)
-  const awayMinuteIssues = analyzePlayerMinutes(awayTeam, 'away', currentPeriod, quarterMinutesElapsed)
+  const [homeMinuteIssues, awayMinuteIssues] = await Promise.all([
+    analyzePlayerMinutes(homeTeam, 'home', currentPeriod, quarterMinutesElapsed),
+    analyzePlayerMinutes(awayTeam, 'away', currentPeriod, quarterMinutesElapsed),
+  ])
 
   // Combine all issues
   const homeIssues = [

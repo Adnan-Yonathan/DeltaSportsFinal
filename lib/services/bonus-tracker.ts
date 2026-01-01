@@ -1,7 +1,8 @@
 /**
  * Bonus Situation Tracker
- * Tracks team fouls per quarter and bonus/double-bonus status
- * NBA Rules: 5 team fouls = bonus (2 FTs), resets each quarter
+ * Tracks team fouls per period and bonus/double-bonus status
+ * NBA: 5 team fouls = bonus (2 FTs), resets each quarter
+ * NCAAB: 7 team fouls = bonus (1-and-1), 10 = double bonus, resets each half
  */
 
 import type { PlayByPlayEntry, LiveScoreGameDetails } from '@/lib/live-scores'
@@ -12,8 +13,9 @@ import type { PlayByPlayEntry, LiveScoreGameDetails } from '@/lib/live-scores'
 
 export interface TeamFoulStatus {
   foulsThisQuarter: number
-  foulsToBonus: number        // 5 - current (min 0)
-  bonusStatus: 'none' | 'bonus'
+  foulsToBonus: number        // threshold - current (min 0)
+  foulsToDoubleBonus?: number
+  bonusStatus: 'none' | 'bonus' | 'double'
   projectedFTAttempts: number // Based on current foul rate and time remaining
   foulRate: number            // Fouls per minute this quarter
 }
@@ -107,12 +109,47 @@ export function countTeamFoulsInQuarter(
   return { home: homeFouls, away: awayFouls }
 }
 
+type BonusRules = {
+  periodMinutes: number
+  foulsToBonus: number
+  foulsToDoubleBonus?: number
+  bonusFtAttempts: number
+  doubleBonusFtAttempts: number
+  ftPct: number
+}
+
+const BONUS_RULES: Record<string, BonusRules> = {
+  nba: {
+    periodMinutes: 12,
+    foulsToBonus: 5,
+    bonusFtAttempts: 2,
+    doubleBonusFtAttempts: 2,
+    ftPct: 0.77,
+  },
+  ncaab: {
+    periodMinutes: 20,
+    foulsToBonus: 7,
+    foulsToDoubleBonus: 10,
+    bonusFtAttempts: 1.4,
+    doubleBonusFtAttempts: 2,
+    ftPct: 0.70,
+  },
+}
+
+const getBonusRules = (league: string): BonusRules =>
+  BONUS_RULES[league] ?? BONUS_RULES.nba
+
 /**
  * Calculate bonus status from foul count
- * NBA: 5 team fouls in a quarter = bonus (opponent shoots 2 FTs on all fouls)
  */
-function calculateBonusStatus(foulsThisQuarter: number): 'none' | 'bonus' {
-  if (foulsThisQuarter >= 5) return 'bonus'
+function calculateBonusStatus(
+  foulsThisPeriod: number,
+  rules: BonusRules
+): 'none' | 'bonus' | 'double' {
+  if (rules.foulsToDoubleBonus != null && foulsThisPeriod >= rules.foulsToDoubleBonus) {
+    return 'double'
+  }
+  if (foulsThisPeriod >= rules.foulsToBonus) return 'bonus'
   return 'none'
 }
 
@@ -120,38 +157,49 @@ function calculateBonusStatus(foulsThisQuarter: number): 'none' | 'bonus' {
  * Calculate team foul status
  */
 function calculateTeamFoulStatus(
-  foulsThisQuarter: number,
-  quarterMinutesRemaining: number,
-  quarterMinutesElapsed: number
+  foulsThisPeriod: number,
+  periodMinutesRemaining: number,
+  periodMinutesElapsed: number,
+  rules: BonusRules
 ): TeamFoulStatus {
-  const bonusStatus = calculateBonusStatus(foulsThisQuarter)
-  const foulsToBonus = Math.max(0, 5 - foulsThisQuarter)
+  const bonusStatus = calculateBonusStatus(foulsThisPeriod, rules)
+  const foulsToBonus = Math.max(0, rules.foulsToBonus - foulsThisPeriod)
+  const foulsToDoubleBonus =
+    rules.foulsToDoubleBonus != null
+      ? Math.max(0, rules.foulsToDoubleBonus - foulsThisPeriod)
+      : undefined
 
   // Calculate foul rate (fouls per minute)
-  const foulRate = quarterMinutesElapsed > 0
-    ? foulsThisQuarter / quarterMinutesElapsed
+  const foulRate = periodMinutesElapsed > 0
+    ? foulsThisPeriod / periodMinutesElapsed
     : 0
 
   // Project remaining fouls and FT attempts
-  const projectedRemainingFouls = foulRate * quarterMinutesRemaining
+  const projectedRemainingFouls = foulRate * periodMinutesRemaining
 
-  // If in bonus, each foul = 2 FT attempts
-  // If not in bonus, fouls after reaching bonus will generate FTs
+  // Expected FT attempts from remaining fouls
+  const foulsUntilBonus = Math.max(0, rules.foulsToBonus - foulsThisPeriod)
+  const remainingAfterBonus = Math.max(0, projectedRemainingFouls - foulsUntilBonus)
   let projectedFTAttempts = 0
 
-  if (bonusStatus === 'bonus') {
-    // Already in bonus: all remaining fouls generate FTs
-    projectedFTAttempts = projectedRemainingFouls * 2
+  if (rules.foulsToDoubleBonus != null) {
+    const foulsUntilDouble = Math.max(
+      0,
+      rules.foulsToDoubleBonus - Math.max(foulsThisPeriod, rules.foulsToBonus)
+    )
+    const bonusFouls = Math.min(remainingAfterBonus, foulsUntilDouble)
+    const doubleFouls = Math.max(0, remainingAfterBonus - bonusFouls)
+    projectedFTAttempts =
+      bonusFouls * rules.bonusFtAttempts +
+      doubleFouls * rules.doubleBonusFtAttempts
   } else {
-    // Not in bonus yet: only fouls after reaching 5 generate FTs
-    const foulsUntilBonus = 5 - foulsThisQuarter
-    const foulsInBonus = Math.max(0, projectedRemainingFouls - foulsUntilBonus)
-    projectedFTAttempts = foulsInBonus * 2
+    projectedFTAttempts = remainingAfterBonus * rules.bonusFtAttempts
   }
 
   return {
-    foulsThisQuarter,
+    foulsThisQuarter: foulsThisPeriod,
     foulsToBonus,
+    foulsToDoubleBonus,
     bonusStatus,
     projectedFTAttempts,
     foulRate,
@@ -168,8 +216,10 @@ function calculateTeamFoulStatus(
 export function analyzeBonusSituation(
   liveGame: LiveScoreGameDetails,
   currentPeriod: number,
-  quarterSecondsRemaining: number
+  periodSecondsRemaining: number,
+  league: string
 ): BonusSituationAnalysis {
+  const rules = getBonusRules(league)
   const homeTeam = liveGame.teams.find(t => t.homeAway === 'home')
   const awayTeam = liveGame.teams.find(t => t.homeAway === 'away')
 
@@ -180,23 +230,24 @@ export function analyzeBonusSituation(
   // Count fouls in current quarter
   const fouls = countTeamFoulsInQuarter(plays, currentPeriod, homeTeamId, awayTeamId)
 
-  // Calculate quarter timing
-  const quarterMinutes = 12 // NBA quarter length
-  const quarterMinutesRemaining = quarterSecondsRemaining / 60
-  const quarterMinutesElapsed = quarterMinutes - quarterMinutesRemaining
+  // Calculate period timing
+  const periodMinutesRemaining = periodSecondsRemaining / 60
+  const periodMinutesElapsed = Math.max(0, rules.periodMinutes - periodMinutesRemaining)
 
   // Calculate status for each team
   // Note: Home team's fouls put AWAY team in bonus (and vice versa)
   const homeStatus = calculateTeamFoulStatus(
     fouls.away, // Away team's fouls affect home team's FT opportunities
-    quarterMinutesRemaining,
-    quarterMinutesElapsed
+    periodMinutesRemaining,
+    periodMinutesElapsed,
+    rules
   )
 
   const awayStatus = calculateTeamFoulStatus(
     fouls.home, // Home team's fouls affect away team's FT opportunities
-    quarterMinutesRemaining,
-    quarterMinutesElapsed
+    periodMinutesRemaining,
+    periodMinutesElapsed,
+    rules
   )
 
   // Determine FT advantage
@@ -207,25 +258,42 @@ export function analyzeBonusSituation(
   else if (ftDiff < -1) freeThrowAdvantage = 'away'
 
   // Calculate point impact
-  // NBA average FT% is ~77%, so each FT attempt = ~0.77 points
-  const NBA_FT_PCT = 0.77
-  const homeExpectedPts = homeStatus.projectedFTAttempts * NBA_FT_PCT
-  const awayExpectedPts = awayStatus.projectedFTAttempts * NBA_FT_PCT
+  const ftPct = rules.ftPct
+  const homeExpectedPts = homeStatus.projectedFTAttempts * ftPct
+  const awayExpectedPts = awayStatus.projectedFTAttempts * ftPct
   const totalImpact = homeExpectedPts - awayExpectedPts
 
   // Generate factors
   const factors: string[] = []
 
-  if (homeStatus.bonusStatus === 'bonus') {
+  if (homeStatus.bonusStatus === 'double') {
+    factors.push(`${homeTeam?.name || 'Home'} IN DOUBLE BONUS (opponent has ${fouls.away} fouls)`)
+  } else if (homeStatus.bonusStatus === 'bonus') {
     factors.push(`${homeTeam?.name || 'Home'} IN BONUS (opponent has ${fouls.away} fouls)`)
   } else if (homeStatus.foulsToBonus <= 2) {
     factors.push(`${homeTeam?.name || 'Home'} ${homeStatus.foulsToBonus} fouls from bonus`)
   }
+  if (
+    homeStatus.bonusStatus === 'bonus' &&
+    homeStatus.foulsToDoubleBonus != null &&
+    homeStatus.foulsToDoubleBonus <= 2
+  ) {
+    factors.push(`${homeTeam?.name || 'Home'} ${homeStatus.foulsToDoubleBonus} fouls from double bonus`)
+  }
 
-  if (awayStatus.bonusStatus === 'bonus') {
+  if (awayStatus.bonusStatus === 'double') {
+    factors.push(`${awayTeam?.name || 'Away'} IN DOUBLE BONUS (opponent has ${fouls.home} fouls)`)
+  } else if (awayStatus.bonusStatus === 'bonus') {
     factors.push(`${awayTeam?.name || 'Away'} IN BONUS (opponent has ${fouls.home} fouls)`)
   } else if (awayStatus.foulsToBonus <= 2) {
     factors.push(`${awayTeam?.name || 'Away'} ${awayStatus.foulsToBonus} fouls from bonus`)
+  }
+  if (
+    awayStatus.bonusStatus === 'bonus' &&
+    awayStatus.foulsToDoubleBonus != null &&
+    awayStatus.foulsToDoubleBonus <= 2
+  ) {
+    factors.push(`${awayTeam?.name || 'Away'} ${awayStatus.foulsToDoubleBonus} fouls from double bonus`)
   }
 
   if (Math.abs(totalImpact) > 1) {

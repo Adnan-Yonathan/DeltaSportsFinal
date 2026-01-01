@@ -3,6 +3,7 @@ import { fetchOdds, getBestOdds } from '@/lib/api/odds-api'
 import type { OddsGame } from '@/lib/types/odds'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 function summarizeBest(game: OddsGame) {
   const markets = ['h2h','spreads','totals']

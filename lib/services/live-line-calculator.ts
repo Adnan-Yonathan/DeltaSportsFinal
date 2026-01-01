@@ -35,11 +35,101 @@ const SPORT_VOLATILITY: Record<string, number> = {
   ncaab: 6,
   nfl: 10,
   ncaaf: 12,
+  cfb: 12,
   nhl: 2,
   mlb: 3,
 }
 
-const NBA_HOME_COURT_ADVANTAGE = 3.0
+const HOME_COURT_ADVANTAGE: Record<string, number> = {
+  nba: 3.0,
+  ncaab: 3.5,
+  nfl: 1.7,
+  cfb: 2.8,
+}
+
+const getHomeCourtAdvantage = (sport: string) =>
+  HOME_COURT_ADVANTAGE[sport] ?? 3.0
+
+export const formatLivePeriodLabel = (sport: string, period: number) => {
+  if (sport === 'ncaab') {
+    if (period <= 2) return `H${period}`
+    return `OT${period - 2}`
+  }
+  if (sport === 'nhl') {
+    if (period <= 3) return `P${period}`
+    return `OT${period - 3}`
+  }
+  if (period <= 4) return `Q${period}`
+  return `OT${period - 4}`
+}
+
+const isFootballSport = (sport: string) =>
+  sport === 'nfl' || sport === 'ncaaf' || sport === 'cfb'
+
+const getPregameWeightFloor = (sport: string, type: 'spread' | 'total') => {
+  if (!isFootballSport(sport)) return 0.3
+  if (sport === 'nfl') return type === 'spread' ? 0.55 : 0.5
+  return type === 'spread' ? 0.45 : 0.4
+}
+
+const parseClockToSeconds = (clock?: string) => {
+  if (!clock) return null
+  const match = clock.match(/(\d+):(\d+)/)
+  if (!match) return null
+  const minutes = Number(match[1])
+  const seconds = Number(match[2])
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null
+  return minutes * 60 + seconds
+}
+
+const formatFootballDriveDetail = (
+  drive: NonNullable<LiveGameState['driveState']>,
+  liveGame: LiveGameState
+) => {
+  const parts: string[] = []
+  if (drive.down != null && drive.distance != null) {
+    parts.push(`${drive.down} & ${drive.distance}`)
+  }
+  if (drive.yardLine != null) {
+    const side =
+      drive.yardLineSide === 'home'
+        ? liveGame.homeTeam
+        : drive.yardLineSide === 'away'
+          ? liveGame.awayTeam
+          : null
+    parts.push(`at ${side ?? ''} ${drive.yardLine}`.trim())
+  }
+  if (drive.isRedZone) parts.push('red zone')
+  return parts.join(', ')
+}
+
+const estimateFootballExpectedPoints = (drive: {
+  down?: number
+  distance?: number
+  yardLine?: number
+  yardLineSide?: 'home' | 'away' | null
+  possession: 'home' | 'away' | null
+}) => {
+  if (!drive.possession || drive.yardLine == null) return null
+  const distanceToGoal =
+    drive.yardLineSide && drive.yardLineSide === drive.possession
+      ? 100 - drive.yardLine
+      : drive.yardLine
+
+  let expectedPoints = 0.3
+  if (distanceToGoal <= 20) expectedPoints = 3.3
+  else if (distanceToGoal <= 35) expectedPoints = 2.4
+  else if (distanceToGoal <= 50) expectedPoints = 1.6
+  else if (distanceToGoal <= 65) expectedPoints = 1.0
+  else if (distanceToGoal <= 80) expectedPoints = 0.6
+
+  if (drive.down != null && drive.distance != null) {
+    if (drive.down >= 3 && drive.distance >= 8) expectedPoints -= 0.6
+    if (drive.down >= 3 && drive.distance <= 2) expectedPoints += 0.4
+  }
+
+  return Math.max(-0.5, Math.min(4.5, expectedPoints))
+}
 
 // ============================================================================
 // LIVE SPREAD CALCULATION
@@ -62,6 +152,8 @@ export function calculateLiveSpread(
   const timeRemainPct = 1 - timeElapsedPct
 
   const factors: string[] = []
+  const isFootball = isFootballSport(sport)
+  const clockSeconds = isFootball ? parseClockToSeconds(liveGame.displayClock) : null
 
   // ============================================================================
   // PRE-GAME SPREAD ANCHORED PROJECTION (if available)
@@ -84,7 +176,10 @@ export function calculateLiveSpread(
 
     // Project remaining margin to add
     // Blend: weight pre-game expectation more early, current pace more late
-    const pregameWeight = Math.max(0.3, timeRemainPct) // Never go below 30% pre-game weight
+    const pregameWeight = Math.max(
+      getPregameWeightFloor(sport, 'spread'),
+      timeRemainPct
+    ) // Never go below sport floor
     const paceWeight = 1 - pregameWeight
 
     // Pace-based remaining margin projection
@@ -138,13 +233,71 @@ export function calculateLiveSpread(
     fairLine = projectedFinalHome - projectedFinalAway
 
     // Add scaled home court advantage (only in fallback mode)
-    const homeCourtAdj = NBA_HOME_COURT_ADVANTAGE * timeRemainPct
+    const homeCourtAdj = getHomeCourtAdvantage(sport) * timeRemainPct
     fairLine += homeCourtAdj
 
     factors.push(`⚠️ No pre-game spread available - using pace projection only`)
   }
 
   // Step 4: Apply momentum adjustments
+  if (pregameSpread?.sharpSpreadBias) {
+    fairLine += pregameSpread.sharpSpreadBias
+    const note = pregameSpread.sharpNotes?.length
+      ? ` (${pregameSpread.sharpNotes.slice(0, 2).join('; ')})`
+      : ''
+    factors.push(
+      `Sharp money bias: ${pregameSpread.sharpSpreadBias > 0 ? '+' : ''}${pregameSpread.sharpSpreadBias.toFixed(1)} pts${note}`
+    )
+  }
+
+  if (isFootball && liveGame.driveState?.possession) {
+    const expectedPoints = estimateFootballExpectedPoints(liveGame.driveState)
+    if (expectedPoints != null) {
+      const leverage = Math.min(0.6, 0.25 + (1 - timeRemainPct) * 0.35)
+      const driveAdjustment = expectedPoints * leverage
+      fairLine +=
+        liveGame.driveState.possession === 'home'
+          ? driveAdjustment
+          : -driveAdjustment
+
+      const teamName =
+        liveGame.driveState.possession === 'home'
+          ? liveGame.homeTeam
+          : liveGame.awayTeam
+      const detail = formatFootballDriveDetail(liveGame.driveState, liveGame)
+      factors.push(
+        `Drive leverage: ${teamName} possession${detail ? ` (${detail})` : ''}`
+      )
+    }
+  }
+
+  if (isFootball && momentum.footballEfficiency?.impactOnSpread != null) {
+    const efficiencyWeight = Math.max(0.25, timeRemainPct)
+    const rawAdjustment =
+      momentum.footballEfficiency.impactOnSpread * efficiencyWeight
+    const efficiencyAdjustment = Math.max(-3, Math.min(3, rawAdjustment))
+    fairLine += efficiencyAdjustment
+
+    if (momentum.footballEfficiency.netYardsPerPlay != null) {
+      const edgeTeam =
+        momentum.footballEfficiency.netYardsPerPlay > 0
+          ? liveGame.homeTeam
+          : liveGame.awayTeam
+      factors.push(
+        `YPP edge: ${edgeTeam} ${momentum.footballEfficiency.netYardsPerPlay > 0 ? '+' : ''}${momentum.footballEfficiency.netYardsPerPlay.toFixed(2)}`
+      )
+    }
+  }
+
+  if (
+    isFootball &&
+    clockSeconds != null &&
+    (liveGame.period === 2 || liveGame.period === 4) &&
+    clockSeconds > 0 &&
+    clockSeconds <= 120
+  ) {
+    factors.push('Clock leverage: inside two-minute warning range')
+  }
 
   // Scoring run adjustment with recency bias dampening
   if (momentum.scoringRun.currentRun) {
@@ -201,6 +354,24 @@ export function calculateLiveSpread(
     const paceImpact = Math.abs(momentum.paceChange.deviation / momentum.paceChange.seasonPace)
     factors.push(
       `Pace ${(paceImpact * 100).toFixed(0)}% ${paceDirection} than season average (${momentum.paceChange.currentPace.toFixed(1)} vs ${momentum.paceChange.seasonPace.toFixed(1)})`
+    )
+  }
+
+  // Killshot adjustment (10-0 run)
+  if (momentum.killshot?.isKillshot && momentum.killshot.team) {
+    const baseAdjustment = momentum.killshot.isComebackAttempt ? 0.6 : 0.4
+    const frequency = momentum.killshot.expectedFrequency ?? 1
+    const frequencyScale = Math.min(1.3, Math.max(0.7, frequency))
+    const adjustment = baseAdjustment * frequencyScale
+    fairLine += momentum.killshot.team === 'home' ? adjustment : -adjustment
+
+    const runTeam =
+      momentum.killshot.team === 'home' ? liveGame.homeTeam : liveGame.awayTeam
+    const comebackLabel = momentum.killshot.isComebackAttempt
+      ? ' (comeback signal)'
+      : ''
+    factors.push(
+      `Killshot: ${runTeam} ${momentum.killshot.points}-0 run${comebackLabel}`
     )
   }
 
@@ -361,6 +532,8 @@ export function calculateLiveTotal(
 
   const factors: string[] = []
   let fairLine: number
+  const isFootball = isFootballSport(sport)
+  const clockSeconds = isFootball ? parseClockToSeconds(liveGame.displayClock) : null
 
   // ============================================================================
   // PRE-GAME TOTAL ANCHORED PROJECTION (if available)
@@ -376,7 +549,10 @@ export function calculateLiveTotal(
     const deviationFromExpected = currentTotal - expectedTotalNow
 
     // Blend: weight pre-game expectation more early, current pace more late
-    const pregameWeight = Math.max(0.3, timeRemainPct)
+    const pregameWeight = Math.max(
+      getPregameWeightFloor(sport, 'total'),
+      timeRemainPct
+    )
     const paceWeight = 1 - pregameWeight
 
     // Pace-based projection
@@ -421,6 +597,56 @@ export function calculateLiveTotal(
   }
 
   // Step 3: Apply momentum adjustments
+  if (pregameSpread?.sharpTotalBias) {
+    fairLine += pregameSpread.sharpTotalBias
+    const note = pregameSpread.sharpNotes?.length
+      ? ` (${pregameSpread.sharpNotes.slice(0, 2).join('; ')})`
+      : ''
+    factors.push(
+      `Sharp money bias: ${pregameSpread.sharpTotalBias > 0 ? '+' : ''}${pregameSpread.sharpTotalBias.toFixed(1)} pts${note}`
+    )
+  }
+
+  if (isFootball && liveGame.driveState?.possession) {
+    const expectedPoints = estimateFootballExpectedPoints(liveGame.driveState)
+    if (expectedPoints != null) {
+      const leverage = Math.min(0.4, 0.2 + (1 - timeRemainPct) * 0.2)
+      fairLine += expectedPoints * leverage
+
+      const teamName =
+        liveGame.driveState.possession === 'home'
+          ? liveGame.homeTeam
+          : liveGame.awayTeam
+      const detail = formatFootballDriveDetail(liveGame.driveState, liveGame)
+      factors.push(
+        `Drive scoring outlook: ${teamName} possession${detail ? ` (${detail})` : ''}`
+      )
+    }
+  }
+
+  if (isFootball && momentum.footballEfficiency?.impactOnTotal != null) {
+    const efficiencyWeight = Math.max(0.3, timeRemainPct)
+    const rawAdjustment =
+      momentum.footballEfficiency.impactOnTotal * efficiencyWeight
+    const efficiencyAdjustment = Math.max(-6, Math.min(6, rawAdjustment))
+    fairLine += efficiencyAdjustment
+    factors.push(
+      `Efficiency total shift: ${efficiencyAdjustment > 0 ? '+' : ''}${efficiencyAdjustment.toFixed(1)} pts`
+    )
+    if (momentum.footballEfficiency.factors?.length) {
+      factors.push(...momentum.footballEfficiency.factors)
+    }
+  }
+
+  if (
+    isFootball &&
+    clockSeconds != null &&
+    (liveGame.period === 2 || liveGame.period === 4) &&
+    clockSeconds > 0 &&
+    clockSeconds <= 120
+  ) {
+    factors.push('Clock leverage: inside two-minute warning range')
+  }
 
   // Pace impact on total
   if (Math.abs(momentum.paceChange.deviation) > 3) {
@@ -456,8 +682,10 @@ export function calculateLiveTotal(
   // Bonus situation adjustment (affects total via free throws)
   if (momentum.bonusSituation) {
     // Both teams' projected FT attempts add to total
-    const totalFTImpact = momentum.bonusSituation.home.projectedFTAttempts * 0.77 +
-                          momentum.bonusSituation.away.projectedFTAttempts * 0.77
+    const ftPct = sport === 'ncaab' ? 0.70 : 0.77
+    const totalFTImpact =
+      momentum.bonusSituation.home.projectedFTAttempts * ftPct +
+      momentum.bonusSituation.away.projectedFTAttempts * ftPct
     if (totalFTImpact > 2) {
       fairLine += totalFTImpact * 0.5 // Scale down, already partially in pace
       factors.push(`Bonus situation: +${totalFTImpact.toFixed(1)} projected FT pts`)
@@ -554,8 +782,9 @@ export function formatLiveRecommendation(rec: LiveLineRecommendation, liveGame: 
 
   let output = `🔴 LIVE BET RECOMMENDATION 🔴\n\n`
 
+  const periodLabel = formatLivePeriodLabel(liveGame.sport, liveGame.period)
   output += `📊 ${liveGame.awayTeam} @ ${liveGame.homeTeam}\n`
-  output += `   Q${liveGame.period} ${liveGame.displayClock} remaining\n`
+  output += `   ${periodLabel} ${liveGame.displayClock} remaining\n`
   output += `   Score: ${liveGame.homeTeam} ${liveGame.homeScore} - ${liveGame.awayScore} ${liveGame.awayTeam}\n\n`
 
   if (rec.type === 'spread') {

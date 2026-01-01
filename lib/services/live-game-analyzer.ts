@@ -4,13 +4,24 @@
  * Analyzes: scoring runs, pace changes, foul trouble, comeback probability, quarter trends
  */
 
-import type { LiveScoreGameDetails, PlayByPlayEntry, GameDetailsTeam } from '@/lib/live-scores'
-import { getTeamStats, getPlayerStats, getRestFactors } from './matchup-analyzer'
+import type {
+  LiveScoreGameDetails,
+  PlayByPlayEntry,
+  GameDetailsTeam,
+  LeagueId,
+} from '@/lib/live-scores'
+import { getPlayerStats, getRestFactors } from './matchup-analyzer'
+import { getPlayerImpactScore } from './player-impact'
 import { analyzeFatigue, type FatigueAnalysis } from './fatigue-analyzer'
 import { analyzeTimeoutImpact, type TimeoutImpactAnalysis } from './timeout-analyzer'
 import { analyzeBonusSituation, type BonusSituationAnalysis } from './bonus-tracker'
 import { analyzePlayerAvailability, type PlayerAvailabilityAnalysis } from './player-availability-analyzer'
-import { nbaTeam2025_2026Csv } from '@/data/nba_team_2025_2026'
+import {
+  getDefaultPaceForLeague,
+  getLiveTeamStats,
+  getLiveTeamThreePointPct,
+  getLiveTeamFreeThrowPct,
+} from './live-team-stats'
 
 // Forward declaration for rotation analyzer (created separately)
 export interface RotationAnalysis {
@@ -19,14 +30,14 @@ export interface RotationAnalysis {
     anomalyType: 'starter_benched_early' | 'bench_extended_run'
     minutesInQuarter: number
     typicalMinutesInQuarter: number
-    bpm: number
+    impactScore: number
   }>
   awayAnomalies: Array<{
     playerName: string
     anomalyType: 'starter_benched_early' | 'bench_extended_run'
     minutesInQuarter: number
     typicalMinutesInQuarter: number
-    bpm: number
+    impactScore: number
   }>
   lineupQualityDelta: number
   lineAdjustment: number
@@ -43,6 +54,9 @@ export interface PregameSpreadContext {
   openingTotal: number
   currentTotal?: number
   source: string // e.g., 'SBD', 'consensus'
+  sharpSpreadBias?: number // Home perspective (+ favors away)
+  sharpTotalBias?: number // Positive favors over
+  sharpNotes?: string[]
 }
 
 export interface LiveGameState {
@@ -66,15 +80,18 @@ export interface LiveGameState {
     garbageTime: GarbageTimeAnalysis
     foulingStrategy: FoulingStrategyAnalysis
     threePointVariance: ThreePointVarianceAnalysis
+    killshot: KillshotAnalysis
     fatigue: FatigueAnalysis
     timeoutImpact: TimeoutImpactAnalysis
+    footballEfficiency?: FootballEfficiencyAnalysis
     bonusSituation?: BonusSituationAnalysis
     playerAvailability?: PlayerAvailabilityAnalysis
     rotation?: RotationAnalysis
   }
 
   pregameEdges?: PregameEdgeContext
-  pregameSpread?: PregameSpreadContext // Pre-game spread from sportsbooks
+  pregameSpread?: PregameSpreadContext // Pre-game spread from sportsbooks      
+  driveState?: FootballDriveState
 }
 
 // ============================================================================
@@ -120,8 +137,8 @@ export interface ScoringRunAnalysis {
 }
 
 export interface PaceAnalysis {
-  currentPace: number // Possessions per 48 min at current rate
-  seasonPace: number // Team's season average
+  currentPace: number // Possessions or plays per regulation at current rate
+  seasonPace: number // Team's season average pace
   deviation: number // Current - season (positive = faster)
   impactOnTotal: number // Projected impact on final score
 }
@@ -193,6 +210,126 @@ export interface ThreePointVarianceAnalysis {
   factors: string[]
 }
 
+export interface FootballDriveState {
+  possession: 'home' | 'away' | null
+  down?: number
+  distance?: number
+  yardLine?: number
+  yardLineSide?: 'home' | 'away' | null
+  isRedZone?: boolean
+  summary?: string
+}
+
+export interface FootballEfficiencyAnalysis {
+  homeYardsPerPlay?: number
+  awayYardsPerPlay?: number
+  combinedYardsPerPlay?: number
+  netYardsPerPlay?: number
+  impactOnSpread?: number
+  impactOnTotal?: number
+  factors: string[]
+}
+
+export interface KillshotAnalysis {
+  isKillshot: boolean
+  team?: 'home' | 'away'
+  points?: number
+  duration?: string
+  expectedFrequency?: number
+  paceIndex?: number
+  offenseIndex?: number
+  isComebackAttempt?: boolean
+  factors?: string[]
+}
+
+const isBasketballLeague = (league: string) =>
+  league === 'nba' || league === 'ncaab'
+
+const isFootballLeague = (league: string) =>
+  league === 'nfl' || league === 'cfb'
+
+const buildEmptyScoringRun = (): ScoringRunAnalysis => ({
+  last5Minutes: { homePoints: 0, awayPoints: 0, netMargin: 0 },
+  lastQuarter: { homePoints: 0, awayPoints: 0, netMargin: 0 },
+  currentRun: null,
+})
+
+const buildEmptyFoulTrouble = (): FoulTroubleAnalysis => ({
+  homePlayers: [],
+  awayPlayers: [],
+  totalImpact: {
+    homeAdjustment: 0,
+    awayAdjustment: 0,
+  },
+})
+
+const buildEmptyFoulingStrategy = (): FoulingStrategyAnalysis => ({
+  isFouling: false,
+  reason: '',
+  expectedFouls: 0,
+  impactOnPace: 0,
+  impactOnTotal: 0,
+  factors: [],
+})
+
+const buildEmptyThreePointVariance = (): ThreePointVarianceAnalysis => ({
+  homeThreePointInfo: {
+    currentMade: 0,
+    currentAttempted: 0,
+    currentPercentage: 0,
+    seasonPercentage: 0,
+    deviation: 0,
+    isOutlier: false,
+  },
+  awayThreePointInfo: {
+    currentMade: 0,
+    currentAttempted: 0,
+    currentPercentage: 0,
+    seasonPercentage: 0,
+    deviation: 0,
+    isOutlier: false,
+  },
+  expectedRegression: {
+    homePtsAdjustment: 0,
+    awayPtsAdjustment: 0,
+    totalAdjustment: 0,
+  },
+  factors: [],
+})
+
+const buildEmptyKillshot = (): KillshotAnalysis => ({
+  isKillshot: false,
+})
+
+const buildEmptyFatigue = (): FatigueAnalysis => ({
+  homeFatigued: [],
+  awayFatigued: [],
+  teamFatigueImpact: {
+    home: 0,
+    away: 0,
+  },
+  lineAdjustment: 0,
+  factors: [],
+})
+
+const buildEmptyTimeoutImpact = (): TimeoutImpactAnalysis => ({
+  homeCoach: null,
+  awayCoach: null,
+  recentTimeouts: {
+    home: 0,
+    away: 0,
+  },
+  lineAdjustment: 0,
+  factors: [],
+})
+
+const buildEmptyGarbageTime = (): GarbageTimeAnalysis => ({
+  isGarbageTime: false,
+  reason: '',
+  recommendationAdjustment: 'monitor',
+  marginalLineImpact: 0,
+})
+
 // ============================================================================
 // MAIN FUNCTION: Analyze Live Game
 // ============================================================================
@@ -211,20 +348,34 @@ export async function analyzeLiveGame(
   const awayScore = awayTeam.score || 0
 
   // Calculate clock state from linescore (sum of completed quarters)
-  const clockState = calculateClockState(homeTeam, awayTeam, liveGame.league)
+  const clockState = calculateClockState(
+    homeTeam,
+    awayTeam,
+    liveGame.league,
+    liveGame.status
+  )
 
   // Extract current clock from status text (format: "5:24 - 2nd Quarter")
-  const currentClock = extractClockFromStatus(liveGame.statusText || '')
+  const currentClock =
+    liveGame.status?.displayClock ||
+    extractClockFromStatus(liveGame.statusText || '')
+
+  const isBasketball = isBasketballLeague(liveGame.league)
+  const isFootball = isFootballLeague(liveGame.league)
 
   // Analyze all momentum factors
-  const scoringRun = analyzeScoringRun(
-    liveGame.plays || [],
-    clockState.elapsedSeconds,
-    clockState.periodIndex,
-    currentClock
-  )
+  const scoringRun = isBasketball
+    ? analyzeScoringRun(
+        liveGame.plays || [],
+        clockState.elapsedSeconds,
+        clockState.periodIndex,
+        currentClock
+      )
+    : buildEmptyScoringRun()
   const paceChange = await analyzePaceChange(liveGame, clockState)
-  const foulTrouble = analyzeFoulTrouble(liveGame)
+  const foulTrouble = isBasketball
+    ? await analyzeFoulTrouble(liveGame, liveGame.league)
+    : buildEmptyFoulTrouble()
   const comebackProbability = analyzeComebackProbability(
     homeScore,
     awayScore,
@@ -236,64 +387,91 @@ export async function analyzeLiveGame(
     homeTeam.name || 'Home',
     awayTeam.name || 'Away',
     homeTeam.linescore,
-    awayTeam.linescore
+    awayTeam.linescore,
+    liveGame.league
   )
-  const garbageTime = detectGarbageTime(
-    homeScore,
-    awayScore,
-    clockState.remainingSeconds,
-    clockState.periodIndex
-  )
-  const recentFouls = countRecentFouls(liveGame.plays || [], 2)
-  const foulingStrategy = detectFoulingStrategy(
-    homeScore,
-    awayScore,
-    clockState.remainingSeconds,
-    clockState.periodIndex,
-    recentFouls
-  )
-  const threePointVariance = await analyzeThreePointVariance(
-    liveGame,
-    clockState.remainingSeconds
-  )
-  const fatigue = analyzeFatigue(liveGame, clockState.periodIndex)
-  const timeoutImpact = analyzeTimeoutImpact(
-    liveGame,
-    homeTeam.name || 'Home',
-    awayTeam.name || 'Away'
-  )
+  const garbageTime = isBasketball
+    ? detectGarbageTime(
+        homeScore,
+        awayScore,
+        clockState.remainingSeconds,
+        clockState.periodIndex,
+        liveGame.league
+      )
+    : buildEmptyGarbageTime()
+  const recentFouls = isBasketball ? countRecentFouls(liveGame.plays || [], 2) : 0
+  const foulingStrategy = isBasketball
+    ? await detectFoulingStrategy(
+        homeScore,
+        awayScore,
+        clockState.remainingSeconds,
+        clockState.periodIndex,
+        liveGame.league,
+        recentFouls,
+        homeTeam,
+        awayTeam
+      )
+    : buildEmptyFoulingStrategy()
+  const threePointVariance = isBasketball
+    ? await analyzeThreePointVariance(liveGame, clockState.remainingSeconds)
+    : buildEmptyThreePointVariance()
+  const killshot = isBasketball
+    ? await analyzeKillshot(liveGame, scoringRun, homeScore, awayScore)
+    : buildEmptyKillshot()
+  const fatigue = isBasketball
+    ? await analyzeFatigue(liveGame, clockState.periodIndex)
+    : buildEmptyFatigue()
+  const timeoutImpact = isBasketball
+    ? analyzeTimeoutImpact(liveGame, homeTeam.name || 'Home', awayTeam.name || 'Away')
+    : buildEmptyTimeoutImpact()
+  const driveState = isFootball
+    ? extractFootballDriveState(liveGame, homeTeam, awayTeam)
+    : null
+  const footballEfficiency = isFootball
+    ? analyzeFootballEfficiency(liveGame, homeTeam, awayTeam)
+    : undefined
 
-  // New analyzers for gap patches
-  // Calculate quarter seconds elapsed for player availability
-  const quarterSeconds = 12 * 60 // 12 min quarter
-  const quarterSecondsElapsed = Math.min(
-    clockState.elapsedSeconds % quarterSeconds,
-    quarterSeconds
+  // New analyzers for gap patches (basketball only)
+  // Calculate period seconds elapsed for player availability and bonus
+  const periodSeconds = liveGame.league === 'ncaab' ? 20 * 60 : 12 * 60
+  const periodSecondsElapsed = Math.min(
+    clockState.elapsedSeconds % periodSeconds,
+    periodSeconds
   )
-  const quarterSecondsRemaining = quarterSeconds - quarterSecondsElapsed
+  const periodSecondsRemaining = periodSeconds - periodSecondsElapsed
 
-  const bonusSituation = analyzeBonusSituation(
-    liveGame,
-    clockState.periodIndex,
-    quarterSecondsRemaining
-  )
+  const bonusSituation = isBasketball
+    ? analyzeBonusSituation(
+        liveGame,
+        clockState.periodIndex,
+        periodSecondsRemaining,
+        liveGame.league
+      )
+    : undefined
 
-  const playerAvailability = analyzePlayerAvailability(
-    liveGame,
-    clockState.periodIndex,
-    quarterSecondsElapsed
-  )
+  const playerAvailability = isBasketball
+    ? await analyzePlayerAvailability(
+        liveGame,
+        clockState.periodIndex,
+        periodSecondsElapsed
+      )
+    : undefined
 
   // Import rotation analyzer dynamically to avoid circular deps
-  const { analyzeRotation } = await import('./rotation-analyzer')
-  const rotation = analyzeRotation(liveGame, clockState.periodIndex)
+  const rotation = isBasketball
+    ? await (await import('./rotation-analyzer')).analyzeRotation(
+        liveGame,
+        clockState.periodIndex
+      )
+    : undefined
 
   // Pre-game edge analysis
   const pregameEdges = await analyzePregameEdges(
     homeTeam.name || 'Home',
     awayTeam.name || 'Away',
     clockState.periodIndex,
-    liveGame.eventId
+    liveGame.eventId,
+    liveGame.league
   )
 
   return {
@@ -305,7 +483,7 @@ export async function analyzeLiveGame(
     timeRemaining: clockState.remainingSeconds,
     timeElapsed: clockState.elapsedSeconds,
     period: clockState.periodIndex,
-    displayClock: liveGame.statusText || '',
+    displayClock: currentClock || liveGame.statusText || '',
     sport: liveGame.league,
 
     momentum: {
@@ -317,14 +495,17 @@ export async function analyzeLiveGame(
       garbageTime,
       foulingStrategy,
       threePointVariance,
+      killshot,
       fatigue,
       timeoutImpact,
+      footballEfficiency,
       bonusSituation,
       playerAvailability,
       rotation,
     },
 
     pregameEdges,
+    driveState: driveState ?? undefined,
   }
 }
 
@@ -338,39 +519,395 @@ function extractClockFromStatus(statusText: string): string {
   return match ? match[1] : '0:00';
 }
 
+const parseClockToSeconds = (clock: string): number => {
+  const match = clock.match(/^(\d+):(\d{2})$/)
+  if (!match) return 0
+  const minutes = Number(match[1])
+  const seconds = Number(match[2])
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return 0
+  return minutes * 60 + seconds
+}
+
 // Helper function to calculate clock state from linescore
-function calculateClockState(homeTeam: GameDetailsTeam, awayTeam: GameDetailsTeam, league: string) {
-  // For NBA: 4 quarters x 12 minutes = 48 minutes = 2880 seconds
-  const QUARTER_MINUTES: Record<string, number> = {
+function calculateClockState(
+  homeTeam: GameDetailsTeam,
+  awayTeam: GameDetailsTeam,
+  league: string,
+  status?: LiveScoreGameDetails['status']
+) {
+  const PERIOD_MINUTES: Record<string, number> = {
     nba: 12,
     nfl: 15,
     nhl: 20,
     ncaab: 20, // 2 halves
+    cfb: 15,
   }
 
-  const PERIODS: Record<string, number> = {
+  const REGULATION_PERIODS: Record<string, number> = {
     nba: 4,
     nfl: 4,
     nhl: 3,
     ncaab: 2,
+    cfb: 4,
   }
 
-  const quarterMinutes = QUARTER_MINUTES[league] || 12
-  const totalPeriods = PERIODS[league] || 4
-  const quarterSeconds = quarterMinutes * 60
-  const totalSeconds = totalPeriods * quarterSeconds
+  const OVERTIME_MINUTES: Record<string, number> = {
+    nba: 5,
+    nfl: 10,
+    nhl: 5,
+    ncaab: 5,
+    cfb: 10,
+  }
 
-  // Count completed quarters from linescore
-  const completedQuarters = homeTeam.linescore.length
-  const elapsedSeconds = Math.min(completedQuarters * quarterSeconds, totalSeconds)
-  const remainingSeconds = Math.max(totalSeconds - elapsedSeconds, 0)
+  const periodMinutes = PERIOD_MINUTES[league] || 12
+  const regulationPeriods = REGULATION_PERIODS[league] || 4
+  const overtimeMinutes = OVERTIME_MINUTES[league] || 5
+  const regulationPeriodSeconds = periodMinutes * 60
+  const regulationSeconds = regulationPeriods * regulationPeriodSeconds
+
+  const period =
+    status?.period ??
+    Math.max(homeTeam.linescore.length, awayTeam.linescore.length)
+  const clock = status?.displayClock
+  const remainingInPeriod = clock ? parseClockToSeconds(clock) : null
+
+  if (period && remainingInPeriod != null) {
+    const inOvertime = period > regulationPeriods
+    const currentPeriodSeconds =
+      (inOvertime ? overtimeMinutes : periodMinutes) * 60
+    const elapsedInPeriod = Math.max(currentPeriodSeconds - remainingInPeriod, 0)
+    const completedOvertimePeriods = Math.max(period - regulationPeriods - 1, 0)
+    const elapsedSeconds = inOvertime
+      ? regulationSeconds +
+        completedOvertimePeriods * overtimeMinutes * 60 +
+        elapsedInPeriod
+      : Math.min(
+          (period - 1) * regulationPeriodSeconds + elapsedInPeriod,
+          regulationSeconds
+        )
+    const remainingSeconds = inOvertime
+      ? remainingInPeriod
+      : Math.max(
+          (regulationPeriods - period) * regulationPeriodSeconds +
+            remainingInPeriod,
+          0
+        )
+    const totalSeconds = inOvertime
+      ? regulationSeconds + (completedOvertimePeriods + 1) * overtimeMinutes * 60
+      : regulationSeconds
+
+    return {
+      elapsedSeconds,
+      remainingSeconds,
+      totalSeconds,
+      periodIndex: period,
+    }
+  }
+
+  // Fallback to linescore counts when clock is missing
+  const completedPeriods = Math.max(
+    homeTeam.linescore.length,
+    awayTeam.linescore.length
+  )
+  const elapsedSeconds = Math.min(
+    completedPeriods * regulationPeriodSeconds,
+    regulationSeconds
+  )
+  const remainingSeconds = Math.max(regulationSeconds - elapsedSeconds, 0)
 
   return {
     elapsedSeconds,
     remainingSeconds,
-    totalSeconds,
-    periodIndex: completedQuarters,
+    totalSeconds: regulationSeconds,
+    periodIndex: completedPeriods,
   }
+}
+
+type BasketballBoxStats = {
+  fieldGoalsMade?: number
+  fieldGoalsAttempted?: number
+  threePointMade?: number
+  threePointAttempts?: number
+  freeThrowsMade?: number
+  freeThrowAttempts?: number
+  offensiveRebounds?: number
+  turnovers?: number
+}
+
+type FootballBoxStats = {
+  totalPlays?: number
+  possessionTimeSeconds?: number
+  yardsPerPlay?: number
+}
+
+const normalizeStatKey = (value?: string) =>
+  (value || '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+
+const parseStatNumber = (value?: string) => {
+  if (!value) return null
+  const cleaned = value.replace(/%/g, '').replace(/[^0-9.-]/g, '')
+  const num = Number(cleaned)
+  return Number.isFinite(num) ? num : null
+}
+
+const parseTimeToSeconds = (value?: string) => {
+  if (!value) return null
+  const match = value.match(/(\d+):(\d{2})/)
+  if (!match) return null
+  const minutes = Number(match[1])
+  const seconds = Number(match[2])
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null
+  return minutes * 60 + seconds
+}
+
+const parseFootballDownDistance = (text: string) => {
+  const match = text.match(/([1-4])(st|nd|rd|th)\s*(?:and|&)\s*(\d+)/i)
+  if (!match) return null
+  return {
+    down: Number(match[1]),
+    distance: Number(match[3]),
+  }
+}
+
+const parseFootballFieldPosition = (
+  text: string,
+  homeAbbrev?: string,
+  awayAbbrev?: string
+) => {
+  const match = text.match(/(?:at|ball on)\s+([A-Za-z]{2,4})\s*(\d{1,2})/i)
+  if (!match) return null
+  const side = match[1]?.toLowerCase()
+  const yardLine = Number(match[2])
+  if (!Number.isFinite(yardLine)) return null
+  const homeKey = (homeAbbrev || '').toLowerCase()
+  const awayKey = (awayAbbrev || '').toLowerCase()
+  let yardLineSide: 'home' | 'away' | null = null
+  if (side && homeKey && side.includes(homeKey)) yardLineSide = 'home'
+  if (side && awayKey && side.includes(awayKey)) yardLineSide = 'away'
+  return { yardLine, yardLineSide }
+}
+
+const resolveFootballPossession = (
+  plays: PlayByPlayEntry[],
+  homeTeam: GameDetailsTeam,
+  awayTeam: GameDetailsTeam
+) => {
+  if (!plays.length) return null
+  const last = plays[plays.length - 1]
+  if (last.teamId) {
+    if (last.teamId === homeTeam.id) return 'home'
+    if (last.teamId === awayTeam.id) return 'away'
+  }
+  const text = (last.text || '').toLowerCase()
+  const homeAbbrev = (homeTeam.abbreviation || '').toLowerCase()
+  const awayAbbrev = (awayTeam.abbreviation || '').toLowerCase()
+  if (homeAbbrev && text.includes(homeAbbrev)) return 'home'
+  if (awayAbbrev && text.includes(awayAbbrev)) return 'away'
+  return null
+}
+
+const extractFootballDriveState = (
+  liveGame: LiveScoreGameDetails,
+  homeTeam: GameDetailsTeam,
+  awayTeam: GameDetailsTeam
+): FootballDriveState | null => {
+  const plays = liveGame.plays || []
+  if (!plays.length) return null
+  const last = plays[plays.length - 1]
+  const possession = resolveFootballPossession(plays, homeTeam, awayTeam)
+  const downDistance = last.text ? parseFootballDownDistance(last.text) : null
+  const fieldPos = last.text
+    ? parseFootballFieldPosition(
+        last.text,
+        homeTeam.abbreviation,
+        awayTeam.abbreviation
+      )
+    : null
+
+  let isRedZone = false
+  if (fieldPos?.yardLine != null && possession) {
+    const distanceToGoal =
+      fieldPos.yardLineSide && fieldPos.yardLineSide === possession
+        ? 100 - fieldPos.yardLine
+        : fieldPos.yardLine
+    isRedZone = distanceToGoal <= 20
+  }
+
+  const summaryParts: string[] = []
+  if (possession) summaryParts.push(`Possession: ${possession}`)
+  if (downDistance) {
+    summaryParts.push(`${downDistance.down} & ${downDistance.distance}`)
+  }
+  if (fieldPos?.yardLine != null) {
+    const sideLabel =
+      fieldPos.yardLineSide === 'home'
+        ? homeTeam.abbreviation
+        : fieldPos.yardLineSide === 'away'
+          ? awayTeam.abbreviation
+          : null
+    summaryParts.push(`at ${sideLabel ?? ''} ${fieldPos.yardLine}`.trim())
+  }
+  if (isRedZone) summaryParts.push('red zone')
+
+  return {
+    possession,
+    down: downDistance?.down,
+    distance: downDistance?.distance,
+    yardLine: fieldPos?.yardLine,
+    yardLineSide: fieldPos?.yardLineSide ?? null,
+    isRedZone,
+    summary: summaryParts.length ? summaryParts.join(' ') : undefined,
+  }
+}
+
+const analyzeFootballEfficiency = (
+  liveGame: LiveScoreGameDetails,
+  homeTeam: GameDetailsTeam,
+  awayTeam: GameDetailsTeam
+): FootballEfficiencyAnalysis => {
+  const homeBox = extractFootballTeamBoxStats(homeTeam)
+  const awayBox = extractFootballTeamBoxStats(awayTeam)
+  const homeYpp = homeBox.yardsPerPlay ?? null
+  const awayYpp = awayBox.yardsPerPlay ?? null
+
+  if (homeYpp == null && awayYpp == null) {
+    return { factors: [] }
+  }
+
+  const leagueAvg = liveGame.league === 'cfb' ? 6.0 : 5.5
+  const combined =
+    homeYpp != null && awayYpp != null ? (homeYpp + awayYpp) / 2 : homeYpp ?? awayYpp ?? leagueAvg
+  const net = homeYpp != null && awayYpp != null ? homeYpp - awayYpp : null
+
+  const impactOnTotal =
+    combined != null ? (combined - leagueAvg) * 3.0 : undefined
+  const impactOnSpread = net != null ? net * 0.9 : undefined
+
+  const factors: string[] = []
+  if (homeYpp != null && awayYpp != null) {
+    factors.push(
+      `Live YPP: ${homeTeam.name} ${homeYpp.toFixed(2)}, ${awayTeam.name} ${awayYpp.toFixed(2)}`
+    )
+  }
+  if (impactOnTotal != null && Math.abs(impactOnTotal) >= 1) {
+    factors.push(
+      `Efficiency impact: ${impactOnTotal > 0 ? '+' : ''}${impactOnTotal.toFixed(1)} pts total`
+    )
+  }
+
+  return {
+    homeYardsPerPlay: homeYpp ?? undefined,
+    awayYardsPerPlay: awayYpp ?? undefined,
+    combinedYardsPerPlay: combined ?? undefined,
+    netYardsPerPlay: net ?? undefined,
+    impactOnSpread,
+    impactOnTotal,
+    factors,
+  }
+}
+
+const parseMadeAttempt = (value?: string) => {
+  if (!value) return null
+  const match = value.match(/(-?\d+)\s*-\s*(-?\d+)/)
+  if (!match) return null
+  const made = Number(match[1])
+  const attempted = Number(match[2])
+  if (!Number.isFinite(made) || !Number.isFinite(attempted)) return null
+  return { made, attempted }
+}
+
+const extractBasketballTeamBoxStats = (team?: GameDetailsTeam): BasketballBoxStats => {
+  const stats: BasketballBoxStats = {}
+  const entries = team?.statistics ?? []
+
+  for (const entry of entries) {
+    const key = normalizeStatKey(entry.name || entry.abbreviation || entry.label)
+    if (!key) continue
+
+    if (key === 'fg' || key.includes('fieldgoalsmadefieldgoalsattempted')) {
+      const line = parseMadeAttempt(entry.value)
+      if (line) {
+        stats.fieldGoalsMade = line.made
+        stats.fieldGoalsAttempted = line.attempted
+      }
+      continue
+    }
+
+    if (key === '3pt' || key.startsWith('3pt') || key.includes('threepointfieldgoalsmade')) {
+      const line = parseMadeAttempt(entry.value)
+      if (line) {
+        stats.threePointMade = line.made
+        stats.threePointAttempts = line.attempted
+      }
+      continue
+    }
+
+    if (key === 'ft' || key.includes('freethrowsmade')) {
+      const line = parseMadeAttempt(entry.value)
+      if (line) {
+        stats.freeThrowsMade = line.made
+        stats.freeThrowAttempts = line.attempted
+      }
+      continue
+    }
+
+    if (key === 'or' || key.includes('offensiverebounds')) {
+      const value = parseStatNumber(entry.value)
+      if (value != null) stats.offensiveRebounds = value
+      continue
+    }
+
+    if (key === 'turnovers' || key === 'totalturnovers' || key === 'toto' || key === 'to') {
+      const value = parseStatNumber(entry.value)
+      if (value != null) stats.turnovers = value
+    }
+  }
+
+  return stats
+}
+
+const estimatePossessions = (stats: BasketballBoxStats): number | null => {
+  const fga = stats.fieldGoalsAttempted
+  const fta = stats.freeThrowAttempts
+  const tov = stats.turnovers
+  const orb = stats.offensiveRebounds
+
+  if (fga == null || fta == null || tov == null || orb == null) return null
+  return fga + 0.44 * fta + tov - orb
+}
+
+const extractFootballTeamBoxStats = (team?: GameDetailsTeam): FootballBoxStats => {
+  const stats: FootballBoxStats = {}
+  const entries = team?.statistics ?? []
+
+  for (const entry of entries) {
+    const key = normalizeStatKey(entry.name || entry.abbreviation || entry.label)
+    if (!key) continue
+
+    if (
+      key.includes('totalplays') ||
+      key === 'plays' ||
+      key.includes('playsrun') ||
+      key.includes('offensiveplays')
+    ) {
+      const value = parseStatNumber(entry.value)
+      if (value != null) stats.totalPlays = value
+      continue
+    }
+
+    if (key.includes('possessiontime') || key.includes('timeofpossession')) {
+      const seconds = parseTimeToSeconds(entry.value)
+      if (seconds != null) stats.possessionTimeSeconds = seconds
+      continue
+    }
+
+    if (key.includes('yardsperplay')) {
+      const value = parseStatNumber(entry.value)
+      if (value != null) stats.yardsPerPlay = value
+    }
+  }
+
+  return stats
 }
 
 // ============================================================================
@@ -440,6 +977,76 @@ function assessRunSignificance(
     isNormal: freqData.isNormal,
     dampening,
     context,
+  }
+}
+
+const LEAGUE_AVG_ORTG: Record<string, number> = {
+  nba: 115,
+  ncaab: 105,
+}
+
+const estimateKillshotFrequency = (
+  teamOrtg: number,
+  teamPace: number,
+  league: string
+) => {
+  const leagueOrtg = LEAGUE_AVG_ORTG[league] ?? 110
+  const leaguePace = getDefaultPaceForLeague(league as any)
+  const paceIndex = leaguePace > 0 ? teamPace / leaguePace : 1
+  const offenseIndex = leagueOrtg > 0 ? teamOrtg / leagueOrtg : 1
+  const expectedFrequency = Number((1.0 * paceIndex * offenseIndex).toFixed(2))
+  return { expectedFrequency, paceIndex, offenseIndex }
+}
+
+const analyzeKillshot = async (
+  liveGame: LiveScoreGameDetails,
+  scoringRun: ScoringRunAnalysis,
+  homeScore: number,
+  awayScore: number
+): Promise<KillshotAnalysis> => {
+  const currentRun = scoringRun.currentRun
+  if (!currentRun || currentRun.points < 10) {
+    return { isKillshot: false }
+  }
+
+  const team = currentRun.team
+  const league = liveGame.league
+  const homeTeam = liveGame.teams.find((t) => t.homeAway === 'home')
+  const awayTeam = liveGame.teams.find((t) => t.homeAway === 'away')
+
+  const [homeStats, awayStats] = await Promise.all([
+    getLiveTeamStats(homeTeam?.name || '', league),
+    getLiveTeamStats(awayTeam?.name || '', league),
+  ])
+
+  const runTeamStats = team === 'home' ? homeStats : awayStats
+  const teamOrtg = runTeamStats?.ortg ?? LEAGUE_AVG_ORTG[league] ?? 110
+  const teamPace = runTeamStats?.pace ?? getDefaultPaceForLeague(league)
+
+  const { expectedFrequency, paceIndex, offenseIndex } =
+    estimateKillshotFrequency(teamOrtg, teamPace, league)
+
+  const margin = homeScore - awayScore
+  const isComebackAttempt =
+    (team === 'home' && margin < 0) || (team === 'away' && margin > 0)
+
+  const teamName =
+    team === 'home' ? homeTeam?.name || 'Home' : awayTeam?.name || 'Away'
+  const factors = [
+    `Killshot: ${teamName} ${currentRun.points}-0 run (${currentRun.duration})`,
+    `Killshot profile: pace index ${paceIndex.toFixed(2)}, offense index ${offenseIndex.toFixed(2)}`,
+  ]
+
+  return {
+    isKillshot: true,
+    team,
+    points: currentRun.points,
+    duration: currentRun.duration,
+    expectedFrequency,
+    paceIndex,
+    offenseIndex,
+    isComebackAttempt,
+    factors,
   }
 }
 
@@ -608,55 +1215,77 @@ export async function analyzePaceChange(
   const awayTeam = liveGame.teams.find((t) => t.homeAway === 'away')
 
   if (!homeTeam || !awayTeam) {
+    const fallbackPace = getDefaultPaceForLeague(liveGame.league)
     return {
-      currentPace: 100,
-      seasonPace: 100,
+      currentPace: fallbackPace,
+      seasonPace: fallbackPace,
       deviation: 0,
       impactOnTotal: 0,
     }
   }
 
+  const league = liveGame.league
+
   // Get season pace from team stats
-  const homeStats = await getTeamStats(homeTeam.name || '')
-  const awayStats = await getTeamStats(awayTeam.name || '')
+  const [homeStats, awayStats] = await Promise.all([
+    getLiveTeamStats(homeTeam.name || '', league),
+    getLiveTeamStats(awayTeam.name || '', league),
+  ])
 
-  const seasonPace = homeStats && awayStats ? (homeStats.pace + awayStats.pace) / 2 : 100
+  const seasonPace =
+    homeStats && awayStats
+      ? (homeStats.pace + awayStats.pace) / 2
+      : getDefaultPaceForLeague(league)
 
-  // Calculate current pace from box score
-  // Possessions = FGA + 0.44 * FTA + TOV - ORB
-  const homeStats_box = homeTeam.statistics || []
-  const awayStats_box = awayTeam.statistics || []
-
-  const getStatValue = (stats: any[], name: string): number => {
-    const stat = stats.find((s) => s.label === name || s.label?.toLowerCase().includes(name.toLowerCase()))
-    return parseFloat(stat?.value || '0')
-  }
-
-  const homeFGA = getStatValue(homeStats_box, 'fieldGoalsAttempted')
-  const homeFTA = getStatValue(homeStats_box, 'freeThrowsAttempted')
-  const homeTOV = getStatValue(homeStats_box, 'turnovers')
-  const homeORB = getStatValue(homeStats_box, 'offensiveRebounds')
-
-  const awayFGA = getStatValue(awayStats_box, 'fieldGoalsAttempted')
-  const awayFTA = getStatValue(awayStats_box, 'freeThrowsAttempted')
-  const awayTOV = getStatValue(awayStats_box, 'turnovers')
-  const awayORB = getStatValue(awayStats_box, 'offensiveRebounds')
-
-  const homePossessions = homeFGA + 0.44 * homeFTA + homeTOV - homeORB
-  const awayPossessions = awayFGA + 0.44 * awayFTA + awayTOV - awayORB
-
-  const totalPossessions = (homePossessions + awayPossessions) / 2
-
-  // Convert to pace (possessions per 48 minutes)
   const elapsedMinutes = clockState.elapsedSeconds / 60
-  const currentPace = elapsedMinutes > 0 ? (totalPossessions / elapsedMinutes) * 48 : seasonPace
+  let currentPace = seasonPace
+
+  if (isBasketballLeague(league)) {
+    // Calculate current pace from box score (possessions per regulation minutes)
+    // Possessions = FGA + 0.44 * FTA + TOV - ORB
+    const homeBox = extractBasketballTeamBoxStats(homeTeam)
+    const awayBox = extractBasketballTeamBoxStats(awayTeam)
+    const homePossessions = estimatePossessions(homeBox)
+    const awayPossessions = estimatePossessions(awayBox)
+    const totalPossessions =
+      homePossessions != null && awayPossessions != null
+        ? (homePossessions + awayPossessions) / 2
+        : homePossessions ?? awayPossessions
+    const regulationMinutes = league === 'ncaab' ? 40 : 48
+    currentPace =
+      elapsedMinutes > 0 && totalPossessions != null
+        ? (totalPossessions / elapsedMinutes) * regulationMinutes
+        : seasonPace
+  } else if (isFootballLeague(league)) {
+    // Football pace uses total plays per regulation minutes
+    const homeBox = extractFootballTeamBoxStats(homeTeam)
+    const awayBox = extractFootballTeamBoxStats(awayTeam)
+    const homePlays = homeBox.totalPlays
+    const awayPlays = awayBox.totalPlays
+    const totalPlays =
+      homePlays != null && awayPlays != null
+        ? (homePlays + awayPlays) / 2
+        : homePlays ?? awayPlays
+    const regulationMinutes = 60
+    currentPace =
+      elapsedMinutes > 0 && totalPlays != null
+        ? (totalPlays / elapsedMinutes) * regulationMinutes
+        : seasonPace
+  }
 
   const deviation = currentPace - seasonPace
 
   // Estimate impact on final total
   // If pace is 5% faster, final total will be ~5% higher
-  const paceMultiplier = currentPace / seasonPace
-  const expectedBaseline = 110 // Rough NBA average total score
+  const paceMultiplier = seasonPace > 0 ? currentPace / seasonPace : 1
+  const baselineTotals: Record<string, number> = {
+    nba: 110,
+    ncaab: 70,
+    nfl: 44,
+    cfb: 56,
+    nhl: 6,
+  }
+  const expectedBaseline = baselineTotals[league] ?? 110
   const impactOnTotal = expectedBaseline * (paceMultiplier - 1)
 
   return {
@@ -671,11 +1300,16 @@ export async function analyzePaceChange(
 // FOUL TROUBLE ANALYSIS
 // ============================================================================
 
-export function analyzeFoulTrouble(liveGame: LiveScoreGameDetails): FoulTroubleAnalysis {
+export async function analyzeFoulTrouble(
+  liveGame: LiveScoreGameDetails,
+  league: string
+): Promise<FoulTroubleAnalysis> {
   const homeTeam = liveGame.teams.find((t) => t.homeAway === 'home')
   const awayTeam = liveGame.teams.find((t) => t.homeAway === 'away')
 
-  const analyzePlayers = (team: GameDetailsTeam | undefined) => {
+  const foulThreshold = league === 'ncaab' ? 4 : 4
+
+  const analyzePlayers = async (team: GameDetailsTeam | undefined) => {
     const players: any[] = []
 
     if (!team) return players
@@ -687,15 +1321,15 @@ export function analyzeFoulTrouble(liveGame: LiveScoreGameDetails): FoulTroubleA
       // Get fouls from statMap if available
       const fouls = parseInt(player.statMap?.PF || player.statMap?.fouls || '0', 10)
 
-      if (fouls >= 4) {
+      if (fouls >= foulThreshold) {
         // Get player impact from BPM data
-        const playerStats = getPlayerStats(player.name || '', 'points')
-
+        const playerStats =
+          league === 'nba' ? await getPlayerStats(player.name || '', 'points') : null
         const isStarter = team.starters.some((s) => s.id === player.id)
-        const bpm = playerStats?.bpm || 0
+        const impactScore = getPlayerImpactScore(playerStats)
 
-        // High BPM players have more impact when in foul trouble
-        const impactOnSpread = isStarter && bpm > 3 ? -2.5 : bpm > 0 ? -1.5 : -0.5
+        const impactOnSpread =
+          isStarter && impactScore > 2.5 ? -2.5 : impactScore > 0.5 ? -1.5 : -0.5
 
         players.push({
           name: player.name || 'Unknown',
@@ -709,8 +1343,10 @@ export function analyzeFoulTrouble(liveGame: LiveScoreGameDetails): FoulTroubleA
     return players
   }
 
-  const homePlayers = analyzePlayers(homeTeam)
-  const awayPlayers = analyzePlayers(awayTeam)
+  const [homePlayers, awayPlayers] = await Promise.all([
+    analyzePlayers(homeTeam),
+    analyzePlayers(awayTeam),
+  ])
 
   const homeAdjustment = homePlayers.reduce((sum, p) => sum + p.impactOnSpread, 0)
   const awayAdjustment = awayPlayers.reduce((sum, p) => sum + p.impactOnSpread, 0)
@@ -764,6 +1400,25 @@ export function analyzeComebackProbability(
       else if (deficit < 10) historicalComebackRate = 0.03
       else historicalComebackRate = 0.001
     }
+  } else if (sport === 'ncaab') {
+    // College pace: fewer minutes, slightly lower comeback rates
+    if (remainingMinutes > 20) {
+      if (deficit < 8) historicalComebackRate = 0.4
+      else if (deficit < 15) historicalComebackRate = 0.2
+      else historicalComebackRate = 0.05
+    } else if (remainingMinutes > 10) {
+      if (deficit < 8) historicalComebackRate = 0.3
+      else if (deficit < 12) historicalComebackRate = 0.12
+      else historicalComebackRate = 0.02
+    } else if (remainingMinutes > 4) {
+      if (deficit < 6) historicalComebackRate = 0.2
+      else if (deficit < 10) historicalComebackRate = 0.05
+      else historicalComebackRate = 0.01
+    } else {
+      if (deficit < 4) historicalComebackRate = 0.12
+      else if (deficit < 8) historicalComebackRate = 0.02
+      else historicalComebackRate = 0.001
+    }
   }
 
   // Required scoring pace to come back
@@ -788,10 +1443,12 @@ export function detectGarbageTime(
   homeScore: number,
   awayScore: number,
   timeRemaining: number, // seconds
-  period: number
+  period: number,
+  league: string
 ): GarbageTimeAnalysis {
   const margin = Math.abs(homeScore - awayScore)
   const minutesRemaining = timeRemaining / 60
+  const regulationPeriods = league === 'ncaab' ? 2 : 4
 
   // Garbage time thresholds by time remaining
   const thresholds: Array<{ minMinutes: number; maxMinutes: number; margin: number }> = [
@@ -801,8 +1458,8 @@ export function detectGarbageTime(
     { minMinutes: 9, maxMinutes: 12, margin: 30 },  // Full Q4: 30+ point lead
   ]
 
-  // Only check Q4 and overtime
-  if (period < 4) {
+  // Only check final period and overtime
+  if (period < regulationPeriods) {
     return {
       isGarbageTime: false,
       reason: '',
@@ -855,22 +1512,85 @@ function countRecentFouls(plays: PlayByPlayEntry[], lastNMinutes: number = 2): n
   return foulCount
 }
 
+type LiveFreeThrowSample = {
+  pct: number
+  attempts: number
+}
+
+const DEFAULT_FT_PCT_BY_LEAGUE: Record<string, number> = {
+  nba: 0.78,
+  ncaab: 0.70,
+}
+
+const clampPct = (value: number): number => {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(1, value))
+}
+
+const getLiveFreeThrowSample = (
+  team?: GameDetailsTeam
+): LiveFreeThrowSample | null => {
+  const box = extractBasketballTeamBoxStats(team)
+  const attempts = box.freeThrowAttempts ?? 0
+  const made = box.freeThrowsMade ?? 0
+  if (attempts <= 0) return null
+  const pct = clampPct(made / attempts)
+  return { pct, attempts }
+}
+
+const blendFreeThrowPct = (
+  seasonPct: number,
+  liveSample: LiveFreeThrowSample | null,
+  league: LeagueId
+): {
+  pct: number
+  livePct: number | null
+  liveAttempts: number
+  liveWeight: number
+} => {
+  const normalizedSeason = clampPct(seasonPct)
+  if (!liveSample) {
+    return {
+      pct: normalizedSeason,
+      livePct: null,
+      liveAttempts: 0,
+      liveWeight: 0,
+    }
+  }
+
+  const maxWeight = league === 'ncaab' ? 0.55 : 0.65
+  const liveWeight = Math.min(liveSample.attempts / 8, maxWeight)
+  const blended =
+    normalizedSeason * (1 - liveWeight) + liveSample.pct * liveWeight
+
+  return {
+    pct: clampPct(blended),
+    livePct: liveSample.pct,
+    liveAttempts: liveSample.attempts,
+    liveWeight,
+  }
+}
+
 /**
  * Detect if trailing team is in "must foul" mode
  */
-export function detectFoulingStrategy(
+export async function detectFoulingStrategy(
   homeScore: number,
   awayScore: number,
   timeRemaining: number, // seconds
   period: number,
-  recentFouls: number // Fouls in last 2 minutes (from play-by-play)
-): FoulingStrategyAnalysis {
+  league: string,
+  recentFouls: number, // Fouls in last 2 minutes (from play-by-play)
+  homeTeam?: GameDetailsTeam,
+  awayTeam?: GameDetailsTeam
+): Promise<FoulingStrategyAnalysis> {
   const margin = Math.abs(homeScore - awayScore)
   const minutesRemaining = timeRemaining / 60
   const secondsRemaining = timeRemaining
+  const regulationPeriods = league === 'ncaab' ? 2 : 4
 
   // Not in fouling time yet
-  if (period < 4 || minutesRemaining > 3) {
+  if (period < regulationPeriods || minutesRemaining > 3) {
     return {
       isFouling: false,
       reason: '',
@@ -917,6 +1637,34 @@ export function detectFoulingStrategy(
     }
   }
 
+  const leagueId = (league === 'ncaab' ? 'ncaab' : 'nba') as LeagueId
+  const defaultFtPct = DEFAULT_FT_PCT_BY_LEAGUE[leagueId] ?? 0.74
+  const homeName = homeTeam?.name || 'Home'
+  const awayName = awayTeam?.name || 'Away'
+
+  const [homeSeasonFt, awaySeasonFt] = await Promise.all([
+    getLiveTeamFreeThrowPct(homeName, leagueId),
+    getLiveTeamFreeThrowPct(awayName, leagueId),
+  ])
+
+  const homeLiveSample = getLiveFreeThrowSample(homeTeam)
+  const awayLiveSample = getLiveFreeThrowSample(awayTeam)
+
+  const homeFtBlend = blendFreeThrowPct(
+    homeSeasonFt ?? defaultFtPct,
+    homeLiveSample,
+    leagueId
+  )
+  const awayFtBlend = blendFreeThrowPct(
+    awaySeasonFt ?? defaultFtPct,
+    awayLiveSample,
+    leagueId
+  )
+
+  const leadingSide = homeScore >= awayScore ? 'home' : 'away'
+  const leadingTeamName = leadingSide === 'home' ? homeName : awayName
+  const leadingFtBlend = leadingSide === 'home' ? homeFtBlend : awayFtBlend
+
   // Calculate impact on pace and total
   // Each foul = 2 FT + change of possession
   // Expected: ~5-8 fouls per minute in fouling situations
@@ -924,17 +1672,30 @@ export function detectFoulingStrategy(
   const expectedFouls = expectedFoulsPerMin * minutesRemaining
 
   // Impact on possessions: each foul = 1 extra possession
-  const impactOnPace = expectedFouls * 10 // Scaled to per-48 pace
+  const paceScale = league === 'ncaab' ? 40 / 48 : 1
+  const impactOnPace = expectedFouls * 10 * paceScale // Scaled to per-48 pace
 
   // Impact on total:
-  // - Leading team: 75% FT shooting, 1.5 pts per foul
-  // - Trailing team: Gets ball back, ~50% conversion on quick shots
-  const leadingTeamPoints = expectedFouls * 1.5
-  const trailingTeamPoints = expectedFouls * 0.5
+  // - Leading team: points per foul scaled by blended FT%
+  // - Trailing team: gets ball back, lower-efficiency quick shots
+  const trailingQuickShotPoints = leagueId === 'ncaab' ? 0.45 : 0.5
+  const leadingTeamPoints = expectedFouls * (2 * leadingFtBlend.pct)
+  const trailingTeamPoints = expectedFouls * trailingQuickShotPoints
   const impactOnTotal = leadingTeamPoints + trailingTeamPoints
 
-  factors.push(`⚠️ INTENTIONAL FOULING DETECTED: ${reason}`)
+  factors.push(`INTENTIONAL FOULING DETECTED: ${reason}`)
   factors.push(`Expected ${expectedFouls.toFixed(0)} fouls in final ${minutesRemaining.toFixed(1)} minutes`)
+  factors.push(
+    `Leading FT% blend (${leadingTeamName}): ${(leadingFtBlend.pct * 100).toFixed(1)}%`
+  )
+  if (leadingFtBlend.livePct != null && leadingFtBlend.liveAttempts > 0) {
+    factors.push(
+      `Live FT% sample: ${(leadingFtBlend.livePct * 100).toFixed(1)}% on ${leadingFtBlend.liveAttempts} FTAs`
+    )
+  }
+  if (leagueId === 'ncaab' && leadingFtBlend.pct < 0.67) {
+    factors.push('Low FT% reduces foul value in college late-game')
+  }
   factors.push(`Projected total impact: +${impactOnTotal.toFixed(1)} points`)
 
   return {
@@ -951,30 +1712,24 @@ export function detectFoulingStrategy(
 // THREE-POINT VARIANCE REGRESSION
 // ============================================================================
 
-/**
- * Get team's season three-point percentage from static data
- */
-function getTeamThreePointPct(teamName: string): number {
-  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '')
-  const normalized = normalize(teamName)
+const DEFAULT_THREE_POINT_PCT: Record<string, number> = {
+  nba: 0.355,
+  ncaab: 0.335,
+}
 
-  const lines = nbaTeam2025_2026Csv
-    .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(l => l && /^\d+,/.test(l))
-
-  for (const line of lines) {
-    const cells = line.split(',')
-    if (cells.length < 32) continue
-
-    const team = cells[2] // Team column
-    if (normalize(team) === normalized || team === teamName) {
-      const threePct = parseFloat(cells[28]) || 0 // 3P% column
-      return threePct // Already in decimal form (e.g., 0.355)
-    }
+async function getSeasonThreePointPct(
+  teamName: string,
+  league: string
+): Promise<number> {
+  if (league === 'ncaab') {
+    const pct = await getLiveTeamThreePointPct(teamName, 'ncaab')
+    return pct ?? DEFAULT_THREE_POINT_PCT.ncaab
   }
-
-  return 0.355 // League average
+  if (league === 'nba') {
+    const pct = await getLiveTeamThreePointPct(teamName, 'nba')
+    return pct ?? DEFAULT_THREE_POINT_PCT.nba
+  }
+  return DEFAULT_THREE_POINT_PCT.nba
 }
 
 /**
@@ -986,27 +1741,24 @@ export async function analyzeThreePointVariance(
 ): Promise<ThreePointVarianceAnalysis> {
   const homeTeam = liveGame.teams.find(t => t.homeAway === 'home')
   const awayTeam = liveGame.teams.find(t => t.homeAway === 'away')
-
-  const getStatValue = (team: GameDetailsTeam | undefined, statName: string): number => {
-    if (!team) return 0
-    const stat = team.statistics?.find(s =>
-      s.label?.toLowerCase().includes(statName.toLowerCase())
-    )
-    return parseFloat(stat?.value || '0')
-  }
+  const league = liveGame.league
 
   // Get current 3PT stats from box score
-  const home3PM = getStatValue(homeTeam, 'threepointfieldgoalsmade')
-  const home3PA = getStatValue(homeTeam, 'threepointfieldgoalsattempted')
-  const away3PM = getStatValue(awayTeam, 'threepointfieldgoalsmade')
-  const away3PA = getStatValue(awayTeam, 'threepointfieldgoalsattempted')
+  const homeBox = extractBasketballTeamBoxStats(homeTeam)
+  const awayBox = extractBasketballTeamBoxStats(awayTeam)
+  const home3PM = homeBox.threePointMade || 0
+  const home3PA = homeBox.threePointAttempts || 0
+  const away3PM = awayBox.threePointMade || 0
+  const away3PA = awayBox.threePointAttempts || 0
 
   const homeCurrent3Pct = home3PA > 0 ? home3PM / home3PA : 0
   const awayCurrent3Pct = away3PA > 0 ? away3PM / away3PA : 0
 
   // Get season 3PT% from team stats
-  const homeSeason3Pct = getTeamThreePointPct(homeTeam?.name || '')
-  const awaySeason3Pct = getTeamThreePointPct(awayTeam?.name || '')
+  const [homeSeason3Pct, awaySeason3Pct] = await Promise.all([
+    getSeasonThreePointPct(homeTeam?.name || '', league),
+    getSeasonThreePointPct(awayTeam?.name || '', league),
+  ])
 
   const homeDeviation = homeCurrent3Pct - homeSeason3Pct
   const awayDeviation = awayCurrent3Pct - awaySeason3Pct
@@ -1020,7 +1772,7 @@ export async function analyzeThreePointVariance(
   // Calculate expected regression
   // Assume team will shoot season average for remaining time
   const minutesRemaining = timeRemaining / 60
-  const avgAttemptsPerMinute = 0.8 // ~38 3PA per game / 48 min
+  const avgAttemptsPerMinute = league === 'ncaab' ? 0.65 : 0.8
   const expectedRemaining3PA = avgAttemptsPerMinute * minutesRemaining
 
   // Current pace has them at X points from 3PT
@@ -1223,8 +1975,39 @@ export async function analyzeQuarterTrends(
   homeTeamName: string,
   awayTeamName: string,
   homeLinescore: any[],
-  awayLinescore: any[]
+  awayLinescore: any[],
+  league: string
 ): Promise<QuarterTrendsAnalysis> {
+  if (league === 'ncaab') {
+    const currentHalf = Math.min(currentPeriod, 2)
+    const homeCurrentScore =
+      homeLinescore && homeLinescore[currentPeriod - 1]
+        ? parseInt(homeLinescore[currentPeriod - 1].displayValue || '0', 10)
+        : 0
+    const awayCurrentScore =
+      awayLinescore && awayLinescore[currentPeriod - 1]
+        ? parseInt(awayLinescore[currentPeriod - 1].displayValue || '0', 10)
+        : 0
+    const avgHalfScore = 35
+
+    return {
+      homeTeam: {
+        currentQuarter: currentHalf,
+        currentQuarterScore: homeCurrentScore,
+        avgQuarterScore: avgHalfScore,
+        deviation: homeCurrentScore - avgHalfScore,
+        trend: classifyTrend(homeCurrentScore - avgHalfScore),
+      },
+      awayTeam: {
+        currentQuarter: currentHalf,
+        currentQuarterScore: awayCurrentScore,
+        avgQuarterScore: avgHalfScore,
+        deviation: awayCurrentScore - avgHalfScore,
+        trend: classifyTrend(awayCurrentScore - avgHalfScore),
+      },
+    }
+  }
+
   // Get historical averages for both teams
   const homeAverages = await getTeamQuarterAveragesWithFallback(homeTeamName)
   const awayAverages = await getTeamQuarterAveragesWithFallback(awayTeamName)
@@ -1286,8 +2069,19 @@ export async function analyzePregameEdges(
   homeTeamName: string,
   awayTeamName: string,
   currentPeriod: number,
-  eventId: string
+  eventId: string,
+  league: string
 ): Promise<PregameEdgeContext> {
+  if (league !== 'nba') {
+    return {
+      restAdvantage: { home: 0, away: 0 },
+      injuryImpact: { home: 0, away: 0 },
+      depthAdvantage: 'neutral',
+      relevantEdges: [],
+      totalLineImpact: 0,
+    }
+  }
+
   // Check cache first
   const cached = pregameEdgeCache.get(eventId)
   if (cached && Date.now() - cached.timestamp < PREGAME_EDGE_CACHE_TTL) {
@@ -1437,3 +2231,4 @@ function updateEdgeRelevance(
     totalLineImpact,
   }
 }
+

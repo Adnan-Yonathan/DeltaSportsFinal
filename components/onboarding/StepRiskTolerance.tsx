@@ -1,5 +1,4 @@
 "use client"
-
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Shield, Scale, Zap } from "lucide-react"
@@ -14,30 +13,34 @@ const RISK_LEVELS = [
   {
     id: "conservative",
     name: "Conservative",
-    description: "Focus on bankroll preservation with smaller, safer bets",
-    details: "Typical bet size: 0.5-1% of bankroll ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ Lower variance strategies",
+    description: "Lower variance with steadier outcomes.",
+    details: "Focus on protection and long-term edges.",
     icon: Shield,
-    color: "from-emerald-500 to-green-500",
+    color: "from-emerald-500 to-emerald-500",
   },
   {
     id: "moderate",
-    name: "Moderate",
-    description: "Balanced approach mixing safety with growth opportunities",
-    details: "Typical bet size: 1-3% of bankroll ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ Calculated risk taking",
+    name: "Balanced",
+    description: "Mix safety with growth opportunities.",
+    details: "Calculated risk with measured upside.",
     icon: Scale,
     color: "from-emerald-500 to-emerald-500",
   },
   {
     id: "aggressive",
     name: "Aggressive",
-    description: "Maximize returns with larger bets and higher variance",
-    details: "Typical bet size: 3-5% of bankroll ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ Higher upside and downside",
+    description: "Higher volatility for bigger swings.",
+    details: "Pursue larger edges with more variance.",
     icon: Zap,
-    color: "from-orange-500 to-red-500",
+    color: "from-emerald-500 to-emerald-500",
   },
 ]
 
-export function StepRiskTolerance({ value, onChange, onValidation }: StepRiskToleranceProps) {
+export function StepRiskTolerance({
+  value,
+  onChange,
+  onValidation,
+}: StepRiskToleranceProps) {
   useEffect(() => {
     onValidation(!!value)
   }, [value, onValidation])
@@ -50,8 +53,11 @@ export function StepRiskTolerance({ value, onChange, onValidation }: StepRiskTol
       className="space-y-6"
     >
       <div className="text-center space-y-2">
-        <h2 className="text-4xl font-bold text-white">What&apos;s Your Risk Tolerance?</h2>
-        <p className="text-white/60">How do you approach betting?</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-white/40">Risk</p>
+        <h2 className="text-4xl font-bold text-white tracking-tight">
+          What's your risk preference?
+        </h2>
+        <p className="text-white/60">How do you like to play it?</p>
       </div>
 
       <div className="max-w-2xl mx-auto space-y-4">
@@ -62,26 +68,28 @@ export function StepRiskTolerance({ value, onChange, onValidation }: StepRiskTol
             <motion.button
               key={level.id}
               onClick={() => onChange(level.id)}
-                className={`
-                relative w-full p-6 rounded-xl border-2 transition-all text-left
+              className={`
+                relative w-full p-6 rounded-2xl border transition-all text-left
                 ${isSelected
-                  ? "bg-gradient-to-br from-emerald-500/20 via-emerald-500/15 to-emerald-500/5 border-emerald-400/70 shadow-[0_10px_30px_rgba(16,185,129,0.25)]"
-                  : "bg-neutral-850/80 border-emerald-300/15 hover:border-emerald-300/30"
+                  ? "bg-gradient-to-b from-emerald-500/15 via-emerald-500/10 to-transparent border-emerald-400/70 shadow-[0_14px_40px_rgba(16,185,129,0.2)]"
+                  : "bg-white/[0.03] border-white/10 hover:border-emerald-300/40"
                 }
               `}
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
             >
               <div className="flex items-start gap-4">
-                <div className={`
-                  p-3 rounded-lg bg-gradient-to-br ${level.color}
-                  ${isSelected ? "ring-2 ring-white/20" : ""}
-                `}>
+                <div
+                  className={`
+                    p-3 rounded-xl bg-gradient-to-br ${level.color}
+                    ${isSelected ? "ring-2 ring-white/20" : ""}
+                  `}
+                >
                   <Icon className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
-                    <h3 className="text-xl font-bold text-white">{level.name}</h3>
+                    <h3 className="text-xl font-semibold text-white">{level.name}</h3>
                     {isSelected && (
                       <div className="flex items-center gap-2 text-emerald-400 text-sm">
                         <div className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -100,7 +108,7 @@ export function StepRiskTolerance({ value, onChange, onValidation }: StepRiskTol
 
       {!value && (
         <p className="text-center text-red-400 text-sm">
-          Please select your risk tolerance
+          Please select your risk preference
         </p>
       )}
     </motion.div>

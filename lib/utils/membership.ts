@@ -18,23 +18,7 @@ export interface MembershipInfo {
   stripeSubscriptionId: string | null
 }
 
-export const getMembershipStatus = (metadata: any): MembershipInfo => {
-  // In development, grant unlimited access for easier testing
-  if (process.env.NODE_ENV !== 'production') {
-    const devExpiresAt = new Date()
-    devExpiresAt.setFullYear(devExpiresAt.getFullYear() + 10)
-    return {
-      tier: 'unlimited',
-      status: 'active',
-      isActive: true,
-      isTrial: false,
-      currentPeriodEnd: devExpiresAt,
-      cancelAt: null,
-      stripeCustomerId: null,
-      stripeSubscriptionId: null,
-    }
-  }
-
+const resolveMembershipStatus = (metadata: any): MembershipInfo => {
   const tier =
     metadata && typeof metadata.membership_tier === 'string'
       ? (metadata.membership_tier as MembershipTier)
@@ -83,6 +67,29 @@ export const getMembershipStatus = (metadata: any): MembershipInfo => {
     stripeSubscriptionId,
   }
 }
+
+export const getMembershipStatus = (metadata: any): MembershipInfo => {
+  // In development, grant unlimited access for easier testing
+  if (process.env.NODE_ENV !== 'production') {
+    const devExpiresAt = new Date()
+    devExpiresAt.setFullYear(devExpiresAt.getFullYear() + 10)
+    return {
+      tier: 'unlimited',
+      status: 'active',
+      isActive: true,
+      isTrial: false,
+      currentPeriodEnd: devExpiresAt,
+      cancelAt: null,
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+    }
+  }
+
+  return resolveMembershipStatus(metadata)
+}
+
+export const getMembershipStatusFromMetadata = (metadata: any): MembershipInfo =>
+  resolveMembershipStatus(metadata)
 
 // Helper to check if user should see payment warning
 export const shouldShowPaymentWarning = (metadata: any): boolean => {

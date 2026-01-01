@@ -1,0 +1,273 @@
+{
+  "eventId": "401810323",
+  "league": "nba",
+  "leagueLabel": "NBA",
+  "updatedAt": "2026-01-01T00:18:07.435Z",
+  "statusText": "12/31 - 7:30 PM EST",
+  "status": {
+    "type": {
+      "state": "pre",
+      "detail": "Wed, December 31st at 7:30 PM EST",
+      "shortDetail": "12/31 - 7:30 PM EST",
+      "completed": false
+    }
+  },
+  "venue": "Scotiabank Arena",
+  "teams": [
+    {
+      "id": "28",
+      "name": "Toronto Raptors",
+      "abbreviation": "TOR",
+      "homeAway": "home",
+      "logo": "https://a.espncdn.com/i/teamlogos/nba/500/tor.png",
+      "score": 0,
+      "linescore": [],
+      "statistics": [
+        {
+          "label": "Streak",
+          "value": "W2",
+          "name": "streak",
+          "abbreviation": "STRK"
+        },
+        {
+          "label": "Points Against",
+          "value": "112.7",
+          "name": "avgPointsAgainst",
+          "abbreviation": "OPP PPG"
+        },
+        {
+          "label": "Last Ten Games",
+          "value": "5-5",
+          "name": "Last Ten Games",
+          "abbreviation": "L10"
+        },
+        {
+          "label": "Points Per Game",
+          "value": "114.1",
+          "name": "avgPoints",
+          "abbreviation": "PTS"
+        },
+        {
+          "label": "Field Goal %",
+          "value": "48",
+          "name": "fieldGoalPct",
+          "abbreviation": "FG%"
+        },
+        {
+          "label": "Three Point %",
+          "value": "35",
+          "name": "threePointFieldGoalPct",
+          "abbreviation": "3P%"
+        },
+        {
+          "label": "Rebounds Per Game",
+          "value": "43.0",
+          "name": "avgRebounds",
+          "abbreviation": "REB"
+        },
+        {
+          "label": "Assists Per Game",
+          "value": "29.4",
+          "name": "avgAssists",
+          "abbreviation": "AST"
+        },
+        {
+          "label": "Blocks Per Game",
+          "value": "4.4",
+          "name": "avgBlocks",
+          "abbreviation": "BLK"
+        },
+        {
+          "label": "Steals Per Game",
+          "value": "8.7",
+          "name": "avgSteals",
+          "abbreviation": "STL"
+        },
+        {
+          "label": "Team Turnovers Per Game",
+          "value": "0.7",
+          "name": "avgTeamTurnovers",
+          "abbreviation": "TTO"
+        },
+        {
+          "label": "Total Turnovers Per Game",
+          "value": "14.5",
+          "name": "avgTotalTurnovers",
+          "abbreviation": "ToTO"
+        }
+      ],
+      "starters": [],
+      "bench": [],
+      "offense": [],
+      "defense": [],
+      "specialTeams": [],
+      "forwards": [],
+      "defensemen": [],
+      "goalies": []
+    },
+    {
+      "id": "7",
+      "name": "Denver Nuggets",
+      "abbreviation": "DEN",
+      "homeAway": "away",
+      "logo": "https://a.espncdn.com/i/teamlogos/nba/500/den.png",
+      "score": 0,
+      "linescore": [],
+      "statistics": [
+        {
+          "label": "Streak",
+          "value": "L2",
+          "name": "streak",
+          "abbreviation": "STRK"
+        },
+        {
+          "label": "Points Against",
+          "value": "118.5",
+          "name": "avgPointsAgainst",
+          "abbreviation": "OPP PPG"
+        },
+        {
+          "label": "Last Ten Games",
+          "value": "6-4",
+          "name": "Last Ten Games",
+          "abbreviation": "L10"
+        },
+        {
+          "label": "Points Per Game",
+          "value": "125.7",
+          "name": "avgPoints",
+          "abbreviation": "PTS"
+        },
+        {
+          "label": "Field Goal %",
+          "value": "51",
+          "name": "fieldGoalPct",
+          "abbreviation": "FG%"
+        },
+        {
+          "label": "Three Point %",
+          "value": "41",
+          "name": "threePointFieldGoalPct",
+          "abbreviation": "3P%"
+        },
+        {
+          "label": "Rebounds Per Game",
+          "value": "44.0",
+          "name": "avgRebounds",
+          "abbreviation": "REB"
+        },
+        {
+          "label": "Assists Per Game",
+          "value": "29.7",
+          "name": "avgAssists",
+          "abbreviation": "AST"
+        },
+        {
+          "label": "Blocks Per Game",
+          "value": "3.8",
+          "name": "avgBlocks",
+          "abbreviation": "BLK"
+        },
+        {
+          "label": "Steals Per Game",
+          "value": "7.1",
+          "name": "avgSteals",
+          "abbreviation": "STL"
+        },
+        {
+          "label": "Team Turnovers Per Game",
+          "value": "0.7",
+          "name": "avgTeamTurnovers",
+          "abbreviation": "TTO"
+        },
+        {
+          "label": "Total Turnovers Per Game",
+          "value": "13.4",
+          "name": "avgTotalTurnovers",
+          "abbreviation": "ToTO"
+        }
+      ],
+      "starters": [],
+      "bench": [],
+      "offense": [],
+      "defense": [],
+      "specialTeams": [],
+      "forwards": [],
+      "defensemen": [],
+      "goalies": []
+    }
+  ],
+  "articles": [
+    {
+      "type": "pregame",
+      "title": "NBA's Christmas ratings hit 15-year high, set social media marks",
+      "url": "https://www.espn.com/nba/story/_/id/47464448/nba-christmas-ratings-hit-15-year-high-sets-social-media-marks",
+      "published": "2026-01-01T00:15:33.000Z",
+      "image": "https://a.espncdn.com/photo/2025/1231/r1595377_600x400_3-2.jpg"
+    },
+    {
+      "type": "pregame",
+      "title": "Orlando Magic vs. Indiana Pacers: Game Highlights",
+      "url": "https://www.espn.com/video/clip?id=47466264",
+      "published": "2025-12-31T23:39:06.000Z",
+      "image": "https://a.espncdn.com/media/motion/wsc/2025/1231/ba9a9944-6c62-493c-8b89-5b08196459a2/ba9a9944-6c62-493c-8b89-5b08196459a2.jpg"
+    },
+    {
+      "type": "pregame",
+      "title": "Phoenix Suns vs. Cleveland Cavaliers: Game Highlights",
+      "url": "https://www.espn.com/video/clip?id=47466327",
+      "published": "2025-12-31T23:27:19.000Z",
+      "image": "https://a.espncdn.com/media/motion/wsc/2025/1231/7c6e20fc-cb54-4709-9e0b-b5075cb03bd6/7c6e20fc-cb54-4709-9e0b-b5075cb03bd6.jpg"
+    },
+    {
+      "type": "pregame",
+      "title": "Donovan Mitchell scores 34 points to propel Cavaliers to 129-113 victory over Suns",
+      "url": "http://www.espn.com/nba/recap?gameId=401810320",
+      "published": "2025-12-31T23:10:01.000Z",
+      "image": "https://s.espncdn.com/stitcher/sports/basketball/nba/events/401810320.png?templateId=espn.applewatch.awayhome.1"
+    },
+    {
+      "type": "pregame",
+      "title": "Banchero's basket in final seconds leads Magic to a 112-110 win over the Pacers",
+      "url": "http://www.espn.com/nba/recap?gameId=401810319",
+      "published": "2025-12-31T22:58:01.000Z",
+      "image": "https://s.espncdn.com/stitcher/sports/basketball/nba/events/401810319.png?templateId=espn.applewatch.awayhome.1"
+    },
+    {
+      "type": "pregame",
+      "title": "Minnesota Timberwolves vs. Atlanta Hawks: Game Highlights",
+      "url": "https://www.espn.com/video/clip?id=47465879",
+      "published": "2025-12-31T22:56:25.000Z",
+      "image": "https://a.espncdn.com/media/motion/wsc/2025/1231/b753284e-7c14-483e-87d3-5b8cf567acfa/b753284e-7c14-483e-87d3-5b8cf567acfa.jpg"
+    },
+    {
+      "type": "pregame",
+      "title": "Johnson scores 34 points as Hawks roll past Timberwolves 126-102 to end 7-game losing streak",
+      "url": "http://www.espn.com/nba/recap?gameId=401810318",
+      "published": "2025-12-31T22:26:01.000Z",
+      "image": "https://s.espncdn.com/stitcher/sports/basketball/nba/events/401810318.png?templateId=espn.applewatch.awayhome.1"
+    },
+    {
+      "type": "pregame",
+      "title": "Davidson honors Stephen Curry with interchange named after him",
+      "url": "https://www.espn.com/mens-college-basketball/story/_/id/47464680/stephen-curry-interchange-davidson-wildcats-golden-state-warriors",
+      "published": "2025-12-31T22:20:53.000Z",
+      "image": "https://a.espncdn.com/photo/2025/1231/r1595394_608x342_16-9.jpg"
+    },
+    {
+      "type": "pregame",
+      "title": "Fantasy basketball points league rankings: Injury forces Nikola Jokic out of the top spot",
+      "url": "https://www.espn.com/fantasy/basketball/story/_/id/46271067/fantasy-basketball-points-league-rankings-2025-26-nba-season",
+      "published": "2025-12-31T22:19:38.000Z",
+      "image": "https://a.espncdn.com/photo/2025/1027/r1566855_1296x729_16-9.jpg"
+    },
+    {
+      "type": "pregame",
+      "title": "H2H Category and Roto rankings: Giddey's injury drops him out of top 20",
+      "url": "https://www.espn.com/fantasy/basketball/story/_/id/46273762/fantasy-basketball-roto-category-league-rankings-2025-26-nba-season",
+      "published": "2025-12-31T22:06:25.000Z",
+      "image": "https://a.espncdn.com/photo/2025/1231/r1595401_1296x729_16-9.jpg"
+    }
+  ],
+  "plays": []
+}

@@ -4,7 +4,7 @@ import React, { useState } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
-import { getMembershipStatus } from "@/lib/utils/membership"
+import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import { useRouter } from "next/navigation"
 import {
   CanvasRevealEffect,
@@ -15,12 +15,35 @@ export const LoginPage = () => {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [oauthLoading, setOauthLoading] = useState(false)
   const [error, setError] = useState("")
   const supabase = createClient()
   const router = useRouter()
 
+  const handleGoogleSignIn = async () => {
+    setError("")
+    setOauthLoading(true)
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+
+    if (error) {
+      setError(error.message || "Failed to sign in with Google")
+      setOauthLoading(false)
+    }
+  }
+
+  const isBusy = loading || oauthLoading
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading || oauthLoading) {
+      return
+    }
     setLoading(true)
     setError("")
 
@@ -33,7 +56,29 @@ export const LoginPage = () => {
       if (error) throw error
 
       if (data.user) {
-        const membership = getMembershipStatus(data.user.user_metadata)
+        const metadataCompleted = Boolean(
+          (data.user.user_metadata as any)?.onboarding_completed
+        )
+
+        if (!metadataCompleted) {
+          const { data: profile, error: profileError } = await supabase
+            .from("users")
+            .select("onboarding_completed")
+            .eq("id", data.user.id)
+            .single()
+
+          if (!profileError && profile?.onboarding_completed === false) {
+            router.push("/onboarding")
+            return
+          }
+
+          if (profileError) {
+            router.push("/onboarding")
+            return
+          }
+        }
+
+        const membership = getMembershipStatusFromMetadata(data.user.user_metadata)
         router.push(membership.isActive ? "/" : "/pricing")
       }
     } catch (err: any) {
@@ -88,10 +133,24 @@ export const LoginPage = () => {
                 )}
 
                 <form onSubmit={handleLogin} className="space-y-4">
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={isBusy}
+                    className="w-full rounded-full border border-white/15 bg-zinc-900/80 py-3 text-sm font-medium text-white/80 transition-all hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="flex items-center justify-center gap-3">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full border border-white/30 text-xs font-semibold text-white/80">
+                        G
+                      </span>
+                      {oauthLoading ? "Connecting..." : "Continue with Google"}
+                    </span>
+                  </button>
+
                   <div className="flex items-center gap-4">
                     <div className="h-px flex-1 bg-white/10" />
                     <span className="text-sm text-white/40">
-                      Use your credentials
+                      Or use email
                     </span>
                     <div className="h-px flex-1 bg-white/10" />
                   </div>
@@ -116,7 +175,7 @@ export const LoginPage = () => {
 
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={isBusy}
                     className="w-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 py-3 font-medium text-white transition-all hover:from-emerald-600 hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {loading ? (

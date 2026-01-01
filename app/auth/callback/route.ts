@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/lib/supabase/types'
+import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,11 +25,46 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
+  const redirectPath = requestUrl.searchParams.get('redirect')
 
   if (code) {
     const supabase = createRouteHandlerClient<Database>({ cookies })
     await supabase.auth.exchangeCodeForSession(code)
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (user) {
+      const metadataCompleted = Boolean(
+        (user.user_metadata as { onboarding_completed?: boolean })
+          ?.onboarding_completed
+      )
+
+      let onboardingCompleted = metadataCompleted
+      if (!onboardingCompleted) {
+        const { data: profile, error } = await supabase
+          .from('users')
+          .select('onboarding_completed')
+          .eq('id', user.id)
+          .single()
+
+        if (!error) {
+          onboardingCompleted = Boolean(profile?.onboarding_completed)
+        }
+      }
+
+      if (!onboardingCompleted) {
+        return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
+      }
+
+      const membership = getMembershipStatusFromMetadata(user.user_metadata)
+      if (!membership.isActive) {
+        return NextResponse.redirect(new URL('/pricing', requestUrl.origin))
+      }
+    }
   }
 
-  return NextResponse.redirect(new URL('/', requestUrl.origin))
+  return NextResponse.redirect(
+    new URL(redirectPath || '/', requestUrl.origin)
+  )
 }

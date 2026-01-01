@@ -5,8 +5,7 @@
  * Includes in-memory caching with 1-hour TTL for performance.
  */
 
-import { getStaticNbaTeams } from '@/lib/nba-static-team-stats'
-import type { TeamStats } from '@/lib/sports-stats-api'
+import { getNBATeamStats } from '@/lib/sports-stats-api'
 import type { LeagueAverage, LeagueRank } from '@/lib/formatters/types'
 
 /**
@@ -107,7 +106,7 @@ export async function getLeagueAverage(
 
   try {
     // Get all NBA teams
-    const teams = getStaticNbaTeams()
+    const teams = await getNBATeamStats()
     if (!teams || teams.length === 0) return null
 
     // Extract stat values from all teams
@@ -153,7 +152,7 @@ export async function getLeagueAverageData(
   if (cached !== null) return cached
 
   try {
-    const teams = getStaticNbaTeams()
+    const teams = await getNBATeamStats()
     if (!teams || teams.length === 0) return null
 
     const values: number[] = []
@@ -208,7 +207,7 @@ export async function getLeagueRank(
   }
 
   try {
-    const teams = getStaticNbaTeams()
+    const teams = await getNBATeamStats()
     if (!teams || teams.length === 0) return null
 
     // Extract all values for this stat

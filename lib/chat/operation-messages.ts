@@ -26,6 +26,10 @@ export const OPERATION_MESSAGES: Record<string, string> = {
   'get_game_context': 'Analyzing game matchup...',
   'get_pick_guidance': 'Building a best-bet map...',
   'analyze_bet_market': 'Analyzing the betting market...',
+  'get_live_betting_projection': 'Projecting live lines...',
+  'get_slate_edge_detection': 'Scanning the slate for edges...',
+  'get_slate_prop_edge_detection': 'Scanning the prop slate for edges...',
+  'line_shopping': 'Comparing odds across books...',
 
   // Research Models (3)
   'save_research_model': 'Saving research model...',

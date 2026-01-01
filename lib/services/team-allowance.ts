@@ -1,4 +1,4 @@
-import { nbaTeamPerGame2025_2026Csv } from '../../data/nba_team_per_game_2025_2026'
+import { getNbaOpponentStats } from '@/lib/services/espn-opponent-stats'
 
 type AllowanceRow = {
   abbrev: string
@@ -31,52 +31,47 @@ type StatKey =
   | 'opp_tov'
   | 'opp_pts'
 
-const parseNumber = (val: string): number => {
-  const n = Number(val)
-  return Number.isFinite(n) ? n : 0
+const CACHE_TTL = 1000 * 60 * 60 * 6
+let cached: { ts: number; rows: AllowanceRow[] } | null = null
+
+const loadAllowanceRows = async (): Promise<AllowanceRow[]> => {
+  const now = Date.now()
+  if (cached && now - cached.ts < CACHE_TTL) return cached.rows
+
+  const entries = await getNbaOpponentStats()
+  const rows = entries
+    .filter((entry) => entry.teamAbbr)
+    .map((entry) => ({
+      abbrev: entry.teamAbbr.toUpperCase(),
+      team: entry.teamName,
+      opp_fg: entry.stats.opponentFieldGoalsMadePerGame ?? 0,
+      opp_fga: entry.stats.opponentFieldGoalsAttemptedPerGame ?? 0,
+      opp_3p: entry.stats.opponentThreePointMadePerGame ?? entry.stats.opponentThreeMadePerGame ?? 0,
+      opp_3pa: entry.stats.opponentThreePointAttemptsPerGame ?? entry.stats.opponentThreeAttemptedPerGame ?? 0,
+      opp_ft: entry.stats.opponentFreeThrowsMadePerGame ?? 0,
+      opp_fta: entry.stats.opponentFreeThrowsAttemptedPerGame ?? 0,
+      opp_trb: entry.stats.opponentReboundsPerGame ?? 0,
+      opp_ast: entry.stats.opponentAssistsPerGame ?? 0,
+      opp_stl: entry.stats.opponentStealsPerGame ?? 0,
+      opp_blk: entry.stats.opponentBlocksPerGame ?? 0,
+      opp_tov: entry.stats.opponentTurnoversPerGame ?? 0,
+      opp_pts: entry.stats.opponentPointsPerGame ?? entry.stats.pointsAgainstPerGame ?? 0,
+    }))
+
+  cached = { ts: now, rows }
+  return rows
 }
 
-const parseCsv = (csv: string): AllowanceRow[] => {
-  const lines = csv.trim().split('\n')
-  const header = lines.shift()
-  if (!header) return []
-  return lines
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const cols = line.split(',')
-      return {
-        abbrev: cols[2],
-        team: cols[2],
-        opp_fg: parseNumber(cols[24]),
-        opp_fga: parseNumber(cols[25]),
-        opp_3p: parseNumber(cols[28]),
-        opp_3pa: parseNumber(cols[29]),
-        opp_ft: parseNumber(cols[30]),
-        opp_fta: parseNumber(cols[31]),
-        opp_trb: parseNumber(cols[34]),
-        opp_ast: parseNumber(cols[35]),
-        opp_stl: parseNumber(cols[36]),
-        opp_blk: parseNumber(cols[37]),
-        opp_tov: parseNumber(cols[38]),
-        opp_pts: parseNumber(cols[40]),
-      }
-    })
-}
-
-const nbaAllowance = parseCsv(nbaTeamPerGame2025_2026Csv)
-const indexByAbbr = new Map<string, AllowanceRow>(
-  nbaAllowance.map((r) => [r.abbrev.toUpperCase(), r])
-)
-
-export const getTeamAllowanceStats = (sport: string, teamAbbr: string) => {
+export const getTeamAllowanceStats = async (sport: string, teamAbbr: string) => {
   if (sport !== 'nba') return null
-  return indexByAbbr.get(teamAbbr.toUpperCase()) || null
+  const rows = await loadAllowanceRows()
+  return rows.find((row) => row.abbrev === teamAbbr.toUpperCase()) || null
 }
 
-export const getTeamAllowanceTrends = (sport: string, teamAbbr: string) => {
+export const getTeamAllowanceTrends = async (sport: string, teamAbbr: string) => {
   if (sport !== 'nba') return { error: 'Allowance trends only available for NBA' }
-  const row = indexByAbbr.get(teamAbbr.toUpperCase())
+  const rows = await loadAllowanceRows()
+  const row = rows.find((entry) => entry.abbrev === teamAbbr.toUpperCase())
   if (!row) return { error: `Team ${teamAbbr} not found in allowance data` }
 
   const stats: Record<string, number> = {
@@ -97,7 +92,7 @@ export const getTeamAllowanceTrends = (sport: string, teamAbbr: string) => {
   const ranks: Record<string, number> = {}
   const statsArr = Object.keys(stats) as StatKey[]
   for (const key of statsArr) {
-    const sorted = nbaAllowance.slice().sort((a, b) => (a[key] ?? 0) - (b[key] ?? 0))
+    const sorted = rows.slice().sort((a, b) => (a[key] ?? 0) - (b[key] ?? 0))
     const idx = sorted.findIndex((r) => r.abbrev === row.abbrev)
     ranks[key] = idx + 1
   }

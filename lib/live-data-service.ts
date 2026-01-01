@@ -1,6 +1,7 @@
 import type { LiveScoreGameDetails, LiveScoresResponse, LeagueId } from "@/lib/live-scores"
-import { ESPN_LEAGUES, fetchAllLiveScores, fetchGameDetails } from "@/lib/live-scores"
-import { loadCachedGameDetails, loadCachedScores } from "@/lib/live-score-cache"
+import { ESPN_LEAGUES, fetchAllLiveScores } from "@/lib/live-scores"
+import { loadCachedScores, saveCachedScores } from "@/lib/live-score-cache"
+import { getCachedGameDetails } from "@/lib/services/live-game-cache"
 
 interface LeagueConfig {
   id: LeagueId
@@ -28,6 +29,9 @@ export const getLiveScoresData = async ({ date, league }: LiveScoresRequest): Pr
   const cached = loadCachedScores()
   const useCache = cached && (!date || cached.requestedDate === date)
   const response = useCache ? cached : await fetchAllLiveScores({ date })
+  if (!useCache) {
+    saveCachedScores(response)
+  }
   const filteredGames = league ? response.games.filter((game) => game.league === league) : response.games
   return { ...response, games: filteredGames }
 }
@@ -38,11 +42,7 @@ export interface GameDetailsRequest {
 }
 
 export const getGameDetailsData = async ({ league, eventId }: GameDetailsRequest): Promise<LiveScoreGameDetails> => {
-  const cached = loadCachedGameDetails(league, eventId)
-  if (cached) {
-    return cached
-  }
-  return fetchGameDetails(league, eventId)
+  return getCachedGameDetails(league, eventId)
 }
 
 export const getTeamSnapshot = async (league: LeagueId, teamId: string) => {

@@ -3,18 +3,39 @@ import {
   getSportsReferencePlayerSeasonStats,
   getSportsReferenceTeamStats,
 } from '@/lib/providers/sports-reference'
-import { findNbaStaticPlayer } from '@/lib/nba-static-stats'
-import { findStaticNbaTeam, getStaticNbaTeams } from '@/lib/nba-static-team-stats'
 import {
-  fetchAthleteStatistics,
+  fetchAthleteStatistics as fetchNflAthleteStatistics,
   fetchInjuries as fetchEspnNFLInjuries,
   fetchRoster as fetchEspnNFLRoster,
-  fetchTeamList,
-  fetchTeamStatistics,
-  statHelpers,
+  fetchTeamList as fetchNflTeamList,
+  fetchTeamStatistics as fetchNflTeamStatistics,
+  statHelpers as nflStatHelpers,
   type EspnStatCategory,
   type EspnTeamMeta,
 } from '@/lib/providers/espn-nfl'
+import {
+  fetchAthleteStatistics as fetchNcaafAthleteStatistics,
+  fetchTeamList as fetchNcaafTeamList,
+  fetchTeamStatistics as fetchNcaafTeamStatistics,
+  statHelpers as ncaafStatHelpers,
+  type EspnStatCategory as EspnNcaafStatCategory,
+  type EspnTeamMeta as EspnNcaafTeamMeta,
+} from '@/lib/providers/espn-ncaaf'
+import { getNbaOpponentStats } from '@/lib/services/espn-opponent-stats'
+import {
+  fetchAthleteStatistics as fetchNbaAthleteStatistics,
+  fetchTeamList as fetchNbaTeamList,
+  fetchTeamStatistics as fetchNbaTeamStatistics,
+  statHelpers as nbaStatHelpers,
+} from '@/lib/providers/espn-nba'
+import { fetchNcaabTeamList } from '@/lib/providers/espn-ncaab'
+import {
+  fetchNcaaNetRankings,
+  fetchNcaaScoringStats,
+  fetchNcaaTeamStatProfiles,
+} from '@/lib/providers/ncaab-free-sources'
+import { normalizeTeamKey, resolveSportKey } from '@/lib/identity/sport'
+import { resolveEspnTeamName } from '@/lib/utils/espn-team-lookup'
 
 type NextFetchInit = RequestInit & { next?: { revalidate?: number } }
 
@@ -64,6 +85,7 @@ export interface TeamStats {
   rank?: number
   season?: string
   sport?: string
+  teamAbbr?: string
 }
 
 export interface AdvancedTeamStats {
@@ -83,24 +105,13 @@ export interface AdvancedTeamStats {
   yardsPerPlay?: number
 }
 
-const SPORT_ALIASES: Record<string, string> = {
-  nba: 'basketball_nba',
-  basketball: 'basketball_nba',
-  basketball_nba: 'basketball_nba',
-  nfl: 'americanfootball_nfl',
-  football: 'americanfootball_nfl',
-  americanfootball: 'americanfootball_nfl',
-  americanfootball_nfl: 'americanfootball_nfl',
-  mlb: 'baseball_mlb',
-  baseball: 'baseball_mlb',
-  baseball_mlb: 'baseball_mlb',
-  nhl: 'icehockey_nhl',
-  hockey: 'icehockey_nhl',
-  icehockey: 'icehockey_nhl',
-  icehockey_nhl: 'icehockey_nhl',
-}
-
-const SPORT_PRIORITY = ['basketball_nba', 'americanfootball_nfl', 'baseball_mlb', 'icehockey_nhl']
+const SPORT_PRIORITY = [
+  'basketball_nba',
+  'americanfootball_nfl',
+  'americanfootball_ncaaf',
+  'baseball_mlb',
+  'icehockey_nhl',
+]
 const ESPN_SPORT_PATH: Record<string, string> = {
   basketball_nba: 'basketball/nba',
   basketball_ncaab: 'basketball/mens-college-basketball',
@@ -113,6 +124,16 @@ const normalizeName = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '')
     .trim()
+
+const parseRecordSummary = (summary?: string | null) => {
+  if (!summary) return null
+  const match = summary.match(/(\d+)\s*-\s*(\d+)/)
+  if (!match) return null
+  const wins = Number(match[1])
+  const losses = Number(match[2])
+  if (!Number.isFinite(wins) || !Number.isFinite(losses)) return null
+  return { wins, losses }
+}
 
 const fetchEspnRecentGames = async (
   athleteId: string,
@@ -182,12 +203,6 @@ const fetchEspnRecentGames = async (
   }
 }
 
-const resolveSportKey = (sport?: string | null): string | undefined => {
-  if (!sport) return undefined
-  const key = sport.trim().toLowerCase()
-  return SPORT_ALIASES[key] || SPORT_ALIASES[key.replace(/[_\s-]+/g, '_')] || undefined
-}
-
 const getCurrentNBASeasonLabel = () => {
   const now = new Date()
   const month = now.getUTCMonth()
@@ -218,6 +233,16 @@ const TEAM_STATS_CACHE_TTL = 1000 * 60 * 10 // 10 minutes
 let nflTeamStatsCache: { ts: number; data: Array<{ meta: EspnTeamMeta; categories: EspnStatCategory[] }> } | null = null
 let nflRosterCache: { ts: number; roster: RosterPlayer[] } | null = null
 const NFL_ROSTER_CACHE_TTL = 1000 * 60 * 60 // 1 hour
+let nbaTeamStatsCache: { ts: number; data: Array<{ meta: EspnTeamMeta; categories: EspnStatCategory[] }> } | null = null
+let ncaabTeamStatsCache: { ts: number; data: TeamStats[] } | null = null
+let ncaafTeamStatsCache: {
+  ts: number
+  data: Array<{
+    meta: EspnNcaafTeamMeta
+    categories: EspnNcaafStatCategory[]
+    postseasonCategories: EspnNcaafStatCategory[]
+  }>
+} | null = null
 
 const extractEspnId = (content: any): string | null => {
   const web = content?.link?.web
@@ -339,6 +364,41 @@ type EspnSearchTarget = {
   headshot?: string
 }
 
+const LEAGUE_SYNONYMS: Record<string, string[]> = {
+  ncf: ['ncaaf', 'college-football', 'ncaa football', 'college football'],
+  ncb: ['ncaab', 'college-basketball', 'ncaa basketball', 'college basketball'],
+  nfl: ['nfl', 'national football league'],
+  nba: ['nba', 'national basketball association'],
+  nhl: ['nhl', 'national hockey league'],
+  mlb: ['mlb', 'major league baseball'],
+  wnba: ["wnba", "women's national basketball association"],
+}
+
+const extractAthleteIdFromUid = (uid?: string): string | null => {
+  if (!uid) return null
+  const match = /a:(\d+)/.exec(uid)
+  return match?.[1] || null
+}
+
+const matchesLeagueAbbrev = (entry: any, leagueAbbrev: string): boolean => {
+  const target = leagueAbbrev.toLowerCase()
+  const candidates = [
+    entry?.leagues?.[0]?.leagueAbbrev,
+    entry?.leagues?.[0]?.abbr,
+    entry?.description,
+    entry?.defaultLeagueSlug,
+    entry?.league,
+  ]
+    .filter(Boolean)
+    .map((value: string) => value.toLowerCase())
+
+  if (candidates.some((value: string) => value === target)) return true
+  const synonyms = LEAGUE_SYNONYMS[target] || []
+  return candidates.some((value: string) =>
+    synonyms.some((synonym) => value === synonym || value.includes(synonym))
+  )
+}
+
 const searchEspnAthlete = async (
   playerName: string,
   sportPath: string,
@@ -356,16 +416,16 @@ const searchEspnAthlete = async (
     const target = normalizeName(playerName)
     const matches = results.filter((entry: any) => {
       if (!leagueAbbrev) return true
-      const league = entry?.leagues?.[0]?.leagueAbbrev || entry?.leagues?.[0]?.abbr
-      return league && league.toLowerCase() === leagueAbbrev.toLowerCase()
+      return matchesLeagueAbbrev(entry, leagueAbbrev)
     })
     const pick =
       matches.find((entry: any) => normalizeName(entry?.displayName || '') === target) ||
       matches.find((entry: any) => normalizeName(entry?.displayName || '').includes(target)) ||
       matches[0]
     if (!pick?.id) return null
+    const athleteId = extractAthleteIdFromUid(pick?.uid)
     return {
-      id: String(pick.id),
+      id: athleteId ? String(athleteId) : String(pick.id),
       name: pick.displayName || playerName,
       team: pick.team || pick.teamName || '',
       teamAbbr: pick.teamAbbreviation || '',
@@ -475,34 +535,60 @@ export async function getNBAPlayerSeasonStats(playerName: string): Promise<Playe
   }
 
   const espnId = rosterEntry.id
+  const seasonYear = getCurrentNBASeasonYear()
+  const coreStatsResponse =
+    (await fetchNbaAthleteStatistics(espnId, seasonYear, 2)) ||
+    (await fetchNbaAthleteStatistics(espnId, seasonYear - 1, 2))
+  const coreStats = buildNbaPlayerStatsFromCategories(
+    coreStatsResponse?.splits?.categories
+  )
   const espnStats = await fetchESPNNBAPlayerStats(espnId)
-  if (!espnStats) {
+
+  if (!espnStats && Object.keys(coreStats.stats).length === 0) {
     return null
   }
 
-  const stats: Record<string, number | string> = {}
-  if (espnStats.ppg != null) stats.PPG = Number(espnStats.ppg.toFixed(1))
-  if (espnStats.rpg != null) stats.RPG = Number(espnStats.rpg.toFixed(1))
-  if (espnStats.apg != null) stats.APG = Number(espnStats.apg.toFixed(1))
-  if (espnStats.spg != null) stats.STL = Number(espnStats.spg.toFixed(1))
-  if (espnStats.bpg != null) stats.BLK = Number(espnStats.bpg.toFixed(1))
-  if (espnStats.threepm != null) stats['3PM'] = Number(espnStats.threepm.toFixed(1))
-  if (espnStats.fgPct != null) stats.FG_PERCENT = Number(espnStats.fgPct.toFixed(1))
-  // Always return a 3P% value (default 0.0 if missing) so the UI can display it consistently
-  stats.THREE_PERCENT = Number((espnStats.threePct ?? 0).toFixed(1))
+  const stats: Record<string, number | string> = { ...coreStats.stats }
+  const setIfMissing = (key: string, value: number | null, decimals = 1) => {
+    if (value == null || stats[key] != null) return
+    stats[key] = Number(value.toFixed(decimals))
+  }
+
+  setIfMissing('PPG', espnStats?.ppg ?? null)
+  setIfMissing('RPG', espnStats?.rpg ?? null)
+  setIfMissing('APG', espnStats?.apg ?? null)
+  setIfMissing('STL', espnStats?.spg ?? null)
+  setIfMissing('BLK', espnStats?.bpg ?? null)
+  if (espnStats?.threepm != null && stats['3PM'] == null) {
+    stats['3PM'] = Number(espnStats.threepm.toFixed(1))
+  }
+  if (espnStats?.fgPct != null && stats.FG_PERCENT == null) {
+    stats.FG_PERCENT = Number(espnStats.fgPct.toFixed(1))
+  }
+  if (stats.THREE_PERCENT == null) {
+    stats.THREE_PERCENT = Number((espnStats?.threePct ?? 0).toFixed(1))
+  }
+
+  if (stats.PTS == null && stats.PPG != null) stats.PTS = stats.PPG as number
+  if (stats.REB == null && stats.TRB != null) stats.REB = stats.TRB as number
+  if (stats.RPG == null && stats.REB != null) stats.RPG = stats.REB as number
+  if (stats.APG == null && stats.AST != null) stats.APG = stats.AST as number
+  if (stats['3PM'] == null && stats.THREE_PM != null) {
+    stats['3PM'] = stats.THREE_PM as number
+  }
+  const seasonLabel = espnStats?.seasonLabel ?? getCurrentNBASeasonLabel()
 
   const result: PlayerStats = {
     name: rosterEntry?.fullName ?? playerName,
     team: rosterEntry?.team ?? '',
     position: rosterEntry?.position,
-    season: espnStats.seasonLabel,
+    season: seasonLabel,
     stats,
     headshot: rosterEntry?.headshot,
     sport: 'basketball_nba',
   }
 
   if (rosterEntry.id) {
-    const seasonYear = getCurrentNBASeasonYear()
     const recent =
       (await fetchEspnRecentGames(rosterEntry.id, ESPN_SPORT_PATH.basketball_nba, {
         season: seasonYear,
@@ -536,6 +622,107 @@ const buildStatsFromRecent = (games: RecentPerformance[]): Record<string, number
   return totals
 }
 
+const buildNcaafPlayerStats = (
+  categories: EspnNcaafStatCategory[]
+): Record<string, number> => {
+  const stats: Record<string, number> = {}
+  const pick = (names: string[], opts: { perGame?: boolean } = {}) =>
+    ncaafStatHelpers.pickStat(categories, names, opts)
+  const setStat = (key: string, value: number | null) => {
+    if (value == null || !Number.isFinite(value)) return
+    stats[key] = Number(value)
+  }
+
+  const gamesPlayed = pick(['gamesPlayed', 'teamGamesPlayed'])
+  const pickPerGame = (names: string[], perGameNames: string[] = []) => {
+    const perGame =
+      pick(perGameNames.length ? perGameNames : names, { perGame: true }) ??
+      pick(names, { perGame: true })
+    if (perGame != null) return perGame
+    const perGameNamed = perGameNames.length ? pick(perGameNames) : null
+    if (perGameNamed != null) return perGameNamed
+    const total = pick(names)
+    if (total != null && gamesPlayed && gamesPlayed > 0) return total / gamesPlayed
+    return total
+  }
+  setStat('GAMES_PLAYED', gamesPlayed)
+
+  setStat(
+    'PASSING_YARDS',
+    pickPerGame(['passingYards'], ['passingYardsPerGame'])
+  )
+  setStat('PASSING_ATTEMPTS', pickPerGame(['passingAttempts']))
+  setStat('PASSING_COMPLETIONS', pickPerGame(['completions']))
+  setStat('COMPLETION_PCT', pick(['completionPct']))
+  setStat(
+    'PASSING_TOUCHDOWNS',
+    pickPerGame(['passingTouchdowns'])
+  )
+  setStat('INTERCEPTIONS', pickPerGame(['interceptions']))
+  setStat('INTERCEPTION_PCT', pick(['interceptionPct']))
+  setStat(
+    'YARDS_PER_PASS_ATTEMPT',
+    pick(['yardsPerPassAttempt', 'netYardsPerPassAttempt'])
+  )
+  setStat('PASSING_BIG_PLAYS', pick(['passingBigPlays']))
+  setStat('PASSING_FIRST_DOWNS', pick(['passingFirstDowns']))
+  setStat('SACKS_TAKEN', pick(['sacks']))
+  setStat('SACK_YARDS_LOST', pick(['sackYardsLost']))
+  setStat('PASSING_TD_PCT', pick(['passingTouchdownPct']))
+  setStat('QBR', pick(['QBR', 'QBRating']))
+  setStat('ADJ_QBR', pick(['adjQBR']))
+  setStat('ESPN_QBR', pick(['ESPNQBRating']))
+  setStat('QB_RATING', pick(['quarterbackRating']))
+  setStat('PASSING_YARDS_AT_CATCH', pick(['passingYardsAtCatch']))
+  setStat('PASSING_YARDS_AFTER_CATCH', pick(['passingYardsAfterCatch']))
+  setStat('LONG_PASSING', pick(['longPassing']))
+
+  setStat(
+    'RUSHING_YARDS',
+    pickPerGame(['rushingYards'], ['rushingYardsPerGame'])
+  )
+  setStat('RUSHING_ATTEMPTS', pickPerGame(['rushingAttempts']))
+  setStat(
+    'RUSHING_TOUCHDOWNS',
+    pickPerGame(['rushingTouchdowns'])
+  )
+  setStat('YARDS_PER_RUSH_ATTEMPT', pick(['yardsPerRushAttempt']))
+  setStat('RUSHING_BIG_PLAYS', pick(['rushingBigPlays']))
+  setStat('RUSHING_FIRST_DOWNS', pick(['rushingFirstDowns']))
+  setStat('RUSHING_STUFFS', pick(['stuffs']))
+  setStat('RUSHING_STUFF_YARDS_LOST', pick(['stuffYardsLost']))
+  setStat('LONG_RUSHING', pick(['longRushing']))
+
+  setStat(
+    'RECEIVING_YARDS',
+    pickPerGame(['receivingYards'], ['receivingYardsPerGame'])
+  )
+  setStat('RECEPTIONS', pickPerGame(['receptions']))
+  setStat('RECEIVING_TARGETS', pickPerGame(['receivingTargets']))
+  setStat(
+    'RECEIVING_TOUCHDOWNS',
+    pickPerGame(['receivingTouchdowns'])
+  )
+  setStat('YARDS_PER_RECEPTION', pick(['yardsPerReception']))
+  setStat('RECEIVING_BIG_PLAYS', pick(['receivingBigPlays']))
+  setStat('RECEIVING_FIRST_DOWNS', pick(['receivingFirstDowns']))
+  setStat('RECEIVING_YARDS_AT_CATCH', pick(['receivingYardsAtCatch']))
+  setStat('RECEIVING_YARDS_AFTER_CATCH', pick(['receivingYardsAfterCatch']))
+  setStat('LONG_RECEPTION', pick(['longReception']))
+
+  setStat('TOTAL_TOUCHDOWNS', pickPerGame(['totalTouchdowns']))
+  setStat(
+    'TOTAL_YARDS',
+    pickPerGame(['totalYards', 'totalYardsFromScrimmage'], [
+      'yardsFromScrimmagePerGame',
+    ])
+  )
+  setStat('FUMBLES', pickPerGame(['fumbles']))
+  setStat('FUMBLES_LOST', pickPerGame(['fumblesLost']))
+
+  return stats
+}
+
 export async function getNCAAFPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
   const cacheKey = `ncaaf:${normalizeName(playerName)}`
   const cached = playerStatsCache.get(cacheKey)
@@ -546,6 +733,20 @@ export async function getNCAAFPlayerSeasonStats(playerName: string): Promise<Pla
     playerStatsCache.set(cacheKey, { data: null, ts: Date.now() })
     return null
   }
+
+  const season = getCurrentNFLSeasonYear()
+  const [seasonStatsResp, postseasonStatsResp] = await Promise.all([
+    fetchNcaafAthleteStatistics(search.id, season, 2),
+    fetchNcaafAthleteStatistics(search.id, season, 3),
+  ])
+  const seasonCategories = seasonStatsResp?.splits?.categories ?? []
+  const postseasonCategories = postseasonStatsResp?.splits?.categories ?? []
+  const seasonStats = seasonCategories.length
+    ? buildNcaafPlayerStats(seasonCategories)
+    : {}
+  const postseasonStats = postseasonCategories.length
+    ? buildNcaafPlayerStats(postseasonCategories)
+    : {}
 
   const currentYear = new Date().getFullYear()
   const recent =
@@ -559,13 +760,22 @@ export async function getNCAAFPlayerSeasonStats(playerName: string): Promise<Pla
       seasonType: 2,
       maxGames: 5,
     }))
-  const stats = buildStatsFromRecent(recent)
+  const recentStats = buildStatsFromRecent(recent)
+
+  const stats: Record<string, number> =
+    Object.keys(seasonStats).length > 0 ? { ...seasonStats } : { ...recentStats }
+
+  if (Object.keys(postseasonStats).length > 0) {
+    for (const [key, value] of Object.entries(postseasonStats)) {
+      stats[`POST_${key}`] = value
+    }
+  }
 
   const result: PlayerStats = {
     name: search.name,
     team: search.team || '',
     position: search.position,
-    season: String(getCurrentNFLSeasonYear()),
+    season: String(season),
     stats,
     headshot: search.headshot,
     sport: 'americanfootball_ncaaf',
@@ -630,7 +840,7 @@ export async function getNFLPlayerSeasonStats(playerName: string): Promise<Playe
   }
   const seasonYear = getCurrentNFLSeasonYear()
   const [statsResp, recent] = await Promise.all([
-    fetchAthleteStatistics(rosterEntry.id, seasonYear),
+    fetchNflAthleteStatistics(rosterEntry.id, seasonYear),
     fetchEspnRecentGames(rosterEntry.id, ESPN_SPORT_PATH.americanfootball_nfl, {
       season: seasonYear,
       seasonType: 2,
@@ -639,7 +849,7 @@ export async function getNFLPlayerSeasonStats(playerName: string): Promise<Playe
   ])
 
   const categories = statsResp?.splits?.categories ?? []
-  const pick = (keys: string[]) => statHelpers.pickStat(categories, keys)
+  const pick = (keys: string[]) => nflStatHelpers.pickStat(categories, keys)
   const stats: Record<string, number | string> = {}
   const set = (key: string, value: number | null) => {
     if (value != null) stats[key] = value
@@ -688,6 +898,312 @@ export interface GameStats {
   homeStats?: TeamStats
   awayStats?: TeamStats
   topPlayers?: PlayerStats[]
+}
+
+const roundValue = (value: number | null, decimals = 1) => {
+  if (value == null || !Number.isFinite(value)) return null
+  return Number(value.toFixed(decimals))
+}
+
+const normalizePercent = (value: number | null, decimals = 1) => {
+  if (value == null || !Number.isFinite(value)) return null
+  const pct = value >= 0 && value <= 1 ? value * 100 : value
+  return Number(pct.toFixed(decimals))
+}
+
+const normalizeRatio = (value: number | null, decimals = 3) => {
+  if (value == null || !Number.isFinite(value)) return null
+  const ratio = value > 1 ? value / 100 : value
+  return Number(ratio.toFixed(decimals))
+}
+
+const normalizeRating = (value: number | null, decimals = 1) => {
+  if (value == null || !Number.isFinite(value)) return null
+  const rating = Math.abs(value) < 10 ? value * 100 : value
+  return Number(rating.toFixed(decimals))
+}
+
+const buildNbaPlayerStatsFromCategories = (
+  categories?: EspnStatCategory[]
+) => {
+  const stats: Record<string, number | string> = {}
+  if (!categories?.length) return { stats, gamesPlayed: null }
+
+  const pick = (names: string[], opts?: { perGame?: boolean }) =>
+    nbaStatHelpers.pickStat(categories, names, opts)
+  const gamesPlayed =
+    pick(['gamesPlayed', 'games', 'gamesPlayedSeason', 'gamesPlayedTotal']) ?? null
+  const perGame = (names: string[], totalNames = names) => {
+    const perGameValue = pick(names, { perGame: true })
+    if (perGameValue != null) return perGameValue
+    const total = pick(totalNames)
+    if (total != null && gamesPlayed) return total / gamesPlayed
+    return null
+  }
+  const set = (key: string, value: number | null, decimals = 1) => {
+    const rounded = roundValue(value, decimals)
+    if (rounded != null) stats[key] = rounded
+  }
+
+  const mpg = perGame(['minutes', 'minutesPlayed', 'avgMinutes', 'minutesPerGame'])
+  if (mpg != null) stats.MPG = roundValue(mpg, 1) as number
+  if (gamesPlayed != null) stats.GP = Math.round(gamesPlayed)
+
+  const ppg = perGame(['points', 'totalPoints', 'pointsPerGame', 'pts'])
+  if (ppg != null) {
+    const pts = roundValue(ppg, 1) as number
+    stats.PTS = pts
+    stats.PPG = pts
+  }
+
+  set('FGM', perGame(['fieldGoalsMade', 'fieldGoals', 'fieldGoalsPerGame']))
+  set('FGA', perGame(['fieldGoalsAttempted', 'fieldGoalAttempts', 'fgAttempted']))
+  set(
+    'TWOPM',
+    perGame(['twoPointFieldGoalsMade', 'twoPointFieldGoals', 'twoPointFieldGoalsPerGame'])
+  )
+  set(
+    'TWOPA',
+    perGame(['twoPointFieldGoalsAttempted', 'twoPointFieldGoalAttempts'])
+  )
+  set(
+    'THREE_PM',
+    perGame([
+      'threePointFieldGoalsMade',
+      'threePointFieldGoals',
+      'threePointFieldGoalsPerGame',
+    ])
+  )
+  set(
+    'THREE_PA',
+    perGame(['threePointFieldGoalsAttempted', 'threePointFieldGoalAttempts'])
+  )
+  set('FTM', perGame(['freeThrowsMade', 'freeThrows', 'freeThrowsPerGame']))
+  set('FTA', perGame(['freeThrowsAttempted', 'freeThrowAttempts']))
+
+  set('ORB', perGame(['offensiveRebounds', 'offRebounds']))
+  set('DRB', perGame(['defensiveRebounds', 'defRebounds']))
+  set('TRB', perGame(['rebounds', 'totalRebounds']))
+  set('AST', perGame(['assists', 'assist']))
+  set('STL', perGame(['steals', 'steal']))
+  set('BLK', perGame(['blocks', 'block']))
+  set('TOV', perGame(['turnovers', 'turnover']))
+  set('PF', perGame(['personalFouls', 'fouls']))
+
+  if (stats.TRB != null) {
+    stats.REB = stats.TRB as number
+    stats.RPG = stats.TRB as number
+  }
+  if (stats.AST != null) stats.APG = stats.AST as number
+
+  const fgPct = normalizePercent(
+    pick(['fieldGoalPct', 'fgPct', 'fieldGoalPercentage'])
+  )
+  const twoPct = normalizePercent(
+    pick(['twoPointFieldGoalPct', 'twoPointPct', 'twoPointPercentage'])
+  )
+  const threePct = normalizePercent(
+    pick(['threePointPct', 'threePointFieldGoalPct', 'threePointPercentage'])
+  )
+  const ftPct = normalizePercent(
+    pick(['freeThrowPct', 'freeThrowPercentage', 'ftPct'])
+  )
+  const tsPct = normalizePercent(pick(['trueShootingPct', 'trueShootingPercentage']))
+  const efgPct = normalizePercent(
+    pick(['effectiveFGPct', 'effectiveFieldGoalPct', 'effectiveFieldGoalPercentage'])
+  )
+
+  if (fgPct != null) stats.FG_PERCENT = fgPct
+  if (twoPct != null) stats.TWOP_PERCENT = twoPct
+  if (threePct != null) stats.THREE_PERCENT = threePct
+  if (ftPct != null) stats.FT_PERCENT = ftPct
+  if (tsPct != null) stats.TS_PERCENT = tsPct
+  if (efgPct != null) stats.EFG_PERCENT = efgPct
+
+  const usgPct = normalizePercent(pick(['usageRate', 'usagePct', 'usgPct']))
+  const orbPct = normalizePercent(
+    pick(['offensiveReboundPct', 'offensiveReboundRate', 'offReboundRate'])
+  )
+  const drbPct = normalizePercent(
+    pick(['defensiveReboundPct', 'defensiveReboundRate', 'defReboundRate'])
+  )
+  const trbPct = normalizePercent(pick(['reboundPct', 'reboundRate', 'trbPct']))
+  const astPct = normalizePercent(pick(['assistPct', 'assistRate', 'astPct']))
+  const stlPct = normalizePercent(pick(['stealPct', 'stealRate', 'stlPct']))
+  const blkPct = normalizePercent(pick(['blockPct', 'blockRate', 'blkPct']))
+  const tovPct = normalizePercent(pick(['turnoverPct', 'turnoverRate', 'tovPct']))
+  const per = roundValue(pick(['playerEfficiencyRating', 'PER']), 1)
+  const vorp = roundValue(pick(['valueOverReplacementPlayer', 'VORP']), 2)
+  const nbaRating = roundValue(pick(['NBARating', 'nbaRating']), 1)
+  const scoringEfficiency = roundValue(pick(['scoringEfficiency']), 3)
+  const shootingEfficiency = roundValue(pick(['shootingEfficiency']), 3)
+  const pointsPerEstimatedPossessions = roundValue(
+    pick(['pointsPerEstimatedPossessions']),
+    2
+  )
+
+  if (usgPct != null) stats.USG_PERCENT = usgPct
+  if (orbPct != null) stats.ORB_PERCENT = orbPct
+  if (drbPct != null) stats.DRB_PERCENT = drbPct
+  if (trbPct != null) stats.TRB_PERCENT = trbPct
+  if (astPct != null) stats.AST_PERCENT = astPct
+  if (stlPct != null) stats.STL_PERCENT = stlPct
+  if (blkPct != null) stats.BLK_PERCENT = blkPct
+  if (tovPct != null) stats.TOV_PERCENT = tovPct
+  if (per != null) stats.PER = per
+  if (vorp != null) stats.VORP = vorp
+  if (nbaRating != null) stats.NBA_RATING = nbaRating
+  if (scoringEfficiency != null) stats.SCORING_EFFICIENCY = scoringEfficiency
+  if (shootingEfficiency != null) stats.SHOOTING_EFFICIENCY = shootingEfficiency
+  if (pointsPerEstimatedPossessions != null) {
+    stats.POINTS_PER_EST_POSSESSIONS = pointsPerEstimatedPossessions
+  }
+
+  return { stats, gamesPlayed }
+}
+
+const buildNbaTeamStatsFromCategories = (categories?: EspnStatCategory[]) => {
+  const stats: Record<string, number | string | null> = {}
+  if (!categories?.length) return stats
+
+  const pick = (names: string[], opts?: { perGame?: boolean }) =>
+    nbaStatHelpers.pickStat(categories, names, opts)
+  const gamesPlayed =
+    pick(['gamesPlayed', 'teamGamesPlayed', 'games', 'gamesPlayedSeason']) ?? null
+  const perGame = (names: string[], totalNames = names) => {
+    const perGameValue = pick(names, { perGame: true })
+    if (perGameValue != null) return perGameValue
+    const total = pick(totalNames)
+    if (total != null && gamesPlayed) return total / gamesPlayed
+    return null
+  }
+  const assign = (key: string, value: number | null, decimals = 1) => {
+    const rounded = roundValue(value, decimals)
+    if (rounded != null) stats[key] = rounded
+  }
+
+  if (gamesPlayed != null) stats.gamesPlayed = Math.round(gamesPlayed)
+  assign('minutesPerGame', perGame(['minutes', 'minutesPlayed', 'avgMinutes']))
+
+  assign('fieldGoalsMadePerGame', perGame(['fieldGoalsMade', 'fieldGoals']))
+  assign('fieldGoalsAttemptedPerGame', perGame(['fieldGoalsAttempted']))
+  assign('twosMadePerGame', perGame(['twoPointFieldGoalsMade', 'twoPointFieldGoals']))
+  assign('twosAttemptedPerGame', perGame(['twoPointFieldGoalsAttempted']))
+  assign('threesMadePerGame', perGame(['threePointFieldGoalsMade', 'threePointFieldGoals']))
+  assign('threesAttemptedPerGame', perGame(['threePointFieldGoalsAttempted']))
+  assign('freeThrowsMadePerGame', perGame(['freeThrowsMade', 'freeThrows']))
+  assign('freeThrowsAttemptedPerGame', perGame(['freeThrowsAttempted']))
+
+  assign('offensiveReboundsPerGame', perGame(['offensiveRebounds', 'offRebounds']))
+  assign('defensiveReboundsPerGame', perGame(['defensiveRebounds', 'defRebounds']))
+  assign('reboundsPerGame', perGame(['rebounds', 'totalRebounds']))
+  assign('assistsPerGame', perGame(['assists']))
+  assign('stealsPerGame', perGame(['steals']))
+  assign('blocksPerGame', perGame(['blocks']))
+  assign('turnoversPerGame', perGame(['turnovers']))
+  assign('personalFoulsPerGame', perGame(['personalFouls', 'fouls']))
+  assign('pointsForPerGame', perGame(['points', 'totalPoints']))
+  assign(
+    'pointsAgainstPerGame',
+    perGame(['pointsAgainst', 'pointsAllowed', 'opponentPoints'])
+  )
+
+  const fgPct = normalizePercent(
+    pick(['fieldGoalPct', 'fgPct', 'fieldGoalPercentage'])
+  )
+  const twoPct = normalizePercent(
+    pick(['twoPointFieldGoalPct', 'twoPointPct', 'twoPointPercentage'])
+  )
+  const threePct = normalizePercent(
+    pick(['threePointPct', 'threePointFieldGoalPct', 'threePointPercentage'])
+  )
+  const ftPct = normalizePercent(
+    pick(['freeThrowPct', 'freeThrowPercentage', 'ftPct'])
+  )
+  const tsPct = normalizePercent(pick(['trueShootingPct', 'trueShootingPercentage']))
+  const efgPct = normalizePercent(
+    pick(['effectiveFGPct', 'effectiveFieldGoalPct', 'effectiveFieldGoalPercentage'])
+  )
+
+  if (fgPct != null) stats.fieldGoalPct = fgPct
+  if (twoPct != null) stats.twoPointPct = twoPct
+  if (threePct != null) stats.threePointPct = threePct
+  if (ftPct != null) stats.freeThrowPct = ftPct
+  if (tsPct != null) stats.trueShootingPct = tsPct
+  if (efgPct != null) stats.effectiveFgPct = efgPct
+
+  const turnoverPct = normalizePercent(
+    pick(['turnoverRatio', 'turnoverPct', 'turnoverPercentage'])
+  )
+  const offensiveReboundPct = normalizePercent(
+    pick(['offensiveReboundPct', 'offensiveReboundRate', 'offReboundRate'])
+  )
+  const defensiveReboundPct = normalizePercent(
+    pick(['defensiveReboundPct', 'defensiveReboundRate', 'defReboundRate'])
+  )
+  const freeThrowRate = normalizeRatio(
+    pick([
+      'freeThrowRate',
+      'freeThrowRatePerFieldGoalAttempt',
+      'freeThrowRatePerFga',
+      'ftaPerFga',
+    ])
+  )
+  const pace = roundValue(pick(['paceFactor', 'pace']), 1)
+  const offensiveRating = normalizeRating(
+    pick(['pointsPerEstimatedPossessions', 'pointsPerPossession', 'offensiveRating'])
+  )
+  const defensiveRating = normalizeRating(
+    pick([
+      'pointsAgainstPerEstimatedPossessions',
+      'pointsAllowedPerPossession',
+      'defensiveRating',
+    ])
+  )
+
+  if (turnoverPct != null) stats.turnoverPct = turnoverPct
+  if (offensiveReboundPct != null) stats.offensiveReboundPct = offensiveReboundPct
+  if (defensiveReboundPct != null) stats.defensiveReboundPct = defensiveReboundPct
+  if (freeThrowRate != null) stats.freeThrowRate = freeThrowRate
+  if (pace != null) stats.pace = pace
+  if (offensiveRating != null) stats.offensiveRating = offensiveRating
+  if (defensiveRating != null) stats.defensiveRating = defensiveRating
+  if (offensiveRating != null && defensiveRating != null) {
+    stats.netRating = Number((offensiveRating - defensiveRating).toFixed(1))
+  }
+
+  return stats
+}
+
+const loadNBATeamStatBlocks = async (teamAbbr?: string) => {
+  const useCache = !teamAbbr
+  const now = Date.now()
+  if (useCache && nbaTeamStatsCache && now - nbaTeamStatsCache.ts < TEAM_STATS_CACHE_TTL) {
+    return nbaTeamStatsCache.data
+  }
+
+  const season = getCurrentNBASeasonYear()
+  const teams = await fetchNbaTeamList()
+  const targets = teamAbbr
+    ? teams.filter(
+        (team) =>
+          normalizeName(team.abbreviation || '') === normalizeName(teamAbbr)
+      )
+    : teams
+
+  const results = await Promise.all(
+    targets.map(async (meta) => {
+      const statsResp = await fetchNbaTeamStatistics(meta.id, season, 2)
+      const categories = statsResp?.splits?.categories ?? []
+      return { meta, categories }
+    })
+  )
+
+  if (useCache) {
+    nbaTeamStatsCache = { ts: now, data: results }
+  }
+
+  return results
 }
 
 // ==================== NBA STATS (via ESPN) ====================
@@ -743,8 +1259,12 @@ export async function getNBATeamStats(teamAbbr?: string): Promise<TeamStats[]> {
             pickStat(statsArray, 'last10') ||
             (lastTenWins != null && lastTenLosses != null ? `${lastTenWins}-${lastTenLosses}` : null)
 
-          const pointsForPerGame = numOrNull(pickStat(statsArray, ['pointsPerGame']))
-          const pointsAgainstPerGame = numOrNull(pickStat(statsArray, ['pointsAgainstPerGame', 'oppPointsPerGame']))
+          const pointsForPerGame = numOrNull(
+            pickStat(statsArray, ['pointsPerGame', 'avgPointsFor', 'avgPoints'])
+          )
+          const pointsAgainstPerGame = numOrNull(
+            pickStat(statsArray, ['pointsAgainstPerGame', 'oppPointsPerGame', 'avgPointsAgainst'])
+          )
           const pointsFor =
             pointsForPerGame != null && gamesPlayed
               ? Number((pointsForPerGame * gamesPlayed).toFixed(1))
@@ -765,6 +1285,7 @@ export async function getNBATeamStats(teamAbbr?: string): Promise<TeamStats[]> {
 
           teams.push({
             team: team.displayName,
+            teamAbbr: team.abbreviation,
             wins,
             losses,
             winPct,
@@ -785,6 +1306,63 @@ export async function getNBATeamStats(teamAbbr?: string): Promise<TeamStats[]> {
               stealsPerGame,
             },
           })
+        }
+      }
+    }
+    const coreStats = await loadNBATeamStatBlocks(teamAbbr)
+    if (coreStats.length) {
+      const byAbbr = new Map(
+        coreStats.map((entry) => [
+          normalizeName(entry.meta.abbreviation || ''),
+          entry,
+        ])
+      )
+      const byName = new Map(
+        coreStats.map((entry) => [
+          normalizeName(entry.meta.displayName || entry.meta.name || ''),
+          entry,
+        ])
+      )
+
+      for (const teamEntry of teams) {
+        const key = normalizeName(teamEntry.teamAbbr || teamEntry.team)
+        const block =
+          byAbbr.get(key) || byName.get(normalizeName(teamEntry.team))
+        if (!block) continue
+        const extras = buildNbaTeamStatsFromCategories(block.categories)
+        if (Object.keys(extras).length) {
+          teamEntry.stats = {
+            ...teamEntry.stats,
+            ...extras,
+          }
+        }
+      }
+    }
+
+    const opponentEntries = await getNbaOpponentStats()
+    if (opponentEntries.length) {
+      const byAbbr = new Map(
+        opponentEntries.map((entry) => [
+          normalizeName(entry.teamAbbr || ''),
+          entry,
+        ])
+      )
+      const byName = new Map(
+        opponentEntries.map((entry) => [
+          normalizeName(entry.teamName || ''),
+          entry,
+        ])
+      )
+      for (const teamEntry of teams) {
+        const key = normalizeName(teamEntry.teamAbbr || teamEntry.team)
+        const oppEntry =
+          byAbbr.get(key) || byName.get(normalizeName(teamEntry.team))
+        if (!oppEntry) continue
+        const stats = oppEntry.stats || {}
+        for (const [statKey, statValue] of Object.entries(stats)) {
+          if (teamEntry.stats[statKey] == null) {
+            teamEntry.stats[statKey] = statValue
+          }
         }
       }
     }
@@ -811,6 +1389,249 @@ export async function getNBAPlayerStats(playerName?: string): Promise<PlayerStat
 export async function getNBAAdvancedTeamStats(): Promise<AdvancedTeamStats[]> {
   // stats.nba.com is disabled; ESPN does not expose advanced pace/efficiency
   return []
+}
+
+// ==================== NCAAB TEAM STATS (ESPN + NCAA free sources) ====================
+
+export async function getNCAABTeamStats(): Promise<TeamStats[]> {
+  const now = Date.now()
+  if (ncaabTeamStatsCache && now - ncaabTeamStatsCache.ts < TEAM_STATS_CACHE_TTL) {
+    return ncaabTeamStatsCache.data
+  }
+
+  const [espnTeams, scoringEntries, netEntries, statProfiles] = await Promise.all([
+    fetchNcaabTeamList(),
+    fetchNcaaScoringStats(),
+    fetchNcaaNetRankings(),
+    fetchNcaaTeamStatProfiles(),
+  ])
+
+  const scoringMap = new Map(
+    scoringEntries.map((entry) => [normalizeTeamKey(entry.team), entry])
+  )
+  const netMap = new Map(
+    netEntries.map((entry) => [normalizeTeamKey(entry.team), entry])
+  )
+  const profileMap = new Map(
+    statProfiles.map((entry) => [normalizeTeamKey(entry.team), entry])
+  )
+
+  const buildStats = (
+    scoringEntry?: (typeof scoringEntries)[number],
+    netEntry?: (typeof netEntries)[number],
+    profile?: (typeof statProfiles)[number]
+  ) => {
+    const stats: Record<string, number | string | null> = {}
+    if (scoringEntry?.games != null) stats.gamesPlayed = scoringEntry.games
+    if (scoringEntry?.ppg != null) stats.pointsForPerGame = scoringEntry.ppg    
+    if (scoringEntry?.oppPpg != null)
+      stats.pointsAgainstPerGame = scoringEntry.oppPpg
+    if (scoringEntry?.rank != null) stats.offenseRank = scoringEntry.rank
+    if (scoringEntry?.oppPpgRank != null)
+      stats.defenseRank = scoringEntry.oppPpgRank
+    if (scoringEntry?.ppg != null && scoringEntry?.oppPpg != null) {
+      stats.pointDiff = Number(
+        (scoringEntry.ppg - scoringEntry.oppPpg).toFixed(1)
+      )
+    }
+    if (netEntry?.rank != null) stats.netRank = netEntry.rank
+    if (netEntry?.record) stats.netRecord = netEntry.record
+    if (netEntry?.conference) stats.netConference = netEntry.conference
+    if (profile?.stats) {
+      for (const [key, value] of Object.entries(profile.stats)) {
+        stats[key] = value
+      }
+    }
+    if (profile?.games != null && stats.gamesPlayed == null) {
+      stats.gamesPlayed = profile.games
+    }
+
+    const num = (key: string) => {
+      const value = stats[key]
+      if (value == null) return null
+      const n = typeof value === 'number' ? value : Number(value)
+      return Number.isFinite(n) ? n : null
+    }
+
+    const games = num('gamesPlayed')
+    if (games) {
+      if (num('pointsForPerGame') == null && num('pointsFor') != null) {
+        stats.pointsForPerGame = Number((num('pointsFor')! / games).toFixed(1))
+      }
+      if (num('pointsAgainstPerGame') == null && num('pointsAgainst') != null) {
+        stats.pointsAgainstPerGame = Number(
+          (num('pointsAgainst')! / games).toFixed(1)
+        )
+      }
+
+      const opponentPerGameMap: Array<{ total: string; perGame: string }> = [
+        {
+          total: 'opponentFieldGoalsMade',
+          perGame: 'opponentFieldGoalsMadePerGame',
+        },
+        {
+          total: 'opponentFieldGoalsAttempted',
+          perGame: 'opponentFieldGoalsAttemptedPerGame',
+        },
+        {
+          total: 'opponentThreePointMade',
+          perGame: 'opponentThreePointMadePerGame',
+        },
+        {
+          total: 'opponentThreePointAttempts',
+          perGame: 'opponentThreePointAttemptsPerGame',
+        },
+        {
+          total: 'opponentRebounds',
+          perGame: 'opponentReboundsPerGame',
+        },
+        {
+          total: 'opponentTurnovers',
+          perGame: 'opponentTurnoversPerGame',
+        },
+      ]
+      opponentPerGameMap.forEach(({ total, perGame }) => {
+        if (num(perGame) == null && num(total) != null) {
+          stats[perGame] = Number((num(total)! / games).toFixed(2))
+        }
+      })
+    }
+    if (num('pointDiff') == null && num('pointsForPerGame') != null && num('pointsAgainstPerGame') != null) {
+      stats.pointDiff = Number(
+        (num('pointsForPerGame')! - num('pointsAgainstPerGame')!).toFixed(1)
+      )
+    }
+    const fgaPerGame =
+      num('fieldGoalsAttemptedPerGame') ??
+      (num('fieldGoalsAttempted') != null && games
+        ? num('fieldGoalsAttempted')! / games
+        : null)
+    const ftaPerGame =
+      num('freeThrowAttemptsPerGame') ??
+      (num('freeThrowAttempts') != null && games
+        ? num('freeThrowAttempts')! / games
+        : null)
+    const toPerGame =
+      num('turnoversPerGame') ??
+      (num('turnovers') != null && games ? num('turnovers')! / games : null)
+    const orebPerGame =
+      num('offensiveReboundsPerGame') ??
+      (num('offensiveRebounds') != null && games
+        ? num('offensiveRebounds')! / games
+        : null)
+
+    if (
+      fgaPerGame != null &&
+      ftaPerGame != null &&
+      toPerGame != null &&
+      orebPerGame != null
+    ) {
+      const possPerGame = fgaPerGame - orebPerGame + toPerGame + 0.475 * ftaPerGame
+      if (Number.isFinite(possPerGame) && possPerGame > 0) {
+        stats.pace = Number(possPerGame.toFixed(1))
+        const ppg = num('pointsForPerGame')
+        const oppPpg = num('pointsAgainstPerGame')
+        if (ppg != null) {
+          stats.offensiveRating = Number(((ppg / possPerGame) * 100).toFixed(1))
+        }
+        if (oppPpg != null) {
+          stats.defensiveRating = Number(((oppPpg / possPerGame) * 100).toFixed(1))
+        }
+        if (stats.offensiveRating != null && stats.defensiveRating != null) {
+          stats.netRating = Number(
+            (
+              (stats.offensiveRating as number) -
+              (stats.defensiveRating as number)
+            ).toFixed(1)
+          )
+        }
+      }
+    }
+
+    if (fgaPerGame != null && ftaPerGame != null && num('pointsForPerGame') != null) {
+      const tsPct =
+        num('pointsForPerGame')! /
+        (2 * (fgaPerGame + 0.44 * ftaPerGame))
+      if (Number.isFinite(tsPct)) {
+        stats.trueShootingPct = Number((tsPct * 100).toFixed(1))
+      }
+    }
+
+    const oppFgm = num('opponentFieldGoalsMade')
+    const oppFga = num('opponentFieldGoalsAttempted')
+    const opp3pm = num('opponentThreePointMade') ?? 0
+    const opp3pa = num('opponentThreePointAttempts')
+    if (oppFga != null && oppFga > 0) {
+      if (num('opponentFieldGoalPct') == null && oppFgm != null) {
+        stats.opponentFieldGoalPct = Number(((oppFgm / oppFga) * 100).toFixed(1))
+      }
+      if (oppFgm != null) {
+        stats.opponentEffectiveFieldGoalPct = Number(
+          (((oppFgm + 0.5 * opp3pm) / oppFga) * 100).toFixed(1)
+        )
+      }
+    }
+    if (opp3pa != null && opp3pa > 0 && num('opponentThreePointPct') == null) {
+      stats.opponentThreePointPct = Number(((opp3pm / opp3pa) * 100).toFixed(1))
+    }
+    return stats
+  }
+
+  const merged = new Map<string, TeamStats>()
+
+  for (const team of espnTeams) {
+    const key = normalizeTeamKey(team.displayName || team.name)
+    const scoringEntry = scoringMap.get(key)
+    const netEntry = netMap.get(key)
+    const profile = profileMap.get(key)
+    const record = parseRecordSummary(team.recordSummary)
+    const wins = team.wins ?? record?.wins ?? 0
+    const losses = team.losses ?? record?.losses ?? 0
+    const total = wins + losses
+    const winPct = total > 0 ? wins / total : 0
+    merged.set(key, {
+      team: team.displayName || team.name || scoringEntry?.team || netEntry?.team || '',
+      wins,
+      losses,
+      winPct,
+      stats: buildStats(scoringEntry, netEntry, profile),
+      rank: netEntry?.rank,
+      season: String(new Date().getFullYear()),
+      sport: 'basketball_ncaab',
+      teamAbbr: team.abbreviation || undefined,
+    })
+  }
+
+  const upsertFromNcaa = (
+    entry: (typeof scoringEntries)[number] | (typeof netEntries)[number]
+  ) => {
+    const key = normalizeTeamKey(entry.team)
+    if (merged.has(key)) return
+    const netEntry = netMap.get(key)
+    const scoringEntry = scoringMap.get(key)
+    const profile = profileMap.get(key)
+    const record = parseRecordSummary(netEntry?.record)
+    const wins = record?.wins ?? 0
+    const losses = record?.losses ?? 0
+    const total = wins + losses
+    merged.set(key, {
+      team: entry.team,
+      wins,
+      losses,
+      winPct: total > 0 ? wins / total : 0,
+      stats: buildStats(scoringEntry, netEntry, profile),
+      rank: netEntry?.rank,
+      season: String(new Date().getFullYear()),
+      sport: 'basketball_ncaab',
+    })
+  }
+
+  scoringEntries.forEach(upsertFromNcaa)
+  netEntries.forEach(upsertFromNcaa)
+
+  const data = Array.from(merged.values())
+  ncaabTeamStatsCache = { ts: Date.now(), data }
+  return data
 }
 
 // ==================== NFL ADVANCED STATS (ESPN-derived) ====================
@@ -983,7 +1804,7 @@ export async function getNFLRoster(teamAbbr?: string): Promise<RosterPlayer[]> {
   }
 
   try {
-    const teams = await fetchTeamList()
+    const teams = await fetchNflTeamList()
     const targets = teamAbbr
       ? teams.filter((t) => t.abbreviation === teamAbbr)
       : teams
@@ -1047,11 +1868,11 @@ const loadNFLTeamStatBlocks = async () => {
     return nflTeamStatsCache.data
   }
 
-  const teams = await fetchTeamList()
+  const teams = await fetchNflTeamList()
   const season = getCurrentNFLSeasonYear()
   const results = await Promise.all(
     teams.map(async (meta) => {
-      const statsResp = await fetchTeamStatistics(meta.id, season)
+      const statsResp = await fetchNflTeamStatistics(meta.id, season)
       const categories = statsResp?.splits?.categories ?? []
       return { meta, categories }
     })
@@ -1061,8 +1882,32 @@ const loadNFLTeamStatBlocks = async () => {
   return results
 }
 
+const loadNCAAFTeamStatBlocks = async () => {
+  const now = Date.now()
+  if (ncaafTeamStatsCache && now - ncaafTeamStatsCache.ts < TEAM_STATS_CACHE_TTL) {
+    return ncaafTeamStatsCache.data
+  }
+
+  const teams = await fetchNcaafTeamList()
+  const season = getCurrentNFLSeasonYear()
+  const results = await Promise.all(
+    teams.map(async (meta) => {
+      const [statsResp, postseasonResp] = await Promise.all([
+        fetchNcaafTeamStatistics(meta.id, season, 2),
+        fetchNcaafTeamStatistics(meta.id, season, 3),
+      ])
+      const categories = statsResp?.splits?.categories ?? []
+      const postseasonCategories = postseasonResp?.splits?.categories ?? []
+      return { meta, categories, postseasonCategories }
+    })
+  )
+
+  ncaafTeamStatsCache = { ts: now, data: results }
+  return results
+}
+
 const buildNFLTeamEntry = (teamMeta: EspnTeamMeta, categories: EspnStatCategory[]) => {
-  const pick = (names: string[]) => statHelpers.pickStat(categories, names)
+  const pick = (names: string[]) => nflStatHelpers.pickStat(categories, names)
   const gamesPlayed =
     pick(['gamesPlayed', 'teamGamesPlayed']) ??
     ((teamMeta.wins ?? 0) + (teamMeta.losses ?? 0) || null)
@@ -1092,6 +1937,23 @@ const buildNFLTeamEntry = (teamMeta: EspnTeamMeta, categories: EspnStatCategory[
       : null
   const thirdDownPct = pick(['thirdDownConvPct'])
   const redzoneTdPct = pick(['redzoneTouchdownPct'])
+  const redzoneScoringPct = pick(['redzoneScoringPct'])
+  const totalDrives = pick(['totalDrives'])
+  const yardsAllowed =
+    pick(['yardsAllowed', 'totalYardsAllowed', 'opponentTotalYards']) ?? null
+  const yardsAllowedPerGame =
+    yardsAllowed != null && gamesPlayed ? yardsAllowed / gamesPlayed : null
+  const passingYards = pick(['passingYards', 'netPassingYards'])
+  const passingYardsPerAttempt =
+    pick(['yardsPerPassAttempt', 'netYardsPerPassAttempt']) ??
+    (passingYards != null && passAttempts != null && passAttempts > 0
+      ? passingYards / passAttempts
+      : null)
+  const completionPct = pick(['completionPct'])
+  const interceptionPct = pick(['interceptionPct'])
+  const passerRating = pick(['passerRating', 'passingRating', 'quarterbackRating'])
+  const sacksAllowed = pick(['sacksAllowed'])
+  const defensiveSacks = pick(['sacks', 'defensiveSacks'])
   const turnoverDifferential =
     pick(['turnOverDifferential']) ??
     (pick(['totalTakeaways']) != null && pick(['totalGiveaways']) != null
@@ -1116,9 +1978,277 @@ const buildNFLTeamEntry = (teamMeta: EspnTeamMeta, categories: EspnStatCategory[
       rushRate: rushRate ?? null,
       thirdDownPct: thirdDownPct ?? null,
       redZoneTdPct: redzoneTdPct ?? null,
+      redZoneScoringPct: redzoneScoringPct ?? null,
+      turnoverDifferential: turnoverDifferential ?? null,
+      pointsForPerGame:
+        pointsFor != null && gamesPlayed ? pointsFor / gamesPlayed : null,
+      pointsAgainstPerGame:
+        pointsAgainst != null && gamesPlayed ? pointsAgainst / gamesPlayed : null,
+      playsPerGame:
+        offensivePlays != null && gamesPlayed ? offensivePlays / gamesPlayed : null,
+      drivesPerGame:
+        totalDrives != null && gamesPlayed ? totalDrives / gamesPlayed : null,
+      pointsPerDrive:
+        pointsFor != null && totalDrives ? pointsFor / totalDrives : null,
+      yardsAllowedPerGame: yardsAllowedPerGame ?? null,
+      passingYards: passingYards ?? null,
+      passingAttempts: passAttempts ?? null,
+      passingYardsPerAttempt: passingYardsPerAttempt ?? null,
+      completionPct: completionPct ?? null,
+      interceptionPct: interceptionPct ?? null,
+      passerRating: passerRating ?? null,
+      sacksAllowed: sacksAllowed ?? null,
+      defensiveSacks: defensiveSacks ?? null,
+      streak: teamMeta.recordSummary ?? null,
+    },
+  }
+
+  const advanced: AdvancedTeamStats = {
+    team: teamMeta.displayName,
+    teamAbbr: teamMeta.abbreviation,
+    epaPerPlay: yardsPerPlay ?? undefined,
+    yardsPerPlay: yardsPerPlay ?? undefined,
+    successRate: thirdDownPct != null ? thirdDownPct / 100 : undefined,
+    passRate: passRate ?? undefined,
+    rushRate: rushRate ?? undefined,
+  }
+
+  return { teamStats, advanced }
+}
+
+const buildNCAAFTeamEntry = (
+  teamMeta: EspnNcaafTeamMeta,
+  categories: EspnNcaafStatCategory[],
+  postseasonCategories: EspnNcaafStatCategory[] = []
+) => {
+  const pick = (names: string[]) => ncaafStatHelpers.pickStat(categories, names)
+  const pickFromCategory = (
+    categoryName: string,
+    names: string[],
+    opts: { perGame?: boolean } = {}
+  ) => {
+    const category = categories.find(
+      (entry) => entry?.name?.toLowerCase() === categoryName.toLowerCase()
+    )
+    if (!category) return null
+    return ncaafStatHelpers.pickStat([category], names, opts)
+  }
+  const gamesPlayed =
+    pick(['gamesPlayed', 'teamGamesPlayed']) ??
+    ((teamMeta.wins ?? 0) + (teamMeta.losses ?? 0) || null)
+  const pointsFor =
+    pick(['totalPoints', 'totalPointsFor']) ??
+    teamMeta.pointsFor ??
+    (gamesPlayed && teamMeta.avgPointsFor != null
+      ? teamMeta.avgPointsFor * gamesPlayed
+      : null)
+  const pointsAgainst =
+    pick(['pointsAgainst']) ??
+    teamMeta.pointsAgainst ??
+    (gamesPlayed && teamMeta.avgPointsAgainst != null
+      ? teamMeta.avgPointsAgainst * gamesPlayed
+      : null)
+  const totalYards = pick(['totalYards', 'totalYardsFromScrimmage'])
+  const offensivePlays = pick(['totalOffensivePlays'])
+  const totalDrives = pick(['totalDrives'])
+  const pointsForPerGame = pick(['totalPointsPerGame'])
+  const pointsAgainstPerGame = pick(['pointsAgainstPerGame'])
+  const passingYardsPerGame = pick(['passingYardsPerGame'])
+  const rushingYardsPerGame = pick(['rushingYardsPerGame'])
+  const passAttempts = pick(['passingAttempts', 'netPassingAttempts'])
+  const rushAttempts = pick(['rushingAttempts', 'netRushingAttempts'])
+  const passingYards = pick(['passingYards', 'netPassingYards'])
+  const passAttemptsPerGame =
+    passAttempts != null && gamesPlayed && gamesPlayed > 0
+      ? passAttempts / gamesPlayed
+      : null
+  const rushAttemptsPerGame =
+    rushAttempts != null && gamesPlayed && gamesPlayed > 0
+      ? rushAttempts / gamesPlayed
+      : null
+  const passingYardsPerAttempt =
+    pick(['yardsPerPassAttempt', 'netYardsPerPassAttempt']) ??
+    (passingYards != null && passAttempts != null && passAttempts > 0
+      ? passingYards / passAttempts
+      : null)
+  const rushingYardsPerAttempt = pick(['yardsPerRushAttempt'])
+  const completionPct = pick(['completionPct'])
+  const interceptionPct = pick(['interceptionPct'])
+  const passerRating = pick(['passerRating', 'passingRating', 'quarterbackRating'])
+  const sacksAllowed = pick(['sacksAllowed', 'sacks'])
+  const yardsPerPlay =
+    totalYards != null && offensivePlays && offensivePlays > 0
+      ? totalYards / offensivePlays
+      : null
+  const playsPerGame =
+    offensivePlays != null && gamesPlayed && gamesPlayed > 0
+      ? offensivePlays / gamesPlayed
+      : null
+  const drivesPerGame =
+    totalDrives != null && gamesPlayed && gamesPlayed > 0
+      ? totalDrives / gamesPlayed
+      : null
+  const pointsPerDrive =
+    pointsFor != null && totalDrives && totalDrives > 0
+      ? pointsFor / totalDrives
+      : null
+  const passRate =
+    offensivePlays && passAttempts != null && offensivePlays > 0
+      ? passAttempts / offensivePlays
+      : null
+  const rushRate =
+    offensivePlays && rushAttempts != null && offensivePlays > 0
+      ? rushAttempts / offensivePlays
+      : null
+  const thirdDownPct = pick(['thirdDownConvPct'])
+  const redzoneTdPct = pick(['redzoneTouchdownPct'])
+  const redzoneScoringPct = pick(['redzoneScoringPct'])
+  const fourthDownPct = pick(['fourthDownConvPct'])
+  const passingBigPlays = pick(['passingBigPlays']) ?? 0
+  const rushingBigPlays = pick(['rushingBigPlays']) ?? 0
+  const explosivePlays =
+    passingBigPlays != null && rushingBigPlays != null
+      ? passingBigPlays + rushingBigPlays
+      : null
+  const explosivePlayRate =
+    explosivePlays != null && offensivePlays && offensivePlays > 0
+      ? explosivePlays / offensivePlays
+      : null
+  const sackRate =
+    sacksAllowed != null && passAttempts != null && passAttempts + sacksAllowed > 0
+      ? sacksAllowed / (passAttempts + sacksAllowed)
+      : null
+  const turnoverDifferential =
+    pick(['turnOverDifferential']) ??
+    (pick(['totalTakeaways']) != null && pick(['totalGiveaways']) != null
+      ? (pick(['totalTakeaways']) as number) - (pick(['totalGiveaways']) as number)
+      : null)
+  const defensiveSacks = pickFromCategory('defensive', ['sacks'])
+  const defensiveInterceptions = pickFromCategory('defensiveInterceptions', [
+    'interceptions',
+  ])
+  const tacklesForLoss = pickFromCategory('defensive', ['tacklesForLoss'])
+  const passesDefended = pickFromCategory('defensive', ['passesDefended'])
+  const qbHits = pickFromCategory('defensive', ['QBHits', 'qbHits'])
+  const pointsAllowed = pickFromCategory('defensive', ['pointsAllowed'])
+  const yardsAllowed =
+    pickFromCategory('defensive', ['yardsAllowed']) ??
+    pick(['yardsAllowed', 'totalYardsAllowed', 'opponentTotalYards']) ??
+    null
+  const yardsAllowedPerGame =
+    yardsAllowed != null && gamesPlayed && gamesPlayed > 0
+      ? yardsAllowed / gamesPlayed
+      : null
+
+  const teamStats: TeamStats = {
+    team: teamMeta.displayName,
+    wins: teamMeta.wins ?? 0,
+    losses: teamMeta.losses ?? 0,
+    winPct: (() => {
+      const total = (teamMeta.wins ?? 0) + (teamMeta.losses ?? 0)
+      return total > 0 ? (teamMeta.wins ?? 0) / total : 0
+    })(),
+    stats: {
+      gamesPlayed: gamesPlayed ?? 0,
+      pointsFor: pointsFor ?? null,
+      pointsAgainst: pointsAgainst ?? null,
+      pointsForPerGame: pointsForPerGame ?? null,
+      pointsAgainstPerGame: pointsAgainstPerGame ?? null,
+      pointsPerDrive: pointsPerDrive ?? null,
+      totalYards: totalYards ?? null,
+      totalOffensivePlays: offensivePlays ?? null,
+      totalDrives: totalDrives ?? null,
+      yardsPerPlay: yardsPerPlay ?? null,
+      passingYardsPerGame: passingYardsPerGame ?? null,
+      rushingYardsPerGame: rushingYardsPerGame ?? null,
+      passingYardsPerAttempt: passingYardsPerAttempt ?? null,
+      rushingYardsPerAttempt: rushingYardsPerAttempt ?? null,
+      passingAttempts: passAttempts ?? null,
+      rushingAttempts: rushAttempts ?? null,
+      passingAttemptsPerGame: passAttemptsPerGame ?? null,
+      rushingAttemptsPerGame: rushAttemptsPerGame ?? null,
+      completionPct: completionPct ?? null,
+      interceptionPct: interceptionPct ?? null,
+      playsPerGame: playsPerGame ?? null,
+      drivesPerGame: drivesPerGame ?? null,
+      passRate: passRate ?? null,
+      rushRate: rushRate ?? null,
+      thirdDownPct: thirdDownPct ?? null,
+      fourthDownConvPct: fourthDownPct ?? null,
+      redZoneTdPct: redzoneTdPct ?? null,
+      redZoneScoringPct: redzoneScoringPct ?? null,
+      explosivePlays: explosivePlays ?? null,
+      explosivePlayRate: explosivePlayRate ?? null,
+      sackRate: sackRate ?? null,
+      sacksAllowed: sacksAllowed ?? null,
+      defensiveSacks: defensiveSacks ?? null,
+      defensiveInterceptions: defensiveInterceptions ?? null,
+      tacklesForLoss: tacklesForLoss ?? null,
+      passesDefended: passesDefended ?? null,
+      qbHits: qbHits ?? null,
+      pointsAllowed: pointsAllowed ?? null,
+      yardsAllowed: yardsAllowed ?? null,
+      yardsAllowedPerGame: yardsAllowedPerGame ?? null,
       turnoverDifferential: turnoverDifferential ?? null,
       streak: teamMeta.recordSummary ?? null,
     },
+  }
+
+  if (postseasonCategories.length) {
+    const postPick = (names: string[]) =>
+      ncaafStatHelpers.pickStat(postseasonCategories, names)
+    const postGames = postPick(['gamesPlayed', 'teamGamesPlayed'])
+    const postPointsFor = postPick(['totalPoints', 'totalPointsFor'])
+    const postPointsAgainst = postPick(['pointsAgainst'])
+    const postPointsForPerGame =
+      postPick(['totalPointsPerGame']) ??
+      (postPointsFor != null && postGames ? postPointsFor / postGames : null)
+    const postPointsAgainstPerGame =
+      postPick(['pointsAgainstPerGame']) ??
+      (postPointsAgainst != null && postGames
+        ? postPointsAgainst / postGames
+        : null)
+    const postTotalYards = postPick(['totalYards', 'totalYardsFromScrimmage'])
+    const postPlays = postPick(['totalOffensivePlays'])
+    const postYardsPerPlay =
+      postTotalYards != null && postPlays && postPlays > 0
+        ? postTotalYards / postPlays
+        : null
+    const postDrives = postPick(['totalDrives'])
+    const postPointsPerDrive =
+      postPointsFor != null && postDrives && postDrives > 0
+        ? postPointsFor / postDrives
+        : null
+    const postThirdDownPct = postPick(['thirdDownConvPct'])
+    const postRedZoneTdPct = postPick(['redzoneTouchdownPct'])
+    const postPassingBigPlays = postPick(['passingBigPlays']) ?? 0
+    const postRushingBigPlays = postPick(['rushingBigPlays']) ?? 0
+    const postExplosivePlays =
+      postPassingBigPlays != null && postRushingBigPlays != null
+        ? postPassingBigPlays + postRushingBigPlays
+        : null
+    const postExplosiveRate =
+      postExplosivePlays != null && postPlays && postPlays > 0
+        ? postExplosivePlays / postPlays
+        : null
+    const postTurnoverDifferential =
+      postPick(['turnOverDifferential']) ??
+      (postPick(['totalTakeaways']) != null &&
+      postPick(['totalGiveaways']) != null
+        ? (postPick(['totalTakeaways']) as number) -
+          (postPick(['totalGiveaways']) as number)
+        : null)
+
+    Object.assign(teamStats.stats, {
+      postseasonPointsForPerGame: postPointsForPerGame ?? null,
+      postseasonPointsAgainstPerGame: postPointsAgainstPerGame ?? null,
+      postseasonYardsPerPlay: postYardsPerPlay ?? null,
+      postseasonPointsPerDrive: postPointsPerDrive ?? null,
+      postseasonThirdDownPct: postThirdDownPct ?? null,
+      postseasonRedZoneTdPct: postRedZoneTdPct ?? null,
+      postseasonExplosivePlayRate: postExplosiveRate ?? null,
+      postseasonTurnoverDifferential: postTurnoverDifferential ?? null,
+    })
   }
 
   const advanced: AdvancedTeamStats = {
@@ -1145,6 +2275,25 @@ export async function getNFLTeamStats(teamAbbr?: string): Promise<TeamStats[]> {
     return teams
   } catch (error) {
     console.error('Error fetching NFL team stats:', error)
+    return []
+  }
+}
+
+export async function getNCAAFTeamStats(teamAbbr?: string): Promise<TeamStats[]> {
+  try {
+    const blocks = await loadNCAAFTeamStatBlocks()
+    const teams = blocks
+      .filter((entry) => !teamAbbr || entry.meta.abbreviation === teamAbbr)
+      .map((entry) =>
+        buildNCAAFTeamEntry(
+          entry.meta,
+          entry.categories,
+          entry.postseasonCategories
+        ).teamStats
+      )
+    return teams
+  } catch (error) {
+    console.error('Error fetching NCAAF team stats:', error)
     return []
   }
 }
@@ -1612,31 +2761,19 @@ export async function getPlayerSeasonStats(playerName: string, sport?: string): 
   const targets = resolved ? [resolved] : SPORT_PRIORITY
 
   for (const sportKey of targets) {
-    if (sportKey === 'basketball_nba') {
-      const staticHit = findNbaStaticPlayer(playerName)
-      if (staticHit) {
-        return {
-          name: staticHit.name,
-          team: staticHit.team,
-          position: staticHit.position,
-          season: staticHit.season,
-          stats: staticHit.stats,
-          sport: 'basketball_nba',
-        }
-      }
-    }
-
     // Sports Reference first for non-live stats
     try {
-      const refStats = await getSportsReferencePlayerSeasonStats(playerName, sportKey)
-      if (refStats) {
-        return {
-          name: refStats.name,
-          team: refStats.team || '',
-          position: refStats.position,
-          season: refStats.season,
-          stats: refStats.stats,
-          sport: refStats.sport || sportKey,
+      if (sportKey !== 'basketball_nba') {
+        const refStats = await getSportsReferencePlayerSeasonStats(playerName, sportKey)
+        if (refStats) {
+          return {
+            name: refStats.name,
+            team: refStats.team || '',
+            position: refStats.position,
+            season: refStats.season,
+            stats: refStats.stats,
+            sport: refStats.sport || sportKey,
+          }
         }
       }
     } catch (err) {
@@ -1668,56 +2805,49 @@ export async function getPlayerSeasonStats(playerName: string, sport?: string): 
 // ==================== UNIFIED FUNCTIONS ====================
 
 export async function getTeamStats(sport: string, teamIdentifier?: string): Promise<TeamStats[]> {
-  const sportKey = sport.toLowerCase()
+  const resolvedSport = resolveSportKey(sport) ?? sport.toLowerCase()
+  const sportKey = resolvedSport
+  let resolvedTeamIdentifier = teamIdentifier
+  if (resolvedSport === 'basketball_ncaab' && teamIdentifier) {
+    const resolvedName = await resolveEspnTeamName('ncaab', teamIdentifier)
+    if (resolvedName) {
+      resolvedTeamIdentifier = resolvedName
+    }
+  }
 
   const filterTeams = (teams: TeamStats[]): TeamStats[] => {
-    if (!teamIdentifier) return teams
+    if (!resolvedTeamIdentifier && !teamIdentifier) return teams
 
-    const target = normalizeName(teamIdentifier)
+    const targets = new Set<string>()
+    if (resolvedTeamIdentifier) {
+      targets.add(normalizeName(resolvedTeamIdentifier))
+    }
+    if (teamIdentifier && teamIdentifier !== resolvedTeamIdentifier) {
+      targets.add(normalizeName(teamIdentifier))
+    }
     return teams.filter((entry) => {
       const name = normalizeName(entry.team)
       const abbr = normalizeName((entry as any).teamAbbr || '')
       // Fixed matching: avoid substring issues like "nets" matching "hornets"
       // Match if: exact match, name ends with target (nickname), or abbreviation matches
-      return (
-        name === target ||
-        name.endsWith(target) ||
-        target.endsWith(name) ||
-        (abbr && (abbr === target || abbr.endsWith(target) || target.endsWith(abbr)))
-      )
+      for (const target of targets) {
+        if (!target) continue
+        if (
+          name === target ||
+          name.endsWith(target) ||
+          target.endsWith(name) ||
+          (abbr && (abbr === target || abbr.endsWith(target) || target.endsWith(abbr)))
+        ) {
+          return true
+        }
+      }
+      return false
     })
   }
 
   switch (sportKey) {
     case 'nba':
     case 'basketball_nba': {
-      // Prefer static user-provided team table
-      const rawStaticTeams = teamIdentifier ? findStaticNbaTeam(teamIdentifier) : getStaticNbaTeams()
-      // Skip filterTeams if findStaticNbaTeam already found a specific team
-      // (findStaticNbaTeam has proper nickname->abbreviation resolution)
-      if (teamIdentifier && rawStaticTeams.length > 0) {
-        return rawStaticTeams
-      }
-      const staticTeams = filterTeams(rawStaticTeams)
-      if (staticTeams.length) return staticTeams
-
-      try {
-        const refTeams = await getSportsReferenceTeamStats('basketball_nba')
-        if (refTeams?.length) {
-          return filterTeams(
-            refTeams.map((t) => ({
-              team: t.team,
-              wins: t.wins ?? 0,
-              losses: t.losses ?? 0,
-              winPct: t.winPct ?? 0,
-              stats: t.stats,
-              sport: 'basketball_nba',
-            }))
-          )
-        }
-      } catch (err) {
-        console.warn('[SportsReference] NBA team fetch failed', err)
-      }
       const [basic, advanced] = await Promise.all([
         getNBATeamStats(),
         getNBAAdvancedTeamStats(),
@@ -1796,13 +2926,24 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
       const teams = await getNHLTeamStats()
       return filterTeams(teams)
     }
+    case 'ncaaf':
+    case 'americanfootball_ncaaf': {
+      const teams = await getNCAAFTeamStats()
+      return filterTeams(teams)
+    }
+    case 'ncaab':
+    case 'basketball_ncaab': {
+      const teams = await getNCAABTeamStats()
+      return filterTeams(teams)
+    }
     default:
       return []
   }
 }
 
 export async function getInjuryReports(sport: string): Promise<InjuryReport[]> {
-  switch (sport.toLowerCase()) {
+  const resolved = resolveSportKey(sport) ?? sport.toLowerCase()
+  switch (resolved) {
     case 'nba':
     case 'basketball_nba':
       return getNBAInjuries()
@@ -1862,7 +3003,8 @@ export async function searchPlayer(playerName: string, sport?: string): Promise<
 }
 
 export async function getRoster(sport: string, teamAbbr?: string): Promise<RosterPlayer[]> {
-  switch (sport.toLowerCase()) {
+  const resolved = resolveSportKey(sport) ?? sport.toLowerCase()
+  switch (resolved) {
     case 'nba':
     case 'basketball_nba':
       return getNBARoster(teamAbbr)
@@ -2013,7 +3155,9 @@ export function formatStatsForAI(stats: TeamStats[] | PlayerStats[] | InjuryRepo
       teams.length > 0 &&
       (teams[0].stats?.fieldGoalPct != null ||
         teams[0].stats?.threePointPct != null ||
-        teams[0].stats?.reboundsPerGame != null)
+        teams[0].stats?.reboundsPerGame != null ||
+        teams[0].stats?.pointsForPerGame != null ||
+        teams[0].stats?.pointsAgainstPerGame != null)
 
     if (isBasketball) {
       const header = '| Team | Streak | Last 10 | PPG | PAPG | FG% | 3P% | REB | AST | BLK | STL |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |'

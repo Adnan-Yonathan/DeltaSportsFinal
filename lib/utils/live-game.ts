@@ -1,25 +1,5 @@
 import type { LiveScore } from '@/lib/espn-api'
-
-const SPORT_ALIASES: Record<string, string> = {
-  nba: 'basketball_nba',
-  basketball: 'basketball_nba',
-  'basketball-nba': 'basketball_nba',
-  ncaab: 'basketball_ncaab',
-  'college basketball': 'basketball_ncaab',
-  'college-basketball': 'basketball_ncaab',
-  wnba: 'basketball_nba',
-  nfl: 'americanfootball_nfl',
-  football: 'americanfootball_nfl',
-  'american football': 'americanfootball_nfl',
-  ncaaf: 'americanfootball_ncaaf',
-  cfb: 'americanfootball_ncaaf',
-  'college football': 'americanfootball_ncaaf',
-  mlb: 'baseball_mlb',
-  baseball: 'baseball_mlb',
-  nhl: 'icehockey_nhl',
-  hockey: 'icehockey_nhl',
-  'ice hockey': 'icehockey_nhl',
-}
+import { resolveSportKeyFromCandidates } from '@/lib/identity/sport'
 
 const SPORT_TIMING: Record<
   string,
@@ -49,34 +29,7 @@ export function resolveSportKey(
   betSport?: string | null,
   liveSport?: string | null
 ): string | undefined {
-  const candidates = [betSport, liveSport]
-
-  for (const candidate of candidates) {
-    if (!candidate) continue
-    const raw = normalize(candidate)
-    if (!raw) continue
-
-    if (SPORT_TIMING[raw]) {
-      return raw
-    }
-
-    const aliasKey = raw.replace(/[_\s]+/g, ' ')
-    if (SPORT_ALIASES[aliasKey]) {
-      return SPORT_ALIASES[aliasKey]
-    }
-
-    if (raw.includes('basketball')) {
-      return raw.includes('college') ? 'basketball_ncaab' : 'basketball_nba'
-    }
-    if (raw.includes('football')) {
-      return raw.includes('college') ? 'americanfootball_ncaaf' : 'americanfootball_nfl'
-    }
-    if (raw.includes('hockey')) {
-      return 'icehockey_nhl'
-    }
-  }
-
-  return undefined
+  return resolveSportKeyFromCandidates(betSport, liveSport)
 }
 
 export function deriveGameClockState(

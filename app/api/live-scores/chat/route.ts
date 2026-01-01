@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchAllLiveScores, fetchGameDetails, type LeagueId } from '@/lib/live-scores'
+import { fetchAllLiveScores, type LeagueId } from '@/lib/live-scores'
+import { getCachedGameDetails } from '@/lib/services/live-game-cache'
 import { getPlayerSeasonStats } from '@/lib/sports-stats-api'
 
 export const runtime = 'nodejs'
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest) {
 
       if (game) {
         try {
-          const details = await fetchGameDetails(game.league, game.eventId)
+          const details = await getCachedGameDetails(game.league, game.eventId)
           const home = game.competitors.find((c) => c.homeAway === 'home')
           const away = game.competitors.find((c) => c.homeAway === 'away')
           const linescore =

@@ -4,7 +4,8 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
-import { fetchGameDetails, type LeagueId } from '@/lib/live-scores'
+import { type LeagueId } from '@/lib/live-scores'
+import { getCachedGameDetails } from '@/lib/services/live-game-cache'
 import { extractScoringPlays, detectScoringPlay } from './play-by-play-parser'
 
 // ============================================================================
@@ -310,7 +311,7 @@ export async function getTeamFirstToScore(params: {
 
       // Fetch game details with play-by-play
       const leagueId = sport.includes('nba') ? 'nba' : sport.includes('nfl') ? 'nfl' : 'nba'
-      const details = await fetchGameDetails(leagueId as LeagueId, game.game_id)
+      const details = await getCachedGameDetails(leagueId as LeagueId, game.game_id)
 
       if (details?.plays?.length) {
         // Find first scoring play
@@ -406,7 +407,7 @@ export async function getFirstBasketScorer(params: {
   for (const game of (games || [])) {
     try {
       const leagueId = sport.includes('nba') ? 'nba' : sport.includes('nfl') ? 'nfl' : 'nba'
-      const details = await fetchGameDetails(leagueId as LeagueId, game.game_id)
+      const details = await getCachedGameDetails(leagueId as LeagueId, game.game_id)
 
       if (details?.plays?.length) {
         // Find first scoring play

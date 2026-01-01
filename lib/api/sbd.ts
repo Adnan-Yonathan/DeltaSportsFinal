@@ -115,6 +115,25 @@ const resolveSbdTotalsMarketKey = (rawKey: string): string | null => {
   if (firstHalf) return MARKETS.TOTALS_1H
   if (secondHalf) return MARKETS.TOTALS_2H
 
+  const periodMatch =
+    normalized.match(/\b([1-3])(st|nd|rd)\s*period\b/) ||
+    normalized.match(/\bperiod\s*([1-3])\b/) ||
+    normalized.match(/\b([1-3])p\b/) ||
+    normalized.match(/\bp([1-3])\b/)
+  if (periodMatch) {
+    const period = periodMatch[1]
+    switch (period) {
+      case '1':
+        return MARKETS.TOTALS_P1
+      case '2':
+        return MARKETS.TOTALS_P2
+      case '3':
+        return MARKETS.TOTALS_P3
+      default:
+        break
+    }
+  }
+
   const quarterMatch =
     normalized.match(/\bq([1-4])\b/) ||
     normalized.match(/\b([1-4])(st|nd|rd|th)\s*quarter\b/) ||
@@ -136,6 +155,83 @@ const resolveSbdTotalsMarketKey = (rawKey: string): string | null => {
   }
 
   return MARKETS.TOTALS
+}
+
+const resolveSbdSpreadMarketKey = (rawKey: string): string | null => {
+  if (!rawKey) return null
+  const normalized = rawKey.toLowerCase().replace(/_/g, ' ')
+  const isSpread =
+    normalized.includes('spread') ||
+    normalized.includes('puck line') ||
+    normalized.includes('puckline') ||
+    normalized.includes('run line') ||
+    normalized.includes('runline')
+  if (!isSpread) return null
+  const firstHalf =
+    normalized.includes('1st half') ||
+    normalized.includes('first half') ||
+    /\b1h\b/.test(normalized)
+  const secondHalf =
+    normalized.includes('2nd half') ||
+    normalized.includes('second half') ||
+    /\b2h\b/.test(normalized)
+  if (firstHalf) return MARKETS.SPREADS_1H
+  if (secondHalf) return MARKETS.SPREADS_2H
+  const periodMatch =
+    normalized.match(/\b([1-3])(st|nd|rd)\s*period\b/) ||
+    normalized.match(/\bperiod\s*([1-3])\b/) ||
+    normalized.match(/\b([1-3])p\b/) ||
+    normalized.match(/\bp([1-3])\b/)
+  if (periodMatch) {
+    const period = periodMatch[1]
+    switch (period) {
+      case '1':
+        return MARKETS.SPREADS_P1
+      case '2':
+        return MARKETS.SPREADS_P2
+      case '3':
+        return MARKETS.SPREADS_P3
+      default:
+        break
+    }
+  }
+  if (normalized.includes('half')) return null
+  return MARKETS.SPREADS
+}
+
+const resolveSbdTeamTotalMarketKey = (rawKey: string): string | null => {       
+  if (!rawKey) return null
+  const normalized = rawKey.toLowerCase().replace(/_/g, ' ')
+  if (!normalized.includes('total') || !normalized.includes('team')) return null
+  const firstHalf =
+    normalized.includes('1st half') ||
+    normalized.includes('first half') ||
+    /\b1h\b/.test(normalized)
+  const secondHalf =
+    normalized.includes('2nd half') ||
+    normalized.includes('second half') ||
+    /\b2h\b/.test(normalized)
+  if (firstHalf) return MARKETS.TEAM_TOTALS_1H
+  if (secondHalf) return MARKETS.TEAM_TOTALS_2H
+  const periodMatch =
+    normalized.match(/\b([1-3])(st|nd|rd)\s*period\b/) ||
+    normalized.match(/\bperiod\s*([1-3])\b/) ||
+    normalized.match(/\b([1-3])p\b/) ||
+    normalized.match(/\bp([1-3])\b/)
+  if (periodMatch) {
+    const period = periodMatch[1]
+    switch (period) {
+      case '1':
+        return MARKETS.TEAM_TOTALS_P1
+      case '2':
+        return MARKETS.TEAM_TOTALS_P2
+      case '3':
+        return MARKETS.TEAM_TOTALS_P3
+      default:
+        break
+    }
+  }
+  return MARKETS.TEAM_TOTALS
 }
 
 export const buildTeamLabel = (team: any): string => {
@@ -172,7 +268,7 @@ const resolveBookId = (slug: string): string => {
   }
 }
 
-export const resolveSbdLeague = (sportKey: string): SbdLeague | null => {
+export const resolveSbdLeague = (sportKey: string): SbdLeague | null => {       
   if (!sportKey) return null
   if (sportKey in SPORT_KEY_TO_LEAGUE) return SPORT_KEY_TO_LEAGUE[sportKey]
   const normalized = sportKey.toLowerCase() as SbdLeague
@@ -291,9 +387,11 @@ export const mapSbdMarketsToBookmakers = (
     for (const book of markets.moneyline.books || []) {
       const homeOdds = parseAmerican(book?.home?.odds ?? book?.home?.price)
       const awayOdds = parseAmerican(book?.away?.odds ?? book?.away?.price)
+      const drawOdds = parseAmerican(book?.draw?.odds ?? book?.draw?.price)
       const outcomes: OddsOutcome[] = []
       if (homeOdds != null) outcomes.push({ name: homeTeam, price: homeOdds })
       if (awayOdds != null) outcomes.push({ name: awayTeam, price: awayOdds })
+      if (drawOdds != null) outcomes.push({ name: 'Draw', price: drawOdds })
       if (outcomes.length) {
         addMarket(book, { key: MARKETS.H2H, outcomes })
       }
@@ -337,27 +435,96 @@ export const mapSbdMarketsToBookmakers = (
     }
   }
 
+  const parseSpreadBooks = (books: any[], marketKey: string) => {
+    for (const book of books || []) {
+      const homeOdds = parseAmerican(book?.home?.odds)
+      const awayOdds = parseAmerican(book?.away?.odds)
+      const homeSpread = parseNumber(book?.home?.spread)
+      const awaySpread = parseNumber(book?.away?.spread)
+      const outcomes: OddsOutcome[] = []
+      if (homeOdds != null && homeSpread != null) {
+        outcomes.push({ name: homeTeam, price: homeOdds, point: homeSpread })
+      }
+      if (awayOdds != null && awaySpread != null) {
+        outcomes.push({ name: awayTeam, price: awayOdds, point: awaySpread })
+      }
+      if (outcomes.length) {
+        addMarket(book, { key: marketKey, outcomes })
+      }
+    }
+  }
+
+  const parseTeamTotalBooks = (books: any[], marketKey: string) => {
+    for (const book of books || []) {
+      const teamLabel =
+        buildTeamLabel(book?.team) ||
+        book?.team?.name ||
+        book?.teamName ||
+        book?.side ||
+        book?.label ||
+        ''
+      const overOdds = parseAmerican(book?.over?.odds)
+      const underOdds = parseAmerican(book?.under?.odds)
+      const total = parseNumber(book?.total ?? book?.team_total ?? book?.line)
+      const outcomes: OddsOutcome[] = []
+      const teamPrefix = teamLabel ? `${teamLabel} ` : ''
+      if (overOdds != null && total != null) {
+        outcomes.push({
+          name: `${teamPrefix}Over`.trim(),
+          price: overOdds,
+          point: total,
+        })
+      }
+      if (underOdds != null && total != null) {
+        outcomes.push({
+          name: `${teamPrefix}Under`.trim(),
+          price: underOdds,
+          point: total,
+        })
+      }
+      if (outcomes.length) {
+        addMarket(book, { key: marketKey, outcomes })
+      }
+    }
+  }
+
   for (const [key, market] of Object.entries(markets)) {
     const normalizedKey = key.toLowerCase()
     if (normalizedKey === 'total' || normalizedKey === 'totals') continue
-    if (!normalizedKey.includes('total')) continue
+    if (normalizedKey === 'spread' || normalizedKey === 'spreads') continue
+
+    const teamTotalsKey = resolveSbdTeamTotalMarketKey(normalizedKey)
+    if (teamTotalsKey && shouldInclude(teamTotalsKey)) {
+      const books = (market as any)?.books || []
+      parseTeamTotalBooks(books, teamTotalsKey)
+      continue
+    }
+
     const totalsKey = resolveSbdTotalsMarketKey(normalizedKey)
-    if (!totalsKey || !shouldInclude(totalsKey)) continue
-    const books = (market as any)?.books || []
-    for (const book of books) {
-      const overOdds = parseAmerican(book?.over?.odds)
-      const underOdds = parseAmerican(book?.under?.odds)
-      const total = parseNumber(book?.total)
-      const outcomes: OddsOutcome[] = []
-      if (overOdds != null && total != null) {
-        outcomes.push({ name: 'Over', price: overOdds, point: total })
+    if (totalsKey && shouldInclude(totalsKey)) {
+      const books = (market as any)?.books || []
+      for (const book of books) {
+        const overOdds = parseAmerican(book?.over?.odds)
+        const underOdds = parseAmerican(book?.under?.odds)
+        const total = parseNumber(book?.total)
+        const outcomes: OddsOutcome[] = []
+        if (overOdds != null && total != null) {
+          outcomes.push({ name: 'Over', price: overOdds, point: total })
+        }
+        if (underOdds != null && total != null) {
+          outcomes.push({ name: 'Under', price: underOdds, point: total })
+        }
+        if (outcomes.length) {
+          addMarket(book, { key: totalsKey, outcomes })
+        }
       }
-      if (underOdds != null && total != null) {
-        outcomes.push({ name: 'Under', price: underOdds, point: total })
-      }
-      if (outcomes.length) {
-        addMarket(book, { key: totalsKey, outcomes })
-      }
+      continue
+    }
+
+    const spreadKey = resolveSbdSpreadMarketKey(normalizedKey)
+    if (spreadKey && spreadKey !== MARKETS.SPREADS && shouldInclude(spreadKey)) {
+      const books = (market as any)?.books || []
+      parseSpreadBooks(books, spreadKey)
     }
   }
 

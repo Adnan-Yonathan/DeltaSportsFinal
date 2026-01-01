@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { loadCachedScores, listCacheMeta } from "@/lib/live-score-cache"
+import { loadCachedScores, listCacheMeta, saveCachedScores } from "@/lib/live-score-cache"
 import { fetchAllLiveScores } from "@/lib/live-scores"
 
 export async function GET(request: NextRequest) {
@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     }
 
     const fresh = await fetchAllLiveScores({ date })
+    saveCachedScores(fresh)
     return NextResponse.json({ source: "live", meta: [], data: fresh })
   } catch (error) {
     console.error("[live-cache] fetch fallback error", error)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { fetchAllLiveScores, fetchGameDetails, type LeagueId } from "@/lib/live-scores"
+import { fetchAllLiveScores, type LeagueId } from "@/lib/live-scores"
+import { getCachedGameDetails } from "@/lib/services/live-game-cache"
 import { searchNBAPlayer, searchNFLPlayer } from "@/lib/sports-stats-api"
 
 const SPORT_TO_LEAGUE: Record<string, LeagueId> = {
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "No live game found for this player" }, { status: 404 })
   }
 
-  const details = await fetchGameDetails(league, game.eventId)
+  const details = await getCachedGameDetails(league, game.eventId)
   const team = details.teams.find(
     (entry) =>
       normalize(entry.name) === normalize(rosterEntry.team) ||

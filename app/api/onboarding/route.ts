@@ -2,12 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 interface OnboardingData {
-  username: string
   favorite_sports: string[]
-  experience_level: 'beginner' | 'intermediate' | 'advanced' | 'professional'
+  preferred_markets: string[]
+  experience_level: 'beginner' | 'intermediate' | 'advanced'
   risk_tolerance: 'conservative' | 'moderate' | 'aggressive'
-  starting_bankroll: number
-  unit_size: number
   signup_reasons: string[]
 }
 
@@ -28,42 +26,15 @@ export async function POST(request: NextRequest) {
     const body: OnboardingData = await request.json()
 
     // Validate required fields
-    if (!body.username || !body.favorite_sports || !body.experience_level ||
-        !body.risk_tolerance || !body.signup_reasons ||
-        body.starting_bankroll === undefined || body.unit_size === undefined) {
+    if (
+      !body.favorite_sports ||
+      !body.preferred_markets ||
+      !body.experience_level ||
+      !body.risk_tolerance ||
+      !body.signup_reasons
+    ) {
       return NextResponse.json(
         { error: 'Missing required fields' },
-        { status: 400 }
-      )
-    }
-
-    // Validate bankroll and unit size
-    if (body.starting_bankroll <= 0) {
-      return NextResponse.json(
-        { error: 'Starting bankroll must be greater than 0' },
-        { status: 400 }
-      )
-    }
-
-    if (body.unit_size <= 0) {
-      return NextResponse.json(
-        { error: 'Unit size must be greater than 0' },
-        { status: 400 }
-      )
-    }
-
-    if (body.unit_size > body.starting_bankroll) {
-      return NextResponse.json(
-        { error: 'Unit size cannot be larger than starting bankroll' },
-        { status: 400 }
-      )
-    }
-
-    // Validate username format
-    const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/
-    if (!usernameRegex.test(body.username)) {
-      return NextResponse.json(
-        { error: 'Invalid username format' },
         { status: 400 }
       )
     }
@@ -78,13 +49,20 @@ export async function POST(request: NextRequest) {
 
     if (body.signup_reasons.length === 0) {
       return NextResponse.json(
-        { error: 'Please select at least one feature' },
+        { error: 'Please select at least one goal' },
+        { status: 400 }
+      )
+    }
+
+    if (body.preferred_markets.length === 0) {
+      return NextResponse.json(
+        { error: 'Please select at least one market' },
         { status: 400 }
       )
     }
 
     // Validate enum values
-    const validExperienceLevels = ['beginner', 'intermediate', 'advanced', 'professional']
+    const validExperienceLevels = ['beginner', 'intermediate', 'advanced']
     if (!validExperienceLevels.includes(body.experience_level)) {
       return NextResponse.json(
         { error: 'Invalid experience level' },
@@ -101,16 +79,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Update user profile with onboarding data
-    const { data, error } = await supabase
+    const updateResult = await supabase
       .from('users')
       .update({
-        username: body.username,
         favorite_sports: body.favorite_sports,
+        preferred_markets: body.preferred_markets,
         experience_level: body.experience_level,
         risk_tolerance: body.risk_tolerance,
-        starting_bankroll: body.starting_bankroll,
-        current_bankroll: body.starting_bankroll,
-        unit_size: body.unit_size,
         signup_reasons: body.signup_reasons,
         onboarding_completed: true,
         updated_at: new Date().toISOString()
@@ -119,25 +94,41 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
-    if (error) {
-      // Check if it's a unique constraint violation on username
-      if (error.code === '23505' && error.message.includes('username')) {
+    const metadataUpdate = await supabase.auth.updateUser({
+      data: {
+        onboarding_completed: true,
+        onboarding_profile: {
+          favorite_sports: body.favorite_sports,
+          preferred_markets: body.preferred_markets,
+          experience_level: body.experience_level,
+          risk_tolerance: body.risk_tolerance,
+          signup_reasons: body.signup_reasons,
+        },
+      },
+    })
+
+    if (updateResult.error) {
+      console.error('Error saving onboarding data:', updateResult.error)
+      if (metadataUpdate.error) {
+        console.error('Error saving onboarding metadata:', metadataUpdate.error)
         return NextResponse.json(
-          { error: 'Username is already taken' },
-          { status: 409 }
+          { error: 'Failed to save onboarding data' },
+          { status: 500 }
         )
       }
+      return NextResponse.json({
+        success: true,
+        data: { fallback: true },
+      })
+    }
 
-      console.error('Error saving onboarding data:', error)
-      return NextResponse.json(
-        { error: 'Failed to save onboarding data' },
-        { status: 500 }
-      )
+    if (metadataUpdate.error) {
+      console.warn('Onboarding metadata update failed:', metadataUpdate.error)
     }
 
     return NextResponse.json({
       success: true,
-      data
+      data: updateResult.data
     })
   } catch (error) {
     console.error('Onboarding error:', error)

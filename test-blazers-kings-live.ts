@@ -7,6 +7,7 @@ import { fetchAllLiveScores, fetchGameDetails } from './lib/live-scores'
 import { analyzeLiveGame } from './lib/services/live-game-analyzer'
 import { calculateLiveSpread, calculateLiveTotal } from './lib/services/live-line-calculator'
 import { getTeamStats } from './lib/services/matchup-analyzer'
+import type { TeamStats } from './lib/services/pregame-value-calculator'
 
 async function testBlazersKingsLive() {
   console.log('============================================================')
@@ -192,8 +193,8 @@ async function testBlazersKingsLive() {
     console.log('============================================================\n')
 
     // Get team stats
-    const blazersStats = await getTeamStats('Trail Blazers')
-    const kingsStats = await getTeamStats('Kings')
+    const blazersStats = (await getTeamStats('Trail Blazers')) as TeamStats | null
+    const kingsStats = (await getTeamStats('Kings')) as TeamStats | null
 
     if (!blazersStats || !kingsStats) {
       console.log('❌ Could not load team stats')

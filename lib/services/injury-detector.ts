@@ -8,6 +8,36 @@ import { fetchInjuries, type EspnInjuryTeam } from '@/lib/providers/espn-nba'
 import { getPlayerStats, getTeamAbbrev } from './matchup-analyzer'
 import type { PlayerStats, TeamStats } from './pregame-value-calculator'
 
+const INJURY_CACHE_TTL_MS = 1000 * 60 * 5
+let espnInjuryCache: { ts: number; data: EspnInjuryTeam[] } | null = null
+let espnInjuryInflight: Promise<EspnInjuryTeam[]> | null = null
+const teamInjuryCache = new Map<string, { ts: number; report: TeamInjuryReport | null }>()
+
+const normalizeTeamKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+const loadEspnInjuries = async (): Promise<EspnInjuryTeam[]> => {
+  if (espnInjuryCache && Date.now() - espnInjuryCache.ts < INJURY_CACHE_TTL_MS) {
+    return espnInjuryCache.data
+  }
+  if (espnInjuryInflight) {
+    return espnInjuryInflight
+  }
+  espnInjuryInflight = fetchInjuries()
+    .then((data) => {
+      const safe = Array.isArray(data) ? data : []
+      espnInjuryCache = { ts: Date.now(), data: safe }
+      return safe
+    })
+    .catch((error) => {
+      console.error('[INJURY DETECTOR] Failed to fetch ESPN injuries:', error)
+      return []
+    })
+    .finally(() => {
+      espnInjuryInflight = null
+    })
+  return espnInjuryInflight
+}
+
 export interface InjuryImpact {
   playerName: string
   status: string // "Out", "Doubtful", "Questionable"
@@ -15,8 +45,9 @@ export interface InjuryImpact {
     ppg: number
     usage: number
     mpg: number
-    bpm: number
     vorp: number
+    per: number
+    nbaRating: number
   }
   impact: {
     ortgDrop: number
@@ -44,24 +75,24 @@ export interface TeamInjuryReport {
 export type PlayerTier = 'elite' | 'star' | 'starter' | 'role'
 
 export function getPlayerTier(playerStats: PlayerStats): PlayerTier {
-  const bpm = playerStats.bpm || 0
+  const per = playerStats.per || 0
+  const rating = playerStats.nbaRating || 0
   const vorp = playerStats.vorp || 0
   const usage = playerStats.usage || 0
   const mpg = playerStats.minutesPerGame || 0
+  const ppg = playerStats.seasonAverage || 0
 
-  // Elite: Top-tier impact players based on advanced stats
-  // BPM >= 5 is All-NBA level, VORP >= 3 is MVP-caliber contribution
-  if (bpm >= 5 || vorp >= 3 || (usage >= 28 && mpg >= 32 && bpm >= 3)) {
+  // Elite: high PER or elite ESPN rating with heavy usage
+  if (per >= 23 || rating >= 32 || (ppg >= 25 && usage >= 28)) {
     return 'elite'
   }
 
-  // Star: High-impact starters
-  // BPM >= 2 is All-Star level, VORP >= 1.5 is significant contribution
-  if (bpm >= 2 || vorp >= 1.5 || (usage >= 25 && mpg >= 28 && bpm >= 1)) {
+  // Star: above-average PER or rating with solid volume
+  if (per >= 18 || rating >= 24 || vorp >= 1.5 || (ppg >= 17 && usage >= 24)) {
     return 'star'
   }
 
-  // Starter: Regular rotation player
+  // Starter: Regular rotation player with stable minutes
   if (mpg >= 20 && usage >= 18) {
     return 'starter'
   }
@@ -85,12 +116,13 @@ const MAX_TOTAL_INJURY_IMPACT = 12.0  // Maximum total ORtg or DRtg impact from 
 
 /**
  * Calculate the impact of a single injured player
- * Uses BPM (Box Plus/Minus) rate stats - NOT VORP (which is cumulative)
- * Impact is scaled by player's statistical contribution, NOT name recognition
+ * Uses ESPN-derived efficiency metrics (PER, Rating, usage, per-game defense)
+ * Impact is scaled by statistical contribution, not name recognition
  *
  * Formula rationale:
- * - BPM measures points above average per 100 possessions
- * - OBPM/DBPM split that into offense/defense components
+ * - PER + ESPN Rating proxy overall efficiency
+ * - Usage/PPG/TS% capture offensive load
+ * - Steals/blocks/defensive rebounds proxy defensive impact
  * - Minutes played determines how much of the game they affect
  * - Tier multiplier accounts for star vs role player replacement quality
  */
@@ -100,8 +132,15 @@ export function calculatePlayerImpact(
 ): InjuryImpact['impact'] {
   const mpg = playerStats.minutesPerGame
   const usage = playerStats.usage
-  const obpm = playerStats.obpm || 0
-  const dbpm = playerStats.dbpm || 0
+  const ppg = playerStats.seasonAverage || 0
+  const per = playerStats.per ?? null
+  const rating = playerStats.nbaRating ?? null
+  const ts = playerStats.trueShootingPct ?? null
+  const ast = playerStats.assistsPerGame ?? null
+  const stl = playerStats.stealsPerGame ?? null
+  const blk = playerStats.blocksPerGame ?? null
+  const drb = playerStats.defensiveReboundsPerGame ?? null
+  const drbRate = playerStats.defensiveReboundRate ?? null
 
   // Get stat-based tier multiplier
   const tier = getPlayerTier(playerStats)
@@ -112,19 +151,35 @@ export function calculatePlayerImpact(
   const minutesFactor = mpg / 48
 
   // Offensive Rating Impact
-  // OBPM is points above average per 100 possessions
-  // A +5 OBPM player missing ~30 min affects maybe 2-3 points of team ORtg
-  // Scale: OBPM * 0.4 * (mpg/48) gives us base impact
-  const rawOrtgImpact = obpm * 0.4 * minutesFactor * tierMultiplier
-  // Cap at maximum per-player impact
+  // ESPN-derived signals: PER, NBA Rating, usage, efficiency, assist volume
+  const offenseBase =
+    Math.max(
+      0,
+      (ppg - 10) * 0.12 +
+        (usage - 18) * 0.05 +
+        (per != null ? (per - 15) * 0.2 : 0) +
+        (rating != null ? (rating - 15) * 0.08 : 0) +
+        (ast != null ? (ast - 3) * 0.1 : 0) +
+        (ts != null ? (ts - 55) * 0.04 : 0)
+    )
+  const rawOrtgImpact = offenseBase * minutesFactor * tierMultiplier
   const ortgDrop = Math.min(Math.max(0, rawOrtgImpact), MAX_ORTG_DROP_PER_PLAYER)
 
   // Defensive Rating Impact
-  // Positive DBPM = good defender. When out, defense worsens (DRtg increases)
-  // So we negate: -DBPM becomes the increase
-  const rawDrtgImpact = -dbpm * 0.35 * minutesFactor * tierMultiplier
-  // Cap at maximum per-player impact
-  const drtgIncrease = Math.min(Math.max(-MAX_DRTG_INCREASE_PER_PLAYER, rawDrtgImpact), MAX_DRTG_INCREASE_PER_PLAYER)
+  // Use ESPN defensive box stats as proxy (steals/blocks/rebounds)
+  const defenseBase =
+    Math.max(
+      0,
+      (stl != null ? (stl - 0.7) * 0.9 : 0) +
+        (blk != null ? (blk - 0.5) * 0.9 : 0) +
+        (drb != null ? (drb - 3) * 0.3 : 0) +
+        (drbRate != null ? (drbRate - 0.2) * 4 : 0)
+    )
+  const rawDrtgImpact = defenseBase * minutesFactor * tierMultiplier
+  const drtgIncrease = Math.min(
+    Math.max(0, rawDrtgImpact),
+    MAX_DRTG_INCREASE_PER_PLAYER
+  )
 
   // Usage-based pace impact (minimal effect)
   // High-usage players affect pace slightly when out
@@ -158,8 +213,12 @@ export function formatInjuryExplanation(impact: InjuryImpact, playerStats?: Play
   const totalImpact = impactValues.ortgDrop + Math.abs(impactValues.drtgIncrease)
   const impactDesc = totalImpact > 3 ? 'HIGH' : totalImpact > 1.5 ? 'MODERATE' : 'minor'
 
-  // Use PPG, BPM and usage for user-friendly explanation
-  return `${playerName}${tierLabel} (${impact.status}): ${stats.ppg.toFixed(1)} PPG, ${stats.bpm.toFixed(1)} BPM → ${impactDesc} impact (-${impactValues.ortgDrop.toFixed(1)} ORtg)`
+  const perLabel = Number.isFinite(stats.per) ? `PER ${stats.per.toFixed(1)}` : 'PER n/a'
+  const ratingLabel = Number.isFinite(stats.nbaRating)
+    ? `Rating ${stats.nbaRating.toFixed(1)}`
+    : 'Rating n/a'
+
+  return `${playerName}${tierLabel} (${impact.status}): ${stats.ppg.toFixed(1)} PPG, ${perLabel}, ${ratingLabel} → ${impactDesc} impact (-${impactValues.ortgDrop.toFixed(1)} ORtg)`
 }
 
 /**
@@ -170,13 +229,22 @@ export async function detectInjuries(
   teamName: string,
   sport: string = 'basketball_nba'
 ): Promise<TeamInjuryReport | null> {
+  const cacheKey = `${sport}:${normalizeTeamKey(teamName)}`
+  const cached = teamInjuryCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < INJURY_CACHE_TTL_MS) {
+    return cached.report
+  }
+  const cacheReport = (report: TeamInjuryReport | null) => {
+    teamInjuryCache.set(cacheKey, { ts: Date.now(), report })
+    return report
+  }
   try {
     // Fetch all injuries from ESPN
-    const espnTeams = await fetchInjuries()
+    const espnTeams = await loadEspnInjuries()
 
     if (!espnTeams || espnTeams.length === 0) {
       console.log('[INJURY DETECTOR] No injury data available from ESPN')
-      return null
+      return cacheReport(null)
     }
 
     // Find the team by name matching
@@ -193,7 +261,7 @@ export async function detectInjuries(
     })
 
     if (!teamData || !teamData.injuries || teamData.injuries.length === 0) {
-      return null
+      return cacheReport(null)
     }
 
     // Filter for definite absences (Out, Doubtful)
@@ -211,7 +279,7 @@ export async function detectInjuries(
     })
 
     if (significantInjuries.length === 0) {
-      return null
+      return cacheReport(null)
     }
 
     const impacts: InjuryImpact[] = []
@@ -234,7 +302,7 @@ export async function detectInjuries(
       const playerName = injury.athlete?.displayName
       if (!playerName) continue
 
-      const playerStats = getPlayerStats(playerName, 'points')
+      const playerStats = await getPlayerStats(playerName, 'points')
       if (!playerStats) {
         missingStatsPlayers.push(playerName)
         continue
@@ -251,8 +319,9 @@ export async function detectInjuries(
             ppg: playerStats.seasonAverage,
             usage: playerStats.usage,
             mpg: playerStats.minutesPerGame,
-            bpm: playerStats.bpm || 0,
             vorp: playerStats.vorp || 0,
+            per: playerStats.per ?? Number.NaN,
+            nbaRating: playerStats.nbaRating ?? Number.NaN,
           },
           impact: { ortgDrop: 0, drtgIncrease: 0, paceDrop: 0 },
           explanation: '',
@@ -269,8 +338,9 @@ export async function detectInjuries(
           ppg: playerStats.seasonAverage,
           usage: playerStats.usage,
           mpg: playerStats.minutesPerGame,
-          bpm: playerStats.bpm || 0,
           vorp: playerStats.vorp || 0,
+          per: playerStats.per ?? Number.NaN,
+          nbaRating: playerStats.nbaRating ?? Number.NaN,
         },
         impact: impactCalc,
         explanation: '', // Will be filled below
@@ -290,7 +360,7 @@ export async function detectInjuries(
     }
 
     if (impacts.length === 0) {
-      return null
+      return cacheReport(null)
     }
 
     // Calculate total impact with diminishing returns (root sum of squares)
@@ -317,7 +387,7 @@ export async function detectInjuries(
       players: impacts.map(i => `${i.playerName} (ORtg: -${i.impact.ortgDrop.toFixed(1)}, DRtg: +${i.impact.drtgIncrease.toFixed(1)})`),
     })
 
-    return {
+    return cacheReport({
       team: teamName,
       injuries: impacts,
       totalImpact: {
@@ -326,9 +396,9 @@ export async function detectInjuries(
         paceDrop: totalPaceDrop,
       },
       summary,
-    }
+    })
   } catch (error) {
     console.error('[INJURY DETECTOR] Error detecting injuries:', error)
-    return null // Fail gracefully
+    return cacheReport(null) // Fail gracefully
   }
 }

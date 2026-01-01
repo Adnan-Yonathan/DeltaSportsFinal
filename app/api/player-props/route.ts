@@ -4,6 +4,8 @@ import { searchPlayer } from '@/lib/sports-stats-api'
 import type { RosterPlayer } from '@/lib/sports-stats-api'
 import { resolveSportKey } from '@/lib/utils/live-game'
 
+export const dynamic = 'force-dynamic'
+
 interface PropOdds {
   book: string
   odds: number

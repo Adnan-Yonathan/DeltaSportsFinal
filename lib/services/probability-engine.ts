@@ -13,6 +13,19 @@ const SPORT_SCORING_RATES: { [key: string]: number } = {
   'baseball_mlb': 0.33,         // ~9 total points in 27 outs (approximated to 27 "minutes")
 }
 
+const SPORT_KEY_ALIASES: Record<string, string> = {
+  nba: 'basketball_nba',
+  ncaab: 'basketball_ncaab',
+  nfl: 'americanfootball_nfl',
+  ncaaf: 'americanfootball_ncaaf',
+  cfb: 'americanfootball_ncaaf',
+  nhl: 'icehockey_nhl',
+  mlb: 'baseball_mlb',
+}
+
+const normalizeSportKey = (sport: string): string =>
+  SPORT_KEY_ALIASES[sport] ?? sport
+
 /**
  * Sport-specific game lengths (in minutes)
  */
@@ -29,14 +42,16 @@ const SPORT_GAME_LENGTHS: { [key: string]: number } = {
  * Get sport-specific scoring rate
  */
 function getSportScoringRate(sport: string): number {
-  return SPORT_SCORING_RATES[sport] || 1.0
+  const normalized = normalizeSportKey(sport)
+  return SPORT_SCORING_RATES[normalized] || 1.0
 }
 
 /**
  * Get sport-specific game length
  */
 function getSportGameLength(sport: string): number {
-  return SPORT_GAME_LENGTHS[sport] || 60
+  const normalized = normalizeSportKey(sport)
+  return SPORT_GAME_LENGTHS[normalized] || 60
 }
 
 /**
@@ -57,12 +72,13 @@ export function calculateSpreadProbability(
   currentScore: number = 100,
   odds?: number
 ): number {
+  const normalizedSport = normalizeSportKey(sport)
   const gameLengthMinutes = getSportGameLength(sport)
   const minutesRemaining = Math.max(timeRemaining / 60, 0)
   const timeRatio = Math.min(1, minutesRemaining / gameLengthMinutes)
   const differential = teamMargin + spread
 
-  const baseVolatility = SPORT_SPREAD_VOLATILITY[sport] || 6
+  const baseVolatility = SPORT_SPREAD_VOLATILITY[normalizedSport] || 6
   const volatility = Math.max(0.75, baseVolatility * Math.sqrt(timeRatio + 0.05))
 
   const liveProbability = normalCDF(differential / volatility)
@@ -145,10 +161,11 @@ export function calculateMoneylineProbability(
   sport: string,
   odds?: number
 ): number {
+  const normalizedSport = normalizeSportKey(sport)
   const gameLength = getSportGameLength(sport)
   const minutesRemaining = Math.max(timeRemaining / 60, 0)
   const timeRatio = Math.min(1, minutesRemaining / gameLength)
-  const baseVolatility = SPORT_SPREAD_VOLATILITY[sport] || 6
+  const baseVolatility = SPORT_SPREAD_VOLATILITY[normalizedSport] || 6
   const volatility = Math.max(0.5, baseVolatility * Math.sqrt(timeRatio + 0.02))
   const liveProbability = normalCDF(teamMargin / volatility)
   const impliedProbability = odds !== undefined ? oddsToImpliedProbability(odds) : 0.5
@@ -346,7 +363,8 @@ export function calculateBetProbability(input: BetProbabilityInput): BetProbabil
           const pace = input.playerMinutesPlayed > 0 ? input.playerCurrentStat / input.playerMinutesPlayed : 0
           const projected = input.playerCurrentStat + (pace * (input.playerProjectedMinutes - input.playerMinutesPlayed))
           factors.currentState = `Current: ${input.playerCurrentStat} in ${input.playerMinutesPlayed.toFixed(0)} min`
-          factors.projection = `Projected: ${projected.toFixed(1)} (pace: ${(pace * 32).toFixed(1)}/game)`
+          const projectedMinutes = input.playerProjectedMinutes || 32
+          factors.projection = `Projected: ${projected.toFixed(1)} (pace: ${(pace * projectedMinutes).toFixed(1)}/game)`
           confidence = input.playerMinutesPlayed > 20 ? 'high' : input.playerMinutesPlayed > 10 ? 'medium' : 'low'
         }
         break

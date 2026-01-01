@@ -35,6 +35,7 @@ This document maps all data types to their sources in the DeltaSports applicatio
 - Totals (over/under)
 - Player Props:
   - NBA: points, rebounds, assists, threes
+  - NCAAB: points, rebounds, assists, threes
   - NFL: passing TDs, passing yards, rushing yards, receptions
   - MLB: hits, total bases, RBIs, runs scored
   - NHL: points, shots on goal, blocked shots
@@ -71,14 +72,9 @@ This document maps all data types to their sources in the DeltaSports applicatio
    - Recent games/gamelog
    - File: `lib/sports-stats-api.ts`
 
-2. **Sports Reference** (Fallback for historical)
-   - Web scraping from `https://www.basketball-reference.com`
-   - Player season stats
-   - File: `lib/providers/sports-reference.ts`
-
-3. **Static Data** (Fallback)
-   - User-provided static player stats
-   - File: `lib/nba-static-stats.ts`
+2. **ESPN** (Supplemental)
+   - ESPN player splits and recent game stats
+   - File: `lib/sports-stats-api.ts`
 
 #### NFL
 **ESPN** (Primary)
@@ -114,14 +110,9 @@ This document maps all data types to their sources in the DeltaSports applicatio
    - Team records, stats
    - File: `lib/sports-stats-api.ts`
 
-2. **Sports Reference** (Fallback)
-   - Web scraping from `https://www.basketball-reference.com/leagues/NBA_{year}.html`
-   - Team stats, advanced metrics
-   - File: `lib/providers/sports-reference.ts`
-
-3. **Static Data** (Fallback)
-   - User-provided static team stats
-   - File: `lib/nba-static-team-stats.ts`
+2. **ESPN** (Supplemental)
+   - Opponent-allowed stats aggregated from ESPN box scores
+   - File: `lib/services/espn-opponent-stats.ts`
 
 #### NFL
 **ESPN** (Primary)
@@ -142,9 +133,16 @@ This document maps all data types to their sources in the DeltaSports applicatio
 - File: `lib/sports-stats-api.ts`
 
 #### NCAAB
-**Sports Reference** (Fallback)
-- Web scraping
-- File: `lib/providers/sports-reference.ts`
+1. **ESPN** (Primary for records)
+   - Team list + record summary
+   - File: `lib/providers/espn-ncaab.ts`, `lib/sports-stats-api.ts`
+2. **NCAA.com** (Primary for rankings + PPG)
+   - NET rankings table
+   - Scoring offense/defense (PPG / Opp PPG)
+   - File: `lib/providers/ncaab-free-sources.ts`, `lib/sports-stats-api.ts`
+3. **Sports Reference** (Fallback)
+   - Web scraping
+   - File: `lib/providers/sports-reference.ts`
 
 ---
 
@@ -256,7 +254,7 @@ This document maps all data types to their sources in the DeltaSports applicatio
 
 ---
 
-## Static/Historical Data
+## Historical Data
 
 ### Sports Reference
 **Web Scraping**
@@ -264,13 +262,6 @@ This document maps all data types to their sources in the DeltaSports applicatio
 - Used as fallback when live APIs fail
 - Supports: NBA, NFL, MLB, NHL, NCAAB, NCAAF
 - File: `lib/providers/sports-reference.ts`
-
-### Static Files
-**Local Data Files** (if provided)
-- `data/nba_per_game_2025_26.ts`
-- `data/nba_team_2025_26.ts`
-- `data/nba_team_adv_2025_26.ts`
-- Used as primary source for NBA when available
 
 ---
 
@@ -292,8 +283,8 @@ This document maps all data types to their sources in the DeltaSports applicatio
 
 1. **Odds Data**: SportsBettingDime → Line Recorder → Supabase `lines` table
 2. **Live Scores**: ESPN → Live Scores Service → Frontend / Chat API
-3. **Player Stats**: ESPN / Sports Reference / Static Data → Stats API → Chat API
-4. **Team Stats**: ESPN / Sports Reference / Static Data → Stats API → Chat API
+3. **Player Stats**: ESPN → Stats API → Chat API
+4. **Team Stats**: ESPN → Stats API → Chat API
 5. **Advanced Stats**: Calculated from base stats (NBA) / ESPN-derived (NFL) → Stats API
 6. **Injuries**: ESPN → Stats API → Supabase cache → Chat API
 7. **CLV**: Lines table + Bets table → CLV Service → Updates bets table

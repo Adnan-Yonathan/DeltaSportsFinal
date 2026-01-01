@@ -7,6 +7,7 @@ import { fetchAllLiveScores, fetchGameDetails } from './lib/live-scores'
 import { analyzeLiveGame } from './lib/services/live-game-analyzer'
 import { calculateLiveSpread } from './lib/services/live-line-calculator'
 import { getTeamStats } from './lib/services/matchup-analyzer'
+import type { TeamStats } from './lib/services/pregame-value-calculator'
 
 async function testRealGameData() {
   console.log('============================================================')
@@ -125,8 +126,8 @@ async function testRealGameData() {
     console.log(`  Coaching: ${analysis.momentum.timeoutImpact.homeCoach?.name} vs ${analysis.momentum.timeoutImpact.awayCoach?.name}`)
 
     // Calculate live spread with REAL data
-    const homeStats = await getTeamStats(analysis.homeTeam)
-    const awayStats = await getTeamStats(analysis.awayTeam)
+    const homeStats = (await getTeamStats(analysis.homeTeam)) as TeamStats | null
+    const awayStats = (await getTeamStats(analysis.awayTeam)) as TeamStats | null
 
     if (homeStats && awayStats) {
       const liveSpread = calculateLiveSpread(analysis, { homeStats, awayStats })

@@ -1,22 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  getTeamStats,
-  getInjuryReports,
   getAllInjuries,
   formatStatsForAI,
-  searchPlayer,
-  getRoster,
   getPlayerSeasonStats,
+  searchPlayer,
 } from '@/lib/sports-stats-api'
+import { getSportProvider } from '@/lib/providers/sport-registry'
 import { createClient } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/stats
  * Query parameters:
  * - type: 'team' | 'injuries' | 'all-injuries' | 'player' | 'player-season' | 'roster' | 'recent_form' | 'home_away' | 'head_to_head'
- * - sport: 'nba' | 'nfl' | 'mlb' | 'nhl'
+ * - sport: 'nba' | 'nfl' | 'mlb' | 'nhl' | 'ncaab' | 'ncaaf'
  * - team: optional team identifier (abbreviation or ID)
  * - player: player name to search (for type=player)
  */
@@ -29,12 +28,15 @@ export async function GET(req: NextRequest) {
     const team = searchParams.get('team') || undefined
     const player = searchParams.get('player') || undefined
     const format = searchParams.get('format') || 'json' // 'json' or 'text'
+    const wantsAutoSport =
+      rawSport && ['auto', 'any', 'all'].includes(rawSport.toLowerCase())
+    const provider = getSportProvider(wantsAutoSport ? 'nba' : sport)
 
     let result: any
 
     switch (type) {
       case 'team':
-        result = await getTeamStats(sport, team)
+        result = await provider.getTeamStats(team)
         break
 
       case 'injuries': {
@@ -53,7 +55,7 @@ export async function GET(req: NextRequest) {
           console.warn('[STATS] Failed to read injury cache:', error)
         }
 
-        result = data && data.length > 0 ? data : await getInjuryReports(sport)
+        result = data && data.length > 0 ? data : await provider.getInjuryReports()
         break
       }
 
@@ -68,10 +70,9 @@ export async function GET(req: NextRequest) {
             { status: 400 }
           )
         }
-        result = await searchPlayer(
-          player,
-          rawSport && ['auto', 'any', 'all'].includes(rawSport.toLowerCase()) ? undefined : (rawSport || undefined)
-        )
+        result = wantsAutoSport
+          ? await searchPlayer(player)
+          : await provider.searchPlayer(player)
         break
 
       case 'player-season': {
@@ -81,9 +82,9 @@ export async function GET(req: NextRequest) {
             { status: 400 }
           )
         }
-        const seasonSport =
-          rawSport && ['auto', 'any', 'all'].includes(rawSport.toLowerCase()) ? undefined : (rawSport || undefined)
-        result = await getPlayerSeasonStats(player, seasonSport)
+        result = wantsAutoSport
+          ? await getPlayerSeasonStats(player)
+          : await provider.getPlayerSeasonStats(player)
         if (!result) {
           return NextResponse.json({ error: 'Player season stats not found' }, { status: 404 })
         }
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
       }
 
       case 'roster':
-        result = await getRoster(sport, team)
+        result = await provider.getRoster(team)
         break
 
       case 'recent_form': {

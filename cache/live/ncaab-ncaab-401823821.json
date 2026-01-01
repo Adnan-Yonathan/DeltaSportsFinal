@@ -1,0 +1,3577 @@
+{
+  "eventId": "ncaab-401823821",
+  "league": "ncaab",
+  "leagueLabel": "NCAAB",
+  "updatedAt": "2025-12-31T05:21:50.172Z",
+  "statusText": "16:05 - 16:05 - 2nd",
+  "status": {
+    "displayClock": "16:05",
+    "period": 2,
+    "displayPeriod": "2nd",
+    "type": {
+      "state": "in",
+      "detail": "16:05 - 2nd Half",
+      "shortDetail": "16:05 - 2nd",
+      "completed": false
+    }
+  },
+  "venue": "ExtraMile Arena",
+  "teams": [
+    {
+      "id": "68",
+      "name": "Boise State Broncos",
+      "abbreviation": "BOIS",
+      "homeAway": "home",
+      "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/68.png",
+      "score": 25,
+      "linescore": [
+        {
+          "label": "H1",
+          "value": "21"
+        },
+        {
+          "label": "H2",
+          "value": "4"
+        }
+      ],
+      "statistics": [
+        {
+          "label": "FG",
+          "value": "9-35",
+          "name": "fieldGoalsMade-fieldGoalsAttempted"
+        },
+        {
+          "label": "Field Goal %",
+          "value": "26",
+          "name": "fieldGoalPct",
+          "abbreviation": "FG%"
+        },
+        {
+          "label": "3PT",
+          "value": "2-19",
+          "name": "threePointFieldGoalsMade-threePointFieldGoalsAttempted"
+        },
+        {
+          "label": "Three Point %",
+          "value": "11",
+          "name": "threePointFieldGoalPct",
+          "abbreviation": "3P%"
+        },
+        {
+          "label": "FT",
+          "value": "5-6",
+          "name": "freeThrowsMade-freeThrowsAttempted"
+        },
+        {
+          "label": "Free Throw %",
+          "value": "83",
+          "name": "freeThrowPct",
+          "abbreviation": "FT%"
+        },
+        {
+          "label": "Rebounds",
+          "value": "26",
+          "name": "totalRebounds",
+          "abbreviation": "REB"
+        },
+        {
+          "label": "Offensive Rebounds",
+          "value": "5",
+          "name": "offensiveRebounds",
+          "abbreviation": "OR"
+        },
+        {
+          "label": "Defensive Rebounds",
+          "value": "21",
+          "name": "defensiveRebounds",
+          "abbreviation": "DR"
+        },
+        {
+          "label": "Assists",
+          "value": "3",
+          "name": "assists",
+          "abbreviation": "AST"
+        },
+        {
+          "label": "Steals",
+          "value": "2",
+          "name": "steals",
+          "abbreviation": "STL"
+        },
+        {
+          "label": "Blocks",
+          "value": "4",
+          "name": "blocks",
+          "abbreviation": "BLK"
+        },
+        {
+          "label": "Turnovers",
+          "value": "7",
+          "name": "turnovers",
+          "abbreviation": "TO"
+        },
+        {
+          "label": "Team Turnovers",
+          "value": "0",
+          "name": "teamTurnovers",
+          "abbreviation": "TTO"
+        },
+        {
+          "label": "Total Turnovers",
+          "value": "7",
+          "name": "totalTurnovers",
+          "abbreviation": "ToTO"
+        },
+        {
+          "label": "Technical Fouls",
+          "value": "0",
+          "name": "technicalFouls",
+          "abbreviation": "TECH"
+        },
+        {
+          "label": "Total Technical Fouls",
+          "value": "0",
+          "name": "totalTechnicalFouls",
+          "abbreviation": "TECH"
+        },
+        {
+          "label": "Flagrant Fouls",
+          "value": "0",
+          "name": "flagrantFouls",
+          "abbreviation": "FLAG"
+        },
+        {
+          "label": "Points Off Turnovers",
+          "value": "7",
+          "name": "turnoverPoints",
+          "abbreviation": "PTS OFF TO"
+        },
+        {
+          "label": "Fast Break Points",
+          "value": "7",
+          "name": "fastBreakPoints",
+          "abbreviation": "FBPs"
+        },
+        {
+          "label": "Points in Paint",
+          "value": "10",
+          "name": "pointsInPaint",
+          "abbreviation": "PIP"
+        },
+        {
+          "label": "Fouls",
+          "value": "8",
+          "name": "fouls",
+          "abbreviation": "PF"
+        },
+        {
+          "label": "Largest Lead",
+          "value": "6",
+          "name": "largestLead",
+          "abbreviation": "LL"
+        },
+        {
+          "label": "Lead Changes",
+          "value": "2",
+          "name": "leadChanges",
+          "abbreviation": "LC"
+        },
+        {
+          "label": "Percent Led",
+          "value": "27",
+          "name": "leadPercentage",
+          "abbreviation": "LPCT"
+        }
+      ],
+      "starters": [
+        {
+          "id": "5241230",
+          "name": "Javan Buchanan",
+          "position": "F",
+          "jersey": "22",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5241230.png",
+          "statMap": {
+            "MIN": "15",
+            "PTS": "2",
+            "FG": "1-5",
+            "3PT": "0-3",
+            "FT": "0-0",
+            "REB": "2",
+            "AST": "0",
+            "TO": "1",
+            "STL": "0",
+            "BLK": "0",
+            "OREB": "0",
+            "DREB": "2",
+            "PF": "0"
+          },
+          "summaryLine": "PTS 2 • REB 2 • AST 0",
+          "order": 0,
+          "isStarter": true
+        },
+        {
+          "id": "5081887",
+          "name": "Andrew Meadow",
+          "position": "F",
+          "jersey": "13",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5081887.png",
+          "statMap": {
+            "MIN": "15",
+            "PTS": "2",
+            "FG": "1-3",
+            "3PT": "0-1",
+            "FT": "0-0",
+            "REB": "3",
+            "AST": "1",
+            "TO": "0",
+            "STL": "0",
+            "BLK": "0",
+            "OREB": "1",
+            "DREB": "2",
+            "PF": "2"
+          },
+          "summaryLine": "PTS 2 • REB 3 • AST 1",
+          "order": 1,
+          "isStarter": true
+        },
+        {
+          "id": "5082704",
+          "name": "Drew Fielder",
+          "position": "C",
+          "jersey": "20",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5082704.png",
+          "statMap": {
+            "MIN": "10",
+            "PTS": "3",
+            "FG": "1-4",
+            "3PT": "1-3",
+            "FT": "0-0",
+            "REB": "0",
+            "AST": "0",
+            "TO": "1",
+            "STL": "0",
+            "BLK": "0",
+            "OREB": "0",
+            "DREB": "0",
+            "PF": "1"
+          },
+          "summaryLine": "PTS 3 • REB 0 • AST 0",
+          "order": 2,
+          "isStarter": true
+        },
+        {
+          "id": "5105636",
+          "name": "Dylan Andrews",
+          "position": "G",
+          "jersey": "4",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5105636.png",
+          "statMap": {
+            "MIN": "18",
+            "PTS": "0",
+            "FG": "0-4",
+            "3PT": "0-2",
+            "FT": "0-0",
+            "REB": "3",
+            "AST": "1",
+            "TO": "1",
+            "STL": "1",
+            "BLK": "1",
+            "OREB": "0",
+            "DREB": "3",
+            "PF": "0"
+          },
+          "summaryLine": "PTS 0 • REB 3 • AST 1",
+          "order": 3,
+          "isStarter": true
+        },
+        {
+          "id": "4683941",
+          "name": "RJ Keene II",
+          "position": "G",
+          "jersey": "5",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/4683941.png",
+          "statMap": {
+            "MIN": "13",
+            "PTS": "0",
+            "FG": "0-2",
+            "3PT": "0-1",
+            "FT": "0-0",
+            "REB": "2",
+            "AST": "1",
+            "TO": "2",
+            "STL": "0",
+            "BLK": "2",
+            "OREB": "1",
+            "DREB": "1",
+            "PF": "2"
+          },
+          "summaryLine": "PTS 0 • REB 2 • AST 1",
+          "order": 4,
+          "isStarter": true
+        }
+      ],
+      "bench": [
+        {
+          "id": "5313903",
+          "name": "Bhan Buom",
+          "position": "F",
+          "jersey": "3",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5313903.png",
+          "statMap": {
+            "MIN": "1",
+            "PTS": "0",
+            "FG": "0-1",
+            "3PT": "0-1",
+            "FT": "0-0",
+            "REB": "1",
+            "AST": "0",
+            "TO": "0",
+            "STL": "0",
+            "BLK": "0",
+            "OREB": "0",
+            "DREB": "1",
+            "PF": "0"
+          },
+          "summaryLine": "PTS 0 • REB 1 • AST 0",
+          "order": 5
+        },
+        {
+          "id": "5185444",
+          "name": "Spencer Ahrens",
+          "position": "F",
+          "jersey": "16",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5185444.png",
+          "statMap": {
+            "MIN": "9",
+            "PTS": "6",
+            "FG": "3-4",
+            "3PT": "0-0",
+            "FT": "0-1",
+            "REB": "3",
+            "AST": "0",
+            "TO": "0",
+            "STL": "0",
+            "BLK": "0",
+            "OREB": "1",
+            "DREB": "2",
+            "PF": "0"
+          },
+          "summaryLine": "PTS 6 • REB 3 • AST 0",
+          "order": 6
+        },
+        {
+          "id": "5117627",
+          "name": "Pearson Carmichael",
+          "position": "F",
+          "jersey": "6",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5117627.png",
+          "statMap": {
+            "MIN": "14",
+            "PTS": "3",
+            "FG": "1-5",
+            "3PT": "1-5",
+            "FT": "0-0",
+            "REB": "3",
+            "AST": "0",
+            "TO": "0",
+            "STL": "1",
+            "BLK": "0",
+            "OREB": "0",
+            "DREB": "3",
+            "PF": "0"
+          },
+          "summaryLine": "PTS 3 • REB 3 • AST 0",
+          "order": 7
+        },
+        {
+          "id": "4873196",
+          "name": "Ethan Lathan",
+          "position": "F",
+          "jersey": "30",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/4873196.png",
+          "statMap": {},
+          "order": 8
+        },
+        {
+          "id": "4702518",
+          "name": "Dominic Parolin",
+          "position": "F",
+          "jersey": "9",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/4702518.png",
+          "statMap": {
+            "MIN": "14",
+            "PTS": "4",
+            "FG": "1-4",
+            "3PT": "0-3",
+            "FT": "2-2",
+            "REB": "7",
+            "AST": "0",
+            "TO": "0",
+            "STL": "0",
+            "BLK": "0",
+            "OREB": "2",
+            "DREB": "5",
+            "PF": "2"
+          },
+          "summaryLine": "PTS 4 • REB 7 • AST 0",
+          "order": 9
+        },
+        {
+          "id": "5313904",
+          "name": "Noah Bendinger",
+          "position": "G",
+          "jersey": "23",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5313904.png",
+          "statMap": {},
+          "order": 10
+        },
+        {
+          "id": "5313902",
+          "name": "Aginaldo Neto",
+          "position": "G",
+          "jersey": "1",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5313902.png",
+          "statMap": {
+            "MIN": "11",
+            "PTS": "5",
+            "FG": "1-3",
+            "3PT": "0-0",
+            "FT": "3-3",
+            "REB": "1",
+            "AST": "0",
+            "TO": "2",
+            "STL": "0",
+            "BLK": "1",
+            "OREB": "0",
+            "DREB": "1",
+            "PF": "1"
+          },
+          "summaryLine": "PTS 5 • REB 1 • AST 0",
+          "order": 11
+        },
+        {
+          "id": "5252550",
+          "name": "Brennan Ramirez",
+          "position": "G",
+          "jersey": "21",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5252550.png",
+          "statMap": {},
+          "order": 12
+        },
+        {
+          "id": "5241229",
+          "name": "Julian Bowie",
+          "position": "G",
+          "jersey": "0",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5241229.png",
+          "statMap": {},
+          "order": 13
+        },
+        {
+          "id": "5191013",
+          "name": "Rayzhon Bergersen",
+          "position": "G",
+          "jersey": "11",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5191013.png",
+          "statMap": {},
+          "order": 14
+        }
+      ],
+      "offense": [],
+      "defense": [],
+      "specialTeams": [],
+      "forwards": [],
+      "defensemen": [],
+      "goalies": []
+    },
+    {
+      "id": "167",
+      "name": "New Mexico Lobos",
+      "abbreviation": "UNM",
+      "homeAway": "away",
+      "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/167.png",
+      "score": 34,
+      "linescore": [
+        {
+          "label": "H1",
+          "value": "19"
+        },
+        {
+          "label": "H2",
+          "value": "15"
+        }
+      ],
+      "statistics": [
+        {
+          "label": "FG",
+          "value": "14-39",
+          "name": "fieldGoalsMade-fieldGoalsAttempted"
+        },
+        {
+          "label": "Field Goal %",
+          "value": "36",
+          "name": "fieldGoalPct",
+          "abbreviation": "FG%"
+        },
+        {
+          "label": "3PT",
+          "value": "2-15",
+          "name": "threePointFieldGoalsMade-threePointFieldGoalsAttempted"
+        },
+        {
+          "label": "Three Point %",
+          "value": "13",
+          "name": "threePointFieldGoalPct",
+          "abbreviation": "3P%"
+        },
+        {
+          "label": "FT",
+          "value": "4-5",
+          "name": "freeThrowsMade-freeThrowsAttempted"
+        },
+        {
+          "label": "Free Throw %",
+          "value": "80",
+          "name": "freeThrowPct",
+          "abbreviation": "FT%"
+        },
+        {
+          "label": "Rebounds",
+          "value": "25",
+          "name": "totalRebounds",
+          "abbreviation": "REB"
+        },
+        {
+          "label": "Offensive Rebounds",
+          "value": "4",
+          "name": "offensiveRebounds",
+          "abbreviation": "OR"
+        },
+        {
+          "label": "Defensive Rebounds",
+          "value": "21",
+          "name": "defensiveRebounds",
+          "abbreviation": "DR"
+        },
+        {
+          "label": "Assists",
+          "value": "3",
+          "name": "assists",
+          "abbreviation": "AST"
+        },
+        {
+          "label": "Steals",
+          "value": "4",
+          "name": "steals",
+          "abbreviation": "STL"
+        },
+        {
+          "label": "Blocks",
+          "value": "3",
+          "name": "blocks",
+          "abbreviation": "BLK"
+        },
+        {
+          "label": "Turnovers",
+          "value": "5",
+          "name": "turnovers",
+          "abbreviation": "TO"
+        },
+        {
+          "label": "Team Turnovers",
+          "value": "1",
+          "name": "teamTurnovers",
+          "abbreviation": "TTO"
+        },
+        {
+          "label": "Total Turnovers",
+          "value": "5",
+          "name": "totalTurnovers",
+          "abbreviation": "ToTO"
+        },
+        {
+          "label": "Technical Fouls",
+          "value": "0",
+          "name": "technicalFouls",
+          "abbreviation": "TECH"
+        },
+        {
+          "label": "Total Technical Fouls",
+          "value": "0",
+          "name": "totalTechnicalFouls",
+          "abbreviation": "TECH"
+        },
+        {
+          "label": "Flagrant Fouls",
+          "value": "0",
+          "name": "flagrantFouls",
+          "abbreviation": "FLAG"
+        },
+        {
+          "label": "Points Off Turnovers",
+          "value": "4",
+          "name": "turnoverPoints",
+          "abbreviation": "PTS OFF TO"
+        },
+        {
+          "label": "Fast Break Points",
+          "value": "8",
+          "name": "fastBreakPoints",
+          "abbreviation": "FBPs"
+        },
+        {
+          "label": "Points in Paint",
+          "value": "20",
+          "name": "pointsInPaint",
+          "abbreviation": "PIP"
+        },
+        {
+          "label": "Fouls",
+          "value": "9",
+          "name": "fouls",
+          "abbreviation": "PF"
+        },
+        {
+          "label": "Largest Lead",
+          "value": "11",
+          "name": "largestLead",
+          "abbreviation": "LL"
+        },
+        {
+          "label": "Lead Changes",
+          "value": "2",
+          "name": "leadChanges",
+          "abbreviation": "LC"
+        },
+        {
+          "label": "Percent Led",
+          "value": "63",
+          "name": "leadPercentage",
+          "abbreviation": "LPCT"
+        }
+      ],
+      "starters": [
+        {
+          "id": "5315585",
+          "name": "Tomislav Buljan",
+          "position": "F",
+          "jersey": "10",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5315585.png",
+          "statMap": {
+            "MIN": "14",
+            "PTS": "9",
+            "FG": "4-6",
+            "3PT": "0-1",
+            "FT": "1-1",
+            "REB": "6",
+            "AST": "0",
+            "TO": "1",
+            "STL": "1",
+            "BLK": "0",
+            "OREB": "2",
+            "DREB": "4",
+            "PF": "3"
+          },
+          "summaryLine": "PTS 9 • REB 6 • AST 0",
+          "order": 0,
+          "isStarter": true
+        },
+        {
+          "id": "5105860",
+          "name": "Antonio Chol",
+          "position": "F",
+          "jersey": "5",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5105860.png",
+          "statMap": {
+            "MIN": "20",
+            "PTS": "8",
+            "FG": "3-6",
+            "3PT": "2-4",
+            "FT": "0-0",
+            "REB": "1",
+            "AST": "0",
+            "TO": "1",
+            "STL": "0",
+            "BLK": "1",
+            "OREB": "0",
+            "DREB": "1",
+            "PF": "1"
+          },
+          "summaryLine": "PTS 8 • REB 1 • AST 0",
+          "order": 1,
+          "isStarter": true
+        },
+        {
+          "id": "5254338",
+          "name": "Jake Hall",
+          "position": "G",
+          "jersey": "23",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5254338.png",
+          "statMap": {
+            "MIN": "19",
+            "PTS": "2",
+            "FG": "1-7",
+            "3PT": "0-5",
+            "FT": "0-1",
+            "REB": "5",
+            "AST": "0",
+            "TO": "0",
+            "STL": "0",
+            "BLK": "0",
+            "OREB": "0",
+            "DREB": "5",
+            "PF": "1"
+          },
+          "summaryLine": "PTS 2 • REB 5 • AST 0",
+          "order": 2,
+          "isStarter": true
+        },
+        {
+          "id": "5188026",
+          "name": "Luke Haupt",
+          "position": "G",
+          "jersey": "3",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5188026.png",
+          "statMap": {
+            "MIN": "17",
+            "PTS": "7",
+            "FG": "3-6",
+            "3PT": "0-1",
+            "FT": "1-1",
+            "REB": "2",
+            "AST": "1",
+            "TO": "1",
+            "STL": "1",
+            "BLK": "0",
+            "OREB": "1",
+            "DREB": "1",
+            "PF": "0"
+          },
+          "summaryLine": "PTS 7 • REB 2 • AST 1",
+          "order": 3,
+          "isStarter": true
+        },
+        {
+          "id": "5176237",
+          "name": "Deyton Albury",
+          "position": "G",
+          "jersey": "1",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5176237.png",
+          "statMap": {
+            "MIN": "13",
+            "PTS": "4",
+            "FG": "2-5",
+            "3PT": "0-1",
+            "FT": "0-0",
+            "REB": "4",
+            "AST": "2",
+            "TO": "1",
+            "STL": "2",
+            "BLK": "0",
+            "OREB": "0",
+            "DREB": "4",
+            "PF": "2"
+          },
+          "summaryLine": "PTS 4 • REB 4 • AST 2",
+          "order": 4,
+          "isStarter": true
+        }
+      ],
+      "bench": [
+        {
+          "id": "5241961",
+          "name": "Milos Vicentic",
+          "position": "F",
+          "jersey": "31",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5241961.png",
+          "statMap": {
+            "MIN": "5",
+            "PTS": "0",
+            "FG": "0-1",
+            "3PT": "0-0",
+            "FT": "0-0",
+            "REB": "0",
+            "AST": "0",
+            "TO": "0",
+            "STL": "0",
+            "BLK": "0",
+            "OREB": "0",
+            "DREB": "0",
+            "PF": "0"
+          },
+          "summaryLine": "PTS 0 • REB 0 • AST 0",
+          "order": 5
+        },
+        {
+          "id": "5061598",
+          "name": "JT Rock",
+          "position": "C",
+          "jersey": "35",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5061598.png",
+          "statMap": {
+            "MIN": "9",
+            "PTS": "0",
+            "FG": "0-1",
+            "3PT": "0-1",
+            "FT": "0-0",
+            "REB": "2",
+            "AST": "0",
+            "TO": "0",
+            "STL": "0",
+            "BLK": "2",
+            "OREB": "0",
+            "DREB": "2",
+            "PF": "1"
+          },
+          "summaryLine": "PTS 0 • REB 2 • AST 0",
+          "order": 6
+        },
+        {
+          "id": "5315586",
+          "name": "Timéo Pons",
+          "position": "G",
+          "jersey": "29",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5315586.png",
+          "statMap": {},
+          "order": 7
+        },
+        {
+          "id": "5315584",
+          "name": "Sir Marius Jones",
+          "position": "G",
+          "jersey": "7",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5315584.png",
+          "statMap": {},
+          "order": 8
+        },
+        {
+          "id": "5254340",
+          "name": "Uriah Tenette",
+          "position": "G",
+          "jersey": "4",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5254340.png",
+          "statMap": {
+            "MIN": "15",
+            "PTS": "4",
+            "FG": "1-5",
+            "3PT": "0-2",
+            "FT": "2-2",
+            "REB": "2",
+            "AST": "0",
+            "TO": "0",
+            "STL": "0",
+            "BLK": "0",
+            "OREB": "1",
+            "DREB": "1",
+            "PF": "1"
+          },
+          "summaryLine": "PTS 4 • REB 2 • AST 0",
+          "order": 9
+        },
+        {
+          "id": "5239634",
+          "name": "Kallai Patton",
+          "position": "G",
+          "jersey": "11",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5239634.png",
+          "statMap": {},
+          "order": 10
+        },
+        {
+          "id": "5176443",
+          "name": "Kevin Patton Jr.",
+          "position": "G",
+          "jersey": "0",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5176443.png",
+          "statMap": {},
+          "order": 11
+        },
+        {
+          "id": "5107272",
+          "name": "Tajavis Miller",
+          "position": "G",
+          "jersey": "2",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/5107272.png",
+          "statMap": {
+            "MIN": "7",
+            "PTS": "0",
+            "FG": "0-2",
+            "3PT": "0-0",
+            "FT": "0-0",
+            "REB": "2",
+            "AST": "0",
+            "TO": "0",
+            "STL": "0",
+            "BLK": "0",
+            "OREB": "0",
+            "DREB": "2",
+            "PF": "0"
+          },
+          "summaryLine": "PTS 0 • REB 2 • AST 0",
+          "order": 12
+        },
+        {
+          "id": "4684163",
+          "name": "Chris Howell",
+          "position": "G",
+          "jersey": "8",
+          "headshot": "https://a.espncdn.com/i/headshots/mens-college-basketball/players/full/4684163.png",
+          "statMap": {},
+          "order": 13
+        }
+      ],
+      "offense": [],
+      "defense": [],
+      "specialTeams": [],
+      "forwards": [],
+      "defensemen": [],
+      "goalies": []
+    }
+  ],
+  "articles": [],
+  "plays": [
+    {
+      "id": "401823821116528312",
+      "period": 1,
+      "clock": "20:00",
+      "text": "Start game",
+      "homeScore": 0,
+      "awayScore": 0
+    },
+    {
+      "id": "401823821116528313",
+      "period": 1,
+      "clock": "19:59",
+      "text": "Jump Ball won by Boise State",
+      "homeScore": 0,
+      "awayScore": 0,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528314",
+      "period": 1,
+      "clock": "19:59",
+      "text": "Jump Ball lost by New Mexico",
+      "homeScore": 0,
+      "awayScore": 0,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528331",
+      "period": 1,
+      "clock": "19:44",
+      "text": "Dylan Andrews traveling turnover",
+      "homeScore": 0,
+      "awayScore": 0,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528343",
+      "period": 1,
+      "clock": "19:16",
+      "text": "Tomislav Buljan makes layup",
+      "homeScore": 0,
+      "awayScore": 2,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528384",
+      "period": 1,
+      "clock": "18:48",
+      "text": "Drew Fielder misses 25-foot three point jumper",
+      "homeScore": 0,
+      "awayScore": 2,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528385",
+      "period": 1,
+      "clock": "18:45",
+      "text": "Deyton Albury Defensive Rebound.",
+      "homeScore": 0,
+      "awayScore": 2,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528421",
+      "period": 1,
+      "clock": "18:25",
+      "text": "Tomislav Buljan makes 3-foot alley oop dunk (Deyton Albury assists)",
+      "homeScore": 0,
+      "awayScore": 4,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528464",
+      "period": 1,
+      "clock": "17:53",
+      "text": "Drew Fielder misses 25-foot three point jumper",
+      "homeScore": 0,
+      "awayScore": 4,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528465",
+      "period": 1,
+      "clock": "17:50",
+      "text": "Andrew Meadow Offensive Rebound.",
+      "homeScore": 0,
+      "awayScore": 4,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528500",
+      "period": 1,
+      "clock": "17:43",
+      "text": "Dylan Andrews misses 23-foot three point jumper",
+      "homeScore": 0,
+      "awayScore": 4,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528501",
+      "period": 1,
+      "clock": "17:40",
+      "text": "Antonio Chol Defensive Rebound.",
+      "homeScore": 0,
+      "awayScore": 4,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528521",
+      "period": 1,
+      "clock": "17:19",
+      "text": "Jake Hall misses 23-foot three point jumper",
+      "homeScore": 0,
+      "awayScore": 4,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528522",
+      "period": 1,
+      "clock": "17:15",
+      "text": "Andrew Meadow Defensive Rebound.",
+      "homeScore": 0,
+      "awayScore": 4,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528535",
+      "period": 1,
+      "clock": "16:56",
+      "text": "Javan Buchanan misses 23-foot three point jumper",
+      "homeScore": 0,
+      "awayScore": 4,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528537",
+      "period": 1,
+      "clock": "16:50",
+      "text": "Tomislav Buljan Defensive Rebound.",
+      "homeScore": 0,
+      "awayScore": 4,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528547",
+      "period": 1,
+      "clock": "16:46",
+      "text": "Luke Haupt misses 25-foot three point jumper",
+      "homeScore": 0,
+      "awayScore": 4,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528548",
+      "period": 1,
+      "clock": "16:43",
+      "text": "Tomislav Buljan Offensive Rebound.",
+      "homeScore": 0,
+      "awayScore": 4,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528549",
+      "period": 1,
+      "clock": "16:42",
+      "text": "Tomislav Buljan makes layup",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528557",
+      "period": 1,
+      "clock": "16:32",
+      "text": "Foul on Tomislav Buljan.",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528560",
+      "period": 1,
+      "clock": "16:32",
+      "text": "Dylan Andrews subbing out for Boise State",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528561",
+      "period": 1,
+      "clock": "16:32",
+      "text": "Drew Fielder subbing out for Boise State",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528562",
+      "period": 1,
+      "clock": "16:32",
+      "text": "Aginaldo Neto subbing in for Boise State",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528563",
+      "period": 1,
+      "clock": "16:32",
+      "text": "Dominic Parolin subbing in for Boise State",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528564",
+      "period": 1,
+      "clock": "16:32",
+      "text": "Tomislav Buljan subbing out for New Mexico",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528565",
+      "period": 1,
+      "clock": "16:32",
+      "text": "Jake Hall subbing out for New Mexico",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528566",
+      "period": 1,
+      "clock": "16:32",
+      "text": "Uriah Tenette subbing in for New Mexico",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528567",
+      "period": 1,
+      "clock": "16:32",
+      "text": "JT Rock subbing in for New Mexico",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528579",
+      "period": 1,
+      "clock": "16:13",
+      "text": "Javan Buchanan misses 5-foot pullup jump shot",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528580",
+      "period": 1,
+      "clock": "16:09",
+      "text": "Dominic Parolin Offensive Rebound.",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528582",
+      "period": 1,
+      "clock": "16:03",
+      "text": "Javan Buchanan misses 22-foot three point jumper",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528589",
+      "period": 1,
+      "clock": "16:01",
+      "text": "New Mexico Deadball Team Rebound.",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528590",
+      "period": 1,
+      "clock": "16:01",
+      "text": "Foul on Andrew Meadow.",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528595",
+      "period": 1,
+      "clock": "16:01",
+      "text": "RJ Keene II subbing out for Boise State",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528597",
+      "period": 1,
+      "clock": "16:01",
+      "text": "Javan Buchanan subbing out for Boise State",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528598",
+      "period": 1,
+      "clock": "16:01",
+      "text": "Pearson Carmichael subbing in for Boise State",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528599",
+      "period": 1,
+      "clock": "16:01",
+      "text": "Spencer Ahrens subbing in for Boise State",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528600",
+      "period": 1,
+      "clock": "16:01",
+      "text": "Luke Haupt subbing out for New Mexico",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528601",
+      "period": 1,
+      "clock": "16:01",
+      "text": "Tajavis Miller subbing in for New Mexico",
+      "homeScore": 0,
+      "awayScore": 6,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528613",
+      "period": 1,
+      "clock": "15:37",
+      "text": "Antonio Chol makes 8-foot turnaround jump shot",
+      "homeScore": 0,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528470",
+      "period": 1,
+      "clock": "15:27",
+      "text": "Foul on Deyton Albury.",
+      "homeScore": 0,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528472",
+      "period": 1,
+      "clock": "15:27",
+      "text": "Official TV Timeout",
+      "homeScore": 0,
+      "awayScore": 8
+    },
+    {
+      "id": "401823821116528733",
+      "period": 1,
+      "clock": "15:05",
+      "text": "Foul on Deyton Albury.",
+      "homeScore": 0,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528745",
+      "period": 1,
+      "clock": "15:05",
+      "text": "Aginaldo Neto makes free throw 1 of 2",
+      "homeScore": 1,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528772",
+      "period": 1,
+      "clock": "15:05",
+      "text": "Aginaldo Neto makes free throw 2 of 2",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528776",
+      "period": 1,
+      "clock": "15:05",
+      "text": "Deyton Albury subbing out for New Mexico",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528777",
+      "period": 1,
+      "clock": "15:05",
+      "text": "Jake Hall subbing in for New Mexico",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528782",
+      "period": 1,
+      "clock": "14:53",
+      "text": "Jake Hall misses 29-foot three point jumper",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528783",
+      "period": 1,
+      "clock": "14:50",
+      "text": "Dominic Parolin Defensive Rebound.",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528809",
+      "period": 1,
+      "clock": "14:34",
+      "text": "Foul on Uriah Tenette.",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528817",
+      "period": 1,
+      "clock": "14:30",
+      "text": "Pearson Carmichael misses 28-foot three point jumper",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528818",
+      "period": 1,
+      "clock": "14:27",
+      "text": "Jake Hall Defensive Rebound.",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528821",
+      "period": 1,
+      "clock": "14:07",
+      "text": "Antonio Chol bad pass\nturnover",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528825",
+      "period": 1,
+      "clock": "14:07",
+      "text": "Andrew Meadow subbing out for Boise State",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528846",
+      "period": 1,
+      "clock": "14:07",
+      "text": "Dylan Andrews subbing in for Boise State",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528849",
+      "period": 1,
+      "clock": "13:51",
+      "text": "Dominic Parolin misses 25-foot three point jumper",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528859",
+      "period": 1,
+      "clock": "13:48",
+      "text": "Tajavis Miller Defensive Rebound.",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528860",
+      "period": 1,
+      "clock": "13:44",
+      "text": "Tajavis Miller misses driving layup",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528861",
+      "period": 1,
+      "clock": "13:41",
+      "text": "Dominic Parolin Defensive Rebound.",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528886",
+      "period": 1,
+      "clock": "13:30",
+      "text": "Dylan Andrews misses 24-foot three point jumper",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528893",
+      "period": 1,
+      "clock": "13:27",
+      "text": "Tajavis Miller Defensive Rebound.",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528897",
+      "period": 1,
+      "clock": "13:03",
+      "text": "Uriah Tenette misses 25-foot three point jumper",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528898",
+      "period": 1,
+      "clock": "13:00",
+      "text": "Dylan Andrews Defensive Rebound.",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528902",
+      "period": 1,
+      "clock": "12:48",
+      "text": "Dominic Parolin misses 25-foot three point jumper",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528903",
+      "period": 1,
+      "clock": "12:45",
+      "text": "Jake Hall Defensive Rebound.",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528932",
+      "period": 1,
+      "clock": "12:37",
+      "text": "JT Rock misses 26-foot three point jumper",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528933",
+      "period": 1,
+      "clock": "12:34",
+      "text": "Pearson Carmichael Defensive Rebound.",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528937",
+      "period": 1,
+      "clock": "12:30",
+      "text": "Foul on Jake Hall.",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528941",
+      "period": 1,
+      "clock": "12:30",
+      "text": "Dominic Parolin subbing out for Boise State",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528942",
+      "period": 1,
+      "clock": "12:30",
+      "text": "Drew Fielder subbing in for Boise State",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528943",
+      "period": 1,
+      "clock": "12:30",
+      "text": "Tajavis Miller subbing out for New Mexico",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528944",
+      "period": 1,
+      "clock": "12:30",
+      "text": "Antonio Chol subbing out for New Mexico",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528945",
+      "period": 1,
+      "clock": "12:30",
+      "text": "JT Rock subbing out for New Mexico",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528946",
+      "period": 1,
+      "clock": "12:30",
+      "text": "Luke Haupt subbing in for New Mexico",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528947",
+      "period": 1,
+      "clock": "12:30",
+      "text": "Tomislav Buljan subbing in for New Mexico",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528948",
+      "period": 1,
+      "clock": "12:30",
+      "text": "Milos Vicentic subbing in for New Mexico",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528952",
+      "period": 1,
+      "clock": "12:09",
+      "text": "Drew Fielder misses layup",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528953",
+      "period": 1,
+      "clock": "12:07",
+      "text": "Tomislav Buljan Defensive Rebound.",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116528957",
+      "period": 1,
+      "clock": "11:55",
+      "text": "Foul on Aginaldo Neto.",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528959",
+      "period": 1,
+      "clock": "11:55",
+      "text": "Official TV Timeout",
+      "homeScore": 2,
+      "awayScore": 8
+    },
+    {
+      "id": "401823821116528986",
+      "period": 1,
+      "clock": "11:55",
+      "text": "Spencer Ahrens subbing out for Boise State",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116528987",
+      "period": 1,
+      "clock": "11:55",
+      "text": "Javan Buchanan subbing in for Boise State",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529026",
+      "period": 1,
+      "clock": "11:55",
+      "text": "Aginaldo Neto subbing out for Boise State",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529028",
+      "period": 1,
+      "clock": "11:55",
+      "text": "RJ Keene II subbing in for Boise State",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529108",
+      "period": 1,
+      "clock": "11:38",
+      "text": "Luke Haupt bad pass\nturnover",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529109",
+      "period": 1,
+      "clock": "11:38",
+      "text": "Pearson Carmichael Steal.",
+      "homeScore": 2,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529113",
+      "period": 1,
+      "clock": "11:21",
+      "text": "Drew Fielder makes 23-foot three point jumper",
+      "homeScore": 5,
+      "awayScore": 8,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529123",
+      "period": 1,
+      "clock": "10:57",
+      "text": "Uriah Tenette misses 26-foot three point jumper",
+      "homeScore": 5,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529125",
+      "period": 1,
+      "clock": "10:54",
+      "text": "Tomislav Buljan Offensive Rebound.",
+      "homeScore": 5,
+      "awayScore": 8,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529147",
+      "period": 1,
+      "clock": "10:54",
+      "text": "Tomislav Buljan makes layup",
+      "homeScore": 5,
+      "awayScore": 10,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529152",
+      "period": 1,
+      "clock": "10:54",
+      "text": "Foul on Drew Fielder.",
+      "homeScore": 5,
+      "awayScore": 10,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529158",
+      "period": 1,
+      "clock": "10:54",
+      "text": "Uriah Tenette subbing out for New Mexico",
+      "homeScore": 5,
+      "awayScore": 10,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529159",
+      "period": 1,
+      "clock": "10:54",
+      "text": "Deyton Albury subbing in for New Mexico",
+      "homeScore": 5,
+      "awayScore": 10,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529161",
+      "period": 1,
+      "clock": "10:54",
+      "text": "Tomislav Buljan makes free throw 1 of 1",
+      "homeScore": 5,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529194",
+      "period": 1,
+      "clock": "10:45",
+      "text": "Pearson Carmichael misses 27-foot three point jumper",
+      "homeScore": 5,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529195",
+      "period": 1,
+      "clock": "10:42",
+      "text": "RJ Keene II Offensive Rebound.",
+      "homeScore": 5,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529197",
+      "period": 1,
+      "clock": "10:23",
+      "text": "Dylan Andrews misses 12-foot pullup jump shot",
+      "homeScore": 5,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529198",
+      "period": 1,
+      "clock": "10:20",
+      "text": "Tomislav Buljan Defensive Rebound.",
+      "homeScore": 5,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529204",
+      "period": 1,
+      "clock": "10:14",
+      "text": "Jake Hall misses 5-foot jumper",
+      "homeScore": 5,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529205",
+      "period": 1,
+      "clock": "10:14",
+      "text": "RJ Keene II Block.",
+      "homeScore": 5,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529226",
+      "period": 1,
+      "clock": "10:08",
+      "text": "Dylan Andrews Defensive Rebound.",
+      "homeScore": 5,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529230",
+      "period": 1,
+      "clock": "10:07",
+      "text": "Javan Buchanan makes driving layup (Dylan Andrews assists)",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529236",
+      "period": 1,
+      "clock": "9:54",
+      "text": "Tomislav Buljan misses 25-foot three point jumper",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529237",
+      "period": 1,
+      "clock": "9:51",
+      "text": "RJ Keene II Defensive Rebound.",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529244",
+      "period": 1,
+      "clock": "9:43",
+      "text": "Drew Fielder bad pass\nturnover",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529245",
+      "period": 1,
+      "clock": "9:43",
+      "text": "Deyton Albury Steal.",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529249",
+      "period": 1,
+      "clock": "9:35",
+      "text": "Deyton Albury bad pass\nturnover",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529250",
+      "period": 1,
+      "clock": "9:35",
+      "text": "Dylan Andrews Steal.",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529257",
+      "period": 1,
+      "clock": "9:35",
+      "text": "Dylan Andrews subbing out for Boise State",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529258",
+      "period": 1,
+      "clock": "9:35",
+      "text": "Pearson Carmichael subbing out for Boise State",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529259",
+      "period": 1,
+      "clock": "9:35",
+      "text": "Drew Fielder subbing out for Boise State",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529260",
+      "period": 1,
+      "clock": "9:35",
+      "text": "Aginaldo Neto subbing in for Boise State",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529262",
+      "period": 1,
+      "clock": "9:35",
+      "text": "Dominic Parolin subbing in for Boise State",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529263",
+      "period": 1,
+      "clock": "9:35",
+      "text": "Andrew Meadow subbing in for Boise State",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529297",
+      "period": 1,
+      "clock": "9:18",
+      "text": "Foul on Tomislav Buljan.",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529326",
+      "period": 1,
+      "clock": "9:18",
+      "text": "Luke Haupt subbing out for New Mexico",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529327",
+      "period": 1,
+      "clock": "9:18",
+      "text": "Tomislav Buljan subbing out for New Mexico",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529328",
+      "period": 1,
+      "clock": "9:18",
+      "text": "Jake Hall subbing out for New Mexico",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529329",
+      "period": 1,
+      "clock": "9:18",
+      "text": "Milos Vicentic subbing out for New Mexico",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529331",
+      "period": 1,
+      "clock": "9:18",
+      "text": "Tajavis Miller subbing in for New Mexico",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529332",
+      "period": 1,
+      "clock": "9:18",
+      "text": "Uriah Tenette subbing in for New Mexico",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529333",
+      "period": 1,
+      "clock": "9:18",
+      "text": "Antonio Chol subbing in for New Mexico",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529334",
+      "period": 1,
+      "clock": "9:18",
+      "text": "JT Rock subbing in for New Mexico",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529336",
+      "period": 1,
+      "clock": "9:02",
+      "text": "Aginaldo Neto misses driving layup",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529337",
+      "period": 1,
+      "clock": "8:57",
+      "text": "Dominic Parolin Offensive Rebound.",
+      "homeScore": 7,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529341",
+      "period": 1,
+      "clock": "8:54",
+      "text": "Andrew Meadow makes 9-foot floating jump shot",
+      "homeScore": 9,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529345",
+      "period": 1,
+      "clock": "8:38",
+      "text": "Antonio Chol misses 30-foot three point jumper",
+      "homeScore": 9,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529348",
+      "period": 1,
+      "clock": "8:35",
+      "text": "Aginaldo Neto Defensive Rebound.",
+      "homeScore": 9,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529349",
+      "period": 1,
+      "clock": "8:31",
+      "text": "Andrew Meadow misses layup",
+      "homeScore": 9,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529350",
+      "period": 1,
+      "clock": "8:31",
+      "text": "JT Rock Block.",
+      "homeScore": 9,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529351",
+      "period": 1,
+      "clock": "8:28",
+      "text": "JT Rock Defensive Rebound.",
+      "homeScore": 9,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529360",
+      "period": 1,
+      "clock": "8:03",
+      "text": "Deyton Albury misses 26-foot three point jumper",
+      "homeScore": 9,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529361",
+      "period": 1,
+      "clock": "8:03",
+      "text": "RJ Keene II Block.",
+      "homeScore": 9,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529389",
+      "period": 1,
+      "clock": "7:59",
+      "text": "team  shot clock turnover ",
+      "homeScore": 9,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529390",
+      "period": 1,
+      "clock": "7:59",
+      "text": "Official TV Timeout",
+      "homeScore": 9,
+      "awayScore": 11
+    },
+    {
+      "id": "401823821116529442",
+      "period": 1,
+      "clock": "7:59",
+      "text": "RJ Keene II subbing out for Boise State",
+      "homeScore": 9,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529443",
+      "period": 1,
+      "clock": "7:59",
+      "text": "Pearson Carmichael subbing in for Boise State",
+      "homeScore": 9,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529388",
+      "period": 1,
+      "clock": "7:58",
+      "text": "New Mexico Deadball Team Rebound.",
+      "homeScore": 9,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529489",
+      "period": 1,
+      "clock": "7:45",
+      "text": "Dominic Parolin makes layup",
+      "homeScore": 11,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529482",
+      "period": 1,
+      "clock": "7:19",
+      "text": "Tajavis Miller misses 8-foot jumper",
+      "homeScore": 11,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529483",
+      "period": 1,
+      "clock": "7:14",
+      "text": "Javan Buchanan Defensive Rebound.",
+      "homeScore": 11,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529484",
+      "period": 1,
+      "clock": "7:05",
+      "text": "Pearson Carmichael misses 23-foot three point jumper",
+      "homeScore": 11,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529485",
+      "period": 1,
+      "clock": "7:02",
+      "text": "Deyton Albury Defensive Rebound.",
+      "homeScore": 11,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529526",
+      "period": 1,
+      "clock": "6:56",
+      "text": "Deyton Albury misses driving layup",
+      "homeScore": 11,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529535",
+      "period": 1,
+      "clock": "6:56",
+      "text": "Aginaldo Neto Block.",
+      "homeScore": 11,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529536",
+      "period": 1,
+      "clock": "6:52",
+      "text": "Dominic Parolin Defensive Rebound.",
+      "homeScore": 11,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529537",
+      "period": 1,
+      "clock": "6:45",
+      "text": "Dominic Parolin misses 25-foot three point jumper",
+      "homeScore": 11,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529538",
+      "period": 1,
+      "clock": "6:40",
+      "text": "Deyton Albury Defensive Rebound.",
+      "homeScore": 11,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529539",
+      "period": 1,
+      "clock": "6:24",
+      "text": "Uriah Tenette misses layup",
+      "homeScore": 11,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529542",
+      "period": 1,
+      "clock": "6:21",
+      "text": "Dominic Parolin Defensive Rebound.",
+      "homeScore": 11,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529543",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Aginaldo Neto makes driving layup",
+      "homeScore": 13,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529566",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Foul on JT Rock.",
+      "homeScore": 13,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529570",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Aginaldo Neto makes free throw 1 of 1",
+      "homeScore": 14,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529572",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Aginaldo Neto subbing out for Boise State",
+      "homeScore": 14,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529573",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Dominic Parolin subbing out for Boise State",
+      "homeScore": 14,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529574",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Javan Buchanan subbing out for Boise State",
+      "homeScore": 14,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529575",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Dylan Andrews subbing in for Boise State",
+      "homeScore": 14,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529576",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Spencer Ahrens subbing in for Boise State",
+      "homeScore": 14,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529577",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Drew Fielder subbing in for Boise State",
+      "homeScore": 14,
+      "awayScore": 11,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529578",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Deyton Albury subbing out for New Mexico",
+      "homeScore": 14,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529579",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Tajavis Miller subbing out for New Mexico",
+      "homeScore": 14,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529580",
+      "period": 1,
+      "clock": "6:14",
+      "text": "JT Rock subbing out for New Mexico",
+      "homeScore": 14,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529581",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Luke Haupt subbing in for New Mexico",
+      "homeScore": 14,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529582",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Tomislav Buljan subbing in for New Mexico",
+      "homeScore": 14,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529583",
+      "period": 1,
+      "clock": "6:14",
+      "text": "Jake Hall subbing in for New Mexico",
+      "homeScore": 14,
+      "awayScore": 11,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529585",
+      "period": 1,
+      "clock": "5:55",
+      "text": "Luke Haupt makes 8-foot pullup jump shot",
+      "homeScore": 14,
+      "awayScore": 13,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529630",
+      "period": 1,
+      "clock": "5:32",
+      "text": "Pearson Carmichael makes 25-foot three point jumper (Andrew Meadow assists)",
+      "homeScore": 17,
+      "awayScore": 13,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529634",
+      "period": 1,
+      "clock": "5:12",
+      "text": "Tomislav Buljan misses 7-foot hook shot",
+      "homeScore": 17,
+      "awayScore": 13,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529636",
+      "period": 1,
+      "clock": "5:09",
+      "text": "Pearson Carmichael Defensive Rebound.",
+      "homeScore": 17,
+      "awayScore": 13,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529641",
+      "period": 1,
+      "clock": "4:56",
+      "text": "Pearson Carmichael misses 25-foot three point jumper",
+      "homeScore": 17,
+      "awayScore": 13,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529642",
+      "period": 1,
+      "clock": "4:51",
+      "text": "New Mexico Defensive Rebound.",
+      "homeScore": 17,
+      "awayScore": 13,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529644",
+      "period": 1,
+      "clock": "4:36",
+      "text": "Tomislav Buljan traveling turnover",
+      "homeScore": 17,
+      "awayScore": 13,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529645",
+      "period": 1,
+      "clock": "4:36",
+      "text": "Pearson Carmichael subbing out for Boise State",
+      "homeScore": 17,
+      "awayScore": 13,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529686",
+      "period": 1,
+      "clock": "4:36",
+      "text": "RJ Keene II subbing in for Boise State",
+      "homeScore": 17,
+      "awayScore": 13,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529689",
+      "period": 1,
+      "clock": "4:22",
+      "text": "RJ Keene II bad pass\nturnover",
+      "homeScore": 17,
+      "awayScore": 13,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529690",
+      "period": 1,
+      "clock": "4:22",
+      "text": "Tomislav Buljan Steal.",
+      "homeScore": 17,
+      "awayScore": 13,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529691",
+      "period": 1,
+      "clock": "4:17",
+      "text": "Uriah Tenette misses 13-foot pullup jump shot",
+      "homeScore": 17,
+      "awayScore": 13,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529692",
+      "period": 1,
+      "clock": "4:13",
+      "text": "Dylan Andrews Defensive Rebound.",
+      "homeScore": 17,
+      "awayScore": 13,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529693",
+      "period": 1,
+      "clock": "4:08",
+      "text": "Spencer Ahrens makes layup",
+      "homeScore": 19,
+      "awayScore": 13,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529697",
+      "period": 1,
+      "clock": "3:50",
+      "text": "Luke Haupt makes 6-foot hook shot",
+      "homeScore": 19,
+      "awayScore": 15,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529720",
+      "period": 1,
+      "clock": "3:34",
+      "text": "Foul on RJ Keene II.",
+      "homeScore": 19,
+      "awayScore": 15,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529721",
+      "period": 1,
+      "clock": "3:34",
+      "text": "RJ Keene II turnover",
+      "homeScore": 19,
+      "awayScore": 15,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529723",
+      "period": 1,
+      "clock": "3:34",
+      "text": "Official TV Timeout",
+      "homeScore": 19,
+      "awayScore": 15
+    },
+    {
+      "id": "401823821116529864",
+      "period": 1,
+      "clock": "3:34",
+      "text": "Antonio Chol subbing out for New Mexico",
+      "homeScore": 19,
+      "awayScore": 15,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529867",
+      "period": 1,
+      "clock": "3:34",
+      "text": "Milos Vicentic subbing in for New Mexico",
+      "homeScore": 19,
+      "awayScore": 15,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529870",
+      "period": 1,
+      "clock": "3:08",
+      "text": "Luke Haupt misses driving layup",
+      "homeScore": 19,
+      "awayScore": 15,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529872",
+      "period": 1,
+      "clock": "3:07",
+      "text": "Spencer Ahrens Defensive Rebound.",
+      "homeScore": 19,
+      "awayScore": 15,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529874",
+      "period": 1,
+      "clock": "3:07",
+      "text": "Foul on Tomislav Buljan.",
+      "homeScore": 19,
+      "awayScore": 15,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529877",
+      "period": 1,
+      "clock": "3:07",
+      "text": "Tomislav Buljan subbing out for New Mexico",
+      "homeScore": 19,
+      "awayScore": 15,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529879",
+      "period": 1,
+      "clock": "3:07",
+      "text": "JT Rock subbing in for New Mexico",
+      "homeScore": 19,
+      "awayScore": 15,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529881",
+      "period": 1,
+      "clock": "3:07",
+      "text": "Spencer Ahrens misses free throw 1 of 1",
+      "homeScore": 19,
+      "awayScore": 15,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529883",
+      "period": 1,
+      "clock": "3:05",
+      "text": "Uriah Tenette Defensive Rebound.",
+      "homeScore": 19,
+      "awayScore": 15,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529884",
+      "period": 1,
+      "clock": "2:57",
+      "text": "Foul on Andrew Meadow.",
+      "homeScore": 19,
+      "awayScore": 15,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529921",
+      "period": 1,
+      "clock": "2:57",
+      "text": "Uriah Tenette makes free throw 1 of 2",
+      "homeScore": 19,
+      "awayScore": 16,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529932",
+      "period": 1,
+      "clock": "2:57",
+      "text": "RJ Keene II subbing out for Boise State",
+      "homeScore": 19,
+      "awayScore": 16,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529933",
+      "period": 1,
+      "clock": "2:57",
+      "text": "Andrew Meadow subbing out for Boise State",
+      "homeScore": 19,
+      "awayScore": 16,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529934",
+      "period": 1,
+      "clock": "2:57",
+      "text": "Aginaldo Neto subbing in for Boise State",
+      "homeScore": 19,
+      "awayScore": 16,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529935",
+      "period": 1,
+      "clock": "2:57",
+      "text": "Pearson Carmichael subbing in for Boise State",
+      "homeScore": 19,
+      "awayScore": 16,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529949",
+      "period": 1,
+      "clock": "2:57",
+      "text": "Uriah Tenette makes free throw 2 of 2",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529950",
+      "period": 1,
+      "clock": "2:57",
+      "text": "Milos Vicentic subbing out for New Mexico",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529952",
+      "period": 1,
+      "clock": "2:57",
+      "text": "Antonio Chol subbing in for New Mexico",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529974",
+      "period": 1,
+      "clock": "2:41",
+      "text": "Spencer Ahrens misses layup",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529975",
+      "period": 1,
+      "clock": "2:41",
+      "text": "JT Rock Block.",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529977",
+      "period": 1,
+      "clock": "2:38",
+      "text": "JT Rock Defensive Rebound.",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529981",
+      "period": 1,
+      "clock": "2:33",
+      "text": "Jake Hall misses 25-foot three point jumper",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529982",
+      "period": 1,
+      "clock": "2:30",
+      "text": "Uriah Tenette Offensive Rebound.",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529984",
+      "period": 1,
+      "clock": "2:25",
+      "text": "Luke Haupt misses driving layup",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529985",
+      "period": 1,
+      "clock": "2:25",
+      "text": "Dylan Andrews Block.",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529987",
+      "period": 1,
+      "clock": "2:25",
+      "text": "Boise State Defensive Rebound.",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529988",
+      "period": 1,
+      "clock": "2:23",
+      "text": "Spencer Ahrens subbing out for Boise State",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529989",
+      "period": 1,
+      "clock": "2:23",
+      "text": "Drew Fielder subbing out for Boise State",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529991",
+      "period": 1,
+      "clock": "2:23",
+      "text": "Dominic Parolin subbing in for Boise State",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529994",
+      "period": 1,
+      "clock": "2:23",
+      "text": "Javan Buchanan subbing in for Boise State",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529996",
+      "period": 1,
+      "clock": "2:10",
+      "text": "Aginaldo Neto bad pass\nturnover",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116529998",
+      "period": 1,
+      "clock": "2:10",
+      "text": "JT Rock subbing out for New Mexico",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116529999",
+      "period": 1,
+      "clock": "2:10",
+      "text": "Milos Vicentic subbing in for New Mexico",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530049",
+      "period": 1,
+      "clock": "1:59",
+      "text": "Milos Vicentic misses 8-foot jumper",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530060",
+      "period": 1,
+      "clock": "1:55",
+      "text": "Dominic Parolin Defensive Rebound.",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530071",
+      "period": 1,
+      "clock": "1:47",
+      "text": "Foul on Antonio Chol.",
+      "homeScore": 19,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530081",
+      "period": 1,
+      "clock": "1:47",
+      "text": "Dominic Parolin makes free throw 1 of 2",
+      "homeScore": 20,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530082",
+      "period": 1,
+      "clock": "1:47",
+      "text": "Aginaldo Neto subbing out for Boise State",
+      "homeScore": 20,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530083",
+      "period": 1,
+      "clock": "1:47",
+      "text": "Bhan Buom subbing in for Boise State",
+      "homeScore": 20,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530084",
+      "period": 1,
+      "clock": "1:47",
+      "text": "Dominic Parolin makes free throw 2 of 2",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530089",
+      "period": 1,
+      "clock": "1:32",
+      "text": "Jake Hall misses 25-foot three point jumper",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530090",
+      "period": 1,
+      "clock": "1:28",
+      "text": "Luke Haupt Offensive Rebound.",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530092",
+      "period": 1,
+      "clock": "1:27",
+      "text": "Antonio Chol misses 26-foot three point jumper",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530095",
+      "period": 1,
+      "clock": "1:24",
+      "text": "Bhan Buom Defensive Rebound.",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530099",
+      "period": 1,
+      "clock": "1:07",
+      "text": "Bhan Buom misses 27-foot three point jumper",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530100",
+      "period": 1,
+      "clock": "1:06",
+      "text": "Jake Hall Defensive Rebound.",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530101",
+      "period": 1,
+      "clock": "1:06",
+      "text": "Foul on Dominic Parolin.",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530105",
+      "period": 1,
+      "clock": "1:06",
+      "text": "Bhan Buom subbing out for Boise State",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530106",
+      "period": 1,
+      "clock": "1:06",
+      "text": "RJ Keene II subbing in for Boise State",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530116",
+      "period": 1,
+      "clock": "0:40",
+      "text": "Foul on Dominic Parolin.",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530121",
+      "period": 1,
+      "clock": "0:40",
+      "text": "Milos Vicentic subbing out for New Mexico",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530122",
+      "period": 1,
+      "clock": "0:40",
+      "text": "JT Rock subbing in for New Mexico",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530148",
+      "period": 1,
+      "clock": "0:40",
+      "text": "Jake Hall misses free throw 1 of 1",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530149",
+      "period": 1,
+      "clock": "0:40",
+      "text": "Pearson Carmichael Defensive Rebound.",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530153",
+      "period": 1,
+      "clock": "0:13",
+      "text": "RJ Keene II misses 25-foot three point jumper",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530154",
+      "period": 1,
+      "clock": "0:08",
+      "text": "Luke Haupt Defensive Rebound.",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530160",
+      "period": 1,
+      "clock": "0:07",
+      "text": "New Mexico Timeout",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530171",
+      "period": 1,
+      "clock": "0:07",
+      "text": "Dominic Parolin subbing out for Boise State",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530172",
+      "period": 1,
+      "clock": "0:07",
+      "text": "Spencer Ahrens subbing in for Boise State",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530173",
+      "period": 1,
+      "clock": "0:07",
+      "text": "JT Rock subbing out for New Mexico",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530174",
+      "period": 1,
+      "clock": "0:07",
+      "text": "Milos Vicentic subbing in for New Mexico",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530178",
+      "period": 1,
+      "clock": "0:07",
+      "text": "Boise State Timeout",
+      "homeScore": 21,
+      "awayScore": 17,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530222",
+      "period": 1,
+      "clock": "0:01",
+      "text": "Uriah Tenette makes driving layup",
+      "homeScore": 21,
+      "awayScore": 19,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530228",
+      "period": 1,
+      "clock": "0:00",
+      "text": "End of 1st half",
+      "homeScore": 21,
+      "awayScore": 19
+    },
+    {
+      "id": "401823821116530357",
+      "period": 2,
+      "clock": "20:00",
+      "text": "Pearson Carmichael subbing out for Boise State",
+      "homeScore": 21,
+      "awayScore": 19,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530358",
+      "period": 2,
+      "clock": "20:00",
+      "text": "Spencer Ahrens subbing out for Boise State",
+      "homeScore": 21,
+      "awayScore": 19,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530359",
+      "period": 2,
+      "clock": "20:00",
+      "text": "Dominic Parolin subbing in for Boise State",
+      "homeScore": 21,
+      "awayScore": 19,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530360",
+      "period": 2,
+      "clock": "20:00",
+      "text": "Andrew Meadow subbing in for Boise State",
+      "homeScore": 21,
+      "awayScore": 19,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530361",
+      "period": 2,
+      "clock": "20:00",
+      "text": "Uriah Tenette subbing out for New Mexico",
+      "homeScore": 21,
+      "awayScore": 19,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530362",
+      "period": 2,
+      "clock": "20:00",
+      "text": "Milos Vicentic subbing out for New Mexico",
+      "homeScore": 21,
+      "awayScore": 19,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530363",
+      "period": 2,
+      "clock": "20:00",
+      "text": "Deyton Albury subbing in for New Mexico",
+      "homeScore": 21,
+      "awayScore": 19,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530364",
+      "period": 2,
+      "clock": "20:00",
+      "text": "Tomislav Buljan subbing in for New Mexico",
+      "homeScore": 21,
+      "awayScore": 19,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530366",
+      "period": 2,
+      "clock": "19:42",
+      "text": "Luke Haupt makes driving layup",
+      "homeScore": 21,
+      "awayScore": 21,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530367",
+      "period": 2,
+      "clock": "19:41",
+      "text": "Foul on RJ Keene II.",
+      "homeScore": 21,
+      "awayScore": 21,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530369",
+      "period": 2,
+      "clock": "19:41",
+      "text": "Luke Haupt makes free throw 1 of 1",
+      "homeScore": 21,
+      "awayScore": 22,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530370",
+      "period": 2,
+      "clock": "19:25",
+      "text": "Andrew Meadow misses 24-foot three point jumper",
+      "homeScore": 21,
+      "awayScore": 22,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530371",
+      "period": 2,
+      "clock": "19:22",
+      "text": "Jake Hall Defensive Rebound.",
+      "homeScore": 21,
+      "awayScore": 22,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530372",
+      "period": 2,
+      "clock": "19:10",
+      "text": "Jake Hall misses 28-foot three point jumper",
+      "homeScore": 21,
+      "awayScore": 22,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530373",
+      "period": 2,
+      "clock": "19:06",
+      "text": "Javan Buchanan Defensive Rebound.",
+      "homeScore": 21,
+      "awayScore": 22,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530374",
+      "period": 2,
+      "clock": "19:04",
+      "text": "Javan Buchanan bad pass\nturnover",
+      "homeScore": 21,
+      "awayScore": 22,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530375",
+      "period": 2,
+      "clock": "19:04",
+      "text": "Deyton Albury Steal.",
+      "homeScore": 21,
+      "awayScore": 22,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530376",
+      "period": 2,
+      "clock": "18:59",
+      "text": "Deyton Albury misses layup",
+      "homeScore": 21,
+      "awayScore": 22,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530378",
+      "period": 2,
+      "clock": "18:55",
+      "text": "Andrew Meadow Defensive Rebound.",
+      "homeScore": 21,
+      "awayScore": 22,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530379",
+      "period": 2,
+      "clock": "18:53",
+      "text": "RJ Keene II misses driving layup",
+      "homeScore": 21,
+      "awayScore": 22,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530381",
+      "period": 2,
+      "clock": "18:53",
+      "text": "Antonio Chol Block.",
+      "homeScore": 21,
+      "awayScore": 22,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530382",
+      "period": 2,
+      "clock": "18:49",
+      "text": "Jake Hall Defensive Rebound.",
+      "homeScore": 21,
+      "awayScore": 22,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530383",
+      "period": 2,
+      "clock": "18:45",
+      "text": "Antonio Chol makes 24-foot three point jumper (Luke Haupt assists)",
+      "homeScore": 21,
+      "awayScore": 25,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530385",
+      "period": 2,
+      "clock": "18:18",
+      "text": "Dylan Andrews misses 13-foot pullup jump shot",
+      "homeScore": 21,
+      "awayScore": 25,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530386",
+      "period": 2,
+      "clock": "18:15",
+      "text": "Tomislav Buljan Defensive Rebound.",
+      "homeScore": 21,
+      "awayScore": 25,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530387",
+      "period": 2,
+      "clock": "18:04",
+      "text": "Deyton Albury makes 8-foot turnaround jump shot",
+      "homeScore": 21,
+      "awayScore": 27,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530388",
+      "period": 2,
+      "clock": "17:44",
+      "text": "Javan Buchanan misses 24-foot three point jumper",
+      "homeScore": 21,
+      "awayScore": 27,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530389",
+      "period": 2,
+      "clock": "17:41",
+      "text": "Deyton Albury Defensive Rebound.",
+      "homeScore": 21,
+      "awayScore": 27,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530390",
+      "period": 2,
+      "clock": "17:34",
+      "text": "Antonio Chol makes 24-foot three point jumper (Deyton Albury assists)",
+      "homeScore": 21,
+      "awayScore": 30,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530297",
+      "period": 2,
+      "clock": "17:32",
+      "text": "Official TV Timeout",
+      "homeScore": 21,
+      "awayScore": 30
+    },
+    {
+      "id": "401823821116530299",
+      "period": 2,
+      "clock": "17:32",
+      "text": "RJ Keene II subbing out for Boise State",
+      "homeScore": 21,
+      "awayScore": 30,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530300",
+      "period": 2,
+      "clock": "17:32",
+      "text": "Andrew Meadow subbing out for Boise State",
+      "homeScore": 21,
+      "awayScore": 30,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530301",
+      "period": 2,
+      "clock": "17:32",
+      "text": "Javan Buchanan subbing out for Boise State",
+      "homeScore": 21,
+      "awayScore": 30,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530302",
+      "period": 2,
+      "clock": "17:32",
+      "text": "Aginaldo Neto subbing in for Boise State",
+      "homeScore": 21,
+      "awayScore": 30,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530303",
+      "period": 2,
+      "clock": "17:32",
+      "text": "Pearson Carmichael subbing in for Boise State",
+      "homeScore": 21,
+      "awayScore": 30,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530304",
+      "period": 2,
+      "clock": "17:32",
+      "text": "Spencer Ahrens subbing in for Boise State",
+      "homeScore": 21,
+      "awayScore": 30,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530392",
+      "period": 2,
+      "clock": "17:32",
+      "text": "Boise State Timeout",
+      "homeScore": 21,
+      "awayScore": 30,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530305",
+      "period": 2,
+      "clock": "17:11",
+      "text": "Aginaldo Neto bad pass\nturnover",
+      "homeScore": 21,
+      "awayScore": 30,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530406",
+      "period": 2,
+      "clock": "17:11",
+      "text": "Luke Haupt Steal.",
+      "homeScore": 21,
+      "awayScore": 30,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530407",
+      "period": 2,
+      "clock": "16:57",
+      "text": "Jake Hall makes 6-foot jumper",
+      "homeScore": 21,
+      "awayScore": 32,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530408",
+      "period": 2,
+      "clock": "16:44",
+      "text": "Aginaldo Neto misses driving layup",
+      "homeScore": 21,
+      "awayScore": 32,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530409",
+      "period": 2,
+      "clock": "16:39",
+      "text": "Spencer Ahrens Offensive Rebound.",
+      "homeScore": 21,
+      "awayScore": 32,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530410",
+      "period": 2,
+      "clock": "16:39",
+      "text": "Spencer Ahrens makes 0-foot tip in dunk",
+      "homeScore": 23,
+      "awayScore": 32,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530411",
+      "period": 2,
+      "clock": "16:28",
+      "text": "Antonio Chol misses 17-foot step back jumpshot",
+      "homeScore": 23,
+      "awayScore": 32,
+      "teamId": "167"
+    },
+    {
+      "id": "401823821116530412",
+      "period": 2,
+      "clock": "16:24",
+      "text": "Spencer Ahrens Defensive Rebound.",
+      "homeScore": 23,
+      "awayScore": 32,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530413",
+      "period": 2,
+      "clock": "16:18",
+      "text": "Spencer Ahrens makes 7-foot pullup jump shot",
+      "homeScore": 25,
+      "awayScore": 32,
+      "teamId": "68"
+    },
+    {
+      "id": "401823821116530414",
+      "period": 2,
+      "clock": "16:07",
+      "text": "Deyton Albury makes 14-foot step back jumpshot",
+      "homeScore": 25,
+      "awayScore": 34,
+      "teamId": "167"
+    }
+  ],
+  "winProbability": {
+    "home": 0.196,
+    "away": 0.804
+  }
+}

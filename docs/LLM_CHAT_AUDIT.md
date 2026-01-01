@@ -40,20 +40,20 @@ User Query → intent-classifier.ts → data-router.ts → Data Sources → LLM 
 
 ### Tool Inventory
 
-#### Static Data Tools (Fast, No API Call)
+#### NBA Team/Player Stats (ESPN)
 
 1. **`getStaticTeamStats`** - NBA team stats including opponent/defensive stats ✅
-   - **What it does**: Returns team offensive/defensive stats from static data files
+   - **What it does**: Returns team offensive/defensive stats from ESPN data
    - **Opponent stats available**: opponent 3P%, eFG%, TS%, ORB allowed, defensive rating, points allowed
    - **Example queries**:
      - "What 3pt% do opponents shoot vs Thunder?"
      - "What's the Lakers defensive rating?"
-   - **Source**: `data/nba_team_2025_26.ts`, `data/nba_team_adv_2025_26.ts`
+   - **Source**: ESPN team stats + ESPN opponent stats aggregation
 
 2. **`getStaticPlayerStats`** - NBA player season averages
    - **What it does**: Returns player PPG, RPG, APG, shooting percentages
    - **Example queries**: "What's Curry's PPG?", "LeBron's shooting percentage?"
-   - **Source**: `data/nba_per_game_2025_26.ts`
+   - **Source**: ESPN player stats endpoints
 
 ---
 
@@ -61,7 +61,7 @@ User Query → intent-classifier.ts → data-router.ts → Data Sources → LLM 
 
 3. **`getEspnTeamStats`** - Current team season stats (multi-sport)
    - **Supports**: NBA, NFL, MLB, NHL
-   - **When used**: When static data not available or for non-NBA sports
+   - **When used**: For non-NBA sports or when you need ESPN team stats directly
 
 4. **`getEspnPlayerStats`** - Player season stats (multi-sport)
    - **Supports**: NBA, NFL, MLB, NHL
@@ -345,7 +345,7 @@ User Query → intent-classifier.ts → data-router.ts → Data Sources → LLM 
    - ✅ Sharp money detection (when data available)
 
 2. **Multi-Sport Coverage**
-   - ✅ NBA: Excellent (static data + ESPN + Covers)
+   - ✅ NBA: Excellent (ESPN + Covers)
    - ⚠️ NFL: Moderate (ESPN only, no Covers)
    - ⚠️ MLB/NHL: Basic (ESPN only)
    - ⚠️ NCAAB/NCAAF: Limited (ESPN recent games only)
@@ -563,7 +563,7 @@ User Query → intent-classifier.ts → data-router.ts → Data Sources → LLM 
 ### D. Missing Multi-Sport Betting Coverage ⚠️ **MEDIUM PRIORITY**
 
 **Current Coverage**:
-- ✅ **NBA**: Excellent (static data + ESPN + Covers ATS + Covers splits)
+- ✅ **NBA**: Excellent (ESPN + Covers ATS + Covers splits)
 - ⚠️ **NFL**: Moderate (ESPN only, no Covers)
 - ⚠️ **MLB/NHL**: Basic (ESPN only)
 - ⚠️ **NCAAB/NCAAF**: Limited (ESPN recent games only)
@@ -1257,7 +1257,7 @@ case 'getLeaderboard': {
 **Requirements**:
 - Detailed box score parser
 - Aggregation logic per team/season
-- Storage in database or static files
+- Storage in database or cached ESPN responses
 
 **Not recommended for immediate implementation** - focus on Priority 1-2 first
 

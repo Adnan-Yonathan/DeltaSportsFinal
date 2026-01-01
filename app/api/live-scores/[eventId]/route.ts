@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { fetchGameDetails, type LeagueId } from "@/lib/live-scores"
+import { type LeagueId } from "@/lib/live-scores"
+import { getCachedGameDetails } from "@/lib/services/live-game-cache"
 
 interface RouteParams {
   params: {
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
-    const data = await fetchGameDetails(leagueParam, eventId)
+    const data = await getCachedGameDetails(leagueParam, eventId)
     return NextResponse.json(data, {
       headers: {
         "Cache-Control": "no-store",

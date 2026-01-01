@@ -3715,7 +3715,7 @@ export async function POST(req: NextRequest) {
 
       const { analyzeSlateEdges } = await import('@/lib/services/slate-edge-detector')
       const slateResult = await analyzeSlateEdges(resolvedSport, {
-        includeProps: false,
+        includeProps: true,
         date: dateHint,
       })
 
@@ -3743,85 +3743,207 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      const candidates: Array<{
-        market: 'spread' | 'total'
-        score: number
-        label: string
-        lineDetail: string
-        edgeNote: string
-      }> = []
+      const formatOdds = (value?: number | null): string | null => {
+        if (value == null || !Number.isFinite(value)) return null
+        return value > 0 ? `+${value}` : `${value}`
+      }
+
+      const formatSplitPct = (value?: number | null): string => {
+        if (value == null || !Number.isFinite(value)) return 'n/a'
+        const pct = value > 1 ? value : value * 100
+        return `${Math.round(pct)}%`
+      }
+
+      const getBestMoneyline = (
+        game: OddsGame | undefined,
+        side: 'home' | 'away'
+      ): { book: string; odds: number } | null => {
+        if (!game?.bookmakers?.length) return null
+        const target = normalizeTeamKey(side === 'home' ? game.home_team : game.away_team)
+        let best: { book: string; odds: number } | null = null
+        for (const book of game.bookmakers) {
+          const market = book.markets?.find((m) => m.key === 'h2h')
+          if (!market?.outcomes?.length) continue
+          const outcome = market.outcomes.find((o: any) => {
+            const name = normalizeTeamKey(o?.name || '')
+            return name === target || name.includes(target) || target.includes(name)
+          })
+          const odds = Number(outcome?.price)
+          if (!Number.isFinite(odds)) continue
+          if (!best || odds > best.odds) {
+            best = { book: book.title || book.key || 'book', odds }
+          }
+        }
+        return best
+      }
+
+      let oddsGame: OddsGame | undefined
+      try {
+        const games = await fetchOdds(resolvedSport, ['h2h', 'spreads', 'totals'], {
+          teamFilter: matchupTeams,
+          revalidateSeconds: 60,
+        })
+        oddsGame = games.find((game) =>
+          matchesGame(game.home_team, game.away_team, matchup.homeTeam, matchup.awayTeam)
+        )
+      } catch (error) {
+        console.warn('[BEST BET] Failed to load odds for moneyline:', error)
+      }
+
+      const bestHomeML = getBestMoneyline(oddsGame, 'home')
+      const bestAwayML = getBestMoneyline(oddsGame, 'away')
+
+      const lines: string[] = []
+      lines.push(`Game edge overview (${formatLeagueLabel(resolvedSport)}): ${matchup.awayTeam} @ ${matchup.homeTeam}`)
+      lines.push('')
 
       if (matchup.spread) {
         const gap = Math.abs(matchup.spread.marketLine - matchup.spread.targetLine)
-        const verdict = matchup.spread.edge.verdict
-        const verdictScore = verdict === 'strong' ? 2 : verdict === 'soft' ? 1 : 0
-        const sharpBoost = matchup.spread.sharpConfirmed ? 0.5 : 0
         const homeLine =
           matchup.spread.marketLine > 0
             ? `+${matchup.spread.marketLine}`
             : `${matchup.spread.marketLine}`
-        const awayLine =
-          matchup.spread.marketLine > 0
-            ? `-${matchup.spread.marketLine}`
-            : `+${Math.abs(matchup.spread.marketLine)}`
-        const pickHome = matchup.spread.targetLine < matchup.spread.marketLine
-        const pickLabel = pickHome
-          ? `${matchup.homeTeam} ${homeLine}`
-          : `${matchup.awayTeam} ${awayLine}`
-        const lineDetail = `Market ${homeLine} ${matchup.homeTeam} | Model ${
+        const modelLine =
           matchup.spread.targetLine > 0
             ? `+${matchup.spread.targetLine.toFixed(1)}`
             : matchup.spread.targetLine.toFixed(1)
-        } ${matchup.homeTeam} | Gap ${gap.toFixed(1)} pts`
-        candidates.push({
-          market: 'spread',
-          score: verdictScore * 100 + gap + sharpBoost,
-          label: `${pickLabel} (spread)`,
-          lineDetail,
-          edgeNote: `Edge: ${verdict}`,
-        })
+        lines.push('Spread')
+        lines.push(
+          `- Market: ${homeLine} ${matchup.homeTeam} | Model: ${modelLine} ${matchup.homeTeam} | Gap ${gap.toFixed(1)} pts`
+        )
+        lines.push(
+          `- Edge: ${matchup.spread.edge.verdict} (confidence ${matchup.spread.edge.confidence})${matchup.spread.sharpConfirmed ? ' | Sharp confirmed' : ''}`
+        )
+        if (matchup.spread.bestBook || formatOdds(matchup.spread.bestOdds)) {
+          lines.push(
+            `- Best price: ${matchup.spread.bestBook || 'book'} ${formatOdds(matchup.spread.bestOdds) || ''}`.trim()
+          )
+        }
+        lines.push('')
+      } else {
+        lines.push('Spread')
+        lines.push('- Market line unavailable.')
+        lines.push('')
       }
+
+      lines.push('Moneyline')
+      if (bestHomeML || bestAwayML) {
+        const homeText = bestHomeML
+          ? `${matchup.homeTeam} ${formatOdds(bestHomeML.odds)} (${bestHomeML.book})`
+          : `${matchup.homeTeam} n/a`
+        const awayText = bestAwayML
+          ? `${matchup.awayTeam} ${formatOdds(bestAwayML.odds)} (${bestAwayML.book})`
+          : `${matchup.awayTeam} n/a`
+        lines.push(`- Best price: ${homeText} | ${awayText}`)
+      } else {
+        lines.push('- Moneyline odds unavailable.')
+      }
+      const mlSignals = matchup.sharpSignals.filter((signal) => signal.market === 'moneyline')
+      if (mlSignals.length) {
+        lines.push(
+          `- Sharp signals: ${mlSignals
+            .slice(0, 2)
+            .map((signal) => `${signal.type} ${signal.side} (${signal.strength}/5)`)
+            .join('; ')}`
+        )
+      }
+      lines.push('')
 
       if (matchup.total) {
         const gap = Math.abs(matchup.total.marketLine - matchup.total.targetLine)
-        const verdict = matchup.total.edge.verdict
-        const verdictScore = verdict === 'strong' ? 2 : verdict === 'soft' ? 1 : 0
-        const sharpBoost = matchup.total.sharpConfirmed ? 0.5 : 0
-        const direction =
-          matchup.total.targetLine > matchup.total.marketLine ? 'Over' : 'Under'
-        const pickLabel = `${direction} ${matchup.total.marketLine}`
-        const lineDetail = `Market ${matchup.total.marketLine} | Model ${matchup.total.targetLine.toFixed(
-          1
-        )} | Gap ${gap.toFixed(1)} pts`
-        candidates.push({
-          market: 'total',
-          score: verdictScore * 100 + gap + sharpBoost,
-          label: `${pickLabel} (total)`,
-          lineDetail,
-          edgeNote: `Edge: ${verdict}`,
-        })
-      }
-
-      if (!candidates.length) {
-        return streamTextResponse(
-          `No market lines found for ${matchup.awayTeam} @ ${matchup.homeTeam}.`
+        const direction = matchup.total.targetLine > matchup.total.marketLine ? 'Over' : 'Under'
+        lines.push('Total')
+        lines.push(
+          `- Market: ${matchup.total.marketLine} | Model: ${matchup.total.targetLine.toFixed(1)} | Gap ${gap.toFixed(1)} pts -> ${direction}`
         )
+        lines.push(
+          `- Edge: ${matchup.total.edge.verdict} (confidence ${matchup.total.edge.confidence})${matchup.total.sharpConfirmed ? ' | Sharp confirmed' : ''}`
+        )
+        if (matchup.total.bestBook || formatOdds(matchup.total.bestOdds)) {
+          lines.push(
+            `- Best price: ${matchup.total.bestBook || 'book'} ${formatOdds(matchup.total.bestOdds) || ''}`.trim()
+          )
+        }
+        lines.push('')
+      } else {
+        lines.push('Total')
+        lines.push('- Market line unavailable.')
+        lines.push('')
       }
 
-      candidates.sort((a, b) => b.score - a.score)
-      const best = candidates[0]
-      const lines = [
-        `Best bet (${formatLeagueLabel(resolvedSport)}): ${best.label}`,
-        `${matchup.awayTeam} @ ${matchup.homeTeam}`,
-        best.lineDetail,
-        best.edgeNote,
-      ]
+      lines.push('Public splits (bets% / money%)')
+      if (matchup.splits) {
+        lines.push(
+          `- Spread: ${matchup.homeTeam} ${formatSplitPct(matchup.splits.spreadHomeBetPct)} / ${formatSplitPct(
+            matchup.splits.spreadHomeMoneyPct
+          )} | ${matchup.awayTeam} ${formatSplitPct(matchup.splits.spreadAwayBetPct)} / ${formatSplitPct(
+            matchup.splits.spreadAwayMoneyPct
+          )}`
+        )
+        lines.push(
+          `- Moneyline: ${matchup.homeTeam} ${formatSplitPct(matchup.splits.mlHomeBetPct)} / ${formatSplitPct(
+            matchup.splits.mlHomeMoneyPct
+          )} | ${matchup.awayTeam} ${formatSplitPct(matchup.splits.mlAwayBetPct)} / ${formatSplitPct(
+            matchup.splits.mlAwayMoneyPct
+          )}`
+        )
+        lines.push(
+          `- Total: Over ${formatSplitPct(matchup.splits.totalOverBetPct)} / ${formatSplitPct(
+            matchup.splits.totalOverMoneyPct
+          )} | Under ${formatSplitPct(matchup.splits.totalUnderBetPct)} / ${formatSplitPct(
+            matchup.splits.totalUnderMoneyPct
+          )}`
+        )
+      } else {
+        lines.push('- Splits unavailable for this matchup.')
+      }
+      lines.push('')
+
+      lines.push('Player props')
+      const propEdges = (slateResult.propEdges || []).filter((edge) => {
+        const homeKey = normalizeTeamKey(matchup.homeTeam)
+        const awayKey = normalizeTeamKey(matchup.awayTeam)
+        const teamKey = normalizeTeamKey(edge.team || '')
+        const oppKey = normalizeTeamKey(edge.opponent || '')
+        const gameKey = normalizeTeamKey(edge.game || '')
+        const hasTeams =
+          teamKey &&
+          oppKey &&
+          ((teamKey.includes(homeKey) && oppKey.includes(awayKey)) ||
+            (teamKey.includes(awayKey) && oppKey.includes(homeKey)))
+        const hasGame =
+          gameKey &&
+          homeKey &&
+          awayKey &&
+          gameKey.includes(homeKey) &&
+          gameKey.includes(awayKey)
+        return hasTeams || hasGame
+      })
+
+      if (propEdges.length) {
+        const topProps = propEdges
+          .slice()
+          .sort((a, b) => (b.edgePercent || 0) - (a.edgePercent || 0))
+          .slice(0, 3)
+        for (const prop of topProps) {
+          const marketLabel = prop.market.replace(/_/g, ' ')
+          const bookLine = prop.bestBook ? ` | ${prop.bestBook} ${formatOdds(prop.bestOdds)}` : ''
+          lines.push(
+            `- ${prop.player} ${marketLabel} ${prop.direction} ${prop.line} | Model ${prop.projection.toFixed(
+              1
+            )} | Edge ${prop.edgePercent.toFixed(1)}%${bookLine}`
+          )
+        }
+      } else {
+        lines.push('- No prop edges found. Ask for a specific player prop to pull lines.')
+      }
 
       if (matchup.sharpConfirmation?.agrees) {
+        lines.push('')
         lines.push(`Sharp confirmation: ${matchup.sharpConfirmation.signals.join(', ')}`)
       }
       if (inferredSport) {
-        lines.push("Note: inferred sport from today's slate — specify next time if different.")
+        lines.push("Note: inferred sport from today's slate - specify next time if different.")
       }
 
       return streamTextResponse(lines.join('\n'), ['get_slate_edge_detection'])

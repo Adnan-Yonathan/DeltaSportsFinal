@@ -3562,7 +3562,7 @@ export async function POST(req: NextRequest) {
 
     const normalizeTeamList = (names: string[]): string[] => {
       const banned =
-        /\b(odds?|lines?|spread|total|moneyline|betting|bets?|public|sharp|money|handle|tickets?|split|splits|percent(?:age)?s?|ncaab|ncaa|college|basketball|prop|props|make|sense|analysis|analyze|edge|value|project|projection|proj)\b/gi
+        /\b(odds?|lines?|spread|total|moneyline|betting|bets?|public|sharp|money|handle|tickets?|split|splits|percent(?:age)?s?|ncaab|ncaa|college|basketball|football|prop|props|make|sense|analysis|analyze|edge|value|project|projection|proj)\b/gi
       const cleaned = names
         .map((name) =>
           name
@@ -3606,9 +3606,9 @@ export async function POST(req: NextRequest) {
         while (cleaned !== prevCleaned) {
           prevCleaned = cleaned
           cleaned = cleaned
-            .replace(/^(the|in|at|on|for|with|against|versus|vs|analyze|analysis|show|get|find|compare|breakdown)\s+/i, '')
+            .replace(/^(the|this|in|at|on|for|with|against|versus|vs|analyze|analysis|show|get|find|compare|breakdown)\s+/i, '')
             .replace(
-              /\s+(game|match|matchup|matchups?|tonight|today|tomorrow|in|at|on|betting|splits?|public|sharp|money|bets?|handle|tickets?|percent(?:age)?s?|odds?|lines?|spread|total|moneyline|prop|props|make|sense|analysis|analyze|edge|value|project|projection|proj|points|pts|rebounds|rebs|reb|assists|asts|ast|steals|stl|blocks|blk|threes|3pm|3pt|pra)$/i,
+              /\s+(game|match|matchup|matchups?|tonight|today|tomorrow|in|at|on|betting|splits?|public|sharp|money|bets?|handle|tickets?|percent(?:age)?s?|odds?|lines?|spread|total|moneyline|prop|props|make|sense|analysis|analyze|edge|value|project|projection|proj|points|pts|rebounds|rebs|reb|assists|asts|ast|steals|stl|blocks|blk|threes|3pm|3pt|pra|football)$/i,
               ''
             )
             .trim()

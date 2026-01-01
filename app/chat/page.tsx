@@ -266,16 +266,16 @@ export default function ChatPage() {
 
       <button
         onClick={() => router.push('/promos')}
-        className="sm:hidden p-1 text-[#34d399] hover:text-[#16a34a] transition-colors"
+        className="sm:hidden px-2 py-2 text-[#34d399] hover:text-[#16a34a] transition-colors"
         aria-label="View sportsbook promos"
       >
-        <span className="text-[8px] font-bold leading-none tracking-tight">$10k</span>
+        <span className="text-sm font-semibold leading-none">$10k</span>
       </button>
       <button
         onClick={() => router.push('/promos')}
-        className="hidden sm:inline-flex items-center px-1 py-1 text-xs font-semibold text-[#34d399] hover:text-[#16a34a] transition-colors"
+        className="hidden sm:inline-flex items-center px-3 py-2 text-base font-semibold text-[#34d399] hover:text-[#16a34a] transition-colors"
       >
-        <span className="text-[10px] font-bold leading-none">$10k</span>
+        <span className="text-base font-semibold leading-none">$10k</span>
       </button>
 
       <button

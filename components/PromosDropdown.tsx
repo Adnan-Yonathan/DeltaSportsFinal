@@ -82,10 +82,10 @@ export default function PromosDropdown({ variant = 'desktop' }: PromosDropdownPr
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="p-1 text-[#34d399] hover:text-[#16a34a] transition-colors"
+        className="px-2 py-2 text-[#34d399] hover:text-[#16a34a] transition-colors"
         aria-label="View promotions"
       >
-        <span className="text-[8px] font-bold leading-none tracking-tight">$10k</span>
+        <span className="text-sm font-semibold leading-none">$10k</span>
       </button>
     )
   }
@@ -94,9 +94,9 @@ export default function PromosDropdown({ variant = 'desktop' }: PromosDropdownPr
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="hidden sm:inline-flex items-center px-1 py-1 text-xs font-semibold text-[#34d399] hover:text-[#16a34a] transition-colors"
+        className="hidden sm:inline-flex items-center px-3 py-2 text-base font-semibold text-[#34d399] hover:text-[#16a34a] transition-colors"
       >
-        <span className="text-[10px] font-bold leading-none">$10k</span>
+        <span className="text-base font-semibold leading-none">$10k</span>
       </button>
 
       <AnimatePresence>

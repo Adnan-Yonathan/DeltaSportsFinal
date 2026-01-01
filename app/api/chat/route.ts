@@ -2855,7 +2855,10 @@ export async function POST(req: NextRequest) {
     const earlyEdgeAwarenessCheck = /\bedge\s*awareness\b/i.test(message) ||
       /\b(run|do|check|show)\s+edge\s*awareness\b/i.test(message) ||
       /\bedge\s+tool\b/i.test(message)
-    const bestBetsIntent = /\bbest\s+bets?\b/i.test(message)
+    const bestBetsIntent =
+      /\bbest\s+bets?\b/i.test(message) ||
+      /\bbest\b(?:\s+\w+){0,3}\s+(bets?|picks?|plays?)\b/i.test(message) ||
+      /\btop\b(?:\s+\w+){0,3}\s+bets?\b/i.test(message)
     const earlyPropPlayerName = extractPlayerName(message)
 
     const slatePropDetectionIntent =

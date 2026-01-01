@@ -786,12 +786,6 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
     lines.push(`- 🏥 **Injuries:** ${game.injuries.slice(0, 3).join('; ')}`)
   }
 
-  // Show key matchup factors (ORtg, DRtg, pace, ATS)
-  if (game.matchupFactors.length > 0) {
-    const keyFactors = game.matchupFactors.slice(0, 2)
-    lines.push(`- 📊 **Matchup:** ${keyFactors.join(' | ')}`)
-  }
-
   // Show line movement if significant
   const significantMoves = game.lineMovements.filter((m) => m.isSharp || m.isSignificant)
   if (significantMoves.length > 0) {

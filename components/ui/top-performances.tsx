@@ -293,7 +293,16 @@ export function TopPerformancesStrip() {
           <span>Top performances</span>
           <span className="text-xs text-emerald-300">{mobileOpen ? "Hide" : "Show"}</span>
         </button>
-        {mobileOpen ? <div className="mt-2">{content}</div> : null}
+        <div
+          className={`overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-out ${
+            mobileOpen
+              ? "mt-2 max-h-[1200px] opacity-100 translate-y-0"
+              : "mt-0 max-h-0 opacity-0 -translate-y-1 pointer-events-none"
+          }`}
+          aria-hidden={!mobileOpen}
+        >
+          {content}
+        </div>
       </div>
 
       <div className="hidden md:block w-full max-w-3xl mx-auto bg-transparent px-1">

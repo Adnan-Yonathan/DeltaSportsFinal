@@ -135,7 +135,13 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
             <span>Prompt shortcuts</span>
             <span className="text-[11px] text-emerald-300">{capabilitiesOpen ? "Hide" : "Show"}</span>
           </button>
-          <div className={`${capabilitiesOpen ? "grid" : "hidden"} md:grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 auto-rows-fr mt-2`}>
+          <div
+            className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 auto-rows-fr overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-out ${
+              capabilitiesOpen
+                ? "mt-2 max-h-[1200px] opacity-100 translate-y-0"
+                : "mt-0 max-h-0 opacity-0 -translate-y-1 pointer-events-none"
+            } md:mt-2 md:max-h-none md:opacity-100 md:translate-y-0 md:pointer-events-auto md:overflow-visible`}
+          >
             {[
             {
               id: "player_profiles",

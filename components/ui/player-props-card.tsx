@@ -533,7 +533,11 @@ export const PlayerPropsCard: React.FC<PlayerPropsCardProps> = ({
 
         {/* Props Markets */}
         <div
-          className={`space-y-3 sm:space-y-4 ${mobileExpanded ? 'block' : 'hidden'} md:block`}
+          className={`space-y-3 sm:space-y-4 overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-out ${
+            mobileExpanded
+              ? 'max-h-[1200px] opacity-100 translate-y-0'
+              : 'max-h-0 opacity-0 -translate-y-1 pointer-events-none'
+          } md:max-h-none md:opacity-100 md:translate-y-0 md:pointer-events-auto md:overflow-visible`}
         >
           {visibleMarkets.map(([marketKey, market], index) => (
             <motion.div

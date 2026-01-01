@@ -1,17 +1,14 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getMembershipStatus } from '@/lib/utils/membership'
-import mixpanel from 'mixpanel-browser'
 
 export default function StripeSuccessPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const hasTrackedPurchase = useRef(false)
   const [status, setStatus] = useState<'checking' | 'success' | 'timeout'>('checking')
   const [attempts, setAttempts] = useState(0)
   const maxAttempts = 15 // 15 attempts * 2 seconds = 30 seconds max
@@ -33,24 +30,6 @@ export default function StripeSuccessPage() {
       const membership = getMembershipStatus(user.user_metadata)
 
       if (membership.isActive) {
-        if (!membership.isTrial && !hasTrackedPurchase.current) {
-          const sessionId = searchParams?.get('session_id') || undefined
-          mixpanel.track('Purchase', {
-            user_id: user.id,
-            transaction_id: sessionId,
-            revenue: null,
-            currency: 'USD',
-          })
-          mixpanel.track('Conversion Event', {
-            'Conversion Type': 'subscription',
-            'Conversion Value': null,
-          })
-          mixpanel.track('Conversion', {
-            'Conversion Type': 'subscription',
-            'Conversion Value': null,
-          })
-          hasTrackedPurchase.current = true
-        }
         setStatus('success')
         // Wait a moment to show success, then redirect
         setTimeout(() => {

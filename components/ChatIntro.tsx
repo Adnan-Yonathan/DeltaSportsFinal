@@ -7,7 +7,6 @@ import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
 import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
 import { TopPerformancesStrip } from '@/components/ui/top-performances'
 import { AnimatedHero } from '@/components/ui/animated-hero'
-import mixpanel from 'mixpanel-browser'
 
 interface ChatIntroProps {
   conversationId: string
@@ -36,13 +35,6 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
     if (!message || sending) return
 
     setSending(true)
-    mixpanel.track('AI Prompt Sent and Prompt Text', {
-      'Prompt Text': message,
-      user_id: userId,
-    })
-    if (typeof window !== 'undefined') {
-      ;(window as any).__mixpanelPromptSentAt = Date.now()
-    }
 
     try {
       // All queries go to the unified /api/chat endpoint

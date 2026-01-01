@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -10,6 +10,7 @@ import mixpanel from 'mixpanel-browser'
 
 export default function StripeSuccessPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const hasTrackedPurchase = useRef(false)
   const [status, setStatus] = useState<'checking' | 'success' | 'timeout'>('checking')
   const [attempts, setAttempts] = useState(0)
@@ -33,9 +34,10 @@ export default function StripeSuccessPage() {
 
       if (membership.isActive) {
         if (!membership.isTrial && !hasTrackedPurchase.current) {
+          const sessionId = searchParams?.get('session_id') || undefined
           mixpanel.track('Purchase', {
             user_id: user.id,
-            transaction_id: undefined,
+            transaction_id: sessionId,
             revenue: null,
             currency: 'USD',
           })

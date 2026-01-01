@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import mixpanel from "mixpanel-browser"
 
 export function MixpanelInit() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     mixpanel.init("e77c1ca33e99927aa80cfcdc0ef3fae9", {
@@ -26,7 +27,7 @@ export function MixpanelInit() {
       page_title: typeof document !== "undefined" ? document.title : "",
       user_id: mixpanel.get_distinct_id(),
     })
-  }, [pathname])
+  }, [pathname, searchParams])
 
   return null
 }

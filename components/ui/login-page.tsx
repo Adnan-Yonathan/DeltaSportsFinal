@@ -15,15 +15,33 @@ export const LoginPage = () => {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [oauthLoading, setOauthLoading] = useState(false)
   const [error, setError] = useState("")
   const supabase = createClient()
   const router = useRouter()
 
-  const isBusy = loading
+  const handleGoogleSignIn = async () => {
+    setError("")
+    setOauthLoading(true)
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+
+    if (error) {
+      setError(error.message || "Failed to sign in with Google")
+      setOauthLoading(false)
+    }
+  }
+
+  const isBusy = loading || oauthLoading
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (loading) {
+    if (loading || oauthLoading) {
       return
     }
     setLoading(true)
@@ -115,6 +133,28 @@ export const LoginPage = () => {
                 )}
 
                 <form onSubmit={handleLogin} className="space-y-4">
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={isBusy}
+                    className="w-full rounded-full border border-white/15 bg-zinc-900/80 py-3 text-sm font-medium text-white/80 transition-all hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="flex items-center justify-center gap-3">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full border border-white/30 text-xs font-semibold text-white/80">
+                        G
+                      </span>
+                      {oauthLoading ? "Connecting..." : "Continue with Google"}
+                    </span>
+                  </button>
+
+                  <div className="flex items-center gap-4">
+                    <div className="h-px flex-1 bg-white/10" />
+                    <span className="text-sm text-white/40">
+                      Or use email
+                    </span>
+                    <div className="h-px flex-1 bg-white/10" />
+                  </div>
+
                   <input
                     type="email"
                     placeholder="Email"

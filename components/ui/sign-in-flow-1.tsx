@@ -550,15 +550,33 @@ export const SignInPage = ({ className }: SignInPageProps) => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
   const [error, setError] = useState("");
   const supabase = createClient();
   const router = useRouter();
 
-  const isBusy = loading;
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setOauthLoading(true);
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      setError(error.message || "Failed to sign in with Google");
+      setOauthLoading(false);
+    }
+  };
+
+  const isBusy = loading || oauthLoading;
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) {
+    if (oauthLoading || loading) {
       return;
     }
 
@@ -657,6 +675,26 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                 )}
 
                 <form onSubmit={handleSignUp} className="space-y-4">
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={isBusy}
+                    className="w-full rounded-full border border-white/15 bg-zinc-900/80 py-3 text-sm font-medium text-white/80 transition-all hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="flex items-center justify-center gap-3">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full border border-white/30 text-xs font-semibold text-white/80">
+                        G
+                      </span>
+                      {oauthLoading ? "Connecting..." : "Continue with Google"}
+                    </span>
+                  </button>
+
+                  <div className="flex items-center gap-4">
+                    <div className="h-px bg-white/10 flex-1" />
+                    <span className="text-white/40 text-sm">Or use email</span>
+                    <div className="h-px bg-white/10 flex-1" />
+                  </div>
+
                   <input
                     type="email"
                     placeholder="Email"

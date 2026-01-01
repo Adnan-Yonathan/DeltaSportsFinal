@@ -6491,6 +6491,61 @@ export async function POST(req: NextRequest) {
       return streamTextResponse(reply)
     }
 
+    const parseBankrollAmount = (input: string): number | null => {
+      const lower = input.toLowerCase()
+      const match =
+        lower.match(/\bbankroll\b[^0-9$]*([$]?\d[\d,]*(?:\.\d+)?\s*[kKmM]?)/) ||
+        lower.match(/\bmy\s+bankroll\s+(?:is|=)?\s*([$]?\d[\d,]*(?:\.\d+)?\s*[kKmM]?)/)
+      if (!match?.[1]) return null
+      let raw = match[1].trim().replace(/[$,\s]/g, '')
+      let multiplier = 1
+      if (/[kK]$/.test(raw)) {
+        multiplier = 1000
+        raw = raw.slice(0, -1)
+      } else if (/[mM]$/.test(raw)) {
+        multiplier = 1000000
+        raw = raw.slice(0, -1)
+      }
+      const value = Number(raw)
+      if (!Number.isFinite(value)) return null
+      return value * multiplier
+    }
+
+    const detectSportLabel = (lower: string): string | null => {
+      if (/(ncaab|college basketball|college hoops|cbb|ncaa basketball)/i.test(lower)) return 'college basketball'
+      if (/(nba|pro basketball)\b/i.test(lower) || (/\bbasketball\b/i.test(lower) && !/college|ncaa/i.test(lower)))
+        return 'NBA'
+      if (/(ncaaf|college football|cfb|ncaa football)/i.test(lower)) return 'college football'
+      if (/(nfl|pro football)/i.test(lower)) return 'NFL'
+      if (/(nhl|hockey)/i.test(lower)) return 'NHL'
+      if (/(mlb|baseball)/i.test(lower)) return 'MLB'
+      return null
+    }
+
+    const bankrollValue = parseBankrollAmount(message)
+    const bankrollSport = detectSportLabel(msgLower)
+    const isBankrollStatsQuery = /\b(roi|record|performance|how am i doing|stats|clv|results)\b/i.test(msgLower)
+    if (bankrollValue && bankrollSport && !isBankrollStatsQuery) {
+      const rounded = Math.round(bankrollValue)
+      const lowUnit = Math.max(1, Math.round(rounded * 0.005))
+      const midUnit = Math.max(1, Math.round(rounded * 0.01))
+      const highUnit = Math.max(1, Math.round(rounded * 0.015))
+      const lowCap = Math.max(1, Math.round(rounded * 0.01))
+      const midCap = Math.max(1, Math.round(rounded * 0.015))
+      const highCap = Math.max(1, Math.round(rounded * 0.02))
+      const lines = [
+        `Got it — bankroll: $${rounded.toLocaleString()} | sport: ${bankrollSport}.`,
+        '',
+        'Suggested sizing (pick a risk tier):',
+        `- Low: 0.5% per bet (~$${lowUnit}); cap 1% (~$${lowCap}) on strongest edges.`,
+        `- Medium: 1% per bet (~$${midUnit}); cap 1.5% (~$${midCap}).`,
+        `- High: 1.5% per bet (~$${highUnit}); cap 2% (~$${highCap}).`,
+        '',
+        'If you want, tell me your risk tolerance (low/medium/high) and whether you want flat units or fractional Kelly, and I’ll size it precisely.',
+      ]
+      return streamTextResponse(lines.join('\n'))
+    }
+
     if (liveProjectionIntent && !modelApplicationIntent && !researchIntent) {
       const liveTeams = (parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams).filter(
         (team) => normalizeToken(team).length > 0

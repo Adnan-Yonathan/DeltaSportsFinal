@@ -77,9 +77,6 @@ export function SimpleHeader({
                 </div>
               <div className="flex items-center gap-1 sm:gap-2">
                 <p className="text-sm sm:text-lg font-semibold">Delta Sports</p>
-                <span className="inline-flex rounded-full border border-white/30 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[10px] font-semibold uppercase tracking-[0.1em] sm:tracking-[0.2em] text-emerald-400">
-                  Beta (NBA)
-                </span>
               </div>
             </button>
           </div>
@@ -155,3 +152,4 @@ export function SimpleHeader({
     </header>
   )
 }
+

@@ -10,7 +10,7 @@ export default function ModelsDocsPage() {
 
       <div className="space-y-3 text-sm text-white/70">
         <p>
-          Custom models in Delta AI let you define which stats matter, how important they are, and
+          Custom models in Delta Sports let you define which stats matter, how important they are, and
           what edge threshold you care about. The app then evaluates slates using those rules.
         </p>
         <ul className="list-disc space-y-1 pl-5">

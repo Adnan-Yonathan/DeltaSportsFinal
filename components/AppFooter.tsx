@@ -10,7 +10,7 @@ export function AppFooter() {
           Delta Sports Beta (NBA) - AI-powered insights for serious bettors.
         </p>
         <p className="text-[11px] text-white/60">
-          (c) {new Date().getFullYear()} Delta AI. All rights reserved.
+          (c) {new Date().getFullYear()} Delta Sports. All rights reserved.
         </p>
       </div>
     </footer>

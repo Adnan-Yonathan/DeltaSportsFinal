@@ -38,7 +38,7 @@ const defaultFeatures: Feature[] = [
     delta: "yes",
   },
   {
-    name: "Bankroll Management",
+    name: "Market Monitoring",
     chatgpt: "no",
     oddsjam: "partial",
     delta: "yes",
@@ -99,14 +99,14 @@ const StatusIcon = ({ status }: { status: "yes" | "no" | "partial" }) => {
 
 const ComparisonSection = ({
   badge = "Compare",
-  heading = "Why Choose Delta AI?",
-  description = "See how Delta AI stacks up against the competition",
+  heading = "Why Choose Delta Sports AI?",
+  description = "See how Delta Sports AI stacks up against the competition",
   features = defaultFeatures,
 }: ComparisonSectionProps) => {
   const products = [
     { key: "chatgpt", name: "ChatGPT", highlight: false },
     { key: "oddsjam", name: "OddsJam", highlight: false },
-    { key: "delta", name: "Delta AI", highlight: true },
+    { key: "delta", name: "Delta Sports AI", highlight: true },
   ];
 
   return (

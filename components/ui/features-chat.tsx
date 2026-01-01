@@ -24,21 +24,21 @@ const features: Feature[] = [
     label: "Conversational Intelligence",
     title: "Conversational Intelligence",
     description:
-      "Ask Delta anything: odds, props, matchups, trends, stats - and get instant and accurate results.",
+      "Ask Delta Sports AI anything: odds, props, matchups, trends, stats - and get instant and accurate results.",
   },
   {
     icon: <Database className="w-4 h-4" />,
     label: "Unified Data",
     title: "Unified Data",
     description:
-      "Delta brings together live odds, statistics, media, and synchronizes it under one AI to give you what matters most.",
+      "Delta Sports AI brings together live odds, statistics, media, and synchronizes it under one AI to give you what matters most.",
   },
   {
     icon: <Brain className="w-4 h-4" />,
     label: "Custom Models",
     title: "Custom Models",
     description:
-      "Delta helps you create custom models that can understand complex statistics and user preference to bring you the bets you want - within minutes.",
+      "Delta Sports AI helps you create custom models that can understand complex statistics and user preference to bring you the bets you want - within minutes.",
   },
 ];
 
@@ -79,7 +79,7 @@ export function FeaturesChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       type: "assistant",
-      content: "Hey! I'm Delta AI. Click on any feature below to learn more about how I can help you bet smarter.",
+      content: "Hey! I'm Delta Sports AI. Click on any feature below to learn more about how I can help you bet smarter.",
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
@@ -190,7 +190,7 @@ export function FeaturesChat() {
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <div>
-                <p className="text-sm font-medium text-white">Delta AI</p>
+                <p className="text-sm font-medium text-white">Delta Sports AI</p>
                 <p className="text-xs text-white/70">Always online</p>
               </div>
               <div className="ml-auto flex items-center gap-1.5">

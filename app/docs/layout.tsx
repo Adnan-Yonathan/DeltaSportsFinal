@@ -18,7 +18,7 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">
             Docs
           </p>
-          <h1 className="mt-2 text-xl font-semibold">Delta AI Guide</h1>
+          <h1 className="mt-2 text-xl font-semibold">Delta Sports Guide</h1>
           <nav className="mt-4 space-y-1">
             {sections.map((section) => (
               <Link

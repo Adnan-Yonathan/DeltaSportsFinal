@@ -664,7 +664,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                 className="space-y-6 text-center"
               >
                 <div className="space-y-1">
-                  <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">Welcome to Delta AI</h1>
+                  <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">Welcome to Delta Sports</h1>
                   <p className="text-[1.8rem] text-white/70 font-light">Create your account</p>
                 </div>
 

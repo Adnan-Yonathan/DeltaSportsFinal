@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { Check, Mail } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -13,9 +13,9 @@ import { cn } from "@/lib/utils"
 
 const faqs = [
   {
-    question: "Do I need previous betting models to use Delta AI?",
+    question: "Do I need previous betting models to use Delta Sports AI?",
     answer:
-      "No. Pro includes pre-built workflows for bankroll tracking and market monitoring. Unlimited lets you create statistical models with guided templates - no code required.",
+      "No. Pro includes pre-built workflows for line shopping and market monitoring. Unlimited lets you create statistical models with guided templates - no code required.",
   },
   {
     question: "How does live odds tracking work?",
@@ -25,18 +25,18 @@ const faqs = [
   {
     question: "What counts toward my daily message limit on Pro?",
     answer:
-      "Only prompts sent to the Delta AI copilot. System alerts, score updates, and bankroll syncing do not consume your 25-message allowance.",
+      "Only prompts sent to the Delta Sports AI copilot. System alerts and score updates do not consume your 25-message allowance.",
   },
   {
     question: "Can I invite teammates?",
     answer:
-      "Yes. Every plan supports multiple bankrolls per organization. Unlimited offers shared workspaces plus priority support for modeling squads.",
+      "Yes. Every plan supports shared workspaces per organization. Unlimited offers priority support for modeling squads.",
   },
 ]
 
 const highlights = [
   "No contracts - cancel anytime",
-  "Backtested bankroll workflows",
+  "Line-shopping workflows",
   "Fast support from real bettors",
 ]
 
@@ -53,7 +53,7 @@ function FAQSection({ className }: { className?: string }) {
               Built for serious bettors, explained simply
             </h2>
             <p className="text-base text-white/80 md:text-lg">
-              We obsess over making Delta AI the fastest path from idea to
+              We obsess over making Delta Sports AI the fastest path from idea to
               action. Here are the questions we hear most from sharp bettors
               evaluating the platform.
             </p>
@@ -94,3 +94,4 @@ function FAQSection({ className }: { className?: string }) {
 }
 
 export { FAQSection }
+

@@ -31,9 +31,9 @@ export function FeaturesSectionWithHoverEffects() {
       icon: <IconActivity />,
     },
     {
-      title: "Bankroll Management",
+      title: "Market Monitoring",
       description:
-        "Track every bet, analyze your performance, and manage your bankroll with advanced analytics.",
+        "Track line movement, price shifts, and market signals with advanced analytics.",
       icon: <IconChartBar />,
     },
     {

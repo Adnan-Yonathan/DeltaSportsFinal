@@ -145,7 +145,7 @@ export function HowWeHelpSection() {
                         How We Make Your Life Easier
                     </h2>
                     <p className="text-white/80 mt-4 text-base md:text-lg">
-                        Stop wasting time on manual research. Let Delta AI do the heavy lifting.
+                        Stop wasting time on manual research. Let Delta Sports AI do the heavy lifting.
                     </p>
                 </AnimatedContainer>
 

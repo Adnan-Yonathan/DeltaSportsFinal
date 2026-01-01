@@ -5,12 +5,12 @@ export default function ResponsibleGamingDocsPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">
           Responsible Gaming
         </p>
-        <h2 className="text-2xl font-semibold">Use Delta AI as a Tool, Not a Pick Service</h2>
+        <h2 className="text-2xl font-semibold">Use Delta Sports AI as a Tool, Not a Pick Service</h2>
       </header>
 
       <div className="space-y-3 text-sm text-white/70">
         <p>
-          Delta AI is designed for analysis and education. It is not a tip sheet, and it should
+          Delta Sports AI is designed for analysis and education. It is not a tip sheet, and it should
           never guarantee outcomes or encourage chasing losses. All bets carry risk, even when the
           data looks &quot;obvious&quot;.
         </p>

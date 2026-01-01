@@ -7,8 +7,29 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata: Metadata = {
-  title: 'Delta AI - Intelligent Sports Betting Assistant',
-  description: 'AI-powered sports betting analytics, odds tracking, and bankroll management',
+  title: 'Delta Sports - AI Sports Betting Assistant',
+  description: 'Delta Sports AI is an AI sports betting assistant for live odds, matchup insights, and betting analytics.',
+  applicationName: 'Delta Sports',
+  keywords: [
+    'Delta Sports',
+    'Delta Sports AI',
+    'AI sports betting assistant',
+    'sports betting analytics',
+    'live odds',
+    'matchup insights',
+    'line shopping',
+  ],
+  openGraph: {
+    title: 'Delta Sports - AI Sports Betting Assistant',
+    description:
+      'Delta Sports AI is an AI sports betting assistant for live odds, matchup insights, and betting analytics.',
+    siteName: 'Delta Sports',
+  },
+  twitter: {
+    title: 'Delta Sports - AI Sports Betting Assistant',
+    description:
+      'Delta Sports AI is an AI sports betting assistant for live odds, matchup insights, and betting analytics.',
+  },
   icons: {
     icon: '/delta-logo.png',
     shortcut: '/delta-logo.png',

@@ -42,7 +42,7 @@ const defaultTiers: PricingTier[] = [
       monthly: 29,
       yearly: 9, // annual price per month
     },
-    description: "Full bankroll tracking plus live scores and odds you can trust.",
+    description: "Real-time market monitoring plus live scores and odds you can trust.",
     highlight: true,
     badge: "Most Popular",
     planKeyMonthly: "pro_monthly",
@@ -88,7 +88,7 @@ const defaultTiers: PricingTier[] = [
     features: [
       {
         name: "Unlimited Messages",
-        description: "Brainstorm without limits - ask Delta AI anything, anytime.",
+        description: "Brainstorm without limits - ask Delta Sports AI anything, anytime.",
         included: true,
       },
       {

@@ -42,7 +42,7 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
           How It Works
         </h2>
         <p className="text-neutral-700 dark:text-neutral-300 text-sm md:text-base max-w-sm">
-          From analysis to execution, Delta AI has you covered
+          From analysis to execution, Delta Sports AI has you covered
         </p>
       </div>
 

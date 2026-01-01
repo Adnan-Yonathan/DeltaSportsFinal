@@ -10,7 +10,7 @@ export default function DataSourcesPage() {
 
       <div className="space-y-3 text-sm text-white/70">
         <p>
-          Delta AI does not pull stats or odds from the model&apos;s memory. It relies on a set of
+          Delta Sports AI does not pull stats or odds from the model&apos;s memory. It relies on a set of
           APIs that the app controls. When you ask for stats or odds, the assistant should route to
           these sources, not fabricate numbers.
         </p>

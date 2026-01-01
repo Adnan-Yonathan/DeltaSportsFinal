@@ -13,9 +13,9 @@ export default function DocsOverviewPage() {
             ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Ãƒâ€šÃ‚Â Back to Home
           </a>
         </div>
-        <h2 className="text-2xl font-semibold">What Delta AI Does</h2>
+        <h2 className="text-2xl font-semibold">What Delta Sports AI Does</h2>
         <p className="text-sm text-white/60">
-          Delta AI is a sports betting assistant that turns live odds, ESPN stats, and your own
+          Delta Sports AI is a sports betting assistant that turns live odds, ESPN stats, and your own
           questions into clear, grounded analysis. It is not a pick service and never guarantees
           outcomes.
         </p>

@@ -14,7 +14,7 @@ import { AvatarCircles } from "@/components/ui/avatar-circles"
 import { DottedSurface } from "@/components/ui/dotted-surface"
 import { TextEffect } from "@/components/ui/text-effect"
 
-/** Delta AI Landing Page - Revolut-inspired design */
+/** Delta Sports Landing Page - Revolut-inspired design */
 
 // Reusable fade-in animation wrapper
 const FadeInSection = ({
@@ -228,8 +228,8 @@ function PromoMockSection() {
           <div className="flex items-center gap-3">
             <div className="h-6 w-6 rounded bg-white/30" />
             <div>
-              <div className="font-semibold text-white">DELTA</div>
-              <div className="text-[11px] text-white/70">Intelligent Sports Betting Assistant</div>
+              <div className="font-semibold text-white">DELTA SPORTS</div>
+              <div className="text-[11px] text-white/70">AI Sports Betting Assistant</div>
             </div>
           </div>
           <div className="flex items-center gap-2 text-white">
@@ -242,7 +242,7 @@ function PromoMockSection() {
         <div className="text-center py-4 mb-6">
           <h2 className="text-3xl font-bold text-white mb-3">How can I help you today?</h2>
           <p className="text-white/80 max-w-2xl mx-auto">
-            Get real-time stats, compare odds, analyze betting lines, track your bankroll,
+            Get real-time stats, compare odds, analyze betting lines, track line movement,
             and discover value plays across all major sports.
           </p>
           <div className="mt-6 mx-auto max-w-2xl">
@@ -352,7 +352,7 @@ export default function LandingPage() {
                 as="p"
                 className="text-base md:text-lg leading-relaxed tracking-tight text-white/80 max-w-2xl text-center mx-auto"
               >
-                Betting made simple. Chat with the most advanced sports AI to get odds, stats, and insights in seconds.
+                Betting made simple. Chat with Delta Sports AI to get odds, stats, and insights in seconds.
               </TextEffect>
             </div>
 
@@ -456,7 +456,7 @@ export default function LandingPage() {
           <div className="rounded-2xl bg-black p-8 md:p-12 text-center text-white shadow-xl border border-white/20">
             <h3 className="text-3xl md:text-4xl font-bold mb-4">Ready to Elevate Your Betting Game?</h3>
             <p className="text-base md:text-lg text-white/80 mb-8">
-              Join thousands of smart bettors using Delta AI. Get instant access to AI-powered insights, live odds from 10+ sportsbooks, and advanced bankroll management.
+              Join thousands of smart bettors using Delta Sports AI. Get instant access to AI-powered insights, live odds from 10+ sportsbooks, and matchup analytics.
             </p>
             <div className="flex justify-center">
               <SoftButton href="/auth/login">
@@ -469,10 +469,10 @@ export default function LandingPage() {
 
       <footer className="mx-auto w-full max-w-[1180px] px-4 pb-10 pt-16 text-center text-xs text-white/70 md:px-0">
         <div className="mb-4 text-sm text-white/70">
-          <strong>Disclaimer:</strong> This application is for educational and analytical purposes only. Delta AI does
+          <strong>Disclaimer:</strong> This application is for educational and analytical purposes only. Delta Sports AI does
           not process real bets or transactions. Gambling involves risk. Please bet responsibly.
         </div>
-        <div>(c) {new Date().getFullYear()} Delta AI, Inc. All rights reserved.</div>
+        <div>(c) {new Date().getFullYear()} Delta Sports, Inc. All rights reserved.</div>
       </footer>
     </div>
   )

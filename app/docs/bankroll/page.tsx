@@ -10,7 +10,7 @@ export default function BankrollDocsPage() {
 
       <div className="space-y-3 text-sm text-white/70">
         <p>
-          Delta AI tracks bets at the unit/dollar level so you can understand how your strategy
+          Delta Sports tracks bets at the unit/dollar level so you can understand how your strategy
           behaves over time. It does not move money or place bets with sportsbooks.
         </p>
         <ul className="list-disc space-y-1 pl-5">

@@ -10,6 +10,7 @@ import AnimatedMessage from './AnimatedMessage'
 import ChatIntro from './ChatIntro'
 import { ShiningText } from '@/components/ui/shining-text'
 import { getOperationMessage } from '@/lib/chat/operation-messages'
+import mixpanel from 'mixpanel-browser'
 
 interface Message {
   id: string
@@ -59,9 +60,23 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
           // Track the latest assistant message for animation
           if (newMessage.role === 'assistant') {
             setLatestMessageId(newMessage.id)
-            setIsThinking(false) // Stop thinking when assistant responds
+            setIsThinking(false) // Stop thinking when assistant responds       
+            const promptSentAt =
+              typeof window !== 'undefined'
+                ? (window as any).__mixpanelPromptSentAt
+                : null
+            const responseTime =
+              typeof promptSentAt === 'number'
+                ? Date.now() - promptSentAt
+                : undefined
+            mixpanel.track('AI Response Sent', {
+              user_id: userId,
+              'API Response Time': responseTime,
+              'API Cost': null,
+              'API Tokens Used': null,
+            })
           } else if (newMessage.role === 'user') {
-            setIsThinking(true) // Start thinking when user sends message
+            setIsThinking(true) // Start thinking when user sends message       
           }
         }
       )

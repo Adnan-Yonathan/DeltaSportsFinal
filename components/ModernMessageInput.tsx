@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react'
 import { motion } from 'framer-motion'
 import { Send, Loader2 } from 'lucide-react'
+import mixpanel from 'mixpanel-browser'
 
 interface MessageInputProps {
   conversationId: string
@@ -28,6 +29,13 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
     const payload = basePayload
 
     setSending(true)
+    mixpanel.track('AI Prompt Sent and Prompt Text', {
+      'Prompt Text': payload,
+      user_id: userId,
+    })
+    if (typeof window !== 'undefined') {
+      ;(window as any).__mixpanelPromptSentAt = Date.now()
+    }
     setMessage('')
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
@@ -103,6 +111,19 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
       }
     } catch (error: any) {
       console.error('Error sending message:', error)
+      mixpanel.track('API Error', {
+        error_type: error?.name || 'unknown',
+        error_message: error?.message,
+        page_url: typeof window !== 'undefined' ? window.location.href : '',
+        user_id: userId,
+      })
+      mixpanel.track('Error', {
+        error_type: error?.name || 'unknown',
+        error_message: error?.message,
+        error_code: error?.status,
+        page_url: typeof window !== 'undefined' ? window.location.href : '',
+        user_id: userId,
+      })
 
       let errorMessage = 'Failed to send message. Please try again.'
       let shouldRedirectToPricing = false

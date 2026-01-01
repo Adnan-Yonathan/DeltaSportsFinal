@@ -14,6 +14,7 @@ import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, Activity, Chevron
 import ChatIntro from '@/components/ChatIntro'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
+import mixpanel from 'mixpanel-browser'
 
 export default function ChatPage() {
   const [user, setUser] = useState<any>(null)
@@ -35,6 +36,7 @@ export default function ChatPage() {
   const hasWarmedUp = useRef(false)
 
   useEffect(() => {
+    mixpanel.track('Launch AI', { user_id: user?.id })
     const handleClick = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
         setProfileMenuOpen(false)

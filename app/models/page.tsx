@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Plus, FileText, Calendar, TrendingUp, Search } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+import mixpanel from 'mixpanel-browser'
 
 interface ModelWithFiles {
   id: string
@@ -25,6 +26,7 @@ export default function ModelsPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'prediction' | 'research'>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     loadModels()
@@ -64,6 +66,21 @@ export default function ModelsPage() {
       .includes(searchTerm.toLowerCase())
     return matchesFilter && matchesSearch
   })
+
+  useEffect(() => {
+    if (!searchTerm.trim()) return
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => {
+      mixpanel.track('Search', {
+        search_query: searchTerm.trim(),
+        user_id: mixpanel.get_distinct_id(),
+        results_count: filteredModels.length,
+      })
+    }, 400)
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    }
+  }, [searchTerm, filteredModels.length])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900 p-6">

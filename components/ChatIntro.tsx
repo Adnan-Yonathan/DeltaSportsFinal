@@ -19,6 +19,7 @@ interface ChatIntroProps {
 export default function ChatIntro({ conversationId, userId, onMessageSent, isGuest = false, onSignUpClick }: ChatIntroProps) {
   const [sending, setSending] = useState(false)
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null)
+  const [capabilitiesOpen, setCapabilitiesOpen] = useState(false)
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -124,8 +125,18 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
         </form>
 
         {/* Capabilities */}
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 auto-rows-fr">
-          {[
+        <div className="mt-3 w-full">
+          <button
+            type="button"
+            onClick={() => setCapabilitiesOpen((prev) => !prev)}
+            className="md:hidden w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-xs font-semibold text-white/80 flex items-center justify-between"
+            aria-expanded={capabilitiesOpen}
+          >
+            <span>Prompt shortcuts</span>
+            <span className="text-[11px] text-emerald-300">{capabilitiesOpen ? "Hide" : "Show"}</span>
+          </button>
+          <div className={`${capabilitiesOpen ? "grid" : "hidden"} md:grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 auto-rows-fr mt-2`}>
+            {[
             {
               id: "player_profiles",
               title: "Player Profiles",
@@ -252,44 +263,45 @@ Example queries:
 • "Is there edge on LeBron assists"
 • "Check value on Tatum rebounds"`
             }
-          ].map((capability) => (
-            <button
-              key={capability.title}
-              type="button"
-              onClick={() => {
-                // If guest, redirect to sign up
-                if (isGuest && onSignUpClick) {
-                  onSignUpClick()
-                  return
-                }
-
-                const textarea = document.querySelector('textarea') as HTMLTextAreaElement | null
-                if (textarea) {
-                  // Use native setter to update the value and trigger React's onChange
-                  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                    window.HTMLTextAreaElement.prototype,
-                    'value'
-                  )?.set
-                  if (nativeInputValueSetter) {
-                    nativeInputValueSetter.call(textarea, capability.detail)
+            ].map((capability) => (
+              <button
+                key={capability.title}
+                type="button"
+                onClick={() => {
+                  // If guest, redirect to sign up
+                  if (isGuest && onSignUpClick) {
+                    onSignUpClick()
+                    return
                   }
-                  // Dispatch input event so React picks up the change
-                  const inputEvent = new Event('input', { bubbles: true })
-                  textarea.dispatchEvent(inputEvent)
-                  textarea.focus()
-                }
-                setSelectedCapability(capability.id)
-              }}
-            className="group text-left p-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-emerald-500/30 transition-all h-full min-h-[78px]"
-            >
-              <h3 className="text-sm font-semibold text-white mb-1 group-hover:text-emerald-400 transition-colors">
-                {capability.title}
-              </h3>
-              <p className="text-[11px] text-white/60 leading-relaxed">
-                {capability.description}
-              </p>
-            </button>
-          ))}
+
+                  const textarea = document.querySelector('textarea') as HTMLTextAreaElement | null
+                  if (textarea) {
+                    // Use native setter to update the value and trigger React's onChange
+                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                      window.HTMLTextAreaElement.prototype,
+                      'value'
+                    )?.set
+                    if (nativeInputValueSetter) {
+                      nativeInputValueSetter.call(textarea, capability.detail)
+                    }
+                    // Dispatch input event so React picks up the change
+                    const inputEvent = new Event('input', { bubbles: true })
+                    textarea.dispatchEvent(inputEvent)
+                    textarea.focus()
+                  }
+                  setSelectedCapability(capability.id)
+                }}
+              className="group text-left p-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-emerald-500/30 transition-all h-full min-h-[78px]"
+              >
+                <h3 className="text-sm font-semibold text-white mb-1 group-hover:text-emerald-400 transition-colors">
+                  {capability.title}
+                </h3>
+                <p className="text-[11px] text-white/60 leading-relaxed">
+                  {capability.description}
+                </p>
+              </button>
+            ))}
+          </div>
         </div>
 
       </motion.div>

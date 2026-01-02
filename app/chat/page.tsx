@@ -10,7 +10,7 @@ import { LiveScoresPreview } from '@/components/LiveScoresPreview'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { SimpleHeader } from '@/components/ui/simple-header'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, Activity, ChevronLeft, ChevronRight, Crown, CreditCard, Twitter } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, Activity, ChevronLeft, ChevronRight, Crown, CreditCard } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
@@ -696,24 +696,6 @@ export default function ChatPage() {
         </div>
       )}
 
-      <a
-        href="https://x.com/AtrainOlillard"
-        target="_blank"
-        rel="noreferrer"
-        className="fixed bottom-4 left-4 z-40 h-10 w-10 rounded-full border border-white/15 bg-black/70 text-white/80 hover:text-white hover:border-white/40 transition-colors flex items-center justify-center"
-        aria-label="Visit AtrainOlillard on X"
-      >
-        <Twitter className="h-4 w-4" />
-      </a>
-      <a
-        href="https://x.com/DeltaSportsAI"
-        target="_blank"
-        rel="noreferrer"
-        className="fixed bottom-4 right-4 z-40 h-10 w-10 rounded-full border border-white/15 bg-black/70 text-white/80 hover:text-white hover:border-white/40 transition-colors flex items-center justify-center"
-        aria-label="Visit DeltaSportsAI on X"
-      >
-        <Twitter className="h-4 w-4" />
-      </a>
     </div>
   )
 }

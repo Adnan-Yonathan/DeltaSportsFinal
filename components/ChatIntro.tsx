@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { UserPlus } from 'lucide-react'
 import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
@@ -24,23 +24,54 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null)
   const [capabilitiesOpen, setCapabilitiesOpen] = useState(false)
 
-  // Query suggestions state
-  const [inputValue, setInputValue] = useState('')
+  // Query suggestions state - use refs to avoid re-render issues
   const [suggestionsVisible, setSuggestionsVisible] = useState(false)
   const [suggestionsAnchor, setSuggestionsAnchor] = useState<DOMRect | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  const inputValueRef = useRef('')
+  const [, forceUpdate] = useState(0) // Trigger re-render for suggestions
 
-  // Update suggestions when input changes
-  useEffect(() => {
-    if (inputValue.length < 2) {
-      setSuggestionsVisible(false)
+  // Handle suggestion selection
+  const handleSuggestionSelect = (suggestion: QuerySuggestion) => {
+    const textarea = formRef.current?.querySelector('textarea')
+    if (textarea) {
+      const currentValue = textarea.value || ''
+      const trimmed = currentValue.trimEnd()
+      const newValue = trimmed + (trimmed ? ' ' : '') + suggestion.phrase
+
+      // Use native setter to update value
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        'value'
+      )?.set
+      if (nativeInputValueSetter) {
+        nativeInputValueSetter.call(textarea, newValue)
+      }
+      // Dispatch input event so PromptBox picks up the change
+      const inputEvent = new Event('input', { bubbles: true })
+      textarea.dispatchEvent(inputEvent)
+
+      inputValueRef.current = newValue
+      textarea.focus()
+    }
+    setSuggestionsVisible(false)
+  }
+
+  // Track input value changes for suggestions
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value
+    inputValueRef.current = value
+
+    // Check for suggestions
+    if (value.length < 2) {
+      if (suggestionsVisible) setSuggestionsVisible(false)
       return
     }
 
-    const context = buildSuggestionContext(inputValue)
-    const suggestions = getSuggestions(inputValue, context, 1)
+    const context = buildSuggestionContext(value)
+    const results = getSuggestions(value, context, 1)
 
-    if (suggestions.length > 0 && formRef.current) {
+    if (results.length > 0 && formRef.current) {
       const rect = formRef.current.getBoundingClientRect()
       setSuggestionsAnchor({
         top: rect.top,
@@ -53,40 +84,11 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
         y: rect.y,
         toJSON: () => ({}),
       })
-      setSuggestionsVisible(true)
+      if (!suggestionsVisible) setSuggestionsVisible(true)
+      forceUpdate(n => n + 1) // Update to show new suggestions
     } else {
-      setSuggestionsVisible(false)
+      if (suggestionsVisible) setSuggestionsVisible(false)
     }
-  }, [inputValue])
-
-  // Handle suggestion selection
-  const handleSuggestionSelect = (suggestion: QuerySuggestion) => {
-    const textarea = formRef.current?.querySelector('textarea')
-    if (textarea) {
-      const trimmed = inputValue.trimEnd()
-      const newValue = trimmed + (trimmed ? ' ' : '') + suggestion.phrase
-
-      // Use native setter to update value
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLTextAreaElement.prototype,
-        'value'
-      )?.set
-      if (nativeInputValueSetter) {
-        nativeInputValueSetter.call(textarea, newValue)
-      }
-      // Dispatch input event so React picks up the change
-      const inputEvent = new Event('input', { bubbles: true })
-      textarea.dispatchEvent(inputEvent)
-
-      setInputValue(newValue)
-      textarea.focus()
-    }
-    setSuggestionsVisible(false)
-  }
-
-  // Track input value changes
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputValue(e.target.value)
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -193,7 +195,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
 
           {/* Query suggestions dropdown */}
           <QuerySuggestions
-            input={inputValue}
+            input={inputValueRef.current}
             visible={suggestionsVisible && !isGuest}
             onSelect={handleSuggestionSelect}
             onClose={() => setSuggestionsVisible(false)}

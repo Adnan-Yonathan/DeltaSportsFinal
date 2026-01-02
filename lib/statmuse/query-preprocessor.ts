@@ -586,14 +586,55 @@ function extractTeamName(query: string): string | undefined {
 // MAIN PREPROCESSING FUNCTION
 // ============================================================
 
-export function preprocessQuery(query: string): PreprocessedQuery {
+interface TaggedTeamInput {
+  id: string
+  name: string
+  displayName: string
+  sport: string
+  position: { start: number; end: number }
+}
+
+interface PreprocessOptions {
+  taggedTeams?: TaggedTeamInput[]
+}
+
+export function preprocessQuery(query: string, options: PreprocessOptions = {}): PreprocessedQuery {
+  const { taggedTeams } = options
   const result: PreprocessedQuery = {
     originalQuery: query,
     matched: false,
   }
 
-  // Detect sport
-  result.sport = detectSport(query)
+  // If we have tagged teams, use them directly for team detection
+  if (taggedTeams && taggedTeams.length > 0) {
+    const firstTag = taggedTeams[0]
+    result.teamName = firstTag.name
+
+    // Get sport from tagged team
+    const tagSport = firstTag.sport.toLowerCase()
+    if (tagSport.includes('nba') || tagSport === 'basketball_nba') result.sport = 'nba'
+    else if (tagSport.includes('nfl') || tagSport === 'americanfootball_nfl') result.sport = 'nfl'
+    else if (tagSport.includes('mlb') || tagSport === 'baseball_mlb') result.sport = 'mlb'
+    else if (tagSport.includes('nhl') || tagSport === 'icehockey_nhl') result.sport = 'nhl'
+    else if (tagSport.includes('ncaab') || tagSport === 'basketball_ncaab') result.sport = 'ncaab'
+    else if (tagSport.includes('ncaaf') || tagSport === 'americanfootball_ncaaf') result.sport = 'cfb'
+
+    // If second tagged team, use as opponent
+    if (taggedTeams.length > 1) {
+      result.opponentTeam = taggedTeams[1].name
+    }
+
+    console.log('[PREPROCESSOR] Using tagged teams:', {
+      teamName: result.teamName,
+      sport: result.sport,
+      opponentTeam: result.opponentTeam,
+    })
+  }
+
+  // Detect sport (will be overridden by tagged team sport if available)
+  if (!result.sport) {
+    result.sport = detectSport(query)
+  }
 
   // Detect query type and suggested tool
   const detection = detectQueryType(query)
@@ -618,8 +659,8 @@ export function preprocessQuery(query: string): PreprocessedQuery {
       result.leaderboardStat = detection.extra.stat
     }
 
-    // Try to extract team for team-based queries
-    if (['ats', 'injuries', 'schedule'].includes(detection.type)) {
+    // Try to extract team for team-based queries (only if not already tagged)
+    if (['ats', 'injuries', 'schedule'].includes(detection.type) && !result.teamName) {
       result.teamName = findTeamInQuery(query) || undefined
     }
 
@@ -639,7 +680,8 @@ export function preprocessQuery(query: string): PreprocessedQuery {
     return result
   }
 
-  const teamName = extractTeamName(query)
+  // If we already have a tagged team, use that for team_stats detection
+  const teamName = result.teamName || extractTeamName(query)
   if (teamName) {
     result.teamName = teamName
     const statLabel = findStatRequest(query, TEAM_STAT_INDEX)
@@ -651,8 +693,8 @@ export function preprocessQuery(query: string): PreprocessedQuery {
     return result
   }
 
-  // Try to find any team or player mention
-  const foundTeam = findTeamInQuery(query)
+  // Try to find any team or player mention (only if not already tagged)
+  const foundTeam = result.teamName || findTeamInQuery(query)
   const foundPlayer = findPlayerInQuery(query)
 
   if (foundPlayer) {
@@ -667,6 +709,11 @@ export function preprocessQuery(query: string): PreprocessedQuery {
     result.queryType = 'team_stats'
     result.matched = true
     return result
+  }
+
+  // If we have tagged teams but no other match, still mark as matched
+  if (taggedTeams && taggedTeams.length > 0) {
+    result.matched = true
   }
 
   result.queryType = 'unknown'

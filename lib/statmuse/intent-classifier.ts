@@ -19,9 +19,18 @@ import {
 
 const MAX_TOOL_ITERATIONS = 3 // Prevent infinite loops
 
+interface TaggedTeamInput {
+  id: string
+  name: string
+  displayName: string
+  sport: string
+  position: { start: number; end: number }
+}
+
 interface ProcessQueryOptions {
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
   sportHint?: string
+  taggedTeams?: TaggedTeamInput[]
 }
 
 const needsExplicitSport = (
@@ -55,18 +64,23 @@ export async function processUnifiedQuery(
   message: string,
   options: ProcessQueryOptions = {}
 ): Promise<UnifiedQueryResponse> {
-  const { conversationHistory = [], sportHint } = options
+  const { conversationHistory = [], sportHint, taggedTeams } = options
 
   // Preprocess query to extract player/team names
-  const preprocessed = preprocessQuery(message)
+  // Pass tagged teams so preprocessor can prioritize them
+  const preprocessed = preprocessQuery(message, { taggedTeams })
   console.log('[INTENT-CLASSIFIER] Preprocessed query:', {
     matched: preprocessed.matched,
     queryType: preprocessed.queryType,
     playerName: preprocessed.playerName,
     teamName: preprocessed.teamName,
+    taggedTeamsCount: taggedTeams?.length ?? 0,
   })
 
+  // Resolve sport: tagged teams take priority, then sportHint, then detected
+  const taggedSport = taggedTeams?.[0]?.sport
   const resolvedSport =
+    resolveSportKey(taggedSport) ??
     resolveSportKey(sportHint) ??
     resolveSportKey(preprocessed.sport ? String(preprocessed.sport) : '')
 

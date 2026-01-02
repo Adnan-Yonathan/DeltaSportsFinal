@@ -2437,7 +2437,8 @@ export async function POST(req: NextRequest) {
       userId,
       timezone = 'America/New_York', // Default fallback
       mode = 'regular',
-      testBypass = false
+      testBypass = false,
+      taggedTeams = undefined, // Team tagging feature
     } = await req.json()
 
     const environmentName = process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown'
@@ -3344,7 +3345,7 @@ export async function POST(req: NextRequest) {
           .filter((m: any) => m.role === 'user' || m.role === 'assistant')
           .map((m: any) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
 
-        const unifiedResult = await processUnifiedQuery(message, { conversationHistory })
+        const unifiedResult = await processUnifiedQuery(message, { conversationHistory, taggedTeams })
 
         if (unifiedResult.reply && !unifiedResult.fallback) {
           // Save the assistant response

@@ -275,7 +275,7 @@ export const toolResolvers: Record<string, Resolver> = {
           return `${away?.name} @ ${home?.name}`
         })
         .join(', ')
-      throw new Error(`No live NBA game found matching "${gameIdentifier}". ${
+      throw new Error(`No live NBA game found matching "${gameIdentifier}". ${  
         availableGames ? `Available live games: ${availableGames}` : 'No live games currently.'
       }`)
     }

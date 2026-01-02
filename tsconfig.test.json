@@ -5,5 +5,5 @@
     "moduleResolution": "node",
     "allowJs": true
   },
-  "include": ["tests/**/*.ts", "lib/**/*.ts"]
+  "include": ["tests/**/*.ts", "lib/**/*.ts", "scripts/**/*.ts"]
 }

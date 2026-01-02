@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import ModernSidebar from '@/components/ModernSidebar'
 import ModernMessageList from '@/components/ModernMessageList'
-import ModernMessageInput from '@/components/ModernMessageInput'
+import RichMessageInput from '@/components/chat/RichMessageInput'
 import { LiveScoresPreview } from '@/components/LiveScoresPreview'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { SimpleHeader } from '@/components/ui/simple-header'
@@ -688,7 +688,7 @@ export default function ChatPage() {
       {currentConversationId && hasMessages && (
         <div className="fixed bottom-0 left-0 right-0 z-40">
           <div className="mx-auto max-w-5xl px-2 py-1.5 sm:px-4 sm:py-3">
-            <ModernMessageInput
+            <RichMessageInput
               conversationId={currentConversationId}
               userId={user?.id}
             />

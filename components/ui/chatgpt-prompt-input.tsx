@@ -2,6 +2,9 @@
 import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { getSuggestions, buildSuggestionContext } from "@/lib/data/query-suggestions";
+import type { QuerySuggestion, SuggestionCategory } from "@/lib/data/suggestion-patterns";
+import { CATEGORY_CONFIG } from "@/lib/data/suggestion-patterns";
 
 // --- Utility Function & Radix Primitives (Unchanged) ---
 type ClassValue = string | number | boolean | null | undefined;
@@ -52,8 +55,57 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
     const [isImageDialogOpen, setIsImageDialogOpen] = React.useState(false);
     const [isRecording, setIsRecording] = React.useState(false);
     const [isTranscribing, setIsTranscribing] = React.useState(false);
+
+    // Query suggestions state
+    const [suggestions, setSuggestions] = React.useState<QuerySuggestion[]>([]);
+    const [suggestionsVisible, setSuggestionsVisible] = React.useState(false);
+    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = React.useState(0);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
     React.useImperativeHandle(ref, () => internalTextareaRef.current!, []);
     React.useLayoutEffect(() => { const textarea = internalTextareaRef.current; if (textarea) { textarea.style.height = "auto"; const newHeight = Math.min(textarea.scrollHeight, 200); textarea.style.height = `${newHeight}px`; } }, [value]);
+
+    // Update suggestions when value changes
+    React.useEffect(() => {
+      if (value.length < 2) {
+        setSuggestions([]);
+        setSuggestionsVisible(false);
+        return;
+      }
+      const context = buildSuggestionContext(value);
+      const results = getSuggestions(value, context, 6);
+      setSuggestions(results);
+      setSuggestionsVisible(results.length > 0);
+      setSelectedSuggestionIndex(0);
+    }, [value]);
+
+    // Handle suggestion selection
+    const handleSuggestionSelect = (suggestion: QuerySuggestion) => {
+      const trimmed = value.trimEnd();
+      const newValue = trimmed + (trimmed ? ' ' : '') + suggestion.phrase;
+      setValue(newValue);
+      setSuggestionsVisible(false);
+      internalTextareaRef.current?.focus();
+    };
+
+    // Keyboard navigation for suggestions
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (!suggestionsVisible || suggestions.length === 0) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => (prev + 1) % suggestions.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+      } else if (e.key === 'Tab' && suggestions.length > 0) {
+        e.preventDefault();
+        handleSuggestionSelect(suggestions[selectedSuggestionIndex]);
+      } else if (e.key === 'Escape') {
+        setSuggestionsVisible(false);
+      }
+    };
+
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setValue(e.target.value); if (props.onChange) props.onChange(e); };
     const handlePlusClick = () => { fileInputRef.current?.click(); };
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (file && file.type.startsWith("image/")) { const reader = new FileReader(); reader.onloadend = () => { setImagePreview(reader.result as string); }; reader.readAsDataURL(file); } event.target.value = ""; };
@@ -117,12 +169,67 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
 
     const micTooltip = isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : "Record voice";
     return (
-      <div className={cn("flex flex-col rounded-[22px] sm:rounded-[28px] p-1.5 sm:p-2 shadow-sm transition-colors bg-white/5 backdrop-blur-xl border border-white/10 cursor-text", className)}>
+      <div ref={containerRef} className={cn("relative flex flex-col rounded-[22px] sm:rounded-[28px] p-1.5 sm:p-2 shadow-sm transition-colors bg-white/5 backdrop-blur-xl border border-white/10 cursor-text", className)}>
         <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*"/>
 
         {imagePreview && ( <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}> <div className="relative mb-1 w-fit rounded-[1rem] px-1 pt-1"> <button type="button" className="transition-transform" onClick={() => setIsImageDialogOpen(true)}> <img src={imagePreview} alt="Image preview" className="h-14.5 w-14.5 rounded-[1rem]" /> </button> <button onClick={handleRemoveImage} className="absolute right-2 top-2 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70" aria-label="Remove image"> <XIcon className="h-4 w-4" /> </button> </div> <DialogContent> <img src={imagePreview} alt="Full size preview" className="w-full max-h-[95vh] object-contain rounded-[24px]" /> </DialogContent> </Dialog> )}
 
-        <textarea ref={internalTextareaRef} rows={1} value={value} onChange={handleInputChange} placeholder="Message..." className="custom-scrollbar w-full resize-none border-0 bg-transparent p-2 sm:p-3 text-sm sm:text-base text-white placeholder:text-white/40 focus:ring-0 focus-visible:outline-none min-h-10 sm:min-h-12" {...props} />
+        <textarea ref={internalTextareaRef} rows={1} value={value} onChange={handleInputChange} onKeyDown={handleKeyDown} placeholder="Message..." className="custom-scrollbar w-full resize-none border-0 bg-transparent p-2 sm:p-3 text-sm sm:text-base text-white placeholder:text-white/40 focus:ring-0 focus-visible:outline-none min-h-10 sm:min-h-12" {...props} />
+
+        {/* Query Suggestions Dropdown */}
+        {suggestionsVisible && suggestions.length > 0 && (
+          <div className="absolute left-0 right-0 bottom-full mb-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg shadow-xl overflow-hidden z-50">
+            <div className="px-3 py-2 border-b border-[#2a2a2a] bg-[#141414]">
+              <span className="text-xs text-white/50 font-medium">Suggestions</span>
+            </div>
+            <div className="max-h-[240px] overflow-y-auto">
+              {suggestions.map((suggestion, index) => {
+                const config = CATEGORY_CONFIG[suggestion.category];
+                const colorClass = {
+                  edge: 'text-amber-400 bg-amber-500/20',
+                  betting: 'text-blue-400 bg-blue-500/20',
+                  props: 'text-orange-400 bg-orange-500/20',
+                  stats: 'text-green-400 bg-green-500/20',
+                  live: 'text-red-400 bg-red-500/20',
+                  schedule: 'text-purple-400 bg-purple-500/20',
+                  education: 'text-slate-400 bg-slate-500/20',
+                }[suggestion.category] || 'text-white/60 bg-white/10';
+
+                return (
+                  <button
+                    key={`${suggestion.category}-${suggestion.phrase}`}
+                    type="button"
+                    onClick={() => handleSuggestionSelect(suggestion)}
+                    onMouseEnter={() => setSelectedSuggestionIndex(index)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${index === selectedSuggestionIndex ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                  >
+                    <div className={`p-1.5 rounded ${colorClass.split(' ')[1]}`}>
+                      <span className={`text-xs ${colorClass.split(' ')[0]}`}>{config.icon}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className={`text-sm ${index === selectedSuggestionIndex ? 'text-white' : 'text-white/80'}`}>
+                        {suggestion.phrase}
+                      </span>
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${colorClass} flex-shrink-0`}>
+                      {config.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="border-t border-[#2a2a2a] px-3 py-1.5 text-xs text-white/40">
+              <kbd className="px-1 py-0.5 bg-white/10 rounded text-white/60 mr-1">↑↓</kbd>
+              navigate
+              <span className="mx-2">·</span>
+              <kbd className="px-1 py-0.5 bg-white/10 rounded text-white/60 mr-1">Tab</kbd>
+              select
+              <span className="mx-2">·</span>
+              <kbd className="px-1 py-0.5 bg-white/10 rounded text-white/60 mr-1">Esc</kbd>
+              dismiss
+            </div>
+          </div>
+        )}
 
         <div className="mt-0.5 p-0.5 sm:p-1 pt-0">
           <TooltipProvider delayDuration={100}>

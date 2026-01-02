@@ -1,9 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { UserPlus } from 'lucide-react'
 import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
+import { QuerySuggestions } from '@/components/chat/QuerySuggestions'
+import { getSuggestions, buildSuggestionContext } from '@/lib/data/query-suggestions'
+import type { QuerySuggestion } from '@/lib/data/suggestion-patterns'
 import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
 import { TopPerformancesStrip } from '@/components/ui/top-performances'
 import { AnimatedHero } from '@/components/ui/animated-hero'
@@ -20,6 +23,71 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
   const [sending, setSending] = useState(false)
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null)
   const [capabilitiesOpen, setCapabilitiesOpen] = useState(false)
+
+  // Query suggestions state
+  const [inputValue, setInputValue] = useState('')
+  const [suggestionsVisible, setSuggestionsVisible] = useState(false)
+  const [suggestionsAnchor, setSuggestionsAnchor] = useState<DOMRect | null>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  // Update suggestions when input changes
+  useEffect(() => {
+    if (inputValue.length < 2) {
+      setSuggestionsVisible(false)
+      return
+    }
+
+    const context = buildSuggestionContext(inputValue)
+    const suggestions = getSuggestions(inputValue, context, 1)
+
+    if (suggestions.length > 0 && formRef.current) {
+      const rect = formRef.current.getBoundingClientRect()
+      setSuggestionsAnchor({
+        top: rect.top,
+        bottom: rect.bottom,
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+        height: rect.height,
+        x: rect.x,
+        y: rect.y,
+        toJSON: () => ({}),
+      })
+      setSuggestionsVisible(true)
+    } else {
+      setSuggestionsVisible(false)
+    }
+  }, [inputValue])
+
+  // Handle suggestion selection
+  const handleSuggestionSelect = (suggestion: QuerySuggestion) => {
+    const textarea = formRef.current?.querySelector('textarea')
+    if (textarea) {
+      const trimmed = inputValue.trimEnd()
+      const newValue = trimmed + (trimmed ? ' ' : '') + suggestion.phrase
+
+      // Use native setter to update value
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        'value'
+      )?.set
+      if (nativeInputValueSetter) {
+        nativeInputValueSetter.call(textarea, newValue)
+      }
+      // Dispatch input event so React picks up the change
+      const inputEvent = new Event('input', { bubbles: true })
+      textarea.dispatchEvent(inputEvent)
+
+      setInputValue(newValue)
+      textarea.focus()
+    }
+    setSuggestionsVisible(false)
+  }
+
+  // Track input value changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputValue(e.target.value)
+  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -106,7 +174,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
         animate={{ opacity: 1, y: 0 }}
         className="text-center max-w-3xl w-full"
       >
-        <form onSubmit={handleSubmit} className="w-full relative">
+        <form ref={formRef} onSubmit={handleSubmit} className="w-full relative">
           {isGuest ? (
             <button
               type="button"
@@ -120,8 +188,17 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
               <p className="text-white/50 text-sm mt-2">Create a free account to ask questions about odds, stats, and betting analysis</p>
             </button>
           ) : (
-            <PromptBox name="message" disabled={sending} />
+            <PromptBox name="message" disabled={sending} onChange={handleInputChange} />
           )}
+
+          {/* Query suggestions dropdown */}
+          <QuerySuggestions
+            input={inputValue}
+            visible={suggestionsVisible && !isGuest}
+            onSelect={handleSuggestionSelect}
+            onClose={() => setSuggestionsVisible(false)}
+            anchorRect={suggestionsAnchor}
+          />
         </form>
 
         {/* Capabilities */}

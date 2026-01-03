@@ -20,6 +20,9 @@ export type QueryType =
   | 'game_recommendation'
   | 'line_shopping'
   | 'matchup'
+  | 'best_bet'
+  | 'matchup_analysis'
+  | 'sharp_money'
   | 'unknown'
 
 export type SportType = 'nba' | 'nfl' | 'mlb' | 'nhl' | 'ncaab' | 'cfb' | 'unknown'
@@ -254,6 +257,50 @@ const GAME_RECOMMENDATION_PATTERNS = [
   /\b(edge|value)\s+(on|in|for)\s+.+\s+(game|spread|total)/i,
   /\btarget\s+(spread|line|total)/i,
   /\b(over\s*\/?\s*under|o\s*\/?\s*u)\s+(projection|target|fair)/i,
+]
+
+/**
+ * Best bet patterns - single game betting recommendation
+ */
+const BEST_BET_PATTERNS = [
+  /\bbest\s+bet\b/i,
+  /\bbest\s+pick\b/i,
+  /\bwho\s+wins\b/i,
+  /\bwhat('s| is)\s+the\s+play\b/i,
+  /\bshould\s+i\s+bet\b/i,
+  /\bwhat\s+to\s+bet\b/i,
+  /\block\s+of\s+the\s+(day|night|week)\b/i,
+  /\bgive\s+me\s+a\s+(bet|pick|play)\b/i,
+  /\bwho\s+(do\s+you|should\s+i)\s+(like|take|bet)\b/i,
+  /\bwhat('s| is)\s+your\s+(pick|play|lean)\b/i,
+]
+
+/**
+ * Sharp money patterns - professional bettor action
+ */
+const SHARP_MONEY_PATTERNS = [
+  /\bsharp\s+(money|action|side|play|bettors?)\b/i,
+  /\bsmart\s+money\b/i,
+  /\bwise\s*guy(s)?\b/i,
+  /\breverse\s+line\s+move(ment)?\b/i,
+  /\brlm\b/i,
+  /\bsteam\s+move\b/i,
+  /\bprofessional\s+(money|bettors?|action)\b/i,
+  /\bsyndicate\b/i,
+  /\bline\s+move(ment)?\s+(toward|against|opposite)\b/i,
+  /\bwhere('s| is| are)\s+(the\s+)?(sharps?|pros?|professionals?)\b/i,
+]
+
+/**
+ * Matchup analysis patterns - comprehensive game breakdown
+ */
+const MATCHUP_ANALYSIS_PATTERNS = [
+  /\b(full|detailed|deep|comprehensive)\s+(analysis|breakdown)\b/i,
+  /\banalyze\s+(the\s+)?(matchup|game)\b/i,
+  /\bmatchup\s+analysis\b/i,
+  /\bgame\s+analysis\b/i,
+  /\bbreakdown\s+(of\s+)?(the\s+)?(matchup|game)\b/i,
+  /\btell\s+me\s+(about|everything)\s+(the\s+)?(matchup|game)\b/i,
 ]
 
 /**
@@ -522,6 +569,49 @@ function detectQueryType(query: string): { type: QueryType; tool?: string; extra
   for (const pattern of GAME_RECOMMENDATION_PATTERNS) {
     if (pattern.test(lower)) {
       return { type: 'game_recommendation', tool: 'get_game_recommendations' }
+    }
+  }
+
+  // Check for best bet with matchup indicator (two teams)
+  const hasMatchupIndicator = /\b(vs\.?|versus|@|against)\b/i.test(lower)
+  for (const pattern of BEST_BET_PATTERNS) {
+    if (pattern.test(lower)) {
+      // If has matchup indicator, route to unified analysis
+      if (hasMatchupIndicator) {
+        return {
+          type: 'best_bet',
+          tool: 'analyze_bet_market',
+          extra: { hasMatchup: true }
+        }
+      }
+      // Slate-wide best bet (no specific matchup)
+      return {
+        type: 'best_bet',
+        tool: 'get_slate_edge_detection',
+        extra: { hasMatchup: false }
+      }
+    }
+  }
+
+  // Check for sharp money queries
+  for (const pattern of SHARP_MONEY_PATTERNS) {
+    if (pattern.test(lower)) {
+      return {
+        type: 'sharp_money',
+        tool: 'get_slate_edge_detection',
+        extra: { focusSharp: true }
+      }
+    }
+  }
+
+  // Check for comprehensive matchup analysis
+  for (const pattern of MATCHUP_ANALYSIS_PATTERNS) {
+    if (pattern.test(lower) && hasMatchupIndicator) {
+      return {
+        type: 'matchup_analysis',
+        tool: 'analyze_bet_market',
+        extra: { comprehensive: true }
+      }
     }
   }
 
@@ -909,6 +999,22 @@ export function enhanceQueryForLLM(query: string, preprocessed: PreprocessedQuer
 
     case 'team_stats':
       if (preprocessed.teamName) hints.push(`Team: "${preprocessed.teamName}"`)
+      break
+
+    case 'best_bet':
+      hints.push(`Use analyze_bet_market for comprehensive game analysis with odds, ATS, splits, and model projections`)
+      if (preprocessed.teamName) hints.push(`Team: "${preprocessed.teamName}"`)
+      if (preprocessed.opponentTeam) hints.push(`Opponent: "${preprocessed.opponentTeam}"`)
+      break
+
+    case 'matchup_analysis':
+      hints.push(`Use analyze_bet_market for detailed matchup breakdown with stats, trends, injuries, and betting context`)
+      if (preprocessed.teamName) hints.push(`Team: "${preprocessed.teamName}"`)
+      if (preprocessed.opponentTeam) hints.push(`Opponent: "${preprocessed.opponentTeam}"`)
+      break
+
+    case 'sharp_money':
+      hints.push(`Use get_slate_edge_detection to find sharp money signals, reverse line movements, and professional bettor action`)
       break
   }
 

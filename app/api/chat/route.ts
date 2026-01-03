@@ -8556,7 +8556,7 @@ ${statsEnrichment}
       console.log('[CHAT] Tool names:', toolCalls.map((tc: any) => tc.function?.name).join(', '))
     }
 
-      const withTimeout = <T>(p: Promise<T>, ms = 8000) =>
+      const withTimeout = <T>(p: Promise<T>, ms = 15000) =>  // Increased default from 8000 to 15000
         Promise.race<T>([
           p,
           new Promise<T>((_, reject) => setTimeout(() => reject(new Error('tool timeout')), ms)) as Promise<T>,
@@ -8614,7 +8614,7 @@ ${statsEnrichment}
           // 1. Get odds with team filter (no full team list needed)
           const allOdds = await withTimeout(
             fetchOdds(sportKey, ['spreads', 'totals', 'h2h'], { teamFilter: teams }),
-            5000
+            8000  // Increased from 5000 for more reliable fetches
           ).catch(() => [] as OddsGame[])
 
           // Find matching game by team names
@@ -8677,7 +8677,7 @@ ${statsEnrichment}
           // 2. Get ATS data (efficient - doesn't trigger full team fetch)
           const atsPromises = teams.slice(0, 2).map(async (team) => {
             try {
-              const ats = await withTimeout(getTeamATSData(team, sportKey), 3000)
+              const ats = await withTimeout(getTeamATSData(team, sportKey), 5000)  // Increased from 3000
               return { team, ats }
             } catch {
               return { team, ats: null }
@@ -8724,7 +8724,7 @@ ${statsEnrichment}
           let splits: any = null
           try {
             const { getCurrentBettingSplits } = await import('@/lib/providers/covers')
-            const splitsResult = await withTimeout(getCurrentBettingSplits(sportKey), 4000)
+            const splitsResult = await withTimeout(getCurrentBettingSplits(sportKey), 6000)  // Increased from 4000
             if (splitsResult.success && splitsResult.data) {
               splits = splitsResult.data.find((s: any) =>
                 matchesGame(s.homeTeam || '', s.awayTeam || '', teamA, teamB)
@@ -8802,7 +8802,7 @@ ${statsEnrichment}
             // Get detailed matchup analysis (team stats, injuries, trends)
             matchupAnalysis = await withTimeout(
               analyzeMatchup(teamA, teamB, undefined, undefined, sportKey),
-              6000
+              12000  // Increased from 6000 for comprehensive matchup data
             )
 
             // Add team stats to snapshot if available
@@ -8845,7 +8845,7 @@ ${statsEnrichment}
                 marketContext,
                 matchupAnalysis || undefined
               ),
-              6000
+              10000  // Increased from 6000 for reliable model projections
             )
 
             const spreadRec = recommendations.find((r) => r.type === 'spread')

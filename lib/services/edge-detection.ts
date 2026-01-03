@@ -705,4 +705,72 @@ export function formatEdgeResultForGame(
   return lines.join('\n')
 }
 
+/**
+ * Quick sharp signal check for a specific game
+ * Returns key sharp indicators without full analysis overhead
+ */
+export async function getSharpSignalsForGame(
+  sportKey: string,
+  homeTeam: string,
+  awayTeam: string
+): Promise<{
+  hasRLM: boolean
+  hasSteam: boolean
+  hasSharpMoney: boolean
+  signals: { type: string; market: string; side: string; description: string }[]
+  summary: string
+}> {
+  const league = LEAGUE_TO_SPORT[sportKey as keyof typeof LEAGUE_TO_SPORT] as SbdLeague | undefined
+  if (!league) {
+    return {
+      hasRLM: false,
+      hasSteam: false,
+      hasSharpMoney: false,
+      signals: [],
+      summary: 'Sport not supported for sharp detection',
+    }
+  }
+
+  try {
+    const gameLabel = `${awayTeam} @ ${homeTeam}`
+    const result = await detectEdgeForGame(league, gameLabel)
+
+    if (!result) {
+      return {
+        hasRLM: false,
+        hasSteam: false,
+        hasSharpMoney: false,
+        signals: [],
+        summary: 'No matching game found',
+      }
+    }
+
+    const hasRLM = result.sharpSignals.some((s) => s.type === 'RLM')
+    const hasSteam = result.sharpSignals.some((s) => s.type === 'STEAM')
+    const hasSharpMoney = result.sharpSignals.some((s) => s.type === 'SHARP_MONEY')
+
+    return {
+      hasRLM,
+      hasSteam,
+      hasSharpMoney,
+      signals: result.sharpSignals.map((s) => ({
+        type: s.type,
+        market: s.market,
+        side: s.side,
+        description: s.description,
+      })),
+      summary: result.summary,
+    }
+  } catch (error) {
+    console.error('[SHARP_SIGNALS] Error detecting signals:', error)
+    return {
+      hasRLM: false,
+      hasSteam: false,
+      hasSharpMoney: false,
+      signals: [],
+      summary: 'Error detecting sharp signals',
+    }
+  }
+}
+
 export { SHARP_THRESHOLDS }

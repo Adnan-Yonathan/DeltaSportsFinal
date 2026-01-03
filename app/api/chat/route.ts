@@ -4665,6 +4665,7 @@ export async function POST(req: NextRequest) {
       !pointTotalConceptualAsk &&
       !webSearchToggle &&
       !researchIntent &&
+      !crossMarketEVIntent &&
       (mentionedTeams.length > 0 ||
         parsedMatchupTeams.length > 0 ||
         Boolean(playerNameInMessage) ||

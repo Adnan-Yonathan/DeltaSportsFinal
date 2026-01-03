@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import Link from 'next/link'
 import { UserPlus } from 'lucide-react'
 import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
 import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
@@ -113,12 +114,12 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
               <span className="text-sm text-white/70">
                 Live odds + line shopping merge, more player props, arb badges, and odds fixes.
               </span>
-              <a
+              <Link
                 href="/patch-notes"
-                className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+                className="relative z-10 inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
               >
                 Full patch notes
-              </a>
+              </Link>
             </>
           )}
         </div>

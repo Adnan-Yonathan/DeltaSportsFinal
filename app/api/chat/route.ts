@@ -7350,11 +7350,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (crossMarketEVIntent) {
-      if (!sportHint) {
-        return streamTextResponse(
-          'Which sport should I scan for EV? Please specify NBA, NCAAB, NFL, NCAAF, NHL, or MLB.'
-        )
-      }
       const evLimit = getEvToolLimit()
       const evGate = await checkAndIncrementUsage('evTool', evLimit)
       if (!evGate.allowed) {
@@ -7368,14 +7363,16 @@ export async function POST(req: NextRequest) {
         )
       }
       try {
-        console.log('[CROSS-MARKET-EV] Intent detected, scanning for +EV opportunities...')
+        // Scan all sports by default, or just the specified sport if provided
+        const sportsToScan = sportHint ? [sportHint] : undefined // undefined = use default (all sports)
+        console.log(`[CROSS-MARKET-EV] Intent detected, scanning ${sportsToScan ? sportsToScan.join(', ') : 'all sports'} for +EV opportunities...`)
         const evOptions = {
           minEV: 3, // 3% for team markets
           minPropEV: 3, // 3% for player props
           minBooks: 2,
           limit: 50,
           includeProps: true,
-          ...(sportHint ? { sports: [sportHint] } : {}),
+          ...(sportsToScan ? { sports: sportsToScan } : {}),
         }
         const opportunities = await findEVOpportunities(evOptions)
         const evResponse = formatEVResults(opportunities)

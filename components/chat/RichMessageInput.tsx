@@ -38,17 +38,31 @@ export default function RichMessageInput({ conversationId, userId }: RichMessage
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  // Auto-focus textarea on mount so suggestions work immediately
+  useEffect(() => {
+    if (textareaRef.current && !sending) {
+      textareaRef.current.focus()
+      setIsFocused(true)
+    }
+  }, []) // Only run on mount
+
   const syncTextareaHeight = () => {
     if (!textareaRef.current) return
     textareaRef.current.style.height = 'auto'
     textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
   }
 
+  // Track if we're in bracket mode for team selection
+  const [bracketMode, setBracketMode] = useState(false)
+  const [bracketStart, setBracketStart] = useState<number | null>(null)
+
   // Detect team name patterns and show autocomplete OR query suggestions
   useEffect(() => {
     if (!message || !isFocused) {
       setAutocompleteVisible(false)
       setSuggestionsVisible(false)
+      setBracketMode(false)
+      setBracketStart(null)
       return
     }
 
@@ -73,6 +87,31 @@ export default function RichMessageInput({ conversationId, userId }: RichMessage
         }
       }
       return null
+    }
+
+    // Check for bracket mode: typing [teamname triggers team autocomplete
+    const lastOpenBracket = beforeCursor.lastIndexOf('[')
+    const lastCloseBracket = beforeCursor.lastIndexOf(']')
+
+    // We're in bracket mode if there's an unclosed bracket
+    if (lastOpenBracket > lastCloseBracket) {
+      const queryAfterBracket = beforeCursor.slice(lastOpenBracket + 1)
+      // Don't activate if the bracket content looks like an existing tag [ABC]
+      if (!queryAfterBracket.includes(']')) {
+        setBracketMode(true)
+        setBracketStart(lastOpenBracket)
+
+        // Show all teams when just opened bracket, or filter by query
+        const searchQuery = queryAfterBracket.trim()
+        setAutocompleteQuery(searchQuery)
+        setAutocompleteVisible(true)
+        setSuggestionsVisible(false)
+        setAutocompleteAnchor(getAnchorRect())
+        return
+      }
+    } else {
+      setBracketMode(false)
+      setBracketStart(null)
     }
 
     // First, check for team matches (higher priority for entity completion)
@@ -109,13 +148,22 @@ export default function RichMessageInput({ conversationId, userId }: RichMessage
     const beforeCursor = message.slice(0, cursorPosition)
     const afterCursor = message.slice(cursorPosition)
 
-    // Find the word being replaced
-    const words = beforeCursor.split(/\s+/)
-    const currentWord = words[words.length - 1] || ''
-    const wordStart = beforeCursor.lastIndexOf(currentWord)
+    let wordStart: number
+    let newBeforeCursor: string
+
+    // If we're in bracket mode, replace from the bracket
+    if (bracketMode && bracketStart !== null) {
+      wordStart = bracketStart
+      newBeforeCursor = beforeCursor.slice(0, bracketStart)
+    } else {
+      // Find the word being replaced
+      const words = beforeCursor.split(/\s+/)
+      const currentWord = words[words.length - 1] || ''
+      wordStart = beforeCursor.lastIndexOf(currentWord)
+      newBeforeCursor = beforeCursor.slice(0, wordStart)
+    }
 
     // Replace current word with team name
-    const newBeforeCursor = beforeCursor.slice(0, wordStart)
     const teamMarker = `[${team.abbreviation}]` // Placeholder in text
     const newMessage = newBeforeCursor + teamMarker + ' ' + afterCursor.trimStart()
 
@@ -141,6 +189,8 @@ export default function RichMessageInput({ conversationId, userId }: RichMessage
     setMessage(newMessage)
     setCursorPosition(position.end + 1)
     setAutocompleteVisible(false)
+    setBracketMode(false)
+    setBracketStart(null)
 
     // Refocus textarea
     setTimeout(() => {
@@ -150,7 +200,7 @@ export default function RichMessageInput({ conversationId, userId }: RichMessage
         textareaRef.current.setSelectionRange(newPos, newPos)
       }
     }, 0)
-  }, [message, cursorPosition, autocompleteQuery])
+  }, [message, cursorPosition, autocompleteQuery, bracketMode, bracketStart])
 
   const handleRemoveTeam = useCallback((index: number) => {
     const teamToRemove = taggedTeams[index]
@@ -284,7 +334,7 @@ export default function RichMessageInput({ conversationId, userId }: RichMessage
         errorMessage = error.message || 'Subscription required to continue.'
         shouldRedirectToPricing = true
       } else if (error.status === 429) {
-        errorMessage = error.message || 'Daily message limit reached.'
+        errorMessage = error.message || 'Daily message limit reached. Upgrade to Sharp or Syndicate for unrestricted access.'
         shouldRedirectToPricing = true
       } else if (error.message) {
         errorMessage = error.message
@@ -458,8 +508,13 @@ export default function RichMessageInput({ conversationId, userId }: RichMessage
             query={autocompleteQuery}
             visible={autocompleteVisible}
             onSelect={handleTeamSelect}
-            onClose={() => setAutocompleteVisible(false)}
+            onClose={() => {
+              setAutocompleteVisible(false)
+              setBracketMode(false)
+              setBracketStart(null)
+            }}
             anchorRect={autocompleteAnchor}
+            bracketMode={bracketMode}
           />
 
           {/* Query suggestions dropdown */}
@@ -474,7 +529,7 @@ export default function RichMessageInput({ conversationId, userId }: RichMessage
         </div>
 
         <div className="hidden sm:block text-xs text-white/40 mt-2 text-center">
-          Type a team name to tag it · Press <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Enter</kbd> to send
+          Type <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">[</kbd> for team picker · Press <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white/60">Enter</kbd> to send
         </div>
       </div>
     </div>

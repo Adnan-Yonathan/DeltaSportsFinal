@@ -20,6 +20,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
   const [sending, setSending] = useState(false)
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null)
   const [capabilitiesOpen, setCapabilitiesOpen] = useState(false)
+  const [patchExpanded, setPatchExpanded] = useState(false)
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -91,6 +92,36 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
         animate={{ opacity: 1, y: 0 }}
         className="text-center max-w-3xl w-full mb-4 sm:mb-6"
       >
+        <div className="mb-6 flex flex-col items-center gap-2 rounded-2xl border border-[#2a2a2a] bg-black/70 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">
+              Patch 0.1
+            </span>
+            <button
+              type="button"
+              onClick={() => setPatchExpanded((prev) => !prev)}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#34d399] text-[12px] font-semibold text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+              aria-expanded={patchExpanded}
+              aria-label={patchExpanded ? "Hide patch notes summary" : "Show patch notes summary"}
+            >
+              +
+            </button>
+          </div>
+          <span className="text-sm text-white/80">Patch notes</span>
+          {patchExpanded && (
+            <>
+              <span className="text-sm text-white/70">
+                Live odds + line shopping merge, more player props, arb badges, and odds fixes.
+              </span>
+              <a
+                href="/patch-notes"
+                className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+              >
+                Full patch notes
+              </a>
+            </>
+          )}
+        </div>
         <AnimatedHero
           staticText="Make money with"
           interval={2500}

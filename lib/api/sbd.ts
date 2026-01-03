@@ -383,8 +383,13 @@ export const mapSbdMarketsToBookmakers = (
     target.markets.push(market)
   }
 
-  if (markets.moneyline && shouldInclude(MARKETS.H2H)) {
-    for (const book of markets.moneyline.books || []) {
+  const moneylineMarket =
+    markets.moneyline ||
+    markets.money_line ||
+    markets.h2h ||
+    markets.ml
+  if (moneylineMarket && shouldInclude(MARKETS.H2H)) {
+    for (const book of moneylineMarket.books || []) {
       const homeOdds = parseAmerican(book?.home?.odds ?? book?.home?.price)
       const awayOdds = parseAmerican(book?.away?.odds ?? book?.away?.price)
       const drawOdds = parseAmerican(book?.draw?.odds ?? book?.draw?.price)
@@ -398,8 +403,13 @@ export const mapSbdMarketsToBookmakers = (
     }
   }
 
-  if (markets.spread && shouldInclude(MARKETS.SPREADS)) {
-    for (const book of markets.spread.books || []) {
+  const spreadMarket =
+    markets.spread ||
+    markets.spreads ||
+    markets.point_spread ||
+    markets.pointspread
+  if (spreadMarket && shouldInclude(MARKETS.SPREADS)) {
+    for (const book of spreadMarket.books || []) {
       const homeOdds = parseAmerican(book?.home?.odds)
       const awayOdds = parseAmerican(book?.away?.odds)
       const homeSpread = parseNumber(book?.home?.spread)
@@ -417,8 +427,13 @@ export const mapSbdMarketsToBookmakers = (
     }
   }
 
-  if (markets.total && shouldInclude(MARKETS.TOTALS)) {
-    for (const book of markets.total.books || []) {
+  const totalMarket =
+    markets.total ||
+    markets.totals ||
+    markets.over_under ||
+    markets.overunder
+  if (totalMarket && shouldInclude(MARKETS.TOTALS)) {
+    for (const book of totalMarket.books || []) {
       const overOdds = parseAmerican(book?.over?.odds)
       const underOdds = parseAmerican(book?.under?.odds)
       const total = parseNumber(book?.total)

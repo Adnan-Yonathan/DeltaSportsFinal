@@ -7,7 +7,7 @@
 
 import { fetchOdds } from '@/lib/api/odds-api'
 import { fetchSbdGamePropsList, type SbdLeague } from '@/lib/api/sbd'
-import { OddsGame, Bookmaker, OddsMarket, MARKETS, SPORTS } from '@/lib/types/odds'
+import { OddsGame, Bookmaker, OddsMarket, OddsOutcome, MARKETS, SPORTS } from '@/lib/types/odds'
 import {
   BookOdds,
   EVOpportunity,
@@ -48,6 +48,52 @@ const withinOddsCaps = (odds: number): boolean => {
   if (odds > MAX_ODDS) return false
   if (odds > 0 && odds > MAX_POSITIVE_ODDS) return false
   return true
+}
+
+const average = (values: number[]): number =>
+  values.reduce((sum, value) => sum + value, 0) / values.length
+
+const buildSelectionKey = (outcome: OddsOutcome): string =>
+  outcome.point !== undefined ? `${outcome.name}_${outcome.point}` : outcome.name
+
+const buildNoVigConsensusBySelection = (
+  bookmakers: Bookmaker[],
+  marketKey: string
+): Map<string, { impliedProbability: number; bookCount: number }> => {
+  const selectionProbabilities = new Map<string, number[]>()
+
+  for (const bookmaker of bookmakers) {
+    const market = bookmaker.markets.find((m) => m.key === marketKey)
+    if (!market) continue
+
+    const implied = market.outcomes
+      .map((outcome) => {
+        const prob = calculateImpliedProbabilityDecimal(outcome.price)
+        if (!Number.isFinite(prob) || prob <= 0) return null
+        return { key: buildSelectionKey(outcome), prob }
+      })
+      .filter(Boolean) as Array<{ key: string; prob: number }>
+
+    if (implied.length < 2) continue
+
+    const totalProb = implied.reduce((sum, entry) => sum + entry.prob, 0)
+    if (!Number.isFinite(totalProb) || totalProb <= 0) continue
+
+    for (const entry of implied) {
+      const normalized = entry.prob / totalProb
+      const bucket = selectionProbabilities.get(entry.key) || []
+      bucket.push(normalized)
+      selectionProbabilities.set(entry.key, bucket)
+    }
+  }
+
+  const consensus = new Map<string, { impliedProbability: number; bookCount: number }>()
+  for (const [key, probs] of selectionProbabilities.entries()) {
+    if (!probs.length) continue
+    consensus.set(key, { impliedProbability: average(probs), bookCount: probs.length })
+  }
+
+  return consensus
 }
 
 // Map sport keys to SBD league format
@@ -144,6 +190,7 @@ function analyzeGameForEV(
   for (const marketKey of markets) {
     // Collect all outcomes for this market across books
     const outcomesBySelection = collectOutcomesBySelection(game.bookmakers, marketKey)
+    const noVigConsensusBySelection = buildNoVigConsensusBySelection(game.bookmakers, marketKey)
 
     for (const [selectionKey, bookOdds] of outcomesBySelection.entries()) {
       // Skip if not enough books for reliable consensus
@@ -152,6 +199,9 @@ function analyzeGameForEV(
       }
 
       const consensus = findMarketConsensus(bookOdds)
+      const noVig = noVigConsensusBySelection.get(selectionKey)
+      const consensusProbability =
+        noVig && noVig.bookCount > 0 ? noVig.impliedProbability : consensus.impliedProbability
 
       // Find the best odds available
       const bestBook = bookOdds.reduce((best, current) =>
@@ -159,7 +209,7 @@ function analyzeGameForEV(
       )
 
       // Calculate EV using consensus probability
-      const ev = calculateEV(consensus.impliedProbability, bestBook.odds)
+      const ev = calculateEV(consensusProbability, bestBook.odds)
 
       // Debug: Log promising opportunities (EV > 0)
       if (ev > 0) {
@@ -172,7 +222,7 @@ function analyzeGameForEV(
 
         // Calculate edge
         const bestImplied = calculateImpliedProbabilityDecimal(bestBook.odds)
-        const edgePercent = (consensus.impliedProbability - bestImplied) * 100
+        const edgePercent = (consensusProbability - bestImplied) * 100
 
         opportunities.push({
           game: gameDescription,
@@ -182,7 +232,7 @@ function analyzeGameForEV(
           point,
           bestBook: bestBook.bookmaker,
           bestOdds: bestBook.odds,
-          consensus,
+          consensus: { ...consensus, impliedProbability: consensusProbability },
           ev: Math.round(ev * 10) / 10,
           edgePercent: Math.round(edgePercent * 10) / 10,
           allBooks: bookOdds,
@@ -210,8 +260,7 @@ function collectOutcomesBySelection(
 
     for (const outcome of market.outcomes) {
       // Create a unique key for this selection (including point for spreads/totals)
-      const selectionKey =
-        outcome.point !== undefined ? `${outcome.name}_${outcome.point}` : outcome.name
+      const selectionKey = buildSelectionKey(outcome)
 
       if (!outcomeMap.has(selectionKey)) {
         outcomeMap.set(selectionKey, [])
@@ -421,7 +470,7 @@ async function findPlayerPropEVOpportunities(
 
         // Collect odds from each sportsbook, grouped by line
         // This ensures we only compare odds at the SAME line (e.g., all o2.5, not o1.5 vs o2.5)
-        const oddsByLine = new Map<number, BookOdds[]>()
+        const oddsByLine = new Map<number, Map<string, { over?: number; under?: number }>>()
 
         for (const sportsbook of sportsbooks) {
           const bookName = String(sportsbook?.name || '')
@@ -429,22 +478,52 @@ async function findPlayerPropEVOpportunities(
 
           const odds = sportsbook?.odds || {}
           const overOdds = parseOddsValue(odds?.over_american ?? odds?.over_decimal ?? sportsbook?.over_odds)
-          const line = Number(odds?.over_points ?? odds?.under_points ?? sportsbook?.over_points ?? sportsbook?.under_points)
+          const underOdds = parseOddsValue(
+            odds?.under_american ?? odds?.under_decimal ?? sportsbook?.under_odds
+          )
+          const line = Number(
+            odds?.over_points ??
+              odds?.under_points ??
+              sportsbook?.over_points ??
+              sportsbook?.under_points
+          )
 
-          if (overOdds && Number.isFinite(line)) {
+          if (Number.isFinite(line)) {
             if (!oddsByLine.has(line)) {
-              oddsByLine.set(line, [])
+              oddsByLine.set(line, new Map())
             }
-            oddsByLine.get(line)!.push({
-              bookmaker: bookName,
-              odds: overOdds,
-              point: line,
-            })
+            const lineBooks = oddsByLine.get(line)!
+            const entry = lineBooks.get(bookName) || {}
+            if (overOdds && Number.isFinite(overOdds)) entry.over = overOdds
+            if (underOdds && Number.isFinite(underOdds)) entry.under = underOdds
+            lineBooks.set(bookName, entry)
           }
         }
 
         // Process each line separately - only compare books offering the SAME line
-        for (const [line, bookOdds] of oddsByLine.entries()) {
+        for (const [line, lineBooks] of oddsByLine.entries()) {
+          const bookOdds: BookOdds[] = []
+          const noVigProbs: number[] = []
+
+          for (const [bookName, odds] of lineBooks.entries()) {
+            if (odds.over && Number.isFinite(odds.over)) {
+              bookOdds.push({
+                bookmaker: bookName,
+                odds: odds.over,
+                point: line,
+              })
+            }
+
+            if (odds.over && odds.under) {
+              const overProb = calculateImpliedProbabilityDecimal(odds.over)
+              const underProb = calculateImpliedProbabilityDecimal(odds.under)
+              const total = overProb + underProb
+              if (Number.isFinite(total) && total > 0) {
+                noVigProbs.push(overProb / total)
+              }
+            }
+          }
+
           if (bookOdds.length < minBooks) {
             continue
           }
@@ -453,18 +532,21 @@ async function findPlayerPropEVOpportunities(
 
           // Calculate consensus and find best odds (all at the same line now)
           const consensus = findMarketConsensus(bookOdds)
+          const consensusProbability = noVigProbs.length
+            ? average(noVigProbs)
+            : consensus.impliedProbability
           const bestBook = bookOdds.reduce((best, current) =>
             current.odds > best.odds ? current : best
           )
 
-          const ev = calculateEV(consensus.impliedProbability, bestBook.odds)
+          const ev = calculateEV(consensusProbability, bestBook.odds)
 
           if (ev >= minEV) {
             const team = entry?.player?.team || ''
             const leagueLabel = league.toUpperCase()
 
             const bestImplied = calculateImpliedProbabilityDecimal(bestBook.odds)
-            const edgePercent = (consensus.impliedProbability - bestImplied) * 100
+            const edgePercent = (consensusProbability - bestImplied) * 100
 
             console.log(`[CROSS-MARKET-EV] Found ${league} prop EV: ${playerName} ${marketKey} o${line} @ ${bestBook.bookmaker} ${bestBook.odds}, EV=${ev.toFixed(1)}% (${bookOdds.length} books at same line)`)
 
@@ -476,7 +558,7 @@ async function findPlayerPropEVOpportunities(
               point: line,
               bestBook: bestBook.bookmaker,
               bestOdds: bestBook.odds,
-              consensus,
+              consensus: { ...consensus, impliedProbability: consensusProbability },
               ev: Math.round(ev * 10) / 10,
               edgePercent: Math.round(edgePercent * 10) / 10,
               allBooks: bookOdds,
@@ -564,7 +646,9 @@ Try again later when more games are posted or lines are moving.`
   }
 
   lines.push('---')
-  lines.push(`_${opportunities.length} opportunities found. EV = (Consensus Prob × Best Odds Payout) - 1_`)
+  lines.push(
+    `_${opportunities.length} opportunities found. EV = (Consensus Prob (de-vig when available) x Best Odds Payout) - 1_`
+  )
 
   return lines.join('\n')
 }

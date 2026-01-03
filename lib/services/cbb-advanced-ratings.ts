@@ -45,39 +45,60 @@ const toNumber = (value: unknown): number | null => {
 }
 
 const buildDerivedRatings = async (): Promise<CbbAdvancedRating[]> => {
-  const teams = await getSportsTeamStats('basketball_ncaab')
-  const capturedAt = new Date().toISOString()
-  return teams.map((team) => {
-    const stats = team.stats || {}
-    const adjO = toNumber(stats.offensiveRating)
-    const adjD = toNumber(stats.defensiveRating)
-    const adjEM =
-      toNumber(stats.netRating) ??
-      (adjO != null && adjD != null ? Number((adjO - adjD).toFixed(2)) : null)
+  try {
+    const teams = await getSportsTeamStats('basketball_ncaab')
+    const capturedAt = new Date().toISOString()
+    return teams.map((team) => {
+      const stats = team.stats || {}
+      const adjO = toNumber(stats.offensiveRating)
+      const adjD = toNumber(stats.defensiveRating)
+      const adjEM =
+        toNumber(stats.netRating) ??
+        (adjO != null && adjD != null ? Number((adjO - adjD).toFixed(2)) : null)
 
-    return {
-      team: team.team,
-      teamKey: normalizeTeamKey(team.team),
-      season: team.season ?? null,
-      source: 'derived',
-      adjO: adjO ?? undefined,
-      adjD: adjD ?? undefined,
-      adjEM: adjEM ?? undefined,
-      tempo: toNumber(stats.pace) ?? undefined,
-      netRank: toNumber(stats.netRank) ?? undefined,
-      netRecord: stats.netRecord ? String(stats.netRecord) : undefined,
-      netConference: stats.netConference ? String(stats.netConference) : undefined,
-      capturedAt,
-    }
-  })
+      return {
+        team: team.team,
+        teamKey: normalizeTeamKey(team.team),
+        season: team.season ?? null,
+        source: 'derived',
+        adjO: adjO ?? undefined,
+        adjD: adjD ?? undefined,
+        adjEM: adjEM ?? undefined,
+        tempo: toNumber(stats.pace) ?? undefined,
+        netRank: toNumber(stats.netRank) ?? undefined,
+        netRecord: stats.netRecord ? String(stats.netRecord) : undefined,
+        netConference: stats.netConference ? String(stats.netConference) : undefined,
+        capturedAt,
+      }
+    })
+  } catch (error) {
+    console.error('[CBB] Derived ratings fetch failed:', error)
+    return []
+  }
 }
 
 const mergeRatings = async (): Promise<CbbAdvancedRating[]> => {
-  const [derived, torvik, hasla] = await Promise.all([
+  const [derivedResult, torvikResult, haslaResult] = await Promise.allSettled([
     buildDerivedRatings(),
     fetchTorvikAdvancedRatings(),
     fetchHaslametricsRatings(),
   ])
+  const derived =
+    derivedResult.status === 'fulfilled' ? derivedResult.value : []
+  const torvik =
+    torvikResult.status === 'fulfilled' ? torvikResult.value : []
+  const hasla =
+    haslaResult.status === 'fulfilled' ? haslaResult.value : []
+
+  if (derivedResult.status === 'rejected') {
+    console.error('[CBB] Derived ratings failed:', derivedResult.reason)
+  }
+  if (torvikResult.status === 'rejected') {
+    console.error('[CBB] Torvik ratings failed:', torvikResult.reason)
+  }
+  if (haslaResult.status === 'rejected') {
+    console.error('[CBB] Haslametrics ratings failed:', haslaResult.reason)
+  }
 
   const merged = new Map<string, CbbAdvancedRating>()
 
@@ -128,11 +149,16 @@ export async function getCbbAdvancedRatingsSnapshot(): Promise<CbbAdvancedRating
     return snapshotCache.data
   }
 
-  const merged = await mergeRatings()
-  if (merged.length > 0) {
-    snapshotCache = { ts: Date.now(), data: merged }
+  try {
+    const merged = await mergeRatings()
+    if (merged.length > 0) {
+      snapshotCache = { ts: Date.now(), data: merged }
+    }
+    return merged
+  } catch (error) {
+    console.error('[CBB] Ratings snapshot failed:', error)
+    return snapshotCache?.data ?? []
   }
-  return merged
 }
 
 export async function getCbbAdvancedRatingsForTeam(

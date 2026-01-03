@@ -1,8 +1,9 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions'
 import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
 import type { OddsGame } from '@/lib/types/odds'
+import { resolveSbdLeague } from '@/lib/api/sbd'
 import {
   getTeamStats,
   getInjuryReports,
@@ -30,6 +31,8 @@ import {
   getTeamATSData,
 } from '@/lib/providers/covers'
 import { getGameRecommendations } from '@/lib/services/recommendation-engine'
+import { detectEdgeForGame } from '@/lib/services/edge-detection'
+import { analyzeMatchup, formatMatchupAnalysisForChat } from '@/lib/services/matchup-analyzer'
 import { getTeamQuarterAverages, getTeamQuarterThreshold } from '@/lib/services/quarter-analytics'
 import {
   buildPickGuidanceResponse,
@@ -1669,8 +1672,8 @@ const getSystemPrompt = (timezone: string) => `You are DELTA, a professional spo
   - Present the projection without comparing to actual market odds
 
   **Pick requests and market analysis:**
-  - If the user asks for the "best bet", "pick", "lock", or "who wins" without a specific market/line, call get_pick_guidance.
-  - If the user asks to analyze a specific game/prop/market or provides a line, call analyze_bet_market.
+  - If the user asks for the "best bet", "pick", "lock", "who wins", or "analyze" for a SPECIFIC MATCHUP (e.g., "best bet in Lakers vs Celtics", "who wins Notre Dame vs California"), ALWAYS call analyze_bet_market - this provides comprehensive game analysis with odds, team stats, injuries, model projections, and betting splits.
+  - If the user asks for the "best bet" or "pick" WITHOUT a specific matchup (e.g., "what's the best bet tonight?", "give me a pick"), call get_pick_guidance for general guidance OR get_slate_edge_detection for slate-wide analysis.
   - Betting splits are ONLY for spread/moneyline/total markets (never for props or quarter markets).
   - Do not give a direct pick unless the user explicitly asks to run a custom model.
   
@@ -2287,7 +2290,7 @@ const ASSISTANT_TOOLS: ChatCompletionTool[] = [
       function: {
         name: 'get_pick_guidance',
         description:
-          'Provide a structured guide for how to find the best bet (no direct picks). Use when a user asks for the best bet/pick without specifying a market or line.',
+          'Provide general betting guidance when NO specific matchup is mentioned. Use ONLY for vague requests like "what should I bet on" or "give me a pick" without team names. Do NOT use when a matchup is specified - use analyze_bet_market instead.',
         parameters: {
           type: 'object',
           properties: {
@@ -2304,7 +2307,7 @@ const ASSISTANT_TOOLS: ChatCompletionTool[] = [
       function: {
         name: 'analyze_bet_market',
         description:
-          'Analyze a SINGLE specific game or prop market with splits, injuries, stats, trends, and an edge check. Use when user specifies ONE matchup like "Lakers vs Celtics". Do NOT use for slate-wide/all-games analysis - use get_slate_edge_detection instead.',
+          'Comprehensive game analysis for a SPECIFIC MATCHUP. Provides odds, team stats, injuries, model projections, betting splits, line movement, and edge assessment. Use for "best bet in X vs Y", "analyze Lakers vs Celtics", "who wins Notre Dame vs California", etc. Returns full analysis report. Do NOT use for slate-wide analysis - use get_slate_edge_detection instead.',
         parameters: {
           type: 'object',
           properties: {
@@ -2473,27 +2476,35 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient()
     const allowTestBypass = Boolean(testBypass) && process.env.NODE_ENV !== 'production'
+    let membership: any = null
+    let userMetadata: Record<string, any> = {}
     const sportHintFromMessage = (msg: string): string | undefined => {
       const lower = msg.toLowerCase()
       if (
         lower.includes('ncaab') ||
         lower.includes('college basketball') ||
         lower.includes('college hoops') ||
-        lower.includes('cbb')
+        lower.includes('cbb') ||
+        lower.includes('ncaa basketball')
       ) {
         return 'basketball_ncaab'
       }
       if (
         lower.includes('ncaaf') ||
         lower.includes('college football') ||
-        lower.includes('cfb')
+        lower.includes('cfb') ||
+        lower.includes('ncaa football')
       ) {
         return 'americanfootball_ncaaf'
       }
       if (lower.includes('mlb') || lower.includes('baseball')) return 'baseball_mlb'
       if (lower.includes('nhl') || lower.includes('hockey')) return 'icehockey_nhl'
-      if (lower.includes('nfl') || lower.includes('football')) return 'americanfootball_nfl'
-      if (lower.includes('nba') || lower.includes('basketball')) return 'basketball_nba'
+      if (lower.includes('nfl') || lower.includes('pro football') || lower.includes('national football league')) {
+        return 'americanfootball_nfl'
+      }
+      if (lower.includes('nba') || lower.includes('pro basketball') || lower.includes('national basketball association')) {
+        return 'basketball_nba'
+      }
       return undefined
     }
     const sportHint = sportHintFromMessage(message)
@@ -2692,7 +2703,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const membership = getMembershipStatus(user.user_metadata)
+      membership = getMembershipStatus(user.user_metadata)
+
+      userMetadata = { ...(user.user_metadata || {}) }
 
       // Check if user has an active membership
       if (!membership.isActive) {
@@ -2702,12 +2715,12 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      // Enforce daily message limit for Pro tier (unlimited tier has no limit)
+      // Enforce daily message limit for Pro tier (Sharp/Syndicate have no limit)
       if (membership.tier === 'pro') {
         const todayCount = await countUserMessagesToday(supabase, user.id)
         if (todayCount >= PRO_DAILY_MESSAGE_LIMIT) {
           return NextResponse.json(
-            { error: 'Daily message limit reached for Pro (25/day). Upgrade for unlimited access.' },
+            { error: 'Daily message limit reached for Pro (25/day). Upgrade to Sharp or Syndicate for unlimited access.' },
             { status: 429 }
           )
         }
@@ -2722,6 +2735,71 @@ export async function POST(req: NextRequest) {
     } else {
       console.log('[AUTH] Test bypass enabled; skipping auth + message persistence')
     }
+
+    const usageKeys = {
+      liveProjection: { date: 'live_projection_usage_date', count: 'live_projection_usage_count' },
+      evTool: { date: 'ev_tool_usage_date', count: 'ev_tool_usage_count' },
+    } as const
+
+    const getUsageSnapshot = (type: 'liveProjection' | 'evTool') => {
+      const keys = usageKeys[type]
+      const today = new Date().toISOString().slice(0, 10)
+      const storedDate = typeof userMetadata[keys.date] === 'string' ? userMetadata[keys.date] : null
+      const storedCount = Number.isFinite(userMetadata[keys.count]) ? Number(userMetadata[keys.count]) : 0
+      return { keys, today, count: storedDate === today ? storedCount : 0 }
+    }
+
+    const checkAndIncrementUsage = async (
+      type: 'liveProjection' | 'evTool',
+      limit: number | null
+    ): Promise<{ allowed: boolean; reason?: 'not_allowed' | 'limit_reached' }> => {
+      if (allowTestBypass) return { allowed: true }
+      if (!membership?.isActive || limit == null) return { allowed: true }
+      const snapshot = getUsageSnapshot(type)
+      if (limit <= 0) return { allowed: false, reason: 'not_allowed' }
+      if (snapshot.count >= limit) return { allowed: false, reason: 'limit_reached' }
+      const nextCount = snapshot.count + 1
+      userMetadata[snapshot.keys.date] = snapshot.today
+      userMetadata[snapshot.keys.count] = nextCount
+      try {
+        await supabase.auth.updateUser({
+          data: {
+            [snapshot.keys.date]: snapshot.today,
+            [snapshot.keys.count]: nextCount,
+          },
+        })
+      } catch (err) {
+        console.warn('[USAGE] Failed to update usage metadata:', err)
+      }
+      return { allowed: true }
+    }
+
+    const getLiveProjectionLimit = () => {
+      switch (membership?.tier) {
+        case 'pro':
+          return 0
+        case 'sharp':
+          return 3
+        case 'syndicate':
+          return null
+        default:
+          return 0
+      }
+    }
+
+    const getEvToolLimit = () => {
+      switch (membership?.tier) {
+        case 'pro':
+          return 1
+        case 'sharp':
+          return 3
+        case 'syndicate':
+          return null
+        default:
+          return 0
+      }
+    }
+
     const sanitizedTitle = message
       .replace(/^enable\s+web\s+search:\s*/i, '')
       .trim()
@@ -2989,11 +3067,37 @@ export async function POST(req: NextRequest) {
       else if (/\bsoft\b/i.test(message)) minEdge = 'soft'
 
       const dateHint = hasExplicitDateHint(message) ? parseDateFromMessage(message) : undefined
-      const result = await analyzeSlateEdges(sport, { minEdge, includeProps: false, date: dateHint })
-      const formatted = formatSlateEdgesForChat(result)
 
-      // streamTextResponse handles saving to database
-      return streamTextResponse(formatted, ['get_slate_edge_detection'])
+      // Wrap slate edge analysis in try-catch with timeout for robustness
+      console.log(`[SLATE EDGE] Starting analysis for ${sport}...`)
+      const startTime = Date.now()
+
+      try {
+        // 45-second timeout for entire slate analysis
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Slate analysis timeout')), 45000)
+        )
+
+        const result = await Promise.race([
+          analyzeSlateEdges(sport, { minEdge, includeProps: false, date: dateHint }),
+          timeoutPromise,
+        ])
+
+        const elapsedMs = Date.now() - startTime
+        console.log(`[SLATE EDGE] Complete: ${result.edges.length} edges found in ${elapsedMs}ms`)
+
+        const formatted = formatSlateEdgesForChat(result)
+        return streamTextResponse(formatted, ['get_slate_edge_detection'])
+      } catch (slateError) {
+        const elapsedMs = Date.now() - startTime
+        console.error(`[SLATE EDGE] Failed after ${elapsedMs}ms:`, slateError)
+
+        // Return friendly error message instead of crashing
+        return streamTextResponse(
+          `I encountered an issue analyzing the ${sport.replace(/_/g, ' ').replace('basketball ', '').toUpperCase()} slate. This can happen when there are many games to analyze. Please try again in a moment, or narrow your request (e.g., "strong edges only" or a specific game).`,
+          ['get_slate_edge_detection']
+        )
+      }
     }
 
     // Combo/Parlay analysis help intent - educational queries about how to use combo analysis
@@ -3591,9 +3695,9 @@ export async function POST(req: NextRequest) {
       console.log('[DEBUG] VS parsing:', { vsIndex, beforeVs: beforeVs.slice(-30), afterVs: afterVs.slice(0, 30) })
 
       // Extract up to 3 words before "vs" (from the end), filtering out common non-team words
-      const team1Raw = beforeVs.match(/([a-z]+(?:\s+[a-z.'&-]+){0,2})$/i)?.[1] || ''
+      const team1Raw = beforeVs.match(/([a-z0-9]+(?:\s+[a-z0-9.'&-]+){0,2})$/i)?.[1] || ''
       // Simplified team2 pattern - just capture words after "vs" without restrictive lookahead
-      const team2Raw = afterVs.match(/^\s*(?:vs\.?|v\.?|@)\s+([a-z]+(?:\s+[a-z.'&-]+){0,2})/i)?.[1] || ''
+      const team2Raw = afterVs.match(/^\s*(?:vs\.?|v\.?|@)\s+([a-z0-9]+(?:\s+[a-z0-9.'&-]+){0,2})/i)?.[1] || ''
 
       console.log('[DEBUG] Raw team matches:', { team1Raw, team2Raw })
 
@@ -3714,29 +3818,42 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      const { analyzeSlateEdges } = await import('@/lib/services/slate-edge-detector')
-      const slateResult = await analyzeSlateEdges(resolvedSport, {
-        includeProps: true,
-        date: dateHint,
+      // Use single-game analysis instead of slate-wide edge detection
+      // This provides comprehensive analysis with model projections
+      console.log('[BEST BET] Using single-game analysis for:', matchupTeams.join(' vs '))
+
+      const gameIdentifier = matchupTeams.length >= 2
+        ? `${matchupTeams[0]} vs ${matchupTeams[1]}`
+        : message
+
+      // Determine league key for single-game analysis
+      const leagueMap: Record<string, string> = {
+        basketball_ncaab: 'ncaab',
+        americanfootball_ncaaf: 'ncaaf',
+        basketball_nba: 'nba',
+        americanfootball_nfl: 'nfl',
+        baseball_mlb: 'mlb',
+        icehockey_nhl: 'nhl',
+      }
+      const leagueKey = leagueMap[resolvedSport] || 'nba'
+      const isCollegeSport = leagueKey === 'ncaab' || leagueKey === 'ncaaf'
+
+      // runEfficientSingleGameAnalysis and runBetMarketAnalysis are defined later in the file
+      // We'll call them after they're defined via a deferred function call approach
+      // For now, inline the analysis logic to avoid forward reference issues
+
+      // Fetch odds for this specific game
+      const games = await fetchOdds(resolvedSport, ['h2h', 'spreads', 'totals'], {
+        teamFilter: matchupTeams,
+        revalidateSeconds: 60,
       })
 
-      const matchup =
-        matchupTeams.length >= 2
-          ? slateResult.edges.find((edge) =>
-              matchesGame(
-                edge.homeTeam,
-                edge.awayTeam,
-                matchupTeams[0],
-                matchupTeams[1]
-              )
-            )
-          : undefined
+      const oddsGame = games.find((game) =>
+        matchesGame(game.home_team, game.away_team, matchupTeams[0], matchupTeams[1])
+      )
 
-      if (!matchup) {
-        const fallbackLabel =
-          matchupTeams.length >= 2
-            ? `${matchupTeams[0]} vs ${matchupTeams[1]}`
-            : 'that matchup'
+      if (!oddsGame) {
+        const fallbackLabel = `${matchupTeams[0]} vs ${matchupTeams[1]}`
         const dateLabel = dateHint ? ` on ${dateHint}` : ''
         return streamTextResponse(
           `I couldn't find ${fallbackLabel}${dateLabel} on the ${formatLeagueLabel(resolvedSport)} slate. ` +
@@ -3744,6 +3861,74 @@ export async function POST(req: NextRequest) {
         )
       }
 
+      // Get team matchup analysis for stats and model projections
+      const { analyzeMatchup, formatMatchupAnalysisForChat } = await import('@/lib/services/matchup-analyzer')
+      const { getGameRecommendations } = await import('@/lib/services/recommendation-engine')
+      const { evaluateLineEdge } = await import('@/lib/analysis/bet-tools')
+
+      let matchupAnalysis: Awaited<ReturnType<typeof analyzeMatchup>> | null = null
+      let modelProjection: { spread?: number; total?: number } = {}
+
+      try {
+        matchupAnalysis = await analyzeMatchup(
+          matchupTeams[0],
+          matchupTeams[1],
+          undefined,
+          undefined,
+          resolvedSport
+        )
+      } catch (err) {
+        console.log('[BEST BET] Matchup analysis error, continuing:', err)
+      }
+
+      // Get market lines
+      const spreadMarket = oddsGame.bookmakers?.[0]?.markets?.find((m) => m.key === 'spreads')
+      const totalMarket = oddsGame.bookmakers?.[0]?.markets?.find((m) => m.key === 'totals')
+      const marketSpread = spreadMarket?.outcomes?.find((o: any) =>
+        normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(oddsGame.home_team))
+      )?.point ?? null
+      const marketTotal = totalMarket?.outcomes?.find((o: any) => o?.name === 'Over')?.point ?? null
+
+      // Get model projections
+      try {
+        const recommendations = await getGameRecommendations(
+          matchupTeams[0],
+          matchupTeams[1],
+          'all',
+          resolvedSport,
+          { marketSpread: marketSpread ?? undefined, marketTotal: marketTotal ?? undefined },
+          matchupAnalysis || undefined
+        )
+        if (recommendations.length > 0) {
+          const spreadRec = recommendations.find((r) => r.type === 'spread')
+          const totalRec = recommendations.find((r) => r.type === 'total')
+          if (spreadRec?.targetLine != null) modelProjection.spread = spreadRec.targetLine
+          if (totalRec?.targetLine != null) modelProjection.total = totalRec.targetLine
+        }
+      } catch (err) {
+        console.log('[BEST BET] Model projection error, continuing:', err)
+      }
+
+      // Get betting splits
+      let splits: any = null
+      try {
+        const { getCurrentBettingSplits } = await import('@/lib/providers/covers')
+        const splitsResult = await getCurrentBettingSplits(resolvedSport)
+        if (splitsResult.success && splitsResult.data) {
+          splits = splitsResult.data.find((s: any) =>
+            matchesGame(s.homeTeam || '', s.awayTeam || '', matchupTeams[0], matchupTeams[1])
+          )
+        }
+      } catch (err) {
+        console.log('[BEST BET] Splits fetch error, continuing:', err)
+      }
+
+      // Get injuries from both teams
+      const homeInjuries = matchupAnalysis?.homeTeam?.injuries || []
+      const awayInjuries = matchupAnalysis?.awayTeam?.injuries || []
+      const injuries = [...(Array.isArray(homeInjuries) ? homeInjuries : []), ...(Array.isArray(awayInjuries) ? awayInjuries : [])]
+
+      // Helper functions
       const formatOdds = (value?: number | null): string | null => {
         if (value == null || !Number.isFinite(value)) return null
         return value > 0 ? `+${value}` : `${value}`
@@ -3753,6 +3938,60 @@ export async function POST(req: NextRequest) {
         if (value == null || !Number.isFinite(value)) return 'n/a'
         const pct = value > 1 ? value : value * 100
         return `${Math.round(pct)}%`
+      }
+
+      const toPctValue = (value?: number | null): number | null => {
+        if (value == null || !Number.isFinite(value)) return null
+        const pct = value > 1 ? value : value * 100
+        return Number.isFinite(pct) ? pct : null
+      }
+
+      const buildPublicSharpSummary = (opts: {
+        label: string
+        homeLabel: string
+        awayLabel: string
+        homeBets?: number | null
+        awayBets?: number | null
+        homeMoney?: number | null
+        awayMoney?: number | null
+      }): string | null => {
+        const homeBetPct = toPctValue(opts.homeBets)
+        const awayBetPct = toPctValue(opts.awayBets)
+        const homeMoneyPct = toPctValue(opts.homeMoney)
+        const awayMoneyPct = toPctValue(opts.awayMoney)
+
+        if (
+          homeBetPct == null &&
+          awayBetPct == null &&
+          homeMoneyPct == null &&
+          awayMoneyPct == null
+        ) {
+          return null
+        }
+
+        const parts: string[] = []
+
+        if (homeBetPct != null && awayBetPct != null) {
+          const publicSide =
+            homeBetPct >= awayBetPct ? opts.homeLabel : opts.awayLabel
+          const publicPct = Math.max(homeBetPct, awayBetPct)
+          parts.push(`public ${publicSide} (${Math.round(publicPct)}%)`)
+        }
+
+        if (homeMoneyPct != null && awayMoneyPct != null) {
+          const sharpSide =
+            homeMoneyPct >= awayMoneyPct ? opts.homeLabel : opts.awayLabel
+          const sharpPct = Math.max(homeMoneyPct, awayMoneyPct)
+          parts.push(`sharp ${sharpSide} (${Math.round(sharpPct)}%)`)
+          if (homeBetPct != null && homeMoneyPct != null) {
+            const divergence = Math.abs(homeMoneyPct - homeBetPct)
+            if (divergence >= 10) {
+              parts.push(`divergence ${Math.round(divergence)}%`)
+            }
+          }
+        }
+
+        return parts.length ? `**${opts.label}:** ${parts.join(' | ')}` : null
       }
 
       const getBestMoneyline = (
@@ -3778,176 +4017,227 @@ export async function POST(req: NextRequest) {
         return best
       }
 
-      let oddsGame: OddsGame | undefined
-      try {
-        const games = await fetchOdds(resolvedSport, ['h2h', 'spreads', 'totals'], {
-          teamFilter: matchupTeams,
-          revalidateSeconds: 60,
-        })
-        oddsGame = games.find((game) =>
-          matchesGame(game.home_team, game.away_team, matchup.homeTeam, matchup.awayTeam)
-        )
-      } catch (error) {
-        console.warn('[BEST BET] Failed to load odds for moneyline:', error)
-      }
-
       const bestHomeML = getBestMoneyline(oddsGame, 'home')
       const bestAwayML = getBestMoneyline(oddsGame, 'away')
 
+      // Build response
       const lines: string[] = []
-      lines.push(`Game edge overview (${formatLeagueLabel(resolvedSport)}): ${matchup.awayTeam} @ ${matchup.homeTeam}`)
+      lines.push(`## Game Analysis: ${oddsGame.away_team} @ ${oddsGame.home_team}`)
+      lines.push(`**${formatLeagueLabel(resolvedSport)}** | ${new Date(oddsGame.commence_time).toLocaleString()}`)
       lines.push('')
 
-      if (matchup.spread) {
-        const gap = Math.abs(matchup.spread.marketLine - matchup.spread.targetLine)
-        const homeLine =
-          matchup.spread.marketLine > 0
-            ? `+${matchup.spread.marketLine}`
-            : `${matchup.spread.marketLine}`
-        const modelLine =
-          matchup.spread.targetLine > 0
-            ? `+${matchup.spread.targetLine.toFixed(1)}`
-            : matchup.spread.targetLine.toFixed(1)
-        lines.push('Spread')
-        lines.push(
-          `- Market: ${homeLine} ${matchup.homeTeam} | Model: ${modelLine} ${matchup.homeTeam} | Gap ${gap.toFixed(1)} pts`
-        )
-        lines.push(
-          `- Edge: ${matchup.spread.edge.verdict} (confidence ${matchup.spread.edge.confidence})${matchup.spread.sharpConfirmed ? ' | Sharp confirmed' : ''}`
-        )
-        if (matchup.spread.bestBook || formatOdds(matchup.spread.bestOdds)) {
-          lines.push(
-            `- Best price: ${matchup.spread.bestBook || 'book'} ${formatOdds(matchup.spread.bestOdds) || ''}`.trim()
-          )
+      // Spread section with model projection
+      lines.push('### Spread')
+      if (marketSpread != null) {
+        const spreadStr = marketSpread > 0 ? `+${marketSpread}` : `${marketSpread}`
+        lines.push(`- **Market:** ${oddsGame.home_team} ${spreadStr}`)
+        if (modelProjection.spread != null) {
+          const modelStr = modelProjection.spread > 0 ? `+${modelProjection.spread.toFixed(1)}` : modelProjection.spread.toFixed(1)
+          const gap = Math.abs(modelProjection.spread - marketSpread)
+          const edge = evaluateLineEdge({
+            marketType: 'spread',
+            line: marketSpread,
+            targetLine: modelProjection.spread,
+            supportingSignals: 0
+          })
+          lines.push(`- **Model:** ${oddsGame.home_team} ${modelStr} (${gap.toFixed(1)} pts gap)`)
+          lines.push(`- **Edge:** ${edge.verdict} (${edge.confidence} confidence)`)
+          if (gap >= 2) {
+            const lean = modelProjection.spread < marketSpread ? oddsGame.home_team : oddsGame.away_team
+            lines.push(`- **Lean:** ${lean} (${gap.toFixed(1)} pts of value)`)
+          }
+        } else {
+          lines.push('- Model projection unavailable')
         }
-        lines.push('')
       } else {
-        lines.push('Spread')
-        lines.push('- Market line unavailable.')
-        lines.push('')
+        lines.push('- Market line unavailable')
       }
+      lines.push('')
 
-      lines.push('Moneyline')
+      // Total section with model projection
+      lines.push('### Total')
+      if (marketTotal != null) {
+        lines.push(`- **Market:** ${marketTotal}`)
+        if (modelProjection.total != null) {
+          const gap = Math.abs(modelProjection.total - marketTotal)
+          const direction = modelProjection.total > marketTotal ? 'Over' : 'Under'
+          const edge = evaluateLineEdge({
+            marketType: 'total',
+            line: marketTotal,
+            targetLine: modelProjection.total,
+            supportingSignals: 0
+          })
+          lines.push(`- **Model:** ${modelProjection.total.toFixed(1)} (${gap.toFixed(1)} pts gap)`)
+          lines.push(`- **Edge:** ${edge.verdict} (${edge.confidence} confidence)`)
+          if (gap >= 2) {
+            lines.push(`- **Lean:** ${direction} (${gap.toFixed(1)} pts of value)`)
+          }
+        } else {
+          lines.push('- Model projection unavailable')
+        }
+      } else {
+        lines.push('- Market line unavailable')
+      }
+      lines.push('')
+
+      // Moneyline section
+      lines.push('### Moneyline')
       if (bestHomeML || bestAwayML) {
-        const homeText = bestHomeML
-          ? `${matchup.homeTeam} ${formatOdds(bestHomeML.odds)} (${bestHomeML.book})`
-          : `${matchup.homeTeam} n/a`
-        const awayText = bestAwayML
-          ? `${matchup.awayTeam} ${formatOdds(bestAwayML.odds)} (${bestAwayML.book})`
-          : `${matchup.awayTeam} n/a`
-        lines.push(`- Best price: ${homeText} | ${awayText}`)
+        if (bestHomeML) lines.push(`- ${oddsGame.home_team}: ${formatOdds(bestHomeML.odds)} (${bestHomeML.book})`)
+        if (bestAwayML) lines.push(`- ${oddsGame.away_team}: ${formatOdds(bestAwayML.odds)} (${bestAwayML.book})`)
       } else {
-        lines.push('- Moneyline odds unavailable.')
-      }
-      const mlSignals = matchup.sharpSignals.filter((signal) => signal.market === 'moneyline')
-      if (mlSignals.length) {
-        lines.push(
-          `- Sharp signals: ${mlSignals
-            .slice(0, 2)
-            .map((signal) => `${signal.type} ${signal.side} (${signal.strength}/5)`)
-            .join('; ')}`
-        )
+        lines.push('- Moneyline odds unavailable')
       }
       lines.push('')
 
-      if (matchup.total) {
-        const gap = Math.abs(matchup.total.marketLine - matchup.total.targetLine)
-        const direction = matchup.total.targetLine > matchup.total.marketLine ? 'Over' : 'Under'
-        lines.push('Total')
-        lines.push(
-          `- Market: ${matchup.total.marketLine} | Model: ${matchup.total.targetLine.toFixed(1)} | Gap ${gap.toFixed(1)} pts -> ${direction}`
-        )
-        lines.push(
-          `- Edge: ${matchup.total.edge.verdict} (confidence ${matchup.total.edge.confidence})${matchup.total.sharpConfirmed ? ' | Sharp confirmed' : ''}`
-        )
-        if (matchup.total.bestBook || formatOdds(matchup.total.bestOdds)) {
-          lines.push(
-            `- Best price: ${matchup.total.bestBook || 'book'} ${formatOdds(matchup.total.bestOdds) || ''}`.trim()
-          )
+      // Betting splits section
+      lines.push('### Public Betting Splits')
+      if (splits) {
+        lines.push(`- **Spread:** ${oddsGame.home_team} ${formatSplitPct(splits.spreadHomeBetPct)} bets / ${formatSplitPct(splits.spreadHomeMoneyPct)} money | ${oddsGame.away_team} ${formatSplitPct(splits.spreadAwayBetPct)} / ${formatSplitPct(splits.spreadAwayMoneyPct)}`)
+        lines.push(`- **Moneyline:** ${oddsGame.home_team} ${formatSplitPct(splits.mlHomeBetPct)} / ${formatSplitPct(splits.mlHomeMoneyPct)} | ${oddsGame.away_team} ${formatSplitPct(splits.mlAwayBetPct)} / ${formatSplitPct(splits.mlAwayMoneyPct)}`)
+        lines.push(`- **Total:** Over ${formatSplitPct(splits.totalOverBetPct)} / ${formatSplitPct(splits.totalOverMoneyPct)} | Under ${formatSplitPct(splits.totalUnderBetPct)} / ${formatSplitPct(splits.totalUnderMoneyPct)}`)
+
+        // Check for sharp indicators
+        const hasRLM = splits.spreadHomeBetPct != null && splits.spreadHomeMoneyPct != null &&
+          Math.abs((splits.spreadHomeBetPct > 1 ? splits.spreadHomeBetPct : splits.spreadHomeBetPct * 100) -
+                   (splits.spreadHomeMoneyPct > 1 ? splits.spreadHomeMoneyPct : splits.spreadHomeMoneyPct * 100)) > 10
+        if (hasRLM) {
+          lines.push('- ?? Bet/money split divergence detected (potential sharp action)')
         }
-        lines.push('')
       } else {
-        lines.push('Total')
-        lines.push('- Market line unavailable.')
-        lines.push('')
-      }
-
-      lines.push('Public splits (bets% / money%)')
-      if (matchup.splits) {
-        lines.push(
-          `- Spread: ${matchup.homeTeam} ${formatSplitPct(matchup.splits.spreadHomeBetPct)} / ${formatSplitPct(
-            matchup.splits.spreadHomeMoneyPct
-          )} | ${matchup.awayTeam} ${formatSplitPct(matchup.splits.spreadAwayBetPct)} / ${formatSplitPct(
-            matchup.splits.spreadAwayMoneyPct
-          )}`
-        )
-        lines.push(
-          `- Moneyline: ${matchup.homeTeam} ${formatSplitPct(matchup.splits.mlHomeBetPct)} / ${formatSplitPct(
-            matchup.splits.mlHomeMoneyPct
-          )} | ${matchup.awayTeam} ${formatSplitPct(matchup.splits.mlAwayBetPct)} / ${formatSplitPct(
-            matchup.splits.mlAwayMoneyPct
-          )}`
-        )
-        lines.push(
-          `- Total: Over ${formatSplitPct(matchup.splits.totalOverBetPct)} / ${formatSplitPct(
-            matchup.splits.totalOverMoneyPct
-          )} | Under ${formatSplitPct(matchup.splits.totalUnderBetPct)} / ${formatSplitPct(
-            matchup.splits.totalUnderMoneyPct
-          )}`
-        )
-      } else {
-        lines.push('- Splits unavailable for this matchup.')
+        lines.push('- Splits unavailable for this matchup')
       }
       lines.push('')
 
-      lines.push('Player props')
-      const propEdges = (slateResult.propEdges || []).filter((edge) => {
-        const homeKey = normalizeTeamKey(matchup.homeTeam)
-        const awayKey = normalizeTeamKey(matchup.awayTeam)
-        const teamKey = normalizeTeamKey(edge.team || '')
-        const oppKey = normalizeTeamKey(edge.opponent || '')
-        const gameKey = normalizeTeamKey(edge.game || '')
-        const hasTeams =
-          teamKey &&
-          oppKey &&
-          ((teamKey.includes(homeKey) && oppKey.includes(awayKey)) ||
-            (teamKey.includes(awayKey) && oppKey.includes(homeKey)))
-        const hasGame =
-          gameKey &&
-          homeKey &&
-          awayKey &&
-          gameKey.includes(homeKey) &&
-          gameKey.includes(awayKey)
-        return hasTeams || hasGame
-      })
+      // Sharp/public + line movement section
+      lines.push('### Sharp/Public & Line Movement')
+      let edgeResult: Awaited<ReturnType<typeof detectEdgeForGame>> | null = null
+      try {
+        const league = resolveSbdLeague(resolvedSport)
+        if (league) {
+          edgeResult = await detectEdgeForGame(league, `${oddsGame.away_team} @ ${oddsGame.home_team}`)
+        }
+      } catch (err) {
+        console.log('[BEST BET] Edge detection error, continuing:', err)
+      }
 
-      if (propEdges.length) {
-        const topProps = propEdges
-          .slice()
-          .sort((a, b) => (b.edgePercent || 0) - (a.edgePercent || 0))
+      if (splits) {
+        const spreadSummary = buildPublicSharpSummary({
+          label: 'Spread',
+          homeLabel: oddsGame.home_team,
+          awayLabel: oddsGame.away_team,
+          homeBets: splits.spreadHomeBetPct,
+          awayBets: splits.spreadAwayBetPct,
+          homeMoney: splits.spreadHomeMoneyPct,
+          awayMoney: splits.spreadAwayMoneyPct,
+        })
+        const mlSummary = buildPublicSharpSummary({
+          label: 'Moneyline',
+          homeLabel: oddsGame.home_team,
+          awayLabel: oddsGame.away_team,
+          homeBets: splits.mlHomeBetPct,
+          awayBets: splits.mlAwayBetPct,
+          homeMoney: splits.mlHomeMoneyPct,
+          awayMoney: splits.mlAwayMoneyPct,
+        })
+        const totalSummary = buildPublicSharpSummary({
+          label: 'Total',
+          homeLabel: 'Over',
+          awayLabel: 'Under',
+          homeBets: splits.totalOverBetPct,
+          awayBets: splits.totalUnderBetPct,
+          homeMoney: splits.totalOverMoneyPct,
+          awayMoney: splits.totalUnderMoneyPct,
+        })
+        if (spreadSummary) lines.push(`- ${spreadSummary}`)
+        if (mlSummary) lines.push(`- ${mlSummary}`)
+        if (totalSummary) lines.push(`- ${totalSummary}`)
+      } else {
+        lines.push('- Public/sharp splits unavailable')
+      }
+
+      if (edgeResult?.sharpSignals?.length) {
+        const signalSummary = edgeResult.sharpSignals
           .slice(0, 3)
-        for (const prop of topProps) {
-          const marketLabel = prop.market.replace(/_/g, ' ')
-          const bookLine = prop.bestBook ? ` | ${prop.bestBook} ${formatOdds(prop.bestOdds)}` : ''
-          lines.push(
-            `- ${prop.player} ${marketLabel} ${prop.direction} ${prop.line} | Model ${prop.projection.toFixed(
-              1
-            )} | Edge ${prop.edgePercent.toFixed(1)}%${bookLine}`
+          .map((signal) => `${signal.type} ${signal.market} -> ${signal.side}`)
+          .join('; ')
+        lines.push(`- Sharp signals: ${signalSummary}`)
+      } else {
+        lines.push('- Sharp signals: none detected')
+      }
+
+      if (edgeResult?.lineMovements?.length) {
+        const notableMoves = edgeResult.lineMovements
+          .filter((move) => move.isSharp || move.isSignificant)
+        const moves = (notableMoves.length ? notableMoves : edgeResult.lineMovements).slice(0, 2)
+        const moveSummary = moves
+          .map(
+            (move) =>
+              `${move.market} ${move.side}: ${move.openingLine} -> ${move.currentLine}${move.isSharp ? ' (sharp)' : ''}`
           )
+          .join('; ')
+        lines.push(`- Line movement: ${moveSummary}`)
+      } else {
+        lines.push('- Line movement: unavailable')
+      }
+
+      if (edgeResult?.summary) {
+        lines.push(`- Market notes: ${edgeResult.summary}`)
+      }
+      lines.push('')
+
+      lines.push('### Game Analysis')
+      // Team stats section
+      lines.push('**Team Performance:**')
+      if (matchupAnalysis?.homeTeam?.stats || matchupAnalysis?.awayTeam?.stats) {
+        const homeStats = matchupAnalysis?.homeTeam?.stats as any
+        const awayStats = matchupAnalysis?.awayTeam?.stats as any
+        const fmtStat = (v: any) => v != null ? Number(v).toFixed(1) : 'n/a'
+
+        if (homeStats) {
+          const ppg = homeStats.pointsPerGame ?? homeStats.ppg ?? homeStats.pts
+          const papg = homeStats.opponentPointsPerGame ?? homeStats.papg ?? homeStats.pointsAgainstPerGame
+          const ortg = homeStats.offensiveRating ?? homeStats.ortg
+          const drtg = homeStats.defensiveRating ?? homeStats.drtg
+          lines.push(`**${oddsGame.home_team}:** PPG ${fmtStat(ppg)} | PAPG ${fmtStat(papg)}${ortg ? ` | ORtg ${fmtStat(ortg)}` : ''}${drtg ? ` | DRtg ${fmtStat(drtg)}` : ''}`)
+        }
+        if (awayStats) {
+          const ppg = awayStats.pointsPerGame ?? awayStats.ppg ?? awayStats.pts
+          const papg = awayStats.opponentPointsPerGame ?? awayStats.papg ?? awayStats.pointsAgainstPerGame
+          const ortg = awayStats.offensiveRating ?? awayStats.ortg
+          const drtg = awayStats.defensiveRating ?? awayStats.drtg
+          lines.push(`**${oddsGame.away_team}:** PPG ${fmtStat(ppg)} | PAPG ${fmtStat(papg)}${ortg ? ` | ORtg ${fmtStat(ortg)}` : ''}${drtg ? ` | DRtg ${fmtStat(drtg)}` : ''}`)
         }
       } else {
-        lines.push('- No prop edges found. Ask for a specific player prop to pull lines.')
+        lines.push('Team stats unavailable')
+      }
+      lines.push('')
+
+      // Injuries section
+      lines.push('**Injuries:**')
+      if (injuries.length > 0) {
+        const significantInjuries = injuries.filter((inj: any) =>
+          inj.status?.toLowerCase().includes('out') ||
+          inj.status?.toLowerCase().includes('doubtful') ||
+          inj.status?.toLowerCase().includes('questionable')
+        ).slice(0, 6)
+        if (significantInjuries.length > 0) {
+          for (const inj of significantInjuries) {
+            lines.push(`- ${inj.player} (${inj.team}): ${inj.status}${inj.injury ? ` - ${inj.injury}` : ''}`)
+          }
+        } else {
+          lines.push('- No significant injuries reported')
+        }
+      } else {
+        lines.push('- Injury data unavailable')
       }
 
-      if (matchup.sharpConfirmation?.agrees) {
-        lines.push('')
-        lines.push(`Sharp confirmation: ${matchup.sharpConfirmation.signals.join(', ')}`)
-      }
       if (inferredSport) {
-        lines.push("Note: inferred sport from today's slate - specify next time if different.")
+        lines.push('')
+        lines.push("_Note: Sport inferred from today's slate - specify next time if different._")
       }
 
-      return streamTextResponse(lines.join('\n'), ['get_slate_edge_detection'])
+      return streamTextResponse(lines.join('\n'), ['analyze_bet_market'])
     }
 
     function formatTeamProfile(team: any, stats: Record<string, any>) {
@@ -4327,6 +4617,17 @@ export async function POST(req: NextRequest) {
     const afterLossIntent = /\bafter a loss\b|\bfollowing a loss\b/i.test(msgLower)
     const homeAwayDefenseIntent =
       /\b(home vs away defense|home and away defense|defensive stats at home|defensive stats away|home away defense)\b/i.test(msgLower)
+    const bettingEducationIntent =
+      /\b(how\s+do\s+i|how\s+to|tips?|advice|strategy|strategies|guide|become|profitable|make\s+money|beat\s+the\s+(book|books|market))\b/i.test(
+        msgLower
+      ) &&
+      /\b(bet|bets|betting|bettor|sportsbook)\b/i.test(msgLower)
+    const modelApplicationIntent =
+      /apply\s+.+?(model|confidence)|confidence\s+interval|run\s+my\s+model|use\s+my\s+model|custom\s+model/i.test(msgLower)
+    const researchIntent =
+      /research\s+(mode|tab)|recent\s+news|search\s+the\s+web|latest\s+updates|run\s+my\s+model|apply\s+my\s+model|statistical\s+projection/i.test(
+        msgLower
+      ) || webSearchToggle
 
     const playerGameIntent = (() => {
       const isoMatch = message.match(/\b(\d{4})-(\d{2})-(\d{2})\b/)
@@ -4356,6 +4657,50 @@ export async function POST(req: NextRequest) {
         lastN,
       }
     })()
+
+    const needsExplicitLeague =
+      !sportHint &&
+      !bettingEducationIntent &&
+      !conceptualStatsOnly &&
+      !pointTotalConceptualAsk &&
+      !webSearchToggle &&
+      !researchIntent &&
+      (mentionedTeams.length > 0 ||
+        parsedMatchupTeams.length > 0 ||
+        Boolean(playerNameInMessage) ||
+        oddsKeywordMatch ||
+        scheduleIntent ||
+        analysisIntent ||
+        edgeAwarenessIntent ||
+        pickGuidanceIntent ||
+        bettingSplitsIntent ||
+        bettingTrendsIntent ||
+        lineShoppingIntent ||
+        twoTeamOddsQuery ||
+        marketKeywordIntent ||
+        propIntent ||
+        isProjectionQuery ||
+        playerCompareIntent ||
+        playerGameIntent.wantsGameLine ||
+        leaderboardIntent ||
+        atsLeadersIntent ||
+        afterLossIntent ||
+        homeAwayDefenseIntent ||
+        noRestIntent ||
+        intent.ats ||
+        intent.oddsRecord ||
+        intent.pastPerformances ||
+        intent.futures ||
+        intent.injuries ||
+        /\b(trending|hot)\s+players?\b|\bplayers?\s+(to\s+watch|to\s+target)\b|\bteam\s+(stats|profile|record|trends?)\b|\bstandings?\b|\bats\b|\bover\/under\b|\bspread\b|\btotal\b|\bmoneyline\b/i.test(
+          msgLower
+        ))
+
+    if (needsExplicitLeague) {
+      return streamTextResponse(
+        'Which league is this for? Please specify NFL, NCAAF, NBA, NCAAB, MLB, or NHL.'
+      )
+    }
 
     const getRecentLogStats = async (opts: {
       sport: string
@@ -4687,7 +5032,6 @@ export async function POST(req: NextRequest) {
       return null
     }
     const statQuery = detectStatKey(message)
-
     if (trendingPlayersIntent) {
       const trendSportGuess =
         msgLower.match(/nfl|football/) ? 'nfl' :
@@ -5160,18 +5504,6 @@ export async function POST(req: NextRequest) {
       const thresholdHandled = await maybeHandlePlayerThreshold()
       if (thresholdHandled) return thresholdHandled
     }
-
-    const modelApplicationIntent =
-      /apply\s+.+?(model|confidence)|confidence\s+interval|run\s+my\s+model|use\s+my\s+model|custom\s+model/i.test(msgLower)
-    const researchIntent =
-      /research\s+(mode|tab)|recent\s+news|search\s+the\s+web|latest\s+updates|run\s+my\s+model|apply\s+my\s+model|statistical\s+projection/i.test(
-        msgLower
-      ) || webSearchToggle
-    const bettingEducationIntent =
-      /\b(how\s+do\s+i|how\s+to|tips?|advice|strategy|strategies|guide|become|profitable|make\s+money|beat\s+the\s+(book|books|market))\b/i.test(
-        msgLower
-      ) &&
-      /\b(bet|bets|betting|bettor|sportsbook)\b/i.test(msgLower)
 
     // ===== NEW: Player Analysis function (player props only) =====
     const runPlayerAnalysis = async () => {
@@ -6660,14 +6992,14 @@ export async function POST(req: NextRequest) {
       const midCap = Math.max(1, Math.round(rounded * 0.015))
       const highCap = Math.max(1, Math.round(rounded * 0.02))
       const lines = [
-        `Got it — bankroll: $${rounded.toLocaleString()} | sport: ${bankrollSport}.`,
+        `Got it - bankroll: $${rounded.toLocaleString()} | sport: ${bankrollSport}.`,
         '',
         'Suggested sizing (pick a risk tier):',
         `- Low: 0.5% per bet (~$${lowUnit}); cap 1% (~$${lowCap}) on strongest edges.`,
         `- Medium: 1% per bet (~$${midUnit}); cap 1.5% (~$${midCap}).`,
         `- High: 1.5% per bet (~$${highUnit}); cap 2% (~$${highCap}).`,
         '',
-        'If you want, tell me your risk tolerance (low/medium/high) and whether you want flat units or fractional Kelly, and I’ll size it precisely.',
+        "If you want, tell me your risk tolerance (low/medium/high) and whether you want flat units or fractional Kelly, and I'll size it precisely.",
       ]
       return streamTextResponse(lines.join('\n'))
     }
@@ -6688,6 +7020,18 @@ export async function POST(req: NextRequest) {
       if (!liveTeams.length) {
         return streamTextResponse(
           'Tell me the live matchup (e.g., "Lakers vs Celtics live projection").'
+        )
+      }
+      const liveLimit = getLiveProjectionLimit()
+      const liveGate = await checkAndIncrementUsage('liveProjection', liveLimit)
+      if (!liveGate.allowed) {
+        const errorMessage =
+          liveGate.reason === 'not_allowed'
+            ? 'Live projections are not included on Pro. Upgrade to Sharp or Syndicate to unlock them.'
+            : 'Daily live projection limit reached. Upgrade to Syndicate for unlimited access or try again tomorrow.'
+        return NextResponse.json(
+          { error: errorMessage },
+          { status: liveGate.reason === 'not_allowed' ? 403 : 429 }
         )
       }
       const gameIdentifier =
@@ -7011,6 +7355,18 @@ export async function POST(req: NextRequest) {
           'Which sport should I scan for EV? Please specify NBA, NCAAB, NFL, NCAAF, NHL, or MLB.'
         )
       }
+      const evLimit = getEvToolLimit()
+      const evGate = await checkAndIncrementUsage('evTool', evLimit)
+      if (!evGate.allowed) {
+        const errorMessage =
+          evGate.reason === 'not_allowed'
+            ? 'EV tools are not included on Pro. Upgrade to Sharp or Syndicate to unlock them.'
+            : 'Daily EV tool limit reached. Upgrade to Syndicate for unlimited access or try again tomorrow.'
+        return NextResponse.json(
+          { error: errorMessage },
+          { status: evGate.reason === 'not_allowed' ? 403 : 429 }
+        )
+      }
       try {
         console.log('[CROSS-MARKET-EV] Intent detected, scanning for +EV opportunities...')
         const evOptions = {
@@ -7111,28 +7467,6 @@ export async function POST(req: NextRequest) {
 
           return Array.from(markets)
         })()
-
-        // Simple team lists for league detection
-        const nbaTeams = ['lakers', 'celtics', 'warriors', 'bulls', 'heat', 'knicks', 'nets',
-                         'sixers', 'bucks', 'raptors', 'mavericks', 'rockets', 'spurs',
-                         'suns', 'clippers', 'nuggets', 'jazz', 'blazers', 'kings', 'thunder',
-                         'timberwolves', 'pelicans', 'grizzlies', 'hornets', 'magic',
-                         'wizards', 'pistons', 'pacers', 'cavaliers', 'hawks']
-
-        const nflTeams = ['chiefs', 'bills', 'bengals', 'ravens', 'cowboys', 'eagles',
-                         'packers', '49ers', 'rams', 'seahawks', 'buccaneers', 'saints',
-                         'patriots', 'dolphins', 'jets', 'steelers', 'browns', 'raiders',
-                         'chargers', 'broncos', 'colts', 'jaguars', 'titans', 'texans',
-                         'panthers', 'falcons', 'cardinals', 'vikings', 'lions', 'bears',
-                         'commanders', 'giants']
-
-        const ncaafTeams = ['alabama', 'georgia', 'ohio state', 'michigan', 'oregon', 'texas',
-                           'penn state', 'notre dame', 'usc', 'clemson', 'florida state', 'miami',
-                           'lsu', 'oklahoma', 'tennessee', 'auburn', 'florida', 'texas a&m',
-                           'ole miss', 'arkansas', 'kentucky', 'south carolina', 'missouri',
-                           'wisconsin', 'iowa', 'nebraska', 'minnesota', 'northwestern',
-                           'stanford', 'washington', 'ucla', 'utah', 'colorado', 'arizona state']
-
         let sports: string[] = []
 
         // Check for explicit sport mentions (prioritize specific leagues)
@@ -7141,15 +7475,11 @@ export async function POST(req: NextRequest) {
           sports = ['basketball_ncaab']
         } else if (messageLower.match(/(nba|pro basketball)/i)) {
           sports = ['basketball_nba']
-        } else if (messageLower.match(/basketball/i) && !messageLower.match(/(nba|ncaa|college)/i)) {
-          sports = ['basketball_nba']
         }
         // Football
         else if (messageLower.match(/(ncaaf|college football|cfb)/i)) {
           sports = ['americanfootball_ncaaf']
         } else if (messageLower.match(/(nfl|pro football)/i)) {
-          sports = ['americanfootball_nfl']
-        } else if (messageLower.match(/football/i) && !messageLower.match(/(nfl|ncaa|college)/i)) {
           sports = ['americanfootball_nfl']
         }
         // Other sports
@@ -7168,20 +7498,6 @@ export async function POST(req: NextRequest) {
         // Live-slate teams ONLY when message has explicit college hoops cues
         else if (ncaabInlineTeams.length > 0 && /(ncaab|college basketball|college hoops|cbb|ncaa)/i.test(messageLower)) {
           sports = ['basketball_ncaab']
-        }
-        else if (
-          ncaabInlineTeams.length > 0 &&
-          !/(nfl|ncaaf|college football|cfb|football)/i.test(messageLower)
-        ) {
-          sports = ['basketball_ncaab']
-        }
-        // Check for team names if no explicit sport
-        else if (nbaTeams.some(team => messageLower.includes(team))) {
-          sports = ['basketball_nba']
-        } else if (nflTeams.some(team => messageLower.includes(team))) {
-          sports = ['americanfootball_nfl']
-        } else if (ncaafTeams.some(team => messageLower.includes(team))) {
-          sports = ['americanfootball_ncaaf']
         }
         // If asking for arbitrage without specifying sport, fetch all major sports
         else if (messageLower.match(/(arbitrage|arb)/i)) {
@@ -8246,6 +8562,511 @@ ${statsEnrichment}
           new Promise<T>((_, reject) => setTimeout(() => reject(new Error('tool timeout')), ms)) as Promise<T>,
         ])
 
+      /**
+       * Efficient single-game analysis for NCAAB/NCAAF
+       * Avoids expensive full-team-list fetches by using direct odds and ATS lookups
+       */
+      async function runEfficientSingleGameAnalysis(opts: {
+        teams: string[]
+        sportKey: string
+        marketType: 'spread' | 'total' | 'moneyline'
+      }): Promise<{ success: boolean; formatted: string } | null> {
+        const { teams, sportKey, marketType } = opts
+        if (teams.length < 2) return null
+
+        const [teamA, teamB] = teams
+        const matchupLabel = `${teamA} vs ${teamB}`
+        console.log('[EFFICIENT_ANALYSIS] Starting for:', matchupLabel, 'sport:', sportKey, 'market:', marketType)
+
+        let supportingSignals = 0
+        let matchingGame: OddsGame | undefined
+        let homeTeam = teamB
+        let awayTeam = teamA
+        let gameTimeLabel: string | null = null
+        let bookName: string | null = null
+        let marketSpread: number | null = null
+        let marketTotal: number | null = null
+        let marketMlHome: number | null = null
+        let marketMlAway: number | null = null
+
+        const formatOdds = (value?: number | null): string | null => {
+          if (value == null || !Number.isFinite(value)) return null
+          return value > 0 ? `+${value}` : `${value}`
+        }
+
+        const matchesGame = (
+          homeTeam: string,
+          awayTeam: string,
+          teamA: string,
+          teamB: string
+        ) => {
+          const home = normalizeTeamKey(homeTeam)
+          const away = normalizeTeamKey(awayTeam)
+          const a = normalizeTeamKey(teamA)
+          const b = normalizeTeamKey(teamB)
+          if (!a || !b) return false
+          const hasA = home.includes(a) || away.includes(a)
+          const hasB = home.includes(b) || away.includes(b)
+          return hasA && hasB
+        }
+
+        try {
+          // 1. Get odds with team filter (no full team list needed)
+          const allOdds = await withTimeout(
+            fetchOdds(sportKey, ['spreads', 'totals', 'h2h'], { teamFilter: teams }),
+            5000
+          ).catch(() => [] as OddsGame[])
+
+          // Find matching game by team names
+          const normalizeForMatch = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+          const teamANorm = normalizeForMatch(teamA)
+          const teamBNorm = normalizeForMatch(teamB)
+
+          matchingGame = allOdds.find((g) => {
+            const homeNorm = normalizeForMatch(g.home_team)
+            const awayNorm = normalizeForMatch(g.away_team)
+            const matchesA = homeNorm.includes(teamANorm) || awayNorm.includes(teamANorm) ||
+                             teamANorm.includes(homeNorm) || teamANorm.includes(awayNorm)
+            const matchesB = homeNorm.includes(teamBNorm) || awayNorm.includes(teamBNorm) ||
+                             teamBNorm.includes(homeNorm) || teamBNorm.includes(awayNorm)
+            return matchesA && matchesB
+          })
+
+          if (matchingGame) {
+            console.log('[EFFICIENT_ANALYSIS] Found game:', matchingGame.home_team, 'vs', matchingGame.away_team)
+            homeTeam = matchingGame.home_team || teamB
+            awayTeam = matchingGame.away_team || teamA
+            gameTimeLabel = new Date(matchingGame.commence_time).toLocaleString('en-US', {
+              timeZone: 'America/New_York',
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+            })
+            if (matchingGame.bookmakers?.length) {
+              const book = matchingGame.bookmakers[0]
+              bookName = book.title || book.key || 'Book'
+
+              const mlMarket = book.markets?.find((m: any) => m.key === 'h2h')
+              if (mlMarket?.outcomes?.length) {
+                marketMlHome = mlMarket.outcomes.find((o: any) =>
+                  normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam))
+                )?.price ?? null
+                marketMlAway = mlMarket.outcomes.find((o: any) =>
+                  normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(awayTeam))
+                )?.price ?? null
+              }
+
+              const spreadMarket = book.markets?.find((m: any) => m.key === 'spreads')
+              if (spreadMarket?.outcomes?.length) {
+                marketSpread = spreadMarket.outcomes.find((o: any) =>
+                  normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam))
+                )?.point ?? null
+              }
+
+              const totalMarket = book.markets?.find((m: any) => m.key === 'totals')
+              if (totalMarket?.outcomes?.length) {
+                marketTotal = totalMarket.outcomes.find((o: any) => o?.name === 'Over')?.point ?? null
+              }
+            }
+          } else {
+            console.log('[EFFICIENT_ANALYSIS] No matching game found in odds')
+          }
+
+          // 2. Get ATS data (efficient - doesn't trigger full team fetch)
+          const atsPromises = teams.slice(0, 2).map(async (team) => {
+            try {
+              const ats = await withTimeout(getTeamATSData(team, sportKey), 3000)
+              return { team, ats }
+            } catch {
+              return { team, ats: null }
+            }
+          })
+          const atsResults = await Promise.all(atsPromises)
+
+          const trendParts: string[] = []
+          for (const { team, ats } of atsResults) {
+            if (ats?.success && ats.data) {
+              const parts: string[] = []
+              if (ats.data.overallATS) parts.push(`ATS ${ats.data.overallATS}`)
+              if (ats.data.last10) parts.push(`L10 ${ats.data.last10}`)
+              if (ats.data.streak) parts.push(`Streak ${ats.data.streak}`)
+              if (parts.length) {
+                trendParts.push(`${team}: ${parts.join(', ')}`)
+                // Check for strong/weak ATS trend
+                const atsMatch = ats.data.overallATS?.match(/(\d+)-(\d+)/)
+                if (atsMatch) {
+                  const wins = Number(atsMatch[1])
+                  const losses = Number(atsMatch[2])
+                  const winPct = (wins + losses) > 0 ? wins / (wins + losses) : 0.5
+                  if (winPct >= 0.6 || winPct <= 0.4) supportingSignals += 1
+                }
+              }
+            }
+          }
+
+          // 3. Get injuries (efficient)
+          const injuryLine = await withTimeout(
+            getInjuryReports(sportKey).then((injuries) => {
+              if (!injuries?.length) return 'No major injuries reported'
+              const teamTokens = teams.map((t) => normalizeToken(t))
+              const filtered = injuries.filter((injury) =>
+                teamTokens.some((token) => normalizeToken(injury.team).includes(token))
+              )
+              if (!filtered.length) return 'No major injuries reported'
+              return filtered.slice(0, 4).map((i) => `${i.team}: ${i.player} (${i.status})`).join('; ')
+            }),
+            3000
+          ).catch(() => 'Injury data unavailable')
+
+          // 4. Get public vs sharp splits (efficient)
+          let splits: any = null
+          try {
+            const { getCurrentBettingSplits } = await import('@/lib/providers/covers')
+            const splitsResult = await getCurrentBettingSplits(sportKey)
+            if (splitsResult.success && splitsResult.data) {
+              splits = splitsResult.data.find((s: any) =>
+                matchesGame(s.homeTeam || '', s.awayTeam || '', teamA, teamB)
+              )
+            }
+          } catch {
+            splits = null
+          }
+
+          const formatSplitPct = (value?: number | null): string => {
+            if (value == null || !Number.isFinite(value)) return 'n/a'
+            const pct = value > 1 ? value : value * 100
+            return `${Math.round(pct)}%`
+          }
+
+          const toPctValue = (value?: number | null): number | null => {
+            if (value == null || !Number.isFinite(value)) return null
+            const pct = value > 1 ? value : value * 100
+            return Number.isFinite(pct) ? pct : null
+          }
+
+          const buildPublicSharpSummary = (opts: {
+            label: string
+            homeLabel: string
+            awayLabel: string
+            homeBets?: number | null
+            awayBets?: number | null
+            homeMoney?: number | null
+            awayMoney?: number | null
+          }): string | null => {
+            const homeBetPct = toPctValue(opts.homeBets)
+            const awayBetPct = toPctValue(opts.awayBets)
+            const homeMoneyPct = toPctValue(opts.homeMoney)
+            const awayMoneyPct = toPctValue(opts.awayMoney)
+
+            if (
+              homeBetPct == null &&
+              awayBetPct == null &&
+              homeMoneyPct == null &&
+              awayMoneyPct == null
+            ) {
+              return null
+            }
+
+            const parts: string[] = []
+
+            if (homeBetPct != null && awayBetPct != null) {
+              const publicSide =
+                homeBetPct >= awayBetPct ? opts.homeLabel : opts.awayLabel
+              const publicPct = Math.max(homeBetPct, awayBetPct)
+              parts.push(`public ${publicSide} (${Math.round(publicPct)}%)`)
+            }
+
+            if (homeMoneyPct != null && awayMoneyPct != null) {
+              const sharpSide =
+                homeMoneyPct >= awayMoneyPct ? opts.homeLabel : opts.awayLabel
+              const sharpPct = Math.max(homeMoneyPct, awayMoneyPct)
+              parts.push(`sharp ${sharpSide} (${Math.round(sharpPct)}%)`)
+              if (homeBetPct != null && homeMoneyPct != null) {
+                const divergence = Math.abs(homeMoneyPct - homeBetPct)
+                if (divergence >= 10) {
+                  parts.push(`divergence ${Math.round(divergence)}%`)
+                }
+              }
+            }
+
+            return parts.length ? `**${opts.label}:** ${parts.join(' | ')}` : null
+          }
+
+          // 5. Get team matchup analysis and model projections
+          let matchupAnalysis: Awaited<ReturnType<typeof analyzeMatchup>> | null = null
+          let modelProjection: { spread?: number; total?: number } = {}
+
+          try {
+            // Get detailed matchup analysis (team stats, injuries, trends)
+            matchupAnalysis = await withTimeout(
+              analyzeMatchup(teamA, teamB, undefined, undefined, sportKey),
+              6000
+            )
+
+            // Add team stats to snapshot if available
+            if (matchupAnalysis?.homeTeam?.stats && matchupAnalysis?.awayTeam?.stats) {
+              const homeStats = matchupAnalysis.homeTeam.stats as any
+              const awayStats = matchupAnalysis.awayTeam.stats as any
+
+              // Check for basketball stats (ortg/drtg/pace)
+              if ('ortg' in homeStats && 'drtg' in homeStats) {
+              } else if ('pointsForPerGame' in homeStats) {
+              }
+              supportingSignals += 1
+            }
+
+            // Add context factors from matchup analysis
+            if (matchupAnalysis?.context?.length) {
+              for (const ctx of matchupAnalysis.context.slice(0, 4)) {
+                if (ctx.includes('??') || ctx.includes('BACK-TO-BACK')) {
+                  supportingSignals += 1
+                }
+              }
+            }
+          } catch (err) {
+            console.log('[EFFICIENT_ANALYSIS] Matchup analysis timeout/error, continuing')
+          }
+
+          // 6. Get model projections for spread/total
+          try {
+            const marketContext = {
+              marketSpread: marketSpread ?? undefined,
+              marketTotal: marketTotal ?? undefined,
+            }
+
+            const recommendations = await withTimeout(
+              getGameRecommendations(
+                teamA,
+                teamB,
+                'all',
+                sportKey,
+                marketContext,
+                matchupAnalysis || undefined
+              ),
+              6000
+            )
+
+            const spreadRec = recommendations.find((r) => r.type === 'spread')
+            const totalRec = recommendations.find((r) => r.type === 'total')
+
+            if (spreadRec) {
+              modelProjection.spread = spreadRec.targetLine
+            }
+
+            if (totalRec) {
+              modelProjection.total = totalRec.targetLine
+            }
+          } catch (err) {
+            console.log('[EFFICIENT_ANALYSIS] Model projection timeout/error, continuing')
+          }
+
+          console.log('[EFFICIENT_ANALYSIS] Completed for:', matchupLabel, 'signals:', supportingSignals, 'modelSpread:', modelProjection.spread)
+
+          const outputLines: string[] = []
+          outputLines.push(`## Game Analysis: ${awayTeam} @ ${homeTeam}`)
+          outputLines.push(`**${formatLeagueLabel(sportKey)}**${gameTimeLabel ? ` | ${gameTimeLabel} ET` : ''}`)
+          outputLines.push('')
+
+          outputLines.push('### Current Lines')
+          if (bookName) {
+            outputLines.push(`**ML:** ${awayTeam} ${formatOdds(marketMlAway) || 'n/a'} / ${homeTeam} ${formatOdds(marketMlHome) || 'n/a'}`)
+            if (marketSpread != null) {
+              const spreadStr = marketSpread > 0 ? `+${marketSpread}` : `${marketSpread}`
+              outputLines.push(`**Spread:** ${awayTeam} / ${homeTeam} ${spreadStr}`)
+            } else {
+              outputLines.push('**Spread:** n/a')
+            }
+            outputLines.push(`**Total:** ${marketTotal ?? 'n/a'}`)
+            outputLines.push(`_via ${bookName}_`)
+          } else {
+            outputLines.push('Lines currently unavailable')
+          }
+          outputLines.push('')
+
+          outputLines.push('### Model Projections')
+          if (marketSpread != null || modelProjection.spread != null) {
+            const spreadStr = marketSpread != null ? (marketSpread > 0 ? `+${marketSpread}` : `${marketSpread}`) : 'n/a'
+            outputLines.push(`**Spread:** Market ${homeTeam} ${spreadStr}`)
+            if (modelProjection.spread != null) {
+              const modelStr = modelProjection.spread > 0 ? `+${modelProjection.spread.toFixed(1)}` : modelProjection.spread.toFixed(1)
+              const gap = marketSpread != null ? Math.abs(modelProjection.spread - marketSpread) : 0
+              const spreadEdge = evaluateLineEdge({
+                marketType: 'spread',
+                line: marketSpread,
+                targetLine: modelProjection.spread,
+                supportingSignals,
+              })
+              outputLines.push(`- Model: ${homeTeam} ${modelStr} (${gap.toFixed(1)} pts gap)`)
+              outputLines.push(`- Edge: **${spreadEdge.verdict}** (${spreadEdge.confidence} confidence)`)
+            } else {
+              outputLines.push('- Model projection unavailable')
+            }
+          }
+
+          if (marketTotal != null || modelProjection.total != null) {
+            outputLines.push(`**Total:** Market ${marketTotal ?? 'n/a'}`)
+            if (modelProjection.total != null) {
+              const gap = marketTotal != null ? Math.abs(modelProjection.total - marketTotal) : 0
+              const totalEdge = evaluateLineEdge({
+                marketType: 'total',
+                line: marketTotal,
+                targetLine: modelProjection.total,
+                supportingSignals,
+              })
+              outputLines.push(`- Model: ${modelProjection.total.toFixed(1)} (${gap.toFixed(1)} pts gap)`)
+              outputLines.push(`- Edge: **${totalEdge.verdict}** (${totalEdge.confidence} confidence)`)
+            } else {
+              outputLines.push('- Model projection unavailable')
+            }
+          }
+          outputLines.push('')
+
+          outputLines.push('### Public Betting Splits')
+          if (splits) {
+            outputLines.push(`**Spread:** ${homeTeam} ${formatSplitPct(splits.spreadHomeBetPct)} bets / ${formatSplitPct(splits.spreadHomeMoneyPct)} money | ${awayTeam} ${formatSplitPct(splits.spreadAwayBetPct)} / ${formatSplitPct(splits.spreadAwayMoneyPct)}`)
+            outputLines.push(`**Moneyline:** ${homeTeam} ${formatSplitPct(splits.mlHomeBetPct)} / ${formatSplitPct(splits.mlHomeMoneyPct)} | ${awayTeam} ${formatSplitPct(splits.mlAwayBetPct)} / ${formatSplitPct(splits.mlAwayMoneyPct)}`)
+            outputLines.push(`**Total:** Over ${formatSplitPct(splits.totalOverBetPct)} / ${formatSplitPct(splits.totalOverMoneyPct)} | Under ${formatSplitPct(splits.totalUnderBetPct)} / ${formatSplitPct(splits.totalUnderMoneyPct)}`)
+            const spreadDivergence = splits.spreadHomeBetPct != null && splits.spreadHomeMoneyPct != null ?
+              Math.abs((splits.spreadHomeBetPct > 1 ? splits.spreadHomeBetPct : splits.spreadHomeBetPct * 100) -
+                       (splits.spreadHomeMoneyPct > 1 ? splits.spreadHomeMoneyPct : splits.spreadHomeMoneyPct * 100)) : 0
+            if (spreadDivergence > 10) supportingSignals += 1
+          } else {
+            outputLines.push('Splits unavailable for this matchup')
+          }
+          outputLines.push('')
+
+          outputLines.push('### Sharp/Public & Line Movement')
+          let edgeResult: Awaited<ReturnType<typeof detectEdgeForGame>> | null = null
+          try {
+            const league = resolveSbdLeague(sportKey)
+            if (league) {
+              edgeResult = await detectEdgeForGame(league, `${awayTeam} @ ${homeTeam}`)
+            }
+          } catch (err) {
+            console.log('[EFFICIENT_ANALYSIS] Edge detection error:', err)
+          }
+
+          if (splits) {
+            const spreadSummary = buildPublicSharpSummary({
+              label: 'Spread',
+              homeLabel: homeTeam,
+              awayLabel: awayTeam,
+              homeBets: splits.spreadHomeBetPct,
+              awayBets: splits.spreadAwayBetPct,
+              homeMoney: splits.spreadHomeMoneyPct,
+              awayMoney: splits.spreadAwayMoneyPct,
+            })
+            const mlSummary = buildPublicSharpSummary({
+              label: 'Moneyline',
+              homeLabel: homeTeam,
+              awayLabel: awayTeam,
+              homeBets: splits.mlHomeBetPct,
+              awayBets: splits.mlAwayBetPct,
+              homeMoney: splits.mlHomeMoneyPct,
+              awayMoney: splits.mlAwayMoneyPct,
+            })
+            const totalSummary = buildPublicSharpSummary({
+              label: 'Total',
+              homeLabel: 'Over',
+              awayLabel: 'Under',
+              homeBets: splits.totalOverBetPct,
+              awayBets: splits.totalUnderBetPct,
+              homeMoney: splits.totalOverMoneyPct,
+              awayMoney: splits.totalUnderMoneyPct,
+            })
+            if (spreadSummary) outputLines.push(spreadSummary)
+            if (mlSummary) outputLines.push(mlSummary)
+            if (totalSummary) outputLines.push(totalSummary)
+          } else {
+            outputLines.push('Public/sharp splits unavailable')
+          }
+
+          if (edgeResult?.sharpSignals?.length) {
+            const signalSummary = edgeResult.sharpSignals
+              .slice(0, 3)
+              .map((signal) => `${signal.type} ${signal.market} -> ${signal.side}`)
+              .join('; ')
+            outputLines.push(`Sharp signals: ${signalSummary}`)
+          } else {
+            outputLines.push('Sharp signals: none detected')
+          }
+
+          if (edgeResult?.lineMovements?.length) {
+            const notableMoves = edgeResult.lineMovements
+              .filter((move) => move.isSharp || move.isSignificant)
+            const moves = (notableMoves.length ? notableMoves : edgeResult.lineMovements).slice(0, 2)
+            const moveSummary = moves
+              .map(
+                (move) =>
+                  `${move.market} ${move.side}: ${move.openingLine} -> ${move.currentLine}${move.isSharp ? ' (sharp)' : ''}`
+              )
+              .join('; ')
+            outputLines.push(`Line movement: ${moveSummary}`)
+          } else {
+            outputLines.push('Line movement: unavailable')
+          }
+
+          if (edgeResult?.summary) {
+            outputLines.push(`Market notes: ${edgeResult.summary}`)
+          }
+          outputLines.push('')
+
+          outputLines.push('### Game Analysis')
+          if (matchupAnalysis?.context?.length) {
+            outputLines.push('**Matchup Factors:**')
+            for (const ctx of matchupAnalysis.context.slice(0, 4)) {
+              outputLines.push(`- ${ctx}`)
+            }
+          }
+
+          outputLines.push('**Team Performance:**')
+          if (matchupAnalysis?.homeTeam?.stats || matchupAnalysis?.awayTeam?.stats) {
+            const homeStats = matchupAnalysis?.homeTeam?.stats as any
+            const awayStats = matchupAnalysis?.awayTeam?.stats as any
+            const fmtStat = (v: any) => v != null ? Number(v).toFixed(1) : 'n/a'
+
+            if (homeStats) {
+              const ppg = homeStats.pointsPerGame ?? homeStats.ppg ?? homeStats.pts ?? homeStats.pointsForPerGame
+              const papg = homeStats.opponentPointsPerGame ?? homeStats.papg ?? homeStats.pointsAgainstPerGame
+              const ortg = homeStats.offensiveRating ?? homeStats.ortg
+              const drtg = homeStats.defensiveRating ?? homeStats.drtg
+              const pace = homeStats.pace
+              outputLines.push(`- ${homeTeam}: PPG ${fmtStat(ppg)} | PAPG ${fmtStat(papg)}${ortg ? ` | ORtg ${fmtStat(ortg)}` : ''}${drtg ? ` | DRtg ${fmtStat(drtg)}` : ''}${pace ? ` | Pace ${fmtStat(pace)}` : ''}`)
+            }
+            if (awayStats) {
+              const ppg = awayStats.pointsPerGame ?? awayStats.ppg ?? awayStats.pts ?? awayStats.pointsForPerGame
+              const papg = awayStats.opponentPointsPerGame ?? awayStats.papg ?? awayStats.pointsAgainstPerGame
+              const ortg = awayStats.offensiveRating ?? awayStats.ortg
+              const drtg = awayStats.defensiveRating ?? awayStats.drtg
+              const pace = awayStats.pace
+              outputLines.push(`- ${awayTeam}: PPG ${fmtStat(ppg)} | PAPG ${fmtStat(papg)}${ortg ? ` | ORtg ${fmtStat(ortg)}` : ''}${drtg ? ` | DRtg ${fmtStat(drtg)}` : ''}${pace ? ` | Pace ${fmtStat(pace)}` : ''}`)
+            }
+          }
+
+          outputLines.push('**Injuries:**')
+          outputLines.push(injuryLine)
+
+          outputLines.push('**Betting Trends:**')
+          if (trendParts.length) {
+            for (const trend of trendParts) {
+              outputLines.push(`- ${trend}`)
+            }
+          } else {
+            outputLines.push('No ATS trend data available')
+          }
+
+          return {
+            success: true,
+            formatted: outputLines.join('\n'),
+          }
+        } catch (error) {
+          console.error('[EFFICIENT_ANALYSIS] Error:', error)
+          return null
+        }
+      }
+
       async function runPickGuidance(functionArgs: any) {
         const matchupFromArgs = functionArgs?.matchup ? String(functionArgs.matchup) : ''
         const fallbackTeams = parsedMatchupTeams.length ? parsedMatchupTeams : mentionedTeams
@@ -8259,6 +9080,56 @@ ${statsEnrichment}
           (marketTypeHint !== 'unknown' ? marketTypeHint : null)
         const marketHint =
           marketHintRaw ? String(marketHintRaw).replace(/_/g, ' ') : null
+
+        // If we have a specific matchup and league, run actual game analysis instead of generic guidance
+        const league = functionArgs?.league?.toLowerCase()
+        if (matchup && fallbackTeams.length >= 2 && league) {
+          console.log('[PICK_GUIDANCE] Running actual game analysis for:', matchup, 'league:', league)
+
+          // Map league to sportKey
+          const sportKeyMap: Record<string, string> = {
+            ncaab: 'basketball_ncaab',
+            ncaaf: 'americanfootball_ncaaf',
+            nba: 'basketball_nba',
+            nfl: 'americanfootball_nfl',
+            mlb: 'baseball_mlb',
+            nhl: 'icehockey_nhl',
+          }
+          const sportKey = sportKeyMap[league] || `basketball_${league}`
+
+          // Use efficient analysis for college sports (avoids expensive full-team fetches)
+          if (league === 'ncaab' || league === 'ncaaf') {
+            console.log('[PICK_GUIDANCE] Using efficient analysis for college sports')
+            try {
+              const efficientResult = await runEfficientSingleGameAnalysis({
+                teams: fallbackTeams.slice(0, 2),
+                sportKey,
+                marketType: 'spread',
+              })
+              if (efficientResult) {
+                return efficientResult
+              }
+            } catch (err) {
+              console.error('[PICK_GUIDANCE] Efficient analysis failed:', err)
+            }
+          }
+
+          // For pro leagues, use full bet market analysis with model projections
+          try {
+            const analysisResult = await runBetMarketAnalysis({
+              marketType: 'spread',
+              gameIdentifier: matchup,
+              league: sportKey,
+            })
+            if (analysisResult && typeof analysisResult === 'object' && 'formatted' in analysisResult) {
+              return analysisResult
+            }
+          } catch (err) {
+            console.error('[PICK_GUIDANCE] Analysis failed, falling back to guidance:', err)
+          }
+        }
+
+        // Fallback to generic guidance if no matchup or analysis failed
         const formatted = buildPickGuidanceResponse({
           subject: matchup,
           marketHint,
@@ -8353,6 +9224,22 @@ ${statsEnrichment}
             .join('; ')
         }
 
+        const matchesGame = (
+          homeTeam: string,
+          awayTeam: string,
+          teamA: string,
+          teamB: string
+        ) => {
+          const home = normalizeTeamKey(homeTeam)
+          const away = normalizeTeamKey(awayTeam)
+          const a = normalizeTeamKey(teamA)
+          const b = normalizeTeamKey(teamB)
+          if (!a || !b) return false
+          const hasA = home.includes(a) || away.includes(a)
+          const hasB = home.includes(b) || away.includes(b)
+          return hasA && hasB
+        }
+
         const parseAtsRecord = (record?: string | { formatted?: string; wins?: number; losses?: number; pushes?: number } | null) => {
           if (!record) return null
           if (typeof record === 'object') {
@@ -8423,9 +9310,32 @@ ${statsEnrichment}
             ? `${matchupTeams[0]} vs ${matchupTeams[1]}`
             : matchupTeams[0] || functionArgs?.gameIdentifier || 'Requested market'
 
-        const sportKey =
-          (functionArgs?.league ? String(functionArgs.league) : sportHintFromMessage(message)) ||
-          'basketball_nba'
+        const explicitSportKey = sportHintFromMessage(message)
+        if (!explicitSportKey) {
+          return {
+            success: true,
+            formatted:
+              'Which league is this matchup for? Please specify NFL, NCAAF, NBA, NCAAB, MLB, or NHL.',
+          }
+        }
+        const sportKey = explicitSportKey
+
+        // Use efficient analysis for college sports to avoid expensive full-team fetches
+        const isCollegeSport = sportKey === 'basketball_ncaab' || sportKey === 'americanfootball_ncaaf'
+        const isGameAnalysis = matchupTeams.length >= 2 && (marketType === 'spread' || marketType === 'total' || marketType === 'moneyline' || marketType === 'unknown')
+
+        if (isCollegeSport && isGameAnalysis) {
+          console.log('[ANALYZE_BET_MARKET] Using efficient analysis for college sport:', sportKey)
+          const efficientResult = await runEfficientSingleGameAnalysis({
+            teams: matchupTeams.slice(0, 2),
+            sportKey,
+            marketType: marketType === 'unknown' ? 'spread' : (marketType as 'spread' | 'total' | 'moneyline'),
+          })
+          if (efficientResult) {
+            return efficientResult
+          }
+          console.log('[ANALYZE_BET_MARKET] Efficient analysis failed, continuing with standard analysis')
+        }
 
         const snapshotLines: string[] = []
         const deltas: string[] = []
@@ -8472,175 +9382,432 @@ ${statsEnrichment}
         }
 
         let supportingSignals = 0
-        if (marketType === 'spread' || marketType === 'total' || marketType === 'moneyline') {
-          let splitsText = ''
+
+        // For game analysis (spread/total/moneyline), provide comprehensive analysis
+        if (marketType === 'spread' || marketType === 'total' || marketType === 'moneyline' || marketType === 'unknown') {
+          console.log('[ANALYZE_BET_MARKET] Running comprehensive game analysis for:', matchupLabel)
+
+          const [teamA, teamB] = matchupTeams
+          const outputLines: string[] = []
+
+          // 1. Fetch current odds from API
+          let oddsGame: OddsGame | undefined
+          let marketSpread: number | null = null
+          let marketTotal: number | null = null
           try {
-            splitsText = await summarizeCoversGameSplitsForChat({
-              message,
-              teams: matchupTeams,
-              timezone,
+            const games = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
+              teamFilter: matchupTeams,
+              revalidateSeconds: 60,
             })
-          } catch (error) {
-            splitsText = 'splits unavailable'
+            oddsGame = games.find((game) =>
+              matchesGame(game.home_team, game.away_team, teamA, teamB)
+            )
+            if (oddsGame) {
+              // Extract market lines
+              const spreadMarket = oddsGame.bookmakers?.[0]?.markets?.find((m) => m.key === 'spreads')
+              const totalMarket = oddsGame.bookmakers?.[0]?.markets?.find((m) => m.key === 'totals')
+              marketSpread = spreadMarket?.outcomes?.find((o: any) =>
+                normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(oddsGame!.home_team))
+              )?.point ?? null
+              marketTotal = totalMarket?.outcomes?.find((o: any) => o?.name === 'Over')?.point ?? null
+            }
+          } catch (err) {
+            console.log('[ANALYZE_BET_MARKET] Odds fetch error:', err)
           }
-          const splitLines = splitsText.split('\n').map((lineItem) => lineItem.trim()).filter(Boolean)
-          const targetLabel =
-            marketType === 'spread'
-              ? 'spread'
-              : marketType === 'total'
-              ? 'total'
-              : 'moneyline'
-          const marketLine = splitLines.find((lineItem) =>
-            lineItem.toLowerCase().startsWith(`- ${targetLabel}`)
-          )
-          const splitSummary = marketLine
-            ? marketLine.replace(/^- /, '')
-            : splitLines.find((lineItem) => lineItem.startsWith('- '))?.replace(/^- /, '') ||
-              splitLines[0] ||
-              'splits unavailable'
-          snapshotLines.push(`Public vs sharp: ${splitSummary}`)
-          if (/sharp|divergence|handle/i.test(splitSummary)) supportingSignals += 1
+
+          // Header
+          const homeTeam = oddsGame?.home_team || teamB
+          const awayTeam = oddsGame?.away_team || teamA
+          outputLines.push(`## Game Analysis: ${awayTeam} @ ${homeTeam}`)
+          if (oddsGame) {
+            outputLines.push(`**${formatLeagueLabel(sportKey)}** | ${new Date(oddsGame.commence_time).toLocaleString()}`)
+          } else {
+            outputLines.push(`**${formatLeagueLabel(sportKey)}**`)
+          }
+          outputLines.push('')
+
+          // 2. Current Lines section
+          outputLines.push('### Current Lines')
+          if (oddsGame?.bookmakers?.length) {
+            const book = oddsGame.bookmakers[0]
+            const bookName = book.title || book.key || 'Book'
+
+            // Moneyline
+            const mlMarket = book.markets?.find((m) => m.key === 'h2h')
+            if (mlMarket?.outcomes) {
+              const homeML = mlMarket.outcomes.find((o: any) => normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam)))?.price
+              const awayML = mlMarket.outcomes.find((o: any) => normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(awayTeam)))?.price
+              outputLines.push(`**ML:** ${awayTeam} ${formatOdds(awayML) || 'n/a'} / ${homeTeam} ${formatOdds(homeML) || 'n/a'}`)
+            }
+
+            // Spread
+            const spreadMkt = book.markets?.find((m) => m.key === 'spreads')
+            if (spreadMkt?.outcomes) {
+              const homeSpread = spreadMkt.outcomes.find((o: any) => normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam)))
+              const awaySpread = spreadMkt.outcomes.find((o: any) => normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(awayTeam)))
+              const homeSpreadStr = homeSpread?.point != null ? (homeSpread.point > 0 ? `+${homeSpread.point}` : `${homeSpread.point}`) : 'n/a'
+              const awaySpreadStr = awaySpread?.point != null ? (awaySpread.point > 0 ? `+${awaySpread.point}` : `${awaySpread.point}`) : 'n/a'
+              outputLines.push(`**Spread:** ${awayTeam} ${awaySpreadStr} (${formatOdds(awaySpread?.price)}) / ${homeTeam} ${homeSpreadStr} (${formatOdds(homeSpread?.price)})`)
+            }
+
+            // Total
+            const totalMkt = book.markets?.find((m) => m.key === 'totals')
+            if (totalMkt?.outcomes) {
+              const over = totalMkt.outcomes.find((o: any) => o?.name === 'Over')
+              const under = totalMkt.outcomes.find((o: any) => o?.name === 'Under')
+              outputLines.push(`**Total:** Over ${over?.point || 'n/a'} (${formatOdds(over?.price)}) / Under ${under?.point || 'n/a'} (${formatOdds(under?.price)})`)
+            }
+            outputLines.push(`_via ${bookName}_`)
+          } else {
+            outputLines.push('Lines currently unavailable')
+          }
+          outputLines.push('')
+
+          // 3. Get matchup analysis for team stats
+          let matchupAnalysis: Awaited<ReturnType<typeof analyzeMatchup>> | null = null
+          try {
+            matchupAnalysis = await analyzeMatchup(teamA, teamB, undefined, undefined, sportKey)
+          } catch (err) {
+            console.log('[ANALYZE_BET_MARKET] Matchup analysis error:', err)
+          }
+
+          // 4. Get model projections
+          let modelProjection: { spread?: number; total?: number } = {}
+          try {
+            const recommendations = await getGameRecommendations(
+              teamA,
+              teamB,
+              'all',
+              sportKey,
+              { marketSpread: marketSpread ?? undefined, marketTotal: marketTotal ?? undefined },
+              matchupAnalysis || undefined
+            )
+            if (recommendations.length > 0) {
+              const spreadRec = recommendations.find((r) => r.type === 'spread')
+              const totalRec = recommendations.find((r) => r.type === 'total')
+              if (spreadRec?.targetLine != null) modelProjection.spread = spreadRec.targetLine
+              if (totalRec?.targetLine != null) modelProjection.total = totalRec.targetLine
+            }
+          } catch (err) {
+            console.log('[ANALYZE_BET_MARKET] Model projection error:', err)
+          }
+
+          // 5. Model Projections section with edge
+          outputLines.push('### Model Projections')
+          if (marketSpread != null || modelProjection.spread != null) {
+            const spreadStr = marketSpread != null ? (marketSpread > 0 ? `+${marketSpread}` : `${marketSpread}`) : 'n/a'
+            outputLines.push(`**Spread:** Market ${homeTeam} ${spreadStr}`)
+            if (modelProjection.spread != null) {
+              const modelStr = modelProjection.spread > 0 ? `+${modelProjection.spread.toFixed(1)}` : modelProjection.spread.toFixed(1)
+              const gap = marketSpread != null ? Math.abs(modelProjection.spread - marketSpread) : 0
+              const spreadEdge = evaluateLineEdge({
+                marketType: 'spread',
+                line: marketSpread,
+                targetLine: modelProjection.spread,
+                supportingSignals: 0
+              })
+              outputLines.push(`- Model: ${homeTeam} ${modelStr} (${gap.toFixed(1)} pts gap)`)
+              outputLines.push(`- Edge: **${spreadEdge.verdict}** (${spreadEdge.confidence} confidence)`)
+              if (gap >= 2 && marketSpread != null) {
+                const lean = modelProjection.spread < marketSpread ? homeTeam : awayTeam
+                outputLines.push(`- Lean: **${lean}** (${gap.toFixed(1)} pts of value)`)
+                supportingSignals += 1
+              }
+            } else {
+              outputLines.push('- Model projection unavailable')
+            }
+          }
+
+          if (marketTotal != null || modelProjection.total != null) {
+            outputLines.push(`**Total:** Market ${marketTotal ?? 'n/a'}`)
+            if (modelProjection.total != null) {
+              const gap = marketTotal != null ? Math.abs(modelProjection.total - marketTotal) : 0
+              const direction = marketTotal != null && modelProjection.total > marketTotal ? 'Over' : 'Under'
+              const totalEdge = evaluateLineEdge({
+                marketType: 'total',
+                line: marketTotal,
+                targetLine: modelProjection.total,
+                supportingSignals: 0
+              })
+              outputLines.push(`- Model: ${modelProjection.total.toFixed(1)} (${gap.toFixed(1)} pts gap)`)
+              outputLines.push(`- Edge: **${totalEdge.verdict}** (${totalEdge.confidence} confidence)`)
+              if (gap >= 3 && marketTotal != null) {
+                outputLines.push(`- Lean: **${direction}** (${gap.toFixed(1)} pts of value)`)
+                supportingSignals += 1
+              }
+            } else {
+              outputLines.push('- Model projection unavailable')
+            }
+          }
+          outputLines.push('')
+
+          // 6. Betting splits
+          outputLines.push('### Public Betting Splits')
+          let splits: any = null
+          try {
+            const { getCurrentBettingSplits } = await import('@/lib/providers/covers')
+            const splitsResult = await getCurrentBettingSplits(sportKey)
+            if (splitsResult.success && splitsResult.data) {
+              splits = splitsResult.data.find((s: any) =>
+                matchesGame(s.homeTeam || '', s.awayTeam || '', teamA, teamB)
+              )
+            }
+          } catch (err) {
+            console.log('[ANALYZE_BET_MARKET] Splits fetch error:', err)
+          }
+
+          const formatSplitPct = (value?: number | null): string => {
+            if (value == null || !Number.isFinite(value)) return 'n/a'
+            const pct = value > 1 ? value : value * 100
+            return `${Math.round(pct)}%`
+          }
+
+          const toPctValue = (value?: number | null): number | null => {
+            if (value == null || !Number.isFinite(value)) return null
+            const pct = value > 1 ? value : value * 100
+            return Number.isFinite(pct) ? pct : null
+          }
+
+          const buildPublicSharpSummary = (opts: {
+            label: string
+            homeLabel: string
+            awayLabel: string
+            homeBets?: number | null
+            awayBets?: number | null
+            homeMoney?: number | null
+            awayMoney?: number | null
+          }): string | null => {
+            const homeBetPct = toPctValue(opts.homeBets)
+            const awayBetPct = toPctValue(opts.awayBets)
+            const homeMoneyPct = toPctValue(opts.homeMoney)
+            const awayMoneyPct = toPctValue(opts.awayMoney)
+
+            if (
+              homeBetPct == null &&
+              awayBetPct == null &&
+              homeMoneyPct == null &&
+              awayMoneyPct == null
+            ) {
+              return null
+            }
+
+            const parts: string[] = []
+
+            if (homeBetPct != null && awayBetPct != null) {
+              const publicSide =
+                homeBetPct >= awayBetPct ? opts.homeLabel : opts.awayLabel
+              const publicPct = Math.max(homeBetPct, awayBetPct)
+              parts.push(`public ${publicSide} (${Math.round(publicPct)}%)`)
+            }
+
+            if (homeMoneyPct != null && awayMoneyPct != null) {
+              const sharpSide =
+                homeMoneyPct >= awayMoneyPct ? opts.homeLabel : opts.awayLabel
+              const sharpPct = Math.max(homeMoneyPct, awayMoneyPct)
+              parts.push(`sharp ${sharpSide} (${Math.round(sharpPct)}%)`)
+              if (homeBetPct != null && homeMoneyPct != null) {
+                const divergence = Math.abs(homeMoneyPct - homeBetPct)
+                if (divergence >= 10) {
+                  parts.push(`divergence ${Math.round(divergence)}%`)
+                }
+              }
+            }
+
+            return parts.length ? `**${opts.label}:** ${parts.join(' | ')}` : null
+          }
+
+          if (splits) {
+            outputLines.push(`**Spread:** ${homeTeam} ${formatSplitPct(splits.spreadHomeBetPct)} bets / ${formatSplitPct(splits.spreadHomeMoneyPct)} money | ${awayTeam} ${formatSplitPct(splits.spreadAwayBetPct)} / ${formatSplitPct(splits.spreadAwayMoneyPct)}`)
+            outputLines.push(`**Moneyline:** ${homeTeam} ${formatSplitPct(splits.mlHomeBetPct)} / ${formatSplitPct(splits.mlHomeMoneyPct)} | ${awayTeam} ${formatSplitPct(splits.mlAwayBetPct)} / ${formatSplitPct(splits.mlAwayMoneyPct)}`)
+            outputLines.push(`**Total:** Over ${formatSplitPct(splits.totalOverBetPct)} / ${formatSplitPct(splits.totalOverMoneyPct)} | Under ${formatSplitPct(splits.totalUnderBetPct)} / ${formatSplitPct(splits.totalUnderMoneyPct)}`)
+
+            // Check for sharp indicators (bet% vs money% divergence)
+            const spreadDivergence = splits.spreadHomeBetPct != null && splits.spreadHomeMoneyPct != null ?
+              Math.abs((splits.spreadHomeBetPct > 1 ? splits.spreadHomeBetPct : splits.spreadHomeBetPct * 100) -
+                       (splits.spreadHomeMoneyPct > 1 ? splits.spreadHomeMoneyPct : splits.spreadHomeMoneyPct * 100)) : 0
+            if (spreadDivergence > 10) {
+              outputLines.push('?? **Sharp action detected:** Bet/money split divergence > 10%')
+              supportingSignals += 1
+            }
+          } else {
+            outputLines.push('Splits unavailable for this matchup')
+          }
+          outputLines.push('')
+
+          // 7. Sharp/public + line movement
+          outputLines.push('### Sharp/Public & Line Movement')
+          let edgeResult: Awaited<ReturnType<typeof detectEdgeForGame>> | null = null
+          try {
+            const league = resolveSbdLeague(sportKey)
+            if (league) {
+              edgeResult = await detectEdgeForGame(league, `${awayTeam} @ ${homeTeam}`)
+            }
+          } catch (err) {
+            console.log('[ANALYZE_BET_MARKET] Edge detection error:', err)
+          }
+
+          if (splits) {
+            const spreadSummary = buildPublicSharpSummary({
+              label: 'Spread',
+              homeLabel: homeTeam,
+              awayLabel: awayTeam,
+              homeBets: splits.spreadHomeBetPct,
+              awayBets: splits.spreadAwayBetPct,
+              homeMoney: splits.spreadHomeMoneyPct,
+              awayMoney: splits.spreadAwayMoneyPct,
+            })
+            const mlSummary = buildPublicSharpSummary({
+              label: 'Moneyline',
+              homeLabel: homeTeam,
+              awayLabel: awayTeam,
+              homeBets: splits.mlHomeBetPct,
+              awayBets: splits.mlAwayBetPct,
+              homeMoney: splits.mlHomeMoneyPct,
+              awayMoney: splits.mlAwayMoneyPct,
+            })
+            const totalSummary = buildPublicSharpSummary({
+              label: 'Total',
+              homeLabel: 'Over',
+              awayLabel: 'Under',
+              homeBets: splits.totalOverBetPct,
+              awayBets: splits.totalUnderBetPct,
+              homeMoney: splits.totalOverMoneyPct,
+              awayMoney: splits.totalUnderMoneyPct,
+            })
+
+            if (spreadSummary) outputLines.push(spreadSummary)
+            if (mlSummary) outputLines.push(mlSummary)
+            if (totalSummary) outputLines.push(totalSummary)
+          } else {
+            outputLines.push('Public/sharp splits unavailable')
+          }
+
+          if (edgeResult?.sharpSignals?.length) {
+            const signalSummary = edgeResult.sharpSignals
+              .slice(0, 3)
+              .map((signal) => `${signal.type} ${signal.market} -> ${signal.side}`)
+              .join('; ')
+            outputLines.push(`Sharp signals: ${signalSummary}`)
+          } else {
+            outputLines.push('Sharp signals: none detected')
+          }
+
+          if (edgeResult?.lineMovements?.length) {
+            const notableMoves = edgeResult.lineMovements
+              .filter((move) => move.isSharp || move.isSignificant)
+            const moves = (notableMoves.length ? notableMoves : edgeResult.lineMovements)
+              .slice(0, 2)
+            const moveSummary = moves
+              .map(
+                (move) =>
+                  `${move.market} ${move.side}: ${move.openingLine} -> ${move.currentLine}${move.isSharp ? ' (sharp)' : ''}`
+              )
+              .join('; ')
+            outputLines.push(`Line movement: ${moveSummary}`)
+          } else if (movement.points != null) {
+            const teamLabel = movement.team ? ` toward ${movement.team}` : ''
+            outputLines.push(`Line movement: ${movement.points.toFixed(1)} pts${teamLabel} (reported)`)
+          } else {
+            outputLines.push('Line movement: unavailable')
+          }
+
+          if (edgeResult?.summary) {
+            outputLines.push(`Market notes: ${edgeResult.summary}`)
+          }
+
+          outputLines.push('')
+
+          // 8. Game Analysis section
+          outputLines.push('### Game Analysis')
+          outputLines.push('**Team Performance:**')
+          if (matchupAnalysis?.homeTeam?.stats || matchupAnalysis?.awayTeam?.stats) {
+            const homeStats = matchupAnalysis?.homeTeam?.stats as any
+            const awayStats = matchupAnalysis?.awayTeam?.stats as any
+            const fmtStat = (v: any) => v != null ? Number(v).toFixed(1) : 'n/a'
+
+            if (homeStats) {
+              const ppg = homeStats.pointsPerGame ?? homeStats.ppg ?? homeStats.pts ?? homeStats.pointsForPerGame
+              const papg = homeStats.opponentPointsPerGame ?? homeStats.papg ?? homeStats.pointsAgainstPerGame
+              const ortg = homeStats.offensiveRating ?? homeStats.ortg
+              const drtg = homeStats.defensiveRating ?? homeStats.drtg
+              const pace = homeStats.pace
+              outputLines.push(`**${homeTeam}:** PPG ${fmtStat(ppg)} | PAPG ${fmtStat(papg)}${ortg ? ` | ORtg ${fmtStat(ortg)}` : ''}${drtg ? ` | DRtg ${fmtStat(drtg)}` : ''}${pace ? ` | Pace ${fmtStat(pace)}` : ''}`)
+            }
+            if (awayStats) {
+              const ppg = awayStats.pointsPerGame ?? awayStats.ppg ?? awayStats.pts ?? awayStats.pointsForPerGame
+              const papg = awayStats.opponentPointsPerGame ?? awayStats.papg ?? awayStats.pointsAgainstPerGame
+              const ortg = awayStats.offensiveRating ?? awayStats.ortg
+              const drtg = awayStats.defensiveRating ?? awayStats.drtg
+              const pace = awayStats.pace
+              outputLines.push(`**${awayTeam}:** PPG ${fmtStat(ppg)} | PAPG ${fmtStat(papg)}${ortg ? ` | ORtg ${fmtStat(ortg)}` : ''}${drtg ? ` | DRtg ${fmtStat(drtg)}` : ''}${pace ? ` | Pace ${fmtStat(pace)}` : ''}`)
+            }
+          } else {
+            // Fallback to getTeamStats
+            const teamStats = await Promise.all(
+              matchupTeams.slice(0, 2).map(async (teamName) => {
+                const stats = await getTeamStats(sportKey, teamName)
+                return { teamName, stats: stats?.[0]?.stats || {} }
+              })
+            )
+            for (const entry of teamStats) {
+              const s = entry.stats as any
+              const ppg = toNumber(s.pointsForPerGame)
+              const papg = toNumber(s.pointsAgainstPerGame)
+              if (ppg != null && papg != null) {
+                outputLines.push(`**${entry.teamName}:** PPG ${ppg.toFixed(1)} | PAPG ${papg.toFixed(1)}`)
+              }
+            }
+          }
+          outputLines.push('')
+
+          // 9. Injuries section
+          outputLines.push('**Injuries:**')
+          const homeInjuries = matchupAnalysis?.homeTeam?.injuries || []
+          const awayInjuries = matchupAnalysis?.awayTeam?.injuries || []
+          const allInjuries = [...(Array.isArray(homeInjuries) ? homeInjuries : []), ...(Array.isArray(awayInjuries) ? awayInjuries : [])]
+
+          if (allInjuries.length > 0) {
+            const significantInjuries = allInjuries.filter((inj: any) =>
+              inj.status?.toLowerCase().includes('out') ||
+              inj.status?.toLowerCase().includes('doubtful') ||
+              inj.status?.toLowerCase().includes('questionable')
+            ).slice(0, 6)
+            if (significantInjuries.length > 0) {
+              for (const inj of significantInjuries as any[]) {
+                outputLines.push(`- ${inj.player} (${inj.team}): ${inj.status}${inj.injury ? ` - ${inj.injury}` : ''}`)
+              }
+            } else {
+              outputLines.push('No significant injuries reported')
+            }
+          } else {
+            const injuryLine = await summarizeInjuries(matchupTeams, sportKey)
+            outputLines.push(injuryLine)
+          }
+          outputLines.push('')
+
+          // 10. Betting Trends
+          outputLines.push('**Betting Trends:**')
+          for (const teamName of matchupTeams.slice(0, 2)) {
+            const ats = await getTeamATSData(teamName, sportKey)
+            if (ats?.success && ats.data) {
+              const pieces: string[] = []
+              if (ats.data.overallATS) pieces.push(`ATS ${ats.data.overallATS}`)
+              if (ats.data.last10) pieces.push(`Last 10: ${ats.data.last10}`)
+              if (ats.data.streak) pieces.push(`Streak: ${ats.data.streak}`)
+              if (pieces.length) {
+                outputLines.push(`**${teamName}:** ${pieces.join(' | ')}`)
+              }
+            }
+          }
+
+          return {
+            success: true,
+            formatted: outputLines.join('\n'),
+          }
         }
 
         const injuryLine = await summarizeInjuries(matchupTeams, sportKey)
         snapshotLines.push(`Injuries/availability: ${injuryLine}`)
-
-        if (marketType === 'spread' || marketType === 'total' || marketType === 'moneyline') {
-          const [teamA, teamB] = matchupTeams
-          const teamStats = await Promise.all(
-            matchupTeams.slice(0, 2).map(async (teamName) => {
-              const stats = await getTeamStats(sportKey, teamName)
-              const primary = stats?.[0]
-              return { teamName, primary }
-            })
-          )
-
-          const contextParts: string[] = []
-          const trendParts: string[] = []
-          for (const entry of teamStats) {
-            if (!entry.teamName) continue
-            const statBlock = entry.primary?.stats || {}
-            const ppg = toNumber(statBlock.pointsForPerGame)
-            const papg = toNumber(statBlock.pointsAgainstPerGame)
-            const mov =
-              toNumber(statBlock.marginOfVictory) ??
-              (ppg != null && papg != null ? Number((ppg - papg).toFixed(1)) : null)
-            const netRating = toNumber(statBlock.netRating)
-            const pace = toNumber(statBlock.pace)
-            const lastTen = statBlock.lastTen ? String(statBlock.lastTen) : null
-            const streak = statBlock.streak ? String(statBlock.streak) : null
-
-            const pieces: string[] = []
-            if (ppg != null && papg != null) {
-              pieces.push(`PPG ${ppg.toFixed(1)}, PAPG ${papg.toFixed(1)}`)
-            }
-            if (mov != null) pieces.push(`MOV ${mov.toFixed(1)}`)
-            if (netRating != null) pieces.push(`NetRtg ${netRating.toFixed(1)}`)
-            if (pace != null) pieces.push(`Pace ${pace.toFixed(1)}`)
-            if (lastTen) pieces.push(`Last10 ${lastTen}`)
-            if (streak) pieces.push(`Streak ${streak}`)
-            if (pieces.length) {
-              contextParts.push(`${entry.teamName}: ${pieces.join('; ')}`)
-            }
-
-            const ats = await getTeamATSData(entry.teamName, sportKey)
-            if (ats?.success && ats.data) {
-              const atsPieces: string[] = []
-              if (ats.data.overallATS) atsPieces.push(`ATS ${ats.data.overallATS}`)
-              if (ats.data.last10) atsPieces.push(`Last10 ${ats.data.last10}`)
-              if (ats.data.streak) atsPieces.push(`Streak ${ats.data.streak}`)
-              if (atsPieces.length) {
-                trendParts.push(`${entry.teamName}: ${atsPieces.join(', ')}`)
-              }
-              const atsParsed = parseAtsRecord(ats.data.overallATS)
-              if (atsParsed?.winPct != null && (atsParsed.winPct >= 0.6 || atsParsed.winPct <= 0.4)) {
-                supportingSignals += 1
-              }
-            }
-          }
-
-          if (contextParts.length) snapshotLines.push(`Context stats: ${contextParts.join(' | ')}`)
-          if (trendParts.length) snapshotLines.push(`Trends: ${trendParts.join(' | ')}`)
-
-          console.log('[ANALYZE_BET_MARKET] Calling getGameRecommendations for:', matchupLabel)
-          const recommendations = await getGameRecommendations(
-            matchupLabel,
-            marketType === 'total' ? 'total' : 'spread',
-            undefined,
-            sportKey
-          )
-          console.log('[ANALYZE_BET_MARKET] Got recommendations:', recommendations.length)
-          const targetRec =
-            marketType === 'total'
-              ? recommendations.find((rec) => rec.type === 'total')
-              : recommendations.find((rec) => rec.type === 'spread')
-
-          let targetLine: number | null = targetRec?.targetLine ?? null
-          let normalizedLine = line
-
-          if (marketType === 'spread' && line != null) {
-            const lineTeamMatch = extractLineTeam(message)
-            const lineTeam = lineTeamMatch.team
-            const lineValue = lineTeamMatch.line ?? line
-            const homeTeam = targetRec?.homeTeam || teamA
-            const awayTeam = targetRec?.awayTeam || teamB
-            if (lineTeam && homeTeam && awayTeam) {
-              const lineToken = normalizeToken(lineTeam)
-              const homeToken = normalizeToken(homeTeam)
-              const awayToken = normalizeToken(awayTeam)
-              if (lineToken && homeToken && (lineToken.includes(homeToken) || homeToken.includes(lineToken))) {
-                normalizedLine = lineValue < 0 ? Math.abs(lineValue) : -Math.abs(lineValue)
-              } else if (lineToken && awayToken && (lineToken.includes(awayToken) || awayToken.includes(lineToken))) {
-                normalizedLine = lineValue < 0 ? -Math.abs(lineValue) : Math.abs(lineValue)
-              }
-            }
-          }
-
-          const edge: EdgeAssessment =
-            marketType === 'moneyline'
-              ? {
-                  verdict: 'none',
-                  confidence: 'low',
-                  reason: odds == null
-                    ? 'Need a moneyline price to evaluate edge.'
-                    : 'Moneyline edge needs implied probability vs model.',
-                }
-              : evaluateLineEdge({
-                  marketType,
-                  line: normalizedLine,
-                  targetLine,
-                  supportingSignals,
-                })
-
-          nextActions.push('Compare best price across books')
-          nextActions.push('Re-check injuries and starting lineups')
-          if (marketType !== 'moneyline') {
-            nextActions.push('Compare model target line vs market')
-          }
-          if (marketType === 'spread' || marketType === 'total') {
-            nextActions.push('Review public vs sharp splits for this market')
-          }
-
-          const marketLabel =
-            marketType === 'spread'
-              ? `spread ${line != null ? line.toFixed(1) : ''}`.trim()
-              : marketType === 'total'
-              ? `total ${line != null ? line.toFixed(1) : ''}`.trim()
-              : 'moneyline'
-
-              return {
-                success: true,
-                formatted: buildAnalysisResponse({
-                  title: matchupLabel,
-                  marketLabel,
-                  snapshotLines,
-                  deltas,
-                  edge,
-                  nextActions,
-                  missingInfo,
-                }),
-              }
-        }
 
         if (marketType === 'quarter') {
           const primaryTeam = matchupTeams[0]
@@ -9053,6 +10220,30 @@ ${statsEnrichment}
       }
 
       const DISABLED_TOOLS = new Set([])
+
+      if (functionName === 'get_live_betting_projection') {
+        const liveLimit = getLiveProjectionLimit()
+        const liveGate = await checkAndIncrementUsage('liveProjection', liveLimit)
+        if (!liveGate.allowed) {
+          const errorMessage =
+            liveGate.reason === 'not_allowed'
+              ? 'Live projections are not included on Pro. Upgrade to Sharp or Syndicate to unlock them.'
+              : 'Daily live projection limit reached. Upgrade to Syndicate for unlimited access or try again tomorrow.'
+          return { success: false, error: errorMessage }
+        }
+      }
+
+      if (functionName === 'get_slate_edge_detection' || functionName === 'get_slate_prop_edge_detection') {
+        const evLimit = getEvToolLimit()
+        const evGate = await checkAndIncrementUsage('evTool', evLimit)
+        if (!evGate.allowed) {
+          const errorMessage =
+            evGate.reason === 'not_allowed'
+              ? 'EV tools are not included on Pro. Upgrade to Sharp or Syndicate to unlock them.'
+              : 'Daily EV tool limit reached. Upgrade to Syndicate for unlimited access or try again tomorrow.'
+          return { success: false, error: errorMessage }
+        }
+      }
 
       if (espnToolResolvers[functionName]) {
         functionResult = await espnToolResolvers[functionName](functionArgs)
@@ -9865,9 +11056,32 @@ ${statsEnrichment}
         const sport = functionArgs.sport || 'basketball_nba'
         const minEdge = functionArgs.minEdge as 'soft' | 'strong' | undefined
         const date = typeof functionArgs.date === 'string' ? functionArgs.date : undefined
-        const result = await analyzeSlateEdges(sport, { minEdge, date })
-        const formatted = formatSlateEdgesForChat(result)
-        functionResult = { success: true, formatted }
+
+        console.log(`[SLATE EDGE] Function call starting for ${sport}...`)
+        const slateStartTime = Date.now()
+
+        try {
+          // 45-second timeout
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Slate analysis timeout')), 45000)
+          )
+          const result = await Promise.race([
+            analyzeSlateEdges(sport, { minEdge, date }),
+            timeoutPromise,
+          ])
+          const slateElapsed = Date.now() - slateStartTime
+          console.log(`[SLATE EDGE] Function call complete: ${result.edges.length} edges in ${slateElapsed}ms`)
+
+          const formatted = formatSlateEdgesForChat(result)
+          functionResult = { success: true, formatted }
+        } catch (slateError) {
+          const slateElapsed = Date.now() - slateStartTime
+          console.error(`[SLATE EDGE] Function call failed after ${slateElapsed}ms:`, slateError)
+          functionResult = {
+            success: false,
+            formatted: `I encountered an issue analyzing the ${sport.replace(/_/g, ' ').toUpperCase()} slate. Please try again or narrow your request.`,
+          }
+        }
       } else if (functionName === 'get_slate_prop_edge_detection') {
         const { analyzeSlatePropEdges, formatSlatePropEdgesForChat } = await import(
           '@/lib/services/slate-prop-edge-detector'
@@ -10397,6 +11611,26 @@ ${statsEnrichment}
     );
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

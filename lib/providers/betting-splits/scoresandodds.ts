@@ -65,7 +65,7 @@ function parseScoresAndOddsHtml(html: string): BettingSplit[] {
 
     // Extract team matchups
     // Pattern: Team @ Team or Team vs Team
-    const matchupPattern = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:@|vs\.?)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi
+    const matchupPattern = /([A-Z0-9][A-Za-z0-9]+(?:\s+[A-Z0-9][A-Za-z0-9]+)*)\s+(?:@|vs\.?)\s+([A-Z0-9][A-Za-z0-9]+(?:\s+[A-Z0-9][A-Za-z0-9]+)*)/gi
     const matchups = [...html.matchAll(matchupPattern)]
 
     if (matchups.length === 0) {
@@ -144,7 +144,7 @@ export function normalizeTeamName(team: string): string {
   return team
     .toLowerCase()
     .replace(/\s+/g, '')
-    .replace(/[^a-z]/g, '')
+    .replace(/[^a-z0-9]/g, '')
 }
 
 /**

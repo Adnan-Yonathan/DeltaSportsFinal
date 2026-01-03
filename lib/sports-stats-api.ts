@@ -8,6 +8,7 @@ import {
   fetchInjuries as fetchEspnNFLInjuries,
   fetchRoster as fetchEspnNFLRoster,
   fetchTeamList as fetchNflTeamList,
+  fetchTeamRecord as fetchNflTeamRecord,
   fetchTeamStatistics as fetchNflTeamStatistics,
   statHelpers as nflStatHelpers,
   type EspnStatCategory,
@@ -119,11 +120,7 @@ const ESPN_SPORT_PATH: Record<string, string> = {
   americanfootball_ncaaf: 'football/college-football',
 }
 
-const normalizeName = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')
-    .trim()
+const normalizeName = (value: string) => normalizeTeamKey(value)
 
 const parseRecordSummary = (summary?: string | null) => {
   if (!summary) return null
@@ -230,7 +227,11 @@ const getCurrentNFLSeasonYear = () => {
 const PLAYER_STATS_CACHE_TTL = 1000 * 60 * 15 // 15 minutes
 const playerStatsCache = new Map<string, { data: PlayerStats | null; ts: number }>()
 const TEAM_STATS_CACHE_TTL = 1000 * 60 * 10 // 10 minutes
-let nflTeamStatsCache: { ts: number; data: Array<{ meta: EspnTeamMeta; categories: EspnStatCategory[] }> } | null = null
+let nflTeamStatsCache: {
+  ts: number
+  season: number
+  data: Array<{ meta: EspnTeamMeta; categories: EspnStatCategory[] }>
+} | null = null
 let nflRosterCache: { ts: number; roster: RosterPlayer[] } | null = null
 const NFL_ROSTER_CACHE_TTL = 1000 * 60 * 60 // 1 hour
 let nbaTeamStatsCache: { ts: number; data: Array<{ meta: EspnTeamMeta; categories: EspnStatCategory[] }> } | null = null
@@ -1862,24 +1863,64 @@ export async function searchNFLPlayer(playerName: string): Promise<RosterPlayer 
   }
 }
 
-const loadNFLTeamStatBlocks = async () => {
+const loadNFLTeamStatBlocksForSeason = async (season: number) => {
   const now = Date.now()
-  if (nflTeamStatsCache && now - nflTeamStatsCache.ts < TEAM_STATS_CACHE_TTL) {
+  if (
+    nflTeamStatsCache &&
+    nflTeamStatsCache.season === season &&
+    now - nflTeamStatsCache.ts < TEAM_STATS_CACHE_TTL
+  ) {
     return nflTeamStatsCache.data
   }
 
   const teams = await fetchNflTeamList()
-  const season = getCurrentNFLSeasonYear()
   const results = await Promise.all(
     teams.map(async (meta) => {
-      const statsResp = await fetchNflTeamStatistics(meta.id, season)
+      const [statsResp, recordMeta] = await Promise.all([
+        fetchNflTeamStatistics(meta.id, season),
+        fetchNflTeamRecord(meta.id, season),
+      ])
       const categories = statsResp?.splits?.categories ?? []
-      return { meta, categories }
+      return { meta: { ...meta, ...(recordMeta ?? {}) }, categories }
     })
   )
 
-  nflTeamStatsCache = { ts: now, data: results }
+  nflTeamStatsCache = { ts: now, season, data: results }
   return results
+}
+
+const hasMeaningfulNflStats = (
+  blocks: Array<{ meta: EspnTeamMeta; categories: EspnStatCategory[] }>
+) => {
+  return blocks.some(({ meta, categories }) => {
+    const pick = (names: string[]) => nflStatHelpers.pickStat(categories, names)
+    const gamesPlayed =
+      pick(['gamesPlayed', 'teamGamesPlayed']) ??
+      ((meta.wins ?? 0) + (meta.losses ?? 0) || null)
+    const pointsFor =
+      pick(['totalPoints', 'totalPointsFor', 'pointsFor']) ??
+      meta.pointsFor ??
+      (meta.avgPointsFor != null && gamesPlayed ? meta.avgPointsFor * gamesPlayed : null)
+    const ppg =
+      pick(['totalPointsPerGame', 'pointsForPerGame']) ??
+      (gamesPlayed && pointsFor != null
+        ? pointsFor / gamesPlayed
+        : meta.avgPointsFor ?? null)
+    return Number.isFinite(ppg) && (ppg ?? 0) > 0
+  })
+}
+
+const loadNFLTeamStatBlocks = async () => {
+  const season = getCurrentNFLSeasonYear()
+  let blocks = await loadNFLTeamStatBlocksForSeason(season)
+  if (!blocks.length || !hasMeaningfulNflStats(blocks)) {
+    const fallbackSeason = season - 1
+    const fallbackBlocks = await loadNFLTeamStatBlocksForSeason(fallbackSeason)
+    if (fallbackBlocks.length && hasMeaningfulNflStats(fallbackBlocks)) {
+      blocks = fallbackBlocks
+    }
+  }
+  return blocks
 }
 
 const loadNCAAFTeamStatBlocks = async () => {
@@ -1908,15 +1949,19 @@ const loadNCAAFTeamStatBlocks = async () => {
 
 const buildNFLTeamEntry = (teamMeta: EspnTeamMeta, categories: EspnStatCategory[]) => {
   const pick = (names: string[]) => nflStatHelpers.pickStat(categories, names)
+  const pickPositive = (names: string[]) => {
+    const value = pick(names)
+    return value != null && value > 0 ? value : null
+  }
   const gamesPlayed =
     pick(['gamesPlayed', 'teamGamesPlayed']) ??
     ((teamMeta.wins ?? 0) + (teamMeta.losses ?? 0) || null)
   const pointsFor =
-    pick(['totalPoints', 'totalPointsFor']) ??
+    pickPositive(['totalPoints', 'totalPointsFor', 'pointsFor']) ??
     teamMeta.pointsFor ??
     (gamesPlayed && teamMeta.avgPointsFor != null ? teamMeta.avgPointsFor * gamesPlayed : null)
   const pointsAgainst =
-    pick(['pointsAgainst']) ??
+    pickPositive(['pointsAgainst', 'pointsAllowed', 'totalPointsAllowed', 'totalPointsAgainst']) ??
     teamMeta.pointsAgainst ??
     (gamesPlayed && teamMeta.avgPointsAgainst != null ? teamMeta.avgPointsAgainst * gamesPlayed : null)
   const totalYards = pick(['totalYards', 'totalYardsFromScrimmage'])
@@ -1972,6 +2017,8 @@ const buildNFLTeamEntry = (teamMeta: EspnTeamMeta, categories: EspnStatCategory[
       gamesPlayed: gamesPlayed ?? 0,
       pointsFor: pointsFor ?? null,
       pointsAgainst: pointsAgainst ?? null,
+      avgPointsFor: teamMeta.avgPointsFor ?? null,
+      avgPointsAgainst: teamMeta.avgPointsAgainst ?? null,
       totalYards: totalYards ?? null,
       yardsPerPlay: yardsPerPlay ?? null,
       passRate: passRate ?? null,
@@ -1981,9 +2028,11 @@ const buildNFLTeamEntry = (teamMeta: EspnTeamMeta, categories: EspnStatCategory[
       redZoneScoringPct: redzoneScoringPct ?? null,
       turnoverDifferential: turnoverDifferential ?? null,
       pointsForPerGame:
-        pointsFor != null && gamesPlayed ? pointsFor / gamesPlayed : null,
+        pickPositive(['totalPointsPerGame', 'pointsForPerGame']) ??
+        (pointsFor != null && gamesPlayed ? pointsFor / gamesPlayed : null),
       pointsAgainstPerGame:
-        pointsAgainst != null && gamesPlayed ? pointsAgainst / gamesPlayed : null,
+        pickPositive(['pointsAgainstPerGame', 'pointsAllowedPerGame', 'totalPointsAllowedPerGame']) ??
+        (pointsAgainst != null && gamesPlayed ? pointsAgainst / gamesPlayed : null),
       playsPerGame:
         offensivePlays != null && gamesPlayed ? offensivePlays / gamesPlayed : null,
       drivesPerGame:

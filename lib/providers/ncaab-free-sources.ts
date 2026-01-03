@@ -11,6 +11,7 @@ const NCAA_SCORING_DEFENSE_URL =
 const TORVIK_JSON_URL = 'https://barttorvik.com/trank.php?json=1'
 const TORVIK_HTML_URL = 'https://barttorvik.com/trank.php'
 const HASLA_RATINGS_URL = 'https://haslametrics.com/ratings.php'
+const HASLA_XML_URL = 'https://haslametrics.com/ratings.xml'
 
 const CACHE_TTL = 1000 * 60 * 30 // 30 minutes
 
@@ -65,10 +66,19 @@ const decodeEntities = (value: string) =>
 const stripTags = (value: string) =>
   decodeEntities(value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim())
 
-const fetchHtml = async (url: string, cacheTtl = CACHE_TTL): Promise<string | null> => {
+const fetchHtml = async (
+  url: string,
+  cacheTtl = CACHE_TTL
+): Promise<string | null> => {
   const cached = cache.get(url)
   if (cached && Date.now() - cached.ts < cacheTtl) return cached.data as string
-  const res = await fetch(url, { cache: 'no-store' })
+  const res = await fetch(url, {
+    cache: 'no-store',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; DeltaSportsBot/1.0)',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    },
+  })
   if (!res.ok) return null
   const html = await res.text()
   cache.set(url, { ts: Date.now(), data: html })
@@ -86,15 +96,70 @@ const fetchJson = async <T>(url: string, cacheTtl = CACHE_TTL): Promise<T | null
     },
   })
   if (!res.ok) return null
-  const data = (await res.json()) as T
-  cache.set(url, { ts: Date.now(), data })
-  return data
+  // Check content-type or peek at response to avoid parsing HTML as JSON
+  const contentType = res.headers.get('content-type') || ''
+  const text = await res.text()
+  // If response looks like HTML, return null
+  if (text.trimStart().startsWith('<!') || text.trimStart().startsWith('<html')) {
+    console.warn('[fetchJson] Received HTML instead of JSON from', url)
+    return null
+  }
+  // If content-type says JSON or text looks like JSON, parse it
+  if (!contentType.includes('json') && !text.trimStart().startsWith('{') && !text.trimStart().startsWith('[')) {
+    console.warn('[fetchJson] Response is not JSON from', url)
+    return null
+  }
+  try {
+    const data = JSON.parse(text) as T
+    cache.set(url, { ts: Date.now(), data })
+    return data
+  } catch {
+    console.warn('[fetchJson] Failed to parse JSON from', url)
+    return null
+  }
 }
 
 const parseNumber = (value: string | undefined): number | null => {
   if (!value) return null
   const num = Number(value.replace(/,/g, '').replace(/%/g, '').trim())
   return Number.isFinite(num) ? num : null
+}
+
+const parseXmlAttribute = (attrs: string, key: string): string | null => {
+  const match = attrs.match(new RegExp(`(?:^|\\s)${key}="([^"]*)"`, 'i'))
+  if (!match) return null
+  return decodeEntities(match[1])
+}
+
+const parseHaslametricsXml = (xml: string): CbbAdvancedRatingEntry[] => {
+  const entries: CbbAdvancedRatingEntry[] = []
+  for (const match of xml.matchAll(/<mr\s+([^>]+?)\/?>/gi)) {
+    const attrs = match[1]
+    const team = parseXmlAttribute(attrs, 't')
+    if (!team) continue
+    const adjO = parseNumber(parseXmlAttribute(attrs, 'oe') ?? undefined)
+    const adjD = parseNumber(parseXmlAttribute(attrs, 'de') ?? undefined)
+    const paceOff = parseNumber(parseXmlAttribute(attrs, 'ou') ?? undefined)
+    const paceDef = parseNumber(parseXmlAttribute(attrs, 'du') ?? undefined)
+    const tempo =
+      paceOff != null && paceDef != null
+        ? Number(((paceOff + paceDef) / 2).toFixed(2))
+        : paceOff ?? paceDef ?? null
+    const sos = parseNumber(parseXmlAttribute(attrs, 'sos') ?? undefined)
+    const adjEM =
+      adjO != null && adjD != null ? Number((adjO - adjD).toFixed(2)) : null
+
+    entries.push({
+      team,
+      adjO: adjO ?? undefined,
+      adjD: adjD ?? undefined,
+      adjEM: adjEM ?? undefined,
+      tempo: tempo ?? undefined,
+      sos: sos ?? undefined,
+      source: 'hasla',
+    })
+  }
+  return entries
 }
 
 const parseTable = (html: string) => {
@@ -634,6 +699,12 @@ export const fetchTorvikAdvancedRatings = async (): Promise<CbbAdvancedRatingEnt
 }
 
 export const fetchHaslametricsRatings = async (): Promise<CbbAdvancedRatingEntry[]> => {
+  const xml = await fetchHtml(HASLA_XML_URL)
+  if (xml) {
+    const parsed = parseHaslametricsXml(xml)
+    if (parsed.length) return parsed
+  }
+
   const html = await fetchHtml(HASLA_RATINGS_URL)
   if (!html) return []
   const tables = parseTables(html)

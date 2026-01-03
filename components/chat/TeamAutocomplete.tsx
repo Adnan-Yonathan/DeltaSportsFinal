@@ -12,6 +12,7 @@ interface TeamAutocompleteProps {
   onSelect: (team: TeamRecord) => void
   onClose: () => void
   anchorRect?: DOMRect | null
+  bracketMode?: boolean // When true, show default teams even with empty query
 }
 
 export function TeamAutocomplete({
@@ -20,6 +21,7 @@ export function TeamAutocomplete({
   onSelect,
   onClose,
   anchorRect,
+  bracketMode = false,
 }: TeamAutocompleteProps) {
   const [results, setResults] = useState<TeamSearchResult[]>([])
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -29,7 +31,22 @@ export function TeamAutocomplete({
 
   // Search teams when query changes
   useEffect(() => {
-    if (!visible || query.length < 2) {
+    if (!visible) {
+      setResults([])
+      return
+    }
+
+    // In bracket mode with empty/short query, show popular teams
+    if (bracketMode && query.length < 2) {
+      // Show a default list of popular teams across major sports
+      const defaultTeams = searchTeams('', { limit: 12, prioritizePro: true })
+      setResults(defaultTeams)
+      setSelectedIndex(0)
+      setShowSportBadges(true) // Always show sport badges in bracket mode
+      return
+    }
+
+    if (query.length < 2) {
       setResults([])
       return
     }
@@ -37,8 +54,8 @@ export function TeamAutocomplete({
     const searchResults = searchTeams(query, { limit: 8 })
     setResults(searchResults)
     setSelectedIndex(0)
-    setShowSportBadges(hasMultipleSportMatches(query))
-  }, [query, visible])
+    setShowSportBadges(hasMultipleSportMatches(query) || bracketMode)
+  }, [query, visible, bracketMode])
 
   // Keyboard navigation
   useEffect(() => {

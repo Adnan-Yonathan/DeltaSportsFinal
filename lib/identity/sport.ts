@@ -98,11 +98,17 @@ export const normalizeName = (value: string) =>
     .replace(/[^a-z0-9]/g, '')
     .trim()
 
-export const normalizeTeamKey = (value: string) =>
-  value
+const TEAM_KEY_ALIASES: Record<string, string> = {
+  oaklandraiders: 'lasvegasraiders',
+}
+
+export const normalizeTeamKey = (value: string) => {
+  const normalized = value
     .toLowerCase()
     .replace(/\([^)]*\)/g, ' ')
     .replace(/&/g, 'and')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
     .replace(/\s+/g, '')
+  return TEAM_KEY_ALIASES[normalized] ?? normalized
+}

@@ -69,8 +69,8 @@ Use for questions like:
     type: 'function',
     function: {
       name: 'getEspnTeamStats',
-      description: `Get current team season stats from ESPN for any sport.
-Use for non-NBA sports or when you need ESPN team stats directly.`,
+      description: `Get current team season stats for any sport. For NFL, this uses record-derived PPG/PAPG data to avoid ESPN defensive stat gaps.
+Use for non-NBA sports or when you need up-to-date team stats directly.`,
       parameters: {
         type: 'object',
         properties: {
@@ -829,6 +829,45 @@ Use for:
   },
 
   // ========================================
+  // LINE SHOPPING / ODDS COMPARISON
+  // ========================================
+  {
+    type: 'function',
+    function: {
+      name: 'get_odds_comparison',
+      description: `Compare odds across all sportsbooks for a game. Shows best available lines at each book for spreads, totals, and moneylines.
+Use when users ask:
+- "Shop lines for Lakers game"
+- "Best odds on Chiefs vs Ravens"
+- "Compare books for Celtics spread"
+- "Which book has the best line on Warriors?"
+- "Line shopping for tonight's game"
+- "Where can I get the best price on [team]?"
+Returns a comparison table with best odds from each sportsbook.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: {
+            type: 'string',
+            description: 'Team name or matchup (e.g., "Lakers", "Lakers vs Celtics", "Chiefs Ravens")'
+          },
+          market: {
+            type: 'string',
+            enum: ['spread', 'moneyline', 'total', 'all'],
+            description: 'Type of market to compare (default: all)'
+          },
+          sport: {
+            type: 'string',
+            enum: ['basketball_nba', 'basketball_ncaab', 'americanfootball_nfl', 'americanfootball_ncaaf', 'baseball_mlb', 'icehockey_nhl'],
+            description: 'Sport key (default: auto-detect based on team)'
+          }
+        },
+        required: ['team']
+      }
+    }
+  },
+
+  // ========================================
   // FALLBACK TOOL
   // ========================================
   {
@@ -896,6 +935,8 @@ export const TOOL_NAMES = {
   // Leaderboards
   LEADERBOARD: 'getLeaderboard',
   ATS_LEADERBOARD: 'getAtsLeaderboard',
+  // Line Shopping
+  ODDS_COMPARISON: 'get_odds_comparison',
   // Fallback
   WEB_SEARCH: 'webSearch',
 } as const

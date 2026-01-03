@@ -1,4 +1,4 @@
-export type MembershipTier = 'pro' | 'unlimited'
+export type MembershipTier = 'pro' | 'sharp' | 'syndicate'
 export type MembershipStatus = 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'paused'
 
 const parseDate = (value: unknown): Date | null => {
@@ -69,12 +69,12 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
 }
 
 export const getMembershipStatus = (metadata: any): MembershipInfo => {
-  // In development, grant unlimited access for easier testing
+  // In development, grant full access for easier testing
   if (process.env.NODE_ENV !== 'production') {
     const devExpiresAt = new Date()
     devExpiresAt.setFullYear(devExpiresAt.getFullYear() + 10)
     return {
-      tier: 'unlimited',
+      tier: 'syndicate',
       status: 'active',
       isActive: true,
       isTrial: false,

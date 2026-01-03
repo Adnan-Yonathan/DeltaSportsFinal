@@ -18,6 +18,7 @@ interface Feature {
 
 export interface PricingTier {
   name: string
+  tierKey: 'pro' | 'sharp' | 'syndicate'
   price: {
     monthly: number
     yearly: number
@@ -167,12 +168,8 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
             const isLoading = loadingPlan === planKey || loadingPlan === 'manage'
 
             // Check if this tier is the user's current plan
-            const tierNameLower = tier.name.toLowerCase()
-            const isCurrentPlan = membership?.isActive && (
-              (tierNameLower.includes('unlimited') && membership.tier === 'unlimited') ||
-              (tierNameLower === 'pro' && membership.tier === 'pro' && !membership.isTrial) ||
-              (tierNameLower.includes('trial') && membership.tier === 'pro' && membership.isTrial)
-            )
+            const isCurrentPlan =
+              membership?.isActive && membership.tier === tier.tierKey
 
             return (
               <div
@@ -290,7 +287,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                           </>
                         ) : (
                           <>
-                            {tier.highlight ? "Buy now" : "Get started"}
+                            Try free for 7 days
                             <ArrowRightIcon className="w-4 h-4" />
                           </>
                         )}

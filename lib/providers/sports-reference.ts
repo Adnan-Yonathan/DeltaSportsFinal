@@ -27,6 +27,13 @@ const normalizeName = (value: string) =>
 
 const stripComments = (html: string) => html.replace(/<!--/g, '').replace(/-->/g, '')
 
+const NFL_TEAM_STATS_CACHE_TTL = 1000 * 60 * 30 // 30 minutes
+let nflTeamStatsCache: {
+  ts: number
+  season: number
+  data: ReferenceTeamStats[]
+} | null = null
+
 type SearchConfig = {
   url: (query: string) => string
   base: string
@@ -144,6 +151,24 @@ const extractTable = (html: string, id: string) => {
   const match = html.match(re)
   return match ? match[0] : null
 }
+
+const extractTableBySection = (html: string, sectionId: string) => {
+  const marker = `div_${sectionId}`
+  const start = html.indexOf(marker)
+  if (start === -1) return null
+  const tableStart = html.indexOf('<table', start)
+  if (tableStart === -1) return null
+  const tableEnd = html.indexOf('</table>', tableStart)
+  if (tableEnd === -1) return null
+  return html.slice(tableStart, tableEnd + 8)
+}
+
+const extractTeamRows = (tableHtml: string) =>
+  Array.from(
+    tableHtml.matchAll(
+      /<tr[^>]*>[\s\S]*?<t[hd][^>]*data-stat="team"[^>]*>[\s\S]*?<\/tr>/gi
+    )
+  ).map((m) => m[0])
 
 const pickStat = (rowHtml: string, key: string) => {
   const re = new RegExp(`data-stat="${key}"[^>]*>([\\s\\S]*?)(?:<\\/t[dh]>)`, 'i')
@@ -389,7 +414,163 @@ const nbaSeasonYear = () => {
   return startYear + 1
 }
 
+const nflSeasonYear = () => {
+  const now = new Date()
+  const month = now.getUTCMonth()
+  const year = now.getUTCFullYear()
+  return month >= 6 ? year : year - 1
+}
+
+const buildTeamRowMap = (tableHtml: string) => {
+  const map = new Map<string, string>()
+  for (const row of extractTeamRows(tableHtml)) {
+    const teamName = pickStat(row, 'team')
+    if (!teamName || typeof teamName !== 'string') continue
+    map.set(normalizeName(teamName), row)
+  }
+  return map
+}
+
+const parseNflStandings = (html: string) => {
+  const standings: Record<string, {
+    wins?: number
+    losses?: number
+    winPct?: number
+    pointsFor?: number
+    pointsAgainst?: number
+  }> = {}
+
+  const tables = [extractTable(html, 'AFC'), extractTable(html, 'NFC')].filter(Boolean) as string[]
+  for (const table of tables) {
+    for (const row of extractTeamRows(table)) {
+      const teamName = pickStat(row, 'team')
+      if (!teamName || typeof teamName !== 'string') continue
+      const lower = teamName.toLowerCase()
+      if (lower === 'tm' || lower === 'team') continue
+      if (lower.includes('division') || lower.includes('afc') || lower.includes('nfc')) continue
+      const wins = toFloat(pickStat(row, 'wins'))
+      const losses = toFloat(pickStat(row, 'losses'))
+      const winPct = toFloat(pickStat(row, 'win_loss_perc'))
+      const pointsFor = toFloat(pickStat(row, 'points'))
+      const pointsAgainst = toFloat(pickStat(row, 'points_opp'))
+      standings[normalizeName(teamName)] = {
+        wins: wins ?? undefined,
+        losses: losses ?? undefined,
+        winPct: winPct ?? undefined,
+        pointsFor: pointsFor ?? undefined,
+        pointsAgainst: pointsAgainst ?? undefined,
+      }
+    }
+  }
+
+  return standings
+}
+
 export const getSportsReferenceTeamStats = async (sportKey: string): Promise<ReferenceTeamStats[] | null> => {
+  if (sportKey === 'americanfootball_nfl') {
+    const season = nflSeasonYear()
+    const now = Date.now()
+    if (
+      nflTeamStatsCache &&
+      nflTeamStatsCache.season === season &&
+      now - nflTeamStatsCache.ts < NFL_TEAM_STATS_CACHE_TTL
+    ) {
+      return nflTeamStatsCache.data
+    }
+    const trySeasons = [season, season - 1]
+    let html: string | null = null
+    let oppHtml: string | null = null
+    let seasonUsed: number | null = null
+    for (const yr of trySeasons) {
+      html = await fetchHtml(`https://www.pro-football-reference.com/years/${yr}/`)
+      oppHtml = await fetchHtml(`https://www.pro-football-reference.com/years/${yr}/opp.htm`)
+      if (html && oppHtml) {
+        seasonUsed = yr
+        break
+      }
+    }
+    if (!html || !oppHtml || !seasonUsed) {
+      return nflTeamStatsCache?.data?.length ? nflTeamStatsCache.data : null
+    }
+
+    const offenseTable = extractTableBySection(html, 'team_stats')
+    const defenseTable = extractTableBySection(oppHtml, 'team_stats')
+    if (!offenseTable || !defenseTable) {
+      return nflTeamStatsCache?.data?.length ? nflTeamStatsCache.data : null
+    }
+
+    const drivesTable = extractTableBySection(html, 'drives')
+    const standings = parseNflStandings(html)
+    const defenseMap = buildTeamRowMap(defenseTable)
+    const drivesMap = drivesTable ? buildTeamRowMap(drivesTable) : new Map<string, string>()
+
+    const rows = extractTeamRows(offenseTable)
+    const teams: ReferenceTeamStats[] = []
+
+    for (const row of rows) {
+      const teamName = pickStat(row, 'team')
+      if (!teamName || typeof teamName !== 'string') continue
+      if (/division|afc|nfc/i.test(teamName)) continue
+      const lower = teamName.toLowerCase()
+      if (lower === 'tm' || lower === 'team' || lower.includes('league')) continue
+      const cleanedTeamName = teamName.replace(/[*+]/g, '').trim()
+      const key = normalizeName(cleanedTeamName)
+      const games = toFloat(pickStat(row, 'g'))
+      const pointsFor = toFloat(pickStat(row, 'points')) ?? standings[key]?.pointsFor ?? null
+      const pointsForPerGame =
+        pointsFor != null && games ? pointsFor / games : null
+      const totalYards = toFloat(pickStat(row, 'total_yards'))
+      const plays = toFloat(pickStat(row, 'plays_offense'))
+      const playsPerGame = plays != null && games ? plays / games : null
+      const yardsPerPlay = toFloat(pickStat(row, 'yds_per_play_offense'))
+
+      const defenseRow = defenseMap.get(key)
+      const pointsAgainst = defenseRow
+        ? toFloat(pickStat(defenseRow, 'points'))
+        : standings[key]?.pointsAgainst ?? null
+      const pointsAgainstPerGame =
+        pointsAgainst != null && games ? pointsAgainst / games : null
+      const yardsAllowedPerPlay = defenseRow
+        ? toFloat(pickStat(defenseRow, 'yds_per_play_offense'))
+        : null
+
+      const driveRow = drivesMap.get(key)
+      const totalDrives = driveRow ? toFloat(pickStat(driveRow, 'drives')) : null
+      const drivesPerGame = totalDrives != null && games ? totalDrives / games : null
+      const pointsPerDrive = driveRow ? toFloat(pickStat(driveRow, 'points_avg')) : null
+
+      const stats: Record<string, number | string | null> = {
+        pointsFor,
+        pointsAgainst,
+        pointsForPerGame,
+        pointsAgainstPerGame,
+        totalYards,
+        totalOffensivePlays: plays,
+        playsPerGame,
+        yardsPerPlay,
+        yardsAllowedPerPlay,
+        totalDrives,
+        drivesPerGame,
+        pointsPerDrive,
+      }
+
+      const standing = standings[key]
+      teams.push({
+        team: cleanedTeamName,
+        wins: standing?.wins,
+        losses: standing?.losses,
+        winPct: standing?.winPct,
+        stats,
+        sport: sportKey,
+        season: String(seasonUsed),
+      })
+    }
+
+    if (teams.length) {
+      nflTeamStatsCache = { ts: now, season: seasonUsed, data: teams }
+    }
+    return teams
+  }
   // NBA/NCAAB: team tables per season
   if (sportKey === 'basketball_nba') {
     const season = nbaSeasonYear()

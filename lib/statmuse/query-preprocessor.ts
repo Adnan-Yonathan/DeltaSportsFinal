@@ -3,6 +3,7 @@
  * This runs BEFORE OpenAI function calling to ensure correct parameter extraction.
  */
 
+import { TEAMS_REGISTRY } from '@/lib/data/teams-registry'
 
 export type QueryType =
   | 'player_stats'
@@ -17,6 +18,8 @@ export type QueryType =
   | 'leaderboard'
   | 'betting_splits'
   | 'game_recommendation'
+  | 'line_shopping'
+  | 'matchup'
   | 'unknown'
 
 export type SportType = 'nba' | 'nfl' | 'mlb' | 'nhl' | 'ncaab' | 'cfb' | 'unknown'
@@ -217,6 +220,32 @@ const BETTING_SPLITS_PATTERNS = [
 ]
 
 /**
+ * Line shopping patterns
+ */
+const LINE_SHOPPING_PATTERNS = [
+  /\b(shop|compare)\s+(the\s+)?(lines?|odds|spreads?|prices?)/i,
+  /\bbest\s+(odds|line|price|spread)\s+(on|for|at)/i,
+  /\b(which|what)\s+book\s+has\s+(the\s+)?(best|better)/i,
+  /\bline\s+shopping/i,
+  /\b(best|better)\s+(price|odds)\s+(for|on)/i,
+  /\bcompare\s+(books?|sportsbooks?|bookmakers?)/i,
+  /\b(where|which)\s+(can|should)\s+I\s+(get|find)\s+(the\s+)?(best|better)/i,
+  /\b(draftkings|fanduel|betmgm|caesars|bet365)\s+vs\s+(draftkings|fanduel|betmgm|caesars|bet365)/i,
+  /\bodds\s+comparison/i,
+  /\b(best|better)\s+(book|sportsbook)\s+for/i,
+]
+
+/**
+ * Matchup patterns (two teams adjacent without vs)
+ */
+const MATCHUP_PATTERNS = [
+  /^([a-z0-9]+)\s+([a-z0-9]+)\s*(spread|total|odds?|line|moneyline|ml|ou|over\s*under)?$/i,
+  /\b([a-z0-9]+)\s+([a-z0-9]+)\s+game\b/i,
+  /\b([a-z0-9]+)\s+([a-z0-9]+)\s+matchup\b/i,
+  /\banalyz[ei]\s+([a-z0-9]+)\s+([a-z0-9]+)\b/i,
+]
+
+/**
  * Game recommendation patterns
  */
 const GAME_RECOMMENDATION_PATTERNS = [
@@ -259,9 +288,9 @@ const PLAYER_STAT_PATTERNS = [
  * Team stat patterns
  */
 const TEAM_STAT_PATTERNS = [
-  /what\s+(?:are|is)\s+(?:the\s+)?([a-z\s]+?)\s+(?:team\s+)?stats/i,
-  /show\s+(?:me\s+)?(?:the\s+)?([a-z\s]+?)\s+(?:team\s+)?stats/i,
-  /^([a-z\s]+?)\s+(?:team\s+)?stats$/i,
+  /what\s+(?:are|is)\s+(?:the\s+)?([a-z0-9\s]+?)\s+(?:team\s+)?stats/i,
+  /show\s+(?:me\s+)?(?:the\s+)?([a-z0-9\s]+?)\s+(?:team\s+)?stats/i,
+  /^([a-z0-9\s]+?)\s+(?:team\s+)?stats$/i,
 ]
 
 // ============================================================
@@ -272,7 +301,7 @@ const normalizeToken = (text: string): string =>
   text.toLowerCase().replace(/[^a-z0-9]/g, '')
 
 function normalize(text: string): string {
-  return text.trim().toLowerCase().replace(/[^a-z\s]/g, '')
+  return text.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '')
 }
 
 function normalizePropType(rawPropType: string): string {
@@ -286,60 +315,105 @@ function normalizePropType(rawPropType: string): string {
   return prop
 }
 
-// Team nickname/abbreviation mappings for better matching
-const TEAM_ALIASES: Record<string, string[]> = {
-  'Atlanta Hawks': ['hawks', 'atl', 'atlanta'],
-  'Boston Celtics': ['celtics', 'bos', 'boston', 'cs'],
-  'Brooklyn Nets': ['nets', 'bkn', 'brooklyn', 'brk'],
-  'Charlotte Hornets': ['hornets', 'cha', 'charlotte', 'cho'],
-  'Chicago Bulls': ['bulls', 'chi', 'chicago'],
-  'Cleveland Cavaliers': ['cavaliers', 'cavs', 'cle', 'cleveland'],
-  'Dallas Mavericks': ['mavericks', 'mavs', 'dal', 'dallas'],
-  'Denver Nuggets': ['nuggets', 'den', 'denver'],
-  'Detroit Pistons': ['pistons', 'det', 'detroit'],
-  'Golden State Warriors': ['warriors', 'gsw', 'dubs', 'golden state', 'gs'],
-  'Houston Rockets': ['rockets', 'hou', 'houston'],
-  'Indiana Pacers': ['pacers', 'ind', 'indiana'],
-  'Los Angeles Clippers': ['clippers', 'lac', 'la clippers'],
-  'Los Angeles Lakers': ['lakers', 'lal', 'la lakers'],
-  'Memphis Grizzlies': ['grizzlies', 'grizz', 'mem', 'memphis'],
-  'Miami Heat': ['heat', 'mia', 'miami'],
-  'Milwaukee Bucks': ['bucks', 'mil', 'milwaukee'],
-  'Minnesota Timberwolves': ['timberwolves', 'wolves', 'min', 'minnesota', 'twolves'],
-  'New Orleans Pelicans': ['pelicans', 'pels', 'nop', 'new orleans'],
-  'New York Knicks': ['knicks', 'nyk', 'new york', 'ny'],
-  'Oklahoma City Thunder': ['thunder', 'okc', 'oklahoma city', 'oklahoma'],
-  'Orlando Magic': ['magic', 'orl', 'orlando'],
-  'Philadelphia 76ers': ['76ers', 'sixers', 'phi', 'philly', 'philadelphia'],
-  'Phoenix Suns': ['suns', 'phx', 'pho', 'phoenix'],
-  'Portland Trail Blazers': ['trail blazers', 'blazers', 'por', 'portland'],
-  'Sacramento Kings': ['kings', 'sac', 'sacramento'],
-  'San Antonio Spurs': ['spurs', 'sas', 'san antonio'],
-  'Toronto Raptors': ['raptors', 'raps', 'tor', 'toronto'],
-  'Utah Jazz': ['jazz', 'uta', 'utah'],
-  'Washington Wizards': ['wizards', 'wiz', 'was', 'washington'],
+// ============================================================
+// TEAM DETECTION USING REGISTRY
+// Uses TEAMS_REGISTRY (500+ teams across all sports) for team matching
+// ============================================================
+
+interface TeamMatch {
+  name: string
+  sport: string
+  position: number
+  aliasLength: number
 }
 
-function findTeamByAlias(query: string): string | null {
+/**
+ * Find all teams mentioned in a query.
+ * Returns up to 2 teams sorted by position in query.
+ * Also detects sport from matched team.
+ */
+function findTeamsInQuery(query: string): { team1?: string; team2?: string; sport?: SportType } {
   const normalized = normalizeToken(query)
+  const matches: TeamMatch[] = []
 
-  for (const [fullName, aliases] of Object.entries(TEAM_ALIASES)) {
-    for (const alias of aliases) {
-      if (normalized.includes(normalizeToken(alias))) {
-        return fullName
+  for (const team of TEAMS_REGISTRY) {
+    // Check aliases first (most specific)
+    for (const alias of team.aliases) {
+      const aliasNorm = normalizeToken(alias)
+      if (aliasNorm.length < 2) continue // Skip very short aliases
+
+      const pos = normalized.indexOf(aliasNorm)
+      if (pos !== -1) {
+        // Check if already found this team (prefer longer alias matches)
+        const existing = matches.find((m) => m.name === team.name)
+        if (!existing || existing.aliasLength < aliasNorm.length) {
+          if (existing) {
+            matches.splice(matches.indexOf(existing), 1)
+          }
+          matches.push({ name: team.name, sport: team.sport, position: pos, aliasLength: aliasNorm.length })
+        }
+        break
+      }
+    }
+
+    // Also check abbreviation if not already matched
+    if (team.abbreviation && team.abbreviation.length >= 2) {
+      const abbrevNorm = normalizeToken(team.abbreviation)
+      // Use word boundary check for abbreviations to avoid false matches
+      const abbrevPattern = new RegExp(`\\b${abbrevNorm}\\b`)
+      if (abbrevPattern.test(normalized)) {
+        const pos = normalized.indexOf(abbrevNorm)
+        const existing = matches.find((m) => m.name === team.name)
+        if (!existing) {
+          matches.push({ name: team.name, sport: team.sport, position: pos, aliasLength: abbrevNorm.length })
+        }
       }
     }
   }
 
-  return null
+  // Sort by position in query
+  matches.sort((a, b) => a.position - b.position)
+
+  // Remove duplicates (same team matched multiple times)
+  const uniqueMatches = matches.filter((m, i, arr) => arr.findIndex((x) => x.name === m.name) === i)
+
+  if (uniqueMatches.length === 0) {
+    return {}
+  }
+
+  // Map sport key to SportType
+  const mapSport = (sportKey: string): SportType => {
+    if (sportKey.includes('nba')) return 'nba'
+    if (sportKey.includes('nfl')) return 'nfl'
+    if (sportKey.includes('mlb')) return 'mlb'
+    if (sportKey.includes('nhl')) return 'nhl'
+    if (sportKey.includes('ncaab')) return 'ncaab'
+    if (sportKey.includes('ncaaf')) return 'cfb'
+    return 'unknown'
+  }
+
+  if (uniqueMatches.length === 1) {
+    return {
+      team1: uniqueMatches[0].name,
+      sport: mapSport(uniqueMatches[0].sport),
+    }
+  }
+
+  // Two or more teams found
+  return {
+    team1: uniqueMatches[0].name,
+    team2: uniqueMatches[1].name,
+    sport: mapSport(uniqueMatches[0].sport),
+  }
 }
 
+/**
+ * Legacy function - wraps findTeamsInQuery for backward compatibility.
+ * Returns just the first team name.
+ */
 function findTeamInQuery(query: string): string | null {
-  // First try alias matching (includes abbreviations, nicknames)
-  const aliasMatch = findTeamByAlias(query)
-  if (aliasMatch) return aliasMatch
-
-  return null
+  const result = findTeamsInQuery(query)
+  return result.team1 || null
 }
 
 function findPlayerInQuery(query: string): string | null {
@@ -437,6 +511,13 @@ function detectQueryType(query: string): { type: QueryType; tool?: string; extra
     }
   }
 
+  // Check for line shopping
+  for (const pattern of LINE_SHOPPING_PATTERNS) {
+    if (pattern.test(lower)) {
+      return { type: 'line_shopping', tool: 'get_odds_comparison' }
+    }
+  }
+
   // Check for game recommendation
   for (const pattern of GAME_RECOMMENDATION_PATTERNS) {
     if (pattern.test(lower)) {
@@ -457,6 +538,18 @@ function detectQueryType(query: string): { type: QueryType; tool?: string; extra
           extra: { player, opponent }
         }
       }
+    }
+  }
+
+  // Check for matchup patterns (two teams adjacent without "vs")
+  // e.g., "heat hawks", "lakers celtics spread"
+  const teamsResult = findTeamsInQuery(query)
+  if (teamsResult.team1 && teamsResult.team2) {
+    // Detected two teams - this is a matchup query
+    return {
+      type: 'matchup',
+      tool: 'get_game_recommendations',
+      extra: { team1: teamsResult.team1, team2: teamsResult.team2, sport: teamsResult.sport }
     }
   }
 
@@ -694,9 +787,7 @@ export function preprocessQuery(query: string, options: PreprocessOptions = {}):
   }
 
   // Try to find any team or player mention (only if not already tagged)
-  const foundTeam = result.teamName || findTeamInQuery(query)
   const foundPlayer = findPlayerInQuery(query)
-
   if (foundPlayer) {
     result.playerName = foundPlayer
     result.queryType = 'player_stats'
@@ -704,6 +795,31 @@ export function preprocessQuery(query: string, options: PreprocessOptions = {}):
     return result
   }
 
+  // Use multi-team detection to find both teams (for matchups) and sport
+  if (!result.teamName) {
+    const teamsResult = findTeamsInQuery(query)
+    if (teamsResult.team1) {
+      result.teamName = teamsResult.team1
+      result.matched = true
+
+      // If sport was detected from team registry, use it
+      if (teamsResult.sport && teamsResult.sport !== 'unknown') {
+        result.sport = teamsResult.sport
+      }
+
+      // If two teams found (matchup), route to game_recommendation
+      if (teamsResult.team2) {
+        result.opponentTeam = teamsResult.team2
+        result.queryType = 'game_recommendation'
+        return result
+      }
+
+      result.queryType = 'team_stats'
+      return result
+    }
+  }
+
+  const foundTeam = result.teamName
   if (foundTeam) {
     result.teamName = foundTeam
     result.queryType = 'team_stats'

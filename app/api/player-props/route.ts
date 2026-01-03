@@ -287,11 +287,12 @@ async function getCachedGameProps(
     return cached.data
   }
 
-  const limit = props && props.length ? 2500 : 800
+  const limit = props && props.length ? 2500 : 2500
   const payload = await fetchSbdGamePropsList(league as any, {
     props,
     limit,
     books,
+    init: props && props.length ? undefined : { cache: 'no-store' },
   })
   const items = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : []
 
@@ -368,32 +369,42 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const requestedMarkets = marketParam
+    const normalizedMarketParam = marketParam
       ? marketParam.split(',').map((m) => normalizeMarketKey(m.trim()))
-      : DEFAULT_MARKETS[normalizedSport] || ['points']
+      : []
+    const wantsAllMarkets = normalizedMarketParam.includes('all')
+    const requestedMarkets = wantsAllMarkets
+      ? []
+      : normalizedMarketParam.length
+        ? normalizedMarketParam
+        : DEFAULT_MARKETS[normalizedSport] || ['points']
 
-    const propsFilter = requestedMarkets
-      .map((key) => MARKET_TO_SBD_PROP[key])
-      .filter(Boolean)
+    const propsFilter = wantsAllMarkets
+      ? undefined
+      : requestedMarkets
+          .map((key) => MARKET_TO_SBD_PROP[key])
+          .filter(Boolean)
+    const propsFilterList = propsFilter ?? []
 
     const teamFilter = teamParam
       ? teamParam.split(',').map((t) => normalizeToken(t))
       : undefined
     const books = resolveBookSlugs(booksParam)
 
-    const usePerMarketFetch = !!playerFilter && propsFilter.length > 1 && !marketParam
+    const usePerMarketFetch =
+      !!playerFilter && propsFilterList.length > 1 && !marketParam
     const playerFilters = playerFilter ? [playerFilter] : undefined
     const entries = usePerMarketFetch
       ? (
           await Promise.all(
-            propsFilter.map((prop) =>
+            propsFilterList.map((prop) =>
               getCachedGameProps(league, [prop], teamFilter, playerFilters, books)
             )
           )
         ).flat()
       : await getCachedGameProps(
           league,
-          propsFilter.length === 1 ? propsFilter : undefined,
+          propsFilterList.length === 1 ? propsFilterList : undefined,
           teamFilter,
           playerFilters,
           books

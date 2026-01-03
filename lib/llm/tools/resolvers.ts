@@ -5,12 +5,13 @@ import { getCachedGameDetails, getCachedLiveGameAnalysis } from '@/lib/services/
 import { calculateLiveSpread, calculateLiveTotal, formatLiveRecommendation } from '@/lib/services/live-line-calculator'
 import { getTeamStats } from '@/lib/services/matchup-analyzer'
 import type { TeamStats } from '@/lib/services/pregame-value-calculator'
-import { buildTeamLabel, fetchSbdOdds, resolveSbdLeague } from '@/lib/api/sbd'
+import { buildTeamLabel, fetchSbdOdds, resolveSbdLeague, type SbdLeague } from '@/lib/api/sbd'
 import {
   buildSharpSignalsFromSplits,
   calculateSharpBiasFromSignals,
 } from '@/lib/services/sharp-bias'
 import { detectEdgeForGame, type SharpSignal } from '@/lib/services/edge-detection'
+import { TEAMS_REGISTRY } from '@/lib/data/teams-registry'
 
 type Resolver = (args: any) => Promise<any>
 
@@ -381,6 +382,269 @@ export const toolResolvers: Record<string, Resolver> = {
         total: totalFormatted,
       },
       formatted,
+    }
+  },
+
+  get_odds_comparison: async ({
+    team,
+    market = 'all',
+    sport,
+  }: {
+    team: string
+    market?: 'spread' | 'moneyline' | 'total' | 'all'
+    sport?: string
+  }) => {
+    console.log('[ODDS_COMPARISON] Starting - team:', team, 'market:', market, 'sport:', sport)
+
+    // Normalize team query for matching
+    const normalize = (s: string) =>
+      (s || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+
+    const teamTokens = normalize(team).split(' ').filter((t) => t.length > 2)
+
+    // Auto-detect sport from team name if not provided
+    let detectedSport = sport
+    if (!detectedSport) {
+      for (const registeredTeam of TEAMS_REGISTRY) {
+        const teamNorm = normalize(registeredTeam.name)
+        const aliasMatch = registeredTeam.aliases.some((alias) =>
+          teamTokens.some((token) => normalize(alias).includes(token) || token.includes(normalize(alias)))
+        )
+        if (aliasMatch || teamTokens.some((t) => teamNorm.includes(t))) {
+          // Map registry sport to odds-api sport key
+          const sportMap: Record<string, string> = {
+            nba: 'basketball_nba',
+            ncaab: 'basketball_ncaab',
+            nfl: 'americanfootball_nfl',
+            ncaaf: 'americanfootball_ncaaf',
+            mlb: 'baseball_mlb',
+            nhl: 'icehockey_nhl',
+          }
+          detectedSport = sportMap[registeredTeam.sport] || 'basketball_nba'
+          console.log('[ODDS_COMPARISON] Auto-detected sport:', detectedSport, 'from team:', registeredTeam.name)
+          break
+        }
+      }
+    }
+    detectedSport = detectedSport || 'basketball_nba'
+
+    // Map sport key to SBD league
+    const sportToLeague: Record<string, SbdLeague> = {
+      basketball_nba: 'nba',
+      basketball_ncaab: 'ncaamb',
+      americanfootball_nfl: 'nfl',
+      americanfootball_ncaaf: 'ncaafb',
+      baseball_mlb: 'mlb',
+      icehockey_nhl: 'nhl',
+    }
+    const sbdLeague = sportToLeague[detectedSport] || 'nba'
+
+    // Fetch games from SBD
+    const sbdData = await fetchSbdOdds(sbdLeague, { init: { cache: 'no-store' } })
+    const games = Array.isArray(sbdData?.data) ? sbdData.data : Array.isArray(sbdData) ? sbdData : []
+
+    if (!games.length) {
+      return { error: `No games found for ${sbdLeague.toUpperCase()}. There may be no games scheduled.` }
+    }
+
+    // Find matching game
+    const matchingGame = games.find((game: any) => {
+      const rawHome =
+        game?.home_team ||
+        game?.homeTeam ||
+        buildTeamLabel(game?.competitors?.home) ||
+        game?.competitors?.home?.name ||
+        ''
+      const rawAway =
+        game?.away_team ||
+        game?.awayTeam ||
+        buildTeamLabel(game?.competitors?.away) ||
+        game?.competitors?.away?.name ||
+        ''
+      const gameHome = normalize(rawHome)
+      const gameAway = normalize(rawAway)
+
+      return teamTokens.some((token) => gameHome.includes(token) || gameAway.includes(token))
+    })
+
+    if (!matchingGame) {
+      const availableGames = games
+        .slice(0, 10)
+        .map((g: any) => {
+          const home = g?.home_team || buildTeamLabel(g?.competitors?.home) || 'TBD'
+          const away = g?.away_team || buildTeamLabel(g?.competitors?.away) || 'TBD'
+          return `${away} @ ${home}`
+        })
+        .join(', ')
+      return {
+        error: `No game found matching "${team}".`,
+        availableGames: availableGames || 'No games available',
+      }
+    }
+
+    const homeTeam =
+      matchingGame?.home_team ||
+      matchingGame?.homeTeam ||
+      buildTeamLabel(matchingGame?.competitors?.home) ||
+      matchingGame?.competitors?.home?.name ||
+      'Home'
+    const awayTeam =
+      matchingGame?.away_team ||
+      matchingGame?.awayTeam ||
+      buildTeamLabel(matchingGame?.competitors?.away) ||
+      matchingGame?.competitors?.away?.name ||
+      'Away'
+
+    console.log('[ODDS_COMPARISON] Found game:', awayTeam, '@', homeTeam)
+
+    // Extract odds from the game's markets
+    const markets = matchingGame?.markets || matchingGame?.marketsByPeriod || {}
+    const comparison: Record<
+      string,
+      {
+        market: string
+        lines: Array<{ book: string; homeOdds: number; awayOdds: number; line?: number }>
+        bestHome: { book: string; odds: number; line?: number } | null
+        bestAway: { book: string; odds: number; line?: number } | null
+      }
+    > = {}
+
+    // Helper to extract best odds from books array
+    const extractOdds = (books: any[], marketType: 'spread' | 'moneyline' | 'total') => {
+      const lines: Array<{ book: string; homeOdds: number; awayOdds: number; line?: number }> = []
+      let bestHome: { book: string; odds: number; line?: number } | null = null
+      let bestAway: { book: string; odds: number; line?: number } | null = null
+
+      for (const book of books || []) {
+        const bookName = book?.bookmaker || book?.book || book?.sportsbook || 'Unknown'
+
+        if (marketType === 'spread') {
+          const homeSpread = parseFloat(book?.home?.spread)
+          const homeOdds = parseFloat(book?.home?.odds || book?.home?.price)
+          const awaySpread = parseFloat(book?.away?.spread)
+          const awayOdds = parseFloat(book?.away?.odds || book?.away?.price)
+
+          if (!Number.isNaN(homeOdds) && !Number.isNaN(awayOdds)) {
+            lines.push({ book: bookName, homeOdds, awayOdds, line: homeSpread })
+            if (!bestHome || homeOdds > bestHome.odds) {
+              bestHome = { book: bookName, odds: homeOdds, line: homeSpread }
+            }
+            if (!bestAway || awayOdds > bestAway.odds) {
+              bestAway = { book: bookName, odds: awayOdds, line: awaySpread }
+            }
+          }
+        } else if (marketType === 'moneyline') {
+          const homeOdds = parseFloat(book?.home?.odds || book?.home?.price || book?.home)
+          const awayOdds = parseFloat(book?.away?.odds || book?.away?.price || book?.away)
+
+          if (!Number.isNaN(homeOdds) && !Number.isNaN(awayOdds)) {
+            lines.push({ book: bookName, homeOdds, awayOdds })
+            if (!bestHome || homeOdds > bestHome.odds) {
+              bestHome = { book: bookName, odds: homeOdds }
+            }
+            if (!bestAway || awayOdds > bestAway.odds) {
+              bestAway = { book: bookName, odds: awayOdds }
+            }
+          }
+        } else if (marketType === 'total') {
+          const totalLine = parseFloat(book?.over?.total ?? book?.total)
+          const overOdds = parseFloat(book?.over?.odds || book?.over?.price)
+          const underOdds = parseFloat(book?.under?.odds || book?.under?.price)
+
+          if (!Number.isNaN(overOdds) && !Number.isNaN(underOdds)) {
+            lines.push({ book: bookName, homeOdds: overOdds, awayOdds: underOdds, line: totalLine })
+            if (!bestHome || overOdds > bestHome.odds) {
+              bestHome = { book: bookName, odds: overOdds, line: totalLine }
+            }
+            if (!bestAway || underOdds > bestAway.odds) {
+              bestAway = { book: bookName, odds: underOdds, line: totalLine }
+            }
+          }
+        }
+      }
+
+      return { lines, bestHome, bestAway }
+    }
+
+    // Process requested markets
+    if (market === 'all' || market === 'spread') {
+      const spreadBooks = markets?.spread?.books || []
+      const spreadData = extractOdds(spreadBooks, 'spread')
+      if (spreadData.lines.length) {
+        comparison.spread = { market: 'Spread', ...spreadData }
+      }
+    }
+
+    if (market === 'all' || market === 'moneyline') {
+      const mlBooks = markets?.moneyline?.books || markets?.ml?.books || []
+      const mlData = extractOdds(mlBooks, 'moneyline')
+      if (mlData.lines.length) {
+        comparison.moneyline = { market: 'Moneyline', ...mlData }
+      }
+    }
+
+    if (market === 'all' || market === 'total') {
+      const totalBooks = markets?.total?.books || []
+      const totalData = extractOdds(totalBooks, 'total')
+      if (totalData.lines.length) {
+        comparison.total = { market: 'Total', ...totalData }
+      }
+    }
+
+    // Format output
+    const formatOdds = (odds: number) => (odds > 0 ? `+${odds}` : String(odds))
+
+    const sections: string[] = [`**Line Shopping: ${awayTeam} @ ${homeTeam}**\n`]
+
+    if (comparison.spread) {
+      const s = comparison.spread
+      sections.push(`**Spread**`)
+      if (s.bestHome) {
+        sections.push(`- Best ${homeTeam} ${s.bestHome.line}: ${formatOdds(s.bestHome.odds)} @ ${s.bestHome.book}`)
+      }
+      if (s.bestAway) {
+        sections.push(`- Best ${awayTeam} ${s.bestAway.line}: ${formatOdds(s.bestAway.odds)} @ ${s.bestAway.book}`)
+      }
+      sections.push('')
+    }
+
+    if (comparison.moneyline) {
+      const m = comparison.moneyline
+      sections.push(`**Moneyline**`)
+      if (m.bestHome) {
+        sections.push(`- Best ${homeTeam}: ${formatOdds(m.bestHome.odds)} @ ${m.bestHome.book}`)
+      }
+      if (m.bestAway) {
+        sections.push(`- Best ${awayTeam}: ${formatOdds(m.bestAway.odds)} @ ${m.bestAway.book}`)
+      }
+      sections.push('')
+    }
+
+    if (comparison.total) {
+      const t = comparison.total
+      sections.push(`**Total (${t.bestHome?.line || 'N/A'})**`)
+      if (t.bestHome) {
+        sections.push(`- Best Over: ${formatOdds(t.bestHome.odds)} @ ${t.bestHome.book}`)
+      }
+      if (t.bestAway) {
+        sections.push(`- Best Under: ${formatOdds(t.bestAway.odds)} @ ${t.bestAway.book}`)
+      }
+      sections.push('')
+    }
+
+    if (Object.keys(comparison).length === 0) {
+      sections.push('No odds data available for this game.')
+    }
+
+    return {
+      matchup: `${awayTeam} @ ${homeTeam}`,
+      sport: detectedSport,
+      comparison,
+      formatted: sections.join('\n'),
     }
   },
 }

@@ -48,14 +48,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
         },
         (payload) => {
           const newMessage = payload.new as Message
-          setMessages((prev) => {
-            const updated = [...prev, newMessage]
-            // Notify parent component about message state
-            if (onMessagesChange) {
-              onMessagesChange(updated.length > 0)
-            }
-            return updated
-          })
+          setMessages((prev) => [...prev, newMessage])
           // Track the latest assistant message for animation
           if (newMessage.role === 'assistant') {
             setLatestMessageId(newMessage.id)
@@ -75,6 +68,12 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    if (onMessagesChange) {
+      onMessagesChange(messages.length > 0)
+    }
+  }, [messages.length, onMessagesChange])
 
   // Listen for operation changes
   useEffect(() => {
@@ -115,10 +114,6 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
 
     if (data) {
       setMessages(data)
-      // Notify parent component about message state
-      if (onMessagesChange) {
-        onMessagesChange(data.length > 0)
-      }
     }
     setLoading(false)
   }

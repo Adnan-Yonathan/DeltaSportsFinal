@@ -1,13 +1,17 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import clsx from "clsx"
-import { ArrowLeft, Calendar, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, X } from "lucide-react"
+import { ArrowLeft, Calendar, ChevronDown, ChevronLeft, ChevronRight, Lock, RefreshCw, X } from "lucide-react"
 import { useLiveScores } from "@/hooks/use-live-scores"
 import { useGameDetails } from "@/hooks/use-game-details"
 import { ESPN_LEAGUES, type LeagueId, type LiveScoreArticle, type LiveScoreGame, type LiveScoreGameDetails, type GamePlayerSummary } from "@/lib/live-scores"
+import { normalizeTeamKey } from "@/lib/identity/sport"
+import { createClient } from "@/lib/supabase/client"
+import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
+import type { OddsGame } from "@/lib/types/odds"
 import { DottedSurface } from "@/components/ui/dotted-surface"
 import { LiveScoresChat } from "@/components/LiveScoresChat"
 
@@ -39,11 +43,65 @@ const CONFERENCE_FILTERS: Partial<Record<LeagueId, Array<{ value: string; label:
   ],
 }
 
-const BUCKET_ORDER: Array<{ key: LiveScoreGame["bucket"]; title: string }> = [
+const BUCKET_ORDER: Array<{ key: LiveScoreGame["bucket"]; title: string }> = [  
   { key: "live", title: "Live Now" },
   { key: "upcoming", title: "Upcoming Games" },
   { key: "completed", title: "Recent Finals" },
 ]
+
+const ODDS_SPORT_KEY_BY_LEAGUE: Record<LeagueId, string> = {
+  nba: "basketball_nba",
+  nfl: "americanfootball_nfl",
+  nhl: "icehockey_nhl",
+  cfb: "americanfootball_ncaaf",
+  ncaab: "basketball_ncaab",
+}
+
+const PROPS_SUPPORTED_SPORTS = new Set([
+  "basketball_nba",
+  "americanfootball_nfl",
+  "icehockey_nhl",
+])
+
+const PROP_MARKETS_BY_SPORT: Record<string, string[]> = {
+  basketball_nba: ["points", "rebounds", "assists", "threes", "pra"],
+  americanfootball_nfl: [
+    "passing_yards",
+    "rushing_yards",
+    "receiving_yards",
+    "receptions",
+  ],
+  icehockey_nhl: ["points", "shots_on_goal"],
+}
+
+type PropOddsEntry = { book: string; odds: number; line?: number }
+type PropMarket = {
+  line: number
+  over: { best: number; bestBook: string; allBooks: PropOddsEntry[] }
+  under: { best: number; bestBook: string; allBooks: PropOddsEntry[] }
+  lines?: Array<{ book: string; line: number; overOdds?: number; underOdds?: number }>
+}
+
+type PlayerProp = {
+  player: string
+  team?: string
+  teamAbbr?: string
+  position?: string
+  game?: string
+  markets: Record<string, PropMarket>
+}
+
+type PlayerPropsResponse = {
+  sport: string
+  count: number
+  data: PlayerProp[]
+}
+
+type ArbitrageResult = {
+  market: "moneyline" | "spreads" | "totals"
+  profitPct: number
+  line?: number
+}
 
 const todayYMD = () => new Date().toISOString().slice(0, 10)
 
@@ -100,12 +158,320 @@ const groupByLeague = (games: LiveScoreGame[]) => {
   return Array.from(map.entries())
 }
 
+const formatOdds = (value?: number) => {
+  if (!Number.isFinite(value)) return "-"
+  const rounded = Math.round(value as number)
+  return rounded > 0 ? `+${rounded}` : `${rounded}`
+}
+
+const formatPoint = (value?: number, decimals = 1, showSign = true) => {
+  if (!Number.isFinite(value)) return "-"
+  const fixed = (value as number).toFixed(decimals)
+  const trimmed = decimals > 0 ? fixed.replace(/\.0$/, "") : fixed
+  if (!showSign) return trimmed
+  return value && value > 0 ? `+${trimmed}` : trimmed
+}
+
+const formatMarketLabel = (value: string) =>
+  value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+
+const formatLineOdds = (line?: number, odds?: number, showSign = true) => {
+  const lineLabel = formatPoint(line, 1, showSign)
+  const oddsLabel = formatOdds(odds)
+  if (lineLabel === "-" && oddsLabel === "-") return "-"
+  if (lineLabel === "-") return oddsLabel
+  if (oddsLabel === "-") return lineLabel
+  return `${lineLabel} ${oddsLabel}`
+}
+
+const formatPeriodLabel = (league: LeagueId, index: number) => {
+  if (league === "ncaab") {
+    const base = ["H1", "H2"]
+    if (index < base.length) return base[index]
+    return `OT${index - base.length + 1}`
+  }
+  if (league === "nhl") {
+    const base = ["1st", "2nd", "3rd"]
+    if (index < base.length) return base[index]
+    return `OT${index - base.length + 1}`
+  }
+  const base = ["Q1", "Q2", "Q3", "Q4"]
+  if (index < base.length) return base[index]
+  return `OT${index - base.length + 1}`
+}
+
+const toYmd = (value?: string) => {
+  if (!value) return ""
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return ""
+  return parsed.toISOString().slice(0, 10)
+}
+
+const buildMatchKey = (away: string, home: string) =>
+  `${normalizeTeamKey(away)}@${normalizeTeamKey(home)}`
+
+const isTeamMatch = (a: string, b: string) => {
+  const left = normalizeTeamKey(a)
+  const right = normalizeTeamKey(b)
+  if (!left || !right) return false
+  return left === right || left.includes(right) || right.includes(left)
+}
+
+const getTeamsFromGame = (game: LiveScoreGame) => {
+  const home = game.competitors.find((team) => team.homeAway === "home")
+  const away = game.competitors.find((team) => team.homeAway === "away")
+  const fallback = game.competitors[0]
+  return {
+    home,
+    away,
+    homeName: home?.name || fallback?.name || "",
+    awayName: away?.name || game.competitors[1]?.name || fallback?.name || "",
+    homeAbbr: home?.abbreviation || home?.shortName || "",
+    awayAbbr: away?.abbreviation || away?.shortName || "",
+  }
+}
+
+const getLineScoreColumns = (game: LiveScoreGame) => {
+  const lineOwner = game.competitors.reduce(
+    (current, team) =>
+      team.linescore && team.linescore.length > current.length ? team.linescore : current,
+    [] as NonNullable<LiveScoreGame["competitors"][number]["linescore"]>
+  )
+  return lineOwner.map((entry, index) => entry.label || formatPeriodLabel(game.league, index))
+}
+
+type MarketEntry = { book: string; odds: number; point?: number }
+
+const averageOf = (values: number[]) =>
+  values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
+
+const impliedProbability = (odds: number) => {
+  if (!Number.isFinite(odds)) return null
+  if (odds > 0) return 100 / (odds + 100)
+  return Math.abs(odds) / (Math.abs(odds) + 100)
+}
+
+const calculateArbProfit = (oddsA?: number, oddsB?: number) => {
+  if (!Number.isFinite(oddsA) || !Number.isFinite(oddsB)) return null
+  const probA = impliedProbability(oddsA as number)
+  const probB = impliedProbability(oddsB as number)
+  if (probA == null || probB == null) return null
+  const total = probA + probB
+  if (total >= 1) return null
+  return (1 / total - 1) * 100
+}
+
+const bestOddsByLine = (entries: MarketEntry[]) => {
+  const map = new Map<number, MarketEntry>()
+  entries.forEach((entry) => {
+    if (!Number.isFinite(entry.point)) return
+    const line = entry.point as number
+    const existing = map.get(line)
+    if (!existing || entry.odds > existing.odds) {
+      map.set(line, entry)
+    }
+  })
+  return map
+}
+
+const findArbitrage = (
+  oddsGame: OddsGame | null,
+  homeName: string,
+  awayName: string
+): ArbitrageResult | null => {
+  if (!oddsGame) return null
+  const results: ArbitrageResult[] = []
+
+  const homeMl = pickBestEntry(
+    collectOutcomeEntries(oddsGame, "h2h", homeName),
+    "h2h"
+  )
+  const awayMl = pickBestEntry(
+    collectOutcomeEntries(oddsGame, "h2h", awayName),
+    "h2h"
+  )
+  const mlProfit = calculateArbProfit(homeMl?.odds, awayMl?.odds)
+  if (mlProfit != null && mlProfit > 0) {
+    results.push({ market: "moneyline", profitPct: mlProfit })
+  }
+
+  const homeSpreads = collectOutcomeEntries(oddsGame, "spreads", homeName)
+  const awaySpreads = collectOutcomeEntries(oddsGame, "spreads", awayName)
+  const bestHomeByLine = bestOddsByLine(homeSpreads)
+  const bestAwayByLine = bestOddsByLine(awaySpreads)
+  bestHomeByLine.forEach((homeEntry, line) => {
+    const awayEntry = bestAwayByLine.get(-line)
+    if (!awayEntry) return
+    const profit = calculateArbProfit(homeEntry.odds, awayEntry.odds)
+    if (profit != null && profit > 0) {
+      results.push({ market: "spreads", profitPct: profit, line })
+    }
+  })
+
+  const overTotals = collectOutcomeEntries(oddsGame, "totals", "over")
+  const underTotals = collectOutcomeEntries(oddsGame, "totals", "under")
+  const bestOverByLine = bestOddsByLine(overTotals)
+  const bestUnderByLine = bestOddsByLine(underTotals)
+  bestOverByLine.forEach((overEntry, line) => {
+    const underEntry = bestUnderByLine.get(line)
+    if (!underEntry) return
+    const profit = calculateArbProfit(overEntry.odds, underEntry.odds)
+    if (profit != null && profit > 0) {
+      results.push({ market: "totals", profitPct: profit, line })
+    }
+  })
+
+  if (!results.length) return null
+  return results.reduce((best, current) =>
+    current.profitPct > best.profitPct ? current : best
+  )
+}
+
+const pickBestEntry = (entries: MarketEntry[], marketKey: string) => {
+  if (!entries.length) return null
+  return entries.reduce((best, current) => {
+    if (!best) return current
+    if (marketKey === "spreads") {
+      const bestPoint = best.point ?? Number.NEGATIVE_INFINITY
+      const currentPoint = current.point ?? Number.NEGATIVE_INFINITY
+      if (currentPoint > bestPoint) return current
+      if (currentPoint === bestPoint && current.odds > best.odds) return current
+      return best
+    }
+    if (current.odds > best.odds) return current
+    return best
+  }, entries[0])
+}
+
+const collectOutcomeEntries = (
+  oddsGame: OddsGame | null,
+  marketKey: string,
+  outcomeName: string
+) => {
+  const entries: MarketEntry[] = []
+  if (!oddsGame) return entries
+  oddsGame.bookmakers.forEach((book) => {
+    const markets = book.markets.filter((market) => market.key === marketKey)
+    markets.forEach((market) => {
+      const outcome = market.outcomes.find((item) =>
+        marketKey === "totals"
+          ? item.name.toLowerCase() === outcomeName.toLowerCase()
+          : isTeamMatch(item.name, outcomeName)
+      )
+      if (outcome) {
+        const rawPoint = outcome.point
+        const parsedPoint =
+          typeof rawPoint === "number" ? rawPoint : Number(rawPoint)
+        entries.push({
+          book: book.title,
+          odds: outcome.price,
+          point: Number.isFinite(parsedPoint) ? parsedPoint : undefined,
+        })
+      }
+    })
+  })
+  return entries
+}
+
+const buildMarketRows = (
+  oddsGame: OddsGame | null,
+  marketKey: string,
+  homeName: string,
+  awayName: string
+) => {
+  if (!oddsGame) return [] as Array<Record<string, any>>
+  const rows: Array<Record<string, any>> = []
+  oddsGame.bookmakers.forEach((book) => {
+    const markets = book.markets.filter((market) => market.key === marketKey)
+    markets.forEach((market) => {
+      if (marketKey === "h2h") {
+        const home = market.outcomes.find((o) => isTeamMatch(o.name, homeName))
+        const away = market.outcomes.find((o) => isTeamMatch(o.name, awayName))
+        if (home || away) {
+          rows.push({
+            book: book.title,
+            homeOdds: home?.price,
+            awayOdds: away?.price,
+          })
+        }
+        return
+      }
+      if (marketKey === "spreads") {
+        const home = market.outcomes.find((o) => isTeamMatch(o.name, homeName))
+        const away = market.outcomes.find((o) => isTeamMatch(o.name, awayName))
+        if (home || away) {
+          const homePoint =
+            typeof home?.point === "number" ? home.point : Number(home?.point)
+          const awayPoint =
+            typeof away?.point === "number" ? away.point : Number(away?.point)
+          rows.push({
+            book: book.title,
+            homeLine: Number.isFinite(homePoint) ? homePoint : undefined,
+            homeOdds: home?.price,
+            awayLine: Number.isFinite(awayPoint) ? awayPoint : undefined,
+            awayOdds: away?.price,
+          })
+        }
+        return
+      }
+      if (marketKey === "totals") {
+        const over = market.outcomes.find((o) => o.name.toLowerCase() === "over")
+        const under = market.outcomes.find((o) => o.name.toLowerCase() === "under")
+        if (over || under) {
+          const overPoint =
+            typeof over?.point === "number" ? over.point : Number(over?.point)
+          const underPoint =
+            typeof under?.point === "number" ? under.point : Number(under?.point)
+          const resolvedLine = Number.isFinite(overPoint)
+            ? overPoint
+            : Number.isFinite(underPoint)
+              ? underPoint
+              : undefined
+          rows.push({
+            book: book.title,
+            line: resolvedLine,
+            overOdds: over?.price,
+            underOdds: under?.price,
+          })
+        }
+      }
+    })
+  })
+  return rows
+}
+
+const EMPTY_ODDS_BY_LEAGUE: Record<LeagueId, OddsGame[]> = {
+  nba: [],
+  nfl: [],
+  ncaab: [],
+  nhl: [],
+  cfb: [],
+}
+
 export default function LiveScoresPage() {
   const [activeLeague, setActiveLeague] = useState<(typeof LEAGUE_TABS)[number]["id"]>(LEAGUE_TABS[0]?.id)
   const [selectedDate, setSelectedDate] = useState<string>(todayYMD())
   const [selectedGame, setSelectedGame] = useState<LiveScoreGame | null>(null)
   const [conference, setConference] = useState<string>("")
   const [showArticlesMenu, setShowArticlesMenu] = useState(false)
+  const [lineShoppingGame, setLineShoppingGame] = useState<LiveScoreGame | null>(null)
+  const [oddsByLeague, setOddsByLeague] = useState<Record<LeagueId, OddsGame[]>>(
+    EMPTY_ODDS_BY_LEAGUE
+  )
+  const [oddsLoading, setOddsLoading] = useState(false)
+  const [oddsError, setOddsError] = useState<string | null>(null)
+  const [propsByGame, setPropsByGame] = useState<Record<string, PlayerProp[]>>(
+    {}
+  )
+  const [propsLoadingByGame, setPropsLoadingByGame] = useState<Record<string, boolean>>({})
+  const [propsErrorByGame, setPropsErrorByGame] = useState<Record<string, string | null>>({})
+  const [oddsRefreshToken, setOddsRefreshToken] = useState(0)
+  const [showPatchSummary, setShowPatchSummary] = useState(false)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [membership, setMembership] = useState<MembershipInfo | null>(null)
+  const supabase = useMemo(() => createClient(), [])
   const { data, loading, error, lastUpdated, refetch, isRefreshing } = useLiveScores({
     refreshInterval: 1000,
     date: selectedDate,
@@ -158,7 +524,207 @@ export default function LiveScoresPage() {
   // Reset conference filter when league changes
   useEffect(() => {
     setConference("")
+    setLineShoppingGame(null)
   }, [activeLeague])
+
+  useEffect(() => {
+    let isMounted = true
+    const loadUser = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!isMounted) return
+        if (!user) {
+          setMembership(null)
+          setAuthLoading(false)
+          return
+        }
+        const membershipInfo = getMembershipStatus(user.user_metadata)
+        setMembership(membershipInfo)
+        setAuthLoading(false)
+      } catch (err) {
+        if (!isMounted) return
+        console.error("[live-scores] auth check failed", err)
+        setMembership(null)
+        setAuthLoading(false)
+      }
+    }
+    loadUser()
+    return () => {
+      isMounted = false
+    }
+  }, [supabase])
+
+  const oddsSportKey = ODDS_SPORT_KEY_BY_LEAGUE[activeLeague]
+  const isDevAccess = process.env.NODE_ENV !== "production"
+  const canLoadOdds = Boolean(oddsSportKey && (membership?.isActive || isDevAccess))
+  const canLoadProps = Boolean(
+    canLoadOdds && oddsSportKey && PROPS_SUPPORTED_SPORTS.has(oddsSportKey)
+  )
+  const wantsAllProps = true
+  const propMarkets = useMemo(() => {
+    if (!oddsSportKey) return []
+    return PROP_MARKETS_BY_SPORT[oddsSportKey] ?? []
+  }, [oddsSportKey])
+
+  const oddsGames = useMemo(
+    () => oddsByLeague[activeLeague] ?? [],
+    [oddsByLeague, activeLeague]
+  )
+  const oddsMatchIndex = useMemo(() => {
+    const map = new Map<string, OddsGame>()
+    oddsGames.forEach((game) => {
+      map.set(buildMatchKey(game.away_team, game.home_team), game)
+    })
+    return map
+  }, [oddsGames])
+  const findOddsGame = useCallback(
+    (homeName: string, awayName: string) => {
+      const key = buildMatchKey(awayName, homeName)
+      const directMatch = oddsMatchIndex.get(key)
+      if (directMatch) return directMatch
+      return oddsGames.find(
+        (game) =>
+          isTeamMatch(game.home_team, homeName) &&
+          isTeamMatch(game.away_team, awayName)
+      )
+    },
+    [oddsGames, oddsMatchIndex]
+  )
+
+  const fetchOddsForLeague = useCallback(async () => {
+    if (!canLoadOdds) return
+    setOddsLoading(true)
+    setOddsError(null)
+    try {
+      const buildRequest = async (url: URL): Promise<OddsGame[]> => {
+        const response = await fetch(url.toString(), { cache: "no-store" })
+        if (!response.ok) {
+          const body = await response.text().catch(() => "")
+          throw new Error(body || "Failed to load odds.")
+        }
+        const payload = await response.json()
+        return Array.isArray(payload?.games) ? (payload.games as OddsGame[]) : []
+      }
+      const url = new URL("/api/odds/games", window.location.origin)
+      url.searchParams.set("sport", oddsSportKey)
+      const liveUrl = new URL(url)
+      liveUrl.searchParams.set("live", "1")
+
+      const results = await Promise.allSettled([
+        buildRequest(url),
+        buildRequest(liveUrl),
+      ])
+      const errors = results.filter((result) => result.status === "rejected")
+      if (errors.length === results.length) {
+        throw errors[0]?.reason || new Error("Failed to load odds.")
+      }
+      const merged = new Map<string, OddsGame>()
+      results.forEach((result) => {
+        if (result.status === "fulfilled") {
+          result.value.forEach((game) => {
+            merged.set(game.id, game)
+          })
+        }
+      })
+      setOddsByLeague((prev) => ({
+        ...prev,
+        [activeLeague]: Array.from(merged.values()),
+      }))
+    } catch (err: any) {
+      setOddsError(err?.message ?? "Unable to load odds.")
+    } finally {
+      setOddsLoading(false)
+    }
+  }, [activeLeague, canLoadOdds, oddsSportKey])
+
+  useEffect(() => {
+    if (!canLoadOdds) return
+    fetchOddsForLeague()
+  }, [canLoadOdds, fetchOddsForLeague, oddsRefreshToken])
+
+  const handleRefresh = useCallback(() => {
+    refetch()
+    setOddsRefreshToken((prev) => prev + 1)
+  }, [refetch])
+
+  const fetchPropsForGame = useCallback(
+    async (gameId: string, homeName: string, awayName: string) => {
+      if (!canLoadProps || !oddsSportKey) return
+      if (propsLoadingByGame[gameId]) return
+      setPropsLoadingByGame((prev) => ({ ...prev, [gameId]: true }))
+      setPropsErrorByGame((prev) => ({ ...prev, [gameId]: null }))
+      try {
+        const url = new URL("/api/player-props", window.location.origin)
+        url.searchParams.set("sport", oddsSportKey)
+        url.searchParams.set("team", `${awayName},${homeName}`)
+        if (wantsAllProps) {
+          url.searchParams.set("market", "all")
+        } else if (propMarkets.length) {
+          url.searchParams.set("market", propMarkets.join(","))
+        }
+        const response = await fetch(url.toString(), { cache: "no-store" })
+        if (!response.ok) {
+          const body = await response.text().catch(() => "")
+          throw new Error(body || "Failed to load player props.")
+        }
+        const payload: PlayerPropsResponse = await response.json()
+        const props = Array.isArray(payload?.data) ? payload.data : []
+        setPropsByGame((prev) => ({ ...prev, [gameId]: props }))
+      } catch (err: any) {
+        setPropsErrorByGame((prev) => ({
+          ...prev,
+          [gameId]: err?.message ?? "Unable to load props.",
+        }))
+      } finally {
+        setPropsLoadingByGame((prev) => ({ ...prev, [gameId]: false }))
+      }
+    },
+    [canLoadProps, oddsSportKey, propMarkets, propsLoadingByGame, wantsAllProps]
+  )
+
+  const lineShoppingTeams = useMemo(
+    () => (lineShoppingGame ? getTeamsFromGame(lineShoppingGame) : null),
+    [lineShoppingGame]
+  )
+  const lineShoppingOddsGame = useMemo(() => {
+    if (!lineShoppingGame || !lineShoppingTeams) return null
+    return (
+      findOddsGame(lineShoppingTeams.homeName, lineShoppingTeams.awayName) ?? null
+    )
+  }, [findOddsGame, lineShoppingGame, lineShoppingTeams])
+  const lineShoppingProps = lineShoppingGame
+    ? propsByGame[lineShoppingGame.id]
+    : undefined
+  const lineShoppingPropsLoading = lineShoppingGame
+    ? propsLoadingByGame[lineShoppingGame.id]
+    : false
+  const lineShoppingPropsError = lineShoppingGame
+    ? propsErrorByGame[lineShoppingGame.id]
+    : null
+
+  useEffect(() => {
+    if (!lineShoppingGame || !lineShoppingTeams) return
+    if (
+      canLoadProps &&
+      !lineShoppingProps &&
+      !lineShoppingPropsLoading
+    ) {
+      fetchPropsForGame(
+        lineShoppingGame.id,
+        lineShoppingTeams.homeName,
+        lineShoppingTeams.awayName
+      )
+    }
+  }, [
+    canLoadProps,
+    fetchPropsForGame,
+    lineShoppingGame,
+    lineShoppingProps,
+    lineShoppingPropsLoading,
+    lineShoppingTeams,
+  ])
 
   const bucketed = useMemo(() => {
     return filteredGames.reduce(
@@ -183,6 +749,38 @@ export default function LiveScoresPage() {
       <DottedSurface className="z-10" />
 
       <div className="relative z-20 mx-auto w-full max-w-none px-4 sm:px-6 lg:px-12 py-8 space-y-12">
+        <div className="rounded-2xl border border-[#2a2a2a] bg-black/70 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">
+                Patch 0.1
+              </span>
+              <span className="text-sm text-white/80">Patch notes</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPatchSummary((prev) => !prev)}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#34d399] text-[12px] font-semibold text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+              aria-expanded={showPatchSummary}
+              aria-label={showPatchSummary ? "Hide patch notes summary" : "Show patch notes summary"}
+            >
+              +
+            </button>
+          </div>
+          {showPatchSummary && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <span className="text-sm text-white/70">
+                Live odds + line shopping merge, more player props, arb badges, and odds fixes.
+              </span>
+              <Link
+                href="/patch-notes"
+                className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+              >
+                Full patch notes
+              </Link>
+            </div>
+          )}
+        </div>
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -231,7 +829,7 @@ export default function LiveScoresPage() {
             </div>
 
             <button
-              onClick={() => refetch()}
+              onClick={handleRefresh}
               className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-4 py-2 text-sm text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
             >
               <RefreshCw className={clsx("h-4 w-4", { "animate-spin": isRefreshing })} />
@@ -243,6 +841,30 @@ export default function LiveScoresPage() {
             </div>
           </div>
         </header>
+
+        {!authLoading && !canLoadOdds && (
+          <div className="rounded-2xl border border-[#6b6b6b] bg-black p-4 text-xs text-white/70 flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-2 text-white/60 uppercase tracking-[0.3em] text-[10px]">
+              <Lock className="h-3.5 w-3.5" />
+              Line Shopping Locked
+            </span>
+            <span>
+              Sign in or upgrade to unlock live odds comparisons and player props.
+            </span>
+            <Link
+              href="/pricing"
+              className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+              onClick={(event) => event.stopPropagation()}
+            >
+              View Plans
+            </Link>
+          </div>
+        )}
+        {canLoadOdds && oddsError && (
+          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-xs text-red-200">
+            {oddsError}
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center justify-between gap-3 mt-2 sm:mt-4">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -380,15 +1002,115 @@ export default function LiveScoresPage() {
                         const shortDetail = sanitizeText(game.status?.shortDetail)
                         const broadcast = sanitizeText(game.broadcast)
                         const odds = sanitizeText(game.odds)
+                        const teams = getTeamsFromGame(game)
+                        const oddsGame = findOddsGame(teams.homeName, teams.awayName) ?? null
+                        const arbitrage = findArbitrage(
+                          oddsGame ?? null,
+                          teams.homeName,
+                          teams.awayName
+                        )
+                        const arbitrageLabel = arbitrage
+                          ? `${arbitrage.market === "moneyline"
+                              ? "ML"
+                              : arbitrage.market === "spreads"
+                                ? "Spread"
+                                : "Total"
+                            } Arb +${arbitrage.profitPct.toFixed(1)}%`
+                          : null
+                        const moneylineAway = pickBestEntry(
+                          collectOutcomeEntries(oddsGame, "h2h", teams.awayName),
+                          "h2h"
+                        )
+                        const moneylineHome = pickBestEntry(
+                          collectOutcomeEntries(oddsGame, "h2h", teams.homeName),
+                          "h2h"
+                        )
+                        const spreadAway = pickBestEntry(
+                          collectOutcomeEntries(oddsGame, "spreads", teams.awayName),
+                          "spreads"
+                        )
+                        const spreadHome = pickBestEntry(
+                          collectOutcomeEntries(oddsGame, "spreads", teams.homeName),
+                          "spreads"
+                        )
+                        const totalOver = pickBestEntry(
+                          collectOutcomeEntries(oddsGame, "totals", "over"),
+                          "totals"
+                        )
+                        const totalUnder = pickBestEntry(
+                          collectOutcomeEntries(oddsGame, "totals", "under"),
+                          "totals"
+                        )
                         const statusLabel =
                           game.bucket === "upcoming"
                             ? formatStartTime(game.startTime)
                             : shortDetail || detail || (game.bucket === "completed" ? "Final" : "Live")
+                        const summaryRows = [
+                          {
+                            key: "moneyline",
+                            label: "Moneyline",
+                            leftLabel: teams.awayAbbr || teams.awayName,
+                            rightLabel: teams.homeAbbr || teams.homeName,
+                            left: moneylineAway,
+                            right: moneylineHome,
+                            showSign: true,
+                          },
+                          {
+                            key: "spread",
+                            label: "Spread",
+                            leftLabel: teams.awayAbbr || teams.awayName,
+                            rightLabel: teams.homeAbbr || teams.homeName,
+                            left: spreadAway,
+                            right: spreadHome,
+                            showSign: true,
+                          },
+                          {
+                            key: "total",
+                            label: "Total",
+                            leftLabel: "Over",
+                            rightLabel: "Under",
+                            left: totalOver,
+                            right: totalUnder,
+                            showSign: false,
+                          },
+                        ]
+                        const renderSummaryCell = (
+                          entry: MarketEntry | null,
+                          label: string,
+                          showSign = true
+                        ) => {
+                          if (!entry) {
+                            return <span className="text-white/40">-</span>
+                          }
+                          const lineLabel =
+                            entry.point != null
+                              ? ` ${formatPoint(entry.point, 1, showSign)}`
+                              : ""
+                          return (
+                            <div className="text-[11px] text-white/80">
+                              <div className="truncate">
+                                <span className="font-semibold">{label}</span>
+                                {lineLabel}
+                              </div>
+                              <div className="text-white/70">
+                                {formatOdds(entry.odds)}{" "}
+                                <span className="text-white/40">({entry.book})</span>
+                              </div>
+                            </div>
+                          )
+                        }
                         return (
                           <>
-                          <div className="flex items-center justify-between text-[11px] text-white/60">
+                          <div className="flex items-center justify-between text-[11px] text-white/60 gap-2">
                             <span className="uppercase tracking-[0.3em]">{game.leagueLabel}</span>
-                            <span>{statusLabel}</span>
+                            <div className="flex items-center gap-2">
+                              {arbitrageLabel && (
+                                <span className="inline-flex items-center rounded-full border border-emerald-400/50 bg-emerald-500/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200">
+                                  {arbitrageLabel}
+                                </span>
+                              )}
+                              <span>{statusLabel}</span>
+                            </div>
                           </div>
 
                           <div className="mt-3 space-y-3">
@@ -426,6 +1148,86 @@ export default function LiveScoresPage() {
                             {odds && <span>- {odds}</span>}
                           </div>
 
+                          <div
+                            className="mt-4 rounded-2xl border border-[#2a2a2a] bg-black/80 p-3 space-y-3"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-white/50">
+                              <span>Line Shopping</span>
+                              <div className="flex items-center gap-2">
+                                {oddsGame?.bookmakers?.length ? (
+                                  <span className="text-[10px] text-white/40">
+                                    {oddsGame.bookmakers.length} books
+                                  </span>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    if (!canLoadOdds) return
+                                    setLineShoppingGame(game)
+                                  }}
+                                  disabled={!canLoadOdds}
+                                  className={clsx(
+                                    "inline-flex items-center gap-2 rounded-full border border-[#34d399] px-2 py-1 text-[10px] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors",
+                                    !canLoadOdds && "cursor-not-allowed opacity-60"
+                                  )}
+                                >
+                                  Compare Books
+                                  <ChevronDown className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {authLoading ? (
+                              <div className="text-xs text-white/60">
+                                Checking line shopping access...
+                              </div>
+                            ) : !canLoadOdds ? (
+                              <div className="flex items-center gap-2 text-xs text-white/60">
+                                <Lock className="h-3.5 w-3.5" />
+                                <span>Upgrade to unlock odds comparisons.</span>
+                              </div>
+                            ) : oddsLoading ? (
+                              <div className="text-xs text-white/60">Loading odds...</div>
+                            ) : oddsError ? (
+                              <div className="text-xs text-red-200">{oddsError}</div>
+                            ) : !oddsGame ? (
+                              <div className="text-xs text-white/60">
+                                No odds found for this matchup yet.
+                              </div>
+                            ) : (
+                              <div className="grid gap-2 text-xs">
+                                {summaryRows.map((row) => (
+                                  <div
+                                    key={row.key}
+                                    className="grid grid-cols-[88px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 rounded-xl border border-[#303030] bg-black/60 px-2.5 py-2"
+                                  >
+                                    <span className="text-[10px] uppercase tracking-[0.2em] text-white/50">
+                                      {row.label}
+                                    </span>
+                                    <div className="min-w-0">
+                                      {renderSummaryCell(
+                                        row.left,
+                                        row.leftLabel,
+                                        row.showSign
+                                      )}
+                                    </div>
+                                    <div className="min-w-0">
+                                      {renderSummaryCell(
+                                        row.right,
+                                        row.rightLabel,
+                                        row.showSign
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                          </div>
+
                           </>
                         )
                       })()}
@@ -444,7 +1246,439 @@ export default function LiveScoresPage() {
       {selectedGame && (
         <GameDetailsModal game={selectedGame} onClose={() => setSelectedGame(null)} detailsState={detailsState} />
       )}
+      {lineShoppingGame && lineShoppingTeams && (
+        <LineShoppingModal
+          game={lineShoppingGame}
+          teams={lineShoppingTeams}
+          oddsGame={lineShoppingOddsGame}
+          authLoading={authLoading}
+          canLoadOdds={canLoadOdds}
+          oddsLoading={oddsLoading}
+          oddsError={oddsError}
+          canLoadProps={canLoadProps}
+          propMarkets={propMarkets}
+          propsData={lineShoppingProps}
+          propsLoading={lineShoppingPropsLoading}
+          propsError={lineShoppingPropsError}
+          onLoadProps={() => {
+            if (!lineShoppingGame || !lineShoppingTeams) return
+            fetchPropsForGame(
+              lineShoppingGame.id,
+              lineShoppingTeams.homeName,
+              lineShoppingTeams.awayName
+            )
+          }}
+          onClose={() => setLineShoppingGame(null)}
+        />
+      )}
 
+    </div>
+  )
+}
+
+interface LineShoppingModalProps {
+  game: LiveScoreGame
+  teams: ReturnType<typeof getTeamsFromGame>
+  oddsGame: OddsGame | null
+  authLoading: boolean
+  canLoadOdds: boolean
+  oddsLoading: boolean
+  oddsError: string | null
+  canLoadProps: boolean
+  propMarkets: string[]
+  propsData?: PlayerProp[]
+  propsLoading?: boolean
+  propsError?: string | null
+  onLoadProps: () => void
+  onClose: () => void
+}
+
+function LineShoppingModal({
+  game,
+  teams,
+  oddsGame,
+  authLoading,
+  canLoadOdds,
+  oddsLoading,
+  oddsError,
+  canLoadProps,
+  propMarkets,
+  propsData,
+  propsLoading,
+  propsError,
+  onLoadProps,
+  onClose,
+}: LineShoppingModalProps) {
+  const lineColumns = useMemo(() => getLineScoreColumns(game), [game])
+  const lineScoreTeams = useMemo(
+    () => [...game.competitors].sort((a, b) => (a.homeAway === "home" ? 1 : -1)),
+    [game.competitors]
+  )
+
+  const moneylineAway = pickBestEntry(
+    collectOutcomeEntries(oddsGame, "h2h", teams.awayName),
+    "h2h"
+  )
+  const moneylineHome = pickBestEntry(
+    collectOutcomeEntries(oddsGame, "h2h", teams.homeName),
+    "h2h"
+  )
+  const spreadAway = pickBestEntry(
+    collectOutcomeEntries(oddsGame, "spreads", teams.awayName),
+    "spreads"
+  )
+  const spreadHome = pickBestEntry(
+    collectOutcomeEntries(oddsGame, "spreads", teams.homeName),
+    "spreads"
+  )
+  const totalOver = pickBestEntry(
+    collectOutcomeEntries(oddsGame, "totals", "over"),
+    "totals"
+  )
+  const totalUnder = pickBestEntry(
+    collectOutcomeEntries(oddsGame, "totals", "under"),
+    "totals"
+  )
+
+  const moneylineRows = buildMarketRows(
+    oddsGame,
+    "h2h",
+    teams.homeName,
+    teams.awayName
+  )
+  const spreadRows = buildMarketRows(
+    oddsGame,
+    "spreads",
+    teams.homeName,
+    teams.awayName
+  )
+  const totalRows = buildMarketRows(
+    oddsGame,
+    "totals",
+    teams.homeName,
+    teams.awayName
+  )
+
+  const statusLabel =
+    sanitizeText(game.status?.shortDetail) ||
+    sanitizeText(game.status?.detail) ||
+    formatStartTime(game.startTime) ||
+    "Line Shopping"
+
+  const isBestMatch = (
+    entry: MarketEntry | null,
+    book: string,
+    oddsValue?: number,
+    point?: number
+  ) =>
+    Boolean(
+      entry &&
+        entry.book === book &&
+        entry.odds === oddsValue &&
+        (entry.point == null || entry.point === point)
+    )
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-5xl rounded-3xl border border-[#6b6b6b] bg-black p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+              Line Shopping
+            </p>
+            <h3 className="text-2xl font-bold text-white">
+              {teams.awayName} @ {teams.homeName}
+            </h3>
+            <p className="text-sm text-white/60">{statusLabel}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-full border border-[#6b6b6b] p-2 text-white/70 hover:text-white hover:border-white/50 transition"
+            aria-label="Close line shopping"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          {authLoading ? (
+            <div className="rounded-2xl border border-[#6b6b6b] bg-black p-4 text-sm text-white/70">
+              Checking line shopping access...
+            </div>
+          ) : !canLoadOdds ? (
+            <div className="rounded-2xl border border-[#6b6b6b] bg-black p-4 text-sm text-white/70 flex items-center gap-2">
+              <Lock className="h-4 w-4" />
+              Upgrade to unlock odds comparisons.
+            </div>
+          ) : oddsLoading ? (
+            <div className="rounded-2xl border border-[#6b6b6b] bg-black p-4 text-sm text-white/70">
+              Loading odds...
+            </div>
+          ) : oddsError ? (
+            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+              {oddsError}
+            </div>
+          ) : !oddsGame ? (
+            <div className="rounded-2xl border border-[#6b6b6b] bg-black p-4 text-sm text-white/70">
+              No odds found for this matchup yet.
+            </div>
+          ) : (
+            <>
+              {lineColumns.length > 0 && (
+                <div className="rounded-2xl border border-[#262626] bg-black/70 p-4">
+                  <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.3em] text-white/50">
+                    <span>Line Score</span>
+                    <span className="text-white/40">{lineColumns.length} periods</span>
+                  </div>
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="min-w-full text-[12px]">
+                      <thead className="text-white/50">
+                        <tr>
+                          <th className="text-left font-medium">Team</th>
+                          {lineColumns.map((label) => (
+                            <th key={label} className="px-2 text-center font-medium">
+                              {label}
+                            </th>
+                          ))}
+                          <th className="px-2 text-center font-medium">T</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lineScoreTeams.map((team) => (
+                          <tr key={`line-${game.id}-${team.id}`} className="border-t border-[#262626]">
+                            <td className="py-2 pr-2 text-left font-semibold text-white">
+                              {team.abbreviation ?? team.name}
+                            </td>
+                            {lineColumns.map((label, index) => (
+                              <td key={`${team.id}-${label}`} className="px-2 py-2 text-center text-white/80">
+                                {team.linescore?.[index]?.value ?? "-"}
+                              </td>
+                            ))}
+                            <td className="px-2 py-2 text-center font-semibold text-white">
+                              {team.score}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border border-[#262626] bg-black/70 p-4">
+                  <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.3em] text-white/50">
+                    <span>Moneyline</span>
+                    <span className="text-white/40">{moneylineRows.length} books</span>
+                  </div>
+                  {moneylineRows.length ? (
+                    <div className="mt-3 space-y-2 text-xs">
+                      <div className="grid grid-cols-[1fr_1fr_1fr] text-white/50">
+                        <span>Book</span>
+                        <span className="text-right">{teams.awayAbbr || teams.awayName}</span>
+                        <span className="text-right">{teams.homeAbbr || teams.homeName}</span>
+                      </div>
+                      {moneylineRows.map((row) => (
+                        <div key={`ml-${game.id}-${row.book}`} className="grid grid-cols-[1fr_1fr_1fr] items-center gap-2">
+                          <span className="truncate text-white/70">{row.book}</span>
+                          <span
+                            className={clsx(
+                              "text-right",
+                              isBestMatch(moneylineAway, row.book, row.awayOdds)
+                                ? "text-emerald-300 font-semibold"
+                                : "text-white/80"
+                            )}
+                          >
+                            {formatOdds(row.awayOdds)}
+                          </span>
+                          <span
+                            className={clsx(
+                              "text-right",
+                              isBestMatch(moneylineHome, row.book, row.homeOdds)
+                                ? "text-emerald-300 font-semibold"
+                                : "text-white/80"
+                            )}
+                          >
+                            {formatOdds(row.homeOdds)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-xs text-white/50">Moneyline odds unavailable.</div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-[#262626] bg-black/70 p-4">
+                  <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.3em] text-white/50">
+                    <span>Spread</span>
+                    <span className="text-white/40">{spreadRows.length} books</span>
+                  </div>
+                  {spreadRows.length ? (
+                    <div className="mt-3 space-y-2 text-xs">
+                      <div className="grid grid-cols-[1fr_1fr_1fr] text-white/50">
+                        <span>Book</span>
+                        <span className="text-right">{teams.awayAbbr || teams.awayName}</span>
+                        <span className="text-right">{teams.homeAbbr || teams.homeName}</span>
+                      </div>
+                      {spreadRows.map((row) => (
+                        <div key={`spread-${game.id}-${row.book}`} className="grid grid-cols-[1fr_1fr_1fr] items-center gap-2">
+                          <span className="truncate text-white/70">{row.book}</span>
+                          <span
+                            className={clsx(
+                              "text-right",
+                              isBestMatch(spreadAway, row.book, row.awayOdds, row.awayLine)
+                                ? "text-emerald-300 font-semibold"
+                                : "text-white/80"
+                            )}
+                          >
+                            {formatLineOdds(row.awayLine, row.awayOdds)}
+                          </span>
+                          <span
+                            className={clsx(
+                              "text-right",
+                              isBestMatch(spreadHome, row.book, row.homeOdds, row.homeLine)
+                                ? "text-emerald-300 font-semibold"
+                                : "text-white/80"
+                            )}
+                          >
+                            {formatLineOdds(row.homeLine, row.homeOdds)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-xs text-white/50">Spread odds unavailable.</div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-[#262626] bg-black/70 p-4">
+                  <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.3em] text-white/50">
+                    <span>Total</span>
+                    <span className="text-white/40">{totalRows.length} books</span>
+                  </div>
+                  {totalRows.length ? (
+                    <div className="mt-3 space-y-2 text-xs">
+                      <div className="grid grid-cols-[1fr_1fr_1fr] text-white/50">
+                        <span>Book</span>
+                        <span className="text-right">Over</span>
+                        <span className="text-right">Under</span>
+                      </div>
+                      {totalRows.map((row) => (
+                        <div key={`total-${game.id}-${row.book}`} className="grid grid-cols-[1fr_1fr_1fr] items-center gap-2">
+                          <span className="truncate text-white/70">{row.book}</span>
+                          <span
+                            className={clsx(
+                              "text-right",
+                              isBestMatch(totalOver, row.book, row.overOdds, row.line)
+                                ? "text-emerald-300 font-semibold"
+                                : "text-white/80"
+                            )}
+                          >
+                            {formatLineOdds(row.line, row.overOdds, false)}
+                          </span>
+                          <span
+                            className={clsx(
+                              "text-right",
+                              isBestMatch(totalUnder, row.book, row.underOdds, row.line)
+                                ? "text-emerald-300 font-semibold"
+                                : "text-white/80"
+                            )}
+                          >
+                            {formatLineOdds(row.line, row.underOdds, false)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-xs text-white/50">Totals odds unavailable.</div>
+                  )}
+                </div>
+              </div>
+
+              {canLoadProps && (
+                <div className="rounded-2xl border border-[#262626] bg-black/70 p-4 space-y-3">
+                  <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.3em] text-white/50">
+                    <span>Player Props</span>
+                    <button
+                      type="button"
+                      onClick={onLoadProps}
+                      disabled={propsLoading}
+                      className={clsx(
+                        "inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors",
+                        propsLoading && "cursor-not-allowed opacity-60"
+                      )}
+                    >
+                      {propsLoading ? "Loading..." : propsData?.length ? "Refresh Props" : "Load Props"}
+                    </button>
+                  </div>
+                  {propsError ? (
+                    <div className="text-xs text-red-200">{propsError}</div>
+                  ) : propsLoading ? (
+                    <div className="text-xs text-white/60">Loading player props...</div>
+                  ) : propsData?.length ? (
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {propsData.map((prop) => {
+                        const marketKeys = Object.keys(prop.markets)
+                        const orderedMarkets = propMarkets.length
+                          ? [
+                              ...propMarkets.filter((key) => prop.markets[key]),
+                              ...marketKeys.filter((key) => !propMarkets.includes(key)),
+                            ]
+                          : marketKeys
+                        const marketEntries = orderedMarkets
+                          .map((key) => [key, prop.markets[key]] as const)
+                          .filter((entry) => entry[1])
+                        return (
+                          <div
+                            key={`${game.id}-${prop.player}`}
+                            className="rounded-lg border border-[#303030] bg-black/70 p-3"
+                          >
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-semibold text-white">{prop.player}</span>
+                              <span className="text-white/50">{prop.teamAbbr || prop.team || ""}</span>
+                            </div>
+                            <div className="mt-2 grid gap-1 text-[11px] text-white/70">
+                              {marketEntries.map(([key, market]) => {
+                                const lineLabel = formatPoint(market.line, 1, false)
+                                const overLabel = Number.isFinite(market.over.best)
+                                  ? `${formatOdds(market.over.best)}${
+                                      market.over.bestBook ? ` (${market.over.bestBook})` : ""
+                                    }`
+                                  : "-"
+                                const underLabel = Number.isFinite(market.under.best)
+                                  ? `${formatOdds(market.under.best)}${
+                                      market.under.bestBook ? ` (${market.under.bestBook})` : ""
+                                    }`
+                                  : "-"
+                                return (
+                                  <div
+                                    key={`${prop.player}-${key}`}
+                                    className="grid grid-cols-[1fr_auto_auto] items-center gap-2"
+                                  >
+                                    <span className="text-white/60 truncate">
+                                      {formatMarketLabel(key)} {lineLabel}
+                                    </span>
+                                    <span className="text-emerald-200">O {overLabel}</span>
+                                    <span className="text-rose-200">U {underLabel}</span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-white/60">No props available for this matchup.</div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

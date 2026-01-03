@@ -76,6 +76,7 @@ export interface LiveScoreCompetitor {
   score: number
   record?: string
   leaders?: LiveScoreLeader[]
+  linescore?: GameLineScoreEntry[]
 }
 
 export interface LiveScoreGame {
@@ -455,6 +456,17 @@ async function fetchLeagueScores(config: (typeof ESPN_LEAGUES)[number], options:
 
       const competitors: LiveScoreCompetitor[] = (competition.competitors ?? [])
         .map((competitor: any) => {
+          const rawLinescore = Array.isArray(competitor?.linescores)
+            ? competitor.linescores
+            : Array.isArray(competitor?.linescore)
+              ? competitor.linescore
+              : []
+          const linescore: GameLineScoreEntry[] = rawLinescore
+            .map((line: any, index: number) => ({
+              label: line?.label ?? getPeriodLabel(config.id, index),
+              value: String(line?.displayValue ?? line?.value ?? ""),
+            }))
+            .filter((entry: GameLineScoreEntry) => entry.value)
           const topLeaders = Array.isArray(competitor?.leaders)
             ? competitor.leaders
                 .map((leader: any) => {
@@ -507,6 +519,7 @@ async function fetchLeagueScores(config: (typeof ESPN_LEAGUES)[number], options:
             score: Number(competitor?.score ?? 0),
             record: competitor?.records?.[0]?.summary ?? undefined,
             leaders: topLeaders as LiveScoreLeader[],
+            linescore: linescore.length ? linescore : undefined,
           }
         })
         .filter((team: LiveScoreCompetitor) => Boolean(team.id && team.name))

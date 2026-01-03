@@ -1,0 +1,210 @@
+{
+  "eventId": "401810342",
+  "league": "nba",
+  "leagueLabel": "NBA",
+  "updatedAt": "2026-01-03T12:51:33.946Z",
+  "statusText": "1/3 - 7:30 PM EST",
+  "status": {
+    "type": {
+      "state": "pre",
+      "detail": "Sat, January 3rd at 7:30 PM EST",
+      "shortDetail": "1/3 - 7:30 PM EST",
+      "completed": false
+    }
+  },
+  "venue": "Madison Square Garden",
+  "teams": [
+    {
+      "id": "18",
+      "name": "New York Knicks",
+      "abbreviation": "NY",
+      "homeAway": "home",
+      "logo": "https://a.espncdn.com/i/teamlogos/nba/500/ny.png",
+      "score": 0,
+      "linescore": [],
+      "statistics": [
+        {
+          "label": "Streak",
+          "value": "L2",
+          "name": "streak",
+          "abbreviation": "STRK"
+        },
+        {
+          "label": "Points Against",
+          "value": "114.5",
+          "name": "avgPointsAgainst",
+          "abbreviation": "OPP PPG"
+        },
+        {
+          "label": "Last Ten Games",
+          "value": "6-4",
+          "name": "Last Ten Games",
+          "abbreviation": "L10"
+        },
+        {
+          "label": "Points Per Game",
+          "value": "120.5",
+          "name": "avgPoints",
+          "abbreviation": "PTS"
+        },
+        {
+          "label": "Field Goal %",
+          "value": "47",
+          "name": "fieldGoalPct",
+          "abbreviation": "FG%"
+        },
+        {
+          "label": "Three Point %",
+          "value": "38",
+          "name": "threePointFieldGoalPct",
+          "abbreviation": "3P%"
+        },
+        {
+          "label": "Rebounds Per Game",
+          "value": "46.3",
+          "name": "avgRebounds",
+          "abbreviation": "REB"
+        },
+        {
+          "label": "Assists Per Game",
+          "value": "27.3",
+          "name": "avgAssists",
+          "abbreviation": "AST"
+        },
+        {
+          "label": "Blocks Per Game",
+          "value": "4.3",
+          "name": "avgBlocks",
+          "abbreviation": "BLK"
+        },
+        {
+          "label": "Steals Per Game",
+          "value": "8.1",
+          "name": "avgSteals",
+          "abbreviation": "STL"
+        },
+        {
+          "label": "Team Turnovers Per Game",
+          "value": "0.6",
+          "name": "avgTeamTurnovers",
+          "abbreviation": "TTO"
+        },
+        {
+          "label": "Total Turnovers Per Game",
+          "value": "13.5",
+          "name": "avgTotalTurnovers",
+          "abbreviation": "ToTO"
+        }
+      ],
+      "starters": [],
+      "bench": [],
+      "offense": [],
+      "defense": [],
+      "specialTeams": [],
+      "forwards": [],
+      "defensemen": [],
+      "goalies": []
+    },
+    {
+      "id": "20",
+      "name": "Philadelphia 76ers",
+      "abbreviation": "PHI",
+      "homeAway": "away",
+      "logo": "https://a.espncdn.com/i/teamlogos/nba/500/phi.png",
+      "score": 0,
+      "linescore": [],
+      "statistics": [
+        {
+          "label": "Streak",
+          "value": "W2",
+          "name": "streak",
+          "abbreviation": "STRK"
+        },
+        {
+          "label": "Points Against",
+          "value": "116.0",
+          "name": "avgPointsAgainst",
+          "abbreviation": "OPP PPG"
+        },
+        {
+          "label": "Last Ten Games",
+          "value": "5-5",
+          "name": "Last Ten Games",
+          "abbreviation": "L10"
+        },
+        {
+          "label": "Points Per Game",
+          "value": "116.6",
+          "name": "avgPoints",
+          "abbreviation": "PTS"
+        },
+        {
+          "label": "Field Goal %",
+          "value": "45",
+          "name": "fieldGoalPct",
+          "abbreviation": "FG%"
+        },
+        {
+          "label": "Three Point %",
+          "value": "36",
+          "name": "threePointFieldGoalPct",
+          "abbreviation": "3P%"
+        },
+        {
+          "label": "Rebounds Per Game",
+          "value": "44.7",
+          "name": "avgRebounds",
+          "abbreviation": "REB"
+        },
+        {
+          "label": "Assists Per Game",
+          "value": "24.8",
+          "name": "avgAssists",
+          "abbreviation": "AST"
+        },
+        {
+          "label": "Blocks Per Game",
+          "value": "5.9",
+          "name": "avgBlocks",
+          "abbreviation": "BLK"
+        },
+        {
+          "label": "Steals Per Game",
+          "value": "8.5",
+          "name": "avgSteals",
+          "abbreviation": "STL"
+        },
+        {
+          "label": "Team Turnovers Per Game",
+          "value": "0.6",
+          "name": "avgTeamTurnovers",
+          "abbreviation": "TTO"
+        },
+        {
+          "label": "Total Turnovers Per Game",
+          "value": "14.2",
+          "name": "avgTotalTurnovers",
+          "abbreviation": "ToTO"
+        }
+      ],
+      "starters": [],
+      "bench": [],
+      "offense": [],
+      "defense": [],
+      "specialTeams": [],
+      "forwards": [],
+      "defensemen": [],
+      "goalies": []
+    }
+  ],
+  "articles": [
+    {
+      "type": "pregame",
+      "title": "Maxey and the 76ers take on conference foe New York",
+      "url": "http://www.espn.com/nba/preview?gameId=401810342",
+      "published": "2026-01-03T07:04:00.000Z",
+      "image": "https://s.espncdn.com/stitcher/sports/basketball/nba/events/401810342.png?templateId=espn.applewatch.awayhome.1"
+    }
+  ],
+  "plays": []
+}

@@ -1,18 +1,19 @@
 "use client"
 
-import { ArrowDownToDot, Sigma } from "lucide-react"
+import { ArrowDownToDot, Sigma, TrendingUp } from "lucide-react"
 import { PricingSection, type PricingTier } from "@/components/ui/pricing-section"
 
 const defaultTiers: PricingTier[] = [
   {
-    name: "Pro Trial",
+    name: "Pro",
+    tierKey: "pro",
     price: {
-      monthly: 0,
-      yearly: 0,
+      monthly: 29,
+      yearly: 9,
     },
-    description: "Free 7-day trial. Cancel anytime.",
-    badge: "Trial",
-    planKey: "pro_trial",
+    description: "7-day trial. Core chat plus market tracking.",
+    planKeyMonthly: "pro_monthly",
+    planKeyYearly: "pro_annual",
     icon: (
       <div className="relative">
         <ArrowDownToDot className="relative z-10 h-7 w-7 text-black" />
@@ -25,60 +26,72 @@ const defaultTiers: PricingTier[] = [
         included: true,
       },
       {
-        name: "Live Score Tracking",
-        description: "Real-time scoreboard overlays for every bet in play.",
+        name: "Live Odds + Score Tracking",
+        description: "Real-time lines and scoreboard overlays.",
         included: true,
       },
       {
-        name: "Live Odds Tracking",
-        description: "Monitor market moves as they happen across books.",
+        name: "EV Tool Calls (1 / Day)",
+        description: "Scan for value in team and prop markets.",
         included: true,
+      },
+      {
+        name: "Live Projections (0 / Day)",
+        description: "Upgrade to Sharp for live projection chats.",
+        included: false,
       },
     ],
   },
   {
-    name: "Pro",
+    name: "Sharp",
+    tierKey: "sharp",
     price: {
-      monthly: 29,
-      yearly: 9, // annual price per month
+      monthly: 79,
+      yearly: 33,
     },
-    description: "Real-time market monitoring plus live scores and odds you can trust.",
+    description: "7-day trial. Unlimited chat plus limited live projections.",
     highlight: true,
     badge: "Most Popular",
-    planKeyMonthly: "pro_monthly",
-    planKeyYearly: "pro_annual",
+    planKeyMonthly: "sharp_monthly",
+    planKeyYearly: "sharp_annual",
     icon: (
       <div className="relative">
-        <ArrowDownToDot className="relative z-10 h-7 w-7 text-black" />
+        <TrendingUp className="relative z-10 h-7 w-7 text-black" />
       </div>
     ),
     features: [
       {
-        name: "25 Messages / Day",
-        description: "Plenty of daily prompts to test ideas and get coaching.",
+        name: "Unlimited Messages",
+        description: "Chat without daily caps.",
         included: true,
       },
       {
-        name: "Live Score Tracking",
-        description: "Real-time scoreboard overlays for every bet in play.",
+        name: "Live Projections (3 / Day)",
+        description: "In-play projections for NBA and NCAAB.",
         included: true,
       },
       {
-        name: "Live Odds Tracking",
-        description: "Monitor market moves as they happen across books.",
+        name: "EV Tool Calls (3 / Day)",
+        description: "Daily scans for value across markets.",
+        included: true,
+      },
+      {
+        name: "Live Odds + Score Tracking",
+        description: "Every Pro feature included.",
         included: true,
       },
     ],
   },
   {
-    name: "Unlimited",
+    name: "Syndicate",
+    tierKey: "syndicate",
     price: {
       monthly: 199,
-      yearly: 83, // annual price per month
+      yearly: 83,
     },
-    description: "Unlimited chat, custom model builder, and premium support.",
-    planKeyMonthly: "unlimited_monthly",
-    planKeyYearly: "unlimited_annual",
+    description: "7-day trial. Unlimited everything plus priority support.",
+    planKeyMonthly: "syndicate_monthly",
+    planKeyYearly: "syndicate_annual",
     icon: (
       <div className="relative">
         <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-300/40 to-emerald-200/25 blur-2xl" />
@@ -88,22 +101,22 @@ const defaultTiers: PricingTier[] = [
     features: [
       {
         name: "Unlimited Messages",
-        description: "Brainstorm without limits - ask Delta Sports AI anything, anytime.",
+        description: "No caps across any chat type.",
         included: true,
       },
       {
-        name: "Statistical Model Builder",
-        description: "Create and deploy custom edges with no-code tooling.",
+        name: "Unlimited Live Projections",
+        description: "All in-play projection chats included.",
         included: true,
       },
       {
-        name: "Live Scores + Odds",
-        description: "All Pro monitoring perks baked in.",
+        name: "Unlimited EV Tool Calls",
+        description: "Run EV scans without daily limits.",
         included: true,
       },
       {
-        name: "VIP Support",
-        description: "Direct access to analysts for rapid answers.",
+        name: "Custom Models + VIP Support",
+        description: "Build models with priority support.",
         included: true,
       },
     ],

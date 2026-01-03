@@ -110,21 +110,10 @@ const DEFAULT_NBA_TEAM_STATS: TeamStats = {
   ts: 0.57,
 }
 
-const DEFAULT_NFL_TEAM_STATS: FootballTeamStats = {
-  pointsForPerGame: 22,
-  pointsAgainstPerGame: 22,
-  yardsPerPlay: 5.5,
-  yardsAllowedPerPlay: 5.5,
-  playsPerGame: 63,
-  drivesPerGame: 11,
-  pointsPerDrive: 2.05,
-  thirdDownConvPct: 0.38,
-  redZoneTouchdownPct: 0.55,
-  redZoneScoringPct: 0.82,
-  explosivePlayRate: 0.1,
-  sackRate: 0.07,
-  defensiveSackRate: 0.07,
-  turnoverDifferential: 0,
+const DEFAULT_NCAAB_TEAM_STATS: TeamStats = {
+  ortg: 105,
+  drtg: 105,
+  pace: 70,
 }
 
 const DEFAULT_NCAAF_TEAM_STATS: FootballTeamStats = {
@@ -163,7 +152,13 @@ const getCbbTeamStats = async (teamName: string): Promise<TeamStats | null> => {
   const drtg = advanced?.adjD ?? toNumber(stats.defensiveRating)
   const pace = advanced?.tempo ?? toNumber(stats.pace)
 
-  if (ortg == null || drtg == null || pace == null) return null
+  if (ortg == null || drtg == null || pace == null) {
+    return {
+      ...DEFAULT_NCAAB_TEAM_STATS,
+      eFG: toPctDecimal(stats.effectiveFieldGoalPct ?? stats.effectiveFgPct),
+      ts: toPctDecimal(stats.trueShootingPct),
+    }
+  }
 
   return {
     ortg,
@@ -271,6 +266,10 @@ const getFootballTeamStats = async (
   const pointsAgainstPerGame =
     toNumber(stats.pointsAgainstPerGame) ??
     (pointsAgainst != null && gamesPlayed ? pointsAgainst / gamesPlayed : null)
+  const avgPointsFor = toNumber(stats.avgPointsFor)
+  const avgPointsAgainst = toNumber(stats.avgPointsAgainst)
+  const pointsForPerGameValue = pointsForPerGame ?? avgPointsFor
+  const pointsAgainstPerGameValue = pointsAgainstPerGame ?? avgPointsAgainst
   const yardsPerPlay = toNumber(stats.yardsPerPlay)
   const totalPlays = toNumber(stats.totalOffensivePlays)
   const playsPerGame =
@@ -307,15 +306,22 @@ const getFootballTeamStats = async (
       ? sacksAllowed / (sacksAllowed + passAttempts)
       : null)
   const defensiveSackRate = toPctDecimal(stats.defensiveSackRate) ?? toNumber(stats.defensiveSackRate)
-  const yardsAllowedPerGame =
+  const yardsAllowedPerGameRaw =
     toNumber(stats.yardsAllowedPerGame) ??
     (toNumber(stats.yardsAllowed) != null && gamesPlayed
       ? Number(stats.yardsAllowed) / gamesPlayed
       : null)
+  const yardsAllowedPerGame =
+    yardsAllowedPerGameRaw != null && yardsAllowedPerGameRaw > 0
+      ? yardsAllowedPerGameRaw
+      : null
+  const yardsAllowedPerPlayFallback = toNumber(stats.yardsAllowedPerPlay)
   const yardsAllowedPerPlay =
     yardsAllowedPerGame != null && (playsPerGame ?? 0) > 0
       ? yardsAllowedPerGame / (playsPerGame ?? 1)
-      : toNumber(stats.yardsAllowedPerPlay)
+      : yardsAllowedPerPlayFallback != null && yardsAllowedPerPlayFallback > 0
+        ? yardsAllowedPerPlayFallback
+        : null
   const turnoverDifferential = toNumber(stats.turnoverDifferential)
   const qbValue =
     sportKey === 'americanfootball_nfl'
@@ -328,15 +334,13 @@ const getFootballTeamStats = async (
         })
       : null
 
-  if (pointsForPerGame == null || pointsAgainstPerGame == null) {
-    return sportKey === 'americanfootball_nfl'
-      ? DEFAULT_NFL_TEAM_STATS
-      : DEFAULT_NCAAF_TEAM_STATS
+  if (pointsForPerGameValue == null || pointsAgainstPerGameValue == null) {
+    return sportKey === 'americanfootball_ncaaf' ? DEFAULT_NCAAF_TEAM_STATS : null
   }
 
   return {
-    pointsForPerGame: Number(pointsForPerGame.toFixed(1)),
-    pointsAgainstPerGame: Number(pointsAgainstPerGame.toFixed(1)),
+    pointsForPerGame: Number(pointsForPerGameValue.toFixed(1)),
+    pointsAgainstPerGame: Number(pointsAgainstPerGameValue.toFixed(1)),
     yardsPerPlay,
     yardsAllowedPerPlay,
     playsPerGame,
@@ -1115,3 +1119,203 @@ export async function analyzeMatchup(
   }
 }
 
+/**
+ * Format matchup analysis for chat display
+ * Produces rich formatted output similar to slate edge detection
+ */
+export function formatMatchupAnalysisForChat(
+  analysis: MatchupAnalysis,
+  options: {
+    gameTime?: string
+    spread?: { market: number; model?: number }
+    total?: { market: number; model?: number }
+    sharpSignals?: Array<{ type: string; side: string; strength: number; description: string }>
+  } = {}
+): string {
+  const { homeTeam, awayTeam, splits } = analysis
+  const lines: string[] = []
+
+  // Header with matchup
+  const timeStr = options.gameTime ? ` (${options.gameTime})` : ''
+  lines.push(`## ${awayTeam.name} @ ${homeTeam.name}${timeStr}`)
+  lines.push('')
+
+  // Sharp signals section (if available)
+  if (options.sharpSignals && options.sharpSignals.length > 0) {
+    const signalSummary = options.sharpSignals
+      .slice(0, 3)
+      .map((s) => `${s.type} ${s.side} (${s.strength}/5)`)
+      .join('; ')
+    lines.push(`⚡ **Sharp Signals:** ${signalSummary}`)
+    for (const signal of options.sharpSignals.slice(0, 2)) {
+      if (signal.description) {
+        lines.push(`  - ${signal.description}`)
+      }
+    }
+    lines.push('')
+  }
+
+  // Betting splits (if available)
+  if (splits && splits.sharpSide) {
+    lines.push(`💰 **Sharp Money:** ${splits.sharpSide}`)
+    if (splits.spreadBetsPct != null && splits.spreadMoneyPct != null) {
+      const divergence = Math.abs(splits.spreadBetsPct - splits.spreadMoneyPct)
+      if (divergence >= 10) {
+        lines.push(`  - Bet%: ${splits.spreadBetsPct}% | Money%: ${splits.spreadMoneyPct}% (${divergence}% divergence)`)
+      }
+    }
+    lines.push('')
+  }
+
+  // Stats comparison section
+  if (homeTeam.stats && awayTeam.stats) {
+    lines.push('### 📊 Stats Comparison')
+    lines.push('')
+
+    // Check if basketball (has ortg/drtg) or football (has ppg)
+    const homeStats = homeTeam.stats as any
+    const awayStats = awayTeam.stats as any
+
+    if ('ortg' in homeStats && 'drtg' in homeStats) {
+      // Basketball format
+      lines.push('| Stat | ' + homeTeam.name + ' | ' + awayTeam.name + ' |')
+      lines.push('|------|------|------|')
+      lines.push(`| ORtg | ${homeStats.ortg.toFixed(1)} | ${awayStats.ortg.toFixed(1)} |`)
+      lines.push(`| DRtg | ${homeStats.drtg.toFixed(1)} | ${awayStats.drtg.toFixed(1)} |`)
+      lines.push(`| Pace | ${homeStats.pace.toFixed(1)} | ${awayStats.pace.toFixed(1)} |`)
+      if (homeStats.eFG != null && awayStats.eFG != null) {
+        lines.push(`| eFG% | ${(homeStats.eFG * 100).toFixed(1)}% | ${(awayStats.eFG * 100).toFixed(1)}% |`)
+      }
+    } else if ('pointsForPerGame' in homeStats) {
+      // Football format
+      lines.push('| Stat | ' + homeTeam.name + ' | ' + awayTeam.name + ' |')
+      lines.push('|------|------|------|')
+      lines.push(`| PPG | ${homeStats.pointsForPerGame.toFixed(1)} | ${awayStats.pointsForPerGame.toFixed(1)} |`)
+      lines.push(`| PAPG | ${homeStats.pointsAgainstPerGame.toFixed(1)} | ${awayStats.pointsAgainstPerGame.toFixed(1)} |`)
+      if (homeStats.yardsPerPlay != null && awayStats.yardsPerPlay != null) {
+        lines.push(`| YPP | ${homeStats.yardsPerPlay.toFixed(2)} | ${awayStats.yardsPerPlay.toFixed(2)} |`)
+      }
+    } else if ('goalsForPerGame' in homeStats) {
+      // Hockey format
+      lines.push('| Stat | ' + homeTeam.name + ' | ' + awayTeam.name + ' |')
+      lines.push('|------|------|------|')
+      lines.push(`| GPG | ${homeStats.goalsForPerGame.toFixed(2)} | ${awayStats.goalsForPerGame.toFixed(2)} |`)
+      lines.push(`| GAA | ${homeStats.goalsAgainstPerGame.toFixed(2)} | ${awayStats.goalsAgainstPerGame.toFixed(2)} |`)
+    }
+    lines.push('')
+  }
+
+  // Spread/Total projections (if provided)
+  if (options.spread || options.total) {
+    lines.push('### 🎯 Line Analysis')
+    lines.push('')
+
+    if (options.spread) {
+      const marketStr = options.spread.market > 0 ? `+${options.spread.market}` : `${options.spread.market}`
+      if (options.spread.model != null) {
+        const modelStr = options.spread.model > 0 ? `+${options.spread.model.toFixed(1)}` : options.spread.model.toFixed(1)
+        const gap = Math.abs(options.spread.market - options.spread.model).toFixed(1)
+        const edge = Math.abs(options.spread.market - options.spread.model) >= 2 ? '🔥' : '✓'
+        lines.push(`- ${edge} **Spread:** Market ${marketStr} ${homeTeam.name} | Model ${modelStr} | Gap: ${gap} pts`)
+      } else {
+        lines.push(`- **Spread:** ${marketStr} ${homeTeam.name}`)
+      }
+    }
+
+    if (options.total) {
+      if (options.total.model != null) {
+        const gap = Math.abs(options.total.market - options.total.model).toFixed(1)
+        const direction = options.total.model > options.total.market ? 'OVER' : 'UNDER'
+        const edge = Math.abs(options.total.market - options.total.model) >= 3 ? '🔥' : '✓'
+        lines.push(`- ${edge} **Total:** Market ${options.total.market} | Model ${options.total.model.toFixed(1)} | Gap: ${gap} pts → ${direction}`)
+      } else {
+        lines.push(`- **Total:** ${options.total.market}`)
+      }
+    }
+    lines.push('')
+  }
+
+  // Injuries section
+  const homeInjuries = homeTeam.injuries?.injuries || []
+  const awayInjuries = awayTeam.injuries?.injuries || []
+  if (homeInjuries.length > 0 || awayInjuries.length > 0) {
+    lines.push('### 🏥 Injuries')
+    lines.push('')
+    if (homeInjuries.length > 0) {
+      lines.push(`**${homeTeam.name}:** ${homeTeam.injuries?.summary || 'See below'}`)
+      for (const inj of homeInjuries.slice(0, 3)) {
+        lines.push(`  - ${inj.explanation || inj.playerName}`)
+      }
+    }
+    if (awayInjuries.length > 0) {
+      lines.push(`**${awayTeam.name}:** ${awayTeam.injuries?.summary || 'See below'}`)
+      for (const inj of awayInjuries.slice(0, 3)) {
+        lines.push(`  - ${inj.explanation || inj.playerName}`)
+      }
+    }
+    lines.push('')
+  }
+
+  // Rest/Schedule section
+  if (homeTeam.rest || awayTeam.rest) {
+    const restNotes: string[] = []
+    if (homeTeam.rest?.isBackToBack) {
+      restNotes.push(`⚠️ ${homeTeam.name} on BACK-TO-BACK`)
+    } else if (homeTeam.rest && homeTeam.rest.daysRest >= 3) {
+      restNotes.push(`✓ ${homeTeam.name} well-rested (${homeTeam.rest.daysRest} days)`)
+    }
+    if (awayTeam.rest?.isBackToBack) {
+      restNotes.push(`⚠️ ${awayTeam.name} on BACK-TO-BACK`)
+    } else if (awayTeam.rest && awayTeam.rest.daysRest >= 3) {
+      restNotes.push(`✓ ${awayTeam.name} well-rested (${awayTeam.rest.daysRest} days)`)
+    }
+    if (restNotes.length > 0) {
+      lines.push('### ⏰ Rest/Schedule')
+      lines.push('')
+      for (const note of restNotes) {
+        lines.push(`- ${note}`)
+      }
+      lines.push('')
+    }
+  }
+
+  // ATS Trends section
+  if (homeTeam.trends || awayTeam.trends) {
+    lines.push('### 📈 ATS Trends')
+    lines.push('')
+    if (homeTeam.trends) {
+      lines.push(`- **${homeTeam.name}:** ${homeTeam.trends.overall} overall, ${homeTeam.trends.last10 || 'N/A'} L10`)
+      if (homeTeam.trends.home) {
+        lines.push(`  - Home: ${homeTeam.trends.home}`)
+      }
+    }
+    if (awayTeam.trends) {
+      lines.push(`- **${awayTeam.name}:** ${awayTeam.trends.overall} overall, ${awayTeam.trends.last10 || 'N/A'} L10`)
+      if (awayTeam.trends.away) {
+        lines.push(`  - Away: ${awayTeam.trends.away}`)
+      }
+    }
+    lines.push('')
+  }
+
+  // Recent Form section
+  if (homeTeam.recentForm || awayTeam.recentForm) {
+    lines.push('### 🔥 Recent Form (L10)')
+    lines.push('')
+    if (homeTeam.recentForm) {
+      const form = homeTeam.recentForm
+      const streakLabel = form.streak > 0 ? `W${form.streak}` : `L${Math.abs(form.streak)}`
+      const marginStr = form.avgMargin > 0 ? `+${form.avgMargin.toFixed(1)}` : form.avgMargin.toFixed(1)
+      lines.push(`- **${homeTeam.name}:** ${form.wins}-${form.losses} (${streakLabel}), Avg margin: ${marginStr}`)
+    }
+    if (awayTeam.recentForm) {
+      const form = awayTeam.recentForm
+      const streakLabel = form.streak > 0 ? `W${form.streak}` : `L${Math.abs(form.streak)}`
+      const marginStr = form.avgMargin > 0 ? `+${form.avgMargin.toFixed(1)}` : form.avgMargin.toFixed(1)
+      lines.push(`- **${awayTeam.name}:** ${form.wins}-${form.losses} (${streakLabel}), Avg margin: ${marginStr}`)
+    }
+    lines.push('')
+  }
+
+  return lines.join('\n')
+}

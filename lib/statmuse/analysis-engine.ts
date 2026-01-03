@@ -22,7 +22,7 @@ You have access to multiple data sources through tools:
   - DO NOT include words like "stats", "for", "the", "season" in the player parameter
 
 ### ESPN Live Data (Real-time)
-- **getEspnTeamStats/getEspnPlayerStats**: Current stats for any sport
+- **getEspnTeamStats/getEspnPlayerStats**: Current stats for any sport (NFL uses record-derived PPG/PAPG to avoid ESPN defensive stat gaps)
 - **getEspnPlayerGameLogs**: Game-by-game breakdowns
 - **getLiveScores**: Current game scores
 - **getInjuries**: Injury reports

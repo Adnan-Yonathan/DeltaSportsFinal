@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, ChangeEvent } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import ModernSidebar from '@/components/ModernSidebar'
 import ModernMessageList from '@/components/ModernMessageList'
 import RichMessageInput from '@/components/chat/RichMessageInput'
@@ -251,6 +252,9 @@ export default function ChatPage() {
     .join('')
     .slice(0, 2)
     .toUpperCase()
+  const membershipLabel = membership?.tier
+    ? ({ pro: 'Pro', sharp: 'Sharp', syndicate: 'Syndicate' } as const)[membership.tier] || 'Pro'
+    : 'Pro'
 
   const headerActions = (
     <div className="flex items-center gap-2 lg:border-l lg:border-white/10 lg:pl-3">
@@ -281,7 +285,7 @@ export default function ChatPage() {
       <button
         onClick={() => setLiveScoresOpen(true)}
         className="sm:hidden p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all border border-white/20"
-        aria-label="Open live scores preview"
+        aria-label="Open live odds preview"
       >
         <Activity className="w-3.5 h-3.5" />
       </button>
@@ -290,7 +294,7 @@ export default function ChatPage() {
         className="hidden sm:inline-flex items-center gap-2 rounded-full border border-[#34d399] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
       >
         <Radio className="w-4 h-4" />
-        Live Scores
+        Live Odds
       </button>
 
       {user && (
@@ -336,7 +340,7 @@ export default function ChatPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <Crown className="w-4 h-4 text-emerald-400" />
                       <span className="text-sm font-medium">
-                        {membership.tier === 'unlimited' ? 'Unlimited' : 'Pro'}
+                        {membershipLabel}
                         {membership.isTrial && (
                           <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-emerald-500/20 text-emerald-400 rounded">
                             Trial
@@ -349,7 +353,7 @@ export default function ChatPage() {
                         {messagesToday} / {PRO_DAILY_MESSAGE_LIMIT} messages today
                       </p>
                     )}
-                    {membership.tier === 'unlimited' && (
+                    {(membership.tier === 'sharp' || membership.tier === 'syndicate') && (
                       <p className="text-xs text-white/50">Unlimited messages</p>
                     )}
                   </div>
@@ -510,6 +514,20 @@ export default function ChatPage() {
                       animate={{ opacity: 1, y: 0 }}
                       className="text-center"
                     >
+                      <div className="mb-6 flex flex-col items-center gap-3 rounded-2xl border border-[#2a2a2a] bg-black/70 px-4 py-3">
+                        <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">
+                          Patch 0.1
+                        </span>
+                        <span className="text-sm text-white/80">
+                          Live odds + line shopping merge, more player props, arb badges, and odds fixes.
+                        </span>
+                        <Link
+                          href="/patch-notes"
+                          className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+                        >
+                          View Patch Notes
+                        </Link>
+                      </div>
                       <motion.div
                         animate={{ rotate: [0, 10, -10, 0] }}
                         transition={{ duration: 2, repeat: Infinity }}

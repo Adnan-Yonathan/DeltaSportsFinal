@@ -148,8 +148,8 @@ export function QuerySuggestions({
 
   // Calculate position (below input)
   const style: React.CSSProperties = {
-    position: 'absolute',
-    zIndex: 50,
+    position: 'fixed',
+    zIndex: 2147483647,
   }
 
   if (anchorRect) {
@@ -167,16 +167,16 @@ export function QuerySuggestions({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -8 }}
         transition={{ duration: 0.15 }}
-        style={style}
-        className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg shadow-xl overflow-hidden"
+        style={{ ...style, backgroundColor: '#1a1a1a' }}
+        className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg shadow-2xl overflow-hidden isolate pointer-events-auto"
       >
         {/* Header */}
-        <div className="px-3 py-2 border-b border-[#2a2a2a] bg-[#141414]">
+        <div className="px-3 py-2 border-b border-[#2a2a2a]" style={{ backgroundColor: '#141414' }}>
           <span className="text-xs text-white/50 font-medium">Suggestions</span>
         </div>
 
         {/* Suggestions list */}
-        <div ref={listRef} className="max-h-[240px] overflow-y-auto">
+        <div ref={listRef} className="max-h-[240px] overflow-y-auto" style={{ backgroundColor: '#1a1a1a' }}>
           {suggestions.map((suggestion, index) => (
             <SuggestionItem
               key={`${suggestion.category}-${suggestion.phrase}`}
@@ -189,7 +189,7 @@ export function QuerySuggestions({
         </div>
 
         {/* Footer with keyboard hints */}
-        <div className="border-t border-[#2a2a2a] px-3 py-1.5 text-xs text-white/40">
+        <div className="border-t border-[#2a2a2a] px-3 py-1.5 text-xs text-white/40" style={{ backgroundColor: '#1a1a1a' }}>
           <kbd className="px-1 py-0.5 bg-white/10 rounded text-white/60 mr-1">↑↓</kbd>
           navigate
           <span className="mx-2">·</span>

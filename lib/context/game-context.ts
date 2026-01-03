@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { fetchOdds } from '@/lib/api/odds-api'
+import { normalizeTeamKey } from '@/lib/identity/sport'
 import { getSportProvider } from '@/lib/providers/sport-registry'
 import { Database } from '@/lib/supabase/types'
 
@@ -15,6 +16,7 @@ export interface TeamContextSummary {
   streak?: string
   recentFormNote?: string
   homeAwayNote?: string
+  statLine?: string
 }
 
 export interface InjurySummary {
@@ -76,7 +78,16 @@ interface BuildContextParams {
 }
 
 function normalizeTeamName(name: string) {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, '')
+  return normalizeTeamKey(name)
+}
+
+const toNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
 }
 
 function summarizeTeamStats(raw: any, teamName: string): TeamContextSummary {
@@ -87,8 +98,34 @@ function summarizeTeamStats(raw: any, teamName: string): TeamContextSummary {
     }
   }
 
-  const streak = raw.stats?.streak || (raw.stats?.recentRecord as string | undefined)
+  const stats = raw.stats || {}
+  const streak = stats?.streak || (stats?.recentRecord as string | undefined)
   const record = raw.wins != null && raw.losses != null ? `${raw.wins}-${raw.losses}` : undefined
+  const ortg = toNumber(stats.offensiveRating ?? stats.ortg)
+  const drtg = toNumber(stats.defensiveRating ?? stats.drtg)
+  const pace = toNumber(stats.pace)
+  const gpg = toNumber(stats.goalsForPerGame)
+  const gaa = toNumber(stats.goalsAgainstPerGame)
+  const ppg = toNumber(stats.pointsForPerGame ?? stats.pointsPerGame ?? stats.ppg)
+  const papg = toNumber(stats.pointsAgainstPerGame ?? stats.pointsAllowedPerGame ?? stats.papg)
+  const ypp = toNumber(stats.yardsPerPlay)
+  const ppd = toNumber(stats.pointsPerDrive)
+
+  const statPieces: string[] = []
+  if (ortg != null && drtg != null) {
+    statPieces.push(`ORtg ${ortg.toFixed(1)}`)
+    statPieces.push(`DRtg ${drtg.toFixed(1)}`)
+    if (pace != null) statPieces.push(`Pace ${pace.toFixed(1)}`)
+  } else if (gpg != null || gaa != null) {
+    if (gpg != null) statPieces.push(`GPG ${gpg.toFixed(2)}`)
+    if (gaa != null) statPieces.push(`GAA ${gaa.toFixed(2)}`)
+  } else {
+    if (ppg != null) statPieces.push(`PPG ${ppg.toFixed(1)}`)
+    if (papg != null) statPieces.push(`PAPG ${papg.toFixed(1)}`)
+    if (ypp != null) statPieces.push(`YPP ${ypp.toFixed(2)}`)
+    if (ppd != null) statPieces.push(`PPD ${ppd.toFixed(2)}`)
+  }
+  const statLine = statPieces.length ? statPieces.join(' | ') : undefined
 
   return {
     team: raw.team || teamName,
@@ -96,6 +133,7 @@ function summarizeTeamStats(raw: any, teamName: string): TeamContextSummary {
     rank: raw.rank,
     streak,
     recentFormNote: streak ? `Current streak: ${streak}` : undefined,
+    statLine,
   }
 }
 

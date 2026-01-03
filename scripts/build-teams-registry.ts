@@ -173,6 +173,92 @@ function getAliasesForTeam(displayName: string, aliasMap: Record<string, string[
   return []
 }
 
+/**
+ * Auto-generate aliases for NCAAB teams.
+ * Since there are 360+ teams, we can't manually curate aliases for each.
+ * This function generates common variations:
+ * - School name (lowercase): "duke", "kentucky", "gonzaga"
+ * - Abbreviation: "duk", "uk", "gonz"
+ * - Mascot only: "blue devils", "wildcats", "bulldogs"
+ * - State name (if applicable): "michigan", "texas", "florida"
+ */
+function generateCollegeAliases(team: EspnTeamMeta): string[] {
+  const aliases = new Set<string>()
+  const displayLower = team.displayName.toLowerCase()
+  const nameLower = team.name.toLowerCase()
+
+  // Add the school mascot/name (e.g., "Blue Devils", "Wildcats")
+  if (nameLower && nameLower !== displayLower) {
+    aliases.add(nameLower)
+  }
+
+  // Add abbreviation
+  if (team.abbreviation) {
+    aliases.add(team.abbreviation.toLowerCase())
+  }
+
+  // Parse displayName: "Duke Blue Devils" -> add "duke", "blue devils"
+  // Common patterns: "School Name Mascot" or "State Mascot"
+  const words = displayLower.split(' ')
+
+  // If first word is a common school name (single word), add it
+  if (words.length > 0) {
+    const firstWord = words[0]
+    // Don't add very common words that might conflict
+    const skipWords = ['the', 'north', 'south', 'east', 'west', 'central']
+    if (!skipWords.includes(firstWord)) {
+      aliases.add(firstWord)
+    }
+  }
+
+  // For multi-word schools like "North Carolina", add variations
+  if (words.length >= 2) {
+    // "North Carolina Tar Heels" -> "north carolina", "unc", "tar heels"
+    // "Michigan State Spartans" -> "michigan state", "spartans"
+
+    // Try to identify if last 1-2 words are mascot
+    const lastWord = words[words.length - 1]
+    const secondLastWord = words.length > 2 ? words[words.length - 2] : ''
+
+    // If mascot is 2 words like "blue devils", "tar heels"
+    if (secondLastWord && ['blue', 'red', 'golden', 'fighting', 'running', 'flying', 'tar'].includes(secondLastWord)) {
+      aliases.add(`${secondLastWord} ${lastWord}`)
+      // School name is everything before mascot
+      if (words.length > 2) {
+        aliases.add(words.slice(0, -2).join(' '))
+      }
+    } else {
+      // Single word mascot
+      aliases.add(lastWord)
+      // School name is everything before mascot
+      if (words.length > 1) {
+        aliases.add(words.slice(0, -1).join(' '))
+      }
+    }
+  }
+
+  // Add shortDisplayName if different
+  if (team.shortDisplayName) {
+    const shortLower = team.shortDisplayName.toLowerCase()
+    if (shortLower !== displayLower && shortLower !== nameLower) {
+      aliases.add(shortLower)
+    }
+  }
+
+  // Common abbreviation patterns for major schools
+  // (This catches cases like UNC, UCLA, USC, etc.)
+  const acronymMatch = displayLower.match(/^([a-z])[a-z]*\s+([a-z])[a-z]*\s+([a-z])[a-z]*/)
+  if (acronymMatch && words.length >= 3) {
+    const acronym = `${words[0][0]}${words[1][0]}${words[2][0]}`
+    if (acronym.length === 3) {
+      aliases.add(acronym)
+    }
+  }
+
+  // Filter out empty strings and duplicates
+  return Array.from(aliases).filter((a) => a.length > 1 && a !== displayLower)
+}
+
 function generateLogoUrl(sport: string, abbreviation: string): string {
   const sportPath: Record<string, string> = {
     nba: 'nba',
@@ -264,8 +350,17 @@ async function fetchAllTeams(): Promise<TeamRecord[]> {
   try {
     const ncaabTeams = await fetchNcaabTeamList()
     for (const team of ncaabTeams) {
-      // College teams use empty alias map (too many to manually curate)
-      allTeams.push(transformTeam(team, 'basketball_ncaab', 'ncaab', {}))
+      // College teams use auto-generated aliases
+      const aliases = generateCollegeAliases(team)
+      allTeams.push({
+        id: team.id,
+        name: team.displayName,
+        shortName: team.shortDisplayName || team.name,
+        abbreviation: team.abbreviation,
+        sport: 'basketball_ncaab',
+        aliases,
+        logoUrl: generateLogoUrl('ncaab', team.abbreviation),
+      })
     }
     console.log(`[BUILD] Fetched ${ncaabTeams.length} NCAAB teams`)
   } catch (error) {
@@ -276,7 +371,17 @@ async function fetchAllTeams(): Promise<TeamRecord[]> {
   try {
     const ncaafTeams = await fetchNcaafTeams()
     for (const team of ncaafTeams) {
-      allTeams.push(transformTeam(team, 'americanfootball_ncaaf', 'ncaaf', {}))
+      // College football teams also use auto-generated aliases
+      const aliases = generateCollegeAliases(team)
+      allTeams.push({
+        id: team.id,
+        name: team.displayName,
+        shortName: team.shortDisplayName || team.name,
+        abbreviation: team.abbreviation,
+        sport: 'americanfootball_ncaaf',
+        aliases,
+        logoUrl: generateLogoUrl('ncaaf', team.abbreviation),
+      })
     }
     console.log(`[BUILD] Fetched ${ncaafTeams.length} NCAAF teams`)
   } catch (error) {

@@ -108,11 +108,25 @@ function matchTeam(query: string, team: TeamRecord): { matchType: 'exact' | 'pre
   return null
 }
 
+// Popular team IDs for when no query is provided (balanced across major sports)
+const POPULAR_TEAM_NAMES = [
+  // NBA
+  'Los Angeles Lakers', 'Boston Celtics', 'Golden State Warriors', 'Miami Heat',
+  // NFL
+  'Kansas City Chiefs', 'Dallas Cowboys', 'Philadelphia Eagles',
+  // MLB
+  'New York Yankees', 'Los Angeles Dodgers',
+  // NHL
+  'Vegas Golden Knights', 'Edmonton Oilers',
+  // College
+  'Alabama Crimson Tide',
+]
+
 /**
  * Search teams by query string.
  * Returns ranked results with match scores.
  *
- * @param query - Search query (min 2 characters)
+ * @param query - Search query (min 2 characters, or empty for popular teams)
  * @param options - Optional filters
  * @param options.limit - Max results to return (default: 10)
  * @param options.sport - Filter by sport
@@ -128,8 +142,21 @@ export function searchTeams(
 ): TeamSearchResult[] {
   const { limit = 10, sport, prioritizePro = true } = options
 
+  // If no query, return popular teams
   if (!query || query.length < 2) {
-    return []
+    const popularTeams: TeamSearchResult[] = []
+    for (const teamName of POPULAR_TEAM_NAMES) {
+      const team = TEAMS_REGISTRY.find(t => t.name === teamName)
+      if (team && (!sport || team.sport === sport)) {
+        popularTeams.push({
+          ...team,
+          score: 50,
+          matchType: 'exact',
+        })
+      }
+      if (popularTeams.length >= limit) break
+    }
+    return popularTeams
   }
 
   const results: TeamSearchResult[] = []

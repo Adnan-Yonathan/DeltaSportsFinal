@@ -376,6 +376,7 @@ async function getLLMProjection(input: LLMProjectionInput): Promise<LLMProjectio
         for (const team of input.enrichmentContext.teamSummaries) {
           userMessage += `**${team.team}**`
           if (team.record) userMessage += `: Record ${team.record}`
+          if (team.statLine) userMessage += `, ${team.statLine}`
           if (team.rank) userMessage += `, Rank: #${team.rank}`
           if (team.streak) userMessage += `, Streak: ${team.streak}`
           if (team.recentFormNote) userMessage += `, ${team.recentFormNote}`

@@ -1208,8 +1208,7 @@ async function fetchOddsIO(
 ): Promise<OddsGame[]> {
   const baseMapping = SPORT_MAP[sportKey]
   if (!baseMapping) return []
-  // NCAAB league slug is unstable; omit league filter to avoid provider errors/timeouts
-  const mapping = sportKey === 'basketball_ncaab' ? { ...baseMapping, league: undefined } : baseMapping
+  const mapping = baseMapping
   const oddsFetchInit = buildFetchInit({
     live: opts.live,
     revalidateSeconds: opts.live ? undefined : opts.revalidateSeconds ?? DEFAULT_REVALIDATE_SECONDS,
@@ -1531,7 +1530,21 @@ export interface FetchOddsOptions {
   bookmakers?: string | string[] | null // Optional override of bookmaker filter
 }
 
-export async function fetchOdds(
+const resolveOddsProvider = () => {
+  const raw = (process.env.ODDS_PROVIDER || '').trim().toLowerCase()
+  if (!raw) return process.env.ODDS_API_KEY ? 'odds-api-io' : 'sportsbettingdime'
+  if (
+    raw === 'sbd' ||
+    raw === 'sportsbettingdime' ||
+    raw === 'sports-betting-dime'
+  ) {
+    return 'sportsbettingdime'
+  }
+  if (raw.includes('odds-api')) return 'odds-api-io'
+  return raw
+}
+
+async function fetchOddsSbd(
   sport: string,
   markets: string[] = [...STANDARD_MARKETS],
   options: FetchOddsOptions = {}
@@ -1546,10 +1559,35 @@ export async function fetchOdds(
     : { next: { revalidate: options.revalidateSeconds ?? DEFAULT_REVALIDATE_SECONDS } }
 
   const books = pickSbdBookIds(options.bookmakers)
-  const payload = await fetchSbdOdds(league, { books, init: fetchInit })
-  let games = mapSbdOddsToOddsGames(league, payload, markets)
+  const fetchLeagueGames = async (targetLeague: string) => {
+    const payload = await fetchSbdOdds(targetLeague as SbdLeague, {
+      books,
+      init: fetchInit,
+    })
+    let games = mapSbdOddsToOddsGames(targetLeague as SbdLeague, payload, markets)
+    games = games.filter((game) => game.bookmakers && game.bookmakers.length > 0)
+    return games
+  }
 
-  games = games.filter((game) => game.bookmakers && game.bookmakers.length > 0)
+  let games = await fetchLeagueGames(league)
+  if (
+    games.length === 0 &&
+    String(sport).toLowerCase().includes('ncaab')
+  ) {
+    const fallbackLeagues = ['ncaab', 'ncaam', 'ncaamb']
+    for (const fallback of fallbackLeagues) {
+      if (fallback === league) continue
+      try {
+        const fallbackGames = await fetchLeagueGames(fallback)
+        if (fallbackGames.length > 0) {
+          games = fallbackGames
+          break
+        }
+      } catch (error) {
+        console.warn('[ODDS] NCAAB fallback league failed:', fallback, error)
+      }
+    }
+  }
 
   if (options.teamFilter && options.teamFilter.length > 0) {
     const filters = options.teamFilter.map((t) => t.toLowerCase())
@@ -1561,6 +1599,42 @@ export async function fetchOdds(
   }
 
   return games
+}
+
+export async function fetchOdds(
+  sport: string,
+  markets: string[] = [...STANDARD_MARKETS],
+  options: FetchOddsOptions = {}
+): Promise<OddsGame[]> {
+  const provider = resolveOddsProvider()
+  if (provider === 'odds-api-io') {
+    return fetchOddsIO(sport, markets, options)
+  }
+  if (provider === 'sportsbettingdime') {
+    const games = await fetchOddsSbd(sport, markets, options)
+    if (!games.length && process.env.ODDS_API_KEY) {
+      try {
+        const fallback = await fetchOddsIO(sport, markets, options)
+        if (fallback.length) return fallback
+      } catch (error) {
+        console.warn('[ODDS] SBD fallback to odds-api-io failed:', error)
+      }
+    }
+    return games
+  }
+
+  if (process.env.ODDS_API_KEY) {
+    try {
+      const games = await fetchOddsIO(sport, markets, options)
+      if (games.length) return games
+    } catch (error) {
+      console.warn(
+        '[ODDS] Odds-api-io provider failed, retrying with SBD:',
+        error
+      )
+    }
+  }
+  return fetchOddsSbd(sport, markets, options)
 }
 
 /**

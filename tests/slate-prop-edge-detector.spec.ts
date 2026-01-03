@@ -10,7 +10,7 @@ const baseEdge = {
   impliedProbability: 0.55,
   bestBook: 'DraftKings',
   bestOdds: -105,
-  verdict: { verdict: 'strong', confidence: 'high', reason: 'sample' },
+  verdict: { verdict: 'strong' as const, confidence: 'high' as const, reason: 'sample' },
   factors: ['Base avg: 21.5'],
   sampleSize: 5,
 }
@@ -55,7 +55,7 @@ const ncaabSample: SlatePropEdgeResult = {
       impliedProbability: 0.5,
       bestBook: 'FanDuel',
       bestOdds: 110,
-      verdict: { verdict: 'soft', confidence: 'medium', reason: 'sample' },
+      verdict: { verdict: 'soft' as const, confidence: 'medium' as const, reason: 'sample' },
       factors: ['Base avg: 7.0'],
       sampleSize: 4,
     },

@@ -40,7 +40,7 @@ async function updateUserSubscription(
   }
 
   // Determine tier from plan key or existing metadata
-  let tier: 'pro' | 'unlimited' = 'pro'
+  let tier: 'pro' | 'sharp' | 'syndicate' = 'pro'
   if (config) {
     tier = config.tier
   } else if (subscription.metadata?.plan_key) {

@@ -220,7 +220,7 @@ export function TopPerformancesStrip() {
               {tab.label}
             </button>
           ))}
-          <div className="relative z-10">
+          <div className="relative z-0">
             <select
               value={viewMode}
               onChange={(e) => setViewMode(e.target.value as "teams" | "players" | "betting")}
@@ -331,7 +331,7 @@ export function TopPerformancesStrip() {
                     {tab.label}
                   </button>
                 ))}
-                <div className="relative z-10">
+                <div className="relative z-0">
                   <select
                     value={viewMode}
                     onChange={(e) => setViewMode(e.target.value as "teams" | "players" | "betting")}

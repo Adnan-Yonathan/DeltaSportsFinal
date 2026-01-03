@@ -220,6 +220,8 @@ export async function getGameRecommendations(
       value.toLowerCase().replace(/[^a-z0-9]/g, '')
     const canReuseMatchup =
       precomputedMatchup &&
+      precomputedMatchup.homeTeam.stats &&
+      precomputedMatchup.awayTeam.stats &&
       normalizeKey(precomputedMatchup.homeTeam.name) === normalizeKey(homeTeam) &&
       normalizeKey(precomputedMatchup.awayTeam.name) === normalizeKey(awayTeam)
 

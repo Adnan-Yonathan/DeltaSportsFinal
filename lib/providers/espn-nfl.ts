@@ -136,6 +136,37 @@ export const fetchTeamStatistics = async (
   return fetchJson<EspnStatsResponse>(url)
 }
 
+export const fetchTeamRecord = async (
+  teamId: string,
+  season = getCurrentSeason(),
+  seasonType = 2
+): Promise<Partial<EspnTeamMeta> | null> => {
+  const url = `${ESPN_CORE_BASE}/seasons/${season}/types/${seasonType}/teams/${teamId}/record`
+  const data = await fetchJson<any>(url)
+  const item = data?.items?.[0]
+  const stats = item?.stats ?? []
+  if (!stats.length) return null
+
+  const pick = (name: string) => stats.find((s: any) => s.name === name)?.value
+  const wins = pick('wins')
+  const losses = pick('losses')
+  const pointsFor = pick('pointsFor')
+  const pointsAgainst = pick('pointsAgainst')
+  const avgPointsFor = pick('avgPointsFor')
+  const avgPointsAgainst = pick('avgPointsAgainst')
+
+  return {
+    recordSummary: typeof item?.summary === 'string' ? item.summary : undefined,
+    wins: typeof wins === 'number' ? wins : undefined,
+    losses: typeof losses === 'number' ? losses : undefined,
+    pointsFor: typeof pointsFor === 'number' ? pointsFor : undefined,
+    pointsAgainst: typeof pointsAgainst === 'number' ? pointsAgainst : undefined,
+    avgPointsFor: typeof avgPointsFor === 'number' ? avgPointsFor : undefined,
+    avgPointsAgainst:
+      typeof avgPointsAgainst === 'number' ? avgPointsAgainst : undefined,
+  }
+}
+
 export const fetchAthleteStatistics = async (
   athleteId: string,
   season = getCurrentSeason(),

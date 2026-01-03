@@ -1,0 +1,210 @@
+{
+  "eventId": "401810350",
+  "league": "nba",
+  "leagueLabel": "NBA",
+  "updatedAt": "2026-01-03T12:47:20.317Z",
+  "statusText": "1/4 - 3:00 PM EST",
+  "status": {
+    "type": {
+      "state": "pre",
+      "detail": "Sun, January 4th at 3:00 PM EST",
+      "shortDetail": "1/4 - 3:00 PM EST",
+      "completed": false
+    }
+  },
+  "venue": "Kia Center",
+  "teams": [
+    {
+      "id": "19",
+      "name": "Orlando Magic",
+      "abbreviation": "ORL",
+      "homeAway": "home",
+      "logo": "https://a.espncdn.com/i/teamlogos/nba/500/orl.png",
+      "score": 0,
+      "linescore": [],
+      "statistics": [
+        {
+          "label": "Streak",
+          "value": "L1",
+          "name": "streak",
+          "abbreviation": "STRK"
+        },
+        {
+          "label": "Points Against",
+          "value": "115.1",
+          "name": "avgPointsAgainst",
+          "abbreviation": "OPP PPG"
+        },
+        {
+          "label": "Last Ten Games",
+          "value": "4-6",
+          "name": "Last Ten Games",
+          "abbreviation": "L10"
+        },
+        {
+          "label": "Points Per Game",
+          "value": "116.5",
+          "name": "avgPoints",
+          "abbreviation": "PTS"
+        },
+        {
+          "label": "Field Goal %",
+          "value": "47",
+          "name": "fieldGoalPct",
+          "abbreviation": "FG%"
+        },
+        {
+          "label": "Three Point %",
+          "value": "34",
+          "name": "threePointFieldGoalPct",
+          "abbreviation": "3P%"
+        },
+        {
+          "label": "Rebounds Per Game",
+          "value": "44.7",
+          "name": "avgRebounds",
+          "abbreviation": "REB"
+        },
+        {
+          "label": "Assists Per Game",
+          "value": "26.1",
+          "name": "avgAssists",
+          "abbreviation": "AST"
+        },
+        {
+          "label": "Blocks Per Game",
+          "value": "5.2",
+          "name": "avgBlocks",
+          "abbreviation": "BLK"
+        },
+        {
+          "label": "Steals Per Game",
+          "value": "8.3",
+          "name": "avgSteals",
+          "abbreviation": "STL"
+        },
+        {
+          "label": "Team Turnovers Per Game",
+          "value": "0.4",
+          "name": "avgTeamTurnovers",
+          "abbreviation": "TTO"
+        },
+        {
+          "label": "Total Turnovers Per Game",
+          "value": "13.9",
+          "name": "avgTotalTurnovers",
+          "abbreviation": "ToTO"
+        }
+      ],
+      "starters": [],
+      "bench": [],
+      "offense": [],
+      "defense": [],
+      "specialTeams": [],
+      "forwards": [],
+      "defensemen": [],
+      "goalies": []
+    },
+    {
+      "id": "11",
+      "name": "Indiana Pacers",
+      "abbreviation": "IND",
+      "homeAway": "away",
+      "logo": "https://a.espncdn.com/i/teamlogos/nba/500/ind.png",
+      "score": 0,
+      "linescore": [],
+      "statistics": [
+        {
+          "label": "Streak",
+          "value": "L11",
+          "name": "streak",
+          "abbreviation": "STRK"
+        },
+        {
+          "label": "Points Against",
+          "value": "119.3",
+          "name": "avgPointsAgainst",
+          "abbreviation": "OPP PPG"
+        },
+        {
+          "label": "Last Ten Games",
+          "value": "0-10",
+          "name": "Last Ten Games",
+          "abbreviation": "L10"
+        },
+        {
+          "label": "Points Per Game",
+          "value": "110.1",
+          "name": "avgPoints",
+          "abbreviation": "PTS"
+        },
+        {
+          "label": "Field Goal %",
+          "value": "44",
+          "name": "fieldGoalPct",
+          "abbreviation": "FG%"
+        },
+        {
+          "label": "Three Point %",
+          "value": "33",
+          "name": "threePointFieldGoalPct",
+          "abbreviation": "3P%"
+        },
+        {
+          "label": "Rebounds Per Game",
+          "value": "42.8",
+          "name": "avgRebounds",
+          "abbreviation": "REB"
+        },
+        {
+          "label": "Assists Per Game",
+          "value": "23.9",
+          "name": "avgAssists",
+          "abbreviation": "AST"
+        },
+        {
+          "label": "Blocks Per Game",
+          "value": "5.1",
+          "name": "avgBlocks",
+          "abbreviation": "BLK"
+        },
+        {
+          "label": "Steals Per Game",
+          "value": "7.3",
+          "name": "avgSteals",
+          "abbreviation": "STL"
+        },
+        {
+          "label": "Team Turnovers Per Game",
+          "value": "0.6",
+          "name": "avgTeamTurnovers",
+          "abbreviation": "TTO"
+        },
+        {
+          "label": "Total Turnovers Per Game",
+          "value": "14.1",
+          "name": "avgTotalTurnovers",
+          "abbreviation": "ToTO"
+        }
+      ],
+      "starters": [],
+      "bench": [],
+      "offense": [],
+      "defense": [],
+      "specialTeams": [],
+      "forwards": [],
+      "defensemen": [],
+      "goalies": []
+    }
+  ],
+  "articles": [
+    {
+      "type": "pregame",
+      "title": "Indiana takes on Orlando, aims to stop 11-game slide",
+      "url": "http://www.espn.com/nba/preview?gameId=401810350",
+      "published": "2026-01-03T07:05:13.000Z",
+      "image": "https://s.espncdn.com/stitcher/sports/basketball/nba/events/401810350.png?templateId=espn.applewatch.awayhome.1"
+    }
+  ],
+  "plays": []
+}

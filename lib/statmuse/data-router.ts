@@ -8,6 +8,7 @@ import type { Sport, ToolResult } from './types'
 import { executeStaticTeamStats, executeStaticPlayerStats, getLeagueAverage, getTeamStatRank, getPlayerLeaderboard } from './static-data-tools'
 import { analyzeTeamSchedule } from './schedule-analyzer'
 import { runWebSearchResponse } from '@/lib/ai-gateway-client'
+import { getTeamStats as getSportsTeamStats } from '@/lib/sports-stats-api'
 import {
   getTeams,
   getTeamSeasonStats,
@@ -376,12 +377,33 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
       // ========================================
       case 'getEspnTeamStats': {
         const sport = (args.sport || 'nba') as SportKey
-        const teamId = await findTeamId(args.team, sport)
-        if (!teamId) {
-          result = { error: `Team "${args.team}" not found` }
+        if (sport === 'nfl') {
+          let teamName = args.team
+          if (/^\d+$/.test(teamName)) {
+            const teams = await getTeams('nfl')
+            const match = teams.find((team: any) => String(team?.id) === teamName)
+            teamName = match?.displayName || match?.name || teamName
+          }
+          const teams = await getSportsTeamStats('americanfootball_nfl', teamName)
+          if (!teams.length) {
+            result = { error: `Team "${args.team}" not found` }
+          } else {
+            const team = teams[0]
+            result = {
+              team: team.team,
+              record: `${team.wins}-${team.losses}`,
+              stats: team.stats,
+              source: 'record+team-stats',
+            }
+          }
         } else {
-          const season = getCurrentSeason(sport)
-          result = await getTeamSeasonStats(sport, teamId, season)
+          const teamId = await findTeamId(args.team, sport)
+          if (!teamId) {
+            result = { error: `Team "${args.team}" not found` }
+          } else {
+            const season = getCurrentSeason(sport)
+            result = await getTeamSeasonStats(sport, teamId, season)
+          }
         }
         break
       }

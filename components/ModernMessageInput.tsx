@@ -122,7 +122,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
         shouldRedirectToPricing = true
       } else if (error.status === 429) {
         // Rate limit reached (Pro tier)
-        errorMessage = error.message || 'Daily message limit reached. Upgrade to Unlimited for unrestricted access!'
+        errorMessage = error.message || 'Daily message limit reached. Upgrade to Sharp or Syndicate for unrestricted access!'
         shouldRedirectToPricing = true
       } else if (error.message) {
         errorMessage = error.message

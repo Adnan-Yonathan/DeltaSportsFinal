@@ -8724,7 +8724,7 @@ ${statsEnrichment}
           let splits: any = null
           try {
             const { getCurrentBettingSplits } = await import('@/lib/providers/covers')
-            const splitsResult = await getCurrentBettingSplits(sportKey)
+            const splitsResult = await withTimeout(getCurrentBettingSplits(sportKey), 4000)
             if (splitsResult.success && splitsResult.data) {
               splits = splitsResult.data.find((s: any) =>
                 matchesGame(s.homeTeam || '', s.awayTeam || '', teamA, teamB)
@@ -8942,7 +8942,10 @@ ${statsEnrichment}
           try {
             const league = resolveSbdLeague(sportKey)
             if (league) {
-              edgeResult = await detectEdgeForGame(league, `${awayTeam} @ ${homeTeam}`)
+              edgeResult = await withTimeout(
+                detectEdgeForGame(league, `${awayTeam} @ ${homeTeam}`),
+                4000
+              )
             }
           } catch (err) {
             console.log('[EFFICIENT_ANALYSIS] Edge detection error:', err)

@@ -34,8 +34,8 @@ export interface CrossMarketEVOptions {
 
 const DEFAULT_OPTIONS: Required<CrossMarketEVOptions> = {
   sports: [SPORTS.NBA, SPORTS.NCAA_BB, SPORTS.NFL, SPORTS.MLB, SPORTS.NHL],
-  minEV: 3, // 3% for team markets
-  minPropEV: 3, // 3% for player props
+  minEV: 2.5, // 2.5% for team markets
+  minPropEV: 2.5, // 2.5% for player props
   minBooks: 2,
   markets: [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS],
   limit: 50, // Increased limit
@@ -46,7 +46,7 @@ const DEFAULT_OPTIONS: Required<CrossMarketEVOptions> = {
   timeZone: 'America/New_York',
 }
 
-const MAX_POSITIVE_ODDS = 500
+const MAX_POSITIVE_ODDS = 1000
 const MAX_ODDS = 1000
 
 const withinOddsCaps = (odds: number): boolean => {

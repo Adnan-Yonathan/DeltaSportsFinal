@@ -7369,8 +7369,8 @@ export async function POST(req: NextRequest) {
         const sportsToScan = sportHint ? [sportHint] : undefined // undefined = use default (all sports)
         console.log(`[CROSS-MARKET-EV] Intent detected, scanning ${sportsToScan ? sportsToScan.join(', ') : 'all sports'} for +EV opportunities...`)
         const evOptions = {
-          minEV: 3, // 3% for team markets
-          minPropEV: 3, // 3% for player props
+          minEV: 2.5, // 2.5% for team markets
+          minPropEV: 2.5, // 2.5% for player props
           minBooks: 2,
           limit: 50,
           includeProps: true,

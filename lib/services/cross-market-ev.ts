@@ -6,7 +6,7 @@
  */
 
 import { fetchOdds } from '@/lib/api/odds-api'
-import { fetchSbdGamePropsList, type SbdLeague } from '@/lib/api/sbd'
+import { fetchSbdGamePropsList, fetchSbdPlayerProps, type SbdLeague } from '@/lib/api/sbd'
 import { OddsGame, Bookmaker, OddsMarket, OddsOutcome, MARKETS, SPORTS } from '@/lib/types/odds'
 import {
   BookOdds,
@@ -27,6 +27,9 @@ export interface CrossMarketEVOptions {
   limit?: number // Max opportunities to return
   includeProps?: boolean // Include player props (today only)
   propMarkets?: string[] // Which prop markets to include
+  slateMode?: 'today' | 'next' | 'all' // Team market filtering mode
+  date?: string // Optional YYYY-MM-DD override (America/New_York)
+  timeZone?: string // Timezone for date filtering (default America/New_York)
 }
 
 const DEFAULT_OPTIONS: Required<CrossMarketEVOptions> = {
@@ -38,6 +41,9 @@ const DEFAULT_OPTIONS: Required<CrossMarketEVOptions> = {
   limit: 50, // Increased limit
   includeProps: true,
   propMarkets: [], // Empty = all markets
+  slateMode: 'next',
+  date: '',
+  timeZone: 'America/New_York',
 }
 
 const MAX_POSITIVE_ODDS = 500
@@ -55,6 +61,72 @@ const average = (values: number[]): number =>
 
 const buildSelectionKey = (outcome: OddsOutcome): string =>
   outcome.point !== undefined ? `${outcome.name}_${outcome.point}` : outcome.name
+
+const resolveDateRange = (opts: { date?: string; timeZone: string }) => {
+  const now = new Date()
+  if (opts.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date)) {
+    const start = new Date(`${opts.date}T00:00:00-05:00`)
+    const end = new Date(`${opts.date}T23:59:59-05:00`)
+    return { start, end }
+  }
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: opts.timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const [month, day, year] = formatter.format(now).split('/')
+  const today = `${year}-${month}-${day}`
+  const start = new Date(`${today}T00:00:00-05:00`)
+  const end = new Date(`${today}T23:59:59-05:00`)
+  return { start, end }
+}
+
+const buildDateKey = (value: Date, timeZone: string) =>
+  new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .format(value)
+    .split('/')
+    .reverse()
+    .join('-')
+
+const filterGamesForSlate = (
+  games: OddsGame[],
+  opts: { date?: string; timeZone: string; mode: 'today' | 'next' }
+): OddsGame[] => {
+  if (opts.mode === 'today') {
+    const { start, end } = resolveDateRange(opts)
+    return games.filter((game) => {
+      const gameTime = new Date(game.commence_time)
+      if (!Number.isFinite(gameTime.getTime())) return false
+      return gameTime >= start && gameTime <= end
+    })
+  }
+
+  const now = new Date()
+  const windowStart = new Date(now.getTime() - 3 * 60 * 60 * 1000)
+  const candidates = games
+    .map((game) => ({ game, time: new Date(game.commence_time) }))
+    .filter(({ time }) => Number.isFinite(time.getTime()) && time >= windowStart)
+  if (opts.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date)) {
+    return candidates
+      .filter(({ time }) => buildDateKey(time, opts.timeZone) === opts.date)
+      .map(({ game }) => game)
+  }
+  if (candidates.length === 0) return []
+
+  const earliest = candidates.reduce((min, entry) =>
+    entry.time < min.time ? entry : min
+  )
+  const targetDate = buildDateKey(earliest.time, opts.timeZone)
+  return candidates
+    .filter(({ time }) => buildDateKey(time, opts.timeZone) === targetDate)
+    .map(({ game }) => game)
+}
 
 const buildNoVigConsensusBySelection = (
   bookmakers: Bookmaker[],
@@ -110,7 +182,7 @@ const SPORT_PROP_MARKETS: Partial<Record<SbdLeague, string[]>> = {
   nba: ['points', 'rebounds', 'assists', 'threes', 'steals', 'blocks', 'pra', 'points_rebounds', 'points_assists', 'rebounds_assists', 'blocks_steals'],
   nfl: ['passing_yards', 'passing_touchdowns', 'passing_completions', 'passing_attempts', 'interceptions', 'rushing_yards', 'rushing_touchdowns', 'receiving_yards', 'receptions', 'receiving_touchdowns', 'anytime_td', 'carries', 'longest_rush', 'longest_reception', 'longest_completion'],
   mlb: ['hits', 'total_bases', 'rbis', 'runs', 'strikeouts', 'home_runs'],
-  nhl: ['points', 'goals', 'assists', 'shots', 'blocked_shots', 'saves', 'powerplay_points'],
+  nhl: ['points', 'goals', 'assists', 'shots_on_goal', 'blocked_shots', 'saves', 'powerplay_points'],
   ncaamb: ['points', 'rebounds', 'assists', 'threes'],
   ncaafb: ['passing_yards', 'rushing_yards', 'receiving_yards', 'touchdowns'],
 }
@@ -136,9 +208,19 @@ export async function findEVOpportunities(
   })
 
   const results = await Promise.all(sportPromises)
+  const filteredResults = results.map(({ sport, games }) => {
+    if (opts.slateMode === 'all') return { sport, games }
+    const mode = opts.slateMode === 'today' ? 'today' : 'next'
+    const filtered = filterGamesForSlate(games, {
+      date: opts.date || undefined,
+      timeZone: opts.timeZone,
+      mode,
+    })
+    return { sport, games: filtered }
+  })
 
   // Debug: Log what we got
-  for (const { sport, games } of results) {
+  for (const { sport, games } of filteredResults) {
     console.log(`[CROSS-MARKET-EV] ${sport}: ${games.length} games`)
     if (games.length > 0) {
       const sample = games[0]
@@ -147,7 +229,7 @@ export async function findEVOpportunities(
   }
 
   // Analyze each game for team markets
-  for (const { sport, games } of results) {
+  for (const { games } of filteredResults) {
     for (const game of games) {
       const gameOpps = analyzeGameForEV(game, opts.minEV, opts.minBooks, opts.markets)
       if (gameOpps.length > 0) {
@@ -358,8 +440,8 @@ function normalizeMarketKey(value: string): string {
 
   // NHL props
   if (cleaned.includes('power play points') || cleaned.includes('powerplay points')) return 'powerplay_points'
-  if (cleaned.includes('shots on goal')) return 'shots'
-  if (cleaned.includes('total shots') || (cleaned.includes('shots') && !cleaned.includes('blocked'))) return 'shots'
+  if (cleaned.includes('shots on goal') || cleaned.includes('shots on goal')) return 'shots_on_goal'
+  if (cleaned.includes('total shots') || (cleaned.includes('shots') && !cleaned.includes('blocked'))) return 'shots_on_goal'
   if (cleaned.includes('blocked shots')) return 'blocked_shots'
   if (cleaned.includes('saves')) return 'saves'
   if (cleaned.includes('goals')) return 'goals'
@@ -387,6 +469,102 @@ function parseOddsValue(value: any): number | null {
   return Math.round(parsed)
 }
 
+const buildGamePropsEntriesFromSbdPlayerProps = (payload: any): any[] => {
+  const items = Array.isArray(payload?.data)
+    ? payload.data
+    : Array.isArray(payload)
+      ? payload
+      : []
+  const entries: any[] = []
+
+  for (const item of items) {
+    const playerName = item?.player?.name
+    if (!playerName) continue
+    const teamName = item?.player?.team_name || ''
+    const competition = item?.competition || {}
+    const markets = Array.isArray(item?.markets) ? item.markets : []
+
+    for (const market of markets) {
+      const marketName = market?.name || ''
+      const books = Array.isArray(market?.books) ? market.books : []
+      const sportsbooks: any[] = []
+
+      for (const book of books) {
+        const outcomes = Array.isArray(book?.outcomes) ? book.outcomes : []
+        const overOutcome = outcomes.find((o: any) => o?.type === 'over')
+        const underOutcome = outcomes.find((o: any) => o?.type === 'under')
+        if (!overOutcome && !underOutcome) continue
+
+        const total = overOutcome?.total ?? underOutcome?.total
+        sportsbooks.push({
+          name: book?.name,
+          odds: {
+            over_american: overOutcome?.odds_american,
+            under_american: underOutcome?.odds_american,
+            over_points: total,
+            under_points: total,
+          },
+          over_points: total,
+          under_points: total,
+        })
+      }
+
+      if (sportsbooks.length === 0) continue
+
+      entries.push({
+        player_name: playerName,
+        player: { name: playerName, team: teamName },
+        name: marketName,
+        sportsbooks,
+        sport_event: { id: competition?.id },
+        competition,
+      })
+    }
+  }
+
+  return entries
+}
+
+const resolvePropLine = (
+  odds: any,
+  sportsbook: any
+): number => {
+  const line =
+    odds?.over_points ??
+    odds?.under_points ??
+    odds?.over_goals ??
+    odds?.under_goals ??
+    odds?.over_assists ??
+    odds?.under_assists ??
+    odds?.over_shots_on_goal ??
+    odds?.under_shots_on_goal ??
+    odds?.over_shots ??
+    odds?.under_shots ??
+    odds?.over_blocked_shots ??
+    odds?.under_blocked_shots ??
+    odds?.over_saves ??
+    odds?.under_saves ??
+    odds?.over_powerplay_points ??
+    odds?.under_powerplay_points ??
+    sportsbook?.over_points ??
+    sportsbook?.under_points ??
+    sportsbook?.over_goals ??
+    sportsbook?.under_goals ??
+    sportsbook?.over_assists ??
+    sportsbook?.under_assists ??
+    sportsbook?.over_shots_on_goal ??
+    sportsbook?.under_shots_on_goal ??
+    sportsbook?.over_shots ??
+    sportsbook?.under_shots ??
+    sportsbook?.over_blocked_shots ??
+    sportsbook?.under_blocked_shots ??
+    sportsbook?.over_saves ??
+    sportsbook?.under_saves ??
+    sportsbook?.over_powerplay_points ??
+    sportsbook?.under_powerplay_points
+  return Number(line)
+}
+
 /**
  * Find +EV opportunities in player props (today's games only)
  */
@@ -404,7 +582,7 @@ async function findPlayerPropEVOpportunities(
   const propsLeagues: SbdLeague[] = sports
     .map((s) => SPORT_TO_SBD_LEAGUE[s])
     .filter((league): league is SbdLeague =>
-      league != null && ['nba', 'nfl', 'nhl'].includes(league)
+      league != null && ['nba', 'nfl', 'nhl', 'ncaamb'].includes(league)
     )
 
   console.log(`[CROSS-MARKET-EV] Checking props for leagues: ${propsLeagues.join(', ')}`)
@@ -413,15 +591,23 @@ async function findPlayerPropEVOpportunities(
     try {
       console.log(`[CROSS-MARKET-EV] Fetching player props for ${league}...`)
 
-      // Fetch player props from SBD using the game props list API
-      // Note: NFL/NHL APIs don't support the limit parameter (returns 500 error)
-      // NBA supports limit up to 500
-      const propsData = await fetchSbdGamePropsList(league, {
-        ...(league === 'nba' ? { limit: 500 } : {}),
-      })
+      // Fetch player props from SBD. NHL uses the player-props endpoint.
+      const propsData =
+        league === 'nhl'
+          ? await fetchSbdPlayerProps(league, { limit: 1000 })
+          : await fetchSbdGamePropsList(league, {
+              ...(league === 'nba' ? { limit: 500 } : {}),
+            })
 
       // Handle response format
-      const props = Array.isArray(propsData) ? propsData : Array.isArray(propsData?.data) ? propsData.data : []
+      const props =
+        league === 'nhl'
+          ? buildGamePropsEntriesFromSbdPlayerProps(propsData)
+          : Array.isArray(propsData)
+            ? propsData
+            : Array.isArray(propsData?.data)
+              ? propsData.data
+              : []
 
       console.log(`[CROSS-MARKET-EV] Props response for ${league}: ${props.length} entries`)
 
@@ -481,12 +667,7 @@ async function findPlayerPropEVOpportunities(
           const underOdds = parseOddsValue(
             odds?.under_american ?? odds?.under_decimal ?? sportsbook?.under_odds
           )
-          const line = Number(
-            odds?.over_points ??
-              odds?.under_points ??
-              sportsbook?.over_points ??
-              sportsbook?.under_points
-          )
+          const line = resolvePropLine(odds, sportsbook)
 
           if (Number.isFinite(line)) {
             if (!oddsByLine.has(line)) {

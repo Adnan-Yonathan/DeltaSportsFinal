@@ -2913,8 +2913,9 @@ export async function POST(req: NextRequest) {
       /\bcross.?market\s*(ev|value)\b/i.test(message) ||
       /\b(ev|expected\s+value)\s*opportunit/i.test(message) ||
       /\bbooks?\s+(disagree|different|vary)/i.test(message) ||
-      /\b(find|show|get)\s*(me\s*)?\+?ev\s*(plays?|bets?|opportunit)?\b/i.test(message) ||
-      /\bvalue\s+plays?\s+(across|between)\s+books?\b/i.test(message)
+      /\b(find|show|get)\s*(me\s*)?\+?ev\s*(plays?|bets?|opportunit|props?)?\b/i.test(message) ||
+      /\bvalue\s+plays?\s+(across|between)\s+books?\b/i.test(message) ||
+      /\b(?:ev|expected\s+value)\b/i.test(message)
 
     // Skip unified pipeline for:
     // - Explicit odds/betting line requests (need real-time odds)

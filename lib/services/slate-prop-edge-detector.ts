@@ -127,12 +127,31 @@ const MARKET_TO_SBD_PROP: Record<string, string | undefined> = {
 const EXCLUDED_BOOKS = new Set(['consensus', 'prizepicks', 'thrivefantasy', 'sleeper'])
 const PREFERRED_BOOKS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Bet365', 'Pinnacle']
 const PROP_EDGE_THRESHOLDS = { soft: 3, strong: 7 }
+// Base line delta thresholds by sport (for yardage props)
 const PROP_LINE_DELTA: Record<string, number> = {
   basketball_nba: 2,
   basketball_ncaab: 1.5,
   americanfootball_nfl: 10,
   americanfootball_ncaaf: 12,
   icehockey_nhl: 0.5,
+}
+
+// Market-specific line delta thresholds (overrides sport default)
+const MARKET_LINE_DELTA: Record<string, number> = {
+  // NFL counting stats need lower thresholds
+  receptions: 0.5,
+  passing_touchdowns: 0.3,
+  rushing_touchdowns: 0.3,
+  receiving_touchdowns: 0.3,
+  interceptions: 0.3,
+  // NBA
+  threes: 0.5,
+  blocks: 0.3,
+  steals: 0.3,
+  // NHL
+  goals: 0.3,
+  assists: 0.3,
+  points: 0.5,
 }
 
 type LeagueAverages = {
@@ -159,6 +178,22 @@ type LineBucket = {
 
 const normalizeToken = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]+/g, '')
+
+/**
+ * Normalize player name from "Last, First" to "First Last" format
+ * SBD returns names in "Last, First" format which doesn't match ESPN lookups
+ */
+const normalizePlayerName = (name: string): string => {
+  if (!name) return name
+  // Check for "Last, First" format
+  if (name.includes(',')) {
+    const parts = name.split(',').map(p => p.trim())
+    if (parts.length >= 2) {
+      return `${parts[1]} ${parts[0]}`
+    }
+  }
+  return name
+}
 
 const toNumber = (value: unknown): number | null => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null
@@ -1179,6 +1214,7 @@ export async function analyzeSlatePropEdges(
     minBooks?: number
     markets?: string[]
     date?: string // YYYY-MM-DD (America/New_York)
+    teams?: string[] // Filter to specific teams (e.g., ["Lakers", "Celtics"] for a matchup)
   } = {}
 ): Promise<SlatePropEdgeResult> {
   const {
@@ -1187,6 +1223,7 @@ export async function analyzeSlatePropEdges(
     minEdge,
     minBooks = 2,
     date,
+    teams,
   } = options
   const sportLabel =
     sportKey === 'basketball_ncaab'
@@ -1260,9 +1297,30 @@ export async function analyzeSlatePropEdges(
       ? (propEntries as any).data
       : []
   const targetDate = resolveDateFilter(date)
-  const filteredEntries = targetDate
+  let filteredEntries = targetDate
     ? entries.filter((entry: any) => entryMatchesDate(entry, targetDate))
     : entries
+
+  // Filter by teams if specified (for matchup-specific queries)
+  if (teams && teams.length > 0) {
+    const normalizedTeams = teams.map((t) => normalizeToken(t))
+    filteredEntries = filteredEntries.filter((entry: any) => {
+      const homeTeam = normalizeToken(entry?.home_team?.name || '')
+      const awayTeam = normalizeToken(entry?.away_team?.name || '')
+      const playerTeam = normalizeToken(entry?.player?.team || entry?.team || '')
+      // Check if either team in the matchup matches any of the requested teams
+      return normalizedTeams.some(
+        (t) =>
+          homeTeam.includes(t) ||
+          t.includes(homeTeam) ||
+          awayTeam.includes(t) ||
+          t.includes(awayTeam) ||
+          playerTeam.includes(t) ||
+          t.includes(playerTeam)
+      )
+    })
+    console.log(`[SLATE PROP] Filtered to ${filteredEntries.length} entries for teams: ${teams.join(', ')}`)
+  }
 
   const edges: PlayerPropEdge[] = []
   let strongEdges = 0
@@ -1270,8 +1328,11 @@ export async function analyzeSlatePropEdges(
   let noEdges = 0
 
   for (const entry of filteredEntries) {
-    const playerName = entry?.player_name || entry?.player?.name
-    if (!playerName) continue
+    const rawPlayerName = entry?.player_name || entry?.player?.name
+    if (!rawPlayerName) continue
+
+    // Normalize player name from "Last, First" to "First Last" format
+    const playerName = normalizePlayerName(rawPlayerName)
 
     const market = normalizeSbdPropName(entry?.name || '')
     if (marketKeys.length && !marketKeys.includes(market)) continue
@@ -1371,7 +1432,8 @@ export async function analyzeSlatePropEdges(
 
     const lineDelta = projection - primary.line
     const edgePoints = direction === 'over' ? lineDelta : -lineDelta
-    const lineDeltaThreshold = PROP_LINE_DELTA[sportKey] ?? 2
+    // Use market-specific threshold if available, otherwise fall back to sport default
+    const lineDeltaThreshold = MARKET_LINE_DELTA[market] ?? PROP_LINE_DELTA[sportKey] ?? 2
     const recentOverHitRate = computeHitRate(recentValues, primary.line, 'over')
     const recentUnderHitRate = computeHitRate(recentValues, primary.line, 'under')
 

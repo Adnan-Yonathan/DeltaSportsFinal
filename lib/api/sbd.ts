@@ -662,12 +662,9 @@ export async function fetchSbdGamePropsList(
   league: SbdLeague,
   opts: { limit?: number; props?: string[]; matchups?: string[]; books?: string[]; init?: RequestInit } = {}
 ): Promise<any> {
-  const params = new URLSearchParams()
-  if (opts.limit) params.set('limit', String(opts.limit))
-  if (opts.props && opts.props.length) params.set('props', opts.props.join(','))
-  if (opts.matchups && opts.matchups.length) params.set('matchups', opts.matchups.join(','))
-  if (opts.books && opts.books.length) params.set('books', opts.books.join(','))
-  const url = `${SBD_FUEL_BASE}/gameprops/${league}/list?${params.toString()}`
+  // Note: SBD fuel API doesn't support limit/props/matchups params - they cause 500 errors
+  // Fetch all and filter client-side
+  const url = `${SBD_FUEL_BASE}/gameprops/${league}/list`
   const res = await fetch(url, opts.init)
   if (!res.ok) {
     const bodyText = await res.text().catch(() => '')
@@ -676,7 +673,18 @@ export async function fetchSbdGamePropsList(
       res.status
     )
   }
-  return res.json()
+  const data = await res.json()
+
+  // Apply client-side filtering if props filter specified
+  if (opts.props && opts.props.length && Array.isArray(data)) {
+    const propsSet = new Set(opts.props.map(p => p.toLowerCase()))
+    return data.filter((entry: any) => {
+      const entryName = (entry?.name || '').toLowerCase()
+      return propsSet.has(entryName) || opts.props!.some(p => entryName.includes(p.toLowerCase()))
+    })
+  }
+
+  return data
 }
 
 export async function fetchSbdTrends(

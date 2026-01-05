@@ -517,13 +517,22 @@ Returns summary of games analyzed with strong/soft/no edges and line gaps.`,
       name: 'get_slate_prop_edge_detection',
       description: `SLATE-WIDE prop edge detection - analyzes ALL player props for a sport's slate to find the best prop edges across the ENTIRE slate. This is for MULTI-GAME prop scanning, NOT single player requests.
 
-TRIGGER PHRASES (use this tool when user says):
-- "best props tonight/today"
-- "prop edges for the slate"
-- "run prop edge detection on nba/ncaab/nfl/ncaaf/nhl"
-- "scan the slate for props"
+SUPPORTED SPORTS: NBA, NCAAB, NFL, NCAAF, NHL
 
-Returns summary of props analyzed with strong/soft/no edges and line gaps.`,
+TRIGGER PHRASES (use this tool when user says):
+- "best props tonight/today" (for any sport)
+- "best NFL props today" / "best NBA props tonight" / "best NHL props"
+- "prop edges for the slate"
+- "what are the best player props for NFL/NBA/NHL"
+- "find prop edges in football/basketball/hockey"
+- "run prop edge detection"
+- "scan the slate for props"
+- "best props for tonight's games"
+- "which props should I bet on today"
+- "best props in Lakers vs Celtics" / "props for Chiefs vs Bills" (matchup-specific - use teams filter)
+- "player props for the Nuggets game"
+
+Returns model projections vs market lines with edge ratings (strong/soft).`,
       parameters: {
         type: 'object',
         properties: {
@@ -552,6 +561,12 @@ Returns summary of props analyzed with strong/soft/no edges and line gaps.`,
             items: { type: 'string' },
             description:
               'Optional filter for prop markets (e.g., points, rebounds, assists, threes, pra, passing_yards, rushing_yards, receiving_yards, goals, shots)',
+          },
+          teams: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Filter to specific matchup by team names (e.g., ["Lakers", "Celtics"] for Lakers vs Celtics game). Supports partial team name matching.',
           },
           date: {
             type: 'string',
@@ -650,23 +665,35 @@ Returns projected live spread with confidence level and supporting factors like 
     function: {
       name: 'get_ranked_players_by_prop_threshold',
       description: `Rank players by probability of hitting a specific prop threshold. Uses statistical probability models with matchup adjustments (opponent defense, pace, home/away, rest) to find who is most likely to hit over a given number.
+
+SUPPORTED SPORTS: NBA, NFL, NHL
+
 Use for:
-- "Which player is most likely to hit 2+ threes?"
-- "Who has the best chance of scoring 25+ points?"
-- "Top 10 players most likely to grab 10+ rebounds"
-- "Rank players by likelihood of hitting 3 assists"
-- "Best three-point shooters to go over 2.5 threes"
+- "Which player is most likely to hit 2+ threes?" (NBA)
+- "Who has the best chance of scoring 25+ points?" (NBA)
+- "Top 10 players most likely to grab 10+ rebounds" (NBA)
+- "Rank players by likelihood of hitting 3 assists" (NBA)
+- "Best three-point shooters to go over 2.5 threes" (NBA)
+- "Which RB is most likely to rush for 100+ yards?" (NFL)
+- "Who has the best chance of 5+ receptions?" (NFL)
+- "Top players likely to score 1+ goals" (NHL)
+
 Returns ranked list with probability percentages and matchup adjustments. Only includes players from teams playing today by default.`,
       parameters: {
         type: 'object',
         properties: {
           propType: {
             type: 'string',
-            description: 'Type of prop: threes, points, rebounds, assists, PRA (points+rebounds+assists)'
+            description: 'Type of prop. NBA: threes, points, rebounds, assists, PRA. NFL: passing_yards, rushing_yards, receiving_yards, receptions, passing_td, rushing_td. NHL: goals, assists, points, shots.'
           },
           threshold: {
             type: 'number',
             description: 'The threshold number to hit or exceed (e.g., 2 for "2+ threes", 25 for "25+ points")'
+          },
+          sport: {
+            type: 'string',
+            enum: ['nba', 'nfl', 'nhl'],
+            description: 'Sport to analyze (default: nba). Use nfl for football, nhl for hockey.'
           },
           todayOnly: {
             type: 'boolean',
@@ -678,6 +705,48 @@ Returns ranked list with probability percentages and matchup adjustments. Only i
           }
         },
         required: ['propType', 'threshold']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_single_player_prop_probability',
+      description: `Calculate the probability of a SPECIFIC player hitting a prop threshold. Use this for individual player probability queries.
+
+SUPPORTED SPORTS: NBA, NFL, NHL
+
+TRIGGER PHRASES (use this tool when user says):
+- "What are the chances of LeBron scoring 30+ points?"
+- "Probability of Patrick Mahomes throwing 300+ yards"
+- "Will Jokic get 10+ rebounds?"
+- "Chances of McDavid scoring 2+ goals"
+- "How likely is Kelce to get 100+ receiving yards?"
+- "What's the probability of Curry hitting 5+ threes?"
+
+Returns season average, adjusted projection, probability percentage, and recommendation.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          playerName: {
+            type: 'string',
+            description: 'Full name of the player (e.g., "LeBron James", "Patrick Mahomes")'
+          },
+          propType: {
+            type: 'string',
+            description: 'Type of prop. NBA: threes, points, rebounds, assists, PRA. NFL: passing_yards, rushing_yards, receiving_yards, receptions, passing_td. NHL: goals, assists, points, shots.'
+          },
+          threshold: {
+            type: 'number',
+            description: 'The threshold number to hit or exceed (e.g., 30 for "30+ points")'
+          },
+          sport: {
+            type: 'string',
+            enum: ['nba', 'nfl', 'nhl'],
+            description: 'Sport (default: nba). Use nfl for football, nhl for hockey.'
+          }
+        },
+        required: ['playerName', 'propType', 'threshold']
       }
     }
   },
@@ -929,6 +998,7 @@ export const TOOL_NAMES = {
   SLATE_PROP_EDGE_DETECTION: 'get_slate_prop_edge_detection',
   PROP_RECOMMENDATIONS: 'get_prop_recommendations',
   PROP_THRESHOLD_RANKING: 'get_ranked_players_by_prop_threshold',
+  SINGLE_PLAYER_PROP_PROBABILITY: 'get_single_player_prop_probability',
   COMBO_ANALYSIS: 'combo_analysis',
   // Schedule
   SCHEDULE_CONTEXT: 'getTeamScheduleContext',

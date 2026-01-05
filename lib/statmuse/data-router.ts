@@ -833,11 +833,12 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
       }
 
       case 'get_slate_prop_edge_detection': {
-        const { sport = 'basketball_nba', minEdge, limit, markets, date } = args as {
+        const { sport = 'basketball_nba', minEdge, limit, markets, teams, date } = args as {
           sport?: 'basketball_nba' | 'basketball_ncaab' | 'americanfootball_nfl' | 'americanfootball_ncaaf' | 'icehockey_nhl'
           minEdge?: 'soft' | 'strong'
           limit?: number
           markets?: string[]
+          teams?: string[]
           date?: string
         }
         const supported = new Set([
@@ -860,10 +861,12 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
             limit,
             minEdge,
             markets,
+            teams,
             date,
           })
+          const teamsLabel = teams?.length ? ` for ${teams.join(' vs ')}` : ''
           result = {
-            message: `Analyzed ${propResult.propsAnalyzed} props for ${propResult.sportLabel}`,
+            message: `Analyzed ${propResult.propsAnalyzed} props for ${propResult.sportLabel}${teamsLabel}`,
             edges: propResult.edges,
             formatted: formatSlatePropEdgesForChat(propResult),
           }
@@ -907,30 +910,63 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
       }
 
       case 'get_ranked_players_by_prop_threshold': {
-        const { propType, threshold, todayOnly, limit } = args as {
+        const { propType, threshold, sport: argSport, todayOnly, limit } = args as {
           propType: string
           threshold: number
+          sport?: 'nba' | 'nfl' | 'nhl'
           todayOnly?: boolean
           limit?: number
         }
         const { getRankedPlayersByPropThreshold, formatRankedPlayersForChat } = await import(
           '@/lib/services/prop-threshold-ranker'
         )
+        const selectedSport = argSport || 'nba'
         const rankedPlayers = await getRankedPlayersByPropThreshold(propType, threshold, {
+          sport: selectedSport,
           todayOnly: todayOnly ?? true,
           limit: Math.min(limit ?? 20, 50),
         })
 
         if (!rankedPlayers || rankedPlayers.length === 0) {
           result = {
-            message: `No players found for ${propType} ≥ ${threshold}`,
+            message: `No ${selectedSport.toUpperCase()} players found for ${propType} ≥ ${threshold}`,
             players: [],
           }
         } else {
           result = {
-            message: `Found ${rankedPlayers.length} players ranked by probability of ${propType} ≥ ${threshold}`,
+            message: `Found ${rankedPlayers.length} ${selectedSport.toUpperCase()} players ranked by probability of ${propType} ≥ ${threshold}`,
             players: rankedPlayers,
-            formatted: formatRankedPlayersForChat(rankedPlayers, propType, threshold),
+            formatted: formatRankedPlayersForChat(rankedPlayers, propType, threshold, selectedSport),
+          }
+        }
+        break
+      }
+
+      case 'get_single_player_prop_probability': {
+        const { playerName, propType, threshold, sport: argSport } = args as {
+          playerName: string
+          propType: string
+          threshold: number
+          sport?: 'nba' | 'nfl' | 'nhl'
+        }
+        const { getSinglePlayerPropProbability, formatSinglePlayerPropForChat } = await import(
+          '@/lib/services/prop-threshold-ranker'
+        )
+        const selectedSport = argSport || 'nba'
+        const propResult = await getSinglePlayerPropProbability(playerName, propType, threshold, {
+          sport: selectedSport,
+        })
+
+        if (!propResult) {
+          result = {
+            message: `Could not find stats for ${playerName}. Make sure the player name is spelled correctly.`,
+            player: null,
+          }
+        } else {
+          result = {
+            message: `Calculated probability for ${playerName} ${propType} ${threshold}+`,
+            player: propResult,
+            formatted: formatSinglePlayerPropForChat(propResult),
           }
         }
         break

@@ -8,11 +8,11 @@ import { FeaturesChat } from "@/components/ui/features-chat"
 import { ComparisonSection } from "@/components/ui/comparison-section"
 import { HowWeHelpSection } from "@/components/ui/how-we-help-section"
 import { FAQSection } from "@/components/ui/faq-section"
-import Image from "next/image"
 import { SimpleHeader } from "@/components/ui/simple-header"
-import { AvatarCircles } from "@/components/ui/avatar-circles"
 import { DottedSurface } from "@/components/ui/dotted-surface"
 import { TextEffect } from "@/components/ui/text-effect"
+import { SportsbookTicker } from "@/components/ui/sportsbook-ticker"
+import { SocialProof } from "@/components/ui/social-proof"
 
 /** Delta Sports Landing Page - Revolut-inspired design */
 
@@ -166,57 +166,6 @@ function AIBrain() {
   )
 }
 
-function SportsbookTicker() {
-  const sportsbooks = [
-    { name: "FanDuel", logo: "https://logos-world.net/wp-content/uploads/2024/10/FanDuel-Logo-500x281.png" },
-    { name: "DraftKings", logo: "https://companieslogo.com/img/orig/DKNG_BIG-9bcdf411.png?t=1720244491" },
-    { name: "BetMGM", logo: "https://www.pngall.com/wp-content/uploads/17/BETMGM-Logo-Distinct-Design-PNG-thumb.png" },
-    { name: "Pinnacle", logo: "https://th.bing.com/th/id/R.38eec8450d7dc257896f7893d0a0fa68?rik=A1vhXbQI8R%2fzwA&riu=http%3a%2f%2fgruenzeug-graz.at%2fwp-content%2fuploads%2fpinnacle-sports-logo.png&ehk=Y%2bxlVb%2b6i9Seu4nSU2dXaouFXVbtFSztDndLfOB00zA%3d&risl=&pid=ImgRaw&r=0" },
-    { name: "Bovada", logo: "https://atlantapokerclub.com/wp-content/uploads/2018/12/reviews-bovada-logo.png" },
-    { name: "Fliff", logo: "https://hellorookie.com/wp-content/uploads/2023/08/Fliff-Logo-Light.png" },
-  ]
-
-  // Duplicate the array for seamless loop
-  const duplicatedBooks = [...sportsbooks, ...sportsbooks]
-
-  return (
-    <div className="relative overflow-hidden bg-transparent py-8">
-      <div className="absolute inset-0 bg-gradient-to-r from-black via-transparent to-black z-10 pointer-events-none" />
-      <motion.div
-        className="flex gap-12 items-center"
-        animate={{
-          x: [0, -50 * sportsbooks.length],
-        }}
-        transition={{
-          x: {
-            repeat: Infinity,
-            repeatType: "loop",
-            duration: 18,
-            ease: "linear",
-          },
-        }}
-      >
-        {duplicatedBooks.map((book, index) => (
-          <div key={index} className="flex-shrink-0 flex items-center gap-2 text-white font-semibold text-lg whitespace-nowrap">
-            {book.logo ? (
-              <div className="h-12 w-32 relative flex items-center justify-center">
-                <Image
-                  src={book.logo}
-                  alt={`${book.name} logo`}
-                  fill
-                  className="object-contain"
-                  sizes="128px"
-                />
-              </div>
-            ) : (
-              book.name
-            )}
-          </div>
-        ))}
-      </motion.div>
-    </div>
-  )
-}
 
 function PromoMockSection() {
   return (
@@ -296,13 +245,6 @@ function PromoMockSection() {
 }
 
 export default function LandingPage() {
-  const heroAvatarUrls = [
-    "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=120&q=80",
-    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=120&q=80",
-    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80",
-    "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=120&q=80",
-  ]
-
   return (
     <div
       className="relative min-h-screen w-full text-white"
@@ -382,44 +324,13 @@ export default function LandingPage() {
               </SoftButton>
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 2.0, duration: 0.5 }}
-              className="flex flex-col items-center gap-3"
-            >
-              <div className="flex flex-col sm:flex-row items-center gap-4">
-                <AvatarCircles avatarUrls={heroAvatarUrls} numPeople={126} />
-                <div className="text-center sm:text-left">
-                  <TextEffect
-                    per="char"
-                    preset="fade"
-                    delay={2.2}
-                    className="text-[0.75rem] uppercase tracking-[0.35em] text-white/70"
-                  >
-                    The sharps&rsquo; favorite new tool
-                  </TextEffect>
-                  <TextEffect
-                    per="word"
-                    preset="fade"
-                    delay={2.4}
-                    as="p"
-                    className="text-sm text-white"
-                  >
-                    Trusted by sharps and syndicates around the world.
-                  </TextEffect>
-                </div>
-              </div>
-            </motion.div>
+            <SocialProof animated={true} />
           </div>
         </div>
       </FadeInSection>
 
       {/* Sportsbook Ticker */}
       <FadeInSection className="w-full mb-12" delay={0.1}>
-        <div className="text-center mb-4">
-          <p className="text-sm text-white uppercase tracking-wider font-semibold">Compatible with All Sportsbooks</p>
-        </div>
         <SportsbookTicker />
       </FadeInSection>
 

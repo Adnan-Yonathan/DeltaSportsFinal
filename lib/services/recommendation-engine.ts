@@ -29,6 +29,16 @@ import {
   calculateStyleMatchupAdjustment,
   type MatchupAnalysis,
 } from './matchup-analyzer'
+import {
+  projectPlayerProp,
+  calculatePropProbability,
+  formatProjection,
+  type PropProjection,
+  type MatchupContext,
+  type SportKey,
+} from './player-prop-projector'
+import { fetchSbdGamePropsList, resolveSbdLeague } from '@/lib/api/sbd'
+import { oddsToImpliedProbability } from '@/lib/utils/statistics'
 import { getCbbAdvancedRatingsForTeam } from './cbb-advanced-ratings'
 import { resolveSportKey } from '@/lib/identity/sport'
 import {
@@ -38,7 +48,6 @@ import {
 import { findScoreboardEventByTeams } from '@/lib/providers/espn-ncaaf'
 import type { SharpSignal, BettingSplits } from './edge-detection'
 import { detectEdgeForGame } from './edge-detection'
-import { resolveSbdLeague } from '@/lib/api/sbd'
 
 /**
  * Game target line result
@@ -54,13 +63,22 @@ export interface GameRecommendation {
 }
 
 /**
- * Player prop target line result
+ * Player prop target line result with edge calculation
  */
 export interface PropRecommendation {
   type: 'prop'
   playerName: string
+  team?: string
+  opponent?: string
   statType: string
   targetLine: number
+  marketLine?: number
+  bestBook?: string
+  bestOdds?: number
+  edge?: number // Edge % (model probability - implied probability)
+  edgeDirection?: 'over' | 'under'
+  modelProbability?: number
+  impliedProbability?: number
   confidence: 'low' | 'medium' | 'high'
   factors: string[]
   recommendation: string
@@ -504,43 +522,243 @@ export async function getGameRecommendations(
   }
 }
 
+// Normalize market names for SBD prop lookup
+const PROP_TYPE_TO_SBD_NAME: Record<string, string> = {
+  points: 'total points (incl. overtime)',
+  rebounds: 'total rebounds (incl. overtime)',
+  assists: 'total assists (incl. overtime)',
+  threes: 'total 3-point field goals (incl. overtime)',
+  pra: 'total points plus assists plus rebounds (incl. extra overtime)',
+  passing_yards: 'total passing yards (incl. overtime)',
+  rushing_yards: 'total rushing yards (incl. overtime)',
+  receiving_yards: 'total receiving yards (incl. overtime)',
+  receptions: 'total receptions (incl. overtime)',
+  goals: 'goals',
+  shots: 'shots',
+}
+
+const normalizePlayerName = (name: string): string =>
+  name.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+interface PlayerPropOdds {
+  line: number
+  overOdds: number | null
+  underOdds: number | null
+  book: string
+}
+
 /**
- * Get player prop target line
+ * Fetch player prop odds from SBD for a specific player and market
+ */
+async function fetchPlayerPropOdds(
+  playerName: string,
+  market: string,
+  sport: SportKey
+): Promise<PlayerPropOdds | null> {
+  const league = resolveSbdLeague(sport)
+  if (!league) return null
+
+  const sbdPropName = PROP_TYPE_TO_SBD_NAME[market]
+  if (!sbdPropName) return null
+
+  try {
+    const props = await fetchSbdGamePropsList(league, {
+      props: [sbdPropName],
+      limit: 500,
+    })
+
+    const entries = Array.isArray(props) ? props : props?.data ?? []
+    const normalizedTarget = normalizePlayerName(playerName)
+
+    // Find props matching the player
+    for (const entry of entries) {
+      const entryPlayer = entry?.player_name || entry?.player?.name || ''
+      if (!entryPlayer) continue
+
+      const normalizedEntry = normalizePlayerName(entryPlayer)
+      if (
+        normalizedEntry === normalizedTarget ||
+        normalizedEntry.includes(normalizedTarget) ||
+        normalizedTarget.includes(normalizedEntry)
+      ) {
+        // Found matching player - extract best odds
+        const sportsbooks = entry?.sportsbooks || []
+        let bestOver: { book: string; odds: number; line: number } | null = null
+        let bestUnder: { book: string; odds: number; line: number } | null = null
+
+        for (const book of sportsbooks) {
+          const bookName = book?.name || ''
+          if (!bookName || ['consensus', 'prizepicks', 'sleeper'].includes(bookName.toLowerCase())) {
+            continue
+          }
+
+          const odds = book?.odds || {}
+          const line = Number(odds?.over_points ?? odds?.under_points ?? book?.over_points ?? book?.under_points ?? 0)
+          if (!line) continue
+
+          const overOdds = Number(odds?.over_american ?? odds?.over_decimal ?? book?.over_odds)
+          const underOdds = Number(odds?.under_american ?? odds?.under_decimal ?? book?.under_odds)
+
+          if (Number.isFinite(overOdds) && (!bestOver || overOdds > bestOver.odds)) {
+            bestOver = { book: bookName, odds: overOdds, line }
+          }
+          if (Number.isFinite(underOdds) && (!bestUnder || underOdds > bestUnder.odds)) {
+            bestUnder = { book: bookName, odds: underOdds, line }
+          }
+        }
+
+        if (bestOver || bestUnder) {
+          const primaryLine = bestOver?.line ?? bestUnder?.line ?? 0
+          return {
+            line: primaryLine,
+            overOdds: bestOver?.odds ?? null,
+            underOdds: bestUnder?.odds ?? null,
+            book: bestOver?.book ?? bestUnder?.book ?? '',
+          }
+        }
+      }
+    }
+
+    return null
+  } catch (err) {
+    console.warn('[PROP RECOMMENDATIONS] Failed to fetch SBD props:', err)
+    return null
+  }
+}
+
+/**
+ * Detect sport from player stats
+ */
+function detectSportFromPlayer(playerName: string, propType: string): SportKey {
+  // NFL markets
+  if (['passing_yards', 'rushing_yards', 'receiving_yards', 'receptions', 'passing_touchdowns'].includes(propType)) {
+    return 'americanfootball_nfl'
+  }
+  // NHL markets
+  if (['goals', 'shots', 'saves', 'blocked_shots'].includes(propType)) {
+    return 'icehockey_nhl'
+  }
+  // Default to NBA
+  return 'basketball_nba'
+}
+
+/**
+ * Get player prop target line with edge calculation
+ * Uses player-centric projection models and compares to market lines
  */
 export async function getPropRecommendations(
   playerName: string,
   propType: string,
-  gameIdentifier?: string
+  gameIdentifier?: string,
+  sportKey?: string
 ): Promise<PropRecommendation[]> {
   const recommendations: PropRecommendation[] = []
 
   try {
-    // Get player stats
-    const playerStats = await getPlayerStats(playerName, propType)
-    if (!playerStats) {
-      console.warn(`[RECOMMENDATION ENGINE] Player stats not found: ${playerName}`)
+    // Determine sport
+    const sport: SportKey = (resolveSportKey(sportKey) as SportKey) ?? detectSportFromPlayer(playerName, propType)
+
+    // Parse matchup context from game identifier
+    let matchupContext: MatchupContext | undefined
+    if (gameIdentifier) {
+      const parts = gameIdentifier.replace(/\bvs\b|\bat\b|@/gi, ' ').split(/\s+/).filter(p => p.length > 2)
+      if (parts.length >= 2) {
+        matchupContext = {
+          opponent: parts[1],
+          isHome: gameIdentifier.toLowerCase().includes('@') ? false : undefined,
+        }
+      }
+    }
+
+    // Project using the new player-centric model
+    const projection = await projectPlayerProp(playerName, propType, sport, matchupContext)
+    if (!projection) {
+      console.warn(`[RECOMMENDATION ENGINE] Could not project prop for: ${playerName} ${propType}`)
       return []
     }
 
-    // Calculate target line
-    const targetLine = calculateFairPropLine(playerStats)
+    // Fetch real market odds
+    const marketOdds = await fetchPlayerPropOdds(playerName, propType, sport)
 
-    const factors = [
-      `Season average: ${playerStats.seasonAverage.toFixed(1)}`,
-      `Usage rate: ${playerStats.usage.toFixed(1)}%`,
-      `Minutes per game: ${playerStats.minutesPerGame.toFixed(1)}`,
-    ]
+    // Build factors list from projection
+    const factors = projection.factors.map(f => f.description)
 
-    const confidence = factors.length >= 3 ? 'medium' : 'low'
+    // Calculate edge if we have market odds
+    let edge: number | undefined
+    let edgeDirection: 'over' | 'under' | undefined
+    let modelProbability: number | undefined
+    let impliedProbability: number | undefined
+    let bestBook: string | undefined
+    let bestOdds: number | undefined
+    let marketLine: number | undefined
+
+    if (marketOdds && marketOdds.line > 0) {
+      marketLine = marketOdds.line
+
+      // Calculate probability of hitting the market line (not our projection)
+      const overProb = calculatePropProbability(projection, marketOdds.line, 'over')
+      const underProb = calculatePropProbability(projection, marketOdds.line, 'under')
+
+      // Calculate implied probabilities from odds
+      const impliedOver = marketOdds.overOdds ? oddsToImpliedProbability(marketOdds.overOdds) : null
+      const impliedUnder = marketOdds.underOdds ? oddsToImpliedProbability(marketOdds.underOdds) : null
+
+      // Calculate edge for both sides
+      const overEdge = impliedOver !== null ? (overProb.probability - impliedOver) * 100 : -Infinity
+      const underEdge = impliedUnder !== null ? (underProb.probability - impliedUnder) * 100 : -Infinity
+
+      // Pick the better edge
+      if (overEdge >= underEdge && Number.isFinite(overEdge)) {
+        edge = Number(overEdge.toFixed(1))
+        edgeDirection = 'over'
+        modelProbability = overProb.probability
+        impliedProbability = impliedOver ?? undefined
+        bestOdds = marketOdds.overOdds ?? undefined
+      } else if (Number.isFinite(underEdge)) {
+        edge = Number(underEdge.toFixed(1))
+        edgeDirection = 'under'
+        modelProbability = underProb.probability
+        impliedProbability = impliedUnder ?? undefined
+        bestOdds = marketOdds.underOdds ?? undefined
+      }
+
+      bestBook = marketOdds.book
+
+      // Add edge to factors
+      if (edge !== undefined && edgeDirection) {
+        const lineGap = projection.projection - marketOdds.line
+        factors.push(`Market line: ${marketOdds.line} at ${bestBook}`)
+        factors.push(`Line gap: ${lineGap >= 0 ? '+' : ''}${lineGap.toFixed(1)} (model vs market)`)
+        factors.push(`Edge: ${edge >= 0 ? '+' : ''}${edge.toFixed(1)}% on ${edgeDirection.toUpperCase()}`)
+      }
+    }
+
+    // Build recommendation string
+    let recommendation: string
+    if (edge !== undefined && edgeDirection && marketLine !== undefined) {
+      const edgeLabel = edge >= 5 ? 'STRONG' : edge >= 2 ? 'SOFT' : 'MARGINAL'
+      recommendation = `${playerName} ${propType.replace(/_/g, ' ')} ${edgeDirection.toUpperCase()} ${marketLine} [${edgeLabel} ${edge >= 0 ? '+' : ''}${edge.toFixed(1)}%]`
+    } else {
+      recommendation = `Target line: ${playerName} ${propType.replace(/_/g, ' ')} ${projection.projection.toFixed(1)}`
+    }
 
     recommendations.push({
       type: 'prop',
-      playerName,
+      playerName: projection.player,
+      team: projection.team,
+      opponent: projection.opponent,
       statType: propType,
-      targetLine,
-      confidence,
+      targetLine: projection.projection,
+      marketLine,
+      bestBook,
+      bestOdds,
+      edge,
+      edgeDirection,
+      modelProbability,
+      impliedProbability,
+      confidence: projection.confidence,
       factors,
-      recommendation: `Target line: ${playerName} ${propType} ${targetLine.toFixed(1)}`,
+      recommendation,
     })
 
     return recommendations

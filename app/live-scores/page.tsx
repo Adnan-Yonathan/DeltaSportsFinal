@@ -13,7 +13,6 @@ import { createClient } from "@/lib/supabase/client"
 import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
 import type { OddsGame } from "@/lib/types/odds"
 import { DottedSurface } from "@/components/ui/dotted-surface"
-import { LiveScoresChat } from "@/components/LiveScoresChat"
 
 const LEAGUE_TABS: Array<{ id: LeagueId; label: string }> =
   ESPN_LEAGUES.map((league) => ({ id: league.id, label: league.label }))
@@ -468,7 +467,7 @@ export default function LiveScoresPage() {
   const [propsLoadingByGame, setPropsLoadingByGame] = useState<Record<string, boolean>>({})
   const [propsErrorByGame, setPropsErrorByGame] = useState<Record<string, string | null>>({})
   const [oddsRefreshToken, setOddsRefreshToken] = useState(0)
-  const [showPatchSummary, setShowPatchSummary] = useState(false)
+  const [arbDropdownOpen, setArbDropdownOpen] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
   const supabase = useMemo(() => createClient(), [])
@@ -593,6 +592,43 @@ export default function LiveScoresPage() {
     [oddsGames, oddsMatchIndex]
   )
 
+  type ArbEntry = {
+    game: LiveScoreGame
+    teams: ReturnType<typeof getTeamsFromGame>
+    arbitrage: ArbitrageResult
+    label: string
+  }
+
+  const allArbs = useMemo<ArbEntry[]>(() => {
+    if (!canLoadOdds) return []
+    const arbs: ArbEntry[] = []
+    filteredGames.forEach((game) => {
+      const teams = getTeamsFromGame(game)
+      const oddsGame = oddsGames.find(
+        (og) =>
+          isTeamMatch(og.home_team, teams.homeName) &&
+          isTeamMatch(og.away_team, teams.awayName)
+      )
+      if (!oddsGame) return
+      const arb = findArbitrage(oddsGame, teams.homeName, teams.awayName)
+      if (arb) {
+        const marketLabel =
+          arb.market === "moneyline"
+            ? "ML"
+            : arb.market === "spreads"
+            ? "Spread"
+            : "Total"
+        arbs.push({
+          game,
+          teams,
+          arbitrage: arb,
+          label: `${teams.awayAbbr || teams.awayName} @ ${teams.homeAbbr || teams.homeName} - ${marketLabel} +${arb.profitPct.toFixed(1)}%`,
+        })
+      }
+    })
+    return arbs.sort((a, b) => b.arbitrage.profitPct - a.arbitrage.profitPct)
+  }, [filteredGames, oddsGames, canLoadOdds])
+
   const fetchOddsForLeague = useCallback(async () => {
     if (!canLoadOdds) return
     setOddsLoading(true)
@@ -643,6 +679,19 @@ export default function LiveScoresPage() {
     if (!canLoadOdds) return
     fetchOddsForLeague()
   }, [canLoadOdds, fetchOddsForLeague, oddsRefreshToken])
+
+  // Close arb dropdown on click outside
+  useEffect(() => {
+    if (!arbDropdownOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest("[data-arb-dropdown]")) {
+        setArbDropdownOpen(false)
+      }
+    }
+    document.addEventListener("click", handleClickOutside)
+    return () => document.removeEventListener("click", handleClickOutside)
+  }, [arbDropdownOpen])
 
   const handleRefresh = useCallback(() => {
     refetch()
@@ -749,38 +798,6 @@ export default function LiveScoresPage() {
       <DottedSurface className="z-10" />
 
       <div className="relative z-20 mx-auto w-full max-w-none px-4 sm:px-6 lg:px-12 py-8 space-y-12">
-        <div className="rounded-2xl border border-[#2a2a2a] bg-black/70 px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">
-                Patch 0.1
-              </span>
-              <span className="text-sm text-white/80">Patch notes</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowPatchSummary((prev) => !prev)}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#34d399] text-[12px] font-semibold text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
-              aria-expanded={showPatchSummary}
-              aria-label={showPatchSummary ? "Hide patch notes summary" : "Show patch notes summary"}
-            >
-              +
-            </button>
-          </div>
-          {showPatchSummary && (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <span className="text-sm text-white/70">
-                Live odds + line shopping merge, more player props, arb badges, and odds fixes.
-              </span>
-              <Link
-                href="/patch-notes"
-                className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
-              >
-                Full patch notes
-              </Link>
-            </div>
-          )}
-        </div>
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -828,13 +845,71 @@ export default function LiveScoresPage() {
               </button>
             </div>
 
-            <button
-              onClick={handleRefresh}
-              className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-4 py-2 text-sm text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
-            >
-              <RefreshCw className={clsx("h-4 w-4", { "animate-spin": isRefreshing })} />
-              Refresh
-            </button>
+            <div className="relative" data-arb-dropdown>
+              <button
+                onClick={() => setArbDropdownOpen((prev) => !prev)}
+                className={clsx(
+                  "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-colors",
+                  allArbs.length > 0
+                    ? "border-[#34d399] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15]"
+                    : "border-[#6b6b6b] text-white/60"
+                )}
+              >
+                {allArbs.length > 0 ? (
+                  <>
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#34d399] text-[10px] font-bold text-[#0f1f15]">
+                      {allArbs.length}
+                    </span>
+                    Arbs Found
+                  </>
+                ) : (
+                  "No Arbs"
+                )}
+                <ChevronDown className={clsx("h-4 w-4 transition-transform", arbDropdownOpen && "rotate-180")} />
+              </button>
+              {arbDropdownOpen && (
+                <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-[#6b6b6b] bg-black shadow-lg shadow-black/50">
+                  <div className="flex items-center justify-between border-b border-[#6b6b6b] px-4 py-3">
+                    <span className="text-sm font-medium text-white">Arbitrage Opportunities</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRefresh()
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[#34d399] px-2.5 py-1 text-xs text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+                    >
+                      <RefreshCw className={clsx("h-3 w-3", { "animate-spin": isRefreshing })} />
+                      Refresh
+                    </button>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {allArbs.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-sm text-white/50">
+                        No arbitrage opportunities found for {LEAGUE_TABS.find((t) => t.id === activeLeague)?.label || activeLeague}
+                      </div>
+                    ) : (
+                      allArbs.map((arb, idx) => (
+                        <button
+                          key={`${arb.game.eventId}-${idx}`}
+                          onClick={() => {
+                            setLineShoppingGame(arb.game)
+                            setArbDropdownOpen(false)
+                          }}
+                          className="flex w-full items-center justify-between gap-2 border-b border-[#6b6b6b]/50 px-4 py-3 text-left text-sm text-white/80 hover:bg-white/5 transition-colors last:border-b-0"
+                        >
+                          <span className="truncate">
+                            {arb.teams.awayAbbr || arb.teams.awayName} @ {arb.teams.homeAbbr || arb.teams.homeName}
+                          </span>
+                          <span className="shrink-0 rounded-full bg-[#34d399]/20 px-2 py-0.5 text-xs font-medium text-[#34d399]">
+                            {arb.arbitrage.market === "moneyline" ? "ML" : arb.arbitrage.market === "spreads" ? "Spread" : "Total"} +{arb.arbitrage.profitPct.toFixed(1)}%
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="text-right">
               <p className="text-xs text-white/50">Updated</p>
               <p className="text-sm font-medium text-white">{lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "-"}</p>
@@ -1242,7 +1317,6 @@ export default function LiveScoresPage() {
           })
         )}
       </div>
-      <LiveScoresChat leagues={ESPN_LEAGUES.map((l) => l.id)} date={selectedDate} />
       {selectedGame && (
         <GameDetailsModal game={selectedGame} onClose={() => setSelectedGame(null)} detailsState={detailsState} />
       )}

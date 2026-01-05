@@ -551,23 +551,27 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <button
-          type="button"
-          className="hidden lg:flex fixed left-4 top-1/2 z-40 -translate-y-1/2 items-center justify-center rounded-full border border-[#34d399] bg-black/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#34d399] transition hover:bg-[#34d399] hover:text-[#0f1f15] backdrop-blur"
-          onClick={() => setSidebarExpanded(true)}
-          aria-label="Open chat history"
-        >
-          Chat History
-        </button>
+        {user && (
+          <button
+            type="button"
+            className="hidden lg:flex fixed left-4 top-1/2 z-40 -translate-y-1/2 items-center justify-center rounded-full border border-[#34d399] bg-black/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#34d399] transition hover:bg-[#34d399] hover:text-[#0f1f15] backdrop-blur"
+            onClick={() => setSidebarExpanded(true)}
+            aria-label="Open chat history"
+          >
+            Chat History
+          </button>
+        )}
 
-        <button
-          type="button"
-          className="hidden lg:flex fixed right-4 top-1/2 z-40 -translate-y-1/2 items-center justify-center rounded-full border border-[#34d399] bg-black/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#34d399] transition hover:bg-[#34d399] hover:text-[#0f1f15] backdrop-blur"
-          onClick={() => setLiveScoresExpanded(true)}
-          aria-label="Open live scores"
-        >
-          Live Scores
-        </button>
+        {user && (
+          <button
+            type="button"
+            className="hidden lg:flex fixed right-4 top-1/2 z-40 -translate-y-1/2 items-center justify-center rounded-full border border-[#34d399] bg-black/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#34d399] transition hover:bg-[#34d399] hover:text-[#0f1f15] backdrop-blur"
+            onClick={() => setLiveScoresExpanded(true)}
+            aria-label="Open live scores"
+          >
+            Live Scores
+          </button>
+        )}
 
         <AnimatePresence>
           {sidebarExpanded && (

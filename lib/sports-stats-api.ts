@@ -850,12 +850,15 @@ export async function getNFLPlayerSeasonStats(playerName: string): Promise<Playe
   ])
 
   const categories = statsResp?.splits?.categories ?? []
-  const pick = (keys: string[]) => nflStatHelpers.pickStat(categories, keys)
+  // Use perGame: true to get per-game averages instead of season totals
+  const pick = (keys: string[]) => nflStatHelpers.pickStat(categories, keys, { perGame: true })
+  const pickTotal = (keys: string[]) => nflStatHelpers.pickStat(categories, keys)
   const stats: Record<string, number | string> = {}
   const set = (key: string, value: number | null) => {
     if (value != null) stats[key] = value
   }
 
+  // Per-game stats for prop projections
   set('PASSING_YARDS', pick(['passingYards', 'netPassingYards']))
   set('PASSING_TDS', pick(['passingTouchdowns']))
   set('INTERCEPTIONS', pick(['interceptions']))
@@ -868,6 +871,10 @@ export async function getNFLPlayerSeasonStats(playerName: string): Promise<Playe
   set('RECEIVING_YARDS', pick(['receivingYards']))
   set('RECEIVING_TDS', pick(['receivingTouchdowns']))
   set('TARGETS', pick(['receivingTargets', 'targets']))
+
+  // Also store games played for reference
+  const gamesPlayed = pickTotal(['gamesPlayed'])
+  if (gamesPlayed) stats['GAMES_PLAYED'] = gamesPlayed
 
   const result: PlayerStats = {
     name: rosterEntry.fullName,

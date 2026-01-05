@@ -38,19 +38,19 @@ const defaultFeatures: Feature[] = [
     delta: "yes",
   },
   {
-    name: "Market Monitoring",
-    chatgpt: "no",
-    oddsjam: "partial",
-    delta: "yes",
-  },
-  {
-    name: "Custom Projection Models",
+    name: "Advanced AI Projection Models",
     chatgpt: "no",
     oddsjam: "no",
     delta: "yes",
   },
   {
-    name: "Live Scores & Game Data",
+    name: "Live Game Projection Models",
+    chatgpt: "no",
+    oddsjam: "no",
+    delta: "yes",
+  },
+  {
+    name: "EV Scanner",
     chatgpt: "no",
     oddsjam: "yes",
     delta: "yes",
@@ -62,8 +62,8 @@ const defaultFeatures: Feature[] = [
     delta: "yes",
   },
   {
-    name: "Personalized Bet Analysis",
-    chatgpt: "partial",
+    name: "Parlay Projection Model",
+    chatgpt: "no",
     oddsjam: "no",
     delta: "yes",
   },
@@ -124,9 +124,9 @@ const ComparisonSection = ({
 
         {/* Comparison Table */}
         <div className="max-w-4xl mx-auto">
-          <div className="rounded-2xl border border-white/15 bg-[#4E4E4E] overflow-hidden">
+          <div className="rounded-2xl border border-white/15 bg-black overflow-hidden">
             {/* Table Header */}
-            <div className="grid grid-cols-4 gap-4 p-4 md:p-6 border-b border-white/15 bg-[#4E4E4E]">
+            <div className="grid grid-cols-4 gap-4 p-4 md:p-6 border-b border-white/15 bg-black">
               <div className="text-sm font-medium text-white/70 uppercase tracking-wider">
                 Features
               </div>
@@ -142,7 +142,7 @@ const ComparisonSection = ({
                   <div className="text-sm md:text-base">{product.name}</div>
                   {product.highlight && (
                     <Badge className="mt-1 bg-white text-[#4E4E4E] text-[10px] border-0">
-                      RECOMMENDED
+                      BEST VALUE
                     </Badge>
                   )}
                 </div>
@@ -180,7 +180,7 @@ const ComparisonSection = ({
             </div>
 
             {/* Table Footer */}
-            <div className="grid grid-cols-4 gap-4 p-4 md:p-6 border-t border-white/15 bg-[#4E4E4E]">
+            <div className="grid grid-cols-4 gap-4 p-4 md:p-6 border-t border-white/15 bg-black">
               <div className="text-sm font-medium text-white/70">
                 Best For
               </div>
@@ -196,7 +196,7 @@ const ComparisonSection = ({
             </div>
 
             {/* Pricing Row */}
-            <div className="grid grid-cols-4 gap-4 p-4 md:p-6 border-t border-white/15 bg-[#4E4E4E]">
+            <div className="grid grid-cols-4 gap-4 p-4 md:p-6 border-t border-white/15 bg-black">
               <div className="text-sm font-medium text-white/70">
                 Price
               </div>
@@ -205,13 +205,13 @@ const ComparisonSection = ({
                 <span className="text-xs text-white/70">/mo</span>
               </div>
               <div className="text-center">
-                <span className="text-lg md:text-xl font-bold text-white">$150</span>
+                <span className="text-lg md:text-xl font-bold text-white">$199-999</span>
                 <span className="text-xs text-white/70">/mo</span>
               </div>
               <div className="text-center relative">
                 <div className="absolute inset-0 bg-white/10 -mx-4 md:-mx-6" />
                 <div className="relative">
-                  <span className="text-lg md:text-xl font-bold text-white">$15</span>
+                  <span className="text-lg md:text-xl font-bold text-white">$9</span>
                   <span className="text-xs text-white/70">/mo*</span>
                 </div>
               </div>

@@ -10,7 +10,6 @@ import { MenuToggle } from "@/components/ui/menu-toggle"
 import { createClient } from "@/lib/supabase/client"
 
 const navLinks = [
-  { label: "About", href: "/about" },
   { label: "Pricing", href: "/pricing" },
 ]
 

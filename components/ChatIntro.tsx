@@ -6,8 +6,14 @@ import Link from 'next/link'
 import { UserPlus } from 'lucide-react'
 import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
 import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
-import { TopPerformancesStrip } from '@/components/ui/top-performances'
 import { AnimatedHero } from '@/components/ui/animated-hero'
+import { GuestHero } from '@/components/ui/guest-hero'
+import { SocialProof } from '@/components/ui/social-proof'
+import { SportsbookTicker } from '@/components/ui/sportsbook-ticker'
+import { ComparisonSection } from '@/components/ui/comparison-section'
+import { Typewriter } from '@/components/ui/typewriter-text'
+import { Announcement, AnnouncementTag, AnnouncementTitle } from '@/components/ui/announcement'
+import { ArrowUpRight } from 'lucide-react'
 
 interface ChatIntroProps {
   conversationId: string
@@ -21,7 +27,6 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
   const [sending, setSending] = useState(false)
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null)
   const [capabilitiesOpen, setCapabilitiesOpen] = useState(false)
-  const [patchExpanded, setPatchExpanded] = useState(false)
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -86,6 +91,140 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
     }
   }
 
+  // Capability examples for guest view (display only, no interaction)
+  const guestCapabilities = [
+    {
+      title: "Player Profiles",
+      description: "Access player stats, advanced metrics, and projections vs specific teams",
+    },
+    {
+      title: "Team Profiles",
+      description: "Get comprehensive team stats, trends, and performance metrics",
+    },
+    {
+      title: "Line Shopping/Arbitrage Scanner",
+      description: "Compare odds and find arbitrage opportunities on the Live Odds page",
+    },
+    {
+      title: "Cross Market EV",
+      description: "Find +EV plays where sportsbooks disagree on odds",
+    },
+    {
+      title: "Live Betting",
+      description: "AI-projected live spreads based on game flow, momentum, and in-game factors",
+    },
+    {
+      title: "Betting Trends",
+      description: "Recent records vs spreads, prop covers, and public/sharp money splits",
+    },
+    {
+      title: "Combo Analysis",
+      description: "Calculate parlay probability with correlation adjustments",
+    },
+    {
+      title: "Matchup Analysis",
+      description: "Team vs team analysis with spread, total, and moneyline edge detection",
+    },
+    {
+      title: "Player Analysis",
+      description: "Analyze player props with season stats, recent form, and opponent context",
+    },
+  ]
+
+  // Guest layout
+  if (isGuest) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-full bg-black px-3 sm:px-4 py-6 sm:py-8">
+        <div className="max-w-3xl w-full space-y-8">
+          {/* Guest Hero */}
+          <GuestHero onSignUpClick={onSignUpClick || (() => {})} />
+
+          {/* Social Proof */}
+          <SocialProof animated={true} />
+
+          {/* Sign Up CTA - styled like PromptBox */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+            className="w-full"
+          >
+            <button
+              type="button"
+              onClick={onSignUpClick}
+              className="w-full rounded-[22px] sm:rounded-[28px] p-4 sm:p-5 shadow-sm bg-white/5 backdrop-blur-xl border border-white/10 hover:border-emerald-500/30 hover:bg-white/10 transition-all group text-left"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <UserPlus className="w-6 h-6 text-emerald-400" />
+                  <Typewriter
+                    text="Try 7 days free"
+                    speed={80}
+                    cursor=""
+                    startDelay={1200}
+                    className="text-lg font-semibold text-white/70 group-hover:text-white transition-colors"
+                  />
+                </div>
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 group-hover:bg-emerald-500/30 transition-colors">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-emerald-400">
+                    <path d="M12 5.25L12 18.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M18.75 12L12 5.25L5.25 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              </div>
+            </button>
+          </motion.div>
+
+          {/* Sportsbook Ticker */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.5 }}
+          >
+            <SportsbookTicker />
+          </motion.div>
+
+          {/* Example Prompts / Capabilities */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.5 }}
+            className="w-full"
+          >
+            <p className="text-center text-sm text-white/60 mb-3">What you can ask Delta</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 auto-rows-fr">
+              {guestCapabilities.map((capability) => (
+                <button
+                  key={capability.title}
+                  type="button"
+                  onClick={onSignUpClick}
+                  className="group text-left p-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-emerald-500/30 transition-all h-full min-h-[78px]"
+                >
+                  <h3 className="text-sm font-semibold text-white mb-1 group-hover:text-emerald-400 transition-colors">
+                    {capability.title}
+                  </h3>
+                  <p className="text-[11px] text-white/60 leading-relaxed">
+                    {capability.description}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Comparison Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7, duration: 0.5 }}
+          >
+            <ComparisonSection />
+          </motion.div>
+        </div>
+      </div>
+    )
+  }
+
+  // Signed-in layout
   return (
     <div className="flex flex-col items-center justify-center min-h-full bg-black px-3 sm:px-4 py-6 sm:py-8">
       <motion.div
@@ -93,45 +232,23 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
         animate={{ opacity: 1, y: 0 }}
         className="text-center max-w-3xl w-full mb-4 sm:mb-6"
       >
-        <div className="mb-6 flex flex-col items-center gap-2 rounded-2xl border border-[#2a2a2a] bg-black/70 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">
+        <Link href="/patch-notes" className="mb-6 inline-block">
+          <Announcement className="border-[#34d399]/30 bg-black/70 hover:border-[#34d399]/50 hover:bg-black/90 cursor-pointer">
+            <AnnouncementTag className="bg-[#34d399]/20 text-[#34d399]">
               Patch 0.1
-            </span>
-            <button
-              type="button"
-              onClick={() => setPatchExpanded((prev) => !prev)}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#34d399] text-[12px] font-semibold text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
-              aria-expanded={patchExpanded}
-              aria-label={patchExpanded ? "Hide patch notes summary" : "Show patch notes summary"}
-            >
-              +
-            </button>
-          </div>
-          <span className="text-sm text-white/80">Patch notes</span>
-          {patchExpanded && (
-            <>
-              <span className="text-sm text-white/70">
-                Live odds + line shopping merge, more player props, arb badges, and odds fixes.
-              </span>
-              <Link
-                href="/patch-notes"
-                className="relative z-10 inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
-              >
-                Full patch notes
-              </Link>
-            </>
-          )}
-        </div>
+            </AnnouncementTag>
+            <AnnouncementTitle className="text-white/80 text-sm">
+              View patch notes
+              <ArrowUpRight size={14} className="shrink-0 text-[#34d399]" />
+            </AnnouncementTitle>
+          </Announcement>
+        </Link>
         <AnimatedHero
           staticText="Make money with"
           interval={2500}
         />
       </motion.div>
 
-      <div className="w-full max-w-5xl mx-auto mb-4 sm:mb-6">
-        <TopPerformancesStrip />
-      </div>
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -139,21 +256,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
         className="text-center max-w-3xl w-full"
       >
         <form onSubmit={handleSubmit} className="w-full relative">
-          {isGuest ? (
-            <button
-              type="button"
-              onClick={onSignUpClick}
-              className="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-500/20 to-emerald-600/20 border border-emerald-500/30 hover:border-emerald-400/50 transition-all group"
-            >
-              <div className="flex items-center justify-center gap-3">
-                <UserPlus className="w-5 h-5 text-emerald-400" />
-                <span className="text-white font-medium">Sign up to start chatting</span>
-              </div>
-              <p className="text-white/50 text-sm mt-2">Create a free account to ask questions about odds, stats, and betting analysis</p>
-            </button>
-          ) : (
-            <PromptBox name="message" disabled={sending} />
-          )}
+          <PromptBox name="message" disabled={sending} />
         </form>
 
         {/* Capabilities */}
@@ -205,17 +308,16 @@ Example queries:
             },
             {
               id: "line_shopping",
-              title: "Line Shopping",
-              description: "Compare lines from every major US sportsbook for any sporting event",
-              detail: `LINE SHOPPING - Compare odds across all major US sportsbooks.
+              title: "Line Shopping/Arbitrage Scanner",
+              description: "Compare odds and find arbitrage opportunities on the Live Odds page",
+              detail: `LINE SHOPPING & ARBITRAGE SCANNER - Available on the Live Odds page.
 
-What it does: Fetches spread, moneyline, total, and player prop lines from DraftKings, FanDuel, BetMGM, Caesars, and more. Shows best available price and book-by-book comparison.
+What it does: Compare odds across all major US sportsbooks and find arbitrage opportunities. Visit the Live Odds page to see real-time odds from DraftKings, FanDuel, BetMGM, Caesars, and more with automatic arbitrage detection.
 
-Example queries:
-• "Lakers vs Celtics odds"
-• "Best line for Heat spread"
-• "Shop Curry points prop"
-• "Compare Thunder moneyline across books"`
+How to access:
+• Click "Live Odds" in the header
+• View odds comparison for all games
+• Arbitrage opportunities are highlighted automatically`
             },
             {
               id: "cross_market_ev",

@@ -1595,7 +1595,7 @@ export async function getNBAAdvancedTeamStats(): Promise<AdvancedTeamStats[]> {
 
     const toNumber = (value: unknown) => {
       const num = typeof value === 'number' ? value : Number(value)
-      return Number.isFinite(num) ? num : null
+      return Number.isFinite(num) ? num : undefined
     }
 
     return resultSet.rowSet

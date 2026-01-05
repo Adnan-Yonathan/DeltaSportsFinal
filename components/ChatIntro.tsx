@@ -131,6 +131,29 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
     },
   ]
 
+  const guestFaq = [
+    {
+      question: 'What is Delta?',
+      answer:
+        'Delta is an AI sports betting assistant that compares markets, surfaces value, and explains edges.',
+    },
+    {
+      question: 'Do I need to connect a sportsbook?',
+      answer:
+        'No. You can compare odds and run analysis without linking any sportsbook accounts.',
+    },
+    {
+      question: 'Which sports are supported?',
+      answer:
+        'NBA, NFL, NCAAB, CFB, and NHL are supported today, with more on the way.',
+    },
+    {
+      question: 'How does the free trial work?',
+      answer:
+        'You get 7 days free on any paid plan. Cancel anytime from your billing settings.',
+    },
+  ]
+
   // Guest layout
   if (isGuest) {
     return (
@@ -218,6 +241,37 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
             transition={{ delay: 0.7, duration: 0.5 }}
           >
             <ComparisonSection />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8, duration: 0.5 }}
+          >
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-5 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+                  FAQ
+                </p>
+                <span className="text-[11px] text-white/40">Basics</span>
+              </div>
+              <div className="space-y-3">
+                {guestFaq.map((item) => (
+                  <details
+                    key={item.question}
+                    className="group rounded-2xl border border-white/10 bg-black/40 px-4 py-3 open:border-emerald-400/30 open:bg-black/60"
+                  >
+                    <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-semibold text-white">
+                      <span>{item.question}</span>
+                      <span className="text-xs text-white/50 transition group-open:rotate-45">
+                        +
+                      </span>
+                    </summary>
+                    <p className="mt-2 text-xs text-white/60">{item.answer}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
           </motion.div>
         </div>
       </div>

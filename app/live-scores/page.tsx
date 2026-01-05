@@ -1155,11 +1155,11 @@ export default function LiveScoresPage() {
                             className="mt-4 rounded-2xl border border-[#2a2a2a] bg-black/80 p-3 space-y-3"
                             onClick={(event) => event.stopPropagation()}
                           >
-                            <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-white/50">
-                              <span>Line Shopping</span>
+                            <div className="flex items-center justify-end sm:justify-between text-[10px] uppercase tracking-[0.3em] text-white/50">
+                              <span className="hidden sm:inline">Line Shopping</span>
                               <div className="flex items-center gap-2">
                                 {oddsGame?.bookmakers?.length ? (
-                                  <span className="text-[10px] text-white/40">
+                                  <span className="hidden sm:inline text-[10px] text-white/40">
                                     {oddsGame.bookmakers.length} books
                                   </span>
                                 ) : null}

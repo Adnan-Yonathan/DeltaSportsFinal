@@ -29,6 +29,11 @@ import {
   fetchTeamStatistics as fetchNbaTeamStatistics,
   statHelpers as nbaStatHelpers,
 } from '@/lib/providers/espn-nba'
+import {
+  fetchLeagueTeamStats as fetchNbaLeagueTeamStats,
+  getCurrentNbaSeason,
+  parseRowToObject,
+} from '@/lib/providers/nba-stats/client'
 import { fetchNcaabTeamList } from '@/lib/providers/espn-ncaab'
 import {
   fetchNcaaNetRankings,
@@ -1580,8 +1585,39 @@ export async function getNBAPlayerStats(playerName?: string): Promise<PlayerStat
 
 // Advanced NBA team stats (stats.nba.com disabled; no advanced metrics available)
 export async function getNBAAdvancedTeamStats(): Promise<AdvancedTeamStats[]> {
-  // stats.nba.com is disabled; ESPN does not expose advanced pace/efficiency
-  return []
+  try {
+    const season = getCurrentNbaSeason()
+    const advanced = await fetchNbaLeagueTeamStats(season, 'Advanced', 'PerGame')
+    const resultSet = advanced?.resultSets?.[0]
+    if (!resultSet?.headers?.length || !Array.isArray(resultSet.rowSet)) {
+      return []
+    }
+
+    const toNumber = (value: unknown) => {
+      const num = typeof value === 'number' ? value : Number(value)
+      return Number.isFinite(num) ? num : null
+    }
+
+    return resultSet.rowSet
+      .map((row) => {
+        const parsed = parseRowToObject(resultSet.headers, row)
+        return {
+          team: String(parsed.TEAM_NAME || parsed.TEAM || ''),
+          teamAbbr: String(parsed.TEAM_ABBREVIATION || parsed.TEAM_ABBR || ''),
+          pace: toNumber(parsed.PACE),
+          oRating: toNumber(parsed.OFF_RATING),
+          dRating: toNumber(parsed.DEF_RATING),
+          netRating: toNumber(parsed.NET_RATING),
+          tsPct: toNumber(parsed.TS_PCT),
+          reboundPct: toNumber(parsed.REB_PCT),
+          turnoverPct: toNumber(parsed.TOV_PCT),
+        } satisfies AdvancedTeamStats
+      })
+      .filter((entry) => entry.team.length > 0)
+  } catch (error) {
+    console.warn('[NBA Stats] Advanced team stats fetch failed', error)
+    return []
+  }
 }
 
 // ==================== NCAAB TEAM STATS (ESPN + NCAA free sources) ====================
@@ -3232,10 +3268,18 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
         getNBATeamStats(),
         getNBAAdvancedTeamStats(),
       ])
+      const advByAbbr = new Map(
+        advanced
+          .filter((entry) => entry.teamAbbr)
+          .map((entry) => [normalizeName(entry.teamAbbr || ''), entry])
+      )
+      const advByName = new Map(
+        advanced.map((entry) => [normalizeName(entry.team), entry])
+      )
       const merged = basic.map((teamEntry) => {
-        const adv = advanced.find(
-          (candidate) => normalizeName(candidate.team) === normalizeName(teamEntry.team)
-        )
+        const abbrKey = normalizeName(teamEntry.teamAbbr || '')
+        const nameKey = normalizeName(teamEntry.team)
+        const adv = advByAbbr.get(abbrKey) || advByName.get(nameKey)
         if (adv) {
           const extras: Record<string, number> = {}
           if (adv.pace != null) extras.pace = adv.pace

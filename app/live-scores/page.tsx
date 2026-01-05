@@ -322,7 +322,7 @@ const isPredictionMarketBook = (book?: string) => {
   return normalized === "polymarket" || normalized === "kalshi"
 }
 
-const formatProbability = (value?: number, decimals = 1) => {
+const formatProbability = (value?: number | null, decimals = 1) => {
   if (!Number.isFinite(value)) return "-"
   return `${((value as number) * 100).toFixed(decimals)}%`
 }

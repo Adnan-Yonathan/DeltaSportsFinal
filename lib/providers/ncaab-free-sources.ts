@@ -10,8 +10,6 @@ const NCAA_SCORING_DEFENSE_URL =
   'https://www.ncaa.com/stats/basketball-men/d1/current/team/146'
 const TORVIK_JSON_URL = 'https://barttorvik.com/trank.php?json=1'
 const TORVIK_HTML_URL = 'https://barttorvik.com/trank.php'
-const HASLA_RATINGS_URL = 'https://haslametrics.com/ratings.php'
-const HASLA_XML_URL = 'https://haslametrics.com/ratings.xml'
 
 const CACHE_TTL = 1000 * 60 * 30 // 30 minutes
 
@@ -49,7 +47,7 @@ export type CbbAdvancedRatingEntry = {
   luck?: number
   sos?: number
   ncsos?: number
-  source: 'torvik' | 'hasla'
+  source: 'torvik'
 }
 
 const decodeEntities = (value: string) =>
@@ -85,81 +83,87 @@ const fetchHtml = async (
   return html
 }
 
+const isTorvikChallengePage = (html: string) => {
+  const snippet = html.slice(0, 1000).toLowerCase()
+  return snippet.includes('verifying browser') || snippet.includes('js_required')
+}
+
+const fetchHtmlWithBrowser = async (
+  url: string,
+  cacheTtl = CACHE_TTL
+): Promise<string | null> => {
+  const cached = cache.get(url)
+  if (cached && Date.now() - cached.ts < cacheTtl) {
+    const cachedHtml = cached.data as string
+    if (cachedHtml && !isTorvikChallengePage(cachedHtml)) {
+      return cachedHtml
+    }
+  }
+  try {
+    const { chromium } = await import('playwright')
+    const browser = await chromium.launch({ headless: true })
+    try {
+      const page = await browser.newPage()
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 15000 })
+      await page.waitForTimeout(1500)
+      const html = await page.content()
+      if (html && !isTorvikChallengePage(html)) {
+        cache.set(url, { ts: Date.now(), data: html })
+      }
+      return html || null
+    } finally {
+      await browser.close()
+    }
+  } catch (error) {
+    console.warn('[fetchHtmlWithBrowser] Failed to load', url, error)
+    return null
+  }
+}
+
 const fetchJson = async <T>(url: string, cacheTtl = CACHE_TTL): Promise<T | null> => {
   const cached = cache.get(url)
   if (cached && Date.now() - cached.ts < cacheTtl) return cached.data as T
-  const res = await fetch(url, {
-    cache: 'no-store',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; DeltaSportsBot/1.0)',
-      Accept: 'application/json,text/plain,*/*',
-    },
-  })
-  if (!res.ok) return null
-  // Check content-type or peek at response to avoid parsing HTML as JSON
-  const contentType = res.headers.get('content-type') || ''
-  const text = await res.text()
-  // If response looks like HTML, return null
-  if (text.trimStart().startsWith('<!') || text.trimStart().startsWith('<html')) {
-    console.warn('[fetchJson] Received HTML instead of JSON from', url)
-    return null
+
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+    Accept: 'application/json,text/plain,*/*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    Referer: TORVIK_HTML_URL,
   }
-  // If content-type says JSON or text looks like JSON, parse it
-  if (!contentType.includes('json') && !text.trimStart().startsWith('{') && !text.trimStart().startsWith('[')) {
-    console.warn('[fetchJson] Response is not JSON from', url)
-    return null
+
+  const attempts = 2
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const res = await fetch(url, {
+      cache: 'no-store',
+      headers,
+    })
+    if (!res.ok) continue
+    const contentType = res.headers.get('content-type') || ''
+    const text = await res.text()
+    if (text.trimStart().startsWith('<!') || text.trimStart().startsWith('<html')) {
+      console.warn('[fetchJson] Received HTML instead of JSON from', url)
+      continue
+    }
+    if (!contentType.includes('json') && !text.trimStart().startsWith('{') && !text.trimStart().startsWith('[')) {
+      console.warn('[fetchJson] Response is not JSON from', url)
+      continue
+    }
+    try {
+      const data = JSON.parse(text) as T
+      cache.set(url, { ts: Date.now(), data })
+      return data
+    } catch {
+      console.warn('[fetchJson] Failed to parse JSON from', url)
+    }
   }
-  try {
-    const data = JSON.parse(text) as T
-    cache.set(url, { ts: Date.now(), data })
-    return data
-  } catch {
-    console.warn('[fetchJson] Failed to parse JSON from', url)
-    return null
-  }
+
+  return null
 }
 
 const parseNumber = (value: string | undefined): number | null => {
   if (!value) return null
   const num = Number(value.replace(/,/g, '').replace(/%/g, '').trim())
   return Number.isFinite(num) ? num : null
-}
-
-const parseXmlAttribute = (attrs: string, key: string): string | null => {
-  const match = attrs.match(new RegExp(`(?:^|\\s)${key}="([^"]*)"`, 'i'))
-  if (!match) return null
-  return decodeEntities(match[1])
-}
-
-const parseHaslametricsXml = (xml: string): CbbAdvancedRatingEntry[] => {
-  const entries: CbbAdvancedRatingEntry[] = []
-  for (const match of xml.matchAll(/<mr\s+([^>]+?)\/?>/gi)) {
-    const attrs = match[1]
-    const team = parseXmlAttribute(attrs, 't')
-    if (!team) continue
-    const adjO = parseNumber(parseXmlAttribute(attrs, 'oe') ?? undefined)
-    const adjD = parseNumber(parseXmlAttribute(attrs, 'de') ?? undefined)
-    const paceOff = parseNumber(parseXmlAttribute(attrs, 'ou') ?? undefined)
-    const paceDef = parseNumber(parseXmlAttribute(attrs, 'du') ?? undefined)
-    const tempo =
-      paceOff != null && paceDef != null
-        ? Number(((paceOff + paceDef) / 2).toFixed(2))
-        : paceOff ?? paceDef ?? null
-    const sos = parseNumber(parseXmlAttribute(attrs, 'sos') ?? undefined)
-    const adjEM =
-      adjO != null && adjD != null ? Number((adjO - adjD).toFixed(2)) : null
-
-    entries.push({
-      team,
-      adjO: adjO ?? undefined,
-      adjD: adjD ?? undefined,
-      adjEM: adjEM ?? undefined,
-      tempo: tempo ?? undefined,
-      sos: sos ?? undefined,
-      source: 'hasla',
-    })
-  }
-  return entries
 }
 
 const parseTable = (html: string) => {
@@ -172,7 +176,7 @@ const parseTable = (html: string) => {
   const rows: string[][] = []
   for (const match of table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
     const rowHtml = match[1]
-    if (!rowHtml.includes('<td')) continue
+    if (!rowHtml.includes('<td') && !rowHtml.includes('<th')) continue
     const cells = Array.from(
       rowHtml.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)
     ).map((m) => stripTags(m[1]))
@@ -610,7 +614,21 @@ const parseAdvancedTableRows = (
   table: { headers: string[]; rows: string[][] },
   source: CbbAdvancedRatingEntry['source']
 ): CbbAdvancedRatingEntry[] => {
-  const headers = table.headers.map(normalizeHeaderKey)
+  const headerCandidates = table.headers.map(normalizeHeaderKey)
+
+  const fallbackHeaderCandidates = table.rows.slice(0, 3)
+  const detectedHeaderRow = fallbackHeaderCandidates.find((row) => {
+    const normalized = row.map(normalizeHeaderKey)
+    return (
+      normalized.some((header) => header.includes('team')) &&
+      normalized.some((header) => header.includes('adjo')) &&
+      normalized.some((header) => header.includes('adjd'))
+    )
+  }) || null
+
+  const headers = detectedHeaderRow
+    ? detectedHeaderRow.map(normalizeHeaderKey)
+    : headerCandidates
   const teamIdx = headers.findIndex((header) =>
     header.includes('team') || header.includes('school')
   )
@@ -627,8 +645,12 @@ const parseAdvancedTableRows = (
 
   const entries: CbbAdvancedRatingEntry[] = []
 
-  for (const row of table.rows) {
-    const team = row[teamIdx]
+  const rows = detectedHeaderRow
+    ? table.rows.slice(table.rows.indexOf(detectedHeaderRow) + 1)
+    : table.rows
+  for (const row of rows) {
+    const rawTeam = row[teamIdx]
+    const team = rawTeam ? normalizeTeamName(rawTeam) : ''
     if (!team) continue
     const adjO = parseNumber(row[adjoIdx]) ?? undefined
     const adjD = parseNumber(row[adjdIdx]) ?? undefined
@@ -650,65 +672,132 @@ const parseAdvancedTableRows = (
   return entries
 }
 
-export const fetchTorvikAdvancedRatings = async (): Promise<CbbAdvancedRatingEntry[]> => {
-  try {
-    const data = await fetchJson<any>(TORVIK_JSON_URL)
-    const rows = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.data)
-        ? data.data
-        : Array.isArray(data?.teams)
-          ? data.teams
-          : Array.isArray(data?.rankings)
-            ? data.rankings
-            : []
+const isValidTeamName = (value: string) =>
+  /[a-z]/i.test(value) && !/\d/.test(value)
 
-    if (rows.length) {
-      return rows
-        .map((row: any) => {
-          const team = String(row?.team || row?.Team || row?.school || row?.School || '').trim()
-          if (!team) return null
-          const adjO = parseNumber(row?.adjo ?? row?.adjO ?? row?.adj_off)
-          const adjD = parseNumber(row?.adjd ?? row?.adjD ?? row?.adj_def)
-          const adjEM = parseNumber(row?.adjem ?? row?.adjEM ?? row?.adj_em) ??
-            (adjO != null && adjD != null ? Number((adjO - adjD).toFixed(2)) : null)
-          return {
-            team,
-            adjO: adjO ?? undefined,
-            adjD: adjD ?? undefined,
-            adjEM: adjEM ?? undefined,
-            tempo: parseNumber(row?.tempo ?? row?.pace) ?? undefined,
-            luck: parseNumber(row?.luck) ?? undefined,
-            sos: parseNumber(row?.sos) ?? undefined,
-            ncsos: parseNumber(row?.ncsos ?? row?.nc_sos) ?? undefined,
-            source: 'torvik' as const,
-          }
-        })
-        .filter(Boolean) as CbbAdvancedRatingEntry[]
-    }
-  } catch (error) {
-    console.warn('[CBB] Torvik JSON fetch failed', error)
-  }
-
-  const html = await fetchHtml(TORVIK_HTML_URL)
-  if (!html) return []
-  const tables = parseTables(html)
-  const table = pickTableByHeader(tables, ['adjo', 'adjd'])
-  if (!table) return []
-  return parseAdvancedTableRows(table, 'torvik')
+const normalizeTeamName = (value: string) => {
+  const homeAwayMatch = value.match(/^(.*?)\s*\((?:h|a|n)\)/i)
+  const base = homeAwayMatch ? homeAwayMatch[1] : value
+  const cleaned = base
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\d+/g, ' ')
+    .replace(/\b(home|away|neutral)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return cleaned.replace(/\bSt\.?$/i, 'State')
 }
 
-export const fetchHaslametricsRatings = async (): Promise<CbbAdvancedRatingEntry[]> => {
-  const xml = await fetchHtml(HASLA_XML_URL)
-  if (xml) {
-    const parsed = parseHaslametricsXml(xml)
-    if (parsed.length) return parsed
+const extractTorvikRatingsWithBrowser = async (): Promise<CbbAdvancedRatingEntry[]> => {
+  try {
+    const { chromium } = await import('playwright')
+    const browser = await chromium.launch({ headless: true })
+    try {
+      const page = await browser.newPage()
+      await page.goto(TORVIK_HTML_URL, { waitUntil: 'networkidle', timeout: 15000 })
+      await page.waitForTimeout(1500)
+      const rows = await page.evaluate(() => {
+        const tables = Array.from(document.querySelectorAll('table'))
+        const extractText = (el: Element) =>
+          (el.textContent || '').replace(/\s+/g, ' ').trim()
+        const findHeaderRow = (table: HTMLTableElement) => {
+          const rowEls = Array.from(table.querySelectorAll('tr'))
+          for (const row of rowEls) {
+            const cells = Array.from(row.querySelectorAll('th,td')).map(extractText)
+            if (cells.includes('Team') && cells.some((c) => c.includes('AdjOE')) && cells.some((c) => c.includes('AdjDE'))) {
+              return { row, cells }
+            }
+          }
+          return null
+        }
+
+        for (const table of tables) {
+          const header = findHeaderRow(table as HTMLTableElement)
+          if (!header) continue
+          const headerCells = header.cells
+          const rowEls = Array.from(table.querySelectorAll('tr'))
+          const startIndex = rowEls.indexOf(header.row) + 1
+          const dataRows = rowEls.slice(startIndex)
+          return {
+            headerCells,
+            dataRows: dataRows.map((row) =>
+              Array.from(row.querySelectorAll('td')).map(extractText)
+            ),
+          }
+        }
+        return null
+      })
+      if (!rows?.headerCells?.length || !rows?.dataRows?.length) return []
+
+      const header = rows.headerCells
+      const headerIndex = (label: string) =>
+        header.findIndex((cell: string) =>
+          cell.toLowerCase().replace(/\s+/g, '').includes(label)
+        )
+      const idxTeam = headerIndex('team')
+      const idxAdjO = headerIndex('adjoe')
+      const idxAdjD = headerIndex('adjde')
+      const idxTempo = headerIndex('adjt')
+      const idxLuck = headerIndex('luck')
+      const idxSos = headerIndex('sos')
+      const idxNcSos = headerIndex('ncsos')
+
+      const parseNumber = (value: string | undefined) => {
+        if (!value) return null
+        const match = value.match(/-?\d+(\.\d+)?/)
+        return match ? Number(match[0]) : null
+      }
+
+      const entries: CbbAdvancedRatingEntry[] = []
+      for (const row of rows.dataRows as string[][]) {
+        const rawTeam = row[idxTeam]
+        const team = rawTeam ? normalizeTeamName(rawTeam) : ''
+        if (!team || !isValidTeamName(team)) continue
+        const adjO = parseNumber(row[idxAdjO]) ?? undefined
+        const adjD = parseNumber(row[idxAdjD]) ?? undefined
+        const adjEM =
+          adjO != null && adjD != null ? Number((adjO - adjD).toFixed(2)) : undefined
+        entries.push({
+          team,
+          adjO,
+          adjD,
+          adjEM,
+          tempo: parseNumber(row[idxTempo]) ?? undefined,
+          luck: parseNumber(row[idxLuck]) ?? undefined,
+          sos: parseNumber(row[idxSos]) ?? undefined,
+          ncsos: parseNumber(row[idxNcSos]) ?? undefined,
+          source: 'torvik',
+        })
+      }
+      return entries
+    } finally {
+      await browser.close()
+    }
+  } catch (error) {
+    console.warn('[Torvik] Browser extraction failed', error)
+    return []
+  }
+}
+
+export const fetchTorvikAdvancedRatings = async (): Promise<CbbAdvancedRatingEntry[]> => {
+  const html = await fetchHtml(TORVIK_HTML_URL)
+  const parseTablesFromHtml = (source: string | null) => {
+    if (!source) return []
+    const tables = parseTables(source)
+    const table = pickTableByHeader(tables, ['adjo', 'adjd'])
+    return table ? parseAdvancedTableRows(table, 'torvik') : []
   }
 
-  const html = await fetchHtml(HASLA_RATINGS_URL)
-  if (!html) return []
-  const tables = parseTables(html)
-  const table = pickTableByHeader(tables, ['adjo', 'adjd'])
-  if (!table) return []
-  return parseAdvancedTableRows(table, 'hasla')
+  let parsed = parseTablesFromHtml(html)
+  if (parsed.length && parsed.every((entry) => isValidTeamName(entry.team))) {
+    return parsed
+  }
+
+  const browserHtml = await fetchHtmlWithBrowser(TORVIK_HTML_URL)
+  parsed = parseTablesFromHtml(browserHtml)
+  if (parsed.length && parsed.every((entry) => isValidTeamName(entry.team))) {
+    return parsed
+  }
+
+  const browserParsed = await extractTorvikRatingsWithBrowser()
+  return browserParsed.length ? browserParsed : parsed
 }

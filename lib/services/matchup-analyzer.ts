@@ -148,11 +148,31 @@ const getCbbTeamStats = async (teamName: string): Promise<TeamStats | null> => {
   const entry = teams?.[0]
   const stats = entry?.stats || {}
 
-  const ortg = advanced?.adjO ?? toNumber(stats.offensiveRating)
-  const drtg = advanced?.adjD ?? toNumber(stats.defensiveRating)
-  const pace = advanced?.tempo ?? toNumber(stats.pace)
+  const ppg = toNumber(stats.pointsForPerGame)
+  const papg = toNumber(stats.pointsAgainstPerGame)
+  const basePace = advanced?.tempo ?? toNumber(stats.pace)
+  const resolvedPace =
+    basePace ?? (ppg != null || papg != null ? DEFAULT_NCAAB_TEAM_STATS.pace : null)
+  const ortg =
+    advanced?.adjO ??
+    toNumber(stats.offensiveRating) ??
+    (ppg != null && resolvedPace
+      ? Number(((ppg / resolvedPace) * 100).toFixed(1))
+      : null)
+  const drtg =
+    advanced?.adjD ??
+    toNumber(stats.defensiveRating) ??
+    (papg != null && resolvedPace
+      ? Number(((papg / resolvedPace) * 100).toFixed(1))
+      : null)
 
-  if (ortg == null || drtg == null || pace == null) {
+  if (ortg == null || drtg == null || resolvedPace == null) {
+    console.warn('[MATCHUP ANALYZER] Using default NCAAB stats', {
+      team: teamName,
+      ortg,
+      drtg,
+      pace: resolvedPace,
+    })
     return {
       ...DEFAULT_NCAAB_TEAM_STATS,
       eFG: toPctDecimal(stats.effectiveFieldGoalPct ?? stats.effectiveFgPct),
@@ -163,7 +183,7 @@ const getCbbTeamStats = async (teamName: string): Promise<TeamStats | null> => {
   return {
     ortg,
     drtg,
-    pace,
+    pace: resolvedPace,
     eFG: toPctDecimal(stats.effectiveFieldGoalPct ?? stats.effectiveFgPct),
     ts: toPctDecimal(stats.trueShootingPct),
   }
@@ -173,6 +193,17 @@ const getNbaTeamStats = async (teamName: string): Promise<TeamStats | null> => {
   const teams = await getSportsTeamStats('basketball_nba', teamName)
   const entry = teams?.[0]
   const stats = entry?.stats || {}
+
+  const findStat = (patterns: string[]) => {
+    for (const [key, value] of Object.entries(stats)) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue
+      const upper = key.toUpperCase()
+      if (patterns.some((pattern) => upper.includes(pattern))) {
+        return value
+      }
+    }
+    return null
+  }
 
   const gamesPlayed = toNumber(stats.gamesPlayed)
   const pointsFor = toNumber(stats.pointsFor)
@@ -189,17 +220,35 @@ const getNbaTeamStats = async (teamName: string): Promise<TeamStats | null> => {
   const validPpg = (value: number | null) =>
     value != null && value >= 70 && value <= 140 ? value : null
 
-  const pace = validPace(toNumber(stats.pace)) ?? DEFAULT_NBA_TEAM_STATS.pace
+  const pace =
+    validPace(toNumber(stats.pace)) ??
+    validPace(findStat(['PACE'])) ??
+    DEFAULT_NBA_TEAM_STATS.pace
   const ppg = validPpg(rawPpg)
   const papg = validPpg(rawPapg)
   const ortg =
     validRating(toNumber(stats.offensiveRating)) ??
+    validRating(findStat(['OFFENSIVE_RATING', 'OFF_RTG', 'ORTG'])) ??
     (ppg != null && pace ? Number(((ppg / pace) * 100).toFixed(1)) : null) ??
     DEFAULT_NBA_TEAM_STATS.ortg
   const drtg =
     validRating(toNumber(stats.defensiveRating)) ??
+    validRating(findStat(['DEFENSIVE_RATING', 'DEF_RTG', 'DRTG'])) ??
     (papg != null && pace ? Number(((papg / pace) * 100).toFixed(1)) : null) ??
     DEFAULT_NBA_TEAM_STATS.drtg
+
+  if (
+    pace === DEFAULT_NBA_TEAM_STATS.pace &&
+    ortg === DEFAULT_NBA_TEAM_STATS.ortg &&
+    drtg === DEFAULT_NBA_TEAM_STATS.drtg
+  ) {
+    console.warn('[MATCHUP ANALYZER] Using default NBA pace/ratings', {
+      team: teamName,
+      pace: stats.pace,
+      offensiveRating: stats.offensiveRating,
+      defensiveRating: stats.defensiveRating,
+    })
+  }
 
   return {
     ortg,
@@ -335,6 +384,12 @@ const getFootballTeamStats = async (
       : null
 
   if (pointsForPerGameValue == null || pointsAgainstPerGameValue == null) {
+    console.warn('[MATCHUP ANALYZER] Missing football stats for team', {
+      team: teamName,
+      sport: sportKey,
+      pointsForPerGame: pointsForPerGameValue,
+      pointsAgainstPerGame: pointsAgainstPerGameValue,
+    })
     return sportKey === 'americanfootball_ncaaf' ? DEFAULT_NCAAF_TEAM_STATS : null
   }
 

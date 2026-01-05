@@ -519,7 +519,7 @@ export default function ChatPage() {
                         </span>
                         <Link
                           href="/patch-notes"
-                          className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+                          className="relative z-10 pointer-events-auto inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
                         >
                           View Patch Notes
                         </Link>

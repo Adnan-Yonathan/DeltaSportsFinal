@@ -754,17 +754,28 @@ Returns season average, adjusted projection, probability percentage, and recomme
     type: 'function',
     function: {
       name: 'combo_analysis',
-      description: `Analyze combined bet probability for parlays and multi-leg bets. Calculates probability considering correlations between related events (same-player props, same-game outcomes).
+      description: `Analyze combined bet probability for pregame parlays and multi-leg bets across supported sports. Compares model projections to sportsbook lines, accounts for correlations, and selects the best same-book parlay price (all legs must be offered by the same book). Lines are optional for spreads/totals; when omitted the best available odds/line are selected from the sportsbook feed. Supports spreads, totals, moneyline, and player props. MLB is not supported.
 Use for:
 - "What's the chance Curry scores 25+ AND hits 4+ threes?"
 - "Probability of Warriors winning AND Lakers losing"
 - "Parlay probability: Jokic triple-double + Nuggets cover"
 - "Combo analysis: LeBron 30 pts + Lakers cover"
 - "What are the odds of hitting both props?"
-Returns individual leg probabilities, correlation adjustments, and combined probability with implied fair odds.`,
+Returns individual leg probabilities, correlation adjustments, combined probability, and fair odds with best book price.`,
       parameters: {
         type: 'object',
         properties: {
+          sport: {
+            type: 'string',
+            enum: [
+              'basketball_nba',
+              'basketball_ncaab',
+              'americanfootball_nfl',
+              'americanfootball_ncaaf',
+              'icehockey_nhl',
+            ],
+            description: 'Optional sport for all legs when they share a sport.',
+          },
           legs: {
             type: 'array',
             description: 'Array of bet legs to analyze',
@@ -775,6 +786,17 @@ Returns individual leg probabilities, correlation adjustments, and combined prob
                   type: 'string',
                   enum: ['player_prop', 'game_spread', 'game_total', 'game_moneyline'],
                   description: 'Type of bet'
+                },
+                sport: {
+                  type: 'string',
+                  enum: [
+                    'basketball_nba',
+                    'basketball_ncaab',
+                    'americanfootball_nfl',
+                    'americanfootball_ncaaf',
+                    'icehockey_nhl',
+                  ],
+                  description: 'Optional sport override for this leg.',
                 },
                 player: {
                   type: 'string',

@@ -23,6 +23,7 @@ export type QueryType =
   | 'best_bet'
   | 'matchup_analysis'
   | 'sharp_money'
+  | 'parlay'
   | 'unknown'
 
 export type SportType = 'nba' | 'nfl' | 'mlb' | 'nhl' | 'ncaab' | 'cfb' | 'unknown'
@@ -52,6 +53,17 @@ export interface PreprocessedQuery {
   leaderboardStat?: string
   /** Suggested tool to use */
   suggestedTool?: string
+  /** Parsed parlay legs (if detected) */
+  parlayLegs?: ParsedParlayLeg[]
+}
+
+type ParsedParlayLeg = {
+  type: 'game_spread' | 'game_total'
+  homeTeam: string
+  awayTeam: string
+  line?: number
+  direction: 'home' | 'away' | 'over' | 'under'
+  sport?: SportType
 }
 
 // ============================================================
@@ -236,6 +248,13 @@ const LINE_SHOPPING_PATTERNS = [
   /\b(draftkings|fanduel|betmgm|caesars|bet365)\s+vs\s+(draftkings|fanduel|betmgm|caesars|bet365)/i,
   /\bodds\s+comparison/i,
   /\b(best|better)\s+(book|sportsbook)\s+for/i,
+]
+
+/**
+ * Parlay patterns
+ */
+const PARLAY_PATTERNS = [
+  /\b(parlay|same\s*game\s*parlay|sgp|combo\s+analysis|multi[-\s]*leg)\b/i,
 ]
 
 /**
@@ -565,6 +584,13 @@ function detectQueryType(query: string): { type: QueryType; tool?: string; extra
     }
   }
 
+  // Check for parlay / combo analysis
+  for (const pattern of PARLAY_PATTERNS) {
+    if (pattern.test(lower)) {
+      return { type: 'parlay', tool: 'combo_analysis' }
+    }
+  }
+
   // Check for game recommendation
   for (const pattern of GAME_RECOMMENDATION_PATTERNS) {
     if (pattern.test(lower)) {
@@ -644,6 +670,92 @@ function detectQueryType(query: string): { type: QueryType; tool?: string; extra
   }
 
   return { type: 'unknown' }
+}
+
+const normalizeText = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+const splitParlayChunks = (query: string) => {
+  if (query.includes(',') || query.includes(';')) {
+    return query.split(/[,;]+/).map((chunk) => chunk.trim()).filter(Boolean)
+  }
+  if (/\s\+\s/.test(query)) {
+    return query.split(/\s\+\s/).map((chunk) => chunk.trim()).filter(Boolean)
+  }
+  if (/\band\b/i.test(query)) {
+    return query.split(/\band\b/i).map((chunk) => chunk.trim()).filter(Boolean)
+  }
+  return [query.trim()]
+}
+
+const extractMatchupTeams = (chunk: string) => {
+  const matchup = chunk.match(/\b(.+?)\s*(?:@|vs\.?|versus|against)\s+(.+)\b/i)
+  if (!matchup) return null
+  const left = matchup[1].trim()
+  const right = matchup[2].trim()
+  const isAt = /@/.test(matchup[0])
+  const awayTeam = left
+  const homeTeam = right
+  return { homeTeam, awayTeam }
+}
+
+const extractParlayLegs = (query: string): ParsedParlayLeg[] => {
+  const chunks = splitParlayChunks(query)
+  const legs: ParsedParlayLeg[] = []
+
+  for (const chunk of chunks) {
+    const lower = chunk.toLowerCase()
+    const matchup = extractMatchupTeams(chunk)
+    const teamsResult = findTeamsInQuery(chunk)
+    const homeTeam =
+      matchup?.homeTeam || teamsResult.team2 || teamsResult.team1 || null
+    const awayTeam =
+      matchup?.awayTeam || teamsResult.team1 || teamsResult.team2 || null
+    if (!homeTeam || !awayTeam) continue
+    if (normalizeText(homeTeam) === normalizeText(awayTeam)) continue
+
+    const totalMatch = chunk.match(/\b(over|under)\s*(\d+(\.\d+)?)/i)
+    if (totalMatch) {
+      const line = Number(totalMatch[2])
+      if (Number.isFinite(line)) {
+        legs.push({
+          type: 'game_total',
+          homeTeam,
+          awayTeam,
+          line,
+          direction: totalMatch[1].toLowerCase() as 'over' | 'under',
+          sport: teamsResult.sport,
+        })
+        continue
+      }
+    }
+
+    const lineMatch = chunk.match(/([+-]\d+(\.\d+)?)/)
+    const isSpreadHint = /\b(spread|line|ml|moneyline)\b/i.test(lower)
+    const line = lineMatch ? Number(lineMatch[1]) : null
+    if (lineMatch && !Number.isFinite(line)) continue
+    if (!lineMatch && !isSpreadHint) continue
+
+    const lineTeam = teamsResult.team1 || teamsResult.team2
+    if (!lineTeam) continue
+    const lineTeamKey = normalizeText(lineTeam)
+    const homeKey = normalizeText(homeTeam)
+    const awayKey = normalizeText(awayTeam)
+    const direction =
+      lineTeamKey === homeKey ? 'home' : lineTeamKey === awayKey ? 'away' : null
+    if (!direction) continue
+
+    legs.push({
+      type: 'game_spread',
+      homeTeam,
+      awayTeam,
+      line: line ?? undefined,
+      direction,
+      sport: teamsResult.sport,
+    })
+  }
+
+  return legs
 }
 
 // ============================================================
@@ -842,6 +954,10 @@ export function preprocessQuery(query: string, options: PreprocessOptions = {}):
       result.leaderboardStat = detection.extra.stat
     }
 
+    if (detection.type === 'parlay') {
+      result.parlayLegs = extractParlayLegs(query)
+    }
+
     // Try to extract team for team-based queries (only if not already tagged)
     if (['ats', 'injuries', 'schedule'].includes(detection.type) && !result.teamName) {
       result.teamName = findTeamInQuery(query) || undefined
@@ -1015,6 +1131,14 @@ export function enhanceQueryForLLM(query: string, preprocessed: PreprocessedQuer
 
     case 'sharp_money':
       hints.push(`Use get_slate_edge_detection to find sharp money signals, reverse line movements, and professional bettor action`)
+      break
+    case 'parlay':
+      hints.push(`Use combo_analysis for parlay probability`)
+      if (preprocessed.parlayLegs?.length) {
+        hints.push(`Parsed legs: ${JSON.stringify(preprocessed.parlayLegs)}`)
+      } else {
+        hints.push(`If legs are missing, ask for teams, bet types, and lines`)
+      }
       break
   }
 

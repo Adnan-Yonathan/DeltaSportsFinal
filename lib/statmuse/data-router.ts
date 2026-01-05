@@ -973,9 +973,11 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
       }
 
       case 'combo_analysis': {
-        const { legs } = args as {
+        const { legs, sport } = args as {
+          sport?: string
           legs: Array<{
             type: 'player_prop' | 'game_spread' | 'game_total' | 'game_moneyline'
+            sport?: string
             player?: string
             propType?: string
             threshold?: number
@@ -995,6 +997,7 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
         // Map the LLM args to engine format
         const mappedLegs = legs.map(leg => ({
           type: leg.type,
+          sport: leg.sport ?? sport,
           playerName: leg.player,
           propType: leg.propType,
           threshold: leg.threshold,
@@ -1006,26 +1009,32 @@ async function executeToolCall(toolCall: ChatCompletionMessageToolCall): Promise
           marketOdds: leg.marketOdds,
         }))
 
-        const parlayResult = await calculateParlayProbability(mappedLegs)
+        try {
+          const parlayResult = await calculateParlayProbability(mappedLegs, { sport })
 
-        if (!parlayResult) {
-          result = {
-            error: 'Could not calculate parlay probability. Check that player names and teams are valid.',
+          if (!parlayResult) {
+            result = {
+              error: 'Could not calculate parlay probability. Check that player names and teams are valid.',
+            }
+          } else {
+            result = {
+              legCount: parlayResult.legs.length,
+              independentProbability: `${(parlayResult.independentProbability * 100).toFixed(1)}%`,
+              correlatedProbability: `${(parlayResult.correlatedProbability * 100).toFixed(1)}%`,
+              correlationAdjustments: parlayResult.correlationAdjustments,
+              impliedOdds: parlayResult.impliedOdds,
+              confidence: parlayResult.confidence,
+              legs: parlayResult.legs.map(leg => ({
+                description: leg.description,
+                probability: `${(leg.probability * 100).toFixed(1)}%`,
+                confidence: leg.confidence,
+              })),
+              formatted: formatParlayResultForChat(parlayResult),
+            }
           }
-        } else {
+        } catch (error: any) {
           result = {
-            legCount: parlayResult.legs.length,
-            independentProbability: `${(parlayResult.independentProbability * 100).toFixed(1)}%`,
-            correlatedProbability: `${(parlayResult.correlatedProbability * 100).toFixed(1)}%`,
-            correlationAdjustments: parlayResult.correlationAdjustments,
-            impliedOdds: parlayResult.impliedOdds,
-            confidence: parlayResult.confidence,
-            legs: parlayResult.legs.map(leg => ({
-              description: leg.description,
-              probability: `${(leg.probability * 100).toFixed(1)}%`,
-              confidence: leg.confidence,
-            })),
-            formatted: formatParlayResultForChat(parlayResult),
+            error: error?.message || 'Failed to calculate parlay probability.',
           }
         }
         break

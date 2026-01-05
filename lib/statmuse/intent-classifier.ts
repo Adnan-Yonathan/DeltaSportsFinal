@@ -162,6 +162,37 @@ export async function processUnifiedQuery(
     }
   }
 
+  if (
+    preprocessed.matched &&
+    preprocessed.queryType === 'parlay' &&
+    preprocessed.parlayLegs?.length &&
+    preprocessed.parlayLegs.length >= 2
+  ) {
+    try {
+      const { calculateParlayProbability, formatParlayResultForChat } = await import(
+        '@/lib/services/parlay-probability-engine'
+      )
+      const legs = preprocessed.parlayLegs.map((leg) => ({
+        type: leg.type,
+        homeTeam: leg.homeTeam,
+        awayTeam: leg.awayTeam,
+        line: leg.line,
+        direction: leg.direction,
+        sport: leg.sport ? resolveSportKey(leg.sport) : undefined,
+      }))
+      const parlayResult = await calculateParlayProbability(legs)
+      if (parlayResult) {
+        return {
+          reply: formatParlayResultForChat(parlayResult),
+          data: { parlay: parlayResult },
+          toolsUsed: ['combo_analysis'],
+        }
+      }
+    } catch (error) {
+      console.error('[INTENT-CLASSIFIER] Direct parlay execution failed:', error)
+    }
+  }
+
   // Enhance query with hints if we detected player/team names (for LLM fallback)
   const enhancedMessage = enhanceQueryForLLM(message, preprocessed)
 

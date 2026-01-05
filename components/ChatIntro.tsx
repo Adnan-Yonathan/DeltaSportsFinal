@@ -286,7 +286,7 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
         animate={{ opacity: 1, y: 0 }}
         className="text-center max-w-3xl w-full mb-4 sm:mb-6"
       >
-        <Link href="/patch-notes" className="mb-6 inline-block">
+        <Link href="/patch-notes" className="mb-6 inline-block relative z-10 pointer-events-auto">
           <Announcement className="border-[#34d399]/30 bg-black/70 hover:border-[#34d399]/50 hover:bg-black/90 cursor-pointer">
             <AnnouncementTag className="bg-[#34d399]/20 text-[#34d399]">
               Patch 0.1

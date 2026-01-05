@@ -8,6 +8,7 @@ const ESPN_WEB_BASE =
 const CACHE_TTL = 1000 * 60 * 10 // 10 minutes
 type CacheEntry<T> = { ts: number; data: T }
 const cache = new Map<string, CacheEntry<any>>()
+const ESPN_CORE_FBS_GROUP_ID = 80
 
 export interface EspnCategoryStat {
   name: string
@@ -216,38 +217,117 @@ const pickStat = (
 }
 
 export const fetchTeamList = async (): Promise<EspnTeamMeta[]> => {
-  const url = `${ESPN_SITE_BASE}/teams`
-  const data = await fetchJson<any>(url)
-  const rawTeams = data?.sports?.[0]?.leagues?.[0]?.teams ?? []
-  if (!Array.isArray(rawTeams)) return []
+  const teamsMap = new Map<string, EspnTeamMeta>()
 
-  return rawTeams
-    .map((entry: any) => {
-      const team = entry?.team
-      if (!team) return null
-      const recordItem = team?.record?.items?.[0]
-      const pick = (name: string) =>
-        recordItem?.stats?.find((s: any) => s.name === name)?.value
-      const wins = pick('wins')
-      const losses = pick('losses')
-      return {
-        id: String(team?.id ?? ''),
-        name: team?.name || team?.displayName || '',
-        displayName: team?.displayName || '',
-        shortDisplayName: team?.shortDisplayName || '',
-        abbreviation: team?.abbreviation || '',
-        recordSummary: recordItem?.summary,
-        wins: typeof wins === 'number' ? wins : undefined,
-        losses: typeof losses === 'number' ? losses : undefined,
-        pointsFor: typeof pick('pointsFor') === 'number' ? pick('pointsFor') : undefined,
-        pointsAgainst: typeof pick('pointsAgainst') === 'number' ? pick('pointsAgainst') : undefined,
-        avgPointsFor:
-          typeof pick('avgPointsFor') === 'number' ? pick('avgPointsFor') : undefined,
-        avgPointsAgainst:
-          typeof pick('avgPointsAgainst') === 'number' ? pick('avgPointsAgainst') : undefined,
-      } as EspnTeamMeta
-    })
-    .filter(Boolean) as EspnTeamMeta[]
+  const parseTeam = (team: any): EspnTeamMeta | null => {
+    if (!team?.id) return null
+    return {
+      id: String(team?.id ?? ''),
+      name: team?.name || team?.displayName || '',
+      displayName: team?.displayName || '',
+      shortDisplayName: team?.shortDisplayName || '',
+      abbreviation: team?.abbreviation || '',
+    }
+  }
+
+  const parseTeamRefId = (ref?: string | null) => {
+    if (!ref) return null
+    const match = ref.match(/teams\/(\d+)/i)
+    return match ? match[1] : null
+  }
+
+  const fetchFbsTeamsFromCore = async () => {
+    const season = getCurrentSeason()
+    const baseUrl = `${ESPN_CORE_BASE}/seasons/${season}/types/2/groups/${ESPN_CORE_FBS_GROUP_ID}/teams?lang=en&region=us`
+    const first = await fetchJson<any>(baseUrl)
+    if (!first?.items?.length) return []
+    const pageCount = Number(first.pageCount) || 1
+    const pages: any[] = [first]
+    if (pageCount > 1) {
+      const rest = await Promise.all(
+        Array.from({ length: pageCount - 1 }, (_, i) =>
+          fetchJson<any>(`${baseUrl}&page=${i + 2}`)
+        )
+      )
+      pages.push(...rest.filter(Boolean))
+    }
+
+    const teamRefs: string[] = []
+    for (const page of pages) {
+      for (const entry of page?.items ?? []) {
+        if (entry?.$ref) teamRefs.push(String(entry.$ref))
+      }
+    }
+
+    const teamDetails = await Promise.all(
+      teamRefs.map(async (ref) => {
+        const data = await fetchJson<any>(ref)
+        const fallbackId = parseTeamRefId(ref)
+        if (data?.id) return data
+        if (fallbackId) return { id: fallbackId }
+        return null
+      })
+    )
+
+    for (const team of teamDetails) {
+      const parsed = parseTeam(team)
+      if (parsed && !teamsMap.has(parsed.id)) {
+        teamsMap.set(parsed.id, parsed)
+      }
+    }
+  }
+
+  await fetchFbsTeamsFromCore()
+  if (teamsMap.size >= 120) {
+    return Array.from(teamsMap.values())
+  }
+
+  const groupsUrl = `${ESPN_SITE_BASE}/groups`
+  const groupsData = await fetchJson<any>(groupsUrl)
+  if (groupsData?.groups) {
+    for (const division of groupsData.groups) {
+      if (division.teams) {
+        for (const team of division.teams) {
+          const parsed = parseTeam(team)
+          if (parsed && !teamsMap.has(parsed.id)) {
+            teamsMap.set(parsed.id, parsed)
+          }
+        }
+      }
+      if (division.children) {
+        for (const conference of division.children) {
+          if (conference.teams) {
+            for (const team of conference.teams) {
+              const parsed = parseTeam(team)
+              if (parsed && !teamsMap.has(parsed.id)) {
+                teamsMap.set(parsed.id, parsed)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (teamsMap.size < 100) {
+    const limitPerPage = 200
+    const pages = [0, 200, 400]
+    for (const offset of pages) {
+      const url = `${ESPN_SITE_BASE}/teams?limit=${limitPerPage}&offset=${offset}`
+      const data = await fetchJson<any>(url)
+      const rawTeams = data?.sports?.[0]?.leagues?.[0]?.teams ?? []
+      if (!Array.isArray(rawTeams)) continue
+      for (const entry of rawTeams) {
+        const team = entry?.team
+        const parsed = parseTeam(team)
+        if (parsed && !teamsMap.has(parsed.id)) {
+          teamsMap.set(parsed.id, parsed)
+        }
+      }
+    }
+  }
+
+  return Array.from(teamsMap.values())
 }
 
 export const fetchTeamStatistics = async (

@@ -1,1051 +1,1434 @@
-/**
- * Parlay Probability Engine
- * Calculates combined probabilities for multi-leg parlays with correlation adjustments
- *
- * Handles:
- * - Single player prop probabilities
- * - Combined props for same player (correlated - e.g., points AND threes)
- * - Multi-event parlay probabilities (different players/games - independent)
- * - Comparison to market odds with edge detection
- */
-
+import { resolveSportKey, normalizeTeamKey, type CanonicalSportKey } from '@/lib/identity/sport'
+import { searchTeams } from '@/lib/data/team-search'
 import {
-  calculateOverProbability,
-  calculateOverProbabilityNormal,
-  getConfidenceLevel,
-  formatProbability
-} from '@/lib/utils/prop-probability'
-import { getNBAPlayerSeasonStats, getNBATeamStats } from '@/lib/sports-stats-api'
-import { fetchAllLiveScores } from '@/lib/live-scores'
-import { fetchSbdGamePropsList, fetchSbdOdds, type SbdLeague } from '@/lib/api/sbd'
+  fetchSbdOdds,
+  fetchSbdGamePropsList,
+  fetchSbdPlayerProps,
+  mapSbdOddsToOddsGames,
+  resolveSbdLeague,
+} from '@/lib/api/sbd'
+import { MARKETS, type OddsGame } from '@/lib/types/odds'
+import { americanToDecimal, decimalToAmerican } from '@/lib/utils/odds'
+import { normalCDF, oddsToImpliedProbability, probabilityToAmericanOdds } from '@/lib/utils/statistics'
+import {
+  projectPlayerProp,
+  calculatePropProbability,
+  type MatchupContext,
+  type PropProjection,
+  type SportKey,
+} from '@/lib/services/player-prop-projector'
+import { getGameRecommendations } from '@/lib/services/recommendation-engine'
+import { formatProbability } from '@/lib/utils/prop-probability'
 
-// ============================================
-// Types
-// ============================================
+const SUPPORTED_SPORTS: CanonicalSportKey[] = [
+  'basketball_nba',
+  'basketball_ncaab',
+  'americanfootball_nfl',
+  'americanfootball_ncaaf',
+  'icehockey_nhl',
+]
 
-export interface ProbabilityLeg {
-  type: 'player_prop' | 'game_spread' | 'game_total' | 'game_moneyline'
-  description: string
-  probability: number
-  source: 'calculated' | 'implied_odds'
-  confidence: 'high' | 'medium' | 'low'
+const SUPPORTED_SPORT_SET = new Set(SUPPORTED_SPORTS)
+const BLOCKED_SPORTS = new Set<CanonicalSportKey>(['baseball_mlb'])
+const LINE_TOLERANCE = 0.25
+
+const SPREAD_STD_DEV: Record<CanonicalSportKey, number> = {
+  basketball_nba: 12,
+  basketball_ncaab: 11,
+  americanfootball_nfl: 13,
+  americanfootball_ncaaf: 14,
+  icehockey_nhl: 1.6,
+  baseball_mlb: 4,
 }
 
-export interface PlayerPropLeg extends ProbabilityLeg {
+const TOTAL_STD_DEV: Record<CanonicalSportKey, number> = {
+  basketball_nba: 16,
+  basketball_ncaab: 14,
+  americanfootball_nfl: 10,
+  americanfootball_ncaaf: 13,
+  icehockey_nhl: 1.3,
+  baseball_mlb: 3.5,
+}
+
+const DEFAULT_PROP_CORRELATION = 0.04
+
+const PROP_CORRELATIONS: Record<string, Record<string, number>> = {
+  points: { threes: 0.06, assists: 0.04, rebounds: 0.03, pra: 0.06 },
+  threes: { points: 0.06 },
+  assists: { points: 0.04, pra: 0.05 },
+  rebounds: { points: 0.03, pra: 0.05 },
+  pra: { points: 0.06, rebounds: 0.05, assists: 0.05 },
+  passing_yards: { passing_touchdowns: 0.06, passing_completions: 0.05 },
+  rushing_yards: { rushing_touchdowns: 0.05 },
+  receiving_yards: { receptions: 0.05, receiving_touchdowns: 0.04 },
+  receptions: { receiving_yards: 0.05 },
+  goals: { shots: 0.06, points: 0.05 },
+  shots: { goals: 0.06 },
+}
+
+const GAME_CORRELATIONS = {
+  spreadToTotal: 0.03,
+  moneylineToSpread: 0.08,
+}
+
+type LegType = 'player_prop' | 'game_spread' | 'game_total' | 'game_moneyline'
+
+export type PlayerPropLegInput = {
   type: 'player_prop'
-  playerName: string
-  team: string
-  propType: string  // points, threes, rebounds, assists, PRA
-  threshold: number
-  direction: 'over' | 'under'
-  seasonAverage: number
-  adjustedAverage?: number
-  // Market comparison (from SBD live gameprops)
-  marketLine?: number           // The actual line from sportsbook
-  marketOdds?: number           // American odds for the over/under
-  impliedProbability?: number   // Market-implied probability
-  edge?: number                 // Model probability - Implied (positive = value)
-  book?: string                 // Sportsbook name (e.g., "fanduel", "draftkings")
+  playerName?: string
+  propType?: string
+  threshold?: number
+  propDirection?: 'over' | 'under'
+  homeTeam?: string
+  awayTeam?: string
+  marketOdds?: number
+  sport?: string
 }
 
-export interface GameOutcomeLeg extends ProbabilityLeg {
+export type GameOutcomeLegInput = {
   type: 'game_spread' | 'game_total' | 'game_moneyline'
-  homeTeam: string
-  awayTeam: string
-  line?: number           // spread or total
+  homeTeam?: string
+  awayTeam?: string
+  line?: number
   direction?: 'home' | 'away' | 'over' | 'under'
-  marketOdds?: number     // American odds from books
-  impliedProbability?: number   // From market odds
-  modelProbability?: number     // From our calculations
-  edge?: number                 // Model - Implied (positive = value)
+  marketOdds?: number
+  sport?: string
 }
+
+export type ParlayLegInput = PlayerPropLegInput | GameOutcomeLegInput
 
 export interface CorrelationAdjustment {
+  type: 'same_player' | 'same_game'
   description: string
-  factor: number
-  reason: string
+  adjustment: number
+}
+
+export interface ProbabilityLeg {
+  type: LegType
+  description: string
+  probability: number
+  confidence: 'low' | 'medium' | 'high'
+  sport: CanonicalSportKey
+  book?: string | null
+  marketOdds?: number | null
+  line?: number | null
+  modelLine?: number | null
+  modelProbability?: number | null
+  impliedProbability?: number | null
+  edge?: number | null
+  playerName?: string
+  propType?: string
+  propDirection?: 'over' | 'under'
+  homeTeam?: string
+  awayTeam?: string
+  direction?: 'home' | 'away' | 'over' | 'under'
+  teamSide?: string
+  gameKey?: string
 }
 
 export interface ParlayProbabilityResult {
-  legs: (PlayerPropLeg | GameOutcomeLeg)[]
-  independentProbability: number    // Simple multiplication (no correlation)
-  correlatedProbability: number     // Adjusted for correlations
+  legs: ProbabilityLeg[]
+  independentProbability: number
+  correlatedProbability: number
   correlationAdjustments: CorrelationAdjustment[]
-  impliedOdds: {
-    american: number
-    decimal: number
+  impliedOdds: number | null
+  bestBook?: string
+  bestBookOdds?: number | null
+  marketImpliedProbability?: number | null
+  parlayEdge?: number | null
+  confidence: 'low' | 'medium' | 'high'
+}
+
+type LegQuote = {
+  bookKey: string
+  bookTitle: string
+  odds: number
+  line?: number
+}
+
+type PreparedLeg = {
+  type: LegType
+  sport: CanonicalSportKey
+  quotes: LegQuote[]
+  confidence: 'low' | 'medium' | 'high'
+  modelLine?: number | null
+  projection?: PropProjection
+  meanHomeMargin?: number
+  meanTotal?: number
+  playerName?: string
+  propType?: string
+  propDirection?: 'over' | 'under'
+  threshold?: number
+  homeTeam?: string
+  awayTeam?: string
+  direction?: 'home' | 'away' | 'over' | 'under'
+  selectedTeam?: string
+  actualHomeTeam?: string
+  actualAwayTeam?: string
+  gameKey?: string
+}
+
+type ParlayBookQuote = {
+  bookKey: string
+  bookTitle: string
+  decimal: number
+  american: number
+}
+
+const normalizeValue = (value?: string | null) => (value || '').trim()
+
+const normalizeBookKey = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+const normalizeMarketKey = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+
+const normalizePlayerName = (name: string): string => {
+  if (!name) return ''
+  if (name.includes(',')) {
+    const parts = name.split(',').map((part) => part.trim())
+    if (parts.length >= 2) {
+      return `${parts[1]} ${parts[0]}`
+    }
   }
-  confidence: 'high' | 'medium' | 'low'
-  breakdown: string
-  formatted: string
+  return name
 }
 
-// ============================================
-// Correlation Coefficients (Empirical)
-// ============================================
+const normalizePlayerKey = (name: string) =>
+  normalizePlayerName(name).toLowerCase().replace(/[^a-z0-9]/g, '')
 
-/**
- * Correlation coefficients between different stat types
- * Based on empirical NBA data analysis
- * Positive = stats tend to increase together
- * Negative = inverse relationship
- */
-const PROP_CORRELATIONS: Record<string, Record<string, number>> = {
-  points: {
-    threes: 0.65,      // 3PM directly contributes to points
-    assists: 0.35,     // Playmakers tend to also score
-    rebounds: 0.15,    // Weak positive (bigger players)
-    pra: 0.85,         // Points is largest component of PRA
-    blocks: 0.10,
-    steals: 0.15,
-  },
-  threes: {
-    points: 0.65,
-    assists: 0.20,
-    rebounds: -0.10,   // Shooters often worse rebounders
-    pra: 0.45,
-    blocks: -0.15,
-    steals: 0.10,
-  },
-  rebounds: {
-    points: 0.15,
-    threes: -0.10,
-    assists: 0.10,
-    pra: 0.60,
-    blocks: 0.40,      // Bigs block and rebound
-    steals: 0.05,
-  },
-  assists: {
-    points: 0.35,
-    threes: 0.20,
-    rebounds: 0.10,
-    pra: 0.55,
-    blocks: -0.05,
-    steals: 0.25,      // Ball handlers get steals
-  },
-  pra: {
-    points: 0.85,
-    threes: 0.45,
-    rebounds: 0.60,
-    assists: 0.55,
-    blocks: 0.20,
-    steals: 0.20,
-  },
-  blocks: {
-    points: 0.10,
-    threes: -0.15,
-    rebounds: 0.40,
-    assists: -0.05,
-    steals: 0.10,
-  },
-  steals: {
-    points: 0.15,
-    threes: 0.10,
-    rebounds: 0.05,
-    assists: 0.25,
-    blocks: 0.10,
-  },
+const formatSignedLine = (value: number) =>
+  value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1)
+
+const formatLineValue = (value: number, type: 'spread' | 'total' | 'prop') => {
+  if (type === 'spread') return formatSignedLine(value)
+  return value.toFixed(1)
 }
 
-/**
- * Same-game correlations between team outcomes
- */
-const GAME_CORRELATIONS = {
-  // If a team covers spread, slightly more likely game goes over (blowouts)
-  spreadToTotal: 0.15,
-  // If a team is winning (ML), more likely to cover spread
-  moneylineToSpread: 0.70,
+const formatOdds = (odds?: number | null) => {
+  if (odds == null || !Number.isFinite(odds)) return 'n/a'
+  return odds > 0 ? `+${odds}` : `${odds}`
 }
 
-// ============================================
-// Player Data Helpers
-// ============================================
-
-const normalize = (value: string) =>
-  value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '')
-
-interface ParsedPlayer {
-  name: string
-  team: string
-  mpg: number
-  points: number
-  rebounds: number
-  assists: number
-  threes: number
-  pra: number
+const lineMatches = (
+  line: number | null | undefined,
+  target: number | null | undefined
+) => {
+  if (line == null || !Number.isFinite(line)) return false
+  if (target == null || !Number.isFinite(target)) return true
+  return Math.abs(line - target) <= LINE_TOLERANCE
 }
 
-let playerCache = new Map<string, ParsedPlayer>()
-
-const toNumber = (value: unknown): number | null => {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null
-  if (typeof value === 'string') {
-    const num = Number(value)
-    return Number.isFinite(num) ? num : null
+const parseOddsValue = (value: unknown): number | null => {
+  if (value == null) return null
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return null
+  if (parsed > 1 && parsed < 10) {
+    if (parsed >= 2) return Math.round((parsed - 1) * 100)
+    return Math.round(-100 / (parsed - 1))
   }
-  return null
+  return Math.round(parsed)
 }
 
-const pickStat = (stats: Record<string, unknown>, keys: string[]) => {
-  for (const key of keys) {
-    const value = toNumber(stats[key])
-    if (value != null) return value
-  }
-  return null
-}
-
-const buildParsedPlayer = (
-  name: string,
-  team: string,
-  stats: Record<string, unknown>
-): ParsedPlayer => {
-  const points = pickStat(stats, ['PTS', 'PPG', 'points', 'pointsPerGame']) ?? 0
-  const rebounds = pickStat(stats, ['REB', 'RPG', 'TRB', 'rebounds']) ?? 0
-  const assists = pickStat(stats, ['AST', 'APG', 'assists']) ?? 0
-  const threes =
-    pickStat(stats, ['THREE_PM', '3P', 'threePointersMade', 'threesMadePerGame']) ??
-    0
-
-  return {
-    name,
-    team,
-    mpg: pickStat(stats, ['MPG', 'minutesPerGame', 'minutes']) ?? 0,
-    points,
-    rebounds,
-    assists,
-    threes,
-    pra: points + rebounds + assists,
-  }
-}
-
-async function findPlayer(playerName: string): Promise<ParsedPlayer | null> {
-  const normalized = normalize(playerName)
-  if (playerCache.has(normalized)) return playerCache.get(normalized) || null
-
-  const data = await getNBAPlayerSeasonStats(playerName)
-  const stats = (data?.stats || {}) as Record<string, unknown>
-  if (!Object.keys(stats).length) return null
-
-  const parsed = buildParsedPlayer(data?.name || playerName, data?.team || '', stats)
-  playerCache.set(normalized, parsed)
-  return parsed
-}
-
-function getStatValue(player: ParsedPlayer, propType: string): number {
-  const type = propType.toLowerCase()
-  switch (type) {
-    case 'threes':
-    case '3pm':
-    case 'three_pointers':
-    case '3-pointers':
-      return player.threes
-    case 'points':
+const normalizePropType = (input?: string | null): string | null => {
+  const raw = normalizeMarketKey(String(input || ''))
+  if (!raw) return null
+  switch (raw) {
     case 'pts':
-      return player.points
-    case 'rebounds':
+    case 'point':
+    case 'points':
+      return 'points'
     case 'reb':
-    case 'trb':
-      return player.rebounds
-    case 'assists':
+    case 'rebs':
+    case 'rebounds':
+      return 'rebounds'
     case 'ast':
-      return player.assists
+    case 'assists':
+      return 'assists'
+    case '3pm':
+    case '3pt':
+    case 'three_point':
+    case 'three_points':
+    case 'threes':
+    case '3s':
+      return 'threes'
     case 'pra':
-    case 'pts_reb_ast':
-      return player.pra
+    case 'points_rebounds_assists':
+    case 'points_rebounds_assist':
+      return 'pra'
+    case 'points_rebounds':
+    case 'points_plus_rebounds':
+      return 'points_rebounds'
+    case 'points_assists':
+    case 'points_plus_assists':
+      return 'points_assists'
+    case 'rebounds_assists':
+    case 'rebounds_plus_assists':
+      return 'rebounds_assists'
+    case 'passing_yards':
+    case 'pass_yards':
+      return 'passing_yards'
+    case 'passing_touchdowns':
+    case 'passing_tds':
+    case 'pass_tds':
+    case 'pass_td':
+      return 'passing_touchdowns'
+    case 'passing_completions':
+    case 'pass_completions':
+      return 'passing_completions'
+    case 'passing_attempts':
+    case 'pass_attempts':
+      return 'passing_attempts'
+    case 'rushing_yards':
+    case 'rush_yards':
+      return 'rushing_yards'
+    case 'rushing_touchdowns':
+    case 'rush_tds':
+    case 'rush_touchdowns':
+      return 'rushing_touchdowns'
+    case 'receiving_yards':
+    case 'rec_yards':
+      return 'receiving_yards'
+    case 'receiving_touchdowns':
+    case 'rec_touchdowns':
+      return 'receiving_touchdowns'
+    case 'receptions':
+    case 'catches':
+      return 'receptions'
+    case 'goals':
+      return 'goals'
+    case 'shots':
+    case 'shots_on_goal':
+      return 'shots'
+    case 'blocked_shots':
+    case 'blocks':
+      return 'blocked_shots'
+    case 'saves':
+      return 'saves'
+    case 'powerplay_points':
+      return 'powerplay_points'
     default:
-      return player.points
+      return raw
   }
 }
 
-function usePoissonDistribution(propType: string): boolean {
-  const type = propType.toLowerCase()
-  if (type.includes('three') || type === '3pm' || type === 'threes') return true
-  if (type.includes('block') || type.includes('steal')) return true
-  return false
-}
-
-// ============================================
-// SBD Market Data (Live Player Props)
-// ============================================
-
-interface MarketPropLine {
-  playerName: string
-  propType: string  // normalized: 'points', 'threes', 'rebounds', 'assists', 'pra'
-  line: number
-  overOdds: number
-  underOdds: number
-  book: string
-}
-
-// Cache for player props - expires after 2 minutes for live updates
-let propLinesCache: Map<string, MarketPropLine[]> | null = null
-let propLinesCacheTime: number = 0
-const PROP_CACHE_TTL = 2 * 60 * 1000 // 2 minutes
-
-/**
- * Normalize SBD prop market name to our internal format
- */
-function normalizePropMarketName(name: string): string | null {
-  const cleaned = name.toLowerCase().replace(/\(.*?\)/g, '').trim()
-  if (cleaned.includes('points plus assists plus rebounds') || cleaned.includes('pts+rebs+asts')) return 'pra'
+const normalizePropMarketKey = (value: string): string => {
+  const cleaned = value.toLowerCase().replace(/\(.*?\)/g, '').trim()
+  if (cleaned.includes('points plus assists plus rebounds')) return 'pra'
   if (cleaned.includes('points plus rebounds')) return 'points_rebounds'
   if (cleaned.includes('points plus assists')) return 'points_assists'
   if (cleaned.includes('rebounds plus assists')) return 'rebounds_assists'
-  if (cleaned.includes('3-point') || cleaned.includes('three')) return 'threes'
-  if (cleaned.includes('points') && !cleaned.includes('plus')) return 'points'
-  if (cleaned.includes('rebounds') && !cleaned.includes('plus')) return 'rebounds'
-  if (cleaned.includes('assists') && !cleaned.includes('plus')) return 'assists'
+  if (cleaned.includes('blocks plus steals')) return 'blocks_steals'
+  if (cleaned.includes('passing yards')) return 'passing_yards'
+  if (cleaned.includes('passing touchdowns')) return 'passing_touchdowns'
+  if (cleaned.includes('passing completions')) return 'passing_completions'
+  if (cleaned.includes('passing attempts')) return 'passing_attempts'
+  if (cleaned.includes('interceptions')) return 'interceptions'
+  if (cleaned.includes('rushing plus receiving yards')) return 'rushing_receiving_yards'
+  if (cleaned.includes('rushing yards')) return 'rushing_yards'
+  if (cleaned.includes('rushing touchdowns')) return 'rushing_touchdowns'
+  if (cleaned.includes('receiving yards')) return 'receiving_yards'
+  if (cleaned.includes('receiving touchdowns')) return 'receiving_touchdowns'
+  if (cleaned.includes('receptions')) return 'receptions'
+  if (cleaned.includes('touchdowns')) return 'touchdowns'
+  if (cleaned.includes('blocked shots')) return 'blocked_shots'
+  if (cleaned.includes('powerplay points')) return 'powerplay_points'
+  if (cleaned.includes('shots on goal')) return 'shots'
+  if (cleaned.includes('shots')) return 'shots'
+  if (cleaned.includes('goals')) return 'goals'
+  if (cleaned.includes('saves')) return 'saves'
+  if (cleaned.includes('3-point')) return 'threes'
+  if (cleaned.includes('points')) return 'points'
+  if (cleaned.includes('rebounds')) return 'rebounds'
+  if (cleaned.includes('assists')) return 'assists'
   if (cleaned.includes('steals')) return 'steals'
   if (cleaned.includes('blocks')) return 'blocks'
-  return null
+  return normalizeMarketKey(cleaned)
 }
 
-/**
- * Map our prop types to normalized SBD market names for matching
- */
-function mapPropTypeToNormalized(propType: string): string | null {
-  const type = propType.toLowerCase()
-  if (type.includes('point') || type === 'pts') return 'points'
-  if (type.includes('three') || type === '3pm' || type === 'threes') return 'threes'
-  if (type.includes('rebound') || type === 'reb' || type === 'trb') return 'rebounds'
-  if (type.includes('assist') || type === 'ast') return 'assists'
-  if (type === 'pra' || type === 'pts_reb_ast') return 'pra'
-  if (type.includes('steal')) return 'steals'
-  if (type.includes('block')) return 'blocks'
-  return null
+const resolvePropLine = (odds: any, sportsbook: any): number | null => {
+  const line =
+    odds?.over_points ??
+    odds?.under_points ??
+    odds?.over_goals ??
+    odds?.under_goals ??
+    odds?.over_assists ??
+    odds?.under_assists ??
+    odds?.over_shots_on_goal ??
+    odds?.under_shots_on_goal ??
+    odds?.over_shots ??
+    odds?.under_shots ??
+    odds?.over_blocked_shots ??
+    odds?.under_blocked_shots ??
+    odds?.over_saves ??
+    odds?.under_saves ??
+    odds?.over_powerplay_points ??
+    odds?.under_powerplay_points ??
+    sportsbook?.over_points ??
+    sportsbook?.under_points ??
+    sportsbook?.over_goals ??
+    sportsbook?.under_goals ??
+    sportsbook?.over_assists ??
+    sportsbook?.under_assists ??
+    sportsbook?.over_shots_on_goal ??
+    sportsbook?.under_shots_on_goal ??
+    sportsbook?.over_shots ??
+    sportsbook?.under_shots ??
+    sportsbook?.over_blocked_shots ??
+    sportsbook?.under_blocked_shots ??
+    sportsbook?.over_saves ??
+    sportsbook?.under_saves ??
+    sportsbook?.over_powerplay_points ??
+    sportsbook?.under_powerplay_points
+  const parsed = Number(line)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
-/**
- * Fetch all player props from SBD gameprops API (live data)
- * Uses cdn-sde.sbdfuel.com/gameprops/nba/list endpoint
- */
-async function fetchPlayerPropLines(): Promise<Map<string, MarketPropLine[]>> {
-  // Return cache if still valid
-  if (propLinesCache && Date.now() - propLinesCacheTime < PROP_CACHE_TTL) {
-    return propLinesCache
+const matchesTeamName = (candidate: string, target: string) => {
+  const a = normalizeTeamKey(candidate)
+  const b = normalizeTeamKey(target)
+  if (!a || !b) return false
+  return a === b || a.includes(b) || b.includes(a)
+}
+
+const resolveSportFromTeams = (
+  homeTeam: string,
+  awayTeam: string
+): CanonicalSportKey | undefined => {
+  const homeMatches = searchTeams(homeTeam, { limit: 5 })
+  const awayMatches = searchTeams(awayTeam, { limit: 5 })
+  if (!homeMatches.length || !awayMatches.length) return undefined
+
+  const homeScores = new Map<CanonicalSportKey, number>()
+  for (const match of homeMatches) {
+    const prev = homeScores.get(match.sport) ?? 0
+    homeScores.set(match.sport, Math.max(prev, match.score))
+  }
+  const awayScores = new Map<CanonicalSportKey, number>()
+  for (const match of awayMatches) {
+    const prev = awayScores.get(match.sport) ?? 0
+    awayScores.set(match.sport, Math.max(prev, match.score))
   }
 
-  const propsMap = new Map<string, MarketPropLine[]>()
-
-  try {
-    // Fetch from SBD gameprops endpoint (this is the live data source)
-    const data = await fetchSbdGamePropsList('nba' as SbdLeague, {
-      limit: 2000,
-    })
-
-    if (!data || !Array.isArray(data) || data.length === 0) {
-      console.log('[PARLAY ENGINE] No player props data from SBD gameprops')
-      return propsMap
+  let best: { sport: CanonicalSportKey; score: number } | null = null
+  for (const [sport, homeScore] of homeScores.entries()) {
+    const awayScore = awayScores.get(sport)
+    if (awayScore == null) continue
+    const combined = homeScore + awayScore
+    if (!best || combined > best.score) {
+      best = { sport, score: combined }
     }
-
-    // Parse SBD gameprops response format
-    for (const prop of data) {
-      const playerName = prop.player_name || prop.player?.name
-      if (!playerName) continue
-
-      const propType = normalizePropMarketName(prop.name || '')
-      if (!propType) continue
-
-      // Get the best sportsbook odds (skip consensus)
-      const sportsbooks = prop.sportsbooks || []
-      const realBook = sportsbooks.find((sb: any) =>
-        sb.name && sb.name.toLowerCase() !== 'consensus'
-      ) || sportsbooks[0]
-
-      if (!realBook?.odds) continue
-
-      const line = parseFloat(realBook.odds.over_points || realBook.over_points) || 0
-      const overOdds = parseFloat(realBook.odds.over_american) || -110
-      const underOdds = parseFloat(realBook.odds.under_american) || -110
-
-      if (line <= 0) continue
-
-      const playerKey = normalize(playerName)
-      const propLine: MarketPropLine = {
-        playerName,
-        propType,
-        line,
-        overOdds,
-        underOdds,
-        book: realBook.name || 'unknown',
-      }
-
-      if (!propsMap.has(playerKey)) {
-        propsMap.set(playerKey, [])
-      }
-      propsMap.get(playerKey)!.push(propLine)
-    }
-
-    propLinesCache = propsMap
-    propLinesCacheTime = Date.now()
-    console.log(`[PARLAY ENGINE] Cached ${propsMap.size} players with prop lines from SBD gameprops`)
-  } catch (error) {
-    console.error('[PARLAY ENGINE] Error fetching SBD gameprops:', error)
   }
 
-  return propsMap
+  return best?.sport
 }
 
-/**
- * Find market line for a specific player and prop type
- */
-async function findMarketLine(
+const inferSportFromPropType = (
+  propType?: string | null
+): CanonicalSportKey | undefined => {
+  const normalized = normalizePropType(propType)
+  if (!normalized) return undefined
+  if (
+    normalized.includes('passing') ||
+    normalized.includes('rushing') ||
+    normalized.includes('receiving') ||
+    normalized.includes('receptions') ||
+    normalized.includes('touchdowns')
+  ) {
+    return 'americanfootball_nfl'
+  }
+  if (
+    normalized.includes('goals') ||
+    normalized.includes('shots') ||
+    normalized.includes('blocked') ||
+    normalized.includes('saves') ||
+    normalized.includes('powerplay')
+  ) {
+    return 'icehockey_nhl'
+  }
+  return undefined
+}
+
+const resolveLegSport = (
+  leg: ParlayLegInput,
+  sportHint?: string
+): CanonicalSportKey => {
+  const explicit = resolveSportKey(leg.sport || sportHint)
+  if (explicit) return explicit
+  if (leg.homeTeam && leg.awayTeam) {
+    const fromTeams = resolveSportFromTeams(leg.homeTeam, leg.awayTeam)
+    if (fromTeams) return fromTeams
+  }
+  if (leg.type === 'player_prop') {
+    const fromProp = inferSportFromPropType(leg.propType)
+    if (fromProp) return fromProp
+  }
+  return 'basketball_nba'
+}
+
+const ensureSportSupported = (sport: CanonicalSportKey) => {
+  if (BLOCKED_SPORTS.has(sport)) {
+    throw new Error('MLB is not supported yet for parlay analysis.')
+  }
+  if (!SUPPORTED_SPORT_SET.has(sport)) {
+    throw new Error(`Sport ${sport} is not supported for parlay analysis.`)
+  }
+}
+
+const toSportKey = (sport: CanonicalSportKey): SportKey => sport as SportKey
+
+const buildGameKey = (homeTeam: string, awayTeam: string) =>
+  `${normalizeTeamKey(homeTeam)}_${normalizeTeamKey(awayTeam)}`
+
+const matchGame = (games: OddsGame[], homeTeam: string, awayTeam: string) => {
+  let best: { game: OddsGame; score: number; swapped: boolean } | null = null
+
+  for (const game of games) {
+    const direct =
+      (matchesTeamName(game.home_team, homeTeam) ? 1 : 0) +
+      (matchesTeamName(game.away_team, awayTeam) ? 1 : 0)
+    const reverse =
+      (matchesTeamName(game.home_team, awayTeam) ? 1 : 0) +
+      (matchesTeamName(game.away_team, homeTeam) ? 1 : 0)
+    if (direct > 0 && (!best || direct > best.score)) {
+      best = { game, score: direct, swapped: false }
+    }
+    if (reverse > 0 && (!best || reverse > best.score)) {
+      best = { game, score: reverse, swapped: true }
+    }
+  }
+
+  return best
+}
+
+const buildGamePropsEntriesFromSbdPlayerProps = (payload: any) => {
+  const raw = Array.isArray(payload?.data)
+    ? payload.data
+    : Array.isArray(payload)
+      ? payload
+      : []
+  const entries: any[] = []
+
+  for (const item of raw) {
+    const playerName = item?.player?.name
+    if (!playerName) continue
+    const teamName = item?.player?.team_name || ''
+    const competition = item?.competition || {}
+    const markets = Array.isArray(item?.markets) ? item.markets : []
+
+    for (const market of markets) {
+      const marketName = market?.name || ''
+      const books = Array.isArray(market?.books) ? market.books : []
+      const sportsbooks: any[] = []
+
+      for (const book of books) {
+        const outcomes = Array.isArray(book?.outcomes) ? book.outcomes : []
+        const overOutcome = outcomes.find((o: any) => o?.type === 'over')
+        const underOutcome = outcomes.find((o: any) => o?.type === 'under')
+        if (!overOutcome && !underOutcome) continue
+
+        const total = overOutcome?.total ?? underOutcome?.total
+        sportsbooks.push({
+          name: book?.name,
+          odds: {
+            over_american: overOutcome?.odds_american,
+            under_american: underOutcome?.odds_american,
+            over_points: total,
+            under_points: total,
+          },
+          over_points: total,
+          under_points: total,
+        })
+      }
+
+      if (!sportsbooks.length) continue
+
+      entries.push({
+        player_name: playerName,
+        player: { name: playerName, team: teamName },
+        name: marketName,
+        sportsbooks,
+        sport_event: { id: competition?.id },
+        competition,
+      })
+    }
+  }
+
+  return entries
+}
+
+const loadOddsBySport = async (
+  sport: CanonicalSportKey,
+  cache: Map<CanonicalSportKey, OddsGame[]>
+) => {
+  if (cache.has(sport)) return cache.get(sport) as OddsGame[]
+  const league = resolveSbdLeague(sport)
+  if (!league) {
+    throw new Error(`No odds league mapping for ${sport}.`)
+  }
+  const payload = await fetchSbdOdds(league, { format: 'us' })
+  const games = mapSbdOddsToOddsGames(league, payload, [
+    MARKETS.H2H,
+    MARKETS.SPREADS,
+    MARKETS.TOTALS,
+  ])
+  cache.set(sport, games)
+  return games
+}
+
+const loadPropEntries = async (
+  sport: CanonicalSportKey,
+  cache: Map<CanonicalSportKey, any[]>
+) => {
+  if (cache.has(sport)) return cache.get(sport) as any[]
+  const league = resolveSbdLeague(sport)
+  if (!league) {
+    throw new Error(`No props league mapping for ${sport}.`)
+  }
+
+  const propsData =
+    league === 'nhl'
+      ? await fetchSbdPlayerProps(league, { limit: 1000 })
+      : await fetchSbdGamePropsList(league, {})
+
+  const entries =
+    league === 'nhl'
+      ? buildGamePropsEntriesFromSbdPlayerProps(propsData)
+      : Array.isArray(propsData)
+        ? propsData
+        : Array.isArray(propsData?.data)
+          ? propsData.data
+          : []
+
+  cache.set(sport, entries)
+  return entries
+}
+
+const findPropEntry = (
+  entries: any[],
   playerName: string,
   propType: string
-): Promise<{ line: number; overOdds: number; underOdds: number; book: string } | null> {
-  const propsMap = await fetchPlayerPropLines()
-  const playerKey = normalize(playerName)
-  const normalizedPropType = mapPropTypeToNormalized(propType)
+) => {
+  const normalizedTarget = normalizePlayerKey(playerName)
+  const normalizedProp = normalizePropType(propType) ?? propType
+  const candidates: any[] = []
 
-  if (!normalizedPropType) return null
-
-  // Try exact match first
-  let playerProps = propsMap.get(playerKey)
-
-  // Try partial match if no exact match
-  if (!playerProps || playerProps.length === 0) {
-    for (const [key, props] of propsMap) {
-      if (key.includes(playerKey) || playerKey.includes(key)) {
-        playerProps = props
-        break
+  for (const entry of entries) {
+    const entryPlayer = entry?.player_name || entry?.player?.name || ''
+    if (!entryPlayer) continue
+    const entryKey = normalizePlayerKey(entryPlayer)
+    if (!entryKey) continue
+    if (
+      entryKey === normalizedTarget ||
+      entryKey.includes(normalizedTarget) ||
+      normalizedTarget.includes(entryKey)
+    ) {
+      const entryMarket = normalizePropMarketKey(entry?.name || '')
+      if (entryMarket === normalizedProp) {
+        candidates.push(entry)
       }
     }
   }
 
-  // Try last name match
-  if (!playerProps || playerProps.length === 0) {
-    const lastName = playerName.split(' ').pop()?.toLowerCase() || ''
-    for (const [key, props] of propsMap) {
-      if (key.includes(normalize(lastName))) {
-        playerProps = props
-        break
-      }
+  if (!candidates.length) return null
+  if (candidates.length === 1) return candidates[0]
+
+  return candidates.sort((a, b) => {
+    const aCount = Array.isArray(a?.sportsbooks) ? a.sportsbooks.length : 0
+    const bCount = Array.isArray(b?.sportsbooks) ? b.sportsbooks.length : 0
+    return bCount - aCount
+  })[0]
+}
+
+const EXCLUDED_PROP_BOOKS = new Set([
+  'consensus',
+  'prizepicks',
+  'sleeper',
+  'thrivefantasy',
+])
+
+const extractPropQuotes = (
+  entry: any,
+  line: number | null,
+  direction: 'over' | 'under'
+): LegQuote[] => {
+  const quotes = new Map<string, LegQuote>()
+  const sportsbooks = Array.isArray(entry?.sportsbooks) ? entry.sportsbooks : []
+
+  for (const sportsbook of sportsbooks) {
+    const bookName = String(sportsbook?.name || '')
+    if (!bookName || EXCLUDED_PROP_BOOKS.has(bookName.toLowerCase())) continue
+
+    const odds = sportsbook?.odds || {}
+    const lineValue = resolvePropLine(odds, sportsbook)
+    if (!lineMatches(lineValue, line)) continue
+
+    const oddsValue = direction === 'over'
+      ? parseOddsValue(odds?.over_american ?? odds?.over_decimal ?? sportsbook?.over_odds)
+      : parseOddsValue(odds?.under_american ?? odds?.under_decimal ?? sportsbook?.under_odds)
+
+    if (oddsValue == null) continue
+
+    const bookKey = normalizeBookKey(bookName)
+    const existing = quotes.get(bookKey)
+    if (!existing || oddsValue > existing.odds) {
+      quotes.set(bookKey, {
+        bookKey,
+        bookTitle: bookName,
+        odds: oddsValue,
+        line: lineValue ?? undefined,
+      })
     }
   }
 
-  if (!playerProps || playerProps.length === 0) return null
+  return Array.from(quotes.values())
+}
 
-  const match = playerProps.find(p => p.propType === normalizedPropType)
-  if (!match) return null
+const extractSpreadQuotes = (
+  game: OddsGame,
+  selectedTeam: string,
+  line: number | null
+): LegQuote[] => {
+  const quotes = new Map<string, LegQuote>()
+
+  for (const book of game.bookmakers || []) {
+    const market = (book.markets || []).find((m) => m.key === MARKETS.SPREADS)
+    if (!market) continue
+    const outcomes = (market.outcomes || []).filter((o) =>
+      matchesTeamName(o.name || '', selectedTeam)
+    )
+    if (!outcomes.length) continue
+    const outcome =
+      line == null
+        ? outcomes
+            .map((o) => ({ outcome: o, odds: parseOddsValue(o.price) }))
+            .filter((entry) => entry.odds != null)
+            .sort((a, b) => (b.odds as number) - (a.odds as number))[0]?.outcome
+        : outcomes.find((o) => lineMatches(o.point, line))
+    if (!outcome) continue
+    const oddsValue = parseOddsValue(outcome.price)
+    if (oddsValue == null) continue
+
+    const bookKey = normalizeBookKey(book.key || book.title || '')
+    const existing = quotes.get(bookKey)
+    if (!existing || oddsValue > existing.odds) {
+      quotes.set(bookKey, {
+        bookKey,
+        bookTitle: book.title || book.key || 'Unknown',
+        odds: oddsValue,
+        line: outcome.point ?? undefined,
+      })
+    }
+  }
+
+  return Array.from(quotes.values())
+}
+
+const extractTotalQuotes = (
+  game: OddsGame,
+  direction: 'over' | 'under',
+  line: number | null
+): LegQuote[] => {
+  const quotes = new Map<string, LegQuote>()
+
+  const isOver = direction === 'over'
+  const matchesDirection = (name: string) => {
+    const normalized = name.toLowerCase()
+    return isOver ? normalized.startsWith('over') : normalized.startsWith('under')
+  }
+
+  for (const book of game.bookmakers || []) {
+    const market = (book.markets || []).find((m) => m.key === MARKETS.TOTALS)   
+    if (!market) continue
+    const outcomes = (market.outcomes || []).filter((o) =>
+      matchesDirection(o.name || '')
+    )
+    if (!outcomes.length) continue
+    const outcome =
+      line == null
+        ? outcomes
+            .map((o) => ({ outcome: o, odds: parseOddsValue(o.price) }))
+            .filter((entry) => entry.odds != null)
+            .sort((a, b) => (b.odds as number) - (a.odds as number))[0]?.outcome
+        : outcomes.find((o) => lineMatches(o.point, line))
+    if (!outcome) continue
+    const oddsValue = parseOddsValue(outcome.price)
+    if (oddsValue == null) continue
+
+    const bookKey = normalizeBookKey(book.key || book.title || '')
+    const existing = quotes.get(bookKey)
+    if (!existing || oddsValue > existing.odds) {
+      quotes.set(bookKey, {
+        bookKey,
+        bookTitle: book.title || book.key || 'Unknown',
+        odds: oddsValue,
+        line: outcome.point ?? undefined,
+      })
+    }
+  }
+
+  return Array.from(quotes.values())
+}
+
+const extractMoneylineQuotes = (
+  game: OddsGame,
+  selectedTeam: string
+): LegQuote[] => {
+  const quotes = new Map<string, LegQuote>()
+
+  for (const book of game.bookmakers || []) {
+    const market = (book.markets || []).find((m) => m.key === MARKETS.H2H)
+    if (!market) continue
+    const outcome = (market.outcomes || []).find(
+      (o) => matchesTeamName(o.name || '', selectedTeam)
+    )
+    if (!outcome) continue
+    const oddsValue = parseOddsValue(outcome.price)
+    if (oddsValue == null) continue
+
+    const bookKey = normalizeBookKey(book.key || book.title || '')
+    const existing = quotes.get(bookKey)
+    if (!existing || oddsValue > existing.odds) {
+      quotes.set(bookKey, {
+        bookKey,
+        bookTitle: book.title || book.key || 'Unknown',
+        odds: oddsValue,
+      })
+    }
+  }
+
+  return Array.from(quotes.values())
+}
+
+const buildMatchupContext = (
+  entry: any,
+  leg: PlayerPropLegInput
+): MatchupContext | undefined => {
+  const homeTeam = normalizeValue(leg.homeTeam)
+  const awayTeam = normalizeValue(leg.awayTeam)
+  if (!homeTeam || !awayTeam) return undefined
+
+  const playerTeam = normalizeValue(
+    entry?.player?.team || entry?.player?.team_name || ''
+  )
+  if (!playerTeam) return undefined
+
+  const playerKey = normalizeTeamKey(playerTeam)
+  const homeKey = normalizeTeamKey(homeTeam)
+  const awayKey = normalizeTeamKey(awayTeam)
+  if (!playerKey || !homeKey || !awayKey) return undefined
+
+  if (playerKey.includes(homeKey) || homeKey.includes(playerKey)) {
+    return { opponent: awayTeam, isHome: true }
+  }
+  if (playerKey.includes(awayKey) || awayKey.includes(playerKey)) {
+    return { opponent: homeTeam, isHome: false }
+  }
+
+  return undefined
+}
+
+const resolveDirectionForTeam = (
+  selectedTeam: string | undefined,
+  actualHomeTeam: string | undefined,
+  actualAwayTeam: string | undefined,
+  fallback: 'home' | 'away'
+): 'home' | 'away' => {
+  if (selectedTeam && actualHomeTeam && matchesTeamName(selectedTeam, actualHomeTeam)) {
+    return 'home'
+  }
+  if (selectedTeam && actualAwayTeam && matchesTeamName(selectedTeam, actualAwayTeam)) {
+    return 'away'
+  }
+  return fallback
+}
+
+const calculateSpreadProbabilityFromProjection = (
+  meanHomeMargin: number,
+  line: number,
+  direction: 'home' | 'away',
+  sport: CanonicalSportKey
+): number => {
+  if (!Number.isFinite(meanHomeMargin) || !Number.isFinite(line)) return 0.5
+  const stdDev = SPREAD_STD_DEV[sport] ?? 12
+  const threshold = direction === 'home' ? -line : line
+  const z = (threshold - meanHomeMargin) / stdDev
+  const probability = direction === 'home' ? 1 - normalCDF(z) : normalCDF(z)
+  return clampProbability(probability)
+}
+
+const calculateTotalProbabilityFromProjection = (
+  meanTotal: number,
+  line: number,
+  direction: 'over' | 'under',
+  sport: CanonicalSportKey
+): number => {
+  if (!Number.isFinite(meanTotal) || !Number.isFinite(line)) return 0.5
+  const stdDev = TOTAL_STD_DEV[sport] ?? 14
+  const z = (line - meanTotal) / stdDev
+  const probability = direction === 'over' ? 1 - normalCDF(z) : normalCDF(z)
+  return clampProbability(probability)
+}
+
+const calculateMoneylineProbabilityFromProjection = (
+  meanHomeMargin: number,
+  direction: 'home' | 'away',
+  sport: CanonicalSportKey
+): number => {
+  if (!Number.isFinite(meanHomeMargin)) return 0.5
+  const stdDev = SPREAD_STD_DEV[sport] ?? 12
+  const homeWinProb = normalCDF(meanHomeMargin / stdDev)
+  const probability = direction === 'home' ? homeWinProb : 1 - homeWinProb
+  return clampProbability(probability)
+}
+
+const clampProbability = (value: number) => {
+  if (!Number.isFinite(value)) return 0.5
+  return Math.min(0.99, Math.max(0.01, value))
+}
+
+const selectBestBook = (legs: PreparedLeg[]): ParlayBookQuote => {
+  if (!legs.length) {
+    throw new Error('No parlay legs were provided.')
+  }
+
+  const legMaps = legs.map((leg) => {
+    if (!leg.quotes.length) {
+      throw new Error('Missing sportsbook odds for one or more legs.')
+    }
+    return new Map(leg.quotes.map((quote) => [quote.bookKey, quote]))
+  })
+
+  let intersection = new Set(legMaps[0].keys())
+  for (const map of legMaps.slice(1)) {
+    intersection = new Set(Array.from(intersection).filter((key) => map.has(key)))
+  }
+
+  if (!intersection.size) {
+    throw new Error('No single sportsbook offers all legs in this parlay.')
+  }
+
+  let best: ParlayBookQuote | null = null
+  for (const bookKey of intersection) {
+    const quotes = legMaps.map((map) => map.get(bookKey) as LegQuote)
+    const decimal = quotes.reduce(
+      (total, quote) => total * americanToDecimal(quote.odds),
+      1
+    )
+    const american = decimalToAmerican(decimal)
+    const bookTitle = quotes.find((quote) => quote.bookTitle)?.bookTitle || bookKey
+
+    if (!best || decimal > best.decimal) {
+      best = { bookKey, bookTitle, decimal, american }
+    }
+  }
+
+  if (!best) {
+    throw new Error('Unable to select a sportsbook for this parlay.')
+  }
+
+  return best
+}
+
+const buildProbabilityLeg = (leg: PreparedLeg, quote: LegQuote): ProbabilityLeg => {
+  const impliedProbability = oddsToImpliedProbability(quote.odds)
+  let probability = 0.5
+  let modelProbability: number | null = null
+  let modelLine: number | null = null
+  let description = ''
+  let teamSide: string | undefined
+
+  const matchupHome = leg.actualHomeTeam || leg.homeTeam
+  const matchupAway = leg.actualAwayTeam || leg.awayTeam
+  const matchupLabel = matchupHome && matchupAway ? `${matchupAway} @ ${matchupHome}` : ''
+
+  if (leg.type === 'player_prop' && leg.projection && leg.propDirection) {
+    const line = quote.line ?? leg.threshold ?? null
+    if (line != null) {
+      const result = calculatePropProbability(leg.projection, line, leg.propDirection)
+      probability = result.probability
+      modelProbability = probability
+      modelLine = leg.projection.projection
+      const propLabel = leg.propType?.replace(/_/g, ' ') || 'prop'
+      description = `${leg.playerName} ${propLabel} ${leg.propDirection} ${formatLineValue(line, 'prop')}`
+    }
+  }
+
+  if (leg.type === 'game_spread' && leg.meanHomeMargin != null && leg.direction) {
+    const line = quote.line ?? leg.threshold ?? null
+    if (line != null) {
+      probability = calculateSpreadProbabilityFromProjection(
+        leg.meanHomeMargin,
+        line,
+        leg.direction as 'home' | 'away',
+        leg.sport
+      )
+      modelProbability = probability
+      if (leg.modelLine != null) {
+        modelLine = leg.direction === 'home' ? leg.modelLine : -leg.modelLine
+      }
+      teamSide = leg.selectedTeam || (leg.direction === 'home' ? matchupHome : matchupAway)
+      description = `${teamSide || 'Team'} ${formatLineValue(line, 'spread')}${matchupLabel ? ` (${matchupLabel})` : ''}`
+    }
+  }
+
+  if (leg.type === 'game_total' && leg.meanTotal != null && leg.direction) {
+    const line = quote.line ?? leg.threshold ?? null
+    if (line != null) {
+      probability = calculateTotalProbabilityFromProjection(
+        leg.meanTotal,
+        line,
+        leg.direction as 'over' | 'under',
+        leg.sport
+      )
+      modelProbability = probability
+      modelLine = leg.meanTotal
+      description = `${matchupLabel ? `${matchupLabel} ` : ''}total ${leg.direction} ${formatLineValue(line, 'total')}`
+    }
+  }
+
+  if (leg.type === 'game_moneyline' && leg.meanHomeMargin != null && leg.direction) {
+    probability = calculateMoneylineProbabilityFromProjection(
+      leg.meanHomeMargin,
+      leg.direction as 'home' | 'away',
+      leg.sport
+    )
+    modelProbability = probability
+    teamSide = leg.selectedTeam || (leg.direction === 'home' ? matchupHome : matchupAway)
+    description = `${teamSide || 'Team'} moneyline${matchupLabel ? ` (${matchupLabel})` : ''}`
+  }
+
+  const edge = modelProbability != null ? modelProbability - impliedProbability : null
 
   return {
-    line: match.line,
-    overOdds: match.overOdds,
-    underOdds: match.underOdds,
-    book: match.book,
+    type: leg.type,
+    description,
+    probability,
+    confidence: leg.confidence,
+    sport: leg.sport,
+    book: quote.bookTitle,
+    marketOdds: quote.odds,
+    line: quote.line ?? null,
+    modelLine,
+    modelProbability,
+    impliedProbability,
+    edge,
+    playerName: leg.playerName,
+    propType: leg.propType,
+    propDirection: leg.propDirection,
+    homeTeam: matchupHome,
+    awayTeam: matchupAway,
+    direction: leg.direction,
+    teamSide,
+    gameKey: leg.gameKey,
   }
 }
 
-// ============================================
-// Probability Calculations
-// ============================================
+const calculateCorrelationAdjustments = (legs: ProbabilityLeg[]): CorrelationAdjustment[] => {
+  const adjustments: CorrelationAdjustment[] = []
 
-/**
- * Calculate probability for a single player prop
- */
-export async function calculatePlayerPropProbability(
-  playerName: string,
-  propType: string,
-  threshold: number,
-  direction: 'over' | 'under' = 'over'
-): Promise<PlayerPropLeg | null> {
-  const player = await findPlayer(playerName)
-  if (!player) return null
+  for (let i = 0; i < legs.length; i++) {
+    for (let j = i + 1; j < legs.length; j++) {
+      const a = legs[i]
+      const b = legs[j]
 
-  const seasonAverage = getStatValue(player, propType)
-  if (seasonAverage <= 0) return null
+      if (
+        a.type === 'player_prop' &&
+        b.type === 'player_prop' &&
+        a.playerName &&
+        b.playerName &&
+        normalizePlayerKey(a.playerName) === normalizePlayerKey(b.playerName)
+      ) {
+        const propA = a.propType || ''
+        const propB = b.propType || ''
+        const base =
+          PROP_CORRELATIONS[propA]?.[propB] ||
+          PROP_CORRELATIONS[propB]?.[propA] ||
+          DEFAULT_PROP_CORRELATION
+        const sameDirection = a.propDirection && b.propDirection && a.propDirection === b.propDirection
+        const adjustment = base * (sameDirection ? 1 : -1)
+        adjustments.push({
+          type: 'same_player',
+          description: `Same-player props (${a.playerName})`,
+          adjustment,
+        })
+      }
 
-  // Calculate base probability
-  const usePoisson = usePoissonDistribution(propType)
-  let probability = usePoisson
-    ? calculateOverProbability(seasonAverage, threshold)
-    : calculateOverProbabilityNormal(seasonAverage, threshold)
+      if (a.gameKey && b.gameKey && a.gameKey === b.gameKey) {
+        const spreadLeg = a.type === 'game_spread' ? a : b.type === 'game_spread' ? b : null
+        const totalLeg = a.type === 'game_total' ? a : b.type === 'game_total' ? b : null
+        if (spreadLeg && totalLeg && spreadLeg.line != null && totalLeg.direction) {
+          const isFavorite = spreadLeg.line < 0
+          const totalOver = totalLeg.direction === 'over'
+          const sign = (isFavorite && totalOver) || (!isFavorite && !totalOver) ? 1 : -1
+          adjustments.push({
+            type: 'same_game',
+            description: 'Same-game spread and total',
+            adjustment: GAME_CORRELATIONS.spreadToTotal * sign,
+          })
+        }
 
-  // Flip for under
-  if (direction === 'under') {
-    probability = 1 - probability
+        const moneylineLeg = a.type === 'game_moneyline' ? a : b.type === 'game_moneyline' ? b : null
+        if (spreadLeg && moneylineLeg && spreadLeg.teamSide && moneylineLeg.teamSide) {
+          const sameTeam = matchesTeamName(spreadLeg.teamSide, moneylineLeg.teamSide)
+          const sign = sameTeam ? 1 : -1
+          adjustments.push({
+            type: 'same_game',
+            description: 'Same-game moneyline and spread',
+            adjustment: GAME_CORRELATIONS.moneylineToSpread * sign,
+          })
+        }
+      }
+    }
   }
 
-  const propLabel = propType.toLowerCase().includes('three') ? '3PM' : propType
-  const description = `${player.name} ${direction} ${threshold} ${propLabel}`
+  return adjustments
+}
 
-  // Fetch market line from SBD live gameprops for comparison
-  let marketLine: number | undefined
-  let marketOdds: number | undefined
-  let impliedProbability: number | undefined
-  let edge: number | undefined
-  let book: string | undefined
+const deriveParlayConfidence = (legs: ProbabilityLeg[]): 'low' | 'medium' | 'high' => {
+  if (!legs.length) return 'low'
+  const scores = legs.map((leg) =>
+    leg.confidence === 'high' ? 3 : leg.confidence === 'medium' ? 2 : 1
+  )
+  const average = scores.reduce((sum, value) => sum + value, 0) / scores.length
+  if (average >= 2.6) return 'high'
+  if (average >= 1.8) return 'medium'
+  return 'low'
+}
 
-  try {
-    const market = await findMarketLine(playerName, propType)
-    if (market) {
-      marketLine = market.line
-      marketOdds = direction === 'over' ? market.overOdds : market.underOdds
-      impliedProbability = americanToImpliedProbability(marketOdds)
-      edge = probability - impliedProbability
-      book = market.book
+const formatEdge = (edge: number) =>
+  `${edge >= 0 ? '+' : ''}${(edge * 100).toFixed(1)}%`
+
+const formatParlayResult = (result: ParlayProbabilityResult): string => {
+  const lines: string[] = []
+  lines.push('Parlay probability (pregame)')
+
+  if (result.bestBook && result.bestBookOdds != null) {
+    lines.push(`Best same-book price: ${formatOdds(result.bestBookOdds)} (${result.bestBook})`)
+  }
+
+  lines.push(`Model probability: ${formatProbability(result.correlatedProbability)} (independent ${formatProbability(result.independentProbability)})`)
+
+  if (result.impliedOdds != null) {
+    lines.push(`Fair odds: ${formatOdds(result.impliedOdds)}`)
+  }
+
+  if (result.marketImpliedProbability != null) {
+    lines.push(`Market implied probability: ${formatProbability(result.marketImpliedProbability)}`)
+  }
+
+  if (result.parlayEdge != null) {
+    lines.push(`Model edge: ${formatEdge(result.parlayEdge)}`)
+  }
+
+  if (result.correlationAdjustments.length) {
+    lines.push('')
+    lines.push('Correlation adjustments')
+    for (const adjustment of result.correlationAdjustments) {
+      lines.push(`- ${adjustment.description}: ${formatEdge(adjustment.adjustment)}`)
     }
-  } catch (error) {
-    console.log('[PARLAY ENGINE] Could not fetch market line:', error)
+  }
+
+  lines.push('')
+  lines.push('Legs')
+
+  result.legs.forEach((leg, index) => {
+    const details: string[] = []
+    if (leg.book) details.push(`book ${leg.book}`)
+    if (leg.marketOdds != null) details.push(`odds ${formatOdds(leg.marketOdds)}`)
+    if (leg.impliedProbability != null) details.push(`imp ${formatProbability(leg.impliedProbability)}`)
+    if (leg.modelProbability != null) details.push(`model ${formatProbability(leg.modelProbability)}`)
+    if (leg.edge != null) details.push(`edge ${formatEdge(leg.edge)}`)
+
+    if (leg.modelLine != null && leg.line != null) {
+      const lineType = leg.type === 'game_spread' ? 'spread' : leg.type === 'game_total' ? 'total' : 'prop'
+      details.push(`model line ${formatLineValue(leg.modelLine, lineType)}`)
+    }
+
+    const detailText = details.length ? ` | ${details.join(', ')}` : ''
+    lines.push(`${index + 1}. ${leg.description}${detailText}`)
+  })
+
+  return lines.join('\n')
+}
+
+const preparePlayerPropLeg = async (
+  leg: PlayerPropLegInput,
+  sport: CanonicalSportKey,
+  propsCache: Map<CanonicalSportKey, any[]>
+): Promise<PreparedLeg> => {
+  const playerName = normalizeValue(leg.playerName)
+  const propType = normalizePropType(leg.propType)
+  const threshold = Number(leg.threshold)
+  const propDirection = leg.propDirection
+
+  if (!playerName || !propType) {
+    throw new Error('Player prop legs require a player name and prop type.')
+  }
+  if (!Number.isFinite(threshold)) {
+    throw new Error(`Player prop leg for ${playerName} is missing a valid line.`)
+  }
+  if (!propDirection) {
+    throw new Error(`Player prop leg for ${playerName} is missing direction.`)
+  }
+
+  const entries = await loadPropEntries(sport, propsCache)
+  const entry = findPropEntry(entries, playerName, propType)
+  if (!entry) {
+    throw new Error(`No props found for ${playerName} ${propType}.`)
+  }
+
+  const quotes = extractPropQuotes(entry, threshold, propDirection)
+  if (!quotes.length) {
+    throw new Error(`No sportsbook odds found for ${playerName} ${propType} at ${threshold}.`)
+  }
+
+  const matchupContext = buildMatchupContext(entry, leg)
+  const projection = await projectPlayerProp(
+    playerName,
+    propType,
+    toSportKey(sport),
+    matchupContext
+  )
+  if (!projection) {
+    throw new Error(`No projection model available for ${playerName} ${propType}.`)
   }
 
   return {
     type: 'player_prop',
-    playerName: player.name,
-    team: player.team,
+    sport,
+    quotes,
+    confidence: projection.confidence || 'low',
+    projection,
+    playerName,
     propType,
+    propDirection,
     threshold,
-    direction,
-    seasonAverage,
-    probability,
-    description,
-    source: 'calculated',
-    confidence: getConfidenceLevel(probability),
-    marketLine,
-    marketOdds,
-    impliedProbability,
-    edge,
-    book,
   }
 }
 
-/**
- * Get correlation coefficient between two prop types
- */
-function getCorrelation(propType1: string, propType2: string): number {
-  const type1 = propType1.toLowerCase()
-  const type2 = propType2.toLowerCase()
+const prepareGameLeg = async (
+  leg: GameOutcomeLegInput,
+  sport: CanonicalSportKey,
+  oddsCache: Map<CanonicalSportKey, OddsGame[]>
+): Promise<PreparedLeg> => {
+  const homeTeam = normalizeValue(leg.homeTeam)
+  const awayTeam = normalizeValue(leg.awayTeam)
 
-  // Normalize prop types
-  const normalize = (t: string) => {
-    if (t.includes('three') || t === '3pm') return 'threes'
-    if (t.includes('point') || t === 'pts') return 'points'
-    if (t.includes('rebound') || t === 'reb' || t === 'trb') return 'rebounds'
-    if (t.includes('assist') || t === 'ast') return 'assists'
-    if (t === 'pra' || t === 'pts_reb_ast') return 'pra'
-    if (t.includes('block')) return 'blocks'
-    if (t.includes('steal')) return 'steals'
-    return t
+  if (!homeTeam || !awayTeam) {
+    throw new Error('Game legs require home and away teams.')
   }
 
-  const norm1 = normalize(type1)
-  const norm2 = normalize(type2)
+  const oddsGames = await loadOddsBySport(sport, oddsCache)
+  const match = matchGame(oddsGames, homeTeam, awayTeam)
+  if (!match) {
+    throw new Error(`No odds found for ${awayTeam} @ ${homeTeam}.`)
+  }
 
-  if (norm1 === norm2) return 1.0  // Same stat, perfectly correlated
+  const actualHomeTeam = match.game.home_team || homeTeam
+  const actualAwayTeam = match.game.away_team || awayTeam
+  const gameKey = buildGameKey(actualHomeTeam, actualAwayTeam)
 
-  return PROP_CORRELATIONS[norm1]?.[norm2] ?? 0
-}
+  const line = leg.line != null ? Number(leg.line) : null
+  const direction = leg.direction
 
-/**
- * Calculate combined probability for multiple props on the SAME player
- * Uses Gaussian copula approximation for correlated events
- *
- * Formula: P(A AND B) ≈ P(A) * P(B) * (1 + ρ * (1 - P(A)) * (1 - P(B)))
- * where ρ is the correlation coefficient
- */
-export async function calculateCombinedPlayerProps(
-  playerName: string,
-  props: Array<{ propType: string; threshold: number; direction: 'over' | 'under' }>
-): Promise<ParlayProbabilityResult | null> {
-  if (props.length === 0) return null
+  if (leg.type === 'game_spread' && (direction !== 'home' && direction !== 'away')) {
+    throw new Error(`Spread leg for ${awayTeam} @ ${homeTeam} must specify home or away.`)
+  }
+  if (leg.type === 'game_total' && (direction !== 'over' && direction !== 'under')) {
+    throw new Error(`Total leg for ${awayTeam} @ ${homeTeam} must specify over or under.`)
+  }
+  if (leg.type === 'game_moneyline' && (direction !== 'home' && direction !== 'away')) {
+    throw new Error(`Moneyline leg for ${awayTeam} @ ${homeTeam} must specify home or away.`)
+  }
 
-  const legs: PlayerPropLeg[] = []
-  const correlationAdjustments: CorrelationAdjustment[] = []
+  if (
+    (leg.type === 'game_spread' || leg.type === 'game_total') &&
+    line != null &&
+    !Number.isFinite(line)
+  ) {
+    throw new Error(`Game leg for ${awayTeam} @ ${homeTeam} is missing a line.`)
+  }
 
-  // Calculate individual probabilities
-  for (const prop of props) {
-    const leg = await calculatePlayerPropProbability(
-      playerName,
-      prop.propType,
-      prop.threshold,
-      prop.direction
+  let quotes: LegQuote[] = []
+  let resolvedDirection: 'home' | 'away' | 'over' | 'under' | undefined = direction
+  let selectedTeam: string | undefined
+
+  if (leg.type === 'game_spread') {
+    selectedTeam = direction === 'home' ? homeTeam : awayTeam
+    const actualDirection = resolveDirectionForTeam(
+      selectedTeam,
+      actualHomeTeam,
+      actualAwayTeam,
+      direction as 'home' | 'away'
     )
-    if (!leg) return null
-    legs.push(leg)
+    resolvedDirection = actualDirection
+    quotes = extractSpreadQuotes(match.game, selectedTeam, line)
   }
 
-  // Independent probability (naive multiplication)
-  const independentProb = legs.reduce((acc, leg) => acc * leg.probability, 1)
-
-  // Calculate correlated probability
-  let correlatedProb = independentProb
-
-  if (legs.length === 2) {
-    // Two-leg case with Gaussian copula approximation
-    const [leg1, leg2] = legs
-    const correlation = getCorrelation(leg1.propType, leg2.propType)
-
-    if (correlation !== 0) {
-      // P(A AND B) ≈ P(A) * P(B) * (1 + ρ * (1 - P(A)) * (1 - P(B)))
-      const adjustment = 1 + correlation * (1 - leg1.probability) * (1 - leg2.probability)
-      correlatedProb = independentProb * adjustment
-
-      const adjustmentPercent = ((adjustment - 1) * 100).toFixed(1)
-      correlationAdjustments.push({
-        description: `${leg1.propType} ↔ ${leg2.propType}`,
-        factor: adjustment,
-        reason: correlation > 0
-          ? `+${adjustmentPercent}% - these stats tend to rise together`
-          : `${adjustmentPercent}% - inverse relationship between stats`,
-      })
-    }
-  } else if (legs.length > 2) {
-    // Multi-leg: apply pairwise correlations
-    let totalAdjustment = 1
-
-    for (let i = 0; i < legs.length; i++) {
-      for (let j = i + 1; j < legs.length; j++) {
-        const correlation = getCorrelation(legs[i].propType, legs[j].propType)
-        if (correlation !== 0) {
-          const pairAdjustment = 1 + correlation * (1 - legs[i].probability) * (1 - legs[j].probability)
-          totalAdjustment *= pairAdjustment
-
-          correlationAdjustments.push({
-            description: `${legs[i].propType} ↔ ${legs[j].propType}`,
-            factor: pairAdjustment,
-            reason: correlation > 0 ? 'Positive correlation' : 'Negative correlation',
-          })
-        }
-      }
-    }
-
-    correlatedProb = independentProb * totalAdjustment
+  if (leg.type === 'game_total') {
+    resolvedDirection = direction
+    quotes = extractTotalQuotes(match.game, direction as 'over' | 'under', line)
   }
 
-  // Clamp probability
-  correlatedProb = Math.max(0.001, Math.min(0.999, correlatedProb))
-
-  // Calculate implied odds
-  const decimalOdds = 1 / correlatedProb
-  const americanOdds = decimalOdds >= 2
-    ? Math.round((decimalOdds - 1) * 100)
-    : Math.round(-100 / (decimalOdds - 1))
-
-  // Determine overall confidence
-  const avgConfidence = legs.reduce((acc, leg) => {
-    return acc + (leg.confidence === 'high' ? 3 : leg.confidence === 'medium' ? 2 : 1)
-  }, 0) / legs.length
-  const confidence: 'high' | 'medium' | 'low' =
-    avgConfidence >= 2.5 ? 'high' : avgConfidence >= 1.5 ? 'medium' : 'low'
-
-  // Build breakdown string
-  const breakdown = legs.map(leg =>
-    `${leg.description}: ${formatProbability(leg.probability)}`
-  ).join('\n')
-
-  // Build formatted output
-  const formatted = formatParlayResult({
-    legs,
-    independentProbability: independentProb,
-    correlatedProbability: correlatedProb,
-    correlationAdjustments,
-    impliedOdds: { american: americanOdds, decimal: decimalOdds },
-    confidence,
-    breakdown,
-    formatted: '',
-  })
-
-  return {
-    legs,
-    independentProbability: independentProb,
-    correlatedProbability: correlatedProb,
-    correlationAdjustments,
-    impliedOdds: { american: americanOdds, decimal: decimalOdds },
-    confidence,
-    breakdown,
-    formatted,
-  }
-}
-
-/**
- * Calculate game outcome probability
- * Uses team stats differential for spread/total calculations
- */
-export async function calculateGameOutcomeProbability(
-  homeTeam: string,
-  awayTeam: string,
-  betType: 'spread' | 'total' | 'moneyline',
-  line?: number,
-  direction?: 'home' | 'away' | 'over' | 'under',
-  marketOdds?: number
-): Promise<GameOutcomeLeg | null> {
-  const teams = await getNBATeamStats()
-  const targetHome = normalize(homeTeam)
-  const targetAway = normalize(awayTeam)
-  const matchTeam = (team: any, target: string) => {
-    const name = normalize(team.team || '')
-    const abbr = normalize(team.teamAbbr || '')
-    return (
-      name === target ||
-      name.endsWith(target) ||
-      target.endsWith(name) ||
-      (abbr && (abbr === target || target.endsWith(abbr) || abbr.endsWith(target)))
+  if (leg.type === 'game_moneyline') {
+    selectedTeam = direction === 'home' ? homeTeam : awayTeam
+    const actualDirection = resolveDirectionForTeam(
+      selectedTeam,
+      actualHomeTeam,
+      actualAwayTeam,
+      direction as 'home' | 'away'
     )
-  }
-  const homeStats = teams.find((team) => matchTeam(team, targetHome))
-  const awayStats = teams.find((team) => matchTeam(team, targetAway))
-
-  if (!homeStats || !awayStats) return null
-
-  // Get team stats
-  const homeOrtg = (homeStats.stats as any).offensiveRating ?? (homeStats.stats as any).ortg ?? 112
-  const homeDrtg = (homeStats.stats as any).defensiveRating ?? (homeStats.stats as any).drtg ?? 112
-  const awayOrtg = (awayStats.stats as any).offensiveRating ?? (awayStats.stats as any).ortg ?? 112
-  const awayDrtg = (awayStats.stats as any).defensiveRating ?? (awayStats.stats as any).drtg ?? 112
-  const homePace = (homeStats.stats as any).pace ?? 100
-  const awayPace = (awayStats.stats as any).pace ?? 100
-
-  // Calculate projected scores
-  const avgPace = (homePace + awayPace) / 2
-  const possessions = avgPace
-
-  // Home team's expected points = average of their offense and opponent's defense
-  const homeExpected = (homeOrtg + awayDrtg) / 2 * possessions / 100
-  const awayExpected = (awayOrtg + homeDrtg) / 2 * possessions / 100
-
-  // Add home court advantage (~3 points in NBA)
-  const homeAdj = homeExpected + 1.5
-  const awayAdj = awayExpected - 1.5
-
-  const projectedSpread = awayAdj - homeAdj  // Negative = home favored
-  const projectedTotal = homeAdj + awayAdj
-
-  let modelProbability = 0.5
-  let description = ''
-
-  // Standard deviation for NBA spreads is ~12 points
-  const spreadStdDev = 12
-  const totalStdDev = 15
-
-  switch (betType) {
-    case 'spread':
-      if (line !== undefined && direction) {
-        // projectedSpread is away margin; compute win probability based on bet side
-        const threshold = direction === 'home' ? line : -line
-        const zScore = (threshold - projectedSpread) / spreadStdDev
-        modelProbability =
-          direction === 'home' ? normalCDF(zScore) : 1 - normalCDF(zScore)
-
-        const team = direction === 'home' ? homeTeam : awayTeam
-        const lineStr = line > 0 ? `+${line}` : `${line}`
-        description = `${team} ${lineStr}`
-      }
-      break
-
-    case 'total':
-      if (line !== undefined && direction) {
-        const margin = direction === 'over'
-          ? projectedTotal - line
-          : line - projectedTotal
-        const zScore = margin / totalStdDev
-
-        modelProbability = normalCDF(zScore)
-        description = `${direction} ${line}`
-      }
-      break
-
-    case 'moneyline':
-      if (direction) {
-        const margin = projectedSpread
-        const adjustedMargin = direction === 'home' ? -margin : margin
-        const zScore = adjustedMargin / spreadStdDev
-
-        modelProbability = normalCDF(zScore)
-        const team = direction === 'home' ? homeTeam : awayTeam
-        description = `${team} ML`
-      }
-      break
+    resolvedDirection = actualDirection
+    quotes = extractMoneylineQuotes(match.game, selectedTeam)
   }
 
-  // Calculate implied probability from market odds if provided
-  let impliedProbability: number | undefined
-  let edge: number | undefined
+  if (!quotes.length) {
+    throw new Error(`No sportsbook odds found for ${awayTeam} @ ${homeTeam}.`)
+  }
 
-  if (marketOdds !== undefined) {
-    impliedProbability = americanToImpliedProbability(marketOdds)
-    edge = modelProbability - impliedProbability
+  let modelLine: number | null = null
+  let meanHomeMargin: number | undefined
+  let meanTotal: number | undefined
+  let confidence: 'low' | 'medium' | 'high' = 'low'
+
+  const marketType = leg.type === 'game_total' ? 'total' : 'spread'
+  const recs = await getGameRecommendations(
+    actualHomeTeam,
+    actualAwayTeam,
+    marketType,
+    sport
+  )
+  const rec = recs.find((item) => item.type === marketType)
+  if (!rec) {
+    throw new Error(`No projection model found for ${awayTeam} @ ${homeTeam}.`)
+  }
+
+  confidence = rec.confidence || 'low'
+
+  if (marketType === 'spread') {
+    modelLine = rec.targetLine
+    meanHomeMargin = -rec.targetLine
+  } else if (marketType === 'total') {
+    modelLine = rec.targetLine
+    meanTotal = rec.targetLine
   }
 
   return {
-    type: betType === 'spread' ? 'game_spread' : betType === 'total' ? 'game_total' : 'game_moneyline',
+    type: leg.type,
+    sport,
+    quotes,
+    confidence,
+    modelLine,
+    meanHomeMargin,
+    meanTotal,
     homeTeam,
     awayTeam,
-    line,
-    direction,
-    probability: modelProbability,
-    marketOdds,
-    impliedProbability,
-    modelProbability,
-    edge,
-    description: `${awayTeam} @ ${homeTeam}: ${description}`,
-    source: 'calculated',
-    confidence: getConfidenceLevel(modelProbability),
+    actualHomeTeam,
+    actualAwayTeam,
+    direction: resolvedDirection,
+    selectedTeam,
+    threshold: line ?? undefined,
+    gameKey,
   }
 }
 
-/**
- * Calculate full parlay probability for multiple independent events
- * (different players, different games)
- */
 export async function calculateParlayProbability(
-  legs: Array<{
-    type: 'player_prop' | 'game_spread' | 'game_total' | 'game_moneyline'
-    // Player prop params
-    playerName?: string
-    propType?: string
-    threshold?: number
-    propDirection?: 'over' | 'under'
-    // Game outcome params
-    homeTeam?: string
-    awayTeam?: string
-    line?: number
-    direction?: 'home' | 'away' | 'over' | 'under'
-    marketOdds?: number
-  }>
-): Promise<ParlayProbabilityResult | null> {
-  if (legs.length === 0) return null
+  legs: ParlayLegInput[],
+  opts: { sport?: string } = {}
+): Promise<ParlayProbabilityResult> {
+  if (!legs || !legs.length) {
+    throw new Error('At least one leg is required for parlay analysis.')
+  }
 
-  const calculatedLegs: (PlayerPropLeg | GameOutcomeLeg)[] = []
-  const correlationAdjustments: CorrelationAdjustment[] = []
+  const oddsCache = new Map<CanonicalSportKey, OddsGame[]>()
+  const propsCache = new Map<CanonicalSportKey, any[]>()
+  const prepared: PreparedLeg[] = []
 
-  // Group legs by player to detect same-player correlations
-  const playerLegs: Record<string, PlayerPropLeg[]> = {}
-  const gameLegs: Record<string, GameOutcomeLeg[]> = {}
-
-  // Calculate each leg
   for (const leg of legs) {
+    const sport = resolveLegSport(leg, opts.sport)
+    ensureSportSupported(sport)
+
     if (leg.type === 'player_prop') {
-      if (!leg.playerName || !leg.propType || leg.threshold === undefined) continue
-
-      const propLeg = await calculatePlayerPropProbability(
-        leg.playerName,
-        leg.propType,
-        leg.threshold,
-        leg.propDirection || 'over'
-      )
-      if (!propLeg) continue
-
-      calculatedLegs.push(propLeg)
-
-      // Group by player
-      const playerKey = normalize(leg.playerName)
-      if (!playerLegs[playerKey]) playerLegs[playerKey] = []
-      playerLegs[playerKey].push(propLeg)
+      prepared.push(await preparePlayerPropLeg(leg, sport, propsCache))
     } else {
-      if (!leg.homeTeam || !leg.awayTeam) continue
-
-      const gameLeg = await calculateGameOutcomeProbability(
-        leg.homeTeam,
-        leg.awayTeam,
-        leg.type === 'game_spread' ? 'spread' : leg.type === 'game_total' ? 'total' : 'moneyline',
-        leg.line,
-        leg.direction,
-        leg.marketOdds
-      )
-      if (!gameLeg) continue
-
-      calculatedLegs.push(gameLeg)
-
-      // Group by game
-      const gameKey = `${normalize(leg.homeTeam)}_${normalize(leg.awayTeam)}`
-      if (!gameLegs[gameKey]) gameLegs[gameKey] = []
-      gameLegs[gameKey].push(gameLeg)
+      prepared.push(await prepareGameLeg(leg, sport, oddsCache))
     }
   }
 
-  if (calculatedLegs.length === 0) return null
+  const bestBook = selectBestBook(prepared)
 
-  // Independent probability (naive multiplication)
-  const independentProb = calculatedLegs.reduce((acc, leg) => acc * leg.probability, 1)
+  const probabilityLegs: ProbabilityLeg[] = []
+  let independentProbability = 1
 
-  // Apply correlations
-  let correlatedProb = independentProb
-
-  // Same-player prop correlations
-  for (const [playerKey, legs] of Object.entries(playerLegs)) {
-    if (legs.length <= 1) continue
-
-    for (let i = 0; i < legs.length; i++) {
-      for (let j = i + 1; j < legs.length; j++) {
-        const correlation = getCorrelation(legs[i].propType, legs[j].propType)
-        if (correlation !== 0) {
-          const adjustment = 1 + correlation * (1 - legs[i].probability) * (1 - legs[j].probability)
-          correlatedProb *= adjustment
-
-          correlationAdjustments.push({
-            description: `${legs[i].playerName}: ${legs[i].propType} ↔ ${legs[j].propType}`,
-            factor: adjustment,
-            reason: correlation > 0
-              ? 'Same player - stats rise together'
-              : 'Same player - inverse relationship',
-          })
-        }
-      }
+  for (const leg of prepared) {
+    const quote = leg.quotes.find((q) => q.bookKey === bestBook.bookKey)
+    if (!quote) {
+      throw new Error(`No odds found at ${bestBook.bookTitle} for one of the legs.`)
     }
+    const probabilityLeg = buildProbabilityLeg(leg, quote)
+    independentProbability *= probabilityLeg.probability
+    probabilityLegs.push(probabilityLeg)
   }
 
-  // Same-game outcome correlations (e.g., spread + total)
-  for (const [gameKey, legs] of Object.entries(gameLegs)) {
-    if (legs.length <= 1) continue
-
-    for (let i = 0; i < legs.length; i++) {
-      for (let j = i + 1; j < legs.length; j++) {
-        // Check for spread-total correlation
-        if (
-          (legs[i].type === 'game_spread' && legs[j].type === 'game_total') ||
-          (legs[i].type === 'game_total' && legs[j].type === 'game_spread')
-        ) {
-          const correlation = GAME_CORRELATIONS.spreadToTotal
-          const adjustment = 1 + correlation * (1 - legs[i].probability) * (1 - legs[j].probability)
-          correlatedProb *= adjustment
-
-          correlationAdjustments.push({
-            description: 'Same game: spread + total',
-            factor: adjustment,
-            reason: 'Spread and total outcomes slightly correlated',
-          })
-        }
-      }
-    }
+  const correlationAdjustments = calculateCorrelationAdjustments(probabilityLegs)
+  let correlatedProbability = independentProbability
+  for (const adjustment of correlationAdjustments) {
+    correlatedProbability *= 1 + adjustment.adjustment
   }
 
-  // Clamp
-  correlatedProb = Math.max(0.001, Math.min(0.999, correlatedProb))
+  correlatedProbability = clampProbability(correlatedProbability)
 
-  // Calculate implied odds
-  const decimalOdds = 1 / correlatedProb
-  const americanOdds = decimalOdds >= 2
-    ? Math.round((decimalOdds - 1) * 100)
-    : Math.round(-100 / (decimalOdds - 1))
+  const impliedOdds = Number.isFinite(correlatedProbability)
+    ? probabilityToAmericanOdds(correlatedProbability)
+    : null
 
-  // Confidence
-  const avgConfidence = calculatedLegs.reduce((acc, leg) => {
-    return acc + (leg.confidence === 'high' ? 3 : leg.confidence === 'medium' ? 2 : 1)
-  }, 0) / calculatedLegs.length
-  const confidence: 'high' | 'medium' | 'low' =
-    avgConfidence >= 2.5 ? 'high' : avgConfidence >= 1.5 ? 'medium' : 'low'
+  const marketImpliedProbability = Number.isFinite(bestBook.american)
+    ? oddsToImpliedProbability(bestBook.american)
+    : null
 
-  // Breakdown
-  const breakdown = calculatedLegs.map(leg =>
-    `${leg.description}: ${formatProbability(leg.probability)}`
-  ).join('\n')
+  const parlayEdge =
+    marketImpliedProbability != null
+      ? correlatedProbability - marketImpliedProbability
+      : null
 
-  const formatted = formatParlayResult({
-    legs: calculatedLegs,
-    independentProbability: independentProb,
-    correlatedProbability: correlatedProb,
-    correlationAdjustments,
-    impliedOdds: { american: americanOdds, decimal: decimalOdds },
-    confidence,
-    breakdown,
-    formatted: '',
-  })
+  const confidence = deriveParlayConfidence(probabilityLegs)
 
   return {
-    legs: calculatedLegs,
-    independentProbability: independentProb,
-    correlatedProbability: correlatedProb,
+    legs: probabilityLegs,
+    independentProbability,
+    correlatedProbability,
     correlationAdjustments,
-    impliedOdds: { american: americanOdds, decimal: decimalOdds },
+    impliedOdds,
+    bestBook: bestBook.bookTitle,
+    bestBookOdds: bestBook.american,
+    marketImpliedProbability,
+    parlayEdge,
     confidence,
-    breakdown,
-    formatted,
   }
 }
 
-// ============================================
-// Formatting
-// ============================================
-
-function formatParlayResult(result: ParlayProbabilityResult): string {
-  let output = '**Parlay Probability Analysis**\n\n'
-
-  output += '**Individual Legs:**\n'
-  for (const leg of result.legs) {
-    const emoji = leg.confidence === 'high' ? '🔥' : leg.confidence === 'medium' ? '✓' : '⚠️'
-    let legLine = `${emoji} ${leg.description}: ${formatProbability(leg.probability)}`
-
-    // Add market comparison for player props
-    if (leg.type === 'player_prop') {
-      const propLeg = leg as PlayerPropLeg
-      if (propLeg.marketLine !== undefined && propLeg.marketOdds !== undefined) {
-        const oddsStr = propLeg.marketOdds > 0 ? `+${propLeg.marketOdds}` : `${propLeg.marketOdds}`
-        const bookStr = propLeg.book ? ` @ ${propLeg.book}` : ''
-        legLine += ` (Line: ${propLeg.marketLine}, Odds: ${oddsStr}${bookStr})`
-      }
-    }
-    output += legLine + '\n'
-  }
-
-  output += '\n**Combined Probability:**\n'
-  output += `• Independent (naive): ${formatProbability(result.independentProbability)}\n`
-
-  if (result.correlationAdjustments.length > 0) {
-    output += `• Correlated (adjusted): ${formatProbability(result.correlatedProbability)}\n`
-    output += '\n**Correlation Adjustments:**\n'
-    for (const adj of result.correlationAdjustments) {
-      const sign = adj.factor >= 1 ? '+' : ''
-      const pct = ((adj.factor - 1) * 100).toFixed(1)
-      output += `• ${adj.description}: ${sign}${pct}% (${adj.reason})\n`
-    }
-  } else {
-    output += `• Final (no correlations): ${formatProbability(result.correlatedProbability)}\n`
-  }
-
-  output += '\n**Implied Fair Odds:**\n'
-  output += `• American: ${result.impliedOdds.american > 0 ? '+' : ''}${result.impliedOdds.american}\n`
-  output += `• Decimal: ${result.impliedOdds.decimal.toFixed(2)}\n`
-
-  // Add edge analysis for ALL legs with market odds
-  const allLegsWithEdge = result.legs.filter(leg => {
-    if (leg.type === 'player_prop') {
-      return (leg as PlayerPropLeg).edge !== undefined
-    }
-    return (leg as GameOutcomeLeg).edge !== undefined
-  })
-
-  if (allLegsWithEdge.length > 0) {
-    output += '\n**Edge Analysis (Model vs Market):**\n'
-    for (const leg of allLegsWithEdge) {
-      const edgeValue = leg.type === 'player_prop'
-        ? (leg as PlayerPropLeg).edge!
-        : (leg as GameOutcomeLeg).edge!
-      const edgeSign = edgeValue >= 0 ? '+' : ''
-      const edgePct = (edgeValue * 100).toFixed(1)
-      const verdict = edgeValue > 0.03 ? '✓ Value' : edgeValue < -0.03 ? '✗ No value' : '~ Fair'
-      output += `• ${leg.description}: ${edgeSign}${edgePct}% edge (${verdict})\n`
-    }
-  }
-
-  output += `\n**Confidence:** ${result.confidence.toUpperCase()}`
-
-  return output
+export async function calculateCombinedPlayerProps(
+  props: Array<{
+    playerName: string
+    propType: string
+    threshold: number
+    direction: 'over' | 'under'
+    sport?: string
+  }>
+) {
+  const legs: ParlayLegInput[] = props.map((prop) => ({
+    type: 'player_prop',
+    playerName: prop.playerName,
+    propType: prop.propType,
+    threshold: prop.threshold,
+    propDirection: prop.direction,
+    sport: prop.sport,
+  }))
+  return calculateParlayProbability(legs, { sport: props[0]?.sport })
 }
 
-// ============================================
-// Utility Functions
-// ============================================
-
-function americanToImpliedProbability(odds: number): number {
-  if (odds > 0) {
-    return 100 / (odds + 100)
-  } else {
-    return Math.abs(odds) / (Math.abs(odds) + 100)
-  }
-}
-
-function normalCDF(z: number): number {
-  // Approximation of the normal CDF
-  const t = 1 / (1 + 0.2316419 * Math.abs(z))
-  const d = 0.3989423 * Math.exp(-z * z / 2)
-  const probability = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))))
-  return z > 0 ? 1 - probability : probability
-}
-
-/**
- * Format result for chat/LLM consumption
- */
 export function formatParlayResultForChat(result: ParlayProbabilityResult): string {
-  return result.formatted
+  return formatParlayResult(result)
 }
 

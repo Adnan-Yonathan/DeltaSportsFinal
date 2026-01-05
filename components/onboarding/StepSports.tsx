@@ -2,6 +2,7 @@
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Check } from "lucide-react"
+import Image from "next/image"
 
 interface StepSportsProps {
   value: string[]
@@ -9,14 +10,57 @@ interface StepSportsProps {
   onValidation: (isValid: boolean) => void
 }
 
-const SPORTS = [
-  { id: "nba", label: "NBA", detail: "Pro basketball" },
-  { id: "ncaab", label: "NCAAB", detail: "College basketball" },
-  { id: "nfl", label: "NFL", detail: "Pro football" },
-  { id: "ncaaf", label: "NCAAF", detail: "College football" },
-  { id: "mlb", label: "MLB", detail: "Baseball" },
-  { id: "nhl", label: "NHL", detail: "Hockey" },
-  { id: "soccer", label: "Soccer", detail: "Club and international" },
+type SportOption = {
+  id: string
+  label: string
+  detail: string
+  logoSrc?: string
+  logoAlt?: string
+}
+
+const SPORTS: SportOption[] = [
+  {
+    id: "nba",
+    label: "NBA",
+    detail: "Pro basketball",
+    logoSrc: "/R.png",
+    logoAlt: "NBA logo",
+  },
+  {
+    id: "ncaab",
+    label: "NCAAB",
+    detail: "College basketball",
+    logoSrc: "/227-2274470_ncaa-logo-png.png",
+    logoAlt: "NCAA logo",
+  },
+  {
+    id: "nfl",
+    label: "NFL",
+    detail: "Pro football",
+    logoSrc: "/nfl-logo-nfl-icon-transparent-free-png.webp",
+    logoAlt: "NFL logo",
+  },
+  {
+    id: "ncaaf",
+    label: "NCAAF",
+    detail: "College football",
+    logoSrc: "/227-2274470_ncaa-logo-png.png",
+    logoAlt: "NCAA logo",
+  },
+  {
+    id: "mlb",
+    label: "MLB",
+    detail: "Baseball",
+    logoSrc: "/mlb-logo-png.png",
+    logoAlt: "MLB logo",
+  },
+  {
+    id: "nhl",
+    label: "NHL",
+    detail: "Hockey",
+    logoSrc: "/1526525415nhl-logo-png.png",
+    logoAlt: "NHL logo",
+  },
   { id: "other", label: "Other", detail: "Everything else" },
 ]
 
@@ -71,8 +115,23 @@ export function StepSports({ value, onChange, onValidation }: StepSportsProps) {
                     <Check className="w-4 h-4 text-white" />
                   </div>
                 )}
-                <div className="space-y-1">
-                  <div className="text-lg font-semibold text-white">{sport.label}</div>
+                <div className="space-y-2">
+                  {sport.logoSrc ? (
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center">
+                        <Image
+                          src={sport.logoSrc}
+                          alt={sport.logoAlt ?? sport.label}
+                          width={32}
+                          height={32}
+                          className="h-8 w-8 object-contain"
+                        />
+                      </div>
+                      <div className="text-lg font-semibold text-white">{sport.label}</div>
+                    </div>
+                  ) : (
+                    <div className="text-lg font-semibold text-white">{sport.label}</div>
+                  )}
                   <div className="text-xs text-white/50">{sport.detail}</div>
                 </div>
               </motion.button>

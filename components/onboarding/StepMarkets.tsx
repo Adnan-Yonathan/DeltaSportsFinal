@@ -14,7 +14,7 @@ const MARKETS = [
   { id: "totals", label: "Totals", detail: "Game totals and alt lines" },
   { id: "moneyline", label: "Moneyline", detail: "Straight winners" },
   { id: "player-props", label: "Player props", detail: "Points, assists, and more" },
-  { id: "sgp", label: "Same-game parlays", detail: "Stacks within one game" },
+  { id: "sgp", label: "Parlays", detail: "Multi-leg combinations" },
 ]
 
 export function StepMarkets({ value, onChange, onValidation }: StepMarketsProps) {

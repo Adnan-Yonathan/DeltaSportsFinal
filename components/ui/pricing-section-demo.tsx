@@ -9,7 +9,7 @@ const defaultTiers: PricingTier[] = [
     tierKey: "pro",
     price: {
       monthly: 29,
-      yearly: 9,
+      yearly: 108,
     },
     description: "7-day trial. Core chat plus market tracking.",
     planKeyMonthly: "pro_monthly",
@@ -46,8 +46,8 @@ const defaultTiers: PricingTier[] = [
     name: "Sharp",
     tierKey: "sharp",
     price: {
-      monthly: 79,
-      yearly: 33,
+      monthly: 59,
+      yearly: 249,
     },
     description: "7-day trial. Unlimited chat plus limited live projections.",
     highlight: true,
@@ -86,8 +86,8 @@ const defaultTiers: PricingTier[] = [
     name: "Syndicate",
     tierKey: "syndicate",
     price: {
-      monthly: 199,
-      yearly: 83,
+      monthly: 79,
+      yearly: 299,
     },
     description: "7-day trial. Unlimited everything plus priority support.",
     planKeyMonthly: "syndicate_monthly",

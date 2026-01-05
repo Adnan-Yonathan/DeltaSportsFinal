@@ -134,13 +134,13 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
     <section
       className={cn(
         "relative bg-gradient-to-b from-neutral-850 to-neutral-900 text-slate-50",
-        "py-16 px-4 md:py-24 lg:py-32",
+        "pt-6 pb-10 px-4 md:pt-10 md:pb-14 lg:pt-12 lg:pb-16",
         "overflow-hidden",
         className,
       )}
     >
       <div className="w-full max-w-5xl mx-auto">
-        <div className="flex flex-col items-center gap-4 mb-12 text-center">
+        <div className="flex flex-col items-center gap-2 mb-6 text-center md:mb-8">
           <p className="text-sm uppercase tracking-[0.3em] text-emerald-200/80">Pricing</p>
           <h2 className="text-3xl font-bold text-white md:text-4xl">Simple, transparent pricing</h2>
           <div className="inline-flex items-center p-1.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 backdrop-blur">
@@ -203,9 +203,10 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
 
                   <div className="mb-6">
                     {(() => {
-                      const monthlyPrice = isYearly ? tier.price.yearly : tier.price.monthly
-                      const dailyPrice = monthlyPrice > 0 ? (monthlyPrice / 30).toFixed(2) : 0
-                      const isFree = monthlyPrice === 0
+                      const periodPrice = isYearly ? tier.price.yearly : tier.price.monthly
+                      const daysInPeriod = isYearly ? 365 : 30
+                      const dailyPrice = periodPrice > 0 ? (periodPrice / daysInPeriod).toFixed(2) : 0
+                      const isFree = periodPrice === 0
                       return (
                         <>
                           <div className="flex items-baseline gap-2">
@@ -214,7 +215,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                             </span>
                             {!isFree && (
                               <span className="text-sm text-slate-200/70">
-                                /day{isYearly ? " (billed annually)" : ""}
+                                /day (billed {isYearly ? "annually" : "monthly"})
                               </span>
                             )}
                           </div>

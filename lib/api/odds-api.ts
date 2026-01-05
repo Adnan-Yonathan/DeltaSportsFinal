@@ -23,6 +23,9 @@ import {
   buildTeamLabel,
   type SbdLeague,
 } from '@/lib/api/sbd'
+import { fetchPolymarketOdds } from '@/lib/api/polymarket'
+import { fetchKalshiOdds } from '@/lib/api/kalshi'
+import { normalizeTeamKey } from '@/lib/identity/sport'
 
 const ODDS_API_BASE = 'https://api.the-odds-api.com/v4'
 const ODDS_IO_BASE = 'https://api.odds-api.io/v3'
@@ -1520,6 +1523,126 @@ function mergeTotalsMarkets(existing: Bookmaker[], totalsOnly: Bookmaker[]): Boo
   return existing
 }
 
+const isTeamMatch = (a: string, b: string) => {
+  const left = normalizeTeamKey(a)
+  const right = normalizeTeamKey(b)
+  if (!left || !right) return false
+  return left === right || left.includes(right) || right.includes(left)
+}
+
+const isSameMatchup = (game: OddsGame, candidate: OddsGame) => {
+  const direct =
+    isTeamMatch(game.home_team, candidate.home_team) &&
+    isTeamMatch(game.away_team, candidate.away_team)
+  const swapped =
+    isTeamMatch(game.home_team, candidate.away_team) &&
+    isTeamMatch(game.away_team, candidate.home_team)
+  return direct || swapped
+}
+
+const resolveMarketLine = (market: OddsMarket) => {
+  const rawPoint = market.outcomes.find((outcome) =>
+    Number.isFinite(outcome.point)
+  )?.point
+  if (!Number.isFinite(rawPoint)) return null
+  const line = Number(rawPoint)
+  if (market.key.startsWith('spreads')) return Math.abs(line)
+  return line
+}
+
+const buildMarketSignature = (market: OddsMarket) => {
+  const line = resolveMarketLine(market)
+  const lineLabel = Number.isFinite(line) ? `:${line}` : ''
+  return `${market.key}${lineLabel}`
+}
+
+const mergeBookmakerMarkets = (existing: Bookmaker, incoming: Bookmaker) => {
+  const mergedMarkets = [...existing.markets]
+  incoming.markets.forEach((market) => {
+    const signature = buildMarketSignature(market)
+    const index = mergedMarkets.findIndex(
+      (current) => buildMarketSignature(current) === signature
+    )
+    if (index === -1) {
+      mergedMarkets.push(market)
+      return
+    }
+    if (market.outcomes.length > mergedMarkets[index].outcomes.length) {
+      mergedMarkets[index] = market
+    }
+  })
+  return { ...existing, markets: mergedMarkets }
+}
+
+const mergeBookmakers = (existing: Bookmaker[], incoming: Bookmaker[]) => {
+  const merged = [...existing]
+  incoming.forEach((book) => {
+    const index = merged.findIndex((current) => current.key === book.key)
+    if (index === -1) {
+      merged.push(book)
+      return
+    }
+    merged[index] = mergeBookmakerMarkets(merged[index], book)
+  })
+  return merged
+}
+
+const mergePredictionMarketGames = (
+  games: OddsGame[],
+  additions: OddsGame[],
+  bookKey: string
+) => {
+  if (!additions.length) return games
+  const merged = [...games]
+  additions.forEach((candidate) => {
+    const candidateBooks = candidate.bookmakers.filter(
+      (book) => book.key === bookKey
+    )
+    if (!candidateBooks.length) return
+    const match = merged.find((game) => isSameMatchup(game, candidate))
+    if (match) {
+      match.bookmakers = mergeBookmakers(match.bookmakers, candidateBooks)
+    } else {
+      merged.push({ ...candidate, bookmakers: candidateBooks })
+    }
+  })
+  return merged
+}
+
+const attachPredictionMarketOdds = async (
+  games: OddsGame[],
+  sport: string,
+  markets: string[],
+  options: FetchOddsOptions
+) => {
+  const sources = [
+    { key: 'polymarket', fetcher: fetchPolymarketOdds },
+    { key: 'kalshi', fetcher: fetchKalshiOdds },
+  ]
+  const results = await Promise.allSettled(
+    sources.map((source) =>
+      source.fetcher(sport, markets, {
+        live: options.live,
+        revalidateSeconds: options.revalidateSeconds,
+        teamFilter: options.teamFilter,
+      })
+    )
+  )
+
+  let merged = games
+  results.forEach((result, index) => {
+    const source = sources[index]
+    if (!source) return
+    if (result.status === 'fulfilled') {
+      merged = mergePredictionMarketGames(merged, result.value, source.key)
+    } else {
+      console.warn(`[ODDS] ${source.key} fetch failed:`, result.reason)
+    }
+  })
+
+  return merged
+}
+
 /**
  * Fetch odds for a specific sport
  */
@@ -1608,25 +1731,30 @@ export async function fetchOdds(
 ): Promise<OddsGame[]> {
   const provider = resolveOddsProvider()
   if (provider === 'odds-api-io') {
-    return fetchOddsIO(sport, markets, options)
+    const games = await fetchOddsIO(sport, markets, options)
+    return attachPredictionMarketOdds(games, sport, markets, options)
   }
   if (provider === 'sportsbettingdime') {
     const games = await fetchOddsSbd(sport, markets, options)
     if (!games.length && process.env.ODDS_API_KEY) {
       try {
         const fallback = await fetchOddsIO(sport, markets, options)
-        if (fallback.length) return fallback
+        if (fallback.length) {
+          return attachPredictionMarketOdds(fallback, sport, markets, options)
+        }
       } catch (error) {
         console.warn('[ODDS] SBD fallback to odds-api-io failed:', error)
       }
     }
-    return games
+    return attachPredictionMarketOdds(games, sport, markets, options)
   }
 
   if (process.env.ODDS_API_KEY) {
     try {
       const games = await fetchOddsIO(sport, markets, options)
-      if (games.length) return games
+      if (games.length) {
+        return attachPredictionMarketOdds(games, sport, markets, options)
+      }
     } catch (error) {
       console.warn(
         '[ODDS] Odds-api-io provider failed, retrying with SBD:',
@@ -1634,7 +1762,8 @@ export async function fetchOdds(
       )
     }
   }
-  return fetchOddsSbd(sport, markets, options)
+  const fallback = await fetchOddsSbd(sport, markets, options)
+  return attachPredictionMarketOdds(fallback, sport, markets, options)
 }
 
 /**

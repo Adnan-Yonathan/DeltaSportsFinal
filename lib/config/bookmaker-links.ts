@@ -44,6 +44,8 @@ const BOOKMAKER_LINKS: Record<string, string> = {
   si: 'https://www.si.com/betting/',
   crabsports: 'https://www.crabsports.com/',
   prophetx: 'https://www.prophetx.co/promotions',
+  polymarket: 'https://polymarket.com/',
+  kalshi: 'https://kalshi.com/',
 }
 
 export function getBookmakerLink(slug: string): string | undefined {

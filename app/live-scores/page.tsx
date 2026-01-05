@@ -11,7 +11,7 @@ import { ESPN_LEAGUES, type LeagueId, type LiveScoreGame, type LiveScoreGameDeta
 import { normalizeTeamKey } from "@/lib/identity/sport"
 import { createClient } from "@/lib/supabase/client"
 import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
-import type { OddsGame } from "@/lib/types/odds"
+import type { Bookmaker, OddsGame, OddsMarket } from "@/lib/types/odds"
 
 const LEAGUE_TABS: Array<{ id: LeagueId; label: string }> =
   ESPN_LEAGUES.map((league) => ({ id: league.id, label: league.label }))
@@ -175,9 +175,15 @@ const formatMarketLabel = (value: string) =>
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase())
 
-const formatLineOdds = (line?: number, odds?: number, showSign = true) => {
+const formatLineOdds = (
+  line?: number,
+  odds?: number,
+  showSign = true,
+  book?: string,
+  probability?: number
+) => {
   const lineLabel = formatPoint(line, 1, showSign)
-  const oddsLabel = formatOdds(odds)
+  const oddsLabel = formatOddsDisplay(odds, book, probability)
   if (lineLabel === "-" && oddsLabel === "-") return "-"
   if (lineLabel === "-") return oddsLabel
   if (oddsLabel === "-") return lineLabel
@@ -217,6 +223,61 @@ const isTeamMatch = (a: string, b: string) => {
   return left === right || left.includes(right) || right.includes(left)
 }
 
+const resolveMarketLine = (market: OddsMarket) => {
+  const rawPoint = market.outcomes.find((outcome) =>
+    Number.isFinite(outcome.point)
+  )?.point
+  if (!Number.isFinite(rawPoint)) return null
+  const line = Number(rawPoint)
+  if (market.key.startsWith("spreads")) return Math.abs(line)
+  return line
+}
+
+const buildMarketSignature = (market: OddsMarket) => {
+  const line = resolveMarketLine(market)
+  const lineLabel = Number.isFinite(line) ? `:${line}` : ""
+  return `${market.key}${lineLabel}`
+}
+
+const mergeMarkets = (base: OddsMarket[], additions: OddsMarket[]) => {
+  const merged = [...base]
+  additions.forEach((market) => {
+    const signature = buildMarketSignature(market)
+    const index = merged.findIndex(
+      (current) => buildMarketSignature(current) === signature
+    )
+    if (index === -1) {
+      merged.push(market)
+      return
+    }
+    if (market.outcomes.length > merged[index].outcomes.length) {
+      merged[index] = market
+    }
+  })
+  return merged
+}
+
+const mergeBookmakers = (base: Bookmaker[], additions: Bookmaker[]) => {
+  const merged = [...base]
+  additions.forEach((book) => {
+    const index = merged.findIndex((current) => current.key === book.key)
+    if (index === -1) {
+      merged.push(book)
+      return
+    }
+    merged[index] = {
+      ...merged[index],
+      markets: mergeMarkets(merged[index].markets, book.markets),
+    }
+  })
+  return merged
+}
+
+const mergeOddsGames = (base: OddsGame, addition: OddsGame): OddsGame => ({
+  ...base,
+  bookmakers: mergeBookmakers(base.bookmakers, addition.bookmakers),
+})
+
 const getTeamsFromGame = (game: LiveScoreGame) => {
   const home = game.competitors.find((team) => team.homeAway === "home")
   const away = game.competitors.find((team) => team.homeAway === "away")
@@ -240,7 +301,12 @@ const getLineScoreColumns = (game: LiveScoreGame) => {
   return lineOwner.map((entry, index) => entry.label || formatPeriodLabel(game.league, index))
 }
 
-type MarketEntry = { book: string; odds: number; point?: number }
+type MarketEntry = {
+  book: string
+  odds: number
+  point?: number
+  probability?: number
+}
 
 const averageOf = (values: number[]) =>
   values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
@@ -249,6 +315,52 @@ const impliedProbability = (odds: number) => {
   if (!Number.isFinite(odds)) return null
   if (odds > 0) return 100 / (odds + 100)
   return Math.abs(odds) / (Math.abs(odds) + 100)
+}
+
+const isPredictionMarketBook = (book?: string) => {
+  const normalized = (book || "").toLowerCase()
+  return normalized === "polymarket" || normalized === "kalshi"
+}
+
+const formatProbability = (value?: number, decimals = 1) => {
+  if (!Number.isFinite(value)) return "-"
+  return `${((value as number) * 100).toFixed(decimals)}%`
+}
+
+const resolveEntryProbability = (probability?: number, odds?: number) => {
+  if (Number.isFinite(probability)) return probability as number
+  if (!Number.isFinite(odds)) return null
+  return impliedProbability(odds as number)
+}
+
+const formatOddsDisplay = (
+  odds?: number,
+  book?: string,
+  probability?: number
+) => {
+  const oddsLabel = formatOdds(odds)
+  if (!isPredictionMarketBook(book)) return oddsLabel
+  const prob = resolveEntryProbability(probability, odds)
+  if (prob == null) return oddsLabel
+  return `${formatProbability(prob)} (${oddsLabel})`
+}
+
+const filterOddsGameForLive = (
+  oddsGame: OddsGame | null,
+  bucket?: LiveScoreGame["bucket"]
+) => {
+  if (!oddsGame) return null
+  if (bucket !== "live") return oddsGame
+  const bookmakers = (oddsGame.bookmakers ?? []).filter(
+    (book) =>
+      isPredictionMarketBook(book?.key) ||
+      isPredictionMarketBook(book?.title)
+  )
+  if (!bookmakers.length) return null
+  return {
+    ...oddsGame,
+    bookmakers,
+  }
 }
 
 const calculateArbProfit = (oddsA?: number, oddsB?: number) => {
@@ -366,6 +478,7 @@ const collectOutcomeEntries = (
           book: book.title,
           odds: outcome.price,
           point: Number.isFinite(parsedPoint) ? parsedPoint : undefined,
+          probability: outcome.probability,
         })
       }
     })
@@ -391,7 +504,9 @@ const buildMarketRows = (
           rows.push({
             book: book.title,
             homeOdds: home?.price,
+            homeProbability: home?.probability,
             awayOdds: away?.price,
+            awayProbability: away?.probability,
           })
         }
         return
@@ -408,8 +523,10 @@ const buildMarketRows = (
             book: book.title,
             homeLine: Number.isFinite(homePoint) ? homePoint : undefined,
             homeOdds: home?.price,
+            homeProbability: home?.probability,
             awayLine: Number.isFinite(awayPoint) ? awayPoint : undefined,
             awayOdds: away?.price,
+            awayProbability: away?.probability,
           })
         }
         return
@@ -431,7 +548,9 @@ const buildMarketRows = (
             book: book.title,
             line: resolvedLine,
             overOdds: over?.price,
+            overProbability: over?.probability,
             underOdds: under?.price,
+            underProbability: under?.probability,
           })
         }
       }
@@ -549,7 +668,13 @@ export default function LiveScoresPage() {
   const oddsMatchIndex = useMemo(() => {
     const map = new Map<string, OddsGame>()
     oddsGames.forEach((game) => {
-      map.set(buildMatchKey(game.away_team, game.home_team), game)
+      const key = buildMatchKey(game.away_team, game.home_team)
+      const existing = map.get(key)
+      if (existing) {
+        map.set(key, mergeOddsGames(existing, game))
+      } else {
+        map.set(key, game)
+      }
     })
     return map
   }, [oddsGames])
@@ -558,11 +683,13 @@ export default function LiveScoresPage() {
       const key = buildMatchKey(awayName, homeName)
       const directMatch = oddsMatchIndex.get(key)
       if (directMatch) return directMatch
-      return oddsGames.find(
+      const matches = oddsGames.filter(
         (game) =>
           isTeamMatch(game.home_team, homeName) &&
           isTeamMatch(game.away_team, awayName)
       )
+      if (!matches.length) return undefined
+      return matches.reduce((merged, game) => mergeOddsGames(merged, game))
     },
     [oddsGames, oddsMatchIndex]
   )
@@ -579,11 +706,8 @@ export default function LiveScoresPage() {
     const arbs: ArbEntry[] = []
     filteredGames.forEach((game) => {
       const teams = getTeamsFromGame(game)
-      const oddsGame = oddsGames.find(
-        (og) =>
-          isTeamMatch(og.home_team, teams.homeName) &&
-          isTeamMatch(og.away_team, teams.awayName)
-      )
+      const rawOddsGame = findOddsGame(teams.homeName, teams.awayName) ?? null
+      const oddsGame = filterOddsGameForLive(rawOddsGame, game.bucket)
       if (!oddsGame) return
       const arb = findArbitrage(oddsGame, teams.homeName, teams.awayName)
       if (arb) {
@@ -602,7 +726,7 @@ export default function LiveScoresPage() {
       }
     })
     return arbs.sort((a, b) => b.arbitrage.profitPct - a.arbitrage.profitPct)
-  }, [filteredGames, oddsGames, canLoadOdds])
+  }, [filteredGames, canLoadOdds, findOddsGame])
 
   const fetchOddsForLeague = useCallback(async () => {
     if (!canLoadOdds) return
@@ -714,9 +838,10 @@ export default function LiveScoresPage() {
   )
   const lineShoppingOddsGame = useMemo(() => {
     if (!lineShoppingGame || !lineShoppingTeams) return null
-    return (
-      findOddsGame(lineShoppingTeams.homeName, lineShoppingTeams.awayName) ?? null
-    )
+    const oddsGame =
+      findOddsGame(lineShoppingTeams.homeName, lineShoppingTeams.awayName) ??
+      null
+    return filterOddsGameForLive(oddsGame, lineShoppingGame.bucket)
   }, [findOddsGame, lineShoppingGame, lineShoppingTeams])
   const lineShoppingProps = lineShoppingGame
     ? propsByGame[lineShoppingGame.id]
@@ -1004,9 +1129,15 @@ export default function LiveScoresPage() {
                         const detail = sanitizeText(game.status?.detail)
                         const shortDetail = sanitizeText(game.status?.shortDetail)
                         const broadcast = sanitizeText(game.broadcast)
-                        const odds = sanitizeText(game.odds)
+                        const odds =
+                          game.bucket === "live" ? "" : sanitizeText(game.odds)
                         const teams = getTeamsFromGame(game)
-                        const oddsGame = findOddsGame(teams.homeName, teams.awayName) ?? null
+                        const rawOddsGame =
+                          findOddsGame(teams.homeName, teams.awayName) ?? null
+                        const oddsGame = filterOddsGameForLive(
+                          rawOddsGame,
+                          game.bucket
+                        )
                         const arbitrage = findArbitrage(
                           oddsGame ?? null,
                           teams.homeName,
@@ -1020,13 +1151,43 @@ export default function LiveScoresPage() {
                                 : "Total"
                             } Arb +${arbitrage.profitPct.toFixed(1)}%`
                           : null
+                        const moneylineAwayEntries = collectOutcomeEntries(
+                          oddsGame,
+                          "h2h",
+                          teams.awayName
+                        )
+                        const moneylineHomeEntries = collectOutcomeEntries(
+                          oddsGame,
+                          "h2h",
+                          teams.homeName
+                        )
                         const moneylineAway = pickBestEntry(
-                          collectOutcomeEntries(oddsGame, "h2h", teams.awayName),
+                          moneylineAwayEntries,
                           "h2h"
                         )
                         const moneylineHome = pickBestEntry(
-                          collectOutcomeEntries(oddsGame, "h2h", teams.homeName),
+                          moneylineHomeEntries,
                           "h2h"
+                        )
+                        const awayWinProb = averageOf(
+                          moneylineAwayEntries
+                            .map((entry) =>
+                              resolveEntryProbability(
+                                entry.probability,
+                                entry.odds
+                              )
+                            )
+                            .filter((value): value is number => value != null)
+                        )
+                        const homeWinProb = averageOf(
+                          moneylineHomeEntries
+                            .map((entry) =>
+                              resolveEntryProbability(
+                                entry.probability,
+                                entry.odds
+                              )
+                            )
+                            .filter((value): value is number => value != null)
                         )
                         const spreadAway = pickBestEntry(
                           collectOutcomeEntries(oddsGame, "spreads", teams.awayName),
@@ -1096,7 +1257,11 @@ export default function LiveScoresPage() {
                                 {lineLabel}
                               </div>
                               <div className="text-white/70">
-                                {formatOdds(entry.odds)}{" "}
+                                {formatOddsDisplay(
+                                  entry.odds,
+                                  entry.book,
+                                  entry.probability
+                                )}{" "}
                                 <span className="text-white/40">({entry.book})</span>
                               </div>
                             </div>
@@ -1107,6 +1272,12 @@ export default function LiveScoresPage() {
                           <div className="flex items-center justify-between text-[11px] text-white/60 gap-2">
                             <span className="uppercase tracking-[0.3em]">{game.leagueLabel}</span>
                             <div className="flex items-center gap-2">
+                              {game.bucket === "live" && (
+                                <span className="inline-flex items-center gap-1 rounded-full border border-red-500/60 bg-red-500/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-red-200">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                                  Live
+                                </span>
+                              )}
                               {arbitrageLabel && (
                                 <span className="inline-flex items-center rounded-full border border-emerald-400/50 bg-emerald-500/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200">
                                   {arbitrageLabel}
@@ -1132,7 +1303,21 @@ export default function LiveScoresPage() {
                                   <div>
                                     <p className="text-xs sm:text-sm font-semibold leading-tight">{team.name}</p>
                                     <p className="text-[10px] sm:text-[11px] text-white/50">
-                                      {team.record ?? (team.homeAway === "home" ? "Home" : "Away")}
+                                      {(() => {
+                                        const recordLabel =
+                                          team.record ??
+                                          (team.homeAway === "home" ? "Home" : "Away")
+                                        const winProb =
+                                          team.homeAway === "home"
+                                            ? homeWinProb
+                                            : awayWinProb
+                                        const winProbLabel = Number.isFinite(winProb)
+                                          ? `Win ${formatProbability(winProb)}`
+                                          : null
+                                        return winProbLabel
+                                          ? `${recordLabel} | ${winProbLabel}`
+                                          : recordLabel
+                                      })()}
                                     </p>
                                   </div>
                                   <p className="text-lg sm:text-xl font-bold tabular-nums">{team.score}</p>
@@ -1492,7 +1677,11 @@ function LineShoppingModal({
                                 : "text-white/80"
                             )}
                           >
-                            {formatOdds(row.awayOdds)}
+                            {formatOddsDisplay(
+                              row.awayOdds,
+                              row.book,
+                              row.awayProbability
+                            )}
                           </span>
                           <span
                             className={clsx(
@@ -1502,7 +1691,11 @@ function LineShoppingModal({
                                 : "text-white/80"
                             )}
                           >
-                            {formatOdds(row.homeOdds)}
+                            {formatOddsDisplay(
+                              row.homeOdds,
+                              row.book,
+                              row.homeProbability
+                            )}
                           </span>
                         </div>
                       ))}
@@ -1535,7 +1728,13 @@ function LineShoppingModal({
                                 : "text-white/80"
                             )}
                           >
-                            {formatLineOdds(row.awayLine, row.awayOdds)}
+                            {formatLineOdds(
+                              row.awayLine,
+                              row.awayOdds,
+                              true,
+                              row.book,
+                              row.awayProbability
+                            )}
                           </span>
                           <span
                             className={clsx(
@@ -1545,7 +1744,13 @@ function LineShoppingModal({
                                 : "text-white/80"
                             )}
                           >
-                            {formatLineOdds(row.homeLine, row.homeOdds)}
+                            {formatLineOdds(
+                              row.homeLine,
+                              row.homeOdds,
+                              true,
+                              row.book,
+                              row.homeProbability
+                            )}
                           </span>
                         </div>
                       ))}
@@ -1578,7 +1783,13 @@ function LineShoppingModal({
                                 : "text-white/80"
                             )}
                           >
-                            {formatLineOdds(row.line, row.overOdds, false)}
+                            {formatLineOdds(
+                              row.line,
+                              row.overOdds,
+                              false,
+                              row.book,
+                              row.overProbability
+                            )}
                           </span>
                           <span
                             className={clsx(
@@ -1588,7 +1799,13 @@ function LineShoppingModal({
                                 : "text-white/80"
                             )}
                           >
-                            {formatLineOdds(row.line, row.underOdds, false)}
+                            {formatLineOdds(
+                              row.line,
+                              row.underOdds,
+                              false,
+                              row.book,
+                              row.underProbability
+                            )}
                           </span>
                         </div>
                       ))}

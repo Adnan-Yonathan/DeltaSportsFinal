@@ -10,6 +10,7 @@ export interface OddsOutcome {
   name: string
   price: number // American odds
   point?: number // For spreads and totals
+  probability?: number // Optional implied probability (0-1)
 }
 
 export interface Bookmaker {

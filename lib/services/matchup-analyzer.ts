@@ -1222,44 +1222,6 @@ export function formatMatchupAnalysisForChat(
     lines.push('')
   }
 
-  // Stats comparison section
-  if (homeTeam.stats && awayTeam.stats) {
-    lines.push('### 📊 Stats Comparison')
-    lines.push('')
-
-    // Check if basketball (has ortg/drtg) or football (has ppg)
-    const homeStats = homeTeam.stats as any
-    const awayStats = awayTeam.stats as any
-
-    if ('ortg' in homeStats && 'drtg' in homeStats) {
-      // Basketball format
-      lines.push('| Stat | ' + homeTeam.name + ' | ' + awayTeam.name + ' |')
-      lines.push('|------|------|------|')
-      lines.push(`| ORtg | ${homeStats.ortg.toFixed(1)} | ${awayStats.ortg.toFixed(1)} |`)
-      lines.push(`| DRtg | ${homeStats.drtg.toFixed(1)} | ${awayStats.drtg.toFixed(1)} |`)
-      lines.push(`| Pace | ${homeStats.pace.toFixed(1)} | ${awayStats.pace.toFixed(1)} |`)
-      if (homeStats.eFG != null && awayStats.eFG != null) {
-        lines.push(`| eFG% | ${(homeStats.eFG * 100).toFixed(1)}% | ${(awayStats.eFG * 100).toFixed(1)}% |`)
-      }
-    } else if ('pointsForPerGame' in homeStats) {
-      // Football format
-      lines.push('| Stat | ' + homeTeam.name + ' | ' + awayTeam.name + ' |')
-      lines.push('|------|------|------|')
-      lines.push(`| PPG | ${homeStats.pointsForPerGame.toFixed(1)} | ${awayStats.pointsForPerGame.toFixed(1)} |`)
-      lines.push(`| PAPG | ${homeStats.pointsAgainstPerGame.toFixed(1)} | ${awayStats.pointsAgainstPerGame.toFixed(1)} |`)
-      if (homeStats.yardsPerPlay != null && awayStats.yardsPerPlay != null) {
-        lines.push(`| YPP | ${homeStats.yardsPerPlay.toFixed(2)} | ${awayStats.yardsPerPlay.toFixed(2)} |`)
-      }
-    } else if ('goalsForPerGame' in homeStats) {
-      // Hockey format
-      lines.push('| Stat | ' + homeTeam.name + ' | ' + awayTeam.name + ' |')
-      lines.push('|------|------|------|')
-      lines.push(`| GPG | ${homeStats.goalsForPerGame.toFixed(2)} | ${awayStats.goalsForPerGame.toFixed(2)} |`)
-      lines.push(`| GAA | ${homeStats.goalsAgainstPerGame.toFixed(2)} | ${awayStats.goalsAgainstPerGame.toFixed(2)} |`)
-    }
-    lines.push('')
-  }
-
   // Spread/Total projections (if provided)
   if (options.spread || options.total) {
     lines.push('### 🎯 Line Analysis')

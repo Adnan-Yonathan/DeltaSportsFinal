@@ -8779,39 +8779,8 @@ ${statsEnrichment}
           outputLines.push('')
 
           outputLines.push('### Game Analysis')
-          if (matchupAnalysis?.context?.length) {
-            outputLines.push('**Matchup Factors:**')
-            for (const ctx of matchupAnalysis.context.slice(0, 4)) {
-              outputLines.push(`- ${ctx}`)
-            }
-          }
-
-          outputLines.push('**Team Performance:**')
-          if (matchupAnalysis?.homeTeam?.stats || matchupAnalysis?.awayTeam?.stats) {
-            const homeStats = matchupAnalysis?.homeTeam?.stats as any
-            const awayStats = matchupAnalysis?.awayTeam?.stats as any
-            const fmtStat = (v: any) => v != null ? Number(v).toFixed(1) : 'n/a'
-
-            if (homeStats) {
-              const ppg = homeStats.pointsPerGame ?? homeStats.ppg ?? homeStats.pts ?? homeStats.pointsForPerGame
-              const papg = homeStats.opponentPointsPerGame ?? homeStats.papg ?? homeStats.pointsAgainstPerGame
-              const ortg = homeStats.offensiveRating ?? homeStats.ortg
-              const drtg = homeStats.defensiveRating ?? homeStats.drtg
-              const pace = homeStats.pace
-              outputLines.push(`- ${homeTeam}: PPG ${fmtStat(ppg)} | PAPG ${fmtStat(papg)}${ortg ? ` | ORtg ${fmtStat(ortg)}` : ''}${drtg ? ` | DRtg ${fmtStat(drtg)}` : ''}${pace ? ` | Pace ${fmtStat(pace)}` : ''}`)
-            }
-            if (awayStats) {
-              const ppg = awayStats.pointsPerGame ?? awayStats.ppg ?? awayStats.pts ?? awayStats.pointsForPerGame
-              const papg = awayStats.opponentPointsPerGame ?? awayStats.papg ?? awayStats.pointsAgainstPerGame
-              const ortg = awayStats.offensiveRating ?? awayStats.ortg
-              const drtg = awayStats.defensiveRating ?? awayStats.drtg
-              const pace = awayStats.pace
-              outputLines.push(`- ${awayTeam}: PPG ${fmtStat(ppg)} | PAPG ${fmtStat(papg)}${ortg ? ` | ORtg ${fmtStat(ortg)}` : ''}${drtg ? ` | DRtg ${fmtStat(drtg)}` : ''}${pace ? ` | Pace ${fmtStat(pace)}` : ''}`)
-            }
-          }
-
           outputLines.push('**Injuries:**')
-          outputLines.push(injuryLine)
+            outputLines.push(injuryLine)
 
           outputLines.push('**Betting Trends:**')
           if (trendParts.length) {
@@ -9887,41 +9856,14 @@ ${statsEnrichment}
           analysisLines.push('')
           analysisLines.push(`**Injuries**: ${injuryLine}`)
 
-          // Fetch team stats and context for both teams
-          const teamStatsData = await Promise.all(
-            matchupTeams.slice(0, 2).map(async (teamName) => {
-              const stats = await getTeamStats(sportKey, teamName)
-              const primary = stats?.[0]
-              return { teamName, primary }
-            })
-          )
-
-          analysisLines.push('')
-          analysisLines.push('**Team Stats**')
-          for (const entry of teamStatsData) {
-            if (!entry.teamName) continue
-            const statBlock = entry.primary?.stats || {}
-            const record = statBlock.record || (statBlock.wins != null && statBlock.losses != null ? `${statBlock.wins}-${statBlock.losses}` : null)
-            const ppg = toNumber(statBlock.pointsForPerGame)
-            const papg = toNumber(statBlock.pointsAgainstPerGame)
-            const netRating = toNumber(statBlock.netRating)
-            const pace = toNumber(statBlock.pace)
-            const ortg = toNumber(statBlock.offensiveRating ?? statBlock.ortg)
-            const drtg = toNumber(statBlock.defensiveRating ?? statBlock.drtg)
-
-            const pieces: string[] = []
-            if (record) pieces.push(`Record: ${record}`)
-            if (ppg != null) pieces.push(`PPG: ${ppg.toFixed(1)}`)
-            if (papg != null) pieces.push(`PAPG: ${papg.toFixed(1)}`)
-            if (ortg != null) pieces.push(`ORtg: ${ortg.toFixed(1)}`)
-            if (drtg != null) pieces.push(`DRtg: ${drtg.toFixed(1)}`)
-            if (netRating != null) pieces.push(`Net: ${netRating > 0 ? '+' : ''}${netRating.toFixed(1)}`)
-            if (pace != null) pieces.push(`Pace: ${pace.toFixed(1)}`)
-
-            if (pieces.length) {
-              analysisLines.push(`${entry.teamName}: ${pieces.join(' | ')}`)
-            }
-          }
+            // Fetch team stats for ATS trends only
+            const teamStatsData = await Promise.all(
+              matchupTeams.slice(0, 2).map(async (teamName) => {
+                const stats = await getTeamStats(sportKey, teamName)
+                const primary = stats?.[0]
+                return { teamName, primary }
+              })
+            )
 
           // Fetch ATS trends
           analysisLines.push('')

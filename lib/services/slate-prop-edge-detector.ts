@@ -1586,8 +1586,5 @@ const formatPropEdge = (edge: PlayerPropEdge): string => {
   if (edge.verdict.flag) {
     lines.push(`  - Note: ${edge.verdict.flag}`)
   }
-  if (edge.factors?.length) {
-    lines.push(`- Factors: ${edge.factors.join(' | ')}`)
-  }
   return lines.join('\n')
 }

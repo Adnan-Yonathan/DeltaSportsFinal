@@ -1093,10 +1093,6 @@ function formatMarketSignals(game: GameEdgeAnalysis): string {
     )
   }
 
-  if (game.matchupFactors.length > 0) {
-    lines.push(`- Stats: ${game.matchupFactors.slice(0, 3).join(' | ')}`)
-  }
-
   if (game.factors.length > 0) {
     lines.push(`- Model factors: ${game.factors.slice(0, 2).join(' | ')}`)
   }
@@ -1233,10 +1229,6 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
         )} (EV ${ev.ev.toFixed(1)}%)`
       )
     }
-  }
-
-  if (game.matchupFactors.length > 0) {
-    lines.push(`- Stats: ${game.matchupFactors.slice(0, 3).join(' | ')}`)
   }
 
   if (game.factors.length > 0) {

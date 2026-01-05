@@ -62,6 +62,12 @@ const average = (values: number[]): number =>
 const buildSelectionKey = (outcome: OddsOutcome): string =>
   outcome.point !== undefined ? `${outcome.name}_${outcome.point}` : outcome.name
 
+const isPredictionMarketBook = (bookName?: string | null) => {
+  if (!bookName) return false
+  const normalized = bookName.toLowerCase()
+  return normalized.includes('polymarket') || normalized.includes('kalshi')
+}
+
 const resolveDateRange = (opts: { date?: string; timeZone: string }) => {
   const now = new Date()
   if (opts.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date)) {
@@ -98,17 +104,17 @@ const filterGamesForSlate = (
   games: OddsGame[],
   opts: { date?: string; timeZone: string; mode: 'today' | 'next' }
 ): OddsGame[] => {
+  const now = new Date()
   if (opts.mode === 'today') {
     const { start, end } = resolveDateRange(opts)
     return games.filter((game) => {
       const gameTime = new Date(game.commence_time)
       if (!Number.isFinite(gameTime.getTime())) return false
-      return gameTime >= start && gameTime <= end
+      return gameTime >= start && gameTime <= end && gameTime >= now
     })
   }
 
-  const now = new Date()
-  const windowStart = new Date(now.getTime() - 3 * 60 * 60 * 1000)
+  const windowStart = now
   const candidates = games
     .map((game) => ({ game, time: new Date(game.commence_time) }))
     .filter(({ time }) => Number.isFinite(time.getTime()) && time >= windowStart)
@@ -126,6 +132,15 @@ const filterGamesForSlate = (
   return candidates
     .filter(({ time }) => buildDateKey(time, opts.timeZone) === targetDate)
     .map(({ game }) => game)
+}
+
+const filterOutLiveGames = (games: OddsGame[]) => {
+  const now = new Date()
+  return games.filter((game) => {
+    const gameTime = new Date(game.commence_time)
+    if (!Number.isFinite(gameTime.getTime())) return false
+    return gameTime >= now
+  })
 }
 
 const buildNoVigConsensusBySelection = (
@@ -199,7 +214,10 @@ export async function findEVOpportunities(
   // Fetch odds for each sport in parallel
   const sportPromises = opts.sports.map(async (sport) => {
     try {
-      const games = await fetchOdds(sport, opts.markets, { revalidateSeconds: 60 })
+      const games = await fetchOdds(sport, opts.markets, {
+        revalidateSeconds: 60,
+        live: false,
+      })
       return { sport, games }
     } catch (error) {
       console.error(`[CROSS-MARKET-EV] Failed to fetch ${sport}:`, error)
@@ -209,13 +227,13 @@ export async function findEVOpportunities(
 
   const results = await Promise.all(sportPromises)
   const filteredResults = results.map(({ sport, games }) => {
-    if (opts.slateMode === 'all') return { sport, games }
+    if (opts.slateMode === 'all') return { sport, games: filterOutLiveGames(games) }
     const mode = opts.slateMode === 'today' ? 'today' : 'next'
-    const filtered = filterGamesForSlate(games, {
+    const filtered = filterOutLiveGames(filterGamesForSlate(games, {
       date: opts.date || undefined,
       timeZone: opts.timeZone,
       mode,
-    })
+    }))
     return { sport, games: filtered }
   })
 
@@ -782,49 +800,60 @@ Try again later when more games are posted or lines are moving.`
   }
 
   const lines: string[] = ['## Cross-Market EV Opportunities\n']
-  lines.push('_Plays where sportsbooks disagree, creating potential value._\n')
+  lines.push('_Plays where markets disagree, creating potential value._\n')
 
-  // Separate props from team markets for organization
-  const teamMarkets = opportunities.filter(o =>
-    ['Moneyline', 'Spread', 'Total'].includes(o.market)
+  const predictionMarkets = opportunities.filter((opp) =>
+    isPredictionMarketBook(opp.bestBook)
   )
-  const propMarkets = opportunities.filter(o =>
-    !['Moneyline', 'Spread', 'Total'].includes(o.market)
+  const sportsbookMarkets = opportunities.filter(
+    (opp) => !isPredictionMarketBook(opp.bestBook)
   )
 
-  // Team markets table
-  if (teamMarkets.length > 0) {
-    lines.push('### Team Markets\n')
-    lines.push('| Matchup | Bet | Book | Best Odds | Consensus | EV |')
-    lines.push('|---------|-----|------|-----------|-----------|-----|')
+  const formatSection = (title: string, entries: EVOpportunity[]) => {
+    if (!entries.length) return
+    lines.push(`### ${title}\n`)
 
-    for (const opp of teamMarkets) {
-      const oddsStr = formatAmericanOdds(opp.bestOdds)
-      const consensusStr = formatAmericanOdds(Math.round(opp.consensus.averageOdds))
-      const pointStr = opp.point !== undefined ? ` ${opp.point > 0 ? '+' : ''}${opp.point}` : ''
-      const betDesc = `${opp.selection}${pointStr} (${opp.market})`
+    const teamMarkets = entries.filter((o) =>
+      ['Moneyline', 'Spread', 'Total'].includes(o.market)
+    )
+    const propMarkets = entries.filter(
+      (o) => !['Moneyline', 'Spread', 'Total'].includes(o.market)
+    )
 
-      lines.push(`| ${opp.game} | ${betDesc} | ${opp.bestBook} | ${oddsStr} | ${consensusStr} | **+${opp.ev.toFixed(1)}%** |`)
+    if (teamMarkets.length > 0) {
+      lines.push('| Matchup | Bet | Book | Best Odds | Consensus | EV |')
+      lines.push('|---------|-----|------|-----------|-----------|-----|')
+
+      for (const opp of teamMarkets) {
+        const oddsStr = formatAmericanOdds(opp.bestOdds)
+        const consensusStr = formatAmericanOdds(Math.round(opp.consensus.averageOdds))
+        const pointStr = opp.point !== undefined ? ` ${opp.point > 0 ? '+' : ''}${opp.point}` : ''
+        const betDesc = `${opp.selection}${pointStr} (${opp.market})`
+
+        lines.push(`| ${opp.game} | ${betDesc} | ${opp.bestBook} | ${oddsStr} | ${consensusStr} | **+${opp.ev.toFixed(1)}%** |`)
+      }
+      lines.push('')
     }
-    lines.push('')
+
+    if (propMarkets.length > 0) {
+      lines.push('#### Player Props (Today Only)\n')
+      lines.push('| Player Prop | Book | Best Odds | Consensus | EV |')
+      lines.push('|-------------|------|-----------|-----------|-----|')
+
+      for (const opp of propMarkets) {
+        const oddsStr = formatAmericanOdds(opp.bestOdds)
+        const consensusStr = formatAmericanOdds(Math.round(opp.consensus.averageOdds))
+        const pointStr = opp.point !== undefined ? ` o${opp.point}` : ''
+        const betDesc = `${opp.market}${pointStr}`
+
+        lines.push(`| ${betDesc} | ${opp.bestBook} | ${oddsStr} | ${consensusStr} | **+${opp.ev.toFixed(1)}%** |`)
+      }
+      lines.push('')
+    }
   }
 
-  // Player props table
-  if (propMarkets.length > 0) {
-    lines.push('### Player Props (Today Only)\n')
-    lines.push('| Player Prop | Book | Best Odds | Consensus | EV |')
-    lines.push('|-------------|------|-----------|-----------|-----|')
-
-    for (const opp of propMarkets) {
-      const oddsStr = formatAmericanOdds(opp.bestOdds)
-      const consensusStr = formatAmericanOdds(Math.round(opp.consensus.averageOdds))
-      const pointStr = opp.point !== undefined ? ` o${opp.point}` : ''
-      const betDesc = `${opp.market}${pointStr}`
-
-      lines.push(`| ${betDesc} | ${opp.bestBook} | ${oddsStr} | ${consensusStr} | **+${opp.ev.toFixed(1)}%** |`)
-    }
-    lines.push('')
-  }
+  formatSection('Prediction Market EV Spots', predictionMarkets)
+  formatSection('Sportsbook EV Spots', sportsbookMarkets)
 
   lines.push('---')
   lines.push(

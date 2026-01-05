@@ -11,7 +11,7 @@ import { LiveScoresPreview } from '@/components/LiveScoresPreview'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { SimpleHeader } from '@/components/ui/simple-header'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, Activity, ChevronLeft, ChevronRight, Crown, CreditCard } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, MessageSquare } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
@@ -258,16 +258,6 @@ export default function ChatPage() {
 
   const headerActions = (
     <div className="flex items-center gap-2 lg:border-l lg:border-white/10 lg:pl-3">
-      {user && (
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="lg:hidden p-2 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors"
-          aria-label="Open chat history"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-      )}
-
       <button
         onClick={() => router.push('/promos')}
         className="sm:hidden px-2 py-2 text-[#34d399] hover:text-[#16a34a] transition-colors"
@@ -283,25 +273,18 @@ export default function ChatPage() {
       </button>
 
       <button
-        onClick={() => setLiveScoresOpen(true)}
-        className="sm:hidden p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all border border-white/20"
-        aria-label="Open live odds preview"
-      >
-        <Activity className="w-3.5 h-3.5" />
-      </button>
-      <button
         onClick={() => router.push('/live-scores')}
-        className="hidden sm:inline-flex items-center gap-2 rounded-full border border-[#34d399] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+        className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
       >
-        <Radio className="w-4 h-4" />
+        <Radio className="w-3 h-3 sm:w-4 sm:h-4" />
         Live Odds
       </button>
 
       {user && (
-        <div className="relative" ref={profileMenuRef}>
+        <div className="relative hidden sm:block" ref={profileMenuRef}>
           <button
             onClick={() => setProfileMenuOpen((prev) => !prev)}
-            className="h-7 w-7 sm:h-10 sm:w-10 rounded-full border border-[#2a2a2a] hover:border-white/60 overflow-hidden transition-colors"
+            className="h-10 w-10 rounded-full border border-[#2a2a2a] hover:border-white/60 overflow-hidden transition-colors"
             aria-label="Profile menu"
           >
             {profileImage ? (
@@ -433,7 +416,20 @@ export default function ChatPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-white overflow-hidden">
-      <SimpleHeader rightSlot={headerActions} onLogoClick={() => handleNewConversation()} />
+      <SimpleHeader
+        rightSlot={headerActions}
+        mobileLeftSlot={user ? (
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-white/20 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            aria-label="Open chat history"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span className="text-[10px] font-medium uppercase tracking-wide">History</span>
+          </button>
+        ) : undefined}
+        onLogoClick={() => handleNewConversation()}
+      />
       <div className="flex flex-1 min-h-0 relative overflow-hidden">
         <AnimatePresence>
           {sidebarOpen && (

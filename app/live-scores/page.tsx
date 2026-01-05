@@ -7,12 +7,11 @@ import clsx from "clsx"
 import { ArrowLeft, Calendar, ChevronDown, ChevronLeft, ChevronRight, Lock, RefreshCw, X } from "lucide-react"
 import { useLiveScores } from "@/hooks/use-live-scores"
 import { useGameDetails } from "@/hooks/use-game-details"
-import { ESPN_LEAGUES, type LeagueId, type LiveScoreArticle, type LiveScoreGame, type LiveScoreGameDetails, type GamePlayerSummary } from "@/lib/live-scores"
+import { ESPN_LEAGUES, type LeagueId, type LiveScoreGame, type LiveScoreGameDetails, type GamePlayerSummary } from "@/lib/live-scores"
 import { normalizeTeamKey } from "@/lib/identity/sport"
 import { createClient } from "@/lib/supabase/client"
 import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
 import type { OddsGame } from "@/lib/types/odds"
-import { DottedSurface } from "@/components/ui/dotted-surface"
 
 const LEAGUE_TABS: Array<{ id: LeagueId; label: string }> =
   ESPN_LEAGUES.map((league) => ({ id: league.id, label: league.label }))
@@ -454,8 +453,7 @@ export default function LiveScoresPage() {
   const [selectedDate, setSelectedDate] = useState<string>(todayYMD())
   const [selectedGame, setSelectedGame] = useState<LiveScoreGame | null>(null)
   const [conference, setConference] = useState<string>("")
-  const [showArticlesMenu, setShowArticlesMenu] = useState(false)
-  const [lineShoppingGame, setLineShoppingGame] = useState<LiveScoreGame | null>(null)
+    const [lineShoppingGame, setLineShoppingGame] = useState<LiveScoreGame | null>(null)
   const [oddsByLeague, setOddsByLeague] = useState<Record<LeagueId, OddsGame[]>>(
     EMPTY_ODDS_BY_LEAGUE
   )
@@ -480,29 +478,6 @@ export default function LiveScoresPage() {
     eventId: selectedGame?.eventId,
     enabled: Boolean(selectedGame),
   })
-  const relevantArticles = useMemo(() => {
-    if (!data?.games) return []
-    const leagueFiltered = data.games.filter((game) => game.league === activeLeague)
-    const dedup = new Map<string, LiveScoreArticle & { leagueLabel?: string }>()
-
-    leagueFiltered.forEach((game) => {
-      ;(game.articles || []).forEach((article) => {
-        if (!article?.url) return
-        if (!dedup.has(article.url)) {
-          dedup.set(article.url, { ...article, leagueLabel: game.leagueLabel })
-        }
-      })
-    })
-
-    return Array.from(dedup.values())
-      .sort((a, b) => {
-        const aDate = a.published ? Date.parse(a.published) : -Infinity
-        const bDate = b.published ? Date.parse(b.published) : -Infinity
-        return bDate - aDate
-      })
-      .slice(0, 10)
-  }, [data, activeLeague])
-
   const filteredGames = useMemo(() => {
     if (!data?.games) return []
     const leagueFiltered = data.games.filter((game) => game.league === activeLeague)
@@ -794,10 +769,7 @@ export default function LiveScoresPage() {
 
   return (
     <div className="relative min-h-screen bg-black text-white">
-      {/* Dotted Surface Background */}
-      <DottedSurface className="z-10" />
-
-      <div className="relative z-20 mx-auto w-full max-w-none px-4 sm:px-6 lg:px-12 py-8 space-y-12">
+      <div className="mx-auto w-full max-w-none px-4 sm:px-6 lg:px-12 py-8 space-y-12">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -806,12 +778,6 @@ export default function LiveScoresPage() {
             >
               <ArrowLeft className="h-4 w-4" />
               Home
-            </Link>
-            <Link
-              href="/chat"
-              className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-4 py-2 text-sm text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
-            >
-              Back to Chat
             </Link>
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-white/40">Live Center</p>
@@ -970,44 +936,6 @@ export default function LiveScoresPage() {
                   </option>
                 ))}
               </select>
-            )}
-          </div>
-
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowArticlesMenu((prev) => !prev)}
-              className="inline-flex items-center gap-2 rounded-full border border-[#34d399] bg-[#34d399] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#0f1f15] hover:bg-[#16a34a] focus:outline-none focus:ring-2 focus:ring-[#34d399]/60"
-            >
-              Articles
-              <ChevronDown className="h-4 w-4" />
-            </button>
-            {showArticlesMenu && (
-              <div className="absolute right-0 z-20 mt-2 w-72 overflow-hidden rounded-2xl border border-[#6b6b6b] bg-black shadow-xl shadow-black/40">
-                {relevantArticles.length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-white/60">No relevant articles</div>
-                ) : (
-                  <ul className="max-h-80 overflow-auto divide-y divide-white/5">
-                    {relevantArticles.map((article, index) => (
-                      <li key={`${article.url}-${index}`}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (article.url) window.open(article.url, "_blank", "noreferrer")
-                            setShowArticlesMenu(false)
-                          }}
-                          className="flex w-full flex-col items-start gap-1 px-4 py-3 text-left hover:bg-white/10 focus:outline-none focus-visible:bg-white/10"
-                        >
-                          <span className="text-[11px] uppercase tracking-[0.2em] text-white/50">
-                            {article.leagueLabel || "Article"}
-                          </span>
-                          <span className="text-sm text-white line-clamp-2">{article.title}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
             )}
           </div>
         </div>
@@ -1273,7 +1201,7 @@ export default function LiveScoresPage() {
                                 No odds found for this matchup yet.
                               </div>
                             ) : (
-                              <div className="grid gap-2 text-xs">
+                              <div className="hidden sm:grid gap-2 text-xs">
                                 {summaryRows.map((row) => (
                                   <div
                                     key={row.key}

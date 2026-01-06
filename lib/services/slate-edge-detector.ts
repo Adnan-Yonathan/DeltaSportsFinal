@@ -14,7 +14,9 @@ import { getGameRecommendations, type GameRecommendation } from './recommendatio
 import { analyzeMatchup, type MatchupAnalysis } from './matchup-analyzer'
 import {
   calculateFairSpread,
+  calculateFairSpreadNba,
   calculateFairTotal,
+  calculateFairTotalNba,
   calculateFairSpreadFootball,
   calculateFairTotalFootball,
   calculateFairSpreadHockey,
@@ -325,20 +327,36 @@ const buildFallbackRecommendations = (
       awayStats as FootballTeamStats,
       leagueContext
     )
-  } else if (resolvedSport === 'icehockey_nhl') {
-    const rawMargin = calculateFairSpreadHockey(
-      homeStats as HockeyTeamStats,
-      awayStats as HockeyTeamStats
-    )
-    targetSpread = -rawMargin
-    targetTotal = calculateFairTotalHockey(
-      homeStats as HockeyTeamStats,
-      awayStats as HockeyTeamStats
-    )
-  } else {
-    const rawMargin = calculateFairSpread(
-      homeStats as TeamStats,
-      awayStats as TeamStats,
+    } else if (resolvedSport === 'icehockey_nhl') {
+      const rawMargin = calculateFairSpreadHockey(
+        homeStats as HockeyTeamStats,
+        awayStats as HockeyTeamStats
+      )
+      targetSpread = -rawMargin
+      targetTotal = calculateFairTotalHockey(
+        homeStats as HockeyTeamStats,
+        awayStats as HockeyTeamStats
+      )
+    } else if (resolvedSport === 'basketball_nba') {
+      const rawMargin = calculateFairSpreadNba(
+        homeStats as TeamStats,
+        awayStats as TeamStats,
+        matchupAnalysis.homeTeam.rest,
+        matchupAnalysis.awayTeam.rest,
+        matchupAnalysis.homeTeam.travel,
+        matchupAnalysis.awayTeam.travel,
+        matchupAnalysis.homeTeam.recentForm,
+        matchupAnalysis.awayTeam.recentForm
+      )
+      targetSpread = -rawMargin
+      targetTotal = calculateFairTotalNba(
+        homeStats as TeamStats,
+        awayStats as TeamStats
+      )
+    } else {
+      const rawMargin = calculateFairSpread(
+        homeStats as TeamStats,
+        awayStats as TeamStats,
       matchupAnalysis.homeTeam.rest,
       matchupAnalysis.awayTeam.rest,
       matchupAnalysis.homeTeam.travel,

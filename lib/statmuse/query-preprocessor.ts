@@ -602,11 +602,11 @@ function detectQueryType(query: string): { type: QueryType; tool?: string; extra
   const hasMatchupIndicator = /\b(vs\.?|versus|@|against)\b/i.test(lower)
   for (const pattern of BEST_BET_PATTERNS) {
     if (pattern.test(lower)) {
-      // If has matchup indicator, route to unified analysis
+      // If has matchup indicator, route to matchup projections
       if (hasMatchupIndicator) {
         return {
           type: 'best_bet',
-          tool: 'analyze_bet_market',
+          tool: 'get_game_recommendations',
           extra: { hasMatchup: true }
         }
       }
@@ -635,7 +635,7 @@ function detectQueryType(query: string): { type: QueryType; tool?: string; extra
     if (pattern.test(lower) && hasMatchupIndicator) {
       return {
         type: 'matchup_analysis',
-        tool: 'analyze_bet_market',
+        tool: 'get_game_recommendations',
         extra: { comprehensive: true }
       }
     }
@@ -1118,13 +1118,17 @@ export function enhanceQueryForLLM(query: string, preprocessed: PreprocessedQuer
       break
 
     case 'best_bet':
-      hints.push(`Use analyze_bet_market for comprehensive game analysis with odds, ATS, splits, and model projections`)
+      if (preprocessed.suggestedTool === 'get_slate_edge_detection') {
+        hints.push(`Use get_slate_edge_detection for best bets across today's slate`)
+      } else {
+        hints.push(`Use get_game_recommendations for projected spreads/totals on this matchup`)
+      }
       if (preprocessed.teamName) hints.push(`Team: "${preprocessed.teamName}"`)
       if (preprocessed.opponentTeam) hints.push(`Opponent: "${preprocessed.opponentTeam}"`)
       break
 
     case 'matchup_analysis':
-      hints.push(`Use analyze_bet_market for detailed matchup breakdown with stats, trends, injuries, and betting context`)
+      hints.push(`Use get_game_recommendations for detailed matchup projections and market lines`)
       if (preprocessed.teamName) hints.push(`Team: "${preprocessed.teamName}"`)
       if (preprocessed.opponentTeam) hints.push(`Opponent: "${preprocessed.opponentTeam}"`)
       break

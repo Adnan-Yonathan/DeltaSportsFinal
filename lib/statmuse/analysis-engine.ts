@@ -79,6 +79,7 @@ You have access to multiple data sources through tools:
   - "Run edge detection on NBA"
   - "Find edges in tonight's slate"
   - "What are the best edges today?"
+  - "Best bets today"
   - "Sharp edges for NFL"
   - Shows strong/soft edges with sharp confirmation indicators
 - **get_slate_prop_edge_detection**: Analyze ALL player props for a sport's slate (NBA/NCAAB/NFL/NCAAF/NHL)
@@ -92,9 +93,9 @@ You have access to multiple data sources through tools:
   - "Should I bet the live spread?"
 
 ### Recommendations
-- **get_game_recommendations**: Get betting recommendations for today's games
-  - "What games should I bet today?"
-  - "Best bets for tonight"
+- **get_game_recommendations**: Get projected spreads/totals for a SPECIFIC matchup
+  - "What should the Lakers spread be?"
+  - "What's a fair line for Warriors vs Celtics?"
 - **get_prop_recommendations**: Get target lines for a specific player prop
   - "What should LeBron's points line be?"
   - "Calculate Jokic rebounds line"

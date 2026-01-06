@@ -82,6 +82,9 @@ const toNumber = (value: unknown): number | null => {
   return null
 }
 
+const toOptional = (value: number | null | undefined): number | undefined =>
+  value == null ? undefined : value
+
 const toPctDecimal = (value: unknown): number | undefined => {
   const num = toNumber(value)
   if (num == null) return undefined
@@ -237,27 +240,83 @@ const getNbaTeamStats = async (teamName: string): Promise<TeamStats | null> => {
     (papg != null && pace ? Number(((papg / pace) * 100).toFixed(1)) : null) ??
     DEFAULT_NBA_TEAM_STATS.drtg
 
-  if (
-    pace === DEFAULT_NBA_TEAM_STATS.pace &&
-    ortg === DEFAULT_NBA_TEAM_STATS.ortg &&
-    drtg === DEFAULT_NBA_TEAM_STATS.drtg
-  ) {
+    if (
+      pace === DEFAULT_NBA_TEAM_STATS.pace &&
+      ortg === DEFAULT_NBA_TEAM_STATS.ortg &&
+      drtg === DEFAULT_NBA_TEAM_STATS.drtg
+    ) {
     console.warn('[MATCHUP ANALYZER] Using default NBA pace/ratings', {
       team: teamName,
       pace: stats.pace,
       offensiveRating: stats.offensiveRating,
-      defensiveRating: stats.defensiveRating,
-    })
-  }
+        defensiveRating: stats.defensiveRating,
+      })
+    }
 
-  return {
-    ortg,
-    drtg,
-    pace,
-    eFG: toPctDecimal(stats.effectiveFieldGoalPct ?? stats.effectiveFgPct),
-    ts: toPctDecimal(stats.trueShootingPct),
+    const fieldGoalPct = toPctDecimal(stats.fieldGoalPct)
+    const threePointPct = toPctDecimal(stats.threePointPct)
+    const turnoverPct = toPctDecimal(
+      stats.turnoverPct ?? stats.turnoverPercentage ?? stats.turnoverRate
+    )
+    const offensiveReboundPct = toPctDecimal(
+      stats.offensiveReboundPct ?? stats.offensiveReboundRate
+    )
+    const defensiveReboundPct = toPctDecimal(
+      stats.defensiveReboundPct ?? stats.defensiveReboundRate
+    )
+    const freeThrowRate = toNumber(stats.freeThrowRate ?? stats.ftaPerFga)
+    const pointsForPerGame = validPpg(rawPpg) ?? toNumber(stats.pointsForPerGame)
+    const pointsAgainstPerGame =
+      validPpg(rawPapg) ?? toNumber(stats.pointsAgainstPerGame)
+    const oppFgPct = toPctDecimal(stats.oppFgPct)
+    const oppFg3Pct = toPctDecimal(stats.oppFg3Pct)
+    const oppEfgPct = toPctDecimal(stats.oppEfgPct)
+    const oppTsPct = toPctDecimal(stats.oppTsPct)
+    const oppPaintPtsPerGame = toNumber(stats.oppPaintPtsPerGame)
+    const oppFastbreakPtsPerGame = toNumber(stats.oppFastbreakPtsPerGame)
+    const oppSecondChancePtsPerGame = toNumber(stats.oppSecondChancePtsPerGame)
+    const oppPtsOffToPerGame = toNumber(stats.oppPtsOffToPerGame)
+    const oppPace = toNumber(stats.oppPace)
+    const oppPossessionsPerGame = toNumber(stats.oppPossessionsPerGame)
+    const oppOrbPct = toPctDecimal(stats.oppOrbPct)
+    const oppDrbPct = toPctDecimal(stats.oppDrbPct)
+    const oppPtsPerGame = toNumber(stats.oppPtsPerGame ?? stats.opponentPointsPerGame)
+    const oppAstPerGame = toNumber(stats.oppAstPerGame)
+    const oppRebPerGame = toNumber(stats.oppRebPerGame)
+    const oppTovPerGame = toNumber(stats.oppTovPerGame)
+
+    return {
+      ortg,
+      drtg,
+      pace,
+      eFG: toPctDecimal(stats.effectiveFieldGoalPct ?? stats.effectiveFgPct),
+      ts: toPctDecimal(stats.trueShootingPct),
+      fieldGoalPct: toOptional(fieldGoalPct),
+      threePointPct: toOptional(threePointPct),
+      turnoverPct: toOptional(turnoverPct),
+      offensiveReboundPct: toOptional(offensiveReboundPct),
+      defensiveReboundPct: toOptional(defensiveReboundPct),
+      freeThrowRate: toOptional(freeThrowRate),
+      pointsForPerGame: toOptional(pointsForPerGame),
+      pointsAgainstPerGame: toOptional(pointsAgainstPerGame),
+      oppFgPct: toOptional(oppFgPct),
+      oppFg3Pct: toOptional(oppFg3Pct),
+      oppEfgPct: toOptional(oppEfgPct),
+      oppTsPct: toOptional(oppTsPct),
+      oppPaintPtsPerGame: toOptional(oppPaintPtsPerGame),
+      oppFastbreakPtsPerGame: toOptional(oppFastbreakPtsPerGame),
+      oppSecondChancePtsPerGame: toOptional(oppSecondChancePtsPerGame),
+      oppPtsOffToPerGame: toOptional(oppPtsOffToPerGame),
+      oppPace: toOptional(oppPace),
+      oppPossessionsPerGame: toOptional(oppPossessionsPerGame),
+      oppOrbPct: toOptional(oppOrbPct),
+      oppDrbPct: toOptional(oppDrbPct),
+      oppPtsPerGame: toOptional(oppPtsPerGame),
+      oppAstPerGame: toOptional(oppAstPerGame),
+      oppRebPerGame: toOptional(oppRebPerGame),
+      oppTovPerGame: toOptional(oppTovPerGame),
+    }
   }
-}
 
 const calculateNflQbValue = (stats: {
   passerRating?: number | null

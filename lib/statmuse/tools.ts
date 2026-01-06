@@ -450,7 +450,7 @@ Returns game details including teams, time, and game_id for each matchup.`,
     type: 'function',
     function: {
       name: 'get_game_recommendations',
-      description: `Calculate target betting lines for NBA spreads and totals based on statistical analysis. Analyzes team stats (ORtg, DRtg, Pace), rest/travel factors, ATS trends, and betting splits, then applies sharp signal weighting (splits/line movement) when available to project what the line SHOULD be. Use when users ask:
+      description: `Calculate target betting lines for NBA spreads and totals based on statistical analysis. Analyzes team stats (ORtg, DRtg, Pace), rest/travel factors, ATS trends, and betting splits, then applies sharp signal weighting (splits/line movement) when available to project what the line SHOULD be for a SPECIFIC matchup. Use when users ask:
 - "What should the Lakers spread be?"
 - "What's a fair line for Warriors vs Celtics?"
 - "What total makes sense for this game?"
@@ -485,6 +485,7 @@ TRIGGER PHRASES (use this tool when user says):
 - "find edges for all games"
 - "which games have value today"
 - "scan the slate for edges"
+- "best bets today" or "best bets tonight"
 
 Compares model projections to market lines for spreads and totals across all upcoming games.
 For NBA, NCAAB, NFL, NCAAF, and NHL, this can include player prop edges; for props-only scanning, use get_slate_prop_edge_detection.

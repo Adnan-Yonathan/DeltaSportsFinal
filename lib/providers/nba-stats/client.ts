@@ -19,6 +19,32 @@ const NBA_STATS_BASE = 'https://stats.nba.com/stats'
 // In-memory cache (same pattern as ESPN providers)
 const cache = new Map<string, { ts: number; data: any }>()
 const CACHE_TTL = 1000 * 60 * 60 * 24 // 24 hours
+const NBA_STATS_DEFAULT_PARAMS: Record<string, string> = {
+  LeagueID: '00',
+  SeasonType: 'Regular Season',
+  PerMode: 'PerGame',
+  MeasureType: 'Base',
+  PlusMinus: 'N',
+  PaceAdjust: 'N',
+  Rank: 'N',
+  Outcome: '',
+  Location: '',
+  Month: '0',
+  SeasonSegment: '',
+  DateFrom: '',
+  DateTo: '',
+  OpponentTeamID: '0',
+  VsConference: '',
+  VsDivision: '',
+  GameSegment: '',
+  Period: '0',
+  LastNGames: '0',
+  GameScope: '',
+  PlayerExperience: '',
+  PlayerPosition: '',
+  StarterBench: '',
+  TwoWay: '0',
+}
 
 /**
  * Generic fetch wrapper with caching and required headers
@@ -29,7 +55,10 @@ async function fetchNbaStats<T extends NbaStatsResponse>(
   params: Record<string, string | number> = {}
 ): Promise<T | null> {
   const url = new URL(`${NBA_STATS_BASE}/${endpoint}`)
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)))
+  const mergedParams = { ...NBA_STATS_DEFAULT_PARAMS, ...params }
+  Object.entries(mergedParams).forEach(([k, v]) =>
+    url.searchParams.set(k, String(v))
+  )
 
   const cacheKey = url.toString()
   const cached = cache.get(cacheKey)
@@ -42,12 +71,12 @@ async function fetchNbaStats<T extends NbaStatsResponse>(
     const res = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://www.nba.com/',
-        'Origin': 'https://www.nba.com',
+        'Referer': 'https://stats.nba.com/',
+        'Origin': 'https://stats.nba.com',
         'Accept': 'application/json',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
+        'x-nba-stats-origin': 'stats',
+        'x-nba-stats-token': 'true',
       },
       cache: 'no-store',
     })
@@ -97,7 +126,6 @@ export async function fetchLeagueTeamStats(
     Season: season,
     MeasureType: measureType,
     PerMode: perMode,
-    SeasonType: 'Regular Season',
   })
 }
 
@@ -112,7 +140,6 @@ export async function fetchTeamDashboard(
     TeamID: teamId,
     Season: season,
     MeasureType: 'Base',
-    SeasonType: 'Regular Season',
   })
 }
 
@@ -263,3 +290,8 @@ export function calculateDefensiveRankings(
     defensiveRank: team.defensiveRating !== null ? index + 1 : null,
   }))
 }
+
+
+
+
+

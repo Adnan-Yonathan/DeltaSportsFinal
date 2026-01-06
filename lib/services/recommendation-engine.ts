@@ -6,13 +6,17 @@
 
 import {
   calculateFairSpread,
+  calculateFairSpreadNba,
   calculateFairTotal,
+  calculateFairTotalNba,
   calculateFairSpreadFootball,
   calculateFairTotalFootball,
   calculateFairSpreadHockey,
   calculateFairTotalHockey,
   calculateFairPropLine,
   NCAAB_LEAGUE_CONTEXT,
+  buildNbaHierarchyBreakdown,
+  getNbaHierarchyWeights,
   type TeamStats,
   type FootballTeamStats,
   type HockeyTeamStats,
@@ -96,6 +100,8 @@ const formatSigned = (value: number) =>
 
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value))
+const formatDeltaPct = (value: number) =>
+  `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`
 
 const buildCbbSpread = async (opts: {
   homeTeam: string
@@ -350,6 +356,60 @@ export async function getGameRecommendations(
       const rawMargin = calculateFairSpreadHockey(homeStats, awayStats)
       targetSpread = -rawMargin
       targetTotal = calculateFairTotalHockey(homeStats, awayStats)
+    } else if (resolvedSport === 'basketball_nba') {
+      // NBA uses hierarchy-weighted efficiency + opponent allowed stats
+      const hierarchyWeights = getNbaHierarchyWeights()
+      const homeBreakdown = buildNbaHierarchyBreakdown(
+        matchup.homeTeam.stats as TeamStats,
+        matchup.awayTeam.stats as TeamStats,
+        hierarchyWeights
+      )
+      const awayBreakdown = buildNbaHierarchyBreakdown(
+        matchup.awayTeam.stats as TeamStats,
+        matchup.homeTeam.stats as TeamStats,
+        hierarchyWeights
+      )
+      const rawMargin = calculateFairSpreadNba(
+        matchup.homeTeam.stats as TeamStats,
+        matchup.awayTeam.stats as TeamStats,
+        matchup.homeTeam.rest,
+        matchup.awayTeam.rest,
+        matchup.homeTeam.travel,
+        matchup.awayTeam.travel,
+        matchup.homeTeam.recentForm,
+        matchup.awayTeam.recentForm,
+        styleMatchup,
+        leagueContext,
+        hierarchyWeights
+      )
+      targetSpread = -rawMargin
+      targetTotal = calculateFairTotalNba(
+        matchup.homeTeam.stats as TeamStats,
+        matchup.awayTeam.stats as TeamStats,
+        leagueContext,
+        hierarchyWeights
+      )
+      extraFactors.push(
+        `NBA hierarchy weights: core ${Math.round(
+          hierarchyWeights.core * 100
+        )}%, efficiency ${Math.round(
+          hierarchyWeights.efficiency * 100
+        )}%, play-type ${Math.round(hierarchyWeights.playType * 100)}%`
+      )
+      extraFactors.push(
+        `${homeTeam} adj: eff ${formatDeltaPct(
+          homeBreakdown.efficiencyDelta
+        )}, play ${formatDeltaPct(
+          homeBreakdown.playTypeDelta
+        )}, mult ${homeBreakdown.multiplier.toFixed(3)}`
+      )
+      extraFactors.push(
+        `${awayTeam} adj: eff ${formatDeltaPct(
+          awayBreakdown.efficiencyDelta
+        )}, play ${formatDeltaPct(
+          awayBreakdown.playTypeDelta
+        )}, mult ${awayBreakdown.multiplier.toFixed(3)}`
+      )
     } else {
       // Calculate target lines (basketball default)
       // calculateFairSpread returns raw margin (positive = home wins by X)

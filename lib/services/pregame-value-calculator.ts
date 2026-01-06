@@ -9,6 +9,67 @@ import { oddsToImpliedProbability } from '@/lib/utils/statistics'
 const NBA_HOME_COURT_ADVANTAGE = 3.0 // points
 const NBA_LEAGUE_AVG_ORTG = 115.0 // average offensive rating
 const NBA_LEAGUE_AVG_PACE = 100.0 // average possessions per 48 min
+const NBA_LEAGUE_AVG = {
+  efgPct: 0.545,
+  tsPct: 0.58,
+  threePointPct: 0.36,
+  turnoverPct: 0.135,
+  offensiveReboundPct: 0.27,
+  freeThrowRate: 0.24,
+  pointsPerGame: 114,
+  oppEfgPct: 0.545,
+  oppTsPct: 0.58,
+  oppTovPerGame: 14.0,
+  oppRebPerGame: 44.0,
+  oppPtsPerGame: 114,
+  oppPaintPtsPerGame: 50.0,
+  oppFastbreakPtsPerGame: 14.0,
+  oppSecondChancePtsPerGame: 13.0,
+  oppPtsOffToPerGame: 17.0,
+}
+export type NbaHierarchyWeights = {
+  core: number
+  efficiency: number
+  playType: number
+}
+
+export const NBA_STAT_HIERARCHY: {
+  core: { weight: number; stats: string[] }
+  efficiency: { weight: number; stats: string[] }
+  playType: { weight: number; stats: string[] }
+} = {
+  core: {
+    weight: 0.7,
+    stats: ['ortg', 'drtg', 'pace'],
+  },
+  efficiency: {
+    weight: 0.2,
+    stats: [
+      'eFG',
+      'ts',
+      'threePointPct',
+      'turnoverPct',
+      'offensiveReboundPct',
+      'freeThrowRate',
+      'oppEfgPct',
+      'oppTsPct',
+      'oppTovPerGame',
+      'oppRebPerGame',
+      'oppPtsPerGame',
+    ],
+  },
+  playType: {
+    weight: 0.1,
+    stats: [
+      'oppPaintPtsPerGame',
+      'oppFastbreakPtsPerGame',
+      'oppSecondChancePtsPerGame',
+      'oppPtsOffToPerGame',
+    ],
+  },
+}
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value))
 const NCAAB_HOME_COURT_ADVANTAGE = 3.2 // points
 const NCAAB_LEAGUE_AVG_ORTG = 105.0 // average offensive rating
 const NCAAB_LEAGUE_AVG_PACE = 70.0 // average possessions per 40 min
@@ -52,6 +113,30 @@ export interface TeamStats {
   pace: number // possessions per game
   eFG?: number // effective field goal %
   ts?: number // true shooting %
+  threePointPct?: number
+  fieldGoalPct?: number
+  turnoverPct?: number
+  offensiveReboundPct?: number
+  defensiveReboundPct?: number
+  freeThrowRate?: number
+  pointsForPerGame?: number
+  pointsAgainstPerGame?: number
+  oppFgPct?: number
+  oppFg3Pct?: number
+  oppEfgPct?: number
+  oppTsPct?: number
+  oppPaintPtsPerGame?: number
+  oppFastbreakPtsPerGame?: number
+  oppSecondChancePtsPerGame?: number
+  oppPtsOffToPerGame?: number
+  oppPace?: number
+  oppPossessionsPerGame?: number
+  oppOrbPct?: number
+  oppDrbPct?: number
+  oppPtsPerGame?: number
+  oppAstPerGame?: number
+  oppRebPerGame?: number
+  oppTovPerGame?: number
 }
 
 export interface FootballTeamStats {
@@ -142,6 +227,285 @@ export interface LeagueContext {
   leagueAvgOrtg?: number
   leagueAvgPace?: number
   paceBase?: number
+}
+
+const normalizeStatRatio = (
+  value: number | null | undefined,
+  leagueAvg: number,
+  invert = false
+): number | null => {
+  if (value == null || !Number.isFinite(value) || leagueAvg <= 0) return null
+  return invert ? leagueAvg / value : value / leagueAvg
+}
+
+const accumulateTierAdjustment = (
+  entries: Array<{
+    value: number | null | undefined
+    leagueAvg: number
+    weight: number
+    invert?: boolean
+  }>
+): number => {
+  let total = 0
+  let weightSum = 0
+  for (const entry of entries) {
+    const ratio = normalizeStatRatio(entry.value, entry.leagueAvg, entry.invert)
+    if (ratio == null) continue
+    total += (ratio - 1) * entry.weight
+    weightSum += entry.weight
+  }
+  if (!weightSum) return 0
+  return total / weightSum
+}
+
+export type NbaHierarchyBreakdown = {
+  efficiencyDelta: number
+  playTypeDelta: number
+  totalDelta: number
+  multiplier: number
+}
+
+export const getNbaHierarchyWeights = (): NbaHierarchyWeights => ({
+  core: NBA_STAT_HIERARCHY.core.weight,
+  efficiency: NBA_STAT_HIERARCHY.efficiency.weight,
+  playType: NBA_STAT_HIERARCHY.playType.weight,
+})
+
+export const buildNbaHierarchyBreakdown = (
+  offense: TeamStats,
+  defense: TeamStats,
+  weights: NbaHierarchyWeights = getNbaHierarchyWeights()
+): NbaHierarchyBreakdown => {
+  const efficiencyDelta = accumulateTierAdjustment([
+    { value: offense.eFG, leagueAvg: NBA_LEAGUE_AVG.efgPct, weight: 0.22 },
+    { value: offense.ts, leagueAvg: NBA_LEAGUE_AVG.tsPct, weight: 0.18 },
+    {
+      value: offense.threePointPct,
+      leagueAvg: NBA_LEAGUE_AVG.threePointPct,
+      weight: 0.08,
+    },
+    {
+      value: offense.freeThrowRate,
+      leagueAvg: NBA_LEAGUE_AVG.freeThrowRate,
+      weight: 0.06,
+    },
+    {
+      value: offense.offensiveReboundPct,
+      leagueAvg: NBA_LEAGUE_AVG.offensiveReboundPct,
+      weight: 0.1,
+    },
+    {
+      value: offense.turnoverPct,
+      leagueAvg: NBA_LEAGUE_AVG.turnoverPct,
+      weight: 0.1,
+      invert: true,
+    },
+    {
+      value: offense.pointsForPerGame,
+      leagueAvg: NBA_LEAGUE_AVG.pointsPerGame,
+      weight: 0.08,
+    },
+    {
+      value: defense.oppEfgPct,
+      leagueAvg: NBA_LEAGUE_AVG.oppEfgPct,
+      weight: 0.1,
+    },
+    {
+      value: defense.oppTsPct,
+      leagueAvg: NBA_LEAGUE_AVG.oppTsPct,
+      weight: 0.08,
+    },
+    {
+      value: defense.oppPtsPerGame,
+      leagueAvg: NBA_LEAGUE_AVG.oppPtsPerGame,
+      weight: 0.08,
+    },
+    {
+      value: defense.oppTovPerGame,
+      leagueAvg: NBA_LEAGUE_AVG.oppTovPerGame,
+      weight: 0.06,
+      invert: true,
+    },
+    {
+      value: defense.oppRebPerGame,
+      leagueAvg: NBA_LEAGUE_AVG.oppRebPerGame,
+      weight: 0.06,
+    },
+  ])
+
+  const playTypeDelta = accumulateTierAdjustment([
+    {
+      value: defense.oppPaintPtsPerGame,
+      leagueAvg: NBA_LEAGUE_AVG.oppPaintPtsPerGame,
+      weight: 0.3,
+    },
+    {
+      value: defense.oppFastbreakPtsPerGame,
+      leagueAvg: NBA_LEAGUE_AVG.oppFastbreakPtsPerGame,
+      weight: 0.2,
+    },
+    {
+      value: defense.oppSecondChancePtsPerGame,
+      leagueAvg: NBA_LEAGUE_AVG.oppSecondChancePtsPerGame,
+      weight: 0.2,
+    },
+    {
+      value: defense.oppPtsOffToPerGame,
+      leagueAvg: NBA_LEAGUE_AVG.oppPtsOffToPerGame,
+      weight: 0.3,
+    },
+  ])
+
+  const totalDelta =
+    efficiencyDelta * weights.efficiency +
+    playTypeDelta * weights.playType
+  return {
+    efficiencyDelta,
+    playTypeDelta,
+    totalDelta,
+    multiplier: clamp(1 + totalDelta, 0.88, 1.12),
+  }
+}
+
+const calculateNbaExpectedScores = (
+  homeTeamStats: TeamStats,
+  awayTeamStats: TeamStats,
+  leagueContext?: LeagueContext,
+  hierarchyWeights?: NbaHierarchyWeights
+) => {
+  const leagueAvgOrtg = leagueContext?.leagueAvgOrtg ?? NBA_LEAGUE_AVG_ORTG
+  const paceBase = leagueContext?.paceBase ?? 100
+  const homePaceFactor = (homeTeamStats.pace + awayTeamStats.pace) / (2 * paceBase)
+
+  const homeExpectedScore =
+    homeTeamStats.ortg * (awayTeamStats.drtg / leagueAvgOrtg) * homePaceFactor
+  const awayExpectedScore =
+    awayTeamStats.ortg * (homeTeamStats.drtg / leagueAvgOrtg) * homePaceFactor
+
+  const homeBreakdown = buildNbaHierarchyBreakdown(
+    homeTeamStats,
+    awayTeamStats,
+    hierarchyWeights
+  )
+  const awayBreakdown = buildNbaHierarchyBreakdown(
+    awayTeamStats,
+    homeTeamStats,
+    hierarchyWeights
+  )
+
+  return {
+    homeExpected: homeExpectedScore * homeBreakdown.multiplier,
+    awayExpected: awayExpectedScore * awayBreakdown.multiplier,
+    homeBreakdown,
+    awayBreakdown,
+  }
+}
+
+export function calculateFairSpreadNba(
+  homeTeamStats: TeamStats,
+  awayTeamStats: TeamStats,
+  homeRest?: RestFactors,
+  awayRest?: RestFactors,
+  homeTravel?: TravelFactors,
+  awayTravel?: TravelFactors,
+  homeForm?: RecentForm,
+  awayForm?: RecentForm,
+  styleMatchup?: StyleMatchupAdjustment,
+  leagueContext?: LeagueContext,
+  hierarchyWeights?: NbaHierarchyWeights
+): number {
+  const leagueAvgPace = leagueContext?.leagueAvgPace ?? NBA_LEAGUE_AVG_PACE
+  const homeCourtAdvantage =
+    leagueContext?.homeCourtAdvantage ?? NBA_HOME_COURT_ADVANTAGE
+
+  const { homeExpected, awayExpected } = calculateNbaExpectedScores(
+    homeTeamStats,
+    awayTeamStats,
+    leagueContext,
+    hierarchyWeights
+  )
+
+  // Step 2: Start with base differential
+  let fairSpread = homeExpected - awayExpected
+
+  // Step 3: Add home court advantage
+  fairSpread += homeCourtAdvantage
+
+  // Step 4: Adjust for rest
+  if (homeRest?.isBackToBack) {
+    fairSpread -= BACK_TO_BACK_PENALTY
+  }
+  if (awayRest?.isBackToBack) {
+    fairSpread += BACK_TO_BACK_PENALTY
+  }
+
+  // Step 5: Adjust for travel
+  if (homeTravel) {
+    const travelPenalty =
+      (homeTravel.milesFromPrevious / 1000) * TRAVEL_PENALTY_PER_1000_MILES +
+      homeTravel.timezoneDelta * TIMEZONE_PENALTY_PER_HOUR
+    fairSpread -= travelPenalty
+  }
+
+  if (awayTravel) {
+    const travelPenalty =
+      (awayTravel.milesFromPrevious / 1000) * TRAVEL_PENALTY_PER_1000_MILES +
+      Math.abs(awayTravel.timezoneDelta) * TIMEZONE_PENALTY_PER_HOUR
+    fairSpread += travelPenalty
+  }
+
+  // Step 6: Adjust for altitude (home team advantage)
+  if (homeTravel && homeTravel.altitudeDelta > 0) {
+    fairSpread += (homeTravel.altitudeDelta / 1000) * ALTITUDE_BONUS_PER_1000_FT
+  }
+
+  // Step 7: Apply pace-based margin scaling
+  const combinedPace = (homeTeamStats.pace + awayTeamStats.pace) / 2
+  const paceDeviation = combinedPace - leagueAvgPace
+  const paceScaleFactor = 1 + paceDeviation * PACE_MARGIN_SCALE_FACTOR
+  fairSpread = fairSpread * paceScaleFactor
+
+  // Step 8: Apply recent form adjustment
+  if (homeForm || awayForm) {
+    let homeFormAdjust = 0
+    let awayFormAdjust = 0
+
+    if (homeForm) {
+      const perfDeviation = (homeForm.performanceRating - 50) / 50
+      const streakBonus = Math.min(1, Math.abs(homeForm.streak) * 0.2) * Math.sign(homeForm.streak)
+      homeFormAdjust = perfDeviation * MAX_FORM_ADJUSTMENT * 0.6 + streakBonus * 0.4
+    }
+
+    if (awayForm) {
+      const perfDeviation = (awayForm.performanceRating - 50) / 50
+      const streakBonus = Math.min(1, Math.abs(awayForm.streak) * 0.2) * Math.sign(awayForm.streak)
+      awayFormAdjust = perfDeviation * MAX_FORM_ADJUSTMENT * 0.6 + streakBonus * 0.4
+    }
+
+    fairSpread += homeFormAdjust - awayFormAdjust
+  }
+
+  // Step 9: Apply style matchup adjustment
+  if (styleMatchup && styleMatchup.adjustment !== 0) {
+    fairSpread += styleMatchup.adjustment
+  }
+
+  return fairSpread
+}
+
+export function calculateFairTotalNba(
+  homeTeamStats: TeamStats,
+  awayTeamStats: TeamStats,
+  leagueContext?: LeagueContext,
+  hierarchyWeights?: NbaHierarchyWeights
+): number {
+  const { homeExpected, awayExpected } = calculateNbaExpectedScores(
+    homeTeamStats,
+    awayTeamStats,
+    leagueContext,
+    hierarchyWeights
+  )
+  return homeExpected + awayExpected
 }
 
 /**
@@ -279,8 +643,6 @@ export function calculateFairTotal(
   return fairTotal
 }
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.max(min, Math.min(max, value))
 
 const adjustByYpp = (
   base: number,
@@ -727,3 +1089,6 @@ export function calculateExpectedValueFromOdds(
   // Positive EV = we have edge, negative EV = book has edge
   return edge * 100
 }
+
+
+

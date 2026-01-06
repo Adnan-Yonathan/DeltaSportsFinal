@@ -97,6 +97,164 @@ const normalizeToken = (value?: string) => (value || '').toLowerCase().replace(/
 const normalizeTeamKey = (value?: string) =>
   (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
 
+const formatOddsValue = (value?: number | null): string | null => {
+  if (value == null || !Number.isFinite(value)) return null
+  return value > 0 ? `+${value}` : `${value}`
+}
+
+const normalizeBookKey = (book: { key?: string; title?: string }) =>
+  (book.key || book.title || '').toLowerCase()
+
+const isPredictionMarketBook = (book: { key?: string; title?: string }) => {
+  const key = normalizeBookKey(book)
+  return key.includes('polymarket') || key.includes('kalshi')
+}
+
+type BestOutcome = { point?: number | null; price?: number | null; book?: string }
+type BestMarketSet = {
+  moneyline: { home?: BestOutcome; away?: BestOutcome }
+  spread: { home?: BestOutcome; away?: BestOutcome }
+  total: { over?: BestOutcome; under?: BestOutcome }
+}
+
+const chooseBetter = (
+  current: BestOutcome | undefined,
+  candidate: BestOutcome,
+  opts: { preferHigherPoint?: boolean; preferLowerPoint?: boolean }
+) => {
+  if (!current) return candidate
+  if (candidate.price != null && (current.price == null || candidate.price > current.price)) {
+    return candidate
+  }
+  if (
+    candidate.price != null &&
+    current.price != null &&
+    candidate.price === current.price &&
+    candidate.point != null &&
+    current.point != null
+  ) {
+    if (opts.preferLowerPoint && candidate.point < current.point) return candidate
+    if (opts.preferHigherPoint && candidate.point > current.point) return candidate
+  }
+  if (current.price == null && candidate.price != null) return candidate
+  if (current.price == null && candidate.price == null) {
+    if (candidate.point != null && current.point == null) return candidate
+    if (
+      candidate.point != null &&
+      current.point != null &&
+      opts.preferHigherPoint &&
+      candidate.point > current.point
+    ) {
+      return candidate
+    }
+    if (
+      candidate.point != null &&
+      current.point != null &&
+      opts.preferLowerPoint &&
+      candidate.point < current.point
+    ) {
+      return candidate
+    }
+  }
+  return current
+}
+
+const getBestMarkets = (
+  bookmakers: OddsGame['bookmakers'] | undefined,
+  homeTeam: string,
+  awayTeam: string
+): { sportsbook: BestMarketSet; prediction: BestMarketSet } => {
+  const init = (): BestMarketSet => ({
+    moneyline: {},
+    spread: {},
+    total: {},
+  })
+  const result = { sportsbook: init(), prediction: init() }
+  const books = bookmakers ?? []
+  for (const book of books) {
+    const target = isPredictionMarketBook(book) ? result.prediction : result.sportsbook
+    const bookName = book.title || book.key || 'Book'
+    const markets = book.markets || []
+    const h2h = markets.find((m) => m.key === 'h2h')
+    const spreads = markets.find((m) => m.key === 'spreads')
+    const totals = markets.find((m) => m.key === 'totals')
+    if (h2h?.outcomes?.length) {
+      const home = h2h.outcomes.find((o) =>
+        normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam))
+      )
+      const away = h2h.outcomes.find((o) =>
+        normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(awayTeam))
+      )
+      if (home?.price != null) {
+        target.moneyline.home = chooseBetter(
+          target.moneyline.home,
+          { price: home.price, book: bookName },
+          {}
+        )
+      }
+      if (away?.price != null) {
+        target.moneyline.away = chooseBetter(
+          target.moneyline.away,
+          { price: away.price, book: bookName },
+          {}
+        )
+      }
+    }
+    if (spreads?.outcomes?.length) {
+      const home = spreads.outcomes.find((o) =>
+        normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam))
+      )
+      const away = spreads.outcomes.find((o) =>
+        normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(awayTeam))
+      )
+      if (home?.point != null) {
+        target.spread.home = chooseBetter(
+          target.spread.home,
+          { point: home.point, price: home.price, book: bookName },
+          { preferHigherPoint: true }
+        )
+      }
+      if (away?.point != null) {
+        target.spread.away = chooseBetter(
+          target.spread.away,
+          { point: away.point, price: away.price, book: bookName },
+          { preferHigherPoint: true }
+        )
+      }
+    }
+    if (totals?.outcomes?.length) {
+      const over = totals.outcomes.find((o) => o?.name === 'Over')
+      const under = totals.outcomes.find((o) => o?.name === 'Under')
+      if (over?.price != null || over?.point != null) {
+        target.total.over = chooseBetter(
+          target.total.over,
+          { point: over?.point, price: over?.price, book: bookName },
+          { preferLowerPoint: true }
+        )
+      }
+      if (under?.price != null || under?.point != null) {
+        target.total.under = chooseBetter(
+          target.total.under,
+          { point: under?.point, price: under?.price, book: bookName },
+          { preferHigherPoint: true }
+        )
+      }
+    }
+  }
+  return result
+}
+
+const formatSpreadLabel = (point?: number | null) =>
+  point == null ? 'n/a' : point > 0 ? `+${point}` : `${point}`
+
+const formatOutcomeLabel = (label: string, outcome?: BestOutcome) => {
+  if (!outcome) return `${label} n/a`
+  const odds = formatOddsValue(outcome.price) || 'n/a'
+  const point = outcome.point != null ? ` ${formatSpreadLabel(outcome.point)}` : ''
+  const book = outcome.book ? ` (${outcome.book})` : ''
+  return `${label}${point} ${odds}${book}`.trim()
+}
+
 const matchesTeam = (team: ProviderTeamStats, target: string) => {
   const norm = normalizeTeamKey(target)
   if (!norm) return false

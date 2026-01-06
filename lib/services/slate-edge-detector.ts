@@ -222,12 +222,27 @@ const buildMatchupFactorsFromStats = (
     'pointsForPerGame' in awayStats &&
     'pointsAgainstPerGame' in awayStats
   ) {
-    factors.push(
-      `${homeTeam} PPG: ${homeStats.pointsForPerGame.toFixed(1)}, ${awayTeam} PAPG: ${awayStats.pointsAgainstPerGame.toFixed(1)}`
-    )
-    factors.push(
-      `${awayTeam} PPG: ${awayStats.pointsForPerGame.toFixed(1)}, ${homeTeam} PAPG: ${homeStats.pointsAgainstPerGame.toFixed(1)}`
-    )
+    const homePpg = homeStats.pointsForPerGame
+    const homePapg = homeStats.pointsAgainstPerGame
+    const awayPpg = awayStats.pointsForPerGame
+    const awayPapg = awayStats.pointsAgainstPerGame
+    if (
+      typeof homePpg === 'number' &&
+      Number.isFinite(homePpg) &&
+      typeof homePapg === 'number' &&
+      Number.isFinite(homePapg) &&
+      typeof awayPpg === 'number' &&
+      Number.isFinite(awayPpg) &&
+      typeof awayPapg === 'number' &&
+      Number.isFinite(awayPapg)
+    ) {
+      factors.push(
+        `${homeTeam} PPG: ${homePpg.toFixed(1)}, ${awayTeam} PAPG: ${awayPapg.toFixed(1)}`
+      )
+      factors.push(
+        `${awayTeam} PPG: ${awayPpg.toFixed(1)}, ${homeTeam} PAPG: ${homePapg.toFixed(1)}`
+      )
+    }
   } else if (
     'goalsForPerGame' in homeStats &&
     'goalsAgainstPerGame' in homeStats &&

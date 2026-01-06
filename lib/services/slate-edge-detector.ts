@@ -49,11 +49,21 @@ export interface GameEdgeAnalysis {
   homeTeam: string
   awayTeam: string
   commenceTime: string
+  homeStats?: TeamStats | FootballTeamStats | HockeyTeamStats | null
+  awayStats?: TeamStats | FootballTeamStats | HockeyTeamStats | null
   moneyline?: {
-    homeOdds?: number
-    homeBook?: string
-    awayOdds?: number
-    awayBook?: string
+    sportsbook?: {
+      homeOdds?: number
+      homeBook?: string
+      awayOdds?: number
+      awayBook?: string
+    }
+    prediction?: {
+      homeOdds?: number
+      homeBook?: string
+      awayOdds?: number
+      awayBook?: string
+    }
   }
   spread?: {
     marketLine: number
@@ -61,6 +71,7 @@ export interface GameEdgeAnalysis {
     edge: EdgeAssessment
     bestBook?: string
     bestOdds?: number
+    prediction?: { line: number; book: string; odds: number }
     favoredTeam: string // Which team the model favors
     sharpConfirmed?: boolean // Sharp signals agree with model
   }
@@ -70,6 +81,8 @@ export interface GameEdgeAnalysis {
     edge: EdgeAssessment
     bestBook?: string
     bestOdds?: number
+    bestUnderOdds?: number
+    prediction?: { line: number; book: string; overOdds: number; underOdds: number }
     sharpConfirmed?: boolean // Sharp signals agree with model
   }
   confidence: 'low' | 'medium' | 'high'
@@ -138,6 +151,11 @@ const normalizeSelection = (value: string) =>
     .replace(/[^a-z0-9]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+
+const isPredictionMarketBook = (book: { key?: string; title?: string }) => {
+  const key = (book.key || book.title || '').toLowerCase()
+  return key.includes('polymarket') || key.includes('kalshi')
+}
 
 const buildTokens = (value: string) =>
   normalizeSelection(value)
@@ -456,6 +474,7 @@ function getBestSpread(game: OddsGame, side: 'home' | 'away'): { line: number; b
   let best: { line: number; book: string; odds: number } | null = null
 
   for (const book of game.bookmakers) {
+    if (isPredictionMarketBook(book)) continue
     const spreadMarket = book.markets?.find((m) => m.key === 'spreads')
     if (!spreadMarket) continue
 
@@ -473,12 +492,71 @@ function getBestSpread(game: OddsGame, side: 'home' | 'away'): { line: number; b
   return best
 }
 
+function getBestSpreadByType(
+  game: OddsGame,
+  side: 'home' | 'away',
+  type: 'sportsbook' | 'prediction'
+): { line: number; book: string; odds: number } | null {
+  if (!game.bookmakers?.length) return null
+
+  let best: { line: number; book: string; odds: number } | null = null
+
+  for (const book of game.bookmakers) {
+    const isPrediction = isPredictionMarketBook(book)
+    if (type === 'sportsbook' && isPrediction) continue
+    if (type === 'prediction' && !isPrediction) continue
+    const spreadMarket = book.markets?.find((m) => m.key === 'spreads')
+    if (!spreadMarket) continue
+
+    const outcome = spreadMarket.outcomes?.find((o) =>
+      side === 'home' ? o.name === game.home_team : o.name === game.away_team
+    )
+    if (!outcome?.point) continue
+
+    if (!best || outcome.point > best.line) {
+      best = { line: outcome.point, book: book.title, odds: outcome.price }
+    }
+  }
+
+  return best
+}
+
 function getBestMoneyline(game: OddsGame, side: 'home' | 'away'): { odds: number; book: string } | null {
   if (!game.bookmakers?.length) return null
 
   let best: { odds: number; book: string } | null = null
 
   for (const book of game.bookmakers) {
+    if (isPredictionMarketBook(book)) continue
+    const moneylineMarket = book.markets?.find((m) => m.key === 'h2h')
+    if (!moneylineMarket) continue
+
+    const outcome = moneylineMarket.outcomes?.find((o) =>
+      side === 'home' ? o.name === game.home_team : o.name === game.away_team
+    )
+    if (outcome?.price == null) continue
+
+    if (!best || outcome.price > best.odds) {
+      best = { odds: outcome.price, book: book.title }
+    }
+  }
+
+  return best
+}
+
+function getBestMoneylineByType(
+  game: OddsGame,
+  side: 'home' | 'away',
+  type: 'sportsbook' | 'prediction'
+): { odds: number; book: string } | null {
+  if (!game.bookmakers?.length) return null
+
+  let best: { odds: number; book: string } | null = null
+
+  for (const book of game.bookmakers) {
+    const isPrediction = isPredictionMarketBook(book)
+    if (type === 'sportsbook' && isPrediction) continue
+    if (type === 'prediction' && !isPrediction) continue
     const moneylineMarket = book.markets?.find((m) => m.key === 'h2h')
     if (!moneylineMarket) continue
 
@@ -504,6 +582,7 @@ function getBestTotal(game: OddsGame): { line: number; book: string; overOdds: n
   let best: { line: number; book: string; overOdds: number; underOdds: number } | null = null
 
   for (const book of game.bookmakers) {
+    if (isPredictionMarketBook(book)) continue
     const totalMarket = book.markets?.find((m) => m.key === 'totals')
     if (!totalMarket) continue
 
@@ -513,6 +592,38 @@ function getBestTotal(game: OddsGame): { line: number; book: string; overOdds: n
 
     if (!best) {
       best = { line: over.point, book: book.title, overOdds: over.price, underOdds: under.price }
+    }
+  }
+
+  return best
+}
+
+function getBestTotalByType(
+  game: OddsGame,
+  type: 'sportsbook' | 'prediction'
+): { line: number; book: string; overOdds: number; underOdds: number } | null {
+  if (!game.bookmakers?.length) return null
+
+  let best: { line: number; book: string; overOdds: number; underOdds: number } | null = null
+
+  for (const book of game.bookmakers) {
+    const isPrediction = isPredictionMarketBook(book)
+    if (type === 'sportsbook' && isPrediction) continue
+    if (type === 'prediction' && !isPrediction) continue
+    const totalMarket = book.markets?.find((m) => m.key === 'totals')
+    if (!totalMarket) continue
+
+    const over = totalMarket.outcomes?.find((o) => o.name === 'Over')
+    const under = totalMarket.outcomes?.find((o) => o.name === 'Under')
+    if (!over?.point || !under?.point) continue
+
+    if (!best || over.price > best.overOdds) {
+      best = {
+        line: over.point,
+        book: book.title,
+        overOdds: over.price,
+        underOdds: under.price,
+      }
     }
   }
 
@@ -652,12 +763,23 @@ export async function analyzeSlateEdges(
       })
 
       // Get market lines (needed for NCAAB market anchoring)
-      const marketSpread = getBestSpread(game, 'home')
-      const marketTotal = getBestTotal(game)
-      const marketMoneylineHome = getBestMoneyline(game, 'home')
-      const marketMoneylineAway = getBestMoneyline(game, 'away')
+      const sportsbookSpread = getBestSpreadByType(game, 'home', 'sportsbook')
+      const predictionSpread = getBestSpreadByType(game, 'home', 'prediction')
+      const marketSpread = sportsbookSpread ?? predictionSpread
+      const sportsbookTotal = getBestTotalByType(game, 'sportsbook')
+      const predictionTotal = getBestTotalByType(game, 'prediction')
+      const marketTotal = sportsbookTotal ?? predictionTotal
+      const sportsbookMoneylineHome = getBestMoneylineByType(game, 'home', 'sportsbook')
+      const sportsbookMoneylineAway = getBestMoneylineByType(game, 'away', 'sportsbook')
+      const predictionMoneylineHome = getBestMoneylineByType(game, 'home', 'prediction')
+      const predictionMoneylineAway = getBestMoneylineByType(game, 'away', 'prediction')
       const fallbackStats = getFallbackTeamStats(sportKey)
-      const matchupTimeoutMs = sportKey === 'basketball_ncaab' ? 20000 : 8000
+      const matchupTimeoutMs =
+        sportKey === 'basketball_ncaab'
+          ? 20000
+          : sportKey === 'basketball_nba'
+            ? 25000
+            : 8000
 
       // Get detailed matchup analysis (includes injuries, stats, ATS) - with 8s timeout
       const matchupAnalysis = await withTimeout(
@@ -684,6 +806,12 @@ export async function analyzeSlateEdges(
       }
 
       // Get model recommendations for this game - with 8s timeout
+      const recommendationTimeoutMs =
+        sportKey === 'basketball_ncaab'
+          ? 12000
+          : sportKey === 'basketball_nba'
+            ? 15000
+            : 8000
       let recommendations = await withTimeout(
         getGameRecommendations(
           game.home_team,
@@ -693,7 +821,7 @@ export async function analyzeSlateEdges(
           marketContext,
           matchupAnalysis
         ),
-        8000,
+        recommendationTimeoutMs,
         []
       )
       if (recommendations.length === 0) {
@@ -812,13 +940,26 @@ export async function analyzeSlateEdges(
         homeTeam: game.home_team,
         awayTeam: game.away_team,
         commenceTime: game.commence_time,
+        homeStats: matchupAnalysis.homeTeam.stats,
+        awayStats: matchupAnalysis.awayTeam.stats,
         moneyline:
-          marketMoneylineHome || marketMoneylineAway
+          sportsbookMoneylineHome ||
+          sportsbookMoneylineAway ||
+          predictionMoneylineHome ||
+          predictionMoneylineAway
             ? {
-                homeOdds: marketMoneylineHome?.odds,
-                homeBook: marketMoneylineHome?.book,
-                awayOdds: marketMoneylineAway?.odds,
-                awayBook: marketMoneylineAway?.book,
+                sportsbook: {
+                  homeOdds: sportsbookMoneylineHome?.odds,
+                  homeBook: sportsbookMoneylineHome?.book,
+                  awayOdds: sportsbookMoneylineAway?.odds,
+                  awayBook: sportsbookMoneylineAway?.book,
+                },
+                prediction: {
+                  homeOdds: predictionMoneylineHome?.odds,
+                  homeBook: predictionMoneylineHome?.book,
+                  awayOdds: predictionMoneylineAway?.odds,
+                  awayBook: predictionMoneylineAway?.book,
+                },
               }
             : undefined,
         confidence: adjustedConfidence,
@@ -875,6 +1016,7 @@ export async function analyzeSlateEdges(
           edge: spreadEdge,
           bestBook: marketSpread.book,
           bestOdds: marketSpread.odds,
+          prediction: predictionSpread || undefined,
           favoredTeam: modelFavoredTeam,
           sharpConfirmed: spreadConfirmation.agrees,
         }
@@ -887,6 +1029,8 @@ export async function analyzeSlateEdges(
           edge: totalEdge,
           bestBook: marketTotal.book,
           bestOdds: marketTotal.overOdds,
+          bestUnderOdds: marketTotal.underOdds,
+          prediction: predictionTotal || undefined,
           sharpConfirmed: totalConfirmation.agrees,
         }
       }
@@ -1169,14 +1313,27 @@ function formatMarketSignals(game: GameEdgeAnalysis): string {
   const sharpTag = game.sharpConfirmation?.agrees ? ' [SHARP CONFIRMED]' : ''
   lines.push(`**${game.matchup}** (${time})${sharpTag}`)
 
-  if (game.moneyline && (game.moneyline.homeOdds != null || game.moneyline.awayOdds != null)) {
-    const awayLine = game.moneyline.awayOdds != null
-      ? `${game.awayTeam} ${formatOdds(game.moneyline.awayOdds)}${game.moneyline.awayBook ? ` (${game.moneyline.awayBook})` : ''}`
+  if (game.moneyline?.sportsbook) {
+    const awayLine = game.moneyline.sportsbook.awayOdds != null
+      ? `${game.awayTeam} ${formatOdds(game.moneyline.sportsbook.awayOdds)}${game.moneyline.sportsbook.awayBook ? ` (${game.moneyline.sportsbook.awayBook})` : ''}`
       : ''
-    const homeLine = game.moneyline.homeOdds != null
-      ? `${game.homeTeam} ${formatOdds(game.moneyline.homeOdds)}${game.moneyline.homeBook ? ` (${game.moneyline.homeBook})` : ''}`
+    const homeLine = game.moneyline.sportsbook.homeOdds != null
+      ? `${game.homeTeam} ${formatOdds(game.moneyline.sportsbook.homeOdds)}${game.moneyline.sportsbook.homeBook ? ` (${game.moneyline.sportsbook.homeBook})` : ''}`
       : ''
-    lines.push(`- Moneyline: ${[awayLine, homeLine].filter(Boolean).join(' | ')}`)
+    if (awayLine || homeLine) {
+      lines.push(`- Moneyline (Sportsbook best): ${[awayLine, homeLine].filter(Boolean).join(' | ')}`)
+    }
+  }
+  if (game.moneyline?.prediction) {
+    const awayLine = game.moneyline.prediction.awayOdds != null
+      ? `${game.awayTeam} ${formatOdds(game.moneyline.prediction.awayOdds)}${game.moneyline.prediction.awayBook ? ` (${game.moneyline.prediction.awayBook})` : ''}`
+      : ''
+    const homeLine = game.moneyline.prediction.homeOdds != null
+      ? `${game.homeTeam} ${formatOdds(game.moneyline.prediction.homeOdds)}${game.moneyline.prediction.homeBook ? ` (${game.moneyline.prediction.homeBook})` : ''}`
+      : ''
+    if (awayLine || homeLine) {
+      lines.push(`- Moneyline (Prediction best): ${[awayLine, homeLine].filter(Boolean).join(' | ')}`)
+    }
   }
 
   if (game.spread) {
@@ -1189,23 +1346,30 @@ function formatMarketSignals(game: GameEdgeAnalysis): string {
       game.spread.targetLine > 0
         ? `+${game.spread.targetLine.toFixed(1)}`
         : game.spread.targetLine.toFixed(1)
-    const book = game.spread.bestBook ? ` ${game.spread.bestBook}` : ''
-    const odds = Number.isFinite(game.spread.bestOdds)
-      ? ` ${formatOdds(game.spread.bestOdds as number)}`
-      : ''
     lines.push(
-      `- Spread: Market ${marketLine} ${homeTeamShort}${book}${odds} | Model ${modelLine} ${homeTeamShort}`
+      `- Spread: Market ${marketLine} ${homeTeamShort}${game.spread.bestBook ? ` (${game.spread.bestBook} ${formatOdds(game.spread.bestOdds as number)})` : ''} | Model ${modelLine} ${homeTeamShort}`
     )
+    if (game.spread.prediction) {
+      const predictionLine = game.spread.prediction.line > 0
+        ? `+${game.spread.prediction.line}`
+        : `${game.spread.prediction.line}`
+      lines.push(
+        `- Spread (Prediction best): Market ${predictionLine} ${homeTeamShort} (${game.spread.prediction.book} ${formatOdds(game.spread.prediction.odds)})`
+      )
+    }
   }
 
   if (game.total) {
-    const book = game.total.bestBook ? ` ${game.total.bestBook}` : ''
-    const odds = Number.isFinite(game.total.bestOdds)
-      ? ` ${formatOdds(game.total.bestOdds as number)}`
-      : ''
+    const overOdds = formatOdds(game.total.bestOdds as number) || 'n/a'
+    const underOdds = formatOdds(game.total.bestUnderOdds as number) || 'n/a'
     lines.push(
-      `- Total: Market ${game.total.marketLine} | Model ${game.total.targetLine.toFixed(1)}${book}${odds}`
+      `- Total: Market ${game.total.marketLine} (${game.total.bestBook ?? 'Market'} O ${overOdds} / U ${underOdds}) | Model ${game.total.targetLine.toFixed(1)}`
     )
+    if (game.total.prediction) {
+      lines.push(
+        `- Total (Prediction best): Market ${game.total.prediction.line} (${game.total.prediction.book} O ${formatOdds(game.total.prediction.overOdds)} / U ${formatOdds(game.total.prediction.underOdds)})`
+      )
+    }
   }
 
   lines.push(`- Best Bet: ${selectBestBet(game)}`)
@@ -1255,9 +1419,45 @@ function formatMarketSignals(game: GameEdgeAnalysis): string {
   return lines.join('\n')
 }
 
+const formatMatchupStats = (
+  homeTeam: string,
+  awayTeam: string,
+  homeStats?: TeamStats | FootballTeamStats | HockeyTeamStats | null,
+  awayStats?: TeamStats | FootballTeamStats | HockeyTeamStats | null
+): string | null => {
+  if (!homeStats || !awayStats) return null
+  const hasRatings =
+    typeof (homeStats as any).ortg === 'number' &&
+    typeof (homeStats as any).drtg === 'number' &&
+    typeof (homeStats as any).pace === 'number' &&
+    typeof (awayStats as any).ortg === 'number' &&
+    typeof (awayStats as any).drtg === 'number' &&
+    typeof (awayStats as any).pace === 'number'
+  if (hasRatings) {
+    return `${homeTeam} ORtg ${(homeStats as any).ortg.toFixed(1)} DRtg ${(homeStats as any).drtg.toFixed(
+      1
+    )} Pace ${(homeStats as any).pace.toFixed(1)} | ${awayTeam} ORtg ${(awayStats as any).ortg.toFixed(
+      1
+    )} DRtg ${(awayStats as any).drtg.toFixed(1)} Pace ${(awayStats as any).pace.toFixed(1)}`
+  }
+  const hasPpg =
+    typeof (homeStats as any).pointsForPerGame === 'number' &&
+    typeof (homeStats as any).pointsAgainstPerGame === 'number' &&
+    typeof (awayStats as any).pointsForPerGame === 'number' &&
+    typeof (awayStats as any).pointsAgainstPerGame === 'number'
+  if (hasPpg) {
+    return `${homeTeam} PPG ${(homeStats as any).pointsForPerGame.toFixed(
+      1
+    )} PAPG ${(homeStats as any).pointsAgainstPerGame.toFixed(1)} | ${awayTeam} PPG ${(awayStats as any).pointsForPerGame.toFixed(
+      1
+    )} PAPG ${(awayStats as any).pointsAgainstPerGame.toFixed(1)}`
+  }
+  return null
+}
+
 function formatGameEdge(game: GameEdgeAnalysis): string {
   const lines: string[] = []
-  const time = new Date(game.commenceTime).toLocaleTimeString('en-US', {        
+  const time = new Date(game.commenceTime).toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     timeZoneName: 'short',
@@ -1266,14 +1466,37 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
   const sharpTag = game.sharpConfirmation?.agrees ? ' [SHARP CONFIRMED]' : ''
   lines.push(`**${game.matchup}** (${time})${sharpTag}`)
 
-  if (game.moneyline && (game.moneyline.homeOdds != null || game.moneyline.awayOdds != null)) {
-    const awayLine = game.moneyline.awayOdds != null
-      ? `${game.awayTeam} ${formatOdds(game.moneyline.awayOdds)}${game.moneyline.awayBook ? ` (${game.moneyline.awayBook})` : ''}`
+  if (game.moneyline?.sportsbook) {
+    const awayLine = game.moneyline.sportsbook.awayOdds != null
+      ? `${game.awayTeam} ${formatOdds(game.moneyline.sportsbook.awayOdds)}${game.moneyline.sportsbook.awayBook ? ` (${game.moneyline.sportsbook.awayBook})` : ''}`
       : ''
-    const homeLine = game.moneyline.homeOdds != null
-      ? `${game.homeTeam} ${formatOdds(game.moneyline.homeOdds)}${game.moneyline.homeBook ? ` (${game.moneyline.homeBook})` : ''}`
+    const homeLine = game.moneyline.sportsbook.homeOdds != null
+      ? `${game.homeTeam} ${formatOdds(game.moneyline.sportsbook.homeOdds)}${game.moneyline.sportsbook.homeBook ? ` (${game.moneyline.sportsbook.homeBook})` : ''}`
       : ''
-    lines.push(`- Moneyline: ${[awayLine, homeLine].filter(Boolean).join(' | ')}`)
+    if (awayLine || homeLine) {
+      lines.push(`- Moneyline (Sportsbook best): ${[awayLine, homeLine].filter(Boolean).join(' | ')}`)
+    }
+  }
+  if (game.moneyline?.prediction) {
+    const awayLine = game.moneyline.prediction.awayOdds != null
+      ? `${game.awayTeam} ${formatOdds(game.moneyline.prediction.awayOdds)}${game.moneyline.prediction.awayBook ? ` (${game.moneyline.prediction.awayBook})` : ''}`
+      : ''
+    const homeLine = game.moneyline.prediction.homeOdds != null
+      ? `${game.homeTeam} ${formatOdds(game.moneyline.prediction.homeOdds)}${game.moneyline.prediction.homeBook ? ` (${game.moneyline.prediction.homeBook})` : ''}`
+      : ''
+    if (awayLine || homeLine) {
+      lines.push(`- Moneyline (Prediction best): ${[awayLine, homeLine].filter(Boolean).join(' | ')}`)
+    }
+  }
+
+  const statsLine = formatMatchupStats(
+    game.homeTeam,
+    game.awayTeam,
+    game.homeStats,
+    game.awayStats
+  )
+  if (statsLine) {
+    lines.push(`- Stats: ${statsLine}`)
   }
 
   if (game.sharpSignals.length > 0) {
@@ -1306,8 +1529,16 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
     const modelLineFormatted = game.spread.targetLine > 0 ? `+${game.spread.targetLine.toFixed(1)}` : game.spread.targetLine.toFixed(1)
 
     lines.push(
-      `- ${edgeEmoji} **Spread:** Market ${marketLineFormatted} ${homeTeamShort} | Model ${modelLineFormatted} ${homeTeamShort} | Gap: ${gap} pts${sharpEmoji}`
+      `- ${edgeEmoji} **Spread:** Market ${marketLineFormatted} ${homeTeamShort}${game.spread.bestBook ? ` (${game.spread.bestBook} ${formatOdds(game.spread.bestOdds as number)})` : ''} | Model ${modelLineFormatted} ${homeTeamShort} | Gap: ${gap} pts${sharpEmoji}`
     )
+    if (game.spread.prediction) {
+      const predictionLine = game.spread.prediction.line > 0
+        ? `+${game.spread.prediction.line}`
+        : `${game.spread.prediction.line}`
+      lines.push(
+        `- Prediction Market Spread: ${predictionLine} ${homeTeamShort} (${game.spread.prediction.book} ${formatOdds(game.spread.prediction.odds)})`
+      )
+    }
     if (game.spread.edge.flag) {
       lines.push(`  - ⚠️ ${game.spread.edge.flag}`)
     }
@@ -1327,9 +1558,16 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
     const sharpEmoji = game.total.sharpConfirmed ? ' ⚡' : ''
     const gap = Math.abs(game.total.marketLine - game.total.targetLine).toFixed(1)
     const direction = game.total.targetLine > game.total.marketLine ? 'OVER' : 'UNDER'
+    const overOdds = formatOdds(game.total.bestOdds as number) || 'n/a'
+    const underOdds = formatOdds(game.total.bestUnderOdds as number) || 'n/a'
     lines.push(
-      `- ${edgeEmoji} **Total:** Market ${game.total.marketLine} | Model ${game.total.targetLine.toFixed(1)} | Gap: ${gap} pts → ${direction}${sharpEmoji}`
+      `- ${edgeEmoji} **Total:** Market ${game.total.marketLine} (${game.total.bestBook ?? 'Market'} O ${overOdds} / U ${underOdds}) | Model ${game.total.targetLine.toFixed(1)} | Gap: ${gap} pts → ${direction}${sharpEmoji}`
     )
+    if (game.total.prediction) {
+      lines.push(
+        `- Prediction Market Total: ${game.total.prediction.line} (${game.total.prediction.book} O ${formatOdds(game.total.prediction.overOdds)} / U ${formatOdds(game.total.prediction.underOdds)})`
+      )
+    }
     if (game.total.edge.flag) {
       lines.push(`  - ⚠️ ${game.total.edge.flag}`)
     }

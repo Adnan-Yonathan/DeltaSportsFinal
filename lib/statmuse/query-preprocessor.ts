@@ -95,7 +95,7 @@ const SPORT_PATTERNS: { sport: SportType; patterns: RegExp[] }[] = [
   {
     sport: 'ncaab',
     patterns: [
-      /\b(ncaab|college\s*basketball|march\s*madness|ncaa\s*basketball)\b/i,
+      /\b(ncaab|cbb|college\s*basketball|college\s*hoops|march\s*madness|ncaa\s*basketball)\b/i,
     ],
   },
   {

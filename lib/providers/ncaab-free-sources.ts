@@ -64,6 +64,15 @@ const decodeEntities = (value: string) =>
 const stripTags = (value: string) =>
   decodeEntities(value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim())
 
+const TORVIK_HTML_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+  Accept:
+    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  Referer: TORVIK_HTML_URL,
+}
+
 const fetchHtml = async (
   url: string,
   cacheTtl = CACHE_TTL
@@ -72,13 +81,19 @@ const fetchHtml = async (
   if (cached && Date.now() - cached.ts < cacheTtl) return cached.data as string
   const res = await fetch(url, {
     cache: 'no-store',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; DeltaSportsBot/1.0)',
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    },
+    headers: url.includes('barttorvik.com')
+      ? TORVIK_HTML_HEADERS
+      : {
+          'User-Agent': 'Mozilla/5.0 (compatible; DeltaSportsBot/1.0)',
+          Accept:
+            'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
   })
   if (!res.ok) return null
   const html = await res.text()
+  if (url.includes('barttorvik.com') && isTorvikChallengePage(html)) {
+    console.warn('[fetchHtml] Torvik challenge page detected', url)
+  }
   cache.set(url, { ts: Date.now(), data: html })
   return html
 }
@@ -100,6 +115,9 @@ const fetchHtmlWithBrowser = async (
     }
   }
   try {
+    if (!process.env.PLAYWRIGHT_BROWSERS_PATH) {
+      process.env.PLAYWRIGHT_BROWSERS_PATH = '0'
+    }
     const { chromium } = await import('playwright')
     const browser = await chromium.launch({ headless: true })
     try {
@@ -164,6 +182,86 @@ const parseNumber = (value: string | undefined): number | null => {
   if (!value) return null
   const num = Number(value.replace(/,/g, '').replace(/%/g, '').trim())
   return Number.isFinite(num) ? num : null
+}
+
+const normalizeJsonKey = (key: string) =>
+  key.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+const pickJsonValue = (
+  record: Record<string, unknown>,
+  keys: string[]
+): unknown => {
+  const normalized = new Map<string, unknown>()
+  for (const [key, value] of Object.entries(record)) {
+    normalized.set(normalizeJsonKey(key), value)
+  }
+  for (const key of keys) {
+    const normalizedKey = normalizeJsonKey(key)
+    if (normalized.has(normalizedKey)) return normalized.get(normalizedKey)
+  }
+  return undefined
+}
+
+const parseJsonNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined
+  }
+  if (typeof value === 'string') {
+    const parsed = parseNumber(value)
+    return parsed == null ? undefined : parsed
+  }
+  return undefined
+}
+
+const parseTorvikJsonEntries = (data: unknown): CbbAdvancedRatingEntry[] => {
+  const arrayData =
+    Array.isArray(data) ? data : (data as { [key: string]: unknown })?.teams
+  const rows =
+    Array.isArray(arrayData)
+      ? arrayData
+      : (data as { [key: string]: unknown })?.data ||
+        (data as { [key: string]: unknown })?.rows ||
+        (data as { [key: string]: unknown })?.items
+  if (!Array.isArray(rows)) return []
+
+  const entries: CbbAdvancedRatingEntry[] = []
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue
+    const record = row as Record<string, unknown>
+    const rawTeam = pickJsonValue(record, ['team', 'team_name', 'teamname', 'name', 'tm'])
+    const team = rawTeam ? normalizeTeamName(String(rawTeam)) : ''
+    if (!team || !isValidTeamName(team)) continue
+
+    const adjO = parseJsonNumber(
+      pickJsonValue(record, ['adjo', 'adjoe', 'adj_offense', 'adjoffense', 'offense'])
+    )
+    const adjD = parseJsonNumber(
+      pickJsonValue(record, ['adjd', 'adjde', 'adj_defense', 'adjdefense', 'defense'])
+    )
+    const adjEM = parseJsonNumber(
+      pickJsonValue(record, ['adjem', 'adj_em', 'adj_eff', 'adjemargin'])
+    )
+    const tempo = parseJsonNumber(
+      pickJsonValue(record, ['tempo', 'adjt', 'adjtempo', 'pace'])
+    )
+    const luck = parseJsonNumber(pickJsonValue(record, ['luck']))
+    const sos = parseJsonNumber(pickJsonValue(record, ['sos', 'strengthofschedule']))
+    const ncsos = parseJsonNumber(pickJsonValue(record, ['ncsos', 'nonconfsos']))
+
+    entries.push({
+      team,
+      adjO,
+      adjD,
+      adjEM: adjEM ?? (adjO != null && adjD != null ? Number((adjO - adjD).toFixed(2)) : undefined),
+      tempo,
+      luck,
+      sos,
+      ncsos,
+      source: 'torvik',
+    })
+  }
+
+  return entries
 }
 
 const parseTable = (html: string) => {
@@ -689,6 +787,9 @@ const normalizeTeamName = (value: string) => {
 
 const extractTorvikRatingsWithBrowser = async (): Promise<CbbAdvancedRatingEntry[]> => {
   try {
+    if (!process.env.PLAYWRIGHT_BROWSERS_PATH) {
+      process.env.PLAYWRIGHT_BROWSERS_PATH = '0'
+    }
     const { chromium } = await import('playwright')
     const browser = await chromium.launch({ headless: true })
     try {
@@ -779,6 +880,14 @@ const extractTorvikRatingsWithBrowser = async (): Promise<CbbAdvancedRatingEntry
 }
 
 export const fetchTorvikAdvancedRatings = async (): Promise<CbbAdvancedRatingEntry[]> => {
+  const jsonData = await fetchJson<unknown>(TORVIK_JSON_URL)
+  const jsonParsed = parseTorvikJsonEntries(jsonData)
+  if (jsonParsed.length) {
+    console.info('[Torvik] JSON parsed', { entries: jsonParsed.length })
+    return jsonParsed
+  }
+  console.warn('[Torvik] JSON parse returned no entries')
+
   const html = await fetchHtml(TORVIK_HTML_URL)
   const parseTablesFromHtml = (source: string | null) => {
     if (!source) return []
@@ -792,12 +901,5 @@ export const fetchTorvikAdvancedRatings = async (): Promise<CbbAdvancedRatingEnt
     return parsed
   }
 
-  const browserHtml = await fetchHtmlWithBrowser(TORVIK_HTML_URL)
-  parsed = parseTablesFromHtml(browserHtml)
-  if (parsed.length && parsed.every((entry) => isValidTeamName(entry.team))) {
-    return parsed
-  }
-
-  const browserParsed = await extractTorvikRatingsWithBrowser()
-  return browserParsed.length ? browserParsed : parsed
+  return parsed
 }

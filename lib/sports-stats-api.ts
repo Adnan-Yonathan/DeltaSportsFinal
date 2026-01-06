@@ -42,6 +42,8 @@ import {
 } from '@/lib/providers/ncaab-free-sources'
 import { normalizeTeamKey, resolveSportKey } from '@/lib/identity/sport'
 import { resolveEspnTeamName } from '@/lib/utils/espn-team-lookup'
+import { createServiceClient } from '@/lib/supabase/service'
+import type { Database } from '@/lib/supabase/types'
 
 type NextFetchInit = RequestInit & { next?: { revalidate?: number } }
 
@@ -151,6 +153,81 @@ const buildTeamKeyVariants = (value: string) => {
   }
 
   return Array.from(variants)
+}
+
+const SUPABASE_TEAM_STATS_SPORTS = new Set([
+  'basketball_nba',
+  'americanfootball_nfl',
+  'baseball_mlb',
+  'icehockey_nhl',
+])
+type SupabaseTeamStatsRow = Database['public']['Tables']['team_stats']['Row']
+
+const fetchTeamStatsFromSupabase = async (
+  sportKey: string
+): Promise<TeamStats[] | null> => {
+  if (!SUPABASE_TEAM_STATS_SPORTS.has(sportKey)) return null
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return null
+  }
+
+  let supabase: ReturnType<typeof createServiceClient>
+  try {
+    supabase = createServiceClient()
+  } catch (error) {
+    console.warn('[TEAM STATS] Supabase client unavailable', error)
+    return null
+  }
+
+  const response = await supabase
+    .from('team_stats')
+    .select(
+      'team_name,wins,losses,points_per_game,points_allowed_per_game,pace,offensive_rating,defensive_rating,net_rating,season,sport_key,captured_at'
+    )
+    .eq('sport_key', sportKey)
+    .order('captured_at', { ascending: false })
+
+  const data = response.data as SupabaseTeamStatsRow[] | null
+  const error = response.error
+  if (error || !data) {
+    console.warn('[TEAM STATS] Supabase fetch failed', error)
+    return null
+  }
+
+  const latestByTeam = new Map<string, (typeof data)[number]>()
+  for (const row of data) {
+    const key = normalizeName(row.team_name ?? '')
+    if (!key) continue
+    if (!latestByTeam.has(key)) latestByTeam.set(key, row)
+  }
+
+  const results: TeamStats[] = []
+  for (const row of latestByTeam.values()) {
+    const wins = row.wins ?? 0
+    const losses = row.losses ?? 0
+    const gamesPlayed = wins + losses
+    const winPct = gamesPlayed > 0 ? wins / gamesPlayed : 0
+
+    results.push({
+      team: row.team_name,
+      wins,
+      losses,
+      winPct,
+      stats: {
+        gamesPlayed: gamesPlayed || null,
+        pointsForPerGame: row.points_per_game ?? null,
+        pointsAgainstPerGame: row.points_allowed_per_game ?? null,
+        pace: row.pace ?? null,
+        offensiveRating: row.offensive_rating ?? null,
+        defensiveRating: row.defensive_rating ?? null,
+        netRating: row.net_rating ?? null,
+      },
+      season: row.season ?? undefined,
+      sport: row.sport_key ?? undefined,
+    })
+  }
+
+  return results.length ? results : null
 }
 
 const parseRecordSummary = (summary?: string | null) => {
@@ -3003,14 +3080,98 @@ export async function searchNHLPlayer(playerName: string): Promise<RosterPlayer 
 
 export async function getNHLTeamStats(teamAbbr?: string): Promise<TeamStats[]> {
   try {
+    const now = new Date()
+    const startYear =
+      now.getUTCMonth() >= 8 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
+    const seasonId = `${startYear}${startYear + 1}`
+    const summaryUrl = `https://api.nhle.com/stats/rest/en/team/summary?season=${seasonId}&gameType=2`
+    const summaryResponse = await fetchWithRevalidate(summaryUrl, 3600)
+
+    if (summaryResponse.ok) {
+      const summary = await summaryResponse.json()
+      const rows: any[] = Array.isArray(summary?.data) ? summary.data : []
+      if (rows.length) {
+        let teamNameFilter: string | null = null
+        if (teamAbbr) {
+          try {
+            const teamResponse = await fetchWithRevalidate(
+              'https://api.nhle.com/stats/rest/en/team',
+              86400
+            )
+            if (teamResponse.ok) {
+              const teamData = await teamResponse.json()
+              const teamRows: any[] = Array.isArray(teamData?.data)
+                ? teamData.data
+                : []
+              const match = teamRows.find(
+                (row) =>
+                  String(row?.triCode || '').toUpperCase() === teamAbbr.toUpperCase()
+              )
+              if (match?.fullName) {
+                teamNameFilter = normalizeName(String(match.fullName))
+              }
+            }
+          } catch (error) {
+            console.warn('[NHL] Team map fetch failed', error)
+          }
+        }
+
+        const teams: TeamStats[] = []
+        for (const row of rows) {
+          const teamName = row.teamFullName || row.teamName || row.team
+          if (!teamName) continue
+          if (teamNameFilter && normalizeName(String(teamName)) !== teamNameFilter) {
+            continue
+          }
+          teams.push({
+            team: String(teamName),
+            wins: Number(row.wins ?? 0),
+            losses: Number(row.losses ?? 0),
+            winPct: Number(row.pointPct ?? 0),
+            stats: {
+              gamesPlayed: row.gamesPlayed ?? null,
+              points: row.points ?? null,
+              goalsFor: row.goalsFor ?? null,
+              goalsAgainst: row.goalsAgainst ?? null,
+              goalsForPerGame: row.goalsForPerGame ?? null,
+              goalsAgainstPerGame: row.goalsAgainstPerGame ?? null,
+              shotsForPerGame: row.shotsForPerGame ?? null,
+              shotsAgainstPerGame: row.shotsAgainstPerGame ?? null,
+              powerPlayPct: row.powerPlayPct ?? null,
+              penaltyKillPct: row.penaltyKillPct ?? null,
+            },
+            season: seasonId,
+            sport: 'icehockey_nhl',
+          })
+        }
+        if (teams.length) return teams
+      }
+    }
+
+    const refTeams = await getSportsReferenceTeamStats('icehockey_nhl')
+    if (refTeams?.length) {
+      return refTeams
+        .filter((t) => {
+          if (!teamAbbr) return true
+          return normalizeName(t.team).includes(normalizeName(teamAbbr))
+        })
+        .map((t) => ({
+          team: t.team,
+          wins: t.wins ?? 0,
+          losses: t.losses ?? 0,
+          winPct: t.winPct ?? 0,
+          stats: t.stats,
+          season: t.season,
+          sport: 'icehockey_nhl',
+        }))
+    }
+
     const url = 'https://api-web.nhle.com/v1/standings/now'
     const response = await fetchWithRevalidate(url, 3600)
-
     if (!response.ok) return []
 
     const data = await response.json()
     const teams: TeamStats[] = []
-
     if (data.standings) {
       for (const team of data.standings) {
         if (teamAbbr && team.teamAbbrev?.default !== teamAbbr) continue
@@ -3261,9 +3422,34 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
     return matched
   }
 
+  if (sportKey !== 'basketball_nba') {
+    const supabaseTeams = await fetchTeamStatsFromSupabase(sportKey)
+    if (supabaseTeams?.length) {
+      return filterTeams(supabaseTeams)
+    }
+  }
+
   switch (sportKey) {
     case 'nba':
     case 'basketball_nba': {
+      try {
+        const refTeams = await getSportsReferenceTeamStats('basketball_nba')
+        if (refTeams?.length) {
+          return filterTeams(
+            refTeams.map((t) => ({
+              team: t.team,
+              wins: t.wins ?? 0,
+              losses: t.losses ?? 0,
+              winPct: t.winPct ?? 0,
+              stats: t.stats,
+              sport: 'basketball_nba',
+              season: t.season,
+            }))
+          )
+        }
+      } catch (err) {
+        console.warn('[SportsReference] NBA team fetch failed', err)
+      }
       const [basic, advanced] = await Promise.all([
         getNBATeamStats(),
         getNBAAdvancedTeamStats(),

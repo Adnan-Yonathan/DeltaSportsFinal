@@ -1,10 +1,10 @@
 import { normalizeTeamKey } from '@/lib/identity/sport'
-import { fetchTorvikAdvancedRatings } from '@/lib/providers/ncaab-free-sources'
+import { fetchNcaaNetRankings } from '@/lib/providers/ncaab-free-sources'
 import { resolveEspnTeamName } from '@/lib/utils/espn-team-lookup'
 
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24
 
-export type CbbAdvancedRatingSource = 'torvik'
+export type CbbAdvancedRatingSource = 'net'
 
 export type CbbAdvancedRating = {
   team: string
@@ -17,6 +17,8 @@ export type CbbAdvancedRating = {
   luck?: number
   sos?: number
   ncsos?: number
+  netRank?: number
+  netRating?: number
   capturedAt: string
 }
 
@@ -27,30 +29,39 @@ type CacheEntry = {
 
 let snapshotCache: CacheEntry | null = null
 
+const netRankToRating = (rank: number | undefined, totalTeams: number) => {
+  if (!rank || !Number.isFinite(rank) || totalTeams <= 1) return undefined
+  const percentile = 1 - (rank - 1) / (totalTeams - 1)
+  return Number(((percentile - 0.5) * 40).toFixed(2))
+}
+
 const mergeRatings = async (): Promise<CbbAdvancedRating[]> => {
-  let torvik: Awaited<ReturnType<typeof fetchTorvikAdvancedRatings>> = []
+  let netRankings: Awaited<ReturnType<typeof fetchNcaaNetRankings>> = []
   try {
-    torvik = await fetchTorvikAdvancedRatings()
+    netRankings = await fetchNcaaNetRankings()
   } catch (error) {
-    console.error('[CBB] Torvik ratings failed:', error)
+    console.error('[CBB] NCAA NET rankings failed:', error)
   }
 
   const capturedAt = new Date().toISOString()
-  return torvik.map((entry) => ({
-    team: entry.team,
-    teamKey: normalizeTeamKey(entry.team),
-    source: 'torvik',
-    adjO: entry.adjO,
-    adjD: entry.adjD,
-    adjEM: entry.adjEM ?? (entry.adjO != null && entry.adjD != null
-      ? Number((entry.adjO - entry.adjD).toFixed(2))
-      : undefined),
-    tempo: entry.tempo,
-    luck: entry.luck,
-    sos: entry.sos,
-    ncsos: entry.ncsos,
-    capturedAt,
-  }))
+  const netTotalTeams = netRankings.length
+  const netRows: CbbAdvancedRating[] = []
+  for (const entry of netRankings) {
+    const teamKey = normalizeTeamKey(entry.team)
+    if (!teamKey) continue
+    const rating = netRankToRating(entry.rank, netTotalTeams)
+    netRows.push({
+      team: entry.team,
+      teamKey,
+      source: 'net',
+      adjEM: rating,
+      netRank: entry.rank,
+      netRating: rating,
+      capturedAt,
+    })
+  }
+
+  return netRows
 }
 
 export async function getCbbAdvancedRatingsSnapshot(): Promise<CbbAdvancedRating[]> {

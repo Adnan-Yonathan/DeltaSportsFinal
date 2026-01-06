@@ -56,9 +56,19 @@ export async function getLiveTeamStats(
     const entry = results?.[0]
     const stats = entry?.stats || {}
 
-    const ortg = advanced?.adjO ?? toNumber(stats.offensiveRating)
-    const drtg = advanced?.adjD ?? toNumber(stats.defensiveRating)
+    let ortg = advanced?.adjO ?? toNumber(stats.offensiveRating)
+    let drtg = advanced?.adjD ?? toNumber(stats.defensiveRating)
     const pace = advanced?.tempo ?? toNumber(stats.pace)
+    const netRating =
+      advanced?.netRating ??
+      advanced?.adjEM ??
+      (ortg != null && drtg != null ? Number((ortg - drtg).toFixed(1)) : null)
+    if ((ortg == null || drtg == null) && netRating != null) {
+      const base = DEFAULT_TEAM_STATS.ncaab.ortg
+      const half = Number((netRating / 2).toFixed(1))
+      ortg = Number((base + half).toFixed(1))
+      drtg = Number((base - half).toFixed(1))
+    }
 
     if (ortg == null || drtg == null || pace == null) {
       return DEFAULT_TEAM_STATS.ncaab

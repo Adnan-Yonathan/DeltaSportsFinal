@@ -5,6 +5,7 @@
 
 import { resolveSportKey } from '@/lib/identity/sport'
 import { createClient } from '@/lib/supabase/server'
+import { scrapeTeamATSTrends } from '@/lib/providers/covers/ats-scraper'
 
 // ESPN API for schedule data
 const ESPN_SITE_API_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba'
@@ -156,18 +157,28 @@ const getCbbTeamStats = async (teamName: string): Promise<TeamStats | null> => {
   const basePace = advanced?.tempo ?? toNumber(stats.pace)
   const resolvedPace =
     basePace ?? (ppg != null || papg != null ? DEFAULT_NCAAB_TEAM_STATS.pace : null)
-  const ortg =
+  let ortg =
     advanced?.adjO ??
     toNumber(stats.offensiveRating) ??
     (ppg != null && resolvedPace
       ? Number(((ppg / resolvedPace) * 100).toFixed(1))
       : null)
-  const drtg =
+  let drtg =
     advanced?.adjD ??
     toNumber(stats.defensiveRating) ??
     (papg != null && resolvedPace
       ? Number(((papg / resolvedPace) * 100).toFixed(1))
       : null)
+  const netRating =
+    advanced?.netRating ??
+    advanced?.adjEM ??
+    (ortg != null && drtg != null ? Number((ortg - drtg).toFixed(1)) : null)
+  if ((ortg == null || drtg == null) && netRating != null) {
+    const base = DEFAULT_NCAAB_TEAM_STATS.ortg
+    const half = Number((netRating / 2).toFixed(1))
+    ortg = Number((base + half).toFixed(1))
+    drtg = Number((base - half).toFixed(1))
+  }
 
   if (ortg == null || drtg == null || resolvedPace == null) {
     console.warn('[MATCHUP ANALYZER] Using default NCAAB stats', {
@@ -175,6 +186,8 @@ const getCbbTeamStats = async (teamName: string): Promise<TeamStats | null> => {
       ortg,
       drtg,
       pace: resolvedPace,
+      netRating,
+      netRank: advanced?.netRank,
     })
     return {
       ...DEFAULT_NCAAB_TEAM_STATS,
@@ -628,29 +641,24 @@ export async function getPlayerStats(
  * Get ATS trends from database
  */
 export async function getATSTrends(teamName: string) {
-  const abbrev = getTeamAbbrev(teamName)
-  if (!abbrev) return null
+  const slugifyTeam = (value: string) =>
+    value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('team_ats_records')
-    .select('*')
-    .eq('sport_key', 'basketball_nba')
-    .or(`team_name.ilike.%${teamName}%,team_name.ilike.%${abbrev}%`)
-    .order('captured_at', { ascending: false })
-    .limit(1)
+  const teamSlug = slugifyTeam(teamName)
+  if (!teamSlug) return null
 
-  if (error || !data || data.length === 0) return null
+  const result = await scrapeTeamATSTrends(teamSlug, 'basketball_nba')
+  if (!result.success || !result.data) return null
 
-  const record = data[0]
+  const record = result.data
   return {
-    overall: record.record,
-    home: record.home_ats_record,
-    away: record.away_ats_record,
-    favorite: record.favorite_ats_record,
-    underdog: record.underdog_ats_record,
-    last10: record.last_10_ats,
-    streak: record.ats_streak,
+    overall: record.atsRecord ?? null,
+    home: record.homeAtsRecord ?? null,
+    away: record.awayAtsRecord ?? null,
+    favorite: record.favoriteAtsRecord ?? null,
+    underdog: record.underdogAtsRecord ?? null,
+    last10: record.last10Ats ?? null,
+    streak: record.atsStreak ?? null,
   }
 }
 

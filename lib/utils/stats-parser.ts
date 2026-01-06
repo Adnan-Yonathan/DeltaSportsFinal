@@ -204,6 +204,12 @@ export async function detectPlayerStats(text: string): Promise<ParsedPlayerStats
     sport = 'baseball_mlb'
   } else if (textLower.includes('nhl') || stats.GOALS || stats.ASSISTS || stats.GP || stats.PTS) {
     sport = 'icehockey_nhl'
+  } else if (
+    textLower.includes('ncaab') ||
+    textLower.includes('cbb') ||
+    textLower.includes('college basketball')
+  ) {
+    sport = 'basketball_ncaab'
   } else if (textLower.includes('nba') || stats.PPG || stats.RPG || stats.APG) {
     sport = 'basketball_nba'
   }
@@ -296,6 +302,12 @@ export function detectTeamStats(text: string): ParsedTeamStats | null {
     sport = 'baseball_mlb'
   } else if (textLower.includes('nhl')) {
     sport = 'icehockey_nhl'
+  } else if (
+    textLower.includes('ncaab') ||
+    textLower.includes('cbb') ||
+    textLower.includes('college basketball')
+  ) {
+    sport = 'basketball_ncaab'
   } else if (textLower.includes('nba')) {
     sport = 'basketball_nba'
   }

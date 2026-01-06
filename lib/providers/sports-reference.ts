@@ -413,6 +413,11 @@ const nbaSeasonYear = () => {
   const startYear = now.getUTCMonth() >= 8 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
   return startYear + 1
 }
+const nhlSeasonYear = () => {
+  const now = new Date()
+  const startYear = now.getUTCMonth() >= 8 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
+  return startYear + 1
+}
 
 const nflSeasonYear = () => {
   const now = new Date()
@@ -620,13 +625,13 @@ export const getSportsReferenceTeamStats = async (sportKey: string): Promise<Ref
       const losses = pickStat(row, 'losses') || pickStat(row, 'l')
       const winPct = pickStat(row, 'win_loss_pct') || pickStat(row, 'win_pct')
       const stats: Record<string, number | string | null> = {
-        PTS_PER_G: pickStat(row, 'pts_per_g') ?? pickStat(row, 'pts'),
-        OPP_PTS_PER_G: pickStat(row, 'opp_pts_per_g') ?? pickStat(row, 'opp_pts'),
-        FG_PCT: pickStat(row, 'fg_pct'),
-        FG3_PCT: pickStat(row, 'fg3_pct'),
-        FT_PCT: pickStat(row, 'ft_pct'),
-        TRB_PER_G: pickStat(row, 'trb_per_g') ?? pickStat(row, 'trb'),
-        AST_PER_G: pickStat(row, 'ast_per_g') ?? pickStat(row, 'ast'),
+        PTS_PER_G: toFloat(pickStat(row, 'pts_per_g') ?? pickStat(row, 'pts')),
+        OPP_PTS_PER_G: toFloat(pickStat(row, 'opp_pts_per_g') ?? pickStat(row, 'opp_pts')),
+        FG_PCT: toFloat(pickStat(row, 'fg_pct')),
+        FG3_PCT: toFloat(pickStat(row, 'fg3_pct')),
+        FT_PCT: toFloat(pickStat(row, 'ft_pct')),
+        TRB_PER_G: toFloat(pickStat(row, 'trb_per_g') ?? pickStat(row, 'trb')),
+        AST_PER_G: toFloat(pickStat(row, 'ast_per_g') ?? pickStat(row, 'ast')),
       }
       teams.push({
         team: teamName,
@@ -656,7 +661,7 @@ export const getSportsReferenceTeamStats = async (sportKey: string): Promise<Ref
           ts_pct: 'TS_PCT',
         }
         for (const [src, dest] of Object.entries(addMap)) {
-          const val = pickStat(row, src)
+          const val = toFloat(pickStat(row, src))
           if (val != null) target.stats[dest] = val
         }
       }
@@ -669,6 +674,60 @@ export const getSportsReferenceTeamStats = async (sportKey: string): Promise<Ref
         if (s.l != null) t.losses = s.l
         if (s.pct != null) t.winPct = s.pct
       }
+    }
+    return teams
+  }
+  if (sportKey === 'icehockey_nhl') {
+    const season = nhlSeasonYear()
+    const trySeasons = [season, season - 1]
+    let html: string | null = null
+    let seasonUsed: number | null = null
+    for (const yr of trySeasons) {
+      const url = `https://www.hockey-reference.com/leagues/NHL_${yr}.html`
+      html = await fetchHtml(url)
+      if (html) {
+        seasonUsed = yr
+        break
+      }
+    }
+    if (!html || !seasonUsed) return null
+    const statsTable = extractTable(html, 'stats')
+    if (!statsTable) return null
+    const rows = Array.from(
+      statsTable.matchAll(
+        /<tr[^>]*>\s*<th[^>]+data-stat="team_name"[^>]*>[\s\S]*?<\/tr>/g
+      )
+    ).map((m) => m[0])
+    const teams: ReferenceTeamStats[] = []
+    for (const row of rows) {
+      const teamName = pickStat(row, 'team_name') || pickStat(row, 'team')
+      if (!teamName || typeof teamName !== 'string') continue
+      if (/division|conference|league/i.test(teamName)) continue
+      const cleanedTeamName = teamName.replace(/[*+]/g, '').trim()
+      const wins = toFloat(pickStat(row, 'wins'))
+      const losses = toFloat(pickStat(row, 'losses'))
+      const winPct = toFloat(pickStat(row, 'points_pct'))
+      const stats: Record<string, number | string | null> = {
+        gamesPlayed: pickStat(row, 'games'),
+        goalsFor: pickStat(row, 'goals'),
+        goalsAgainst: pickStat(row, 'goals_against'),
+        goalsForPerGame: pickStat(row, 'goals_for_per_game'),
+        goalsAgainstPerGame: pickStat(row, 'goals_against_per_game'),
+        shotsForPerGame: pickStat(row, 'shots'),
+        shotsAgainstPerGame: pickStat(row, 'shots_against'),
+        powerPlayPct: pickStat(row, 'power_play_pct'),
+        penaltyKillPct: pickStat(row, 'pen_kill_pct'),
+        pointsPct: pickStat(row, 'points_pct'),
+      }
+      teams.push({
+        team: cleanedTeamName,
+        wins: wins ?? undefined,
+        losses: losses ?? undefined,
+        winPct: winPct ?? undefined,
+        stats,
+        sport: sportKey,
+        season: String(seasonUsed),
+      })
     }
     return teams
   }

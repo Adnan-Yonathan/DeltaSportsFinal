@@ -3645,34 +3645,6 @@ export async function POST(req: NextRequest) {
         console.log('[BEST BET] Matchup analysis error, continuing:', err)
       }
 
-      // Get market lines
-      const spreadMarket = oddsGame.bookmakers?.[0]?.markets?.find((m) => m.key === 'spreads')
-      const totalMarket = oddsGame.bookmakers?.[0]?.markets?.find((m) => m.key === 'totals')
-      const marketSpread = spreadMarket?.outcomes?.find((o: any) =>
-        normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(oddsGame.home_team))
-      )?.point ?? null
-      const marketTotal = totalMarket?.outcomes?.find((o: any) => o?.name === 'Over')?.point ?? null
-
-      // Get model projections
-      try {
-        const recommendations = await getGameRecommendations(
-          matchupTeams[0],
-          matchupTeams[1],
-          'all',
-          resolvedSport,
-          { marketSpread: marketSpread ?? undefined, marketTotal: marketTotal ?? undefined },
-          matchupAnalysis || undefined
-        )
-        if (recommendations.length > 0) {
-          const spreadRec = recommendations.find((r) => r.type === 'spread')
-          const totalRec = recommendations.find((r) => r.type === 'total')
-          if (spreadRec?.targetLine != null) modelProjection.spread = spreadRec.targetLine
-          if (totalRec?.targetLine != null) modelProjection.total = totalRec.targetLine
-        }
-      } catch (err) {
-        console.log('[BEST BET] Model projection error, continuing:', err)
-      }
-
       // Get betting splits
       let splits: any = null
       try {
@@ -3697,7 +3669,155 @@ export async function POST(req: NextRequest) {
         if (value == null || !Number.isFinite(value)) return null
         return value > 0 ? `+${value}` : `${value}`
       }
-
+      const normalizeBookKey = (book: { key?: string; title?: string }) =>
+        (book.key || book.title || '').toLowerCase()
+      const isPredictionMarketBook = (book: { key?: string; title?: string }) => {
+        const key = normalizeBookKey(book)
+        return key.includes('polymarket') || key.includes('kalshi')
+      }
+      type BestOutcome = { point?: number | null; price?: number | null; book?: string }
+      type BestMarketSet = {
+        moneyline: { home?: BestOutcome; away?: BestOutcome }
+        spread: { home?: BestOutcome; away?: BestOutcome }
+        total: { over?: BestOutcome; under?: BestOutcome }
+      }
+      const chooseBetter = (
+        current: BestOutcome | undefined,
+        candidate: BestOutcome,
+        opts: { preferHigherPoint?: boolean; preferLowerPoint?: boolean }
+      ) => {
+        if (!current) return candidate
+        if (candidate.price != null && (current.price == null || candidate.price > current.price)) {
+          return candidate
+        }
+        if (
+          candidate.price != null &&
+          current.price != null &&
+          candidate.price === current.price &&
+          candidate.point != null &&
+          current.point != null
+        ) {
+          if (opts.preferLowerPoint && candidate.point < current.point) return candidate
+          if (opts.preferHigherPoint && candidate.point > current.point) return candidate
+        }
+        if (current.price == null && candidate.price != null) return candidate
+        if (current.price == null && candidate.price == null) {
+          if (candidate.point != null && current.point == null) return candidate
+          if (
+            candidate.point != null &&
+            current.point != null &&
+            opts.preferHigherPoint &&
+            candidate.point > current.point
+          ) {
+            return candidate
+          }
+          if (
+            candidate.point != null &&
+            current.point != null &&
+            opts.preferLowerPoint &&
+            candidate.point < current.point
+          ) {
+            return candidate
+          }
+        }
+        return current
+      }
+      const getBestMarkets = (
+        bookmakers: OddsGame['bookmakers'] | undefined,
+        homeTeam: string,
+        awayTeam: string
+      ): { sportsbook: BestMarketSet; prediction: BestMarketSet } => {
+        const init = (): BestMarketSet => ({
+          moneyline: {},
+          spread: {},
+          total: {},
+        })
+        const result = { sportsbook: init(), prediction: init() }
+        const books = bookmakers ?? []
+        for (const book of books) {
+          const target = isPredictionMarketBook(book)
+            ? result.prediction
+            : result.sportsbook
+          const bookName = book.title || book.key || 'Book'
+          const markets = book.markets || []
+          const h2h = markets.find((m) => m.key === 'h2h')
+          const spreads = markets.find((m) => m.key === 'spreads')
+          const totals = markets.find((m) => m.key === 'totals')
+          if (h2h?.outcomes?.length) {
+            const home = h2h.outcomes.find((o) =>
+              normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam))
+            )
+            const away = h2h.outcomes.find((o) =>
+              normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(awayTeam))
+            )
+            if (home?.price != null) {
+              target.moneyline.home = chooseBetter(
+                target.moneyline.home,
+                { price: home.price, book: bookName },
+                {}
+              )
+            }
+            if (away?.price != null) {
+              target.moneyline.away = chooseBetter(
+                target.moneyline.away,
+                { price: away.price, book: bookName },
+                {}
+              )
+            }
+          }
+          if (spreads?.outcomes?.length) {
+            const home = spreads.outcomes.find((o) =>
+              normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam))
+            )
+            const away = spreads.outcomes.find((o) =>
+              normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(awayTeam))
+            )
+            if (home?.point != null) {
+              target.spread.home = chooseBetter(
+                target.spread.home,
+                { point: home.point, price: home.price, book: bookName },
+                { preferHigherPoint: true }
+              )
+            }
+            if (away?.point != null) {
+              target.spread.away = chooseBetter(
+                target.spread.away,
+                { point: away.point, price: away.price, book: bookName },
+                { preferHigherPoint: true }
+              )
+            }
+          }
+          if (totals?.outcomes?.length) {
+            const over = totals.outcomes.find((o) => o?.name === 'Over')
+            const under = totals.outcomes.find((o) => o?.name === 'Under')
+            if (over?.price != null || over?.point != null) {
+              target.total.over = chooseBetter(
+                target.total.over,
+                { point: over?.point, price: over?.price, book: bookName },
+                { preferLowerPoint: true }
+              )
+            }
+            if (under?.price != null || under?.point != null) {
+              target.total.under = chooseBetter(
+                target.total.under,
+                { point: under?.point, price: under?.price, book: bookName },
+                { preferHigherPoint: true }
+              )
+            }
+          }
+        }
+        return result
+      }
+      const formatSpreadLabel = (point?: number | null) =>
+        point == null ? 'n/a' : point > 0 ? `+${point}` : `${point}`
+      const formatOutcomeLabel = (label: string, outcome?: BestOutcome) => {
+        if (!outcome) return `${label} n/a`
+        const odds = formatOdds(outcome.price) || 'n/a'
+        const point =
+          outcome.point != null ? ` ${formatSpreadLabel(outcome.point)}` : ''
+        const book = outcome.book ? ` (${outcome.book})` : ''
+        return `${label}${point} ${odds}${book}`.trim()
+      }
       const formatSplitPct = (value?: number | null): string => {
         if (value == null || !Number.isFinite(value)) return 'n/a'
         const pct = value > 1 ? value : value * 100
@@ -3758,31 +3878,57 @@ export async function POST(req: NextRequest) {
         return parts.length ? `**${opts.label}:** ${parts.join(' | ')}` : null
       }
 
-      const getBestMoneyline = (
-        game: OddsGame | undefined,
-        side: 'home' | 'away'
-      ): { book: string; odds: number } | null => {
-        if (!game?.bookmakers?.length) return null
-        const target = normalizeTeamKey(side === 'home' ? game.home_team : game.away_team)
-        let best: { book: string; odds: number } | null = null
-        for (const book of game.bookmakers) {
-          const market = book.markets?.find((m) => m.key === 'h2h')
-          if (!market?.outcomes?.length) continue
-          const outcome = market.outcomes.find((o: any) => {
-            const name = normalizeTeamKey(o?.name || '')
-            return name === target || name.includes(target) || target.includes(name)
-          })
-          const odds = Number(outcome?.price)
-          if (!Number.isFinite(odds)) continue
-          if (!best || odds > best.odds) {
-            best = { book: book.title || book.key || 'book', odds }
-          }
-        }
-        return best
-      }
+      const bestMarkets = getBestMarkets(
+        oddsGame.bookmakers,
+        oddsGame.home_team,
+        oddsGame.away_team
+      )
+      const marketSpreadSource = bestMarkets.sportsbook.spread.home
+        ? 'Sportsbook'
+        : bestMarkets.prediction.spread.home
+          ? 'Prediction'
+          : 'Market'
+      const marketTotalSource = bestMarkets.sportsbook.total.over
+        ? 'Sportsbook'
+        : bestMarkets.prediction.total.over
+          ? 'Prediction'
+          : 'Market'
+      const marketSpread =
+        bestMarkets.sportsbook.spread.home?.point ??
+        bestMarkets.prediction.spread.home?.point ??
+        null
+      const marketTotal =
+        bestMarkets.sportsbook.total.over?.point ??
+        bestMarkets.prediction.total.over?.point ??
+        null
+      const marketSpreadOdds =
+        bestMarkets.sportsbook.spread.home?.price ??
+        bestMarkets.prediction.spread.home?.price ??
+        null
+      const marketTotalOdds =
+        bestMarkets.sportsbook.total.over?.price ??
+        bestMarkets.prediction.total.over?.price ??
+        null
 
-      const bestHomeML = getBestMoneyline(oddsGame, 'home')
-      const bestAwayML = getBestMoneyline(oddsGame, 'away')
+      // Get model projections
+      try {
+        const recommendations = await getGameRecommendations(
+          matchupTeams[0],
+          matchupTeams[1],
+          'all',
+          resolvedSport,
+          { marketSpread: marketSpread ?? undefined, marketTotal: marketTotal ?? undefined },
+          matchupAnalysis || undefined
+        )
+        if (recommendations.length > 0) {
+          const spreadRec = recommendations.find((r) => r.type === 'spread')
+          const totalRec = recommendations.find((r) => r.type === 'total')
+          if (spreadRec?.targetLine != null) modelProjection.spread = spreadRec.targetLine
+          if (totalRec?.targetLine != null) modelProjection.total = totalRec.targetLine
+        }
+      } catch (err) {
+        console.log('[BEST BET] Model projection error, continuing:', err)
+      }
 
       // Build response
       const lines: string[] = []
@@ -3790,11 +3936,49 @@ export async function POST(req: NextRequest) {
       lines.push(`**${formatLeagueLabel(resolvedSport)}** | ${new Date(oddsGame.commence_time).toLocaleString()}`)
       lines.push('')
 
+      lines.push('### Current Lines')
+      if (oddsGame.bookmakers?.length) {
+        if (bestMarkets.sportsbook.moneyline.home || bestMarkets.sportsbook.moneyline.away) {
+          lines.push(
+            `- **ML (Sportsbook best):** ${formatOutcomeLabel(oddsGame.away_team, bestMarkets.sportsbook.moneyline.away)} / ${formatOutcomeLabel(oddsGame.home_team, bestMarkets.sportsbook.moneyline.home)}`
+          )
+        }
+        if (bestMarkets.prediction.moneyline.home || bestMarkets.prediction.moneyline.away) {
+          lines.push(
+            `- **ML (Prediction best):** ${formatOutcomeLabel(oddsGame.away_team, bestMarkets.prediction.moneyline.away)} / ${formatOutcomeLabel(oddsGame.home_team, bestMarkets.prediction.moneyline.home)}`
+          )
+        }
+        if (bestMarkets.sportsbook.spread.home || bestMarkets.sportsbook.spread.away) {
+          lines.push(
+            `- **Spread (Sportsbook best):** ${formatOutcomeLabel(oddsGame.away_team, bestMarkets.sportsbook.spread.away)} / ${formatOutcomeLabel(oddsGame.home_team, bestMarkets.sportsbook.spread.home)}`
+          )
+        }
+        if (bestMarkets.prediction.spread.home || bestMarkets.prediction.spread.away) {
+          lines.push(
+            `- **Spread (Prediction best):** ${formatOutcomeLabel(oddsGame.away_team, bestMarkets.prediction.spread.away)} / ${formatOutcomeLabel(oddsGame.home_team, bestMarkets.prediction.spread.home)}`
+          )
+        }
+        if (bestMarkets.sportsbook.total.over || bestMarkets.sportsbook.total.under) {
+          lines.push(
+            `- **Total (Sportsbook best):** ${formatOutcomeLabel('Over', bestMarkets.sportsbook.total.over)} / ${formatOutcomeLabel('Under', bestMarkets.sportsbook.total.under)}`
+          )
+        }
+        if (bestMarkets.prediction.total.over || bestMarkets.prediction.total.under) {
+          lines.push(
+            `- **Total (Prediction best):** ${formatOutcomeLabel('Over', bestMarkets.prediction.total.over)} / ${formatOutcomeLabel('Under', bestMarkets.prediction.total.under)}`
+          )
+        }
+      } else {
+        lines.push('- Lines currently unavailable')
+      }
+      lines.push('')
+
       // Spread section with model projection
       lines.push('### Spread')
       if (marketSpread != null) {
         const spreadStr = marketSpread > 0 ? `+${marketSpread}` : `${marketSpread}`
-        lines.push(`- **Market:** ${oddsGame.home_team} ${spreadStr}`)
+        const spreadOdds = formatOdds(marketSpreadOdds) || 'n/a'
+        lines.push(`- **Market (${marketSpreadSource} best):** ${oddsGame.home_team} ${spreadStr} (${spreadOdds})`)
         if (modelProjection.spread != null) {
           const modelStr = modelProjection.spread > 0 ? `+${modelProjection.spread.toFixed(1)}` : modelProjection.spread.toFixed(1)
           const gap = Math.abs(modelProjection.spread - marketSpread)
@@ -3821,7 +4005,8 @@ export async function POST(req: NextRequest) {
       // Total section with model projection
       lines.push('### Total')
       if (marketTotal != null) {
-        lines.push(`- **Market:** ${marketTotal}`)
+        const totalOdds = formatOdds(marketTotalOdds) || 'n/a'
+        lines.push(`- **Market (${marketTotalSource} best):** ${marketTotal} (${totalOdds})`)
         if (modelProjection.total != null) {
           const gap = Math.abs(modelProjection.total - marketTotal)
           const direction = modelProjection.total > marketTotal ? 'Over' : 'Under'
@@ -3871,16 +4056,6 @@ export async function POST(req: NextRequest) {
 
       lines.push('### Best Bet')
       lines.push(`- ${bestBet}`)
-      lines.push('')
-
-      // Moneyline section
-      lines.push('### Moneyline')
-      if (bestHomeML || bestAwayML) {
-        if (bestHomeML) lines.push(`- ${oddsGame.home_team}: ${formatOdds(bestHomeML.odds)} (${bestHomeML.book})`)
-        if (bestAwayML) lines.push(`- ${oddsGame.away_team}: ${formatOdds(bestAwayML.odds)} (${bestAwayML.book})`)
-      } else {
-        lines.push('- Moneyline odds unavailable')
-      }
       lines.push('')
 
       // Betting splits section
@@ -7047,7 +7222,9 @@ export async function POST(req: NextRequest) {
       const ml = msgLower
       const sportsList: string[] = []
       const push = (k: string) => { if (!sportsList.includes(k)) sportsList.push(k) }
-      if (/nba|basketball/.test(ml)) push('basketball_nba')
+      const hasCollegeBasketball =
+        /ncaab|college\s+basketball|college\s+hoops|cbb|ncaa\s+basketball/.test(ml)
+      if (!hasCollegeBasketball && /nba|basketball/.test(ml)) push('basketball_nba')
       if (/nfl|football/.test(ml)) push('americanfootball_nfl')
       if (/nhl|hockey/.test(ml)) push('icehockey_nhl')
       if (/mlb|baseball/.test(ml)) push('baseball_mlb')
@@ -8374,11 +8551,8 @@ ${statsEnrichment}
         let homeTeam = teamB
         let awayTeam = teamA
         let gameTimeLabel: string | null = null
-        let bookName: string | null = null
         let marketSpread: number | null = null
         let marketTotal: number | null = null
-        let marketMlHome: number | null = null
-        let marketMlAway: number | null = null
 
         const formatOdds = (value?: number | null): string | null => {
           if (value == null || !Number.isFinite(value)) return null
@@ -8435,35 +8609,18 @@ ${statsEnrichment}
               hour: 'numeric',
               minute: '2-digit',
             })
-            if (matchingGame.bookmakers?.length) {
-              const book = matchingGame.bookmakers[0]
-              bookName = book.title || book.key || 'Book'
-
-              const mlMarket = book.markets?.find((m: any) => m.key === 'h2h')
-              if (mlMarket?.outcomes?.length) {
-                marketMlHome = mlMarket.outcomes.find((o: any) =>
-                  normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam))
-                )?.price ?? null
-                marketMlAway = mlMarket.outcomes.find((o: any) =>
-                  normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(awayTeam))
-                )?.price ?? null
-              }
-
-              const spreadMarket = book.markets?.find((m: any) => m.key === 'spreads')
-              if (spreadMarket?.outcomes?.length) {
-                marketSpread = spreadMarket.outcomes.find((o: any) =>
-                  normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam))
-                )?.point ?? null
-              }
-
-              const totalMarket = book.markets?.find((m: any) => m.key === 'totals')
-              if (totalMarket?.outcomes?.length) {
-                marketTotal = totalMarket.outcomes.find((o: any) => o?.name === 'Over')?.point ?? null
-              }
-            }
-          } else {
-            console.log('[EFFICIENT_ANALYSIS] No matching game found in odds')
+          if (matchingGame.bookmakers?.length) {
+            const best = getBestMarkets(
+              matchingGame.bookmakers,
+              homeTeam,
+              awayTeam
+            )
+            marketSpread = best.sportsbook.spread.home?.point ?? null
+            marketTotal = best.sportsbook.total.over?.point ?? null
           }
+        } else {
+          console.log('[EFFICIENT_ANALYSIS] No matching game found in odds')
+        }
 
           // 2. Get ATS data (efficient - doesn't trigger full team fetch)
           const atsPromises = teams.slice(0, 2).map(async (team) => {
@@ -8661,16 +8818,42 @@ ${statsEnrichment}
           outputLines.push('')
 
           outputLines.push('### Current Lines')
-          if (bookName) {
-            outputLines.push(`**ML:** ${awayTeam} ${formatOdds(marketMlAway) || 'n/a'} / ${homeTeam} ${formatOdds(marketMlHome) || 'n/a'}`)
-            if (marketSpread != null) {
-              const spreadStr = marketSpread > 0 ? `+${marketSpread}` : `${marketSpread}`
-              outputLines.push(`**Spread:** ${awayTeam} / ${homeTeam} ${spreadStr}`)
-            } else {
-              outputLines.push('**Spread:** n/a')
+          if (matchingGame?.bookmakers?.length) {
+            const best = getBestMarkets(
+              matchingGame.bookmakers,
+              homeTeam,
+              awayTeam
+            )
+            if (best.sportsbook.moneyline.home || best.sportsbook.moneyline.away) {
+              outputLines.push(
+                `**ML (Sportsbook best):** ${formatOutcomeLabel(awayTeam, best.sportsbook.moneyline.away)} / ${formatOutcomeLabel(homeTeam, best.sportsbook.moneyline.home)}`
+              )
             }
-            outputLines.push(`**Total:** ${marketTotal ?? 'n/a'}`)
-            outputLines.push(`_via ${bookName}_`)
+            if (best.prediction.moneyline.home || best.prediction.moneyline.away) {
+              outputLines.push(
+                `**ML (Prediction best):** ${formatOutcomeLabel(awayTeam, best.prediction.moneyline.away)} / ${formatOutcomeLabel(homeTeam, best.prediction.moneyline.home)}`
+              )
+            }
+            if (best.sportsbook.spread.home || best.sportsbook.spread.away) {
+              outputLines.push(
+                `**Spread (Sportsbook best):** ${formatOutcomeLabel(awayTeam, best.sportsbook.spread.away)} / ${formatOutcomeLabel(homeTeam, best.sportsbook.spread.home)}`
+              )
+            }
+            if (best.prediction.spread.home || best.prediction.spread.away) {
+              outputLines.push(
+                `**Spread (Prediction best):** ${formatOutcomeLabel(awayTeam, best.prediction.spread.away)} / ${formatOutcomeLabel(homeTeam, best.prediction.spread.home)}`
+              )
+            }
+            if (best.sportsbook.total.over || best.sportsbook.total.under) {
+              outputLines.push(
+                `**Total (Sportsbook best):** ${formatOutcomeLabel('Over', best.sportsbook.total.over)} / ${formatOutcomeLabel('Under', best.sportsbook.total.under)}`
+              )
+            }
+            if (best.prediction.total.over || best.prediction.total.under) {
+              outputLines.push(
+                `**Total (Prediction best):** ${formatOutcomeLabel('Over', best.prediction.total.over)} / ${formatOutcomeLabel('Under', best.prediction.total.under)}`
+              )
+            }
           } else {
             outputLines.push('Lines currently unavailable')
           }
@@ -8678,18 +8861,22 @@ ${statsEnrichment}
 
           outputLines.push('### Model Projections')
           if (marketSpread != null || modelProjection.spread != null) {
-            const spreadStr = marketSpread != null ? (marketSpread > 0 ? `+${marketSpread}` : `${marketSpread}`) : 'n/a'
-            outputLines.push(`**Spread:** Market ${homeTeam} ${spreadStr}`)
+            const spreadStr = marketSpread != null ? formatSpreadLabel(marketSpread) : 'n/a'
+            const modelStr =
+              modelProjection.spread != null
+                ? formatSpreadLabel(Number(modelProjection.spread.toFixed(1)))
+                : 'n/a'
+            const gap = marketSpread != null && modelProjection.spread != null
+              ? Math.abs(modelProjection.spread - marketSpread)
+              : 0
+            outputLines.push(`**Spread:** Market ${spreadStr} ${homeTeam} | Model ${modelStr} ${homeTeam} | Gap ${gap.toFixed(1)} pts`)
             if (modelProjection.spread != null) {
-              const modelStr = modelProjection.spread > 0 ? `+${modelProjection.spread.toFixed(1)}` : modelProjection.spread.toFixed(1)
-              const gap = marketSpread != null ? Math.abs(modelProjection.spread - marketSpread) : 0
               const spreadEdge = evaluateLineEdge({
                 marketType: 'spread',
                 line: marketSpread,
                 targetLine: modelProjection.spread,
                 supportingSignals,
               })
-              outputLines.push(`- Model: ${homeTeam} ${modelStr} (${gap.toFixed(1)} pts gap)`)
               outputLines.push(`- Edge: **${spreadEdge.verdict}** (${spreadEdge.confidence} confidence)`)
             } else {
               outputLines.push('- Model projection unavailable')
@@ -8697,16 +8884,27 @@ ${statsEnrichment}
           }
 
           if (marketTotal != null || modelProjection.total != null) {
-            outputLines.push(`**Total:** Market ${marketTotal ?? 'n/a'}`)
+            const totalStr = marketTotal != null ? marketTotal.toFixed(1) : 'n/a'
+            const modelStr =
+              modelProjection.total != null ? modelProjection.total.toFixed(1) : 'n/a'
+            const gap =
+              marketTotal != null && modelProjection.total != null
+                ? Math.abs(modelProjection.total - marketTotal)
+                : 0
+            const direction =
+              marketTotal != null && modelProjection.total != null
+                ? modelProjection.total > marketTotal
+                  ? 'OVER'
+                  : 'UNDER'
+                : ''
+            outputLines.push(`**Total:** Market ${totalStr} | Model ${modelStr} | Gap ${gap.toFixed(1)} pts${direction ? ` → ${direction}` : ''}`)
             if (modelProjection.total != null) {
-              const gap = marketTotal != null ? Math.abs(modelProjection.total - marketTotal) : 0
               const totalEdge = evaluateLineEdge({
                 marketType: 'total',
                 line: marketTotal,
                 targetLine: modelProjection.total,
                 supportingSignals,
               })
-              outputLines.push(`- Model: ${modelProjection.total.toFixed(1)} (${gap.toFixed(1)} pts gap)`)
               outputLines.push(`- Edge: **${totalEdge.verdict}** (${totalEdge.confidence} confidence)`)
             } else {
               outputLines.push('- Model projection unavailable')
@@ -9195,13 +9393,13 @@ ${statsEnrichment}
               matchesGame(game.home_team, game.away_team, teamA, teamB)
             )
             if (oddsGame) {
-              // Extract market lines
-              const spreadMarket = oddsGame.bookmakers?.[0]?.markets?.find((m) => m.key === 'spreads')
-              const totalMarket = oddsGame.bookmakers?.[0]?.markets?.find((m) => m.key === 'totals')
-              marketSpread = spreadMarket?.outcomes?.find((o: any) =>
-                normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(oddsGame!.home_team))
-              )?.point ?? null
-              marketTotal = totalMarket?.outcomes?.find((o: any) => o?.name === 'Over')?.point ?? null
+              const best = getBestMarkets(
+                oddsGame.bookmakers,
+                oddsGame.home_team,
+                oddsGame.away_team
+              )
+              marketSpread = best.sportsbook.spread.home?.point ?? null
+              marketTotal = best.sportsbook.total.over?.point ?? null
             }
           } catch (err) {
             console.log('[ANALYZE_BET_MARKET] Odds fetch error:', err)
@@ -9221,35 +9419,37 @@ ${statsEnrichment}
           // 2. Current Lines section
           outputLines.push('### Current Lines')
           if (oddsGame?.bookmakers?.length) {
-            const book = oddsGame.bookmakers[0]
-            const bookName = book.title || book.key || 'Book'
-
-            // Moneyline
-            const mlMarket = book.markets?.find((m) => m.key === 'h2h')
-            if (mlMarket?.outcomes) {
-              const homeML = mlMarket.outcomes.find((o: any) => normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam)))?.price
-              const awayML = mlMarket.outcomes.find((o: any) => normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(awayTeam)))?.price
-              outputLines.push(`**ML:** ${awayTeam} ${formatOdds(awayML) || 'n/a'} / ${homeTeam} ${formatOdds(homeML) || 'n/a'}`)
+            const best = getBestMarkets(oddsGame.bookmakers, homeTeam, awayTeam)
+            if (best.sportsbook.moneyline.home || best.sportsbook.moneyline.away) {
+              outputLines.push(
+                `**ML (Sportsbook best):** ${formatOutcomeLabel(awayTeam, best.sportsbook.moneyline.away)} / ${formatOutcomeLabel(homeTeam, best.sportsbook.moneyline.home)}`
+              )
             }
-
-            // Spread
-            const spreadMkt = book.markets?.find((m) => m.key === 'spreads')
-            if (spreadMkt?.outcomes) {
-              const homeSpread = spreadMkt.outcomes.find((o: any) => normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam)))
-              const awaySpread = spreadMkt.outcomes.find((o: any) => normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(awayTeam)))
-              const homeSpreadStr = homeSpread?.point != null ? (homeSpread.point > 0 ? `+${homeSpread.point}` : `${homeSpread.point}`) : 'n/a'
-              const awaySpreadStr = awaySpread?.point != null ? (awaySpread.point > 0 ? `+${awaySpread.point}` : `${awaySpread.point}`) : 'n/a'
-              outputLines.push(`**Spread:** ${awayTeam} ${awaySpreadStr} (${formatOdds(awaySpread?.price)}) / ${homeTeam} ${homeSpreadStr} (${formatOdds(homeSpread?.price)})`)
+            if (best.prediction.moneyline.home || best.prediction.moneyline.away) {
+              outputLines.push(
+                `**ML (Prediction best):** ${formatOutcomeLabel(awayTeam, best.prediction.moneyline.away)} / ${formatOutcomeLabel(homeTeam, best.prediction.moneyline.home)}`
+              )
             }
-
-            // Total
-            const totalMkt = book.markets?.find((m) => m.key === 'totals')
-            if (totalMkt?.outcomes) {
-              const over = totalMkt.outcomes.find((o: any) => o?.name === 'Over')
-              const under = totalMkt.outcomes.find((o: any) => o?.name === 'Under')
-              outputLines.push(`**Total:** Over ${over?.point || 'n/a'} (${formatOdds(over?.price)}) / Under ${under?.point || 'n/a'} (${formatOdds(under?.price)})`)
+            if (best.sportsbook.spread.home || best.sportsbook.spread.away) {
+              outputLines.push(
+                `**Spread (Sportsbook best):** ${formatOutcomeLabel(awayTeam, best.sportsbook.spread.away)} / ${formatOutcomeLabel(homeTeam, best.sportsbook.spread.home)}`
+              )
             }
-            outputLines.push(`_via ${bookName}_`)
+            if (best.prediction.spread.home || best.prediction.spread.away) {
+              outputLines.push(
+                `**Spread (Prediction best):** ${formatOutcomeLabel(awayTeam, best.prediction.spread.away)} / ${formatOutcomeLabel(homeTeam, best.prediction.spread.home)}`
+              )
+            }
+            if (best.sportsbook.total.over || best.sportsbook.total.under) {
+              outputLines.push(
+                `**Total (Sportsbook best):** ${formatOutcomeLabel('Over', best.sportsbook.total.over)} / ${formatOutcomeLabel('Under', best.sportsbook.total.under)}`
+              )
+            }
+            if (best.prediction.total.over || best.prediction.total.under) {
+              outputLines.push(
+                `**Total (Prediction best):** ${formatOutcomeLabel('Over', best.prediction.total.over)} / ${formatOutcomeLabel('Under', best.prediction.total.under)}`
+              )
+            }
           } else {
             outputLines.push('Lines currently unavailable')
           }
@@ -9287,18 +9487,23 @@ ${statsEnrichment}
           // 5. Model Projections section with edge
           outputLines.push('### Model Projections')
           if (marketSpread != null || modelProjection.spread != null) {
-            const spreadStr = marketSpread != null ? (marketSpread > 0 ? `+${marketSpread}` : `${marketSpread}`) : 'n/a'
-            outputLines.push(`**Spread:** Market ${homeTeam} ${spreadStr}`)
+            const spreadStr = marketSpread != null ? formatSpreadLabel(marketSpread) : 'n/a'
+            const modelStr =
+              modelProjection.spread != null
+                ? formatSpreadLabel(Number(modelProjection.spread.toFixed(1)))
+                : 'n/a'
+            const gap =
+              marketSpread != null && modelProjection.spread != null
+                ? Math.abs(modelProjection.spread - marketSpread)
+                : 0
+            outputLines.push(`**Spread:** Market ${spreadStr} ${homeTeam} | Model ${modelStr} ${homeTeam} | Gap ${gap.toFixed(1)} pts`)
             if (modelProjection.spread != null) {
-              const modelStr = modelProjection.spread > 0 ? `+${modelProjection.spread.toFixed(1)}` : modelProjection.spread.toFixed(1)
-              const gap = marketSpread != null ? Math.abs(modelProjection.spread - marketSpread) : 0
               const spreadEdge = evaluateLineEdge({
                 marketType: 'spread',
                 line: marketSpread,
                 targetLine: modelProjection.spread,
                 supportingSignals: 0
               })
-              outputLines.push(`- Model: ${homeTeam} ${modelStr} (${gap.toFixed(1)} pts gap)`)
               outputLines.push(`- Edge: **${spreadEdge.verdict}** (${spreadEdge.confidence} confidence)`)
               if (gap >= 2 && marketSpread != null) {
                 const lean = modelProjection.spread < marketSpread ? homeTeam : awayTeam
@@ -9311,17 +9516,27 @@ ${statsEnrichment}
           }
 
           if (marketTotal != null || modelProjection.total != null) {
-            outputLines.push(`**Total:** Market ${marketTotal ?? 'n/a'}`)
+            const totalStr = marketTotal != null ? marketTotal.toFixed(1) : 'n/a'
+            const modelStr =
+              modelProjection.total != null ? modelProjection.total.toFixed(1) : 'n/a'
+            const gap =
+              marketTotal != null && modelProjection.total != null
+                ? Math.abs(modelProjection.total - marketTotal)
+                : 0
+            const direction =
+              marketTotal != null && modelProjection.total != null
+                ? modelProjection.total > marketTotal
+                  ? 'OVER'
+                  : 'UNDER'
+                : ''
+            outputLines.push(`**Total:** Market ${totalStr} | Model ${modelStr} | Gap ${gap.toFixed(1)} pts${direction ? ` → ${direction}` : ''}`)
             if (modelProjection.total != null) {
-              const gap = marketTotal != null ? Math.abs(modelProjection.total - marketTotal) : 0
-              const direction = marketTotal != null && modelProjection.total > marketTotal ? 'Over' : 'Under'
               const totalEdge = evaluateLineEdge({
                 marketType: 'total',
                 line: marketTotal,
                 targetLine: modelProjection.total,
                 supportingSignals: 0
               })
-              outputLines.push(`- Model: ${modelProjection.total.toFixed(1)} (${gap.toFixed(1)} pts gap)`)
               outputLines.push(`- Edge: **${totalEdge.verdict}** (${totalEdge.confidence} confidence)`)
               if (gap >= 3 && marketTotal != null) {
                 outputLines.push(`- Lean: **${direction}** (${gap.toFixed(1)} pts of value)`)
@@ -9911,27 +10126,195 @@ ${statsEnrichment}
             })
 
             if (matchingGame && matchingGame.bookmakers?.length > 0) {
-              const book = matchingGame.bookmakers[0]
-              const h2h = book.markets?.find((m: any) => m.key === 'h2h')
-              const spreads = book.markets?.find((m: any) => m.key === 'spreads')
-              const totals = book.markets?.find((m: any) => m.key === 'totals')
+              const localFormatOdds = (value?: number | null): string | null => {
+                if (value == null || !Number.isFinite(value)) return null
+                return value > 0 ? `+${value}` : `${value}`
+              }
+              const localNormalizeBookKey = (book: { key?: string; title?: string }) =>
+                (book.key || book.title || '').toLowerCase()
+              const localIsPredictionMarketBook = (book: { key?: string; title?: string }) => {
+                const key = localNormalizeBookKey(book)
+                return key.includes('polymarket') || key.includes('kalshi')
+              }
+              type LocalBestOutcome = { point?: number | null; price?: number | null; book?: string }
+              type LocalBestMarketSet = {
+                moneyline: { home?: LocalBestOutcome; away?: LocalBestOutcome }
+                spread: { home?: LocalBestOutcome; away?: LocalBestOutcome }
+                total: { over?: LocalBestOutcome; under?: LocalBestOutcome }
+              }
+              const localChooseBetter = (
+                current: LocalBestOutcome | undefined,
+                candidate: LocalBestOutcome,
+                opts: { preferHigherPoint?: boolean; preferLowerPoint?: boolean }
+              ) => {
+                if (!current) return candidate
+                if (candidate.price != null && (current.price == null || candidate.price > current.price)) {
+                  return candidate
+                }
+                if (
+                  candidate.price != null &&
+                  current.price != null &&
+                  candidate.price === current.price &&
+                  candidate.point != null &&
+                  current.point != null
+                ) {
+                  if (opts.preferLowerPoint && candidate.point < current.point) return candidate
+                  if (opts.preferHigherPoint && candidate.point > current.point) return candidate
+                }
+                if (current.price == null && candidate.price != null) return candidate
+                if (current.price == null && candidate.price == null) {
+                  if (candidate.point != null && current.point == null) return candidate
+                  if (
+                    candidate.point != null &&
+                    current.point != null &&
+                    opts.preferHigherPoint &&
+                    candidate.point > current.point
+                  ) {
+                    return candidate
+                  }
+                  if (
+                    candidate.point != null &&
+                    current.point != null &&
+                    opts.preferLowerPoint &&
+                    candidate.point < current.point
+                  ) {
+                    return candidate
+                  }
+                }
+                return current
+              }
+              const localGetBestMarkets = (
+                bookmakers: OddsGame['bookmakers'] | undefined,
+                homeTeam: string,
+                awayTeam: string
+              ): { sportsbook: LocalBestMarketSet; prediction: LocalBestMarketSet } => {
+                const init = (): LocalBestMarketSet => ({
+                  moneyline: {},
+                  spread: {},
+                  total: {},
+                })
+                const result = { sportsbook: init(), prediction: init() }
+                const books = bookmakers ?? []
+                for (const book of books) {
+                  const target = localIsPredictionMarketBook(book)
+                    ? result.prediction
+                    : result.sportsbook
+                  const bookName = book.title || book.key || 'Book'
+                  const markets = book.markets || []
+                  const h2h = markets.find((m) => m.key === 'h2h')
+                  const spreads = markets.find((m) => m.key === 'spreads')
+                  const totals = markets.find((m) => m.key === 'totals')
+                  if (h2h?.outcomes?.length) {
+                    const home = h2h.outcomes.find((o) =>
+                      normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam))
+                    )
+                    const away = h2h.outcomes.find((o) =>
+                      normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(awayTeam))
+                    )
+                    if (home?.price != null) {
+                      target.moneyline.home = localChooseBetter(
+                        target.moneyline.home,
+                        { price: home.price, book: bookName },
+                        {}
+                      )
+                    }
+                    if (away?.price != null) {
+                      target.moneyline.away = localChooseBetter(
+                        target.moneyline.away,
+                        { price: away.price, book: bookName },
+                        {}
+                      )
+                    }
+                  }
+                  if (spreads?.outcomes?.length) {
+                    const home = spreads.outcomes.find((o) =>
+                      normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(homeTeam))
+                    )
+                    const away = spreads.outcomes.find((o) =>
+                      normalizeTeamKey(o?.name || '').includes(normalizeTeamKey(awayTeam))
+                    )
+                    if (home?.point != null) {
+                      target.spread.home = localChooseBetter(
+                        target.spread.home,
+                        { point: home.point, price: home.price, book: bookName },
+                        { preferHigherPoint: true }
+                      )
+                    }
+                    if (away?.point != null) {
+                      target.spread.away = localChooseBetter(
+                        target.spread.away,
+                        { point: away.point, price: away.price, book: bookName },
+                        { preferHigherPoint: true }
+                      )
+                    }
+                  }
+                  if (totals?.outcomes?.length) {
+                    const over = totals.outcomes.find((o) => o?.name === 'Over')
+                    const under = totals.outcomes.find((o) => o?.name === 'Under')
+                    if (over?.price != null || over?.point != null) {
+                      target.total.over = localChooseBetter(
+                        target.total.over,
+                        { point: over?.point, price: over?.price, book: bookName },
+                        { preferLowerPoint: true }
+                      )
+                    }
+                    if (under?.price != null || under?.point != null) {
+                      target.total.under = localChooseBetter(
+                        target.total.under,
+                        { point: under?.point, price: under?.price, book: bookName },
+                        { preferHigherPoint: true }
+                      )
+                    }
+                  }
+                }
+                return result
+              }
+              const localFormatSpreadLabel = (point?: number | null) =>
+                point == null ? 'n/a' : point > 0 ? `+${point}` : `${point}`
+              const localFormatOutcomeLabel = (label: string, outcome?: LocalBestOutcome) => {
+                if (!outcome) return `${label} n/a`
+                const odds = localFormatOdds(outcome.price) || 'n/a'
+                const point =
+                  outcome.point != null ? ` ${localFormatSpreadLabel(outcome.point)}` : ''
+                const book = outcome.book ? ` (${outcome.book})` : ''
+                return `${label}${point} ${odds}${book}`.trim()
+              }
 
-              const oddsLines: string[] = []
-              if (h2h?.outcomes?.length) {
-                const mlLine = h2h.outcomes.map((o: any) => `${o.name} ${o.price > 0 ? '+' : ''}${o.price}`).join(' / ')
-                oddsLines.push(`ML: ${mlLine}`)
+              const localBest = localGetBestMarkets(
+                matchingGame.bookmakers,
+                matchingGame.home_team,
+                matchingGame.away_team
+              )
+              analysisLines.push('**Current Lines**')
+              if (localBest.sportsbook.moneyline.home || localBest.sportsbook.moneyline.away) {
+                analysisLines.push(
+                  `ML (Sportsbook best): ${localFormatOutcomeLabel(matchingGame.away_team, localBest.sportsbook.moneyline.away)} / ${localFormatOutcomeLabel(matchingGame.home_team, localBest.sportsbook.moneyline.home)}`
+                )
               }
-              if (spreads?.outcomes?.length) {
-                const spreadLine = spreads.outcomes.map((o: any) => `${o.name} ${o.point > 0 ? '+' : ''}${o.point} (${o.price > 0 ? '+' : ''}${o.price})`).join(' / ')
-                oddsLines.push(`Spread: ${spreadLine}`)
+              if (localBest.prediction.moneyline.home || localBest.prediction.moneyline.away) {
+                analysisLines.push(
+                  `ML (Prediction best): ${localFormatOutcomeLabel(matchingGame.away_team, localBest.prediction.moneyline.away)} / ${localFormatOutcomeLabel(matchingGame.home_team, localBest.prediction.moneyline.home)}`
+                )
               }
-              if (totals?.outcomes?.length) {
-                const totalLine = totals.outcomes.map((o: any) => `${o.name} ${o.point} (${o.price > 0 ? '+' : ''}${o.price})`).join(' / ')
-                oddsLines.push(`Total: ${totalLine}`)
+              if (localBest.sportsbook.spread.home || localBest.sportsbook.spread.away) {
+                analysisLines.push(
+                  `Spread (Sportsbook best): ${localFormatOutcomeLabel(matchingGame.away_team, localBest.sportsbook.spread.away)} / ${localFormatOutcomeLabel(matchingGame.home_team, localBest.sportsbook.spread.home)}`
+                )
               }
-              if (oddsLines.length) {
-                analysisLines.push(`**Current Lines (${book.title})**`)
-                oddsLines.forEach(l => analysisLines.push(l))
+              if (localBest.prediction.spread.home || localBest.prediction.spread.away) {
+                analysisLines.push(
+                  `Spread (Prediction best): ${localFormatOutcomeLabel(matchingGame.away_team, localBest.prediction.spread.away)} / ${localFormatOutcomeLabel(matchingGame.home_team, localBest.prediction.spread.home)}`
+                )
+              }
+              if (localBest.sportsbook.total.over || localBest.sportsbook.total.under) {
+                analysisLines.push(
+                  `Total (Sportsbook best): ${localFormatOutcomeLabel('Over', localBest.sportsbook.total.over)} / ${localFormatOutcomeLabel('Under', localBest.sportsbook.total.under)}`
+                )
+              }
+              if (localBest.prediction.total.over || localBest.prediction.total.under) {
+                analysisLines.push(
+                  `Total (Prediction best): ${localFormatOutcomeLabel('Over', localBest.prediction.total.over)} / ${localFormatOutcomeLabel('Under', localBest.prediction.total.under)}`
+                )
               }
             }
           } catch (err) {

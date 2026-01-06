@@ -116,28 +116,35 @@ const buildCbbSpread = async (opts: {
   ])
 
   const homeNet =
+    homeAdvanced?.netRating ??
     homeAdvanced?.adjEM ??
     (opts.homeStats.ortg != null && opts.homeStats.drtg != null
       ? opts.homeStats.ortg - opts.homeStats.drtg
       : 0)
   const awayNet =
+    awayAdvanced?.netRating ??
     awayAdvanced?.adjEM ??
     (opts.awayStats.ortg != null && opts.awayStats.drtg != null
       ? opts.awayStats.ortg - opts.awayStats.drtg
       : 0)
 
   const sosDiff = (homeAdvanced?.sos ?? 0) - (awayAdvanced?.sos ?? 0)
-  const netDiff = (homeNet - awayNet) + sosDiff * 0.35
+  const netWeight = homeAdvanced?.netRank && awayAdvanced?.netRank ? 1.5 : 1
+  const netDiff = (homeNet - awayNet) * netWeight + sosDiff * 0.2
   const pace = (opts.homeStats.pace + opts.awayStats.pace) / 2
   const paceFactor = pace / 100
   const homeCourt = NCAAB_LEAGUE_CONTEXT.homeCourtAdvantage ?? 3.2
   const margin = netDiff * paceFactor + homeCourt
   const modelSpread = -margin
 
+  const netLabel =
+    homeAdvanced?.netRank && awayAdvanced?.netRank
+      ? `NET rank: ${opts.homeTeam} #${homeAdvanced.netRank} vs ${opts.awayTeam} #${awayAdvanced.netRank}`
+      : `Net rating: ${opts.homeTeam} ${formatSigned(homeNet)} vs ${opts.awayTeam} ${formatSigned(
+          awayNet
+        )}`
   const factors = [
-    `Net rating: ${opts.homeTeam} ${formatSigned(homeNet)} vs ${opts.awayTeam} ${formatSigned(
-      awayNet
-    )}`,
+    netLabel,
     `SOS adj: ${formatSigned(sosDiff)} (weighted)`,
     `Pace: ${pace.toFixed(1)} poss`,
   ]

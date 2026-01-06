@@ -3842,6 +3842,35 @@ export async function POST(req: NextRequest) {
       } else {
         lines.push('- Market line unavailable')
       }
+      lines.push('') 
+
+      const bestBet = (() => {
+        const candidates: Array<{ label: string; gap: number }> = []
+        if (marketSpread != null && modelProjection.spread != null) {
+          const pickHome = modelProjection.spread < marketSpread
+          const team = pickHome ? oddsGame.home_team : oddsGame.away_team
+          const line = pickHome ? marketSpread : -marketSpread
+          const lineLabel = line > 0 ? `+${line}` : `${line}`
+          candidates.push({
+            label: `Spread ${team} ${lineLabel}`,
+            gap: Math.abs(modelProjection.spread - marketSpread),
+          })
+        }
+        if (marketTotal != null && modelProjection.total != null) {
+          const direction = modelProjection.total > marketTotal ? 'Over' : 'Under'
+          candidates.push({
+            label: `Total ${direction} ${marketTotal}`,
+            gap: Math.abs(modelProjection.total - marketTotal),
+          })
+        }
+        if (!candidates.length) return 'No edge (pass)'
+        return candidates.reduce((best, current) =>
+          current.gap > best.gap ? current : best
+        ).label
+      })()
+
+      lines.push('### Best Bet')
+      lines.push(`- ${bestBet}`)
       lines.push('')
 
       // Moneyline section
@@ -8685,6 +8714,35 @@ ${statsEnrichment}
           }
           outputLines.push('')
 
+          const bestBet = (() => {
+            const candidates: Array<{ label: string; gap: number }> = []
+            if (marketSpread != null && modelProjection.spread != null) {
+              const pickHome = modelProjection.spread < marketSpread
+              const team = pickHome ? homeTeam : awayTeam
+              const line = pickHome ? marketSpread : -marketSpread
+              const lineLabel = line > 0 ? `+${line}` : `${line}`
+              candidates.push({
+                label: `Spread ${team} ${lineLabel}`,
+                gap: Math.abs(modelProjection.spread - marketSpread),
+              })
+            }
+            if (marketTotal != null && modelProjection.total != null) {
+              const direction = modelProjection.total > marketTotal ? 'Over' : 'Under'
+              candidates.push({
+                label: `Total ${direction} ${marketTotal}`,
+                gap: Math.abs(modelProjection.total - marketTotal),
+              })
+            }
+            if (!candidates.length) return 'No edge (pass)'
+            return candidates.reduce((best, current) =>
+              current.gap > best.gap ? current : best
+            ).label
+          })()
+
+          outputLines.push('### Best Bet')
+          outputLines.push(`- ${bestBet}`)
+          outputLines.push('')
+
           outputLines.push('### Public Betting Splits')
           if (splits) {
             outputLines.push(`**Spread:** ${homeTeam} ${formatSplitPct(splits.spreadHomeBetPct)} bets / ${formatSplitPct(splits.spreadHomeMoneyPct)} money | ${awayTeam} ${formatSplitPct(splits.spreadAwayBetPct)} / ${formatSplitPct(splits.spreadAwayMoneyPct)}`)
@@ -9273,6 +9331,35 @@ ${statsEnrichment}
               outputLines.push('- Model projection unavailable')
             }
           }
+          outputLines.push('')
+
+          const bestBet = (() => {
+            const candidates: Array<{ label: string; gap: number }> = []
+            if (marketSpread != null && modelProjection.spread != null) {
+              const pickHome = modelProjection.spread < marketSpread
+              const team = pickHome ? homeTeam : awayTeam
+              const line = pickHome ? marketSpread : -marketSpread
+              const lineLabel = line > 0 ? `+${line}` : `${line}`
+              candidates.push({
+                label: `Spread ${team} ${lineLabel}`,
+                gap: Math.abs(modelProjection.spread - marketSpread),
+              })
+            }
+            if (marketTotal != null && modelProjection.total != null) {
+              const direction = modelProjection.total > marketTotal ? 'Over' : 'Under'
+              candidates.push({
+                label: `Total ${direction} ${marketTotal}`,
+                gap: Math.abs(modelProjection.total - marketTotal),
+              })
+            }
+            if (!candidates.length) return 'No edge (pass)'
+            return candidates.reduce((best, current) =>
+              current.gap > best.gap ? current : best
+            ).label
+          })()
+
+          outputLines.push('### Best Bet')
+          outputLines.push(`- ${bestBet}`)
           outputLines.push('')
 
           // 6. Betting splits

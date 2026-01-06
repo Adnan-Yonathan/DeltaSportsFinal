@@ -1077,6 +1077,88 @@ function scoreMarketSignals(game: GameEdgeAnalysis): number {
   return sharpCount * 2 + moveCount + evScore / 2 + confirmationBonus
 }
 
+type BestBetCandidate = {
+  label: string
+  score: number
+  gap: number
+}
+
+const formatSignedLine = (line: number) => (line > 0 ? `+${line}` : `${line}`)
+
+function selectBestBet(game: GameEdgeAnalysis): string {
+  const candidates: BestBetCandidate[] = []
+
+  if (game.spread) {
+    const gap = Math.abs(game.spread.marketLine - game.spread.targetLine)
+    const pickHome = game.spread.targetLine < game.spread.marketLine
+    const team = pickHome ? game.homeTeam : game.awayTeam
+    const line = pickHome ? game.spread.marketLine : -game.spread.marketLine
+    const score =
+      game.spread.edge.verdict === 'strong'
+        ? 2
+        : game.spread.edge.verdict === 'soft'
+          ? 1
+          : 0
+    candidates.push({
+      label: `Spread ${team} ${formatSignedLine(line)}`,
+      score,
+      gap,
+    })
+  }
+
+  if (game.total) {
+    const gap = Math.abs(game.total.marketLine - game.total.targetLine)
+    const direction = game.total.targetLine > game.total.marketLine ? 'Over' : 'Under'
+    const score =
+      game.total.edge.verdict === 'strong'
+        ? 2
+        : game.total.edge.verdict === 'soft'
+          ? 1
+          : 0
+    candidates.push({
+      label: `Total ${direction} ${game.total.marketLine}`,
+      score,
+      gap,
+    })
+  }
+
+  const best = candidates.reduce<BestBetCandidate | null>((currentBest, next) => {
+    if (!currentBest) return next
+    if (next.score !== currentBest.score) {
+      return next.score > currentBest.score ? next : currentBest
+    }
+    return next.gap > currentBest.gap ? next : currentBest
+  }, null)
+
+  const highEvCandidates: Array<{ label: string; ev: number }> = []
+  if (game.highEv?.spread) {
+    const point =
+      game.highEv.spread.point != null
+        ? ` ${game.highEv.spread.point > 0 ? '+' : ''}${game.highEv.spread.point}`
+        : ''
+    highEvCandidates.push({
+      label: `Spread ${game.highEv.spread.selection}${point}`,
+      ev: game.highEv.spread.ev,
+    })
+  }
+  if (game.highEv?.total) {
+    const point =
+      game.highEv.total.point != null
+        ? ` ${game.highEv.total.point > 0 ? '+' : ''}${game.highEv.total.point}`
+        : ''
+    highEvCandidates.push({
+      label: `Total ${game.highEv.total.selection}${point}`,
+      ev: game.highEv.total.ev,
+    })
+  }
+  const bestHighEv = highEvCandidates.sort((a, b) => b.ev - a.ev)[0]
+
+  if (best && best.score > 0) return best.label
+  if (bestHighEv) return `High EV ${bestHighEv.label}`
+  if (best) return 'No edge (pass)'
+  return 'No edge (pass)'
+}
+
 function formatMarketSignals(game: GameEdgeAnalysis): string {
   const lines: string[] = []
   const time = new Date(game.commenceTime).toLocaleTimeString('en-US', {
@@ -1126,9 +1208,7 @@ function formatMarketSignals(game: GameEdgeAnalysis): string {
     )
   }
 
-  if (game.factors.length > 0) {
-    lines.push(`- Model factors: ${game.factors.slice(0, 2).join(' | ')}`)
-  }
+  lines.push(`- Best Bet: ${selectBestBet(game)}`)
 
   if (game.sharpSignals.length > 0) {
     const signalSummary = game.sharpSignals
@@ -1264,9 +1344,7 @@ function formatGameEdge(game: GameEdgeAnalysis): string {
     }
   }
 
-  if (game.factors.length > 0) {
-    lines.push(`- Model factors: ${game.factors.slice(0, 2).join(' | ')}`)
-  }
+  lines.push(`- Best Bet: ${selectBestBet(game)}`)
 
   // Show injuries prominently if present
   if (game.injuries.length > 0) {

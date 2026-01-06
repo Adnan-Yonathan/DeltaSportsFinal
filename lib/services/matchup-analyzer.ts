@@ -1311,6 +1311,36 @@ export function formatMatchupAnalysisForChat(
     lines.push('')
   }
 
+  const bestBet = (() => {
+    const candidates: Array<{ label: string; gap: number }> = []
+    if (options.spread?.model != null) {
+      const pickHome = options.spread.model < options.spread.market
+      const team = pickHome ? homeTeam.name : awayTeam.name
+      const line = pickHome ? options.spread.market : -options.spread.market
+      const lineLabel = line > 0 ? `+${line}` : `${line}`
+      candidates.push({
+        label: `Spread ${team} ${lineLabel}`,
+        gap: Math.abs(options.spread.model - options.spread.market),
+      })
+    }
+    if (options.total?.model != null) {
+      const direction = options.total.model > options.total.market ? 'Over' : 'Under'
+      candidates.push({
+        label: `Total ${direction} ${options.total.market}`,
+        gap: Math.abs(options.total.model - options.total.market),
+      })
+    }
+    if (!candidates.length) return 'No edge (pass)'
+    return candidates.reduce((best, current) =>
+      current.gap > best.gap ? current : best
+    ).label
+  })()
+
+  lines.push('### Best Bet')
+  lines.push('')
+  lines.push(`- ${bestBet}`)
+  lines.push('')
+
   // Injuries section
   const homeInjuries = homeTeam.injuries?.injuries || []
   const awayInjuries = awayTeam.injuries?.injuries || []

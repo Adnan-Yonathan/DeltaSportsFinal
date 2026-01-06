@@ -2,6 +2,15 @@ import { normalizeTeamKey } from '@/lib/identity/sport'
 
 export { normalizeTeamKey }
 
+export const normalizeNcaabTeamKey = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[()]/g, ' ')
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, '')
+
 const NCAA_NET_URL =
   'https://www.ncaa.com/rankings/basketball-men/d1/ncaa-mens-basketball-net-rankings'
 const NCAA_SCORING_OFFENSE_URL =
@@ -54,7 +63,7 @@ const decodeEntities = (value: string) =>
   value
     .replace(/&amp;/gi, '&')
     .replace(/&nbsp;/gi, ' ')
-    .replace(/&#39;/gi, "'")
+    .replace(/&#0?39;/gi, "'")
     .replace(/&quot;/gi, '"')
     .replace(/&rsquo;/gi, "'")
     .replace(/&lsquo;/gi, "'")
@@ -433,7 +442,7 @@ export const fetchNcaaScoringStats = async (): Promise<NcaaScoringEntry[]> => {
 
   const merged = new Map<string, NcaaScoringEntry>()
   for (const row of offenseRows) {
-    const key = normalizeTeamKey(row.team)
+    const key = normalizeNcaabTeamKey(row.team)
     merged.set(key, {
       team: row.team,
       rank: row.rank,
@@ -442,7 +451,7 @@ export const fetchNcaaScoringStats = async (): Promise<NcaaScoringEntry[]> => {
     })
   }
   for (const row of defenseRows) {
-    const key = normalizeTeamKey(row.team)
+    const key = normalizeNcaabTeamKey(row.team)
     const existing = merged.get(key)
     const entry = existing ?? { team: row.team }
     entry.oppPpgRank = row.rank
@@ -694,7 +703,7 @@ export const fetchNcaaTeamStatProfiles = async (): Promise<NcaaTeamStatProfile[]
       const record = buildRowRecord(headers, row)
       const team = record.team
       if (!team) continue
-      const key = normalizeTeamKey(team)
+      const key = normalizeNcaabTeamKey(team)
       const entry =
         merged.get(key) ?? {
           team,

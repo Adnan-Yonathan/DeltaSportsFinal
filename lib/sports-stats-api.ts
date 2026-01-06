@@ -39,6 +39,7 @@ import {
   fetchNcaaNetRankings,
   fetchNcaaScoringStats,
   fetchNcaaTeamStatProfiles,
+  normalizeNcaabTeamKey,
 } from '@/lib/providers/ncaab-free-sources'
 import { normalizeTeamKey, resolveSportKey } from '@/lib/identity/sport'
 import { resolveEspnTeamName } from '@/lib/utils/espn-team-lookup'
@@ -344,6 +345,41 @@ let nflRosterCache: { ts: number; roster: RosterPlayer[] } | null = null
 const NFL_ROSTER_CACHE_TTL = 1000 * 60 * 60 // 1 hour
 let nbaTeamStatsCache: { ts: number; data: Array<{ meta: EspnTeamMeta; categories: EspnStatCategory[] }> } | null = null
 let ncaabTeamStatsCache: { ts: number; data: TeamStats[] } | null = null
+
+const NCAAB_TEAM_ALIAS_KEYS: Record<string, string[]> = {
+  umass: ['massachusetts', 'massachusettsminutemen'],
+  umassminutemen: ['massachusetts', 'massachusettsminutemen'],
+  stjohns: ['stjohnsny'],
+}
+
+const buildNcaabTeamKeys = (team: { name?: string; displayName?: string; shortDisplayName?: string; abbreviation?: string }) => {
+  const variants = new Set<string>()
+  const add = (value?: string) => {
+    if (!value) return
+    const ncaabKey = normalizeNcaabTeamKey(value)
+    if (ncaabKey) variants.add(ncaabKey)
+    for (const key of buildTeamKeyVariants(value)) {
+      if (key) variants.add(key)
+      const aliases = key ? NCAAB_TEAM_ALIAS_KEYS[key] : null
+      if (aliases?.length) {
+        aliases.forEach((alias) => variants.add(alias))
+      }
+    }
+  }
+  add(team.displayName)
+  add(team.shortDisplayName)
+  add(team.name)
+  add(team.abbreviation)
+  return Array.from(variants)
+}
+
+const pickByKeys = <T>(map: Map<string, T>, keys: string[]) => {
+  for (const key of keys) {
+    const hit = map.get(key)
+    if (hit) return hit
+  }
+  return undefined
+}
 let ncaafTeamStatsCache: {
   ts: number
   season: number
@@ -1713,13 +1749,13 @@ export async function getNCAABTeamStats(): Promise<TeamStats[]> {
   ])
 
   const scoringMap = new Map(
-    scoringEntries.map((entry) => [normalizeTeamKey(entry.team), entry])
+    scoringEntries.map((entry) => [normalizeNcaabTeamKey(entry.team), entry])
   )
   const netMap = new Map(
-    netEntries.map((entry) => [normalizeTeamKey(entry.team), entry])
+    netEntries.map((entry) => [normalizeNcaabTeamKey(entry.team), entry])
   )
   const profileMap = new Map(
-    statProfiles.map((entry) => [normalizeTeamKey(entry.team), entry])
+    statProfiles.map((entry) => [normalizeNcaabTeamKey(entry.team), entry])
   )
 
   const buildStats = (
@@ -1886,10 +1922,11 @@ export async function getNCAABTeamStats(): Promise<TeamStats[]> {
   const merged = new Map<string, TeamStats>()
 
   for (const team of espnTeams) {
-    const key = normalizeTeamKey(team.displayName || team.name)
-    const scoringEntry = scoringMap.get(key)
-    const netEntry = netMap.get(key)
-    const profile = profileMap.get(key)
+    const keys = buildNcaabTeamKeys(team)
+    const scoringEntry = pickByKeys(scoringMap, keys)
+    const netEntry = pickByKeys(netMap, keys)
+    const profile = pickByKeys(profileMap, keys)
+    const key = keys[0] ?? normalizeNcaabTeamKey(team.displayName || team.name)
     const record = parseRecordSummary(team.recordSummary)
     const wins = team.wins ?? record?.wins ?? 0
     const losses = team.losses ?? record?.losses ?? 0
@@ -1911,7 +1948,7 @@ export async function getNCAABTeamStats(): Promise<TeamStats[]> {
   const upsertFromNcaa = (
     entry: (typeof scoringEntries)[number] | (typeof netEntries)[number]
   ) => {
-    const key = normalizeTeamKey(entry.team)
+    const key = normalizeNcaabTeamKey(entry.team)
     if (merged.has(key)) return
     const netEntry = netMap.get(key)
     const scoringEntry = scoringMap.get(key)
@@ -3390,6 +3427,14 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
     addTargets(resolvedTeamIdentifier ?? null)
     if (teamIdentifier && teamIdentifier !== resolvedTeamIdentifier) {
       addTargets(teamIdentifier)
+    }
+    if (resolvedSport === 'basketball_ncaab') {
+      for (const target of Array.from(targets)) {
+        const aliases = NCAAB_TEAM_ALIAS_KEYS[target]
+        if (aliases?.length) {
+          aliases.forEach((alias) => targets.add(alias))
+        }
+      }
     }
     const matched = teams.filter((entry) => {
       const name = normalizeName(entry.team)

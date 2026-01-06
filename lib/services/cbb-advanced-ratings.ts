@@ -1,5 +1,5 @@
 import { normalizeTeamKey } from '@/lib/identity/sport'
-import { fetchNcaaNetRankings } from '@/lib/providers/ncaab-free-sources'
+import { fetchNcaaNetRankings, normalizeNcaabTeamKey } from '@/lib/providers/ncaab-free-sources'
 import { resolveEspnTeamName } from '@/lib/utils/espn-team-lookup'
 
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24
@@ -47,7 +47,7 @@ const mergeRatings = async (): Promise<CbbAdvancedRating[]> => {
   const netTotalTeams = netRankings.length
   const netRows: CbbAdvancedRating[] = []
   for (const entry of netRankings) {
-    const teamKey = normalizeTeamKey(entry.team)
+    const teamKey = normalizeNcaabTeamKey(entry.team)
     if (!teamKey) continue
     const rating = netRankToRating(entry.rank, netTotalTeams)
     netRows.push({
@@ -87,9 +87,9 @@ export async function getCbbAdvancedRatingsForTeam(
   if (!teamName) return null
   const resolvedName = (await resolveEspnTeamName('ncaab', teamName)) ?? teamName
   const ratings = await getCbbAdvancedRatingsSnapshot()
-  const key = normalizeTeamKey(resolvedName)
+  const key = normalizeNcaabTeamKey(resolvedName)
   const resolvedMatch = ratings.find((entry) => entry.teamKey === key)
   if (resolvedMatch) return resolvedMatch
-  const fallbackKey = normalizeTeamKey(teamName)
+  const fallbackKey = normalizeNcaabTeamKey(teamName)
   return ratings.find((entry) => entry.teamKey === fallbackKey) ?? null
 }

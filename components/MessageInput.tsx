@@ -45,10 +45,38 @@ export default function MessageInput({ conversationId, userId }: MessageInputPro
       // We just need to read the stream to completion
       const reader = response.body?.getReader()
       if (reader) {
+        const decoder = new TextDecoder()
+        let streamedResponse = ''
         while (true) {
-          const { done } = await reader.read()
+          const { done, value } = await reader.read()
           if (done) break
+          if (!value) continue
+
+          const chunk = decoder.decode(value, { stream: true })
+          const lines = chunk.split('\n')
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            const dataStr = line.slice(6).trim()
+            if (dataStr === '[DONE]') {
+              continue
+            }
+            try {
+              const data = JSON.parse(dataStr)
+              if (typeof data.content === 'string' && data.content.length) {
+                streamedResponse += data.content
+              }
+            } catch (e) {
+              // Skip non-JSON lines (like keep-alive)
+            }
+          }
         }
+        const event = new CustomEvent('chat-stream-complete', {
+          detail: {
+            conversationId,
+            content: streamedResponse.trim(),
+          },
+        })
+        window.dispatchEvent(event)
       }
     } catch (error) {
       console.error('Error sending message:', error)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -33,6 +33,20 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
+  const loadMessages = useCallback(async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true })
+
+    if (data) {
+      setMessages(data)
+    }
+    setLoading(false)
+  }, [conversationId, supabase])
+
   useEffect(() => {
     loadMessages()
 
@@ -63,7 +77,7 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [conversationId])
+  }, [conversationId, loadMessages, supabase])
 
   useEffect(() => {
     scrollToBottom()
@@ -91,6 +105,43 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
     }
   }, [])
 
+  useEffect(() => {
+    const handleStreamComplete = (event: CustomEvent<{ conversationId: string; content?: string }>) => {
+      if (event.detail.conversationId !== conversationId) return
+      setIsThinking(false)
+
+      const content = event.detail.content?.trim()
+      if (content) {
+        const optimisticMessage: Message = {
+          id: `stream-${Date.now()}`,
+          role: 'assistant',
+          content,
+          created_at: new Date().toISOString(),
+        }
+
+        setMessages((prev) => {
+          const alreadyPresent = prev.some(
+            (msg) => msg.role === 'assistant' && msg.content.trim() === content
+          )
+          if (alreadyPresent) return prev
+          return [...prev, optimisticMessage]
+        })
+        setLatestMessageId(optimisticMessage.id)
+      }
+
+      const syncDelay = content ? 800 : 250
+      setTimeout(() => {
+        void loadMessages()
+      }, syncDelay)
+    }
+
+    window.addEventListener('chat-stream-complete', handleStreamComplete as EventListener)
+
+    return () => {
+      window.removeEventListener('chat-stream-complete', handleStreamComplete as EventListener)
+    }
+  }, [conversationId, loadMessages])
+
   // Reset operation when thinking stops
   useEffect(() => {
     if (!isThinking) {
@@ -103,20 +154,6 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
   useEffect(() => {
     console.log('[ModernMessageList] Current operation changed to:', currentOperation)
   }, [currentOperation])
-
-  const loadMessages = async () => {
-    setLoading(true)
-    const { data } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
-
-    if (data) {
-      setMessages(data)
-    }
-    setLoading(false)
-  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })

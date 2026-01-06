@@ -65,6 +65,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
       }
 
       const reader = response.body?.getReader()
+      let streamedResponse = ''
       if (reader) {
         const decoder = new TextDecoder()
         while (true) {
@@ -78,16 +79,23 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
             const lines = chunk.split('\n')
             for (const line of lines) {
               if (line.startsWith('data: ')) {
-                const dataStr = line.slice(6)
+                const dataStr = line.slice(6).trim()
+                if (dataStr === '[DONE]') {
+                  continue
+                }
                 try {
                   const data = JSON.parse(dataStr)
                   console.log('[ModernMessageInput] Received SSE event:', data)
 
-                  // Handle status events for dynamic operation messages
+                  if (typeof data.content === 'string' && data.content.length) {
+                    streamedResponse += data.content
+                  }
+
+                  // Handle status events for dynamic operation messages        
                   if (data.type === 'status' && data.operation) {
                     console.log('[ModernMessageInput] Dispatching operation change:', data.operation)
-                    // Dispatch custom event for ModernMessageList to listen to
-                    const event = new CustomEvent('chat-operation-change', {
+                    // Dispatch custom event for ModernMessageList to listen to 
+                    const event = new CustomEvent('chat-operation-change', {    
                       detail: { operation: data.operation }
                     })
                     window.dispatchEvent(event)
@@ -100,6 +108,13 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
             }
           }
         }
+        const event = new CustomEvent('chat-stream-complete', {
+          detail: {
+            conversationId,
+            content: streamedResponse.trim(),
+          },
+        })
+        window.dispatchEvent(event)
       }
     } catch (error: any) {
       console.error('Error sending message:', error)

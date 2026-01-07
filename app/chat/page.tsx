@@ -292,11 +292,31 @@ function ChatPageContent() {
     .toUpperCase()
   const canUseWhaleDetector = Boolean(user && membership?.isActive)
   const chatTabs = [
-    { label: 'Market Projections', href: '/market-projections' },
-    { label: 'Player Projections', href: '/player-projections' },
-    { label: 'Parlay Predictor', href: '/parlay-predictor' },
-    { label: 'EV Bets', href: '/ev-bets' },
-    { label: 'Live Projections', href: '/live-projections' },
+    {
+      label: 'Market Projections',
+      shortLabel: 'Markets',
+      href: '/market-projections',
+    },
+    {
+      label: 'Player Projections',
+      shortLabel: 'Players',
+      href: '/player-projections',
+    },
+    {
+      label: 'Parlay Predictor',
+      shortLabel: 'Parlay',
+      href: '/parlay-predictor',
+    },
+    {
+      label: 'EV Bets',
+      shortLabel: 'EV',
+      href: '/ev-bets',
+    },
+    {
+      label: 'Live Projections',
+      shortLabel: 'Live',
+      href: '/live-projections',
+    },
   ]
   const membershipLabel = membership?.tier
     ? ({ pro: 'Pro', sharp: 'Sharp', syndicate: 'Syndicate' } as const)[membership.tier] || 'Pro'
@@ -577,14 +597,15 @@ function ChatPageContent() {
       />
       {user && currentConversationId && (
         <div className="fixed left-0 right-0 top-12 sm:top-16 z-40 border-b border-white/10 bg-black/90 backdrop-blur">
-          <div className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-white/10">
+          <div className="grid w-full grid-cols-5 divide-x divide-white/10">
             {chatTabs.map((tab) => (
               <Link
                 key={tab.label}
                 href={tab.href}
-                className="w-full px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75 transition-colors hover:bg-emerald-500/10 hover:text-emerald-200 sm:text-sm"
+                className="w-full px-1 py-2 text-center text-[9px] font-semibold uppercase tracking-[0.2em] text-white/75 transition-colors hover:bg-emerald-500/10 hover:text-emerald-200 sm:px-2 sm:py-3 sm:text-[11px] lg:text-sm"
               >
-                {tab.label}
+                <span className="sm:hidden">{tab.shortLabel}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
               </Link>
             ))}
           </div>

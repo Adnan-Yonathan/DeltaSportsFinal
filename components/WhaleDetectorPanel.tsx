@@ -33,6 +33,8 @@ type WhaleTradeWithStatus = WhaleTrade & {
   roi?: number
 }
 
+type WhaleTier = 'small' | 'blue' | 'mega'
+
 const MIN_NOTIONAL = 2000
 const POLL_INTERVAL_MS = 30000
 const RESPECT_CHECK_MS = 15 * 60 * 1000
@@ -69,6 +71,24 @@ const resolvePhase = (trade: WhaleTrade) => {
   const todayLabel = today.toISOString().slice(0, 10)
   if (trade.eventDate === todayLabel) return 'Live'
   return new Date(trade.eventDate) < today ? 'Live' : 'Pregame'
+}
+
+const resolveWhaleTier = (notional: number): WhaleTier => {
+  if (notional >= 10000) return 'mega'
+  if (notional >= 5000) return 'blue'
+  return 'small'
+}
+
+const whaleTierLabel: Record<WhaleTier, string> = {
+  small: '2k-4,999',
+  blue: '5k-9,999',
+  mega: '10k+',
+}
+
+const whaleTierClass: Record<WhaleTier, string> = {
+  small: 'border-emerald-500/30 text-emerald-200',
+  blue: 'border-sky-400/40 text-sky-200',
+  mega: 'border-rose-400/40 text-rose-200',
 }
 
 export default function WhaleDetectorPanel({
@@ -361,6 +381,7 @@ export default function WhaleDetectorPanel({
       {sortedTrades.map((trade) => {
         const isFresh = now - new Date(trade.timestamp).getTime() < 2 * 60 * 1000
         const pnl = trade.pnl ?? null
+        const whaleTier = resolveWhaleTier(trade.notional)
         return (
           <div
             key={trade.id}
@@ -392,6 +413,14 @@ export default function WhaleDetectorPanel({
               {trade.marketTitle}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-white/60">
+              <span
+                className={cn(
+                  'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]',
+                  whaleTierClass[whaleTier]
+                )}
+              >
+                {whaleTierLabel[whaleTier]}
+              </span>
               <span className="rounded-full border border-white/10 px-2 py-0.5">
                 {trade.outcome}
               </span>

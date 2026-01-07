@@ -6,40 +6,40 @@ import { DottedSurface } from "@/components/ui/dotted-surface"
 
 const PATCH_NOTES = [
   {
-    title: "Live Odds + Line Shopping Merge",
+    title: "Whale Detector",
     points: [
-      "Line shopping summary added to every live score card.",
-      "Compare Books opens a dedicated modal instead of expanding the page.",
-      "Moneyline, spread, and total best lines highlighted per matchup.",
+      "New whale detection feed highlights large bets in real time.",
+      "Tier labels now reflect whale types for quick scanning.",
     ],
   },
   {
-    title: "Player Props Expansion",
+    title: "New Dashboards",
     points: [
-      "All available props for each game are pulled (no slicing).",
-      "Props load on-demand inside the line shopping modal.",
+      "Market Projection dashboard is live.",
+      "EV Bets dashboard now tracks expected value plays.",
     ],
   },
   {
-    title: "Arbitrage Scanner",
+    title: "Live Odds Enhancements",
     points: [
-      "Arb badge appears directly on the game card when detected.",
-      "Checks moneyline, spreads by line, and totals by line.",
+      "Arb and line shopping are unified on the Live Odds page.",
+      "Arb cues surface directly on the matchup card.",
+      "Line shopping opens a focused Compare Books modal.",
     ],
   },
   {
-    title: "Odds Reliability Fixes",
+    title: "Mobile UI Fixes",
     points: [
-      "Odds provider routing restored via ODDS_PROVIDER config.",
-      "SBD fallback to odds-api-io when markets are missing.",
-      "NCAAB odds now use the proper league filter again.",
+      "Improved spacing and readability across live odds cards.",
+      "Smoother panel transitions for the whale detector on mobile.",
     ],
   },
   {
-    title: "Performance + Caching",
+    title: "Coming Soon",
     points: [
-      "Disabled oversized fetch caching for large props payloads.",
-      "Live + upcoming odds are merged for broader coverage.",
+      "Player projections.",
+      "Parlay predictor.",
+      "Live projections.",
     ],
   },
 ]
@@ -53,9 +53,9 @@ export default function PatchNotesPage() {
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.3em] text-white/40">Patch Notes</p>
-            <h1 className="text-3xl font-bold">Patch 0.1</h1>
+            <h1 className="text-3xl font-bold">Patch 0.2</h1>
             <p className="text-sm text-white/60">
-              Line shopping and live scores are now one flow, with deeper props and arb cues.
+              Whale detection, new dashboards, and a sharper live odds experience.
             </p>
           </div>
           <Link

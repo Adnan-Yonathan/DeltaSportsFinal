@@ -115,6 +115,21 @@ const buildCbbSpread = async (opts: {
     getCbbAdvancedRatingsForTeam(opts.awayTeam),
   ])
 
+  const toPct = (value: number | null) => {
+    if (value == null || !Number.isFinite(value)) return null
+    return value > 1 ? value / 100 : value
+  }
+
+  const numStat = (
+    entry: typeof homeAdvanced,
+    key: string
+  ): number | null => {
+    const value = entry?.stats?.[key]
+    if (value == null) return null
+    const num = typeof value === 'number' ? value : Number(value)
+    return Number.isFinite(num) ? num : null
+  }
+
   const homeNet =
     homeAdvanced?.netRating ??
     homeAdvanced?.adjEM ??
@@ -128,14 +143,51 @@ const buildCbbSpread = async (opts: {
       ? opts.awayStats.ortg - opts.awayStats.drtg
       : 0)
 
+  const homeAdjO =
+    homeAdvanced?.adjO ??
+    numStat(homeAdvanced, 'offensiveRating') ??
+    opts.homeStats.ortg
+  const homeAdjD =
+    homeAdvanced?.adjD ??
+    numStat(homeAdvanced, 'defensiveRating') ??
+    opts.homeStats.drtg
+  const awayAdjO =
+    awayAdvanced?.adjO ??
+    numStat(awayAdvanced, 'offensiveRating') ??
+    opts.awayStats.ortg
+  const awayAdjD =
+    awayAdvanced?.adjD ??
+    numStat(awayAdvanced, 'defensiveRating') ??
+    opts.awayStats.drtg
+
   const sosDiff = (homeAdvanced?.sos ?? 0) - (awayAdvanced?.sos ?? 0)
-  const netWeight = homeAdvanced?.netRank && awayAdvanced?.netRank ? 1.5 : 1
+  const usesNetFallback =
+    homeAdvanced?.source === 'net' || awayAdvanced?.source === 'net'
+  const netWeight = usesNetFallback ? 1 : 1.6
   const netDiff = (homeNet - awayNet) * netWeight + sosDiff * 0.2
-  const pace = (opts.homeStats.pace + opts.awayStats.pace) / 2
-  const paceFactor = pace / 100
+  const homePace = homeAdvanced?.tempo ?? opts.homeStats.pace ?? 70
+  const awayPace = awayAdvanced?.tempo ?? opts.awayStats.pace ?? 70
+  const pace = homePace + awayPace
+  const paceAvg = pace / 2
+  const paceFactor = paceAvg / 100
   const homeCourt = NCAAB_LEAGUE_CONTEXT.homeCourtAdvantage ?? 3.2
-  const margin = netDiff * paceFactor + homeCourt
+  const offenseDefenseGap = (homeAdjO ?? 0) - (awayAdjD ?? 0)
+  const defenseOffenseGap = (awayAdjO ?? 0) - (homeAdjD ?? 0)
+  const matchupEdge = (offenseDefenseGap - defenseOffenseGap) * 0.12
+  const margin = netDiff * paceFactor + matchupEdge + homeCourt
   const modelSpread = -margin
+  const maxModelSpread = 35
+  const clampedModelSpread = clamp(modelSpread, -maxModelSpread, maxModelSpread)
+
+  let lateGameFoulBoost = 0
+  if (Math.abs(modelSpread) <= 8) {
+    const homeFt = toPct(numStat(homeAdvanced, 'freeThrowPct'))
+    const awayFt = toPct(numStat(awayAdvanced, 'freeThrowPct'))
+    const avgFt = homeFt != null && awayFt != null ? (homeFt + awayFt) / 2 : null
+    const baseBoost = 3.5
+    lateGameFoulBoost =
+      avgFt != null ? Number((baseBoost * (avgFt / 0.69)).toFixed(2)) : baseBoost
+  }
 
   const netLabel =
     homeAdvanced?.netRank && awayAdvanced?.netRank
@@ -146,25 +198,109 @@ const buildCbbSpread = async (opts: {
   const factors = [
     netLabel,
     `SOS adj: ${formatSigned(sosDiff)} (weighted)`,
-    `Pace: ${pace.toFixed(1)} poss`,
+    `Pace: ${paceAvg.toFixed(1)} poss`,
   ]
 
-  if (opts.marketSpread == null) {
-    return { targetSpread: modelSpread, factors }
+  const homeOffRank = numStat(homeAdvanced, 'offenseRank')
+  const homeDefRank = numStat(homeAdvanced, 'defenseRank')
+  const awayOffRank = numStat(awayAdvanced, 'offenseRank')
+  const awayDefRank = numStat(awayAdvanced, 'defenseRank')
+  if (homeOffRank != null || homeDefRank != null) {
+    factors.push(
+      `${opts.homeTeam} scoring ranks: O#${homeOffRank ?? '-'} D#${homeDefRank ?? '-'}`
+    )
+  }
+  if (awayOffRank != null || awayDefRank != null) {
+    factors.push(
+      `${opts.awayTeam} scoring ranks: O#${awayOffRank ?? '-'} D#${awayDefRank ?? '-'}`
+    )
   }
 
-  const blendWeight = 0.65
+  if (homeAdjO != null && awayAdjD != null) {
+    factors.push(
+      `${opts.homeTeam} adjO ${homeAdjO.toFixed(1)} vs ${opts.awayTeam} adjD ${awayAdjD.toFixed(1)}`
+    )
+  }
+  if (awayAdjO != null && homeAdjD != null) {
+    factors.push(
+      `${opts.awayTeam} adjO ${awayAdjO.toFixed(1)} vs ${opts.homeTeam} adjD ${homeAdjD.toFixed(1)}`
+    )
+  }
+
+  const matchups: string[] = []
+  if (homeAdjO != null && awayAdjD != null && homeAdjO - awayAdjD >= 5) {
+    matchups.push(
+      `${opts.homeTeam} offense edge (+${(homeAdjO - awayAdjD).toFixed(1)} vs defense)`
+    )
+  }
+  if (awayAdjO != null && homeAdjD != null && awayAdjO - homeAdjD >= 5) {
+    matchups.push(
+      `${opts.awayTeam} offense edge (+${(awayAdjO - homeAdjD).toFixed(1)} vs defense)`
+    )
+  }
+
+  const rebMarginDiff =
+    (numStat(homeAdvanced, 'reboundMargin') ?? 0) -
+    (numStat(awayAdvanced, 'reboundMargin') ?? 0)
+  if (Math.abs(rebMarginDiff) >= 2.5) {
+    matchups.push(
+      `Rebound margin edge: ${rebMarginDiff > 0 ? opts.homeTeam : opts.awayTeam} (${formatSigned(
+        rebMarginDiff
+      )})`
+    )
+  }
+
+  const tovMarginDiff =
+    (numStat(homeAdvanced, 'turnoverMargin') ?? 0) -
+    (numStat(awayAdvanced, 'turnoverMargin') ?? 0)
+  if (Math.abs(tovMarginDiff) >= 1.5) {
+    matchups.push(
+      `Turnover margin edge: ${tovMarginDiff > 0 ? opts.homeTeam : opts.awayTeam} (${formatSigned(
+        tovMarginDiff
+      )})`
+    )
+  }
+
+  const home3p = numStat(homeAdvanced, 'threePointPct')
+  const awayOpp3p = numStat(awayAdvanced, 'opponentThreePointPct')
+  if (home3p != null && awayOpp3p != null && home3p - awayOpp3p >= 3) {
+    matchups.push(
+      `${opts.homeTeam} 3P% edge (${home3p.toFixed(1)} vs ${awayOpp3p.toFixed(1)} allowed)`
+    )
+  }
+
+  const away3p = numStat(awayAdvanced, 'threePointPct')
+  const homeOpp3p = numStat(homeAdvanced, 'opponentThreePointPct')
+  if (away3p != null && homeOpp3p != null && away3p - homeOpp3p >= 3) {
+    matchups.push(
+      `${opts.awayTeam} 3P% edge (${away3p.toFixed(1)} vs ${homeOpp3p.toFixed(1)} allowed)`
+    )
+  }
+
+  factors.push(...matchups)
+
+  if (Math.abs(clampedModelSpread - modelSpread) > 0.01) {
+    factors.push(`Model spread clamped at ${maxModelSpread}`)
+  }
+
+  if (opts.marketSpread == null) {
+    return { targetSpread: clampedModelSpread, factors, lateGameFoulBoost }
+  }
+  const blendWeight = 0.6
   const blended =
-    modelSpread * blendWeight + opts.marketSpread * (1 - blendWeight)
-  const maxShift = 12
+    clampedModelSpread * blendWeight + opts.marketSpread * (1 - blendWeight)
+  const maxShift = 15
   const targetSpread = clamp(
     blended,
     opts.marketSpread - maxShift,
     opts.marketSpread + maxShift
   )
   factors.push(`Market anchor: ${formatSigned(opts.marketSpread)} (blend)`)
+  if (Math.abs(targetSpread - blended) > 0.01) {
+    factors.push(`Market clamp: ±${maxShift.toFixed(1)} pts`)
+  }
 
-  return { targetSpread, factors }
+  return { targetSpread, factors, lateGameFoulBoost }
 }
 
 /**
@@ -311,7 +447,28 @@ export async function getGameRecommendations(
         matchup.awayTeam.stats as TeamStats,
         leagueContext
       )
+      if (cbbSpread.lateGameFoulBoost > 0) {
+        targetTotal = Number((targetTotal + cbbSpread.lateGameFoulBoost).toFixed(1))
+        extraFactors.push(
+          `Late-game fouls assumed (<=8 pts): +${cbbSpread.lateGameFoulBoost.toFixed(1)}`
+        )
+      }
       extraFactors.push(...cbbSpread.factors)
+      if (marketContext?.marketTotal != null) {
+        const blendWeight = 0.55
+        const blended =
+          targetTotal * blendWeight +
+          marketContext.marketTotal * (1 - blendWeight)
+        const maxShift = 15
+        targetTotal = clamp(
+          blended,
+          marketContext.marketTotal - maxShift,
+          marketContext.marketTotal + maxShift
+        )
+        extraFactors.push(
+          `Market total anchor: ${marketContext.marketTotal.toFixed(1)} (blend)`
+        )
+      }
     } else if (isFootball) {
       const homeStats = matchup.homeTeam.stats as FootballTeamStats
       const awayStats = matchup.awayTeam.stats as FootballTeamStats

@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState, useRef, ChangeEvent } from 'react'
+import { useEffect, useState, useRef, ChangeEvent, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import ModernSidebar from '@/components/ModernSidebar'
 import ModernMessageList from '@/components/ModernMessageList'
@@ -20,7 +20,7 @@ import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/mes
 
 const WHALE_STORAGE_KEY = 'whale-detector-trades'
 
-export default function ChatPage() {
+function ChatPageContent() {
   const [user, setUser] = useState<any>(null)
   const [profileName, setProfileName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -51,6 +51,8 @@ export default function ChatPage() {
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
   const [messagesToday, setMessagesToday] = useState<number>(0)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const prefillMessage = searchParams.get('prompt') ?? undefined
   const supabase = createClient()
   const profileMenuRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -79,6 +81,14 @@ export default function ChatPage() {
       }
 
       setUser(user)
+
+      const forceOnboarding =
+        process.env.NEXT_PUBLIC_FORCE_ONBOARDING === 'true'
+      if (forceOnboarding) {
+        router.push('/onboarding')
+        setLoading(false)
+        return
+      }
 
       // Get membership status from user metadata
       const membershipInfo = getMembershipStatus(user.user_metadata)
@@ -281,6 +291,13 @@ export default function ChatPage() {
     .slice(0, 2)
     .toUpperCase()
   const canUseWhaleDetector = Boolean(user && membership?.isActive)
+  const chatTabs = [
+    { label: 'Market Projections', href: '/market-projections' },
+    { label: 'Player Projections', href: '/player-projections' },
+    { label: 'Parlay Predictor', href: '/parlay-predictor' },
+    { label: 'EV Bets', href: '/ev-bets' },
+    { label: 'Live Projections', href: '/live-projections' },
+  ]
   const membershipLabel = membership?.tier
     ? ({ pro: 'Pro', sharp: 'Sharp', syndicate: 'Syndicate' } as const)[membership.tier] || 'Pro'
     : 'Pro'
@@ -558,6 +575,21 @@ export default function ChatPage() {
         ) : undefined}
         onLogoClick={() => handleNewConversation()}
       />
+      {user && currentConversationId && (
+        <div className="fixed left-0 right-0 top-12 sm:top-16 z-40 border-b border-white/10 bg-black/90 backdrop-blur">
+          <div className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-white/10">
+            {chatTabs.map((tab) => (
+              <Link
+                key={tab.label}
+                href={tab.href}
+                className="w-full px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75 transition-colors hover:bg-emerald-500/10 hover:text-emerald-200 sm:text-sm"
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex flex-1 min-h-0 relative overflow-hidden">
         <AnimatePresence>
           {sidebarOpen && (
@@ -612,8 +644,8 @@ export default function ChatPage() {
 
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           <div className="flex-1 flex flex-col items-center overflow-hidden min-h-0">
-            <div className="w-full max-w-5xl flex flex-col h-full min-h-0">
-              <div className="flex-1 overflow-hidden min-h-0 pt-[56px] pb-[90px] sm:pt-[96px] sm:pb-[160px]">
+            <div className="w-full max-w-none flex flex-col h-full min-h-0">
+              <div className="flex-1 overflow-hidden min-h-0 pt-[104px] pb-[90px] sm:pt-[144px] sm:pb-[160px]">
                 {!user ? (
                   // Guest view - show intro with sign-up prompt
                   <div className="h-full overflow-y-auto">
@@ -623,14 +655,22 @@ export default function ChatPage() {
                       onMessageSent={() => {}}
                       isGuest={true}
                       onSignUpClick={() => router.push('/auth/signup')}
+                      prefillMessage={prefillMessage}
                     />
                   </div>
                 ) : currentConversationId ? (
-                  <ModernMessageList
-                    conversationId={currentConversationId}
-                    userId={user?.id}
-                    onMessagesChange={setHasMessages}
-                  />
+                  <div className="h-full flex flex-col">
+                    <div className="flex-1 overflow-hidden min-h-0">
+                      <div className="mx-auto w-full max-w-5xl h-full min-h-0">
+                        <ModernMessageList
+                          conversationId={currentConversationId}
+                          userId={user?.id}
+                          onMessagesChange={setHasMessages}
+                          prefillMessage={prefillMessage}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex items-center justify-center h-full bg-[#4E4E4E] px-4">
                     <motion.div
@@ -670,12 +710,12 @@ export default function ChatPage() {
                   </div>
                 )}
               </div>
-
             </div>
           </div>
         </div>
+      </div>
 
-        {user && (
+      {user && (
           <button
             type="button"
             className="hidden lg:flex fixed left-4 top-1/2 z-40 -translate-y-1/2 items-center justify-center rounded-full border border-[#34d399] bg-black/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#34d399] transition hover:bg-[#34d399] hover:text-[#0f1f15] backdrop-blur"
@@ -695,50 +735,6 @@ export default function ChatPage() {
           >
             Live Scores
           </button>
-        )}
-
-        {user && showWhaleToggle && (
-          <div className="hidden lg:flex fixed right-4 top-1/2 -translate-y-1/2 z-40">
-            <div className="w-[240px] rounded-3xl border border-emerald-400/40 bg-black/70 p-4 shadow-2xl shadow-emerald-500/20 backdrop-blur">
-              <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
-                <span>Whale Detector</span>
-                {!canUseWhaleDetector && (
-                  <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
-                    Members Only
-                  </span>
-                )}
-              </div>
-              <p className="mt-2 text-[10px] uppercase tracking-[0.3em] text-white/50">
-                {whaleTotalCount} whales detected
-              </p>
-              <p className="mt-3 text-xs text-white/60">
-                $2k+ trade alerts with price in cents and American odds.
-              </p>
-              <div className="relative">
-                {whaleUnreadCount > 0 && (
-                  <span className="absolute -top-2 -right-2 flex h-4 w-4">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
-                    <span className="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400 text-[9px] font-semibold text-black">
-                      {whaleUnreadCount}
-                    </span>
-                  </span>
-                )}
-                <ParticleButton
-                  type="button"
-                  disabled={!canUseWhaleDetector}
-                  onClick={openWhaleDetector}
-                  className="mt-4 w-full gap-2 rounded-full bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30 disabled:opacity-60 disabled:cursor-not-allowed"
-                  title={
-                    canUseWhaleDetector
-                      ? 'Open Whale Detector'
-                      : 'Membership required to access Whale Detector'
-                  }
-                >
-                  Whale Detector
-                </ParticleButton>
-              </div>
-            </div>
-          </div>
         )}
 
         <AnimatePresence>
@@ -885,56 +881,51 @@ export default function ChatPage() {
           )}
         </AnimatePresence>
 
-        {user && showWhaleToggle && (
-          <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden">
-            <div className="mx-auto max-w-5xl px-3 pb-3">
-              <div className="rounded-2xl border border-emerald-400/30 bg-black/80 px-4 py-3 backdrop-blur">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
-                      Whale Detector
-                    </p>
-                    <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
-                      {whaleTotalCount} whales detected
-                    </p>
-                    <p className="text-[11px] text-white/60">
-                      $2k+ trades with price in cents + American odds.
-                    </p>
-                  </div>
-                  {!canUseWhaleDetector && (
-                    <span className="ml-3 rounded-full border border-emerald-400/30 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
-                      Members Only
-                    </span>
-                  )}
-                </div>
-                <div className="relative">
-                  {whaleUnreadCount > 0 && (
-                    <span className="absolute -top-2 -right-2 flex h-4 w-4">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
-                      <span className="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400 text-[9px] font-semibold text-black">
-                        {whaleUnreadCount}
-                      </span>
-                    </span>
-                  )}
-                  <ParticleButton
-                  type="button"
-                  disabled={!canUseWhaleDetector}
-                  onClick={openWhaleDetector}
-                  className="mt-3 w-full gap-2 rounded-full bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30 disabled:opacity-60 disabled:cursor-not-allowed"
-                  title={
-                    canUseWhaleDetector
-                      ? 'Open Whale Detector'
-                      : 'Membership required to access Whale Detector'
-                  }
-                >
-                  Open Whale Detector
-                  </ParticleButton>
-                </div>
-              </div>
+      {user && showWhaleToggle && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-emerald-400/30 bg-black/90 backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
+                Whale Detector
+              </p>
+              <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
+                {whaleTotalCount} whales detected
+              </p>
+              <p className="text-[11px] text-white/60">
+                $2k+ trades with price in cents + American odds.
+              </p>
+            </div>
+            <div className="relative flex items-center gap-3">
+              {!canUseWhaleDetector && (
+                <span className="rounded-full border border-emerald-400/30 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
+                  Members Only
+                </span>
+              )}
+              {whaleUnreadCount > 0 && (
+                <span className="absolute -top-2 -right-2 flex h-4 w-4">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
+                  <span className="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400 text-[9px] font-semibold text-black">
+                    {whaleUnreadCount}
+                  </span>
+                </span>
+              )}
+              <ParticleButton
+                type="button"
+                disabled={!canUseWhaleDetector}
+                onClick={openWhaleDetector}
+                className="gap-2 rounded-full bg-emerald-400/20 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:bg-emerald-400/30 disabled:opacity-60 disabled:cursor-not-allowed"
+                title={
+                  canUseWhaleDetector
+                    ? 'Open Whale Detector'
+                    : 'Membership required to access Whale Detector'
+                }
+              >
+                Open Whale Detector
+              </ParticleButton>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Mobile Live Scores Modal */}
       <AnimatePresence>
@@ -1037,6 +1028,14 @@ export default function ChatPage() {
       )}
 
     </div>
+  )
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-black text-white" />}>
+      <ChatPageContent />
+    </Suspense>
   )
 }
 

@@ -114,6 +114,7 @@ type WhaleTrade = {
   priceCents: number
   americanOdds: number | null
   notional: number
+  contracts: number
   timestamp: string
   sport: string
   eventDate?: string
@@ -261,6 +262,7 @@ const fetchKalshiTrades = async (
           priceCents,
           americanOdds,
           notional,
+          contracts: Number(trade.count),
           timestamp: trade.created_time,
           sport: resolveKalshiSport(trade.ticker),
           eventDate: parseKalshiDate(trade.ticker),
@@ -302,6 +304,7 @@ const fetchPolymarketTrades = async (
           priceCents,
           americanOdds,
           notional,
+          contracts: Number(trade.size),
           timestamp: new Date(trade.timestamp * 1000).toISOString(),
           sport: parsePolymarketSport(trade.eventSlug || trade.slug),
           eventDate: parsePolymarketDate(trade.eventSlug || trade.slug),

@@ -17,6 +17,13 @@ export type ReferenceTeamStats = {
   season?: string
 }
 
+export type ReferenceGameLog = {
+  date: string
+  opponentAbbr?: string
+  isHome?: boolean
+  stats: Record<string, number>
+}
+
 const normalizeName = (value: string) =>
   value
     .normalize('NFD')
@@ -24,6 +31,13 @@ const normalizeName = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '')
     .trim()
+
+const NBA_TEAM_STATS_CACHE_TTL = 1000 * 60 * 60 * 6
+const NBA_TEAM_STATS_FAILURE_COOLDOWN = 1000 * 60 * 5
+let nbaTeamStatsCache:
+  | { ts: number; season: number; data: ReferenceTeamStats[] }
+  | null = null
+let nbaTeamStatsFailureTs: number | null = null
 
 const stripComments = (html: string) => html.replace(/<!--/g, '').replace(/-->/g, '')
 
@@ -82,17 +96,55 @@ const SEARCH_ENDPOINTS: Record<string, SearchConfig> = {
 }
 
 const fetchHtml = async (url: string): Promise<string | null> => {
-  const res = await fetch(url, {
-    cache: 'no-store',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; DeltaSportsBot/1.0)',
-      Accept: 'text/html,application/xhtml+xml',
-    },
-    redirect: 'follow',
-  })
-  if (!res.ok) return null
-  const html = await res.text()
-  return stripComments(html)
+  const base = new URL(url).origin
+  const headers = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    Accept:
+      'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    Referer: `${base}/`,
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+  }
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+  const backoffSchedule = [2000, 5000, 10000]
+
+  for (let attempt = 0; attempt < backoffSchedule.length; attempt += 1) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000)
+    let res: Response
+
+    try {
+      res = await fetch(url, {
+        cache: 'no-store',
+        headers,
+        redirect: 'follow',
+        signal: controller.signal,
+      })
+    } catch {
+      clearTimeout(timeout)
+      await sleep(backoffSchedule[attempt])
+      continue
+    }
+    clearTimeout(timeout)
+
+    if (res.status === 429 || res.status === 503) {
+      const retryAfter = Number(res.headers.get('retry-after'))
+      const backoffMs = Number.isFinite(retryAfter)
+        ? Math.min(retryAfter * 1000, 15000)
+        : backoffSchedule[attempt]
+      await sleep(backoffMs)
+      continue
+    }
+
+    if (!res.ok) return null
+    const html = await res.text()
+    return stripComments(html)
+  }
+
+  return null
 }
 
 const resolvePlayerUrl = async (sportKey: string, query: string): Promise<string | null> => {
@@ -166,8 +218,13 @@ const extractTableBySection = (html: string, sectionId: string) => {
 const extractTeamRows = (tableHtml: string) =>
   Array.from(
     tableHtml.matchAll(
-      /<tr[^>]*>[\s\S]*?<t[hd][^>]*data-stat="team"[^>]*>[\s\S]*?<\/tr>/gi
+      /<tr[^>]*>[\s\S]*?<t[hd][^>]*data-stat="team"[^>]*>[\s\S]*?<\/tr>/gi      
     )
+  ).map((m) => m[0])
+
+const extractGameRows = (tableHtml: string) =>
+  Array.from(
+    tableHtml.matchAll(/<tr[^>]*>[\s\S]*?<t[hd][^>]*data-stat="date_game"[^>]*>/gi)
   ).map((m) => m[0])
 
 const pickStat = (rowHtml: string, key: string) => {
@@ -232,6 +289,64 @@ const parseBasketballPlayer = (html: string, sport: string, name: string): Refer
     stats,
     sport,
   }
+}
+
+const parseBasketballReferenceGameLogs = (html: string): ReferenceGameLog[] => {
+  const table = extractTable(html, 'pgl_basic')
+  if (!table) return []
+  const rows = extractGameRows(table)
+  const logs: ReferenceGameLog[] = []
+  for (const row of rows) {
+    const date = pickStat(row, 'date_game')
+    if (!date || typeof date !== 'string') continue
+    const reason = pickStat(row, 'reason')
+    if (reason && typeof reason === 'string' && reason.trim().length) continue
+    const opponent = pickStat(row, 'opp_id')
+    const location = pickStat(row, 'game_location')
+    const stats: Record<string, number> = {}
+    const map: Record<string, string> = {
+      pts: 'PTS',
+      trb: 'REB',
+      ast: 'AST',
+      stl: 'STL',
+      blk: 'BLK',
+      tov: 'TOV',
+      fg: 'FGM',
+      fga: 'FGA',
+      fg3: '3PM',
+      fg3a: '3PA',
+      ft: 'FTM',
+      fta: 'FTA',
+      mp: 'MIN',
+    }
+    for (const [src, dest] of Object.entries(map)) {
+      const value = pickStat(row, src)
+      const num = typeof value === 'number' ? value : Number(value)
+      if (Number.isFinite(num)) stats[dest] = num
+    }
+    logs.push({
+      date,
+      opponentAbbr: typeof opponent === 'string' ? opponent : undefined,
+      isHome: location === '@' ? false : true,
+      stats,
+    })
+  }
+  return logs
+}
+
+export const fetchBasketballReferenceGameLogs = async (
+  playerName: string,
+  seasonYear: number
+): Promise<ReferenceGameLog[]> => {
+  const playerUrl = await resolvePlayerUrl('basketball_nba', playerName)
+  if (!playerUrl) return []
+  const slug = playerUrl.split('/players/')[1]
+  if (!slug) return []
+  const cleaned = slug.replace(/\.html.*$/, '')
+  const gamelogUrl = `https://www.basketball-reference.com/players/${cleaned}/gamelog/${seasonYear}`
+  const html = await fetchHtml(gamelogUrl)
+  if (!html) return []
+  return parseBasketballReferenceGameLogs(html)
 }
 
 const parseFootballPlayer = (html: string, sport: string, name: string): ReferencePlayerStats | null => {
@@ -578,10 +693,24 @@ export const getSportsReferenceTeamStats = async (sportKey: string): Promise<Ref
   }
   // NBA/NCAAB: team tables per season
   if (sportKey === 'basketball_nba') {
-    const season = nbaSeasonYear()
-    const trySeasons = [season, season - 1]
-    let html: string | null = null
-    let seasonUsed: number | null = null
+      const season = nbaSeasonYear()
+      const now = Date.now()
+      if (
+        nbaTeamStatsFailureTs &&
+        now - nbaTeamStatsFailureTs < NBA_TEAM_STATS_FAILURE_COOLDOWN
+      ) {
+        return nbaTeamStatsCache?.data?.length ? nbaTeamStatsCache.data : null
+      }
+      if (
+        nbaTeamStatsCache &&
+        nbaTeamStatsCache.season === season &&
+        now - nbaTeamStatsCache.ts < NBA_TEAM_STATS_CACHE_TTL
+      ) {
+        return nbaTeamStatsCache.data
+      }
+      const trySeasons = [season, season - 1]
+      let html: string | null = null
+      let seasonUsed: number | null = null
     for (const yr of trySeasons) {
       const url = `https://www.basketball-reference.com/leagues/NBA_${yr}.html`
       html = await fetchHtml(url)
@@ -590,9 +719,12 @@ export const getSportsReferenceTeamStats = async (sportKey: string): Promise<Ref
         break
       }
     }
-    if (!html || !seasonUsed) return null
-    const perGame = extractTable(html, 'per_game-team')
-    const advanced = extractTable(html, 'advanced-team')
+      if (!html || !seasonUsed) {
+        nbaTeamStatsFailureTs = now
+        return nbaTeamStatsCache?.data?.length ? nbaTeamStatsCache.data : null
+      }
+      const perGame = extractTable(html, 'per_game-team')
+      const advanced = extractTable(html, 'advanced-team')
     const standingsTables = Array.from(html.matchAll(/<table[^>]+id="[^"]*standings[^"]*"[\s\S]*?<\/table>/gi)).map(
       (m) => m[0]
     )
@@ -611,7 +743,10 @@ export const getSportsReferenceTeamStats = async (sportKey: string): Promise<Ref
         standings[normalizeName(teamName)] = { w: w ?? undefined, l: l ?? undefined, pct: pct ?? undefined }
       }
     }
-    if (!perGame) return null
+      if (!perGame) {
+        nbaTeamStatsFailureTs = now
+        return nbaTeamStatsCache?.data?.length ? nbaTeamStatsCache.data : null
+      }
     const rows = Array.from(
       perGame.matchAll(/<tr[^>]*>\s*<th[^>]+data-stat="ranker"[^>]*>\s*\d+[\s\S]*?<\/tr>/g)
     )
@@ -666,16 +801,20 @@ export const getSportsReferenceTeamStats = async (sportKey: string): Promise<Ref
         }
       }
     }
-    // Merge standings wins/losses if available
-    for (const t of teams) {
-      const s = standings[normalizeName(t.team)]
-      if (s) {
+      // Merge standings wins/losses if available
+      for (const t of teams) {
+        const s = standings[normalizeName(t.team)]
+        if (s) {
         if (s.w != null) t.wins = s.w
         if (s.l != null) t.losses = s.l
         if (s.pct != null) t.winPct = s.pct
       }
     }
-    return teams
+      if (teams.length) {
+        nbaTeamStatsCache = { ts: now, season: seasonUsed, data: teams }
+        nbaTeamStatsFailureTs = null
+      }
+      return teams
   }
   if (sportKey === 'icehockey_nhl') {
     const season = nhlSeasonYear()

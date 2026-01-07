@@ -35,6 +35,12 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (user) {
+      const forceOnboarding =
+        process.env.NEXT_PUBLIC_FORCE_ONBOARDING === 'true'
+      if (forceOnboarding) {
+        return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
+      }
+
       const metadataCompleted = Boolean(
         (user.user_metadata as { onboarding_completed?: boolean })
           ?.onboarding_completed

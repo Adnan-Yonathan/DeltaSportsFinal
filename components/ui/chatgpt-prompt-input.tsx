@@ -38,8 +38,10 @@ const MicIcon = (props: React.SVGProps<SVGSVGElement>) => ( <svg width="24" heig
 
 
 // --- The Final, Self-Contained PromptBox Component ---
-export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
-  ({ className, ...props }, ref) => {
+export const PromptBox = React.forwardRef<
+  HTMLTextAreaElement,
+  React.TextareaHTMLAttributes<HTMLTextAreaElement>
+>(({ className, defaultValue, ...props }, ref) => {
     const internalTextareaRef = React.useRef<HTMLTextAreaElement>(null);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const recorderRef = React.useRef<MediaRecorder | null>(null);
@@ -50,7 +52,13 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
         }
       };
     }, []);
-    const [value, setValue] = React.useState("");
+    const resolvedDefaultValue =
+      typeof defaultValue === "string"
+        ? defaultValue
+        : typeof defaultValue === "number"
+        ? String(defaultValue)
+        : "";
+    const [value, setValue] = React.useState(resolvedDefaultValue);
     const [imagePreview, setImagePreview] = React.useState<string | null>(null);
     const [isImageDialogOpen, setIsImageDialogOpen] = React.useState(false);
     const [isRecording, setIsRecording] = React.useState(false);
@@ -64,6 +72,11 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
 
     React.useImperativeHandle(ref, () => internalTextareaRef.current!, []);
     React.useLayoutEffect(() => { const textarea = internalTextareaRef.current; if (textarea) { textarea.style.height = "auto"; const newHeight = Math.min(textarea.scrollHeight, 200); textarea.style.height = `${newHeight}px`; } }, [value]);
+    React.useEffect(() => {
+      if (!resolvedDefaultValue) return;
+      if (value) return;
+      setValue(resolvedDefaultValue);
+    }, [resolvedDefaultValue, value]);
 
     // Update suggestions when value changes
     React.useEffect(() => {

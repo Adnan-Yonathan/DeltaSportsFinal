@@ -44,17 +44,22 @@ export function calculateImpliedProbabilityDecimal(americanOdds: number): number
 }
 
 /**
- * Calculate expected value for a bet
+ * Calculate expected value for a bet (1-unit stake)
+ * EV = (p × profit) - ((1 - p) × stake)
  * @param trueProbability - The "true" probability (from market consensus)
  * @param americanOdds - The odds being offered
  * @returns EV as a percentage (positive = +EV)
  */
 export function calculateEV(trueProbability: number, americanOdds: number): number {
-  const decimalOdds = americanToDecimal(americanOdds)
-  // EV = (probability * payout) - 1
-  // payout = decimalOdds (includes stake return)
-  const ev = trueProbability * decimalOdds - 1
-  return ev * 100 // Return as percentage
+  if (!Number.isFinite(trueProbability) || !Number.isFinite(americanOdds)) {
+    return 0
+  }
+  const stake = 1
+  const odds = Number(americanOdds)
+  const profit =
+    odds > 0 ? odds / 100 : odds < 0 ? 100 / Math.abs(odds) : 0
+  const ev = trueProbability * profit - (1 - trueProbability) * stake
+  return ev * 100
 }
 
 /**

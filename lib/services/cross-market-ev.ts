@@ -16,7 +16,7 @@ import {
   calculateImpliedProbabilityDecimal,
   rankByEV,
 } from '@/lib/utils/ev-calculator'
-import { formatAmericanOdds } from '@/lib/utils/odds'
+import { decimalToAmerican, formatAmericanOdds } from '@/lib/utils/odds'
 
 export interface CrossMarketEVOptions {
   sports?: string[] // Which sports to scan
@@ -301,7 +301,13 @@ function analyzeGameForEV(
       const consensus = findMarketConsensus(bookOdds)
       const noVig = noVigConsensusBySelection.get(selectionKey)
       const consensusProbability =
-        noVig && noVig.bookCount > 0 ? noVig.impliedProbability : consensus.impliedProbability
+        noVig && noVig.bookCount > 0
+          ? noVig.impliedProbability
+          : consensus.impliedProbability
+      const consensusDisplayOdds =
+        noVig && noVig.bookCount > 0 && consensusProbability > 0 && consensusProbability < 1
+          ? decimalToAmerican(1 / consensusProbability)
+          : consensus.averageOdds
 
       // Find the best odds available
       const bestBook = bookOdds.reduce((best, current) =>
@@ -332,7 +338,12 @@ function analyzeGameForEV(
           point,
           bestBook: bestBook.bookmaker,
           bestOdds: bestBook.odds,
-          consensus: { ...consensus, impliedProbability: consensusProbability },
+          consensus: {
+            ...consensus,
+            averageOdds: consensusDisplayOdds,
+            medianOdds: consensusDisplayOdds,
+            impliedProbability: consensusProbability,
+          },
           ev: Math.round(ev * 10) / 10,
           edgePercent: Math.round(edgePercent * 10) / 10,
           allBooks: bookOdds,

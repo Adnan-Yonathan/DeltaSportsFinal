@@ -206,8 +206,16 @@ const getCbbTeamStats = async (teamName: string): Promise<TeamStats | null> => {
 }
 
 const getNbaTeamStats = async (teamName: string): Promise<TeamStats | null> => {
-  const teams = await getSportsTeamStats('basketball_nba', teamName)
-  const entry = teams?.[0]
+  const teamAbbrev = getTeamAbbrev(teamName)
+  const teams = await getSportsTeamStats(
+    'basketball_nba',
+    teamAbbrev ?? teamName
+  )
+  const fallbackTeams =
+    !teams?.length && teamAbbrev
+      ? await getSportsTeamStats('basketball_nba', teamName)
+      : teams
+  const entry = fallbackTeams?.[0]
   const stats = entry?.stats || {}
 
   const findStat = (patterns: string[]) => {
@@ -239,32 +247,30 @@ const getNbaTeamStats = async (teamName: string): Promise<TeamStats | null> => {
   const pace =
     validPace(toNumber(stats.pace)) ??
     validPace(findStat(['PACE'])) ??
-    DEFAULT_NBA_TEAM_STATS.pace
+    null
   const ppg = validPpg(rawPpg)
   const papg = validPpg(rawPapg)
   const ortg =
     validRating(toNumber(stats.offensiveRating)) ??
     validRating(findStat(['OFFENSIVE_RATING', 'OFF_RTG', 'ORTG'])) ??
     (ppg != null && pace ? Number(((ppg / pace) * 100).toFixed(1)) : null) ??
-    DEFAULT_NBA_TEAM_STATS.ortg
+    null
   const drtg =
     validRating(toNumber(stats.defensiveRating)) ??
     validRating(findStat(['DEFENSIVE_RATING', 'DEF_RTG', 'DRTG'])) ??
     (papg != null && pace ? Number(((papg / pace) * 100).toFixed(1)) : null) ??
-    DEFAULT_NBA_TEAM_STATS.drtg
+    null
 
-    if (
-      pace === DEFAULT_NBA_TEAM_STATS.pace &&
-      ortg === DEFAULT_NBA_TEAM_STATS.ortg &&
-      drtg === DEFAULT_NBA_TEAM_STATS.drtg
-    ) {
-    console.warn('[MATCHUP ANALYZER] Using default NBA pace/ratings', {
+  if (pace == null || ortg == null || drtg == null) {
+    console.warn('[MATCHUP ANALYZER] Missing NBA pace/ratings', {
       team: teamName,
+      resolvedAbbrev: teamAbbrev ?? null,
       pace: stats.pace,
       offensiveRating: stats.offensiveRating,
-        defensiveRating: stats.defensiveRating,
-      })
-    }
+      defensiveRating: stats.defensiveRating,
+    })
+    return null
+  }
 
     const fieldGoalPct = toPctDecimal(stats.fieldGoalPct)
     const threePointPct = toPctDecimal(stats.threePointPct)

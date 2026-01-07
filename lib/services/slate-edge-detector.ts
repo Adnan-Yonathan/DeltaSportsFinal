@@ -10,6 +10,7 @@
  */
 
 import { fetchOdds } from '@/lib/api/odds-api'
+import { getNBATeamStats } from '@/lib/sports-stats-api'
 import { getGameRecommendations, type GameRecommendation } from './recommendation-engine'
 import { analyzeMatchup, type MatchupAnalysis } from './matchup-analyzer'
 import {
@@ -29,6 +30,7 @@ import {
 import { evaluateLineEdge, type EdgeAssessment } from '@/lib/analysis/bet-tools'
 import type { OddsGame } from '@/lib/types/odds'
 import { MARKETS } from '@/lib/types/odds'
+import { normalCDF, probabilityToAmericanOdds } from '@/lib/utils/statistics'
 import {
   analyzeSlatePropEdges,
   formatSlatePropEdgesForChat,
@@ -57,6 +59,11 @@ export interface GameEdgeAnalysis {
       homeBook?: string
       awayOdds?: number
       awayBook?: string
+    }
+    model?: {
+      homeOdds?: number
+      awayOdds?: number
+      homeProbability?: number
     }
     prediction?: {
       homeOdds?: number
@@ -200,6 +207,20 @@ const pickBestEv = (
 
 const formatOdds = (odds: number) => (odds > 0 ? `+${odds}` : `${odds}`)
 
+const normalizeTeamName = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+const teamNameMatches = (team: string, candidate: string) => {
+  const normalizedTeam = normalizeTeamName(team)
+  const normalizedCandidate = normalizeTeamName(candidate)
+  if (!normalizedTeam || !normalizedCandidate) return false
+  return (
+    normalizedTeam === normalizedCandidate ||
+    normalizedTeam.endsWith(normalizedCandidate) ||
+    normalizedCandidate.endsWith(normalizedTeam)
+  )
+}
+
 const getFallbackTeamStats = (sportKey: string) => {
   if (sportKey === 'basketball_ncaab') {
     return { ortg: 105, drtg: 105, pace: 70 }
@@ -208,6 +229,17 @@ const getFallbackTeamStats = (sportKey: string) => {
     return { ortg: 115, drtg: 115, pace: 100 }
   }
   return null
+}
+
+const NBA_MARGIN_STDDEV = 12
+
+const buildModelMoneyline = (targetSpread?: number | null) => {
+  if (!Number.isFinite(targetSpread)) return null
+  const expectedMargin = -(targetSpread as number)
+  const winProb = Math.max(0.01, Math.min(0.99, normalCDF(expectedMargin / NBA_MARGIN_STDDEV)))
+  const homeOdds = probabilityToAmericanOdds(winProb)
+  const awayOdds = probabilityToAmericanOdds(1 - winProb)
+  return { homeOdds, awayOdds, homeProbability: winProb }
 }
 
 const buildMatchupFactorsFromStats = (
@@ -313,6 +345,10 @@ const buildFallbackRecommendations = (
       awayStats as TeamStats,
       NCAAB_LEAGUE_CONTEXT
     )
+    if (Math.abs(targetSpread) <= 8) {
+      targetTotal = Number((targetTotal + 3.5).toFixed(1))
+      factors.push('Late-game fouls assumed (<=8 pts): +3.5')
+    }
   } else if (
     resolvedSport === 'americanfootball_nfl' ||
     resolvedSport === 'americanfootball_ncaaf'
@@ -478,8 +514,9 @@ function getBestSpread(game: OddsGame, side: 'home' | 'away'): { line: number; b
     const spreadMarket = book.markets?.find((m) => m.key === 'spreads')
     if (!spreadMarket) continue
 
+    const teamName = side === 'home' ? game.home_team : game.away_team
     const outcome = spreadMarket.outcomes?.find((o) =>
-      side === 'home' ? o.name === game.home_team : o.name === game.away_team
+      teamNameMatches(teamName, o.name)
     )
     if (!outcome?.point) continue
 
@@ -508,8 +545,9 @@ function getBestSpreadByType(
     const spreadMarket = book.markets?.find((m) => m.key === 'spreads')
     if (!spreadMarket) continue
 
+    const teamName = side === 'home' ? game.home_team : game.away_team
     const outcome = spreadMarket.outcomes?.find((o) =>
-      side === 'home' ? o.name === game.home_team : o.name === game.away_team
+      teamNameMatches(teamName, o.name)
     )
     if (!outcome?.point) continue
 
@@ -531,8 +569,9 @@ function getBestMoneyline(game: OddsGame, side: 'home' | 'away'): { odds: number
     const moneylineMarket = book.markets?.find((m) => m.key === 'h2h')
     if (!moneylineMarket) continue
 
+    const teamName = side === 'home' ? game.home_team : game.away_team
     const outcome = moneylineMarket.outcomes?.find((o) =>
-      side === 'home' ? o.name === game.home_team : o.name === game.away_team
+      teamNameMatches(teamName, o.name)
     )
     if (outcome?.price == null) continue
 
@@ -560,8 +599,9 @@ function getBestMoneylineByType(
     const moneylineMarket = book.markets?.find((m) => m.key === 'h2h')
     if (!moneylineMarket) continue
 
+    const teamName = side === 'home' ? game.home_team : game.away_team
     const outcome = moneylineMarket.outcomes?.find((o) =>
-      side === 'home' ? o.name === game.home_team : o.name === game.away_team
+      teamNameMatches(teamName, o.name)
     )
     if (outcome?.price == null) continue
 
@@ -674,11 +714,24 @@ export async function analyzeSlateEdges(
     }
   }
 
-  // Filter to games happening today (including games that may have started recently)
-  // Use US Eastern timezone as primary reference for "today's slate"
-  const now = new Date()
+  if (sportKey === 'basketball_nba') {
+    try {
+      console.log('[SLATE EDGE] Warming NBA.com team stats cache...')
+      await getNBATeamStats()
+    } catch (error) {
+      console.warn('[SLATE EDGE] NBA.com warmup failed', error)
+    }
+  }
 
-  // Calculate target date boundaries in US Eastern time
+  // Filter to upcoming games (and recent in-progress) for projections.
+  const now = new Date()
+  const useDateOverride = Boolean(date)
+  const upcomingWindowHours =
+    sportKey === 'basketball_ncaab' || sportKey === 'basketball_nba' ? 48 : 24
+  const windowEnd = new Date(now.getTime() + upcomingWindowHours * 60 * 60 * 1000)
+  const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000)
+
+  // Calculate target date boundaries in US Eastern time for date override.
   const easternFormatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     year: 'numeric',
@@ -691,22 +744,16 @@ export async function analyzeSlateEdges(
     return `${year}-${month}-${day}`
   }
   const targetDate = resolveTargetDate()
-
-  // Target start and end in Eastern time (converted to UTC for comparison)
   const todayStartEastern = new Date(`${targetDate}T00:00:00-05:00`)
   const todayEndEastern = new Date(`${targetDate}T23:59:59-05:00`)
-
-  // Allow games that started up to 3 hours ago (still in progress)
-  const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000)
-  const useDateOverride = Boolean(date)
 
   const upcomingGames = oddsGames
     .filter((g) => {
       const gameTime = new Date(g.commence_time)
-      // Game is today (in Eastern time) and either hasn't started OR started within last 3 hours
-      const isToday = gameTime >= todayStartEastern && gameTime <= todayEndEastern
-      const notTooOld = useDateOverride ? true : gameTime > threeHoursAgo
-      return isToday && notTooOld
+      if (useDateOverride) {
+        return gameTime >= todayStartEastern && gameTime <= todayEndEastern
+      }
+      return gameTime >= threeHoursAgo && gameTime <= windowEnd
     })
     .slice(0, limit)
 
@@ -755,10 +802,12 @@ export async function analyzeSlateEdges(
 
       // Match sharp signals for this game by team name
       const sharpResult = sharpResults.find((r) => {
-        const homeMatch = game.home_team.toLowerCase().includes(r.homeTeam.toLowerCase().split(' ').pop() || '') ||
-                          r.homeTeam.toLowerCase().includes(game.home_team.toLowerCase().split(' ').pop() || '')
-        const awayMatch = game.away_team.toLowerCase().includes(r.awayTeam.toLowerCase().split(' ').pop() || '') ||
-                          r.awayTeam.toLowerCase().includes(game.away_team.toLowerCase().split(' ').pop() || '')
+        const homeMatch =
+          teamNameMatches(game.home_team, r.homeTeam) ||
+          teamNameMatches(r.homeTeam, game.home_team)
+        const awayMatch =
+          teamNameMatches(game.away_team, r.awayTeam) ||
+          teamNameMatches(r.awayTeam, game.away_team)
         return homeMatch && awayMatch
       })
 
@@ -778,7 +827,7 @@ export async function analyzeSlateEdges(
         sportKey === 'basketball_ncaab'
           ? 20000
           : sportKey === 'basketball_nba'
-            ? 25000
+            ? 45000
             : 8000
 
       // Get detailed matchup analysis (includes injuries, stats, ATS) - with 8s timeout
@@ -810,7 +859,7 @@ export async function analyzeSlateEdges(
         sportKey === 'basketball_ncaab'
           ? 12000
           : sportKey === 'basketball_nba'
-            ? 15000
+            ? 25000
             : 8000
       let recommendations = await withTimeout(
         getGameRecommendations(
@@ -824,12 +873,23 @@ export async function analyzeSlateEdges(
         recommendationTimeoutMs,
         []
       )
+      if (recommendations.length === 0 && sportKey === 'basketball_ncaab') {
+        recommendations = await getGameRecommendations(
+          game.home_team,
+          game.away_team,
+          'all',
+          sportKey,
+          marketContext,
+          matchupAnalysis
+        )
+      }
       if (recommendations.length === 0) {
         recommendations = buildFallbackRecommendations(matchupAnalysis, sportKey)
       }
 
       const spreadRec = recommendations.find((r) => r.type === 'spread')
       const totalRec = recommendations.find((r) => r.type === 'total')
+      const modelMoneyline = buildModelMoneyline(spreadRec?.targetLine)
 
       let spreadEdge: EdgeAssessment | undefined
       let totalEdge: EdgeAssessment | undefined
@@ -946,7 +1006,8 @@ export async function analyzeSlateEdges(
           sportsbookMoneylineHome ||
           sportsbookMoneylineAway ||
           predictionMoneylineHome ||
-          predictionMoneylineAway
+          predictionMoneylineAway ||
+          modelMoneyline
             ? {
                 sportsbook: {
                   homeOdds: sportsbookMoneylineHome?.odds,
@@ -954,6 +1015,13 @@ export async function analyzeSlateEdges(
                   awayOdds: sportsbookMoneylineAway?.odds,
                   awayBook: sportsbookMoneylineAway?.book,
                 },
+                model: modelMoneyline
+                  ? {
+                      homeOdds: modelMoneyline.homeOdds,
+                      awayOdds: modelMoneyline.awayOdds,
+                      homeProbability: modelMoneyline.homeProbability,
+                    }
+                  : undefined,
                 prediction: {
                   homeOdds: predictionMoneylineHome?.odds,
                   homeBook: predictionMoneylineHome?.book,

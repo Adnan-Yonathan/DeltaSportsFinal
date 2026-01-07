@@ -71,7 +71,9 @@ const LEAGUE_TO_SPORT: Record<string, SportKey> = {
   nhl: 'nhl',
   mlb: 'mlb',
   basketball_nba: 'nba',
+  basketball_ncaab: 'ncaamb',
   americanfootball_nfl: 'nfl',
+  americanfootball_ncaaf: 'ncaafb',
   icehockey_nhl: 'nhl',
   baseball_mlb: 'mlb',
 }

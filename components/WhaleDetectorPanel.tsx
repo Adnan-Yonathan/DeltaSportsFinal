@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { formatAmericanOdds, formatCurrency } from '@/lib/utils/odds'
+import { formatAmericanOdds, formatCurrency, formatPercent } from '@/lib/utils/odds'
 import { cn } from '@/lib/utils'
 
 type WhaleTrade = {
@@ -12,6 +12,7 @@ type WhaleTrade = {
   priceCents: number
   americanOdds: number | null
   notional: number
+  contracts: number
   timestamp: string
   sport: string
   eventDate?: string
@@ -26,19 +27,29 @@ type WhaleTradeStatus = 'pending' | 'respected' | 'faded'
 type WhaleTradeWithStatus = WhaleTrade & {
   status?: WhaleTradeStatus
   checkedAt?: string
+  result?: 'win' | 'loss'
+  resolvedAt?: string
+  pnl?: number
+  roi?: number
 }
 
 const MIN_NOTIONAL = 2000
 const POLL_INTERVAL_MS = 30000
 const RESPECT_CHECK_MS = 15 * 60 * 1000
 const RESPECT_TOLERANCE_CENTS = 2
+const RESOLUTION_POLL_MS = 5 * 60 * 1000
 const STORAGE_KEY = 'whale-detector-trades'
 const MAX_RESOLVED_TRADES = 300
 
-const formatOddsLabel = (priceCents: number, americanOdds: number | null) => {
+const formatOddsLabel = (priceCents: number, americanOdds: number | null) => {  
   const centsLabel = `${priceCents}c`
   if (americanOdds == null) return centsLabel
   return `${centsLabel} (${formatAmericanOdds(americanOdds)})`
+}
+
+const formatSignedCurrency = (amount: number) => {
+  const sign = amount >= 0 ? '+' : '-'
+  return `${sign}${formatCurrency(Math.abs(amount))}`
 }
 
 const formatTimestamp = (value: string) => {
@@ -82,10 +93,11 @@ export default function WhaleDetectorPanel({
     }
     return []
   })
-  const [hydrated, setHydrated] = useState(typeof window !== 'undefined')
+  const [hydrated, setHydrated] = useState(typeof window !== 'undefined')       
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
   const scheduledRef = useRef<Set<string>>(new Set())
+  const resolvingRef = useRef<Set<string>>(new Set())
 
   const sortedTrades = useMemo(() => {
     const weight = (status?: WhaleTradeStatus) => {
@@ -187,6 +199,78 @@ export default function WhaleDetectorPanel({
     return null
   }
 
+  const fetchResolvedOutcome = async (trade: WhaleTradeWithStatus) => {
+    try {
+      if (trade.source === 'kalshi' && trade.ticker) {
+        const res = await fetch(
+          `/api/whale-detector/resolve?source=kalshi&ticker=${encodeURIComponent(
+            trade.ticker
+          )}`,
+          { cache: 'no-store' }
+        )
+        if (!res.ok) return null
+        const data = await res.json()
+        if (!data?.resolved || !data?.outcome) return null
+        return String(data.outcome)
+      }
+      if (trade.source === 'polymarket' && trade.slug) {
+        const res = await fetch(
+          `/api/whale-detector/resolve?source=polymarket&slug=${encodeURIComponent(
+            trade.slug
+          )}`,
+          { cache: 'no-store' }
+        )
+        if (!res.ok) return null
+        const data = await res.json()
+        if (!data?.resolved || !data?.outcome) return null
+        return String(data.outcome)
+      }
+    } catch (error) {
+      console.warn('Whale detector resolve fetch failed:', error)
+    }
+    return null
+  }
+
+  const normalizeOutcome = (value: string) =>
+    value.trim().toLowerCase().replace(/\s+/g, ' ')
+
+  const resolveTradeResult = async (trade: WhaleTradeWithStatus) => {
+    if (trade.result || resolvingRef.current.has(trade.id)) return
+    resolvingRef.current.add(trade.id)
+    const outcome = await fetchResolvedOutcome(trade)
+    resolvingRef.current.delete(trade.id)
+    if (!outcome) return
+    const normalizedOutcome = normalizeOutcome(outcome)
+    const tradeOutcome = normalizeOutcome(trade.outcome)
+    const isWin =
+      trade.source === 'kalshi' && trade.side
+        ? trade.side === normalizedOutcome
+        : tradeOutcome === normalizedOutcome
+    const price = trade.priceCents / 100
+    const contracts =
+      Number.isFinite(trade.contracts) && trade.contracts > 0
+        ? trade.contracts
+        : price > 0
+          ? trade.notional / price
+          : 0
+    if (!Number.isFinite(contracts) || contracts <= 0) return
+    const pnl = isWin ? contracts * (1 - price) : -contracts * price
+    const roi = trade.notional > 0 ? pnl / trade.notional : 0
+    setTrades((prev) =>
+      prev.map((item) =>
+        item.id === trade.id
+          ? {
+              ...item,
+              result: isWin ? 'win' : 'loss',
+              resolvedAt: new Date().toISOString(),
+              pnl,
+              roi,
+            }
+          : item
+      )
+    )
+  }
+
   const evaluateTrade = async (trade: WhaleTradeWithStatus) => {
     const currentPrice = await fetchCurrentPrice(trade)
     if (currentPrice == null || !Number.isFinite(currentPrice)) return
@@ -246,6 +330,20 @@ export default function WhaleDetectorPanel({
     })
   }, [trades])
 
+  useEffect(() => {
+    const unresolved = trades.filter((trade) => !trade.result)
+    if (unresolved.length === 0) return
+    unresolved.forEach((trade) => {
+      void resolveTradeResult(trade)
+    })
+    const interval = setInterval(() => {
+      unresolved.forEach((trade) => {
+        void resolveTradeResult(trade)
+      })
+    }, RESOLUTION_POLL_MS)
+    return () => clearInterval(interval)
+  }, [trades])
+
   const now = Date.now()
 
   useEffect(() => {
@@ -262,6 +360,7 @@ export default function WhaleDetectorPanel({
       )}
       {sortedTrades.map((trade) => {
         const isFresh = now - new Date(trade.timestamp).getTime() < 2 * 60 * 1000
+        const pnl = trade.pnl ?? null
         return (
           <div
             key={trade.id}
@@ -313,6 +412,16 @@ export default function WhaleDetectorPanel({
               <span className="rounded-full border border-white/10 px-2 py-0.5">
                 Detected {formatTimestamp(trade.timestamp)}
               </span>
+              {trade.result && (
+                <span className="rounded-full border border-white/10 px-2 py-0.5">
+                  {trade.result === 'win' ? 'Win' : 'Loss'}
+                </span>
+              )}
+              {trade.result && pnl != null && Number.isFinite(pnl) && (
+                <span className="rounded-full border border-white/10 px-2 py-0.5">
+                  {formatSignedCurrency(pnl)} ({formatPercent(trade.roi ?? 0)})
+                </span>
+              )}
             </div>
             {!trade.status && (
               <p className="mt-2 text-[11px] text-white/40">

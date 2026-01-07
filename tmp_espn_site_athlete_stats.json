@@ -1,0 +1,1 @@
+{"code":404,"message":"error invoking GET: http://sports.core.api.espn.pvt/v2/sports/basketball/leagues/nba/athletes/1966/season, status=404, duration=5 ms, message=null, cache=CACHE_MISS"}

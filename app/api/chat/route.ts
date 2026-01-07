@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions'
 import { createClient } from '@/lib/supabase/server'
 import { fetchOdds } from '@/lib/api/odds-api'
-import type { OddsGame } from '@/lib/types/odds'
+import { SPORTS, type OddsGame } from '@/lib/types/odds'
 import { resolveSbdLeague } from '@/lib/api/sbd'
 import {
   getTeamStats,
@@ -90,6 +90,170 @@ const mapSportToPropKey = (sport?: string): string => {
   if (value.includes('mlb') || value.includes('baseball')) return 'baseball_mlb'
   if (value.includes('nhl') || value.includes('hockey')) return 'icehockey_nhl'
   return 'basketball_nba'
+}
+
+const mapSportToOddsKey = (sport?: string): string => {
+  const value = (sport || '').toLowerCase()
+  if (value.includes('nfl') || value === 'football') return SPORTS.NFL
+  if (value.includes('mlb') || value.includes('baseball')) return SPORTS.MLB
+  if (value.includes('nhl') || value.includes('hockey')) return SPORTS.NHL
+  return SPORTS.NBA
+}
+
+const PROP_MARKET_KEYS_BY_SPORT: Record<string, string[]> = {
+  [SPORTS.NBA]: [
+    'points',
+    'rebounds',
+    'assists',
+    'threes',
+    'points_rebounds',
+    'points_assists',
+    'pra',
+    'rebounds_assists',
+    'blocks',
+    'steals',
+    'blocks_steals',
+  ],
+  [SPORTS.NFL]: [
+    'passing_yards',
+    'passing_touchdowns',
+    'passing_completions',
+    'passing_attempts',
+    'interceptions',
+    'rushing_yards',
+    'rushing_touchdowns',
+    'receiving_yards',
+    'receptions',
+    'receiving_touchdowns',
+    'anytime_td',
+    'carries',
+    'longest_rush',
+    'longest_reception',
+    'longest_completion',
+  ],
+  [SPORTS.MLB]: ['hits', 'total_bases', 'rbis', 'runs', 'strikeouts', 'home_runs'],
+  [SPORTS.NHL]: ['points', 'goals', 'assists', 'shots_on_goal', 'blocked_shots', 'saves', 'powerplay_points'],
+}
+
+const formatPropMarketLabel = (marketKey: string) => marketKey.replace(/_/g, ' ')
+
+const parseEvPropMarket = (market: string, marketKeys: string[]) => {
+  const sorted = [...marketKeys].sort((a, b) => b.length - a.length)
+  for (const key of sorted) {
+    const suffix = ` ${key}`
+    if (market.toLowerCase().endsWith(suffix.toLowerCase())) {
+      return { player: market.slice(0, -suffix.length), marketKey: key }
+    }
+  }
+  return null
+}
+
+const buildPropOverlapIndex = (propsData: any[]) => {
+  const index = new Set<string>()
+  for (const playerProp of propsData) {
+    const playerKey = normalizeToken(playerProp?.player)
+    if (!playerKey) continue
+    const markets = playerProp?.markets || {}
+    for (const [marketKey, marketData] of Object.entries(markets) as [string, any][]) {
+      const line = Number(marketData?.line)
+      if (!Number.isFinite(line)) continue
+      index.add(`${playerKey}|${marketKey}|${line}`)
+    }
+  }
+  return index
+}
+
+const collectPropMarketKeys = (propsData: any[]) => {
+  const keys = new Set<string>()
+  for (const playerProp of propsData) {
+    const markets = playerProp?.markets || {}
+    for (const marketKey of Object.keys(markets)) {
+      keys.add(marketKey)
+    }
+  }
+  return Array.from(keys)
+}
+
+const buildEvPropsSummary = async (opts: {
+  sportKey: string
+  propsData: any[]
+  playerFilter?: string
+  teamFilters?: string[]
+  limit?: number
+}) => {
+  const { sportKey, propsData, playerFilter, teamFilters, limit = 10 } = opts
+  const marketKeys = new Set([
+    ...collectPropMarketKeys(propsData),
+    ...(PROP_MARKET_KEYS_BY_SPORT[sportKey] || []),
+  ])
+  const overlapIndex = buildPropOverlapIndex(propsData)
+  const normalizedPlayerFilter = normalizeToken(playerFilter)
+  const normalizedTeams = (teamFilters || []).map(normalizeTeamKey).filter(Boolean)
+
+  const evOpps = await findEVOpportunities({
+    sports: [sportKey],
+    includeProps: true,
+    markets: [],
+    limit: 50,
+    minPropEV: 2.5,
+    slateMode: 'today',
+  })
+
+  const evProps = evOpps
+    .filter((opp) => opp.market !== 'Moneyline' && opp.market !== 'Spread' && opp.market !== 'Total')
+    .map((opp) => {
+      const parsed = parseEvPropMarket(opp.market, Array.from(marketKeys))
+      if (!parsed) return null
+      if (normalizedPlayerFilter && normalizeToken(parsed.player) !== normalizedPlayerFilter) {
+        return null
+      }
+      if (normalizedTeams.length) {
+        const teamLabel = opp.game.includes('(') ? opp.game.split('(')[0].trim() : opp.game
+        const teamKey = normalizeTeamKey(teamLabel)
+        if (!normalizedTeams.some((team) => teamKey.includes(team))) {
+          return null
+        }
+      }
+      return {
+        player: parsed.player,
+        marketKey: parsed.marketKey,
+        line: Number.isFinite(opp.point) ? Number(opp.point) : null,
+        bestOdds: opp.bestOdds,
+        bestBook: opp.bestBook,
+        ev: opp.ev,
+      }
+    })
+    .filter(Boolean) as Array<{
+    player: string
+    marketKey: string
+    line: number | null
+    bestOdds: number
+    bestBook: string
+    ev: number
+  }>
+
+  if (!evProps.length) {
+    return { block: 'EV Player Props: none above threshold.', overlaps: [] as string[] }
+  }
+
+  const overlaps = new Set<string>()
+  const lines = evProps.slice(0, limit).map((entry) => {
+    const lineLabel = entry.line != null ? `${entry.line}` : 'n/a'
+    const oddsLabel = formatOddsValue(entry.bestOdds) || 'n/a'
+    const overlapKey =
+      entry.line != null
+        ? `${normalizeToken(entry.player)}|${entry.marketKey}|${entry.line}`
+        : null
+    if (overlapKey && overlapIndex.has(overlapKey)) {
+      overlaps.add(`${entry.player} ${formatPropMarketLabel(entry.marketKey)} ${lineLabel}`)
+    }
+    return `${entry.player} ${formatPropMarketLabel(entry.marketKey)} Over ${lineLabel} — ${oddsLabel} (${entry.bestBook}), EV +${entry.ev.toFixed(1)}%`
+  })
+
+  return {
+    block: `EV Player Props:\n${lines.map((line) => `- ${line}`).join('\n')}`,
+    overlaps: Array.from(overlaps),
+  }
 }
 
 const normalizeToken = (value?: string) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -10920,12 +11084,20 @@ ${statsEnrichment}
                   if (playerProp.game) {
                     formatted += `Game: ${playerProp.game}\n`
                   }
-                  formatted += `| Market | Line | Best Over | Best Under |\n`
-                  formatted += `| --- | --- | --- | --- |\n`
+                  formatted += `| Market | Line | Model | Delta | Best Over | Best Under |\n`
+                  formatted += `| --- | --- | --- | --- | --- | --- |\n`
 
                   for (const [marketType, marketData] of Object.entries(playerProp.markets) as [string, any][]) {
                     const lineLabel =
                       marketData.line !== undefined && marketData.line !== null ? marketData.line : '?'
+                    const modelLabel =
+                      marketData.projection !== undefined && marketData.projection !== null
+                        ? marketData.projection
+                        : '?'
+                    const deltaLabel =
+                      marketData.delta !== undefined && marketData.delta !== null
+                        ? `${marketData.delta > 0 ? '+' : ''}${marketData.delta}`
+                        : '?'
                     const bestOver =
                       marketData.over.bestBook
                         ? `${marketData.over.best > 0 ? '+' : ''}${marketData.over.best} (${marketData.over.bestBook})`
@@ -10935,7 +11107,7 @@ ${statsEnrichment}
                         ? `${marketData.under.best > 0 ? '+' : ''}${marketData.under.best} (${marketData.under.bestBook})`
                         : '?'
 
-                    formatted += `| ${marketType.toUpperCase()} | ${lineLabel} | ${bestOver} | ${bestUnder} |\n`
+                    formatted += `| ${marketType.toUpperCase()} | ${lineLabel} | ${modelLabel} | ${deltaLabel} | ${bestOver} | ${bestUnder} |\n`
                   }
 
                   formatted += `\n`
@@ -10944,16 +11116,35 @@ ${statsEnrichment}
                 formatted = 'No player props available for the specified criteria.'
               }
 
-              if (propsData.data && propsData.data.length > 0) {
-                formatted += `\n${buildDataSourceLine(['SBD'])}`
+              const evSportKey = mapSportToOddsKey(functionArgs.sport)
+              let evSummary = { block: '', overlaps: [] as string[] }
+              try {
+                evSummary = await buildEvPropsSummary({
+                  sportKey: evSportKey,
+                  propsData: propsData?.data || [],
+                  playerFilter: functionArgs.player,
+                  teamFilters: functionArgs.team ? [functionArgs.team] : [],
+                })
+              } catch (error: any) {
+                console.error('[TOOL] get_player_props EV fetch failed:', error)
               }
+
+              const blocks: string[] = []
+              if (evSummary.block) blocks.push(evSummary.block)
+              if (formatted) blocks.push(formatted)
+              if (evSummary.overlaps.length) {
+                blocks.push(`Overlap with EV list: ${evSummary.overlaps.join('; ')}`)
+              }
+              blocks.push(buildDataSourceLine(['SBD']))
+              formatted = blocks.join('\n\n')
 
               functionResult = {
                 success: true,
                 data: propsData.data,
                 count: propsData.count,
                 formatted,
-                structuredData: propsData.data
+                structuredData: propsData.data,
+                evOverlaps: evSummary.overlaps
               }
             }
           }
@@ -11643,10 +11834,11 @@ ${statsEnrichment}
           const altName = extractPlayerName(cleanedMessage)
           playerName = altName && !/\b(player|prop|props)\b/i.test(altName) ? altName : undefined
         }
+        const wantsBestPropsList = /\b(best|top|tonight|today|all)\b/i.test(message)
         if (playerName) {
           params.set('player', playerName)
           console.log(`[PLAYER_PROPS] Player filter applied: ${playerName}`)
-        } else if (!mentionedTeams.length) {
+        } else if (!mentionedTeams.length && !wantsBestPropsList) {
           return streamTextResponse('I can pull player props. Tell me the player name (and team if you\'d like) to narrow it down.')
         }
         const propsRes = await fetch(`${baseUrl}/api/player-props?${params.toString()}`, { cache: 'no-store' })
@@ -11665,11 +11857,19 @@ ${statsEnrichment}
             if (playerProp.game) {
               formatted += `Game: ${playerProp.game}\n`
             }
-            formatted += `| Market | Line | Best Over | Best Under |\n`
-            formatted += `| --- | --- | --- | --- |\n`
+            formatted += `| Market | Line | Model | Delta | Best Over | Best Under |\n`
+            formatted += `| --- | --- | --- | --- | --- | --- |\n`
             for (const [marketType, marketData] of Object.entries(playerProp.markets) as [string, any][]) {
               const lineLabel =
                 marketData.line !== undefined && marketData.line !== null ? marketData.line : '?'
+              const modelLabel =
+                marketData.projection !== undefined && marketData.projection !== null
+                  ? marketData.projection
+                  : '?'
+              const deltaLabel =
+                marketData.delta !== undefined && marketData.delta !== null
+                  ? `${marketData.delta > 0 ? '+' : ''}${marketData.delta}`
+                  : '?'
               const bestOver =
                 marketData.over.bestBook
                   ? `${marketData.over.best > 0 ? '+' : ''}${marketData.over.best} (${marketData.over.bestBook})`
@@ -11678,15 +11878,39 @@ ${statsEnrichment}
                 marketData.under.bestBook
                   ? `${marketData.under.best > 0 ? '+' : ''}${marketData.under.best} (${marketData.under.bestBook})`
                   : '?'
-              formatted += `| ${marketType.toUpperCase()} | ${lineLabel} | ${bestOver} | ${bestUnder} |\n`
+              formatted += `| ${marketType.toUpperCase()} | ${lineLabel} | ${modelLabel} | ${deltaLabel} | ${bestOver} | ${bestUnder} |\n`
             }
             formatted += `\n`
           }
 
-          formatted += `\n${buildDataSourceLine(['SBD'])}`
         } else if (!propsRes.ok) {
           formatted = propsData?.error || 'Failed to fetch player props.'
         }
+
+        const evSportKey = mapSportToOddsKey(inferredSport)
+        let evSummary = { block: '', overlaps: [] as string[] }
+        try {
+          evSummary = await buildEvPropsSummary({
+            sportKey: evSportKey,
+            propsData: propsData?.data || [],
+            playerFilter: playerName,
+            teamFilters: mentionedTeams,
+          })
+        } catch (error: any) {
+          console.error('[PLAYER_PROPS_SHORTCUT] EV props fetch failed:', error)
+        }
+
+        const blocks: string[] = []
+        if (evSummary.block) blocks.push(evSummary.block)
+        if (formatted) blocks.push(formatted)
+        if (evSummary.overlaps.length) {
+          blocks.push(`Overlap with EV list: ${evSummary.overlaps.join('; ')}`)
+        }
+        if (propsRes.ok || evSummary.block) {
+          blocks.push(buildDataSourceLine(['SBD']))
+        }
+
+        formatted = blocks.join('\n\n')
 
         console.log('[PLAYER_PROPS_SHORTCUT] Returning response, should exit here')
         return streamTextResponse(formatted)

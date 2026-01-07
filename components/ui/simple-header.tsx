@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 
 const navLinks = [
+  { label: "Tools", href: "/tools" },
   { label: "Pricing", href: "/pricing" },
 ]
 
@@ -115,4 +116,3 @@ export function SimpleHeader({
     </header>
   )
 }
-

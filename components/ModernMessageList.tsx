@@ -22,9 +22,15 @@ interface MessageListProps {
   conversationId: string
   userId: string
   onMessagesChange?: (hasMessages: boolean) => void
+  prefillMessage?: string
 }
 
-export default function ModernMessageList({ conversationId, userId, onMessagesChange }: MessageListProps) {
+export default function ModernMessageList({
+  conversationId,
+  userId,
+  onMessagesChange,
+  prefillMessage,
+}: MessageListProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [latestMessageId, setLatestMessageId] = useState<string | null>(null)
@@ -179,13 +185,14 @@ export default function ModernMessageList({ conversationId, userId, onMessagesCh
   }
 
   if (messages.length === 0) {
-    return (
-      <ChatIntro
-        conversationId={conversationId}
-        userId={userId}
-        onMessageSent={loadMessages}
-      />
-    )
+      return (
+        <ChatIntro
+          conversationId={conversationId}
+          userId={userId}
+          onMessageSent={loadMessages}
+          prefillMessage={prefillMessage}
+        />
+      )
   }
 
   return (

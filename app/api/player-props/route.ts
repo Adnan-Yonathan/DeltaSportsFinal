@@ -3,6 +3,7 @@ import { fetchSbdGamePropsList, resolveSbdLeague, formatBookmaker, resolveBookSl
 import { searchPlayer } from '@/lib/sports-stats-api'
 import type { RosterPlayer } from '@/lib/sports-stats-api'
 import { resolveSportKey } from '@/lib/utils/live-game'
+import { getNbaPropProjectionsForPlayer } from '@/lib/services/nba-player-prop-model'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,11 @@ interface PropOdds {
 
 interface PropMarket {
   line: number
+  projection?: number
+  seasonAvg?: number
+  recentAvg?: number
+  recentGames?: number
+  delta?: number
   over: {
     best: number
     bestBook: string
@@ -499,6 +505,26 @@ export async function GET(req: NextRequest) {
           hydrated.team = playerData.team
           hydrated.teamAbbr = playerData.teamAbbr
           hydrated.position = playerData.position
+        }
+        if (normalizedSport === 'basketball_nba' && Object.keys(hydrated.markets).length) {
+          const projections = await getNbaPropProjectionsForPlayer(hydrated.player)
+          for (const [marketKey, marketData] of Object.entries(hydrated.markets)) {
+            const projection = projections[marketKey]
+            if (!projection || !Number.isFinite(projection.projection)) continue
+            marketData.projection = Number(projection.projection.toFixed(1))
+            if (projection.seasonAvg != null && Number.isFinite(projection.seasonAvg)) {
+              marketData.seasonAvg = Number(projection.seasonAvg.toFixed(1))
+            }
+            if (projection.recentAvg != null && Number.isFinite(projection.recentAvg)) {
+              marketData.recentAvg = Number(projection.recentAvg.toFixed(1))
+            }
+            if (projection.recentGames != null) {
+              marketData.recentGames = projection.recentGames
+            }
+            if (Number.isFinite(marketData.line)) {
+              marketData.delta = Number((marketData.projection - marketData.line).toFixed(1))
+            }
+          }
         }
         return hydrated
       })

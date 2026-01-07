@@ -56,6 +56,13 @@ export const LoginPage = () => {
       if (error) throw error
 
       if (data.user) {
+        const forceOnboarding =
+          process.env.NEXT_PUBLIC_FORCE_ONBOARDING === "true"
+        if (forceOnboarding) {
+          router.push("/onboarding")
+          return
+        }
+
         const metadataCompleted = Boolean(
           (data.user.user_metadata as any)?.onboarding_completed
         )

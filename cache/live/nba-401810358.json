@@ -1,0 +1,210 @@
+{
+  "eventId": "401810358",
+  "league": "nba",
+  "leagueLabel": "NBA",
+  "updatedAt": "2026-01-05T04:58:48.750Z",
+  "statusText": "1/5 - 7:30 PM EST",
+  "status": {
+    "type": {
+      "state": "pre",
+      "detail": "Mon, January 5th at 7:30 PM EST",
+      "shortDetail": "1/5 - 7:30 PM EST",
+      "completed": false
+    }
+  },
+  "venue": "TD Garden",
+  "teams": [
+    {
+      "id": "2",
+      "name": "Boston Celtics",
+      "abbreviation": "BOS",
+      "homeAway": "home",
+      "logo": "https://a.espncdn.com/i/teamlogos/nba/500/bos.png",
+      "score": 0,
+      "linescore": [],
+      "statistics": [
+        {
+          "label": "Streak",
+          "value": "W3",
+          "name": "streak",
+          "abbreviation": "STRK"
+        },
+        {
+          "label": "Points Against",
+          "value": "110.7",
+          "name": "avgPointsAgainst",
+          "abbreviation": "OPP PPG"
+        },
+        {
+          "label": "Last Ten Games",
+          "value": "7-3",
+          "name": "Last Ten Games",
+          "abbreviation": "L10"
+        },
+        {
+          "label": "Points Per Game",
+          "value": "117.9",
+          "name": "avgPoints",
+          "abbreviation": "PTS"
+        },
+        {
+          "label": "Field Goal %",
+          "value": "48",
+          "name": "fieldGoalPct",
+          "abbreviation": "FG%"
+        },
+        {
+          "label": "Three Point %",
+          "value": "37",
+          "name": "threePointFieldGoalPct",
+          "abbreviation": "3P%"
+        },
+        {
+          "label": "Rebounds Per Game",
+          "value": "43.8",
+          "name": "avgRebounds",
+          "abbreviation": "REB"
+        },
+        {
+          "label": "Assists Per Game",
+          "value": "24.1",
+          "name": "avgAssists",
+          "abbreviation": "AST"
+        },
+        {
+          "label": "Blocks Per Game",
+          "value": "5.4",
+          "name": "avgBlocks",
+          "abbreviation": "BLK"
+        },
+        {
+          "label": "Steals Per Game",
+          "value": "8.2",
+          "name": "avgSteals",
+          "abbreviation": "STL"
+        },
+        {
+          "label": "Team Turnovers Per Game",
+          "value": "0.8",
+          "name": "avgTeamTurnovers",
+          "abbreviation": "TTO"
+        },
+        {
+          "label": "Total Turnovers Per Game",
+          "value": "12.0",
+          "name": "avgTotalTurnovers",
+          "abbreviation": "ToTO"
+        }
+      ],
+      "starters": [],
+      "bench": [],
+      "offense": [],
+      "defense": [],
+      "specialTeams": [],
+      "forwards": [],
+      "defensemen": [],
+      "goalies": []
+    },
+    {
+      "id": "4",
+      "name": "Chicago Bulls",
+      "abbreviation": "CHI",
+      "homeAway": "away",
+      "logo": "https://a.espncdn.com/i/teamlogos/nba/500/chi.png",
+      "score": 0,
+      "linescore": [],
+      "statistics": [
+        {
+          "label": "Streak",
+          "value": "L1",
+          "name": "streak",
+          "abbreviation": "STRK"
+        },
+        {
+          "label": "Points Against",
+          "value": "121.8",
+          "name": "avgPointsAgainst",
+          "abbreviation": "OPP PPG"
+        },
+        {
+          "label": "Last Ten Games",
+          "value": "7-3",
+          "name": "Last Ten Games",
+          "abbreviation": "L10"
+        },
+        {
+          "label": "Points Per Game",
+          "value": "118.3",
+          "name": "avgPoints",
+          "abbreviation": "PTS"
+        },
+        {
+          "label": "Field Goal %",
+          "value": "47",
+          "name": "fieldGoalPct",
+          "abbreviation": "FG%"
+        },
+        {
+          "label": "Three Point %",
+          "value": "36",
+          "name": "threePointFieldGoalPct",
+          "abbreviation": "3P%"
+        },
+        {
+          "label": "Rebounds Per Game",
+          "value": "45.6",
+          "name": "avgRebounds",
+          "abbreviation": "REB"
+        },
+        {
+          "label": "Assists Per Game",
+          "value": "29.5",
+          "name": "avgAssists",
+          "abbreviation": "AST"
+        },
+        {
+          "label": "Blocks Per Game",
+          "value": "4.8",
+          "name": "avgBlocks",
+          "abbreviation": "BLK"
+        },
+        {
+          "label": "Steals Per Game",
+          "value": "7.6",
+          "name": "avgSteals",
+          "abbreviation": "STL"
+        },
+        {
+          "label": "Team Turnovers Per Game",
+          "value": "0.7",
+          "name": "avgTeamTurnovers",
+          "abbreviation": "TTO"
+        },
+        {
+          "label": "Total Turnovers Per Game",
+          "value": "14.7",
+          "name": "avgTotalTurnovers",
+          "abbreviation": "ToTO"
+        }
+      ],
+      "starters": [],
+      "bench": [],
+      "offense": [],
+      "defense": [],
+      "specialTeams": [],
+      "forwards": [],
+      "defensemen": [],
+      "goalies": []
+    }
+  ],
+  "articles": [
+    {
+      "type": "pregame",
+      "title": "Chicago puts road win streak on the line against Boston",
+      "url": "http://www.espn.com/nba/preview?gameId=401810358",
+      "published": "2026-01-04T07:05:00.000Z",
+      "image": "https://s.espncdn.com/stitcher/sports/basketball/nba/events/401810358.png?templateId=espn.applewatch.awayhome.1"
+    }
+  ],
+  "plays": []
+}

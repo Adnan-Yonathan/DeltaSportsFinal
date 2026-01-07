@@ -49,7 +49,7 @@ const defaultTiers: PricingTier[] = [
       monthly: 59,
       yearly: 249,
     },
-    description: "7-day trial. Unlimited chat plus limited live projections.",
+    description: "7-day trial. Unlimited chat plus unlimited EV bets.",
     highlight: true,
     badge: "Most Popular",
     planKeyMonthly: "sharp_monthly",
@@ -66,13 +66,13 @@ const defaultTiers: PricingTier[] = [
         included: true,
       },
       {
-        name: "Live Projections (3 / Day)",
-        description: "In-play projections for NBA and NCAAB.",
-        included: true,
+        name: "Live Projection Models",
+        description: "Available for Syndicate members only.",
+        included: false,
       },
       {
-        name: "EV Tool Calls (3 / Day)",
-        description: "Daily scans for value across markets.",
+        name: "Unlimited EV Bet Access",
+        description: "Run EV scans without daily limits.",
         included: true,
       },
       {
@@ -105,12 +105,12 @@ const defaultTiers: PricingTier[] = [
         included: true,
       },
       {
-        name: "Unlimited Live Projections",
-        description: "All in-play projection chats included.",
+        name: "Live Projection Models",
+        description: "Full access to live projection models.",
         included: true,
       },
       {
-        name: "Unlimited EV Tool Calls",
+        name: "Unlimited EV Bet Access",
         description: "Run EV scans without daily limits.",
         included: true,
       },

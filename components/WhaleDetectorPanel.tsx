@@ -67,10 +67,11 @@ const formatTimestamp = (value: string) => {
 
 const resolvePhase = (trade: WhaleTrade) => {
   if (!trade.eventDate) return 'Pregame'
-  const today = new Date()
-  const todayLabel = today.toISOString().slice(0, 10)
-  if (trade.eventDate === todayLabel) return 'Live'
-  return new Date(trade.eventDate) < today ? 'Live' : 'Pregame'
+  const eventDate = new Date(trade.eventDate)
+  if (Number.isNaN(eventDate.getTime())) return 'Pregame'
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  return eventDate < todayStart ? 'Live' : 'Pregame'
 }
 
 const resolveWhaleTier = (notional: number): WhaleTier => {
@@ -80,9 +81,9 @@ const resolveWhaleTier = (notional: number): WhaleTier => {
 }
 
 const whaleTierLabel: Record<WhaleTier, string> = {
-  small: '2k-4,999',
-  blue: '5k-9,999',
-  mega: '10k+',
+  small: 'Small whale',
+  blue: 'Blue whale',
+  mega: 'Megaladon',
 }
 
 const whaleTierClass: Record<WhaleTier, string> = {

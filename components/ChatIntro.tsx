@@ -14,6 +14,7 @@ import { ComparisonSection } from '@/components/ui/comparison-section'
 import { Typewriter } from '@/components/ui/typewriter-text'
 import { Announcement, AnnouncementTag, AnnouncementTitle } from '@/components/ui/announcement'
 import { ArrowUpRight } from 'lucide-react'
+import { ParticleButton } from '@/components/ui/particle-button'
 
 interface ChatIntroProps {
   conversationId: string
@@ -158,6 +159,26 @@ export default function ChatIntro({ conversationId, userId, onMessageSent, isGue
   if (isGuest) {
     return (
       <div className="flex flex-col items-center justify-center min-h-full bg-black px-3 sm:px-4 py-6 sm:py-8">
+        <div className="hidden lg:flex fixed right-4 top-1/2 -translate-y-1/2 z-30">
+          <div className="relative w-[220px] sm:w-[260px] rounded-3xl border border-emerald-400/40 bg-black/70 p-4 shadow-2xl shadow-emerald-500/20 backdrop-blur">
+            <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
+              <span>Whale Detector</span>
+              <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
+                Members Only
+              </span>
+            </div>
+            <p className="mt-3 text-xs text-white/60">
+              Flag $2k+ trades and see the market price in cents plus American odds.
+            </p>
+            <ParticleButton
+              disabled
+              className="mt-4 w-full gap-2 rounded-full bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30 disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Membership required to access Whale Detector"
+            >
+              Whale Detector
+            </ParticleButton>
+          </div>
+        </div>
         <div className="max-w-3xl w-full space-y-8">
           {/* Guest Hero */}
           <GuestHero onSignUpClick={onSignUpClick || (() => {})} />

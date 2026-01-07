@@ -8,6 +8,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { getMembershipStatus } from '@/lib/utils/membership';
+import { ParticleButton } from "@/components/ui/particle-button";
 
 import * as THREE from "three";
 
@@ -651,6 +652,27 @@ export const SignInPage = ({ className }: SignInPageProps) => {
       <div className="relative z-10 flex flex-col flex-1">
         {/* Top navigation */}
         <MiniNavbar />
+
+        <div className="hidden lg:flex fixed right-6 top-1/2 -translate-y-1/2 z-30">
+          <div className="w-[260px] rounded-3xl border border-emerald-400/40 bg-black/70 p-4 shadow-2xl shadow-emerald-500/20 backdrop-blur">
+            <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
+              <span>Whale Detector</span>
+              <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
+                Members Only
+              </span>
+            </div>
+            <p className="mt-3 text-xs text-white/60">
+              $2k+ trade alerts with price in cents and American odds.
+            </p>
+            <ParticleButton
+              disabled
+              className="mt-4 w-full gap-2 rounded-full bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30 disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Membership required to access Whale Detector"
+            >
+              Whale Detector
+            </ParticleButton>
+          </div>
+        </div>
 
         {/* Main content container */}
         <div className="flex flex-1 flex-col lg:flex-row ">

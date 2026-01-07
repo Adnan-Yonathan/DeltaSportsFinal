@@ -189,7 +189,7 @@ export default function WhaleDetectorPanel({
 
   const evaluateTrade = async (trade: WhaleTradeWithStatus) => {
     const currentPrice = await fetchCurrentPrice(trade)
-    if (!Number.isFinite(currentPrice)) return
+    if (currentPrice == null || !Number.isFinite(currentPrice)) return
     const delta = currentPrice - trade.priceCents
     const status: WhaleTradeStatus =
       delta >= -RESPECT_TOLERANCE_CENTS ? 'respected' : 'faded'

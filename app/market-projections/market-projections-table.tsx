@@ -228,7 +228,7 @@ export default function MarketProjectionsTable({
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-        <div className="grid grid-cols-[200px_repeat(4,minmax(0,1fr))] gap-2 bg-black/70 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/50">
+        <div className="hidden sm:grid grid-cols-[200px_repeat(4,minmax(0,1fr))] gap-2 bg-black/70 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/50">
           <span>Matchup</span>
           <span>Projection</span>
           <span>Odds</span>
@@ -242,55 +242,184 @@ export default function MarketProjectionsTable({
             No market projection rows yet.
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
-            {sortedEdges.map((game, index) => {
-              const edgeMetrics = marketEdge(game, filter)
-              const spread = game.spread
-              const total = game.total
-              const moneyline = game.moneyline
-              const modelHomeOdds =
-                moneyline?.model?.homeOdds ?? moneyline?.prediction?.homeOdds
-              const modelAwayOdds =
-                moneyline?.model?.awayOdds ?? moneyline?.prediction?.awayOdds
-              const modelSpreadLine = resolveModelSpread(game)
-              const sharpSummary = game.sharpSignals
-                .slice(0, 2)
-                .map(
-                  (signal) =>
-                    `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
-                )
-                .join(" | ")
-              const moveSummary = game.lineMovements
-                .filter((move) => move.isSharp || move.isSignificant)
-                .slice(0, 2)
-                .map(
-                  (move) =>
-                    `${move.market}: ${move.openingLine} -> ${move.currentLine}`
-                )
-                .join(" | ")
-              return (
-                <div
-                  key={`${game.matchup}-${game.commenceTime}`}
-                  className="grid grid-cols-[200px_repeat(4,minmax(0,1fr))] gap-2 px-3 py-3 text-[13px] text-white/70"
-                >
-                  <div className="space-y-2">
-                    <div className="text-xs uppercase tracking-[0.2em] text-white/40">
-                      #{index + 1} • Edge {edgeLabel(edgeMetrics.edgePercent)}
+          <>
+            <div className="divide-y divide-white/5 sm:hidden">
+              {sortedEdges.map((game, index) => {
+                const edgeMetrics = marketEdge(game, filter)
+                const spread = game.spread
+                const total = game.total
+                const moneyline = game.moneyline
+                const modelHomeOdds =
+                  moneyline?.model?.homeOdds ?? moneyline?.prediction?.homeOdds
+                const modelAwayOdds =
+                  moneyline?.model?.awayOdds ?? moneyline?.prediction?.awayOdds
+                const modelSpreadLine = resolveModelSpread(game)
+                const sharpSummary = game.sharpSignals
+                  .slice(0, 2)
+                  .map(
+                    (signal) =>
+                      `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
+                  )
+                  .join(" | ")
+                const moveSummary = game.lineMovements
+                  .filter((move) => move.isSharp || move.isSignificant)
+                  .slice(0, 2)
+                  .map(
+                    (move) =>
+                      `${move.market}: ${move.openingLine} -> ${move.currentLine}`
+                  )
+                  .join(" | ")
+                return (
+                  <details
+                    key={`${game.matchup}-${game.commenceTime}`}
+                    className="group px-3 py-3 text-[12px] text-white/70"
+                  >
+                    <summary className="flex cursor-pointer items-center justify-between gap-3 list-none">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                          #{index + 1} • Edge {edgeLabel(edgeMetrics.edgePercent)}
+                        </div>
+                        <div className="text-sm font-semibold text-white">
+                          {game.awayTeam} @ {game.homeTeam}
+                        </div>
+                        <div className="mt-1 text-[11px] text-white/50">
+                          Spread {formatSigned(modelSpreadLine)} vs{" "}
+                          {formatSigned(spread?.marketLine)} • Total{" "}
+                          {formatSigned(total?.targetLine)} vs{" "}
+                          {formatSigned(total?.marketLine)}
+                        </div>
+                      </div>
+                      <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/50 group-open:border-emerald-400/40 group-open:text-emerald-200">
+                        View
+                      </span>
+                    </summary>
+                    <div className="mt-3 space-y-3">
+                      <div className="space-y-2">
+                        <div>
+                          Spread:{" "}
+                          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+                            Model {formatSigned(modelSpreadLine)}
+                          </span>{" "}
+                          <span className="text-white/40">vs</span>{" "}
+                          Market {formatSigned(spread?.marketLine)}
+                        </div>
+                        <div>
+                          Model Favorite:{" "}
+                          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+                            {spread?.favoredTeam ?? "n/a"}
+                          </span>
+                        </div>
+                        <div>
+                          Total:{" "}
+                          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+                            Model {formatSigned(total?.targetLine)}
+                          </span>{" "}
+                          <span className="text-white/40">vs</span>{" "}
+                          Market {formatSigned(total?.marketLine)}
+                        </div>
+                        <div>
+                          ML:{" "}
+                          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+                            Model H {formatOdds(modelHomeOdds)} / A{" "}
+                            {formatOdds(modelAwayOdds)}
+                          </span>{" "}
+                          <span className="text-white/40">vs</span>{" "}
+                          Market H {formatOdds(moneyline?.sportsbook?.homeOdds)} /
+                          A {formatOdds(moneyline?.sportsbook?.awayOdds)}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div>
+                          Spread odds:{" "}
+                          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+                            {spread?.bestBook ?? "n/a"} {formatOdds(spread?.bestOdds)}
+                          </span>
+                        </div>
+                        <div>
+                          Total odds:{" "}
+                          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+                            {total?.bestBook ?? "n/a"} O {formatOdds(total?.bestOdds)} /
+                            U {formatOdds(total?.bestUnderOdds)}
+                          </span>
+                        </div>
+                        <div>
+                          ML odds:{" "}
+                          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+                            {moneyline?.sportsbook?.homeBook ?? "n/a"}{" "}
+                            {formatOdds(moneyline?.sportsbook?.homeOdds)} /{" "}
+                            {moneyline?.sportsbook?.awayBook ?? "n/a"}{" "}
+                            {formatOdds(moneyline?.sportsbook?.awayOdds)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="space-y-1 text-[11px] text-white/60">
+                        <div>{sharpSummary || "No sharp signals yet."}</div>
+                        <div>{moveSummary || "No line movement yet."}</div>
+                      </div>
+                      <Link
+                        href={`/chat?prompt=Analyze%20${encodeURIComponent(
+                          game.awayTeam
+                        )}%20at%20${encodeURIComponent(
+                          game.homeTeam
+                        )}%20using%20market%20projections`}
+                        className="inline-flex rounded-md border border-emerald-400/40 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-400 hover:text-white transition-colors"
+                      >
+                        Analyze
+                      </Link>
                     </div>
-                    <div className="text-sm font-semibold text-white">
-                      {game.awayTeam} @ {game.homeTeam}
+                  </details>
+                )
+              })}
+            </div>
+            <div className="hidden divide-y divide-white/5 sm:block">
+              {sortedEdges.map((game, index) => {
+                const edgeMetrics = marketEdge(game, filter)
+                const spread = game.spread
+                const total = game.total
+                const moneyline = game.moneyline
+                const modelHomeOdds =
+                  moneyline?.model?.homeOdds ?? moneyline?.prediction?.homeOdds
+                const modelAwayOdds =
+                  moneyline?.model?.awayOdds ?? moneyline?.prediction?.awayOdds
+                const modelSpreadLine = resolveModelSpread(game)
+                const sharpSummary = game.sharpSignals
+                  .slice(0, 2)
+                  .map(
+                    (signal) =>
+                      `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
+                  )
+                  .join(" | ")
+                const moveSummary = game.lineMovements
+                  .filter((move) => move.isSharp || move.isSignificant)
+                  .slice(0, 2)
+                  .map(
+                    (move) =>
+                      `${move.market}: ${move.openingLine} -> ${move.currentLine}`
+                  )
+                  .join(" | ")
+                return (
+                  <div
+                    key={`${game.matchup}-${game.commenceTime}`}
+                    className="grid grid-cols-[200px_repeat(4,minmax(0,1fr))] gap-2 px-3 py-3 text-[13px] text-white/70"
+                  >
+                    <div className="space-y-2">
+                      <div className="text-xs uppercase tracking-[0.2em] text-white/40">
+                        #{index + 1} • Edge {edgeLabel(edgeMetrics.edgePercent)}
+                      </div>
+                      <div className="text-sm font-semibold text-white">
+                        {game.awayTeam} @ {game.homeTeam}
+                      </div>
+                      <Link
+                        href={`/chat?prompt=Analyze%20${encodeURIComponent(
+                          game.awayTeam
+                        )}%20at%20${encodeURIComponent(
+                          game.homeTeam
+                        )}%20using%20market%20projections`}
+                        className="inline-flex rounded-md border border-emerald-400/40 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-400 hover:text-white transition-colors"
+                      >
+                        Analyze
+                      </Link>
                     </div>
-                    <Link
-                      href={`/chat?prompt=Analyze%20${encodeURIComponent(
-                        game.awayTeam
-                      )}%20at%20${encodeURIComponent(
-                        game.homeTeam
-                      )}%20using%20market%20projections`}
-                      className="inline-flex rounded-md border border-emerald-400/40 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-400 hover:text-white transition-colors"
-                    >
-                      Analyze
-                    </Link>
-                  </div>
                     <div className="space-y-2 text-xs text-white/70">
                       <div>
                         Spread:{" "}
@@ -306,59 +435,60 @@ export default function MarketProjectionsTable({
                           {spread?.favoredTeam ?? "n/a"}
                         </span>
                       </div>
-                    <div>
-                      Total:{" "}
-                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                        Model {formatSigned(total?.targetLine)}
-                      </span>{" "}
-                      <span className="text-white/40">vs</span>{" "}
-                      Market {formatSigned(total?.marketLine)}
-                    </div>
-                    <div>
-                      ML:{" "}
-                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                        Model H {formatOdds(modelHomeOdds)} / A{" "}
-                        {formatOdds(modelAwayOdds)}
-                      </span>{" "}
-                      <span className="text-white/40">vs</span>{" "}
-                      Market H {formatOdds(moneyline?.sportsbook?.homeOdds)} / A{" "}
-                      {formatOdds(moneyline?.sportsbook?.awayOdds)}
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-xs text-white/70">
-                    <div>
-                      Spread:{" "}
-                      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-                        {spread?.bestBook ?? "n/a"} {formatOdds(spread?.bestOdds)}
-                      </span>
-                    </div>
-                    <div>
-                      Total:{" "}
-                      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-                        {total?.bestBook ?? "n/a"} O {formatOdds(total?.bestOdds)} /
-                        U {formatOdds(total?.bestUnderOdds)}
-                      </span>
-                    </div>
-                    <div>
-                      ML:{" "}
-                      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-                        {moneyline?.sportsbook?.homeBook ?? "n/a"}{" "}
-                        {formatOdds(moneyline?.sportsbook?.homeOdds)} /{" "}
-                        {moneyline?.sportsbook?.awayBook ?? "n/a"}{" "}
+                      <div>
+                        Total:{" "}
+                        <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+                          Model {formatSigned(total?.targetLine)}
+                        </span>{" "}
+                        <span className="text-white/40">vs</span>{" "}
+                        Market {formatSigned(total?.marketLine)}
+                      </div>
+                      <div>
+                        ML:{" "}
+                        <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+                          Model H {formatOdds(modelHomeOdds)} / A{" "}
+                          {formatOdds(modelAwayOdds)}
+                        </span>{" "}
+                        <span className="text-white/40">vs</span>{" "}
+                        Market H {formatOdds(moneyline?.sportsbook?.homeOdds)} / A{" "}
                         {formatOdds(moneyline?.sportsbook?.awayOdds)}
-                      </span>
+                      </div>
+                    </div>
+                    <div className="space-y-2 text-xs text-white/70">
+                      <div>
+                        Spread:{" "}
+                        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+                          {spread?.bestBook ?? "n/a"} {formatOdds(spread?.bestOdds)}
+                        </span>
+                      </div>
+                      <div>
+                        Total:{" "}
+                        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+                          {total?.bestBook ?? "n/a"} O {formatOdds(total?.bestOdds)} /
+                          U {formatOdds(total?.bestUnderOdds)}
+                        </span>
+                      </div>
+                      <div>
+                        ML:{" "}
+                        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+                          {moneyline?.sportsbook?.homeBook ?? "n/a"}{" "}
+                          {formatOdds(moneyline?.sportsbook?.homeOdds)} /{" "}
+                          {moneyline?.sportsbook?.awayBook ?? "n/a"}{" "}
+                          {formatOdds(moneyline?.sportsbook?.awayOdds)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-white/70">
+                      {sharpSummary || "No sharp signals yet."}
+                    </div>
+                    <div className="text-xs text-white/70">
+                      {moveSummary || "No line movement yet."}
                     </div>
                   </div>
-                  <div className="text-xs text-white/70">
-                    {sharpSummary || "No sharp signals yet."}
-                  </div>
-                  <div className="text-xs text-white/70">
-                    {moveSummary || "No line movement yet."}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          </>
         )}
       </div>
     </>

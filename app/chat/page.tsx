@@ -701,10 +701,10 @@ function ChatPageContent() {
                     >
                       <div className="mb-6 flex flex-col items-center gap-3 rounded-2xl border border-[#2a2a2a] bg-black/70 px-4 py-3">
                         <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">
-                          Patch 0.1
+                          Patch 0.2
                         </span>
                         <span className="text-sm text-white/80">
-                          Live odds + line shopping merge, more player props, arb badges, and odds fixes.
+                          Whale detection, new dashboards, and a sharper live odds experience.
                         </span>
                         <Link
                           href="/patch-notes"

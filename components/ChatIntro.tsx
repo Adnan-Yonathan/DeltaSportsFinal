@@ -317,7 +317,7 @@ export default function ChatIntro({
         <Link href="/patch-notes" className="mb-6 inline-block relative z-10 pointer-events-auto">
           <Announcement className="border-[#34d399]/30 bg-black/70 hover:border-[#34d399]/50 hover:bg-black/90 cursor-pointer">
             <AnnouncementTag className="bg-[#34d399]/20 text-[#34d399]">
-              Patch 0.1
+              Patch 0.2
             </AnnouncementTag>
             <AnnouncementTitle className="text-white/80 text-sm">
               View patch notes

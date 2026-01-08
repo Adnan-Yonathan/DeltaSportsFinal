@@ -436,8 +436,12 @@ export const evaluateWhaleRespect = async (
     return { ...trade, status: 'pending' }
   }
   const delta = currentPrice - trade.priceCents
-  const status: WhaleTradeStatus =
-    delta >= -RESPECT_TOLERANCE_CENTS ? 'respected' : 'faded'
+  let status: WhaleTradeStatus = 'pending'
+  if (delta >= RESPECT_TOLERANCE_CENTS) {
+    status = 'respected'
+  } else if (delta <= -RESPECT_TOLERANCE_CENTS) {
+    status = 'faded'
+  }
   return {
     ...trade,
     status,

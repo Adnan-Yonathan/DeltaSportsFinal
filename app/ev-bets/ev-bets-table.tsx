@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { type EVOpportunity } from "@/lib/utils/ev-calculator"
+import { calculateEV, type EVOpportunity } from "@/lib/utils/ev-calculator"
 import { formatAmericanOdds } from "@/lib/utils/odds"
 
 type OddsFilter =
@@ -47,6 +47,12 @@ const formatPoint = (point?: number) => {
   return point && point > 0 ? ` +${point}` : ` ${point}`
 }
 
+const formatSignedPercent = (value: number) => {
+  if (!Number.isFinite(value)) return "0.0%"
+  const sign = value >= 0 ? "+" : ""
+  return `${sign}${value.toFixed(1)}%`
+}
+
 const formatGameTime = (value: string) => {
   const date = new Date(value)
   if (!Number.isFinite(date.getTime())) return "TBD"
@@ -90,7 +96,15 @@ export default function EvBetsTable({
       if (predictionFilter === "no_prediction") return !isPrediction
       return true
     })
-    return [...base].sort((a, b) => b.ev - a.ev)
+    return [...base]
+      .map((opp) => ({
+        ...opp,
+        computedEv: calculateEV(
+          opp.consensus.impliedProbability,
+          opp.bestOdds
+        ),
+      }))
+      .sort((a, b) => b.computedEv - a.computedEv)
   }, [opportunities, filter, predictionFilter])
 
   return (
@@ -191,10 +205,10 @@ export default function EvBetsTable({
                 </div>
                 <div className="space-y-2 text-xs text-white/70">
                   <div className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                    EV +{opp.ev.toFixed(1)}%
+                    EV {formatSignedPercent(opp.computedEv)}
                   </div>
                   <div className="text-white/50">
-                    Edge +{opp.edgePercent.toFixed(1)}%
+                    Edge {formatSignedPercent(opp.edgePercent)}
                   </div>
                 </div>
               </div>

@@ -2,6 +2,7 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import { findEVOpportunities } from "@/lib/services/cross-market-ev"
+import { SPORTS } from "@/lib/types/odds"
 import { type EVOpportunity } from "@/lib/utils/ev-calculator"
 import EvBetsTable from "./ev-bets-table"
 
@@ -64,9 +65,11 @@ export default async function EvBetsPage() {
 
   try {
     opportunities = await findEVOpportunities({
-      includeProps: false,
-      limit: 50,
+      includeProps: true,
+      minPropEV: 0,
+      limit: 200,
       slateMode: "next",
+      sports: Object.values(SPORTS),
     })
   } catch (error) {
     errorMessage =

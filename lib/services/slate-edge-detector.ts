@@ -10,6 +10,7 @@
  */
 
 import { fetchOdds } from '@/lib/api/odds-api'
+import { fetchSbdOdds, mapSbdOddsToOddsGames } from '@/lib/api/sbd'
 import { getNBATeamStats } from '@/lib/sports-stats-api'
 import { getGameRecommendations, type GameRecommendation } from './recommendation-engine'
 import { analyzeMatchup, type MatchupAnalysis } from './matchup-analyzer'
@@ -45,6 +46,24 @@ import {
   type BettingSplits,
   type EdgeDetectionResult as SharpEdgeResult,
 } from './edge-detection'
+import {
+  fetchWhaleTrades,
+  type WhaleTrade,
+  type WhaleTradeStatus,
+  evaluateWhaleRespect,
+  type WhaleTradeWithStatus,
+} from '@/lib/services/whale-detector'
+
+export type WhaleAlert = {
+  id: string
+  source: 'kalshi' | 'polymarket'
+  marketTitle: string
+  outcome: string
+  notional: number
+  americanOdds?: number | null
+  timestamp: string
+  status: WhaleTradeStatus
+}
 
 export interface GameEdgeAnalysis {
   matchup: string
@@ -109,6 +128,7 @@ export interface GameEdgeAnalysis {
     spread?: EVOpportunity
     total?: EVOpportunity
   }
+  whaleAlerts?: WhaleAlert[]
 }
 
 export interface SlateEdgeResult {
@@ -140,6 +160,20 @@ const SPORT_LABELS: Record<string, string> = {
   baseball_mlb: 'MLB',
   icehockey_nhl: 'NHL',
 }
+
+const CFB_TEAM_ALIASES: Record<string, string[]> = {
+  'Ole Miss': ['Ole Miss', 'Mississippi', 'Mississippi Rebels'],
+  Miami: ['Miami', 'Miami (FL)', 'Miami FL', 'Miami Hurricanes'],
+  Indiana: ['Indiana', 'Indiana Hoosiers'],
+  Oregon: ['Oregon', 'Oregon Ducks'],
+}
+
+const CFB_PLAYOFF_MATCHUPS = [
+  ['Ole Miss', 'Miami'],
+  ['Indiana', 'Oregon'],
+] as const
+
+const CFB_WHALE_MIN_NOTIONAL = 10000
 
 // Map odds-api sport keys to SBD league keys
 const ODDS_API_TO_SBD: Record<string, 'nba' | 'nfl' | 'nhl' | 'mlb' | 'ncaamb' | 'ncaafb'> = {
@@ -219,6 +253,321 @@ const teamNameMatches = (team: string, candidate: string) => {
     normalizedTeam.endsWith(normalizedCandidate) ||
     normalizedCandidate.endsWith(normalizedTeam)
   )
+}
+
+const clampValue = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value))
+
+const isCfbPlayoffMatchup = (homeTeam: string, awayTeam: string) => {
+  return CFB_PLAYOFF_MATCHUPS.some(([teamA, teamB]) => {
+    const aliasesA = CFB_TEAM_ALIASES[teamA] || [teamA]
+    const aliasesB = CFB_TEAM_ALIASES[teamB] || [teamB]
+    const homeMatchesA = aliasesA.some((alias) =>
+      selectionMatchesTeam(homeTeam, alias)
+    )
+    const homeMatchesB = aliasesB.some((alias) =>
+      selectionMatchesTeam(homeTeam, alias)
+    )
+    const awayMatchesA = aliasesA.some((alias) =>
+      selectionMatchesTeam(awayTeam, alias)
+    )
+    const awayMatchesB = aliasesB.some((alias) =>
+      selectionMatchesTeam(awayTeam, alias)
+    )
+    return (homeMatchesA && awayMatchesB) || (homeMatchesB && awayMatchesA)
+  })
+}
+
+const buildWhaleAlertsForGame = (
+  trades: WhaleTradeWithStatus[],
+  homeTeam: string,
+  awayTeam: string
+): WhaleAlert[] => {
+  if (!trades.length) return []
+  const alerts = trades.filter((trade) => {
+    const text = `${trade.marketTitle} ${trade.outcome}`
+    return (
+      selectionMatchesTeam(text, homeTeam) &&
+      selectionMatchesTeam(text, awayTeam)
+    )
+  })
+
+  return alerts.map((trade) => ({
+    id: trade.id,
+    source: trade.source,
+    marketTitle: trade.marketTitle,
+    outcome: trade.outcome,
+    notional: trade.notional,
+    americanOdds: trade.americanOdds,
+    timestamp: trade.timestamp,
+    status: trade.status,
+  }))
+}
+
+const resolveSignalAdjustment = (
+  signal: SharpSignal,
+  homeTeam: string,
+  awayTeam: string
+) => {
+  const strength =
+    signal.strength >= 5
+      ? 0.9
+      : signal.strength >= 4
+        ? 0.7
+        : signal.strength >= 3
+          ? 0.5
+          : 0.3
+  if (signal.side === homeTeam) return -strength
+  if (signal.side === awayTeam) return strength
+  return 0
+}
+
+const resolveTotalSignalAdjustment = (signal: SharpSignal) => {
+  const strength =
+    signal.strength >= 5
+      ? 1.2
+      : signal.strength >= 4
+        ? 0.9
+        : signal.strength >= 3
+          ? 0.6
+          : 0.4
+  if (signal.side === 'Over') return strength
+  if (signal.side === 'Under') return -strength
+  return 0
+}
+
+const resolveConfidence = (signalCount: number) => {
+  if (signalCount >= 3) return 'high' as const
+  if (signalCount >= 1) return 'medium' as const
+  return 'low' as const
+}
+
+const resolveWhaleWeight = (notional: number) => {
+  if (notional >= 30000) return 1.5
+  if (notional >= 20000) return 1.0
+  if (notional >= 10000) return 0.5
+  return 0
+}
+
+const summarizeWhaleBias = (
+  homeTeam: string,
+  awayTeam: string,
+  netSideBias: number
+) => {
+  if (!netSideBias) return null
+  const favoredTeam = netSideBias > 0 ? homeTeam : awayTeam
+  return `Respected whale bias ${formatSignedLine(Math.abs(netSideBias))} toward ${favoredTeam}`
+}
+
+const summarizeTotalWhaleBias = (netTotalBias: number) => {
+  if (!netTotalBias) return null
+  const direction = netTotalBias > 0 ? 'Over' : 'Under'
+  return `Respected whale bias ${formatSignedLine(Math.abs(netTotalBias))} toward ${direction}`
+}
+
+const buildCfbMarketRecommendations = ({
+  homeTeam,
+  awayTeam,
+  marketSpread,
+  marketTotal,
+  sharpResult,
+  whaleAlerts,
+}: {
+  homeTeam: string
+  awayTeam: string
+  marketSpread: { line: number } | null
+  marketTotal: { line: number } | null
+  sharpResult?: SharpEdgeResult
+  whaleAlerts?: WhaleAlert[]
+}): GameRecommendation[] => {
+  const recommendations: GameRecommendation[] = []
+  const spreadSignals =
+    sharpResult?.sharpSignals.filter((signal) => signal.market === 'spread') ||
+    []
+  const totalSignals =
+    sharpResult?.sharpSignals.filter((signal) => signal.market === 'total') || []
+  const spreadMovement = sharpResult?.lineMovements.find(
+    (movement) => movement.market === 'spread'
+  )
+  const totalMovement = sharpResult?.lineMovements.find(
+    (movement) => movement.market === 'total'
+  )
+
+  if (marketSpread) {
+    let spreadAdjustment = 0
+    const factors: string[] = []
+    let homeWhaleBias = 0
+    let awayWhaleBias = 0
+
+    if (spreadMovement) {
+      spreadAdjustment += spreadMovement.movement * 0.35
+      factors.push(
+        `Spread moved ${formatSignedLine(spreadMovement.openingLine)} to ${formatSignedLine(
+          spreadMovement.currentLine
+        )}`
+      )
+    }
+
+    for (const signal of spreadSignals) {
+      const adjustment = resolveSignalAdjustment(signal, homeTeam, awayTeam)
+      if (adjustment === 0) continue
+      spreadAdjustment += adjustment
+      factors.push(`${signal.type} on ${signal.side} spread`)
+    }
+
+    const splits = sharpResult?.splits
+    if (
+      splits?.spreadHomeBetPct != null &&
+      splits?.spreadHomeMoneyPct != null
+    ) {
+      const divergence = splits.spreadHomeMoneyPct - splits.spreadHomeBetPct
+      if (Math.abs(divergence) >= 10) {
+        const leaning = divergence > 0 ? homeTeam : awayTeam
+        const weight =
+          Math.abs(divergence) >= 25
+            ? 0.8
+            : Math.abs(divergence) >= 20
+              ? 0.6
+              : 0.4
+        spreadAdjustment += leaning === homeTeam ? -weight : weight
+        factors.push(
+          `Money ${Math.round(splits.spreadHomeMoneyPct)}% vs bets ${Math.round(
+            splits.spreadHomeBetPct
+          )}% leaning ${leaning}`
+        )
+      }
+    }
+
+    if (whaleAlerts && whaleAlerts.length > 0) {
+      const respected = whaleAlerts.filter((alert) => alert.status === 'respected')
+      for (const alert of respected) {
+        const weight = resolveWhaleWeight(alert.notional)
+        if (!weight) continue
+        const selection = `${alert.marketTitle} ${alert.outcome}`
+        const isHome = selectionMatchesTeam(selection, homeTeam)
+        const isAway = selectionMatchesTeam(selection, awayTeam)
+        if (isHome === isAway) continue
+        if (isHome) homeWhaleBias += weight
+        if (isAway) awayWhaleBias += weight
+      }
+    }
+
+    const netSideBias = homeWhaleBias - awayWhaleBias
+    if (netSideBias) {
+      spreadAdjustment -= netSideBias
+      const whaleFactor = summarizeWhaleBias(homeTeam, awayTeam, netSideBias)
+      if (whaleFactor) factors.push(whaleFactor)
+    }
+
+    const targetLine = clampValue(
+      marketSpread.line + spreadAdjustment,
+      marketSpread.line - 3,
+      marketSpread.line + 3
+    )
+    const signalCount =
+      spreadSignals.length +
+      (spreadMovement ? 1 : 0) +
+      (factors.length > 0 ? 1 : 0)
+
+    recommendations.push({
+      type: 'spread',
+      homeTeam,
+      awayTeam,
+      targetLine,
+      confidence: resolveConfidence(signalCount),
+      factors,
+      recommendation: `${homeTeam} ${formatSignedLine(targetLine)} market-driven lean`,
+    })
+  }
+
+  if (marketTotal) {
+    let totalAdjustment = 0
+    const factors: string[] = []
+    let overWhaleBias = 0
+    let underWhaleBias = 0
+
+    if (totalMovement) {
+      totalAdjustment += totalMovement.movement * 0.4
+      factors.push(
+        `Total moved ${formatSignedLine(totalMovement.openingLine)} to ${formatSignedLine(
+          totalMovement.currentLine
+        )}`
+      )
+    }
+
+    for (const signal of totalSignals) {
+      const adjustment = resolveTotalSignalAdjustment(signal)
+      if (adjustment === 0) continue
+      totalAdjustment += adjustment
+      factors.push(`${signal.type} on ${signal.side} total`)
+    }
+
+    const splits = sharpResult?.splits
+    if (
+      splits?.totalOverBetPct != null &&
+      splits?.totalOverMoneyPct != null
+    ) {
+      const divergence = splits.totalOverMoneyPct - splits.totalOverBetPct
+      if (Math.abs(divergence) >= 10) {
+        const leaning = divergence > 0 ? 'Over' : 'Under'
+        const weight =
+          Math.abs(divergence) >= 25
+            ? 1.0
+            : Math.abs(divergence) >= 20
+              ? 0.8
+              : 0.5
+        totalAdjustment += leaning === 'Over' ? weight : -weight
+        factors.push(
+          `Money ${Math.round(splits.totalOverMoneyPct)}% vs bets ${Math.round(
+            splits.totalOverBetPct
+          )}% leaning ${leaning}`
+        )
+      }
+    }
+
+    if (whaleAlerts && whaleAlerts.length > 0) {
+      const respected = whaleAlerts.filter((alert) => alert.status === 'respected')
+      for (const alert of respected) {
+        const weight = resolveWhaleWeight(alert.notional)
+        if (!weight) continue
+        const outcome = alert.outcome.toLowerCase()
+        const isOver = outcome.includes('over')
+        const isUnder = outcome.includes('under')
+        if (!isOver && !isUnder) continue
+        if (isOver) overWhaleBias += weight
+        if (isUnder) underWhaleBias += weight
+      }
+    }
+
+    const netTotalBias = overWhaleBias - underWhaleBias
+    if (netTotalBias) {
+      totalAdjustment += netTotalBias
+      const whaleFactor = summarizeTotalWhaleBias(netTotalBias)
+      if (whaleFactor) factors.push(whaleFactor)
+    }
+
+    const targetLine = clampValue(
+      marketTotal.line + totalAdjustment,
+      marketTotal.line - 6,
+      marketTotal.line + 6
+    )
+    const signalCount =
+      totalSignals.length +
+      (totalMovement ? 1 : 0) +
+      (factors.length > 0 ? 1 : 0)
+
+    recommendations.push({
+      type: 'total',
+      homeTeam,
+      awayTeam,
+      targetLine,
+      confidence: resolveConfidence(signalCount),
+      factors,
+      recommendation: `Total ${targetLine.toFixed(1)} market-driven lean`,
+    })
+  }
+
+  return recommendations
 }
 
 const getFallbackTeamStats = (sportKey: string) => {
@@ -684,11 +1033,27 @@ export async function analyzeSlateEdges(
 ): Promise<SlateEdgeResult> {
   const { limit = 15, minEdge, date } = options
   const sportLabel = SPORT_LABELS[sportKey] || sportKey
+  const isCfb = sportKey === 'americanfootball_ncaaf'
 
   console.log(`[SLATE EDGE] Analyzing ${sportLabel} slate...`)
 
   // Fetch today's odds
-  const oddsGames = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], { revalidateSeconds: 60 })
+  let oddsGames: OddsGame[] = []
+  if (isCfb) {
+    try {
+      const sbdOdds = await fetchSbdOdds('ncaafb')
+      oddsGames = mapSbdOddsToOddsGames('ncaafb', sbdOdds, [
+        MARKETS.H2H,
+        MARKETS.SPREADS,
+        MARKETS.TOTALS,
+      ])
+    } catch (error) {
+      console.error('[SLATE EDGE] Failed to fetch SBD odds for CFB:', error)
+      oddsGames = []
+    }
+  } else {
+    oddsGames = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], { revalidateSeconds: 60 })
+  }
 
   if (!oddsGames?.length) {
     return {
@@ -714,6 +1079,45 @@ export async function analyzeSlateEdges(
     }
   }
 
+  let whaleTrades: WhaleTrade[] = []
+  if (isCfb) {
+    try {
+      whaleTrades = await fetchWhaleTrades({
+        limit: 100,
+        minNotional: CFB_WHALE_MIN_NOTIONAL,
+      })
+    } catch (error) {
+      console.error('[SLATE EDGE] Failed to fetch whale trades:', error)
+    }
+  }
+
+  const whaleStatusCache = new Map<string, WhaleTradeWithStatus>()
+
+  const resolveWhaleAlerts = async (
+    homeTeam: string,
+    awayTeam: string
+  ): Promise<WhaleAlert[]> => {
+    if (!isCfb || whaleTrades.length === 0) return []
+    const relevant = whaleTrades.filter((trade) => {
+      const text = `${trade.marketTitle} ${trade.outcome}`
+      return (
+        selectionMatchesTeam(text, homeTeam) &&
+        selectionMatchesTeam(text, awayTeam)
+      )
+    })
+    if (relevant.length === 0) return []
+    const resolved = await Promise.all(
+      relevant.map(async (trade) => {
+        const cached = whaleStatusCache.get(trade.id)
+        if (cached) return cached
+        const evaluated = await evaluateWhaleRespect(trade)
+        whaleStatusCache.set(trade.id, evaluated)
+        return evaluated
+      })
+    )
+    return buildWhaleAlertsForGame(resolved, homeTeam, awayTeam)
+  }
+
   if (sportKey === 'basketball_nba') {
     try {
       console.log('[SLATE EDGE] Warming NBA.com team stats cache...')
@@ -726,8 +1130,11 @@ export async function analyzeSlateEdges(
   // Filter to upcoming games (and recent in-progress) for projections.
   const now = new Date()
   const useDateOverride = Boolean(date)
-  const upcomingWindowHours =
-    sportKey === 'basketball_ncaab' || sportKey === 'basketball_nba' ? 48 : 24
+  const upcomingWindowHours = isCfb
+    ? 24 * 21
+    : sportKey === 'basketball_ncaab' || sportKey === 'basketball_nba'
+      ? 48
+      : 24
   const windowEnd = new Date(now.getTime() + upcomingWindowHours * 60 * 60 * 1000)
   const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000)
 
@@ -749,11 +1156,16 @@ export async function analyzeSlateEdges(
 
   const upcomingGames = oddsGames
     .filter((g) => {
+      if (isCfb) return true
       const gameTime = new Date(g.commence_time)
       if (useDateOverride) {
         return gameTime >= todayStartEastern && gameTime <= todayEndEastern
       }
       return gameTime >= threeHoursAgo && gameTime <= windowEnd
+    })
+    .filter((game) => {
+      if (!isCfb) return true
+      return isCfbPlayoffMatchup(game.home_team, game.away_team)
     })
     .slice(0, limit)
 
@@ -830,22 +1242,27 @@ export async function analyzeSlateEdges(
             ? 45000
             : 8000
 
-      // Get detailed matchup analysis (includes injuries, stats, ATS) - with 8s timeout
-      const matchupAnalysis = await withTimeout(
-        analyzeMatchup(
-          game.home_team,
-          game.away_team,
-          undefined,
-          undefined,
-          sportKey
-        ),
-        matchupTimeoutMs,
-        {
-          homeTeam: { name: game.home_team, stats: fallbackStats },
-          awayTeam: { name: game.away_team, stats: fallbackStats },
-          context: [],
-        }
-      )
+      const matchupAnalysis = isCfb
+        ? {
+            homeTeam: { name: game.home_team, stats: null },
+            awayTeam: { name: game.away_team, stats: null },
+            context: [],
+          }
+        : await withTimeout(
+            analyzeMatchup(
+              game.home_team,
+              game.away_team,
+              undefined,
+              undefined,
+              sportKey
+            ),
+            matchupTimeoutMs,
+            {
+              homeTeam: { name: game.home_team, stats: fallbackStats },
+              awayTeam: { name: game.away_team, stats: fallbackStats },
+              context: [],
+            }
+          )
 
       const marketContext = {
         marketSpread: marketSpread?.line,
@@ -853,38 +1270,52 @@ export async function analyzeSlateEdges(
         sharpSignals: sharpResult?.sharpSignals,
         sharpSplits: sharpResult?.splits,
       }
+      const whaleAlerts = isCfb
+        ? await resolveWhaleAlerts(game.home_team, game.away_team)
+        : []
 
-      // Get model recommendations for this game - with 8s timeout
       const recommendationTimeoutMs =
         sportKey === 'basketball_ncaab'
           ? 12000
           : sportKey === 'basketball_nba'
             ? 25000
             : 8000
-      let recommendations = await withTimeout(
-        getGameRecommendations(
-          game.home_team,
-          game.away_team,
-          'all',
-          sportKey,
-          marketContext,
-          matchupAnalysis
-        ),
-        recommendationTimeoutMs,
-        []
-      )
-      if (recommendations.length === 0 && sportKey === 'basketball_ncaab') {
-        recommendations = await getGameRecommendations(
-          game.home_team,
-          game.away_team,
-          'all',
-          sportKey,
-          marketContext,
-          matchupAnalysis
+      let recommendations: GameRecommendation[] = []
+      if (isCfb) {
+        recommendations = buildCfbMarketRecommendations({
+          homeTeam: game.home_team,
+          awayTeam: game.away_team,
+          marketSpread,
+          marketTotal,
+          sharpResult,
+          whaleAlerts,
+        })
+      } else {
+        recommendations = await withTimeout(
+          getGameRecommendations(
+            game.home_team,
+            game.away_team,
+            'all',
+            sportKey,
+            marketContext,
+            matchupAnalysis
+          ),
+          recommendationTimeoutMs,
+          []
         )
-      }
-      if (recommendations.length === 0) {
-        recommendations = buildFallbackRecommendations(matchupAnalysis, sportKey)
+        if (recommendations.length === 0 && sportKey === 'basketball_ncaab') {
+          recommendations = await getGameRecommendations(
+            game.home_team,
+            game.away_team,
+            'all',
+            sportKey,
+            marketContext,
+            matchupAnalysis
+          )
+        }
+        if (recommendations.length === 0) {
+          recommendations = buildFallbackRecommendations(matchupAnalysis, sportKey)
+        }
       }
 
       const spreadRec = recommendations.find((r) => r.type === 'spread')
@@ -956,7 +1387,7 @@ export async function analyzeSlateEdges(
           matchupFactors.push(factor)
         }
       }
-      if (matchupFactors.length === 0) {
+      if (matchupFactors.length === 0 && !isCfb) {
         const fallbackFactors = buildMatchupFactorsFromStats(
           game.home_team,
           game.away_team,
@@ -1037,6 +1468,7 @@ export async function analyzeSlateEdges(
         sharpSignals: sharpResult?.sharpSignals || [],
         lineMovements: sharpResult?.lineMovements || [],
         splits: sharpResult?.splits,
+        whaleAlerts: whaleAlerts.length ? whaleAlerts : undefined,
         sharpConfirmation: hasSharpConfirmation ? {
           agrees: true,
           signals: [...spreadConfirmation.signals, ...totalConfirmation.signals],

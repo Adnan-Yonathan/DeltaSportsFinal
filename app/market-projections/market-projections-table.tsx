@@ -60,6 +60,16 @@ type EdgeGame = {
     isSharp?: boolean
     isSignificant?: boolean
   }>
+  whaleAlerts?: Array<{
+    id: string
+    source: "kalshi" | "polymarket"
+    marketTitle: string
+    outcome: string
+    notional: number
+    americanOdds?: number | null
+    timestamp: string
+    status: "pending" | "respected" | "faded"
+  }>
 }
 
 const formatSigned = (value?: number | null) => {
@@ -70,6 +80,11 @@ const formatSigned = (value?: number | null) => {
 const formatOdds = (value?: number | null) => {
   if (value == null || !Number.isFinite(value)) return "n/a"
   return value > 0 ? `+${Math.round(value)}` : `${Math.round(value)}`
+}
+
+const formatCurrency = (value?: number | null) => {
+  if (value == null || !Number.isFinite(value)) return "n/a"
+  return `$${Math.round(value).toLocaleString("en-US")}`
 }
 
 const resolveModelSpread = (game: EdgeGame) => {
@@ -269,6 +284,9 @@ export default function MarketProjectionsTable({
                       `${move.market}: ${move.openingLine} -> ${move.currentLine}`
                   )
                   .join(" | ")
+                const whaleSummary = game.whaleAlerts?.length
+                  ? `Whale ${formatCurrency(game.whaleAlerts[0].notional)} ${game.whaleAlerts[0].outcome} (${game.whaleAlerts[0].status})`
+                  : ""
                 return (
                   <details
                     key={`${game.matchup}-${game.commenceTime}`}
@@ -355,6 +373,9 @@ export default function MarketProjectionsTable({
                       <div className="space-y-1 text-[11px] text-white/60">
                         <div>{sharpSummary || "No sharp signals yet."}</div>
                         <div>{moveSummary || "No line movement yet."}</div>
+                        {whaleSummary ? (
+                          <div className="text-amber-200">{whaleSummary}</div>
+                        ) : null}
                       </div>
                       <Link
                         href={`/chat?prompt=Analyze%20${encodeURIComponent(
@@ -397,6 +418,9 @@ export default function MarketProjectionsTable({
                       `${move.market}: ${move.openingLine} -> ${move.currentLine}`
                   )
                   .join(" | ")
+                const whaleSummary = game.whaleAlerts?.length
+                  ? `Whale ${formatCurrency(game.whaleAlerts[0].notional)} ${game.whaleAlerts[0].outcome} (${game.whaleAlerts[0].status})`
+                  : ""
                 return (
                   <div
                     key={`${game.matchup}-${game.commenceTime}`}
@@ -480,6 +504,11 @@ export default function MarketProjectionsTable({
                     </div>
                     <div className="text-xs text-white/70">
                       {sharpSummary || "No sharp signals yet."}
+                      {whaleSummary ? (
+                        <div className="mt-1 text-[11px] text-amber-200">
+                          {whaleSummary}
+                        </div>
+                      ) : null}
                     </div>
                     <div className="text-xs text-white/70">
                       {moveSummary || "No line movement yet."}

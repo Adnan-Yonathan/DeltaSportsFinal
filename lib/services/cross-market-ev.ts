@@ -33,7 +33,14 @@ export interface CrossMarketEVOptions {
 }
 
 const DEFAULT_OPTIONS: Required<CrossMarketEVOptions> = {
-  sports: [SPORTS.NBA, SPORTS.NCAA_BB, SPORTS.NFL, SPORTS.MLB, SPORTS.NHL],
+  sports: [
+    SPORTS.NBA,
+    SPORTS.NCAA_BB,
+    SPORTS.NCAA_FB,
+    SPORTS.NFL,
+    SPORTS.MLB,
+    SPORTS.NHL,
+  ],
   minEV: 2.5, // 2.5% for team markets
   minPropEV: 2.5, // 2.5% for player props
   minBooks: 2,
@@ -187,6 +194,7 @@ const buildNoVigConsensusBySelection = (
 const SPORT_TO_SBD_LEAGUE: Record<string, SbdLeague> = {
   [SPORTS.NBA]: 'nba',
   [SPORTS.NCAA_BB]: 'ncaamb',
+  [SPORTS.NCAA_FB]: 'ncaafb',
   [SPORTS.NFL]: 'nfl',
   [SPORTS.MLB]: 'mlb',
   [SPORTS.NHL]: 'nhl',
@@ -606,12 +614,11 @@ async function findPlayerPropEVOpportunities(
   console.log(`[CROSS-MARKET-EV] findPlayerPropEVOpportunities called with minEV=${minEV}, minBooks=${minBooks}, sports=${sports.length}`)
   const opportunities: EVOpportunity[] = []
 
-  // Map sports to SBD leagues for props
-  // MLB is in offseason, NCAAMB has no props available
   const propsLeagues: SbdLeague[] = sports
     .map((s) => SPORT_TO_SBD_LEAGUE[s])
     .filter((league): league is SbdLeague =>
-      league != null && ['nba', 'nfl', 'nhl', 'ncaamb'].includes(league)
+      league != null &&
+      ['nba', 'nfl', 'nhl', 'ncaamb', 'ncaafb', 'mlb'].includes(league)
     )
 
   console.log(`[CROSS-MARKET-EV] Checking props for leagues: ${propsLeagues.join(', ')}`)
@@ -621,22 +628,32 @@ async function findPlayerPropEVOpportunities(
       console.log(`[CROSS-MARKET-EV] Fetching player props for ${league}...`)
 
       // Fetch player props from SBD. NHL uses the player-props endpoint.
-      const propsData =
-        league === 'nhl'
-          ? await fetchSbdPlayerProps(league, { limit: 1000 })
-          : await fetchSbdGamePropsList(league, {
-              ...(league === 'nba' ? { limit: 500 } : {}),
-            })
+      let propsData: any = null
+      try {
+        propsData = await fetchSbdPlayerProps(league, { limit: 1500 })
+      } catch (error) {
+        console.warn(`[CROSS-MARKET-EV] Player props fetch failed for ${league}, falling back`, error)
+        propsData = await fetchSbdGamePropsList(league)
+      }
 
       // Handle response format
-      const props =
-        league === 'nhl'
-          ? buildGamePropsEntriesFromSbdPlayerProps(propsData)
-          : Array.isArray(propsData)
-            ? propsData
-            : Array.isArray(propsData?.data)
-              ? propsData.data
-              : []
+      const normalizePropsPayload = (payload: any) => {
+        const list = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : []
+        if (list.length === 0) {
+          return buildGamePropsEntriesFromSbdPlayerProps(payload)
+        }
+        const sample = list[0]
+        if (sample?.markets) {
+          return buildGamePropsEntriesFromSbdPlayerProps(payload)
+        }
+        return list
+      }
+
+      const props = normalizePropsPayload(propsData)
 
       console.log(`[CROSS-MARKET-EV] Props response for ${league}: ${props.length} entries`)
 
@@ -646,7 +663,7 @@ async function findPlayerPropEVOpportunities(
       }
 
       // Get allowed markets for this sport (use sport-specific or all if propMarkets is empty)
-      const allowedMarkets = propMarkets.length > 0 ? propMarkets : SPORT_PROP_MARKETS[league] || []
+      const allowedMarkets = propMarkets.length > 0 ? propMarkets : []
 
       let propsProcessed = 0
       let propsWithEnoughBooks = 0
@@ -712,14 +729,22 @@ async function findPlayerPropEVOpportunities(
 
         // Process each line separately - only compare books offering the SAME line
         for (const [line, lineBooks] of oddsByLine.entries()) {
-          const bookOdds: BookOdds[] = []
+          const overBookOdds: BookOdds[] = []
+          const underBookOdds: BookOdds[] = []
           const noVigProbs: number[] = []
 
           for (const [bookName, odds] of lineBooks.entries()) {
             if (odds.over && Number.isFinite(odds.over)) {
-              bookOdds.push({
+              overBookOdds.push({
                 bookmaker: bookName,
                 odds: odds.over,
+                point: line,
+              })
+            }
+            if (odds.under && Number.isFinite(odds.under)) {
+              underBookOdds.push({
+                bookmaker: bookName,
+                odds: odds.under,
                 point: line,
               })
             }
@@ -734,46 +759,73 @@ async function findPlayerPropEVOpportunities(
             }
           }
 
-          if (bookOdds.length < minBooks) {
-            continue
+          const hasEnoughOver = overBookOdds.length >= minBooks
+          const hasEnoughUnder = underBookOdds.length >= minBooks
+          if (!hasEnoughOver && !hasEnoughUnder) continue
+
+          propsWithEnoughBooks += (hasEnoughOver ? 1 : 0) + (hasEnoughUnder ? 1 : 0)
+
+          const team = entry?.player?.team || ''
+          const leagueLabel = league.toUpperCase()
+          const consensusOver = hasEnoughOver ? findMarketConsensus(overBookOdds) : null
+          const consensusUnder = hasEnoughUnder ? findMarketConsensus(underBookOdds) : null
+          const consensusOverProb = noVigProbs.length
+            ? average(noVigProbs)
+            : consensusOver?.impliedProbability ?? 0
+          const consensusUnderProb = noVigProbs.length
+            ? 1 - average(noVigProbs)
+            : consensusUnder?.impliedProbability ?? 0
+
+          if (hasEnoughOver && consensusOver) {
+            const bestBook = overBookOdds.reduce((best, current) =>
+              current.odds > best.odds ? current : best
+            )
+            const ev = calculateEV(consensusOverProb, bestBook.odds)
+            if (ev >= minEV) {
+              const bestImplied = calculateImpliedProbabilityDecimal(bestBook.odds)
+              const edgePercent = (consensusOverProb - bestImplied) * 100
+              console.log(`[CROSS-MARKET-EV] Found ${league} prop EV: ${playerName} ${marketKey} o${line} @ ${bestBook.bookmaker} ${bestBook.odds}, EV=${ev.toFixed(1)}% (${overBookOdds.length} books at same line)`)
+              opportunities.push({
+                game: team ? `${team} (${leagueLabel})` : leagueLabel,
+                gameId: entry?.sport_event?.id || entry?.sde_id || '',
+                market: `${playerName} ${marketKey}`,
+                selection: 'Over',
+                point: line,
+                bestBook: bestBook.bookmaker,
+                bestOdds: bestBook.odds,
+                consensus: { ...consensusOver, impliedProbability: consensusOverProb },
+                ev: Math.round(ev * 10) / 10,
+                edgePercent: Math.round(edgePercent * 10) / 10,
+                allBooks: overBookOdds,
+                commenceTime: new Date().toISOString(),
+              })
+            }
           }
 
-          propsWithEnoughBooks++
-
-          // Calculate consensus and find best odds (all at the same line now)
-          const consensus = findMarketConsensus(bookOdds)
-          const consensusProbability = noVigProbs.length
-            ? average(noVigProbs)
-            : consensus.impliedProbability
-          const bestBook = bookOdds.reduce((best, current) =>
-            current.odds > best.odds ? current : best
-          )
-
-          const ev = calculateEV(consensusProbability, bestBook.odds)
-
-          if (ev >= minEV) {
-            const team = entry?.player?.team || ''
-            const leagueLabel = league.toUpperCase()
-
-            const bestImplied = calculateImpliedProbabilityDecimal(bestBook.odds)
-            const edgePercent = (consensusProbability - bestImplied) * 100
-
-            console.log(`[CROSS-MARKET-EV] Found ${league} prop EV: ${playerName} ${marketKey} o${line} @ ${bestBook.bookmaker} ${bestBook.odds}, EV=${ev.toFixed(1)}% (${bookOdds.length} books at same line)`)
-
-            opportunities.push({
-              game: team ? `${team} (${leagueLabel})` : leagueLabel,
-              gameId: entry?.sport_event?.id || entry?.sde_id || '',
-              market: `${playerName} ${marketKey}`,
-              selection: 'Over',
-              point: line,
-              bestBook: bestBook.bookmaker,
-              bestOdds: bestBook.odds,
-              consensus: { ...consensus, impliedProbability: consensusProbability },
-              ev: Math.round(ev * 10) / 10,
-              edgePercent: Math.round(edgePercent * 10) / 10,
-              allBooks: bookOdds,
-              commenceTime: new Date().toISOString(),
-            })
+          if (hasEnoughUnder && consensusUnder) {
+            const bestBook = underBookOdds.reduce((best, current) =>
+              current.odds > best.odds ? current : best
+            )
+            const ev = calculateEV(consensusUnderProb, bestBook.odds)
+            if (ev >= minEV) {
+              const bestImplied = calculateImpliedProbabilityDecimal(bestBook.odds)
+              const edgePercent = (consensusUnderProb - bestImplied) * 100
+              console.log(`[CROSS-MARKET-EV] Found ${league} prop EV: ${playerName} ${marketKey} u${line} @ ${bestBook.bookmaker} ${bestBook.odds}, EV=${ev.toFixed(1)}% (${underBookOdds.length} books at same line)`)
+              opportunities.push({
+                game: team ? `${team} (${leagueLabel})` : leagueLabel,
+                gameId: entry?.sport_event?.id || entry?.sde_id || '',
+                market: `${playerName} ${marketKey}`,
+                selection: 'Under',
+                point: line,
+                bestBook: bestBook.bookmaker,
+                bestOdds: bestBook.odds,
+                consensus: { ...consensusUnder, impliedProbability: consensusUnderProb },
+                ev: Math.round(ev * 10) / 10,
+                edgePercent: Math.round(edgePercent * 10) / 10,
+                allBooks: underBookOdds,
+                commenceTime: new Date().toISOString(),
+              })
+            }
           }
         }
       }

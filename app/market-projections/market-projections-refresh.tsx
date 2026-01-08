@@ -8,12 +8,22 @@ export default function MarketProjectionsRefresh({
   sport,
   isLocked,
   lastUpdated,
+  includeEdges = false,
+  onUpdated,
 }: {
   hasCache: boolean
   errorMessage: string | null
   sport: string
   isLocked?: boolean
   lastUpdated?: string | null
+  includeEdges?: boolean
+  onUpdated?: (payload: {
+    updatedAt?: string
+    edges?: unknown[]
+    fromCache?: boolean
+    refreshing?: boolean
+    error?: string
+  }) => void
 }) {
   const [status, setStatus] = useState<
     "idle" | "loading" | "done" | "error" | "timeout"
@@ -25,7 +35,6 @@ export default function MarketProjectionsRefresh({
   const lastUpdatedMs = Number.isFinite(parsedUpdated) ? parsedUpdated : null
   const cooldownMs =
     lastUpdatedMs != null ? 15 * 60 * 1000 - (now - lastUpdatedMs) : 0
-  const canRefresh = !isLocked && status !== "loading"
   const remainingSeconds = Math.max(0, Math.ceil(cooldownMs / 1000))
   const remainingLabel = `${Math.floor(remainingSeconds / 60)}:${String(
     remainingSeconds % 60
@@ -44,37 +53,53 @@ export default function MarketProjectionsRefresh({
     }, 60000)
 
     try {
-      const res = await fetch(`/api/market-projections?sport=${sport}&refresh=1`, {
-        signal: controller.signal,
-      })
+      const res = await fetch(
+        `/api/market-projections?sport=${sport}&refresh=1${
+          includeEdges ? "&include=1" : ""
+        }`,
+        { signal: controller.signal }
+      )
       window.clearTimeout(timeout)
       if (!res.ok) throw new Error("Refresh failed")
       const payload = await res.json()
       const refreshedAt = payload?.updatedAt
-      if (refreshedAt && lastUpdated && refreshedAt !== lastUpdated) {
-        setStatus("done")
-        window.location.reload()
-        return
+      if (onUpdated) {
+        onUpdated(payload)
       }
       if (payload?.refreshing) {
         setStatus("done")
         setDetails("Refresh queued. This can take a moment.")
+        window.setTimeout(() => {
+          setStatus("idle")
+          setDetails(null)
+        }, 1500)
         return
       }
       setStatus("done")
-      window.location.reload()
+      window.setTimeout(() => {
+        setStatus("idle")
+        setDetails(null)
+      }, 1500)
+      if (!onUpdated && refreshedAt && lastUpdated && refreshedAt !== lastUpdated) {
+        window.location.reload()
+      }
     } catch (err) {
       if (controller.signal.aborted) return
       window.clearTimeout(timeout)
       setStatus("error")
       setDetails(err instanceof Error ? err.message : "Refresh failed.")
+      if (onUpdated) {
+        onUpdated({
+          error: err instanceof Error ? err.message : "Refresh failed.",
+        })
+      }
     }
   }
 
   useEffect(() => {
-    if (hasCache || status !== "idle" || isLocked) return
+    if (status !== "idle" || isLocked) return
     refresh()
-  }, [hasCache, status, isLocked])
+  }, [status, isLocked, sport])
 
   useEffect(() => {
     if (isLocked) return
@@ -97,40 +122,23 @@ export default function MarketProjectionsRefresh({
     <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-xs uppercase tracking-[0.2em] text-white/50">
-          Refresh control
+          Auto refresh
         </div>
         {!isLocked && (
-          <button
-            type="button"
-            onClick={refresh}
-            disabled={!canRefresh}
-            className="rounded-md border border-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 hover:border-emerald-400/40 hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {canRefresh ? "Refresh now" : `Refresh in ${remainingLabel}`}
-          </button>
+          <div className="text-xs text-white/50">
+            Next refresh in {remainingLabel}
+          </div>
         )}
       </div>
       {isLocked && "This sport is locked. Upgrade to unlock projections."}
       {status === "loading" && "Loading projections..."}
-      {status === "done" &&
-        (details || "Projections refreshed. Reloading...")}
+      {status === "done" && (details || "Projections refreshed.")}
       {status === "idle" && hasCache && "Projections are up to date."}
       {status === "idle" && !hasCache && "Preparing projections..."}
       {status === "error" &&
         (details || errorMessage || "Unable to refresh projections.")}
       {status === "timeout" &&
         (details || "Refresh is taking longer than expected.")}
-      {!isLocked && (status === "error" || status === "timeout") && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={refresh}
-            className="rounded-md border border-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 hover:border-emerald-400/40 hover:text-white transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      )}
     </div>
   )
 }

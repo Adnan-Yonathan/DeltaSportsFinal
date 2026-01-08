@@ -72,6 +72,8 @@ type EdgeGame = {
   }>
 }
 
+type WhaleTier = "small" | "blue" | "mega"
+
 const formatSigned = (value?: number | null) => {
   if (value == null || !Number.isFinite(value)) return "n/a"
   return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1)
@@ -85,6 +87,35 @@ const formatOdds = (value?: number | null) => {
 const formatCurrency = (value?: number | null) => {
   if (value == null || !Number.isFinite(value)) return "n/a"
   return `$${Math.round(value).toLocaleString("en-US")}`
+}
+
+const resolveWhaleTier = (notional: number): WhaleTier => {
+  if (notional >= 10000) return "mega"
+  if (notional >= 5000) return "blue"
+  return "small"
+}
+
+type WhaleAlert = NonNullable<EdgeGame["whaleAlerts"]>[number]
+
+const isTotalWhale = (alert: WhaleAlert) => {
+  const text = `${alert.marketTitle} ${alert.outcome}`.toLowerCase()
+  return text.includes("over") || text.includes("under") || text.includes("total")
+}
+
+const summarizeWhales = (game: EdgeGame, filter: EdgeFilter) => {
+  const alerts = game.whaleAlerts ?? []
+  if (!alerts.length) {
+    return { small: 0, blue: 0, mega: 0 }
+  }
+  const scoped = alerts.filter((alert) =>
+    filter === "total" ? isTotalWhale(alert) : !isTotalWhale(alert)
+  )
+  const counts = { small: 0, blue: 0, mega: 0 }
+  for (const alert of scoped) {
+    const tier = resolveWhaleTier(alert.notional)
+    counts[tier] += 1
+  }
+  return counts
 }
 
 const resolveModelSpread = (game: EdgeGame) => {
@@ -126,7 +157,12 @@ const resolveVigPercent = (oddsA?: number | null, oddsB?: number | null) => {
 const clampPercent = (value: number) =>
   Math.max(0, Math.min(100, value))
 
-const marketEdge = (game: EdgeGame, filter: EdgeFilter): MarketEdge => {
+const marketEdge = (
+  game: EdgeGame,
+  filter: EdgeFilter,
+  sport?: string
+): MarketEdge => {
+  const scale = sport === "basketball_ncaab" ? 0.5 : 1
   if (filter === "spread") {
     const modelLine = resolveModelSpread(game)
     if (!Number.isFinite(modelLine) || !Number.isFinite(game.spread?.marketLine)) {
@@ -136,7 +172,7 @@ const marketEdge = (game: EdgeGame, filter: EdgeFilter): MarketEdge => {
       (modelLine ?? 0) - (game.spread?.marketLine ?? 0)
     )
     const edge = diff * 3 - DEFAULT_VIG_PERCENT
-    return { edgePercent: clampPercent(edge) }
+    return { edgePercent: clampPercent(edge * scale) }
   }
 
   if (filter === "total") {
@@ -154,7 +190,7 @@ const marketEdge = (game: EdgeGame, filter: EdgeFilter): MarketEdge => {
       game.total?.bestUnderOdds ?? null
     )
     const edge = diff * 1.8 - vig
-    return { edgePercent: clampPercent(edge) }
+    return { edgePercent: clampPercent(edge * scale) }
   }
 
   const modelHomeProb = impliedProbability(
@@ -178,7 +214,7 @@ const marketEdge = (game: EdgeGame, filter: EdgeFilter): MarketEdge => {
     game.moneyline?.sportsbook?.awayOdds ?? null
   )
   const edge = Math.max(homeEdge, awayEdge) - vig
-  return { edgePercent: clampPercent(edge) }
+  return { edgePercent: clampPercent(edge * scale) }
 }
 
 const edgeLabel = (edgePercent: number) => `${edgePercent.toFixed(1)}%`
@@ -190,7 +226,7 @@ const formatEdgePick = (
   return `${label} ${edgeLabel(edgePercent)}`
 }
 
-const resolveSpreadEdgePick = (game: EdgeGame) => {
+const resolveSpreadEdgePick = (game: EdgeGame, sport?: string) => {
   const modelLine = resolveModelSpread(game)
   const marketLine = game.spread?.marketLine
   if (!Number.isFinite(modelLine) || !Number.isFinite(marketLine)) {
@@ -199,11 +235,11 @@ const resolveSpreadEdgePick = (game: EdgeGame) => {
   const pick = (modelLine as number) < (marketLine as number)
     ? game.homeTeam
     : game.awayTeam
-  const edgePercent = marketEdge(game, "spread").edgePercent
+  const edgePercent = marketEdge(game, "spread", sport).edgePercent
   return { label: pick, edgePercent }
 }
 
-const resolveTotalEdgePick = (game: EdgeGame) => {
+const resolveTotalEdgePick = (game: EdgeGame, sport?: string) => {
   if (
     !Number.isFinite(game.total?.targetLine) ||
     !Number.isFinite(game.total?.marketLine)
@@ -214,13 +250,13 @@ const resolveTotalEdgePick = (game: EdgeGame) => {
     (game.total?.targetLine ?? 0) > (game.total?.marketLine ?? 0)
       ? "Over"
       : "Under"
-  const edgePercent = marketEdge(game, "total").edgePercent
+  const edgePercent = marketEdge(game, "total", sport).edgePercent
   return { label: pick, edgePercent }
 }
 
-const resolveMoneylineEdgePick = (game: EdgeGame) => {
+const resolveMoneylineEdgePick = (game: EdgeGame, sport?: string) => {
   const modelHomeProb = impliedProbability(
-    game.moneyline?.model?.homeOdds ?? game.moneyline?.prediction?.homeOdds
+    game.moneyline?.model?.homeOdds ?? game.moneyline?.prediction?.homeOdds     
   )
   const marketHomeProb = impliedProbability(
     game.moneyline?.sportsbook?.homeOdds
@@ -242,24 +278,28 @@ const resolveMoneylineEdgePick = (game: EdgeGame) => {
   const homeDiff = modelHomeProb - marketHomeProb
   const awayDiff = modelAwayProb - marketAwayProb
   const pick = homeDiff >= awayDiff ? game.homeTeam : game.awayTeam
-  const edgePercent = marketEdge(game, "moneyline").edgePercent
+  const edgePercent = marketEdge(game, "moneyline", sport).edgePercent
   return { label: pick, edgePercent }
 }
 
 export default function MarketProjectionsTable({
   edges,
   errorMessage,
+  sport,
 }: {
   edges: EdgeGame[]
   errorMessage: string | null
+  sport?: string
 }) {
   const [filter, setFilter] = useState<EdgeFilter>("spread")
 
   const sortedEdges = useMemo(() => {
     return [...edges].sort(
-      (a, b) => marketEdge(b, filter).edgePercent - marketEdge(a, filter).edgePercent
+      (a, b) =>
+        marketEdge(b, filter, sport).edgePercent -
+        marketEdge(a, filter, sport).edgePercent
     )
-  }, [edges, filter])
+  }, [edges, filter, sport])
 
   return (
     <>
@@ -306,12 +346,13 @@ export default function MarketProjectionsTable({
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-        <div className="hidden sm:grid grid-cols-[200px_repeat(4,minmax(0,1fr))] gap-2 bg-black/70 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/50">
+        <div className="hidden sm:grid grid-cols-[200px_repeat(5,minmax(0,1fr))] gap-2 bg-black/70 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/50">
           <span>Matchup</span>
           <span>Edge</span>
           <span>Odds</span>
           <span>Sharp Action</span>
           <span>Line Movement</span>
+          <span>Whales</span>
         </div>
         {errorMessage ? (
           <div className="px-4 py-6 text-sm text-red-200">{errorMessage}</div>
@@ -323,13 +364,13 @@ export default function MarketProjectionsTable({
           <>
             <div className="divide-y divide-white/5 sm:hidden">
               {sortedEdges.map((game, index) => {
-                const edgeMetrics = marketEdge(game, filter)
+                const edgeMetrics = marketEdge(game, filter, sport)
                 const spread = game.spread
                 const total = game.total
                 const moneyline = game.moneyline
-                const spreadPick = resolveSpreadEdgePick(game)
-                const totalPick = resolveTotalEdgePick(game)
-                const moneylinePick = resolveMoneylineEdgePick(game)
+                const spreadPick = resolveSpreadEdgePick(game, sport)
+                const totalPick = resolveTotalEdgePick(game, sport)
+                const moneylinePick = resolveMoneylineEdgePick(game, sport)
                 const sharpSummary = game.sharpSignals
                   .slice(0, 2)
                   .map(
@@ -345,9 +386,7 @@ export default function MarketProjectionsTable({
                       `${move.market}: ${move.openingLine} -> ${move.currentLine}`
                   )
                   .join(" | ")
-                const whaleSummary = game.whaleAlerts?.length
-                  ? `Whale ${formatCurrency(game.whaleAlerts[0].notional)} ${game.whaleAlerts[0].outcome} (${game.whaleAlerts[0].status})`
-                  : ""
+                const whales = summarizeWhales(game, filter)
                 return (
                   <details
                     key={`${game.matchup}-${game.commenceTime}`}
@@ -440,9 +479,13 @@ export default function MarketProjectionsTable({
                       <div className="space-y-1 text-[11px] text-white/60">
                         <div>{sharpSummary || "No sharp signals yet."}</div>
                         <div>{moveSummary || "No line movement yet."}</div>
-                        {whaleSummary ? (
-                          <div className="text-amber-200">{whaleSummary}</div>
-                        ) : null}
+                        {(whales.small || whales.blue || whales.mega) > 0 ? (
+                          <div className="text-amber-200">
+                            Whales: Small {whales.small} • Blue {whales.blue} • Megaladon {whales.mega}
+                          </div>
+                        ) : (
+                          <div>No whale activity yet.</div>
+                        )}
                       </div>
                       <Link
                         href={`/chat?prompt=Analyze%20${encodeURIComponent(
@@ -461,13 +504,13 @@ export default function MarketProjectionsTable({
             </div>
             <div className="hidden divide-y divide-white/5 sm:block">
               {sortedEdges.map((game, index) => {
-                const edgeMetrics = marketEdge(game, filter)
+                const edgeMetrics = marketEdge(game, filter, sport)
                 const spread = game.spread
                 const total = game.total
                 const moneyline = game.moneyline
-                const spreadPick = resolveSpreadEdgePick(game)
-                const totalPick = resolveTotalEdgePick(game)
-                const moneylinePick = resolveMoneylineEdgePick(game)
+                const spreadPick = resolveSpreadEdgePick(game, sport)
+                const totalPick = resolveTotalEdgePick(game, sport)
+                const moneylinePick = resolveMoneylineEdgePick(game, sport)
                 const sharpSummary = game.sharpSignals
                   .slice(0, 2)
                   .map(
@@ -483,13 +526,11 @@ export default function MarketProjectionsTable({
                       `${move.market}: ${move.openingLine} -> ${move.currentLine}`
                   )
                   .join(" | ")
-                const whaleSummary = game.whaleAlerts?.length
-                  ? `Whale ${formatCurrency(game.whaleAlerts[0].notional)} ${game.whaleAlerts[0].outcome} (${game.whaleAlerts[0].status})`
-                  : ""
+                const whales = summarizeWhales(game, filter)
                 return (
                   <div
                     key={`${game.matchup}-${game.commenceTime}`}
-                    className="grid grid-cols-[200px_repeat(4,minmax(0,1fr))] gap-2 px-3 py-3 text-[13px] text-white/70"
+                    className="grid grid-cols-[200px_repeat(5,minmax(0,1fr))] gap-2 px-3 py-3 text-[13px] text-white/70"
                   >
                     <div className="space-y-2">
                       <div className="text-xs uppercase tracking-[0.2em] text-white/40">
@@ -571,14 +612,18 @@ export default function MarketProjectionsTable({
 </div>
                     <div className="text-xs text-white/70">
                       {sharpSummary || "No sharp signals yet."}
-                      {whaleSummary ? (
-                        <div className="mt-1 text-[11px] text-amber-200">
-                          {whaleSummary}
-                        </div>
-                      ) : null}
                     </div>
                     <div className="text-xs text-white/70">
                       {moveSummary || "No line movement yet."}
+                    </div>
+                    <div className="text-xs text-white/70">
+                      {whales.small || whales.blue || whales.mega ? (
+                        <div>
+                          Small {whales.small} • Blue {whales.blue} • Megaladon {whales.mega}
+                        </div>
+                      ) : (
+                        "No whale activity yet."
+                      )}
                     </div>
                   </div>
                 )

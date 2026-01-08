@@ -1,6 +1,5 @@
 import Link from "next/link"
-import MarketProjectionsTable from "./market-projections-table"
-import MarketProjectionsRefresh from "./market-projections-refresh"
+import MarketProjectionsClient from "./market-projections-client"
 import SportSelector from "./sport-selector"
 import { readFile } from "fs/promises"
 import { join } from "path"
@@ -99,16 +98,13 @@ export default async function MarketProjectionsPage({
           )}
         </header>
 
-        <MarketProjectionsRefresh
+        <MarketProjectionsClient
+          initialEdges={edges}
+          initialUpdatedAt={lastUpdated}
           hasCache={hasCache}
           errorMessage={errorMessage}
           sport={sport}
           isLocked={isLocked}
-          lastUpdated={lastUpdated}
-        />
-        <MarketProjectionsTable
-          edges={edges}
-          errorMessage={hasCache ? errorMessage : null}
         />
       </div>
     </div>

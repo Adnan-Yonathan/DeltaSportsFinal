@@ -4,7 +4,7 @@ import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import { findEVOpportunities } from "@/lib/services/cross-market-ev"
 import { SPORTS } from "@/lib/types/odds"
 import { type EVOpportunity } from "@/lib/utils/ev-calculator"
-import EvBetsTable from "./ev-bets-table"
+import EvBetsClient from "./ev-bets-client"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -62,6 +62,7 @@ export default async function EvBetsPage() {
 
   let opportunities: EVOpportunity[] = []
   let errorMessage: string | null = null
+  let updatedAt: string | null = null
 
   try {
     opportunities = await findEVOpportunities({
@@ -71,6 +72,7 @@ export default async function EvBetsPage() {
       slateMode: "next",
       sports: Object.values(SPORTS),
     })
+    updatedAt = new Date().toISOString()
   } catch (error) {
     errorMessage =
       error instanceof Error ? error.message : "Unable to load EV bets."
@@ -96,7 +98,11 @@ export default async function EvBetsPage() {
           </p>
         </header>
 
-        <EvBetsTable opportunities={opportunities} errorMessage={errorMessage} />
+        <EvBetsClient
+          initialOpportunities={opportunities}
+          initialUpdatedAt={updatedAt}
+          initialError={errorMessage}
+        />
       </div>
     </div>
   )

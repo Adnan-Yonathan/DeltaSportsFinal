@@ -266,10 +266,12 @@ export default function PlayerProjectionsTable({
       }
     }
     load()
+    const interval = window.setInterval(load, 15 * 60 * 1000)
     return () => {
       active = false
+      window.clearInterval(interval)
     }
-  }, [])
+  }, [sport, activeMarkets])
 
   const groupedRows = useMemo(() => {
     const byGame = new Map<string, Row[]>()

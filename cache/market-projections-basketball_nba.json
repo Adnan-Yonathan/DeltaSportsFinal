@@ -1,8 +1,6 @@
 {
+  "updatedAt": "2026-01-08T22:53:11.005Z",
   "sport": "basketball_nba",
-  "sportLabel": "NBA",
-  "date": "2026-01-08",
-  "gamesAnalyzed": 24,
   "edges": [
     {
       "matchup": "Indiana Pacers @ Charlotte Hornets",
@@ -25,8 +23,8 @@
       },
       "moneyline": {
         "sportsbook": {
-          "homeOdds": -179,
-          "homeBook": "BetRivers",
+          "homeOdds": -185,
+          "homeBook": "DraftKings",
           "awayOdds": 162,
           "awayBook": "Caesars"
         },
@@ -96,7 +94,7 @@
           "market": "moneyline",
           "side": "Indiana Pacers",
           "strength": 5,
-          "description": "76.78% of bets on Charlotte Hornets but line moved against them",
+          "description": "78.96% of bets on Charlotte Hornets but line moved against them",
           "confidence": "high"
         }
       ],
@@ -107,9 +105,9 @@
           "openingLine": -3.5,
           "currentLine": -4.5,
           "movement": -1,
-          "openingOdds": -110,
-          "currentOdds": -110,
-          "oddsMovement": 0,
+          "openingOdds": -115,
+          "currentOdds": -112,
+          "oddsMovement": -3,
           "isSharp": true,
           "isSignificant": false,
           "direction": "toward"
@@ -121,8 +119,8 @@
           "currentLine": 232.5,
           "movement": -2,
           "openingOdds": -110,
-          "currentOdds": -110,
-          "oddsMovement": 0,
+          "currentOdds": -108,
+          "oddsMovement": -2,
           "isSharp": true,
           "isSignificant": false,
           "direction": "away"
@@ -130,30 +128,62 @@
         {
           "market": "moneyline",
           "side": "Charlotte Hornets",
-          "openingLine": -165,
+          "openingLine": -162,
           "currentLine": -185,
-          "movement": 20,
-          "openingOdds": -165,
+          "movement": 23,
+          "openingOdds": -162,
           "currentOdds": -185,
-          "oddsMovement": 20,
+          "oddsMovement": 23,
           "isSharp": true,
           "isSignificant": false,
           "direction": "toward"
         }
       ],
       "splits": {
-        "spreadHomeBetPct": 64.19,
-        "spreadAwayBetPct": 35.81,
-        "spreadHomeMoneyPct": 63.09,
-        "spreadAwayMoneyPct": 36.91,
-        "totalOverBetPct": 48.84,
-        "totalUnderBetPct": 51.16,
-        "totalOverMoneyPct": 46.68,
-        "totalUnderMoneyPct": 53.32,
-        "mlHomeBetPct": 76.78,
-        "mlAwayBetPct": 23.22,
-        "mlHomeMoneyPct": 67.71,
-        "mlAwayMoneyPct": 32.29
+        "spreadHomeBetPct": 59.09,
+        "spreadAwayBetPct": 40.91,
+        "spreadHomeMoneyPct": 56.02,
+        "spreadAwayMoneyPct": 43.98,
+        "totalOverBetPct": 53.53,
+        "totalUnderBetPct": 46.47,
+        "totalOverMoneyPct": 51.16,
+        "totalUnderMoneyPct": 48.85,
+        "mlHomeBetPct": 78.96,
+        "mlAwayBetPct": 21.04,
+        "mlHomeMoneyPct": 71.42,
+        "mlAwayMoneyPct": 28.58
+      },
+      "highEv": {
+        "total": {
+          "game": "Indiana Pacers @ Charlotte Hornets",
+          "gameId": "sr:match:62925409",
+          "market": "Total",
+          "selection": "Under",
+          "point": 231.5,
+          "bestBook": "Kalshi",
+          "bestOdds": 115,
+          "consensus": {
+            "averageOdds": 107,
+            "medianOdds": 107,
+            "impliedProbability": 0.4825581395348837,
+            "bookCount": 2
+          },
+          "ev": 3.7,
+          "edgePercent": 1.7,
+          "allBooks": [
+            {
+              "bookmaker": "BetMGM",
+              "odds": -110,
+              "point": 231.5
+            },
+            {
+              "bookmaker": "Kalshi",
+              "odds": 115,
+              "point": 231.5
+            }
+          ],
+          "commenceTime": "2026-01-09T00:00:00+00:00"
+        }
       },
       "spread": {
         "marketLine": -4.5,
@@ -164,33 +194,33 @@
           "reason": "Model gap is 3.6 points vs the provided line.",
           "flag": "Line looks mispriced vs model + supporting stats"
         },
-        "bestBook": "BetMGM",
-        "bestOdds": -110,
+        "bestBook": "DraftKings",
+        "bestOdds": -112,
         "prediction": {
           "line": -4.5,
           "book": "Polymarket",
-          "odds": 102
+          "odds": -106
         },
         "favoredTeam": "Charlotte Hornets",
         "sharpConfirmed": false
       },
       "total": {
-        "marketLine": 230.5,
+        "marketLine": 232.5,
         "targetLine": 223.43942746492436,
         "edge": {
           "verdict": "strong",
           "confidence": "high",
-          "reason": "Model gap is 7.1 points vs the provided line.",
+          "reason": "Model gap is 9.1 points vs the provided line.",
           "flag": "Line looks mispriced vs model + supporting stats"
         },
-        "bestBook": "BetRivers",
-        "bestOdds": -109,
-        "bestUnderOdds": -111,
+        "bestBook": "DraftKings",
+        "bestOdds": -108,
+        "bestUnderOdds": -112,
         "prediction": {
           "line": 232.5,
           "book": "Polymarket",
-          "overOdds": 106,
-          "underOdds": -106
+          "overOdds": 102,
+          "underOdds": -102
         },
         "sharpConfirmed": false
       }
@@ -216,15 +246,15 @@
       },
       "moneyline": {
         "sportsbook": {
-          "homeOdds": 222,
-          "homeBook": "Caesars",
-          "awayOdds": -260,
-          "awayBook": "Bet365"
+          "homeOdds": 225,
+          "homeBook": "BetMGM",
+          "awayOdds": -265,
+          "awayBook": "DraftKings"
         },
         "model": {
-          "homeOdds": 365,
-          "awayOdds": -365,
-          "homeProbability": 0.21504868626775828
+          "homeOdds": 378,
+          "awayOdds": -378,
+          "homeProbability": 0.20925037634306606
         },
         "prediction": {
           "homeOdds": 228,
@@ -238,8 +268,8 @@
         "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
         "Chicago Bulls adj: eff +0.6%, play +0.0%, mult 1.001",
         "Miami Heat adj: eff -0.7%, play +0.0%, mult 0.999",
-        "Sharp money bias (spread): -0.7 (STEAM: spread moved 2.0 points (5.5 → 7.5))",
-        "Sharp money bias (total): -1.7 (STEAM: total moved 5.0 points (242.5 → 237.5))",
+        "Sharp money bias (spread): -0.4 (STEAM: spread moved 2.0 points (5.5 → 7.5))",
+        "Sharp money bias (total): -1.4 (STEAM: total moved 4.0 points (241.5 → 237.5))",
         "Chicago Bulls ORtg: 109.0, Miami Heat DRtg: 111.8",
         "Miami Heat ORtg: 112.9, Chicago Bulls DRtg: 118.0",
         "Pace: Chicago Bulls 102.9, Miami Heat 104.8",
@@ -279,7 +309,7 @@
           "market": "moneyline",
           "side": "Chicago Bulls",
           "strength": 3,
-          "description": "20% money/bet divergence on Chicago Bulls ML",
+          "description": "19% money/bet divergence on Chicago Bulls ML",
           "confidence": "medium"
         },
         {
@@ -295,15 +325,7 @@
           "market": "total",
           "side": "Under",
           "strength": 4,
-          "description": "total moved 5.0 points (242.5 → 237.5)",
-          "confidence": "high"
-        },
-        {
-          "type": "STEAM",
-          "market": "moneyline",
-          "side": "Miami Heat",
-          "strength": 4,
-          "description": "moneyline moved 40.0 points (180 → 220)",
+          "description": "total moved 4.0 points (241.5 → 237.5)",
           "confidence": "high"
         }
       ],
@@ -324,12 +346,12 @@
         {
           "market": "total",
           "side": "Under",
-          "openingLine": 242.5,
+          "openingLine": 241.5,
           "currentLine": 237.5,
-          "movement": -5,
-          "openingOdds": -105,
+          "movement": -4,
+          "openingOdds": -110,
           "currentOdds": -110,
-          "oddsMovement": 5,
+          "oddsMovement": 0,
           "isSharp": true,
           "isSignificant": true,
           "direction": "away"
@@ -338,46 +360,46 @@
           "market": "moneyline",
           "side": "Miami Heat",
           "openingLine": 180,
-          "currentLine": 220,
-          "movement": -40,
+          "currentLine": 215,
+          "movement": -35,
           "openingOdds": 180,
-          "currentOdds": 220,
-          "oddsMovement": -40,
+          "currentOdds": 215,
+          "oddsMovement": -35,
           "isSharp": true,
-          "isSignificant": true,
+          "isSignificant": false,
           "direction": "away"
         }
       ],
       "splits": {
-        "spreadHomeBetPct": 46.5,
-        "spreadAwayBetPct": 53.5,
-        "spreadHomeMoneyPct": 38.33,
-        "spreadAwayMoneyPct": 61.67,
-        "totalOverBetPct": 35.9,
-        "totalUnderBetPct": 64.1,
-        "totalOverMoneyPct": 34.56,
-        "totalUnderMoneyPct": 65.44,
-        "mlHomeBetPct": 19.81,
-        "mlAwayBetPct": 80.19,
-        "mlHomeMoneyPct": 39.72,
-        "mlAwayMoneyPct": 60.28
+        "spreadHomeBetPct": 47.67,
+        "spreadAwayBetPct": 52.33,
+        "spreadHomeMoneyPct": 40.9,
+        "spreadAwayMoneyPct": 59.1,
+        "totalOverBetPct": 40.64,
+        "totalUnderBetPct": 59.36,
+        "totalOverMoneyPct": 39.52,
+        "totalUnderMoneyPct": 60.48,
+        "mlHomeBetPct": 19.06,
+        "mlAwayBetPct": 80.94,
+        "mlHomeMoneyPct": 37.76,
+        "mlAwayMoneyPct": 62.24
       },
       "sharpConfirmation": {
         "agrees": true,
         "signals": [
-          "STEAM: total moved 5.0 points (242.5 → 237.5)"
+          "STEAM: total moved 4.0 points (241.5 → 237.5)"
         ],
         "boost": 0.8
       },
       "spread": {
         "marketLine": 7.5,
-        "targetLine": 9.468295773498212,
+        "targetLine": 9.708295773498213,
         "edge": {
           "verdict": "soft",
           "confidence": "medium",
-          "reason": "Model gap is 2.0 points vs the provided line."
+          "reason": "Model gap is 2.2 points vs the provided line."
         },
-        "bestBook": "BetMGM",
+        "bestBook": "DraftKings",
         "bestOdds": -115,
         "prediction": {
           "line": 7.5,
@@ -388,338 +410,31 @@
         "sharpConfirmed": false
       },
       "total": {
-        "marketLine": 237.5,
-        "targetLine": 228.70785500895937,
+        "marketLine": 238.5,
+        "targetLine": 229.04785500895935,
         "edge": {
           "verdict": "strong",
           "confidence": "high",
-          "reason": "Model gap is 8.8 points vs the provided line.",
+          "reason": "Model gap is 9.5 points vs the provided line.",
           "flag": "Line looks mispriced vs model + supporting stats"
         },
-        "bestBook": "BetMGM",
-        "bestOdds": -110,
-        "bestUnderOdds": -110,
+        "bestBook": "Caesars",
+        "bestOdds": -105,
+        "bestUnderOdds": -115,
         "prediction": {
           "line": 238.5,
           "book": "Kalshi",
-          "overOdds": 102,
-          "underOdds": -102
+          "overOdds": 108,
+          "underOdds": -108
         },
         "sharpConfirmed": true
       }
     },
     {
-      "matchup": "Dallas Mavericks @ Utah Jazz",
-      "homeTeam": "Utah Jazz",
-      "awayTeam": "Dallas Mavericks",
-      "commenceTime": "2026-01-09T02:00:00+00:00",
-      "homeStats": {
-        "ortg": 111.4199,
-        "drtg": 123.48649999999999,
-        "pace": 102.73,
-        "eFG": 0.538,
-        "ts": 0.582
-      },
-      "awayStats": {
-        "ortg": 108.94143,
-        "drtg": 113.6295698467571,
-        "pace": 102.28,
-        "eFG": 0.528,
-        "ts": 0.564
-      },
-      "moneyline": {
-        "sportsbook": {
-          "homeOdds": 195,
-          "homeBook": "BetMGM",
-          "awayOdds": -225,
-          "awayBook": "Caesars"
-        },
-        "model": {
-          "homeOdds": 171,
-          "awayOdds": -171,
-          "homeProbability": 0.368617643309532
-        },
-        "prediction": {
-          "homeOdds": 199,
-          "homeBook": "Polymarket",
-          "awayOdds": -199,
-          "awayBook": "Polymarket"
-        }
-      },
-      "confidence": "high",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Utah Jazz adj: eff -0.6%, play +0.0%, mult 0.999",
-        "Dallas Mavericks adj: eff -3.0%, play +0.0%, mult 0.994",
-        "Sharp money bias (spread): +0.6 (RLM: 74.34% of bets on Utah Jazz but line moved against them)",
-        "Utah Jazz ORtg: 111.4, Dallas Mavericks DRtg: 113.6",
-        "Dallas Mavericks ORtg: 108.9, Utah Jazz DRtg: 123.5",
-        "Pace: Utah Jazz 102.7, Dallas Mavericks 102.3",
-        "🎯 Styles: Utah Jazz (balanced) vs Dallas Mavericks (balanced)",
-        "✓ Utah Jazz well-rested (7 days)",
-        "Utah Jazz injuries: 3 key players out",
-        "  Kevin Love (Day-To-Day): 7.2 PPG, PER 15.1, Rating 16.0 → minor impact (-0.0 ORtg)",
-        "  Georges Niang (Out): 7.4 PPG, PER 0.0, Rating 12.2 → minor impact (-0.0 ORtg)",
-        "  Walker Kessler [ELITE] (Out): 14.4 PPG, PER 20.7, Rating 34.9 → HIGH impact (-3.2 ORtg)",
-        "Dallas Mavericks injuries: 5 key players out",
-        "  Brandon Williams (Day-To-Day): 11.8 PPG, PER 14.5, Rating 20.4 → minor impact (-0.0 ORtg)",
-        "  P.J. Washington [STAR] (Day-To-Day): 14.7 PPG, PER 13.5, Rating 27.1 → minor impact (-0.2 ORtg)",
-        "  Dereck Lively II [STAR] (Out): 4.3 PPG, PER 15.1, Rating 14.8 → minor impact (-0.0 ORtg)",
-        "  Kyrie Irving [ELITE] (Out): 23.7 PPG, PER 0.0, Rating 38.5 → minor impact (-0.0 ORtg)",
-        "  Dante Exum (Out): 6.2 PPG, PER 0.0, Rating 11.5 → minor impact (-0.0 ORtg)",
-        "📈 Dallas Mavericks L10: 4-6 (W2), Avg margin: -3.6"
-      ],
-      "injuries": [
-        "Utah Jazz injuries: 3 key players out",
-        "  Georges Niang (Out): 7.4 PPG, PER 0.0, Rating 12.2 → minor impact (-0.0 ORtg)",
-        "  Walker Kessler [ELITE] (Out): 14.4 PPG, PER 20.7, Rating 34.9 → HIGH impact (-3.2 ORtg)",
-        "Dallas Mavericks injuries: 5 key players out",
-        "  Dereck Lively II [STAR] (Out): 4.3 PPG, PER 15.1, Rating 14.8 → minor impact (-0.0 ORtg)",
-        "  Kyrie Irving [ELITE] (Out): 23.7 PPG, PER 0.0, Rating 38.5 → minor impact (-0.0 ORtg)",
-        "  Dante Exum (Out): 6.2 PPG, PER 0.0, Rating 11.5 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Utah Jazz ORtg: 111.4, Dallas Mavericks DRtg: 113.6",
-        "Dallas Mavericks ORtg: 108.9, Utah Jazz DRtg: 123.5",
-        "Pace: Utah Jazz 102.7, Dallas Mavericks 102.3",
-        "  Kevin Love (Day-To-Day): 7.2 PPG, PER 15.1, Rating 16.0 → minor impact (-0.0 ORtg)",
-        "  Brandon Williams (Day-To-Day): 11.8 PPG, PER 14.5, Rating 20.4 → minor impact (-0.0 ORtg)",
-        "  P.J. Washington [STAR] (Day-To-Day): 14.7 PPG, PER 13.5, Rating 27.1 → minor impact (-0.2 ORtg)"
-      ],
-      "sharpSignals": [
-        {
-          "type": "SHARP_MONEY",
-          "market": "moneyline",
-          "side": "Utah Jazz",
-          "strength": 5,
-          "description": "47% money/bet divergence on Utah Jazz ML",
-          "confidence": "high"
-        },
-        {
-          "type": "RLM",
-          "market": "spread",
-          "side": "Dallas Mavericks",
-          "strength": 4,
-          "description": "74.34% of bets on Utah Jazz but line moved against them",
-          "confidence": "high"
-        }
-      ],
-      "lineMovements": [
-        {
-          "market": "spread",
-          "side": "Utah Jazz",
-          "openingLine": 5.5,
-          "currentLine": 6.5,
-          "movement": 1,
-          "openingOdds": -105,
-          "currentOdds": -115,
-          "oddsMovement": 10,
-          "isSharp": true,
-          "isSignificant": false,
-          "direction": "away"
-        },
-        {
-          "market": "total",
-          "side": "Under",
-          "openingLine": 241.5,
-          "currentLine": 239.5,
-          "movement": -2,
-          "openingOdds": -110,
-          "currentOdds": -110,
-          "oddsMovement": 0,
-          "isSharp": true,
-          "isSignificant": false,
-          "direction": "away"
-        },
-        {
-          "market": "moneyline",
-          "side": "Dallas Mavericks",
-          "openingLine": 180,
-          "currentLine": 195,
-          "movement": -15,
-          "openingOdds": 180,
-          "currentOdds": 195,
-          "oddsMovement": -15,
-          "isSharp": false,
-          "isSignificant": false,
-          "direction": "away"
-        }
-      ],
-      "splits": {
-        "spreadHomeBetPct": 74.34,
-        "spreadAwayBetPct": 25.66,
-        "spreadHomeMoneyPct": 75.58,
-        "spreadAwayMoneyPct": 24.42,
-        "totalOverBetPct": 32.41,
-        "totalUnderBetPct": 67.59,
-        "totalOverMoneyPct": 31.77,
-        "totalUnderMoneyPct": 68.23,
-        "mlHomeBetPct": 24.2,
-        "mlAwayBetPct": 75.8,
-        "mlHomeMoneyPct": 70.83,
-        "mlAwayMoneyPct": 29.17
-      },
-      "sharpConfirmation": {
-        "agrees": true,
-        "signals": [
-          "RLM: 74.34% of bets on Utah Jazz but line moved against them"
-        ],
-        "boost": 0.8
-      },
-      "spread": {
-        "marketLine": 6.5,
-        "targetLine": 4.026200332486225,
-        "edge": {
-          "verdict": "soft",
-          "confidence": "medium",
-          "reason": "Model gap is 2.5 points vs the provided line."
-        },
-        "bestBook": "BetMGM",
-        "bestOdds": -115,
-        "prediction": {
-          "line": 6.5,
-          "book": "Polymarket",
-          "odds": -102
-        },
-        "favoredTeam": "Dallas Mavericks",
-        "sharpConfirmed": true
-      },
-      "total": {
-        "marketLine": 241.5,
-        "targetLine": 231.92757883601482,
-        "edge": {
-          "verdict": "strong",
-          "confidence": "high",
-          "reason": "Model gap is 9.6 points vs the provided line.",
-          "flag": "Line looks mispriced vs model + supporting stats"
-        },
-        "bestBook": "DraftKings",
-        "bestOdds": -107,
-        "bestUnderOdds": -116,
-        "prediction": {
-          "line": 240.5,
-          "book": "Kalshi",
-          "overOdds": -102,
-          "underOdds": 102
-        },
-        "sharpConfirmed": false
-      }
-    },
-    {
-      "matchup": "Clippers @ Nets",
-      "homeTeam": "Nets",
-      "awayTeam": "Clippers",
-      "commenceTime": "2026-01-10T00:30:00Z",
-      "homeStats": {
-        "ortg": 112,
-        "drtg": 116.3,
-        "pace": 97.5,
-        "eFG": 0.531,
-        "ts": 0.573
-      },
-      "awayStats": {
-        "ortg": 115.4,
-        "drtg": 117.7,
-        "pace": 96.59,
-        "eFG": 0.552,
-        "ts": 0.598
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": 104,
-          "awayOdds": -104,
-          "homeProbability": 0.49046176637459815
-        },
-        "prediction": {
-          "homeOdds": 178,
-          "homeBook": "Polymarket",
-          "awayOdds": -178,
-          "awayBook": "Polymarket"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Nets adj: eff -2.0%, play +0.0%, mult 0.996",
-        "Clippers adj: eff +2.1%, play +0.0%, mult 1.004",
-        "Nets ORtg: 112.0, Clippers DRtg: 117.7",
-        "Clippers ORtg: 115.4, Nets DRtg: 116.3",
-        "Pace: Nets 97.5, Clippers 96.6",
-        "🎯 Styles: Nets (balanced) vs Clippers (balanced)",
-        "⚠️ Nets on BACK-TO-BACK",
-        "⚠️ Clippers on BACK-TO-BACK",
-        "Nets injuries: 2 key players out",
-        "  Ben Saraf (Day-To-Day): 5.4 PPG, PER 6.9, Rating 10.2 → minor impact (-0.0 ORtg)",
-        "  Haywood Highsmith (Out): 5.4 PPG, PER 0.0, Rating 11.3 → minor impact (-0.0 ORtg)",
-        "Clippers injuries: 3 key players out",
-        "  Bogdan Bogdanovic (Out): 8.0 PPG, PER 8.5, Rating 14.3 → minor impact (-0.0 ORtg)",
-        "  Derrick Jones Jr. (Out): 10.4 PPG, PER 15.3, Rating 18.4 → minor impact (-0.0 ORtg)",
-        "  Bradley Beal (Out): 8.2 PPG, PER 5.2, Rating 10.3 → minor impact (-0.0 ORtg)",
-        "📈 Nets L10: 5-5 (L1), Avg margin: +2.7",
-        "📈 Clippers L10: 7-3 (L1), Avg margin: +5.9"
-      ],
-      "injuries": [
-        "Nets injuries: 2 key players out",
-        "  Haywood Highsmith (Out): 5.4 PPG, PER 0.0, Rating 11.3 → minor impact (-0.0 ORtg)",
-        "Clippers injuries: 3 key players out",
-        "  Bogdan Bogdanovic (Out): 8.0 PPG, PER 8.5, Rating 14.3 → minor impact (-0.0 ORtg)",
-        "  Derrick Jones Jr. (Out): 10.4 PPG, PER 15.3, Rating 18.4 → minor impact (-0.0 ORtg)",
-        "  Bradley Beal (Out): 8.2 PPG, PER 5.2, Rating 10.3 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Nets ORtg: 112.0, Clippers DRtg: 117.7",
-        "Clippers ORtg: 115.4, Nets DRtg: 116.3",
-        "Pace: Nets 97.5, Clippers 96.6",
-        "  Ben Saraf (Day-To-Day): 5.4 PPG, PER 6.9, Rating 10.2 → minor impact (-0.0 ORtg)"
-      ],
-      "sharpSignals": [],
-      "lineMovements": [],
-      "spread": {
-        "marketLine": 6.5,
-        "targetLine": 0.2869272462094732,
-        "edge": {
-          "verdict": "strong",
-          "confidence": "high",
-          "reason": "Model gap is 6.2 points vs the provided line.",
-          "flag": "Line looks mispriced vs model + supporting stats"
-        },
-        "bestBook": "Polymarket",
-        "bestOdds": 104,
-        "prediction": {
-          "line": 6.5,
-          "book": "Polymarket",
-          "odds": 104
-        },
-        "favoredTeam": "Clippers",
-        "sharpConfirmed": false
-      },
-      "total": {
-        "marketLine": 217.5,
-        "targetLine": 224.53934502438733,
-        "edge": {
-          "verdict": "strong",
-          "confidence": "high",
-          "reason": "Model gap is 7.0 points vs the provided line.",
-          "flag": "Line looks mispriced vs model + supporting stats"
-        },
-        "bestBook": "Polymarket",
-        "bestOdds": -102,
-        "bestUnderOdds": 102,
-        "prediction": {
-          "line": 217.5,
-          "book": "Polymarket",
-          "overOdds": -102,
-          "underOdds": 102
-        },
-        "sharpConfirmed": false
-      }
-    },
-    {
-      "matchup": "Kings @ Warriors",
-      "homeTeam": "Warriors",
-      "awayTeam": "Kings",
-      "commenceTime": "2026-01-10T03:00:00Z",
+      "matchup": "Sacramento Kings @ Golden State Warriors",
+      "homeTeam": "Golden State Warriors",
+      "awayTeam": "Sacramento Kings",
+      "commenceTime": "2026-01-10T03:00:00+00:00",
       "homeStats": {
         "ortg": 113.8144,
         "drtg": 112.4,
@@ -735,86 +450,163 @@
         "ts": 0.552
       },
       "moneyline": {
-        "sportsbook": {},
+        "sportsbook": {
+          "homeOdds": -649,
+          "homeBook": "FanDuel",
+          "awayOdds": 480,
+          "awayBook": "FanDuel"
+        },
         "model": {
           "homeOdds": -2735,
           "awayOdds": 2735,
           "homeProbability": 0.9647207306547486
         },
         "prediction": {
-          "homeOdds": -456,
+          "homeOdds": -506,
           "homeBook": "Polymarket",
-          "awayOdds": 456,
+          "awayOdds": 506,
           "awayBook": "Polymarket"
         }
       },
       "confidence": "medium",
       "factors": [
         "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Warriors adj: eff +0.0%, play +0.0%, mult 1.000",
-        "Kings adj: eff -5.0%, play +0.0%, mult 0.990",
-        "Warriors ORtg: 113.8, Kings DRtg: 120.7",
-        "Kings ORtg: 105.6, Warriors DRtg: 112.4",
-        "Pace: Warriors 100.5, Kings 101.1",
-        "🎯 Styles: Warriors (balanced) vs Kings (balanced)",
-        "✓ Warriors well-rested (7 days)",
-        "Warriors injuries: 2 key players out",
+        "Golden State Warriors adj: eff +0.0%, play +0.0%, mult 1.000",
+        "Sacramento Kings adj: eff -5.0%, play +0.0%, mult 0.990",
+        "Golden State Warriors ORtg: 113.8, Sacramento Kings DRtg: 120.7",
+        "Sacramento Kings ORtg: 105.6, Golden State Warriors DRtg: 112.4",
+        "Pace: Golden State Warriors 100.5, Sacramento Kings 101.1",
+        "🎯 Styles: Golden State Warriors (balanced) vs Sacramento Kings (balanced)",
+        "✓ Golden State Warriors well-rested (7 days)",
+        "Golden State Warriors injuries: 2 key players out",
         "  Gary Payton II (Day-To-Day): 4.7 PPG, PER 14.9, Rating 11.3 → minor impact (-0.0 ORtg)",
         "  Seth Curry [STAR] (Out): 7.0 PPG, PER 18.8, Rating 14.4 → minor impact (-0.1 ORtg)",
-        "Kings injuries: 3 key players out",
+        "Sacramento Kings injuries: 3 key players out",
         "  Isaiah Stevens (Day-To-Day): 0.0 PPG, PER 0.0, Rating 0.5 → minor impact (-0.0 ORtg)",
         "  Keegan Murray [STAR] (Out): 14.6 PPG, PER 11.9, Rating 25.8 → minor impact (-0.0 ORtg)",
         "  Domantas Sabonis [ELITE] (Out): 17.2 PPG, PER 17.6, Rating 35.9 → HIGH impact (-2.4 ORtg)",
-        "📈 Kings L10: 2-8 (L6), Avg margin: -13.2"
+        "📈 Sacramento Kings L10: 2-8 (L6), Avg margin: -13.2"
       ],
       "injuries": [
-        "Warriors injuries: 2 key players out",
+        "Golden State Warriors injuries: 2 key players out",
         "  Seth Curry [STAR] (Out): 7.0 PPG, PER 18.8, Rating 14.4 → minor impact (-0.1 ORtg)",
-        "Kings injuries: 3 key players out",
+        "Sacramento Kings injuries: 3 key players out",
         "  Keegan Murray [STAR] (Out): 14.6 PPG, PER 11.9, Rating 25.8 → minor impact (-0.0 ORtg)",
         "  Domantas Sabonis [ELITE] (Out): 17.2 PPG, PER 17.6, Rating 35.9 → HIGH impact (-2.4 ORtg)"
       ],
       "matchupFactors": [
-        "Warriors ORtg: 113.8, Kings DRtg: 120.7",
-        "Kings ORtg: 105.6, Warriors DRtg: 112.4",
-        "Pace: Warriors 100.5, Kings 101.1",
+        "Golden State Warriors ORtg: 113.8, Sacramento Kings DRtg: 120.7",
+        "Sacramento Kings ORtg: 105.6, Golden State Warriors DRtg: 112.4",
+        "Pace: Golden State Warriors 100.5, Sacramento Kings 101.1",
         "  Gary Payton II (Day-To-Day): 4.7 PPG, PER 14.9, Rating 11.3 → minor impact (-0.0 ORtg)",
         "  Isaiah Stevens (Day-To-Day): 0.0 PPG, PER 0.0, Rating 0.5 → minor impact (-0.0 ORtg)"
       ],
-      "sharpSignals": [],
-      "lineMovements": [],
+      "sharpSignals": [
+        {
+          "type": "SHARP_MONEY",
+          "market": "moneyline",
+          "side": "Sacramento Kings",
+          "strength": 5,
+          "description": "26% money/bet divergence on Sacramento Kings ML",
+          "confidence": "high"
+        },
+        {
+          "type": "STEAM",
+          "market": "moneyline",
+          "side": "Sacramento Kings",
+          "strength": 4,
+          "description": "moneyline moved 50.0 points (-699 → -649)",
+          "confidence": "high"
+        }
+      ],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "Golden State Warriors",
+          "openingLine": -13.5,
+          "currentLine": -13.5,
+          "movement": 0,
+          "openingOdds": -110,
+          "currentOdds": -110,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "total",
+          "side": "Under",
+          "openingLine": 229.5,
+          "currentLine": 229.5,
+          "movement": 0,
+          "openingOdds": -110,
+          "currentOdds": -110,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "moneyline",
+          "side": "Sacramento Kings",
+          "openingLine": -699,
+          "currentLine": -649,
+          "movement": -50,
+          "openingOdds": -699,
+          "currentOdds": -649,
+          "oddsMovement": -50,
+          "isSharp": true,
+          "isSignificant": true,
+          "direction": "away"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": "",
+        "spreadAwayBetPct": "",
+        "spreadHomeMoneyPct": "",
+        "spreadAwayMoneyPct": "",
+        "totalOverBetPct": 68.09,
+        "totalUnderBetPct": 31.91,
+        "totalOverMoneyPct": 71.36,
+        "totalUnderMoneyPct": 28.64,
+        "mlHomeBetPct": 93.54,
+        "mlAwayBetPct": 6.46,
+        "mlHomeMoneyPct": 67.62,
+        "mlAwayMoneyPct": 32.38
+      },
       "spread": {
-        "marketLine": -12.5,
+        "marketLine": -13.5,
         "targetLine": -21.69968969657353,
         "edge": {
           "verdict": "strong",
           "confidence": "high",
-          "reason": "Model gap is 9.2 points vs the provided line.",
+          "reason": "Model gap is 8.2 points vs the provided line.",
           "flag": "Line looks mispriced vs model + supporting stats"
         },
-        "bestBook": "Polymarket",
-        "bestOdds": -104,
+        "bestBook": "FanDuel",
+        "bestOdds": -110,
         "prediction": {
-          "line": -12.5,
+          "line": -13.5,
           "book": "Polymarket",
-          "odds": -104
+          "odds": 100
         },
-        "favoredTeam": "Warriors",
+        "favoredTeam": "Golden State Warriors",
         "sharpConfirmed": false
       },
       "total": {
-        "marketLine": 228.5,
+        "marketLine": 229.5,
         "targetLine": 223.4470542850897,
         "edge": {
-          "verdict": "soft",
-          "confidence": "medium",
-          "reason": "Model gap is 5.1 points vs the provided line."
+          "verdict": "strong",
+          "confidence": "high",
+          "reason": "Model gap is 6.1 points vs the provided line.",
+          "flag": "Line looks mispriced vs model + supporting stats"
         },
-        "bestBook": "Polymarket",
-        "bestOdds": -102,
-        "bestUnderOdds": 102,
+        "bestBook": "FanDuel",
+        "bestOdds": -110,
+        "bestUnderOdds": -110,
         "prediction": {
-          "line": 228.5,
+          "line": 229.5,
           "book": "Polymarket",
           "overOdds": -102,
           "underOdds": 102
@@ -843,20 +635,20 @@
       },
       "moneyline": {
         "sportsbook": {
-          "homeOdds": -133,
-          "homeBook": "BetRivers",
+          "homeOdds": -135,
+          "homeBook": "DraftKings",
           "awayOdds": 120,
           "awayBook": "Bet365"
         },
         "model": {
-          "homeOdds": -109,
-          "awayOdds": 109,
-          "homeProbability": 0.5221611563525705
+          "homeOdds": -114,
+          "awayOdds": 114,
+          "homeProbability": 0.5317799794862883
         },
         "prediction": {
-          "homeOdds": -125,
+          "homeOdds": -130,
           "homeBook": "Polymarket",
-          "awayOdds": 125,
+          "awayOdds": 130,
           "awayBook": "Polymarket"
         }
       },
@@ -865,7 +657,7 @@
         "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
         "Minnesota Timberwolves adj: eff +2.4%, play +0.0%, mult 1.005",
         "Cleveland Cavaliers adj: eff +0.3%, play +0.0%, mult 1.001",
-        "Sharp money bias (spread): +0.4 (RLM: 64.19% of bets on Minnesota Timberwolves but line moved against them)",
+        "Sharp money bias (spread): +0.1 (RLM: 60.97% of bets on Minnesota Timberwolves but line moved against them)",
         "Minnesota Timberwolves ORtg: 111.0, Cleveland Cavaliers DRtg: 113.6",
         "Cleveland Cavaliers ORtg: 114.9, Minnesota Timberwolves DRtg: 112.5",
         "Pace: Minnesota Timberwolves 101.3, Cleveland Cavaliers 102.2",
@@ -906,7 +698,7 @@
           "market": "spread",
           "side": "Cleveland Cavaliers",
           "strength": 3,
-          "description": "64.19% of bets on Minnesota Timberwolves but line moved against them",
+          "description": "60.97% of bets on Minnesota Timberwolves but line moved against them",
           "confidence": "medium"
         }
       ],
@@ -917,9 +709,9 @@
           "openingLine": -3.5,
           "currentLine": -2.5,
           "movement": 1,
-          "openingOdds": -105,
+          "openingOdds": -110,
           "currentOdds": -110,
-          "oddsMovement": 5,
+          "oddsMovement": 0,
           "isSharp": true,
           "isSignificant": false,
           "direction": "away"
@@ -930,9 +722,9 @@
           "openingLine": 238.5,
           "currentLine": 237.5,
           "movement": -1,
-          "openingOdds": -115,
+          "openingOdds": -110,
           "currentOdds": -110,
-          "oddsMovement": -5,
+          "oddsMovement": 0,
           "isSharp": false,
           "isSignificant": false,
           "direction": "away"
@@ -941,44 +733,44 @@
           "market": "moneyline",
           "side": "Cleveland Cavaliers",
           "openingLine": -155,
-          "currentLine": -140,
-          "movement": -15,
+          "currentLine": -135,
+          "movement": -20,
           "openingOdds": -155,
-          "currentOdds": -140,
-          "oddsMovement": -15,
-          "isSharp": false,
+          "currentOdds": -135,
+          "oddsMovement": -20,
+          "isSharp": true,
           "isSignificant": false,
           "direction": "away"
         }
       ],
       "splits": {
-        "spreadHomeBetPct": 64.19,
-        "spreadAwayBetPct": 35.81,
-        "spreadHomeMoneyPct": 59.35,
-        "spreadAwayMoneyPct": 40.65,
-        "totalOverBetPct": 34.19,
-        "totalUnderBetPct": 65.81,
-        "totalOverMoneyPct": 33.7,
-        "totalUnderMoneyPct": 66.32,
-        "mlHomeBetPct": 71.93,
-        "mlAwayBetPct": 28.07,
-        "mlHomeMoneyPct": 73.45,
-        "mlAwayMoneyPct": 26.55
+        "spreadHomeBetPct": 60.97,
+        "spreadAwayBetPct": 39.03,
+        "spreadHomeMoneyPct": 54.52,
+        "spreadAwayMoneyPct": 45.48,
+        "totalOverBetPct": 38.44,
+        "totalUnderBetPct": 61.56,
+        "totalOverMoneyPct": 38.04,
+        "totalUnderMoneyPct": 61.97,
+        "mlHomeBetPct": 73.35,
+        "mlAwayBetPct": 26.65,
+        "mlHomeMoneyPct": 74.56,
+        "mlAwayMoneyPct": 25.44
       },
       "spread": {
-        "marketLine": -2,
-        "targetLine": -0.6669342553662927,
+        "marketLine": -2.5,
+        "targetLine": -0.9569342553662926,
         "edge": {
-          "verdict": "none",
-          "confidence": "low",
-          "reason": "Model gap is 1.3 points vs the provided line."
+          "verdict": "soft",
+          "confidence": "medium",
+          "reason": "Model gap is 1.5 points vs the provided line."
         },
-        "bestBook": "FanDuel",
-        "bestOdds": -114,
+        "bestBook": "DraftKings",
+        "bestOdds": -110,
         "prediction": {
           "line": -2.5,
           "book": "Polymarket",
-          "odds": 100
+          "odds": 102
         },
         "favoredTeam": "Minnesota Timberwolves",
         "sharpConfirmed": false
@@ -992,23 +784,739 @@
           "reason": "Model gap is 11.1 points vs the provided line.",
           "flag": "Line looks mispriced vs model + supporting stats"
         },
-        "bestBook": "FanDuel",
-        "bestOdds": -106,
-        "bestUnderOdds": -114,
+        "bestBook": "DraftKings",
+        "bestOdds": -110,
+        "bestUnderOdds": -110,
         "prediction": {
           "line": 238.5,
           "book": "Kalshi",
-          "overOdds": 111,
-          "underOdds": -111
+          "overOdds": 108,
+          "underOdds": -108
         },
         "sharpConfirmed": false
       }
     },
     {
-      "matchup": "Rockets @ Trail Blazers",
-      "homeTeam": "Trail Blazers",
-      "awayTeam": "Rockets",
-      "commenceTime": "2026-01-10T03:00:00Z",
+      "matchup": "Philadelphia 76ers @ Orlando Magic",
+      "homeTeam": "Orlando Magic",
+      "awayTeam": "Philadelphia 76ers",
+      "commenceTime": "2026-01-10T00:00:00+00:00",
+      "homeStats": {
+        "ortg": 110.79049296721922,
+        "drtg": 113.7338646703756,
+        "pace": 100.92,
+        "eFG": 0.531,
+        "ts": 0.574
+      },
+      "awayStats": {
+        "ortg": 113.31804294735608,
+        "drtg": 114.85135,
+        "pace": 100.27,
+        "eFG": 0.53,
+        "ts": 0.573
+      },
+      "moneyline": {
+        "sportsbook": {
+          "homeOdds": 100,
+          "homeBook": "FanDuel",
+          "awayOdds": -118,
+          "awayBook": "FanDuel"
+        },
+        "model": {
+          "homeOdds": -119,
+          "awayOdds": 119,
+          "homeProbability": 0.5434551092595881
+        },
+        "prediction": {
+          "homeOdds": 111,
+          "homeBook": "Polymarket",
+          "awayOdds": -111,
+          "awayBook": "Polymarket"
+        }
+      },
+      "confidence": "medium",
+      "factors": [
+        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
+        "Orlando Magic adj: eff -1.9%, play +0.0%, mult 0.996",
+        "Philadelphia 76ers adj: eff -2.1%, play +0.0%, mult 0.996",
+        "Orlando Magic ORtg: 110.8, Philadelphia 76ers DRtg: 114.9",
+        "Philadelphia 76ers ORtg: 113.3, Orlando Magic DRtg: 113.7",
+        "Pace: Orlando Magic 100.9, Philadelphia 76ers 100.3",
+        "🎯 Styles: Orlando Magic (balanced) vs Philadelphia 76ers (balanced)",
+        "⚠️ Orlando Magic on BACK-TO-BACK",
+        "⚠️ Philadelphia 76ers on BACK-TO-BACK",
+        "Orlando Magic injuries: 5 key players out",
+        "  Saddiq Bey [STAR] (Out): 15.1 PPG, PER 16.0, Rating 25.6 → minor impact (-0.5 ORtg)",
+        "  Jose Alvarado (Out): 7.9 PPG, PER 11.2, Rating 16.1 → minor impact (-0.0 ORtg)",
+        "  Herbert Jones (Day-To-Day): 9.5 PPG, PER 9.5, Rating 17.4 → minor impact (-0.0 ORtg)",
+        "  Trey Murphy III [ELITE] (Day-To-Day): 21.3 PPG, PER 18.8, Rating 36.2 → HIGH impact (-3.7 ORtg)",
+        "  Dejounte Murray [STAR] (Out): 15.5 PPG, PER 0.0, Rating 30.2 → minor impact (-0.0 ORtg)",
+        "Philadelphia 76ers injuries: 8 key players out",
+        "  Vince Williams Jr. (Day-To-Day): 7.7 PPG, PER 10.7, Rating 18.4 → minor impact (-0.0 ORtg)",
+        "  Ja Morant [STAR] (Out): 19.0 PPG, PER 15.2, Rating 31.5 → minor impact (-1.3 ORtg)",
+        "  Cedric Coward [STAR] (Out): 13.7 PPG, PER 15.5, Rating 25.8 → minor impact (-0.4 ORtg)",
+        "  John Konchar (Out): 3.0 PPG, PER 13.0, Rating 9.0 → minor impact (-0.0 ORtg)",
+        "  Brandon Clarke (Out): 4.0 PPG, PER 12.3, Rating 7.3 → minor impact (-0.0 ORtg)",
+        "  Zach Edey [STAR] (Out): 13.6 PPG, PER 20.7, Rating 31.0 → MODERATE impact (-1.4 ORtg)",
+        "  Ty Jerome (Out): 8.7 PPG, PER 0.0, Rating 15.8 → minor impact (-0.0 ORtg)",
+        "  Scotty Pippen Jr. (Out): 10.0 PPG, PER 0.0, Rating 20.6 → minor impact (-0.0 ORtg)",
+        "📈 Orlando Magic L10: 5-5 (W1), Avg margin: -3.8",
+        "📈 Philadelphia 76ers L10: 6-4 (W1), Avg margin: +2.5"
+      ],
+      "injuries": [
+        "Orlando Magic injuries: 5 key players out",
+        "  Saddiq Bey [STAR] (Out): 15.1 PPG, PER 16.0, Rating 25.6 → minor impact (-0.5 ORtg)",
+        "  Jose Alvarado (Out): 7.9 PPG, PER 11.2, Rating 16.1 → minor impact (-0.0 ORtg)",
+        "  Dejounte Murray [STAR] (Out): 15.5 PPG, PER 0.0, Rating 30.2 → minor impact (-0.0 ORtg)",
+        "Philadelphia 76ers injuries: 8 key players out",
+        "  Ja Morant [STAR] (Out): 19.0 PPG, PER 15.2, Rating 31.5 → minor impact (-1.3 ORtg)",
+        "  Cedric Coward [STAR] (Out): 13.7 PPG, PER 15.5, Rating 25.8 → minor impact (-0.4 ORtg)",
+        "  John Konchar (Out): 3.0 PPG, PER 13.0, Rating 9.0 → minor impact (-0.0 ORtg)",
+        "  Brandon Clarke (Out): 4.0 PPG, PER 12.3, Rating 7.3 → minor impact (-0.0 ORtg)",
+        "  Zach Edey [STAR] (Out): 13.6 PPG, PER 20.7, Rating 31.0 → MODERATE impact (-1.4 ORtg)",
+        "  Ty Jerome (Out): 8.7 PPG, PER 0.0, Rating 15.8 → minor impact (-0.0 ORtg)",
+        "  Scotty Pippen Jr. (Out): 10.0 PPG, PER 0.0, Rating 20.6 → minor impact (-0.0 ORtg)"
+      ],
+      "matchupFactors": [
+        "Orlando Magic ORtg: 110.8, Philadelphia 76ers DRtg: 114.9",
+        "Philadelphia 76ers ORtg: 113.3, Orlando Magic DRtg: 113.7",
+        "Pace: Orlando Magic 100.9, Philadelphia 76ers 100.3",
+        "  Herbert Jones (Day-To-Day): 9.5 PPG, PER 9.5, Rating 17.4 → minor impact (-0.0 ORtg)",
+        "  Trey Murphy III [ELITE] (Day-To-Day): 21.3 PPG, PER 18.8, Rating 36.2 → HIGH impact (-3.7 ORtg)",
+        "  Vince Williams Jr. (Day-To-Day): 7.7 PPG, PER 10.7, Rating 18.4 → minor impact (-0.0 ORtg)"
+      ],
+      "sharpSignals": [],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "Orlando Magic",
+          "openingLine": 2,
+          "currentLine": 2,
+          "movement": 0,
+          "openingOdds": -108,
+          "currentOdds": -108,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "total",
+          "side": "Under",
+          "openingLine": 227.5,
+          "currentLine": 226.5,
+          "movement": -1,
+          "openingOdds": -108,
+          "currentOdds": -110,
+          "oddsMovement": 2,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "away"
+        },
+        {
+          "market": "moneyline",
+          "side": "Orlando Magic",
+          "openingLine": 112,
+          "currentLine": 100,
+          "movement": 12,
+          "openingOdds": 112,
+          "currentOdds": 100,
+          "oddsMovement": 12,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "toward"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": "",
+        "spreadAwayBetPct": "",
+        "spreadHomeMoneyPct": "",
+        "spreadAwayMoneyPct": "",
+        "totalOverBetPct": "",
+        "totalUnderBetPct": "",
+        "totalOverMoneyPct": "",
+        "totalUnderMoneyPct": "",
+        "mlHomeBetPct": "",
+        "mlAwayBetPct": "",
+        "mlHomeMoneyPct": "",
+        "mlAwayMoneyPct": ""
+      },
+      "spread": {
+        "marketLine": 2,
+        "targetLine": -1.309699666178383,
+        "edge": {
+          "verdict": "strong",
+          "confidence": "high",
+          "reason": "Model gap is 3.3 points vs the provided line.",
+          "flag": "Line looks mispriced vs model + supporting stats"
+        },
+        "bestBook": "FanDuel",
+        "bestOdds": -108,
+        "prediction": {
+          "line": 1.5,
+          "book": "Polymarket",
+          "odds": 100
+        },
+        "favoredTeam": "Orlando Magic",
+        "sharpConfirmed": false
+      },
+      "total": {
+        "marketLine": 226.5,
+        "targetLine": 223.16096537841787,
+        "edge": {
+          "verdict": "soft",
+          "confidence": "medium",
+          "reason": "Model gap is 3.3 points vs the provided line."
+        },
+        "bestBook": "FanDuel",
+        "bestOdds": -110,
+        "bestUnderOdds": -110,
+        "prediction": {
+          "line": 226.5,
+          "book": "Polymarket",
+          "overOdds": 100,
+          "underOdds": 100
+        },
+        "sharpConfirmed": false
+      }
+    },
+    {
+      "matchup": "Milwaukee Bucks @ Los Angeles Lakers",
+      "homeTeam": "Los Angeles Lakers",
+      "awayTeam": "Milwaukee Bucks",
+      "commenceTime": "2026-01-10T03:30:00+00:00",
+      "homeStats": {
+        "ortg": 108.97445182695876,
+        "drtg": 117.0040625,
+        "pace": 99.83,
+        "eFG": 0.567,
+        "ts": 0.608
+      },
+      "awayStats": {
+        "ortg": 113.7,
+        "drtg": 115.9,
+        "pace": 99.16,
+        "eFG": 0.572,
+        "ts": 0.598
+      },
+      "moneyline": {
+        "sportsbook": {
+          "homeOdds": -148,
+          "homeBook": "FanDuel",
+          "awayOdds": 126,
+          "awayBook": "FanDuel"
+        },
+        "model": {
+          "homeOdds": 149,
+          "awayOdds": -149,
+          "homeProbability": 0.4022635707873471
+        },
+        "prediction": {
+          "homeOdds": -141,
+          "homeBook": "Polymarket",
+          "awayOdds": 141,
+          "awayBook": "Polymarket"
+        }
+      },
+      "confidence": "medium",
+      "factors": [
+        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
+        "Los Angeles Lakers adj: eff +4.4%, play +0.0%, mult 1.009",
+        "Milwaukee Bucks adj: eff +4.1%, play +0.0%, mult 1.008",
+        "Los Angeles Lakers ORtg: 109.0, Milwaukee Bucks DRtg: 115.9",
+        "Milwaukee Bucks ORtg: 113.7, Los Angeles Lakers DRtg: 117.0",
+        "Pace: Los Angeles Lakers 99.8, Milwaukee Bucks 99.2",
+        "🎯 Styles: Los Angeles Lakers (balanced) vs Milwaukee Bucks (balanced)",
+        "⚠️ Los Angeles Lakers on BACK-TO-BACK",
+        "⚠️ Milwaukee Bucks on BACK-TO-BACK",
+        "Los Angeles Lakers injuries: 4 key players out",
+        "  Rui Hachimura (Out): 12.7 PPG, PER 11.2, Rating 20.3 → minor impact (-0.0 ORtg)",
+        "  LeBron James [ELITE] (Day-To-Day): 21.7 PPG, PER 21.0, Rating 39.1 → HIGH impact (-4.4 ORtg)",
+        "  Adou Thiero (Out): 1.3 PPG, PER 8.1, Rating 3.1 → minor impact (-0.0 ORtg)",
+        "  Austin Reaves [ELITE] (Out): 26.6 PPG, PER 23.1, Rating 43.7 → HIGH impact (-6.0 ORtg)",
+        "Milwaukee Bucks injuries: 1 key player out",
+        "  Taurean Prince (Out): 6.1 PPG, PER 7.8, Rating 10.7 → minor impact (-0.0 ORtg)",
+        "📈 Los Angeles Lakers L10: 5-5 (L1), Avg margin: -4.7",
+        "📈 Milwaukee Bucks L10: 5-5 (L1), Avg margin: +1.6"
+      ],
+      "injuries": [
+        "Los Angeles Lakers injuries: 4 key players out",
+        "  Rui Hachimura (Out): 12.7 PPG, PER 11.2, Rating 20.3 → minor impact (-0.0 ORtg)",
+        "  Adou Thiero (Out): 1.3 PPG, PER 8.1, Rating 3.1 → minor impact (-0.0 ORtg)",
+        "  Austin Reaves [ELITE] (Out): 26.6 PPG, PER 23.1, Rating 43.7 → HIGH impact (-6.0 ORtg)",
+        "Milwaukee Bucks injuries: 1 key player out",
+        "  Taurean Prince (Out): 6.1 PPG, PER 7.8, Rating 10.7 → minor impact (-0.0 ORtg)"
+      ],
+      "matchupFactors": [
+        "Los Angeles Lakers ORtg: 109.0, Milwaukee Bucks DRtg: 115.9",
+        "Milwaukee Bucks ORtg: 113.7, Los Angeles Lakers DRtg: 117.0",
+        "Pace: Los Angeles Lakers 99.8, Milwaukee Bucks 99.2",
+        "  LeBron James [ELITE] (Day-To-Day): 21.7 PPG, PER 21.0, Rating 39.1 → HIGH impact (-4.4 ORtg)"
+      ],
+      "sharpSignals": [],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "Los Angeles Lakers",
+          "openingLine": -3,
+          "currentLine": -3,
+          "movement": 0,
+          "openingOdds": -110,
+          "currentOdds": -110,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "total",
+          "side": "Under",
+          "openingLine": 230.5,
+          "currentLine": 230.5,
+          "movement": 0,
+          "openingOdds": -110,
+          "currentOdds": -110,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "moneyline",
+          "side": "Milwaukee Bucks",
+          "openingLine": -148,
+          "currentLine": -148,
+          "movement": 0,
+          "openingOdds": -148,
+          "currentOdds": -148,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "away"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": "",
+        "spreadAwayBetPct": "",
+        "spreadHomeMoneyPct": "",
+        "spreadAwayMoneyPct": "",
+        "totalOverBetPct": "",
+        "totalUnderBetPct": "",
+        "totalOverMoneyPct": "",
+        "totalUnderMoneyPct": "",
+        "mlHomeBetPct": "",
+        "mlAwayBetPct": "",
+        "mlHomeMoneyPct": "",
+        "mlAwayMoneyPct": ""
+      },
+      "spread": {
+        "marketLine": -3,
+        "targetLine": 2.969907449450908,
+        "edge": {
+          "verdict": "strong",
+          "confidence": "high",
+          "reason": "Model gap is 6.0 points vs the provided line.",
+          "flag": "Line looks mispriced vs model + supporting stats"
+        },
+        "bestBook": "FanDuel",
+        "bestOdds": -110,
+        "prediction": {
+          "line": -3.5,
+          "book": "Polymarket",
+          "odds": 108
+        },
+        "favoredTeam": "Milwaukee Bucks",
+        "sharpConfirmed": false
+      },
+      "total": {
+        "marketLine": 230.5,
+        "targetLine": 226.27857140373385,
+        "edge": {
+          "verdict": "soft",
+          "confidence": "medium",
+          "reason": "Model gap is 4.2 points vs the provided line."
+        },
+        "bestBook": "FanDuel",
+        "bestOdds": -110,
+        "bestUnderOdds": -110,
+        "prediction": {
+          "line": 230.5,
+          "book": "Polymarket",
+          "overOdds": -104,
+          "underOdds": 104
+        },
+        "sharpConfirmed": false
+      }
+    },
+    {
+      "matchup": "Dallas Mavericks @ Utah Jazz",
+      "homeTeam": "Utah Jazz",
+      "awayTeam": "Dallas Mavericks",
+      "commenceTime": "2026-01-09T02:00:00+00:00",
+      "homeStats": {
+        "ortg": 111.40632772745856,
+        "drtg": 123.58153524823557,
+        "pace": 102.73,
+        "eFG": 0.538,
+        "ts": 0.582
+      },
+      "awayStats": {
+        "ortg": 108.94143,
+        "drtg": 113.6295698467571,
+        "pace": 102.28,
+        "eFG": 0.528,
+        "ts": 0.564
+      },
+      "moneyline": {
+        "sportsbook": {
+          "homeOdds": 165,
+          "homeBook": "BetMGM",
+          "awayOdds": -192,
+          "awayBook": "DraftKings"
+        },
+        "model": {
+          "homeOdds": 161,
+          "awayOdds": -161,
+          "homeProbability": 0.38292204337086055
+        },
+        "prediction": {
+          "homeOdds": 174,
+          "homeBook": "Polymarket",
+          "awayOdds": -174,
+          "awayBook": "Polymarket"
+        }
+      },
+      "confidence": "medium",
+      "factors": [
+        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
+        "Utah Jazz adj: eff -0.6%, play +0.0%, mult 0.999",
+        "Dallas Mavericks adj: eff -3.0%, play +0.0%, mult 0.994",
+        "Utah Jazz ORtg: 111.4, Dallas Mavericks DRtg: 113.6",
+        "Dallas Mavericks ORtg: 108.9, Utah Jazz DRtg: 123.6",
+        "Pace: Utah Jazz 102.7, Dallas Mavericks 102.3",
+        "🎯 Styles: Utah Jazz (balanced) vs Dallas Mavericks (balanced)",
+        "✓ Utah Jazz well-rested (7 days)",
+        "Utah Jazz injuries: 4 key players out",
+        "  Ace Bailey (Day-To-Day): 10.1 PPG, PER 10.0, Rating 16.3 → minor impact (-0.0 ORtg)",
+        "  Jusuf Nurkic [STAR] (Day-To-Day): 10.4 PPG, PER 16.0, Rating 27.0 → minor impact (-0.3 ORtg)",
+        "  Georges Niang (Out): 7.4 PPG, PER 0.0, Rating 12.2 → minor impact (-0.0 ORtg)",
+        "  Walker Kessler [ELITE] (Out): 14.4 PPG, PER 20.7, Rating 34.9 → HIGH impact (-3.2 ORtg)",
+        "Dallas Mavericks injuries: 5 key players out",
+        "  Brandon Williams (Day-To-Day): 11.8 PPG, PER 14.5, Rating 20.4 → minor impact (-0.0 ORtg)",
+        "  P.J. Washington [STAR] (Day-To-Day): 14.7 PPG, PER 13.5, Rating 27.1 → minor impact (-0.2 ORtg)",
+        "  Dereck Lively II [STAR] (Out): 4.3 PPG, PER 15.1, Rating 14.8 → minor impact (-0.0 ORtg)",
+        "  Kyrie Irving [ELITE] (Out): 23.7 PPG, PER 0.0, Rating 38.5 → minor impact (-0.0 ORtg)",
+        "  Dante Exum (Out): 6.2 PPG, PER 0.0, Rating 11.5 → minor impact (-0.0 ORtg)",
+        "📈 Dallas Mavericks L10: 4-6 (W2), Avg margin: -3.6"
+      ],
+      "injuries": [
+        "Utah Jazz injuries: 4 key players out",
+        "  Georges Niang (Out): 7.4 PPG, PER 0.0, Rating 12.2 → minor impact (-0.0 ORtg)",
+        "  Walker Kessler [ELITE] (Out): 14.4 PPG, PER 20.7, Rating 34.9 → HIGH impact (-3.2 ORtg)",
+        "Dallas Mavericks injuries: 5 key players out",
+        "  Dereck Lively II [STAR] (Out): 4.3 PPG, PER 15.1, Rating 14.8 → minor impact (-0.0 ORtg)",
+        "  Kyrie Irving [ELITE] (Out): 23.7 PPG, PER 0.0, Rating 38.5 → minor impact (-0.0 ORtg)",
+        "  Dante Exum (Out): 6.2 PPG, PER 0.0, Rating 11.5 → minor impact (-0.0 ORtg)"
+      ],
+      "matchupFactors": [
+        "Utah Jazz ORtg: 111.4, Dallas Mavericks DRtg: 113.6",
+        "Dallas Mavericks ORtg: 108.9, Utah Jazz DRtg: 123.6",
+        "Pace: Utah Jazz 102.7, Dallas Mavericks 102.3",
+        "  Ace Bailey (Day-To-Day): 10.1 PPG, PER 10.0, Rating 16.3 → minor impact (-0.0 ORtg)",
+        "  Jusuf Nurkic [STAR] (Day-To-Day): 10.4 PPG, PER 16.0, Rating 27.0 → minor impact (-0.3 ORtg)",
+        "  Brandon Williams (Day-To-Day): 11.8 PPG, PER 14.5, Rating 20.4 → minor impact (-0.0 ORtg)",
+        "  P.J. Washington [STAR] (Day-To-Day): 14.7 PPG, PER 13.5, Rating 27.1 → minor impact (-0.2 ORtg)"
+      ],
+      "sharpSignals": [
+        {
+          "type": "SHARP_MONEY",
+          "market": "moneyline",
+          "side": "Utah Jazz",
+          "strength": 5,
+          "description": "39% money/bet divergence on Utah Jazz ML",
+          "confidence": "high"
+        }
+      ],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "Utah Jazz",
+          "openingLine": 5.5,
+          "currentLine": 4.5,
+          "movement": -1,
+          "openingOdds": -110,
+          "currentOdds": -105,
+          "oddsMovement": -5,
+          "isSharp": true,
+          "isSignificant": false,
+          "direction": "toward"
+        },
+        {
+          "market": "total",
+          "side": "Under",
+          "openingLine": 241.5,
+          "currentLine": 241.5,
+          "movement": 0,
+          "openingOdds": -110,
+          "currentOdds": -110,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "moneyline",
+          "side": "Utah Jazz",
+          "openingLine": 180,
+          "currentLine": 160,
+          "movement": 20,
+          "openingOdds": 180,
+          "currentOdds": 160,
+          "oddsMovement": 20,
+          "isSharp": true,
+          "isSignificant": false,
+          "direction": "toward"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": 73.64,
+        "spreadAwayBetPct": 26.36,
+        "spreadHomeMoneyPct": 72.86,
+        "spreadAwayMoneyPct": 27.14,
+        "totalOverBetPct": 35.93,
+        "totalUnderBetPct": 64.07,
+        "totalOverMoneyPct": 36.67,
+        "totalUnderMoneyPct": 63.32,
+        "mlHomeBetPct": 23.1,
+        "mlAwayBetPct": 76.9,
+        "mlHomeMoneyPct": 62.46,
+        "mlAwayMoneyPct": 37.54
+      },
+      "spread": {
+        "marketLine": 5,
+        "targetLine": 3.5737831872575687,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 1.4 points vs the provided line."
+        },
+        "bestBook": "FanDuel",
+        "bestOdds": -110,
+        "prediction": {
+          "line": 5.5,
+          "book": "Polymarket",
+          "odds": -104
+        },
+        "favoredTeam": "Dallas Mavericks",
+        "sharpConfirmed": false
+      },
+      "total": {
+        "marketLine": 241.5,
+        "targetLine": 232.00558546074552,
+        "edge": {
+          "verdict": "strong",
+          "confidence": "high",
+          "reason": "Model gap is 9.5 points vs the provided line.",
+          "flag": "Line looks mispriced vs model + supporting stats"
+        },
+        "bestBook": "DraftKings",
+        "bestOdds": -110,
+        "bestUnderOdds": -110,
+        "prediction": {
+          "line": 242.5,
+          "book": "Polymarket",
+          "overOdds": 104,
+          "underOdds": -104
+        },
+        "sharpConfirmed": false
+      }
+    },
+    {
+      "matchup": "Toronto Raptors @ Boston Celtics",
+      "homeTeam": "Boston Celtics",
+      "awayTeam": "Toronto Raptors",
+      "commenceTime": "2026-01-10T00:00:00+00:00",
+      "homeStats": {
+        "ortg": 122.2,
+        "drtg": 115.35171875,
+        "pace": 96.36,
+        "eFG": 0.561,
+        "ts": 0.589
+      },
+      "awayStats": {
+        "ortg": 109.32933903033903,
+        "drtg": 113.41173523326158,
+        "pace": 99.63,
+        "eFG": 0.539,
+        "ts": 0.572
+      },
+      "moneyline": {
+        "sportsbook": {
+          "homeOdds": -305,
+          "homeBook": "DraftKings",
+          "awayOdds": 260,
+          "awayBook": "FanDuel"
+        },
+        "model": {
+          "homeOdds": -768,
+          "awayOdds": 768,
+          "homeProbability": 0.884821550555205
+        },
+        "prediction": {
+          "homeOdds": -264,
+          "homeBook": "Polymarket",
+          "awayOdds": 264,
+          "awayBook": "Polymarket"
+        }
+      },
+      "confidence": "medium",
+      "factors": [
+        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
+        "Boston Celtics adj: eff +2.3%, play +0.0%, mult 1.005",
+        "Toronto Raptors adj: eff -1.2%, play +0.0%, mult 0.998",
+        "Boston Celtics ORtg: 122.2, Toronto Raptors DRtg: 113.4",
+        "Toronto Raptors ORtg: 109.3, Boston Celtics DRtg: 115.4",
+        "Pace: Boston Celtics 96.4, Toronto Raptors 99.6",
+        "🎯 Styles: Boston Celtics (halfcourt-offense) vs Toronto Raptors (balanced)",
+        "⚠️ Boston Celtics on BACK-TO-BACK",
+        "⚠️ Toronto Raptors on BACK-TO-BACK",
+        "Boston Celtics injuries: 3 key players out",
+        "  Josh Minott [STAR] (Out): 6.3 PPG, PER 15.7, Rating 13.8 → minor impact (-0.0 ORtg)",
+        "  Ron Harper Jr. [STAR] (Day-To-Day): 2.0 PPG, PER 16.5, Rating 4.7 → minor impact (-0.0 ORtg)",
+        "  Jayson Tatum [ELITE] (Out): 23.6 PPG, PER 0.0, Rating 38.9 → minor impact (-0.0 ORtg)",
+        "Toronto Raptors injuries: 4 key players out",
+        "  Jakob Poeltl [STAR] (Out): 9.7 PPG, PER 16.4, Rating 23.1 → minor impact (-0.3 ORtg)",
+        "  Scottie Barnes [ELITE] (Day-To-Day): 19.1 PPG, PER 19.9, Rating 38.9 → HIGH impact (-3.6 ORtg)",
+        "  Brandon Ingram [ELITE] (Day-To-Day): 21.8 PPG, PER 16.1, Rating 34.7 → MODERATE impact (-2.6 ORtg)",
+        "  Chucky Hepburn (Out): 0.0 PPG, PER -13.5, Rating -0.3 → minor impact (-0.0 ORtg)",
+        "📈 Boston Celtics L10: 8-2 (L1), Avg margin: +11.4",
+        "📈 Toronto Raptors L10: 6-4 (W3), Avg margin: +1.7"
+      ],
+      "injuries": [
+        "Boston Celtics injuries: 3 key players out",
+        "  Josh Minott [STAR] (Out): 6.3 PPG, PER 15.7, Rating 13.8 → minor impact (-0.0 ORtg)",
+        "  Jayson Tatum [ELITE] (Out): 23.6 PPG, PER 0.0, Rating 38.9 → minor impact (-0.0 ORtg)",
+        "Toronto Raptors injuries: 4 key players out",
+        "  Jakob Poeltl [STAR] (Out): 9.7 PPG, PER 16.4, Rating 23.1 → minor impact (-0.3 ORtg)",
+        "  Chucky Hepburn (Out): 0.0 PPG, PER -13.5, Rating -0.3 → minor impact (-0.0 ORtg)"
+      ],
+      "matchupFactors": [
+        "Boston Celtics ORtg: 122.2, Toronto Raptors DRtg: 113.4",
+        "Toronto Raptors ORtg: 109.3, Boston Celtics DRtg: 115.4",
+        "Pace: Boston Celtics 96.4, Toronto Raptors 99.6",
+        "  Ron Harper Jr. [STAR] (Day-To-Day): 2.0 PPG, PER 16.5, Rating 4.7 → minor impact (-0.0 ORtg)",
+        "  Scottie Barnes [ELITE] (Day-To-Day): 19.1 PPG, PER 19.9, Rating 38.9 → HIGH impact (-3.6 ORtg)",
+        "  Brandon Ingram [ELITE] (Day-To-Day): 21.8 PPG, PER 16.1, Rating 34.7 → MODERATE impact (-2.6 ORtg)"
+      ],
+      "sharpSignals": [
+        {
+          "type": "RLM",
+          "market": "moneyline",
+          "side": "Toronto Raptors",
+          "strength": 5,
+          "description": "79.89% of bets on Boston Celtics but line moved against them",
+          "confidence": "high"
+        }
+      ],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "Boston Celtics",
+          "openingLine": -7.5,
+          "currentLine": -7.5,
+          "movement": 0,
+          "openingOdds": -115,
+          "currentOdds": -115,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "total",
+          "side": "Under",
+          "openingLine": 223.5,
+          "currentLine": 223.5,
+          "movement": 0,
+          "openingOdds": -110,
+          "currentOdds": -110,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "moneyline",
+          "side": "Boston Celtics",
+          "openingLine": -290,
+          "currentLine": -305,
+          "movement": 15,
+          "openingOdds": -290,
+          "currentOdds": -305,
+          "oddsMovement": 15,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "toward"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": 40.37,
+        "spreadAwayBetPct": 59.63,
+        "spreadHomeMoneyPct": 42.33,
+        "spreadAwayMoneyPct": 57.67,
+        "totalOverBetPct": 68.31,
+        "totalUnderBetPct": 31.69,
+        "totalOverMoneyPct": 65.21,
+        "totalUnderMoneyPct": 34.79,
+        "mlHomeBetPct": 79.89,
+        "mlAwayBetPct": 20.11,
+        "mlHomeMoneyPct": 68.96,
+        "mlAwayMoneyPct": 31.04
+      },
+      "spread": {
+        "marketLine": -7,
+        "targetLine": -14.39328256591169,
+        "edge": {
+          "verdict": "strong",
+          "confidence": "high",
+          "reason": "Model gap is 7.4 points vs the provided line.",
+          "flag": "Line looks mispriced vs model + supporting stats"
+        },
+        "bestBook": "FanDuel",
+        "bestOdds": -110,
+        "prediction": {
+          "line": -8.5,
+          "book": "Polymarket",
+          "odds": 100
+        },
+        "favoredTeam": "Boston Celtics",
+        "sharpConfirmed": false
+      },
+      "total": {
+        "marketLine": 224.5,
+        "targetLine": 225.84373723294118,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 1.3 points vs the provided line."
+        },
+        "bestBook": "FanDuel",
+        "bestOdds": -105,
+        "bestUnderOdds": -115,
+        "prediction": {
+          "line": 223.5,
+          "book": "Polymarket",
+          "overOdds": -102,
+          "underOdds": 102
+        },
+        "sharpConfirmed": false
+      }
+    },
+    {
+      "matchup": "Houston Rockets @ Portland Trail Blazers",
+      "homeTeam": "Portland Trail Blazers",
+      "awayTeam": "Houston Rockets",
+      "commenceTime": "2026-01-10T03:00:00+00:00",
       "homeStats": {
         "ortg": 110.49596401377559,
         "drtg": 116.104375,
@@ -1024,31 +1532,36 @@
         "ts": 0.585
       },
       "moneyline": {
-        "sportsbook": {},
+        "sportsbook": {
+          "homeOdds": 198,
+          "homeBook": "FanDuel",
+          "awayOdds": -240,
+          "awayBook": "FanDuel"
+        },
         "model": {
           "homeOdds": 196,
           "awayOdds": -196,
           "homeProbability": 0.33784369534181896
         },
         "prediction": {
-          "homeOdds": 199,
+          "homeOdds": 208,
           "homeBook": "Polymarket",
-          "awayOdds": -199,
+          "awayOdds": -208,
           "awayBook": "Polymarket"
         }
       },
       "confidence": "medium",
       "factors": [
         "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Trail Blazers adj: eff -2.9%, play +0.0%, mult 0.994",
-        "Rockets adj: eff +0.9%, play +0.0%, mult 1.002",
-        "Trail Blazers ORtg: 110.5, Rockets DRtg: 113.5",
-        "Rockets ORtg: 115.4, Trail Blazers DRtg: 116.1",
-        "Pace: Trail Blazers 102.1, Rockets 97.0",
-        "🎯 Styles: Trail Blazers (balanced) vs Rockets (balanced)",
-        "⚠️ Trail Blazers on BACK-TO-BACK",
-        "⚠️ Rockets on BACK-TO-BACK",
-        "Trail Blazers injuries: 7 key players out",
+        "Portland Trail Blazers adj: eff -2.9%, play +0.0%, mult 0.994",
+        "Houston Rockets adj: eff +0.9%, play +0.0%, mult 1.002",
+        "Portland Trail Blazers ORtg: 110.5, Houston Rockets DRtg: 113.5",
+        "Houston Rockets ORtg: 115.4, Portland Trail Blazers DRtg: 116.1",
+        "Pace: Portland Trail Blazers 102.1, Houston Rockets 97.0",
+        "🎯 Styles: Portland Trail Blazers (balanced) vs Houston Rockets (balanced)",
+        "⚠️ Portland Trail Blazers on BACK-TO-BACK",
+        "⚠️ Houston Rockets on BACK-TO-BACK",
+        "Portland Trail Blazers injuries: 7 key players out",
         "  Kris Murray (Day-To-Day): 6.1 PPG, PER 9.2, Rating 13.2 → minor impact (-0.0 ORtg)",
         "  Jrue Holiday [ELITE] (Out): 16.7 PPG, PER 17.1, Rating 34.9 → MODERATE impact (-2.6 ORtg)",
         "  Jerami Grant [STAR] (Out): 20.0 PPG, PER 16.5, Rating 29.5 → minor impact (-1.5 ORtg)",
@@ -1056,50 +1569,113 @@
         "  Scoot Henderson (Out): 13.3 PPG, PER 0.0, Rating 22.7 → minor impact (-0.0 ORtg)",
         "  Blake Wesley [STAR] (Out): 6.0 PPG, PER 12.6, Rating 13.4 → minor impact (-0.0 ORtg)",
         "  Damian Lillard [ELITE] (Out): 25.1 PPG, PER 0.0, Rating 40.5 → minor impact (-0.0 ORtg)",
-        "Rockets injuries: 3 key players out",
-        "  Isaiah Crawford (Day-To-Day): 0.0 PPG, PER -7.4, Rating -0.4 → minor impact (-0.0 ORtg)",
+        "Houston Rockets injuries: 3 key players out",
+        "  Isaiah Crawford (Out): 0.0 PPG, PER -7.4, Rating -0.4 → minor impact (-0.0 ORtg)",
         "  Alperen Sengun [ELITE] (Out): 21.8 PPG, PER 22.6, Rating 42.5 → HIGH impact (-5.0 ORtg)",
         "  Fred VanVleet [STAR] (Out): 14.9 PPG, PER 0.0, Rating 27.7 → minor impact (-0.0 ORtg)",
-        "📈 Trail Blazers L10: 6-4 (W4), Avg margin: -0.9",
-        "📈 Rockets L10: 6-4 (L1), Avg margin: +6.0"
+        "📈 Portland Trail Blazers L10: 6-4 (W4), Avg margin: -0.9",
+        "📈 Houston Rockets L10: 6-4 (L1), Avg margin: +6.0"
       ],
       "injuries": [
-        "Trail Blazers injuries: 7 key players out",
+        "Portland Trail Blazers injuries: 7 key players out",
         "  Jrue Holiday [ELITE] (Out): 16.7 PPG, PER 17.1, Rating 34.9 → MODERATE impact (-2.6 ORtg)",
         "  Jerami Grant [STAR] (Out): 20.0 PPG, PER 16.5, Rating 29.5 → minor impact (-1.5 ORtg)",
         "  Matisse Thybulle [STAR] (Out): 5.0 PPG, PER 21.5, Rating 10.8 → minor impact (-0.1 ORtg)",
         "  Scoot Henderson (Out): 13.3 PPG, PER 0.0, Rating 22.7 → minor impact (-0.0 ORtg)",
         "  Blake Wesley [STAR] (Out): 6.0 PPG, PER 12.6, Rating 13.4 → minor impact (-0.0 ORtg)",
         "  Damian Lillard [ELITE] (Out): 25.1 PPG, PER 0.0, Rating 40.5 → minor impact (-0.0 ORtg)",
-        "Rockets injuries: 3 key players out",
+        "Houston Rockets injuries: 3 key players out",
+        "  Isaiah Crawford (Out): 0.0 PPG, PER -7.4, Rating -0.4 → minor impact (-0.0 ORtg)",
         "  Alperen Sengun [ELITE] (Out): 21.8 PPG, PER 22.6, Rating 42.5 → HIGH impact (-5.0 ORtg)",
         "  Fred VanVleet [STAR] (Out): 14.9 PPG, PER 0.0, Rating 27.7 → minor impact (-0.0 ORtg)"
       ],
       "matchupFactors": [
-        "Trail Blazers ORtg: 110.5, Rockets DRtg: 113.5",
-        "Rockets ORtg: 115.4, Trail Blazers DRtg: 116.1",
-        "Pace: Trail Blazers 102.1, Rockets 97.0",
-        "  Kris Murray (Day-To-Day): 6.1 PPG, PER 9.2, Rating 13.2 → minor impact (-0.0 ORtg)",
-        "  Isaiah Crawford (Day-To-Day): 0.0 PPG, PER -7.4, Rating -0.4 → minor impact (-0.0 ORtg)"
+        "Portland Trail Blazers ORtg: 110.5, Houston Rockets DRtg: 113.5",
+        "Houston Rockets ORtg: 115.4, Portland Trail Blazers DRtg: 116.1",
+        "Pace: Portland Trail Blazers 102.1, Houston Rockets 97.0",
+        "  Kris Murray (Day-To-Day): 6.1 PPG, PER 9.2, Rating 13.2 → minor impact (-0.0 ORtg)"
       ],
-      "sharpSignals": [],
-      "lineMovements": [],
+      "sharpSignals": [
+        {
+          "type": "SHARP_MONEY",
+          "market": "moneyline",
+          "side": "Portland Trail Blazers",
+          "strength": 4,
+          "description": "21% money/bet divergence on Portland Trail Blazers ML",
+          "confidence": "high"
+        }
+      ],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "Portland Trail Blazers",
+          "openingLine": 6.5,
+          "currentLine": 6.5,
+          "movement": 0,
+          "openingOdds": -110,
+          "currentOdds": -110,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "total",
+          "side": "Under",
+          "openingLine": 219.5,
+          "currentLine": 219.5,
+          "movement": 0,
+          "openingOdds": -108,
+          "currentOdds": -108,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "moneyline",
+          "side": "Portland Trail Blazers",
+          "openingLine": 205,
+          "currentLine": 198,
+          "movement": 7,
+          "openingOdds": 205,
+          "currentOdds": 198,
+          "oddsMovement": 7,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "toward"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": "",
+        "spreadAwayBetPct": "",
+        "spreadHomeMoneyPct": "",
+        "spreadAwayMoneyPct": "",
+        "totalOverBetPct": 67.69,
+        "totalUnderBetPct": 32.31,
+        "totalOverMoneyPct": 69.41,
+        "totalUnderMoneyPct": 30.59,
+        "mlHomeBetPct": 24.26,
+        "mlAwayBetPct": 75.74,
+        "mlHomeMoneyPct": 45.66,
+        "mlAwayMoneyPct": 54.34
+      },
       "spread": {
-        "marketLine": 5.5,
+        "marketLine": 6.5,
         "targetLine": 5.020261529394052,
         "edge": {
           "verdict": "none",
           "confidence": "low",
-          "reason": "Model gap is 0.5 points vs the provided line."
+          "reason": "Model gap is 1.5 points vs the provided line."
         },
-        "bestBook": "Polymarket",
-        "bestOdds": 102,
+        "bestBook": "FanDuel",
+        "bestOdds": -110,
         "prediction": {
-          "line": 5.5,
+          "line": 6.5,
           "book": "Polymarket",
-          "odds": 102
+          "odds": 100
         },
-        "favoredTeam": "Rockets",
+        "favoredTeam": "Houston Rockets",
         "sharpConfirmed": false
       },
       "total": {
@@ -1110,422 +1686,23 @@
           "confidence": "medium",
           "reason": "Model gap is 4.5 points vs the provided line."
         },
-        "bestBook": "Polymarket",
-        "bestOdds": -102,
-        "bestUnderOdds": 102,
+        "bestBook": "FanDuel",
+        "bestOdds": -108,
+        "bestUnderOdds": -112,
         "prediction": {
           "line": 219.5,
           "book": "Polymarket",
-          "overOdds": -102,
-          "underOdds": 102
+          "overOdds": 102,
+          "underOdds": -102
         },
         "sharpConfirmed": false
       }
     },
     {
-      "matchup": "Raptors @ Celtics",
-      "homeTeam": "Celtics",
-      "awayTeam": "Raptors",
-      "commenceTime": "2026-01-10T00:00:00Z",
-      "homeStats": {
-        "ortg": 122.2,
-        "drtg": 115.35171875,
-        "pace": 96.36,
-        "eFG": 0.561,
-        "ts": 0.589
-      },
-      "awayStats": {
-        "ortg": 111.21352609608176,
-        "drtg": 111.90009375,
-        "pace": 99.63,
-        "eFG": 0.539,
-        "ts": 0.572
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": -458,
-          "awayOdds": 458,
-          "homeProbability": 0.8207649739032621
-        },
-        "prediction": {
-          "homeOdds": -208,
-          "homeBook": "Polymarket",
-          "awayOdds": 208,
-          "awayBook": "Polymarket"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Celtics adj: eff +2.3%, play +0.0%, mult 1.005",
-        "Raptors adj: eff -1.2%, play +0.0%, mult 0.998",
-        "Celtics ORtg: 122.2, Raptors DRtg: 111.9",
-        "Raptors ORtg: 111.2, Celtics DRtg: 115.4",
-        "Pace: Celtics 96.4, Raptors 99.6",
-        "🎯 Styles: Celtics (halfcourt-offense) vs Raptors (balanced)",
-        "⚠️ Celtics on BACK-TO-BACK",
-        "⚠️ Raptors on BACK-TO-BACK",
-        "Celtics injuries: 3 key players out",
-        "  Josh Minott [STAR] (Day-To-Day): 6.3 PPG, PER 15.7, Rating 13.8 → minor impact (-0.0 ORtg)",
-        "  Ron Harper Jr. [STAR] (Day-To-Day): 2.0 PPG, PER 16.5, Rating 4.7 → minor impact (-0.0 ORtg)",
-        "  Jayson Tatum [ELITE] (Out): 23.6 PPG, PER 0.0, Rating 38.9 → minor impact (-0.0 ORtg)",
-        "Raptors injuries: 3 key players out",
-        "  Jakob Poeltl [STAR] (Out): 9.7 PPG, PER 16.4, Rating 23.1 → minor impact (-0.3 ORtg)",
-        "  Brandon Ingram [ELITE] (Day-To-Day): 21.8 PPG, PER 16.1, Rating 34.7 → MODERATE impact (-2.6 ORtg)",
-        "  Chucky Hepburn (Out): 0.0 PPG, PER -13.5, Rating -0.3 → minor impact (-0.0 ORtg)",
-        "📈 Celtics L10: 8-2 (L1), Avg margin: +11.4",
-        "📈 Raptors L10: 6-4 (W3), Avg margin: +1.7"
-      ],
-      "injuries": [
-        "Celtics injuries: 3 key players out",
-        "  Jayson Tatum [ELITE] (Out): 23.6 PPG, PER 0.0, Rating 38.9 → minor impact (-0.0 ORtg)",
-        "Raptors injuries: 3 key players out",
-        "  Jakob Poeltl [STAR] (Out): 9.7 PPG, PER 16.4, Rating 23.1 → minor impact (-0.3 ORtg)",
-        "  Chucky Hepburn (Out): 0.0 PPG, PER -13.5, Rating -0.3 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Celtics ORtg: 122.2, Raptors DRtg: 111.9",
-        "Raptors ORtg: 111.2, Celtics DRtg: 115.4",
-        "Pace: Celtics 96.4, Raptors 99.6",
-        "  Josh Minott [STAR] (Day-To-Day): 6.3 PPG, PER 15.7, Rating 13.8 → minor impact (-0.0 ORtg)",
-        "  Ron Harper Jr. [STAR] (Day-To-Day): 2.0 PPG, PER 16.5, Rating 4.7 → minor impact (-0.0 ORtg)",
-        "  Brandon Ingram [ELITE] (Day-To-Day): 21.8 PPG, PER 16.1, Rating 34.7 → MODERATE impact (-2.6 ORtg)"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "76ers @ Magic",
-      "homeTeam": "Magic",
-      "awayTeam": "76ers",
-      "commenceTime": "2026-01-10T00:00:00Z",
-      "homeStats": {
-        "ortg": 110.79049296721922,
-        "drtg": 113.7338646703756,
-        "pace": 100.92,
-        "eFG": 0.531,
-        "ts": 0.574
-      },
-      "awayStats": {
-        "ortg": 113.31804294735608,
-        "drtg": 114.85135,
-        "pace": 100.27,
-        "eFG": 0.53,
-        "ts": 0.573
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": -119,
-          "awayOdds": 119,
-          "homeProbability": 0.5434551092595881
-        },
-        "prediction": {
-          "homeOdds": 117,
-          "homeBook": "Polymarket",
-          "awayOdds": -117,
-          "awayBook": "Polymarket"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Magic adj: eff -1.9%, play +0.0%, mult 0.996",
-        "76ers adj: eff -2.1%, play +0.0%, mult 0.996",
-        "Magic ORtg: 110.8, 76ers DRtg: 114.9",
-        "76ers ORtg: 113.3, Magic DRtg: 113.7",
-        "Pace: Magic 100.9, 76ers 100.3",
-        "🎯 Styles: Magic (balanced) vs 76ers (balanced)",
-        "⚠️ Magic on BACK-TO-BACK",
-        "⚠️ 76ers on BACK-TO-BACK",
-        "Magic injuries: 5 key players out",
-        "  Trey Murphy III [ELITE] (Day-To-Day): 21.3 PPG, PER 18.8, Rating 36.2 → HIGH impact (-3.7 ORtg)",
-        "  Herbert Jones (Day-To-Day): 9.5 PPG, PER 9.5, Rating 17.4 → minor impact (-0.0 ORtg)",
-        "  Jose Alvarado (Day-To-Day): 7.9 PPG, PER 11.2, Rating 16.1 → minor impact (-0.0 ORtg)",
-        "  Saddiq Bey [STAR] (Out): 15.1 PPG, PER 16.0, Rating 25.6 → minor impact (-0.5 ORtg)",
-        "  Dejounte Murray [STAR] (Out): 15.5 PPG, PER 0.0, Rating 30.2 → minor impact (-0.0 ORtg)",
-        "76ers injuries: 8 key players out",
-        "  Vince Williams Jr. (Day-To-Day): 7.7 PPG, PER 10.7, Rating 18.4 → minor impact (-0.0 ORtg)",
-        "  Ja Morant [STAR] (Out): 19.0 PPG, PER 15.2, Rating 31.5 → minor impact (-1.3 ORtg)",
-        "  Cedric Coward [STAR] (Out): 13.7 PPG, PER 15.5, Rating 25.8 → minor impact (-0.4 ORtg)",
-        "  John Konchar (Out): 3.0 PPG, PER 13.0, Rating 9.0 → minor impact (-0.0 ORtg)",
-        "  Brandon Clarke (Out): 4.0 PPG, PER 12.3, Rating 7.3 → minor impact (-0.0 ORtg)",
-        "  Zach Edey [STAR] (Out): 13.6 PPG, PER 20.7, Rating 31.0 → MODERATE impact (-1.4 ORtg)",
-        "  Ty Jerome (Out): 8.7 PPG, PER 0.0, Rating 15.8 → minor impact (-0.0 ORtg)",
-        "  Scotty Pippen Jr. (Out): 10.0 PPG, PER 0.0, Rating 20.6 → minor impact (-0.0 ORtg)",
-        "📈 Magic L10: 5-5 (W1), Avg margin: -3.8",
-        "📈 76ers L10: 6-4 (W1), Avg margin: +2.5"
-      ],
-      "injuries": [
-        "Magic injuries: 5 key players out",
-        "  Saddiq Bey [STAR] (Out): 15.1 PPG, PER 16.0, Rating 25.6 → minor impact (-0.5 ORtg)",
-        "  Dejounte Murray [STAR] (Out): 15.5 PPG, PER 0.0, Rating 30.2 → minor impact (-0.0 ORtg)",
-        "76ers injuries: 8 key players out",
-        "  Ja Morant [STAR] (Out): 19.0 PPG, PER 15.2, Rating 31.5 → minor impact (-1.3 ORtg)",
-        "  Cedric Coward [STAR] (Out): 13.7 PPG, PER 15.5, Rating 25.8 → minor impact (-0.4 ORtg)",
-        "  John Konchar (Out): 3.0 PPG, PER 13.0, Rating 9.0 → minor impact (-0.0 ORtg)",
-        "  Brandon Clarke (Out): 4.0 PPG, PER 12.3, Rating 7.3 → minor impact (-0.0 ORtg)",
-        "  Zach Edey [STAR] (Out): 13.6 PPG, PER 20.7, Rating 31.0 → MODERATE impact (-1.4 ORtg)",
-        "  Ty Jerome (Out): 8.7 PPG, PER 0.0, Rating 15.8 → minor impact (-0.0 ORtg)",
-        "  Scotty Pippen Jr. (Out): 10.0 PPG, PER 0.0, Rating 20.6 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Magic ORtg: 110.8, 76ers DRtg: 114.9",
-        "76ers ORtg: 113.3, Magic DRtg: 113.7",
-        "Pace: Magic 100.9, 76ers 100.3",
-        "  Trey Murphy III [ELITE] (Day-To-Day): 21.3 PPG, PER 18.8, Rating 36.2 → HIGH impact (-3.7 ORtg)",
-        "  Herbert Jones (Day-To-Day): 9.5 PPG, PER 9.5, Rating 17.4 → minor impact (-0.0 ORtg)",
-        "  Jose Alvarado (Day-To-Day): 7.9 PPG, PER 11.2, Rating 16.1 → minor impact (-0.0 ORtg)",
-        "  Vince Williams Jr. (Day-To-Day): 7.7 PPG, PER 10.7, Rating 18.4 → minor impact (-0.0 ORtg)"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "Pelicans @ Wizards",
-      "homeTeam": "Wizards",
-      "awayTeam": "Pelicans",
-      "commenceTime": "2026-01-10T00:00:00Z",
-      "homeStats": {
-        "ortg": 107.30574760387087,
-        "drtg": 121.39507499999999,
-        "pace": 102.15,
-        "eFG": 0.536,
-        "ts": 0.569
-      },
-      "awayStats": {
-        "ortg": 107.49049296721923,
-        "drtg": 119.43386467037558,
-        "pace": 101.89,
-        "eFG": 0.519,
-        "ts": 0.559
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": -123,
-          "awayOdds": 123,
-          "homeProbability": 0.5511472170050842
-        },
-        "prediction": {
-          "homeOdds": 104,
-          "homeBook": "Polymarket",
-          "awayOdds": -104,
-          "awayBook": "Polymarket"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Wizards adj: eff -1.8%, play +0.0%, mult 0.996",
-        "Pelicans adj: eff -4.3%, play +0.0%, mult 0.991",
-        "Wizards ORtg: 107.3, Pelicans DRtg: 119.4",
-        "Pelicans ORtg: 107.5, Wizards DRtg: 121.4",
-        "Pace: Wizards 102.2, Pelicans 101.9",
-        "🎯 Styles: Wizards (balanced) vs Pelicans (balanced)",
-        "✓ Wizards well-rested (7 days)",
-        "✓ Pelicans well-rested (7 days)",
-        "Wizards injuries: 4 key players out",
-        "  Khris Middleton (Day-To-Day): 9.8 PPG, PER 11.6, Rating 19.0 → minor impact (-0.0 ORtg)",
-        "  Trae Young [ELITE] (Out): 19.3 PPG, PER 19.7, Rating 33.5 → MODERATE impact (-2.9 ORtg)",
-        "  Kyshawn George [STAR] (Out): 15.0 PPG, PER 13.2, Rating 29.4 → minor impact (-0.7 ORtg)",
-        "  Cam Whitmore [STAR] (Out): 9.2 PPG, PER 13.8, Rating 14.1 → minor impact (-0.0 ORtg)",
-        "Pelicans injuries: 5 key players out",
-        "  Trey Murphy III [ELITE] (Day-To-Day): 21.3 PPG, PER 18.8, Rating 36.2 → HIGH impact (-3.7 ORtg)",
-        "  Herbert Jones (Day-To-Day): 9.5 PPG, PER 9.5, Rating 17.4 → minor impact (-0.0 ORtg)",
-        "  Jose Alvarado (Day-To-Day): 7.9 PPG, PER 11.2, Rating 16.1 → minor impact (-0.0 ORtg)",
-        "  Saddiq Bey [STAR] (Out): 15.1 PPG, PER 16.0, Rating 25.6 → minor impact (-0.5 ORtg)",
-        "  Dejounte Murray [STAR] (Out): 15.5 PPG, PER 0.0, Rating 30.2 → minor impact (-0.0 ORtg)"
-      ],
-      "injuries": [
-        "Wizards injuries: 4 key players out",
-        "  Trae Young [ELITE] (Out): 19.3 PPG, PER 19.7, Rating 33.5 → MODERATE impact (-2.9 ORtg)",
-        "  Kyshawn George [STAR] (Out): 15.0 PPG, PER 13.2, Rating 29.4 → minor impact (-0.7 ORtg)",
-        "  Cam Whitmore [STAR] (Out): 9.2 PPG, PER 13.8, Rating 14.1 → minor impact (-0.0 ORtg)",
-        "Pelicans injuries: 5 key players out",
-        "  Saddiq Bey [STAR] (Out): 15.1 PPG, PER 16.0, Rating 25.6 → minor impact (-0.5 ORtg)",
-        "  Dejounte Murray [STAR] (Out): 15.5 PPG, PER 0.0, Rating 30.2 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Wizards ORtg: 107.3, Pelicans DRtg: 119.4",
-        "Pelicans ORtg: 107.5, Wizards DRtg: 121.4",
-        "Pace: Wizards 102.2, Pelicans 101.9",
-        "  Khris Middleton (Day-To-Day): 9.8 PPG, PER 11.6, Rating 19.0 → minor impact (-0.0 ORtg)",
-        "  Trey Murphy III [ELITE] (Day-To-Day): 21.3 PPG, PER 18.8, Rating 36.2 → HIGH impact (-3.7 ORtg)",
-        "  Herbert Jones (Day-To-Day): 9.5 PPG, PER 9.5, Rating 17.4 → minor impact (-0.0 ORtg)",
-        "  Jose Alvarado (Day-To-Day): 7.9 PPG, PER 11.2, Rating 16.1 → minor impact (-0.0 ORtg)"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "Thunder @ Grizzlies",
-      "homeTeam": "Grizzlies",
-      "awayTeam": "Thunder",
-      "commenceTime": "2026-01-10T01:00:00Z",
-      "homeStats": {
-        "ortg": 110.41804294735608,
-        "drtg": 115.05135,
-        "pace": 101.85,
-        "eFG": 0.527,
-        "ts": 0.565
-      },
-      "awayStats": {
-        "ortg": 116.85675,
-        "drtg": 105.692675,
-        "pace": 101.5,
-        "eFG": 0.563,
-        "ts": 0.603
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": 868,
-          "awayOdds": -868,
-          "homeProbability": 0.1033156916755678
-        },
-        "prediction": {
-          "homeOdds": 400,
-          "homeBook": "Polymarket",
-          "awayOdds": -400,
-          "awayBook": "Polymarket"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Grizzlies adj: eff -3.0%, play +0.0%, mult 0.994",
-        "Thunder adj: eff +3.6%, play +0.0%, mult 1.007",
-        "Grizzlies ORtg: 110.4, Thunder DRtg: 105.7",
-        "Thunder ORtg: 116.9, Grizzlies DRtg: 115.1",
-        "Pace: Grizzlies 101.8, Thunder 101.5",
-        "🎯 Styles: Grizzlies (balanced) vs Thunder (balanced)",
-        "⚠️ Grizzlies on BACK-TO-BACK",
-        "⚠️ Thunder on BACK-TO-BACK",
-        "Grizzlies injuries: 8 key players out",
-        "  Vince Williams Jr. (Day-To-Day): 7.7 PPG, PER 10.7, Rating 18.4 → minor impact (-0.0 ORtg)",
-        "  Ja Morant [STAR] (Out): 19.0 PPG, PER 15.2, Rating 31.5 → minor impact (-1.3 ORtg)",
-        "  Cedric Coward [STAR] (Out): 13.7 PPG, PER 15.5, Rating 25.8 → minor impact (-0.4 ORtg)",
-        "  John Konchar (Out): 3.0 PPG, PER 13.0, Rating 9.0 → minor impact (-0.0 ORtg)",
-        "  Brandon Clarke (Out): 4.0 PPG, PER 12.3, Rating 7.3 → minor impact (-0.0 ORtg)",
-        "  Zach Edey [STAR] (Out): 13.6 PPG, PER 20.7, Rating 31.0 → MODERATE impact (-1.4 ORtg)",
-        "  Ty Jerome (Out): 8.7 PPG, PER 0.0, Rating 15.8 → minor impact (-0.0 ORtg)",
-        "  Scotty Pippen Jr. (Out): 10.0 PPG, PER 0.0, Rating 20.6 → minor impact (-0.0 ORtg)",
-        "Thunder injuries: 4 key players out",
-        "  Alex Caruso (Day-To-Day): 6.0 PPG, PER 13.5, Rating 13.5 → minor impact (-0.0 ORtg)",
-        "  Ousmane Dieng (Out): 4.4 PPG, PER 10.1, Rating 8.1 → minor impact (-0.0 ORtg)",
-        "  Jaylin Williams (Out): 5.5 PPG, PER 11.0, Rating 13.9 → minor impact (-0.0 ORtg)",
-        "  Isaiah Hartenstein [STAR] (Out): 11.2 PPG, PER 19.6, Rating 28.9 → MODERATE impact (-1.1 ORtg)",
-        "📈 Grizzlies L10: 3-7 (L1), Avg margin: -3.2",
-        "📈 Thunder L10: 6-4 (W1), Avg margin: +5.7"
-      ],
-      "injuries": [
-        "Grizzlies injuries: 8 key players out",
-        "  Ja Morant [STAR] (Out): 19.0 PPG, PER 15.2, Rating 31.5 → minor impact (-1.3 ORtg)",
-        "  Cedric Coward [STAR] (Out): 13.7 PPG, PER 15.5, Rating 25.8 → minor impact (-0.4 ORtg)",
-        "  John Konchar (Out): 3.0 PPG, PER 13.0, Rating 9.0 → minor impact (-0.0 ORtg)",
-        "  Brandon Clarke (Out): 4.0 PPG, PER 12.3, Rating 7.3 → minor impact (-0.0 ORtg)",
-        "  Zach Edey [STAR] (Out): 13.6 PPG, PER 20.7, Rating 31.0 → MODERATE impact (-1.4 ORtg)",
-        "  Ty Jerome (Out): 8.7 PPG, PER 0.0, Rating 15.8 → minor impact (-0.0 ORtg)",
-        "  Scotty Pippen Jr. (Out): 10.0 PPG, PER 0.0, Rating 20.6 → minor impact (-0.0 ORtg)",
-        "Thunder injuries: 4 key players out",
-        "  Ousmane Dieng (Out): 4.4 PPG, PER 10.1, Rating 8.1 → minor impact (-0.0 ORtg)",
-        "  Jaylin Williams (Out): 5.5 PPG, PER 11.0, Rating 13.9 → minor impact (-0.0 ORtg)",
-        "  Isaiah Hartenstein [STAR] (Out): 11.2 PPG, PER 19.6, Rating 28.9 → MODERATE impact (-1.1 ORtg)"
-      ],
-      "matchupFactors": [
-        "Grizzlies ORtg: 110.4, Thunder DRtg: 105.7",
-        "Thunder ORtg: 116.9, Grizzlies DRtg: 115.1",
-        "Pace: Grizzlies 101.8, Thunder 101.5",
-        "  Vince Williams Jr. (Day-To-Day): 7.7 PPG, PER 10.7, Rating 18.4 → minor impact (-0.0 ORtg)",
-        "  Alex Caruso (Day-To-Day): 6.0 PPG, PER 13.5, Rating 13.5 → minor impact (-0.0 ORtg)"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "Hawks @ Nuggets",
-      "homeTeam": "Nuggets",
-      "awayTeam": "Hawks",
-      "commenceTime": "2026-01-10T02:00:00Z",
-      "homeStats": {
-        "ortg": 117.09750931612551,
-        "drtg": 119.0868125,
-        "pace": 99.73,
-        "eFG": 0.587,
-        "ts": 0.626
-      },
-      "awayStats": {
-        "ortg": 112.3105303171409,
-        "drtg": 115.62117500000001,
-        "pace": 103.36,
-        "eFG": 0.559,
-        "ts": 0.59
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": -232,
-          "awayOdds": 232,
-          "homeProbability": 0.699158943885954
-        },
-        "prediction": {
-          "homeOdds": -108,
-          "homeBook": "Polymarket",
-          "awayOdds": 108,
-          "awayBook": "Polymarket"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Nuggets adj: eff +7.8%, play +0.0%, mult 1.016",
-        "Hawks adj: eff +2.2%, play +0.0%, mult 1.004",
-        "Nuggets ORtg: 117.1, Hawks DRtg: 115.6",
-        "Hawks ORtg: 112.3, Nuggets DRtg: 119.1",
-        "Pace: Nuggets 99.7, Hawks 103.4",
-        "🎯 Styles: Nuggets (balanced) vs Hawks (balanced)",
-        "⚠️ Nuggets on BACK-TO-BACK",
-        "⚠️ Hawks on BACK-TO-BACK",
-        "Nuggets injuries: 4 key players out",
-        "  Spencer Jones (Day-To-Day): 6.1 PPG, PER 10.6, Rating 12.3 → minor impact (-0.0 ORtg)",
-        "  Jonas Valanciunas [STAR] (Out): 8.5 PPG, PER 21.5, Rating 16.8 → minor impact (-0.2 ORtg)",
-        "  Nikola Jokic [ELITE] (Out): 29.6 PPG, PER 35.9, Rating 63.9 → HIGH impact (-6.0 ORtg)",
-        "  Cameron Johnson (Out): 11.7 PPG, PER 11.3, Rating 20.2 → minor impact (-0.0 ORtg)",
-        "Hawks injuries: 4 key players out",
-        "  Onyeka Okongwu [STAR] (Day-To-Day): 16.2 PPG, PER 15.9, Rating 31.8 → MODERATE impact (-1.2 ORtg)",
-        "  CJ McCollum [STAR] (Day-To-Day): 18.8 PPG, PER 15.4, Rating 29.0 → minor impact (-1.2 ORtg)",
-        "  Corey Kispert (Day-To-Day): 9.2 PPG, PER 14.2, Rating 15.3 → minor impact (-0.0 ORtg)",
-        "  N'Faly Dante (Out): 0.8 PPG, PER 12.4, Rating 2.5 → minor impact (-0.0 ORtg)",
-        "📈 Nuggets L10: 5-5 (W2), Avg margin: -0.8",
-        "📈 Hawks L10: 3-7 (W1), Avg margin: -1.6"
-      ],
-      "injuries": [
-        "Nuggets injuries: 4 key players out",
-        "  Jonas Valanciunas [STAR] (Out): 8.5 PPG, PER 21.5, Rating 16.8 → minor impact (-0.2 ORtg)",
-        "  Nikola Jokic [ELITE] (Out): 29.6 PPG, PER 35.9, Rating 63.9 → HIGH impact (-6.0 ORtg)",
-        "  Cameron Johnson (Out): 11.7 PPG, PER 11.3, Rating 20.2 → minor impact (-0.0 ORtg)",
-        "Hawks injuries: 4 key players out",
-        "  N'Faly Dante (Out): 0.8 PPG, PER 12.4, Rating 2.5 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Nuggets ORtg: 117.1, Hawks DRtg: 115.6",
-        "Hawks ORtg: 112.3, Nuggets DRtg: 119.1",
-        "Pace: Nuggets 99.7, Hawks 103.4",
-        "  Spencer Jones (Day-To-Day): 6.1 PPG, PER 10.6, Rating 12.3 → minor impact (-0.0 ORtg)",
-        "  Onyeka Okongwu [STAR] (Day-To-Day): 16.2 PPG, PER 15.9, Rating 31.8 → MODERATE impact (-1.2 ORtg)",
-        "  CJ McCollum [STAR] (Day-To-Day): 18.8 PPG, PER 15.4, Rating 29.0 → minor impact (-1.2 ORtg)",
-        "  Corey Kispert (Day-To-Day): 9.2 PPG, PER 14.2, Rating 15.3 → minor impact (-0.0 ORtg)"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "Knicks @ Suns",
-      "homeTeam": "Suns",
-      "awayTeam": "Knicks",
-      "commenceTime": "2026-01-10T02:00:00Z",
+      "matchup": "New York Knicks @ Phoenix Suns",
+      "homeTeam": "Phoenix Suns",
+      "awayTeam": "New York Knicks",
+      "commenceTime": "2026-01-10T02:00:00+00:00",
       "homeStats": {
         "ortg": 113.12875,
         "drtg": 112.5,
@@ -1541,53 +1718,112 @@
         "ts": 0.592
       },
       "moneyline": {
-        "sportsbook": {},
+        "sportsbook": {
+          "homeOdds": 115,
+          "homeBook": "Caesars",
+          "awayOdds": -130,
+          "awayBook": "FanDuel"
+        },
         "model": {
           "homeOdds": 130,
           "awayOdds": -130,
           "homeProbability": 0.4341777646666278
         },
         "prediction": {
-          "homeOdds": 108,
+          "homeOdds": 115,
           "homeBook": "Polymarket",
-          "awayOdds": -108,
+          "awayOdds": -115,
           "awayBook": "Polymarket"
         }
       },
       "confidence": "medium",
       "factors": [
         "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Suns adj: eff -0.3%, play +0.0%, mult 0.999",
-        "Knicks adj: eff +2.0%, play +0.0%, mult 1.004",
-        "Suns ORtg: 113.1, Knicks DRtg: 116.2",
-        "Knicks ORtg: 119.4, Suns DRtg: 112.5",
-        "Pace: Suns 99.7, Knicks 99.4",
-        "🎯 Styles: Suns (balanced) vs Knicks (balanced)",
-        "⚠️ Suns on BACK-TO-BACK",
-        "✓ Knicks well-rested (7 days)",
-        "Suns injuries: 2 key players out",
+        "Phoenix Suns adj: eff -0.3%, play +0.0%, mult 0.999",
+        "New York Knicks adj: eff +2.0%, play +0.0%, mult 1.004",
+        "Phoenix Suns ORtg: 113.1, New York Knicks DRtg: 116.2",
+        "New York Knicks ORtg: 119.4, Phoenix Suns DRtg: 112.5",
+        "Pace: Phoenix Suns 99.7, New York Knicks 99.4",
+        "🎯 Styles: Phoenix Suns (balanced) vs New York Knicks (balanced)",
+        "⚠️ Phoenix Suns on BACK-TO-BACK",
+        "✓ New York Knicks well-rested (7 days)",
+        "Phoenix Suns injuries: 2 key players out",
         "  Jamaree Bouyea [STAR] (Day-To-Day): 7.6 PPG, PER 19.8, Rating 14.5 → minor impact (-0.0 ORtg)",
         "  Jalen Green [ELITE] (Out): 15.5 PPG, PER 29.2, Rating 22.4 → MODERATE impact (-1.6 ORtg)",
-        "Knicks injuries: 2 key players out",
+        "New York Knicks injuries: 2 key players out",
         "  Landry Shamet (Out): 9.3 PPG, PER 13.1, Rating 14.4 → minor impact (-0.0 ORtg)",
         "  Josh Hart [STAR] (Out): 12.3 PPG, PER 16.6, Rating 29.5 → minor impact (-1.0 ORtg)",
-        "📈 Suns L10: 7-3 (W1), Avg margin: +8.1"
+        "📈 Phoenix Suns L10: 7-3 (W1), Avg margin: +8.1"
       ],
       "injuries": [
-        "Suns injuries: 2 key players out",
+        "Phoenix Suns injuries: 2 key players out",
         "  Jalen Green [ELITE] (Out): 15.5 PPG, PER 29.2, Rating 22.4 → MODERATE impact (-1.6 ORtg)",
-        "Knicks injuries: 2 key players out",
+        "New York Knicks injuries: 2 key players out",
         "  Landry Shamet (Out): 9.3 PPG, PER 13.1, Rating 14.4 → minor impact (-0.0 ORtg)",
         "  Josh Hart [STAR] (Out): 12.3 PPG, PER 16.6, Rating 29.5 → minor impact (-1.0 ORtg)"
       ],
       "matchupFactors": [
-        "Suns ORtg: 113.1, Knicks DRtg: 116.2",
-        "Knicks ORtg: 119.4, Suns DRtg: 112.5",
-        "Pace: Suns 99.7, Knicks 99.4",
+        "Phoenix Suns ORtg: 113.1, New York Knicks DRtg: 116.2",
+        "New York Knicks ORtg: 119.4, Phoenix Suns DRtg: 112.5",
+        "Pace: Phoenix Suns 99.7, New York Knicks 99.4",
         "  Jamaree Bouyea [STAR] (Day-To-Day): 7.6 PPG, PER 19.8, Rating 14.5 → minor impact (-0.0 ORtg)"
       ],
       "sharpSignals": [],
-      "lineMovements": [],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "Phoenix Suns",
+          "openingLine": 2.5,
+          "currentLine": 2.5,
+          "movement": 0,
+          "openingOdds": -105,
+          "currentOdds": -112,
+          "oddsMovement": 7,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "total",
+          "side": "Under",
+          "openingLine": 231.5,
+          "currentLine": 231.5,
+          "movement": 0,
+          "openingOdds": -115,
+          "currentOdds": -105,
+          "oddsMovement": -10,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "moneyline",
+          "side": "Phoenix Suns",
+          "openingLine": 120,
+          "currentLine": 114,
+          "movement": 6,
+          "openingOdds": 120,
+          "currentOdds": 114,
+          "oddsMovement": 6,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "toward"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": "",
+        "spreadAwayBetPct": "",
+        "spreadHomeMoneyPct": "",
+        "spreadAwayMoneyPct": "",
+        "totalOverBetPct": 63.35,
+        "totalUnderBetPct": 36.65,
+        "totalOverMoneyPct": 59.02,
+        "totalUnderMoneyPct": 40.98,
+        "mlHomeBetPct": 30.43,
+        "mlAwayBetPct": 69.57,
+        "mlHomeMoneyPct": 30.92,
+        "mlAwayMoneyPct": 69.08
+      },
       "spread": {
         "marketLine": 2.5,
         "targetLine": 1.988968146653709,
@@ -1596,910 +1832,35 @@
           "confidence": "low",
           "reason": "Model gap is 0.5 points vs the provided line."
         },
-        "bestBook": "Polymarket",
-        "bestOdds": 102,
+        "bestBook": "DraftKings",
+        "bestOdds": -112,
         "prediction": {
           "line": 2.5,
           "book": "Polymarket",
-          "odds": 102
+          "odds": -106
         },
-        "favoredTeam": "Knicks",
+        "favoredTeam": "New York Knicks",
         "sharpConfirmed": false
       },
       "total": {
-        "marketLine": 230.5,
+        "marketLine": 231.5,
         "targetLine": 230.52280467505238,
         "edge": {
           "verdict": "none",
           "confidence": "low",
-          "reason": "Model gap is 0.0 points vs the provided line."
+          "reason": "Model gap is 1.0 points vs the provided line."
         },
-        "bestBook": "Polymarket",
-        "bestOdds": -102,
-        "bestUnderOdds": 102,
+        "bestBook": "DraftKings",
+        "bestOdds": -105,
+        "bestUnderOdds": -115,
         "prediction": {
           "line": 230.5,
           "book": "Polymarket",
-          "overOdds": -102,
-          "underOdds": 102
+          "overOdds": 100,
+          "underOdds": 100
         },
         "sharpConfirmed": false
       }
-    },
-    {
-      "matchup": "Bucks @ Lakers",
-      "homeTeam": "Lakers",
-      "awayTeam": "Bucks",
-      "commenceTime": "2026-01-10T03:30:00Z",
-      "homeStats": {
-        "ortg": 108.97445182695876,
-        "drtg": 117.0040625,
-        "pace": 99.83,
-        "eFG": 0.567,
-        "ts": 0.608
-      },
-      "awayStats": {
-        "ortg": 113.7,
-        "drtg": 115.9,
-        "pace": 99.16,
-        "eFG": 0.572,
-        "ts": 0.598
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": 149,
-          "awayOdds": -149,
-          "homeProbability": 0.4022635707873471
-        },
-        "prediction": {
-          "homeOdds": -153,
-          "homeBook": "Polymarket",
-          "awayOdds": 153,
-          "awayBook": "Polymarket"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Lakers adj: eff +4.4%, play +0.0%, mult 1.009",
-        "Bucks adj: eff +4.1%, play +0.0%, mult 1.008",
-        "Lakers ORtg: 109.0, Bucks DRtg: 115.9",
-        "Bucks ORtg: 113.7, Lakers DRtg: 117.0",
-        "Pace: Lakers 99.8, Bucks 99.2",
-        "🎯 Styles: Lakers (balanced) vs Bucks (balanced)",
-        "⚠️ Lakers on BACK-TO-BACK",
-        "⚠️ Bucks on BACK-TO-BACK",
-        "Lakers injuries: 4 key players out",
-        "  Rui Hachimura (Out): 12.7 PPG, PER 11.2, Rating 20.3 → minor impact (-0.0 ORtg)",
-        "  LeBron James [ELITE] (Day-To-Day): 21.7 PPG, PER 21.0, Rating 39.1 → HIGH impact (-4.4 ORtg)",
-        "  Adou Thiero (Out): 1.3 PPG, PER 8.1, Rating 3.1 → minor impact (-0.0 ORtg)",
-        "  Austin Reaves [ELITE] (Out): 26.6 PPG, PER 23.1, Rating 43.7 → HIGH impact (-6.0 ORtg)",
-        "Bucks injuries: 1 key player out",
-        "  Taurean Prince (Out): 6.1 PPG, PER 7.8, Rating 10.7 → minor impact (-0.0 ORtg)",
-        "📈 Lakers L10: 5-5 (L1), Avg margin: -4.7",
-        "📈 Bucks L10: 5-5 (L1), Avg margin: +1.6"
-      ],
-      "injuries": [
-        "Lakers injuries: 4 key players out",
-        "  Rui Hachimura (Out): 12.7 PPG, PER 11.2, Rating 20.3 → minor impact (-0.0 ORtg)",
-        "  Adou Thiero (Out): 1.3 PPG, PER 8.1, Rating 3.1 → minor impact (-0.0 ORtg)",
-        "  Austin Reaves [ELITE] (Out): 26.6 PPG, PER 23.1, Rating 43.7 → HIGH impact (-6.0 ORtg)",
-        "Bucks injuries: 1 key player out",
-        "  Taurean Prince (Out): 6.1 PPG, PER 7.8, Rating 10.7 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Lakers ORtg: 109.0, Bucks DRtg: 115.9",
-        "Bucks ORtg: 113.7, Lakers DRtg: 117.0",
-        "Pace: Lakers 99.8, Bucks 99.2",
-        "  LeBron James [ELITE] (Day-To-Day): 21.7 PPG, PER 21.0, Rating 39.1 → HIGH impact (-4.4 ORtg)"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "Milwaukee @ Los Angeles L",
-      "homeTeam": "Los Angeles L",
-      "awayTeam": "Milwaukee",
-      "commenceTime": "2026-01-10T06:30:00Z",
-      "homeStats": {
-        "ortg": 108.97445182695876,
-        "drtg": 117.0040625,
-        "pace": 99.83,
-        "eFG": 0.567,
-        "ts": 0.608
-      },
-      "awayStats": {
-        "ortg": 113.7,
-        "drtg": 115.9,
-        "pace": 99.16,
-        "eFG": 0.572,
-        "ts": 0.598
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": 149,
-          "awayOdds": -149,
-          "homeProbability": 0.4022635707873471
-        },
-        "prediction": {
-          "homeOdds": -153,
-          "homeBook": "Kalshi",
-          "awayOdds": 156,
-          "awayBook": "Kalshi"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Los Angeles L adj: eff +4.4%, play +0.0%, mult 1.009",
-        "Milwaukee adj: eff +4.1%, play +0.0%, mult 1.008",
-        "Los Angeles L ORtg: 109.0, Milwaukee DRtg: 115.9",
-        "Milwaukee ORtg: 113.7, Los Angeles L DRtg: 117.0",
-        "Pace: Los Angeles L 99.8, Milwaukee 99.2",
-        "🎯 Styles: Los Angeles L (balanced) vs Milwaukee (balanced)",
-        "⚠️ Los Angeles L on BACK-TO-BACK",
-        "⚠️ Milwaukee on BACK-TO-BACK",
-        "Los Angeles L injuries: 4 key players out",
-        "  Rui Hachimura (Out): 12.7 PPG, PER 11.2, Rating 20.3 → minor impact (-0.0 ORtg)",
-        "  LeBron James [ELITE] (Day-To-Day): 21.7 PPG, PER 21.0, Rating 39.1 → HIGH impact (-4.4 ORtg)",
-        "  Adou Thiero (Out): 1.3 PPG, PER 8.1, Rating 3.1 → minor impact (-0.0 ORtg)",
-        "  Austin Reaves [ELITE] (Out): 26.6 PPG, PER 23.1, Rating 43.7 → HIGH impact (-6.0 ORtg)",
-        "Milwaukee injuries: 1 key player out",
-        "  Taurean Prince (Out): 6.1 PPG, PER 7.8, Rating 10.7 → minor impact (-0.0 ORtg)",
-        "Milwaukee ATS: 17-19, Last 10: null",
-        "📈 Los Angeles L L10: 5-5 (L1), Avg margin: -4.7",
-        "📈 Milwaukee L10: 5-5 (L1), Avg margin: +1.6"
-      ],
-      "injuries": [
-        "Los Angeles L injuries: 4 key players out",
-        "  Rui Hachimura (Out): 12.7 PPG, PER 11.2, Rating 20.3 → minor impact (-0.0 ORtg)",
-        "  Adou Thiero (Out): 1.3 PPG, PER 8.1, Rating 3.1 → minor impact (-0.0 ORtg)",
-        "  Austin Reaves [ELITE] (Out): 26.6 PPG, PER 23.1, Rating 43.7 → HIGH impact (-6.0 ORtg)",
-        "Milwaukee injuries: 1 key player out",
-        "  Taurean Prince (Out): 6.1 PPG, PER 7.8, Rating 10.7 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Los Angeles L ORtg: 109.0, Milwaukee DRtg: 115.9",
-        "Milwaukee ORtg: 113.7, Los Angeles L DRtg: 117.0",
-        "Pace: Los Angeles L 99.8, Milwaukee 99.2",
-        "  LeBron James [ELITE] (Day-To-Day): 21.7 PPG, PER 21.0, Rating 39.1 → HIGH impact (-4.4 ORtg)",
-        "Milwaukee ATS: 17-19, Last 10: null"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "Sacramento @ Golden State",
-      "homeTeam": "Golden State",
-      "awayTeam": "Sacramento",
-      "commenceTime": "2026-01-10T06:00:00Z",
-      "homeStats": {
-        "ortg": 113.8144,
-        "drtg": 112.4,
-        "pace": 100.48,
-        "eFG": 0.543,
-        "ts": 0.583
-      },
-      "awayStats": {
-        "ortg": 105.632425,
-        "drtg": 120.74290934317283,
-        "pace": 101.08,
-        "eFG": 0.517,
-        "ts": 0.552
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": -2735,
-          "awayOdds": 2735,
-          "homeProbability": 0.9647207306547486
-        },
-        "prediction": {
-          "homeOdds": -488,
-          "homeBook": "Kalshi",
-          "awayOdds": 471,
-          "awayBook": "Kalshi"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Golden State adj: eff +0.0%, play +0.0%, mult 1.000",
-        "Sacramento adj: eff -5.0%, play +0.0%, mult 0.990",
-        "Golden State ORtg: 113.8, Sacramento DRtg: 120.7",
-        "Sacramento ORtg: 105.6, Golden State DRtg: 112.4",
-        "Pace: Golden State 100.5, Sacramento 101.1",
-        "🎯 Styles: Golden State (balanced) vs Sacramento (balanced)",
-        "✓ Golden State well-rested (7 days)",
-        "Golden State injuries: 2 key players out",
-        "  Gary Payton II (Day-To-Day): 4.7 PPG, PER 14.9, Rating 11.3 → minor impact (-0.0 ORtg)",
-        "  Seth Curry [STAR] (Out): 7.0 PPG, PER 18.8, Rating 14.4 → minor impact (-0.1 ORtg)",
-        "Sacramento injuries: 3 key players out",
-        "  Isaiah Stevens (Day-To-Day): 0.0 PPG, PER 0.0, Rating 0.5 → minor impact (-0.0 ORtg)",
-        "  Keegan Murray [STAR] (Out): 14.6 PPG, PER 11.9, Rating 25.8 → minor impact (-0.0 ORtg)",
-        "  Domantas Sabonis [ELITE] (Out): 17.2 PPG, PER 17.6, Rating 35.9 → HIGH impact (-2.4 ORtg)",
-        "Golden State ATS: 18-19, Last 10: null",
-        "Sacramento ATS: 13-24, Last 10: null",
-        "📈 Sacramento L10: 2-8 (L6), Avg margin: -13.2"
-      ],
-      "injuries": [
-        "Golden State injuries: 2 key players out",
-        "  Seth Curry [STAR] (Out): 7.0 PPG, PER 18.8, Rating 14.4 → minor impact (-0.1 ORtg)",
-        "Sacramento injuries: 3 key players out",
-        "  Keegan Murray [STAR] (Out): 14.6 PPG, PER 11.9, Rating 25.8 → minor impact (-0.0 ORtg)",
-        "  Domantas Sabonis [ELITE] (Out): 17.2 PPG, PER 17.6, Rating 35.9 → HIGH impact (-2.4 ORtg)"
-      ],
-      "matchupFactors": [
-        "Golden State ORtg: 113.8, Sacramento DRtg: 120.7",
-        "Sacramento ORtg: 105.6, Golden State DRtg: 112.4",
-        "Pace: Golden State 100.5, Sacramento 101.1",
-        "  Gary Payton II (Day-To-Day): 4.7 PPG, PER 14.9, Rating 11.3 → minor impact (-0.0 ORtg)",
-        "  Isaiah Stevens (Day-To-Day): 0.0 PPG, PER 0.0, Rating 0.5 → minor impact (-0.0 ORtg)",
-        "Golden State ATS: 18-19, Last 10: null",
-        "Sacramento ATS: 13-24, Last 10: null"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "Houston @ Portland",
-      "homeTeam": "Portland",
-      "awayTeam": "Houston",
-      "commenceTime": "2026-01-10T06:00:00Z",
-      "homeStats": {
-        "ortg": 110.49596401377559,
-        "drtg": 116.104375,
-        "pace": 102.11,
-        "eFG": 0.526,
-        "ts": 0.567
-      },
-      "awayStats": {
-        "ortg": 115.37290625,
-        "drtg": 113.46128125,
-        "pace": 96.98,
-        "eFG": 0.55,
-        "ts": 0.585
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": 196,
-          "awayOdds": -196,
-          "homeProbability": 0.33784369534181896
-        },
-        "prediction": {
-          "homeOdds": 203,
-          "homeBook": "Kalshi",
-          "awayOdds": -199,
-          "awayBook": "Kalshi"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Portland adj: eff -2.9%, play +0.0%, mult 0.994",
-        "Houston adj: eff +0.9%, play +0.0%, mult 1.002",
-        "Portland ORtg: 110.5, Houston DRtg: 113.5",
-        "Houston ORtg: 115.4, Portland DRtg: 116.1",
-        "Pace: Portland 102.1, Houston 97.0",
-        "🎯 Styles: Portland (balanced) vs Houston (balanced)",
-        "⚠️ Portland on BACK-TO-BACK",
-        "⚠️ Houston on BACK-TO-BACK",
-        "Portland injuries: 7 key players out",
-        "  Kris Murray (Day-To-Day): 6.1 PPG, PER 9.2, Rating 13.2 → minor impact (-0.0 ORtg)",
-        "  Jrue Holiday [ELITE] (Out): 16.7 PPG, PER 17.1, Rating 34.9 → MODERATE impact (-2.6 ORtg)",
-        "  Jerami Grant [STAR] (Out): 20.0 PPG, PER 16.5, Rating 29.5 → minor impact (-1.5 ORtg)",
-        "  Matisse Thybulle [STAR] (Out): 5.0 PPG, PER 21.5, Rating 10.8 → minor impact (-0.1 ORtg)",
-        "  Scoot Henderson (Out): 13.3 PPG, PER 0.0, Rating 22.7 → minor impact (-0.0 ORtg)",
-        "  Blake Wesley [STAR] (Out): 6.0 PPG, PER 12.6, Rating 13.4 → minor impact (-0.0 ORtg)",
-        "  Damian Lillard [ELITE] (Out): 25.1 PPG, PER 0.0, Rating 40.5 → minor impact (-0.0 ORtg)",
-        "Houston injuries: 3 key players out",
-        "  Isaiah Crawford (Day-To-Day): 0.0 PPG, PER -7.4, Rating -0.4 → minor impact (-0.0 ORtg)",
-        "  Alperen Sengun [ELITE] (Out): 21.8 PPG, PER 22.6, Rating 42.5 → HIGH impact (-5.0 ORtg)",
-        "  Fred VanVleet [STAR] (Out): 14.9 PPG, PER 0.0, Rating 27.7 → minor impact (-0.0 ORtg)",
-        "Portland ATS: 20-17, Last 10: null",
-        "Houston ATS: 18-15, Last 10: null",
-        "📈 Portland L10: 6-4 (W4), Avg margin: -0.9",
-        "📈 Houston L10: 6-4 (L1), Avg margin: +6.0"
-      ],
-      "injuries": [
-        "Portland injuries: 7 key players out",
-        "  Jrue Holiday [ELITE] (Out): 16.7 PPG, PER 17.1, Rating 34.9 → MODERATE impact (-2.6 ORtg)",
-        "  Jerami Grant [STAR] (Out): 20.0 PPG, PER 16.5, Rating 29.5 → minor impact (-1.5 ORtg)",
-        "  Matisse Thybulle [STAR] (Out): 5.0 PPG, PER 21.5, Rating 10.8 → minor impact (-0.1 ORtg)",
-        "  Scoot Henderson (Out): 13.3 PPG, PER 0.0, Rating 22.7 → minor impact (-0.0 ORtg)",
-        "  Blake Wesley [STAR] (Out): 6.0 PPG, PER 12.6, Rating 13.4 → minor impact (-0.0 ORtg)",
-        "  Damian Lillard [ELITE] (Out): 25.1 PPG, PER 0.0, Rating 40.5 → minor impact (-0.0 ORtg)",
-        "Houston injuries: 3 key players out",
-        "  Alperen Sengun [ELITE] (Out): 21.8 PPG, PER 22.6, Rating 42.5 → HIGH impact (-5.0 ORtg)",
-        "  Fred VanVleet [STAR] (Out): 14.9 PPG, PER 0.0, Rating 27.7 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Portland ORtg: 110.5, Houston DRtg: 113.5",
-        "Houston ORtg: 115.4, Portland DRtg: 116.1",
-        "Pace: Portland 102.1, Houston 97.0",
-        "  Kris Murray (Day-To-Day): 6.1 PPG, PER 9.2, Rating 13.2 → minor impact (-0.0 ORtg)",
-        "  Isaiah Crawford (Day-To-Day): 0.0 PPG, PER -7.4, Rating -0.4 → minor impact (-0.0 ORtg)",
-        "Portland ATS: 20-17, Last 10: null",
-        "Houston ATS: 18-15, Last 10: null"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "New York @ Phoenix",
-      "homeTeam": "Phoenix",
-      "awayTeam": "New York",
-      "commenceTime": "2026-01-10T05:00:00Z",
-      "homeStats": {
-        "ortg": 113.12875,
-        "drtg": 112.5,
-        "pace": 99.73,
-        "eFG": 0.544,
-        "ts": 0.577
-      },
-      "awayStats": {
-        "ortg": 119.40767500000001,
-        "drtg": 116.1848,
-        "pace": 99.42,
-        "eFG": 0.556,
-        "ts": 0.592
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": 130,
-          "awayOdds": -130,
-          "homeProbability": 0.4341777646666278
-        },
-        "prediction": {
-          "homeOdds": 106,
-          "homeBook": "Kalshi",
-          "awayOdds": -111,
-          "awayBook": "Kalshi"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Phoenix adj: eff -0.3%, play +0.0%, mult 0.999",
-        "New York adj: eff +2.0%, play +0.0%, mult 1.004",
-        "Phoenix ORtg: 113.1, New York DRtg: 116.2",
-        "New York ORtg: 119.4, Phoenix DRtg: 112.5",
-        "Pace: Phoenix 99.7, New York 99.4",
-        "🎯 Styles: Phoenix (balanced) vs New York (balanced)",
-        "⚠️ Phoenix on BACK-TO-BACK",
-        "✓ New York well-rested (7 days)",
-        "Phoenix injuries: 2 key players out",
-        "  Jamaree Bouyea [STAR] (Day-To-Day): 7.6 PPG, PER 19.8, Rating 14.5 → minor impact (-0.0 ORtg)",
-        "  Jalen Green [ELITE] (Out): 15.5 PPG, PER 29.2, Rating 22.4 → MODERATE impact (-1.6 ORtg)",
-        "New York injuries: 2 key players out",
-        "  Landry Shamet (Out): 9.3 PPG, PER 13.1, Rating 14.4 → minor impact (-0.0 ORtg)",
-        "  Josh Hart [STAR] (Out): 12.3 PPG, PER 16.6, Rating 29.5 → minor impact (-1.0 ORtg)",
-        "Phoenix ATS: 25-11, Last 10: null",
-        "New York ATS: 18-18, Last 10: null",
-        "📈 Phoenix L10: 7-3 (W1), Avg margin: +8.1"
-      ],
-      "injuries": [
-        "Phoenix injuries: 2 key players out",
-        "  Jalen Green [ELITE] (Out): 15.5 PPG, PER 29.2, Rating 22.4 → MODERATE impact (-1.6 ORtg)",
-        "New York injuries: 2 key players out",
-        "  Landry Shamet (Out): 9.3 PPG, PER 13.1, Rating 14.4 → minor impact (-0.0 ORtg)",
-        "  Josh Hart [STAR] (Out): 12.3 PPG, PER 16.6, Rating 29.5 → minor impact (-1.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Phoenix ORtg: 113.1, New York DRtg: 116.2",
-        "New York ORtg: 119.4, Phoenix DRtg: 112.5",
-        "Pace: Phoenix 99.7, New York 99.4",
-        "  Jamaree Bouyea [STAR] (Day-To-Day): 7.6 PPG, PER 19.8, Rating 14.5 → minor impact (-0.0 ORtg)",
-        "Phoenix ATS: 25-11, Last 10: null",
-        "New York ATS: 18-18, Last 10: null"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "Atlanta @ Denver",
-      "homeTeam": "Denver",
-      "awayTeam": "Atlanta",
-      "commenceTime": "2026-01-10T05:00:00Z",
-      "homeStats": {
-        "ortg": 117.09750931612551,
-        "drtg": 119.0868125,
-        "pace": 99.73,
-        "eFG": 0.587,
-        "ts": 0.626
-      },
-      "awayStats": {
-        "ortg": 112.3105303171409,
-        "drtg": 115.62117500000001,
-        "pace": 103.36,
-        "eFG": 0.559,
-        "ts": 0.59
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": -232,
-          "awayOdds": 232,
-          "homeProbability": 0.699158943885954
-        },
-        "prediction": {
-          "homeOdds": -120,
-          "homeBook": "Kalshi",
-          "awayOdds": 115,
-          "awayBook": "Kalshi"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Denver adj: eff +7.8%, play +0.0%, mult 1.016",
-        "Atlanta adj: eff +2.2%, play +0.0%, mult 1.004",
-        "Denver ORtg: 117.1, Atlanta DRtg: 115.6",
-        "Atlanta ORtg: 112.3, Denver DRtg: 119.1",
-        "Pace: Denver 99.7, Atlanta 103.4",
-        "🎯 Styles: Denver (balanced) vs Atlanta (balanced)",
-        "⚠️ Denver on BACK-TO-BACK",
-        "⚠️ Atlanta on BACK-TO-BACK",
-        "Denver injuries: 4 key players out",
-        "  Spencer Jones (Day-To-Day): 6.1 PPG, PER 10.6, Rating 12.3 → minor impact (-0.0 ORtg)",
-        "  Jonas Valanciunas [STAR] (Out): 8.5 PPG, PER 21.5, Rating 16.8 → minor impact (-0.2 ORtg)",
-        "  Nikola Jokic [ELITE] (Out): 29.6 PPG, PER 35.9, Rating 63.9 → HIGH impact (-6.0 ORtg)",
-        "  Cameron Johnson (Out): 11.7 PPG, PER 11.3, Rating 20.2 → minor impact (-0.0 ORtg)",
-        "Atlanta injuries: 4 key players out",
-        "  Onyeka Okongwu [STAR] (Day-To-Day): 16.2 PPG, PER 15.9, Rating 31.8 → MODERATE impact (-1.2 ORtg)",
-        "  CJ McCollum [STAR] (Day-To-Day): 18.8 PPG, PER 15.4, Rating 29.0 → minor impact (-1.2 ORtg)",
-        "  Corey Kispert (Day-To-Day): 9.2 PPG, PER 14.2, Rating 15.3 → minor impact (-0.0 ORtg)",
-        "  N'Faly Dante (Out): 0.8 PPG, PER 12.4, Rating 2.5 → minor impact (-0.0 ORtg)",
-        "Denver ATS: 21-15, Last 10: null",
-        "Atlanta ATS: 18-20, Last 10: null",
-        "📈 Denver L10: 5-5 (W2), Avg margin: -0.8",
-        "📈 Atlanta L10: 3-7 (W1), Avg margin: -1.6"
-      ],
-      "injuries": [
-        "Denver injuries: 4 key players out",
-        "  Jonas Valanciunas [STAR] (Out): 8.5 PPG, PER 21.5, Rating 16.8 → minor impact (-0.2 ORtg)",
-        "  Nikola Jokic [ELITE] (Out): 29.6 PPG, PER 35.9, Rating 63.9 → HIGH impact (-6.0 ORtg)",
-        "  Cameron Johnson (Out): 11.7 PPG, PER 11.3, Rating 20.2 → minor impact (-0.0 ORtg)",
-        "Atlanta injuries: 4 key players out",
-        "  N'Faly Dante (Out): 0.8 PPG, PER 12.4, Rating 2.5 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Denver ORtg: 117.1, Atlanta DRtg: 115.6",
-        "Atlanta ORtg: 112.3, Denver DRtg: 119.1",
-        "Pace: Denver 99.7, Atlanta 103.4",
-        "  Spencer Jones (Day-To-Day): 6.1 PPG, PER 10.6, Rating 12.3 → minor impact (-0.0 ORtg)",
-        "  Onyeka Okongwu [STAR] (Day-To-Day): 16.2 PPG, PER 15.9, Rating 31.8 → MODERATE impact (-1.2 ORtg)",
-        "  CJ McCollum [STAR] (Day-To-Day): 18.8 PPG, PER 15.4, Rating 29.0 → minor impact (-1.2 ORtg)",
-        "  Corey Kispert (Day-To-Day): 9.2 PPG, PER 14.2, Rating 15.3 → minor impact (-0.0 ORtg)",
-        "Denver ATS: 21-15, Last 10: null",
-        "Atlanta ATS: 18-20, Last 10: null"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "Oklahoma City @ Memphis",
-      "homeTeam": "Memphis",
-      "awayTeam": "Oklahoma City",
-      "commenceTime": "2026-01-10T04:00:00Z",
-      "homeStats": {
-        "ortg": 110.41804294735608,
-        "drtg": 115.05135,
-        "pace": 101.85,
-        "eFG": 0.527,
-        "ts": 0.565
-      },
-      "awayStats": {
-        "ortg": 116.85675,
-        "drtg": 105.692675,
-        "pace": 101.5,
-        "eFG": 0.563,
-        "ts": 0.603
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": 868,
-          "awayOdds": -868,
-          "homeProbability": 0.1033156916755678
-        },
-        "prediction": {
-          "homeOdds": 413,
-          "homeBook": "Kalshi",
-          "awayOdds": -426,
-          "awayBook": "Kalshi"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Memphis adj: eff -3.0%, play +0.0%, mult 0.994",
-        "Oklahoma City adj: eff +3.6%, play +0.0%, mult 1.007",
-        "Memphis ORtg: 110.4, Oklahoma City DRtg: 105.7",
-        "Oklahoma City ORtg: 116.9, Memphis DRtg: 115.1",
-        "Pace: Memphis 101.8, Oklahoma City 101.5",
-        "🎯 Styles: Memphis (balanced) vs Oklahoma City (balanced)",
-        "⚠️ Memphis on BACK-TO-BACK",
-        "⚠️ Oklahoma City on BACK-TO-BACK",
-        "Memphis injuries: 8 key players out",
-        "  Vince Williams Jr. (Day-To-Day): 7.7 PPG, PER 10.7, Rating 18.4 → minor impact (-0.0 ORtg)",
-        "  Ja Morant [STAR] (Out): 19.0 PPG, PER 15.2, Rating 31.5 → minor impact (-1.3 ORtg)",
-        "  Cedric Coward [STAR] (Out): 13.7 PPG, PER 15.5, Rating 25.8 → minor impact (-0.4 ORtg)",
-        "  John Konchar (Out): 3.0 PPG, PER 13.0, Rating 9.0 → minor impact (-0.0 ORtg)",
-        "  Brandon Clarke (Out): 4.0 PPG, PER 12.3, Rating 7.3 → minor impact (-0.0 ORtg)",
-        "  Zach Edey [STAR] (Out): 13.6 PPG, PER 20.7, Rating 31.0 → MODERATE impact (-1.4 ORtg)",
-        "  Ty Jerome (Out): 8.7 PPG, PER 0.0, Rating 15.8 → minor impact (-0.0 ORtg)",
-        "  Scotty Pippen Jr. (Out): 10.0 PPG, PER 0.0, Rating 20.6 → minor impact (-0.0 ORtg)",
-        "Oklahoma City injuries: 4 key players out",
-        "  Alex Caruso (Day-To-Day): 6.0 PPG, PER 13.5, Rating 13.5 → minor impact (-0.0 ORtg)",
-        "  Ousmane Dieng (Out): 4.4 PPG, PER 10.1, Rating 8.1 → minor impact (-0.0 ORtg)",
-        "  Jaylin Williams (Out): 5.5 PPG, PER 11.0, Rating 13.9 → minor impact (-0.0 ORtg)",
-        "  Isaiah Hartenstein [STAR] (Out): 11.2 PPG, PER 19.6, Rating 28.9 → MODERATE impact (-1.1 ORtg)",
-        "Memphis ATS: 16-20, Last 10: null",
-        "Oklahoma City ATS: 18-19, Last 10: null",
-        "📈 Memphis L10: 3-7 (L1), Avg margin: -3.2",
-        "📈 Oklahoma City L10: 6-4 (W1), Avg margin: +5.7"
-      ],
-      "injuries": [
-        "Memphis injuries: 8 key players out",
-        "  Ja Morant [STAR] (Out): 19.0 PPG, PER 15.2, Rating 31.5 → minor impact (-1.3 ORtg)",
-        "  Cedric Coward [STAR] (Out): 13.7 PPG, PER 15.5, Rating 25.8 → minor impact (-0.4 ORtg)",
-        "  John Konchar (Out): 3.0 PPG, PER 13.0, Rating 9.0 → minor impact (-0.0 ORtg)",
-        "  Brandon Clarke (Out): 4.0 PPG, PER 12.3, Rating 7.3 → minor impact (-0.0 ORtg)",
-        "  Zach Edey [STAR] (Out): 13.6 PPG, PER 20.7, Rating 31.0 → MODERATE impact (-1.4 ORtg)",
-        "  Ty Jerome (Out): 8.7 PPG, PER 0.0, Rating 15.8 → minor impact (-0.0 ORtg)",
-        "  Scotty Pippen Jr. (Out): 10.0 PPG, PER 0.0, Rating 20.6 → minor impact (-0.0 ORtg)",
-        "Oklahoma City injuries: 4 key players out",
-        "  Ousmane Dieng (Out): 4.4 PPG, PER 10.1, Rating 8.1 → minor impact (-0.0 ORtg)",
-        "  Jaylin Williams (Out): 5.5 PPG, PER 11.0, Rating 13.9 → minor impact (-0.0 ORtg)",
-        "  Isaiah Hartenstein [STAR] (Out): 11.2 PPG, PER 19.6, Rating 28.9 → MODERATE impact (-1.1 ORtg)"
-      ],
-      "matchupFactors": [
-        "Memphis ORtg: 110.4, Oklahoma City DRtg: 105.7",
-        "Oklahoma City ORtg: 116.9, Memphis DRtg: 115.1",
-        "Pace: Memphis 101.8, Oklahoma City 101.5",
-        "  Vince Williams Jr. (Day-To-Day): 7.7 PPG, PER 10.7, Rating 18.4 → minor impact (-0.0 ORtg)",
-        "  Alex Caruso (Day-To-Day): 6.0 PPG, PER 13.5, Rating 13.5 → minor impact (-0.0 ORtg)",
-        "Memphis ATS: 16-20, Last 10: null",
-        "Oklahoma City ATS: 18-19, Last 10: null"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "Los Angeles C @ Brooklyn",
-      "homeTeam": "Brooklyn",
-      "awayTeam": "Los Angeles C",
-      "commenceTime": "2026-01-10T03:30:00Z",
-      "homeStats": {
-        "ortg": 112,
-        "drtg": 116.3,
-        "pace": 97.5,
-        "eFG": 0.531,
-        "ts": 0.573
-      },
-      "awayStats": {
-        "ortg": 115.4,
-        "drtg": 117.7,
-        "pace": 96.59,
-        "eFG": 0.552,
-        "ts": 0.598,
-        "fieldGoalPct": 0.472,
-        "threePointPct": 0.364,
-        "offensiveReboundPct": 0.291,
-        "defensiveReboundPct": 0.679,
-        "pointsForPerGame": 112.1,
-        "oppPaintPtsPerGame": 48.6,
-        "oppFastbreakPtsPerGame": 16.1,
-        "oppSecondChancePtsPerGame": 15.4,
-        "oppPtsOffToPerGame": 19.8,
-        "oppPossessionsPerGame": 3496
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": -112,
-          "awayOdds": 112,
-          "homeProbability": 0.5273351279860057
-        },
-        "prediction": {
-          "homeOdds": 182,
-          "homeBook": "Kalshi",
-          "awayOdds": -182,
-          "awayBook": "Kalshi"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Brooklyn adj: eff -2.0%, play +10.8%, mult 1.007",
-        "Los Angeles C adj: eff +2.4%, play +0.0%, mult 1.005",
-        "Brooklyn ORtg: 112.0, Los Angeles C DRtg: 117.7",
-        "Los Angeles C ORtg: 115.4, Brooklyn DRtg: 116.3",
-        "Pace: Brooklyn 97.5, Los Angeles C 96.6",
-        "🎯 Styles: Brooklyn (balanced) vs Los Angeles C (balanced)",
-        "⚠️ Brooklyn on BACK-TO-BACK",
-        "⚠️ Los Angeles C on BACK-TO-BACK",
-        "Brooklyn injuries: 2 key players out",
-        "  Ben Saraf (Day-To-Day): 5.4 PPG, PER 6.9, Rating 10.2 → minor impact (-0.0 ORtg)",
-        "  Haywood Highsmith (Out): 5.4 PPG, PER 0.0, Rating 11.3 → minor impact (-0.0 ORtg)",
-        "Brooklyn ATS: 16-17, Last 10: null",
-        "📈 Brooklyn L10: 5-5 (L1), Avg margin: +2.7",
-        "📈 Los Angeles C L10: 7-3 (L1), Avg margin: +5.9"
-      ],
-      "injuries": [
-        "Brooklyn injuries: 2 key players out",
-        "  Haywood Highsmith (Out): 5.4 PPG, PER 0.0, Rating 11.3 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Brooklyn ORtg: 112.0, Los Angeles C DRtg: 117.7",
-        "Los Angeles C ORtg: 115.4, Brooklyn DRtg: 116.3",
-        "Pace: Brooklyn 97.5, Los Angeles C 96.6",
-        "  Ben Saraf (Day-To-Day): 5.4 PPG, PER 6.9, Rating 10.2 → minor impact (-0.0 ORtg)",
-        "Brooklyn ATS: 16-17, Last 10: null"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "Toronto @ Boston",
-      "homeTeam": "Boston",
-      "awayTeam": "Toronto",
-      "commenceTime": "2026-01-10T03:00:00Z",
-      "homeStats": {
-        "ortg": 122.2,
-        "drtg": 115.35171875,
-        "pace": 96.36,
-        "eFG": 0.561,
-        "ts": 0.589
-      },
-      "awayStats": {
-        "ortg": 111.21352609608176,
-        "drtg": 111.90009375,
-        "pace": 99.63,
-        "eFG": 0.539,
-        "ts": 0.572
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": -458,
-          "awayOdds": 458,
-          "homeProbability": 0.8207649739032621
-        },
-        "prediction": {
-          "homeOdds": -208,
-          "homeBook": "Kalshi",
-          "awayOdds": 208,
-          "awayBook": "Kalshi"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Boston adj: eff +2.3%, play +0.0%, mult 1.005",
-        "Toronto adj: eff -1.2%, play +0.0%, mult 0.998",
-        "Boston ORtg: 122.2, Toronto DRtg: 111.9",
-        "Toronto ORtg: 111.2, Boston DRtg: 115.4",
-        "Pace: Boston 96.4, Toronto 99.6",
-        "🎯 Styles: Boston (halfcourt-offense) vs Toronto (balanced)",
-        "⚠️ Boston on BACK-TO-BACK",
-        "⚠️ Toronto on BACK-TO-BACK",
-        "Boston injuries: 3 key players out",
-        "  Josh Minott [STAR] (Day-To-Day): 6.3 PPG, PER 15.7, Rating 13.8 → minor impact (-0.0 ORtg)",
-        "  Ron Harper Jr. [STAR] (Day-To-Day): 2.0 PPG, PER 16.5, Rating 4.7 → minor impact (-0.0 ORtg)",
-        "  Jayson Tatum [ELITE] (Out): 23.6 PPG, PER 0.0, Rating 38.9 → minor impact (-0.0 ORtg)",
-        "Toronto injuries: 3 key players out",
-        "  Jakob Poeltl [STAR] (Out): 9.7 PPG, PER 16.4, Rating 23.1 → minor impact (-0.3 ORtg)",
-        "  Brandon Ingram [ELITE] (Day-To-Day): 21.8 PPG, PER 16.1, Rating 34.7 → MODERATE impact (-2.6 ORtg)",
-        "  Chucky Hepburn (Out): 0.0 PPG, PER -13.5, Rating -0.3 → minor impact (-0.0 ORtg)",
-        "Boston ATS: 21-14, Last 10: null",
-        "Toronto ATS: 17-20, Last 10: null",
-        "📈 Boston L10: 8-2 (L1), Avg margin: +11.4",
-        "📈 Toronto L10: 6-4 (W3), Avg margin: +1.7"
-      ],
-      "injuries": [
-        "Boston injuries: 3 key players out",
-        "  Jayson Tatum [ELITE] (Out): 23.6 PPG, PER 0.0, Rating 38.9 → minor impact (-0.0 ORtg)",
-        "Toronto injuries: 3 key players out",
-        "  Jakob Poeltl [STAR] (Out): 9.7 PPG, PER 16.4, Rating 23.1 → minor impact (-0.3 ORtg)",
-        "  Chucky Hepburn (Out): 0.0 PPG, PER -13.5, Rating -0.3 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Boston ORtg: 122.2, Toronto DRtg: 111.9",
-        "Toronto ORtg: 111.2, Boston DRtg: 115.4",
-        "Pace: Boston 96.4, Toronto 99.6",
-        "  Josh Minott [STAR] (Day-To-Day): 6.3 PPG, PER 15.7, Rating 13.8 → minor impact (-0.0 ORtg)",
-        "  Ron Harper Jr. [STAR] (Day-To-Day): 2.0 PPG, PER 16.5, Rating 4.7 → minor impact (-0.0 ORtg)",
-        "  Brandon Ingram [ELITE] (Day-To-Day): 21.8 PPG, PER 16.1, Rating 34.7 → MODERATE impact (-2.6 ORtg)",
-        "Boston ATS: 21-14, Last 10: null",
-        "Toronto ATS: 17-20, Last 10: null"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "Philadelphia @ Orlando",
-      "homeTeam": "Orlando",
-      "awayTeam": "Philadelphia",
-      "commenceTime": "2026-01-10T03:00:00Z",
-      "homeStats": {
-        "ortg": 110.79049296721922,
-        "drtg": 113.7338646703756,
-        "pace": 100.92,
-        "eFG": 0.531,
-        "ts": 0.574
-      },
-      "awayStats": {
-        "ortg": 113.31804294735608,
-        "drtg": 114.85135,
-        "pace": 100.27,
-        "eFG": 0.53,
-        "ts": 0.573
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": -119,
-          "awayOdds": 119,
-          "homeProbability": 0.5434551092595881
-        },
-        "prediction": {
-          "homeOdds": 111,
-          "homeBook": "Kalshi",
-          "awayOdds": -117,
-          "awayBook": "Kalshi"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Orlando adj: eff -1.9%, play +0.0%, mult 0.996",
-        "Philadelphia adj: eff -2.1%, play +0.0%, mult 0.996",
-        "Orlando ORtg: 110.8, Philadelphia DRtg: 114.9",
-        "Philadelphia ORtg: 113.3, Orlando DRtg: 113.7",
-        "Pace: Orlando 100.9, Philadelphia 100.3",
-        "🎯 Styles: Orlando (balanced) vs Philadelphia (balanced)",
-        "⚠️ Orlando on BACK-TO-BACK",
-        "⚠️ Philadelphia on BACK-TO-BACK",
-        "Orlando injuries: 5 key players out",
-        "  Trey Murphy III [ELITE] (Day-To-Day): 21.3 PPG, PER 18.8, Rating 36.2 → HIGH impact (-3.7 ORtg)",
-        "  Herbert Jones (Day-To-Day): 9.5 PPG, PER 9.5, Rating 17.4 → minor impact (-0.0 ORtg)",
-        "  Jose Alvarado (Day-To-Day): 7.9 PPG, PER 11.2, Rating 16.1 → minor impact (-0.0 ORtg)",
-        "  Saddiq Bey [STAR] (Out): 15.1 PPG, PER 16.0, Rating 25.6 → minor impact (-0.5 ORtg)",
-        "  Dejounte Murray [STAR] (Out): 15.5 PPG, PER 0.0, Rating 30.2 → minor impact (-0.0 ORtg)",
-        "Philadelphia injuries: 8 key players out",
-        "  Vince Williams Jr. (Day-To-Day): 7.7 PPG, PER 10.7, Rating 18.4 → minor impact (-0.0 ORtg)",
-        "  Ja Morant [STAR] (Out): 19.0 PPG, PER 15.2, Rating 31.5 → minor impact (-1.3 ORtg)",
-        "  Cedric Coward [STAR] (Out): 13.7 PPG, PER 15.5, Rating 25.8 → minor impact (-0.4 ORtg)",
-        "  John Konchar (Out): 3.0 PPG, PER 13.0, Rating 9.0 → minor impact (-0.0 ORtg)",
-        "  Brandon Clarke (Out): 4.0 PPG, PER 12.3, Rating 7.3 → minor impact (-0.0 ORtg)",
-        "  Zach Edey [STAR] (Out): 13.6 PPG, PER 20.7, Rating 31.0 → MODERATE impact (-1.4 ORtg)",
-        "  Ty Jerome (Out): 8.7 PPG, PER 0.0, Rating 15.8 → minor impact (-0.0 ORtg)",
-        "  Scotty Pippen Jr. (Out): 10.0 PPG, PER 0.0, Rating 20.6 → minor impact (-0.0 ORtg)",
-        "Orlando ATS: 15-22, Last 10: null",
-        "Philadelphia ATS: 21-13, Last 10: null",
-        "📈 Orlando L10: 5-5 (W1), Avg margin: -3.8",
-        "📈 Philadelphia L10: 6-4 (W1), Avg margin: +2.5"
-      ],
-      "injuries": [
-        "Orlando injuries: 5 key players out",
-        "  Saddiq Bey [STAR] (Out): 15.1 PPG, PER 16.0, Rating 25.6 → minor impact (-0.5 ORtg)",
-        "  Dejounte Murray [STAR] (Out): 15.5 PPG, PER 0.0, Rating 30.2 → minor impact (-0.0 ORtg)",
-        "Philadelphia injuries: 8 key players out",
-        "  Ja Morant [STAR] (Out): 19.0 PPG, PER 15.2, Rating 31.5 → minor impact (-1.3 ORtg)",
-        "  Cedric Coward [STAR] (Out): 13.7 PPG, PER 15.5, Rating 25.8 → minor impact (-0.4 ORtg)",
-        "  John Konchar (Out): 3.0 PPG, PER 13.0, Rating 9.0 → minor impact (-0.0 ORtg)",
-        "  Brandon Clarke (Out): 4.0 PPG, PER 12.3, Rating 7.3 → minor impact (-0.0 ORtg)",
-        "  Zach Edey [STAR] (Out): 13.6 PPG, PER 20.7, Rating 31.0 → MODERATE impact (-1.4 ORtg)",
-        "  Ty Jerome (Out): 8.7 PPG, PER 0.0, Rating 15.8 → minor impact (-0.0 ORtg)",
-        "  Scotty Pippen Jr. (Out): 10.0 PPG, PER 0.0, Rating 20.6 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Orlando ORtg: 110.8, Philadelphia DRtg: 114.9",
-        "Philadelphia ORtg: 113.3, Orlando DRtg: 113.7",
-        "Pace: Orlando 100.9, Philadelphia 100.3",
-        "  Trey Murphy III [ELITE] (Day-To-Day): 21.3 PPG, PER 18.8, Rating 36.2 → HIGH impact (-3.7 ORtg)",
-        "  Herbert Jones (Day-To-Day): 9.5 PPG, PER 9.5, Rating 17.4 → minor impact (-0.0 ORtg)",
-        "  Jose Alvarado (Day-To-Day): 7.9 PPG, PER 11.2, Rating 16.1 → minor impact (-0.0 ORtg)",
-        "  Vince Williams Jr. (Day-To-Day): 7.7 PPG, PER 10.7, Rating 18.4 → minor impact (-0.0 ORtg)",
-        "Orlando ATS: 15-22, Last 10: null",
-        "Philadelphia ATS: 21-13, Last 10: null"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
-    },
-    {
-      "matchup": "New Orleans @ Washington",
-      "homeTeam": "Washington",
-      "awayTeam": "New Orleans",
-      "commenceTime": "2026-01-10T03:00:00Z",
-      "homeStats": {
-        "ortg": 107.30574760387087,
-        "drtg": 121.39507499999999,
-        "pace": 102.15,
-        "eFG": 0.536,
-        "ts": 0.569
-      },
-      "awayStats": {
-        "ortg": 107.49049296721923,
-        "drtg": 119.43386467037558,
-        "pace": 101.89,
-        "eFG": 0.519,
-        "ts": 0.559
-      },
-      "moneyline": {
-        "sportsbook": {},
-        "model": {
-          "homeOdds": -123,
-          "awayOdds": 123,
-          "homeProbability": 0.5511472170050842
-        },
-        "prediction": {
-          "homeOdds": 106,
-          "homeBook": "Kalshi",
-          "awayOdds": -111,
-          "awayBook": "Kalshi"
-        }
-      },
-      "confidence": "medium",
-      "factors": [
-        "NBA hierarchy weights: core 70%, efficiency 20%, play-type 10%",
-        "Washington adj: eff -1.8%, play +0.0%, mult 0.996",
-        "New Orleans adj: eff -4.3%, play +0.0%, mult 0.991",
-        "Washington ORtg: 107.3, New Orleans DRtg: 119.4",
-        "New Orleans ORtg: 107.5, Washington DRtg: 121.4",
-        "Pace: Washington 102.2, New Orleans 101.9",
-        "🎯 Styles: Washington (balanced) vs New Orleans (balanced)",
-        "✓ Washington well-rested (7 days)",
-        "✓ New Orleans well-rested (7 days)",
-        "Washington injuries: 4 key players out",
-        "  Khris Middleton (Day-To-Day): 9.8 PPG, PER 11.6, Rating 19.0 → minor impact (-0.0 ORtg)",
-        "  Trae Young [ELITE] (Out): 19.3 PPG, PER 19.7, Rating 33.5 → MODERATE impact (-2.9 ORtg)",
-        "  Kyshawn George [STAR] (Out): 15.0 PPG, PER 13.2, Rating 29.4 → minor impact (-0.7 ORtg)",
-        "  Cam Whitmore [STAR] (Out): 9.2 PPG, PER 13.8, Rating 14.1 → minor impact (-0.0 ORtg)",
-        "New Orleans injuries: 5 key players out",
-        "  Trey Murphy III [ELITE] (Day-To-Day): 21.3 PPG, PER 18.8, Rating 36.2 → HIGH impact (-3.7 ORtg)",
-        "  Herbert Jones (Day-To-Day): 9.5 PPG, PER 9.5, Rating 17.4 → minor impact (-0.0 ORtg)",
-        "  Jose Alvarado (Day-To-Day): 7.9 PPG, PER 11.2, Rating 16.1 → minor impact (-0.0 ORtg)",
-        "  Saddiq Bey [STAR] (Out): 15.1 PPG, PER 16.0, Rating 25.6 → minor impact (-0.5 ORtg)",
-        "  Dejounte Murray [STAR] (Out): 15.5 PPG, PER 0.0, Rating 30.2 → minor impact (-0.0 ORtg)",
-        "Washington ATS: 15-20, Last 10: null",
-        "New Orleans ATS: 20-18, Last 10: null"
-      ],
-      "injuries": [
-        "Washington injuries: 4 key players out",
-        "  Trae Young [ELITE] (Out): 19.3 PPG, PER 19.7, Rating 33.5 → MODERATE impact (-2.9 ORtg)",
-        "  Kyshawn George [STAR] (Out): 15.0 PPG, PER 13.2, Rating 29.4 → minor impact (-0.7 ORtg)",
-        "  Cam Whitmore [STAR] (Out): 9.2 PPG, PER 13.8, Rating 14.1 → minor impact (-0.0 ORtg)",
-        "New Orleans injuries: 5 key players out",
-        "  Saddiq Bey [STAR] (Out): 15.1 PPG, PER 16.0, Rating 25.6 → minor impact (-0.5 ORtg)",
-        "  Dejounte Murray [STAR] (Out): 15.5 PPG, PER 0.0, Rating 30.2 → minor impact (-0.0 ORtg)"
-      ],
-      "matchupFactors": [
-        "Washington ORtg: 107.3, New Orleans DRtg: 119.4",
-        "New Orleans ORtg: 107.5, Washington DRtg: 121.4",
-        "Pace: Washington 102.2, New Orleans 101.9",
-        "  Khris Middleton (Day-To-Day): 9.8 PPG, PER 11.6, Rating 19.0 → minor impact (-0.0 ORtg)",
-        "  Trey Murphy III [ELITE] (Day-To-Day): 21.3 PPG, PER 18.8, Rating 36.2 → HIGH impact (-3.7 ORtg)",
-        "  Herbert Jones (Day-To-Day): 9.5 PPG, PER 9.5, Rating 17.4 → minor impact (-0.0 ORtg)",
-        "  Jose Alvarado (Day-To-Day): 7.9 PPG, PER 11.2, Rating 16.1 → minor impact (-0.0 ORtg)",
-        "Washington ATS: 15-20, Last 10: null",
-        "New Orleans ATS: 20-18, Last 10: null"
-      ],
-      "sharpSignals": [],
-      "lineMovements": []
     }
-  ],
-  "summary": {
-    "strongEdges": 6,
-    "softEdges": 1,
-    "noEdges": 17,
-    "sharpConfirmed": 2
-  },
-  "updatedAt": "2026-01-08T19:51:33.422Z"
+  ]
 }

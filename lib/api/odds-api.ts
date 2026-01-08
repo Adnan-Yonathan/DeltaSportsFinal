@@ -18,6 +18,7 @@ import {
   mapSbdMarketsToBookmakers,
   resolveSbdLeague,
   resolveSportKey as resolveSportKeyFromLeague,
+  DEFAULT_BOOK_IDS,
   getDefaultBookIds,
   resolveBookIds,
   buildTeamLabel,
@@ -1700,10 +1701,13 @@ async function fetchOddsSbd(
     ? { cache: 'no-store' }
     : { next: { revalidate: options.revalidateSeconds ?? DEFAULT_REVALIDATE_SECONDS } }
 
-  const books = pickSbdBookIds(options.bookmakers)
-  const fetchLeagueGames = async (targetLeague: string) => {
+  let books = pickSbdBookIds(options.bookmakers)
+  if (league === 'ncaamb' && options.bookmakers === undefined) {
+    books = DEFAULT_BOOK_IDS.slice()
+  }
+  const fetchLeagueGames = async (targetLeague: string, bookIds = books) => {
     const payload = await fetchSbdOdds(targetLeague as SbdLeague, {
-      books,
+      books: bookIds,
       init: fetchInit,
     })
     let games = mapSbdOddsToOddsGames(targetLeague as SbdLeague, payload, markets)
@@ -1712,6 +1716,34 @@ async function fetchOddsSbd(
   }
 
   let games = await fetchLeagueGames(league)
+  if (league === 'ncaamb' && books.length > 1) {
+    const merged: OddsGame[] = []
+    for (const book of books) {
+      try {
+        const bookGames = await fetchLeagueGames(league, [book])
+        if (!bookGames.length) continue
+        bookGames.forEach((candidate) => {
+          const match = merged.find((game) => isSameMatchup(game, candidate))
+          if (match) {
+            match.bookmakers = mergeBookmakers(
+              match.bookmakers || [],
+              candidate.bookmakers || []
+            )
+          } else {
+            merged.push(candidate)
+          }
+        })
+      } catch (error) {
+        console.warn('[ODDS] NCAAB book fetch failed:', book, error)
+      }
+    }
+    if (merged.length) {
+      games = merged
+    }
+  } else if (games.length === 0 && league === 'ncaamb' && books.length > 1) {
+    books = ['sr:book:18149']
+    games = await fetchLeagueGames(league)
+  }
   if (
     games.length === 0 &&
     String(sport).toLowerCase().includes('ncaab')

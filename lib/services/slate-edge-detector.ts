@@ -32,6 +32,7 @@ import { evaluateLineEdge, type EdgeAssessment } from '@/lib/analysis/bet-tools'
 import type { OddsGame } from '@/lib/types/odds'
 import { MARKETS } from '@/lib/types/odds'
 import { normalCDF, probabilityToAmericanOdds } from '@/lib/utils/statistics'
+import { searchTeams } from '@/lib/data/team-search'
 import {
   analyzeSlatePropEdges,
   formatSlatePropEdgesForChat,
@@ -174,6 +175,7 @@ const CFB_PLAYOFF_MATCHUPS = [
 ] as const
 
 const CFB_WHALE_MIN_NOTIONAL = 10000
+const DEFAULT_WHALE_MIN_NOTIONAL = 2000
 
 // Map odds-api sport keys to SBD league keys
 const ODDS_API_TO_SBD: Record<string, 'nba' | 'nfl' | 'nhl' | 'mlb' | 'ncaamb' | 'ncaafb'> = {
@@ -1061,6 +1063,21 @@ export async function analyzeSlateEdges(
     oddsGames = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], { revalidateSeconds: 60 })
   }
 
+  if (sportKey === 'basketball_ncaab') {
+    const isNbaTeam = (team: string) =>
+      searchTeams(team, { sport: 'basketball_nba', limit: 1, prioritizePro: true }).length > 0
+    oddsGames = oddsGames.filter(
+      (game) => !isNbaTeam(game.home_team) && !isNbaTeam(game.away_team)
+    )
+  }
+
+  // Drop prediction-only games where we expect full sportsbook coverage.
+  if (sportKey === 'basketball_nba') {
+    oddsGames = oddsGames.filter((game) =>
+      (game.bookmakers || []).some((book) => !isPredictionMarketBook(book))
+    )
+  }
+
   if (!oddsGames?.length) {
     return {
       sport: sportKey,
@@ -1086,15 +1103,13 @@ export async function analyzeSlateEdges(
   }
 
   let whaleTrades: WhaleTrade[] = []
-  if (isCfb) {
-    try {
-      whaleTrades = await fetchWhaleTrades({
-        limit: 100,
-        minNotional: CFB_WHALE_MIN_NOTIONAL,
-      })
-    } catch (error) {
-      console.error('[SLATE EDGE] Failed to fetch whale trades:', error)
-    }
+  try {
+    whaleTrades = await fetchWhaleTrades({
+      limit: 300,
+      minNotional: isCfb ? CFB_WHALE_MIN_NOTIONAL : DEFAULT_WHALE_MIN_NOTIONAL,
+    })
+  } catch (error) {
+    console.error('[SLATE EDGE] Failed to fetch whale trades:', error)
   }
 
   const whaleStatusCache = new Map<string, WhaleTradeWithStatus>()
@@ -1103,7 +1118,7 @@ export async function analyzeSlateEdges(
     homeTeam: string,
     awayTeam: string
   ): Promise<WhaleAlert[]> => {
-    if (!isCfb || whaleTrades.length === 0) return []
+    if (whaleTrades.length === 0) return []
     const relevant = whaleTrades.filter((trade) => {
       const text = `${trade.marketTitle} ${trade.outcome}`
       return (
@@ -1316,15 +1331,17 @@ export async function analyzeSlateEdges(
             }
           )
 
-      const marketContext = {
-        marketSpread: marketSpread?.line,
-        marketTotal: marketTotal?.line,
-        sharpSignals: sharpResult?.sharpSignals,
-        sharpSplits: sharpResult?.splits,
-      }
-      const whaleAlerts = isCfb
-        ? await resolveWhaleAlerts(game.home_team, game.away_team)
-        : []
+        const whaleAlerts = await resolveWhaleAlerts(
+          game.home_team,
+          game.away_team
+        )
+        const marketContext = {
+          marketSpread: marketSpread?.line,
+          marketTotal: marketTotal?.line,
+          sharpSignals: sharpResult?.sharpSignals,
+          sharpSplits: sharpResult?.splits,
+          whaleAlerts,
+        }
 
       const recommendationTimeoutMs =
         sportKey === 'basketball_ncaab'
@@ -1598,6 +1615,44 @@ export async function analyzeSlateEdges(
           bestUnderOdds: marketTotal.underOdds,
           prediction: predictionTotal || undefined,
           sharpConfirmed: totalConfirmation.agrees,
+        }
+      }
+
+      if (!gameAnalysis.spread && marketSpread) {
+        const fallbackEdge = evaluateLineEdge({
+          marketType: 'spread',
+          line: marketSpread.line,
+          targetLine: marketSpread.line,
+          supportingSignals: 0,
+        })
+        gameAnalysis.spread = {
+          marketLine: marketSpread.line,
+          targetLine: marketSpread.line,
+          edge: fallbackEdge,
+          bestBook: marketSpread.book,
+          bestOdds: marketSpread.odds,
+          prediction: predictionSpread || undefined,
+          favoredTeam: marketSpread.line < 0 ? game.home_team : game.away_team,
+          sharpConfirmed: false,
+        }
+      }
+
+      if (!gameAnalysis.total && marketTotal) {
+        const fallbackEdge = evaluateLineEdge({
+          marketType: 'total',
+          line: marketTotal.line,
+          targetLine: marketTotal.line,
+          supportingSignals: 0,
+        })
+        gameAnalysis.total = {
+          marketLine: marketTotal.line,
+          targetLine: marketTotal.line,
+          edge: fallbackEdge,
+          bestBook: marketTotal.book,
+          bestOdds: marketTotal.overOdds,
+          bestUnderOdds: marketTotal.underOdds,
+          prediction: predictionTotal || undefined,
+          sharpConfirmed: false,
         }
       }
 

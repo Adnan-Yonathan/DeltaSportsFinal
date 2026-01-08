@@ -29,11 +29,16 @@ const SHARP_BIAS_LIMITS: Record<
   { spread: number; total: number }
 > = {
   nba: { spread: 1.2, total: 3.0 },
-  ncaab: { spread: 1.5, total: 3.5 },
+  ncaab: { spread: 3.0, total: 6.0 },
   nfl: { spread: 1.8, total: 3.2 },
   ncaaf: { spread: 1.9, total: 3.8 },
   nhl: { spread: 0.4, total: 0.8 },
   mlb: { spread: 0.4, total: 1.0 },
+}
+
+const SHARP_SCORE_SCALE: Record<string, number> = {
+  ncaab: 4,
+  default: 6,
 }
 
 const normalizeSportKey = (value?: string): string => {
@@ -84,11 +89,31 @@ const buildNotes = (signals: SharpSignal[]) =>
 const computeBias = (
   netScore: number,
   maxBias: number,
-  directionMultiplier: number
+  directionMultiplier: number,
+  scale: number,
+  factor: number
 ) => {
   if (!netScore || !Number.isFinite(netScore)) return 0
-  const scale = Math.min(1, Math.abs(netScore) / 6)
-  return directionMultiplier * Math.sign(netScore) * maxBias * scale
+  const normalized = Math.min(1, Math.abs(netScore) / scale)
+  return (
+    directionMultiplier * Math.sign(netScore) * maxBias * normalized * factor
+  )
+}
+
+const averageStrength = (signals: SharpSignal[]) => {
+  if (signals.length === 0) return 0
+  const total = signals.reduce((sum, signal) => sum + signal.strength, 0)
+  return total / signals.length
+}
+
+const resolveSpreadSizeFactor = (marketSpread?: number | null) => {
+  if (marketSpread == null || !Number.isFinite(marketSpread)) return 1
+  const absSpread = Math.abs(marketSpread)
+  if (absSpread < 3) return 0.5
+  if (absSpread < 8) return 0.8
+  if (absSpread < 14) return 1.0
+  if (absSpread < 20) return 0.8
+  return 0.6
 }
 
 export function buildSharpSignalsFromSplits(opts: {
@@ -162,18 +187,22 @@ export function calculateSharpBiasFromSignals(opts: {
   homeTeam: string
   awayTeam: string
   sport?: string
+  marketSpread?: number | null
 }): SharpBiasResult {
-  const { sharpSignals, homeTeam, awayTeam, sport } = opts
+  const { sharpSignals, homeTeam, awayTeam, sport, marketSpread } = opts
   if (!sharpSignals || sharpSignals.length === 0) {
     return { spreadBias: 0, totalBias: 0, spreadNotes: [], totalNotes: [] }
   }
 
   const sportKey = normalizeSportKey(sport)
   const limits = SHARP_BIAS_LIMITS[sportKey] ?? SHARP_BIAS_LIMITS.nba
+  const scale = SHARP_SCORE_SCALE[sportKey] ?? SHARP_SCORE_SCALE.default
 
   let homeScore = 0
   let awayScore = 0
-  const spreadSignals = sharpSignals.filter((signal) => signal.market === 'spread')
+  const spreadSignals = sharpSignals.filter(
+    (signal) => signal.market === 'spread'
+  )
 
   for (const signal of spreadSignals) {
     const score = scoreSignal(signal)
@@ -182,7 +211,16 @@ export function calculateSharpBiasFromSignals(opts: {
   }
 
   const spreadNet = homeScore - awayScore
-  const spreadBias = computeBias(spreadNet, limits.spread, -1)
+  const spreadStrength = averageStrength(spreadSignals)
+  const spreadStrengthFactor = Math.max(0.4, spreadStrength / 5)
+  const spreadSizeFactor = resolveSpreadSizeFactor(marketSpread)
+  const spreadBias = computeBias(
+    spreadNet,
+    limits.spread,
+    -1,
+    scale,
+    spreadStrengthFactor * spreadSizeFactor
+  )
 
   let overScore = 0
   let underScore = 0
@@ -195,7 +233,15 @@ export function calculateSharpBiasFromSignals(opts: {
   }
 
   const totalNet = overScore - underScore
-  const totalBias = computeBias(totalNet, limits.total, 1)
+  const totalStrength = averageStrength(totalSignals)
+  const totalStrengthFactor = Math.max(0.4, totalStrength / 5)
+  const totalBias = computeBias(
+    totalNet,
+    limits.total,
+    1,
+    scale,
+    totalStrengthFactor
+  )
 
   return {
     spreadBias: Number(spreadBias.toFixed(2)),

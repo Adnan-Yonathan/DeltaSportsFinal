@@ -35,7 +35,7 @@ const LEAGUE_TITLES: Record<SbdLeague, string> = {
   nhl: 'NHL',
 }
 
-const DEFAULT_BOOK_IDS = [
+export const DEFAULT_BOOK_IDS = [
   'sr:book:17324', // MGM
   'sr:book:28901', // Bet365
   'sr:book:18149', // DraftKings
@@ -550,7 +550,12 @@ export async function fetchSbdOdds(
   league: SbdLeague,
   opts: { books?: string[]; format?: string; init?: RequestInit } = {}
 ): Promise<any> {
-  const books = opts.books && opts.books.length ? opts.books : getDefaultBookIds()
+  const books =
+    opts.books && opts.books.length
+      ? opts.books
+      : league === 'ncaamb'
+        ? ['sr:book:18149']
+        : getDefaultBookIds()
   const format = opts.format || 'us'
   const url = `${SBD_API_BASE}/wp-json/adpt/v1/${league}-odds?books=${books.join(',')}&format=${format}`
 

@@ -93,6 +93,14 @@ type MarketContext = {
   marketTotal?: number
   sharpSignals?: SharpSignal[]
   sharpSplits?: BettingSplits
+  whaleAlerts?: WhaleAlertInput[]
+}
+
+type WhaleAlertInput = {
+  marketTitle: string
+  outcome: string
+  notional: number
+  status?: 'pending' | 'respected' | 'faded'
 }
 
 const formatSigned = (value: number) =>
@@ -102,6 +110,55 @@ const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value))
 const formatDeltaPct = (value: number) =>
   `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`
+
+const WHALE_BIAS_LIMITS: Record<string, { spread: number; total: number }> = {
+  basketball_ncaab: { spread: 3.0, total: 6.0 },
+  basketball_nba: { spread: 2.0, total: 5.0 },
+  americanfootball_nfl: { spread: 2.5, total: 5.0 },
+  americanfootball_ncaaf: { spread: 3.0, total: 6.0 },
+  default: { spread: 2.0, total: 4.0 },
+}
+
+const resolveWhaleWeight = (notional: number) => {
+  if (notional >= 30000) return 1.5
+  if (notional >= 20000) return 1.0
+  if (notional >= 10000) return 0.5
+  return 0
+}
+
+const normalizeSelection = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const selectionMatchesTeam = (selection: string, team: string) => {
+  const selectionNorm = normalizeSelection(selection)
+  const teamNorm = normalizeSelection(team)
+  if (!selectionNorm || !teamNorm) return false
+  if (selectionNorm.includes(teamNorm) || teamNorm.includes(selectionNorm)) {
+    return true
+  }
+  const selectionTokens = selectionNorm
+    .split(' ')
+    .filter((token) => token.length > 2)
+  const teamTokens = teamNorm.split(' ').filter((token) => token.length > 2)
+  return (
+    teamTokens.every((token) => selectionTokens.includes(token)) ||
+    selectionTokens.every((token) => teamTokens.includes(token))
+  )
+}
+
+const clampBias = (
+  value: number,
+  sportKey: string,
+  key: 'spread' | 'total'
+) => {
+  const limits = WHALE_BIAS_LIMITS[sportKey] ?? WHALE_BIAS_LIMITS.default
+  return clamp(value, -limits[key], limits[key])
+}
 
 const buildCbbSpread = async (opts: {
   homeTeam: string
@@ -163,8 +220,8 @@ const buildCbbSpread = async (opts: {
   const sosDiff = (homeAdvanced?.sos ?? 0) - (awayAdvanced?.sos ?? 0)
   const usesNetFallback =
     homeAdvanced?.source === 'net' || awayAdvanced?.source === 'net'
-  const netWeight = usesNetFallback ? 1 : 1.6
-  const netDiff = (homeNet - awayNet) * netWeight + sosDiff * 0.2
+  const netWeight = usesNetFallback ? 0.9 : 1.2
+  const netDiff = (homeNet - awayNet) * netWeight + sosDiff * 0.15
   const homePace = homeAdvanced?.tempo ?? opts.homeStats.pace ?? 70
   const awayPace = awayAdvanced?.tempo ?? opts.awayStats.pace ?? 70
   const pace = homePace + awayPace
@@ -173,10 +230,10 @@ const buildCbbSpread = async (opts: {
   const homeCourt = NCAAB_LEAGUE_CONTEXT.homeCourtAdvantage ?? 3.2
   const offenseDefenseGap = (homeAdjO ?? 0) - (awayAdjD ?? 0)
   const defenseOffenseGap = (awayAdjO ?? 0) - (homeAdjD ?? 0)
-  const matchupEdge = (offenseDefenseGap - defenseOffenseGap) * 0.12
+  const matchupEdge = (offenseDefenseGap - defenseOffenseGap) * 0.08
   const margin = netDiff * paceFactor + matchupEdge + homeCourt
   const modelSpread = -margin
-  const maxModelSpread = 35
+  const maxModelSpread = 28
   const clampedModelSpread = clamp(modelSpread, -maxModelSpread, maxModelSpread)
 
   let lateGameFoulBoost = 0
@@ -648,7 +705,7 @@ export async function getGameRecommendations(
       )
     }
 
-    if (!sharpSignals.length) {
+    if (!sharpSignals.length && !marketContext) {
       const sbdLeague = resolveSbdLeague(resolvedSport)
       if (sbdLeague) {
         const sharpResult = await detectEdgeForGame(
@@ -680,6 +737,7 @@ export async function getGameRecommendations(
         homeTeam,
         awayTeam,
         sport: resolvedSport,
+        marketSpread: marketContext?.marketSpread,
       })
       if (sharpBias.spreadBias) {
         targetSpread += sharpBias.spreadBias
@@ -698,6 +756,50 @@ export async function getGameRecommendations(
         extraFactors.push(
           `Sharp money bias (total): ${formatSigned(sharpBias.totalBias)}${note}`
         )
+      }
+    }
+
+    if (marketContext?.whaleAlerts && marketContext.whaleAlerts.length > 0) {
+      const respected = marketContext.whaleAlerts.filter(
+        (alert) => alert.status === 'respected'
+      )
+      if (respected.length > 0) {
+        let homeWhaleBias = 0
+        let awayWhaleBias = 0
+        let overWhaleBias = 0
+        let underWhaleBias = 0
+
+        for (const alert of respected) {
+          const weight = resolveWhaleWeight(alert.notional)
+          if (!weight) continue
+          const selection = `${alert.marketTitle} ${alert.outcome}`
+          const isHome = selectionMatchesTeam(selection, homeTeam)
+          const isAway = selectionMatchesTeam(selection, awayTeam)
+          if (isHome) homeWhaleBias += weight
+          if (isAway) awayWhaleBias += weight
+
+          const outcome = alert.outcome.toLowerCase()
+          if (outcome.includes('over')) overWhaleBias += weight
+          if (outcome.includes('under')) underWhaleBias += weight
+        }
+
+        const netSideBias = homeWhaleBias - awayWhaleBias
+        if (netSideBias) {
+          const spreadBias = clampBias(-netSideBias, resolvedSport, 'spread')
+          targetSpread += spreadBias
+          extraFactors.push(
+            `Whale bias (spread): ${formatSigned(spreadBias)} (respected action)`
+          )
+        }
+
+        const netTotalBias = overWhaleBias - underWhaleBias
+        if (netTotalBias) {
+          const totalBias = clampBias(netTotalBias, resolvedSport, 'total')
+          targetTotal += totalBias
+          extraFactors.push(
+            `Whale bias (total): ${formatSigned(totalBias)} (respected action)`
+          )
+        }
       }
     }
 

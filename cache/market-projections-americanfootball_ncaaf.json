@@ -1,8 +1,6 @@
 {
+  "updatedAt": "2026-01-08T22:19:46.136Z",
   "sport": "americanfootball_ncaaf",
-  "sportLabel": "NCAAF",
-  "date": "2026-01-08",
-  "gamesAnalyzed": 2,
   "edges": [
     {
       "matchup": "Miami (FL) Hurricanes @ Ole Miss Rebels",
@@ -19,32 +17,41 @@
           "awayBook": "DraftKings"
         },
         "model": {
-          "homeOdds": 160,
-          "awayOdds": -160,
-          "homeProbability": 0.3852707092639131
+          "homeOdds": 163,
+          "awayOdds": -163,
+          "homeProbability": 0.3797071165896594
         },
         "prediction": {}
       },
       "confidence": "medium",
       "factors": [
-        "Spread moved +3 to +3"
+        "Spread moved +3 to +3.5"
       ],
       "injuries": [],
       "matchupFactors": [],
-      "sharpSignals": [],
+      "sharpSignals": [
+        {
+          "type": "RLM",
+          "market": "total",
+          "side": "Ole Miss Rebels",
+          "strength": 3,
+          "description": "60.35% of bets on Over but line moved against them",
+          "confidence": "medium"
+        }
+      ],
       "lineMovements": [
         {
           "market": "spread",
           "side": "Ole Miss Rebels",
           "openingLine": 3,
-          "currentLine": 3,
-          "movement": 0,
+          "currentLine": 3.5,
+          "movement": 0.5,
           "openingOdds": -110,
-          "currentOdds": -105,
-          "oddsMovement": -5,
+          "currentOdds": -126,
+          "oddsMovement": 16,
           "isSharp": false,
           "isSignificant": false,
-          "direction": "neutral"
+          "direction": "away"
         },
         {
           "market": "total",
@@ -52,9 +59,9 @@
           "openingLine": 51.5,
           "currentLine": 52.5,
           "movement": 1,
-          "openingOdds": -110,
-          "currentOdds": -115,
-          "oddsMovement": 5,
+          "openingOdds": -115,
+          "currentOdds": -110,
+          "oddsMovement": -5,
           "isSharp": false,
           "isSignificant": false,
           "direction": "toward"
@@ -62,38 +69,38 @@
         {
           "market": "moneyline",
           "side": "Miami (FL) Hurricanes",
-          "openingLine": 125,
-          "currentLine": 140,
-          "movement": -15,
-          "openingOdds": 125,
-          "currentOdds": 140,
-          "oddsMovement": -15,
+          "openingLine": 130,
+          "currentLine": 136,
+          "movement": -6,
+          "openingOdds": 130,
+          "currentOdds": 136,
+          "oddsMovement": -6,
           "isSharp": false,
           "isSignificant": false,
           "direction": "away"
         }
       ],
       "splits": {
-        "spreadHomeBetPct": 57.47,
-        "spreadAwayBetPct": 42.53,
-        "spreadHomeMoneyPct": 52.24,
-        "spreadAwayMoneyPct": 47.76,
-        "totalOverBetPct": 59.81,
-        "totalUnderBetPct": 40.19,
-        "totalOverMoneyPct": 64.32,
-        "totalUnderMoneyPct": 35.68,
-        "mlHomeBetPct": 41.4,
-        "mlAwayBetPct": 58.6,
-        "mlHomeMoneyPct": 53.15,
-        "mlAwayMoneyPct": 46.85
+        "spreadHomeBetPct": 57.15,
+        "spreadAwayBetPct": 42.85,
+        "spreadHomeMoneyPct": 53.91,
+        "spreadAwayMoneyPct": 46.09,
+        "totalOverBetPct": 60.35,
+        "totalUnderBetPct": 39.65,
+        "totalOverMoneyPct": 71.77,
+        "totalUnderMoneyPct": 28.23,
+        "mlHomeBetPct": 42.53,
+        "mlAwayBetPct": 57.47,
+        "mlHomeMoneyPct": 54.47,
+        "mlAwayMoneyPct": 45.53
       },
       "spread": {
         "marketLine": 3.5,
-        "targetLine": 3.5,
+        "targetLine": 3.675,
         "edge": {
           "verdict": "none",
           "confidence": "low",
-          "reason": "Model gap is 0.0 points vs the provided line."
+          "reason": "Model gap is 0.2 points vs the provided line."
         },
         "bestBook": "DraftKings",
         "bestOdds": -126,
@@ -102,13 +109,13 @@
       },
       "total": {
         "marketLine": 52.5,
-        "targetLine": 52.9,
+        "targetLine": 53.4,
         "edge": {
           "verdict": "none",
           "confidence": "low",
-          "reason": "Model gap is 0.4 points vs the provided line."
+          "reason": "Model gap is 0.9 points vs the provided line."
         },
-        "bestBook": "Bet365",
+        "bestBook": "DraftKings",
         "bestOdds": -110,
         "bestUnderOdds": -110,
         "sharpConfirmed": false
@@ -124,9 +131,9 @@
       "moneyline": {
         "sportsbook": {
           "homeOdds": -180,
-          "homeBook": "BetMGM",
-          "awayOdds": 156,
-          "awayBook": "FanDuel"
+          "homeBook": "DraftKings",
+          "awayOdds": 155,
+          "awayBook": "Bet365"
         },
         "model": {
           "homeOdds": -146,
@@ -148,7 +155,7 @@
           "market": "spread",
           "side": "Oregon Ducks",
           "strength": 3,
-          "description": "65.67% of bets on Indiana Hoosiers but line moved against them",
+          "description": "66.12% of bets on Indiana Hoosiers but line moved against them",
           "confidence": "medium"
         },
         {
@@ -156,16 +163,8 @@
           "market": "total",
           "side": "Indiana Hoosiers",
           "strength": 3,
-          "description": "63.29% of bets on Over but line moved against them",
+          "description": "64.05% of bets on Over but line moved against them",
           "confidence": "medium"
-        },
-        {
-          "type": "RLM",
-          "market": "moneyline",
-          "side": "Oregon Ducks",
-          "strength": 5,
-          "description": "77.4% of bets on Indiana Hoosiers but line moved against them",
-          "confidence": "high"
         }
       ],
       "lineMovements": [
@@ -175,9 +174,9 @@
           "openingLine": -4,
           "currentLine": -3.5,
           "movement": 0.5,
-          "openingOdds": -110,
-          "currentOdds": -115,
-          "oddsMovement": 5,
+          "openingOdds": -112,
+          "currentOdds": -112,
+          "oddsMovement": 0,
           "isSharp": false,
           "isSignificant": false,
           "direction": "away"
@@ -185,43 +184,43 @@
         {
           "market": "total",
           "side": "Over",
-          "openingLine": 47.5,
+          "openingLine": 46.5,
           "currentLine": 48.5,
-          "movement": 1,
+          "movement": 2,
           "openingOdds": -110,
-          "currentOdds": -110,
-          "oddsMovement": 0,
+          "currentOdds": -112,
+          "oddsMovement": 2,
           "isSharp": false,
           "isSignificant": false,
           "direction": "toward"
         },
         {
           "market": "moneyline",
-          "side": "Indiana Hoosiers",
-          "openingLine": -175,
+          "side": "Oregon Ducks",
+          "openingLine": -180,
           "currentLine": -180,
-          "movement": 5,
-          "openingOdds": -175,
+          "movement": 0,
+          "openingOdds": -180,
           "currentOdds": -180,
-          "oddsMovement": 5,
+          "oddsMovement": 0,
           "isSharp": false,
           "isSignificant": false,
-          "direction": "toward"
+          "direction": "away"
         }
       ],
       "splits": {
-        "spreadHomeBetPct": 65.67,
-        "spreadAwayBetPct": 34.33,
-        "spreadHomeMoneyPct": 66.08,
-        "spreadAwayMoneyPct": 33.92,
-        "totalOverBetPct": 63.29,
-        "totalUnderBetPct": 36.71,
-        "totalOverMoneyPct": 63.67,
-        "totalUnderMoneyPct": 36.33,
-        "mlHomeBetPct": 77.4,
-        "mlAwayBetPct": 22.6,
-        "mlHomeMoneyPct": 70.83,
-        "mlAwayMoneyPct": 29.17
+        "spreadHomeBetPct": 66.12,
+        "spreadAwayBetPct": 33.88,
+        "spreadHomeMoneyPct": 66.66,
+        "spreadAwayMoneyPct": 33.34,
+        "totalOverBetPct": 64.05,
+        "totalUnderBetPct": 35.95,
+        "totalOverMoneyPct": 64.27,
+        "totalUnderMoneyPct": 35.73,
+        "mlHomeBetPct": 77.07,
+        "mlAwayBetPct": 22.93,
+        "mlHomeMoneyPct": 70.34,
+        "mlAwayMoneyPct": 29.66
       },
       "spread": {
         "marketLine": -3.5,
@@ -231,31 +230,24 @@
           "confidence": "low",
           "reason": "Model gap is 0.7 points vs the provided line."
         },
-        "bestBook": "BetMGM",
-        "bestOdds": -115,
+        "bestBook": "DraftKings",
+        "bestOdds": -112,
         "favoredTeam": "Indiana Hoosiers",
         "sharpConfirmed": false
       },
       "total": {
-        "marketLine": 48.5,
-        "targetLine": 48.9,
+        "marketLine": 49,
+        "targetLine": 49.8,
         "edge": {
           "verdict": "none",
           "confidence": "low",
-          "reason": "Model gap is 0.4 points vs the provided line."
+          "reason": "Model gap is 0.8 points vs the provided line."
         },
-        "bestBook": "BetMGM",
+        "bestBook": "Bet365",
         "bestOdds": -110,
         "bestUnderOdds": -110,
         "sharpConfirmed": false
       }
     }
-  ],
-  "summary": {
-    "strongEdges": 0,
-    "softEdges": 0,
-    "noEdges": 2,
-    "sharpConfirmed": 0
-  },
-  "updatedAt": "2026-01-08T19:54:58.591Z"
+  ]
 }

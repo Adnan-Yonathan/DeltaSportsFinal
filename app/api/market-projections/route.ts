@@ -37,6 +37,19 @@ export async function GET(request: Request) {
     const cached = await readCache(sport)
     if (forceRefresh) {
       const result = await analyzeSlateEdges(sport, { limit: 200 })
+      if (
+        sport === "americanfootball_nfl" &&
+        (result.edges?.length ?? 0) === 0 &&
+        cached?.edges?.length
+      ) {
+        return NextResponse.json({
+          ok: true,
+          updatedAt: cached.updatedAt,
+          sport,
+          edges: cached.edges?.length ?? 0,
+          fromCache: true,
+        })
+      }
       const payload = {
         updatedAt: new Date().toISOString(),
         sport,

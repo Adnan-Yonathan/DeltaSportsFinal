@@ -258,6 +258,12 @@ const teamNameMatches = (team: string, candidate: string) => {
 const clampValue = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value))
 
+const coerceLineValue = (value: number | string | null | undefined) => {
+  if (value == null) return null
+  const parsed = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 const isCfbPlayoffMatchup = (homeTeam: string, awayTeam: string) => {
   return CFB_PLAYOFF_MATCHUPS.some(([teamA, teamB]) => {
     const aliasesA = CFB_TEAM_ALIASES[teamA] || [teamA]
@@ -1226,14 +1232,60 @@ export async function analyzeSlateEdges(
       // Get market lines (needed for NCAAB market anchoring)
       const sportsbookSpread = getBestSpreadByType(game, 'home', 'sportsbook')
       const predictionSpread = getBestSpreadByType(game, 'home', 'prediction')
-      const marketSpread = sportsbookSpread ?? predictionSpread
+      let marketSpread = sportsbookSpread ?? predictionSpread
       const sportsbookTotal = getBestTotalByType(game, 'sportsbook')
       const predictionTotal = getBestTotalByType(game, 'prediction')
-      const marketTotal = sportsbookTotal ?? predictionTotal
+      let marketTotal = sportsbookTotal ?? predictionTotal
       const sportsbookMoneylineHome = getBestMoneylineByType(game, 'home', 'sportsbook')
       const sportsbookMoneylineAway = getBestMoneylineByType(game, 'away', 'sportsbook')
       const predictionMoneylineHome = getBestMoneylineByType(game, 'home', 'prediction')
       const predictionMoneylineAway = getBestMoneylineByType(game, 'away', 'prediction')
+      if (!marketSpread && sharpResult?.lineMovements?.length) {
+        const spreadMove = sharpResult.lineMovements.find(
+          (move) => move.market === 'spread'
+        )
+        const spreadLine = coerceLineValue(
+          spreadMove?.currentLine ?? spreadMove?.openingLine
+        )
+        if (spreadLine != null) {
+          const spreadOdds = coerceLineValue(
+            spreadMove?.currentOdds ?? spreadMove?.openingOdds
+          )
+          marketSpread = {
+            line: spreadLine,
+            book: 'Market',
+            odds: spreadOdds ?? -110,
+          }
+        }
+      }
+      if (!marketTotal && sharpResult?.lineMovements?.length) {
+        const totalMoves = sharpResult.lineMovements.filter(
+          (move) => move.market === 'total'
+        )
+        const totalLine = coerceLineValue(
+          totalMoves[0]?.currentLine ?? totalMoves[0]?.openingLine
+        )
+        if (totalLine != null) {
+          const overMove = totalMoves.find(
+            (move) => move.side.toLowerCase() === 'over'
+          )
+          const underMove = totalMoves.find(
+            (move) => move.side.toLowerCase() === 'under'
+          )
+          const overOdds = coerceLineValue(
+            overMove?.currentOdds ?? overMove?.openingOdds
+          )
+          const underOdds = coerceLineValue(
+            underMove?.currentOdds ?? underMove?.openingOdds
+          )
+          marketTotal = {
+            line: totalLine,
+            book: 'Market',
+            overOdds: overOdds ?? -110,
+            underOdds: underOdds ?? -110,
+          }
+        }
+      }
       const fallbackStats = getFallbackTeamStats(sportKey)
       const matchupTimeoutMs =
         sportKey === 'basketball_ncaab'
@@ -1312,6 +1364,20 @@ export async function analyzeSlateEdges(
             marketContext,
             matchupAnalysis
           )
+        }
+        if (
+          recommendations.length === 0 &&
+          sportKey === 'americanfootball_nfl' &&
+          (marketSpread || marketTotal)
+        ) {
+          recommendations = buildCfbMarketRecommendations({
+            homeTeam: game.home_team,
+            awayTeam: game.away_team,
+            marketSpread,
+            marketTotal,
+            sharpResult,
+            whaleAlerts: [],
+          })
         }
         if (recommendations.length === 0) {
           recommendations = buildFallbackRecommendations(matchupAnalysis, sportKey)

@@ -91,6 +91,11 @@ type KalshiMarketResponse = {
     title?: string
     yes_sub_title?: string
     no_sub_title?: string
+    yes_bid?: number
+    no_bid?: number
+    yes_ask?: number
+    no_ask?: number
+    last_price?: number | string
   }
 }
 

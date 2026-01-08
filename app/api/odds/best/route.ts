@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchOdds, getBestOdds } from '@/lib/api/odds-api'
+import { fetchSbdOdds, mapSbdOddsToOddsGames, resolveSbdLeague } from '@/lib/api/sbd'
+import { searchTeams } from '@/lib/data/team-search'
+import { resolveSportKey, type CanonicalSportKey } from '@/lib/identity/sport'
 import type { OddsGame } from '@/lib/types/odds'
 
 export const runtime = 'nodejs'
@@ -39,7 +42,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required "sport" (e.g., basketball_nba)' }, { status: 400 })
     }
 
-    const games = await fetchOdds(sport, ['h2h','spreads','totals'], { live })
+    const canonicalSport = resolveSportKey(sport) as CanonicalSportKey | undefined
+    let games = await fetchOdds(sport, ['h2h','spreads','totals'], { live })
+    if (!games.length) {
+      const league = resolveSbdLeague(sport)
+      if (league) {
+        try {
+          const payload = await fetchSbdOdds(league, { format: 'us' })
+          games = mapSbdOddsToOddsGames(league, payload, ['h2h','spreads','totals'])
+        } catch (error) {
+          console.warn('[BEST_ODDS] SBD fallback failed:', error)
+        }
+      }
+    }
+
+    if (canonicalSport === 'basketball_ncaab') {
+      const matchesSport = (team: string) =>
+        searchTeams(team, { sport: canonicalSport, limit: 1, prioritizePro: false }).length > 0
+      games = games.filter((game) => matchesSport(game.home_team) && matchesSport(game.away_team))
+    }
     const data = (games || []).map(summarizeBest)
 
     return NextResponse.json({ sport, count: data.length, data })

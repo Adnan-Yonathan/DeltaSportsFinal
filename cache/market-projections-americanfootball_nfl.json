@@ -1,0 +1,910 @@
+{
+  "sport": "americanfootball_nfl",
+  "sportLabel": "NFL",
+  "date": "2026-01-10 to 2026-01-12",
+  "gamesAnalyzed": 6,
+  "edges": [
+    {
+      "matchup": "Green Bay Packers @ Chicago Bears",
+      "homeTeam": "Chicago Bears",
+      "awayTeam": "Green Bay Packers",
+      "commenceTime": "2026-01-11T01:00:00+00:00",
+      "homeStats": null,
+      "awayStats": null,
+      "moneyline": {
+        "sportsbook": {
+          "homeOdds": 101,
+          "homeBook": "Caesars",
+          "awayOdds": -114,
+          "awayBook": "BetRivers"
+        },
+        "model": {
+          "homeOdds": 130,
+          "awayOdds": -130,
+          "homeProbability": 0.43463584618363327
+        },
+        "prediction": {
+          "homeOdds": 111,
+          "homeBook": "Polymarket",
+          "awayOdds": -111,
+          "awayBook": "Polymarket"
+        }
+      },
+      "confidence": "high",
+      "factors": [
+        "Spread moved -1.5 to +1",
+        "RLM on Green Bay Packers spread",
+        "STEAM on Chicago Bears spread"
+      ],
+      "injuries": [],
+      "matchupFactors": [],
+      "sharpSignals": [
+        {
+          "type": "RLM",
+          "market": "spread",
+          "side": "Green Bay Packers",
+          "strength": 3,
+          "description": "69.73% of bets on Chicago Bears but line moved against them",
+          "confidence": "medium"
+        },
+        {
+          "type": "STEAM",
+          "market": "spread",
+          "side": "Chicago Bears",
+          "strength": 5,
+          "description": "spread moved 2.5 points (-1.5 → 1)",
+          "confidence": "high"
+        },
+        {
+          "type": "STEAM",
+          "market": "total",
+          "side": "Under",
+          "strength": 5,
+          "description": "total moved 1.5 points (46.5 → 45)",
+          "confidence": "high"
+        },
+        {
+          "type": "STEAM",
+          "market": "moneyline",
+          "side": "Green Bay Packers",
+          "strength": 5,
+          "description": "moneyline moved 215.0 points (-115 → 100)",
+          "confidence": "high"
+        }
+      ],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "Chicago Bears",
+          "openingLine": -1.5,
+          "currentLine": 1,
+          "movement": 2.5,
+          "openingOdds": -105,
+          "currentOdds": -105,
+          "oddsMovement": 0,
+          "isSharp": true,
+          "isSignificant": true,
+          "direction": "away"
+        },
+        {
+          "market": "total",
+          "side": "Under",
+          "openingLine": 46.5,
+          "currentLine": 45,
+          "movement": -1.5,
+          "openingOdds": -110,
+          "currentOdds": -110,
+          "oddsMovement": 0,
+          "isSharp": true,
+          "isSignificant": true,
+          "direction": "away"
+        },
+        {
+          "market": "moneyline",
+          "side": "Green Bay Packers",
+          "openingLine": -115,
+          "currentLine": 100,
+          "movement": 215,
+          "openingOdds": -115,
+          "currentOdds": 100,
+          "oddsMovement": 215,
+          "isSharp": true,
+          "isSignificant": true,
+          "direction": "away"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": 69.73,
+        "spreadAwayBetPct": 30.27,
+        "spreadHomeMoneyPct": 66.92,
+        "spreadAwayMoneyPct": 33.08,
+        "totalOverBetPct": 57.65,
+        "totalUnderBetPct": 42.35,
+        "totalOverMoneyPct": 58.12,
+        "totalUnderMoneyPct": 41.88,
+        "mlHomeBetPct": 68.37,
+        "mlAwayBetPct": 31.63,
+        "mlHomeMoneyPct": 61.19,
+        "mlAwayMoneyPct": 38.81
+      },
+      "sharpConfirmation": {
+        "agrees": true,
+        "signals": [
+          "RLM: 69.73% of bets on Chicago Bears but line moved against them",
+          "STEAM: total moved 1.5 points (46.5 → 45)"
+        ],
+        "boost": 1.6
+      },
+      "spread": {
+        "marketLine": 1.5,
+        "targetLine": 1.975,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 0.5 points vs the provided line."
+        },
+        "bestBook": "DraftKings",
+        "bestOdds": -112,
+        "prediction": {
+          "line": 1.5,
+          "book": "Polymarket",
+          "odds": -102
+        },
+        "favoredTeam": "Green Bay Packers",
+        "sharpConfirmed": true
+      },
+      "total": {
+        "marketLine": 45.5,
+        "targetLine": 43.7,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 1.8 points vs the provided line."
+        },
+        "bestBook": "FanDuel",
+        "bestOdds": -105,
+        "bestUnderOdds": -115,
+        "prediction": {
+          "line": 46.5,
+          "book": "Kalshi",
+          "overOdds": 120,
+          "underOdds": -120
+        },
+        "sharpConfirmed": true
+      }
+    },
+    {
+      "matchup": "Los Angeles Rams @ Carolina Panthers",
+      "homeTeam": "Carolina Panthers",
+      "awayTeam": "Los Angeles Rams",
+      "commenceTime": "2026-01-10T21:30:00+00:00",
+      "homeStats": null,
+      "awayStats": null,
+      "moneyline": {
+        "sportsbook": {
+          "homeOdds": 480,
+          "homeBook": "FanDuel",
+          "awayOdds": -592,
+          "awayBook": "Caesars"
+        },
+        "model": {
+          "homeOdds": 410,
+          "awayOdds": -410,
+          "homeProbability": 0.1959296647611162
+        },
+        "prediction": {
+          "homeOdds": 471,
+          "homeBook": "Polymarket",
+          "awayOdds": -471,
+          "awayBook": "Polymarket"
+        }
+      },
+      "confidence": "medium",
+      "factors": [
+        "Spread moved +10 to +10.5",
+        "Money 69% vs bets 56% leaning Carolina Panthers"
+      ],
+      "injuries": [],
+      "matchupFactors": [],
+      "sharpSignals": [
+        {
+          "type": "SHARP_MONEY",
+          "market": "moneyline",
+          "side": "Carolina Panthers",
+          "strength": 5,
+          "description": "38% money/bet divergence on Carolina Panthers ML",
+          "confidence": "high"
+        }
+      ],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "Carolina Panthers",
+          "openingLine": 10,
+          "currentLine": 10.5,
+          "movement": 0.5,
+          "openingOdds": -105,
+          "currentOdds": -110,
+          "oddsMovement": 5,
+          "isSharp": true,
+          "isSignificant": false,
+          "direction": "away"
+        },
+        {
+          "market": "total",
+          "side": "Under",
+          "openingLine": 46.5,
+          "currentLine": 46.5,
+          "movement": 0,
+          "openingOdds": -110,
+          "currentOdds": -110,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "moneyline",
+          "side": "Carolina Panthers",
+          "openingLine": 475,
+          "currentLine": 450,
+          "movement": 25,
+          "openingOdds": 475,
+          "currentOdds": 450,
+          "oddsMovement": 25,
+          "isSharp": true,
+          "isSignificant": false,
+          "direction": "toward"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": 56.17,
+        "spreadAwayBetPct": 43.83,
+        "spreadHomeMoneyPct": 69.42,
+        "spreadAwayMoneyPct": 30.58,
+        "totalOverBetPct": 65.57,
+        "totalUnderBetPct": 34.43,
+        "totalOverMoneyPct": 55.69,
+        "totalUnderMoneyPct": 44.31,
+        "mlHomeBetPct": 13.11,
+        "mlAwayBetPct": 86.89,
+        "mlHomeMoneyPct": 50.87,
+        "mlAwayMoneyPct": 49.13
+      },
+      "spread": {
+        "marketLine": 10.5,
+        "targetLine": 10.275,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 0.2 points vs the provided line."
+        },
+        "bestBook": "BetMGM",
+        "bestOdds": -110,
+        "prediction": {
+          "line": 10.5,
+          "book": "Polymarket",
+          "odds": -106
+        },
+        "favoredTeam": "Los Angeles Rams",
+        "sharpConfirmed": false
+      },
+      "total": {
+        "marketLine": 46.5,
+        "targetLine": 46.5,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 0.0 points vs the provided line."
+        },
+        "bestBook": "Caesars",
+        "bestOdds": -107,
+        "bestUnderOdds": -113,
+        "prediction": {
+          "line": 46.5,
+          "book": "Polymarket",
+          "overOdds": 113,
+          "underOdds": -113
+        },
+        "sharpConfirmed": false
+      }
+    },
+    {
+      "matchup": "San Francisco 49ers @ Philadelphia Eagles",
+      "homeTeam": "Philadelphia Eagles",
+      "awayTeam": "San Francisco 49ers",
+      "commenceTime": "2026-01-11T21:30:00+00:00",
+      "homeStats": null,
+      "awayStats": null,
+      "moneyline": {
+        "sportsbook": {
+          "homeOdds": -225,
+          "homeBook": "BetMGM",
+          "awayOdds": 200,
+          "awayBook": "Bet365"
+        },
+        "model": {
+          "homeOdds": -222,
+          "awayOdds": 222,
+          "homeProbability": 0.6892587052342217
+        },
+        "prediction": {
+          "homeOdds": -208,
+          "homeBook": "Polymarket",
+          "awayOdds": 208,
+          "awayBook": "Polymarket"
+        }
+      },
+      "confidence": "high",
+      "factors": [
+        "Spread moved -3.5 to -5",
+        "STEAM on Philadelphia Eagles spread"
+      ],
+      "injuries": [],
+      "matchupFactors": [],
+      "sharpSignals": [
+        {
+          "type": "STEAM",
+          "market": "spread",
+          "side": "Philadelphia Eagles",
+          "strength": 5,
+          "description": "spread moved 1.5 points (-3.5 → -5)",
+          "confidence": "high"
+        },
+        {
+          "type": "STEAM",
+          "market": "total",
+          "side": "Under",
+          "strength": 5,
+          "description": "total moved 2.0 points (46.5 → 44.5)",
+          "confidence": "high"
+        },
+        {
+          "type": "RLM",
+          "market": "moneyline",
+          "side": "San Francisco 49ers",
+          "strength": 3,
+          "description": "62.65% of bets on Philadelphia Eagles but line moved against them",
+          "confidence": "medium"
+        },
+        {
+          "type": "STEAM",
+          "market": "moneyline",
+          "side": "Philadelphia Eagles",
+          "strength": 5,
+          "description": "moneyline moved 45.0 points (-180 → -225)",
+          "confidence": "high"
+        }
+      ],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "Philadelphia Eagles",
+          "openingLine": -3.5,
+          "currentLine": -5,
+          "movement": -1.5,
+          "openingOdds": -105,
+          "currentOdds": -110,
+          "oddsMovement": 5,
+          "isSharp": true,
+          "isSignificant": true,
+          "direction": "toward"
+        },
+        {
+          "market": "total",
+          "side": "Under",
+          "openingLine": 46.5,
+          "currentLine": 44.5,
+          "movement": -2,
+          "openingOdds": -110,
+          "currentOdds": -110,
+          "oddsMovement": 0,
+          "isSharp": true,
+          "isSignificant": true,
+          "direction": "away"
+        },
+        {
+          "market": "moneyline",
+          "side": "Philadelphia Eagles",
+          "openingLine": -180,
+          "currentLine": -225,
+          "movement": 45,
+          "openingOdds": -180,
+          "currentOdds": -225,
+          "oddsMovement": 45,
+          "isSharp": true,
+          "isSignificant": true,
+          "direction": "toward"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": 23.44,
+        "spreadAwayBetPct": 76.56,
+        "spreadHomeMoneyPct": 21.68,
+        "spreadAwayMoneyPct": 78.32,
+        "totalOverBetPct": 61.03,
+        "totalUnderBetPct": 38.97,
+        "totalOverMoneyPct": 60.22,
+        "totalUnderMoneyPct": 39.78,
+        "mlHomeBetPct": 62.65,
+        "mlAwayBetPct": 37.35,
+        "mlHomeMoneyPct": 53.47,
+        "mlAwayMoneyPct": 46.53
+      },
+      "sharpConfirmation": {
+        "agrees": true,
+        "signals": [
+          "STEAM: spread moved 1.5 points (-3.5 → -5)",
+          "STEAM: total moved 2.0 points (46.5 → 44.5)"
+        ],
+        "boost": 2
+      },
+      "spread": {
+        "marketLine": -4.5,
+        "targetLine": -5.925,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 1.4 points vs the provided line."
+        },
+        "bestBook": "Bet365",
+        "bestOdds": -115,
+        "prediction": {
+          "line": -4.5,
+          "book": "Polymarket",
+          "odds": -106
+        },
+        "favoredTeam": "Philadelphia Eagles",
+        "sharpConfirmed": true
+      },
+      "total": {
+        "marketLine": 44.5,
+        "targetLine": 42.5,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 2.0 points vs the provided line."
+        },
+        "bestBook": "FanDuel",
+        "bestOdds": -105,
+        "bestUnderOdds": -115,
+        "prediction": {
+          "line": 44.5,
+          "book": "Polymarket",
+          "overOdds": -106,
+          "underOdds": 106
+        },
+        "sharpConfirmed": true
+      }
+    },
+    {
+      "matchup": "Buffalo Bills @ Jacksonville Jaguars",
+      "homeTeam": "Jacksonville Jaguars",
+      "awayTeam": "Buffalo Bills",
+      "commenceTime": "2026-01-11T18:00:00+00:00",
+      "homeStats": null,
+      "awayStats": null,
+      "moneyline": {
+        "sportsbook": {
+          "homeOdds": -105,
+          "homeBook": "BetMGM",
+          "awayOdds": -110,
+          "awayBook": "FanDuel"
+        },
+        "model": {
+          "homeOdds": 119,
+          "awayOdds": -119,
+          "homeProbability": 0.456039285219976
+        },
+        "prediction": {
+          "homeOdds": 102,
+          "homeBook": "Polymarket",
+          "awayOdds": -102,
+          "awayBook": "Polymarket"
+        }
+      },
+      "confidence": "medium",
+      "factors": [
+        "Spread moved +1.5 to +1"
+      ],
+      "injuries": [],
+      "matchupFactors": [],
+      "sharpSignals": [
+        {
+          "type": "SHARP_MONEY",
+          "market": "moneyline",
+          "side": "Buffalo Bills",
+          "strength": 3,
+          "description": "15% money/bet divergence on Buffalo Bills ML",
+          "confidence": "medium"
+        },
+        {
+          "type": "STEAM",
+          "market": "moneyline",
+          "side": "Jacksonville Jaguars",
+          "strength": 5,
+          "description": "moneyline moved 205.0 points (100 → -105)",
+          "confidence": "high"
+        }
+      ],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "Jacksonville Jaguars",
+          "openingLine": 1.5,
+          "currentLine": 1,
+          "movement": -0.5,
+          "openingOdds": -110,
+          "currentOdds": -115,
+          "oddsMovement": 5,
+          "isSharp": true,
+          "isSignificant": false,
+          "direction": "toward"
+        },
+        {
+          "market": "total",
+          "side": "Under",
+          "openingLine": 51.5,
+          "currentLine": 51.5,
+          "movement": 0,
+          "openingOdds": -110,
+          "currentOdds": -115,
+          "oddsMovement": 5,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "moneyline",
+          "side": "Jacksonville Jaguars",
+          "openingLine": 100,
+          "currentLine": -105,
+          "movement": 205,
+          "openingOdds": 100,
+          "currentOdds": -105,
+          "oddsMovement": 205,
+          "isSharp": true,
+          "isSignificant": true,
+          "direction": "toward"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": 59.45,
+        "spreadAwayBetPct": 40.55,
+        "spreadHomeMoneyPct": 56.71,
+        "spreadAwayMoneyPct": 43.29,
+        "totalOverBetPct": 60.21,
+        "totalUnderBetPct": 39.79,
+        "totalOverMoneyPct": 56.2,
+        "totalUnderMoneyPct": 43.8,
+        "mlHomeBetPct": 44.62,
+        "mlAwayBetPct": 55.38,
+        "mlHomeMoneyPct": 29.45,
+        "mlAwayMoneyPct": 70.55
+      },
+      "spread": {
+        "marketLine": 1.5,
+        "targetLine": 1.325,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 0.2 points vs the provided line."
+        },
+        "bestBook": "FanDuel",
+        "bestOdds": -120,
+        "prediction": {
+          "line": 1.5,
+          "book": "Polymarket",
+          "odds": -115
+        },
+        "favoredTeam": "Buffalo Bills",
+        "sharpConfirmed": false
+      },
+      "total": {
+        "marketLine": 52.5,
+        "targetLine": 52.5,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 0.0 points vs the provided line."
+        },
+        "bestBook": "DraftKings",
+        "bestOdds": -109,
+        "bestUnderOdds": -122,
+        "prediction": {
+          "line": 51.5,
+          "book": "Polymarket",
+          "overOdds": -102,
+          "underOdds": 102
+        },
+        "sharpConfirmed": false
+      }
+    },
+    {
+      "matchup": "Los Angeles Chargers @ New England Patriots",
+      "homeTeam": "New England Patriots",
+      "awayTeam": "Los Angeles Chargers",
+      "commenceTime": "2026-01-12T01:00:00+00:00",
+      "homeStats": null,
+      "awayStats": null,
+      "moneyline": {
+        "sportsbook": {
+          "homeOdds": -185,
+          "homeBook": "DraftKings",
+          "awayOdds": 166,
+          "awayBook": "Caesars"
+        },
+        "model": {
+          "homeOdds": -160,
+          "awayOdds": 160,
+          "homeProbability": 0.6147292907360868
+        },
+        "prediction": {
+          "homeOdds": -182,
+          "homeBook": "Polymarket",
+          "awayOdds": 182,
+          "awayBook": "Polymarket"
+        }
+      },
+      "confidence": "medium",
+      "factors": [
+        "Spread moved -3.5 to -3.5"
+      ],
+      "injuries": [],
+      "matchupFactors": [],
+      "sharpSignals": [
+        {
+          "type": "RLM",
+          "market": "total",
+          "side": "New England Patriots",
+          "strength": 3,
+          "description": "66.93% of bets on Over but line moved against them",
+          "confidence": "medium"
+        },
+        {
+          "type": "RLM",
+          "market": "moneyline",
+          "side": "Los Angeles Chargers",
+          "strength": 5,
+          "description": "84.94% of bets on New England Patriots but line moved against them",
+          "confidence": "high"
+        }
+      ],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "New England Patriots",
+          "openingLine": -3.5,
+          "currentLine": -3.5,
+          "movement": 0,
+          "openingOdds": -110,
+          "currentOdds": -110,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "total",
+          "side": "Over",
+          "openingLine": 45.5,
+          "currentLine": 46,
+          "movement": 0.5,
+          "openingOdds": -110,
+          "currentOdds": -110,
+          "oddsMovement": 0,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "toward"
+        },
+        {
+          "market": "moneyline",
+          "side": "New England Patriots",
+          "openingLine": -190,
+          "currentLine": -200,
+          "movement": 10,
+          "openingOdds": -190,
+          "currentOdds": -200,
+          "oddsMovement": 10,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "toward"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": 61.65,
+        "spreadAwayBetPct": 38.35,
+        "spreadHomeMoneyPct": 59.92,
+        "spreadAwayMoneyPct": 40.08,
+        "totalOverBetPct": 66.93,
+        "totalUnderBetPct": 33.07,
+        "totalOverMoneyPct": 61.89,
+        "totalUnderMoneyPct": 38.11,
+        "mlHomeBetPct": 84.94,
+        "mlAwayBetPct": 15.06,
+        "mlHomeMoneyPct": 79.9,
+        "mlAwayMoneyPct": 20.1
+      },
+      "spread": {
+        "marketLine": -3.5,
+        "targetLine": -3.5,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 0.0 points vs the provided line."
+        },
+        "bestBook": "BetMGM",
+        "bestOdds": -110,
+        "prediction": {
+          "line": -3.5,
+          "book": "Polymarket",
+          "odds": 102
+        },
+        "favoredTeam": "New England Patriots",
+        "sharpConfirmed": false
+      },
+      "total": {
+        "marketLine": 46.5,
+        "targetLine": 46.7,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 0.2 points vs the provided line."
+        },
+        "bestBook": "FanDuel",
+        "bestOdds": -104,
+        "bestUnderOdds": -118,
+        "prediction": {
+          "line": 46.5,
+          "book": "Polymarket",
+          "overOdds": 111,
+          "underOdds": -111
+        },
+        "sharpConfirmed": false
+      }
+    },
+    {
+      "matchup": "Houston Texans @ Pittsburgh Steelers",
+      "homeTeam": "Pittsburgh Steelers",
+      "awayTeam": "Houston Texans",
+      "commenceTime": "2026-01-13T01:15:00+00:00",
+      "homeStats": null,
+      "awayStats": null,
+      "moneyline": {
+        "sportsbook": {
+          "homeOdds": 145,
+          "homeBook": "BetMGM",
+          "awayOdds": -155,
+          "awayBook": "DraftKings"
+        },
+        "model": {
+          "homeOdds": 141,
+          "awayOdds": -141,
+          "homeProbability": 0.41423398292557007
+        },
+        "prediction": {
+          "homeOdds": 147,
+          "homeBook": "Polymarket",
+          "awayOdds": -147,
+          "awayBook": "Polymarket"
+        }
+      },
+      "confidence": "medium",
+      "factors": [
+        "Spread moved +3 to +3",
+        "Money 66% vs bets 54% leaning Pittsburgh Steelers"
+      ],
+      "injuries": [],
+      "matchupFactors": [],
+      "sharpSignals": [
+        {
+          "type": "SHARP_MONEY",
+          "market": "moneyline",
+          "side": "Pittsburgh Steelers",
+          "strength": 5,
+          "description": "38% money/bet divergence on Pittsburgh Steelers ML",
+          "confidence": "high"
+        }
+      ],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "Pittsburgh Steelers",
+          "openingLine": 3,
+          "currentLine": 3,
+          "movement": 0,
+          "openingOdds": -105,
+          "currentOdds": -110,
+          "oddsMovement": 5,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "neutral"
+        },
+        {
+          "market": "total",
+          "side": "Under",
+          "openingLine": 39.5,
+          "currentLine": 38.5,
+          "movement": -1,
+          "openingOdds": -110,
+          "currentOdds": -110,
+          "oddsMovement": 0,
+          "isSharp": true,
+          "isSignificant": false,
+          "direction": "away"
+        },
+        {
+          "market": "moneyline",
+          "side": "Houston Texans",
+          "openingLine": 140,
+          "currentLine": 145,
+          "movement": -5,
+          "openingOdds": 140,
+          "currentOdds": 145,
+          "oddsMovement": -5,
+          "isSharp": false,
+          "isSignificant": false,
+          "direction": "away"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": 53.9,
+        "spreadAwayBetPct": 46.1,
+        "spreadHomeMoneyPct": 65.74,
+        "spreadAwayMoneyPct": 34.26,
+        "totalOverBetPct": 62.02,
+        "totalUnderBetPct": 37.98,
+        "totalOverMoneyPct": 56.3,
+        "totalUnderMoneyPct": 43.7,
+        "mlHomeBetPct": 29.93,
+        "mlAwayBetPct": 70.07,
+        "mlHomeMoneyPct": 68.32,
+        "mlAwayMoneyPct": 31.68
+      },
+      "spread": {
+        "marketLine": 3,
+        "targetLine": 2.6,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 0.4 points vs the provided line."
+        },
+        "bestBook": "BetMGM",
+        "bestOdds": -110,
+        "prediction": {
+          "line": 3.5,
+          "book": "Polymarket",
+          "odds": -127
+        },
+        "favoredTeam": "Houston Texans",
+        "sharpConfirmed": false
+      },
+      "total": {
+        "marketLine": 38.5,
+        "targetLine": 38.1,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 0.4 points vs the provided line."
+        },
+        "bestBook": "Caesars",
+        "bestOdds": -109,
+        "bestUnderOdds": -110,
+        "prediction": {
+          "line": 39.5,
+          "book": "Kalshi",
+          "overOdds": 115,
+          "underOdds": -115
+        },
+        "sharpConfirmed": false
+      }
+    }
+  ],
+  "summary": {
+    "strongEdges": 0,
+    "softEdges": 0,
+    "noEdges": 6,
+    "sharpConfirmed": 2
+  },
+  "updatedAt": "2026-01-08T19:32:27.457Z"
+}

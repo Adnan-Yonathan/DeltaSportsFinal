@@ -5,11 +5,20 @@ import { useEffect, useMemo, useState } from "react"
 type PropMarket = {
   line: number
   projection?: number
+  over?: {
+    best: number
+    bestBook?: string
+  }
+  under?: {
+    best: number
+    bestBook?: string
+  }
 }
 
 type PlayerProp = {
   player: string
   team?: string
+  teamAbbr?: string
   game?: string
   markets: Record<string, PropMarket>
 }
@@ -27,16 +36,35 @@ type Row = {
   player: string
   team?: string
   game?: string
-  markets: Record<string, { line?: number; projection?: number; edge?: number }>
+  markets: Record<
+    string,
+    {
+      line?: number
+      projection?: number
+      delta?: number
+      edge?: number
+      overOdds?: number
+      underOdds?: number
+      overBook?: string
+      underBook?: string
+    }
+  >
   maxEdge: number
 }
 
-const MARKETS = ["points", "rebounds", "assists"] as const
+const SPORT_MARKETS: Record<string, readonly string[]> = {
+  basketball_nba: ["points", "rebounds", "assists"],
+  americanfootball_nfl: ["rushing_yards", "receiving_yards", "receptions"],
+}
 
 const MARKET_LABELS: Record<string, string> = {
   points: "PTS",
   rebounds: "REB",
   assists: "AST",
+  passing_yards: "PASS YDS",
+  rushing_yards: "RUSH YDS",
+  receiving_yards: "REC YDS",
+  receptions: "REC",
 }
 
 const formatNumber = (value?: number | null) => {
@@ -49,11 +77,34 @@ const formatEdge = (value?: number) => {
   return `${value.toFixed(1)}%`
 }
 
+const formatDelta = (value?: number | null) => {
+  if (!Number.isFinite(value)) return "n/a"
+  const sign = value && value > 0 ? "+" : ""
+  return `${sign}${Number(value).toFixed(1)}`
+}
+
+const formatOdds = (value?: number | null) => {
+  if (value == null || !Number.isFinite(value)) return "n/a"
+  return value > 0 ? `+${Math.round(value)}` : `${Math.round(value)}`
+}
+
 const normalizeToken = (value?: string | null) =>
   (value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "")
 
+const normalizePlayerName = (value?: string | null) => {
+  const raw = (value ?? "").trim()
+  if (!raw) return ""
+  if (raw.includes(",")) {
+    const parts = raw.split(",").map((part) => part.trim()).filter(Boolean)
+    if (parts.length >= 2) {
+      return `${parts[1]} ${parts[0]}`.trim()
+    }
+  }
+  return raw
+}
+
 const makePlayerKey = (player?: string | null, team?: string | null) => {
-  const name = normalizeToken(player)
+  const name = normalizeToken(normalizePlayerName(player))
   const club = normalizeToken(team)
   return club ? `${name}|${club}` : name
 }
@@ -65,10 +116,23 @@ const computeEdgePercent = (projection?: number, line?: number) => {
   return (Math.abs((projection as number) - (line as number)) / Math.abs(line as number)) * 100
 }
 
-export default function PlayerProjectionsTable() {
+const computeDelta = (projection?: number, line?: number) => {
+  if (!Number.isFinite(projection) || !Number.isFinite(line)) return null
+  return (projection as number) - (line as number)
+}
+
+export default function PlayerProjectionsTable({
+  sport,
+}: {
+  sport: string
+}) {
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [expandedGames, setExpandedGames] = useState<Record<string, boolean>>(
+    {}
+  )
+  const activeMarkets = SPORT_MARKETS[sport] ?? SPORT_MARKETS.basketball_nba
 
   useEffect(() => {
     let active = true
@@ -76,19 +140,22 @@ export default function PlayerProjectionsTable() {
       setLoading(true)
       setErrorMessage(null)
       try {
-        const [projectionsRes, propsRes] = await Promise.all([
-          fetch("/api/player-projections", { cache: "no-store" }),
-          fetch(
-            "/api/player-props?sport=basketball_nba&market=points,rebounds,assists",
-            { cache: "no-store" }
-          ),
-        ])
+        const projectionsRes =
+          sport === "basketball_nba"
+            ? await fetch("/api/player-projections", { cache: "no-store" })
+            : null
+        const propsRes = await fetch(
+          `/api/player-props?sport=${sport}&market=all`,
+          { cache: "no-store" }
+        )
 
-        if (!projectionsRes.ok) {
+        if (projectionsRes && !projectionsRes.ok) {
           throw new Error("Failed to load player projections.")
         }
 
-        const projectionsPayload = await projectionsRes.json()
+        const projectionsPayload = projectionsRes
+          ? await projectionsRes.json()
+          : { data: [] }
         const projections: PlayerProjection[] = Array.isArray(
           projectionsPayload?.data
         )
@@ -103,46 +170,88 @@ export default function PlayerProjectionsTable() {
             : []
           for (const entry of propsData) {
             const key = makePlayerKey(entry.player, entry.team)
+            const nameKey = makePlayerKey(entry.player, null)
             if (!key) continue
             if (!lineByPlayer.has(key)) {
               lineByPlayer.set(key, entry)
+            }
+            if (nameKey && !lineByPlayer.has(nameKey)) {
+              lineByPlayer.set(nameKey, entry)
             }
           }
         }
 
         const grouped: Row[] = []
         const seen = new Set<string>()
-        for (const entry of projections) {
-          const key = makePlayerKey(entry.player, entry.teamAbbr || entry.team)
-          if (seen.has(key)) continue
-          seen.add(key)
+        const hasProjections = projections.length > 0
 
-          const lineEntry =
-            lineByPlayer.get(key) ||
-            lineByPlayer.get(makePlayerKey(entry.player, null))
-          const markets: Row["markets"] = {}
-          let maxEdge = 0
-          for (const market of MARKETS) {
-            const projection = Number.isFinite(entry.projections?.[market])
-              ? Number(entry.projections?.[market])
-              : undefined
-            const line = lineEntry?.markets?.[market]
-              ? lineEntry.markets[market].line
-              : undefined
-            const edge = computeEdgePercent(projection, line) ?? undefined
-            if (edge != null) {
-              maxEdge = Math.max(maxEdge, edge)
+        if (!hasProjections) {
+          for (const entry of lineByPlayer.values()) {
+            const key = makePlayerKey(entry.player, entry.teamAbbr || entry.team)
+            if (!key || seen.has(key)) continue
+            seen.add(key)
+
+            const markets: Row["markets"] = {}
+            for (const market of activeMarkets) {
+              const lineMarket = entry.markets?.[market]
+              if (!lineMarket) continue
+              markets[market] = { line: lineMarket.line }
+              markets[market].overOdds = lineMarket.over?.best
+              markets[market].underOdds = lineMarket.under?.best
+              markets[market].overBook = lineMarket.over?.bestBook
+              markets[market].underBook = lineMarket.under?.bestBook
             }
-            markets[market] = { line, projection, edge }
-          }
 
-          grouped.push({
-            player: entry.player,
-            team: entry.teamAbbr || entry.team,
-            game: entry.game ?? lineEntry?.game,
-            markets,
-            maxEdge,
-          })
+            grouped.push({
+              player: entry.player,
+              team: entry.teamAbbr || entry.team,
+              game: entry.game,
+              markets,
+              maxEdge: 0,
+            })
+          }
+        } else {
+          for (const entry of projections) {
+            const key = makePlayerKey(entry.player, entry.teamAbbr || entry.team)
+            if (seen.has(key)) continue
+            seen.add(key)
+
+            const lineEntry =
+              lineByPlayer.get(key) ||
+              lineByPlayer.get(makePlayerKey(entry.player, null))
+            const markets: Row["markets"] = {}
+            let maxEdge = 0
+            for (const market of activeMarkets) {
+              const projection = Number.isFinite(entry.projections?.[market])
+                ? Number(entry.projections?.[market])
+                : undefined
+              const lineMarket = lineEntry?.markets?.[market]
+              const line = lineMarket?.line
+              const edge = computeEdgePercent(projection, line) ?? undefined
+              const delta = computeDelta(projection, line) ?? undefined
+              if (edge != null) {
+                maxEdge = Math.max(maxEdge, edge)
+              }
+              markets[market] = { line, projection, edge }
+              if (lineMarket) {
+                markets[market].overOdds = lineMarket.over?.best
+                markets[market].underOdds = lineMarket.under?.best
+                markets[market].overBook = lineMarket.over?.bestBook
+                markets[market].underBook = lineMarket.under?.bestBook
+              }
+              if (delta != null) {
+                markets[market].delta = Number(delta.toFixed(1))
+              }
+            }
+
+            grouped.push({
+              player: entry.player,
+              team: entry.teamAbbr || entry.team,
+              game: entry.game ?? lineEntry?.game,
+              markets,
+              maxEdge,
+            })
+          }
         }
 
         if (active) setRows(grouped)
@@ -162,8 +271,29 @@ export default function PlayerProjectionsTable() {
     }
   }, [])
 
-  const sortedRows = useMemo(() => {
-    return [...rows].sort((a, b) => b.maxEdge - a.maxEdge)
+  const groupedRows = useMemo(() => {
+    const byGame = new Map<string, Row[]>()
+    for (const row of rows) {
+      const hasLine = Object.values(row.markets).some(
+        (market) => Number.isFinite(market?.line)
+      )
+      if (!hasLine) continue
+      const key = row.game ?? "Other"
+      if (!byGame.has(key)) {
+        byGame.set(key, [])
+      }
+      byGame.get(key)!.push(row)
+    }
+    return Array.from(byGame.entries())
+      .map(([game, group]) => ({
+        game,
+        rows: group.sort((a, b) => b.maxEdge - a.maxEdge),
+      }))
+      .sort((a, b) => {
+        if (a.game === "Other") return 1
+        if (b.game === "Other") return -1
+        return a.game.localeCompare(b.game)
+      })
   }, [rows])
 
   return (
@@ -171,9 +301,9 @@ export default function PlayerProjectionsTable() {
       <div className="grid grid-cols-[220px_160px_repeat(3,minmax(0,1fr))] gap-2 bg-black/70 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/50">
         <span>Player</span>
         <span>Matchup</span>
-        <span>Points</span>
-        <span>Rebounds</span>
-        <span>Assists</span>
+        <span>{MARKET_LABELS[activeMarkets[0]] ?? activeMarkets[0].toUpperCase()}</span>
+        <span>{MARKET_LABELS[activeMarkets[1]] ?? activeMarkets[1].toUpperCase()}</span>
+        <span>{MARKET_LABELS[activeMarkets[2]] ?? activeMarkets[2].toUpperCase()}</span>
       </div>
       {loading ? (
         <div className="px-4 py-6 text-sm text-white/60">
@@ -181,46 +311,83 @@ export default function PlayerProjectionsTable() {
         </div>
       ) : errorMessage ? (
         <div className="px-4 py-6 text-sm text-red-200">{errorMessage}</div>
-      ) : sortedRows.length === 0 ? (
+      ) : groupedRows.length === 0 ? (
         <div className="px-4 py-6 text-sm text-white/60">
-          No NBA projections found for today.
+          No player projections found for today.
         </div>
       ) : (
         <div className="divide-y divide-white/5">
-          {sortedRows.map((row) => (
-            <div
-              key={`${row.player}-${row.team ?? "team"}`}
-              className="grid grid-cols-[220px_160px_repeat(3,minmax(0,1fr))] gap-2 px-3 py-3 text-[13px] text-white/70"
-            >
-              <div className="space-y-1">
-                <div className="text-sm font-semibold text-white">
-                  {row.player}
+          {groupedRows.map((group) => {
+            const isExpanded = Boolean(expandedGames[group.game])
+            const visibleRows = isExpanded ? group.rows : group.rows.slice(0, 3)
+            const remaining = Math.max(0, group.rows.length - visibleRows.length)
+            return (
+              <div key={group.game}>
+                <div className="flex items-center justify-between gap-3 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/60">
+                  <span>{group.game}</span>
+                  {remaining > 0 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedGames((current) => ({
+                          ...current,
+                          [group.game]: !isExpanded,
+                        }))
+                      }
+                      className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/70 hover:border-emerald-400/40 hover:text-white transition-colors"
+                    >
+                      {isExpanded ? "Show less" : `+ ${remaining} more`}
+                    </button>
+                  )}
                 </div>
-                <div className="text-xs text-white/50">
-                  {row.team ?? "Team n/a"}
-                </div>
-              </div>
-              <div className="text-xs text-white/70">
-                {row.game ?? "Matchup n/a"}
-              </div>
-              {MARKETS.map((market) => {
-                const data = row.markets[market]
-                return (
-                  <div key={market} className="space-y-1 text-xs text-white/70">
-                    <div className="rounded bg-white/10 px-1.5 py-0.5">
-                      {MARKET_LABELS[market]} {formatNumber(data?.line)}
+                {visibleRows.map((row) => (
+                <div
+                  key={`${group.game}-${row.player}-${row.team ?? "team"}`}
+                  className="grid grid-cols-[220px_160px_repeat(3,minmax(0,1fr))] gap-2 px-3 py-3 text-[13px] text-white/70"
+                >
+                  <div className="space-y-1">
+                    <div className="text-sm font-semibold text-white">
+                      {row.player}
                     </div>
-                    <div className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                      Delta {formatNumber(data?.projection)}
-                    </div>
-                    <div className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                      Edge {formatEdge(data?.edge)}
+                    <div className="text-xs text-white/50">
+                      {row.team ?? "Team n/a"}
                     </div>
                   </div>
-                )
-              })}
-            </div>
-          ))}
+                  <div className="text-xs text-white/70">
+                    {row.game ?? "Matchup n/a"}
+                  </div>
+                  {activeMarkets.map((market) => {
+                    const data = row.markets[market]
+                    const line = formatNumber(data?.line)
+                    const hasOdds =
+                      Number.isFinite(data?.overOdds) ||
+                      Number.isFinite(data?.underOdds)
+                    const oddsLabel = hasOdds
+                      ? ` (O ${formatOdds(data?.overOdds)} / U ${formatOdds(data?.underOdds)})`
+                      : ""
+                    return (
+                      <div
+                        key={market}
+                        className="space-y-1 text-xs text-white/70"
+                      >
+                        <div className="rounded bg-white/10 px-1.5 py-0.5">
+                          {MARKET_LABELS[market] ?? market.toUpperCase()} {line}
+                          {oddsLabel}
+                        </div>
+                        <div className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+                          Delta {formatDelta(data?.delta)}
+                        </div>
+                        <div className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+                          Edge {formatEdge(data?.edge)}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                ))}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

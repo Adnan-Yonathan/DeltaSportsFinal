@@ -25,7 +25,7 @@ export default function MarketProjectionsRefresh({
   const lastUpdatedMs = Number.isFinite(parsedUpdated) ? parsedUpdated : null
   const cooldownMs =
     lastUpdatedMs != null ? 15 * 60 * 1000 - (now - lastUpdatedMs) : 0
-  const canRefresh = !isLocked && (lastUpdatedMs == null || cooldownMs <= 0)
+  const canRefresh = !isLocked && status !== "loading"
   const remainingSeconds = Math.max(0, Math.ceil(cooldownMs / 1000))
   const remainingLabel = `${Math.floor(remainingSeconds / 60)}:${String(
     remainingSeconds % 60
@@ -79,10 +79,14 @@ export default function MarketProjectionsRefresh({
   useEffect(() => {
     if (isLocked) return
     const interval = window.setInterval(() => {
-      refresh()
+      const updatedAtMs = lastUpdatedMs ?? 0
+      const shouldRefresh = !updatedAtMs || Date.now() - updatedAtMs >= 15 * 60 * 1000
+      if (shouldRefresh) {
+        refresh()
+      }
     }, 15 * 60 * 1000)
     return () => window.clearInterval(interval)
-  }, [isLocked, sport, status])
+  }, [isLocked, sport, lastUpdatedMs, status])
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000)
@@ -99,7 +103,7 @@ export default function MarketProjectionsRefresh({
           <button
             type="button"
             onClick={refresh}
-            disabled={!canRefresh || status === "loading"}
+            disabled={!canRefresh}
             className="rounded-md border border-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 hover:border-emerald-400/40 hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           >
             {canRefresh ? "Refresh now" : `Refresh in ${remainingLabel}`}

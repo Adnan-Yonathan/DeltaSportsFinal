@@ -1304,6 +1304,25 @@ async function fetchOddsIO(
     throw error instanceof Error ? error : new OddsAPIError(String(error))
   }
 
+  if (sportKey === 'basketball_ncaab' && Array.isArray(events)) {
+    const isNcaabLeague = (value?: string | null) => {
+      const normalized = (value || '').toLowerCase()
+      return (
+        normalized.includes('ncaab') ||
+        normalized.includes('ncaam') ||
+        normalized.includes('ncaa-basketball') ||
+        normalized.includes('ncaa men')
+      )
+    }
+    events = events.filter((event) => {
+      const leagueValue =
+        typeof event.league === 'string'
+          ? event.league
+          : event.league?.slug || event.league?.name || ''
+      return isNcaabLeague(leagueValue)
+    })
+  }
+
   if (!Array.isArray(events) || events.length === 0) {
     if (!opts.live) {
       console.warn(

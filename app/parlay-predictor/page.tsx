@@ -1,4 +1,5 @@
 import Link from "next/link"
+import ParlayPredictor from './parlay-predictor'
 
 export default function ParlayPredictorPage() {
   return (
@@ -9,14 +10,12 @@ export default function ParlayPredictorPage() {
       >
         Back to chat
       </Link>
-      <h1 className="text-2xl font-semibold">Parlay Predictor</h1>
-      <div className="mt-6 max-w-xl rounded-2xl border border-white/10 bg-white/5 p-6">
-        <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-          Coming soon
+      <div className="mx-auto w-full max-w-5xl">
+        <h1 className="text-2xl font-semibold">Parlay Predictor</h1>
+        <p className="mt-2 text-sm text-white/60">
+          Build a parlay from today&apos;s matchups, then compare the model probability to the best book odds.
         </p>
-        <p className="mt-3 text-sm text-white/70">
-          Parlay prediction tools are next on the roadmap.
-        </p>
+        <ParlayPredictor />
       </div>
     </div>
   )

@@ -50,10 +50,10 @@ const SUPPORTED_PROP_SPORTS = new Set([
 ])
 
 const MARKET_TO_SBD_PROP: Record<string, string> = {
-  points: 'total points (incl. overtime)',
-  rebounds: 'total rebounds (incl. overtime)',
-  assists: 'total assists (incl. overtime)',
-  threes: 'total 3-point field goals (incl. overtime)',
+  points: 'total points',
+  rebounds: 'total rebounds',
+  assists: 'total assists',
+  threes: 'total 3-point field goals',
   points_rebounds: 'total points plus rebounds (incl. extra overtime)',
   points_assists: 'total points plus assists (incl. extra overtime)',
   pra: 'total points plus assists plus rebounds (incl. extra overtime)',
@@ -61,6 +61,10 @@ const MARKET_TO_SBD_PROP: Record<string, string> = {
   blocks: 'total blocks (incl. extra overtime)',
   steals: 'total steals (incl. extra overtime)',
   blocks_steals: 'total blocks plus steals (incl. extra overtime)',
+  receiving_yards: 'total receiving yards',
+  rushing_yards: 'total rushing yards',
+  receptions: 'total receptions',
+  carries: 'total carries',
 }
 
 const DEFAULT_MARKETS: Record<string, string[]> = {
@@ -77,7 +81,7 @@ const DEFAULT_MARKETS: Record<string, string[]> = {
     'steals',
     'blocks_steals',
   ],
-  americanfootball_nfl: ['passing_yards', 'rushing_yards', 'receiving_yards', 'receptions'],
+  americanfootball_nfl: ['rushing_yards', 'receiving_yards', 'receptions'],
   baseball_mlb: ['hits', 'total_bases', 'rbis', 'runs'],
   icehockey_nhl: ['points', 'shots_on_goal', 'blocked_shots'],
 }
@@ -129,6 +133,10 @@ const normalizeSbdPropName = (value: string): string => {
   if (cleaned.includes('assists')) return 'assists'
   if (cleaned.includes('steals')) return 'steals'
   if (cleaned.includes('blocks')) return 'blocks'
+  if (cleaned.includes('receiving yards')) return 'receiving_yards'
+  if (cleaned.includes('rushing yards')) return 'rushing_yards'
+  if (cleaned.includes('receptions')) return 'receptions'
+  if (cleaned.includes('carries')) return 'carries'
   return normalizeMarketKey(cleaned)
 }
 

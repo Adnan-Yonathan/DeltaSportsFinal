@@ -19,6 +19,7 @@ const SPORT_OPTIONS: SportOption[] = [
   { key: "basketball_nba", label: "NBA", locked: false },
   { key: "basketball_ncaab", label: "NCAAB", locked: false },
   { key: "americanfootball_ncaaf", label: "CFB", locked: false },
+  { key: "americanfootball_nfl", label: "NFL", locked: false },
 ]
 
 const getCachePath = (sport: string) =>

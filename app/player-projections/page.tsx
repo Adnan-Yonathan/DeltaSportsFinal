@@ -1,6 +1,6 @@
-﻿import Link from "next/link"
-import SportSelector from "../market-projections/sport-selector"
+﻿import SportSelector from "../market-projections/sport-selector"
 import PlayerProjectionsTable from "./player-projections-table"
+import ToolsNav from "@/components/tools-nav"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -36,13 +36,10 @@ export default function PlayerProjectionsPage({
   const isLocked = Boolean(selected.locked)
 
   return (
-    <div className="relative min-h-screen bg-black text-white px-2 py-10 sm:px-4">
-      <Link
-        href="/chat"
-        className="absolute left-4 top-4 inline-flex items-center rounded-full border border-emerald-500/40 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-emerald-200 hover:border-emerald-400 hover:text-white transition-colors"
-      >
-        Back to chat
-      </Link>
+    <div className="relative min-h-screen bg-black text-white px-2 py-6 sm:px-4">
+      <div className="mb-6">
+        <ToolsNav />
+      </div>
       <div className="mx-auto w-full max-w-none space-y-6">
         <header className="space-y-3">
           <p className="text-xs uppercase tracking-[0.3em] text-white/50">

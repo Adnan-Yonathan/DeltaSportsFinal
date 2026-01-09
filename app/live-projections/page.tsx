@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
+import ToolsNav from "@/components/tools-nav"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 
 export default async function LiveProjectionsPage() {
@@ -11,13 +12,10 @@ export default async function LiveProjectionsPage() {
   const hasAccess = membership.isActive && membership.tier === "syndicate"
 
   return (
-    <div className="relative min-h-screen bg-black text-white px-4 py-16">
-      <Link
-        href="/chat"
-        className="absolute left-4 top-4 inline-flex items-center rounded-full border border-emerald-500/40 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-emerald-200 hover:border-emerald-400 hover:text-white transition-colors"
-      >
-        Back to chat
-      </Link>
+    <div className="relative min-h-screen bg-black text-white px-4 py-6">
+      <div className="mb-6">
+        <ToolsNav />
+      </div>
       <h1 className="text-2xl font-semibold">Live Projections</h1>
       <div className="mt-6 max-w-xl rounded-2xl border border-white/10 bg-white/5 p-6">
         {!hasAccess ? (

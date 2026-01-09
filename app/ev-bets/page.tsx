@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
+import ToolsNav from "@/components/tools-nav"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import { findEVOpportunities } from "@/lib/services/cross-market-ev"
 import { SPORTS } from "@/lib/types/odds"
@@ -21,13 +22,10 @@ export default async function EvBetsPage() {
 
   if (!hasAccess) {
     return (
-      <div className="relative min-h-screen bg-black text-white px-2 py-10 sm:px-4">
-        <Link
-          href="/chat"
-          className="absolute left-4 top-4 inline-flex items-center rounded-full border border-emerald-500/40 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-emerald-200 hover:border-emerald-400 hover:text-white transition-colors"
-        >
-          Back to chat
-        </Link>
+      <div className="relative min-h-screen bg-black text-white px-2 py-6 sm:px-4">
+        <div className="mb-6">
+          <ToolsNav />
+        </div>
         <div className="mx-auto w-full max-w-none space-y-6">
           <header className="space-y-3">
             <p className="text-xs uppercase tracking-[0.3em] text-white/50">
@@ -79,13 +77,10 @@ export default async function EvBetsPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-black text-white px-2 py-10 sm:px-4">
-      <Link
-        href="/chat"
-        className="absolute left-4 top-4 inline-flex items-center rounded-full border border-emerald-500/40 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-emerald-200 hover:border-emerald-400 hover:text-white transition-colors"
-      >
-        Back to chat
-      </Link>
+    <div className="relative min-h-screen bg-black text-white px-2 py-6 sm:px-4">
+      <div className="mb-6">
+        <ToolsNav />
+      </div>
       <div className="mx-auto w-full max-w-none space-y-6">
         <header className="space-y-3">
           <p className="text-xs uppercase tracking-[0.3em] text-white/50">

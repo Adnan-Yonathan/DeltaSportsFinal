@@ -66,8 +66,10 @@ const writeCache = async (payload: {
 
 const buildPayload = async (date: string) => {
   const scores = await fetchAllLiveScores({ date })
+  // Use bucket instead of status.completed for more reliable filtering
+  // bucket is 'upcoming', 'live', or 'completed'
   const nbaGames = (scores.games || []).filter(
-    (game) => game.league === "nba" && !game.status?.completed
+    (game) => game.league === "nba" && game.bucket !== "completed"
   )
 
   const teamSet = new Set<string>()

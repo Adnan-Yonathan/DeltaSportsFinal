@@ -540,7 +540,8 @@ export async function GET(req: NextRequest) {
           const projections = await getNflPropProjectionsForPlayer(hydrated.player)
           for (const [marketKey, marketData] of Object.entries(hydrated.markets)) {
             const projection = projections[marketKey]
-            if (!projection || !Number.isFinite(projection.projection)) continue
+            // Only apply projection if we have actual data (projection > 0)
+            if (!projection || !Number.isFinite(projection.projection) || projection.projection <= 0) continue
             marketData.projection = Number(projection.projection.toFixed(1))
             if (projection.seasonAvg != null && Number.isFinite(projection.seasonAvg)) {
               marketData.seasonAvg = Number(projection.seasonAvg.toFixed(1))
@@ -551,7 +552,7 @@ export async function GET(req: NextRequest) {
             if (projection.recentGames != null) {
               marketData.recentGames = projection.recentGames
             }
-            if (Number.isFinite(marketData.line)) {
+            if (Number.isFinite(marketData.line) && marketData.projection > 0) {
               marketData.delta = Number((marketData.projection - marketData.line).toFixed(1))
             }
           }

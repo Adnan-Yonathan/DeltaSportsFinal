@@ -184,7 +184,46 @@ export const fetchAthleteGamelog = async (
   const url = `${ESPN_WEB_BASE}/athletes/${athleteId}/gamelog?season=${season}&seasontype=${seasonType}`
   const data = await fetchJson<any>(url, 1000 * 60 * 5)
   if (!data) return []
-  return data.events || data.gameLog || data.gamelog || data.items || data.entries || []
+
+  // Parse the ESPN gamelog structure which has:
+  // - names: array of stat names
+  // - seasonTypes[0].categories[0].events: array of events with stats arrays
+  const names = data.names || []
+  const seasonTypes = data.seasonTypes || []
+
+  const results: any[] = []
+
+  for (const st of seasonTypes) {
+    const categories = st.categories || []
+    for (const cat of categories) {
+      const events = cat.events || []
+      for (const event of events) {
+        const statsArray = event.stats || []
+        // Build an object mapping stat names to values
+        const statsObj: Record<string, number> = {}
+        for (let i = 0; i < names.length && i < statsArray.length; i++) {
+          const name = names[i]
+          const value = statsArray[i]
+          // Parse numeric value (some are strings like "0.0" or "-")
+          const num = parseFloat(value)
+          if (Number.isFinite(num)) {
+            statsObj[name] = num
+          }
+        }
+        results.push({
+          eventId: event.eventId,
+          ...statsObj,
+        })
+      }
+    }
+  }
+
+  // Fallback to old format if no results from new parsing
+  if (results.length === 0) {
+    return data.events || data.gameLog || data.gamelog || data.items || data.entries || []
+  }
+
+  return results
 }
 
 export const fetchInjuries = async (): Promise<EspnInjuryTeam[]> => {

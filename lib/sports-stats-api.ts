@@ -2090,10 +2090,44 @@ export async function searchNFLPlayer(playerName: string): Promise<RosterPlayer 
   try {
     const roster = await getNFLRoster()
     const target = normalizeName(playerName)
-    let found =
-      roster.find((player) => normalizeName(player.fullName) === target) ??
-      roster.find((player) => normalizeName(player.name).includes(target))
-    return found || null
+
+    // 1. Exact match on normalized full name
+    let found = roster.find((player) => normalizeName(player.fullName) === target)
+    if (found) return found
+
+    // 2. Partial match - target contained in name
+    found = roster.find((player) => normalizeName(player.name).includes(target))
+    if (found) return found
+
+    // 3. Handle abbreviated first names (e.g., "D. Henry" -> match "Derrick Henry")
+    const abbrevMatch = playerName.match(/^([A-Z])\.?\s*(.+)$/)
+    if (abbrevMatch) {
+      const firstInitial = abbrevMatch[1].toLowerCase()
+      const lastName = normalizeName(abbrevMatch[2])
+      found = roster.find((player) => {
+        const nameParts = player.fullName.toLowerCase().split(/\s+/)
+        if (nameParts.length < 2) return false
+        const playerFirstInitial = nameParts[0][0]
+        const playerLastName = normalizeName(nameParts[nameParts.length - 1])
+        return playerFirstInitial === firstInitial && playerLastName === lastName
+      })
+      if (found) return found
+    }
+
+    // 4. Last name only match (for unique last names)
+    const nameParts = playerName.trim().split(/\s+/)
+    if (nameParts.length >= 1) {
+      const lastName = normalizeName(nameParts[nameParts.length - 1])
+      const lastNameMatches = roster.filter((player) => {
+        const playerParts = player.fullName.split(/\s+/)
+        if (playerParts.length < 2) return false
+        return normalizeName(playerParts[playerParts.length - 1]) === lastName
+      })
+      // Only return if exactly one match (unique last name)
+      if (lastNameMatches.length === 1) return lastNameMatches[0]
+    }
+
+    return null
   } catch (error) {
     console.error('Error searching for NFL player:', error)
     return null

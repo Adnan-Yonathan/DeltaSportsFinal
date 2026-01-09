@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import PlayerPropSelector from './player-prop-selector'
 
 type BestOddsSelection = {
   selection: string
@@ -40,10 +41,22 @@ type MarketSelection = {
 
 type LegState = {
   id: string
+  legType: 'game' | 'player_prop'
   sport?: string
   gameId?: string
+  // Game bet fields
   market?: MarketType
   selectionKey?: string
+  // Player prop fields
+  playerName?: string
+  playerTeam?: string
+  propMarket?: string
+  propDirection?: 'over' | 'under'
+  propLine?: number
+  propOdds?: number
+  propBook?: string
+  propProjection?: number
+  propEdge?: number
 }
 
 type ParlayResult = {
@@ -75,8 +88,22 @@ const SPORTS = [
   { value: 'icehockey_nhl', label: 'NHL', disabled: !NHL_ENABLED },
 ]
 
+const PROP_LABELS: Record<string, string> = {
+  points: 'PTS',
+  rebounds: 'REB',
+  assists: 'AST',
+  threes: '3PM',
+  pra: 'PRA',
+  passing_yards: 'Pass Yds',
+  passing_tds: 'Pass TDs',
+  rushing_yards: 'Rush Yds',
+  receiving_yards: 'Rec Yds',
+  receptions: 'Receptions',
+}
+
 const createLeg = (): LegState => ({
   id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+  legType: 'game',
   market: 'spread',
 })
 
@@ -288,8 +315,17 @@ export default function ParlayPredictor() {
   }
 
   const canProject = legs.every((leg) => {
-    if (!leg.gameId || !leg.market || !leg.selectionKey) return false
     if (mode === 'multi' && !leg.sport) return false
+
+    if (leg.legType === 'player_prop') {
+      // Player prop requires: player, market, direction, line, odds
+      if (!leg.playerName || !leg.propMarket || !leg.propDirection) return false
+      if (leg.propLine == null || leg.propOdds == null) return false
+      return true
+    }
+
+    // Game bet requires: game, market, selection
+    if (!leg.gameId || !leg.market || !leg.selectionKey) return false
     return true
   })
 
@@ -301,6 +337,22 @@ export default function ParlayPredictor() {
 
     try {
       const payloadLegs = legs.map((leg) => {
+        const legSport = mode === 'multi' ? leg.sport : sport
+
+        // Handle player prop legs
+        if (leg.legType === 'player_prop') {
+          return {
+            type: 'player_prop',
+            playerName: leg.playerName,
+            propType: leg.propMarket,
+            threshold: leg.propLine,
+            propDirection: leg.propDirection,
+            marketOdds: leg.propOdds,
+            sport: legSport,
+          }
+        }
+
+        // Handle game bet legs
         const game = mode === 'multi'
           ? gameBySportId.get(leg.gameId || '')
           : gameById.get(leg.gameId || '')
@@ -310,8 +362,6 @@ export default function ParlayPredictor() {
         if (!game || !selection) {
           throw new Error('Missing selection data for one or more legs.')
         }
-
-        const legSport = mode === 'multi' ? leg.sport : sport
 
         if (leg.market === 'spread') {
           return {
@@ -455,6 +505,48 @@ export default function ParlayPredictor() {
                   </button>
                 )}
               </div>
+
+              {/* Leg type toggle */}
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => updateLeg(leg.id, {
+                    legType: 'game',
+                    playerName: undefined,
+                    propMarket: undefined,
+                    propDirection: undefined,
+                    propLine: undefined,
+                    propOdds: undefined,
+                  })}
+                  className={`rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.15em] transition ${
+                    leg.legType === 'game'
+                      ? 'border-emerald-400/60 bg-emerald-500/15 text-emerald-200'
+                      : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'
+                  }`}
+                >
+                  Game Bet
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateLeg(leg.id, {
+                    legType: 'player_prop',
+                    gameId: undefined,
+                    market: undefined,
+                    selectionKey: undefined,
+                  })}
+                  className={`rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.15em] transition ${
+                    leg.legType === 'player_prop'
+                      ? 'border-emerald-400/60 bg-emerald-500/15 text-emerald-200'
+                      : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'
+                  }`}
+                >
+                  Player Prop
+                </button>
+              </div>
+
+              {/* Game bet UI */}
+              {leg.legType === 'game' && (
+              <>
               <div
                 className={`mt-4 grid gap-4 ${
                   mode === 'multi'
@@ -600,6 +692,67 @@ export default function ParlayPredictor() {
                   </div>
                 )}
               </div>
+              </>
+              )}
+
+              {/* Player prop UI */}
+              {leg.legType === 'player_prop' && (
+                <PlayerPropSelector
+                  sport={mode === 'multi' ? leg.sport : sport}
+                  games={mode === 'multi' && leg.sport ? gamesBySport[leg.sport] || [] : games}
+                  selectedPlayer={leg.playerName}
+                  selectedProp={leg.propMarket}
+                  selectedDirection={leg.propDirection}
+                  onSelect={(selection) => {
+                    updateLeg(leg.id, {
+                      playerName: selection.playerName,
+                      playerTeam: selection.team,
+                      propMarket: selection.propMarket,
+                      propDirection: selection.direction,
+                      propLine: selection.line,
+                      propOdds: selection.odds,
+                      propBook: selection.book,
+                      propProjection: selection.projection,
+                      propEdge: selection.edge,
+                      gameId: selection.gameId,
+                    })
+                  }}
+                  onSportChange={mode === 'multi' ? (newSport) => {
+                    updateLeg(leg.id, { sport: newSport })
+                    loadGamesForSport(newSport)
+                  } : undefined}
+                  showSportSelector={mode === 'multi'}
+                />
+              )}
+
+              {/* Selected player prop display */}
+              {leg.legType === 'player_prop' && leg.playerName && leg.propMarket && leg.propDirection && (
+                <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        {leg.playerName} {leg.propDirection === 'over' ? 'Over' : 'Under'} {leg.propLine} {PROP_LABELS[leg.propMarket] || leg.propMarket}
+                      </p>
+                      <p className="mt-1 text-xs text-white/60">
+                        {leg.propBook} | {formatOdds(leg.propOdds)}
+                      </p>
+                    </div>
+                    {leg.propProjection != null && (
+                      <div className="text-right">
+                        <p className="text-xs text-white/50">Projection</p>
+                        <p className="text-sm font-semibold text-emerald-200">
+                          {leg.propProjection.toFixed(1)}
+                          {leg.propEdge != null && (
+                            <span className={`ml-2 ${leg.propEdge > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {leg.propEdge > 0 ? '+' : ''}{leg.propEdge.toFixed(1)}%
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )
         })}

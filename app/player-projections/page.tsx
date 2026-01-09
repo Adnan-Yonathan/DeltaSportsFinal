@@ -13,12 +13,15 @@ type SportOption = {
 
 const SPORT_OPTIONS: SportOption[] = [
   { key: "basketball_nba", label: "NBA", locked: false },
-  { key: "basketball_ncaab", label: "NCAAB", locked: false },
   { key: "americanfootball_nfl", label: "NFL", locked: false },
-  { key: "americanfootball_ncaaf", label: "CFB", locked: false },
-  { key: "baseball_mlb", label: "MLB", locked: false },
-  { key: "icehockey_nhl", label: "NHL", locked: false },
+  { key: "basketball_ncaab", label: "NCAAB", locked: true },
+  { key: "americanfootball_ncaaf", label: "CFB", locked: true },
+  { key: "baseball_mlb", label: "MLB", locked: true },
+  { key: "icehockey_nhl", label: "NHL", locked: true },
 ]
+
+// Only unlocked sports are available
+const UNLOCKED_SPORTS = SPORT_OPTIONS.filter((opt) => !opt.locked).map((opt) => opt.key)
 
 export default function PlayerProjectionsPage({
   searchParams,
@@ -28,9 +31,13 @@ export default function PlayerProjectionsPage({
   const requestedSport = Array.isArray(searchParams?.sport)
     ? searchParams?.sport[0]
     : searchParams?.sport
-  const sport =
-    SPORT_OPTIONS.find((option) => option.key === requestedSport)?.key ??
-    "basketball_nba"
+
+  // Default to NBA if requested sport is locked or invalid
+  const requestedOption = SPORT_OPTIONS.find((option) => option.key === requestedSport)
+  const sport = requestedOption && !requestedOption.locked
+    ? requestedOption.key
+    : "basketball_nba"
+
   const selected =
     SPORT_OPTIONS.find((option) => option.key === sport) ?? SPORT_OPTIONS[0]
   const isLocked = Boolean(selected.locked)

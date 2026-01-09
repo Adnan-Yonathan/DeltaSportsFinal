@@ -29,37 +29,67 @@ const DECAY_FACTOR = 0.85
 const CACHE_TTL_MS = 1000 * 60 * 10 // 10 minutes
 
 export const NFL_PROP_MARKET_KEYS = [
+  'passing_yards',
+  'passing_tds',
   'rushing_yards',
+  'rushing_tds',
   'receiving_yards',
   'receptions',
 ] as const
 
 const NFL_LEAGUE_AVG = {
-  rushYardsAllowed: 115,
   passYardsAllowed: 220,
+  passTdsAllowed: 1.5,
+  rushYardsAllowed: 115,
+  rushTdsAllowed: 1.2,
   receptionsAllowed: 22,
   sacksPerGame: 2.5,
 }
 
 const MARKET_STAT_KEYS: Record<string, { season: string[]; gamelog: string[] }> = {
+  passing_yards: {
+    season: ['passingYardsPerGame', 'passingYards', 'netPassingYards'],
+    // ESPN gamelog uses lowercase camelCase directly from API
+    gamelog: ['passingYards', 'netPassingYards', 'PASSING_YARDS', 'PASS_YDS'],
+  },
+  passing_tds: {
+    season: ['passingTouchdownsPerGame', 'passingTouchdowns'],
+    gamelog: ['passingTouchdowns', 'PASSING_TDS', 'PASS_TD', 'TD'],
+  },
   rushing_yards: {
     season: ['rushingYardsPerGame', 'rushingYards', 'netRushingYards'],
-    gamelog: ['RUSHING_YARDS', 'RUSH_YDS', 'rushingYards'],
+    gamelog: ['rushingYards', 'netRushingYards', 'RUSHING_YARDS', 'RUSH_YDS'],
+  },
+  rushing_tds: {
+    season: ['rushingTouchdownsPerGame', 'rushingTouchdowns'],
+    gamelog: ['rushingTouchdowns', 'RUSHING_TDS', 'RUSH_TD'],
   },
   receiving_yards: {
     season: ['receivingYardsPerGame', 'receivingYards'],
-    gamelog: ['RECEIVING_YARDS', 'REC_YDS', 'receivingYards'],
+    gamelog: ['receivingYards', 'RECEIVING_YARDS', 'REC_YDS'],
   },
   receptions: {
     season: ['receptionsPerGame', 'receptions'],
-    gamelog: ['RECEPTIONS', 'REC', 'receptions'],
+    gamelog: ['receptions', 'RECEPTIONS', 'REC'],
   },
 }
 
 const DEFENSE_STAT_KEYS: Record<string, { allowed: string[]; leagueAvg: number }> = {
+  passing_yards: {
+    allowed: ['passingYardsAllowedPerGame', 'opponentPassingYards', 'passYardsAllowed'],
+    leagueAvg: NFL_LEAGUE_AVG.passYardsAllowed,
+  },
+  passing_tds: {
+    allowed: ['passingTouchdownsAllowedPerGame', 'opponentPassingTouchdowns', 'passTdsAllowed'],
+    leagueAvg: NFL_LEAGUE_AVG.passTdsAllowed,
+  },
   rushing_yards: {
     allowed: ['rushingYardsAllowedPerGame', 'opponentRushingYards', 'rushYardsAllowed'],
     leagueAvg: NFL_LEAGUE_AVG.rushYardsAllowed,
+  },
+  rushing_tds: {
+    allowed: ['rushingTouchdownsAllowedPerGame', 'opponentRushingTouchdowns', 'rushTdsAllowed'],
+    leagueAvg: NFL_LEAGUE_AVG.rushTdsAllowed,
   },
   receiving_yards: {
     allowed: ['passingYardsAllowedPerGame', 'opponentPassingYards', 'passYardsAllowed'],
@@ -134,37 +164,13 @@ const pickStatFromCategories = (
 const collectGamelogStats = (entry: any): Record<string, number> => {
   const stats: Record<string, number> = {}
 
-  // Try direct fields first
-  const directMap: Record<string, string> = {
-    rushingYards: 'RUSHING_YARDS',
-    receivingYards: 'RECEIVING_YARDS',
-    receptions: 'RECEPTIONS',
-    targets: 'TARGETS',
-    rushingAttempts: 'RUSHING_ATTEMPTS',
-  }
-
-  for (const [field, key] of Object.entries(directMap)) {
-    const v = entry?.[field]
-    const num = typeof v === 'number' ? v : Number(v)
-    if (Number.isFinite(num)) stats[key] = num
-  }
-
-  // Try nested stats structure
-  const statBlocks: any[] = Array.isArray(entry?.stats)
-    ? entry.stats
-    : Array.isArray(entry?.statistics)
-      ? entry.statistics
-      : []
-
-  for (const block of statBlocks) {
-    const entries: any[] = Array.isArray(block?.stats) ? block.stats : Array.isArray(block) ? block : []
-    for (const s of entries) {
-      const label = s?.label || s?.displayName || s?.name
-      const value = s?.value ?? s?.displayValue ?? s?.display_value
-      if (!label) continue
-      const key = label.toUpperCase().replace(/\s+/g, '_')
-      const num = typeof value === 'number' ? value : Number(value)
-      if (Number.isFinite(num)) stats[key] = num
+  // ESPN gamelog now returns stats directly as properties (passingYards, rushingYards, etc.)
+  // Copy all numeric properties directly
+  for (const [key, value] of Object.entries(entry || {})) {
+    if (key === 'eventId') continue
+    const num = typeof value === 'number' ? value : Number(value)
+    if (Number.isFinite(num)) {
+      stats[key] = num
     }
   }
 
@@ -245,6 +251,8 @@ const getPlayoffAdjustment = (
 
   // Playoff games tend to have tighter defense
   const adjustments: Record<string, number> = {
+    passing_yards: 0.96,
+    passing_tds: 0.95,
     rushing_yards: 0.95,
     receiving_yards: 0.97,
     receptions: 0.98,
@@ -319,29 +327,38 @@ export const getNflPropProjectionsForPlayer = async (
 
   const results: Record<string, NflPropProjection> = {}
 
-  // Initialize with zeros
-  for (const marketKey of NFL_PROP_MARKET_KEYS) {
-    results[marketKey] = {
-      marketKey,
-      projection: 0,
+  // Find player - try multiple name variations
+  let playerMeta = await searchNFLPlayer(playerName)
+
+  // If not found, try expanding abbreviated first names (e.g., "D. Henry" -> "Derrick Henry")
+  if (!playerMeta?.id && /^[A-Z]\.\s/.test(playerName)) {
+    // Try searching with just the last name
+    const lastName = playerName.replace(/^[A-Z]\.\s*/, '').trim()
+    if (lastName) {
+      playerMeta = await searchNFLPlayer(lastName)
     }
   }
 
-  // Find player
-  const playerMeta = await searchNFLPlayer(playerName)
   if (!playerMeta?.id) {
+    // Return empty results - no projections available
     projectionCache.set(cacheKey, { ts: Date.now(), data: results })
     return results
   }
 
   const season = getCurrentNFLSeason()
-  const seasonType = context.seasonType ?? 2
+  // Try regular season first (type 2), then postseason (type 3) for game logs
+  const seasonType = 2
 
   // Fetch season stats and game logs in parallel
-  const [statsResp, gameLogs] = await Promise.all([
+  // Try both regular season and postseason game logs
+  const [statsResp, regularGameLogs, postGameLogs] = await Promise.all([
     fetchAthleteStatistics(playerMeta.id, season, seasonType).catch(() => null),
-    fetchAthleteGamelog(playerMeta.id, season, seasonType).catch(() => []),
+    fetchAthleteGamelog(playerMeta.id, season, 2).catch(() => []),
+    fetchAthleteGamelog(playerMeta.id, season, 3).catch(() => []),
   ])
+
+  // Combine game logs - postseason first (most recent), then regular season
+  const gameLogs = [...(postGameLogs || []), ...(regularGameLogs || [])]
 
   const categories = statsResp?.splits?.categories
   const gamesPlayed = pickStatFromCategories(categories, ['gamesPlayed', 'games']) ?? gameLogs.length ?? 0

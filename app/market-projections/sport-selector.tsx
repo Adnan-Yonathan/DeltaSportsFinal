@@ -26,6 +26,13 @@ export default function SportSelector({
 
   const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const next = event.target.value
+    const selectedOption = options.find((opt) => opt.key === next)
+
+    // Don't allow selecting locked sports
+    if (selectedOption?.locked) {
+      return
+    }
+
     const params = new URLSearchParams(searchParams.toString())
     params.set("sport", next)
     router.push(`${pathname}?${params.toString()}`)
@@ -46,14 +53,15 @@ export default function SportSelector({
             key={option.key}
             value={option.key}
             disabled={option.locked}
+            className={option.locked ? "text-white/30" : ""}
           >
-            {option.label}
+            {option.label}{option.locked ? " (Coming Soon)" : ""}
           </option>
         ))}
       </select>
       {current?.locked && (
         <span className="rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-amber-200">
-          Locked
+          Coming Soon
         </span>
       )}
     </div>

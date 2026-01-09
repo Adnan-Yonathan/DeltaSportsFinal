@@ -1,42 +1,246 @@
 {
-  "updatedAt": "2026-01-08T22:28:28.143Z",
-  "date": "2026-01-08",
-  "count": 141,
+  "updatedAt": "2026-01-09T16:41:46.147Z",
+  "date": "2026-01-09",
+  "count": 383,
   "data": [
     {
-      "id": "4396909",
-      "player": "Aaron Nesmith",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4067017",
+      "player": "A.J. Lawson",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
       "projections": {
-        "points": 14.7,
+        "points": 4.7,
+        "rebounds": 2,
+        "assists": 0
+      }
+    },
+    {
+      "id": "3064290",
+      "player": "Aaron Gordon",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 18.4,
+        "rebounds": 5.9,
+        "assists": 1.4
+      }
+    },
+    {
+      "id": "3922230",
+      "player": "Aaron Holiday",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 6.3,
+        "rebounds": 0.9,
+        "assists": 0.9
+      }
+    },
+    {
+      "id": "4397183",
+      "player": "Aaron Wiggins",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 10.2,
+        "rebounds": 2.9,
+        "assists": 1.7
+      }
+    },
+    {
+      "id": "5105637",
+      "player": "Adem Bona",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 3.9,
+        "rebounds": 3.9,
+        "assists": 0.3
+      }
+    },
+    {
+      "id": "5060631",
+      "player": "Adou Thiero",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 1.3,
+        "rebounds": 1.2,
+        "assists": 0.3
+      }
+    },
+    {
+      "id": "4397475",
+      "player": "AJ Green",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 10.2,
+        "rebounds": 2.6,
+        "assists": 2
+      }
+    },
+    {
+      "id": "5170947",
+      "player": "AJ Johnson",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 1.5,
+        "rebounds": 0.7,
+        "assists": 0.7
+      }
+    },
+    {
+      "id": "4900671",
+      "player": "Ajay Mitchell",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 13.9,
+        "rebounds": 3.4,
+        "assists": 3.6
+      }
+    },
+    {
+      "id": "3213",
+      "player": "Al Horford",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 6.7,
         "rebounds": 4.8,
+        "assists": 1.8
+      }
+    },
+    {
+      "id": "4432452",
+      "player": "Alex Antetokounmpo",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 0,
+        "rebounds": 0,
+        "assists": 0
+      }
+    },
+    {
+      "id": "2991350",
+      "player": "Alex Caruso",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 6,
+        "rebounds": 2.9,
         "assists": 2.1
       }
     },
     {
-      "id": "4873138",
-      "player": "Ace Bailey",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "5160992",
+      "player": "Alex Sarr",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
       "projections": {
-        "points": 10.1,
-        "rebounds": 3.2,
-        "assists": 1.5
+        "points": 17.4,
+        "rebounds": 7.8,
+        "assists": 3
       }
     },
     {
-      "id": "4395712",
-      "player": "Andrew Nembhard",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4702656",
+      "player": "Alijah Martin",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
       "projections": {
-        "points": 17.2,
-        "rebounds": 2.4,
-        "assists": 7
+        "points": 0,
+        "rebounds": 0,
+        "assists": 0
+      }
+    },
+    {
+      "id": "4871144",
+      "player": "Alperen Sengun",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 21.8,
+        "rebounds": 9,
+        "assists": 6.5
+      }
+    },
+    {
+      "id": "4702745",
+      "player": "Amari Williams",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 0.5,
+        "rebounds": 1.2,
+        "assists": 0.2
+      }
+    },
+    {
+      "id": "4684740",
+      "player": "Amen Thompson",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 18.2,
+        "rebounds": 7.5,
+        "assists": 5.3
+      }
+    },
+    {
+      "id": "4066387",
+      "player": "Amir Coffey",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 1.5,
+        "rebounds": 0.7,
+        "assists": 0.4
+      }
+    },
+    {
+      "id": "6585",
+      "player": "Andre Drummond",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 7.3,
+        "rebounds": 9,
+        "assists": 0.8
+      }
+    },
+    {
+      "id": "4432190",
+      "player": "Andre Jackson Jr.",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 1.5,
+        "rebounds": 0.8,
+        "assists": 1.1
       }
     },
     {
@@ -52,39 +256,75 @@
       }
     },
     {
-      "id": "6583",
-      "player": "Anthony Davis",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
+      "id": "4351851",
+      "player": "Anfernee Simons",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
       "projections": {
-        "points": 20.3,
-        "rebounds": 11.1,
-        "assists": 2.7
+        "points": 13.6,
+        "rebounds": 2.3,
+        "assists": 2.4
       }
     },
     {
-      "id": "4594268",
-      "player": "Anthony Edwards",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "4712849",
+      "player": "Anthony Black",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
       "projections": {
-        "points": 29.3,
-        "rebounds": 5,
-        "assists": 3.6
+        "points": 15.3,
+        "rebounds": 4.1,
+        "assists": 3.8
       }
     },
     {
-      "id": "4592686",
-      "player": "Antonio Reeves",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "2581184",
+      "player": "Anthony Gill",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
       "projections": {
-        "points": 3.5,
-        "rebounds": 0.8,
-        "assists": 0.3
+        "points": 1.9,
+        "rebounds": 1,
+        "assists": 0
+      }
+    },
+    {
+      "id": "4871141",
+      "player": "Ariel Hukporti",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 1.6,
+        "rebounds": 2.8,
+        "assists": 0.7
+      }
+    },
+    {
+      "id": "4873201",
+      "player": "Asa Newell",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 5.2,
+        "rebounds": 2,
+        "assists": 0.6
+      }
+    },
+    {
+      "id": "4066457",
+      "player": "Austin Reaves",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 26.6,
+        "rebounds": 5.2,
+        "assists": 6.3
       }
     },
     {
@@ -112,99 +352,447 @@
       }
     },
     {
-      "id": "4433076",
-      "player": "Ben Sheppard",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4593841",
+      "player": "Baylor Scheierman",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
       "projections": {
-        "points": 6.8,
-        "rebounds": 3.8,
-        "assists": 1.8
+        "points": 2.6,
+        "rebounds": 1.6,
+        "assists": 0.6
       }
     },
     {
-      "id": "4683634",
-      "player": "Bennedict Mathurin",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "5242502",
+      "player": "Ben Saraf",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
       "projections": {
-        "points": 17.8,
-        "rebounds": 5.5,
-        "assists": 2.2
+        "points": 5.4,
+        "rebounds": 1.6,
+        "assists": 2.8
       }
     },
     {
-      "id": "4592492",
-      "player": "Bones Hyland",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "5104155",
+      "player": "Bilal Coulibaly",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
       "projections": {
-        "points": 6.2,
-        "rebounds": 1.4,
-        "assists": 2.4
+        "points": 10.5,
+        "rebounds": 4.8,
+        "assists": 2.6
       }
     },
     {
-      "id": "4433287",
-      "player": "Brandon Miller",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "4683935",
+      "player": "Blake Wesley",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
       "projections": {
-        "points": 20.1,
-        "rebounds": 4.3,
+        "points": 6,
+        "rebounds": 2.3,
+        "assists": 3.2
+      }
+    },
+    {
+      "id": "3064482",
+      "player": "Bobby Portis",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 13,
+        "rebounds": 6.5,
+        "assists": 1.3
+      }
+    },
+    {
+      "id": "3037789",
+      "player": "Bogdan Bogdanovic",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 8,
+        "rebounds": 2.9,
+        "assists": 2.7
+      }
+    },
+    {
+      "id": "6580",
+      "player": "Bradley Beal",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 8.2,
+        "rebounds": 0.8,
+        "assists": 1.7
+      }
+    },
+    {
+      "id": "4592435",
+      "player": "Branden Carlson",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 5.2,
+        "rebounds": 2.6,
+        "assists": 0.6
+      }
+    },
+    {
+      "id": "4709138",
+      "player": "Brandin Podziemski",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 11.8,
+        "rebounds": 4.5,
         "assists": 3.3
       }
     },
     {
-      "id": "4397040",
-      "player": "Brandon Williams",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
+      "id": "3906665",
+      "player": "Brandon Clarke",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
       "projections": {
-        "points": 11.8,
-        "rebounds": 2.8,
-        "assists": 3.9
+        "points": 4,
+        "rebounds": 3,
+        "assists": 0.5
       }
     },
     {
-      "id": "5105839",
-      "player": "Brice Sensabaugh",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "3913176",
+      "player": "Brandon Ingram",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
       "projections": {
-        "points": 9.7,
-        "rebounds": 2.8,
-        "assists": 1.5
+        "points": 21.8,
+        "rebounds": 5.9,
+        "assists": 3.6
       }
     },
     {
-      "id": "3138160",
-      "player": "Caleb Martin",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
+      "id": "4683774",
+      "player": "Bronny James",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
       "projections": {
-        "points": 1.6,
-        "rebounds": 1.4,
+        "points": 1.5,
+        "rebounds": 0.5,
+        "assists": 1.3
+      }
+    },
+    {
+      "id": "3448",
+      "player": "Brook Lopez",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 6.7,
+        "rebounds": 2.5,
+        "assists": 0.9
+      }
+    },
+    {
+      "id": "4684208",
+      "player": "Brooks Barnhizer",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 1.4,
+        "rebounds": 1.8,
+        "assists": 0.5
+      }
+    },
+    {
+      "id": "4065670",
+      "player": "Bruce Brown",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 7.3,
+        "rebounds": 4.2,
+        "assists": 2.1
+      }
+    },
+    {
+      "id": "4576086",
+      "player": "Bryce McGowens",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 8.1,
+        "rebounds": 2.2,
+        "assists": 1.4
+      }
+    },
+    {
+      "id": "4845374",
+      "player": "Bub Carrington",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 9.5,
+        "rebounds": 3.8,
+        "assists": 4.4
+      }
+    },
+    {
+      "id": "2990984",
+      "player": "Buddy Hield",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 7.6,
+        "rebounds": 2.5,
+        "assists": 1.4
+      }
+    },
+    {
+      "id": "4433623",
+      "player": "Caleb Houstan",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 2.2,
+        "rebounds": 0.6,
+        "assists": 0.2
+      }
+    },
+    {
+      "id": "4433144",
+      "player": "Caleb Love",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 10.1,
+        "rebounds": 2.6,
+        "assists": 2.3
+      }
+    },
+    {
+      "id": "4845363",
+      "player": "Cam Christie",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 3.3,
+        "rebounds": 1.7,
+        "assists": 0.5
+      }
+    },
+    {
+      "id": "4433083",
+      "player": "Cam Spencer",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 12.1,
+        "rebounds": 2.6,
+        "assists": 5
+      }
+    },
+    {
+      "id": "4432174",
+      "player": "Cam Thomas",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 20.2,
+        "rebounds": 1.8,
+        "assists": 2.5
+      }
+    },
+    {
+      "id": "5105592",
+      "player": "Cam Whitmore",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 9.2,
+        "rebounds": 2.8,
+        "assists": 0.7
+      }
+    },
+    {
+      "id": "3138196",
+      "player": "Cameron Johnson",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 11.7,
+        "rebounds": 3.6,
+        "assists": 2.4
+      }
+    },
+    {
+      "id": "4683692",
+      "player": "Cason Wallace",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 7.5,
+        "rebounds": 3.1,
+        "assists": 2.1
+      }
+    },
+    {
+      "id": "4903027",
+      "player": "Cedric Coward",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 13.7,
+        "rebounds": 6.6,
+        "assists": 2.9
+      }
+    },
+    {
+      "id": "5174655",
+      "player": "Chaney Johnson",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 0,
+        "rebounds": 0,
+        "assists": 0
+      }
+    },
+    {
+      "id": "4433255",
+      "player": "Chet Holmgren",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 18.2,
+        "rebounds": 8.3,
+        "assists": 1.6
+      }
+    },
+    {
+      "id": "3948153",
+      "player": "Chris Boucher",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 2.3,
+        "rebounds": 2.3,
+        "assists": 0.4
+      }
+    },
+    {
+      "id": "4702972",
+      "player": "Chris Manon",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 0,
+        "rebounds": 0.8,
+        "assists": 0
+      }
+    },
+    {
+      "id": "4706557",
+      "player": "Chris Youngblood",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 1.8,
+        "rebounds": 0.8,
+        "assists": 0.3
+      }
+    },
+    {
+      "id": "4431767",
+      "player": "Christian Braun",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 10.2,
+        "rebounds": 4.2,
+        "assists": 2.7
+      }
+    },
+    {
+      "id": "4431778",
+      "player": "Christian Koloko",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 2.3,
+        "rebounds": 3,
+        "assists": 0.7
+      }
+    },
+    {
+      "id": "4590360",
+      "player": "Chucky Hepburn",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 0,
+        "rebounds": 0.5,
         "assists": 1
       }
     },
     {
-      "id": "4433622",
-      "player": "Chris Livingston",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
+      "id": "2490149",
+      "player": "CJ McCollum",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
       "projections": {
-        "points": 3,
-        "rebounds": 1,
-        "assists": 0.3
+        "points": 18.8,
+        "rebounds": 3.5,
+        "assists": 3.6
+      }
+    },
+    {
+      "id": "3102529",
+      "player": "Clint Capela",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 3.7,
+        "rebounds": 4.6,
+        "assists": 0.5
       }
     },
     {
@@ -220,63 +808,87 @@
       }
     },
     {
-      "id": "4895758",
-      "player": "Cody Williams",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "4432809",
+      "player": "Cole Anthony",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
       "projections": {
-        "points": 4,
-        "rebounds": 1.4,
-        "assists": 0.6
+        "points": 6.5,
+        "rebounds": 2.6,
+        "assists": 3.7
       }
     },
     {
-      "id": "4277811",
-      "player": "Collin Sexton",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "4397204",
+      "player": "Colin Castleton",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
       "projections": {
-        "points": 15.3,
+        "points": 3.5,
+        "rebounds": 3.2,
+        "assists": 0.7
+      }
+    },
+    {
+      "id": "4278585",
+      "player": "Collin Gillespie",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 13.6,
+        "rebounds": 4.1,
+        "assists": 5
+      }
+    },
+    {
+      "id": "5093267",
+      "player": "Collin Murray-Boyles",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 7.1,
+        "rebounds": 4.6,
+        "assists": 1.7
+      }
+    },
+    {
+      "id": "4280151",
+      "player": "Corey Kispert",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 9.2,
+        "rebounds": 2.3,
+        "assists": 1.7
+      }
+    },
+    {
+      "id": "4898369",
+      "player": "Curtis Jones",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 0.8,
+        "rebounds": 0.8,
+        "assists": 0.2
+      }
+    },
+    {
+      "id": "4279318",
+      "player": "Daeqwon Plowden",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 2,
         "rebounds": 2,
-        "assists": 4.1
-      }
-    },
-    {
-      "id": "5041939",
-      "player": "Cooper Flagg",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
-      "projections": {
-        "points": 18.9,
-        "rebounds": 6.5,
-        "assists": 4.2
-      }
-    },
-    {
-      "id": "4701233",
-      "player": "Craig Porter Jr.",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
-      "projections": {
-        "points": 5,
-        "rebounds": 3.7,
-        "assists": 2.8
-      }
-    },
-    {
-      "id": "3136776",
-      "player": "D'Angelo Russell",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
-      "projections": {
-        "points": 10.2,
-        "rebounds": 2.4,
-        "assists": 4
+        "assists": 0
       }
     },
     {
@@ -292,39 +904,63 @@
       }
     },
     {
-      "id": "4278049",
-      "player": "Daniel Gafford",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
+      "id": "4897943",
+      "player": "Dalton Knecht",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
       "projections": {
-        "points": 8.3,
-        "rebounds": 6.3,
-        "assists": 0.9
+        "points": 5.3,
+        "rebounds": 1.7,
+        "assists": 0.4
       }
     },
     {
-      "id": "3102528",
-      "player": "Dante Exum",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
+      "id": "6606",
+      "player": "Damian Lillard",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
       "projections": {
-        "points": 6.2,
-        "rebounds": 1.9,
-        "assists": 2.3
+        "points": 25.1,
+        "rebounds": 4.3,
+        "assists": 6.7
       }
     },
     {
-      "id": "4396907",
-      "player": "Darius Garland",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
+      "id": "5107173",
+      "player": "Danny Wolf",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
       "projections": {
-        "points": 17.5,
-        "rebounds": 2.6,
-        "assists": 6.9
+        "points": 7.3,
+        "rebounds": 3.9,
+        "assists": 1.9
+      }
+    },
+    {
+      "id": "3032978",
+      "player": "Dario Saric",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 1,
+        "rebounds": 1.2,
+        "assists": 0.4
+      }
+    },
+    {
+      "id": "4433607",
+      "player": "DaRon Holmes II",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 4.4,
+        "rebounds": 1.8,
+        "assists": 1.6
       }
     },
     {
@@ -340,63 +976,291 @@
       }
     },
     {
-      "id": "4065732",
-      "player": "De'Andre Hunter",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
+      "id": "4432194",
+      "player": "Day'Ron Sharpe",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
       "projections": {
-        "points": 14.6,
-        "rebounds": 4.5,
-        "assists": 2.1
+        "points": 7.5,
+        "rebounds": 5.8,
+        "assists": 2.5
       }
     },
     {
-      "id": "3912848",
-      "player": "Dean Wade",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
+      "id": "4066436",
+      "player": "De'Anthony Melton",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
       "projections": {
-        "points": 5.8,
-        "rebounds": 4,
-        "assists": 1.6
+        "points": 9,
+        "rebounds": 2.5,
+        "assists": 1.8
       }
     },
     {
-      "id": "4683688",
-      "player": "Dereck Lively II",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
+      "id": "4278129",
+      "player": "Deandre Ayton",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
       "projections": {
-        "points": 4.3,
-        "rebounds": 5.3,
-        "assists": 1.9
+        "points": 14.2,
+        "rebounds": 8.5,
+        "assists": 0.9
       }
     },
     {
-      "id": "3908809",
-      "player": "Donovan Mitchell",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
+      "id": "3442",
+      "player": "DeAndre Jordan",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
       "projections": {
-        "points": 29.8,
-        "rebounds": 4.7,
+        "points": 4.5,
+        "rebounds": 5,
+        "assists": 0
+      }
+    },
+    {
+      "id": "3907497",
+      "player": "Dejounte Murray",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 15.5,
+        "rebounds": 5.8,
         "assists": 5.4
       }
     },
     {
-      "id": "3934673",
-      "player": "Donte DiVincenzo",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "3978",
+      "player": "DeMar DeRozan",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
       "projections": {
-        "points": 13,
+        "points": 18.4,
+        "rebounds": 3.4,
+        "assists": 3.8
+      }
+    },
+    {
+      "id": "4683021",
+      "player": "Deni Avdija",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 26.3,
+        "rebounds": 7.2,
+        "assists": 7
+      }
+    },
+    {
+      "id": "3032979",
+      "player": "Dennis Schroder",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 12.9,
+        "rebounds": 3.3,
+        "assists": 5.8
+      }
+    },
+    {
+      "id": "4869780",
+      "player": "Derik Queen",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 12.9,
+        "rebounds": 7.2,
+        "assists": 4.1
+      }
+    },
+    {
+      "id": "3936099",
+      "player": "Derrick Jones Jr.",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 10.4,
+        "rebounds": 2.6,
+        "assists": 1.2
+      }
+    },
+    {
+      "id": "3078576",
+      "player": "Derrick White",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 18.4,
+        "rebounds": 4.3,
+        "assists": 5.3
+      }
+    },
+    {
+      "id": "4066320",
+      "player": "Desmond Bane",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 18.9,
         "rebounds": 4.5,
-        "assists": 4
+        "assists": 4.5
+      }
+    },
+    {
+      "id": "3136193",
+      "player": "Devin Booker",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 25.4,
+        "rebounds": 4,
+        "assists": 6.3
+      }
+    },
+    {
+      "id": "4433188",
+      "player": "Devin Carter",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 3.3,
+        "rebounds": 1.3,
+        "assists": 1.2
+      }
+    },
+    {
+      "id": "3155526",
+      "player": "Dillon Brooks",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 21.2,
+        "rebounds": 3.3,
+        "assists": 1.7
+      }
+    },
+    {
+      "id": "3155942",
+      "player": "Domantas Sabonis",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 17.2,
+        "rebounds": 12.3,
+        "assists": 3.7
+      }
+    },
+    {
+      "id": "4870562",
+      "player": "Dominick Barlow",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 8.4,
+        "rebounds": 5.1,
+        "assists": 1.6
+      }
+    },
+    {
+      "id": "5105565",
+      "player": "Donovan Clingan",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 11.2,
+        "rebounds": 10.7,
+        "assists": 1.8
+      }
+    },
+    {
+      "id": "2578185",
+      "player": "Dorian Finney-Smith",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 2.6,
+        "rebounds": 2.9,
+        "assists": 0.6
+      }
+    },
+    {
+      "id": "2528588",
+      "player": "Doug McDermott",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 3.4,
+        "rebounds": 0.7,
+        "assists": 0.3
+      }
+    },
+    {
+      "id": "5037873",
+      "player": "Drake Powell",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 6.1,
+        "rebounds": 1.6,
+        "assists": 1.7
+      }
+    },
+    {
+      "id": "6589",
+      "player": "Draymond Green",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 8.6,
+        "rebounds": 5.8,
+        "assists": 5.4
+      }
+    },
+    {
+      "id": "3914285",
+      "player": "Drew Eubanks",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 5.3,
+        "rebounds": 2.8,
+        "assists": 0.3
+      }
+    },
+    {
+      "id": "4431695",
+      "player": "Drew Timme",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 0.5,
+        "rebounds": 0.8,
+        "assists": 0.8
       }
     },
     {
@@ -412,27 +1276,63 @@
       }
     },
     {
-      "id": "2531367",
-      "player": "Dwight Powell",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
+      "id": "4066268",
+      "player": "Duop Reath",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
       "projections": {
-        "points": 2.7,
-        "rebounds": 2.8,
+        "points": 2.8,
+        "rebounds": 0.8,
+        "assists": 0.3
+      }
+    },
+    {
+      "id": "4433174",
+      "player": "Dylan Cardwell",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 3.9,
+        "rebounds": 5.4,
         "assists": 0.9
       }
     },
     {
-      "id": "4397449",
-      "player": "Elijah Harkless",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "4869342",
+      "player": "Dyson Daniels",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
       "projections": {
-        "points": 2.4,
-        "rebounds": 0.9,
-        "assists": 0.7
+        "points": 11.7,
+        "rebounds": 6.5,
+        "assists": 6.1
+      }
+    },
+    {
+      "id": "4432821",
+      "player": "E.J. Liddell",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 1.8,
+        "rebounds": 1.1,
+        "assists": 0
+      }
+    },
+    {
+      "id": "5175643",
+      "player": "Egor Demin",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 10.2,
+        "rebounds": 3.4,
+        "assists": 3.5
       }
     },
     {
@@ -448,63 +1348,255 @@
       }
     },
     {
-      "id": "4592699",
-      "player": "Enrique Freeman",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "3431",
+      "player": "Eric Gordon",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
       "projections": {
-        "points": 2.1,
-        "rebounds": 1.4,
-        "assists": 0.4
+        "points": 5.5,
+        "rebounds": 0.3,
+        "assists": 0.5
       }
     },
     {
-      "id": "4278516",
-      "player": "Ethan Thompson",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4566434",
+      "player": "Franz Wagner",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
       "projections": {
-        "points": 4.7,
-        "rebounds": 1.9,
+        "points": 22.7,
+        "rebounds": 6.1,
+        "assists": 3.7
+      }
+    },
+    {
+      "id": "2991230",
+      "player": "Fred VanVleet",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 14.9,
+        "rebounds": 3.4,
+        "assists": 5.7
+      }
+    },
+    {
+      "id": "3137259",
+      "player": "Gabe Vincent",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 4.8,
+        "rebounds": 0.9,
         "assists": 1.5
       }
     },
     {
-      "id": "4432158",
-      "player": "Evan Mobley",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
+      "id": "4023",
+      "player": "Garrett Temple",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
       "projections": {
-        "points": 17.8,
-        "rebounds": 8.8,
-        "assists": 4
+        "points": 0.4,
+        "rebounds": 0.4,
+        "assists": 0.3
       }
     },
     {
-      "id": "2990969",
-      "player": "Georges Niang",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "2999547",
+      "player": "Gary Harris",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
       "projections": {
-        "points": 7.4,
-        "rebounds": 2.5,
+        "points": 2.6,
+        "rebounds": 1.4,
         "assists": 1
       }
     },
     {
-      "id": "4066218",
-      "player": "Grant Williams",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "3134903",
+      "player": "Gary Payton II",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
       "projections": {
-        "points": 7.2,
+        "points": 4.7,
+        "rebounds": 3.1,
+        "assists": 1.7
+      }
+    },
+    {
+      "id": "4277843",
+      "player": "Gary Trent Jr.",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 9,
+        "rebounds": 1.3,
+        "assists": 1.6
+      }
+    },
+    {
+      "id": "5105550",
+      "player": "GG Jackson",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 5.8,
+        "rebounds": 3,
+        "assists": 0.7
+      }
+    },
+    {
+      "id": "3032977",
+      "player": "Giannis Antetokounmpo",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 29.5,
+        "rebounds": 10,
+        "assists": 5.5
+      }
+    },
+    {
+      "id": "4348700",
+      "player": "Goga Bitadze",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 6,
+        "rebounds": 5.2,
+        "assists": 1.3
+      }
+    },
+    {
+      "id": "5106258",
+      "player": "Gradey Dick",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 6.1,
+        "rebounds": 1.9,
+        "assists": 0.6
+      }
+    },
+    {
+      "id": "3135045",
+      "player": "Grayson Allen",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 15.7,
+        "rebounds": 2.6,
+        "assists": 4
+      }
+    },
+    {
+      "id": "4017844",
+      "player": "Guerschon Yabusele",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 3.3,
+        "rebounds": 2.2,
+        "assists": 0.5
+      }
+    },
+    {
+      "id": "4997536",
+      "player": "Gui Santos",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 3.6,
+        "rebounds": 2.4,
+        "assists": 0.8
+      }
+    },
+    {
+      "id": "4291678",
+      "player": "Haywood Highsmith",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 5.4,
+        "rebounds": 3.1,
+        "assists": 1.1
+      }
+    },
+    {
+      "id": "4277813",
+      "player": "Herbert Jones",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 9.5,
         "rebounds": 3.7,
-        "assists": 1.5
+        "assists": 2.3
+      }
+    },
+    {
+      "id": "5175647",
+      "player": "Hugo Gonzalez",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 4.2,
+        "rebounds": 3.3,
+        "assists": 0.6
+      }
+    },
+    {
+      "id": "4432180",
+      "player": "Hunter Dickinson",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 2,
+        "rebounds": 0,
+        "assists": 0
+      }
+    },
+    {
+      "id": "4395620",
+      "player": "Hunter Tyson",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 2.2,
+        "rebounds": 1.4,
+        "assists": 0.3
+      }
+    },
+    {
+      "id": "4395724",
+      "player": "Immanuel Quickley",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 16.4,
+        "rebounds": 4.2,
+        "assists": 6.1
       }
     },
     {
@@ -520,51 +1612,147 @@
       }
     },
     {
-      "id": "4683766",
-      "player": "Isaiah Collier",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "4592857",
+      "player": "Isaiah Crawford",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
       "projections": {
-        "points": 8.4,
-        "rebounds": 2.4,
-        "assists": 6.6
+        "points": 0,
+        "rebounds": 0,
+        "assists": 0
       }
     },
     {
-      "id": "4432170",
-      "player": "Isaiah Jackson",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4222252",
+      "player": "Isaiah Hartenstein",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
       "projections": {
-        "points": 7.3,
-        "rebounds": 5.9,
-        "assists": 0.8
+        "points": 11.2,
+        "rebounds": 10.4,
+        "assists": 3
       }
     },
     {
-      "id": "4868423",
-      "player": "Jaden Hardy",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
+      "id": "4395702",
+      "player": "Isaiah Joe",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
       "projections": {
-        "points": 5.8,
-        "rebounds": 1.3,
+        "points": 9.9,
+        "rebounds": 2.6,
+        "assists": 1.4
+      }
+    },
+    {
+      "id": "4277957",
+      "player": "Isaiah Livers",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 2,
+        "rebounds": 2,
+        "assists": 0.7
+      }
+    },
+    {
+      "id": "4432117",
+      "player": "Isaiah Stevens",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 0,
+        "rebounds": 0.7,
+        "assists": 0
+      }
+    },
+    {
+      "id": "4017837",
+      "player": "Ivica Zubac",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 15.3,
+        "rebounds": 11,
+        "assists": 2.5
+      }
+    },
+    {
+      "id": "4279888",
+      "player": "Ja Morant",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 19,
+        "rebounds": 3.2,
+        "assists": 7.6
+      }
+    },
+    {
+      "id": "4684272",
+      "player": "Ja'Kobe Walter",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 5.9,
+        "rebounds": 2.1,
+        "assists": 0.9
+      }
+    },
+    {
+      "id": "4432639",
+      "player": "Jabari Smith Jr.",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 15.2,
+        "rebounds": 6.8,
+        "assists": 2
+      }
+    },
+    {
+      "id": "4432446",
+      "player": "Jabari Walker",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 4.1,
+        "rebounds": 3.4,
+        "assists": 0.5
+      }
+    },
+    {
+      "id": "3136777",
+      "player": "Jae'Sean Tate",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 2.8,
+        "rebounds": 1.5,
         "assists": 0.6
       }
     },
     {
-      "id": "4431671",
-      "player": "Jaden McDaniels",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "4683934",
+      "player": "Jahmai Mashack",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
       "projections": {
-        "points": 14.5,
-        "rebounds": 4.5,
-        "assists": 2.8
+        "points": 0.9,
+        "rebounds": 0.7,
+        "assists": 0.3
       }
     },
     {
@@ -592,6 +1780,78 @@
       }
     },
     {
+      "id": "4592691",
+      "player": "Jake LaRavia",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 9.7,
+        "rebounds": 4.4,
+        "assists": 1.9
+      }
+    },
+    {
+      "id": "3134908",
+      "player": "Jakob Poeltl",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 9.7,
+        "rebounds": 7.7,
+        "assists": 2.1
+      }
+    },
+    {
+      "id": "3934672",
+      "player": "Jalen Brunson",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 29.1,
+        "rebounds": 3.3,
+        "assists": 6.3
+      }
+    },
+    {
+      "id": "4437244",
+      "player": "Jalen Green",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 15.5,
+        "rebounds": 2,
+        "assists": 2
+      }
+    },
+    {
+      "id": "4701230",
+      "player": "Jalen Johnson",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 23.5,
+        "rebounds": 10.3,
+        "assists": 8.3
+      }
+    },
+    {
+      "id": "4398390",
+      "player": "Jalen Pickett",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 5,
+        "rebounds": 2,
+        "assists": 2
+      }
+    },
+    {
       "id": "4397189",
       "player": "Jalen Smith",
       "team": "Chicago Bulls",
@@ -604,63 +1864,327 @@
       }
     },
     {
-      "id": "5106060",
-      "player": "Jarace Walker",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4432165",
+      "player": "Jalen Suggs",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
       "projections": {
-        "points": 9,
-        "rebounds": 4.2,
-        "assists": 1.9
+        "points": 15,
+        "rebounds": 3.7,
+        "assists": 4.7
       }
     },
     {
-      "id": "4066328",
-      "player": "Jarrett Allen",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
+      "id": "4593803",
+      "player": "Jalen Williams",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
       "projections": {
-        "points": 13.9,
-        "rebounds": 7.9,
-        "assists": 2.1
+        "points": 17.2,
+        "rebounds": 5.2,
+        "assists": 5.5
       }
     },
     {
-      "id": "4065731",
-      "player": "Jay Huff",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4431714",
+      "player": "Jalen Wilson",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
       "projections": {
-        "points": 8.1,
-        "rebounds": 3.8,
-        "assists": 1.4
-      }
-    },
-    {
-      "id": "4432247",
-      "player": "Jaylen Clark",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
-      "projections": {
-        "points": 4.5,
-        "rebounds": 1.9,
+        "points": 4.9,
+        "rebounds": 1,
         "assists": 0.5
       }
     },
     {
-      "id": "4683747",
-      "player": "Jaylon Tyson",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
+      "id": "4278572",
+      "player": "Jamal Cain",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
       "projections": {
-        "points": 12.8,
-        "rebounds": 5.5,
-        "assists": 2
+        "points": 3.3,
+        "rebounds": 0.9,
+        "assists": 0.3
+      }
+    },
+    {
+      "id": "3936299",
+      "player": "Jamal Murray",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 25.3,
+        "rebounds": 4.7,
+        "assists": 7.5
+      }
+    },
+    {
+      "id": "4432241",
+      "player": "Jamal Shead",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 6.6,
+        "rebounds": 1.8,
+        "assists": 5.3
+      }
+    },
+    {
+      "id": "4280245",
+      "player": "Jamaree Bouyea",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 7.6,
+        "rebounds": 2.1,
+        "assists": 1.7
+      }
+    },
+    {
+      "id": "3992",
+      "player": "James Harden",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 25.6,
+        "rebounds": 4.8,
+        "assists": 8
+      }
+    },
+    {
+      "id": "4606840",
+      "player": "Jamir Watkins",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 2.9,
+        "rebounds": 2.4,
+        "assists": 0.4
+      }
+    },
+    {
+      "id": "4431893",
+      "player": "Jamison Battle",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 3.4,
+        "rebounds": 1.3,
+        "assists": 0.3
+      }
+    },
+    {
+      "id": "4683778",
+      "player": "Jared McCain",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 6.7,
+        "rebounds": 2.5,
+        "assists": 1.8
+      }
+    },
+    {
+      "id": "4277961",
+      "player": "Jaren Jackson Jr.",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 18.5,
+        "rebounds": 5.6,
+        "assists": 1.9
+      }
+    },
+    {
+      "id": "4278077",
+      "player": "Jarred Vanderbilt",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 5.2,
+        "rebounds": 5.3,
+        "assists": 1.4
+      }
+    },
+    {
+      "id": "5239561",
+      "player": "Jase Richardson",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 5.8,
+        "rebounds": 1.4,
+        "assists": 1.4
+      }
+    },
+    {
+      "id": "4781746",
+      "player": "Javon Small",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 4.3,
+        "rebounds": 1.4,
+        "assists": 3.3
+      }
+    },
+    {
+      "id": "4597259",
+      "player": "Javonte Cooke",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 1.4,
+        "rebounds": 0.6,
+        "assists": 1
+      }
+    },
+    {
+      "id": "4397077",
+      "player": "Jaxson Hayes",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 6.2,
+        "rebounds": 4,
+        "assists": 0.9
+      }
+    },
+    {
+      "id": "3917376",
+      "player": "Jaylen Brown",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 29.7,
+        "rebounds": 6.4,
+        "assists": 4.9
+      }
+    },
+    {
+      "id": "5112087",
+      "player": "Jaylen Wells",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 12.4,
+        "rebounds": 3.6,
+        "assists": 1.8
+      }
+    },
+    {
+      "id": "4432823",
+      "player": "Jaylin Williams",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 5.5,
+        "rebounds": 4.7,
+        "assists": 2.4
+      }
+    },
+    {
+      "id": "4065648",
+      "player": "Jayson Tatum",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 23.6,
+        "rebounds": 7.3,
+        "assists": 3.8
+      }
+    },
+    {
+      "id": "4576085",
+      "player": "JD Davison",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 1.6,
+        "rebounds": 0.4,
+        "assists": 0.9
+      }
+    },
+    {
+      "id": "3209",
+      "player": "Jeff Green",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 2.1,
+        "rebounds": 0.4,
+        "assists": 0.1
+      }
+    },
+    {
+      "id": "2991070",
+      "player": "Jerami Grant",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 20,
+        "rebounds": 4,
+        "assists": 2.7
+      }
+    },
+    {
+      "id": "5144091",
+      "player": "Jeremiah Fears",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 14.2,
+        "rebounds": 3.6,
+        "assists": 3.1
+      }
+    },
+    {
+      "id": "4277922",
+      "player": "Jericho Sims",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 3.2,
+        "rebounds": 3.9,
+        "assists": 0.6
+      }
+    },
+    {
+      "id": "5105806",
+      "player": "Jett Howard",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 4.8,
+        "rebounds": 1.5,
+        "assists": 0.9
       }
     },
     {
@@ -676,63 +2200,207 @@
       }
     },
     {
-      "id": "5279133",
-      "player": "Joan Beringer",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "6430",
+      "player": "Jimmy Butler III",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
       "projections": {
-        "points": 1.8,
-        "rebounds": 1.5,
-        "assists": 0
+        "points": 19.7,
+        "rebounds": 5.5,
+        "assists": 4.8
       }
     },
     {
-      "id": "2968436",
-      "player": "Joe Ingles",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "3146557",
+      "player": "Jock Landale",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
       "projections": {
-        "points": 0.2,
-        "rebounds": 0.3,
+        "points": 10.9,
+        "rebounds": 6.1,
+        "assists": 1.7
+      }
+    },
+    {
+      "id": "3059318",
+      "player": "Joel Embiid",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 23.6,
+        "rebounds": 6.9,
+        "assists": 3.3
+      }
+    },
+    {
+      "id": "3908845",
+      "player": "John Collins",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 12.9,
+        "rebounds": 5,
+        "assists": 0.9
+      }
+    },
+    {
+      "id": "3134932",
+      "player": "John Konchar",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 3,
+        "rebounds": 2.7,
+        "assists": 1.2
+      }
+    },
+    {
+      "id": "4433569",
+      "player": "Johni Broome",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 1.4,
+        "rebounds": 1.9,
         "assists": 0.6
       }
     },
     {
-      "id": "4593043",
-      "player": "John Tonje",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "6477",
+      "player": "Jonas Valanciunas",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
       "projections": {
-        "points": 0,
-        "rebounds": 0,
-        "assists": 0
+        "points": 8.5,
+        "rebounds": 4.7,
+        "assists": 1.2
       }
     },
     {
-      "id": "5157066",
-      "player": "Johnny Furphy",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4065654",
+      "player": "Jonathan Isaac",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
       "projections": {
-        "points": 4.7,
-        "rebounds": 3.2,
+        "points": 3.1,
+        "rebounds": 2.9,
+        "assists": 0.2
+      }
+    },
+    {
+      "id": "4433247",
+      "player": "Jonathan Kuminga",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 11.8,
+        "rebounds": 6.2,
+        "assists": 2.6
+      }
+    },
+    {
+      "id": "5107897",
+      "player": "Jonathan Mogbo",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 1,
+        "rebounds": 1.2,
         "assists": 0.5
       }
     },
     {
-      "id": "4432817",
-      "player": "Johnny Juzang",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "2528426",
+      "player": "Jordan Clarkson",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
       "projections": {
-        "points": 2.1,
-        "rebounds": 0.7,
-        "assists": 0.3
+        "points": 10.1,
+        "rebounds": 1.9,
+        "assists": 1.4
+      }
+    },
+    {
+      "id": "4278402",
+      "player": "Jordan Goodwin",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 9.3,
+        "rebounds": 4.6,
+        "assists": 2.3
+      }
+    },
+    {
+      "id": "4683750",
+      "player": "Jordan Hawkins",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 4.4,
+        "rebounds": 1.5,
+        "assists": 0.7
+      }
+    },
+    {
+      "id": "4396818",
+      "player": "Jordan Miller",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 5.1,
+        "rebounds": 2.6,
+        "assists": 1.1
+      }
+    },
+    {
+      "id": "4277956",
+      "player": "Jordan Poole",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 16.1,
+        "rebounds": 1.8,
+        "assists": 3.5
+      }
+    },
+    {
+      "id": "4683689",
+      "player": "Jordan Walsh",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 6.7,
+        "rebounds": 4.7,
+        "assists": 0.9
+      }
+    },
+    {
+      "id": "4277869",
+      "player": "Jose Alvarado",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 7.9,
+        "rebounds": 2.8,
+        "assists": 3.3
       }
     },
     {
@@ -748,15 +2416,51 @@
       }
     },
     {
-      "id": "4432811",
-      "player": "Josh Green",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "3062679",
+      "player": "Josh Hart",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
       "projections": {
-        "points": 0,
-        "rebounds": 0,
-        "assists": 0
+        "points": 12.3,
+        "rebounds": 8,
+        "assists": 5.1
+      }
+    },
+    {
+      "id": "4687718",
+      "player": "Josh Minott",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 6.3,
+        "rebounds": 4,
+        "assists": 1.1
+      }
+    },
+    {
+      "id": "4065663",
+      "player": "Josh Okogie",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 5.9,
+        "rebounds": 2.8,
+        "assists": 1
+      }
+    },
+    {
+      "id": "3995",
+      "player": "Jrue Holiday",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 16.7,
+        "rebounds": 5.3,
+        "assists": 8.3
       }
     },
     {
@@ -772,39 +2476,63 @@
       }
     },
     {
-      "id": "3064514",
-      "player": "Julius Randle",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "4432181",
+      "player": "Julian Strawther",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
       "projections": {
-        "points": 22.1,
-        "rebounds": 7.1,
-        "assists": 5.7
+        "points": 3.8,
+        "rebounds": 1.3,
+        "assists": 0.8
       }
     },
     {
-      "id": "3102530",
-      "player": "Jusuf Nurkic",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "4432907",
+      "player": "Justin Champagnie",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
       "projections": {
-        "points": 10.4,
-        "rebounds": 9.8,
-        "assists": 4.4
+        "points": 6.6,
+        "rebounds": 5.4,
+        "assists": 1
       }
     },
     {
-      "id": "4697268",
-      "player": "Kam Jones",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4711297",
+      "player": "Justin Edwards",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
       "projections": {
-        "points": 2.4,
-        "rebounds": 0.4,
-        "assists": 0.6
+        "points": 5.1,
+        "rebounds": 1.7,
+        "assists": 1.2
+      }
+    },
+    {
+      "id": "3136195",
+      "player": "Karl-Anthony Towns",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 21.4,
+        "rebounds": 11.4,
+        "assists": 3
+      }
+    },
+    {
+      "id": "4997538",
+      "player": "Karlo Matkovic",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 4.9,
+        "rebounds": 3.3,
+        "assists": 0.8
       }
     },
     {
@@ -820,6 +2548,42 @@
       }
     },
     {
+      "id": "6450",
+      "player": "Kawhi Leonard",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 28,
+        "rebounds": 6.4,
+        "assists": 3.5
+      }
+    },
+    {
+      "id": "4279118",
+      "player": "Keaton Wallace",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 4.1,
+        "rebounds": 1.3,
+        "assists": 2.3
+      }
+    },
+    {
+      "id": "4594327",
+      "player": "Keegan Murray",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 14.6,
+        "rebounds": 6.1,
+        "assists": 1.5
+      }
+    },
+    {
       "id": "5105623",
       "player": "Kel'el Ware",
       "team": "Miami Heat",
@@ -828,6 +2592,54 @@
       "projections": {
         "points": 12.3,
         "rebounds": 10.6,
+        "assists": 0.6
+      }
+    },
+    {
+      "id": "3133603",
+      "player": "Kelly Oubre Jr.",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 15.6,
+        "rebounds": 4.9,
+        "assists": 1.3
+      }
+    },
+    {
+      "id": "3133626",
+      "player": "Kenrich Williams",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 5.1,
+        "rebounds": 2.6,
+        "assists": 1.7
+      }
+    },
+    {
+      "id": "2581018",
+      "player": "Kentavious Caldwell-Pope",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 8.6,
+        "rebounds": 2.4,
+        "assists": 3.1
+      }
+    },
+    {
+      "id": "4702177",
+      "player": "Keon Ellis",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 5.7,
+        "rebounds": 1.4,
         "assists": 0.6
       }
     },
@@ -844,6 +2656,18 @@
       }
     },
     {
+      "id": "3202",
+      "player": "Kevin Durant",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 26.1,
+        "rebounds": 5.1,
+        "assists": 4.4
+      }
+    },
+    {
       "id": "4066372",
       "player": "Kevin Huerter",
       "team": "Chicago Bulls",
@@ -856,99 +2680,183 @@
       }
     },
     {
-      "id": "3449",
-      "player": "Kevin Love",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "4411057",
+      "player": "Kevin McCullar Jr.",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
       "projections": {
-        "points": 7.2,
-        "rebounds": 5.3,
-        "assists": 1.9
+        "points": 3.1,
+        "rebounds": 2.2,
+        "assists": 1.6
       }
     },
     {
-      "id": "4433627",
-      "player": "Keyonte George",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "4397140",
+      "player": "Kevin Porter Jr.",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
       "projections": {
-        "points": 24.3,
-        "rebounds": 4.3,
-        "assists": 6.9
+        "points": 18.4,
+        "rebounds": 5.1,
+        "assists": 7.8
       }
     },
     {
-      "id": "4683834",
-      "player": "KJ Simpson",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "3155535",
+      "player": "Kevon Looney",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
       "projections": {
-        "points": 6,
-        "rebounds": 2.1,
-        "assists": 2.5
+        "points": 2.6,
+        "rebounds": 5,
+        "assists": 1.6
       }
     },
     {
-      "id": "6475",
-      "player": "Klay Thompson",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
+      "id": "5203685",
+      "player": "Khaman Maluach",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
       "projections": {
-        "points": 10.9,
-        "rebounds": 2.5,
+        "points": 1.4,
+        "rebounds": 1,
+        "assists": 0.2
+      }
+    },
+    {
+      "id": "6609",
+      "player": "Khris Middleton",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 9.8,
+        "rebounds": 4.1,
+        "assists": 3.2
+      }
+    },
+    {
+      "id": "4431752",
+      "player": "Kobe Brown",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 3.2,
+        "rebounds": 1.8,
+        "assists": 0.9
+      }
+    },
+    {
+      "id": "4702352",
+      "player": "Kobe Sanders",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 6.4,
+        "rebounds": 2.3,
+        "assists": 1.5
+      }
+    },
+    {
+      "id": "4591259",
+      "player": "Koby Brea",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 2,
+        "rebounds": 0.5,
+        "assists": 1
+      }
+    },
+    {
+      "id": "2991139",
+      "player": "Kris Dunn",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 8.3,
+        "rebounds": 3,
+        "assists": 3
+      }
+    },
+    {
+      "id": "4594326",
+      "player": "Kris Murray",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 6.1,
+        "rebounds": 4,
         "assists": 1.2
       }
     },
     {
-      "id": "5061575",
-      "player": "Kon Knueppel",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "3102531",
+      "player": "Kristaps Porzingis",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
       "projections": {
-        "points": 19.3,
-        "rebounds": 5.2,
-        "assists": 3.5
+        "points": 17.1,
+        "rebounds": 5.1,
+        "assists": 2.7
       }
     },
     {
-      "id": "2993874",
-      "player": "Kyle Anderson",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "3134907",
+      "player": "Kyle Kuzma",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
       "projections": {
-        "points": 8.2,
-        "rebounds": 3.1,
-        "assists": 2.9
+        "points": 12.8,
+        "rebounds": 4.8,
+        "assists": 2.3
       }
     },
     {
-      "id": "4684793",
-      "player": "Kyle Filipowski",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "3012",
+      "player": "Kyle Lowry",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
       "projections": {
-        "points": 9.3,
-        "rebounds": 6.1,
-        "assists": 2.1
+        "points": 1.2,
+        "rebounds": 0.6,
+        "assists": 1.4
       }
     },
     {
-      "id": "6442",
-      "player": "Kyrie Irving",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
+      "id": "5174563",
+      "player": "Kyshawn George",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
       "projections": {
-        "points": 23.7,
-        "rebounds": 4.1,
-        "assists": 5.6
+        "points": 15,
+        "rebounds": 5.7,
+        "assists": 5.1
+      }
+    },
+    {
+      "id": "4433149",
+      "player": "L.J. Cryer",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 0,
+        "rebounds": 0,
+        "assists": 0
       }
     },
     {
@@ -964,99 +2872,159 @@
       }
     },
     {
-      "id": "4432816",
-      "player": "LaMelo Ball",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "3914044",
+      "player": "Landry Shamet",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
       "projections": {
-        "points": 19.5,
-        "rebounds": 5.1,
-        "assists": 7.9
-      }
-    },
-    {
-      "id": "2580365",
-      "player": "Larry Nance Jr.",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
-      "projections": {
-        "points": 3.6,
-        "rebounds": 2.8,
-        "assists": 1.3
-      }
-    },
-    {
-      "id": "4066336",
-      "player": "Lauri Markkanen",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
-      "projections": {
-        "points": 27.8,
-        "rebounds": 7,
-        "assists": 2.1
-      }
-    },
-    {
-      "id": "5044385",
-      "player": "Leonard Miller",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
-      "projections": {
-        "points": 2.6,
-        "rebounds": 1.4,
-        "assists": 0.3
-      }
-    },
-    {
-      "id": "5239590",
-      "player": "Liam McNeeley",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
-      "projections": {
-        "points": 4.3,
-        "rebounds": 2.2,
-        "assists": 0.8
-      }
-    },
-    {
-      "id": "4066421",
-      "player": "Lonzo Ball",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
-      "projections": {
-        "points": 5,
-        "rebounds": 4.1,
-        "assists": 4.4
-      }
-    },
-    {
-      "id": "4997539",
-      "player": "Luke Travers",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
-      "projections": {
-        "points": 2.3,
+        "points": 9.3,
         "rebounds": 2,
-        "assists": 0.8
+        "assists": 1.2
       }
     },
     {
-      "id": "2488653",
-      "player": "Mason Plumlee",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "1966",
+      "player": "LeBron James",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
       "projections": {
-        "points": 1.9,
-        "rebounds": 2.9,
+        "points": 21.7,
+        "rebounds": 5.4,
+        "assists": 6.8
+      }
+    },
+    {
+      "id": "4397020",
+      "player": "Luguentz Dort",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 8.2,
+        "rebounds": 3.6,
+        "assists": 1
+      }
+    },
+    {
+      "id": "3945274",
+      "player": "Luka Doncic",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 33.7,
+        "rebounds": 8,
+        "assists": 8.8
+      }
+    },
+    {
+      "id": "4277951",
+      "player": "Luka Garza",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 7.5,
+        "rebounds": 4.1,
+        "assists": 1
+      }
+    },
+    {
+      "id": "3913174",
+      "player": "Luke Kennard",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 7.4,
+        "rebounds": 1.9,
+        "assists": 2.3
+      }
+    },
+    {
+      "id": "4565201",
+      "player": "Malaki Branham",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 3.8,
+        "rebounds": 1.7,
+        "assists": 1
+      }
+    },
+    {
+      "id": "4897449",
+      "player": "Malevy Leons",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 0.3,
+        "rebounds": 0.5,
+        "assists": 0.2
+      }
+    },
+    {
+      "id": "4066262",
+      "player": "Malik Monk",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 11.4,
+        "rebounds": 2,
+        "assists": 2.2
+      }
+    },
+    {
+      "id": "2990992",
+      "player": "Marcus Smart",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 9.5,
+        "rebounds": 3,
+        "assists": 3
+      }
+    },
+    {
+      "id": "4432179",
+      "player": "MarJon Beauchamp",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 4.1,
+        "rebounds": 1.9,
+        "assists": 0.6
+      }
+    },
+    {
+      "id": "4701232",
+      "player": "Mark Williams",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 12.4,
+        "rebounds": 8.3,
         "assists": 1.1
+      }
+    },
+    {
+      "id": "4277848",
+      "player": "Marvin Bagley III",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 10,
+        "rebounds": 5.5,
+        "assists": 1.5
       }
     },
     {
@@ -1072,99 +3040,183 @@
       }
     },
     {
-      "id": "4432582",
-      "player": "Max Christie",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
-      "projections": {
-        "points": 12.3,
-        "rebounds": 3.4,
-        "assists": 2.1
-      }
-    },
-    {
-      "id": "4065778",
-      "player": "Max Strus",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
-      "projections": {
-        "points": 10.4,
-        "rebounds": 3.4,
-        "assists": 2.4
-      }
-    },
-    {
-      "id": "4066399",
-      "player": "Micah Potter",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
-      "projections": {
-        "points": 8.6,
-        "rebounds": 4.1,
-        "assists": 1.9
-      }
-    },
-    {
-      "id": "3195",
-      "player": "Mike Conley",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "3907498",
+      "player": "Matisse Thybulle",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
       "projections": {
         "points": 5,
-        "rebounds": 1.8,
-        "assists": 3
+        "rebounds": 1,
+        "assists": 0.8
       }
     },
     {
-      "id": "4066383",
-      "player": "Miles Bridges",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "4701992",
+      "player": "Max Shulga",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
       "projections": {
-        "points": 19.9,
-        "rebounds": 6.4,
-        "assists": 3.7
-      }
-    },
-    {
-      "id": "4696317",
-      "player": "Miles Kelly",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
-      "projections": {
-        "points": 1,
-        "rebounds": 2,
+        "points": 0,
+        "rebounds": 0,
         "assists": 0
       }
     },
     {
-      "id": "4701208",
-      "player": "Moussa Cisse",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
+      "id": "2960236",
+      "player": "Maxi Kleber",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
       "projections": {
-        "points": 3,
-        "rebounds": 3.5,
-        "assists": 0.1
+        "points": 1.8,
+        "rebounds": 1.8,
+        "assists": 0.6
       }
     },
     {
-      "id": "4433249",
-      "player": "Moussa Diabate",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "4898371",
+      "player": "Maxime Raynaud",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
       "projections": {
-        "points": 7.9,
-        "rebounds": 8.3,
-        "assists": 1.4
+        "points": 10.5,
+        "rebounds": 6.4,
+        "assists": 1.1
+      }
+    },
+    {
+      "id": "4432185",
+      "player": "Micah Peavy",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 4.6,
+        "rebounds": 2.2,
+        "assists": 1.1
+      }
+    },
+    {
+      "id": "4278104",
+      "player": "Michael Porter Jr.",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 26.1,
+        "rebounds": 7.5,
+        "assists": 3.3
+      }
+    },
+    {
+      "id": "3147657",
+      "player": "Mikal Bridges",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 16,
+        "rebounds": 4.6,
+        "assists": 4.4
+      }
+    },
+    {
+      "id": "4431823",
+      "player": "Miles McBride",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 12.7,
+        "rebounds": 2.5,
+        "assists": 2.4
+      }
+    },
+    {
+      "id": "4351852",
+      "player": "Mitchell Robinson",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 4.3,
+        "rebounds": 8.6,
+        "assists": 1.1
+      }
+    },
+    {
+      "id": "4277919",
+      "player": "Mo Bamba",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 0,
+        "rebounds": 1,
+        "assists": 0
+      }
+    },
+    {
+      "id": "5289900",
+      "player": "Mohamed Diawara",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 2,
+        "rebounds": 0.9,
+        "assists": 0.5
+      }
+    },
+    {
+      "id": "3150844",
+      "player": "Moritz Wagner",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 9.2,
+        "rebounds": 4,
+        "assists": 1.2
+      }
+    },
+    {
+      "id": "4432171",
+      "player": "Moses Moody",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 10.5,
+        "rebounds": 3.3,
+        "assists": 1.5
+      }
+    },
+    {
+      "id": "4712863",
+      "player": "Mouhamed Gueye",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 4.8,
+        "rebounds": 3.5,
+        "assists": 1
+      }
+    },
+    {
+      "id": "3133628",
+      "player": "Myles Turner",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 12.4,
+        "rebounds": 5.3,
+        "assists": 1.6
       }
     },
     {
@@ -1180,39 +3232,123 @@
       }
     },
     {
-      "id": "5106268",
-      "player": "Nae'Qwan Tomlin",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
+      "id": "4592401",
+      "player": "N'Faly Dante",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
       "projections": {
-        "points": 6.3,
-        "rebounds": 3,
-        "assists": 0.6
+        "points": 0.8,
+        "rebounds": 1.8,
+        "assists": 0
       }
     },
     {
-      "id": "4278594",
-      "player": "Naji Marshall",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
+      "id": "4397424",
+      "player": "Neemias Queta",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
       "projections": {
-        "points": 13.2,
-        "rebounds": 4.6,
-        "assists": 2.5
+        "points": 10,
+        "rebounds": 8.2,
+        "assists": 1.4
       }
     },
     {
-      "id": "4396971",
-      "player": "Naz Reid",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "4278067",
+      "player": "Nic Claxton",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
       "projections": {
-        "points": 14.3,
-        "rebounds": 6.2,
-        "assists": 2.4
+        "points": 13.3,
+        "rebounds": 7.8,
+        "assists": 4.1
+      }
+    },
+    {
+      "id": "4278076",
+      "player": "Nick Richards",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 3.3,
+        "rebounds": 3.4,
+        "assists": 0.3
+      }
+    },
+    {
+      "id": "4683686",
+      "player": "Nick Smith Jr.",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 7,
+        "rebounds": 1,
+        "assists": 1.2
+      }
+    },
+    {
+      "id": "4278039",
+      "player": "Nickeil Alexander-Walker",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 20.4,
+        "rebounds": 3.5,
+        "assists": 3.3
+      }
+    },
+    {
+      "id": "3416",
+      "player": "Nicolas Batum",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 5,
+        "rebounds": 2.6,
+        "assists": 0.8
+      }
+    },
+    {
+      "id": "3059409",
+      "player": "Nigel Hayes-Davis",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 1.4,
+        "rebounds": 1.3,
+        "assists": 0.3
+      }
+    },
+    {
+      "id": "5144067",
+      "player": "Nikola Durisic",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 0,
+        "rebounds": 0,
+        "assists": 0
+      }
+    },
+    {
+      "id": "3112335",
+      "player": "Nikola Jokic",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 29.6,
+        "rebounds": 12.2,
+        "assists": 11
       }
     },
     {
@@ -1228,6 +3364,18 @@
       }
     },
     {
+      "id": "5159925",
+      "player": "Nikola Topic",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 0,
+        "rebounds": 0,
+        "assists": 0
+      }
+    },
+    {
       "id": "6478",
       "player": "Nikola Vucevic",
       "team": "Chicago Bulls",
@@ -1237,6 +3385,18 @@
         "points": 16.5,
         "rebounds": 9.3,
         "assists": 3.6
+      }
+    },
+    {
+      "id": "4702384",
+      "player": "Nique Clifford",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 5.5,
+        "rebounds": 2.8,
+        "assists": 1.3
       }
     },
     {
@@ -1252,6 +3412,42 @@
       }
     },
     {
+      "id": "4712896",
+      "player": "Noah Clowney",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 13.1,
+        "rebounds": 3.9,
+        "assists": 1.9
+      }
+    },
+    {
+      "id": "5214637",
+      "player": "Noah Penda",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 4.6,
+        "rebounds": 3.9,
+        "assists": 1.1
+      }
+    },
+    {
+      "id": "5279130",
+      "player": "Nolan Traore",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 4.2,
+        "rebounds": 1.1,
+        "assists": 2.1
+      }
+    },
+    {
       "id": "2595516",
       "player": "Norman Powell",
       "team": "Miami Heat",
@@ -1264,63 +3460,123 @@
       }
     },
     {
-      "id": "4278355",
-      "player": "Obi Toppin",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4397018",
+      "player": "Ochai Agbaji",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
       "projections": {
-        "points": 14,
-        "rebounds": 6.7,
-        "assists": 1.7
+        "points": 4.2,
+        "rebounds": 2.3,
+        "assists": 0.8
       }
     },
     {
-      "id": "4432827",
-      "player": "Oscar Tshiebwe",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "3934719",
+      "player": "OG Anunoby",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
       "projections": {
-        "points": 2,
-        "rebounds": 6,
-        "assists": 1
+        "points": 15.3,
+        "rebounds": 5.4,
+        "assists": 2
       }
     },
     {
-      "id": "4278078",
-      "player": "P.J. Washington",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
+      "id": "4595400",
+      "player": "Olivier-Maxence Prosper",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
       "projections": {
-        "points": 14.7,
-        "rebounds": 7.4,
-        "assists": 1.9
+        "points": 4.8,
+        "rebounds": 2.3,
+        "assists": 0.8
       }
     },
     {
-      "id": "3149673",
-      "player": "Pascal Siakam",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4431680",
+      "player": "Onyeka Okongwu",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
       "projections": {
-        "points": 23.7,
-        "rebounds": 6.6,
-        "assists": 3.8
+        "points": 16.2,
+        "rebounds": 7.8,
+        "assists": 3.2
       }
     },
     {
-      "id": "2578239",
-      "player": "Pat Connaughton",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "4593049",
+      "player": "Orlando Robinson",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
       "projections": {
-        "points": 3.2,
-        "rebounds": 1.5,
-        "assists": 0.5
+        "points": 1.8,
+        "rebounds": 1,
+        "assists": 0.8
+      }
+    },
+    {
+      "id": "4601023",
+      "player": "Oso Ighodaro",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 5.3,
+        "rebounds": 4.6,
+        "assists": 1.8
+      }
+    },
+    {
+      "id": "4997526",
+      "player": "Ousmane Dieng",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 4.4,
+        "rebounds": 1.8,
+        "assists": 0.9
+      }
+    },
+    {
+      "id": "5211983",
+      "player": "Pacome Dadiet",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 0.4,
+        "rebounds": 0.8,
+        "assists": 0.4
+      }
+    },
+    {
+      "id": "4432573",
+      "player": "Paolo Banchero",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 21.1,
+        "rebounds": 8.6,
+        "assists": 4.7
+      }
+    },
+    {
+      "id": "4592714",
+      "player": "Pat Spencer",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 6.4,
+        "rebounds": 2.2,
+        "assists": 3.3
       }
     },
     {
@@ -1336,6 +3592,30 @@
       }
     },
     {
+      "id": "4251",
+      "player": "Paul George",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 15.8,
+        "rebounds": 5.2,
+        "assists": 3.5
+      }
+    },
+    {
+      "id": "4066354",
+      "player": "Payton Pritchard",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 16.9,
+        "rebounds": 4.5,
+        "assists": 5.2
+      }
+    },
+    {
       "id": "4601025",
       "player": "Pelle Larsson",
       "team": "Miami Heat",
@@ -1348,47 +3628,335 @@
       }
     },
     {
-      "id": "4701225",
-      "player": "PJ Hall",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "4397233",
+      "player": "Pete Nance",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
       "projections": {
-        "points": 4.8,
+        "points": 2,
+        "rebounds": 0.8,
+        "assists": 0.1
+      }
+    },
+    {
+      "id": "4576087",
+      "player": "Peyton Watson",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 12.7,
+        "rebounds": 4.7,
+        "assists": 1.6
+      }
+    },
+    {
+      "id": "4431679",
+      "player": "Precious Achiuwa",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 7.2,
+        "rebounds": 5.3,
+        "assists": 1.1
+      }
+    },
+    {
+      "id": "4397014",
+      "player": "Quentin Grimes",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 14.7,
+        "rebounds": 3.8,
+        "assists": 4
+      }
+    },
+    {
+      "id": "4593016",
+      "player": "Quinten Post",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 8,
+        "rebounds": 4,
+        "assists": 1.5
+      }
+    },
+    {
+      "id": "5105977",
+      "player": "Rasheer Fleming",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 2.7,
+        "rebounds": 1.4,
+        "assists": 0.1
+      }
+    },
+    {
+      "id": "5099752",
+      "player": "Rayan Rupert",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 2.2,
+        "rebounds": 1.7,
+        "assists": 0.5
+      }
+    },
+    {
+      "id": "4431941",
+      "player": "RayJ Dennis",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 4.6,
+        "rebounds": 1.6,
+        "assists": 1.9
+      }
+    },
+    {
+      "id": "4711272",
+      "player": "Reed Sheppard",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 13.1,
+        "rebounds": 2.8,
+        "assists": 3.3
+      }
+    },
+    {
+      "id": "4395625",
+      "player": "RJ Barrett",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 19.6,
+        "rebounds": 5.1,
+        "assists": 3.5
+      }
+    },
+    {
+      "id": "4066211",
+      "player": "Robert Williams III",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 5.8,
+        "rebounds": 6.1,
+        "assists": 1
+      }
+    },
+    {
+      "id": "4397251",
+      "player": "Ron Harper Jr.",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 2,
+        "rebounds": 0.8,
+        "assists": 1
+      }
+    },
+    {
+      "id": "2583632",
+      "player": "Royce O'Neale",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 10.3,
+        "rebounds": 5,
+        "assists": 2.8
+      }
+    },
+    {
+      "id": "4066648",
+      "player": "Rui Hachimura",
+      "team": "Los Angeles Lakers",
+      "teamAbbr": "LAL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 12.7,
+        "rebounds": 3.8,
+        "assists": 0.9
+      }
+    },
+    {
+      "id": "3468",
+      "player": "Russell Westbrook",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 14.5,
+        "rebounds": 6.6,
+        "assists": 6.8
+      }
+    },
+    {
+      "id": "4888725",
+      "player": "Ryan Dunn",
+      "team": "Phoenix Suns",
+      "teamAbbr": "PHX",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 6.8,
+        "rebounds": 4.8,
+        "assists": 1.7
+      }
+    },
+    {
+      "id": "4591725",
+      "player": "Ryan Rollins",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
+      "projections": {
+        "points": 17.2,
+        "rebounds": 4.4,
+        "assists": 5.7
+      }
+    },
+    {
+      "id": "4397136",
+      "player": "Saddiq Bey",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 15.1,
+        "rebounds": 5.9,
+        "assists": 2.3
+      }
+    },
+    {
+      "id": "4065804",
+      "player": "Sam Hauser",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 7.4,
         "rebounds": 3.4,
-        "assists": 0.4
+        "assists": 1.2
       }
     },
     {
-      "id": "4592829",
-      "player": "Quenton Jackson",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4278580",
+      "player": "Sandro Mamukelashvili",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
       "projections": {
-        "points": 7.1,
-        "rebounds": 2.1,
+        "points": 10.5,
+        "rebounds": 5,
         "assists": 1.9
       }
     },
     {
-      "id": "4684275",
-      "player": "Rob Dillingham",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "4593125",
+      "player": "Santi Aldama",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
       "projections": {
-        "points": 3.7,
-        "rebounds": 1.2,
-        "assists": 1.9
+        "points": 13.9,
+        "rebounds": 6.7,
+        "assists": 3
       }
     },
     {
-      "id": "5157587",
-      "player": "Rocco Zikarsky",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "4683678",
+      "player": "Scoot Henderson",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 13.3,
+        "rebounds": 3.1,
+        "assists": 5.2
+      }
+    },
+    {
+      "id": "4433134",
+      "player": "Scottie Barnes",
+      "team": "Toronto Raptors",
+      "teamAbbr": "TOR",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 19.1,
+        "rebounds": 8.4,
+        "assists": 5.2
+      }
+    },
+    {
+      "id": "4431785",
+      "player": "Scotty Pippen Jr.",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 10,
+        "rebounds": 3.1,
+        "assists": 4.2
+      }
+    },
+    {
+      "id": "2326307",
+      "player": "Seth Curry",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 7,
+        "rebounds": 2,
+        "assists": 1.5
+      }
+    },
+    {
+      "id": "4914336",
+      "player": "Shaedon Sharpe",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 21.5,
+        "rebounds": 4.3,
+        "assists": 2.5
+      }
+    },
+    {
+      "id": "4278073",
+      "player": "Shai Gilgeous-Alexander",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 31.9,
+        "rebounds": 4.5,
+        "assists": 6.4
+      }
+    },
+    {
+      "id": "4432173",
+      "player": "Sharife Cooper",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
       "projections": {
         "points": 0,
         "rebounds": 0,
@@ -1396,51 +3964,15 @@
       }
     },
     {
-      "id": "3032976",
-      "player": "Rudy Gobert",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "5081727",
+      "player": "Sidy Cissoko",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
       "projections": {
-        "points": 11.3,
-        "rebounds": 11.2,
-        "assists": 1.8
-      }
-    },
-    {
-      "id": "4576060",
-      "player": "Ryan Kalkbrenner",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
-      "projections": {
-        "points": 8.7,
-        "rebounds": 6.4,
-        "assists": 0.6
-      }
-    },
-    {
-      "id": "4433629",
-      "player": "Ryan Nembhard",
-      "team": "Dallas Mavericks",
-      "teamAbbr": "DAL",
-      "game": "DAL @ UTAH",
-      "projections": {
-        "points": 7.3,
-        "rebounds": 1.8,
-        "assists": 5
-      }
-    },
-    {
-      "id": "4066757",
-      "player": "Sam Merrill",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
-      "projections": {
-        "points": 13.6,
-        "rebounds": 2.4,
-        "assists": 2.5
+        "points": 5.9,
+        "rebounds": 2.2,
+        "assists": 1.5
       }
     },
     {
@@ -1456,75 +3988,87 @@
       }
     },
     {
-      "id": "4602025",
-      "player": "Sion James",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "4592427",
+      "player": "Spencer Jones",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
       "projections": {
-        "points": 6.6,
-        "rebounds": 3.3,
-        "assists": 1.8
+        "points": 6.1,
+        "rebounds": 2.8,
+        "assists": 1
       }
     },
     {
-      "id": "3133602",
-      "player": "Svi Mykhailiuk",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "3975",
+      "player": "Stephen Curry",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
       "projections": {
-        "points": 9,
-        "rebounds": 2.6,
-        "assists": 2
+        "points": 28.8,
+        "rebounds": 4,
+        "assists": 4.5
       }
     },
     {
-      "id": "2530530",
-      "player": "T.J. McConnell",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "2991235",
+      "player": "Steven Adams",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
       "projections": {
-        "points": 9.6,
-        "rebounds": 2.4,
-        "assists": 4.7
+        "points": 6.1,
+        "rebounds": 8.6,
+        "assists": 1.5
       }
     },
     {
-      "id": "4703421",
-      "player": "Taelon Peter",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4683933",
+      "player": "Tamar Bates",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
       "projections": {
-        "points": 1.6,
-        "rebounds": 0.9,
-        "assists": 0.7
+        "points": 0,
+        "rebounds": 0,
+        "assists": 0
       }
     },
     {
-      "id": "4684806",
-      "player": "Taylor Hendricks",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "4433192",
+      "player": "Tari Eason",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
       "projections": {
-        "points": 5.4,
-        "rebounds": 3.2,
-        "assists": 0.8
+        "points": 12.3,
+        "rebounds": 6.1,
+        "assists": 1.6
       }
     },
     {
-      "id": "4432847",
-      "player": "Terrence Shannon Jr.",
-      "team": "Minnesota Timberwolves",
-      "teamAbbr": "MIN",
-      "game": "CLE @ MIN",
+      "id": "2990962",
+      "player": "Taurean Prince",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
       "projections": {
-        "points": 4.5,
-        "rebounds": 1.3,
-        "assists": 0.6
+        "points": 6.1,
+        "rebounds": 1.6,
+        "assists": 1
+      }
+    },
+    {
+      "id": "3907823",
+      "player": "Terance Mann",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 8,
+        "rebounds": 3.5,
+        "assists": 3.8
       }
     },
     {
@@ -1540,27 +4084,87 @@
       }
     },
     {
-      "id": "3934723",
-      "player": "Thomas Bryant",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
+      "id": "3102533",
+      "player": "Thanasis Antetokounmpo",
+      "team": "Milwaukee Bucks",
+      "teamAbbr": "MIL",
+      "game": "MIL @ LAL",
       "projections": {
-        "points": 4.8,
-        "rebounds": 2.8,
-        "assists": 0.4
+        "points": 1.6,
+        "rebounds": 0.5,
+        "assists": 0
       }
     },
     {
-      "id": "5211176",
-      "player": "Tidjane Salaun",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "5061603",
+      "player": "Thomas Sorber",
+      "team": "Oklahoma City Thunder",
+      "teamAbbr": "OKC",
+      "game": "OKC @ MEM",
       "projections": {
-        "points": 6.6,
-        "rebounds": 4.3,
-        "assists": 0.8
+        "points": 0,
+        "rebounds": 0,
+        "assists": 0
+      }
+    },
+    {
+      "id": "2528210",
+      "player": "Tim Hardaway Jr.",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 13.6,
+        "rebounds": 2.3,
+        "assists": 1.4
+      }
+    },
+    {
+      "id": "4431736",
+      "player": "Toumani Camara",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 12.8,
+        "rebounds": 5.2,
+        "assists": 2.8
+      }
+    },
+    {
+      "id": "4277905",
+      "player": "Trae Young",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 19.3,
+        "rebounds": 1.5,
+        "assists": 8.9
+      }
+    },
+    {
+      "id": "4431684",
+      "player": "Trayce Jackson-Davis",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 4.8,
+        "rebounds": 3.9,
+        "assists": 1
+      }
+    },
+    {
+      "id": "5238230",
+      "player": "Tre Johnson",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 12.3,
+        "rebounds": 3,
+        "assists": 1.8
       }
     },
     {
@@ -1576,15 +4180,15 @@
       }
     },
     {
-      "id": "4432819",
-      "player": "Tre Mann",
-      "team": "Charlotte Hornets",
-      "teamAbbr": "CHA",
-      "game": "IND @ CHA",
+      "id": "4431675",
+      "player": "Trendon Watford",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
       "projections": {
-        "points": 7.7,
-        "rebounds": 2.6,
-        "assists": 2.4
+        "points": 8.3,
+        "rebounds": 4.3,
+        "assists": 3.5
       }
     },
     {
@@ -1600,6 +4204,90 @@
       }
     },
     {
+      "id": "4433268",
+      "player": "Trey Alexander",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 3.5,
+        "rebounds": 1,
+        "assists": 1.3
+      }
+    },
+    {
+      "id": "4395623",
+      "player": "Trey Jemison III",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
+      "projections": {
+        "points": 1.2,
+        "rebounds": 1.7,
+        "assists": 0.2
+      }
+    },
+    {
+      "id": "4397688",
+      "player": "Trey Murphy III",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 21.3,
+        "rebounds": 6.1,
+        "assists": 3.5
+      }
+    },
+    {
+      "id": "4702382",
+      "player": "Tristan da Silva",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 9.6,
+        "rebounds": 3.7,
+        "assists": 1.2
+      }
+    },
+    {
+      "id": "4997537",
+      "player": "Tristan Vukcevic",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 6.6,
+        "rebounds": 2.4,
+        "assists": 1
+      }
+    },
+    {
+      "id": "4592965",
+      "player": "Tristen Newton",
+      "team": "Houston Rockets",
+      "teamAbbr": "HOU",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 0.4,
+        "rebounds": 0.5,
+        "assists": 0.3
+      }
+    },
+    {
+      "id": "4065733",
+      "player": "Ty Jerome",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 8.7,
+        "rebounds": 2,
+        "assists": 2.8
+      }
+    },
+    {
       "id": "4395725",
       "player": "Tyler Herro",
       "team": "Miami Heat",
@@ -1612,27 +4300,111 @@
       }
     },
     {
-      "id": "4396993",
-      "player": "Tyrese Haliburton",
-      "team": "Indiana Pacers",
-      "teamAbbr": "IND",
-      "game": "IND @ CHA",
+      "id": "4433225",
+      "player": "Tyler Kolek",
+      "team": "New York Knicks",
+      "teamAbbr": "NY",
+      "game": "NY @ PHX",
       "projections": {
-        "points": 17.5,
-        "rebounds": 3.7,
-        "assists": 8.8
+        "points": 5.2,
+        "rebounds": 1.9,
+        "assists": 2.9
       }
     },
     {
-      "id": "5023693",
-      "player": "Tyrese Proctor",
-      "team": "Cleveland Cavaliers",
-      "teamAbbr": "CLE",
-      "game": "CLE @ MIN",
+      "id": "4397179",
+      "player": "Tyrese Martin",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
       "projections": {
-        "points": 4.8,
-        "rebounds": 1.3,
-        "assists": 1.3
+        "points": 7.4,
+        "rebounds": 3,
+        "assists": 2.2
+      }
+    },
+    {
+      "id": "4431678",
+      "player": "Tyrese Maxey",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 30.7,
+        "rebounds": 4.6,
+        "assists": 7.1
+      }
+    },
+    {
+      "id": "4432887",
+      "player": "Tyson Etienne",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 1.5,
+        "rebounds": 0,
+        "assists": 0.1
+      }
+    },
+    {
+      "id": "4683749",
+      "player": "TyTy Washington Jr.",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 3.3,
+        "rebounds": 1.1,
+        "assists": 1.2
+      }
+    },
+    {
+      "id": "3135046",
+      "player": "Tyus Jones",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 3.3,
+        "rebounds": 1.2,
+        "assists": 2.5
+      }
+    },
+    {
+      "id": "4397227",
+      "player": "Vince Williams Jr.",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 7.7,
+        "rebounds": 4.3,
+        "assists": 4.9
+      }
+    },
+    {
+      "id": "4578893",
+      "player": "Vit Krejci",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 10.5,
+        "rebounds": 2.3,
+        "assists": 1.6
+      }
+    },
+    {
+      "id": "5124612",
+      "player": "VJ Edgecombe",
+      "team": "Philadelphia 76ers",
+      "teamAbbr": "PHI",
+      "game": "PHI @ ORL",
+      "projections": {
+        "points": 16.4,
+        "rebounds": 5.4,
+        "assists": 4.2
       }
     },
     {
@@ -1648,27 +4420,75 @@
       }
     },
     {
-      "id": "4433136",
-      "player": "Walker Kessler",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "4277847",
+      "player": "Wendell Carter Jr.",
+      "team": "Orlando Magic",
+      "teamAbbr": "ORL",
+      "game": "PHI @ ORL",
       "projections": {
-        "points": 14.4,
-        "rebounds": 10.8,
-        "assists": 3
+        "points": 12.4,
+        "rebounds": 7.7,
+        "assists": 2.1
       }
     },
     {
-      "id": "4896372",
-      "player": "Walter Clayton Jr.",
-      "team": "Utah Jazz",
-      "teamAbbr": "UTAH",
-      "game": "DAL @ UTAH",
+      "id": "4897262",
+      "player": "Will Richard",
+      "team": "Golden State Warriors",
+      "teamAbbr": "GS",
+      "game": "SAC @ GS",
       "projections": {
-        "points": 6.8,
-        "rebounds": 2.1,
-        "assists": 3.1
+        "points": 7.7,
+        "rebounds": 2.7,
+        "assists": 1.1
+      }
+    },
+    {
+      "id": "5144126",
+      "player": "Will Riley",
+      "team": "Washington Wizards",
+      "teamAbbr": "WSH",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 4.8,
+        "rebounds": 1.9,
+        "assists": 1.2
+      }
+    },
+    {
+      "id": "4277964",
+      "player": "Xavier Tillman",
+      "team": "Boston Celtics",
+      "teamAbbr": "BOS",
+      "game": "TOR @ BOS",
+      "projections": {
+        "points": 2.8,
+        "rebounds": 2.2,
+        "assists": 0.5
+      }
+    },
+    {
+      "id": "5217746",
+      "player": "Yang Hansen",
+      "team": "Portland Trail Blazers",
+      "teamAbbr": "POR",
+      "game": "HOU @ POR",
+      "projections": {
+        "points": 2.5,
+        "rebounds": 1.8,
+        "assists": 0.8
+      }
+    },
+    {
+      "id": "5108024",
+      "player": "Yanic Konan Niederhauser",
+      "team": "LA Clippers",
+      "teamAbbr": "LAC",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 3.2,
+        "rebounds": 2.2,
+        "assists": 0.3
       }
     },
     {
@@ -1684,6 +4504,30 @@
       }
     },
     {
+      "id": "5061589",
+      "player": "Yves Missi",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 5.3,
+        "rebounds": 5.2,
+        "assists": 1.1
+      }
+    },
+    {
+      "id": "5211175",
+      "player": "Zaccharie Risacher",
+      "team": "Atlanta Hawks",
+      "teamAbbr": "ATL",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 11.2,
+        "rebounds": 3.3,
+        "assists": 1.4
+      }
+    },
+    {
       "id": "4066650",
       "player": "Zach Collins",
       "team": "Chicago Bulls",
@@ -1693,6 +4537,66 @@
         "points": 9.7,
         "rebounds": 5.6,
         "assists": 1.5
+      }
+    },
+    {
+      "id": "4600663",
+      "player": "Zach Edey",
+      "team": "Memphis Grizzlies",
+      "teamAbbr": "MEM",
+      "game": "OKC @ MEM",
+      "projections": {
+        "points": 13.6,
+        "rebounds": 11.1,
+        "assists": 1.1
+      }
+    },
+    {
+      "id": "3064440",
+      "player": "Zach LaVine",
+      "team": "Sacramento Kings",
+      "teamAbbr": "SAC",
+      "game": "SAC @ GS",
+      "projections": {
+        "points": 20.2,
+        "rebounds": 3,
+        "assists": 2.4
+      }
+    },
+    {
+      "id": "4431690",
+      "player": "Zeke Nnaji",
+      "team": "Denver Nuggets",
+      "teamAbbr": "DEN",
+      "game": "ATL @ DEN",
+      "projections": {
+        "points": 3.8,
+        "rebounds": 1.9,
+        "assists": 0.3
+      }
+    },
+    {
+      "id": "4433137",
+      "player": "Ziaire Williams",
+      "team": "Brooklyn Nets",
+      "teamAbbr": "BKN",
+      "game": "LAC @ BKN",
+      "projections": {
+        "points": 9.1,
+        "rebounds": 2.4,
+        "assists": 0.7
+      }
+    },
+    {
+      "id": "4395628",
+      "player": "Zion Williamson",
+      "team": "New Orleans Pelicans",
+      "teamAbbr": "NO",
+      "game": "NO @ WSH",
+      "projections": {
+        "points": 22.4,
+        "rebounds": 5.9,
+        "assists": 3.4
       }
     }
   ]

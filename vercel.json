@@ -7,15 +7,6 @@
   "functions": {
     "app/api/chat/route.ts": {
       "maxDuration": 300
-    },
-    "app/api/cron/refresh-projections/route.ts": {
-      "maxDuration": 300
     }
-  },
-  "crons": [
-    {
-      "path": "/api/cron/refresh-projections",
-      "schedule": "*/15 * * * *"
-    }
-  ]
+  }
 }

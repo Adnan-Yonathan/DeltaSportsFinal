@@ -1,0 +1,1925 @@
+{
+    "openapi": "3.0.0",
+    "servers": [],
+    "paths": {
+        "/nbx/v2/emm/orders/place": {
+            "post": {
+                "operationId": "placeSingleOrder",
+                "summary": "Place order",
+                "description": "Place an order into the matching engine queue, conditional on validation. A successful response indicates that the order was placed in the queue, but does **not** guarantee that it will be filled or placed on the order book.\nTo reliably ensure that an order has been executed, consume messages from the matching tape to reconstruct the order book and other stateful structures.\n> **Note:** If an order placed wash trades against an order from the same user, both orders will wash fill each other and effectively be cancelled.\n\n**Rate limit:** 4 requests per 100 milliseconds.",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrderRequestDto" } } }
+                },
+                "responses": { "201": { "description": "Order placed successfully" }, "400": { "description": "Bad request" } },
+                "tags": ["Orders"],
+                "x-code-samples": [
+                    {
+                        "lang": "bash",
+                        "label": "cURL Example",
+                        "source": "curl -X POST \"$API/emm/orders/place\" \\\n  -H \"Authorization: Bearer $TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"outcomeId\": \"123e4567-e89b-12d3-a456-426614174000\",\n    \"price\": 0.125,\n    \"qty\": 4200,\n    \"currency\": \"COIN\",\n    \"tif\": \"GTC\"\n}'"
+                    }
+                ]
+            }
+        },
+        "/nbx/v2/emm/orders/batch": {
+            "post": {
+                "operationId": "placeMultipleOrders",
+                "summary": "Place order batch",
+                "description": "Submit multiple orders (maximum 256) at once to be processed in a batch. This operation does not make guarantees about the successful execution of all orders, it only places each in the matching engine queue.\n\n**Rate limit:** 4 requests per 100 milliseconds.",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": { "type": "array", "items": { "$ref": "#/components/schemas/OrderRequestDto" } }
+                        }
+                    }
+                },
+                "responses": { "201": { "description": "Orders placed successfully" }, "400": { "description": "Bad request" } },
+                "tags": ["Orders"]
+            },
+            "delete": {
+                "operationId": "cancelMultipleOrders",
+                "summary": "Cancel order batch",
+                "description": "Cancel multiple orders (maximum 256) by their IDs. The orders must belong to the trader associated with the API key. This operation is idempotent, but does not make guarantees about reaching the matching engine before the orders are filled.\nTo reliably ensure that orders have been cancelled, consume messages from the matching tape to reconstruct the order book and other stateful structures.\n> **Note:** A successful response indicates that the cancellation requests were sent to the queue, but does **not** guarantee that the orders will be cancelled.\n\n**Rate limit:** 1,000 requests per second.",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "description": "The server-generated UUID of the order to be cancelled",
+                                    "example": "123e4567-e89b-12d3-a456-426614174000"
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cancellation requests sent to the queue.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": { "$ref": "#/components/schemas/OrderResponseDto" }
+                                }
+                            }
+                        }
+                    },
+                    "400": { "description": "Bad request" }
+                },
+                "tags": ["Orders"],
+                "x-code-samples": [
+                    {
+                        "lang": "bash",
+                        "label": "cURL Example",
+                        "source": "curl -X POST \"localhost:80/nbx/v2/emm/orders/batch\" \\\n  -H \"Authorization: Bearer $TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '[\n    {\"outcomeId\": \"6bee554c-d5ee-4ada-b283-112746883542\", \"price\": 0.35, \"qty\": 100, \"currency\": \"COIN\", \"tif\": \"GTC\"},\n    {\"outcomeId\": \"8d18ea33-2953-469f-a5c9-d407d333529d\", \"price\": 0.25, \"qty\": 200, \"currency\": \"COIN\",\"tif\": \"GTC\"},\n    {\"outcomeId\": \"b130bfbf-ea68-4b37-9fec-e911ebaf36d9\", \"price\": 0.15, \"qty\": 300, \"currency\": \"COIN\",  \"tif\": \"GTC\"}\n]'"
+                    }
+                ]
+            }
+        },
+        "/nbx/v2/emm/orders/{orderId}": {
+            "delete": {
+                "operationId": "cancelSingleOrder",
+                "summary": "Cancel order",
+                "description": "Cancel a specific order by its unique identifier. The order must belong to the trader associated with the API key. This operation is idempotent, but does not make guarantees about reaching the matching engine before the order is filled.\nTo reliably ensure that an order has been cancelled, consume messages from the matching tape to reconstruct the order book and other stateful structures.\n> **Note:** A successful response indicates that the cancellation request was sent to the queue, but does **not** guarantee that the order will be cancelled.\n\n**Rate limit:** 1,000 requests per second.",
+                "parameters": [
+                    {
+                        "name": "orderId",
+                        "required": true,
+                        "in": "path",
+                        "description": "The server-generated UUID of the order to be cancelled",
+                        "schema": { "type": "string" }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Order cancelled successfully.",
+                        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrderResponseDto" } } }
+                    },
+                    "400": { "description": "Bad request" }
+                },
+                "tags": ["Orders"]
+            },
+            "get": {
+                "operationId": "getSingleOrder",
+                "summary": "Get order",
+                "description": "Fetch details of a specific order using its unique identifier.\n\n**Rate limit:** 100 requests per second.",
+                "parameters": [
+                    {
+                        "name": "orderId",
+                        "required": true,
+                        "in": "path",
+                        "description": "The server-generated UUID of the order to retrieve",
+                        "schema": { "type": "string" }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Order retrieved successfully.",
+                        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrderResponseDto" } } }
+                    },
+                    "400": { "description": "Bad request" }
+                },
+                "tags": ["Orders"]
+            }
+        },
+        "/nbx/v2/emm/kill": {
+            "delete": {
+                "operationId": "cancelAllOrders",
+                "summary": "Cancel all orders",
+                "description": "Cancel all active orders for the user, satisfying the provided parameters. This operation is idempotent, but does not make guarantees about reaching the matching engine before the orders are filled.\n\n**Rate limit:** 1 request per 30 seconds.",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Cancellation requests sent to the queue.",
+                        "content": {
+                            "application/json": {
+                                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/OrderResponseDto" } }
+                            }
+                        }
+                    },
+                    "400": { "description": "Bad request" }
+                },
+                "tags": ["Orders"]
+            }
+        },
+        "/nbx/v2/emm/orders/all": {
+            "get": {
+                "operationId": "getAllOrders",
+                "summary": "Get all my orders",
+                "description": "Get a list of all orders associated with the user, satisfying the provided parameters. Results are limited to a maximum of 100 items by default.\n\n**Rate limit:** 100 requests per second.",
+                "parameters": [
+                    {
+                        "name": "currency",
+                        "in": "query",
+                        "description": "Currency of the order",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": ["CASH", "COIN"]
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "Status of the order",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Number of orders to return",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Offset of the orders to return",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "beg",
+                        "in": "query",
+                        "description": "Beginning timestamp for filtering orders (UTC)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "end",
+                        "in": "query",
+                        "description": "End timestamp for filtering orders (UTC)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "marketStatus",
+                        "in": "query",
+                        "description": "Market status of the order",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": ["OPEN", "CLOSED", "SETTLED"]
+                        }
+                    },
+                    {
+                        "name": "outcomeStatus",
+                        "in": "query",
+                        "description": "Outcome status of the order",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": ["TBD", "WIN", "LOSS", "PUSH"]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved all orders for the user",
+                        "content": {
+                            "application/json": {
+                                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/OrderResponseDto" } }
+                            }
+                        }
+                    },
+                    "400": { "description": "Bad request" }
+                },
+                "tags": ["Orders"]
+            }
+        },
+        "/nbx/v2/emm/fills/all": {
+            "get": {
+                "operationId": "getAllFills",
+                "summary": "Get all my fills",
+                "description": "Access a complete list of all fills for the user, satisfying the provided parameters. This operation provides detailed records of each fill, including the quantity, price, and time of execution. Results are limited to a maximum of 100 items by default.\n\n**Rate limit:** 100 requests per second.",
+                "parameters": [
+                    {
+                        "name": "currency",
+                        "in": "query",
+                        "description": "Currency of the fill",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": ["CASH", "COIN"]
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Number of fills to return",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Offset of the fills to return",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "beg",
+                        "in": "query",
+                        "description": "Beginning timestamp for filtering fills (UTC)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "end",
+                        "in": "query",
+                        "description": "End timestamp for filtering fills (UTC)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "marketStatus",
+                        "in": "query",
+                        "description": "Market status of the fill",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": ["OPEN", "CLOSED", "SETTLED"]
+                        }
+                    },
+                    {
+                        "name": "outcomeStatus",
+                        "in": "query",
+                        "description": "Outcome status of the fill",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": ["TBD", "WIN", "LOSS", "PUSH"]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved all fills for the user",
+                        "content": {
+                            "application/json": {
+                                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/FillResponseDto" } }
+                            }
+                        }
+                    },
+                    "400": { "description": "Bad request" }
+                },
+                "tags": ["Positions"]
+            }
+        },
+        "/nbx/v2/emm/positions/all": {
+            "get": {
+                "operationId": "getAllPositions",
+                "summary": "Get all my positions",
+                "description": "Get a comprehensive overview of all positions held by the user, satisfying the provided parameters. This operation includes details about each position's size, entry price, and current market value. Results are limited to a maximum of 100 items by default.\n\n**Rate limit:** 100 requests per second.",
+                "parameters": [
+                    {
+                        "name": "currency",
+                        "in": "query",
+                        "description": "The currency denomination",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "enum": ["CASH", "COIN"]
+                        }
+                    },
+                    {
+                        "name": "outcomeIds",
+                        "in": "query",
+                        "description": "Array of outcome IDs to filter positions by. If omitted, you will get all positions across open markets.",
+                        "required": false,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved all positions for the user",
+                        "content": {
+                            "application/json": {
+                                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PositionResponseDto" } }
+                            }
+                        }
+                    },
+                    "400": { "description": "Bad request" }
+                },
+                "tags": ["Positions"],
+                "x-code-samples": [
+                    {
+                        "lang": "bash",
+                        "label": "cURL Example",
+                        "source": "curl -X GET '$API/emm/positions/all' \\\n  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN' \\\n  -G \\\n  --data-urlencode 'currency=COIN' \\\n  --data-urlencode 'outcomeIds=6bee554c-d5ee-4ada-b283-112746883542' \\\n  --data-urlencode 'outcomeIds=8d18ea33-2953-469f-a5c9-d407d333529d'"
+                    }
+                ]
+            }
+        },
+        "/nbx/v2/emm/markets/{marketId}": {
+            "get": {
+                "operationId": "getSingleMarket",
+                "summary": "Get market",
+                "description": "Fetch information for a specific market using its unique identifier.\n\n**Rate limit:** 100 requests per second.",
+                "parameters": [
+                    {
+                        "name": "marketId",
+                        "required": true,
+                        "in": "path",
+                        "description": "The server-generated UUID of the market to retrieve",
+                        "schema": { "type": "string" }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Market retrieved successfully.",
+                        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MarketResponseDto" } } }
+                    },
+                    "400": { "description": "Bad request" }
+                },
+                "tags": ["Markets"]
+            }
+        },
+        "/nbx/v2/emm/markets/open": {
+            "get": {
+                "operationId": "getAllOpenMarkets",
+                "summary": "Get open markets",
+                "description": "Fetch a list of all markets currently open, satisfying the provided parameters.\n\n**Rate limit:** 100 requests per second.",
+                "parameters": [
+                    {
+                        "name": "league",
+                        "in": "query",
+                        "description": "The league to filter markets by",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "NFL",
+                                "NBA",
+                                "MLB",
+                                "NHL",
+                                "NCAAF",
+                                "NCAAB",
+                                "NCAAWB",
+                                "WNBA",
+                                "UFC",
+                                "MLS",
+                                "FIFA Club World Cup",
+                                "EPL",
+                                "Bundesliga",
+                                "Serie A",
+                                "La Liga",
+                                "Ligue 1",
+                                "Champions League",
+                                "Europa League",
+                                "WTA",
+                                "ATP",
+                                "PGA",
+                                "ENTERTAINMENT"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "marketType",
+                        "in": "query",
+                        "description": "The type of market to filter by",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "CUSTOM",
+                                "MONEY",
+                                "SPREAD",
+                                "TOTAL",
+                                "1X2",
+                                "TEAM_TOTAL",
+                                "MONEY_1H",
+                                "SPREAD_1H",
+                                "TOTAL_1H",
+                                "RUSHING_ATTEMPTS",
+                                "RUSHING_YARDS",
+                                "PASSING_COMPLETIONS",
+                                "PASSING_YARDS",
+                                "PASSING_ATTEMPTS",
+                                "RECEPTIONS",
+                                "RECEIVING_YARDS",
+                                "LONGEST_RECEPTION",
+                                "LONGEST_RUSH",
+                                "LONGEST_COMPLETION",
+                                "RUSHING_AND_RECEIVING_YARDS",
+                                "PITCHER_STRIKEOUTS",
+                                "HOME_RUNS",
+                                "TOTAL_BASES",
+                                "RBIS",
+                                "HITS",
+                                "HITS_RUNS_RBIS",
+                                "PITCHER_OUTS",
+                                "RUNS",
+                                "WALKS",
+                                "EARNED_RUNS",
+                                "HITS_ALLOWED",
+                                "BATTING_STRIKEOUTS",
+                                "STOLEN_BASES",
+                                "THREE_POINTERS_MADE",
+                                "BLOCKS",
+                                "DOUBLE_DOUBLE",
+                                "POINTS",
+                                "REBOUNDS",
+                                "POINTS_REBOUNDS_ASSISTS",
+                                "POINTS_ASSISTS",
+                                "POINTS_REBOUNDS",
+                                "REBOUNDS_ASSISTS",
+                                "STEALS",
+                                "STEALS_BLOCKS",
+                                "TRIPLE_DOUBLE",
+                                "FIRST_BASKET",
+                                "PLAYER_ACES",
+                                "TURNOVERS",
+                                "SET_SPREAD",
+                                "TOTAL_SETS",
+                                "FIRST_SET_MONEYLINE",
+                                "FIRST_GOAL_SCORER",
+                                "PLAYER_GOALS",
+                                "ASSISTS",
+                                "ANYTIME_TOUCHDOWN_SCORER",
+                                "FIRST_TOUCHDOWN_SCORER",
+                                "GO_THE_DISTANCE",
+                                "VICTORY_BY_KO_KTO_OR_DQ",
+                                "VICTORY_BY_DECISION",
+                                "VICTORY_BY_SUBMISSION",
+                                "DRAW",
+                                "PLAYER_BIRDIES_OR_BETTER",
+                                "FIRST_ROUND_MONEYLINE",
+                                "SECOND_ROUND_MONEYLINE",
+                                "THIRD_ROUND_MONEYLINE",
+                                "FOURTH_ROUND_MONEYLINE",
+                                "FIRST_INNING_TOTAL",
+                                "TO_MAKE_THE_PLAYOFFS",
+                                "REGULAR_SEASON_WINS",
+                                "SERIES_WINNER",
+                                "CHAMPIONSHIP_WINNING_DIVISION",
+                                "CHAMPIONSHIP_WINNER",
+                                "MVP_WINNER",
+                                "EASTERN_CONFERENCE_WINNER",
+                                "WESTERN_CONFERENCE_WINNER",
+                                "FINALS_MVP",
+                                "WINNER",
+                                "TOP_FIVE_FINISH",
+                                "TOP_TEN_FINISH",
+                                "TOP_TWENTY_FINISH",
+                                "AL_CENTRAL_DIVISION_WINNER",
+                                "NL_CENTRAL_DIVISION_WINNER",
+                                "AL_EAST_DIVISION_WINNER",
+                                "NL_EAST_DIVISION_WINNER",
+                                "AL_WEST_DIVISION_WINNER",
+                                "NL_WEST_DIVISION_WINNER",
+                                "AL_CY_YOUNG_WINNER",
+                                "NL_CY_YOUNG_WINNER",
+                                "AL_MVP",
+                                "NL_MVP",
+                                "AL_ROTY",
+                                "NL_ROTY",
+                                "AL_WINNER",
+                                "NL_WINNER",
+                                "WORLD_SERIES_WINNER",
+                                "STANLEY_CUP_WINNER",
+                                "SUPER_BOWL_WINNER",
+                                "NFC_CONFERENCE_WINNER",
+                                "AFC_CONFERENCE_WINNER",
+                                "NFC_NORTH_WINNER",
+                                "NFC_EAST_WINNER",
+                                "NFC_SOUTH_WINNER",
+                                "NFC_WEST_WINNER",
+                                "AFC_NORTH_WINNER",
+                                "AFC_EAST_WINNER",
+                                "AFC_SOUTH_WINNER",
+                                "AFC_WEST_WINNER",
+                                "OPOTY",
+                                "DPOTY",
+                                "OROTY",
+                                "DROTY"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved all open markets.",
+                        "content": {
+                            "application/json": {
+                                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/MarketResponseDto" } }
+                            }
+                        }
+                    },
+                    "400": { "description": "Bad request" }
+                },
+                "tags": ["Markets"]
+            }
+        },
+        "/nbx/v2/emm/book/{marketId}": {
+            "get": {
+                "operationId": "getMarketOrderBook",
+                "summary": "Get order book",
+                "description": "Get the current order book for a specific market. For both outcomes of the market, orders are returned sorted by price-time priority. Orders on the book are partially obfuscated up to price, quantity, and direction.\n\n**Rate limit:** 100 requests per second.",
+                "parameters": [
+                    {
+                        "name": "marketId",
+                        "required": true,
+                        "in": "path",
+                        "description": "The ID of the market",
+                        "schema": { "type": "string" }
+                    },
+                    {
+                        "name": "currency",
+                        "required": true,
+                        "in": "query",
+                        "description": "The currency denomination",
+                        "schema": {
+                            "type": "string",
+                            "enum": ["CASH", "COIN"]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved the order book.",
+                        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BookResponseDto" } } }
+                    },
+                    "400": { "description": "Bad request" }
+                },
+                "tags": ["Markets"]
+            }
+        },
+        "/nbx/v2/emm/account/balance": {
+            "get": {
+                "operationId": "getWalletBalance",
+                "summary": "Get wallet balance",
+                "description": "Get the current balance of the user's wallet under the given currency denomination.\n\n**Rate limit:** 100 requests per second.",
+                "parameters": [
+                    {
+                        "name": "currency",
+                        "required": true,
+                        "in": "query",
+                        "description": "The currency denomination",
+                        "schema": {
+                            "type": "string",
+                            "enum": ["CASH", "COIN"]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved account balance.",
+                        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountBalanceDTO" } } }
+                    }
+                },
+                "tags": ["Account"]
+            }
+        },
+        "/nbx/v2/emm/account/open-costs-and-credit": {
+            "get": {
+                "operationId": "getOpenCostsAndCredit",
+                "summary": "Get open costs and credit",
+                "description": "Get the user's open position cost, open order cost, and credit for the given currency denomination.\n\n> **Note:** Data may be up to 5 minutes behind due to caching.\n\n**Rate limit:** 100 requests per second.",
+                "parameters": [
+                    {
+                        "name": "currency",
+                        "required": true,
+                        "in": "query",
+                        "description": "The currency denomination",
+                        "schema": {
+                            "type": "string",
+                            "enum": ["CASH", "COIN"]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved open costs and credit.",
+                        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenCostsAndCreditDTO" } } }
+                    }
+                },
+                "tags": ["Account"]
+            }
+        },
+        "/nbx/v2/emm/transactions": {
+            "get": {
+                "operationId": "getUserTransactions",
+                "summary": "Get user transactions",
+                "description": "Get a detailed history of all transactions made by the user, satisfying the provided parameters. Results are limited to a maximum of 100 items by default.\n\n**Rate limit:** 100 requests per second.",
+                "parameters": [
+                    {
+                        "name": "currency",
+                        "in": "query",
+                        "description": "Currency of the transaction",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": ["CASH", "COIN"]
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Number of transactions to return",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Offset of the transactions to return",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "beg",
+                        "in": "query",
+                        "description": "Beginning timestamp for filtering transactions (UTC)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "end",
+                        "in": "query",
+                        "description": "End timestamp for filtering transactions (UTC)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "description": "Type of the transaction",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "REALIZED_PNL",
+                                "ORDER_PLACED",
+                                "ORDER_CANCEL",
+                                "ORDER_REJECT",
+                                "SETTLEMENT",
+                                "RESETTLEMENT",
+                                "PRICE_IMPROVEMENT",
+                                "PUSH",
+                                "VOID",
+                                "WASH",
+                                "ADJUSTMENT"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved user transactions.",
+                        "content": {
+                            "application/json": {
+                                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/TransactionResponseDto" } }
+                            }
+                        }
+                    }
+                },
+                "tags": ["Account"]
+            }
+        },
+        "/tape/lifecycle": {
+            "get": {
+                "tags": ["WebSockets"],
+                "summary": "Market Lifecycle Channel",
+                "description": "Subscribe to market lifecycle events (OPEN, END, CLOSE, START). This is a global channel that provides updates for all markets.\n\nWhen a market closes (indicated by a `CLOSE` event from this channel), all outstanding orders on that market are implicitly cancelled. No individual cancellation messages will be sent for these orders. Traders must use market lifecycle events to manage order state for any open orders in the given market.\n\n```javascript\n// Subscribe\nws.send(JSON.stringify({ \n  event: 'subscribe',\n  data: 'lifecycle' \n}));\n\n// Example Event\n{ \n  event: 'lifecycle',\n  data: { \n    type: 'OPEN', \n    market: MarketResponseDto \n  }\n}\n```",
+                "responses": {
+                    "200": {
+                        "description": "Lifecycle event received",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LifecycleEvent"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tape/book": {
+            "get": {
+                "tags": ["WebSockets"],
+                "summary": "Order Book Channel",
+                "description": "Subscribe to public order book updates (PLACE, CANCEL). You can subscribe to either the global tape channel for all market updates or to a specific market ID to receive updates only for that market.\n\nThis channel only broadcasts explicit cancellations that affect the public order book. Implicit cancellations, such as those that occur when a market closes, are **not** broadcast here. For those, you must use the Market Lifecycle Channel.\n\n```javascript\n// Subscribe to global tape (all markets)\nws.send(JSON.stringify({ \n  event: 'subscribe',\n  data: 'tape' \n}));\n\n// Subscribe to a specific market\nws.send(JSON.stringify({ \n  event: 'subscribe',\n  data: '123e4567-e89b-12d3-a456-426614174000' \n}));\n\n// Example Event\n{ \n  data: { \n    type: 'PLACE', \n    order: ObfuscatedOrderDto,\n    fills: ObfuscatedFillDto[],\n    market: MarketResponseDto \n  }\n}\n```",
+                "responses": {
+                    "200": {
+                        "description": "Book event received",
+                        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BookEvent" } } }
+                    }
+                }
+            }
+        },
+        "/tape/private": {
+            "get": {
+                "tags": ["WebSockets"],
+                "summary": "Private Updates Channel",
+                "description": "Receive private fill and explicit cancellation updates for your orders.\n\n**Explicit Cancellations** are sent when:\n- You cancel an order via an API request.\n- A Good-Til-Time (GTT) order expires.\n\n**Implicit Cancellations** (e.g., when a market closes) do **not** send individual cancellation messages here. To handle implicit cancellations, you must subscribe to the Market Lifecycle Channel.\n\n```javascript\n// Fill Event\n{ \n  event: 'fill',\n  data: FillResponseDto \n}\n\n// Cancel Event\n{ \n  event: 'cancel',\n  data: OrderResponseDto \n}\n```",
+                "responses": {
+                    "200": {
+                        "description": "Private update received",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        { "$ref": "#/components/schemas/FillResponseDto" },
+                                        { "$ref": "#/components/schemas/OrderResponseDto" }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tape/heartbeat": {
+            "get": {
+                "tags": ["WebSockets"],
+                "summary": "Heartbeat",
+                "description": "Server-initiated ping/pong heartbeat mechanism.\n\n```javascript\n// Server ping\n{ event: 'ping', data: { message: 'ping' } }\n\n// Client response\nws.send(JSON.stringify({ \n  event: 'pong',\n  data: { message: 'pong' }\n}));\n```",
+                "responses": {
+                    "200": {
+                        "description": "Heartbeat message received",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HeartbeatMessage"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/graphql": {
+            "post": {
+                "operationId": "graphqlExample",
+                "summary": "Market Aggregation",
+                "description": "Example request for the GraphQL API. This query will retrieve details about a specific market, including:\n- Market ID\n- Description\n- Type\n- Strike price\n- Volume\n- Outcomes (including their IDs, probabilities, and associated orders)\n\nExample query:\n```graphql\nquery MarketDetails($marketId: ID!) {\n  market(id: \"123e4567-e89b-12d3-a456-426614174001\") {\n    id\n    description\n    type\n    strike\n    volume\n    outcomes {\n      id\n      probability\n      orders {\n        price\n        qty\n      }\n    }\n  }\n}\n```\n\nWith variables:\n```json\n{\n  \"marketId\": \"123e4567-e89b-12d3-a456-426614174001\"\n}\n```",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {
+                                        "type": "string",
+                                        "description": "The GraphQL query string"
+                                    },
+                                    "variables": {
+                                        "type": "object",
+                                        "description": "Variables used in the query"
+                                    }
+                                },
+                                "required": ["query"]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "GraphQL response example",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "data": {
+                                        "market": {
+                                            "id": "123e4567-e89b-12d3-a456-426614174001",
+                                            "description": "KC v BUF Total",
+                                            "type": "TOTAL",
+                                            "strike": 26.5,
+                                            "volume": 1000000,
+                                            "outcomes": [
+                                                {
+                                                    "id": "outcome-1",
+                                                    "probability": 0.5,
+                                                    "orders": [
+                                                        {
+                                                            "price": 0.667,
+                                                            "qty": 110
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": ["GraphQL"]
+            }
+        },
+        "/graphql/players": {
+            "post": {
+                "operationId": "graphqlPlayersExample",
+                "summary": "Player Aggregation",
+                "description": "Example request for the GraphQL API. This query will retrieve details about players in an event through the following relationships:\nEvent -> Game -> (homeCompetitor, awayCompetitor) -> (homePlayers, awayPlayers)\n\nExample query:\n```graphql\nquery EventPlayers($eventId: ID!) {\n  event(id: $eventId) {\n    id\n    description\n    game {\n      id\n      startTime\n      homeCompetitor {\n        id\n        name\n        players {\n          id\n          name\n          number\n          position\n          stats {\n            rushingYards\n            passingYards\n            receptions\n          }\n        }\n      }\n      awayCompetitor {\n        id\n        name\n        players {\n          id\n          name\n          number\n          position\n          stats {\n            rushingYards\n            passingYards\n            receptions\n          }\n        }\n      }\n    }\n  }\n}\n```\n\nWith variables:\n```json\n{\n  \"eventId\": \"123e4567-e89b-12d3-a456-426614174001\"\n}\n```",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {
+                                        "type": "string",
+                                        "description": "The GraphQL query string"
+                                    },
+                                    "variables": {
+                                        "type": "object",
+                                        "description": "Variables used in the query"
+                                    }
+                                },
+                                "required": ["query"]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "GraphQL response example",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "data": {
+                                        "event": {
+                                            "id": "123e4567-e89b-12d3-a456-426614174001",
+                                            "description": "KC Chiefs vs BUF Bills - Week 14",
+                                            "game": {
+                                                "id": "game-001",
+                                                "startTime": "2023-12-10T20:00:00Z",
+                                                "homeCompetitor": {
+                                                    "id": "team-buf",
+                                                    "name": "Buffalo Bills",
+                                                    "players": [
+                                                        {
+                                                            "id": "player-001",
+                                                            "name": "Josh Allen",
+                                                            "number": "17",
+                                                            "position": "QB",
+                                                            "stats": {
+                                                                "rushingYards": 45,
+                                                                "passingYards": 275,
+                                                                "receptions": 0
+                                                            }
+                                                        }
+                                                    ]
+                                                },
+                                                "awayCompetitor": {
+                                                    "id": "team-kc",
+                                                    "name": "Kansas City Chiefs",
+                                                    "players": [
+                                                        {
+                                                            "id": "player-002",
+                                                            "name": "Patrick Mahomes",
+                                                            "number": "15",
+                                                            "position": "QB",
+                                                            "stats": {
+                                                                "rushingYards": 30,
+                                                                "passingYards": 298,
+                                                                "receptions": 0
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": ["GraphQL"]
+            }
+        },
+        "/nbx/v2/emm/orders/event/{eventId}": {
+            "delete": {
+                "operationId": "cancelOrderByEventId",
+                "summary": "Cancel order by event ID",
+                "description": "Cancel all orders associated with an event ID. The orders must belong to the trader associated with the API key. Note that a 200 does not necessarily mean the orders are successfully cancelled, only that the request was received.\n\n**Rate limit:** 1,000 requests per second.",
+                "parameters": [
+                    {
+                        "name": "eventId",
+                        "required": true,
+                        "in": "path",
+                        "description": "The server-generated UUID of the event",
+                        "schema": { "type": "string" }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Order cancellation request sent to the queue.",
+                        "content": {
+                            "application/json": {
+                                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/OrderResponseDto" } }
+                            }
+                        }
+                    },
+                    "400": { "description": "Bad request" }
+                },
+                "tags": ["Orders"]
+            }
+        },
+        "/nbx/v2/emm/orders/market/{marketId}": {
+            "delete": {
+                "operationId": "cancelOrderByMarketId",
+                "summary": "Cancel order by market ID",
+                "description": "Cancel all orders associated with a market ID. The orders must belong to the trader associated with the API key. Note that a 200 does not necessarily mean the orders are successfully cancelled, only that the request was received.\n\n**Rate limit:** 1,000 requests per second.",
+                "parameters": [
+                    {
+                        "name": "marketId",
+                        "required": true,
+                        "in": "path",
+                        "description": "The server-generated UUID of the market",
+                        "schema": { "type": "string" }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Order cancellation request sent to the queue.",
+                        "content": {
+                            "application/json": {
+                                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/OrderResponseDto" } }
+                            }
+                        }
+                    },
+                    "400": { "description": "Bad request" }
+                },
+                "tags": ["Orders"]
+            }
+        },
+        "/nbx/v2/emm/orders/outcome/{outcomeId}": {
+            "delete": {
+                "operationId": "cancelOrderByOutcomeId",
+                "summary": "Cancel order by outcome ID",
+                "description": "Cancel all orders associated with an outcome ID. The orders must belong to the trader associated with the API key. Note that a 200 does not necessarily mean the orders are successfully cancelled, only that the request was received.\n\n**Rate limit:** 1,000 requests per second.",
+                "parameters": [
+                    {
+                        "name": "outcomeId",
+                        "required": true,
+                        "in": "path",
+                        "description": "The server-generated UUID of the outcome",
+                        "schema": { "type": "string" }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Order cancellation request sent to the queue.",
+                        "content": {
+                            "application/json": {
+                                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/OrderResponseDto" } }
+                            }
+                        }
+                    },
+                    "400": { "description": "Bad request" }
+                },
+                "tags": ["Orders"]
+            }
+        }
+    },
+    "info": {
+        "title": "NBX API",
+        "description": "## API Overview\n\nThe NBX API is designed with a tri-interface architecture:\n\n- **REST API**\n  - **URL:**          `https://api.novig.us/nbx/v2`\n  - **Constraints:**\n    - **Rate limits:**\n      - Order placement: 4 requests per 100 milliseconds\n      - Order cancellation: 1,000 requests per second\n      - Kill switch: 1 request per 30 seconds\n      - Data retrieval: 100 requests per second\n    - **Timeout:**    5 seconds\n  - **Features:**\n    - Place, cancel, and query orders.\n    - Retrieve market data and positions.\n    - Manage account settings and balances.\n  - **Best Practices:**\n    - Use appropriate HTTP methods.\n    - Include `Authorization` and `Content-Type` headers.\n    - Implement exponential backoff for handling rate limits and robust error handling.\n\n- **WebSocket API**\n  - **URL:**          `wss://api.novig.us/tape`\n  - **Constraints:**\n    - **Rate limit:** 10 messages per minute\n    - **Timeout:**    300 seconds without heartbeat\n  - **Features:**\n    - Real-time order book ticks.\n    - Real-time market lifecycle updates.\n    - Private fill and cancel notifications.\n    - Heartbeat mechanism to ensure connection health.\n  - **Best Practices:**\n    - Implement reconnection logic with exponential backoff.\n    - Process messages sequentially to maintain order book integrity.\n    - Appropriately handle various event types.\n    - Subscribe to specific market events or to the global tape.\n\n- **GraphQL API**\n  - **URL:**          `https://gql.novig.us/v1/graphql`\n  - **Constraints:**\n    - **Rate limit:** 650 requests per minute\n    - **Timeout:**    2 seconds\n  - **Features:**\n    - Interactive Explorer available via [**Hoppscotch GraphQL Sandbox**](https://hoppscotch.io/graphql)\n    - Flexible querying of market data and prices with tailored filters.\n    - Access historical data and statistics.\n    - Role-based access control with baseline lurker permissions.\n  - **Best Practices:**\n    - Use GraphQL for historical analysis and non-time-critical queries.\n    - Opt for the WebSocket API for real-time data needs.\n\n## Authentication\n\nThe NBX API uses [**OAuth 2.0 Client Credentials**](https://auth0.com/docs/get-started/authentication-and-authorization-flow/client-credentials-flow) with JSON Web Tokens (JWT).\n\n1. **Obtain Credentials:** Request your client ID and secret from Novig.\n2. **Request an Access Token:** Send a POST request to the OAuth endpoint. For example:\n```bash\ncurl \n  --request POST \n  --url https://auth.novig.us/oauth/token \n  --header \"Content-Type: application/json\" \n  --data '{ \n    \"audience\"      : \"https://api.novig.us\", \n    \"grant_type\"    : \"client_credentials\", \n    \"client_id\"     : \"YOUR_CLIENT_ID\", \n    \"client_secret\" : \"YOUR_CLIENT_SECRET\" \n  }'\n```\n3. **Use the Token:** Include the token in your requests by setting the HTTP header:\n```bash\nAuthorization: Bearer YOUR_ACCESS_TOKEN\n```\n\n> **Note:** For integration in the QA environment, you'll need to use different endpoints:\n> - **Issuer:** `https://auth-qa.novig.us`\n> - **Audience:** `https://api-qa.novig.us`\n> - **API Base URL:** `https://api-qa.novig.us`\n\n",
+        "version": "0.0.44",
+        "contact": {
+            "name": "Contact",
+            "url": "https://novig.us",
+            "email": "tech@novig.us"
+        }
+    },
+    "tags": [
+        {
+            "name": "Orders",
+            "description": "Endpoints for managing orders and trades"
+        },
+        {
+            "name": "Markets",
+            "description": "Endpoints for accessing market data and order books"
+        },
+        {
+            "name": "Account",
+            "description": "Endpoints for managing account settings and balances"
+        },
+        {
+            "name": "Positions",
+            "description": "Endpoints for accessing positions and fills"
+        },
+        {
+            "name": "WebSockets",
+            "description": "Channels for real-time market data and order updates"
+        },
+        {
+            "name": "GraphQL",
+            "description": "GraphQL API for querying market data and prices"
+        }
+    ],
+    "components": {
+        "securitySchemes": { "bearer": { "scheme": "bearer", "bearerFormat": "JWT", "type": "http" } },
+        "schemas": {
+            "OrderRequestDto": {
+                "type": "object",
+                "properties": {
+                    "outcomeId": {
+                        "type": "string",
+                        "description": "The server-generated UUID of the outcome for which the order will increase exposure",
+                        "example": "123e4567-e89b-12d3-a456-426614174000"
+                    },
+                    "price": {
+                        "type": "number",
+                        "description": "The price of the order in decimal probability, up to 3 decimal places",
+                        "example": 0.667
+                    },
+                    "qty": {
+                        "type": "number",
+                        "description": "The number of minimal currency units for the order. Note that this must be a positive integer. For CASH orders, 1 unit = 0.01 Novig Cash (e.g., 100 units = 1.00 Cash). For COIN orders, 1 unit = 1 Novig Coin",
+                        "example": 110
+                    },
+                    "currency": {
+                        "type": "string",
+                        "description": "Denomination of the order, i.e. `CASH` or `COIN`",
+                        "example": "`CASH`"
+                    },
+                    "tif": {
+                        "type": "string",
+                        "description": "`GTC`, `GTT`, `IOC`, or `FOK` (default is `GTC`)",
+                        "example": "`GTC`"
+                    },
+                    "ttl": {
+                        "type": "number",
+                        "description": "Time to live for the order (milliseconds) after which the order will be automatically canceled if not totally filled. Applicable only under `GTT` time-in-force",
+                        "example": 2400
+                    },
+                    "flags": {
+                        "type": "string",
+                        "description": "Custom 8-character string field for storing trader-specified flags or metadata about the order",
+                        "example": "ABC12345",
+                        "maxLength": 8
+                    }
+                },
+                "required": ["outcomeId", "price", "qty", "currency", "tif"]
+            },
+            "OrderResponseDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The unique identifier of the order",
+                        "example": "123e4567-e89b-12d3-a456-426614174002"
+                    },
+                    "outcomeId": {
+                        "type": "string",
+                        "description": "The ID of the outcome associated with this order",
+                        "example": "123e4567-e89b-12d3-a456-426614174000"
+                    },
+                    "marketId": {
+                        "type": "string",
+                        "description": "The ID of the market associated with this order",
+                        "example": "123e4567-e89b-12d3-a456-426614174003"
+                    },
+                    "price": {
+                        "type": "number",
+                        "description": "The limit price at which the order is placed",
+                        "example": 0.125
+                    },
+                    "qty": {
+                        "type": "number",
+                        "description": "The remaining quantity of the order, denominated in Minimum Currency Units",
+                        "example": 4200
+                    },
+                    "originalQty": {
+                        "type": "number",
+                        "description": "The original quantity of the order, denominated in Minimum Currency Units",
+                        "example": 4200
+                    },
+                    "currency": {
+                        "type": "string",
+                        "description": "The currency in which the order is denominated",
+                        "example": "COIN"
+                    },
+                    "timestamp": {
+                        "type": "string",
+                        "description": "The timestamp when the order was placed",
+                        "example": "2023-10-05T12:00:00Z"
+                    },
+                    "status": { "type": "string", "description": "The current status of the order", "example": "FILLED" },
+                    "flags": {
+                        "type": "string",
+                        "description": "The trader-specified metadata associated with the order",
+                        "example": "ABC12345"
+                    }
+                }
+            },
+            "OrderFilterDTO": {
+                "type": "object",
+                "properties": {
+                    "beg": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Beginning timestamp for filtering orders (UTC)",
+                        "example": "2023-10-05T12:00:00Z"
+                    },
+                    "end": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "End timestamp for filtering orders (UTC)",
+                        "example": "2023-10-05T13:00:00Z"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Status of the order",
+                        "example": "FILLED"
+                    },
+                    "currency": {
+                        "type": "string",
+                        "description": "Currency of the order",
+                        "example": "COIN"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of orders to return",
+                        "example": 100
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Offset of the orders to return",
+                        "example": 0
+                    },
+                    "marketStatus": {
+                        "type": "string",
+                        "description": "Market status of the order",
+                        "example": "OPEN"
+                    },
+                    "outcomeStatus": {
+                        "type": "string",
+                        "description": "Outcome status of the order",
+                        "example": "TBD"
+                    }
+                }
+            },
+            "FillFilterDTO": {
+                "type": "object",
+                "properties": {
+                    "beg": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Beginning timestamp for filtering fills (UTC)",
+                        "example": "2023-10-05T12:00:00Z"
+                    },
+                    "end": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "End timestamp for filtering fills (UTC)",
+                        "example": "2023-10-05T13:00:00Z"
+                    },
+                    "currency": {
+                        "type": "string",
+                        "description": "Currency of the fill",
+                        "example": "COIN"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of fills to return",
+                        "example": 100
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Offset of the fills to return",
+                        "example": 0
+                    },
+                    "marketStatus": {
+                        "type": "string",
+                        "description": "Market status of the fill",
+                        "example": "OPEN"
+                    },
+                    "outcomeStatus": {
+                        "type": "string",
+                        "description": "Outcome status of the fill",
+                        "example": "TBD"
+                    }
+                }
+            },
+            "FillResponseDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The ID of the fill",
+                        "example": "123e4567-e89b-12d3-a456-426614174000"
+                    },
+                    "orderId": {
+                        "type": "string",
+                        "description": "The ID of the order that was filled",
+                        "example": "123e4567-e89b-12d3-a456-426614174001"
+                    },
+                    "price": {
+                        "type": "number",
+                        "description": "The price at which the fill was executed",
+                        "example": 0.225
+                    },
+                    "qty": {
+                        "type": "number",
+                        "description": "The quantity that was filled",
+                        "example": 75
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "The timestamp when the fill occurred",
+                        "example": "2023-10-05T12:00:00Z"
+                    },
+                    "isWash": {
+                        "type": "boolean",
+                        "description": "Whether the fill is a wash trade",
+                        "example": false
+                    },
+                    "isTaker": {
+                        "type": "boolean",
+                        "description": "Whether the fill is the taker",
+                        "example": true
+                    },
+                    "marketId": {
+                        "type": "string",
+                        "description": "The ID of the related market",
+                        "example": "123e4567-e89b-12d3-a456-426614174002"
+                    },
+                    "outcomeId": {
+                        "type": "string",
+                        "description": "The ID of the related outcome",
+                        "example": "123e4567-e89b-12d3-a456-426614174003"
+                    }
+                }
+            },
+            "WalletRequestDto": {
+                "type": "object",
+                "properties": {
+                    "outcomeIds": {
+                        "description": "Array of outcome IDs to filter positions by. If omitted, you will get all positions across open markets.",
+                        "type": "array",
+                        "items": { "type": "string", "example": "123e4567-e89b-12d3-a456-426614174000" }
+                    }
+                }
+            },
+            "PositionResponseDto": {
+                "type": "object",
+                "properties": {
+                    "marketId": {
+                        "type": "string",
+                        "description": "The ID of the market this position is for",
+                        "example": "123e4567-e89b-12d3-a456-426614174000"
+                    },
+                    "outcomeId": {
+                        "type": "string",
+                        "description": "The ID of the outcome this position is for",
+                        "example": "123e4567-e89b-12d3-a456-426614174001"
+                    },
+                    "size": {
+                        "type": "number",
+                        "description": "The quantity of positive exposure to the outcome",
+                        "example": 100
+                    },
+                    "cost": {
+                        "type": "number",
+                        "description": "The net entry cost of the position",
+                        "example": 66.67
+                    },
+                    "currency": {
+                        "type": "string",
+                        "description": "The currency of the position",
+                        "example": "COIN"
+                    }
+                }
+            },
+            "MarketResponseDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The ID of the market",
+                        "example": "123e4567-e89b-12d3-a456-426614174000"
+                    },
+                    "description": { "type": "string", "description": "Description of the market", "example": "KC v BUF Total" },
+                    "status": {
+                        "type": "string",
+                        "description": "The current status of the market (OPEN, CLOSED, or SETTLED)",
+                        "example": "OPEN"
+                    },
+                    "strike": {
+                        "type": "number",
+                        "description": "The threshold of the market in the unit of the stat type",
+                        "example": 26.5
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "The type of market (MONEY, SPREAD, TOTAL, RUSHING_ATTEMPTS, etc.)",
+                        "example": "TOTAL"
+                    },
+                    "volume": {
+                        "type": "number",
+                        "description": "The total volume of the market",
+                        "example": 1000000
+                    },
+                    "eventId": {
+                        "type": "string",
+                        "description": "The event associated with the market",
+                        "example": "123e4567-e89b-12d3-a456-426614174000"
+                    },
+                    "playerId": {
+                        "type": "string",
+                        "description": "The player associated with the market (if applicable)",
+                        "example": "123e4567-e89b-12d3-a456-426614174001"
+                    },
+                    "outcomeIds": {
+                        "description": "Array of outcome IDs linked to this market",
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "example": ["123e4567-e89b-12d3-a456-426614174002", "123e4567-e89b-12d3-a456-426614174003"]
+                        }
+                    },
+                    "settledAt": {
+                        "type": "string",
+                        "description": "When the market was settled (if applicable)",
+                        "example": "2023-10-05T12:00:00Z"
+                    },
+                    "event": {
+                        "$ref": "#/components/schemas/EventResponseDto",
+                        "description": "The event details associated with the market"
+                    }
+                },
+                "required": [
+                    "id",
+                    "description",
+                    "status",
+                    "strike",
+                    "type",
+                    "volume",
+                    "eventId",
+                    "playerId",
+                    "outcomeIds",
+                    "settledAt",
+                    "event"
+                ]
+            },
+            "ObfuscatedOrderDto": {
+                "type": "object",
+                "properties": {
+                    "price": {
+                        "type": "number",
+                        "description": "The price of the order (in decimal probability, up to 3 decimal places)",
+                        "example": 0.667
+                    },
+                    "qty": {
+                        "type": "number",
+                        "description": "The remaining quantity of the order, denominated in Minimum Currency Units",
+                        "example": 110
+                    },
+                    "originalQty": {
+                        "type": "number",
+                        "description": "The original quantity of the order, denominated in Minimum Currency Units",
+                        "example": 110
+                    },
+                    "outcomeId": { "type": "string", "description": "The ID of the outcome for which the order is placed" }
+                },
+                "required": ["price", "qty", "outcomeId"]
+            },
+            "BookLadderDto": {
+                "type": "object",
+                "properties": {
+                    "outcomeId": { "type": "string", "description": "The ID of the outcome" },
+                    "bids": {
+                        "description": "List of bid orders in price-time priority order",
+                        "type": "array",
+                        "items": { "$ref": "#/components/schemas/ObfuscatedOrderDto" }
+                    }
+                },
+                "required": ["outcomeId", "bids"]
+            },
+            "BookResponseDto": {
+                "type": "object",
+                "properties": {
+                    "marketId": { "type": "string", "description": "The ID of the market" },
+                    "marketDescription": { "type": "string", "description": "Description of the market" },
+                    "outcomeLadders": {
+                        "description": "List of outcomes with their order books",
+                        "type": "array",
+                        "items": { "$ref": "#/components/schemas/BookLadderDto" }
+                    }
+                },
+                "required": ["marketId", "marketDescription", "outcomeLadders"]
+            },
+            "TxFilterDTO": {
+                "type": "object",
+                "properties": {
+                    "beg": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Beginning timestamp for filtering transactions (UTC)",
+                        "example": "2023-10-05T12:00:00Z"
+                    },
+                    "end": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "End timestamp for filtering transactions (UTC)",
+                        "example": "2023-10-05T13:00:00Z"
+                    },
+                    "currency": {
+                        "type": "string",
+                        "description": "Currency of the transaction",
+                        "example": "COIN"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of transactions to return",
+                        "example": 100
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Offset of the transactions to return",
+                        "example": 0
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Type of the transaction",
+                        "example": "DEPOSIT"
+                    }
+                }
+            },
+            "AccountBalanceDTO": {
+                "type": "object",
+                "properties": {
+                    "balance": {
+                        "type": "number",
+                        "description": "The balance amount available in the wallet.",
+                        "example": 1738.42
+                    }
+                },
+                "required": ["balance", "openPositionCost", "openOrderCost", "credit", "currency"]
+            },
+            "OpenCostsAndCreditDTO": {
+                "type": "object",
+                "properties": {
+                    "openPositionCost": {
+                        "type": "number",
+                        "description": "The cost locked in open positions.",
+                        "example": 250.0
+                    },
+                    "openOrderCost": {
+                        "type": "number",
+                        "description": "The cost locked in open orders.",
+                        "example": 100.0
+                    },
+                    "credit": {
+                        "type": "number",
+                        "description": "The credit amount available to the trader.",
+                        "example": 500.0
+                    },
+                    "currency": {
+                        "type": "string",
+                        "description": "The currency denomination of the associated wallet.",
+                        "enum": ["CASH", "COIN"],
+                        "example": "CASH"
+                    }
+                },
+                "required": ["openPositionCost", "openOrderCost", "credit", "currency"]
+            },
+            "TransactionResponseDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The unique identifier of the transaction",
+                        "example": "123e4567-e89b-12d3-a456-426614174000"
+                    },
+                    "amount": { "type": "number", "description": "The amount of the transaction", "example": 1738.42 },
+                    "type": { "type": "string", "description": "The type of transaction", "example": "DEPOSIT" },
+                    "currency": { "type": "string", "description": "The currency of the transaction", "example": "COIN" },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "The timestamp when the transaction was created",
+                        "example": "2023-10-05T12:00:00Z"
+                    },
+                    "orderId": {
+                        "type": "string",
+                        "description": "The associated order ID, if applicable",
+                        "example": "123e4567-e89b-12d3-a456-426614174000"
+                    },
+                    "parlayId": {
+                        "type": "string",
+                        "description": "The associated parlay ID, if applicable",
+                        "example": "123e4567-e89b-12d3-a456-426614174001"
+                    },
+                    "marketId": {
+                        "type": "string",
+                        "description": "The associated market ID, if applicable",
+                        "example": "123e4567-e89b-12d3-a456-426614174002"
+                    }
+                },
+                "required": ["id", "amount", "type", "currency", "createdAt", "orderId", "parlayId", "marketId"]
+            },
+            "WebSocketMessage": {
+                "type": "object",
+                "properties": {
+                    "event": {
+                        "type": "string",
+                        "description": "The type of WebSocket event",
+                        "enum": [
+                            "lifecycle",
+                            "book",
+                            "fill",
+                            "cancel",
+                            "subscribe",
+                            "unsubscribe",
+                            "subscribed",
+                            "unsubscribed",
+                            "ping",
+                            "pong"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "description": "The payload of the WebSocket message"
+                    }
+                },
+                "required": ["event", "data"]
+            },
+            "SubscriptionRequest": {
+                "type": "object",
+                "properties": {
+                    "event": {
+                        "type": "string",
+                        "enum": ["subscribe", "unsubscribe"],
+                        "description": "The subscription event type"
+                    },
+                    "data": {
+                        "type": "string",
+                        "description": "The channel or market ID to subscribe to. Can be either a global channel name ('tape', 'lifecycle') or a UUID of an open market to receive updates only for that specific market."
+                    }
+                },
+                "required": ["event", "data"]
+            },
+            "SubscriptionResponse": {
+                "type": "object",
+                "properties": {
+                    "event": {
+                        "type": "string",
+                        "enum": ["subscribed", "unsubscribed"],
+                        "description": "The subscription acknowledgment event type"
+                    },
+                    "data": {
+                        "type": "object",
+                        "properties": {
+                            "channel": {
+                                "type": "string",
+                                "description": "The channel or market ID that was subscribed to or unsubscribed from. Can be either a global channel name ('tape', 'lifecycle') or a UUID of a market."
+                            }
+                        },
+                        "required": ["channel"]
+                    }
+                },
+                "required": ["event", "data"]
+            },
+            "HeartbeatMessage": {
+                "type": "object",
+                "properties": {
+                    "event": {
+                        "type": "string",
+                        "enum": ["ping", "pong"],
+                        "description": "The heartbeat event type"
+                    },
+                    "data": {
+                        "type": "object",
+                        "properties": {
+                            "message": {
+                                "type": "string",
+                                "enum": ["ping", "pong"],
+                                "description": "The heartbeat message"
+                            }
+                        },
+                        "required": ["message"]
+                    }
+                },
+                "required": ["event", "data"]
+            },
+            "LifecycleEvent": {
+                "type": "object",
+                "properties": {
+                    "event": {
+                        "type": "string",
+                        "const": "lifecycle",
+                        "description": "The lifecycle event type"
+                    },
+                    "data": {
+                        "type": "object",
+                        "properties": {
+                            "type": {
+                                "type": "string",
+                                "enum": ["OPEN", "END", "CLOSE", "START"],
+                                "description": "The type of lifecycle event"
+                            },
+                            "market": {
+                                "$ref": "#/components/schemas/MarketResponseDto"
+                            }
+                        },
+                        "required": ["type", "market"]
+                    }
+                },
+                "required": ["event", "data"]
+            },
+            "BookEvent": {
+                "type": "object",
+                "properties": {
+                    "event": {
+                        "type": "string",
+                        "const": "book",
+                        "description": "The book event type"
+                    },
+                    "data": {
+                        "type": "object",
+                        "properties": {
+                            "type": {
+                                "type": "string",
+                                "enum": ["PLACE", "CANCEL"],
+                                "description": "The type of book event"
+                            },
+                            "order": {
+                                "$ref": "#/components/schemas/ObfuscatedOrderDto"
+                            },
+                            "fills": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/ObfuscatedOrderDto"
+                                },
+                                "description": "List of fills that occurred"
+                            },
+                            "market": {
+                                "$ref": "#/components/schemas/MarketResponseDto"
+                            }
+                        },
+                        "required": ["type", "order", "fills", "market"]
+                    }
+                },
+                "required": ["event", "data"]
+            },
+            "EventResponseDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The ID of the event",
+                        "example": "123e4567-e89b-12d3-a456-426614174000"
+                    },
+                    "game": {
+                        "$ref": "#/components/schemas/GameResponseDto",
+                        "description": "The game associated with the event"
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "The type of the event",
+                        "example": "REGULAR_SEASON"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "The status of the event",
+                        "enum": ["INITIAL", "OPEN_PREGAME", "CLOSED_PREGAME", "OPEN_INGAME", "FINAL", "DELAYED", "CANCELED"],
+                        "example": "OPEN_PREGAME"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "The description of the event",
+                        "example": "KC Chiefs vs BUF Bills - Week 14"
+                    }
+                },
+                "required": ["id", "type", "status", "description"]
+            },
+            "TeamResponseDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The ID of the team",
+                        "example": "123e4567-e89b-12d3-a456-426614174000"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the team",
+                        "example": "Kansas City Chiefs"
+                    },
+                    "shortName": {
+                        "type": "string",
+                        "description": "The short name of the team",
+                        "example": "Chiefs"
+                    },
+                    "symbol": {
+                        "type": "string",
+                        "description": "The symbol of the team",
+                        "example": "KC"
+                    },
+                    "mascot": {
+                        "type": "string",
+                        "description": "The mascot of the team",
+                        "example": "Chiefs"
+                    }
+                },
+                "required": ["id", "name", "shortName", "symbol", "mascot"]
+            },
+            "GameResponseDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The ID of the game",
+                        "example": "123e4567-e89b-12d3-a456-426614174000"
+                    },
+                    "league": {
+                        "type": "string",
+                        "description": "The league of the game",
+                        "example": "NFL"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "The status of the game",
+                        "example": "SCHEDULED"
+                    },
+                    "scheduledStart": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "The scheduled start time of the game",
+                        "example": "2023-12-10T20:00:00Z"
+                    },
+                    "homeTeam": {
+                        "$ref": "#/components/schemas/TeamResponseDto",
+                        "description": "The home team of the game"
+                    },
+                    "awayTeam": {
+                        "$ref": "#/components/schemas/TeamResponseDto",
+                        "description": "The away team of the game"
+                    }
+                },
+                "required": ["id", "league", "status", "scheduledStart", "homeTeam", "awayTeam"]
+            },
+            "CurrencyRequestDto": {
+                "type": "object",
+                "properties": {
+                    "currency": {
+                        "type": "string",
+                        "description": "The currency denomination",
+                        "example": "COIN"
+                    }
+                },
+                "required": ["currency"]
+            },
+            "MarketFilterDTO": {
+                "type": "object",
+                "properties": {
+                    "league": {
+                        "type": "string",
+                        "description": "The league to filter markets by",
+                        "example": "NFL"
+                    },
+                    "marketType": {
+                        "type": "string",
+                        "description": "The type of market to filter by",
+                        "example": "TOTAL"
+                    }
+                }
+            },
+            "ObfuscatedFillDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The ID of the fill",
+                        "example": "123e4567-e89b-12d3-a456-426614174000"
+                    },
+                    "orderId": {
+                        "type": "string",
+                        "description": "The ID of the order that was filled",
+                        "example": "123e4567-e89b-12d3-a456-426614174001"
+                    },
+                    "price": {
+                        "type": "number",
+                        "description": "The effective price of the fill in decimal probability",
+                        "example": 0.225
+                    },
+                    "qty": {
+                        "type": "number",
+                        "description": "The quantity that was filled",
+                        "example": 75
+                    },
+                    "isWash": {
+                        "type": "boolean",
+                        "description": "Whether the fill is a wash trade",
+                        "example": false
+                    },
+                    "isTaker": {
+                        "type": "boolean",
+                        "description": "Whether the fill is the taker",
+                        "example": true
+                    },
+                    "marketId": {
+                        "type": "string",
+                        "description": "The ID of the related market",
+                        "example": "123e4567-e89b-12d3-a456-426614174002"
+                    },
+                    "outcomeId": {
+                        "type": "string",
+                        "description": "The ID of the related outcome",
+                        "example": "123e4567-e89b-12d3-a456-426614174003"
+                    }
+                }
+            }
+        }
+    }
+}

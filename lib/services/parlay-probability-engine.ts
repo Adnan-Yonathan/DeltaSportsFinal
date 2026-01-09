@@ -932,7 +932,7 @@ const selectBestBook = (legs: PreparedLeg[]): ParlayBookQuote => {
 
 const buildProbabilityLeg = (leg: PreparedLeg, quote: LegQuote): ProbabilityLeg => {
   const impliedProbability = oddsToImpliedProbability(quote.odds)
-  let probability = 0.5
+  let probability = impliedProbability
   let modelProbability: number | null = null
   let modelLine: number | null = null
   let description = ''
@@ -941,9 +941,9 @@ const buildProbabilityLeg = (leg: PreparedLeg, quote: LegQuote): ProbabilityLeg 
   const matchupHome = leg.actualHomeTeam || leg.homeTeam
   const matchupAway = leg.actualAwayTeam || leg.awayTeam
   const matchupLabel = matchupHome && matchupAway ? `${matchupAway} @ ${matchupHome}` : ''
+  const line = quote.line ?? leg.threshold ?? null
 
   if (leg.type === 'player_prop' && leg.projection && leg.propDirection) {
-    const line = quote.line ?? leg.threshold ?? null
     if (line != null) {
       const result = calculatePropProbability(leg.projection, line, leg.propDirection)
       probability = result.probability
@@ -954,8 +954,16 @@ const buildProbabilityLeg = (leg: PreparedLeg, quote: LegQuote): ProbabilityLeg 
     }
   }
 
+  if (leg.type === 'game_spread' && leg.direction) {
+    teamSide = leg.selectedTeam || (leg.direction === 'home' ? matchupHome : matchupAway)
+    if (line != null) {
+      description = `${teamSide || 'Team'} ${formatLineValue(line, 'spread')}${
+        matchupLabel ? ` (${matchupLabel})` : ''
+      }`
+    }
+  }
+
   if (leg.type === 'game_spread' && leg.meanHomeMargin != null && leg.direction) {
-    const line = quote.line ?? leg.threshold ?? null
     if (line != null) {
       probability = calculateSpreadProbabilityFromProjection(
         leg.meanHomeMargin,
@@ -967,13 +975,19 @@ const buildProbabilityLeg = (leg: PreparedLeg, quote: LegQuote): ProbabilityLeg 
       if (leg.modelLine != null) {
         modelLine = leg.direction === 'home' ? leg.modelLine : -leg.modelLine
       }
-      teamSide = leg.selectedTeam || (leg.direction === 'home' ? matchupHome : matchupAway)
-      description = `${teamSide || 'Team'} ${formatLineValue(line, 'spread')}${matchupLabel ? ` (${matchupLabel})` : ''}`
+    }
+  }
+
+  if (leg.type === 'game_total' && leg.direction) {
+    if (line != null) {
+      description = `${matchupLabel ? `${matchupLabel} ` : ''}total ${leg.direction} ${formatLineValue(
+        line,
+        'total'
+      )}`
     }
   }
 
   if (leg.type === 'game_total' && leg.meanTotal != null && leg.direction) {
-    const line = quote.line ?? leg.threshold ?? null
     if (line != null) {
       probability = calculateTotalProbabilityFromProjection(
         leg.meanTotal,
@@ -983,8 +997,12 @@ const buildProbabilityLeg = (leg: PreparedLeg, quote: LegQuote): ProbabilityLeg 
       )
       modelProbability = probability
       modelLine = leg.meanTotal
-      description = `${matchupLabel ? `${matchupLabel} ` : ''}total ${leg.direction} ${formatLineValue(line, 'total')}`
     }
+  }
+
+  if (leg.type === 'game_moneyline' && leg.direction) {
+    teamSide = leg.selectedTeam || (leg.direction === 'home' ? matchupHome : matchupAway)
+    description = `${teamSide || 'Team'} moneyline${matchupLabel ? ` (${matchupLabel})` : ''}`
   }
 
   if (leg.type === 'game_moneyline' && leg.meanHomeMargin != null && leg.direction) {
@@ -994,8 +1012,6 @@ const buildProbabilityLeg = (leg: PreparedLeg, quote: LegQuote): ProbabilityLeg 
       leg.sport
     )
     modelProbability = probability
-    teamSide = leg.selectedTeam || (leg.direction === 'home' ? matchupHome : matchupAway)
-    description = `${teamSide || 'Team'} moneyline${matchupLabel ? ` (${matchupLabel})` : ''}`
   }
 
   const edge = modelProbability != null ? modelProbability - impliedProbability : null
@@ -1293,25 +1309,30 @@ const prepareGameLeg = async (
   let confidence: 'low' | 'medium' | 'high' = 'low'
 
   const marketType = leg.type === 'game_total' ? 'total' : 'spread'
-  const recs = await getGameRecommendations(
-    actualHomeTeam,
-    actualAwayTeam,
-    marketType,
-    sport
-  )
-  const rec = recs.find((item) => item.type === marketType)
-  if (!rec) {
-    throw new Error(`No projection model found for ${awayTeam} @ ${homeTeam}.`)
-  }
+  try {
+    const recs = await getGameRecommendations(
+      actualHomeTeam,
+      actualAwayTeam,
+      marketType,
+      sport
+    )
+    const rec = recs.find((item) => item.type === marketType)
+    if (rec) {
+      confidence = rec.confidence || 'low'
 
-  confidence = rec.confidence || 'low'
-
-  if (marketType === 'spread') {
-    modelLine = rec.targetLine
-    meanHomeMargin = -rec.targetLine
-  } else if (marketType === 'total') {
-    modelLine = rec.targetLine
-    meanTotal = rec.targetLine
+      if (marketType === 'spread') {
+        modelLine = rec.targetLine
+        meanHomeMargin = -rec.targetLine
+      } else if (marketType === 'total') {
+        modelLine = rec.targetLine
+        meanTotal = rec.targetLine
+      }
+    }
+  } catch (error) {
+    console.warn(
+      `[PARLAY_PROBABILITY] Model unavailable for ${awayTeam} @ ${homeTeam}:`,
+      error
+    )
   }
 
   return {

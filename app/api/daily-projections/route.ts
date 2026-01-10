@@ -3,7 +3,7 @@ import { fetchAllLiveScores, type LiveScoreGame } from "@/lib/live-scores"
 import { getRoster, type RosterPlayer } from "@/lib/sports-stats-api"
 import { getNbaPropProjectionsForPlayer } from "@/lib/services/nba-player-prop-model"
 import { getNflPropProjectionsForPlayer } from "@/lib/services/nfl-player-prop-model"
-import { fetchSbdGamePropsList, resolveSbdLeague } from "@/lib/api/sbd"
+import { fetchSbdGamePropsList, fetchSbdPlayerProps, resolveSbdLeague } from "@/lib/api/sbd"
 
 export const dynamic = "force-dynamic"
 
@@ -132,12 +132,87 @@ const fetchMarketLines = async (sport: SportKey): Promise<Map<string, Record<str
     const league = resolveSbdLeague(sport)
     if (!league) return linesByPlayer
 
-    const props = await fetchSbdGamePropsList(league, { limit: 2500 })
-    const items = Array.isArray(props) ? props : props?.data || []
+    // Try both SBD endpoints and merge results
+    const [gamePropsResult, playerPropsResult] = await Promise.allSettled([
+      fetchSbdGamePropsList(league, { limit: 2500 }),
+      fetchSbdPlayerProps(league, { limit: 500 }),
+    ])
+
+    const gameProps = gamePropsResult.status === "fulfilled"
+      ? (Array.isArray(gamePropsResult.value) ? gamePropsResult.value : gamePropsResult.value?.data || [])
+      : []
+    const playerProps = playerPropsResult.status === "fulfilled"
+      ? (Array.isArray(playerPropsResult.value) ? playerPropsResult.value : playerPropsResult.value?.data || [])
+      : []
+
+    // Merge both sources
+    const items = [...gameProps, ...playerProps]
+
+    // Process playerProps with nested structure (SBD wp-json endpoint)
+    for (const prop of playerProps) {
+      const playerName = prop?.player?.name
+      if (!playerName || typeof playerName !== "string") continue
+
+      const normalizedName = normalizePlayerName(playerName)
+      if (!linesByPlayer.has(normalizedName)) {
+        linesByPlayer.set(normalizedName, {})
+      }
+      const playerLines = linesByPlayer.get(normalizedName)!
+
+      const markets = prop?.markets || []
+      for (const market of markets) {
+        const marketName = (market?.name || market?.type || "").toLowerCase()
+
+        // Map market names to our market keys
+        // SBD uses formats like "total passing yards (incl. overtime)"
+        let marketKey: string | null = null
+        if (marketName.includes("passing yards") || marketName.includes("pass yards") || marketName.includes("pass yds")) marketKey = "passing_yards"
+        else if (marketName.includes("passing touchdown") || marketName.includes("pass td")) marketKey = "passing_tds"
+        else if ((marketName.includes("rushing yards") || marketName.includes("rush yards")) && !marketName.includes("receiving")) marketKey = "rushing_yards"
+        else if (marketName.includes("rushing touchdown") || marketName.includes("rush td")) marketKey = "rushing_tds"
+        else if (marketName.includes("receiving yards") || marketName.includes("rec yards")) marketKey = "receiving_yards"
+        else if (marketName.includes("reception") || marketName.includes("receptions")) marketKey = "receptions"
+
+        if (!marketKey) continue
+
+        // Extract line and odds from market.books[].outcomes[]
+        const books = market?.books || []
+        let bestOver = { odds: Number.NEGATIVE_INFINITY, book: "", line: 0 }
+        let bestUnder = { odds: Number.NEGATIVE_INFINITY, book: "", line: 0 }
+
+        for (const book of books) {
+          const bookName = book?.name || ""
+          const outcomes = book?.outcomes || []
+
+          for (const outcome of outcomes) {
+            const outcomeType = (outcome?.type || "").toLowerCase()
+            const line = Number(outcome?.total ?? 0)
+            const odds = Number(outcome?.odds_american ?? 0)
+
+            if (!Number.isFinite(line) || line <= 0 || !Number.isFinite(odds)) continue
+
+            if (outcomeType === "over" && odds > bestOver.odds) {
+              bestOver = { odds, book: bookName, line }
+            } else if (outcomeType === "under" && odds > bestUnder.odds) {
+              bestUnder = { odds, book: bookName, line }
+            }
+          }
+        }
+
+        if (bestOver.line > 0 || bestUnder.line > 0) {
+          playerLines[marketKey] = {
+            line: bestOver.line || bestUnder.line,
+            overOdds: Number.isFinite(bestOver.odds) && bestOver.odds > Number.NEGATIVE_INFINITY ? bestOver.odds : undefined,
+            underOdds: Number.isFinite(bestUnder.odds) && bestUnder.odds > Number.NEGATIVE_INFINITY ? bestUnder.odds : undefined,
+            bestBook: bestOver.book || bestUnder.book,
+          }
+        }
+      }
+    }
 
     for (const entry of items) {
-      const playerName = entry.player_name || entry?.player?.name
-      if (!playerName) continue
+      const playerName = entry.player_name || entry?.player?.name || entry?.player
+      if (!playerName || typeof playerName !== "string") continue
 
       const normalizedName = normalizePlayerName(playerName)
       if (!linesByPlayer.has(normalizedName)) {
@@ -145,18 +220,20 @@ const fetchMarketLines = async (sport: SportKey): Promise<Map<string, Record<str
       }
 
       const playerLines = linesByPlayer.get(normalizedName)!
-      const marketName = (entry.name || "").toLowerCase()
+      const marketName = (entry.name || entry.market || entry.prop_type || "").toLowerCase()
 
       // Map SBD market names to our market keys
+      // SBD uses various formats: "rushing yards", "total rushing yards", "player rushing yards", etc.
       let marketKey: string | null = null
       if (marketName.includes("points") && !marketName.includes("plus")) marketKey = "points"
       else if (marketName.includes("rebounds") && !marketName.includes("plus")) marketKey = "rebounds"
       else if (marketName.includes("assists") && !marketName.includes("plus")) marketKey = "assists"
-      else if (marketName.includes("passing yards")) marketKey = "passing_yards"
-      else if (marketName.includes("passing touchdowns")) marketKey = "passing_tds"
-      else if (marketName.includes("rushing yards")) marketKey = "rushing_yards"
-      else if (marketName.includes("receiving yards")) marketKey = "receiving_yards"
-      else if (marketName.includes("receptions")) marketKey = "receptions"
+      else if (marketName.includes("passing yards") || marketName.includes("pass yards") || marketName.includes("pass yds")) marketKey = "passing_yards"
+      else if (marketName.includes("passing touchdown") || marketName.includes("pass td") || marketName.includes("pass tds")) marketKey = "passing_tds"
+      else if ((marketName.includes("rushing yards") || marketName.includes("rush yards") || marketName.includes("rush yds")) && !marketName.includes("receiving")) marketKey = "rushing_yards"
+      else if (marketName.includes("rushing touchdown") || marketName.includes("rush td") || marketName.includes("rush tds")) marketKey = "rushing_tds"
+      else if (marketName.includes("receiving yards") || marketName.includes("rec yards") || marketName.includes("rec yds")) marketKey = "receiving_yards"
+      else if (marketName.includes("reception") || marketName.includes("receptions")) marketKey = "receptions"
 
       if (!marketKey) continue
 

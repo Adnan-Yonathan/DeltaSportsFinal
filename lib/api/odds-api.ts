@@ -153,7 +153,7 @@ function getDefaultBookmakers(): string | undefined {
 
 const getPlayerPropMarkets = (sportKey: string): string[] | null => {
   if (sportKey === 'basketball_nba') return ['player_points', 'player_rebounds', 'player_assists', 'player_threes']
-  if (sportKey === 'americanfootball_nfl') return ['player_pass_tds', 'player_pass_yds', 'player_rush_yds', 'player_receptions']
+  if (sportKey === 'americanfootball_nfl') return ['player_pass_tds', 'player_pass_yds', 'player_rush_yds', 'player_rush_tds', 'player_receptions', 'player_reception_yds']
   if (sportKey === 'baseball_mlb') return ['player_hits', 'player_total_bases', 'player_rbis', 'player_runs_scored']
   if (sportKey === 'icehockey_nhl') return ['player_points', 'player_shots_on_goal', 'player_blocked_shots']
   return null

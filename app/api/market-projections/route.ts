@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 
 const CACHE_TTL_MS = 1000 * 60 * 15
@@ -51,12 +51,12 @@ const mergeWhaleAlerts = (
 
 const readCache = async (sport: string) => {
   try {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from("market_projections_cache")
+    const supabase = createServiceClient()
+    const { data, error } = (await supabase
+      .from("market_projections_cache" as any)
       .select("edges, updated_at")
       .eq("sport", sport)
-      .single()
+      .single()) as unknown as { data: { edges: any[]; updated_at: string } | null; error: any }
 
     if (error || !data) return null
     return {
@@ -71,15 +71,15 @@ const readCache = async (sport: string) => {
 
 const writeCache = async (sport: string, edges: any[]) => {
   try {
-    const supabase = createClient()
-    const { error } = await supabase.from("market_projections_cache").upsert(
+    const supabase = createServiceClient()
+    const { error } = (await supabase.from("market_projections_cache" as any).upsert(
       {
         sport,
         edges,
         updated_at: new Date().toISOString(),
-      },
+      } as any,
       { onConflict: "sport" }
-    )
+    )) as unknown as { error: any }
     if (error) {
       console.error("[market-projections] cache write failed", error)
       return false

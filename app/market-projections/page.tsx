@@ -1,7 +1,7 @@
 import MarketProjectionsClient from "./market-projections-client"
 import SportSelector from "./sport-selector"
 import ToolsNav from "@/components/tools-nav"
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 
 export const dynamic = "force-dynamic"
@@ -42,12 +42,12 @@ export default async function MarketProjectionsPage({
 
   if (!isLocked) {
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("market_projections_cache")
+      const supabase = createServiceClient()
+      const { data, error } = (await supabase
+        .from("market_projections_cache" as any)
         .select("edges, updated_at")
         .eq("sport", sport)
-        .single()
+        .single()) as unknown as { data: { edges: any[]; updated_at: string } | null; error: any }
 
       if (error || !data) {
         hasCache = false

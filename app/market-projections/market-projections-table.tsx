@@ -19,6 +19,7 @@ type EdgeGame = {
     bestBook?: string
     bestOdds?: number
     favoredTeam?: string
+    prediction?: { line: number; book: string; odds: number }
   }
   total?: {
     marketLine: number
@@ -26,6 +27,7 @@ type EdgeGame = {
     bestBook?: string
     bestOdds?: number
     bestUnderOdds?: number
+    prediction?: { line: number; book: string; overOdds: number; underOdds: number }
   }
   moneyline?: {
     sportsbook?: {
@@ -118,7 +120,18 @@ const summarizeWhales = (game: EdgeGame, filter: EdgeFilter) => {
 }
 
 const resolveModelSpread = (game: EdgeGame) => {
+  // Prefer prediction market line if it differs from market line
+  const predictionLine = game.spread?.prediction?.line
+  const marketLine = game.spread?.marketLine
   const targetLine = game.spread?.targetLine
+
+  // Use prediction line if available and different from market
+  if (Number.isFinite(predictionLine) && Number.isFinite(marketLine)) {
+    if (Math.abs((predictionLine as number) - (marketLine as number)) > 0.5) {
+      return predictionLine as number
+    }
+  }
+
   if (!Number.isFinite(targetLine)) return null
   const favoredTeam = game.spread?.favoredTeam
   if (!favoredTeam) return targetLine as number
@@ -175,15 +188,22 @@ const marketEdge = (
   }
 
   if (filter === "total") {
-    if (
-      !Number.isFinite(game.total?.targetLine) ||
-      !Number.isFinite(game.total?.marketLine)
-    ) {
+    const marketLine = game.total?.marketLine
+    const predictionLine = game.total?.prediction?.line
+    const targetLine = game.total?.targetLine
+
+    // Prefer prediction line if it differs from market
+    let modelLine = targetLine
+    if (Number.isFinite(predictionLine) && Number.isFinite(marketLine)) {
+      if (Math.abs((predictionLine as number) - (marketLine as number)) > 1) {
+        modelLine = predictionLine
+      }
+    }
+
+    if (!Number.isFinite(modelLine) || !Number.isFinite(marketLine)) {
       return { edgePercent: 0 }
     }
-    const diff = Math.abs(
-      (game.total?.targetLine ?? 0) - (game.total?.marketLine ?? 0)
-    )
+    const diff = Math.abs((modelLine ?? 0) - (marketLine ?? 0))
     const vig = resolveVigPercent(
       game.total?.bestOdds ?? null,
       game.total?.bestUnderOdds ?? null
@@ -239,16 +259,22 @@ const resolveSpreadEdgePick = (game: EdgeGame, sport?: string) => {
 }
 
 const resolveTotalEdgePick = (game: EdgeGame, sport?: string) => {
-  if (
-    !Number.isFinite(game.total?.targetLine) ||
-    !Number.isFinite(game.total?.marketLine)
-  ) {
+  const marketLine = game.total?.marketLine
+  const predictionLine = game.total?.prediction?.line
+  const targetLine = game.total?.targetLine
+
+  // Prefer prediction line if it differs from market
+  let modelLine = targetLine
+  if (Number.isFinite(predictionLine) && Number.isFinite(marketLine)) {
+    if (Math.abs((predictionLine as number) - (marketLine as number)) > 1) {
+      modelLine = predictionLine
+    }
+  }
+
+  if (!Number.isFinite(modelLine) || !Number.isFinite(marketLine)) {
     return { label: null, edgePercent: null }
   }
-  const pick =
-    (game.total?.targetLine ?? 0) > (game.total?.marketLine ?? 0)
-      ? "Over"
-      : "Under"
+  const pick = (modelLine ?? 0) > (marketLine ?? 0) ? "Over" : "Under"
   const edgePercent = marketEdge(game, "total", sport).edgePercent
   return { label: pick, edgePercent }
 }

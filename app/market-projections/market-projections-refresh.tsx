@@ -30,6 +30,8 @@ export default function MarketProjectionsRefresh({
   >("idle")
   const [details, setDetails] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
+  const [retryCount, setRetryCount] = useState(0)
+  const MAX_RETRIES = 3
 
   const parsedUpdated = lastUpdated ? Date.parse(lastUpdated) : NaN
   const lastUpdatedMs = Number.isFinite(parsedUpdated) ? parsedUpdated : null
@@ -48,6 +50,12 @@ export default function MarketProjectionsRefresh({
     const controller = new AbortController()
     const timeout = window.setTimeout(() => {
       controller.abort()
+      if (retryCount < MAX_RETRIES) {
+        setRetryCount((prev) => prev + 1)
+        setStatus("idle")
+        setDetails(`Retrying... (${retryCount + 1}/${MAX_RETRIES})`)
+        return
+      }
       setStatus("timeout")
       setDetails("Refresh is still running. It can take a minute.")
     }, 60000)
@@ -69,6 +77,7 @@ export default function MarketProjectionsRefresh({
       if (payload?.refreshing) {
         setStatus("done")
         setDetails("Refresh queued. This can take a moment.")
+        setRetryCount(0)
         window.setTimeout(() => {
           setStatus("idle")
           setDetails(null)
@@ -76,6 +85,7 @@ export default function MarketProjectionsRefresh({
         return
       }
       setStatus("done")
+      setRetryCount(0)
       window.setTimeout(() => {
         setStatus("idle")
         setDetails(null)
@@ -86,6 +96,12 @@ export default function MarketProjectionsRefresh({
     } catch (err) {
       if (controller.signal.aborted) return
       window.clearTimeout(timeout)
+      if (retryCount < MAX_RETRIES) {
+        setRetryCount((prev) => prev + 1)
+        setStatus("idle")
+        setDetails(`Retrying... (${retryCount + 1}/${MAX_RETRIES})`)
+        return
+      }
       setStatus("error")
       setDetails(err instanceof Error ? err.message : "Refresh failed.")
       if (onUpdated) {

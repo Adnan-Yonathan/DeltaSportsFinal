@@ -1,9 +1,7 @@
 import MarketProjectionsClient from "./market-projections-client"
 import SportSelector from "./sport-selector"
 import ToolsNav from "@/components/tools-nav"
-import { readFile } from "fs/promises"
-import { tmpdir } from "os"
-import { join } from "path"
+import { createClient } from "@/lib/supabase/server"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 
 export const dynamic = "force-dynamic"
@@ -22,17 +20,6 @@ const SPORT_OPTIONS: SportOption[] = [
   { key: "americanfootball_nfl", label: "NFL", locked: false },
 ]
 
-const resolveCacheDir = () => {
-  if (process.env.MARKET_PROJECTIONS_CACHE_DIR) {
-    return process.env.MARKET_PROJECTIONS_CACHE_DIR
-  }
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    return join(tmpdir(), "deltasports-cache")
-  }
-  return join(process.cwd(), "cache")
-}
-const getCachePath = (sport: string) =>
-  join(resolveCacheDir(), `market-projections-${sport}.json`)
 
 export default async function MarketProjectionsPage({
   searchParams,
@@ -55,22 +42,23 @@ export default async function MarketProjectionsPage({
 
   if (!isLocked) {
     try {
-      const raw = await readFile(getCachePath(sport), "utf-8")
-      const parsed = JSON.parse(raw) as {
-        edges?: typeof edges
-        updatedAt?: string
-      }
-      edges = parsed.edges ?? []
-      lastUpdated = parsed.updatedAt ?? null
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to load projections."
-      if (message.includes("ENOENT")) {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("market_projections_cache")
+        .select("edges, updated_at")
+        .eq("sport", sport)
+        .single()
+
+      if (error || !data) {
         hasCache = false
         errorMessage = "No cached projections yet."
       } else {
-        errorMessage = message
+        edges = data.edges ?? []
+        lastUpdated = data.updated_at ?? null
       }
+    } catch (error) {
+      hasCache = false
+      errorMessage = "Unable to load projections."
     }
   } else {
     hasCache = false

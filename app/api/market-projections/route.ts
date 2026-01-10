@@ -1,21 +1,7 @@
 import { NextResponse } from "next/server"
-import { writeFile, mkdir, readFile } from "fs/promises"
-import { tmpdir } from "os"
-import { join } from "path"
+import { createClient } from "@/lib/supabase/server"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 
-const resolveCacheDir = () => {
-  if (process.env.MARKET_PROJECTIONS_CACHE_DIR) {
-    return process.env.MARKET_PROJECTIONS_CACHE_DIR
-  }
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    return join(tmpdir(), "deltasports-cache")
-  }
-  return join(process.cwd(), "cache")
-}
-const CACHE_DIR = resolveCacheDir()
-const getCachePath = (sport: string) =>
-  join(CACHE_DIR, `market-projections-${sport}.json`)
 const CACHE_TTL_MS = 1000 * 60 * 15
 
 const normalizeKey = (value: string) =>
@@ -65,27 +51,39 @@ const mergeWhaleAlerts = (
 
 const readCache = async (sport: string) => {
   try {
-    const raw = await readFile(getCachePath(sport), "utf-8")
-    const parsed = JSON.parse(raw) as {
-      updatedAt?: string
-      sport?: string
-      edges?: unknown[]
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("market_projections_cache")
+      .select("edges, updated_at")
+      .eq("sport", sport)
+      .single()
+
+    if (error || !data) return null
+    return {
+      edges: data.edges,
+      updatedAt: data.updated_at,
+      sport,
     }
-    if (!parsed?.updatedAt || !Array.isArray(parsed?.edges)) return null
-    return parsed
-  } catch (error) {
+  } catch {
     return null
   }
 }
 
-const writeCache = async (sport: string, payload: unknown) => {
+const writeCache = async (sport: string, edges: any[]) => {
   try {
-    await mkdir(CACHE_DIR, { recursive: true })
-    await writeFile(
-      getCachePath(sport),
-      JSON.stringify(payload, null, 2),
-      "utf-8"
+    const supabase = createClient()
+    const { error } = await supabase.from("market_projections_cache").upsert(
+      {
+        sport,
+        edges,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "sport" }
     )
+    if (error) {
+      console.error("[market-projections] cache write failed", error)
+      return false
+    }
     return true
   } catch (error) {
     console.error("[market-projections] cache write failed", error)
@@ -114,12 +112,13 @@ export async function GET(request: Request) {
           fromCache: true,
         })
       }
+      const mergedEdges = mergeWhaleAlerts(result.edges ?? [], cached?.edges)
       const payload = {
         updatedAt: new Date().toISOString(),
         sport,
-        edges: mergeWhaleAlerts(result.edges ?? [], cached?.edges),
+        edges: mergedEdges,
       }
-      await writeCache(sport, payload)
+      await writeCache(sport, mergedEdges)
       return NextResponse.json({
         ok: true,
         updatedAt: payload.updatedAt,
@@ -153,12 +152,13 @@ export async function GET(request: Request) {
           if ((result.edges?.length ?? 0) === 0 && cached?.edges?.length) {
             return null
           }
+          const mergedEdges = mergeWhaleAlerts(result.edges ?? [], cached?.edges)
           const payload = {
             updatedAt: new Date().toISOString(),
             sport,
-            edges: mergeWhaleAlerts(result.edges ?? [], cached?.edges),
+            edges: mergedEdges,
           }
-          return writeCache(sport, payload)
+          return writeCache(sport, mergedEdges)
         })
         .catch((error) =>
           console.error("[market-projections] refresh failed", error)
@@ -176,12 +176,13 @@ export async function GET(request: Request) {
     }
 
     const result = await analyzeSlateEdges(sport, { limit: 200 })
+    const mergedEdges = mergeWhaleAlerts((result as any)?.edges ?? [], cached?.edges)
     const payload = {
       updatedAt: new Date().toISOString(),
       sport,
-      edges: mergeWhaleAlerts((result as any)?.edges ?? [], cached?.edges),
+      edges: mergedEdges,
     }
-    await writeCache(sport, payload)
+    await writeCache(sport, mergedEdges)
     return NextResponse.json({
       ok: true,
       updatedAt: payload.updatedAt,

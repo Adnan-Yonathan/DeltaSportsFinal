@@ -1,7 +1,176 @@
 {
-  "updatedAt": "2026-01-09T22:53:53.913Z",
+  "updatedAt": "2026-01-10T16:00:06.332Z",
   "sport": "americanfootball_nfl",
   "edges": [
+    {
+      "matchup": "Green Bay Packers @ Chicago Bears",
+      "homeTeam": "Chicago Bears",
+      "awayTeam": "Green Bay Packers",
+      "commenceTime": "2026-01-11T01:00:00+00:00",
+      "homeStats": null,
+      "awayStats": null,
+      "moneyline": {
+        "sportsbook": {
+          "homeOdds": 110,
+          "homeBook": "DraftKings",
+          "awayOdds": -122,
+          "awayBook": "BetRivers"
+        },
+        "model": {
+          "homeOdds": 142,
+          "awayOdds": -142,
+          "homeProbability": 0.41261102667663246
+        },
+        "prediction": {
+          "homeOdds": 115,
+          "homeBook": "Polymarket",
+          "awayOdds": -115,
+          "awayBook": "Polymarket"
+        }
+      },
+      "confidence": "high",
+      "factors": [
+        "Spread moved +1.5 to +2.5",
+        "RLM on Green Bay Packers spread",
+        "STEAM on Chicago Bears spread"
+      ],
+      "injuries": [],
+      "matchupFactors": [],
+      "sharpSignals": [
+        {
+          "type": "RLM",
+          "market": "spread",
+          "side": "Green Bay Packers",
+          "strength": 4,
+          "description": "72.11% of bets on Chicago Bears but line moved against them",
+          "confidence": "high"
+        },
+        {
+          "type": "STEAM",
+          "market": "spread",
+          "side": "Chicago Bears",
+          "strength": 5,
+          "description": "spread moved 1.0 points (1.5 → 2.5)",
+          "confidence": "high"
+        },
+        {
+          "type": "STEAM",
+          "market": "total",
+          "side": "Under",
+          "strength": 5,
+          "description": "total moved 3.0 points (47.5 → 44.5)",
+          "confidence": "high"
+        },
+        {
+          "type": "STEAM",
+          "market": "moneyline",
+          "side": "Green Bay Packers",
+          "strength": 5,
+          "description": "moneyline moved 215.0 points (-105 → 110)",
+          "confidence": "high"
+        }
+      ],
+      "lineMovements": [
+        {
+          "market": "spread",
+          "side": "Chicago Bears",
+          "openingLine": 1.5,
+          "currentLine": 2.5,
+          "movement": 1,
+          "openingOdds": -115,
+          "currentOdds": -123,
+          "oddsMovement": 8,
+          "isSharp": true,
+          "isSignificant": true,
+          "direction": "away"
+        },
+        {
+          "market": "total",
+          "side": "Under",
+          "openingLine": 47.5,
+          "currentLine": 44.5,
+          "movement": -3,
+          "openingOdds": -110,
+          "currentOdds": -112,
+          "oddsMovement": 2,
+          "isSharp": true,
+          "isSignificant": true,
+          "direction": "away"
+        },
+        {
+          "market": "moneyline",
+          "side": "Green Bay Packers",
+          "openingLine": -105,
+          "currentLine": 110,
+          "movement": 215,
+          "openingOdds": -105,
+          "currentOdds": 110,
+          "oddsMovement": 215,
+          "isSharp": true,
+          "isSignificant": true,
+          "direction": "away"
+        }
+      ],
+      "splits": {
+        "spreadHomeBetPct": 72.11,
+        "spreadAwayBetPct": 27.89,
+        "spreadHomeMoneyPct": 72.5,
+        "spreadAwayMoneyPct": 27.5,
+        "totalOverBetPct": 61.71,
+        "totalUnderBetPct": 38.29,
+        "totalOverMoneyPct": 47.81,
+        "totalUnderMoneyPct": 52.19,
+        "mlHomeBetPct": 65.68,
+        "mlAwayBetPct": 34.32,
+        "mlHomeMoneyPct": 63.9,
+        "mlAwayMoneyPct": 36.1
+      },
+      "sharpConfirmation": {
+        "agrees": true,
+        "signals": [
+          "RLM: 72.11% of bets on Chicago Bears but line moved against them",
+          "STEAM: total moved 3.0 points (47.5 → 44.5)"
+        ],
+        "boost": 1.8
+      },
+      "spread": {
+        "marketLine": 2.5,
+        "targetLine": 2.65,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 0.1 points vs the provided line."
+        },
+        "bestBook": "DraftKings",
+        "bestOdds": -123,
+        "prediction": {
+          "line": 1.5,
+          "book": "Polymarket",
+          "odds": 102
+        },
+        "favoredTeam": "Green Bay Packers",
+        "sharpConfirmed": true
+      },
+      "total": {
+        "marketLine": 44.5,
+        "targetLine": 41.6,
+        "edge": {
+          "verdict": "none",
+          "confidence": "low",
+          "reason": "Model gap is 2.9 points vs the provided line."
+        },
+        "bestBook": "Caesars",
+        "bestOdds": -108,
+        "bestUnderOdds": -112,
+        "prediction": {
+          "line": 44.5,
+          "book": "Polymarket",
+          "overOdds": 102,
+          "underOdds": -102
+        },
+        "sharpConfirmed": true
+      }
+    },
     {
       "matchup": "Los Angeles Rams @ Carolina Panthers",
       "homeTeam": "Carolina Panthers",
@@ -11,15 +180,15 @@
       "awayStats": null,
       "moneyline": {
         "sportsbook": {
-          "homeOdds": 460,
-          "homeBook": "FanDuel",
+          "homeOdds": 450,
+          "homeBook": "BetRivers",
           "awayOdds": -575,
           "awayBook": "DraftKings"
         },
         "model": {
-          "homeOdds": 410,
-          "awayOdds": -410,
-          "homeProbability": 0.1959296647611162
+          "homeOdds": 435,
+          "awayOdds": -435,
+          "homeProbability": 0.18684475251604837
         },
         "prediction": {
           "homeOdds": 471,
@@ -30,8 +199,7 @@
       },
       "confidence": "medium",
       "factors": [
-        "Spread moved +10 to +10.5",
-        "Money 67% vs bets 56% leaning Carolina Panthers"
+        "Spread moved +10 to +10.5"
       ],
       "injuries": [],
       "matchupFactors": [],
@@ -41,7 +209,7 @@
           "market": "moneyline",
           "side": "Carolina Panthers",
           "strength": 5,
-          "description": "32% money/bet divergence on Carolina Panthers ML",
+          "description": "28% money/bet divergence on Carolina Panthers ML",
           "confidence": "high"
         }
       ],
@@ -53,8 +221,8 @@
           "currentLine": 10.5,
           "movement": 0.5,
           "openingOdds": -105,
-          "currentOdds": -115,
-          "oddsMovement": 10,
+          "currentOdds": -121,
+          "oddsMovement": 16,
           "isSharp": true,
           "isSignificant": false,
           "direction": "away"
@@ -63,14 +231,14 @@
           "market": "total",
           "side": "Under",
           "openingLine": 46.5,
-          "currentLine": 46.5,
-          "movement": 0,
+          "currentLine": 45.5,
+          "movement": -1,
           "openingOdds": -110,
-          "currentOdds": -109,
-          "oddsMovement": -1,
-          "isSharp": false,
+          "currentOdds": -115,
+          "oddsMovement": 5,
+          "isSharp": true,
           "isSignificant": false,
-          "direction": "neutral"
+          "direction": "away"
         },
         {
           "market": "moneyline",
@@ -87,53 +255,53 @@
         }
       ],
       "splits": {
-        "spreadHomeBetPct": 55.97,
-        "spreadAwayBetPct": 44.03,
-        "spreadHomeMoneyPct": 66.62,
-        "spreadAwayMoneyPct": 33.38,
-        "totalOverBetPct": 73.56,
-        "totalUnderBetPct": 26.44,
-        "totalOverMoneyPct": 67.56,
-        "totalUnderMoneyPct": 32.44,
-        "mlHomeBetPct": 10.82,
-        "mlAwayBetPct": 89.18,
-        "mlHomeMoneyPct": 43.03,
-        "mlAwayMoneyPct": 56.97
+        "spreadHomeBetPct": 54.56,
+        "spreadAwayBetPct": 45.44,
+        "spreadHomeMoneyPct": 57.21,
+        "spreadAwayMoneyPct": 42.79,
+        "totalOverBetPct": 75.53,
+        "totalUnderBetPct": 24.47,
+        "totalOverMoneyPct": 70.18,
+        "totalUnderMoneyPct": 29.82,
+        "mlHomeBetPct": 11.31,
+        "mlAwayBetPct": 88.69,
+        "mlHomeMoneyPct": 39.59,
+        "mlAwayMoneyPct": 60.41
       },
       "spread": {
         "marketLine": 10.5,
-        "targetLine": 10.275,
+        "targetLine": 10.675,
         "edge": {
           "verdict": "none",
           "confidence": "low",
           "reason": "Model gap is 0.2 points vs the provided line."
         },
         "bestBook": "DraftKings",
-        "bestOdds": -115,
+        "bestOdds": -121,
         "prediction": {
           "line": 10.5,
           "book": "Polymarket",
-          "odds": -102
+          "odds": -111
         },
         "favoredTeam": "Los Angeles Rams",
         "sharpConfirmed": false
       },
       "total": {
         "marketLine": 46.5,
-        "targetLine": 46.5,
+        "targetLine": 46.1,
         "edge": {
           "verdict": "none",
           "confidence": "low",
-          "reason": "Model gap is 0.0 points vs the provided line."
+          "reason": "Model gap is 0.4 points vs the provided line."
         },
         "bestBook": "FanDuel",
         "bestOdds": -104,
         "bestUnderOdds": -118,
         "prediction": {
           "line": 46.5,
-          "book": "Polymarket",
-          "overOdds": 111,
-          "underOdds": -111
+          "book": "Kalshi",
+          "overOdds": 115,
+          "underOdds": -115
         },
         "sharpConfirmed": false
       }

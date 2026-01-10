@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 
 export default function MarketProjectionsRefresh({
   hasCache,
@@ -96,22 +96,25 @@ export default function MarketProjectionsRefresh({
     }
   }
 
+  // Keep ref to latest refresh function to avoid stale closures
+  const refreshRef = useRef(refresh)
+  useEffect(() => {
+    refreshRef.current = refresh
+  })
+
   useEffect(() => {
     if (status !== "idle" || isLocked) return
     refresh()
   }, [status, isLocked, sport])
 
+  // Auto-refresh interval - created once, fires every 15 minutes
   useEffect(() => {
     if (isLocked) return
     const interval = window.setInterval(() => {
-      const updatedAtMs = lastUpdatedMs ?? 0
-      const shouldRefresh = !updatedAtMs || Date.now() - updatedAtMs >= 15 * 60 * 1000
-      if (shouldRefresh) {
-        refresh()
-      }
+      refreshRef.current()
     }, 15 * 60 * 1000)
     return () => window.clearInterval(interval)
-  }, [isLocked, sport, lastUpdatedMs, status])
+  }, [isLocked])
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000)

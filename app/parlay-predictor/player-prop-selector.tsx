@@ -129,6 +129,7 @@ export default function PlayerPropSelector({
   const [loading, setLoading] = useState(false)
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null)
   const [projectionsData, setProjectionsData] = useState<DailyProjectionsResponse | null>(null)
+  const [projectionsError, setProjectionsError] = useState<string | null>(null)
 
   const isNfl = sport?.includes('nfl') || sport?.includes('ncaaf')
   const positions = isNfl ? NFL_POSITIONS : NBA_POSITIONS
@@ -149,16 +150,27 @@ export default function PlayerPropSelector({
   useEffect(() => {
     if (!sport) return
 
+    // Clear stale data when sport changes
+    setProjectionsData(null)
+    setProjectionsError(null)
+
     const fetchProjections = async () => {
       setLoading(true)
       try {
         const res = await fetch(`/api/daily-projections?sport=${sport}`)
+        const data = await res.json()
         if (res.ok) {
-          const data: DailyProjectionsResponse = await res.json()
           setProjectionsData(data)
+          setProjectionsError(null)
+        } else {
+          // Handle API errors (e.g., unsupported sport)
+          setProjectionsError(data.error || 'Failed to load player projections')
+          setProjectionsData(null)
         }
       } catch (err) {
         console.error('Failed to fetch projections:', err)
+        setProjectionsError('Failed to load player projections')
+        setProjectionsData(null)
       } finally {
         setLoading(false)
       }
@@ -186,29 +198,50 @@ export default function PlayerPropSelector({
     // Filter players by game and position
     return projectionsData.players
       .filter(player => {
-        // Match by team abbreviation
-        const playerTeamNorm = normalize(player.teamAbbr || player.team)
+        // Match by team abbreviation and full team name
+        const playerTeamAbbr = normalize(player.teamAbbr || '')
+        const playerTeamFull = normalize(player.team || '')
         const playerGameNorm = normalize(player.game)
 
         // Check if player's team matches either team in the game
-        const matchesTeam = playerTeamNorm === homeTeamNorm ||
-          playerTeamNorm === awayTeamNorm ||
-          homeTeamNorm.includes(playerTeamNorm) ||
-          awayTeamNorm.includes(playerTeamNorm) ||
-          playerTeamNorm.includes(homeTeamNorm) ||
-          playerTeamNorm.includes(awayTeamNorm)
+        // Use both abbreviation and full team name for matching
+        const matchesTeam =
+          // Exact matches
+          playerTeamFull === homeTeamNorm ||
+          playerTeamFull === awayTeamNorm ||
+          // Abbreviation in full name (e.g., "cle" in "clevelandcavaliers")
+          homeTeamNorm.includes(playerTeamAbbr) ||
+          awayTeamNorm.includes(playerTeamAbbr) ||
+          // Full name contains abbreviation check (rarely matches but harmless)
+          playerTeamAbbr.includes(homeTeamNorm) ||
+          playerTeamAbbr.includes(awayTeamNorm) ||
+          // Full team name substring matches
+          playerTeamFull.includes(homeTeamNorm) ||
+          playerTeamFull.includes(awayTeamNorm) ||
+          homeTeamNorm.includes(playerTeamFull) ||
+          awayTeamNorm.includes(playerTeamFull)
 
-        // Also try matching by game string
-        const matchesGameStr = playerGameNorm &&
-          (playerGameNorm.includes(homeTeamNorm) || playerGameNorm.includes(awayTeamNorm) ||
-           gameMatchupNorm.includes(playerTeamNorm))
+        // Also try matching by game string from projections (e.g., "LAR @ CAR")
+        // with the full game matchup string (e.g., "losangelesramscarolinapanthers")
+        const matchesGameStr = playerGameNorm && (
+          playerGameNorm.includes(homeTeamNorm) ||
+          playerGameNorm.includes(awayTeamNorm) ||
+          gameMatchupNorm.includes(playerTeamAbbr) ||
+          gameMatchupNorm.includes(playerTeamFull)
+        )
 
         if (!matchesTeam && !matchesGameStr) return false
 
         // Team filter
         if (teamFilter !== 'All') {
           const teamFilterNorm = normalize(teamFilter)
-          if (playerTeamNorm !== teamFilterNorm && !playerTeamNorm.includes(teamFilterNorm)) {
+          const matchesTeamFilter =
+            playerTeamAbbr === teamFilterNorm ||
+            playerTeamFull === teamFilterNorm ||
+            playerTeamAbbr.includes(teamFilterNorm) ||
+            playerTeamFull.includes(teamFilterNorm) ||
+            teamFilterNorm.includes(playerTeamAbbr)
+          if (!matchesTeamFilter) {
             return false
           }
         }
@@ -396,6 +429,10 @@ export default function PlayerPropSelector({
       {loading ? (
         <div className="rounded-xl border border-white/10 bg-black/30 p-4 text-sm text-white/60">
           Loading players...
+        </div>
+      ) : projectionsError ? (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+          {projectionsError}
         </div>
       ) : !selectedGameId ? (
         <div className="rounded-xl border border-white/10 bg-black/30 p-4 text-sm text-white/60">

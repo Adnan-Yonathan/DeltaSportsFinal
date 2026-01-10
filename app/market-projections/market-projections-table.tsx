@@ -1,7 +1,6 @@
 ﻿"use client"
 
 import { useMemo, useState } from "react"
-import Link from "next/link"
 
 type EdgeFilter = "spread" | "moneyline" | "total"
 
@@ -222,7 +221,7 @@ const formatEdgePick = (
   label: string | null,
   edgePercent: number | null
 ) => {
-  if (!label || edgePercent == null || edgePercent <= 0) return "No edge"
+  if (!label || edgePercent == null) return "0.0%"
   return `${label} ${edgeLabel(edgePercent)}`
 }
 
@@ -407,8 +406,7 @@ export default function MarketProjectionsTable({
                           {formatEdgePick(totalPick.label, totalPick.edgePercent)}
                         </div>
                         <div className="mt-1 text-[11px] text-white/50">
-                          Market spread {formatSigned(spread?.marketLine)} -
-                          Market total {formatSigned(total?.marketLine)}
+                          {game.homeTeam} {formatSigned(spread?.marketLine)} {game.awayTeam} {formatSigned(spread?.marketLine != null ? -(spread.marketLine) : null)}
                         </div>
                       </div>
                       <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/50 group-open:border-emerald-400/40 group-open:text-emerald-200">
@@ -447,8 +445,12 @@ export default function MarketProjectionsTable({
                         <div>
                           Market lines:{" "}
                           <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70">
-                            Spread {formatSigned(spread?.marketLine)} - Total{" "}
-                            {formatSigned(total?.marketLine)}
+                            {game.homeTeam} {formatSigned(spread?.marketLine)} {game.awayTeam} {formatSigned(spread?.marketLine != null ? -(spread.marketLine) : null)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70">
+                            Total {formatSigned(total?.marketLine)}
                           </span>
                         </div>
                       </div>
@@ -487,16 +489,6 @@ export default function MarketProjectionsTable({
                           <div>No whale activity yet.</div>
                         )}
                       </div>
-                      <Link
-                        href={`/chat?prompt=Analyze%20${encodeURIComponent(
-                          game.awayTeam
-                        )}%20at%20${encodeURIComponent(
-                          game.homeTeam
-                        )}%20using%20market%20projections`}
-                        className="inline-flex rounded-md border border-emerald-400/40 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-400 hover:text-white transition-colors"
-                      >
-                        Analyze
-                      </Link>
                     </div>
                   </details>
                 )
@@ -539,16 +531,6 @@ export default function MarketProjectionsTable({
                       <div className="text-sm font-semibold text-white">
                         {game.awayTeam} @ {game.homeTeam}
                       </div>
-                      <Link
-                        href={`/chat?prompt=Analyze%20${encodeURIComponent(
-                          game.awayTeam
-                        )}%20at%20${encodeURIComponent(
-                          game.homeTeam
-                        )}%20using%20market%20projections`}
-                        className="inline-flex rounded-md border border-emerald-400/40 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-400 hover:text-white transition-colors"
-                      >
-                        Analyze
-                      </Link>
                     </div>
                     <div className="space-y-2 text-xs text-white/70">
   <div>
@@ -581,8 +563,12 @@ export default function MarketProjectionsTable({
   <div>
     Market lines:{" "}
     <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70">
-      Spread {formatSigned(spread?.marketLine)} • Total{" "}
-      {formatSigned(total?.marketLine)}
+      {game.homeTeam} {formatSigned(spread?.marketLine)} {game.awayTeam} {formatSigned(spread?.marketLine != null ? -(spread.marketLine) : null)}
+    </span>
+  </div>
+  <div>
+    <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70">
+      Total {formatSigned(total?.marketLine)}
     </span>
   </div>
 </div>

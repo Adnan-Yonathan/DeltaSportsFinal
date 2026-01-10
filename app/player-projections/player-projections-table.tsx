@@ -98,6 +98,7 @@ export default function PlayerProjectionsTable({
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [positionFilter, setPositionFilter] = useState<string>("All")
+  const [now, setNow] = useState(Date.now())
   const lastLoadedRef = useRef<number>(0)
 
   const isNfl = sport === "americanfootball_nfl"
@@ -105,6 +106,12 @@ export default function PlayerProjectionsTable({
   const activeMarkets = isNfl
     ? (NFL_POSITION_MARKETS[positionFilter] ?? NFL_POSITION_MARKETS.All)
     : (SPORT_MARKETS[sport] ?? SPORT_MARKETS.basketball_nba)
+
+  // Countdown timer calculation
+  const lastLoadedMs = lastLoadedRef.current
+  const cooldownMs = lastLoadedMs ? REFRESH_INTERVAL_MS - (now - lastLoadedMs) : 0
+  const remainingSeconds = Math.max(0, Math.ceil(cooldownMs / 1000))
+  const remainingLabel = `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}`
 
   const loadData = useCallback(async (isManual = false) => {
     if (!isManual) setLoading(true)
@@ -138,37 +145,48 @@ export default function PlayerProjectionsTable({
     }
   }, [sport, positionFilter, isNfl])
 
+  // Keep ref to latest loadData function to avoid stale closures
+  const loadDataRef = useRef(loadData)
+  useEffect(() => {
+    loadDataRef.current = loadData
+  }, [loadData])
+
+  // Initial load when sport or position changes
   useEffect(() => {
     loadData()
+  }, [sport, positionFilter])
 
-    const checkAndRefresh = () => {
-      const elapsed = Date.now() - lastLoadedRef.current
-      if (elapsed >= REFRESH_INTERVAL_MS) {
-        setIsRefreshing(true)
-        loadData(true)
-      }
-    }
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        checkAndRefresh()
-      }
-    }
-
+  // Auto-refresh interval - created once, fires every 15 minutes
+  useEffect(() => {
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") {
         setIsRefreshing(true)
-        loadData(true)
+        loadDataRef.current(true)
       }
     }, REFRESH_INTERVAL_MS)
+    return () => window.clearInterval(interval)
+  }, [])
 
-    document.addEventListener("visibilitychange", handleVisibilityChange)
+  // Countdown timer update every second
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(interval)
+  }, [])
 
-    return () => {
-      window.clearInterval(interval)
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
+  // Visibility change handler - refresh if page was hidden for 15+ minutes
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        const elapsed = Date.now() - lastLoadedRef.current
+        if (elapsed >= REFRESH_INTERVAL_MS) {
+          setIsRefreshing(true)
+          loadDataRef.current(true)
+        }
+      }
     }
-  }, [loadData])
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
+  }, [])
 
   // Reset position filter when sport changes
   useEffect(() => {
@@ -256,13 +274,12 @@ export default function PlayerProjectionsTable({
             </div>
           )}
           <div className="flex items-center gap-2 text-[10px] text-white/40">
-            {lastUpdated && (
-              <>
-                <span>Updated {formatLastUpdated(lastUpdated)}</span>
-                {isRefreshing && (
-                  <span className="text-emerald-400">Refreshing...</span>
-                )}
-              </>
+            <span>Next refresh in {remainingLabel}</span>
+            {isRefreshing && (
+              <span className="text-emerald-400">Refreshing...</span>
+            )}
+            {lastUpdated && !isRefreshing && (
+              <span className="text-white/30">Updated {formatLastUpdated(lastUpdated)}</span>
             )}
             {totalPlayers > 0 && (
               <span className="text-white/30">

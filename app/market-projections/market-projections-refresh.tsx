@@ -57,7 +57,7 @@ export default function MarketProjectionsRefresh({
         `/api/market-projections?sport=${sport}&refresh=1${
           includeEdges ? "&include=1" : ""
         }`,
-        { signal: controller.signal }
+        { signal: controller.signal, cache: "no-store" }
       )
       window.clearTimeout(timeout)
       if (!res.ok) throw new Error("Refresh failed")

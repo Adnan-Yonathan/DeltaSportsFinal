@@ -1,9 +1,19 @@
 import { NextResponse } from "next/server"
 import { writeFile, mkdir, readFile } from "fs/promises"
+import { tmpdir } from "os"
 import { join } from "path"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 
-const CACHE_DIR = join(process.cwd(), "cache")
+const resolveCacheDir = () => {
+  if (process.env.MARKET_PROJECTIONS_CACHE_DIR) {
+    return process.env.MARKET_PROJECTIONS_CACHE_DIR
+  }
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return join(tmpdir(), "deltasports-cache")
+  }
+  return join(process.cwd(), "cache")
+}
+const CACHE_DIR = resolveCacheDir()
 const getCachePath = (sport: string) =>
   join(CACHE_DIR, `market-projections-${sport}.json`)
 const CACHE_TTL_MS = 1000 * 60 * 15
@@ -69,8 +79,18 @@ const readCache = async (sport: string) => {
 }
 
 const writeCache = async (sport: string, payload: unknown) => {
-  await mkdir(CACHE_DIR, { recursive: true })
-  await writeFile(getCachePath(sport), JSON.stringify(payload, null, 2), "utf-8")
+  try {
+    await mkdir(CACHE_DIR, { recursive: true })
+    await writeFile(
+      getCachePath(sport),
+      JSON.stringify(payload, null, 2),
+      "utf-8"
+    )
+    return true
+  } catch (error) {
+    console.error("[market-projections] cache write failed", error)
+    return false
+  }
 }
 
 export async function GET(request: Request) {

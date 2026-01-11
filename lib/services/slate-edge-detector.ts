@@ -578,6 +578,244 @@ const buildCfbMarketRecommendations = ({
   return recommendations
 }
 
+const buildNbaMarketRecommendations = ({
+  homeTeam,
+  awayTeam,
+  marketSpread,
+  marketTotal,
+  sharpResult,
+  whaleAlerts,
+}: {
+  homeTeam: string
+  awayTeam: string
+  marketSpread: { line: number } | null
+  marketTotal: { line: number } | null
+  sharpResult?: SharpEdgeResult
+  whaleAlerts?: WhaleAlert[]
+}): GameRecommendation[] => {
+  const recommendations: GameRecommendation[] = []
+  const spreadSignals =
+    sharpResult?.sharpSignals.filter((signal) => signal.market === 'spread') ||
+    []
+  const totalSignals =
+    sharpResult?.sharpSignals.filter((signal) => signal.market === 'total') || []
+  const spreadMovement = sharpResult?.lineMovements.find(
+    (movement) => movement.market === 'spread'
+  )
+  const totalMovement = sharpResult?.lineMovements.find(
+    (movement) => movement.market === 'total'
+  )
+
+  if (marketSpread) {
+    let spreadAdjustment = 0
+    const factors: string[] = []
+    let homeWhaleBias = 0
+    let awayWhaleBias = 0
+
+    if (spreadMovement) {
+      const moveWeight = Math.min(1.5, Math.abs(spreadMovement.movement) * 0.6)
+      const movementSide =
+        spreadMovement.direction === 'toward'
+          ? homeTeam
+          : spreadMovement.direction === 'away'
+            ? awayTeam
+            : null
+      if (movementSide) {
+        spreadAdjustment += movementSide === homeTeam ? -moveWeight : moveWeight
+      }
+      factors.push(
+        `Spread moved ${formatSignedLine(spreadMovement.openingLine)} to ${formatSignedLine(
+          spreadMovement.currentLine
+        )}`
+      )
+
+      const splits = sharpResult?.splits
+      if (splits?.spreadHomeBetPct != null && splits?.spreadAwayBetPct != null) {
+        const homeBets = splits.spreadHomeBetPct
+        const awayBets = splits.spreadAwayBetPct
+        const gap = Math.abs(homeBets - awayBets)
+        if (movementSide && gap >= 12) {
+          const publicSide = homeBets >= awayBets ? homeTeam : awayTeam
+          if (publicSide !== movementSide) {
+            const rlmWeight = Math.min(1, gap / 30)
+            spreadAdjustment += movementSide === homeTeam ? -rlmWeight : rlmWeight
+            factors.push(`Reverse line move vs public (${Math.round(gap)}% gap)`)
+          }
+        }
+      }
+    }
+
+    for (const signal of spreadSignals) {
+      const adjustment = resolveSignalAdjustment(signal, homeTeam, awayTeam)
+      if (adjustment === 0) continue
+      spreadAdjustment += adjustment
+      factors.push(`${signal.type} on ${signal.side} spread`)
+    }
+
+    const splits = sharpResult?.splits
+    if (
+      splits?.spreadHomeBetPct != null &&
+      splits?.spreadHomeMoneyPct != null
+    ) {
+      const divergence = splits.spreadHomeMoneyPct - splits.spreadHomeBetPct
+      if (Math.abs(divergence) >= 8) {
+        const leaning = divergence > 0 ? homeTeam : awayTeam
+        const weight = Math.abs(divergence) >= 20 ? 0.7 : 0.4
+        spreadAdjustment += leaning === homeTeam ? -weight : weight
+        factors.push(
+          `Money ${Math.round(splits.spreadHomeMoneyPct)}% vs bets ${Math.round(
+            splits.spreadHomeBetPct
+          )}% leaning ${leaning}`
+        )
+      }
+    }
+
+    if (whaleAlerts && whaleAlerts.length > 0) {
+      const respected = whaleAlerts.filter((alert) => alert.status === 'respected')
+      for (const alert of respected) {
+        const weight = resolveWhaleWeight(alert.notional)
+        if (!weight) continue
+        const selection = `${alert.marketTitle} ${alert.outcome}`
+        const isHome = selectionMatchesTeam(selection, homeTeam)
+        const isAway = selectionMatchesTeam(selection, awayTeam)
+        if (isHome === isAway) continue
+        if (isHome) homeWhaleBias += weight
+        if (isAway) awayWhaleBias += weight
+      }
+    }
+
+    const netSideBias = homeWhaleBias - awayWhaleBias
+    if (netSideBias) {
+      spreadAdjustment -= netSideBias
+      const whaleFactor = summarizeWhaleBias(homeTeam, awayTeam, netSideBias)
+      if (whaleFactor) factors.push(whaleFactor)
+    }
+
+    const targetLine = clampValue(
+      marketSpread.line + spreadAdjustment,
+      marketSpread.line - 2.5,
+      marketSpread.line + 2.5
+    )
+    const signalCount =
+      spreadSignals.length +
+      (spreadMovement ? 1 : 0) +
+      (factors.length > 0 ? 1 : 0)
+
+    recommendations.push({
+      type: 'spread',
+      homeTeam,
+      awayTeam,
+      targetLine,
+      confidence: resolveConfidence(signalCount),
+      factors,
+      recommendation: `${homeTeam} ${formatSignedLine(targetLine)} sharp-driven lean`,
+    })
+  }
+
+  if (marketTotal) {
+    let totalAdjustment = 0
+    const factors: string[] = []
+    let overWhaleBias = 0
+    let underWhaleBias = 0
+
+    if (totalMovement) {
+      const moveWeight = Math.min(3, Math.abs(totalMovement.movement) * 0.6)
+      const movementSide = totalMovement.side.toLowerCase().includes('over')
+        ? 'Over'
+        : 'Under'
+      totalAdjustment += movementSide === 'Over' ? moveWeight : -moveWeight
+      factors.push(
+        `Total moved ${formatSignedLine(totalMovement.openingLine)} to ${formatSignedLine(
+          totalMovement.currentLine
+        )}`
+      )
+
+      const splits = sharpResult?.splits
+      if (splits?.totalOverBetPct != null && splits?.totalUnderBetPct != null) {
+        const overBets = splits.totalOverBetPct
+        const underBets = splits.totalUnderBetPct
+        const gap = Math.abs(overBets - underBets)
+        if (gap >= 12) {
+          const publicSide = overBets >= underBets ? 'Over' : 'Under'
+          if (publicSide !== movementSide) {
+            const rlmWeight = Math.min(1.2, gap / 25)
+            totalAdjustment += movementSide === 'Over' ? rlmWeight : -rlmWeight
+            factors.push(`Reverse line move vs public (${Math.round(gap)}% gap)`)
+          }
+        }
+      }
+    }
+
+    for (const signal of totalSignals) {
+      const adjustment = resolveTotalSignalAdjustment(signal)
+      if (adjustment === 0) continue
+      totalAdjustment += adjustment
+      factors.push(`${signal.type} on ${signal.side} total`)
+    }
+
+    const splits = sharpResult?.splits
+    if (
+      splits?.totalOverBetPct != null &&
+      splits?.totalOverMoneyPct != null
+    ) {
+      const divergence = splits.totalOverMoneyPct - splits.totalOverBetPct
+      if (Math.abs(divergence) >= 8) {
+        const leaning = divergence > 0 ? 'Over' : 'Under'
+        const weight = Math.abs(divergence) >= 20 ? 0.9 : 0.5
+        totalAdjustment += leaning === 'Over' ? weight : -weight
+        factors.push(
+          `Money ${Math.round(splits.totalOverMoneyPct)}% vs bets ${Math.round(
+            splits.totalOverBetPct
+          )}% leaning ${leaning}`
+        )
+      }
+    }
+
+    if (whaleAlerts && whaleAlerts.length > 0) {
+      const respected = whaleAlerts.filter((alert) => alert.status === 'respected')
+      for (const alert of respected) {
+        const weight = resolveWhaleWeight(alert.notional)
+        if (!weight) continue
+        const outcome = alert.outcome.toLowerCase()
+        const isOver = outcome.includes('over')
+        const isUnder = outcome.includes('under')
+        if (!isOver && !isUnder) continue
+        if (isOver) overWhaleBias += weight
+        if (isUnder) underWhaleBias += weight
+      }
+    }
+
+    const netTotalBias = overWhaleBias - underWhaleBias
+    if (netTotalBias) {
+      totalAdjustment += netTotalBias
+      const whaleFactor = summarizeTotalWhaleBias(netTotalBias)
+      if (whaleFactor) factors.push(whaleFactor)
+    }
+
+    const targetLine = clampValue(
+      marketTotal.line + totalAdjustment,
+      marketTotal.line - 5,
+      marketTotal.line + 5
+    )
+    const signalCount =
+      totalSignals.length +
+      (totalMovement ? 1 : 0) +
+      (factors.length > 0 ? 1 : 0)
+
+    recommendations.push({
+      type: 'total',
+      homeTeam,
+      awayTeam,
+      targetLine,
+      confidence: resolveConfidence(signalCount),
+      factors,
+      recommendation: `Total ${targetLine.toFixed(1)} sharp-driven lean`,
+    })
+  }
+
+  return recommendations
+}
+
 const getFallbackTeamStats = (sportKey: string) => {
   if (sportKey === 'basketball_ncaab') {
     return { ortg: 105, drtg: 105, pace: 70 }
@@ -1350,7 +1588,16 @@ export async function analyzeSlateEdges(
             ? 25000
             : 8000
       let recommendations: GameRecommendation[] = []
-      if (isCfb) {
+      if (sportKey === 'basketball_nba') {
+        recommendations = buildNbaMarketRecommendations({
+          homeTeam: game.home_team,
+          awayTeam: game.away_team,
+          marketSpread,
+          marketTotal,
+          sharpResult,
+          whaleAlerts,
+        })
+      } else if (isCfb) {
         recommendations = buildCfbMarketRecommendations({
           homeTeam: game.home_team,
           awayTeam: game.away_team,

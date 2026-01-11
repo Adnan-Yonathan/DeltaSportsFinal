@@ -59,12 +59,12 @@ export function LatestNewsStrip() {
   return (
     <div className="w-full bg-transparent">
       {/* Mobile: Horizontal League Selector on Top */}
-      <div className="flex md:hidden flex-wrap items-center justify-center gap-2 mb-3 px-1">
+      <div className="flex md:hidden flex-wrap items-center justify-center gap-1.5 mb-2 px-1">
         {LEAGUE_TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setLeague(tab.key)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${
               league === tab.key
                 ? "bg-emerald-500 text-white"
                 : "border border-emerald-500/30 text-emerald-200 hover:bg-emerald-900/40"
@@ -76,14 +76,14 @@ export function LatestNewsStrip() {
       </div>
 
       {/* Desktop: Side by Side Layout with Selector Outside */}
-      <div className="flex items-center justify-center gap-6">
+      <div className="flex items-center justify-center gap-4">
         {/* Quadrant League Selector - Hidden on Mobile */}
-        <div className="hidden md:grid grid-cols-2 gap-2">
+        <div className="hidden md:grid grid-cols-2 gap-1.5">
           {LEAGUE_TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setLeague(tab.key)}
-              className={`rounded-lg px-4 py-3 text-xs font-semibold transition ${
+              className={`rounded-md px-2.5 py-1.5 text-[10px] font-semibold transition ${
                 league === tab.key
                   ? "bg-emerald-500 text-white"
                   : "border border-emerald-500/30 text-emerald-200 hover:bg-emerald-900/40"
@@ -95,21 +95,21 @@ export function LatestNewsStrip() {
         </div>
 
         {/* Slideshow Container - Aligned with Chatbox */}
-        <div className="w-full max-w-3xl relative min-h-[80px] px-1">
+        <div className="w-full max-w-3xl relative min-h-[50px] px-1">
         {loading ? (
-          <div className="rounded-lg border border-emerald-500/10 bg-transparent p-4 animate-pulse">
-            <div className="h-3 w-2/3 rounded bg-emerald-900/40 mb-2" />
-            <div className="h-3 w-1/2 rounded bg-gray-800/60" />
+          <div className="rounded-md border border-emerald-500/10 bg-transparent p-2 animate-pulse">
+            <div className="h-2.5 w-2/3 rounded bg-emerald-900/40 mb-1.5" />
+            <div className="h-2.5 w-1/2 rounded bg-gray-800/60" />
           </div>
         ) : articles.length > 0 ? (
-          <div className="relative overflow-hidden rounded-lg border border-emerald-500/20 bg-emerald-900/5 py-4">
+          <div className="relative overflow-hidden rounded-md border border-emerald-500/20 bg-emerald-900/5 py-2">
             {/* Gradient overlays for fade effect */}
-            <div className="absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-black via-black/50 to-transparent z-10 pointer-events-none" />
-            <div className="absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-black via-black/50 to-transparent z-10 pointer-events-none" />
+            <div className="absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-black via-black/50 to-transparent z-10 pointer-events-none" />
+            <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-black via-black/50 to-transparent z-10 pointer-events-none" />
 
             {/* Scrolling ticker */}
             <motion.div
-              className="flex gap-8 items-center"
+              className="flex gap-6 items-center"
               animate={{
                 x: [0, -100 * articles.length],
               }}
@@ -130,11 +130,11 @@ export function LatestNewsStrip() {
                   rel="noreferrer"
                   className="flex-shrink-0 group hover:opacity-80 transition-opacity"
                 >
-                  <div className="min-w-[350px] max-w-[350px]">
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-emerald-200/70 mb-1">
+                  <div className="min-w-[280px] max-w-[280px]">
+                    <div className="text-[9px] uppercase tracking-[0.12em] text-emerald-200/70 mb-0.5">
                       {article.league}
                     </div>
-                    <div className="text-sm font-semibold text-white leading-tight line-clamp-2 group-hover:text-emerald-200">
+                    <div className="text-xs font-semibold text-white leading-tight line-clamp-1 group-hover:text-emerald-200">
                       {article.title}
                     </div>
                   </div>
@@ -143,7 +143,7 @@ export function LatestNewsStrip() {
             </motion.div>
           </div>
         ) : (
-          <div className="rounded-lg border border-emerald-500/10 bg-transparent p-4 text-sm text-gray-300">
+          <div className="rounded-md border border-emerald-500/10 bg-transparent p-2 text-xs text-gray-300">
             {error || "No headlines available right now."}
           </div>
         )}

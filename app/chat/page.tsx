@@ -422,27 +422,22 @@ function ChatPageContent() {
   }, [user, showSharpToggle, sharpPanelOpen])
 
   const headerActions = (
-    <div className="flex items-center gap-2 lg:border-l lg:border-white/10 lg:pl-3">
+    <div className="flex items-center gap-1.5 lg:border-l lg:border-white/10 lg:pl-2">
       <button
         onClick={() => router.push('/promos')}
-        className="sm:hidden px-2 py-2 text-[#34d399] hover:text-[#16a34a] transition-colors"
+        className="px-1.5 py-1 text-[#34d399] hover:text-[#16a34a] transition-colors"
         aria-label="View sportsbook promos"
       >
-        <span className="text-sm font-semibold leading-none">$10k</span>
-      </button>
-      <button
-        onClick={() => router.push('/promos')}
-        className="hidden sm:inline-flex items-center px-3 py-2 text-base font-semibold text-[#34d399] hover:text-[#16a34a] transition-colors"
-      >
-        <span className="text-base font-semibold leading-none">$10k</span>
+        <span className="text-[10px] sm:text-xs font-semibold leading-none">$10k</span>
       </button>
 
       <button
         onClick={() => router.push('/live-scores')}
-        className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+        className="inline-flex items-center gap-1 rounded-full border border-[#34d399]/60 px-2 py-1 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
       >
-        <Radio className="w-3 h-3 sm:w-4 sm:h-4" />
-        Live Odds
+        <Radio className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+        <span className="hidden sm:inline">Live</span>
+        <span className="sm:hidden">Live</span>
       </button>
 
       {user && (
@@ -596,16 +591,22 @@ function ChatPageContent() {
         onLogoClick={() => handleNewConversation()}
       />
       {user && currentConversationId && (
-        <div className="fixed left-0 right-0 top-12 sm:top-16 z-40 border-b border-white/10 bg-black/90 backdrop-blur">
-          <div className="grid w-full grid-cols-5 divide-x divide-white/10">
-            {chatTabs.map((tab) => (
+        <div className="fixed left-0 right-0 top-12 sm:top-16 z-40 border-b border-emerald-500/30 bg-gradient-to-b from-black via-black/95 to-black/90 backdrop-blur-xl shadow-lg shadow-emerald-500/5">
+          <div className="grid w-full grid-cols-5">
+            {chatTabs.map((tab, index) => (
               <Link
                 key={tab.label}
                 href={tab.href}
-                className="w-full px-1 py-2 text-center text-[9px] font-semibold uppercase tracking-[0.2em] text-white/75 transition-colors hover:bg-emerald-500/10 hover:text-emerald-200 sm:px-2 sm:py-3 sm:text-[11px] lg:text-sm"
+                className="group relative w-full px-1 py-3 text-center transition-all hover:bg-emerald-500/15 sm:px-3 sm:py-4"
               >
-                <span className="sm:hidden">{tab.shortLabel}</span>
-                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="relative z-10 text-[10px] font-bold uppercase tracking-[0.15em] text-white/90 group-hover:text-emerald-300 sm:text-xs lg:text-sm">
+                  <span className="sm:hidden">{tab.shortLabel}</span>
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </span>
+                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                {index < 4 && (
+                  <span className="absolute right-0 top-1/2 -translate-y-1/2 h-6 w-px bg-white/10" />
+                )}
               </Link>
             ))}
           </div>

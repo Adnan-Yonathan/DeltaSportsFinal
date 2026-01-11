@@ -596,9 +596,11 @@ function ChatPageContent() {
         ) : undefined}
         onLogoClick={() => handleNewConversation()}
       />
-      <div className="sm:hidden px-2 pt-2">
-        <ToolsNav hideMobileTop showMobileChatBack={false} />
-      </div>
+      {user && (
+        <div className="sm:hidden px-2 pt-2">
+          <ToolsNav hideMobileTop showMobileChatBack={false} />
+        </div>
+      )}
       {user && showSharpToggle && (
         <div className="sm:hidden fixed left-0 right-0 top-12 z-40 border-b border-emerald-400/30 bg-black/90 backdrop-blur">
           <div className="flex items-center justify-between gap-3 px-3 py-2">

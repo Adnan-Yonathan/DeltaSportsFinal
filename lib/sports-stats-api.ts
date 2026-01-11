@@ -94,6 +94,12 @@ export interface TeamStats {
   teamAbbr?: string
 }
 
+type SeasonOverride = {
+  seasonYear?: number
+  seasonType?: number
+  seasonLabel?: string
+}
+
 export interface AdvancedTeamStats {
   team: string
   teamAbbr?: string
@@ -351,6 +357,11 @@ const getCurrentNBASeasonLabel = () => {
   return `${startYear}-${nextYear.slice(-2)}`
 }
 
+const formatNbaSeasonLabelFromYear = (endYear: number) => {
+  const startYear = endYear - 1
+  return `${startYear}-${String(endYear).slice(-2)}`
+}
+
 const getCurrentNBASeasonYear = () => {
   const now = new Date()
   const month = now.getUTCMonth()
@@ -373,11 +384,12 @@ const TEAM_STATS_CACHE_TTL = 1000 * 60 * 10 // 10 minutes
 let nflTeamStatsCache: {
   ts: number
   season: number
+  seasonType: number
   data: Array<{ meta: EspnTeamMeta; categories: EspnStatCategory[] }>
 } | null = null
 let nflRosterCache: { ts: number; roster: RosterPlayer[] } | null = null
 const NFL_ROSTER_CACHE_TTL = 1000 * 60 * 60 // 1 hour
-let nbaTeamStatsCache: { ts: number; data: TeamStats[] } | null = null
+let nbaTeamStatsCache: { ts: number; season: string; data: TeamStats[] } | null = null
 let ncaabTeamStatsCache: { ts: number; data: TeamStats[] } | null = null
 
 const NCAAB_TEAM_ALIAS_KEYS: Record<string, string[]> = {
@@ -771,8 +783,18 @@ const fetchESPNNBAPlayerStats = async (espnId: string): Promise<ESPNPlayerSummar
   }
 }
 
-export async function getNBAPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
-  const cacheKey = `nba:${normalizeName(playerName)}`
+export async function getNBAPlayerSeasonStats(
+  playerName: string,
+  overrides?: SeasonOverride
+): Promise<PlayerStats | null> {
+  const seasonYear = overrides?.seasonYear ?? getCurrentNBASeasonYear()
+  const seasonType = overrides?.seasonType ?? 2
+  const seasonLabel =
+    overrides?.seasonLabel ??
+    (overrides?.seasonYear
+      ? formatNbaSeasonLabelFromYear(overrides.seasonYear)
+      : getCurrentNBASeasonLabel())
+  const cacheKey = `nba:${normalizeName(playerName)}:${seasonYear}:${seasonType}`
   const cached = playerStatsCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < PLAYER_STATS_CACHE_TTL) {
     return cached.data
@@ -785,10 +807,9 @@ export async function getNBAPlayerSeasonStats(playerName: string): Promise<Playe
   }
 
   const espnId = rosterEntry.id
-  const seasonYear = getCurrentNBASeasonYear()
   const coreStatsResponse =
-    (await fetchNbaAthleteStatistics(espnId, seasonYear, 2)) ||
-    (await fetchNbaAthleteStatistics(espnId, seasonYear - 1, 2))
+    (await fetchNbaAthleteStatistics(espnId, seasonYear, seasonType)) ||
+    (await fetchNbaAthleteStatistics(espnId, seasonYear - 1, seasonType))
   const coreStats = buildNbaPlayerStatsFromCategories(
     coreStatsResponse?.splits?.categories
   )
@@ -826,13 +847,11 @@ export async function getNBAPlayerSeasonStats(playerName: string): Promise<Playe
   if (stats['3PM'] == null && stats.THREE_PM != null) {
     stats['3PM'] = stats.THREE_PM as number
   }
-  const seasonLabel = espnStats?.seasonLabel ?? getCurrentNBASeasonLabel()
-
   const result: PlayerStats = {
     name: rosterEntry?.fullName ?? playerName,
     team: rosterEntry?.team ?? '',
     position: rosterEntry?.position,
-    season: seasonLabel,
+    season: espnStats?.seasonLabel ?? seasonLabel,
     stats,
     headshot: rosterEntry?.headshot,
     sport: 'basketball_nba',
@@ -842,12 +861,12 @@ export async function getNBAPlayerSeasonStats(playerName: string): Promise<Playe
     const recent =
       (await fetchEspnRecentGames(rosterEntry.id, ESPN_SPORT_PATH.basketball_nba, {
         season: seasonYear,
-        seasonType: 2,
+        seasonType,
         maxGames: 5,
       })) ||
       (await fetchEspnRecentGames(rosterEntry.id, ESPN_SPORT_PATH.basketball_nba, {
         season: seasonYear - 1,
-        seasonType: 2,
+        seasonType,
         maxGames: 5,
       }))
     if (recent && recent.length) {
@@ -973,8 +992,13 @@ const buildNcaafPlayerStats = (
   return stats
 }
 
-export async function getNCAAFPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
-  const cacheKey = `ncaaf:${normalizeName(playerName)}`
+export async function getNCAAFPlayerSeasonStats(
+  playerName: string,
+  overrides?: SeasonOverride
+): Promise<PlayerStats | null> {
+  const season = overrides?.seasonYear ?? getCurrentNFLSeasonYear()
+  const seasonType = overrides?.seasonType ?? 2
+  const cacheKey = `ncaaf:${normalizeName(playerName)}:${season}:${seasonType}`
   const cached = playerStatsCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < PLAYER_STATS_CACHE_TTL) return cached.data
 
@@ -984,7 +1008,6 @@ export async function getNCAAFPlayerSeasonStats(playerName: string): Promise<Pla
     return null
   }
 
-  const season = getCurrentNFLSeasonYear()
   const [seasonStatsResp, postseasonStatsResp] = await Promise.all([
     fetchNcaafAthleteStatistics(search.id, season, 2),
     fetchNcaafAthleteStatistics(search.id, season, 3),
@@ -998,16 +1021,15 @@ export async function getNCAAFPlayerSeasonStats(playerName: string): Promise<Pla
     ? buildNcaafPlayerStats(postseasonCategories)
     : {}
 
-  const currentYear = new Date().getFullYear()
   const recent =
     (await fetchEspnRecentGames(search.id, ESPN_SPORT_PATH.americanfootball_ncaaf, {
-      season: currentYear,
-      seasonType: 2,
+      season,
+      seasonType,
       maxGames: 5,
     })) ||
     (await fetchEspnRecentGames(search.id, ESPN_SPORT_PATH.americanfootball_ncaaf, {
-      season: currentYear - 1,
-      seasonType: 2,
+      season: season - 1,
+      seasonType,
       maxGames: 5,
     }))
   const recentStats = buildStatsFromRecent(recent)
@@ -1049,8 +1071,18 @@ export async function getNCAAFPlayerSeasonStats(playerName: string): Promise<Pla
   return result
 }
 
-export async function getNCAABPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
-  const cacheKey = `ncaab:${normalizeName(playerName)}`
+export async function getNCAABPlayerSeasonStats(
+  playerName: string,
+  overrides?: SeasonOverride
+): Promise<PlayerStats | null> {
+  const season = overrides?.seasonYear ?? new Date().getFullYear()
+  const seasonType = overrides?.seasonType ?? 2
+  const seasonLabel =
+    overrides?.seasonLabel ??
+    (overrides?.seasonYear
+      ? formatNbaSeasonLabelFromYear(overrides.seasonYear)
+      : String(season))
+  const cacheKey = `ncaab:${normalizeName(playerName)}:${season}:${seasonType}`
   const cached = playerStatsCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < PLAYER_STATS_CACHE_TTL) return cached.data
 
@@ -1060,16 +1092,15 @@ export async function getNCAABPlayerSeasonStats(playerName: string): Promise<Pla
     return null
   }
 
-  const currentYear = new Date().getFullYear()
   const recent =
     (await fetchEspnRecentGames(search.id, ESPN_SPORT_PATH.basketball_ncaab, {
-      season: currentYear,
-      seasonType: 2,
+      season,
+      seasonType,
       maxGames: 5,
     })) ||
     (await fetchEspnRecentGames(search.id, ESPN_SPORT_PATH.basketball_ncaab, {
-      season: currentYear - 1,
-      seasonType: 2,
+      season: season - 1,
+      seasonType,
       maxGames: 5,
     }))
   const stats = buildStatsFromRecent(recent)
@@ -1078,7 +1109,7 @@ export async function getNCAABPlayerSeasonStats(playerName: string): Promise<Pla
     name: search.name,
     team: search.team || '',
     position: search.position,
-    season: String(new Date().getFullYear()),
+    season: seasonLabel,
     stats,
     headshot: search.headshot,
     sport: 'basketball_ncaab',
@@ -1089,8 +1120,13 @@ export async function getNCAABPlayerSeasonStats(playerName: string): Promise<Pla
   return result
 }
 
-export async function getNFLPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
-  const cacheKey = `nfl:${normalizeName(playerName)}`
+export async function getNFLPlayerSeasonStats(
+  playerName: string,
+  overrides?: SeasonOverride
+): Promise<PlayerStats | null> {
+  const seasonYear = overrides?.seasonYear ?? getCurrentNFLSeasonYear()
+  const seasonType = overrides?.seasonType ?? 2
+  const cacheKey = `nfl:${normalizeName(playerName)}:${seasonYear}:${seasonType}`
   const cached = playerStatsCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < PLAYER_STATS_CACHE_TTL) {
     return cached.data
@@ -1101,12 +1137,11 @@ export async function getNFLPlayerSeasonStats(playerName: string): Promise<Playe
     playerStatsCache.set(cacheKey, { data: null, ts: Date.now() })
     return null
   }
-  const seasonYear = getCurrentNFLSeasonYear()
   const [statsResp, recent] = await Promise.all([
-    fetchNflAthleteStatistics(rosterEntry.id, seasonYear),
+    fetchNflAthleteStatistics(rosterEntry.id, seasonYear, seasonType),
     fetchEspnRecentGames(rosterEntry.id, ESPN_SPORT_PATH.americanfootball_nfl, {
       season: seasonYear,
-      seasonType: 2,
+      seasonType,
       maxGames: 5,
     }),
   ])
@@ -1414,15 +1449,21 @@ const buildNbaPlayerStatsFromCategories = (
 }
 
 const getNbaDotComTeamStats = async (
-  teamAbbr?: string
+  teamAbbr?: string,
+  seasonOverride?: string
 ): Promise<TeamStats[]> => {
-  const useCache = !teamAbbr
+  const season = seasonOverride || getCurrentNbaSeason()
+  const useCache = !teamAbbr && !seasonOverride
   const now = Date.now()
-  if (useCache && nbaTeamStatsCache && now - nbaTeamStatsCache.ts < TEAM_STATS_CACHE_TTL) {
+  if (
+    useCache &&
+    nbaTeamStatsCache &&
+    nbaTeamStatsCache.season === season &&
+    now - nbaTeamStatsCache.ts < TEAM_STATS_CACHE_TTL
+  ) {
     return nbaTeamStatsCache.data
   }
 
-  const season = getCurrentNbaSeason()
   const measureTypes: Array<'Base' | 'Advanced' | 'Misc' | 'Scoring'> = [
     'Base',
     'Advanced',
@@ -1562,8 +1603,8 @@ const getNbaDotComTeamStats = async (
       )
     : teams
 
-  if (useCache) {
-    nbaTeamStatsCache = { ts: now, data: teams }
+  if (!teamAbbr) {
+    nbaTeamStatsCache = { ts: now, season, data: teams }
   }
 
   return filtered
@@ -1571,9 +1612,12 @@ const getNbaDotComTeamStats = async (
 
 // ==================== NBA STATS (via NBA.com) ====================
 
-export async function getNBATeamStats(teamAbbr?: string): Promise<TeamStats[]> {
+export async function getNBATeamStats(
+  teamAbbr?: string,
+  seasonOverride?: string
+): Promise<TeamStats[]> {
   try {
-    return await getNbaDotComTeamStats(teamAbbr)
+    return await getNbaDotComTeamStats(teamAbbr, seasonOverride)
   } catch (error) {
     console.error('Error fetching NBA team stats:', error)
     return []
@@ -2134,11 +2178,15 @@ export async function searchNFLPlayer(playerName: string): Promise<RosterPlayer 
   }
 }
 
-const loadNFLTeamStatBlocksForSeason = async (season: number) => {
+const loadNFLTeamStatBlocksForSeason = async (
+  season: number,
+  seasonType: number
+) => {
   const now = Date.now()
   if (
     nflTeamStatsCache &&
     nflTeamStatsCache.season === season &&
+    nflTeamStatsCache.seasonType === seasonType &&
     now - nflTeamStatsCache.ts < TEAM_STATS_CACHE_TTL
   ) {
     return nflTeamStatsCache.data
@@ -2148,15 +2196,15 @@ const loadNFLTeamStatBlocksForSeason = async (season: number) => {
   const results = await Promise.all(
     teams.map(async (meta) => {
       const [statsResp, recordMeta] = await Promise.all([
-        fetchNflTeamStatistics(meta.id, season),
-        fetchNflTeamRecord(meta.id, season),
+        fetchNflTeamStatistics(meta.id, season, seasonType),
+        fetchNflTeamRecord(meta.id, season, seasonType),
       ])
       const categories = statsResp?.splits?.categories ?? []
       return { meta: { ...meta, ...(recordMeta ?? {}) }, categories }
     })
   )
 
-  nflTeamStatsCache = { ts: now, season, data: results }
+  nflTeamStatsCache = { ts: now, season, seasonType, data: results }
   return results
 }
 
@@ -2181,12 +2229,16 @@ const hasMeaningfulNflStats = (
   })
 }
 
-const loadNFLTeamStatBlocks = async () => {
-  const season = getCurrentNFLSeasonYear()
-  let blocks = await loadNFLTeamStatBlocksForSeason(season)
+const loadNFLTeamStatBlocks = async (overrides?: SeasonOverride) => {
+  const season = overrides?.seasonYear ?? getCurrentNFLSeasonYear()
+  const seasonType = overrides?.seasonType ?? 2
+  let blocks = await loadNFLTeamStatBlocksForSeason(season, seasonType)
   if (!blocks.length || !hasMeaningfulNflStats(blocks)) {
     const fallbackSeason = season - 1
-    const fallbackBlocks = await loadNFLTeamStatBlocksForSeason(fallbackSeason)
+    const fallbackBlocks = await loadNFLTeamStatBlocksForSeason(
+      fallbackSeason,
+      seasonType
+    )
     if (fallbackBlocks.length && hasMeaningfulNflStats(fallbackBlocks)) {
       blocks = fallbackBlocks
     }
@@ -2670,9 +2722,12 @@ const buildNCAAFTeamEntry = (
 
 // ==================== NFL STATS (via ESPN) ====================
 
-export async function getNFLTeamStats(teamAbbr?: string): Promise<TeamStats[]> {
+export async function getNFLTeamStats(
+  teamAbbr?: string,
+  overrides?: SeasonOverride
+): Promise<TeamStats[]> {
   try {
-    const blocks = await loadNFLTeamStatBlocks()
+    const blocks = await loadNFLTeamStatBlocks(overrides)
     const teams = blocks
       .filter((entry) => !teamAbbr || entry.meta.abbreviation === teamAbbr)
       .map((entry) => buildNFLTeamEntry(entry.meta, entry.categories).teamStats)
@@ -2848,9 +2903,12 @@ export async function searchMLBPlayer(playerName: string): Promise<RosterPlayer 
   }
 }
 
-export async function getMLBTeamStats(teamId?: number): Promise<TeamStats[]> {
+export async function getMLBTeamStats(
+  teamId?: number,
+  overrides?: SeasonOverride
+): Promise<TeamStats[]> {
   try {
-    const season = new Date().getFullYear()
+    const season = overrides?.seasonYear ?? new Date().getFullYear()
     const url = `https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=${season}&standingsTypes=regularSeason`
     const response = await fetchWithRevalidate(url, 3600)
 
@@ -2889,11 +2947,14 @@ export async function getMLBTeamStats(teamId?: number): Promise<TeamStats[]> {
   }
 }
 
-export async function getMLBPlayerStats(playerId?: number): Promise<PlayerStats[]> {
+export async function getMLBPlayerStats(
+  playerId?: number,
+  overrides?: SeasonOverride
+): Promise<PlayerStats[]> {
   try {
     if (!playerId) return []
 
-    const season = new Date().getFullYear()
+    const season = overrides?.seasonYear ?? new Date().getFullYear()
     const url = `https://statsapi.mlb.com/api/v1/people/${playerId}/stats?stats=season&season=${season}&group=hitting,pitching`
     const response = await fetchWithRevalidate(url, 3600)
 
@@ -2925,8 +2986,12 @@ export async function getMLBPlayerStats(playerId?: number): Promise<PlayerStats[
   }
 }
 
-export async function getMLBPlayerSeasonStats(playerName: string): Promise<PlayerStats | null> {
-  const cacheKey = `mlb:${normalizeName(playerName)}`
+export async function getMLBPlayerSeasonStats(
+  playerName: string,
+  overrides?: SeasonOverride
+): Promise<PlayerStats | null> {
+  const season = overrides?.seasonYear ?? new Date().getFullYear()
+  const cacheKey = `mlb:${normalizeName(playerName)}:${season}`
   const cached = playerStatsCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < PLAYER_STATS_CACHE_TTL) {
     return cached.data
@@ -2938,9 +3003,8 @@ export async function getMLBPlayerSeasonStats(playerName: string): Promise<Playe
     return null
   }
 
-  const season = new Date().getFullYear()
   const playerId = Number(rosterEntry.id)
-  const entries = await getMLBPlayerStats(playerId)
+  const entries = await getMLBPlayerStats(playerId, overrides)
   const primary = entries.find((e) => (e.stats as any)?.avg != null) || entries[0]
   if (!primary) {
     playerStatsCache.set(cacheKey, { data: null, ts: Date.now() })
@@ -3284,7 +3348,11 @@ export async function getNHLPlayerSeasonStats(playerName: string): Promise<Playe
   return result
 }
 
-export async function getPlayerSeasonStats(playerName: string, sport?: string): Promise<PlayerStats | null> {
+export async function getPlayerSeasonStats(
+  playerName: string,
+  sport?: string,
+  overrides?: SeasonOverride
+): Promise<PlayerStats | null> {
   const resolved = resolveSportKey(sport)
   const targets = resolved ? [resolved] : SPORT_PRIORITY
 
@@ -3310,17 +3378,17 @@ export async function getPlayerSeasonStats(playerName: string, sport?: string): 
 
     let data: PlayerStats | null = null
     if (sportKey === 'basketball_nba') {
-      data = await getNBAPlayerSeasonStats(playerName)
+      data = await getNBAPlayerSeasonStats(playerName, overrides)
     } else if (sportKey === 'americanfootball_nfl') {
-      data = await getNFLPlayerSeasonStats(playerName)
+      data = await getNFLPlayerSeasonStats(playerName, overrides)
     } else if (sportKey === 'baseball_mlb') {
-      data = await getMLBPlayerSeasonStats(playerName)
+      data = await getMLBPlayerSeasonStats(playerName, overrides)
     } else if (sportKey === 'icehockey_nhl') {
       data = await getNHLPlayerSeasonStats(playerName)
     } else if (sportKey === 'basketball_ncaab') {
-      data = await getNCAABPlayerSeasonStats(playerName)
+      data = await getNCAABPlayerSeasonStats(playerName, overrides)
     } else if (sportKey === 'americanfootball_ncaaf') {
-      data = await getNCAAFPlayerSeasonStats(playerName)
+      data = await getNCAAFPlayerSeasonStats(playerName, overrides)
     }
     if (data) {
       return { ...data, sport: data.sport ?? sportKey }
@@ -3332,7 +3400,11 @@ export async function getPlayerSeasonStats(playerName: string, sport?: string): 
 
 // ==================== UNIFIED FUNCTIONS ====================
 
-export async function getTeamStats(sport: string, teamIdentifier?: string): Promise<TeamStats[]> {
+export async function getTeamStats(
+  sport: string,
+  teamIdentifier?: string,
+  overrides?: SeasonOverride
+): Promise<TeamStats[]> {
   const resolvedSport = resolveSportKey(sport) ?? sport.toLowerCase()
   const sportKey = resolvedSport
   let resolvedTeamIdentifier = teamIdentifier
@@ -3406,7 +3478,12 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
   switch (sportKey) {
     case 'nba':
     case 'basketball_nba': {
-      const teams = await getNBATeamStats()
+      const seasonLabel =
+        overrides?.seasonLabel ??
+        (overrides?.seasonYear
+          ? formatNbaSeasonLabelFromYear(overrides.seasonYear)
+          : undefined)
+      const teams = await getNBATeamStats(undefined, seasonLabel)
       return filterTeams(teams)
     }
     case 'nfl':
@@ -3429,7 +3506,7 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
         console.warn('[SportsReference] NFL team fetch failed', err)
       }
       const [basic, advanced] = await Promise.all([
-        getNFLTeamStats(),
+        getNFLTeamStats(undefined, overrides),
         getNFLAdvancedTeamStats(),
       ])
       const merged = basic.map((teamEntry) => {
@@ -3454,7 +3531,7 @@ export async function getTeamStats(sport: string, teamIdentifier?: string): Prom
     }
     case 'mlb':
     case 'baseball_mlb': {
-      const teams = await getMLBTeamStats()
+      const teams = await getMLBTeamStats(undefined, overrides)
         return filterTeams(teams)
         try {
           const refTeams = await getSportsReferenceTeamStats('basketball_nba')

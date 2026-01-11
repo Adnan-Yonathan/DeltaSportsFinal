@@ -20,19 +20,28 @@ export type SportProvider = {
   getInjuryReports: () => Promise<InjuryReport[]>
 }
 
+type SeasonOverride = {
+  seasonYear?: number
+  seasonType?: number
+  seasonLabel?: string
+}
+
 const DEFAULT_SPORT: CanonicalSportKey = 'basketball_nba'
 
 export const resolveProviderSportKey = (
   sport?: string | null
 ): CanonicalSportKey => resolveSportKey(sport) ?? DEFAULT_SPORT
 
-export const getSportProvider = (sport?: string | null): SportProvider => {
+export const getSportProvider = (
+  sport?: string | null,
+  overrides?: SeasonOverride
+): SportProvider => {
   const sportKey = resolveProviderSportKey(sport)
   return {
     sportKey,
-    getTeamStats: (team) => getTeamStats(sportKey, team),
+    getTeamStats: (team) => getTeamStats(sportKey, team, overrides),
     getPlayerSeasonStats: (playerName) =>
-      getPlayerSeasonStats(playerName, sportKey),
+      getPlayerSeasonStats(playerName, sportKey, overrides),
     searchPlayer: (playerName) => searchPlayer(playerName, sportKey),
     getRoster: (teamAbbr) => getRoster(sportKey, teamAbbr),
     getInjuryReports: () => getInjuryReports(sportKey),

@@ -28,9 +28,24 @@ export async function GET(req: NextRequest) {
     const team = searchParams.get('team') || undefined
     const player = searchParams.get('player') || undefined
     const format = searchParams.get('format') || 'json' // 'json' or 'text'
+    const seasonParam = searchParams.get('season')
+    const seasonTypeParam = searchParams.get('seasonType')
+    const seasonLabel = searchParams.get('seasonLabel') || undefined
+    const seasonYear =
+      seasonParam && Number.isFinite(Number(seasonParam))
+        ? Number(seasonParam)
+        : undefined
+    const seasonType =
+      seasonTypeParam && Number.isFinite(Number(seasonTypeParam))
+        ? Number(seasonTypeParam)
+        : undefined
     const wantsAutoSport =
       rawSport && ['auto', 'any', 'all'].includes(rawSport.toLowerCase())
-    const provider = getSportProvider(wantsAutoSport ? 'nba' : sport)
+    const provider = getSportProvider(wantsAutoSport ? 'nba' : sport, {
+      seasonYear,
+      seasonType,
+      seasonLabel,
+    })
 
     let result: any
 

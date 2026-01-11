@@ -130,6 +130,7 @@ export default function SharpDetectorPanel({
   const [hydrated, setHydrated] = useState(typeof window !== 'undefined')       
   const [sportFilter, setSportFilter] = useState<string>('all')
   const [gameFilter, setGameFilter] = useState<string>('all')
+  const [sortFilter, setSortFilter] = useState<'newest' | 'strength'>('newest')
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
   const scheduledRef = useRef<Set<string>>(new Set())
@@ -203,11 +204,16 @@ export default function SharpDetectorPanel({
       const weightA = weight(a.status)
       const weightB = weight(b.status)
       if (weightA !== weightB) return weightA - weightB
+      if (sortFilter === 'strength') {
+        const strengthA = a.sharpStrength ?? 0
+        const strengthB = b.sharpStrength ?? 0
+        if (strengthA !== strengthB) return strengthB - strengthA
+      }
       const timeA = new Date(a.timestamp).getTime()
       const timeB = new Date(b.timestamp).getTime()
       return timeB - timeA
     })
-  }, [filteredTrades])
+  }, [filteredTrades, sortFilter])
 
   const fetchTrades = async () => {
     try {
@@ -469,6 +475,16 @@ export default function SharpDetectorPanel({
             {option.label}
           </option>
         ))}
+      </select>
+      <select
+        value={sortFilter}
+        onChange={(e) =>
+          setSortFilter(e.target.value as 'newest' | 'strength')
+        }
+        className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-black text-[11px] text-white/80 focus:outline-none focus:border-emerald-500/50"
+      >
+        <option value="newest">Newest</option>
+        <option value="strength">Highest %</option>
       </select>
       <span className="text-[10px] text-white/40">
         {filteredTrades.length} trades

@@ -140,6 +140,7 @@ export default function SharpDetectorPage() {
   const [sportFilter, setSportFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [gameFilter, setGameFilter] = useState<string>('all')
+  const [sortFilter, setSortFilter] = useState<'newest' | 'strength'>('newest')
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
   const scheduledRef = useRef<Set<string>>(new Set())
@@ -230,11 +231,16 @@ export default function SharpDetectorPage() {
       const weightA = weight(a.status)
       const weightB = weight(b.status)
       if (weightA !== weightB) return weightA - weightB
+      if (sortFilter === 'strength') {
+        const strengthA = a.sharpStrength ?? 0
+        const strengthB = b.sharpStrength ?? 0
+        if (strengthA !== strengthB) return strengthB - strengthA
+      }
       const timeA = new Date(a.timestamp).getTime()
       const timeB = new Date(b.timestamp).getTime()
       return timeB - timeA
     })
-  }, [filteredTrades])
+  }, [filteredTrades, sortFilter])
 
   const topUpcomingSharps = useMemo(() => {
     const now = Date.now()
@@ -661,6 +667,18 @@ export default function SharpDetectorPage() {
             <option value="pending">Pending</option>
             <option value="respected">Respected</option>
             <option value="faded">Faded</option>
+          </select>
+
+          {/* Sort Filter */}
+          <select
+            value={sortFilter}
+            onChange={(e) =>
+              setSortFilter(e.target.value as 'newest' | 'strength')
+            }
+            className="px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 focus:outline-none focus:border-emerald-500/50"
+          >
+            <option value="newest">Newest</option>
+            <option value="strength">Highest %</option>
           </select>
 
           <span className="text-xs text-white/40">

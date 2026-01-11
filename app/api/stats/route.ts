@@ -112,11 +112,40 @@ export async function GET(req: NextRequest) {
 
       case 'recent_form': {
         const supabase = createClient()
-        const { data, error } = await supabase
+        const resolvedSport = provider.sportKey
+        let query = supabase
           .from('team_recent_form')
           .select('*')
-          .eq('sport_key', sport)
+          .eq('sport_key', resolvedSport)
           .eq('team_name', team || '')
+        if (seasonYear) {
+          let startDate: string | undefined
+          let endDate: string | undefined
+          if (resolvedSport === 'basketball_nba' || resolvedSport === 'basketball_ncaab') {
+            startDate = `${seasonYear - 1}-08-01`
+            endDate = `${seasonYear}-08-01`
+          } else if (
+            resolvedSport === 'americanfootball_nfl' ||
+            resolvedSport === 'americanfootball_ncaaf'
+          ) {
+            if (seasonType === 3) {
+              startDate = `${seasonYear + 1}-01-01`
+              endDate = `${seasonYear + 1}-03-01`
+            } else {
+              startDate = `${seasonYear}-08-01`
+              endDate = `${seasonYear + 1}-03-01`
+            }
+          } else if (resolvedSport === 'baseball_mlb') {
+            startDate = `${seasonYear}-01-01`
+            endDate = `${seasonYear}-12-31`
+          } else if (resolvedSport === 'icehockey_nhl') {
+            startDate = `${seasonYear - 1}-09-01`
+            endDate = `${seasonYear}-08-01`
+          }
+          if (startDate) query = query.gte('game_date', startDate)
+          if (endDate) query = query.lt('game_date', endDate)
+        }
+        const { data, error } = await query
           .order('game_date', { ascending: false })
           .limit(10)
 

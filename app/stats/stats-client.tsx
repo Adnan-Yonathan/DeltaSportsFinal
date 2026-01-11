@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { TeamStatsCard } from "@/components/ui/team-stats-card"
 import { PlayerStatsCard } from "@/components/ui/player-stats-card"
+import type { RecentPerformance } from "@/lib/utils/recent-performances"
 
 type Mode = "team" | "player" | "injuries"
 
@@ -24,12 +25,7 @@ type PlayerStats = {
   headshot?: string
   sport?: string
   stats: Record<string, number | string>
-  recent?: Array<{
-    date: string
-    opponent?: string
-    result?: string
-    stats: Record<string, number | string>
-  }>
+  recent?: RecentPerformance[]
 }
 
 type InjuryReport = {
@@ -101,6 +97,23 @@ const buildParams = (params: Record<string, string | undefined>) => {
     if (value) search.set(key, value)
   })
   return search.toString()
+}
+
+const normalizeRecent = (recent?: RecentPerformance[]) => {
+  if (!recent?.length) return undefined
+  return recent.map((entry) => {
+    const stats: Record<string, number> = {}
+    Object.entries(entry.stats || {}).forEach(([key, value]) => {
+      const num = typeof value === "number" ? value : Number(value)
+      if (Number.isFinite(num)) stats[key] = num
+    })
+    return {
+      date: String(entry.date ?? ""),
+      opponent: String(entry.opponent ?? ""),
+      result: entry.result ? String(entry.result) : undefined,
+      stats,
+    }
+  })
 }
 
 export default function StatsCenterClient() {
@@ -237,10 +250,13 @@ export default function StatsCenterClient() {
     setTeamRecentOpen((prev) => ({ ...prev, [key]: true }))
     try {
       const sportKey = SPORT_KEY_MAP[sport] || sport
+      const seasonOverride = SEASON_OVERRIDES[sport]
       const params = buildParams({
         type: "recent_form",
         sport: sportKey,
         team: teamName,
+        season: seasonOverride?.season?.toString(),
+        seasonType: seasonOverride?.seasonType?.toString(),
       })
       const data = await requestJson<TeamRecentEntry[]>(`/api/stats?${params}`)
       setTeamRecent((prev) => ({ ...prev, [key]: Array.isArray(data) ? data : [] }))
@@ -518,7 +534,7 @@ export default function StatsCenterClient() {
               season={playerResult.season}
               headshot={playerResult.headshot}
               stats={playerResult.stats ?? {}}
-              recent={playerResult.recent}
+              recent={normalizeRecent(playerResult.recent)}
             />
           </div>
         </section>

@@ -236,6 +236,25 @@ export default function SharpDetectorPage() {
     })
   }, [filteredTrades])
 
+  const topUpcomingSharps = useMemo(() => {
+    const now = Date.now()
+    const upcoming = trades.filter((trade) => {
+      if (!trade.eventDate) return false
+      const eventTime = new Date(trade.eventDate).getTime()
+      if (!Number.isFinite(eventTime)) return false
+      return eventTime >= now
+    })
+    return [...upcoming]
+      .filter((trade) => Number.isFinite(trade.sharpStrength))
+      .sort((a, b) => {
+        const strengthA = a.sharpStrength ?? 0
+        const strengthB = b.sharpStrength ?? 0
+        if (strengthA !== strengthB) return strengthB - strengthA
+        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      })
+      .slice(0, 3)
+  }, [trades])
+
   // Stats
   const stats = useMemo(() => {
     const respected = trades.filter(t => t.status === 'respected').length
@@ -523,6 +542,53 @@ export default function SharpDetectorPage() {
             </div>
             <p className="text-lg font-bold text-white">{stats.pending}</p>
           </div>
+        </div>
+
+        {/* Top upcoming sharps */}
+        <div className="mb-6 rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-500/10 via-transparent to-transparent p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm font-semibold text-white">Top 3 upcoming sharps</span>
+            </div>
+            <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+              live
+            </span>
+          </div>
+          {topUpcomingSharps.length === 0 ? (
+            <p className="text-xs text-white/50">
+              No upcoming sharp strength rankings yet.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-3">
+              {topUpcomingSharps.map((trade) => (
+                <div
+                  key={trade.id}
+                  className="rounded-xl border border-white/10 bg-black/50 p-3"
+                >
+                  <div className="flex items-center justify-between text-[11px] text-white/50 mb-2">
+                    <span className="uppercase tracking-[0.2em]">
+                      {trade.sport}
+                    </span>
+                    <span className="text-emerald-300 font-semibold">
+                      {trade.sharpStrength ?? 0}%
+                    </span>
+                  </div>
+                  <div className="text-sm font-semibold text-white">
+                    {trade.outcome}
+                  </div>
+                  <div className="text-[11px] text-white/50 mt-1">
+                    {trade.marketTitle}
+                  </div>
+                  {trade.eventDate && (
+                    <div className="text-[11px] text-white/40 mt-2">
+                      {trade.eventDate}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Filters */}

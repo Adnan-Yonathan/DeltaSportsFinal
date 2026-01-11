@@ -19,6 +19,8 @@ const SectionWithMockup: React.FC<SectionWithMockupProps> = ({
   secondaryImageSrc,
   reverseLayout = false,
 }) => {
+  const safePrimarySrc = encodeURI(primaryImageSrc)
+  const safeSecondarySrc = encodeURI(secondaryImageSrc)
   const containerVariants = {
     hidden: {},
     visible: {
@@ -41,7 +43,7 @@ const SectionWithMockup: React.FC<SectionWithMockupProps> = ({
   const imageOrderClass = reverseLayout ? 'md:col-start-1' : ''
 
   return (
-    <section className="relative overflow-hidden bg-black py-24 md:py-48">
+    <section className="relative bg-black py-24 md:py-48">
       <div className="container relative z-10 mx-auto w-full max-w-[1220px] px-6 md:px-10">
         <motion.div
           className={`grid w-full grid-cols-1 items-center gap-16 md:gap-8 ${layoutClasses}`}
@@ -66,11 +68,11 @@ const SectionWithMockup: React.FC<SectionWithMockupProps> = ({
           </motion.div>
 
           <motion.div
-            className={`relative mx-auto mt-10 w-full max-w-[300px] md:mt-0 md:max-w-[471px] ${imageOrderClass}`}
+            className={`relative isolate mx-auto mt-12 w-full max-w-[300px] md:mt-0 md:max-w-[471px] ${imageOrderClass}`}
             variants={itemVariants}
           >
             <motion.div
-              className="absolute z-0 h-[317px] w-[300px] rounded-[32px] bg-[#090909] md:h-[500px] md:w-[472px]"
+              className="absolute z-0 hidden h-[317px] w-[300px] rounded-[32px] bg-[#090909] md:block md:h-[500px] md:w-[472px]"
               style={{
                 top: reverseLayout ? 'auto' : '10%',
                 bottom: reverseLayout ? '10%' : 'auto',
@@ -84,11 +86,10 @@ const SectionWithMockup: React.FC<SectionWithMockupProps> = ({
               transition={{ duration: 1.2, ease: 'easeOut' }}
               viewport={{ once: true, amount: 0.5 }}
             >
-              <div
-                className="relative h-full w-full rounded-[32px] bg-cover bg-center"
-                style={{
-                  backgroundImage: `url(${secondaryImageSrc})`,
-                }}
+              <img
+                src={safeSecondarySrc}
+                alt="Secondary mockup"
+                className="h-full w-full rounded-[32px] object-cover"
               />
             </motion.div>
 
@@ -106,11 +107,10 @@ const SectionWithMockup: React.FC<SectionWithMockupProps> = ({
                     backgroundSize: '100% 100%',
                   }}
                 >
-                  <div
-                    className="h-full w-full bg-cover bg-center"
-                    style={{
-                      backgroundImage: `url(${primaryImageSrc})`,
-                    }}
+                  <img
+                    src={safePrimarySrc}
+                    alt="Primary mockup"
+                    className="h-full w-full object-cover"
                   />
                 </div>
               </div>

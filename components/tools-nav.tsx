@@ -23,9 +23,13 @@ const MOBILE_NAV_ITEMS = [
 
 type ToolsNavProps = {
   hideMobileTop?: boolean
+  showMobileChatBack?: boolean
 }
 
-export default function ToolsNav({ hideMobileTop }: ToolsNavProps) {
+export default function ToolsNav({
+  hideMobileTop = true,
+  showMobileChatBack = true,
+}: ToolsNavProps) {
   const pathname = usePathname()
 
   return (
@@ -33,7 +37,7 @@ export default function ToolsNav({ hideMobileTop }: ToolsNavProps) {
       <nav className="flex items-center gap-1 sm:gap-2">
         <Link
           href="/chat"
-          className="mr-2 hidden sm:inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white/50 hover:border-emerald-500/40 hover:text-emerald-200 transition-colors"
+          className={`mr-2 ${showMobileChatBack ? "inline-flex" : "hidden"} sm:inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white/50 hover:border-emerald-500/40 hover:text-emerald-200 transition-colors`}
         >
           <svg
             className="mr-1.5 h-3 w-3"

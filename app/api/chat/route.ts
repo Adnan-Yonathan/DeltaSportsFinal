@@ -230,7 +230,6 @@ export async function POST(request: NextRequest) {
       tools: useTools ? guideTools : undefined,
       tool_choice: useTools ? 'auto' : undefined,
       max_completion_tokens: 1024,
-      temperature: 0.7,
     })
 
     const assistantMessage = completion.choices[0]?.message
@@ -256,7 +255,6 @@ export async function POST(request: NextRequest) {
         model: AI_MODELS.chat,
         messages: analysisMessages,
         max_completion_tokens: 512,
-        temperature: 0.5,
       })
 
       const analysis = analysisCompletion.choices[0]?.message?.content || 'Unable to analyze the data.'

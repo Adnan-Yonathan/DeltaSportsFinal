@@ -9,6 +9,8 @@ const TOOLS_NAV_ITEMS = [
   { href: "/parlay-predictor", label: "Parlay" },
   { href: "/ev-bets", label: "EV Bets" },
   { href: "/live-projections", label: "Live" },
+  { href: "/sharp-detector", label: "Sharps" },
+  { href: "/stats", label: "Stats" },
 ]
 
 export default function ToolsNav() {

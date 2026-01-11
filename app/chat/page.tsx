@@ -10,15 +10,11 @@ import RichMessageInput from '@/components/chat/RichMessageInput'
 import { LiveScoresPreview } from '@/components/LiveScoresPreview'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { SimpleHeader } from '@/components/ui/simple-header'
-import { ParticleButton } from '@/components/ui/particle-button'
-import WhaleDetectorPanel from '@/components/WhaleDetectorPanel'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, MessageSquare } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, MessageSquare, Target } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
-
-const WHALE_STORAGE_KEY = 'whale-detector-trades'
 
 function ChatPageContent() {
   const [user, setUser] = useState<any>(null)
@@ -30,23 +26,6 @@ function ChatPageContent() {
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const [liveScoresOpen, setLiveScoresOpen] = useState(false)
   const [liveScoresExpanded, setLiveScoresExpanded] = useState(false)
-  const [whaleDetectorOpen, setWhaleDetectorOpen] = useState(false)
-  const [whaleDetectorExpanded, setWhaleDetectorExpanded] = useState(false)
-  const [whaleUnreadCount, setWhaleUnreadCount] = useState(0)
-  const [whaleTotalCount, setWhaleTotalCount] = useState(() => {
-    if (typeof window === 'undefined') return 0
-    try {
-      const cached = window.localStorage.getItem(WHALE_STORAGE_KEY)
-      if (!cached) return 0
-      const parsed = JSON.parse(cached)
-      return Array.isArray(parsed) ? parsed.length : 0
-    } catch (error) {
-      console.warn('Failed to read whale cache:', error)
-      return 0
-    }
-  })
-  const whaleSeenIds = useRef<Set<string>>(new Set())
-  const whaleCountInitialized = useRef(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
   const [messagesToday, setMessagesToday] = useState<number>(0)
@@ -146,12 +125,6 @@ function ChatPageContent() {
     warm()
   }, [])
 
-  useEffect(() => {
-    if (!hasMessages) return
-    setWhaleDetectorExpanded(false)
-    setWhaleDetectorOpen(false)
-    setWhaleUnreadCount(0)
-  }, [hasMessages])
 
   const createInitialConversation = async (userId: string) => {
     const { data: conversations } = await supabase
@@ -290,7 +263,6 @@ function ChatPageContent() {
     .join('')
     .slice(0, 2)
     .toUpperCase()
-  const canUseWhaleDetector = Boolean(user && membership?.isActive)
   const chatTabs = [
     {
       label: 'Market Projections',
@@ -313,113 +285,14 @@ function ChatPageContent() {
       href: '/ev-bets',
     },
     {
-      label: 'Live Projections',
-      shortLabel: 'Live',
-      href: '/live-projections',
+      label: 'Sharp Detector',
+      shortLabel: 'Sharps',
+      href: '/sharp-detector',
     },
   ]
   const membershipLabel = membership?.tier
     ? ({ pro: 'Pro', sharp: 'Sharp', syndicate: 'Syndicate' } as const)[membership.tier] || 'Pro'
     : 'Pro'
-  const showWhaleToggle = !hasMessages
-  const whalePanelOpen = whaleDetectorExpanded || whaleDetectorOpen
-
-  const openWhaleDetector = () => {
-    if (!canUseWhaleDetector) return
-    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
-      setWhaleDetectorExpanded(true)
-    } else {
-      setWhaleDetectorOpen(true)
-    }
-    setWhaleUnreadCount(0)
-  }
-
-  const handleWhaleNotification = (count: number) => {
-    if (!showWhaleToggle || whalePanelOpen) return
-    setWhaleUnreadCount((prev) => Math.min(9, prev + count))
-  }
-
-  const readCachedWhales = () => {
-    if (typeof window === 'undefined') return [] as Array<{ id?: string }>
-    try {
-      const cached = window.localStorage.getItem(WHALE_STORAGE_KEY)
-      const parsed = cached ? JSON.parse(cached) : []
-      return Array.isArray(parsed) ? parsed : []
-    } catch (error) {
-      console.warn('Failed to read whale cache:', error)
-      return []
-    }
-  }
-
-  const writeCachedWhales = (trades: Array<{ id?: string }>) => {
-    try {
-      window.localStorage.setItem(WHALE_STORAGE_KEY, JSON.stringify(trades))
-    } catch (error) {
-      console.warn('Failed to persist whale trades:', error)
-    }
-  }
-
-  useEffect(() => {
-    if (!user) return
-    const cached = readCachedWhales()
-    cached.forEach((trade) => {
-      if (trade?.id) {
-        whaleSeenIds.current.add(trade.id)
-      }
-    })
-    setWhaleTotalCount(cached.length)
-  }, [user])
-
-  useEffect(() => {
-    if (!user || !showWhaleToggle || whalePanelOpen) return
-    let active = true
-    const poll = async () => {
-      try {
-        const res = await fetch('/api/whale-detector?minNotional=2000&limit=200', {
-          cache: 'no-store',
-        })
-        if (!res.ok || !active) return
-        const data = await res.json()
-        const trades = Array.isArray(data?.trades) ? data.trades : []
-        const cached = readCachedWhales()
-        const merged = new Map<string, { id?: string }>()
-        cached.forEach((trade) => {
-          if (trade?.id) merged.set(trade.id, trade)
-        })
-        trades.forEach((trade: { id?: string }) => {
-          if (trade?.id) merged.set(trade.id, trade)
-        })
-        const combined = Array.from(merged.values())
-        setWhaleTotalCount(combined.length)
-        if (combined.length > 0) {
-          writeCachedWhales(combined)
-        }
-        let newCount = 0
-        trades.forEach((trade: { id?: string }) => {
-          if (!trade?.id) return
-          if (!whaleSeenIds.current.has(trade.id)) {
-            whaleSeenIds.current.add(trade.id)
-            newCount += 1
-          }
-        })
-        if (!whaleCountInitialized.current) {
-          whaleCountInitialized.current = true
-          return
-        }
-        if (newCount > 0) {
-          setWhaleUnreadCount((prev) => Math.min(9, prev + newCount))
-        }
-      } catch (error) {
-        console.warn('Whale count polling failed:', error)
-      }
-    }
-    poll()
-    const interval = setInterval(poll, 30000)
-    return () => {
-      active = false
-      clearInterval(interval)
-    }
-  }, [user, showWhaleToggle, whalePanelOpen])
 
   const headerActions = (
     <div className="flex items-center gap-2 lg:border-l lg:border-white/10 lg:pl-3">
@@ -853,100 +726,6 @@ function ChatPageContent() {
           )}
         </AnimatePresence>
 
-        <AnimatePresence>
-          {whaleDetectorExpanded && (
-            <>
-              <motion.div
-                key="desktop-whale-backdrop"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setWhaleDetectorExpanded(false)}
-                className="pointer-events-auto absolute inset-0 bg-black/60 backdrop-blur"
-              />
-              <motion.aside
-                key="desktop-whale-panel"
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="pointer-events-auto absolute inset-y-0 right-0 z-50 w-full max-w-sm border-l border-white/10 bg-black/80 backdrop-blur-xl shadow-2xl overflow-y-auto"
-              >
-                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-emerald-300/80">
-                      Whale Detector
-                    </p>
-                    <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
-                      {whaleTotalCount} whales detected
-                    </p>
-                    <p className="text-[11px] text-white/60">$2k+ trade alerts</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setWhaleDetectorExpanded(false)}
-                    className="p-1 rounded-full bg-white/10 text-white/60 hover:text-white"
-                    aria-label="Close whale detector"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="p-4">
-                  <WhaleDetectorPanel
-                    onNewWhale={handleWhaleNotification}
-                    onCountChange={setWhaleTotalCount}
-                  />
-                </div>
-              </motion.aside>
-            </>
-          )}
-        </AnimatePresence>
-
-      {user && showWhaleToggle && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-emerald-400/30 bg-black/90 backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
-                Whale Detector
-              </p>
-              <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
-                {whaleTotalCount} whales detected
-              </p>
-              <p className="text-[11px] text-white/60">
-                $2k+ trades with price in cents + American odds.
-              </p>
-            </div>
-            <div className="relative flex items-center gap-3">
-              {!canUseWhaleDetector && (
-                <span className="rounded-full border border-emerald-400/30 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
-                  Members Only
-                </span>
-              )}
-              {whaleUnreadCount > 0 && (
-                <span className="absolute -top-2 -right-2 flex h-4 w-4">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
-                  <span className="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400 text-[9px] font-semibold text-black">
-                    {whaleUnreadCount}
-                  </span>
-                </span>
-              )}
-              <ParticleButton
-                type="button"
-                disabled={!canUseWhaleDetector}
-                onClick={openWhaleDetector}
-                className="gap-2 rounded-full bg-emerald-400/20 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:bg-emerald-400/30 disabled:opacity-60 disabled:cursor-not-allowed"
-                title={
-                  canUseWhaleDetector
-                    ? 'Open Whale Detector'
-                    : 'Membership required to access Whale Detector'
-                }
-              >
-                Open Whale Detector
-              </ParticleButton>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Mobile Live Scores Modal */}
       <AnimatePresence>
@@ -987,56 +766,6 @@ function ChatPageContent() {
         )}
       </AnimatePresence>
 
-      {/* Mobile Whale Detector Modal */}
-      <AnimatePresence>
-        {whaleDetectorOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setWhaleDetectorOpen(false)}
-              className="fixed inset-0 bg-[#2f2f2f]/80 z-[60] lg:hidden"
-            />
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed left-0 right-0 bottom-0 max-h-[80vh] z-[70] lg:hidden overflow-hidden"
-            >
-              <div className="bg-black border-t border-[#1f1f1f] rounded-t-2xl">
-                <div className="flex items-center justify-between p-4 border-b border-[#1f1f1f]">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-emerald-300/80">
-                      Whale Detector
-                    </p>
-                    <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
-                      {whaleTotalCount} whales detected
-                    </p>
-                    <p className="text-[11px] text-white/60">$2k+ trade alerts</p>
-                  </div>
-                  <button
-                    onClick={() => setWhaleDetectorOpen(false)}
-                    className="p-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors"
-                    aria-label="Close whale detector"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="overflow-y-auto max-h-[calc(80vh-60px)]">
-                  <div className="p-4">
-                    <WhaleDetectorPanel
-                      onNewWhale={handleWhaleNotification}
-                      onCountChange={setWhaleTotalCount}
-                    />
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
       {currentConversationId && hasMessages && (
         <div className="fixed bottom-0 left-0 right-0 z-40">
           <div className="mx-auto max-w-5xl px-2 py-1.5 sm:px-4 sm:py-3">

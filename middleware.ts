@@ -8,12 +8,13 @@ const PUBLIC_PATHS = [
   '/auth/signup',
   '/auth/callback',
   '/pricing',
-  '/api/stripe/webhook',
-  '/api/warmup',
+  '/onboarding',
 ]
 
 // Check if path starts with any public path
 const isPublicPath = (pathname: string) => {
+  // All API routes handle their own auth
+  if (pathname.startsWith('/api/')) return true
   return PUBLIC_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
 }
 
@@ -46,10 +47,6 @@ export async function middleware(req: NextRequest) {
 
   // If not an active member, redirect to pricing
   if (!isActive) {
-    // Allow access to onboarding for new users
-    if (pathname === '/onboarding') {
-      return res
-    }
     const pricingUrl = new URL('/pricing', req.url)
     return NextResponse.redirect(pricingUrl)
   }

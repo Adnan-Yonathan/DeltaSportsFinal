@@ -10,11 +10,15 @@ import RichMessageInput from '@/components/chat/RichMessageInput'
 import { LiveScoresPreview } from '@/components/LiveScoresPreview'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { SimpleHeader } from '@/components/ui/simple-header'
+import { ParticleButton } from '@/components/ui/particle-button'
+import SharpDetectorPanel from '@/components/SharpDetectorPanel'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, MessageSquare, Target } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
+
+const SHARP_STORAGE_KEY = 'sharp-detector-trades'
 
 function ChatPageContent() {
   const [user, setUser] = useState<any>(null)
@@ -26,6 +30,23 @@ function ChatPageContent() {
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const [liveScoresOpen, setLiveScoresOpen] = useState(false)
   const [liveScoresExpanded, setLiveScoresExpanded] = useState(false)
+  const [sharpDetectorOpen, setSharpDetectorOpen] = useState(false)
+  const [sharpDetectorExpanded, setSharpDetectorExpanded] = useState(false)
+  const [sharpUnreadCount, setSharpUnreadCount] = useState(0)
+  const [sharpTotalCount, setSharpTotalCount] = useState(() => {
+    if (typeof window === 'undefined') return 0
+    try {
+      const cached = window.localStorage.getItem(SHARP_STORAGE_KEY)
+      if (!cached) return 0
+      const parsed = JSON.parse(cached)
+      return Array.isArray(parsed) ? parsed.length : 0
+    } catch (error) {
+      console.warn('Failed to read sharp cache:', error)
+      return 0
+    }
+  })
+  const sharpSeenIds = useRef<Set<string>>(new Set())
+  const sharpCountInitialized = useRef(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
   const [messagesToday, setMessagesToday] = useState<number>(0)
@@ -125,6 +146,12 @@ function ChatPageContent() {
     warm()
   }, [])
 
+  useEffect(() => {
+    if (!hasMessages) return
+    setSharpDetectorExpanded(false)
+    setSharpDetectorOpen(false)
+    setSharpUnreadCount(0)
+  }, [hasMessages])
 
   const createInitialConversation = async (userId: string) => {
     const { data: conversations } = await supabase
@@ -263,6 +290,7 @@ function ChatPageContent() {
     .join('')
     .slice(0, 2)
     .toUpperCase()
+  const canUseSharpDetector = Boolean(user && membership?.isActive)
   const chatTabs = [
     {
       label: 'Market Projections',
@@ -285,14 +313,113 @@ function ChatPageContent() {
       href: '/ev-bets',
     },
     {
-      label: 'Sharp Detector',
-      shortLabel: 'Sharps',
-      href: '/sharp-detector',
+      label: 'Live Projections',
+      shortLabel: 'Live',
+      href: '/live-projections',
     },
   ]
   const membershipLabel = membership?.tier
     ? ({ pro: 'Pro', sharp: 'Sharp', syndicate: 'Syndicate' } as const)[membership.tier] || 'Pro'
     : 'Pro'
+  const showSharpToggle = !hasMessages
+  const sharpPanelOpen = sharpDetectorExpanded || sharpDetectorOpen
+
+  const openSharpDetector = () => {
+    if (!canUseSharpDetector) return
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      setSharpDetectorExpanded(true)
+    } else {
+      setSharpDetectorOpen(true)
+    }
+    setSharpUnreadCount(0)
+  }
+
+  const handleSharpNotification = (count: number) => {
+    if (!showSharpToggle || sharpPanelOpen) return
+    setSharpUnreadCount((prev) => Math.min(9, prev + count))
+  }
+
+  const readCachedSharps = () => {
+    if (typeof window === 'undefined') return [] as Array<{ id?: string }>
+    try {
+      const cached = window.localStorage.getItem(SHARP_STORAGE_KEY)
+      const parsed = cached ? JSON.parse(cached) : []
+      return Array.isArray(parsed) ? parsed : []
+    } catch (error) {
+      console.warn('Failed to read sharp cache:', error)
+      return []
+    }
+  }
+
+  const writeCachedSharps = (trades: Array<{ id?: string }>) => {
+    try {
+      window.localStorage.setItem(SHARP_STORAGE_KEY, JSON.stringify(trades))
+    } catch (error) {
+      console.warn('Failed to persist sharp trades:', error)
+    }
+  }
+
+  useEffect(() => {
+    if (!user) return
+    const cached = readCachedSharps()
+    cached.forEach((trade) => {
+      if (trade?.id) {
+        sharpSeenIds.current.add(trade.id)
+      }
+    })
+    setSharpTotalCount(cached.length)
+  }, [user])
+
+  useEffect(() => {
+    if (!user || !showSharpToggle || sharpPanelOpen) return
+    let active = true
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/whale-detector?minNotional=2000&limit=200', {
+          cache: 'no-store',
+        })
+        if (!res.ok || !active) return
+        const data = await res.json()
+        const trades = Array.isArray(data?.trades) ? data.trades : []
+        const cached = readCachedSharps()
+        const merged = new Map<string, { id?: string }>()
+        cached.forEach((trade) => {
+          if (trade?.id) merged.set(trade.id, trade)
+        })
+        trades.forEach((trade: { id?: string }) => {
+          if (trade?.id) merged.set(trade.id, trade)
+        })
+        const combined = Array.from(merged.values())
+        setSharpTotalCount(combined.length)
+        if (combined.length > 0) {
+          writeCachedSharps(combined)
+        }
+        let newCount = 0
+        trades.forEach((trade: { id?: string }) => {
+          if (!trade?.id) return
+          if (!sharpSeenIds.current.has(trade.id)) {
+            sharpSeenIds.current.add(trade.id)
+            newCount += 1
+          }
+        })
+        if (!sharpCountInitialized.current) {
+          sharpCountInitialized.current = true
+          return
+        }
+        if (newCount > 0) {
+          setSharpUnreadCount((prev) => Math.min(9, prev + newCount))
+        }
+      } catch (error) {
+        console.warn('Sharp count polling failed:', error)
+      }
+    }
+    poll()
+    const interval = setInterval(poll, 30000)
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [user, showSharpToggle, sharpPanelOpen])
 
   const headerActions = (
     <div className="flex items-center gap-2 lg:border-l lg:border-white/10 lg:pl-3">
@@ -577,7 +704,7 @@ function ChatPageContent() {
                           Patch 0.2
                         </span>
                         <span className="text-sm text-white/80">
-                          Whale detection, new dashboards, and a sharper live odds experience.
+                          Sharp detection, new dashboards, and a sharper live odds experience.
                         </span>
                         <Link
                           href="/patch-notes"
@@ -726,6 +853,91 @@ function ChatPageContent() {
           )}
         </AnimatePresence>
 
+        <AnimatePresence>
+          {sharpDetectorExpanded && (
+            <motion.div
+              key="desktop-sharp-fullpage"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="pointer-events-auto fixed inset-0 z-[80] bg-black/95 backdrop-blur-xl overflow-y-auto"
+            >
+              <div className="min-h-full">
+                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-black/80 backdrop-blur px-6 py-4">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-300">
+                      Sharp Detector
+                    </p>
+                    <p className="mt-1 text-xs text-white/60">
+                      {sharpTotalCount} sharps detected &bull; $2k+ trade alerts
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSharpDetectorExpanded(false)}
+                    className="p-2 rounded-full bg-white/10 text-white/60 hover:text-white hover:bg-white/20 transition-colors"
+                    aria-label="Close sharp detector"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+                <div className="mx-auto max-w-4xl p-6">
+                  <SharpDetectorPanel
+                    onNewSharp={handleSharpNotification}
+                    onCountChange={setSharpTotalCount}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+      {user && showSharpToggle && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-emerald-400/30 bg-black/90 backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
+                Sharp Detector
+              </p>
+              <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
+                {sharpTotalCount} sharps detected
+              </p>
+              <p className="text-[11px] text-white/60">
+                $2k+ trades with price in cents + American odds.
+              </p>
+            </div>
+            <div className="relative flex items-center gap-3">
+              {!canUseSharpDetector && (
+                <span className="rounded-full border border-emerald-400/30 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
+                  Members Only
+                </span>
+              )}
+              {sharpUnreadCount > 0 && (
+                <span className="absolute -top-2 -right-2 flex h-4 w-4">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
+                  <span className="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400 text-[9px] font-semibold text-black">
+                    {sharpUnreadCount}
+                  </span>
+                </span>
+              )}
+              <ParticleButton
+                type="button"
+                disabled={!canUseSharpDetector}
+                onClick={openSharpDetector}
+                className="gap-2 rounded-full bg-emerald-400/20 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:bg-emerald-400/30 disabled:opacity-60 disabled:cursor-not-allowed"
+                title={
+                  canUseSharpDetector
+                    ? 'Open Sharp Detector'
+                    : 'Membership required to access Sharp Detector'
+                }
+              >
+                Open Sharp Detector
+              </ParticleButton>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Live Scores Modal */}
       <AnimatePresence>
@@ -766,6 +978,45 @@ function ChatPageContent() {
         )}
       </AnimatePresence>
 
+      {/* Mobile Sharp Detector Full-Page Overlay */}
+      <AnimatePresence>
+        {sharpDetectorOpen && (
+          <motion.div
+            key="mobile-sharp-fullpage"
+            initial={{ opacity: 0, y: '100%' }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: '100%' }}
+            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            className="fixed inset-0 z-[80] bg-black/95 backdrop-blur-xl overflow-y-auto lg:hidden"
+          >
+            <div className="min-h-full">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-black/80 backdrop-blur px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-300">
+                    Sharp Detector
+                  </p>
+                  <p className="mt-1 text-xs text-white/60">
+                    {sharpTotalCount} sharps detected &bull; $2k+ trade alerts
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSharpDetectorOpen(false)}
+                  className="p-2 rounded-full bg-white/10 text-white/60 hover:text-white hover:bg-white/20 transition-colors"
+                  aria-label="Close sharp detector"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="p-4 pb-20">
+                <SharpDetectorPanel
+                  onNewSharp={handleSharpNotification}
+                  onCountChange={setSharpTotalCount}
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {currentConversationId && hasMessages && (
         <div className="fixed bottom-0 left-0 right-0 z-40">
           <div className="mx-auto max-w-5xl px-2 py-1.5 sm:px-4 sm:py-3">

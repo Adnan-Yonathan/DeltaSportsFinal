@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatAmericanOdds, formatCurrency, formatPercent } from '@/lib/utils/odds'
 import { cn } from '@/lib/utils'
 
-type WhaleTrade = {
+type SharpTrade = {
   id: string
   source: 'kalshi' | 'polymarket'
   marketTitle: string
@@ -22,10 +22,10 @@ type WhaleTrade = {
   side?: string
 }
 
-type WhaleTradeStatus = 'pending' | 'respected' | 'faded'
+type SharpTradeStatus = 'pending' | 'respected' | 'faded'
 
-type WhaleTradeWithStatus = WhaleTrade & {
-  status?: WhaleTradeStatus
+type SharpTradeWithStatus = SharpTrade & {
+  status?: SharpTradeStatus
   checkedAt?: string
   result?: 'win' | 'loss'
   resolvedAt?: string
@@ -33,14 +33,14 @@ type WhaleTradeWithStatus = WhaleTrade & {
   roi?: number
 }
 
-type WhaleTier = 'small' | 'blue' | 'mega'
+type SharpTier = 'small' | 'blue' | 'mega'
 
 const MIN_NOTIONAL = 2000
 const POLL_INTERVAL_MS = 30000
 const RESPECT_CHECK_MS = 15 * 60 * 1000
 const RESPECT_TOLERANCE_CENTS = 2
 const RESOLUTION_POLL_MS = 5 * 60 * 1000
-const STORAGE_KEY = 'whale-detector-trades'
+const STORAGE_KEY = 'sharp-detector-trades'
 const MAX_RESOLVED_TRADES = 300
 
 const formatOddsLabel = (priceCents: number, americanOdds: number | null) => {  
@@ -65,7 +65,7 @@ const formatTimestamp = (value: string) => {
   })
 }
 
-const resolvePhase = (trade: WhaleTrade) => {
+const resolvePhase = (trade: SharpTrade) => {
   if (!trade.eventDate) return 'Pregame'
   const eventDate = new Date(trade.eventDate)
   if (Number.isNaN(eventDate.getTime())) return 'Pregame'
@@ -74,34 +74,34 @@ const resolvePhase = (trade: WhaleTrade) => {
   return eventDate < todayStart ? 'Live' : 'Pregame'
 }
 
-const resolveWhaleTier = (notional: number): WhaleTier => {
+const resolveSharpTier = (notional: number): SharpTier => {
   if (notional >= 10000) return 'mega'
   if (notional >= 5000) return 'blue'
   return 'small'
 }
 
-const whaleTierLabel: Record<WhaleTier, string> = {
-  small: 'Small whale',
-  blue: 'Blue whale',
-  mega: 'Megaladon',
+const sharpTierLabel: Record<SharpTier, string> = {
+  small: 'Sharp bet',
+  blue: 'Big sharp',
+  mega: 'Whale',
 }
 
-const whaleTierClass: Record<WhaleTier, string> = {
+const sharpTierClass: Record<SharpTier, string> = {
   small: 'border-emerald-500/30 text-emerald-200',
   blue: 'border-sky-400/40 text-sky-200',
   mega: 'border-rose-400/40 text-rose-200',
 }
 
-export default function WhaleDetectorPanel({
+export default function SharpDetectorPanel({
   className,
-  onNewWhale,
+  onNewSharp,
   onCountChange,
 }: {
   className?: string
-  onNewWhale?: (count: number) => void
+  onNewSharp?: (count: number) => void
   onCountChange?: (count: number) => void
 }) {
-  const [trades, setTrades] = useState<WhaleTradeWithStatus[]>(() => {
+  const [trades, setTrades] = useState<SharpTradeWithStatus[]>(() => {
     if (typeof window === 'undefined') return []
     try {
       const cached = window.localStorage.getItem(STORAGE_KEY)
@@ -110,7 +110,7 @@ export default function WhaleDetectorPanel({
         return Array.isArray(parsed) ? parsed : []
       }
     } catch (error) {
-      console.warn('Failed to load whale detector cache:', error)
+      console.warn('Failed to load sharp detector cache:', error)
     }
     return []
   })
@@ -121,7 +121,7 @@ export default function WhaleDetectorPanel({
   const resolvingRef = useRef<Set<string>>(new Set())
 
   const sortedTrades = useMemo(() => {
-    const weight = (status?: WhaleTradeStatus) => {
+    const weight = (status?: SharpTradeStatus) => {
       if (status === 'respected') return 0
       if (status === 'pending' || !status) return 1
       return 2
@@ -144,7 +144,7 @@ export default function WhaleDetectorPanel({
       )
       if (!res.ok) return
       const data = await res.json()
-      const incoming: WhaleTrade[] = Array.isArray(data?.trades)
+      const incoming: SharpTrade[] = Array.isArray(data?.trades)
         ? data.trades
         : []
 
@@ -160,7 +160,7 @@ export default function WhaleDetectorPanel({
           }
         })
         if (hasInitializedRef.current && newIds.length > 0) {
-          onNewWhale?.(newIds.length)
+          onNewSharp?.(newIds.length)
         }
         if (!hasInitializedRef.current) {
           hasInitializedRef.current = true
@@ -182,11 +182,11 @@ export default function WhaleDetectorPanel({
         return [...pending, ...resolved]
       })
     } catch (error) {
-      console.warn('Whale detector fetch failed:', error)
+      console.warn('Sharp detector fetch failed:', error)
     }
   }
 
-  const fetchCurrentPrice = async (trade: WhaleTradeWithStatus) => {
+  const fetchCurrentPrice = async (trade: SharpTradeWithStatus) => {
     try {
       if (trade.source === 'kalshi' && trade.ticker) {
         const res = await fetch(
@@ -215,12 +215,12 @@ export default function WhaleDetectorPanel({
         return Number(data?.priceCents)
       }
     } catch (error) {
-      console.warn('Whale detector price fetch failed:', error)
+      console.warn('Sharp detector price fetch failed:', error)
     }
     return null
   }
 
-  const fetchResolvedOutcome = async (trade: WhaleTradeWithStatus) => {
+  const fetchResolvedOutcome = async (trade: SharpTradeWithStatus) => {
     try {
       if (trade.source === 'kalshi' && trade.ticker) {
         const res = await fetch(
@@ -247,7 +247,7 @@ export default function WhaleDetectorPanel({
         return String(data.outcome)
       }
     } catch (error) {
-      console.warn('Whale detector resolve fetch failed:', error)
+      console.warn('Sharp detector resolve fetch failed:', error)
     }
     return null
   }
@@ -255,7 +255,7 @@ export default function WhaleDetectorPanel({
   const normalizeOutcome = (value: string) =>
     value.trim().toLowerCase().replace(/\s+/g, ' ')
 
-  const resolveTradeResult = async (trade: WhaleTradeWithStatus) => {
+  const resolveTradeResult = async (trade: SharpTradeWithStatus) => {
     if (trade.result || resolvingRef.current.has(trade.id)) return
     resolvingRef.current.add(trade.id)
     const outcome = await fetchResolvedOutcome(trade)
@@ -292,11 +292,11 @@ export default function WhaleDetectorPanel({
     )
   }
 
-  const evaluateTrade = async (trade: WhaleTradeWithStatus) => {
+  const evaluateTrade = async (trade: SharpTradeWithStatus) => {
     const currentPrice = await fetchCurrentPrice(trade)
     if (currentPrice == null || !Number.isFinite(currentPrice)) return
     const delta = currentPrice - trade.priceCents
-    const status: WhaleTradeStatus =
+    const status: SharpTradeStatus =
       delta >= -RESPECT_TOLERANCE_CENTS ? 'respected' : 'faded'
     setTrades((prev) =>
       prev.map((item) =>
@@ -328,7 +328,7 @@ export default function WhaleDetectorPanel({
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trades))
     } catch (error) {
-      console.warn('Failed to persist whale detector cache:', error)
+      console.warn('Failed to persist sharp detector cache:', error)
     }
   }, [hydrated, trades])
 
@@ -375,14 +375,14 @@ export default function WhaleDetectorPanel({
     <div className={cn('space-y-3', className)}>
       {sortedTrades.length === 0 && (
         <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-xs text-white/60">
-          No whale alerts yet. Trades &gt;= {formatCurrency(MIN_NOTIONAL)} will
+          No sharp bets detected yet. Trades &gt;= {formatCurrency(MIN_NOTIONAL)} will
           appear here.
         </div>
       )}
       {sortedTrades.map((trade) => {
         const isFresh = now - new Date(trade.timestamp).getTime() < 2 * 60 * 1000
         const pnl = trade.pnl ?? null
-        const whaleTier = resolveWhaleTier(trade.notional)
+        const sharpTier = resolveSharpTier(trade.notional)
         return (
           <div
             key={trade.id}
@@ -417,10 +417,10 @@ export default function WhaleDetectorPanel({
               <span
                 className={cn(
                   'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]',
-                  whaleTierClass[whaleTier]
+                  sharpTierClass[sharpTier]
                 )}
               >
-                {whaleTierLabel[whaleTier]}
+                {sharpTierLabel[sharpTier]}
               </span>
               <span className="rounded-full border border-white/10 px-2 py-0.5">
                 {trade.outcome}

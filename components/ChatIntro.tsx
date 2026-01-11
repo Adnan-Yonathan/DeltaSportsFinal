@@ -13,7 +13,7 @@ import { SportsbookTicker } from '@/components/ui/sportsbook-ticker'
 import { ComparisonSection } from '@/components/ui/comparison-section'
 import { Typewriter } from '@/components/ui/typewriter-text'
 import { Announcement, AnnouncementTag, AnnouncementTitle } from '@/components/ui/announcement'
-import { Features } from '@/components/ui/features-10'
+import SectionWithMockup from '@/components/ui/section-with-mockup'
 import { ArrowUpRight, BarChart3 } from 'lucide-react'
 
 interface ChatIntroProps {
@@ -198,7 +198,25 @@ export default function ChatIntro({
             transition={{ delay: 0.6, duration: 0.5 }}
             className="w-full"
           >
-            <Features />
+            <SectionWithMockup
+              title={
+                <>
+                  Sharp detector
+                  <br />
+                  built on real money.
+                </>
+              }
+              description={
+                <>
+                  We track big bets on peer-to-peer exchanges and compare them
+                  <br />
+                  to sportsbook lines, showing how sharp a bet really is.
+                </>
+              }
+              primaryImageSrc="/Screenshot 2026-01-11 161528.png"
+              secondaryImageSrc="/Screenshot 2026-01-11 161550.png"
+              reverseLayout
+            />
           </motion.div>
 
           {/* Comparison Section */}

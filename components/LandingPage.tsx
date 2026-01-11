@@ -4,7 +4,7 @@ import React from "react"
 import { motion } from "framer-motion"
 import { ArrowUpRight, Mic, Send } from "lucide-react"
 import Link from "next/link"
-import { Features } from "@/components/ui/features-10"
+import SectionWithMockup from "@/components/ui/section-with-mockup"
 import { ComparisonSection } from "@/components/ui/comparison-section"
 import { HowWeHelpSection } from "@/components/ui/how-we-help-section"
 import { FAQSection } from "@/components/ui/faq-section"
@@ -342,7 +342,26 @@ export default function LandingPage() {
       {/* Powerful Features */}
       <FadeInSection className="w-full" delay={0.1}>
         <div id="features">
-          <Features />
+          <SectionWithMockup
+            title={
+              <>
+                Market-driven projections
+                <br />
+                for every angle.
+              </>
+            }
+            description={
+              <>
+                Delta uses market movement and sharp money to build projections
+                <br />
+                for games, players, and parlays so your numbers stay locked to
+                <br />
+                where the true price is heading.
+              </>
+            }
+            primaryImageSrc="/Screenshot 2026-01-11 161550.png"
+            secondaryImageSrc="/Screenshot 2026-01-11 161528.png"
+          />
         </div>
       </FadeInSection>
 

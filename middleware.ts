@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server'
 
 // Pages that don't require authentication
 const PUBLIC_PATHS = [
+  '/',
   '/auth/login',
   '/auth/signup',
   '/auth/callback',

@@ -418,44 +418,46 @@ export default function ParlayPredictor() {
   }
 
   return (
-    <div className="mt-8 space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="text-xs uppercase tracking-[0.25em] text-white/50">
-          Mode
-        </label>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setMode('single')}
-            className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.25em] ${
-              mode === 'single'
-                ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-200'
-                : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'
-            }`}
-          >
-            Single sport
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('multi')}
-            className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.25em] ${
-              mode === 'multi'
-                ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-200'
-                : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'
-            }`}
-          >
-            Multi-sport
-          </button>
+    <div className="mt-4 sm:mt-8 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-white/50">
+            Mode
+          </label>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => setMode('single')}
+              className={`rounded-full border px-3 py-1.5 text-[10px] sm:text-xs uppercase tracking-[0.15em] ${
+                mode === 'single'
+                  ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-200'
+                  : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'
+              }`}
+            >
+              Single
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('multi')}
+              className={`rounded-full border px-3 py-1.5 text-[10px] sm:text-xs uppercase tracking-[0.15em] ${
+                mode === 'multi'
+                  ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-200'
+                  : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'
+              }`}
+            >
+              Multi
+            </button>
+          </div>
         </div>
         {mode === 'single' && (
-          <>
-            <label className="text-xs uppercase tracking-[0.25em] text-white/50">
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-white/50">
               Sport
             </label>
             <select
               value={sport}
               onChange={(event) => setSport(event.target.value)}
-              className="rounded-full border border-white/20 bg-black/40 px-4 py-2 text-sm text-white"
+              className="rounded-full border border-white/20 bg-black/40 px-3 py-1.5 text-xs sm:text-sm text-white"
             >
               {SPORTS.map((item) => (
                 <option
@@ -468,7 +470,7 @@ export default function ParlayPredictor() {
                 </option>
               ))}
             </select>
-          </>
+          </div>
         )}
       </div>
 
@@ -478,7 +480,7 @@ export default function ParlayPredictor() {
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {legs.map((leg, index) => {
           const game = mode === 'multi'
             ? leg.gameId
@@ -491,15 +493,15 @@ export default function ParlayPredictor() {
           return (
             <div
               key={leg.id}
-              className="rounded-2xl border border-white/10 bg-white/5 p-5"
+              className="rounded-xl sm:rounded-2xl border border-white/10 bg-white/5 p-3 sm:p-5"
             >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm font-semibold">Leg {index + 1}</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs sm:text-sm font-semibold">Leg {index + 1}</p>
                 {legs.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeLeg(leg.id)}
-                    className="text-xs uppercase tracking-[0.2em] text-white/50 hover:text-white"
+                    className="text-[10px] sm:text-xs uppercase tracking-[0.15em] text-white/50 hover:text-white"
                   >
                     Remove
                   </button>
@@ -645,12 +647,12 @@ export default function ParlayPredictor() {
                       : 'Select a matchup to see available lines.'}
                   </div>
                 ) : selections.length === 0 ? (
-                  <div className="mt-2 rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-white/60">
+                  <div className="mt-2 rounded-xl border border-white/10 bg-black/30 p-3 text-xs sm:text-sm text-white/60">
                     No lines available for this market.
                   </div>
                 ) : (
                   <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-black/40">
-                    <div className="hidden sm:grid grid-cols-[minmax(0,1.4fr)_90px_90px_minmax(0,1fr)_70px] gap-2 bg-black/70 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/50">
+                    <div className="hidden sm:grid grid-cols-[minmax(0,1.4fr)_80px_80px_minmax(0,1fr)_60px] gap-2 bg-black/70 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/50">
                       <span>Selection</span>
                       <span>Line</span>
                       <span>Odds</span>
@@ -665,11 +667,26 @@ export default function ParlayPredictor() {
                             key={option.key}
                             type="button"
                             onClick={() => updateLeg(leg.id, { selectionKey: option.key })}
-                            className={`w-full text-left text-sm transition sm:text-[13px] ${
+                            className={`w-full text-left transition ${
                               isSelected ? 'bg-emerald-500/10' : 'hover:bg-white/5'
                             }`}
                           >
-                            <div className="grid gap-2 px-3 py-3 sm:grid-cols-[minmax(0,1.4fr)_90px_90px_minmax(0,1fr)_70px]">
+                            {/* Mobile layout */}
+                            <div className="sm:hidden px-3 py-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-semibold text-white">{option.name}</span>
+                                <span className={`text-[10px] uppercase tracking-[0.1em] ${isSelected ? 'text-emerald-300' : 'text-white/40'}`}>
+                                  {isSelected ? 'Selected' : 'Pick'}
+                                </span>
+                              </div>
+                              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-white/60">
+                                {option.line != null && <span>Line {formatLine(option.line)}</span>}
+                                <span>{formatOdds(option.odds)}</span>
+                                <span className="text-white/40">{option.book || 'n/a'}</span>
+                              </div>
+                            </div>
+                            {/* Desktop layout */}
+                            <div className="hidden sm:grid gap-2 px-3 py-3 grid-cols-[minmax(0,1.4fr)_80px_80px_minmax(0,1fr)_60px] text-[13px]">
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold text-white">{option.name}</span>
                               </div>
@@ -681,9 +698,6 @@ export default function ParlayPredictor() {
                               <div className="text-right text-xs uppercase tracking-[0.2em] text-white/50">
                                 {isSelected ? 'Selected' : 'Pick'}
                               </div>
-                            </div>
-                            <div className="px-3 pb-3 text-[11px] text-white/40 sm:hidden">
-                              {option.label}
                             </div>
                           </button>
                         )
@@ -758,19 +772,19 @@ export default function ParlayPredictor() {
         })}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={addLeg}
-          className="rounded-full border border-white/20 px-4 py-2 text-xs uppercase tracking-[0.25em] text-white/70 hover:border-white/40 hover:text-white"
+          className="rounded-full border border-white/20 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs uppercase tracking-[0.2em] text-white/70 hover:border-white/40 hover:text-white"
         >
-          Add leg
+          + Add leg
         </button>
         <button
           type="button"
           onClick={handleProject}
           disabled={!canProject || projecting}
-          className="rounded-full bg-emerald-500/80 px-5 py-2 text-xs uppercase tracking-[0.3em] text-black transition disabled:cursor-not-allowed disabled:bg-emerald-500/30"
+          className="rounded-full bg-emerald-500/80 px-4 sm:px-5 py-1.5 sm:py-2 text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black font-semibold transition disabled:cursor-not-allowed disabled:bg-emerald-500/30"
         >
           {projecting ? 'Projecting...' : 'Project'}
         </button>
@@ -783,63 +797,62 @@ export default function ParlayPredictor() {
       )}
 
       {result && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-white/5 p-3 sm:p-5 space-y-3 sm:space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-white/50">Parlay edge</p>
-              <p className="text-xl font-semibold">
+              <p className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-white/50">Parlay edge</p>
+              <p className="text-lg sm:text-xl font-semibold">
                 {result.parlayEdge != null
                   ? `${(result.parlayEdge * 100).toFixed(1)}%`
                   : 'n/a'}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-xs uppercase tracking-[0.3em] text-white/50">Best book</p>
-              <p className="text-sm text-white/80">
+              <p className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-white/50">Best book</p>
+              <p className="text-xs sm:text-sm text-white/80">
                 {result.bestBook || 'n/a'} {result.bestBookOdds != null ? `(${formatOdds(result.bestBookOdds)})` : ''}
               </p>
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-xl border border-white/10 bg-black/30 p-4">
-              <p className="text-xs uppercase tracking-[0.25em] text-white/50">Model</p>
-              <p className="text-lg font-semibold">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="rounded-lg sm:rounded-xl border border-white/10 bg-black/30 p-2 sm:p-4">
+              <p className="text-[9px] sm:text-xs uppercase tracking-[0.15em] text-white/50">Model</p>
+              <p className="text-sm sm:text-lg font-semibold">
                 {(result.correlatedProbability * 100).toFixed(1)}%
               </p>
-              <p className="text-xs text-white/50">
+              <p className="hidden sm:block text-xs text-white/50">
                 Independent {(result.independentProbability * 100).toFixed(1)}%
               </p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/30 p-4">
-              <p className="text-xs uppercase tracking-[0.25em] text-white/50">Market implied</p>
-              <p className="text-lg font-semibold">
+            <div className="rounded-lg sm:rounded-xl border border-white/10 bg-black/30 p-2 sm:p-4">
+              <p className="text-[9px] sm:text-xs uppercase tracking-[0.15em] text-white/50">Implied</p>
+              <p className="text-sm sm:text-lg font-semibold">
                 {result.marketImpliedProbability != null
                   ? `${(result.marketImpliedProbability * 100).toFixed(1)}%`
                   : 'n/a'}
               </p>
-              <p className="text-xs text-white/50">
-                Fair odds {result.impliedOdds != null ? formatOdds(result.impliedOdds) : 'n/a'}
+              <p className="hidden sm:block text-xs text-white/50">
+                Fair {result.impliedOdds != null ? formatOdds(result.impliedOdds) : 'n/a'}
               </p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/30 p-4">
-              <p className="text-xs uppercase tracking-[0.25em] text-white/50">Confidence</p>
-              <p className="text-lg font-semibold capitalize">{result.confidence}</p>
-              <p className="text-xs text-white/50">Model + market blended view</p>
+            <div className="rounded-lg sm:rounded-xl border border-white/10 bg-black/30 p-2 sm:p-4">
+              <p className="text-[9px] sm:text-xs uppercase tracking-[0.15em] text-white/50">Confidence</p>
+              <p className="text-sm sm:text-lg font-semibold capitalize">{result.confidence}</p>
+              <p className="hidden sm:block text-xs text-white/50">Blended view</p>
             </div>
           </div>
-          <div className="space-y-3">
-            <p className="text-xs uppercase tracking-[0.25em] text-white/50">Leg breakdown</p>
+          <div className="space-y-2 sm:space-y-3">
+            <p className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-white/50">Leg breakdown</p>
             {result.legs.map((leg, idx) => (
-              <div key={`${leg.description}-${idx}`} className="rounded-xl border border-white/10 bg-black/30 p-4">
-                <p className="text-sm font-semibold">{leg.description}</p>
-                <div className="mt-2 flex flex-wrap gap-3 text-xs text-white/60">
+              <div key={`${leg.description}-${idx}`} className="rounded-lg sm:rounded-xl border border-white/10 bg-black/30 p-2.5 sm:p-4">
+                <p className="text-xs sm:text-sm font-semibold">{leg.description}</p>
+                <div className="mt-1.5 sm:mt-2 flex flex-wrap gap-2 sm:gap-3 text-[10px] sm:text-xs text-white/60">
                   <span>
                     Model {((leg.modelProbability ?? leg.probability) * 100).toFixed(1)}%
                   </span>
                   <span>Implied {leg.impliedProbability != null ? `${(leg.impliedProbability * 100).toFixed(1)}%` : 'n/a'}</span>
-                  <span>Edge {leg.edge != null ? `${(leg.edge * 100).toFixed(1)}%` : 'n/a'}</span>
-                  <span>Book {leg.book || 'n/a'}</span>
-                  <span>Odds {formatOdds(leg.marketOdds)}</span>
+                  <span className="hidden sm:inline">Edge {leg.edge != null ? `${(leg.edge * 100).toFixed(1)}%` : 'n/a'}</span>
+                  <span>{leg.book || 'n/a'} {formatOdds(leg.marketOdds)}</span>
                 </div>
               </div>
             ))}

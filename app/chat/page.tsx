@@ -296,26 +296,31 @@ function ChatPageContent() {
       label: 'Market Projections',
       shortLabel: 'Markets',
       href: '/market-projections',
+      description: 'AI-powered spread, total, and moneyline projections with edge detection',
     },
     {
       label: 'Player Projections',
       shortLabel: 'Players',
       href: '/player-projections',
+      description: 'Player prop projections based on recent form and matchup context',
     },
     {
       label: 'Parlay Predictor',
       shortLabel: 'Parlay',
       href: '/parlay-predictor',
+      description: 'Calculate true parlay odds with correlation adjustments',
     },
     {
       label: 'EV Bets',
       shortLabel: 'EV',
       href: '/ev-bets',
+      description: 'Find +EV opportunities where sportsbooks disagree on odds',
     },
     {
       label: 'Live Projections',
       shortLabel: 'Live',
       href: '/live-projections',
+      description: 'Real-time projections updated during games',
     },
   ]
   const membershipLabel = membership?.tier
@@ -606,6 +611,13 @@ function ChatPageContent() {
                 <span className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 {index < 4 && (
                   <span className="absolute right-0 top-1/2 -translate-y-1/2 h-6 w-px bg-white/10" />
+                )}
+                {/* Desktop hover tooltip */}
+                {tab.description && (
+                  <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-48 -translate-x-1/2 rounded-lg border border-emerald-500/30 bg-black/95 px-3 py-2 text-[11px] font-normal normal-case tracking-normal text-white/80 shadow-xl backdrop-blur-xl lg:group-hover:block">
+                    {tab.description}
+                    <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 border-l border-t border-emerald-500/30 bg-black/95" />
+                  </span>
                 )}
               </Link>
             ))}

@@ -174,6 +174,25 @@ export default function SharpDetectorPanel({
     return Array.from(sports).sort()
   }, [trades])
 
+  const topUpcomingSharps = useMemo(() => {
+    const now = Date.now()
+    const upcoming = trades.filter((trade) => {
+      if (!trade.eventDate) return false
+      const eventTime = new Date(trade.eventDate).getTime()
+      if (!Number.isFinite(eventTime)) return false
+      return eventTime >= now
+    })
+    return [...upcoming]
+      .filter((trade) => Number.isFinite(trade.sharpStrength))
+      .sort((a, b) => {
+        const strengthA = a.sharpStrength ?? 0
+        const strengthB = b.sharpStrength ?? 0
+        if (strengthA !== strengthB) return strengthB - strengthA
+        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      })
+      .slice(0, 3)
+  }, [trades])
+
   const sortedTrades = useMemo(() => {
     const weight = (status?: SharpTradeStatus) => {
       if (status === 'respected') return 0
@@ -459,6 +478,43 @@ export default function SharpDetectorPanel({
 
   return (
     <div className={cn('space-y-3', className)}>
+      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-white">
+            Top 3 upcoming sharps
+          </span>
+          <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+            live
+          </span>
+        </div>
+        {topUpcomingSharps.length === 0 ? (
+          <div className="text-[11px] text-white/50">
+            No upcoming sharp strength rankings yet.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {topUpcomingSharps.map((trade) => (
+              <div
+                key={trade.id}
+                className="rounded-xl border border-white/10 bg-black/40 p-2"
+              >
+                <div className="flex items-center justify-between text-[10px] text-white/50">
+                  <span className="uppercase tracking-[0.2em]">{trade.sport}</span>
+                  <span className="text-emerald-300 font-semibold">
+                    {trade.sharpStrength ?? 0}%
+                  </span>
+                </div>
+                <div className="text-[11px] text-white mt-1">
+                  {trade.outcome}
+                </div>
+                <div className="text-[10px] text-white/50">
+                  {trade.marketTitle}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       {filters}
       {sortedTrades.length === 0 && (
         <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-xs text-white/60">

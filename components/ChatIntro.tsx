@@ -303,6 +303,30 @@ export default function ChatIntro({
               defaultValue=""
             />
           </form>
+          {/* Construction Tape */}
+          <div className="absolute inset-0 overflow-hidden rounded-[28px]">
+            <div className="absolute inset-0 bg-black/40" />
+            <div
+              className="absolute inset-0 opacity-40"
+              style={{
+                background:
+                  'repeating-linear-gradient(45deg, #facc15 0, #facc15 14px, #000 14px, #000 28px)',
+              }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div
+                className="w-[160%] py-4 text-center -rotate-12 bg-black/90"
+                style={{
+                  background:
+                    'repeating-linear-gradient(90deg, #facc15 0, #facc15 24px, #000 24px, #000 48px)',
+                }}
+              >
+                <span className="px-4 text-base sm:text-lg font-extrabold uppercase tracking-[0.4em] text-black drop-shadow-[0_1px_0_rgba(250,204,21,0.7)]">
+                  UNDER CONSTRUCTION • UNDER CONSTRUCTION • UNDER CONSTRUCTION
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
       </motion.div>

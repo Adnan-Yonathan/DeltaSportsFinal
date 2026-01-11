@@ -131,17 +131,23 @@ export default function SharpDetectorPanel({
   const [sportFilter, setSportFilter] = useState<string>('all')
   const [gameFilter, setGameFilter] = useState<string>('all')
   const [sortFilter, setSortFilter] = useState<'newest' | 'strength'>('newest')
+  const [searchQuery, setSearchQuery] = useState('')
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
   const scheduledRef = useRef<Set<string>>(new Set())
   const resolvingRef = useRef<Set<string>>(new Set())
 
   const baseTrades = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
     return trades.filter((trade) => {
       if (sportFilter !== 'all' && trade.sport !== sportFilter) return false
+      if (query) {
+        const haystack = `${trade.marketTitle} ${trade.outcome} ${trade.sport}`.toLowerCase()
+        if (!haystack.includes(query)) return false
+      }
       return true
     })
-  }, [trades, sportFilter])
+  }, [trades, sportFilter, searchQuery])
 
   const gameOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -452,6 +458,13 @@ export default function SharpDetectorPanel({
 
   const filters = (
     <div className="flex flex-wrap items-center gap-2">
+      <input
+        type="text"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        placeholder="Search bets..."
+        className="min-w-[180px] flex-1 rounded-lg border border-white/10 bg-black px-2.5 py-1.5 text-[11px] text-white/80 placeholder:text-white/40 focus:border-emerald-500/50 focus:outline-none"
+      />
       <select
         value={sportFilter}
         onChange={(e) => setSportFilter(e.target.value)}

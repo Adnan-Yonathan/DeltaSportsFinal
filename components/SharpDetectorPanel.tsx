@@ -20,6 +20,7 @@ type SharpTrade = {
   slug?: string
   outcomeIndex?: number
   side?: string
+  sharpStrength?: number
 }
 
 type SharpTradeStatus = 'pending' | 'respected' | 'faded'
@@ -392,23 +393,30 @@ export default function SharpDetectorPanel({
                 'border-emerald-400/50 shadow-[0_0_25px_rgba(16,185,129,0.25)]'
             )}
           >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-                {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
-              </span>
-              {trade.status && (
-                <span
-                  className={cn(
-                    'text-[10px] uppercase tracking-[0.3em] font-semibold',
-                    trade.status === 'respected'
-                      ? 'text-emerald-300'
-                      : 'text-rose-300'
-                  )}
-                >
-                  {trade.status}
-                </span>
-              )}
-            </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+                      {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {Number.isFinite(trade.sharpStrength) && (
+                        <span className="text-[10px] uppercase tracking-[0.3em] font-semibold text-emerald-300">
+                          {trade.sharpStrength}% strength
+                        </span>
+                      )}
+                      {trade.status && (
+                        <span
+                          className={cn(
+                            'text-[10px] uppercase tracking-[0.3em] font-semibold',
+                            trade.status === 'respected'
+                              ? 'text-emerald-300'
+                              : 'text-rose-300'
+                          )}
+                        >
+                          {trade.status}
+                        </span>
+                      )}
+                    </div>
+                  </div>
             <p className="mt-2 text-sm font-semibold text-white">
               Someone put {formatCurrency(trade.notional)} on {trade.outcome} in{' '}
               {trade.marketTitle}

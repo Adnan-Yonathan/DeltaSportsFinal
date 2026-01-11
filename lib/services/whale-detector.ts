@@ -1,4 +1,8 @@
 import { decimalToAmerican } from '@/lib/utils/odds'
+import { oddsToImpliedProbability } from '@/lib/utils/statistics'
+import { fetchOdds } from '@/lib/api/odds-api'
+import { normalizeTeamKey } from '@/lib/identity/sport'
+import type { OddsGame } from '@/lib/types/odds'
 
 const KALSHI_BASE = 'https://api.elections.kalshi.com/trade-api/v2'
 const POLYMARKET_TRADES = 'https://data-api.polymarket.com/trades'
@@ -92,10 +96,21 @@ type KalshiMarketResponse = {
     yes_sub_title?: string
     no_sub_title?: string
     yes_bid?: number
+    yes_bid_dollars?: string
     no_bid?: number
+    no_bid_dollars?: string
     yes_ask?: number
+    yes_ask_dollars?: string
     no_ask?: number
+    no_ask_dollars?: string
     last_price?: number | string
+    last_price_dollars?: string
+    previous_price?: number | string
+    previous_price_dollars?: string
+    volume_24h?: number
+    liquidity?: number
+    liquidity_dollars?: string
+    open_interest?: number
   }
 }
 
@@ -128,6 +143,7 @@ export type WhaleTrade = {
   slug?: string
   outcomeIndex?: number
   side?: string
+  sharpStrength?: number
 }
 
 export type WhaleTradeStatus = 'pending' | 'respected' | 'faded'
@@ -237,13 +253,24 @@ const resolveKalshiSidePrice = (
 ) => {
   if (!market) return null
   const isYes = side === 'yes'
-  const bid = isYes ? market.yes_bid : market.no_bid
-  const ask = isYes ? market.yes_ask : market.no_ask
-  if (Number.isFinite(bid) && Number.isFinite(ask)) {
-    return Math.round(((bid as number) + (ask as number)) / 2)
+  const bidCents = parseNumber(isYes ? market.yes_bid : market.no_bid)
+  const askCents = parseNumber(isYes ? market.yes_ask : market.no_ask)
+  const bidDollars = parseNumber(
+    isYes ? market.yes_bid_dollars : market.no_bid_dollars
+  )
+  const askDollars = parseNumber(
+    isYes ? market.yes_ask_dollars : market.no_ask_dollars
+  )
+  if (bidCents != null && askCents != null) {
+    return Math.round((bidCents + askCents) / 2)
   }
-  if (Number.isFinite(bid)) return Math.round(bid as number)
-  if (Number.isFinite(ask)) return Math.round(ask as number)
+  if (bidCents != null) return Math.round(bidCents)
+  if (askCents != null) return Math.round(askCents)
+  if (bidDollars != null && askDollars != null) {
+    return Math.round((bidDollars + askDollars) * 50)
+  }
+  if (bidDollars != null) return Math.round(bidDollars * 100)
+  if (askDollars != null) return Math.round(askDollars * 100)
   const last = parseNumber(market.last_price)
   if (last == null) return null
   if (isYes) return Math.round(last)
@@ -417,7 +444,501 @@ export const fetchWhaleTrades = async (options: {
     return timeB - timeA
   })
 
-  return combined.slice(0, limit)
+  const sliced = combined.slice(0, limit)
+  try {
+    return await enrichWhaleTradesWithStrength(sliced)
+  } catch (error) {
+    console.warn('[WHALER] Failed to enrich sharp strength:', error)
+    return sliced
+  }
+}
+
+type ParsedTeams = { home: string; away: string }
+
+type KalshiMarketSnapshot = {
+  yesPriceCents: number | null
+  noPriceCents: number | null
+  previousPriceCents: number | null
+  volume24h: number | null
+  liquidityDollars: number | null
+  openInterest: number | null
+  yesSpreadCents: number | null
+  noSpreadCents: number | null
+}
+
+type KalshiOrderbookSnapshot = {
+  yesDepth: number
+  noDepth: number
+}
+
+type KalshiRecentTradeStats = {
+  totalCount: number
+  yesCount: number
+  noCount: number
+  averageYesPrice: number | null
+  averageNoPrice: number | null
+}
+
+const SPORT_TO_ODDS_KEY: Record<string, string> = {
+  NBA: 'basketball_nba',
+  WNBA: 'basketball_wnba',
+  NCAAB: 'basketball_ncaab',
+  NFL: 'americanfootball_nfl',
+  NCAAF: 'americanfootball_ncaaf',
+  NHL: 'icehockey_nhl',
+  MLB: 'baseball_mlb',
+}
+
+const cleanTeamLabel = (value: string) => value.split(':')[0]?.trim() ?? ''
+
+const parseTeamsFromTitle = (title: string): ParsedTeams | null => {
+  const match = title.split(/\s+(?:vs\.?|v\.?|@|at)\s+/i)
+  if (match.length !== 2) return null
+  const first = cleanTeamLabel(match[0]?.trim() ?? '')
+  const second = cleanTeamLabel(match[1]?.trim() ?? '')
+  if (!first || !second) return null
+  return { away: first, home: second }
+}
+
+const extractSignedLine = (text?: string | null) => {
+  if (!text) return null
+  const match = text.match(/([+-]?\d+(?:\.\d+)?)/)
+  if (!match) return null
+  const value = Number(match[1])
+  return Number.isFinite(value) ? value : null
+}
+
+const resolveMarketType = (trade: WhaleTrade) => {
+  const combined = `${trade.outcome} ${trade.marketTitle}`.toLowerCase()
+  if (combined.includes('total') || combined.includes('over') || combined.includes('under')) {
+    return 'totals'
+  }
+  if (combined.includes('spread') || /[+-]\d/.test(combined)) {
+    return 'spreads'
+  }
+  if (
+    combined.includes('moneyline') ||
+    combined.includes('to win') ||
+    combined.includes('winner')
+  ) {
+    return 'h2h'
+  }
+  return 'h2h'
+}
+
+const resolveTotalSide = (trade: WhaleTrade) => {
+  const combined = `${trade.outcome} ${trade.marketTitle}`.toLowerCase()
+  if (combined.includes('over')) return 'over'
+  if (combined.includes('under')) return 'under'
+  return null
+}
+
+const resolveSelectionTeam = (trade: WhaleTrade, teams: ParsedTeams | null) => {
+  if (!teams) return null
+  const outcomeKey = normalizeTeamKey(trade.outcome)
+  const homeKey = normalizeTeamKey(teams.home)
+  const awayKey = normalizeTeamKey(teams.away)
+  if (outcomeKey && homeKey && (outcomeKey === homeKey || outcomeKey.includes(homeKey))) {
+    return teams.home
+  }
+  if (outcomeKey && awayKey && (outcomeKey === awayKey || outcomeKey.includes(awayKey))) {
+    return teams.away
+  }
+  return null
+}
+
+const scoreFromRatio = (ratio: number) => {
+  if (ratio < 1.5) return 0.2
+  if (ratio < 2.5) return 0.5
+  if (ratio < 4) return 0.8
+  return 1
+}
+
+const scoreFromMove = (move: number) => {
+  const absMove = Math.abs(move)
+  if (absMove < 1) return 0.2
+  if (absMove < 2.5) return 0.5
+  if (absMove < 5) return 0.8
+  return 1
+}
+
+const resolveLiquidityScore = (
+  liquidityDollars: number | null,
+  openInterest: number | null,
+  spreadCents: number | null
+) => {
+  let score = 0.3
+  if ((liquidityDollars ?? 0) >= 20000 || (openInterest ?? 0) >= 10000) {
+    score = 1
+  } else if ((liquidityDollars ?? 0) >= 10000 || (openInterest ?? 0) >= 5000) {
+    score = 0.8
+  } else if ((liquidityDollars ?? 0) >= 5000 || (openInterest ?? 0) >= 2000) {
+    score = 0.5
+  } else if ((liquidityDollars ?? 0) > 0 || (openInterest ?? 0) > 0) {
+    score = 0.2
+  }
+  if (spreadCents != null && spreadCents > 6) {
+    score = Math.min(score, 0.4)
+  }
+  return score
+}
+
+const resolveBookPressureScore = (
+  side: 'yes' | 'no',
+  orderbook: KalshiOrderbookSnapshot | null
+) => {
+  if (!orderbook) return 0.3
+  const yesDepth = orderbook.yesDepth || 0
+  const noDepth = orderbook.noDepth || 0
+  const ratio =
+    side === 'yes'
+      ? yesDepth / Math.max(1, noDepth)
+      : noDepth / Math.max(1, yesDepth)
+  if (ratio < 1.2) return 0.2
+  if (ratio < 1.6) return 0.5
+  if (ratio < 2.5) return 0.8
+  return 1
+}
+
+const resolveRecentTradeStats = (trades: KalshiTrade[]) => {
+  let totalCount = 0
+  let yesCount = 0
+  let noCount = 0
+  let yesPriceSum = 0
+  let noPriceSum = 0
+
+  for (const trade of trades) {
+    const count = Number(trade.count) || 0
+    totalCount += count
+    if (trade.taker_side === 'yes') {
+      yesCount += count
+      const price = resolveKalshiPriceCents(trade)
+      if (price != null) yesPriceSum += price * count
+    } else if (trade.taker_side === 'no') {
+      noCount += count
+      const price = resolveKalshiPriceCents(trade)
+      if (price != null) noPriceSum += price * count
+    }
+  }
+
+  const averageYesPrice = yesCount > 0 ? yesPriceSum / yesCount : null
+  const averageNoPrice = noCount > 0 ? noPriceSum / noCount : null
+
+  return { totalCount, yesCount, noCount, averageYesPrice, averageNoPrice }
+}
+
+const fetchKalshiMarketSnapshot = async (
+  ticker: string
+): Promise<KalshiMarketSnapshot | null> => {
+  const res = await fetch(`${KALSHI_BASE}/markets/${ticker}`, { cache: 'no-store' })
+  if (!res.ok) return null
+  const data = (await res.json()) as KalshiMarketResponse
+  const market = data.market
+  if (!market) return null
+  const yesPriceCents = resolveKalshiSidePrice(market, 'yes')
+  const noPriceCents = resolveKalshiSidePrice(market, 'no')
+  const previous = parseNumber(market.previous_price_dollars ?? market.previous_price)
+  const previousPriceCents = previous != null ? Math.round(previous * 100) : null
+  const volume24h = parseNumber(market.volume_24h)
+  const liquidity = parseNumber(market.liquidity_dollars ?? market.liquidity)
+  const openInterest = parseNumber(market.open_interest)
+  const yesBid = parseNumber(market.yes_bid_dollars ?? market.yes_bid)
+  const yesAsk = parseNumber(market.yes_ask_dollars ?? market.yes_ask)
+  const noBid = parseNumber(market.no_bid_dollars ?? market.no_bid)
+  const noAsk = parseNumber(market.no_ask_dollars ?? market.no_ask)
+  const yesSpreadCents =
+    yesBid != null && yesAsk != null
+      ? Math.round(Math.abs(yesAsk - yesBid) * (yesBid < 1 ? 100 : 1))
+      : null
+  const noSpreadCents =
+    noBid != null && noAsk != null
+      ? Math.round(Math.abs(noAsk - noBid) * (noBid < 1 ? 100 : 1))
+      : null
+  return {
+    yesPriceCents,
+    noPriceCents,
+    previousPriceCents,
+    volume24h,
+    liquidityDollars: liquidity,
+    openInterest,
+    yesSpreadCents,
+    noSpreadCents,
+  }
+}
+
+const fetchKalshiOrderbook = async (ticker: string): Promise<KalshiOrderbookSnapshot | null> => {
+  const url = new URL(`${KALSHI_BASE}/markets/${ticker}/orderbook`)
+  url.searchParams.set('depth', '5')
+  const res = await fetch(url.toString(), { cache: 'no-store' })
+  if (!res.ok) return null
+  const data = (await res.json()) as { orderbook?: { yes?: number[][]; no?: number[][] } }
+  const yes = Array.isArray(data.orderbook?.yes) ? data.orderbook?.yes ?? [] : []
+  const no = Array.isArray(data.orderbook?.no) ? data.orderbook?.no ?? [] : []
+  const sumDepth = (levels: number[][]) =>
+    levels.reduce((sum, level) => sum + (Number(level?.[1]) || 0), 0)
+  return {
+    yesDepth: sumDepth(yes),
+    noDepth: sumDepth(no),
+  }
+}
+
+const fetchKalshiRecentTrades = async (ticker: string, sinceTs: number) => {
+  const url = new URL(`${KALSHI_BASE}/markets/trades`)
+  url.searchParams.set('ticker', ticker)
+  url.searchParams.set('limit', '200')
+  url.searchParams.set('min_ts', String(Math.floor(sinceTs / 1000)))
+  const res = await fetch(url.toString(), { cache: 'no-store' })
+  if (!res.ok) return [] as KalshiTrade[]
+  const data = (await res.json()) as KalshiTradesResponse
+  return Array.isArray(data.trades) ? data.trades : []
+}
+
+const findMatchingGame = (games: OddsGame[], teams: ParsedTeams | null) => {
+  if (!teams) return null
+  const homeKey = normalizeTeamKey(teams.home)
+  const awayKey = normalizeTeamKey(teams.away)
+  if (!homeKey || !awayKey) return null
+  return (
+    games.find((game) => {
+      const gHome = normalizeTeamKey(game.home_team)
+      const gAway = normalizeTeamKey(game.away_team)
+      return (
+        (gHome.includes(homeKey) && gAway.includes(awayKey)) ||
+        (gHome.includes(awayKey) && gAway.includes(homeKey))
+      )
+    }) ?? null
+  )
+}
+
+const findBestOdds = (
+  game: OddsGame,
+  marketKey: string,
+  selection: { team?: string; totalSide?: 'over' | 'under'; line?: number }
+) => {
+  let bestOdds: number | null = null
+  let bestLineDiff = Number.POSITIVE_INFINITY
+
+  for (const book of game.bookmakers || []) {
+    const market = book.markets?.find((m) => m.key === marketKey)
+    if (!market) continue
+    for (const outcome of market.outcomes || []) {
+      const price = Number(outcome.price)
+      if (!Number.isFinite(price)) continue
+      if (marketKey === 'h2h') {
+        if (selection.team && normalizeTeamKey(outcome.name).includes(normalizeTeamKey(selection.team))) {
+          if (bestOdds == null || price > bestOdds) bestOdds = price
+        }
+        continue
+      }
+      if (marketKey === 'totals') {
+        if (!selection.totalSide) continue
+        const isOver = outcome.name.toLowerCase().includes('over')
+        const isUnder = outcome.name.toLowerCase().includes('under')
+        if ((selection.totalSide === 'over' && !isOver) || (selection.totalSide === 'under' && !isUnder)) {
+          continue
+        }
+        const line = Number(outcome.point)
+        if (!Number.isFinite(line)) continue
+        const lineDiff = selection.line != null ? Math.abs(line - selection.line) : 0
+        if (lineDiff < bestLineDiff || (lineDiff === bestLineDiff && (bestOdds == null || price > bestOdds))) {
+          bestLineDiff = lineDiff
+          bestOdds = price
+        }
+        continue
+      }
+      if (marketKey === 'spreads') {
+        if (!selection.team) continue
+        if (!normalizeTeamKey(outcome.name).includes(normalizeTeamKey(selection.team))) continue
+        const line = Number(outcome.point)
+        if (!Number.isFinite(line)) continue
+        const lineDiff = selection.line != null ? Math.abs(line - selection.line) : 0
+        if (lineDiff < bestLineDiff || (lineDiff === bestLineDiff && (bestOdds == null || price > bestOdds))) {
+          bestLineDiff = lineDiff
+          bestOdds = price
+        }
+      }
+    }
+  }
+
+  return bestOdds
+}
+
+const resolveSportsbookProbability = (
+  trade: WhaleTrade,
+  oddsCache: Map<string, OddsGame[]>
+) => {
+  const sportKey = SPORT_TO_ODDS_KEY[trade.sport]
+  if (!sportKey) return null
+  const games = oddsCache.get(sportKey)
+  if (!games || games.length === 0) return null
+  const teams = parseTeamsFromTitle(trade.marketTitle)
+  const game = findMatchingGame(games, teams)
+  if (!game) return null
+
+  const marketKey = resolveMarketType(trade)
+  const selection = {
+    team: resolveSelectionTeam(trade, teams),
+    totalSide: resolveTotalSide(trade),
+    line: extractSignedLine(trade.outcome) ?? extractSignedLine(trade.marketTitle),
+  }
+
+  const bestOdds = findBestOdds(game, marketKey, selection)
+  if (!Number.isFinite(bestOdds)) return null
+  return oddsToImpliedProbability(bestOdds as number)
+}
+
+const buildSportsbookOddsCache = async (trades: WhaleTrade[]) => {
+  const sportKeys = Array.from(
+    new Set(trades.map((trade) => SPORT_TO_ODDS_KEY[trade.sport]).filter(Boolean))
+  ) as string[]
+  const cache = new Map<string, OddsGame[]>()
+  await Promise.all(
+    sportKeys.map(async (sportKey) => {
+      try {
+        const games = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
+          live: true,
+        })
+        cache.set(sportKey, games)
+      } catch (error) {
+        console.warn('[WHALER] Failed to fetch sportsbook odds:', error)
+      }
+    })
+  )
+  return cache
+}
+
+const computeStrengthScore = (opts: {
+  trade: WhaleTrade
+  side: 'yes' | 'no'
+  market: KalshiMarketSnapshot | null
+  orderbook: KalshiOrderbookSnapshot | null
+  recentTrades: KalshiRecentTradeStats | null
+  sportsbookProb: number | null
+}) => {
+  const { trade, side, market, orderbook, recentTrades, sportsbookProb } = opts
+
+  const avgPer30 =
+    market?.volume24h && market.volume24h > 0 ? market.volume24h / 48 : null
+  const recentCount = recentTrades?.totalCount ?? 0
+  const ratio = avgPer30 ? recentCount / avgPer30 : 1
+  let bigBets = scoreFromRatio(ratio)
+  const sideCount = side === 'yes' ? recentTrades?.yesCount ?? 0 : recentTrades?.noCount ?? 0
+  if (sideCount < 3) bigBets = Math.min(bigBets, 0.6)
+
+  const currentPrice =
+    side === 'yes' ? market?.yesPriceCents ?? trade.priceCents : market?.noPriceCents ?? trade.priceCents
+  const recentAvg =
+    side === 'yes' ? recentTrades?.averageYesPrice : recentTrades?.averageNoPrice
+  const fallbackPrev = market?.previousPriceCents
+  const baseline = recentAvg ?? fallbackPrev ?? trade.priceCents
+  const move = currentPrice != null && baseline != null ? currentPrice - baseline : 0
+  let momentum = scoreFromMove(move)
+  if (move > 0) momentum = Math.min(1, momentum + 0.1)
+
+  const bookPressure = resolveBookPressureScore(side, orderbook)
+  const liquidity = resolveLiquidityScore(
+    market?.liquidityDollars ?? null,
+    market?.openInterest ?? null,
+    side === 'yes' ? market?.yesSpreadCents ?? null : market?.noSpreadCents ?? null
+  )
+
+  let rlm = 0.2
+  if (recentTrades && recentTrades.totalCount >= 5) {
+    const imbalance =
+      (sideCount - (recentTrades.totalCount - sideCount)) / recentTrades.totalCount
+    if (Math.abs(move) >= 2 && imbalance <= -0.15) {
+      rlm = 1
+    } else if (Math.abs(move) >= 1 && imbalance <= -0.1) {
+      rlm = 0.6
+    }
+  }
+
+  const baseScore =
+    80 *
+    (0.3 * bigBets +
+      0.25 * momentum +
+      0.2 * bookPressure +
+      0.15 * liquidity +
+      0.1 * rlm)
+
+  let boost = 0
+  if (currentPrice != null && sportsbookProb != null) {
+    const kalshiProb = currentPrice / 100
+    const diff = Math.abs(kalshiProb - sportsbookProb) * 100
+    if (diff >= 10) boost = 20
+    else if (diff >= 7) boost = 16
+    else if (diff >= 4) boost = 12
+    else if (diff >= 2) boost = 8
+    else if (diff >= 1) boost = 4
+  }
+
+  return Math.max(0, Math.min(100, Math.round(baseScore + boost)))
+}
+
+const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]) => {
+  const oddsCache = await buildSportsbookOddsCache(trades)
+  const kalshiTrades = trades.filter(
+    (trade) => trade.source === 'kalshi' && trade.ticker
+  ) as (WhaleTrade & { ticker: string })[]
+
+  const marketCache = new Map<string, KalshiMarketSnapshot | null>()
+  const orderbookCache = new Map<string, KalshiOrderbookSnapshot | null>()
+  const recentTradeCache = new Map<string, KalshiRecentTradeStats | null>()
+  const now = Date.now()
+
+  await Promise.all(
+    Array.from(new Set(kalshiTrades.map((trade) => trade.ticker))).map(
+      async (ticker) => {
+        const [market, orderbook, recentTrades] = await Promise.all([
+          fetchKalshiMarketSnapshot(ticker),
+          fetchKalshiOrderbook(ticker),
+          fetchKalshiRecentTrades(ticker, now - 30 * 60 * 1000),
+        ])
+        marketCache.set(ticker, market)
+        orderbookCache.set(ticker, orderbook)
+        recentTradeCache.set(ticker, resolveRecentTradeStats(recentTrades))
+      }
+    )
+  )
+
+  return trades.map((trade) => {
+    const sportsbookProb = resolveSportsbookProbability(trade, oddsCache)
+    if (trade.source === 'kalshi' && trade.ticker) {
+      const side = (trade.side ?? 'yes') as 'yes' | 'no'
+      const market = marketCache.get(trade.ticker) ?? null
+      const orderbook = orderbookCache.get(trade.ticker) ?? null
+      const recentTrades = recentTradeCache.get(trade.ticker) ?? null
+      const strength = computeStrengthScore({
+        trade,
+        side,
+        market,
+        orderbook,
+        recentTrades,
+        sportsbookProb,
+      })
+      return { ...trade, sharpStrength: strength }
+    }
+    if (trade.source === 'polymarket') {
+      const notional = trade.notional
+      let base = 0.35
+      if (notional >= 10000) base = 0.9
+      else if (notional >= 5000) base = 0.7
+      else if (notional >= 3000) base = 0.5
+      const baseScore = 80 * (0.3 * base + 0.25 * 0.35 + 0.2 * 0.35 + 0.15 * 0.35 + 0.1 * 0.35)
+      let boost = 0
+      if (trade.priceCents && sportsbookProb != null) {
+        const diff = Math.abs(trade.priceCents / 100 - sportsbookProb) * 100
+        if (diff >= 10) boost = 20
+        else if (diff >= 7) boost = 16
+        else if (diff >= 4) boost = 12
+        else if (diff >= 2) boost = 8
+        else if (diff >= 1) boost = 4
+      }
+      const strength = Math.max(0, Math.min(100, Math.round(baseScore + boost)))
+      return { ...trade, sharpStrength: strength }
+    }
+    return trade
+  })
 }
 
 export const evaluateWhaleRespect = async (

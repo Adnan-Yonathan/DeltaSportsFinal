@@ -23,6 +23,7 @@ type SharpTrade = {
   slug?: string
   outcomeIndex?: number
   side?: string
+  sharpStrength?: number
 }
 
 type SharpTradeStatus = 'pending' | 'respected' | 'faded'
@@ -117,6 +118,9 @@ const extractGameKey = (marketTitle: string, sport: string): string => {
   return `${sport}:${cleaned}`
 }
 
+const resolveGameLabel = (marketTitle: string) =>
+  marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()
+
 export default function SharpDetectorPage() {
   const [trades, setTrades] = useState<SharpTradeWithStatus[]>(() => {
     if (typeof window === 'undefined') return []
@@ -135,6 +139,7 @@ export default function SharpDetectorPage() {
   const [viewMode, setViewMode] = useState<'all' | 'games'>('all')
   const [sportFilter, setSportFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [gameFilter, setGameFilter] = useState<string>('all')
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
   const scheduledRef = useRef<Set<string>>(new Set())
@@ -146,8 +151,7 @@ export default function SharpDetectorPage() {
     return Array.from(sports).sort()
   }, [trades])
 
-  // Filter trades
-  const filteredTrades = useMemo(() => {
+  const baseTrades = useMemo(() => {
     return trades.filter(trade => {
       if (sportFilter !== 'all' && trade.sport !== sportFilter) return false
       if (statusFilter === 'respected' && trade.status !== 'respected') return false
@@ -156,6 +160,34 @@ export default function SharpDetectorPage() {
       return true
     })
   }, [trades, sportFilter, statusFilter])
+
+  const gameOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    baseTrades.forEach((trade) => {
+      const key = extractGameKey(trade.marketTitle, trade.sport)
+      if (!map.has(key)) {
+        map.set(key, resolveGameLabel(trade.marketTitle))
+      }
+    })
+    return Array.from(map.entries())
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [baseTrades])
+
+  useEffect(() => {
+    if (gameFilter === 'all') return
+    if (!gameOptions.some((option) => option.key === gameFilter)) {
+      setGameFilter('all')
+    }
+  }, [gameFilter, gameOptions])
+
+  // Filter trades
+  const filteredTrades = useMemo(() => {
+    return baseTrades.filter((trade) => {
+      if (gameFilter === 'all') return true
+      return extractGameKey(trade.marketTitle, trade.sport) === gameFilter
+    })
+  }, [baseTrades, gameFilter])
 
   // Cluster trades by game
   const gameClusters = useMemo(() => {
@@ -539,6 +571,20 @@ export default function SharpDetectorPage() {
             ))}
           </select>
 
+          {/* Matchup Filter */}
+          <select
+            value={gameFilter}
+            onChange={(e) => setGameFilter(e.target.value)}
+            className="px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 focus:outline-none focus:border-emerald-500/50"
+          >
+            <option value="all">All Games</option>
+            {gameOptions.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
           {/* Status Filter */}
           <select
             value={statusFilter}
@@ -627,6 +673,11 @@ export default function SharpDetectorPage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
+                            {Number.isFinite(trade.sharpStrength) && (
+                              <span className="text-[10px] uppercase font-semibold text-emerald-300">
+                                {trade.sharpStrength}% strength
+                              </span>
+                            )}
                             {trade.status && (
                               <span className={cn(
                                 "text-[10px] uppercase font-semibold",
@@ -682,18 +733,25 @@ export default function SharpDetectorPage() {
                     <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
                       {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
                     </span>
-                    {trade.status && (
-                      <span
-                        className={cn(
-                          'text-[10px] uppercase tracking-[0.3em] font-semibold',
-                          trade.status === 'respected'
-                            ? 'text-emerald-300'
-                            : 'text-rose-300'
-                        )}
-                      >
-                        {trade.status}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {Number.isFinite(trade.sharpStrength) && (
+                        <span className="text-[10px] uppercase tracking-[0.3em] font-semibold text-emerald-300">
+                          {trade.sharpStrength}% strength
+                        </span>
+                      )}
+                      {trade.status && (
+                        <span
+                          className={cn(
+                            'text-[10px] uppercase tracking-[0.3em] font-semibold',
+                            trade.status === 'respected'
+                              ? 'text-emerald-300'
+                              : 'text-rose-300'
+                          )}
+                        >
+                          {trade.status}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <p className="mt-2 text-sm font-semibold text-white">
                     Someone put {formatCurrency(trade.notional)} on {trade.outcome} in{' '}

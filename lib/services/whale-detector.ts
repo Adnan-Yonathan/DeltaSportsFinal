@@ -526,7 +526,7 @@ const resolveMarketType = (trade: WhaleTrade) => {
   return 'h2h'
 }
 
-const resolveTotalSide = (trade: WhaleTrade) => {
+const resolveTotalSide = (trade: WhaleTrade): 'over' | 'under' | null => {
   const combined = `${trade.outcome} ${trade.marketTitle}`.toLowerCase()
   if (combined.includes('over')) return 'over'
   if (combined.includes('under')) return 'under'
@@ -777,9 +777,9 @@ const resolveSportsbookProbability = (
 
   const marketKey = resolveMarketType(trade)
   const selection = {
-    team: resolveSelectionTeam(trade, teams),
-    totalSide: resolveTotalSide(trade),
-    line: extractSignedLine(trade.outcome) ?? extractSignedLine(trade.marketTitle),
+    team: resolveSelectionTeam(trade, teams) || undefined,
+    totalSide: resolveTotalSide(trade) || undefined,
+    line: extractSignedLine(trade.outcome) ?? extractSignedLine(trade.marketTitle) ?? undefined,
   }
 
   const bestOdds = findBestOdds(game, marketKey, selection)

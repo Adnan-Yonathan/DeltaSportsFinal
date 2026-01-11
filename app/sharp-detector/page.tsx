@@ -265,7 +265,7 @@ export default function SharpDetectorPage() {
         const existing = new Map(prev.map((trade) => [trade.id, trade]))
         incoming.forEach((trade) => {
           const current = existing.get(trade.id)
-          existing.set(trade.id, current ? { ...trade, ...current } : trade)
+          existing.set(trade.id, current ? { ...current, ...trade } : trade)
           if (!seenIdsRef.current.has(trade.id)) {
             seenIdsRef.current.add(trade.id)
           }

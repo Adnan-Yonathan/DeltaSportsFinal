@@ -93,6 +93,18 @@ const sharpTierClass: Record<SharpTier, string> = {
   mega: 'border-rose-400/40 text-rose-200',
 }
 
+const extractGameKey = (marketTitle: string, sport: string): string => {
+  const normalized = marketTitle.toLowerCase().trim()
+  const cleaned = normalized
+    .replace(/\s*(spread|moneyline|total|over|under|points|yards|touchdowns?|winner|to win).*$/i, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim()
+  return `${sport}:${cleaned}`
+}
+
+const resolveGameLabel = (marketTitle: string) =>
+  marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()
+
 export default function SharpDetectorPanel({
   className,
   onNewSharp,
@@ -116,10 +128,51 @@ export default function SharpDetectorPanel({
     return []
   })
   const [hydrated, setHydrated] = useState(typeof window !== 'undefined')       
+  const [sportFilter, setSportFilter] = useState<string>('all')
+  const [gameFilter, setGameFilter] = useState<string>('all')
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
   const scheduledRef = useRef<Set<string>>(new Set())
   const resolvingRef = useRef<Set<string>>(new Set())
+
+  const baseTrades = useMemo(() => {
+    return trades.filter((trade) => {
+      if (sportFilter !== 'all' && trade.sport !== sportFilter) return false
+      return true
+    })
+  }, [trades, sportFilter])
+
+  const gameOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    baseTrades.forEach((trade) => {
+      const key = extractGameKey(trade.marketTitle, trade.sport)
+      if (!map.has(key)) {
+        map.set(key, resolveGameLabel(trade.marketTitle))
+      }
+    })
+    return Array.from(map.entries())
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [baseTrades])
+
+  useEffect(() => {
+    if (gameFilter === 'all') return
+    if (!gameOptions.some((option) => option.key === gameFilter)) {
+      setGameFilter('all')
+    }
+  }, [gameFilter, gameOptions])
+
+  const filteredTrades = useMemo(() => {
+    return baseTrades.filter((trade) => {
+      if (gameFilter === 'all') return true
+      return extractGameKey(trade.marketTitle, trade.sport) === gameFilter
+    })
+  }, [baseTrades, gameFilter])
+
+  const uniqueSports = useMemo(() => {
+    const sports = new Set(trades.map((trade) => trade.sport))
+    return Array.from(sports).sort()
+  }, [trades])
 
   const sortedTrades = useMemo(() => {
     const weight = (status?: SharpTradeStatus) => {
@@ -127,7 +180,7 @@ export default function SharpDetectorPanel({
       if (status === 'pending' || !status) return 1
       return 2
     }
-    return [...trades].sort((a, b) => {
+    return [...filteredTrades].sort((a, b) => {
       const weightA = weight(a.status)
       const weightB = weight(b.status)
       if (weightA !== weightB) return weightA - weightB
@@ -135,7 +188,7 @@ export default function SharpDetectorPanel({
       const timeB = new Date(b.timestamp).getTime()
       return timeB - timeA
     })
-  }, [trades])
+  }, [filteredTrades])
 
   const fetchTrades = async () => {
     try {
@@ -154,7 +207,7 @@ export default function SharpDetectorPanel({
         const newIds: string[] = []
         incoming.forEach((trade) => {
           const current = existing.get(trade.id)
-          existing.set(trade.id, current ? { ...trade, ...current } : trade)
+          existing.set(trade.id, current ? { ...current, ...trade } : trade)
           if (!seenIdsRef.current.has(trade.id)) {
             newIds.push(trade.id)
             seenIdsRef.current.add(trade.id)
@@ -372,8 +425,41 @@ export default function SharpDetectorPanel({
     onCountChange?.(sortedTrades.length)
   }, [onCountChange, sortedTrades.length])
 
+  const filters = (
+    <div className="flex flex-wrap items-center gap-2">
+      <select
+        value={sportFilter}
+        onChange={(e) => setSportFilter(e.target.value)}
+        className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-black text-[11px] text-white/80 focus:outline-none focus:border-emerald-500/50"
+      >
+        <option value="all">All Sports</option>
+        {uniqueSports.map((sport) => (
+          <option key={sport} value={sport}>
+            {sport}
+          </option>
+        ))}
+      </select>
+      <select
+        value={gameFilter}
+        onChange={(e) => setGameFilter(e.target.value)}
+        className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-black text-[11px] text-white/80 focus:outline-none focus:border-emerald-500/50"
+      >
+        <option value="all">All Games</option>
+        {gameOptions.map((option) => (
+          <option key={option.key} value={option.key}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <span className="text-[10px] text-white/40">
+        {filteredTrades.length} trades
+      </span>
+    </div>
+  )
+
   return (
     <div className={cn('space-y-3', className)}>
+      {filters}
       {sortedTrades.length === 0 && (
         <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-xs text-white/60">
           No sharp bets detected yet. Trades &gt;= {formatCurrency(MIN_NOTIONAL)} will

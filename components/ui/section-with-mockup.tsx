@@ -53,7 +53,7 @@ const SectionWithMockup: React.FC<SectionWithMockupProps> = ({
           viewport={{ once: true, amount: 0.2 }}
         >
           <motion.div
-            className={`mx-auto mt-10 flex max-w-[546px] flex-col items-start gap-4 md:mx-0 md:mt-0 ${textOrderClass}`}
+            className={`mx-auto mt-10 flex max-w-[546px] flex-col items-start gap-4 md:mx-0 md:mt-0 md:pl-12 ${textOrderClass}`}
             variants={itemVariants}
           >
             <div className="space-y-2 md:space-y-1">
@@ -76,8 +76,8 @@ const SectionWithMockup: React.FC<SectionWithMockupProps> = ({
               style={{
                 top: reverseLayout ? 'auto' : '10%',
                 bottom: reverseLayout ? '10%' : 'auto',
-                left: reverseLayout ? 'auto' : '-20%',
-                right: reverseLayout ? '-20%' : 'auto',
+                left: reverseLayout ? 'auto' : '4%',
+                right: reverseLayout ? '4%' : 'auto',
                 transform: reverseLayout ? 'translate(0, 0)' : 'translateY(10%)',
                 filter: 'blur(2px)',
               }}
@@ -110,7 +110,7 @@ const SectionWithMockup: React.FC<SectionWithMockupProps> = ({
                   <img
                     src={safePrimarySrc}
                     alt="Primary mockup"
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover object-left"
                   />
                 </div>
               </div>

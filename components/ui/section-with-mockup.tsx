@@ -32,7 +32,11 @@ const SectionWithMockup: React.FC<SectionWithMockupProps> = ({
 
   const itemVariants = {
     hidden: { opacity: 0, y: 50 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: 'easeOut' } },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.7 },
+    },
   }
 
   const layoutClasses = reverseLayout
@@ -53,7 +57,7 @@ const SectionWithMockup: React.FC<SectionWithMockupProps> = ({
           viewport={{ once: true, amount: 0.2 }}
         >
           <motion.div
-            className={`mx-auto mt-10 flex max-w-[546px] flex-col items-start gap-4 md:mx-0 md:mt-0 md:pl-12 ${textOrderClass}`}
+            className={`mx-auto mt-10 flex max-w-[546px] flex-col items-start gap-4 md:mx-0 md:mt-0 ${textOrderClass}`}
             variants={itemVariants}
           >
             <div className="space-y-2 md:space-y-1">
@@ -89,7 +93,7 @@ const SectionWithMockup: React.FC<SectionWithMockupProps> = ({
               <img
                 src={safeSecondarySrc}
                 alt="Secondary mockup"
-                className="h-full w-full rounded-[32px] object-cover"
+                className="h-full w-full rounded-[32px] object-cover object-left-top"
               />
             </motion.div>
 
@@ -110,7 +114,7 @@ const SectionWithMockup: React.FC<SectionWithMockupProps> = ({
                   <img
                     src={safePrimarySrc}
                     alt="Primary mockup"
-                    className="h-full w-full object-cover object-left"
+                    className="h-full w-full object-cover object-left-top"
                   />
                 </div>
               </div>

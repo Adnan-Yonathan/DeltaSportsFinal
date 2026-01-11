@@ -13,6 +13,7 @@ import { SportsbookTicker } from '@/components/ui/sportsbook-ticker'
 import { ComparisonSection } from '@/components/ui/comparison-section'
 import { Typewriter } from '@/components/ui/typewriter-text'
 import { Announcement, AnnouncementTag, AnnouncementTitle } from '@/components/ui/announcement'
+import { FeaturesSix } from '@/components/ui/features-6'
 import SectionWithMockup from '@/components/ui/section-with-mockup'
 import { ArrowUpRight, BarChart3 } from 'lucide-react'
 
@@ -198,24 +199,24 @@ export default function ChatIntro({
             transition={{ delay: 0.6, duration: 0.5 }}
             className="w-full"
           >
-            <SectionWithMockup
-              title={
-                <>
-                  Sharp detector
-                  <br />
-                  built on real money.
-                </>
-              }
-              description={
-                <>
-                  We track big bets on peer-to-peer exchanges and compare them
-                  <br />
-                  to sportsbook lines, showing how sharp a bet really is.
-                </>
-              }
-              primaryImageSrc="/Screenshot 2026-01-11 161528.png"
+            <FeaturesSix />
+              <SectionWithMockup
+                title={
+                  <>
+                    Sharp detector
+                    <br />
+                    built on real money.
+                  </>
+                }
+                description={
+                  <>
+                    We track big bets on peer-to-peer exchanges and compare them
+                    <br />
+                    to sportsbook lines, showing how sharp a bet really is.
+                  </>
+                }
+              primaryImageSrc="/Screenshot 2026-01-11 165623.png"
               secondaryImageSrc="/Screenshot 2026-01-11 161550.png"
-              reverseLayout
             />
           </motion.div>
 
@@ -294,39 +295,14 @@ export default function ChatIntro({
         animate={{ opacity: 1, y: 0 }}
         className="text-center max-w-3xl w-full"
       >
-        {/* Construction Tape Overlay */}
         <div className="relative">
-          <form onSubmit={handleSubmit} className="w-full relative opacity-50 pointer-events-none">
+          <form onSubmit={handleSubmit} className="w-full relative">
             <PromptBox
               name="message"
               disabled={true}
               defaultValue=""
             />
           </form>
-          {/* Construction Tape */}
-          <div className="absolute inset-0 overflow-hidden rounded-[28px]">
-            {/* Yellow/black diagonal stripes background */}
-            <div
-              className="absolute inset-0"
-              style={{
-                background: 'repeating-linear-gradient(45deg, #fbbf24 0, #fbbf24 10px, #000 10px, #000 20px)',
-                opacity: 0.15,
-              }}
-            />
-            {/* Diagonal banner */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div
-                className="w-[150%] py-3 text-center transform -rotate-12"
-                style={{
-                  background: 'repeating-linear-gradient(90deg, #fbbf24 0, #fbbf24 20px, #000 20px, #000 40px)',
-                }}
-              >
-                <span className="text-black font-black text-lg tracking-[0.3em] uppercase drop-shadow-sm px-4" style={{ textShadow: '1px 1px 0 #fbbf24' }}>
-                  🚧 UNDER CONSTRUCTION 🚧 UNDER CONSTRUCTION 🚧 UNDER CONSTRUCTION 🚧
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
 
       </motion.div>
@@ -366,3 +342,5 @@ export default function ChatIntro({
     </div>
   )
 }
+
+

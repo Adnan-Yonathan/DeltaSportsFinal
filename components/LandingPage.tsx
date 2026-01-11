@@ -4,6 +4,7 @@ import React from "react"
 import { motion } from "framer-motion"
 import { ArrowUpRight, Mic, Send } from "lucide-react"
 import Link from "next/link"
+import { FeaturesSix } from "@/components/ui/features-6"
 import SectionWithMockup from "@/components/ui/section-with-mockup"
 import { ComparisonSection } from "@/components/ui/comparison-section"
 import { HowWeHelpSection } from "@/components/ui/how-we-help-section"
@@ -262,29 +263,17 @@ export default function LandingPage() {
             <div className="flex gap-4 flex-col items-center">
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white text-center overflow-visible">
                 <TextEffect per="word" preset="blur" delay={0.2}>
-                  The First Conversational Sports Betting
-                </TextEffect>{" "}
-                <span className="relative inline-block px-1 pb-2 overflow-visible">
-                  <motion.span
-                    className="absolute -inset-1 bg-[#34d399]/25 blur-xl rounded-lg -z-10"
-                    animate={{
-                      opacity: [0.5, 0.8, 0.5],
-                      scale: [1, 1.05, 1],
-                    }}
-                    transition={{
-                      duration: 3,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    }}
-                  />
-                  <TextEffect
-                    per="word"
-                    preset="fade"
-                    delay={0.6}
-                    className="bg-gradient-to-r from-[#34d399] via-[#34d399] to-[#16a34a] bg-clip-text text-transparent relative z-10 overflow-visible pb-1"
-                  >
-                    Copilot
-                  </TextEffect>
+                  Bet Like a
+                </TextEffect>{' '}
+                <span className="bg-gradient-to-r from-[#34d399] via-[#34d399] to-[#16a34a] bg-clip-text text-transparent">
+                  Pro
+                </span>
+                <br />
+                <TextEffect per="word" preset="blur" delay={0.2}>
+                  All in One
+                </TextEffect>{' '}
+                <span className="bg-gradient-to-r from-[#34d399] via-[#34d399] to-[#16a34a] bg-clip-text text-transparent">
+                  Place
                 </span>
               </h1>
               <TextEffect
@@ -342,6 +331,7 @@ export default function LandingPage() {
       {/* Powerful Features */}
       <FadeInSection className="w-full" delay={0.1}>
         <div id="features">
+          <FeaturesSix />
           <SectionWithMockup
             title={
               <>
@@ -359,7 +349,7 @@ export default function LandingPage() {
                 where the true price is heading.
               </>
             }
-            primaryImageSrc="/Screenshot 2026-01-11 161550.png"
+            primaryImageSrc="/Screenshot 2026-01-11 165623.png"
             secondaryImageSrc="/Screenshot 2026-01-11 161528.png"
           />
         </div>

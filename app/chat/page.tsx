@@ -720,7 +720,7 @@ function ChatPageContent() {
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           <div className="flex-1 flex flex-col items-center overflow-hidden min-h-0">
             <div className="w-full max-w-none flex flex-col h-full min-h-0">
-              <div className="flex-1 overflow-hidden min-h-0 pt-[152px] pb-[90px] sm:pt-[144px] sm:pb-[160px]">
+              <div className="flex-1 overflow-hidden min-h-0 pt-[152px] pb-[150px] sm:pt-[144px] sm:pb-[160px]">
                 {!user ? (
                   // Guest view - show intro with sign-up prompt
                   <div className="h-full overflow-y-auto">

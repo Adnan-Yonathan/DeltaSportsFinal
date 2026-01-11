@@ -170,15 +170,11 @@ const clampPercent = (value: number) =>
   Math.max(0, Math.min(100, value))
 
 const resolveEdgeVig = (
-  sport: string | undefined,
-  oddsA?: number | null,
-  oddsB?: number | null,
-  fallbackVig = DEFAULT_VIG_PERCENT
-) => {
-  if (sport === "basketball_nba") return 0
-  if (oddsA == null && oddsB == null) return fallbackVig
-  return resolveVigPercent(oddsA ?? null, oddsB ?? null)
-}
+  _sport: string | undefined,
+  _oddsA?: number | null,
+  _oddsB?: number | null,
+  _fallbackVig = DEFAULT_VIG_PERCENT
+) => 0
 
 const marketEdge = (
   game: EdgeGame,

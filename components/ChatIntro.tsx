@@ -13,7 +13,7 @@ import { SportsbookTicker } from '@/components/ui/sportsbook-ticker'
 import { ComparisonSection } from '@/components/ui/comparison-section'
 import { Typewriter } from '@/components/ui/typewriter-text'
 import { Announcement, AnnouncementTag, AnnouncementTitle } from '@/components/ui/announcement'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, BarChart3 } from 'lucide-react'
 import { ParticleButton } from '@/components/ui/particle-button'
 
 interface ChatIntroProps {
@@ -337,17 +337,73 @@ export default function ChatIntro({
         animate={{ opacity: 1, y: 0 }}
         className="text-center max-w-3xl w-full"
       >
-        <form onSubmit={handleSubmit} className="w-full relative">
-          <PromptBox
-            name="message"
-            disabled={sending}
-            defaultValue={prefillMessage}
-          />
-        </form>
+        {/* Construction Tape Overlay */}
+        <div className="relative">
+          <form onSubmit={handleSubmit} className="w-full relative opacity-50 pointer-events-none">
+            <PromptBox
+              name="message"
+              disabled={true}
+              defaultValue=""
+            />
+          </form>
+          {/* Construction Tape */}
+          <div className="absolute inset-0 overflow-hidden rounded-[28px]">
+            {/* Yellow/black diagonal stripes background */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: 'repeating-linear-gradient(45deg, #fbbf24 0, #fbbf24 10px, #000 10px, #000 20px)',
+                opacity: 0.15,
+              }}
+            />
+            {/* Diagonal banner */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div
+                className="w-[150%] py-3 text-center transform -rotate-12"
+                style={{
+                  background: 'repeating-linear-gradient(90deg, #fbbf24 0, #fbbf24 20px, #000 20px, #000 40px)',
+                }}
+              >
+                <span className="text-black font-black text-lg tracking-[0.3em] uppercase drop-shadow-sm px-4" style={{ textShadow: '1px 1px 0 #fbbf24' }}>
+                  🚧 UNDER CONSTRUCTION 🚧 UNDER CONSTRUCTION 🚧 UNDER CONSTRUCTION 🚧
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
 
       </motion.div>
 
-      <div className="mt-8 w-full">
+      {/* Stats Quick Access */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.5 }}
+        className="mt-8 w-full max-w-3xl"
+      >
+        <Link
+          href="/stats"
+          className="group flex items-center justify-between w-full rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-emerald-500/30 transition-all p-4"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-500/20 group-hover:bg-emerald-500/30 transition-colors">
+              <BarChart3 className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-white group-hover:text-emerald-200 transition-colors">
+                Stats Center
+              </h3>
+              <p className="text-xs text-white/50">
+                Browse team and player statistics across all sports
+              </p>
+            </div>
+          </div>
+          <ArrowUpRight className="w-5 h-5 text-white/30 group-hover:text-emerald-400 transition-colors" />
+        </Link>
+      </motion.div>
+
+      {/* News Slideshow */}
+      <div className="mt-6 w-full">
         <LatestNewsStrip />
       </div>
     </div>

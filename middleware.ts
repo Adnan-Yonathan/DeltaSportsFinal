@@ -2,12 +2,57 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+// Pages that don't require authentication
+const PUBLIC_PATHS = [
+  '/auth/login',
+  '/auth/signup',
+  '/auth/callback',
+  '/pricing',
+  '/api/stripe/webhook',
+  '/api/warmup',
+]
+
+// Check if path starts with any public path
+const isPublicPath = (pathname: string) => {
+  return PUBLIC_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
+}
+
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
+  const pathname = req.nextUrl.pathname
 
-  // Refresh session - this keeps auth state synced between server/client
-  await supabase.auth.getSession()
+  // Allow public paths and API routes (except protected ones)
+  if (isPublicPath(pathname)) {
+    await supabase.auth.getSession()
+    return res
+  }
+
+  // Get session
+  const { data: { session } } = await supabase.auth.getSession()
+
+  // If no session, redirect to login
+  if (!session) {
+    const loginUrl = new URL('/auth/login', req.url)
+    loginUrl.searchParams.set('redirect', pathname)
+    return NextResponse.redirect(loginUrl)
+  }
+
+  // Check membership status from user metadata
+  const metadata = session.user?.user_metadata || {}
+  const tier = metadata.membership_tier
+  const expiresAt = metadata.membership_expires_at
+  const isActive = tier && expiresAt && new Date(expiresAt) > new Date()
+
+  // If not an active member, redirect to pricing
+  if (!isActive) {
+    // Allow access to onboarding for new users
+    if (pathname === '/onboarding') {
+      return res
+    }
+    const pricingUrl = new URL('/pricing', req.url)
+    return NextResponse.redirect(pricingUrl)
+  }
 
   return res
 }

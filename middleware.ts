@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   '/auth/callback',
   '/pricing',
   '/onboarding',
+  '/chat', // Chat page handles its own guest/member logic
 ]
 
 // Check if path starts with any public path
@@ -16,6 +17,29 @@ const isPublicPath = (pathname: string) => {
   // All API routes handle their own auth
   if (pathname.startsWith('/api/')) return true
   return PUBLIC_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
+}
+
+// Check membership status from metadata (mirrors lib/utils/membership.ts logic)
+const checkMembershipActive = (metadata: Record<string, any>): boolean => {
+  const tier = metadata?.membership_tier
+  const status = metadata?.membership_status
+
+  // Check modern status-based membership
+  if (tier && status) {
+    const activeStatuses = ['active', 'trialing', 'past_due']
+    return activeStatuses.includes(status)
+  }
+
+  // Legacy support: check expiration date if no status but has tier
+  if (tier && !status) {
+    const expiresAt = metadata?.membership_expires_at
+    if (expiresAt) {
+      const expDate = new Date(expiresAt)
+      return !isNaN(expDate.getTime()) && expDate.getTime() > Date.now()
+    }
+  }
+
+  return false
 }
 
 export async function middleware(req: NextRequest) {
@@ -41,9 +65,7 @@ export async function middleware(req: NextRequest) {
 
   // Check membership status from user metadata
   const metadata = session.user?.user_metadata || {}
-  const tier = metadata.membership_tier
-  const expiresAt = metadata.membership_expires_at
-  const isActive = tier && expiresAt && new Date(expiresAt) > new Date()
+  const isActive = checkMembershipActive(metadata)
 
   // If not an active member, redirect to pricing
   if (!isActive) {

@@ -597,6 +597,9 @@ const buildNbaMarketRecommendations = ({
   const spreadSignals =
     sharpResult?.sharpSignals.filter((signal) => signal.market === 'spread') ||
     []
+  const moneylineSignals =
+    sharpResult?.sharpSignals.filter((signal) => signal.market === 'moneyline') ||
+    []
   const totalSignals =
     sharpResult?.sharpSignals.filter((signal) => signal.market === 'total') || []
   const spreadMovement = sharpResult?.lineMovements.find(
@@ -604,6 +607,9 @@ const buildNbaMarketRecommendations = ({
   )
   const totalMovement = sharpResult?.lineMovements.find(
     (movement) => movement.market === 'total'
+  )
+  const moneylineMovement = sharpResult?.lineMovements.find(
+    (movement) => movement.market === 'moneyline'
   )
 
   if (marketSpread) {
@@ -650,6 +656,31 @@ const buildNbaMarketRecommendations = ({
       if (adjustment === 0) continue
       spreadAdjustment += adjustment
       factors.push(`${signal.type} on ${signal.side} spread`)
+    }
+
+    if (moneylineMovement?.direction && moneylineMovement.side) {
+      const moveWeight = Math.min(0.8, Math.abs(moneylineMovement.movement) * 0.02)
+      if (moneylineMovement.side === homeTeam) {
+        spreadAdjustment -= moveWeight
+      } else if (moneylineMovement.side === awayTeam) {
+        spreadAdjustment += moveWeight
+      }
+      if (moveWeight > 0) {
+        factors.push(`Moneyline move leaning ${moneylineMovement.side}`)
+      }
+    }
+
+    if (moneylineSignals.length) {
+      let mlBias = 0
+      for (const signal of moneylineSignals) {
+        const adjustment = resolveSignalAdjustment(signal, homeTeam, awayTeam)
+        if (adjustment === 0) continue
+        mlBias += adjustment
+        factors.push(`${signal.type} on ${signal.side} moneyline`)
+      }
+      if (mlBias !== 0) {
+        spreadAdjustment += mlBias * 0.6
+      }
     }
 
     const splits = sharpResult?.splits
@@ -751,6 +782,19 @@ const buildNbaMarketRecommendations = ({
       if (adjustment === 0) continue
       totalAdjustment += adjustment
       factors.push(`${signal.type} on ${signal.side} total`)
+    }
+
+    if (moneylineSignals.length) {
+      let mlBias = 0
+      for (const signal of moneylineSignals) {
+        const adjustment = resolveSignalAdjustment(signal, homeTeam, awayTeam)
+        if (adjustment === 0) continue
+        mlBias += adjustment
+      }
+      if (mlBias !== 0) {
+        totalAdjustment += mlBias * -0.15
+        factors.push('Moneyline sharp bias applied to total')
+      }
     }
 
     const splits = sharpResult?.splits

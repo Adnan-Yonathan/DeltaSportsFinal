@@ -169,6 +169,17 @@ const resolveVigPercent = (oddsA?: number | null, oddsB?: number | null) => {
 const clampPercent = (value: number) =>
   Math.max(0, Math.min(100, value))
 
+const resolveEdgeVig = (
+  sport: string | undefined,
+  oddsA?: number | null,
+  oddsB?: number | null,
+  fallbackVig = DEFAULT_VIG_PERCENT
+) => {
+  if (sport === "basketball_nba") return 0
+  if (oddsA == null && oddsB == null) return fallbackVig
+  return resolveVigPercent(oddsA ?? null, oddsB ?? null)
+}
+
 const marketEdge = (
   game: EdgeGame,
   filter: EdgeFilter,
@@ -183,7 +194,7 @@ const marketEdge = (
     const diff = Math.abs(
       (modelLine ?? 0) - (game.spread?.marketLine ?? 0)
     )
-    const edge = diff * 3 - DEFAULT_VIG_PERCENT
+    const edge = diff * 3 - resolveEdgeVig(sport)
     return { edgePercent: clampPercent(edge * scale) }
   }
 
@@ -204,7 +215,8 @@ const marketEdge = (
       return { edgePercent: 0 }
     }
     const diff = Math.abs((modelLine ?? 0) - (marketLine ?? 0))
-    const vig = resolveVigPercent(
+    const vig = resolveEdgeVig(
+      sport,
       game.total?.bestOdds ?? null,
       game.total?.bestUnderOdds ?? null
     )
@@ -228,7 +240,8 @@ const marketEdge = (
     modelAwayProb != null && marketAwayProb != null
       ? Math.abs((modelAwayProb - marketAwayProb) * 100)
       : 0
-  const vig = resolveVigPercent(
+  const vig = resolveEdgeVig(
+    sport,
     game.moneyline?.sportsbook?.homeOdds ?? null,
     game.moneyline?.sportsbook?.awayOdds ?? null
   )

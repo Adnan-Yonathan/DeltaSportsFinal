@@ -597,11 +597,48 @@ function ChatPageContent() {
         onLogoClick={() => handleNewConversation()}
       />
       <div className="sm:hidden px-2 pt-2">
-        <ToolsNav />
+        <ToolsNav hideMobileTop />
       </div>
+      {user && showSharpToggle && (
+        <div className="sm:hidden fixed left-0 right-0 top-12 z-40 border-b border-emerald-400/30 bg-black/90 backdrop-blur">
+          <div className="flex items-center justify-between gap-3 px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
+                Sharp Detector
+              </p>
+              <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
+                {sharpTotalCount} sharps detected
+              </p>
+            </div>
+            <div className="relative flex items-center gap-2">
+              {sharpUnreadCount > 0 && (
+                <span className="absolute -top-2 -right-2 flex h-4 w-4">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
+                  <span className="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400 text-[9px] font-semibold text-black">
+                    {sharpUnreadCount}
+                  </span>
+                </span>
+              )}
+              <ParticleButton
+                type="button"
+                disabled={!canUseSharpDetector}
+                onClick={openSharpDetector}
+                className="gap-2 rounded-full bg-emerald-400/20 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:bg-emerald-400/30 disabled:opacity-60 disabled:cursor-not-allowed"
+                title={
+                  canUseSharpDetector
+                    ? 'Open Sharp Detector'
+                    : 'Membership required to access Sharp Detector'
+                }
+              >
+                Open Sharps
+              </ParticleButton>
+            </div>
+          </div>
+        </div>
+      )}
       {user && currentConversationId && (
         <div className="fixed left-0 right-0 top-12 sm:top-16 z-40 border-b border-emerald-500/30 bg-gradient-to-b from-black via-black/95 to-black/90 backdrop-blur-xl shadow-lg shadow-emerald-500/5">
-          <div className="grid w-full grid-cols-5">
+          <div className="hidden sm:grid w-full grid-cols-5">
             {chatTabs.map((tab, index) => (
               <Link
                 key={tab.label}
@@ -683,7 +720,7 @@ function ChatPageContent() {
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           <div className="flex-1 flex flex-col items-center overflow-hidden min-h-0">
             <div className="w-full max-w-none flex flex-col h-full min-h-0">
-              <div className="flex-1 overflow-hidden min-h-0 pt-[104px] pb-[90px] sm:pt-[144px] sm:pb-[160px]">
+              <div className="flex-1 overflow-hidden min-h-0 pt-[152px] pb-[90px] sm:pt-[144px] sm:pb-[160px]">
                 {!user ? (
                   // Guest view - show intro with sign-up prompt
                   <div className="h-full overflow-y-auto">
@@ -912,7 +949,7 @@ function ChatPageContent() {
 
       {user && showSharpToggle && (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-emerald-400/30 bg-black/90 backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="hidden sm:flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
               <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
                 Sharp Detector

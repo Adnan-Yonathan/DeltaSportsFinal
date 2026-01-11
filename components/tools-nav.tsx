@@ -21,7 +21,11 @@ const MOBILE_NAV_ITEMS = [
   { href: "/stats", label: "Stats" },
 ]
 
-export default function ToolsNav() {
+type ToolsNavProps = {
+  hideMobileTop?: boolean
+}
+
+export default function ToolsNav({ hideMobileTop }: ToolsNavProps) {
   const pathname = usePathname()
 
   return (
@@ -64,25 +68,27 @@ export default function ToolsNav() {
             )
           })}
         </div>
-        <div className="flex sm:hidden items-center rounded-full border border-white/10 bg-white/5 p-1">
-          {(() => {
-            const item = TOOLS_NAV_ITEMS[0]
-            const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`rounded-full px-3 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors ${
-                  isActive
-                    ? "bg-emerald-500/20 text-emerald-200 border border-emerald-500/30"
-                    : "text-white/50 hover:text-white hover:bg-white/5"
-                }`}
-              >
-                {item.label}
-              </Link>
-            )
-          })()}
-        </div>
+        {!hideMobileTop && (
+          <div className="flex sm:hidden items-center rounded-full border border-white/10 bg-white/5 p-1">
+            {(() => {
+              const item = TOOLS_NAV_ITEMS[0]
+              const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`rounded-full px-3 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors ${
+                    isActive
+                      ? "bg-emerald-500/20 text-emerald-200 border border-emerald-500/30"
+                      : "text-white/50 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              )
+            })()}
+          </div>
+        )}
       </nav>
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-black/95 backdrop-blur-sm sm:hidden">
         <div className="flex items-center justify-between gap-2 px-3 py-3">

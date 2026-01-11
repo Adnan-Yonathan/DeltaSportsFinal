@@ -2,6 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { BarChart3, Layers3, Percent, PieChart, Users } from "lucide-react"
 
 const TOOLS_NAV_ITEMS = [
@@ -31,6 +33,11 @@ export default function ToolsNav({
   showMobileChatBack = true,
 }: ToolsNavProps) {
   const pathname = usePathname()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   return (
     <>
@@ -94,30 +101,35 @@ export default function ToolsNav({
           </div>
         )}
       </nav>
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-black/95 backdrop-blur-sm sm:hidden">
-        <div className="flex items-center justify-between gap-3 px-3 py-5">
-          {MOBILE_NAV_ITEMS.map((item) => {
-            const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
-            const Icon = item.icon
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex-1 rounded-2xl px-2 py-4 text-center text-[12px] uppercase tracking-[0.2em] transition-colors ${
-                  isActive
-                    ? "bg-emerald-500/20 text-emerald-200 border border-emerald-500/30"
-                    : "text-white/50 hover:text-white hover:bg-white/5"
-                }`}
-              >
-                <span className="flex flex-col items-center gap-1">
-                  <Icon className="h-5 w-5" />
-                  <span>{item.label}</span>
-                </span>
-              </Link>
-            )
-          })}
-        </div>
-      </nav>
+      {mounted &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-black/95 backdrop-blur-sm sm:hidden">
+            <div className="flex items-center justify-between gap-3 px-3 py-5">
+              {MOBILE_NAV_ITEMS.map((item) => {
+                const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
+                const Icon = item.icon
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex-1 rounded-2xl px-2 py-4 text-center text-[12px] uppercase tracking-[0.2em] transition-colors ${
+                      isActive
+                        ? "bg-emerald-500/20 text-emerald-200 border border-emerald-500/30"
+                        : "text-white/50 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    <span className="flex flex-col items-center gap-1">
+                      <Icon className="h-5 w-5" />
+                      <span>{item.label}</span>
+                    </span>
+                  </Link>
+                )
+              })}
+            </div>
+          </nav>,
+          document.body
+        )}
     </>
   )
 }

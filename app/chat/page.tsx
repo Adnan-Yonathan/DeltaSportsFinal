@@ -12,6 +12,7 @@ import { AnimatedHero } from '@/components/ui/animated-hero'
 import { SimpleHeader } from '@/components/ui/simple-header'
 import { ParticleButton } from '@/components/ui/particle-button'
 import SharpDetectorPanel from '@/components/SharpDetectorPanel'
+import ToolsNav from '@/components/tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, MessageSquare, Target } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
@@ -595,6 +596,9 @@ function ChatPageContent() {
         ) : undefined}
         onLogoClick={() => handleNewConversation()}
       />
+      <div className="sm:hidden px-2 pt-2">
+        <ToolsNav />
+      </div>
       {user && currentConversationId && (
         <div className="fixed left-0 right-0 top-12 sm:top-16 z-40 border-b border-emerald-500/30 bg-gradient-to-b from-black via-black/95 to-black/90 backdrop-blur-xl shadow-lg shadow-emerald-500/5">
           <div className="grid w-full grid-cols-5">

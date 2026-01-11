@@ -141,6 +141,7 @@ export default function SharpDetectorPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [gameFilter, setGameFilter] = useState<string>('all')
   const [sortFilter, setSortFilter] = useState<'newest' | 'strength'>('newest')
+  const [searchQuery, setSearchQuery] = useState('')
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
   const scheduledRef = useRef<Set<string>>(new Set())
@@ -153,14 +154,19 @@ export default function SharpDetectorPage() {
   }, [trades])
 
   const baseTrades = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
     return trades.filter(trade => {
       if (sportFilter !== 'all' && trade.sport !== sportFilter) return false
       if (statusFilter === 'respected' && trade.status !== 'respected') return false
       if (statusFilter === 'faded' && trade.status !== 'faded') return false
       if (statusFilter === 'pending' && trade.status && trade.status !== 'pending') return false
+      if (query) {
+        const haystack = `${trade.marketTitle} ${trade.outcome} ${trade.sport}`.toLowerCase()
+        if (!haystack.includes(query)) return false
+      }
       return true
     })
-  }, [trades, sportFilter, statusFilter])
+  }, [trades, sportFilter, statusFilter, searchQuery])
 
   const gameOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -599,6 +605,15 @@ export default function SharpDetectorPage() {
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
+          <div className="flex-1 min-w-[220px]">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search bets, teams, or markets..."
+              className="w-full px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 placeholder:text-white/40 focus:outline-none focus:border-emerald-500/50"
+            />
+          </div>
           {/* View Mode Toggle */}
           <div className="flex rounded-xl border border-white/10 overflow-hidden">
             <button

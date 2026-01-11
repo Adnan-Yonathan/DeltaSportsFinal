@@ -12,8 +12,8 @@ export function Features() {
             <CardHeader className="pb-3">
               <CardHeading
                 icon={MapIcon}
-                title="Real time location tracking"
-                description="Advanced tracking system, Instantly locate all your assets."
+                title="Market-driven projections"
+                description="Delta builds projections for games, players, and parlays by tracking market movement and following sharp money."
               />
             </CardHeader>
 
@@ -35,8 +35,8 @@ export function Features() {
             <CardHeader className="pb-3">
               <CardHeading
                 icon={Calendar}
-                title="Advanced Scheduling"
-                description="Scheduling system, Instantly locate all your assets."
+                title="Sharp detector intelligence"
+                description="We track big bets on peer-to-peer exchanges and compare them to sportsbook lines to quantify how sharp a bet is."
               />
             </CardHeader>
 
@@ -58,7 +58,7 @@ export function Features() {
 
           <FeatureCard className="p-6 lg:col-span-2">
             <p className="mx-auto my-6 max-w-md text-balance text-center text-2xl font-semibold">
-              Smart scheduling with automated reminders for maintenance.
+              Projections and sharp signals stay synced to the latest market moves.
             </p>
 
             <div className="flex justify-center gap-6 overflow-hidden">

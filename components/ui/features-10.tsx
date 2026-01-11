@@ -5,7 +5,7 @@ import { ReactNode } from 'react'
 
 export function Features() {
   return (
-    <section className="bg-zinc-50 py-16 md:py-32 dark:bg-transparent">
+    <section className="bg-black py-16 md:py-32 text-white">
       <div className="mx-auto max-w-2xl px-6 lg:max-w-5xl">
         <div className="mx-auto grid gap-4 lg:grid-cols-2">
           <FeatureCard>
@@ -96,7 +96,12 @@ interface FeatureCardProps {
 }
 
 const FeatureCard = ({ children, className }: FeatureCardProps) => (
-  <Card className={cn('group relative rounded-none shadow-zinc-950/5', className)}>
+  <Card
+    className={cn(
+      'group relative rounded-none border-white/10 bg-black text-white shadow-zinc-950/5',
+      className
+    )}
+  >
     <CardDecorator />
     {children}
   </Card>
@@ -119,11 +124,11 @@ interface CardHeadingProps {
 
 const CardHeading = ({ icon: Icon, title, description }: CardHeadingProps) => (
   <div className="p-6">
-    <span className="text-muted-foreground flex items-center gap-2">
+    <span className="flex items-center gap-2 text-white/70">
       <Icon className="size-4" />
       {title}
     </span>
-    <p className="mt-8 text-2xl font-semibold">{description}</p>
+    <p className="mt-8 text-2xl font-semibold text-white">{description}</p>
   </div>
 )
 
@@ -167,8 +172,8 @@ interface CircularUIProps {
 
 const CircularUI = ({ label, circles, className }: CircularUIProps) => (
   <div className={className}>
-    <div className="bg-gradient-to-b from-border size-fit rounded-2xl to-transparent p-px">
-      <div className="bg-gradient-to-b from-background to-muted/25 relative flex aspect-square w-fit items-center -space-x-4 rounded-[15px] p-4">
+    <div className="bg-gradient-to-b from-white/10 size-fit rounded-2xl to-transparent p-px">
+      <div className="relative flex aspect-square w-fit items-center -space-x-4 rounded-[15px] bg-black p-4">
         {circles.map((circle, i) => (
           <div
             key={i}
@@ -182,6 +187,6 @@ const CircularUI = ({ label, circles, className }: CircularUIProps) => (
         ))}
       </div>
     </div>
-    <span className="text-muted-foreground mt-1.5 block text-center text-sm">{label}</span>
+    <span className="mt-1.5 block text-center text-sm text-white/60">{label}</span>
   </div>
 )

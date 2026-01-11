@@ -1,4 +1,5 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install chromium && npm run build",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
@@ -7,6 +8,26 @@
   "functions": {
     "app/api/chat/route.ts": {
       "maxDuration": 300
+    },
+    "app/api/cron/refresh-market-projections/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/cron/refresh-player-projections/route.ts": {
+      "maxDuration": 300
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/refresh-market-projections",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-player-projections",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/lines/record",
+      "schedule": "0 */2 * * *"
+    }
+  ]
 }

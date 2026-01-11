@@ -177,6 +177,34 @@ const collectGamelogStats = (entry: any): Record<string, number> => {
   return stats
 }
 
+// Minimum attempts required to consider a player "participated" in a game for each market
+// This filters out games where the player sat (e.g., Week 18 rest, injury exit after 1 play)
+const didPlayerParticipate = (
+  log: Record<string, number>,
+  marketKey: string
+): boolean => {
+  // For passing stats, require at least 5 passing attempts
+  if (marketKey === 'passing_yards' || marketKey === 'passing_tds') {
+    const attempts = log['passingAttempts'] ?? log['attempts'] ?? 0
+    return attempts >= 5
+  }
+
+  // For rushing stats, require at least 3 rushing attempts
+  if (marketKey === 'rushing_yards' || marketKey === 'rushing_tds') {
+    const attempts = log['rushingAttempts'] ?? log['carries'] ?? 0
+    return attempts >= 3
+  }
+
+  // For receiving stats, require at least 1 target or reception
+  if (marketKey === 'receiving_yards' || marketKey === 'receptions') {
+    const targets = log['receivingTargets'] ?? log['targets'] ?? 0
+    const receptions = log['receptions'] ?? 0
+    return targets >= 1 || receptions >= 1
+  }
+
+  return true
+}
+
 const getSeasonAvgForMarket = (
   categories: EspnStatCategory[] | undefined,
   marketKey: string,
@@ -206,7 +234,16 @@ const getRecentAvgForMarket = (
   if (!keys) return null
 
   const values: number[] = []
-  for (const log of gameLogs.slice(0, maxGames)) {
+  // Iterate through all games, but only collect maxGames where the player participated
+  for (const log of gameLogs) {
+    if (values.length >= maxGames) break
+
+    // Skip games where the player didn't actually participate
+    // (e.g., sat Week 18, exited early due to injury)
+    if (!didPlayerParticipate(log, marketKey)) {
+      continue
+    }
+
     const value = pickStat(log, keys.gamelog)
     if (value != null) values.push(value)
   }

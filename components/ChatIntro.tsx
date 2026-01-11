@@ -13,6 +13,7 @@ import { SportsbookTicker } from '@/components/ui/sportsbook-ticker'
 import { ComparisonSection } from '@/components/ui/comparison-section'
 import { Typewriter } from '@/components/ui/typewriter-text'
 import { Announcement, AnnouncementTag, AnnouncementTitle } from '@/components/ui/announcement'
+import { Features } from '@/components/ui/features-10'
 import { ArrowUpRight, BarChart3 } from 'lucide-react'
 
 interface ChatIntroProps {
@@ -97,46 +98,6 @@ export default function ChatIntro({
       setSelectedCapability(null)
     }
   }
-
-  // Capability examples for guest view (display only, no interaction)
-  const guestCapabilities = [
-    {
-      title: "Player Profiles",
-      description: "Access player stats, advanced metrics, and projections vs specific teams",
-    },
-    {
-      title: "Team Profiles",
-      description: "Get comprehensive team stats, trends, and performance metrics",
-    },
-    {
-      title: "Line Shopping/Arbitrage Scanner",
-      description: "Compare odds and find arbitrage opportunities on the Live Odds page",
-    },
-    {
-      title: "Cross Market EV",
-      description: "Find +EV plays where sportsbooks disagree on odds",
-    },
-    {
-      title: "Live Betting",
-      description: "AI-projected live spreads based on game flow, momentum, and in-game factors",
-    },
-    {
-      title: "Betting Trends",
-      description: "Recent records vs spreads, prop covers, and public/sharp money splits",
-    },
-    {
-      title: "Combo Analysis",
-      description: "Calculate parlay probability with correlation adjustments",
-    },
-    {
-      title: "Matchup Analysis",
-      description: "Team vs team analysis with spread, total, and moneyline edge detection",
-    },
-    {
-      title: "Player Analysis",
-      description: "Analyze player props with season stats, recent form, and opponent context",
-    },
-  ]
 
   const guestFaq = [
     {
@@ -230,31 +191,14 @@ export default function ChatIntro({
             <SportsbookTicker />
           </motion.div>
 
-          {/* Example Prompts / Capabilities */}
+          {/* Feature Highlights */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6, duration: 0.5 }}
             className="w-full"
           >
-            <p className="text-center text-sm text-white/60 mb-3">What you can ask Delta</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 auto-rows-fr">
-              {guestCapabilities.map((capability) => (
-                <button
-                  key={capability.title}
-                  type="button"
-                  onClick={onSignUpClick}
-                  className="group text-left p-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-emerald-500/30 transition-all h-full min-h-[78px]"
-                >
-                  <h3 className="text-sm font-semibold text-white mb-1 group-hover:text-emerald-400 transition-colors">
-                    {capability.title}
-                  </h3>
-                  <p className="text-[11px] text-white/60 leading-relaxed">
-                    {capability.description}
-                  </p>
-                </button>
-              ))}
-            </div>
+            <Features />
           </motion.div>
 
           {/* Comparison Section */}

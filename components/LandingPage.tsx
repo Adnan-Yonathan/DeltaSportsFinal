@@ -4,7 +4,7 @@ import React from "react"
 import { motion } from "framer-motion"
 import { ArrowUpRight, Mic, Send } from "lucide-react"
 import Link from "next/link"
-import { FeaturesChat } from "@/components/ui/features-chat"
+import { Features } from "@/components/ui/features-10"
 import { ComparisonSection } from "@/components/ui/comparison-section"
 import { HowWeHelpSection } from "@/components/ui/how-we-help-section"
 import { FAQSection } from "@/components/ui/faq-section"
@@ -342,7 +342,7 @@ export default function LandingPage() {
       {/* Powerful Features */}
       <FadeInSection className="w-full" delay={0.1}>
         <div id="features">
-          <FeaturesChat />
+          <Features />
         </div>
       </FadeInSection>
 

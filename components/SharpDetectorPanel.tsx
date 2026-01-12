@@ -144,6 +144,10 @@ export default function SharpDetectorPanel({
     return []
   })
   const [hydrated, setHydrated] = useState(typeof window !== 'undefined')       
+  const [debugEnabled, setDebugEnabled] = useState(false)
+  const [lastFetchAt, setLastFetchAt] = useState<string | null>(null)
+  const [lastFetchCount, setLastFetchCount] = useState<number | null>(null)
+  const [lastFetchError, setLastFetchError] = useState<string | null>(null)
   const [sportFilter, setSportFilter] = useState<string>('all')
   const [gameFilter, setGameFilter] = useState<string>('all')
   const [sortFilter, setSortFilter] = useState<'newest' | 'strength'>('newest')
@@ -250,6 +254,9 @@ export default function SharpDetectorPanel({
       const incoming: SharpTrade[] = Array.isArray(data?.trades)
         ? data.trades
         : []
+      setLastFetchAt(new Date().toISOString())
+      setLastFetchCount(incoming.length)
+      setLastFetchError(null)
 
       setTrades((prev) => {
         const existing = new Map(prev.map((trade) => [trade.id, trade]))
@@ -286,6 +293,8 @@ export default function SharpDetectorPanel({
       })
     } catch (error) {
       console.warn('Sharp detector fetch failed:', error)
+      setLastFetchAt(new Date().toISOString())
+      setLastFetchError(error instanceof Error ? error.message : 'Unknown error')
     }
   }
 
@@ -416,9 +425,23 @@ export default function SharpDetectorPanel({
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    trades.forEach((trade) => seenIdsRef.current.add(trade.id))
     setHydrated(true)
-  }, [trades])
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const params = new URLSearchParams(window.location.search)
+      setDebugEnabled(params.has('sharpDebug'))
+    } catch {
+      setDebugEnabled(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
+    trades.forEach((trade) => seenIdsRef.current.add(trade.id))
+  }, [hydrated, trades])
 
   useEffect(() => {
     fetchTrades()
@@ -525,6 +548,17 @@ export default function SharpDetectorPanel({
 
   return (
     <div className={cn('space-y-3', className)}>
+      {debugEnabled && (
+        <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-3 text-[11px] text-amber-100">
+          <div className="flex flex-wrap items-center gap-2">
+            <span>Last fetch: {lastFetchAt ?? 'N/A'}</span>
+            <span>API trades: {lastFetchCount ?? 'N/A'}</span>
+            <span>Visible trades: {sortedTrades.length}</span>
+            <span>Min notional: {formatCurrency(MIN_NOTIONAL)}</span>
+            {lastFetchError && <span>Error: {lastFetchError}</span>}
+          </div>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <div className="flex items-center gap-2 min-w-max">
           {sportButtons.map((sport) => (

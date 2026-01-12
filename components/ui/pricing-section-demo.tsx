@@ -8,10 +8,12 @@ const defaultTiers: PricingTier[] = [
     name: "Pro",
     tierKey: "pro",
     price: {
+      weekly: 9.99,
       monthly: 29,
       yearly: 108,
     },
     description: "7-day trial. Core chat plus market tracking.",
+    planKeyWeekly: "pro_weekly",
     planKeyMonthly: "pro_monthly",
     planKeyYearly: "pro_annual",
     icon: (
@@ -46,12 +48,14 @@ const defaultTiers: PricingTier[] = [
     name: "Sharp",
     tierKey: "sharp",
     price: {
+      weekly: 19.99,
       monthly: 59,
       yearly: 249,
     },
     description: "7-day trial. Unlimited chat plus unlimited EV bets.",
     highlight: true,
     badge: "Most Popular",
+    planKeyWeekly: "sharp_weekly",
     planKeyMonthly: "sharp_monthly",
     planKeyYearly: "sharp_annual",
     icon: (
@@ -86,10 +90,12 @@ const defaultTiers: PricingTier[] = [
     name: "Syndicate",
     tierKey: "syndicate",
     price: {
+      weekly: 24.99,
       monthly: 79,
       yearly: 299,
     },
     description: "7-day trial. Unlimited everything plus priority support.",
+    planKeyWeekly: "syndicate_weekly",
     planKeyMonthly: "syndicate_monthly",
     planKeyYearly: "syndicate_annual",
     icon: (

@@ -20,6 +20,7 @@ export interface PricingTier {
   name: string
   tierKey: 'pro' | 'sharp' | 'syndicate'
   price: {
+    weekly: number
     monthly: number
     yearly: number
   }
@@ -31,6 +32,7 @@ export interface PricingTier {
   // Single plan key (for trial or plans with same key for both periods)
   planKey?: string
   // Separate plan keys for monthly/yearly
+  planKeyWeekly?: string
   planKeyMonthly?: string
   planKeyYearly?: string
 }
@@ -64,7 +66,7 @@ const badgeStyles = cn(
 
 export function PricingSection({ tiers, className }: PricingSectionProps) {
   const router = useRouter()
-  const [isYearly, setIsYearly] = useState(true)
+  const [billingPeriod, setBillingPeriod] = useState<'weekly' | 'monthly' | 'annual'>('monthly')
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
   const [isLoadingMembership, setIsLoadingMembership] = useState(true)
@@ -144,13 +146,25 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
           <p className="text-sm uppercase tracking-[0.3em] text-emerald-200/80">Pricing</p>
           <h2 className="text-3xl font-bold text-white md:text-4xl">Simple, transparent pricing</h2>
           <div className="inline-flex items-center p-1.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 backdrop-blur">
-            {(["Monthly", "Annual"] as const).map((period) => (
+            {(["Weekly", "Monthly", "Annual"] as const).map((period) => (
               <button
                 key={period}
-                onClick={() => setIsYearly(period === "Annual")}
+                onClick={() =>
+                  setBillingPeriod(
+                    period === "Weekly"
+                      ? "weekly"
+                      : period === "Monthly"
+                        ? "monthly"
+                        : "annual",
+                  )
+                }
                 className={cn(
                   "px-8 py-2.5 text-sm font-medium rounded-full transition-all duration-300",
-                  (period === "Annual") === isYearly
+                  (period === "Weekly"
+                    ? billingPeriod === "weekly"
+                    : period === "Monthly"
+                      ? billingPeriod === "monthly"
+                      : billingPeriod === "annual")
                     ? "bg-white text-slate-900 shadow-lg"
                     : "text-slate-200/70 hover:text-white",
                 )}
@@ -164,7 +178,13 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
           {tiers.map((tier) => {
             // Get the appropriate plan key based on billing period
-            const planKey = tier.planKey || (isYearly ? tier.planKeyYearly : tier.planKeyMonthly)
+            const planKey =
+              tier.planKey ||
+              (billingPeriod === "annual"
+                ? tier.planKeyYearly
+                : billingPeriod === "monthly"
+                  ? tier.planKeyMonthly
+                  : tier.planKeyWeekly)
             const isLoading = loadingPlan === planKey || loadingPlan === 'manage'
 
             // Check if this tier is the user's current plan
@@ -203,19 +223,34 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
 
                   <div className="mb-6">
                     {(() => {
-                      const periodPrice = isYearly ? tier.price.yearly : tier.price.monthly
-                      const daysInPeriod = isYearly ? 365 : 30
-                      const dailyPrice = periodPrice > 0 ? (periodPrice / daysInPeriod).toFixed(2) : 0
+                      const periodPrice =
+                        billingPeriod === "annual"
+                          ? tier.price.yearly
+                          : billingPeriod === "monthly"
+                            ? tier.price.monthly
+                            : tier.price.weekly
+                      const periodLabel =
+                        billingPeriod === "annual"
+                          ? "year"
+                          : billingPeriod === "monthly"
+                            ? "month"
+                            : "week"
+                      const billingLabel =
+                        billingPeriod === "annual"
+                          ? "annually"
+                          : billingPeriod === "monthly"
+                            ? "monthly"
+                            : "weekly"
                       const isFree = periodPrice === 0
                       return (
                         <>
                           <div className="flex items-baseline gap-2">
                             <span className="text-4xl font-bold">
-                              {isFree ? "Free" : `$${dailyPrice}`}
+                              {isFree ? "Free" : `$${periodPrice}`}
                             </span>
                             {!isFree && (
                               <span className="text-sm text-slate-200/70">
-                                /day (billed {isYearly ? "annually" : "monthly"})
+                                /{periodLabel} (billed {billingLabel})
                               </span>
                             )}
                           </div>

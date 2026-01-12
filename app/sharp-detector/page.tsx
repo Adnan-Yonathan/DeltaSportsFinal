@@ -127,14 +127,11 @@ const resolveStrengthClass = (value?: number | null) => {
   return 'text-emerald-300'
 }
 
-const isTradeFromToday = (timestamp: string) => {
+const isTradeRecent = (timestamp: string) => {
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return false
-  const start = new Date()
-  start.setHours(0, 0, 0, 0)
-  const end = new Date(start)
-  end.setDate(start.getDate() + 1)
-  return date >= start && date < end
+  const now = Date.now()
+  return date.getTime() >= now - 24 * 60 * 60 * 1000
 }
 
 export default function SharpDetectorPage() {
@@ -317,7 +314,7 @@ export default function SharpDetectorPage() {
           hasInitializedRef.current = true
         }
         const next = Array.from(existing.values()).filter((trade) =>
-          isTradeFromToday(trade.timestamp)
+          isTradeRecent(trade.timestamp)
         )
         const pending = next
           .filter((trade) => !trade.status || trade.status === 'pending')

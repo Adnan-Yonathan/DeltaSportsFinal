@@ -226,9 +226,11 @@ export default function SharpDetectorPanel({
       return 2
     }
     return [...filteredTrades].sort((a, b) => {
-      const weightA = weight(a.status)
-      const weightB = weight(b.status)
-      if (weightA !== weightB) return weightA - weightB
+      if (sortFilter === 'strength') {
+        const weightA = weight(a.status)
+        const weightB = weight(b.status)
+        if (weightA !== weightB) return weightA - weightB
+      }
       if (sortFilter === 'strength') {
         const strengthA = a.sharpStrength ?? 0
         const strengthB = b.sharpStrength ?? 0

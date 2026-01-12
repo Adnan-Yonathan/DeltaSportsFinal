@@ -20,6 +20,21 @@ import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
 
 const SHARP_STORAGE_KEY = 'sharp-detector-trades'
+const SHARP_CACHE_VERSION_KEY = 'sharp-detector-cache-version'
+const SHARP_CACHE_VERSION = '2'
+
+const ensureSharpCacheVersion = () => {
+  if (typeof window === 'undefined') return
+  try {
+    const current = window.localStorage.getItem(SHARP_CACHE_VERSION_KEY)
+    if (current !== SHARP_CACHE_VERSION) {
+      window.localStorage.removeItem(SHARP_STORAGE_KEY)
+      window.localStorage.setItem(SHARP_CACHE_VERSION_KEY, SHARP_CACHE_VERSION)
+    }
+  } catch (error) {
+    console.warn('Failed to validate sharp detector cache version:', error)
+  }
+}
 
 function ChatPageContent() {
   const [user, setUser] = useState<any>(null)
@@ -37,6 +52,7 @@ function ChatPageContent() {
   const [sharpTotalCount, setSharpTotalCount] = useState(() => {
     if (typeof window === 'undefined') return 0
     try {
+      ensureSharpCacheVersion()
       const cached = window.localStorage.getItem(SHARP_STORAGE_KEY)
       if (!cached) return 0
       const parsed = JSON.parse(cached)
@@ -368,6 +384,7 @@ function ChatPageContent() {
   const readCachedSharps = () => {
     if (typeof window === 'undefined') return [] as Array<{ id?: string }>
     try {
+      ensureSharpCacheVersion()
       const cached = window.localStorage.getItem(SHARP_STORAGE_KEY)
       const parsed = cached ? JSON.parse(cached) : []
       return Array.isArray(parsed) ? parsed : []

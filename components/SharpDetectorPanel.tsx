@@ -42,7 +42,22 @@ const RESPECT_CHECK_MS = 15 * 60 * 1000
 const RESPECT_TOLERANCE_CENTS = 2
 const RESOLUTION_POLL_MS = 5 * 60 * 1000
 const STORAGE_KEY = 'sharp-detector-trades'
+const CACHE_VERSION_KEY = 'sharp-detector-cache-version'
+const CACHE_VERSION = '2'
 const MAX_RESOLVED_TRADES = 300
+
+const ensureSharpCacheVersion = () => {
+  if (typeof window === 'undefined') return
+  try {
+    const current = window.localStorage.getItem(CACHE_VERSION_KEY)
+    if (current !== CACHE_VERSION) {
+      window.localStorage.removeItem(STORAGE_KEY)
+      window.localStorage.setItem(CACHE_VERSION_KEY, CACHE_VERSION)
+    }
+  } catch (error) {
+    console.warn('Failed to validate sharp detector cache version:', error)
+  }
+}
 
 const formatOddsLabel = (priceCents: number, americanOdds: number | null) => {  
   const centsLabel = `${priceCents}c`
@@ -117,6 +132,7 @@ export default function SharpDetectorPanel({
   const [trades, setTrades] = useState<SharpTradeWithStatus[]>(() => {
     if (typeof window === 'undefined') return []
     try {
+      ensureSharpCacheVersion()
       const cached = window.localStorage.getItem(STORAGE_KEY)
       if (cached) {
         const parsed = JSON.parse(cached)

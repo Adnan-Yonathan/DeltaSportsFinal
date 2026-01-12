@@ -229,12 +229,14 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                           : billingPeriod === "monthly"
                             ? tier.price.monthly
                             : tier.price.weekly
-                      const periodLabel =
+                      const daysInPeriod =
                         billingPeriod === "annual"
-                          ? "year"
+                          ? 365
                           : billingPeriod === "monthly"
-                            ? "month"
-                            : "week"
+                            ? 30
+                            : 7
+                      const dailyPrice =
+                        periodPrice > 0 ? (periodPrice / daysInPeriod).toFixed(2) : 0
                       const billingLabel =
                         billingPeriod === "annual"
                           ? "annually"
@@ -246,11 +248,11 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                         <>
                           <div className="flex items-baseline gap-2">
                             <span className="text-4xl font-bold">
-                              {isFree ? "Free" : `$${periodPrice}`}
+                              {isFree ? "Free" : `$${dailyPrice}`}
                             </span>
                             {!isFree && (
                               <span className="text-sm text-slate-200/70">
-                                /{periodLabel} (billed {billingLabel})
+                                /day (billed {billingLabel})
                               </span>
                             )}
                           </div>

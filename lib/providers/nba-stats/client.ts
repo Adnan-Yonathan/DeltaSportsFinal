@@ -15,6 +15,9 @@ import type {
 } from './types'
 
 const NBA_STATS_BASE = 'https://stats.nba.com/stats'
+const NBA_STATS_TIMEOUT_MS = 12000
+const NBA_STATS_RETRY_COUNT = 2
+const NBA_STATS_RETRY_DELAY_MS = 600
 
 // In-memory cache (same pattern as ESPN providers)
 const cache = new Map<string, { ts: number; data: any }>()
@@ -66,33 +69,55 @@ async function fetchNbaStats<T extends NbaStatsResponse>(
     return cached.data as T
   }
 
-  try {
-    // Headers required to avoid 403 (pretend to be nba.com browser)
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://stats.nba.com/',
-        'Origin': 'https://stats.nba.com',
-        'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'x-nba-stats-origin': 'stats',
-        'x-nba-stats-token': 'true',
-      },
-      cache: 'no-store',
-    })
+  for (let attempt = 0; attempt <= NBA_STATS_RETRY_COUNT; attempt += 1) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), NBA_STATS_TIMEOUT_MS)
+    try {
+      // Headers required to avoid 403 (pretend to be nba.com browser)
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://stats.nba.com/',
+          'Origin': 'https://stats.nba.com',
+          'Accept': 'application/json',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'x-nba-stats-origin': 'stats',
+          'x-nba-stats-token': 'true',
+        },
+        cache: 'no-store',
+        signal: controller.signal,
+      })
 
-    if (!res.ok) {
-      console.error(`NBA Stats API error: ${res.status} ${res.statusText} for ${endpoint}`)
+      if (!res.ok) {
+        const shouldRetry = res.status === 429 || res.status >= 500
+        if (shouldRetry && attempt < NBA_STATS_RETRY_COUNT) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, NBA_STATS_RETRY_DELAY_MS * (attempt + 1))
+          )
+          continue
+        }
+        console.error(`NBA Stats API error: ${res.status} ${res.statusText} for ${endpoint}`)
+        return null
+      }
+
+      const data = (await res.json()) as T
+      cache.set(cacheKey, { ts: Date.now(), data })
+      return data
+    } catch (error) {
+      if (attempt < NBA_STATS_RETRY_COUNT) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, NBA_STATS_RETRY_DELAY_MS * (attempt + 1))
+        )
+        continue
+      }
+      console.error(`Failed to fetch from NBA Stats API (${endpoint}):`, error)
       return null
+    } finally {
+      clearTimeout(timeoutId)
     }
-
-    const data = (await res.json()) as T
-    cache.set(cacheKey, { ts: Date.now(), data })
-    return data
-  } catch (error) {
-    console.error(`Failed to fetch from NBA Stats API (${endpoint}):`, error)
-    return null
   }
+
+  return null
 }
 
 /**

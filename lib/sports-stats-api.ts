@@ -1470,11 +1470,12 @@ const getNbaDotComTeamStats = async (
     'Misc',
     'Scoring',
   ]
-  const responses = await Promise.all(
-    measureTypes.map((measure) =>
-      fetchNbaLeagueTeamStats(season, measure, 'PerGame')
+  const responses = []
+  for (const measure of measureTypes) {
+    responses.push(
+      await fetchNbaLeagueTeamStats(season, measure, 'PerGame')
     )
-  )
+  }
 
   const mergedByTeamId = new Map<string, Record<string, any>>()
   for (const response of responses) {

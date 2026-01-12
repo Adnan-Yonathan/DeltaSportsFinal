@@ -176,6 +176,7 @@ const CFB_PLAYOFF_MATCHUPS = [
 
 const CFB_WHALE_MIN_NOTIONAL = 10000
 const DEFAULT_WHALE_MIN_NOTIONAL = 2000
+const GAME_ANALYSIS_CONCURRENCY = 6
 
 // Map odds-api sport keys to SBD league keys
 const ODDS_API_TO_SBD: Record<string, 'nba' | 'nfl' | 'nhl' | 'mlb' | 'ncaamb' | 'ncaafb'> = {
@@ -198,6 +199,32 @@ const normalizeSelection = (value: string) =>
 const isPredictionMarketBook = (book: { key?: string; title?: string }) => {
   const key = (book.key || book.title || '').toLowerCase()
   return key.includes('polymarket') || key.includes('kalshi')
+}
+
+const runWithConcurrency = async <T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<R>
+): Promise<PromiseSettledResult<R>[]> => {
+  const results: PromiseSettledResult<R>[] = new Array(items.length)
+  let nextIndex = 0
+
+  const runners = Array.from({ length: Math.min(limit, items.length) }).map(async () => {
+    while (true) {
+      const current = nextIndex
+      nextIndex += 1
+      if (current >= items.length) return
+      try {
+        const value = await worker(items[current])
+        results[current] = { status: 'fulfilled', value }
+      } catch (error) {
+        results[current] = { status: 'rejected', reason: error }
+      }
+    }
+  })
+
+  await Promise.all(runners)
+  return results
 }
 
 const buildTokens = (value: string) =>
@@ -1507,13 +1534,18 @@ export async function analyzeSlateEdges(
     ])
   }
 
-  // Analyze all games in parallel for better performance
-  console.log(`[SLATE EDGE] Starting parallel analysis of ${upcomingGames.length} games...`)
+  // Analyze games with bounded concurrency to avoid connection saturation
+  console.log(
+    `[SLATE EDGE] Starting analysis of ${upcomingGames.length} games (concurrency ${GAME_ANALYSIS_CONCURRENCY})...`
+  )
   const startTime = Date.now()
 
-  const gamePromises = upcomingGames.map(async (game) => {
-    try {
-      const matchupLabel = `${game.away_team} @ ${game.home_team}`
+  const gameResults = await runWithConcurrency(
+    upcomingGames,
+    GAME_ANALYSIS_CONCURRENCY,
+    async (game) => {
+      try {
+        const matchupLabel = `${game.away_team} @ ${game.home_team}`
 
       // Match sharp signals for this game by team name
       const sharpResult = sharpResults.find((r) => {
@@ -1591,27 +1623,27 @@ export async function analyzeSlateEdges(
             ? 45000
             : 8000
 
-      const matchupAnalysis = isCfb
-        ? {
-            homeTeam: { name: game.home_team, stats: null },
-            awayTeam: { name: game.away_team, stats: null },
-            context: [],
-          }
-        : await withTimeout(
-            analyzeMatchup(
-              game.home_team,
-              game.away_team,
-              undefined,
-              undefined,
-              sportKey
-            ),
-            matchupTimeoutMs,
-            {
-              homeTeam: { name: game.home_team, stats: fallbackStats },
-              awayTeam: { name: game.away_team, stats: fallbackStats },
+        const matchupAnalysis = isCfb
+          ? {
+              homeTeam: { name: game.home_team, stats: null },
+              awayTeam: { name: game.away_team, stats: null },
               context: [],
             }
-          )
+          : await withTimeout(
+              analyzeMatchup(
+                game.home_team,
+                game.away_team,
+                undefined,
+                undefined,
+                sportKey
+              ),
+              matchupTimeoutMs,
+              {
+                homeTeam: { name: game.home_team, stats: fallbackStats },
+                awayTeam: { name: game.away_team, stats: fallbackStats },
+                context: [],
+              }
+            )
 
         const whaleAlerts = await resolveWhaleAlerts(
           game.home_team,
@@ -1625,72 +1657,72 @@ export async function analyzeSlateEdges(
           whaleAlerts,
         }
 
-      const recommendationTimeoutMs =
-        sportKey === 'basketball_ncaab'
-          ? 12000
-          : sportKey === 'basketball_nba'
-            ? 25000
-            : 8000
-      let recommendations: GameRecommendation[] = []
-      if (sportKey === 'basketball_nba') {
-        recommendations = buildNbaMarketRecommendations({
-          homeTeam: game.home_team,
-          awayTeam: game.away_team,
-          marketSpread,
-          marketTotal,
-          sharpResult,
-          whaleAlerts,
-        })
-      } else if (isCfb) {
-        recommendations = buildCfbMarketRecommendations({
-          homeTeam: game.home_team,
-          awayTeam: game.away_team,
-          marketSpread,
-          marketTotal,
-          sharpResult,
-          whaleAlerts,
-        })
-      } else {
-        recommendations = await withTimeout(
-          getGameRecommendations(
-            game.home_team,
-            game.away_team,
-            'all',
-            sportKey,
-            marketContext,
-            matchupAnalysis
-          ),
-          recommendationTimeoutMs,
-          []
-        )
-        if (recommendations.length === 0 && sportKey === 'basketball_ncaab') {
-          recommendations = await getGameRecommendations(
-            game.home_team,
-            game.away_team,
-            'all',
-            sportKey,
-            marketContext,
-            matchupAnalysis
-          )
-        }
-        if (
-          recommendations.length === 0 &&
-          sportKey === 'americanfootball_nfl' &&
-          (marketSpread || marketTotal)
-        ) {
+        const recommendationTimeoutMs =
+          sportKey === 'basketball_ncaab'
+            ? 12000
+            : sportKey === 'basketball_nba'
+              ? 25000
+              : 8000
+        let recommendations: GameRecommendation[] = []
+        if (sportKey === 'basketball_nba') {
+          recommendations = buildNbaMarketRecommendations({
+            homeTeam: game.home_team,
+            awayTeam: game.away_team,
+            marketSpread,
+            marketTotal,
+            sharpResult,
+            whaleAlerts,
+          })
+        } else if (isCfb) {
           recommendations = buildCfbMarketRecommendations({
             homeTeam: game.home_team,
             awayTeam: game.away_team,
             marketSpread,
             marketTotal,
             sharpResult,
-            whaleAlerts: [],
+            whaleAlerts,
           })
+        } else {
+          recommendations = await withTimeout(
+            getGameRecommendations(
+              game.home_team,
+              game.away_team,
+              'all',
+              sportKey,
+              marketContext,
+              matchupAnalysis
+            ),
+            recommendationTimeoutMs,
+            []
+          )
+          if (recommendations.length === 0 && sportKey === 'basketball_ncaab') {
+            recommendations = await getGameRecommendations(
+              game.home_team,
+              game.away_team,
+              'all',
+              sportKey,
+              marketContext,
+              matchupAnalysis
+            )
+          }
+          if (
+            recommendations.length === 0 &&
+            sportKey === 'americanfootball_nfl' &&
+            (marketSpread || marketTotal)
+          ) {
+            recommendations = buildCfbMarketRecommendations({
+              homeTeam: game.home_team,
+              awayTeam: game.away_team,
+              marketSpread,
+              marketTotal,
+              sharpResult,
+              whaleAlerts: [],
+            })
+          }
+          if (recommendations.length === 0) {
+            recommendations = buildFallbackRecommendations(matchupAnalysis, sportKey)
+          }
         }
-        if (recommendations.length === 0) {
-          recommendations = buildFallbackRecommendations(matchupAnalysis, sportKey)
-        }
-      }
 
       const spreadRec = recommendations.find((r) => r.type === 'spread')
       const totalRec = recommendations.find((r) => r.type === 'total')
@@ -1947,15 +1979,13 @@ export async function analyzeSlateEdges(
         }
       }
 
-      return { skipped: false, edgeType, analysis: gameAnalysis, sharpConfirmed: hasSharpConfirmation }
-    } catch (error) {
-      console.error(`[SLATE EDGE] Error analyzing ${game.home_team} vs ${game.away_team}:`, error)
-      return { skipped: true, edgeType: 'none' as const, error: true }
+        return { skipped: false, edgeType, analysis: gameAnalysis, sharpConfirmed: hasSharpConfirmation }
+      } catch (error) {
+        console.error(`[SLATE EDGE] Error analyzing ${game.home_team} vs ${game.away_team}:`, error)
+        return { skipped: true, edgeType: 'none' as const, error: true }
+      }
     }
-  })
-
-  // Wait for all game analyses with overall timeout (45 seconds)
-  const gameResults = await Promise.allSettled(gamePromises)
+  )
 
   // Process results
   for (const result of gameResults) {

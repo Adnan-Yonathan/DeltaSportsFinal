@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { formatAmericanOdds, formatCurrency, formatPercent } from '@/lib/utils/odds'
+import { formatAmericanOdds, formatCurrency } from '@/lib/utils/odds'
 import { cn } from '@/lib/utils'
 import { SimpleHeader } from '@/components/ui/simple-header'
 import { motion, AnimatePresence } from 'framer-motion'
-import { TrendingUp, Filter, ChevronDown, Target, Zap, DollarSign, Clock, CheckCircle, XCircle } from 'lucide-react'
+import { TrendingUp, Target, Zap, DollarSign } from 'lucide-react'
 
 type SharpTrade = {
   id: string
@@ -51,9 +51,6 @@ type GameCluster = {
 
 const MIN_NOTIONAL = 2000
 const POLL_INTERVAL_MS = 30000
-const RESPECT_CHECK_MS = 15 * 60 * 1000
-const RESPECT_TOLERANCE_CENTS = 2
-const RESOLUTION_POLL_MS = 5 * 60 * 1000
 const STORAGE_KEY = 'sharp-detector-trades'
 const CACHE_VERSION_KEY = 'sharp-detector-cache-version'
 const CACHE_VERSION = '2'
@@ -76,11 +73,6 @@ const formatOddsLabel = (priceCents: number, americanOdds: number | null) => {
   const centsLabel = `${priceCents}c`
   if (americanOdds == null) return centsLabel
   return `${centsLabel} (${formatAmericanOdds(americanOdds)})`
-}
-
-const formatSignedCurrency = (amount: number) => {
-  const sign = amount >= 0 ? '+' : '-'
-  return `${sign}${formatCurrency(Math.abs(amount))}`
 }
 
 const formatTimestamp = (value: string) => {
@@ -165,15 +157,12 @@ export default function SharpDetectorPage() {
   const [lastFetchError, setLastFetchError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'all' | 'games'>('all')
   const [sportFilter, setSportFilter] = useState<string>('all')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
   const [gameFilter, setGameFilter] = useState<string>('all')
   const [sortFilter, setSortFilter] = useState<'newest' | 'strength'>('newest')
   const [searchQuery, setSearchQuery] = useState('')
   const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'blue' | 'mega'>('all')
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
-  const scheduledRef = useRef<Set<string>>(new Set())
-  const resolvingRef = useRef<Set<string>>(new Set())
 
   // Get unique sports for filter
   const sportButtons = useMemo(
@@ -185,9 +174,6 @@ export default function SharpDetectorPage() {
     const query = searchQuery.trim().toLowerCase()
     return trades.filter(trade => {
       if (sportFilter !== 'all' && trade.sport !== sportFilter) return false
-      if (statusFilter === 'respected' && trade.status !== 'respected') return false
-      if (statusFilter === 'faded' && trade.status !== 'faded') return false
-      if (statusFilter === 'pending' && trade.status && trade.status !== 'pending') return false
       if (sizeFilter !== 'all' && resolveSharpTier(trade.notional) !== sizeFilter) return false
       if (query) {
         const haystack = `${trade.marketTitle} ${trade.outcome} ${trade.sport}`.toLowerCase()
@@ -195,7 +181,7 @@ export default function SharpDetectorPage() {
       }
       return true
     })
-  }, [trades, sportFilter, statusFilter, sizeFilter, searchQuery])
+  }, [trades, sportFilter, sizeFilter, searchQuery])
 
   const gameOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -257,15 +243,7 @@ export default function SharpDetectorPage() {
   }, [filteredTrades])
 
   const sortedTrades = useMemo(() => {
-    const weight = (status?: SharpTradeStatus) => {
-      if (status === 'respected') return 0
-      if (status === 'pending' || !status) return 1
-      return 2
-    }
     return [...filteredTrades].sort((a, b) => {
-      const weightA = weight(a.status)
-      const weightB = weight(b.status)
-      if (weightA !== weightB) return weightA - weightB
       if (sortFilter === 'strength') {
         const strengthA = a.sharpStrength ?? 0
         const strengthB = b.sharpStrength ?? 0
@@ -298,15 +276,8 @@ export default function SharpDetectorPage() {
 
   // Stats
   const stats = useMemo(() => {
-    const respected = trades.filter(t => t.status === 'respected').length
-    const faded = trades.filter(t => t.status === 'faded').length
-    const pending = trades.filter(t => !t.status || t.status === 'pending').length
     const totalNotional = trades.reduce((sum, t) => sum + t.notional, 0)
-    const wins = trades.filter(t => t.result === 'win').length
-    const losses = trades.filter(t => t.result === 'loss').length
-    const totalPnl = trades.reduce((sum, t) => sum + (t.pnl ?? 0), 0)
-
-    return { respected, faded, pending, totalNotional, wins, losses, totalPnl }
+    return { totalNotional, totalTrades: trades.length }
   }, [trades])
 
   const fetchTrades = async () => {
@@ -359,131 +330,6 @@ export default function SharpDetectorPage() {
     }
   }
 
-  const fetchCurrentPrice = async (trade: SharpTradeWithStatus) => {
-    try {
-      if (trade.source === 'kalshi' && trade.ticker) {
-        const res = await fetch(
-          `/api/whale-detector/price?source=kalshi&ticker=${encodeURIComponent(
-            trade.ticker
-          )}&side=${trade.side ?? 'yes'}`,
-          { cache: 'no-store' }
-        )
-        if (!res.ok) return null
-        const data = await res.json()
-        return Number(data?.priceCents)
-      }
-      if (
-        trade.source === 'polymarket' &&
-        trade.slug &&
-        Number.isFinite(trade.outcomeIndex)
-      ) {
-        const res = await fetch(
-          `/api/whale-detector/price?source=polymarket&slug=${encodeURIComponent(
-            trade.slug
-          )}&outcomeIndex=${trade.outcomeIndex}`,
-          { cache: 'no-store' }
-        )
-        if (!res.ok) return null
-        const data = await res.json()
-        return Number(data?.priceCents)
-      }
-    } catch (error) {
-      console.warn('Sharp detector price fetch failed:', error)
-    }
-    return null
-  }
-
-  const fetchResolvedOutcome = async (trade: SharpTradeWithStatus) => {
-    try {
-      if (trade.source === 'kalshi' && trade.ticker) {
-        const res = await fetch(
-          `/api/whale-detector/resolve?source=kalshi&ticker=${encodeURIComponent(
-            trade.ticker
-          )}`,
-          { cache: 'no-store' }
-        )
-        if (!res.ok) return null
-        const data = await res.json()
-        if (!data?.resolved || !data?.outcome) return null
-        return String(data.outcome)
-      }
-      if (trade.source === 'polymarket' && trade.slug) {
-        const res = await fetch(
-          `/api/whale-detector/resolve?source=polymarket&slug=${encodeURIComponent(
-            trade.slug
-          )}`,
-          { cache: 'no-store' }
-        )
-        if (!res.ok) return null
-        const data = await res.json()
-        if (!data?.resolved || !data?.outcome) return null
-        return String(data.outcome)
-      }
-    } catch (error) {
-      console.warn('Sharp detector resolve fetch failed:', error)
-    }
-    return null
-  }
-
-  const normalizeOutcome = (value: string) =>
-    value.trim().toLowerCase().replace(/\s+/g, ' ')
-
-  const resolveTradeResult = async (trade: SharpTradeWithStatus) => {
-    if (trade.result || resolvingRef.current.has(trade.id)) return
-    resolvingRef.current.add(trade.id)
-    const outcome = await fetchResolvedOutcome(trade)
-    resolvingRef.current.delete(trade.id)
-    if (!outcome) return
-    const normalizedOutcome = normalizeOutcome(outcome)
-    const tradeOutcome = normalizeOutcome(trade.outcome)
-    const isWin =
-      trade.source === 'kalshi' && trade.side
-        ? trade.side === normalizedOutcome
-        : tradeOutcome === normalizedOutcome
-    const price = trade.priceCents / 100
-    const contracts =
-      Number.isFinite(trade.contracts) && trade.contracts > 0
-        ? trade.contracts
-        : price > 0
-          ? trade.notional / price
-          : 0
-    if (!Number.isFinite(contracts) || contracts <= 0) return
-    const pnl = isWin ? contracts * (1 - price) : -contracts * price
-    const roi = trade.notional > 0 ? pnl / trade.notional : 0
-    setTrades((prev) =>
-      prev.map((item) =>
-        item.id === trade.id
-          ? {
-              ...item,
-              result: isWin ? 'win' : 'loss',
-              resolvedAt: new Date().toISOString(),
-              pnl,
-              roi,
-            }
-          : item
-      )
-    )
-  }
-
-  const evaluateTrade = async (trade: SharpTradeWithStatus) => {
-    const currentPrice = await fetchCurrentPrice(trade)
-    if (currentPrice == null || !Number.isFinite(currentPrice)) return
-    const delta = currentPrice - trade.priceCents
-    const status: SharpTradeStatus =
-      delta >= -RESPECT_TOLERANCE_CENTS ? 'respected' : 'faded'
-    setTrades((prev) =>
-      prev.map((item) =>
-        item.id === trade.id
-          ? {
-              ...item,
-              status,
-              checkedAt: new Date().toISOString(),
-            }
-          : item
-      )
-    )
-  }
-
   useEffect(() => {
     if (typeof window === 'undefined') return
     setHydrated(true)
@@ -519,39 +365,6 @@ export default function SharpDetectorPage() {
     }
   }, [hydrated, trades])
 
-  useEffect(() => {
-    const now = Date.now()
-    trades.forEach((trade) => {
-      if (trade.status || scheduledRef.current.has(trade.id)) return
-      const tradeTime = new Date(trade.timestamp).getTime()
-      if (!Number.isFinite(tradeTime)) return
-      const delay = tradeTime + RESPECT_CHECK_MS - now
-      if (delay <= 0) {
-        scheduledRef.current.add(trade.id)
-        void evaluateTrade(trade)
-        return
-      }
-      scheduledRef.current.add(trade.id)
-      setTimeout(() => {
-        void evaluateTrade(trade)
-      }, delay)
-    })
-  }, [trades])
-
-  useEffect(() => {
-    const unresolved = trades.filter((trade) => !trade.result)
-    if (unresolved.length === 0) return
-    unresolved.forEach((trade) => {
-      void resolveTradeResult(trade)
-    })
-    const interval = setInterval(() => {
-      unresolved.forEach((trade) => {
-        void resolveTradeResult(trade)
-      })
-    }, RESOLUTION_POLL_MS)
-    return () => clearInterval(interval)
-  }, [trades])
-
   const now = Date.now()
 
   return (
@@ -573,7 +386,7 @@ export default function SharpDetectorPage() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 mb-6">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center gap-2 text-white/50 text-xs mb-1">
               <DollarSign className="w-3.5 h-3.5" />
@@ -581,26 +394,12 @@ export default function SharpDetectorPage() {
             </div>
             <p className="text-lg font-bold text-white">{formatCurrency(stats.totalNotional)}</p>
           </div>
-          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
-            <div className="flex items-center gap-2 text-emerald-300/70 text-xs mb-1">
-              <CheckCircle className="w-3.5 h-3.5" />
-              Respected
-            </div>
-            <p className="text-lg font-bold text-emerald-300">{stats.respected}</p>
-          </div>
-          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4">
-            <div className="flex items-center gap-2 text-rose-300/70 text-xs mb-1">
-              <XCircle className="w-3.5 h-3.5" />
-              Faded
-            </div>
-            <p className="text-lg font-bold text-rose-300">{stats.faded}</p>
-          </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center gap-2 text-white/50 text-xs mb-1">
-              <Clock className="w-3.5 h-3.5" />
-              Pending
+              <Target className="w-3.5 h-3.5" />
+              Trades Today
             </div>
-            <p className="text-lg font-bold text-white">{stats.pending}</p>
+            <p className="text-lg font-bold text-white">{stats.totalTrades}</p>
           </div>
         </div>
 
@@ -741,18 +540,6 @@ export default function SharpDetectorPage() {
             ))}
           </select>
 
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 focus:outline-none focus:border-emerald-500/50"
-          >
-            <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="respected">Respected</option>
-            <option value="faded">Faded</option>
-          </select>
-
           {/* Sort Filter */}
           <select
             value={sortFilter}
@@ -860,14 +647,6 @@ export default function SharpDetectorPage() {
                           {trade.sharpStrength}% strength
                         </span>
                       )}
-                            {trade.status && (
-                              <span className={cn(
-                                "text-[10px] uppercase font-semibold",
-                                trade.status === 'respected' ? 'text-emerald-300' : 'text-rose-300'
-                              )}>
-                                {trade.status}
-                              </span>
-                            )}
                             <span className="text-xs text-white/40">
                               {formatTimestamp(trade.timestamp)}
                             </span>
@@ -898,7 +677,6 @@ export default function SharpDetectorPage() {
             )}
             {sortedTrades.map((trade) => {
               const isFresh = now - new Date(trade.timestamp).getTime() < 2 * 60 * 1000
-              const pnl = trade.pnl ?? null
               const sharpTier = resolveSharpTier(trade.notional)
               return (
                 <motion.div
@@ -919,18 +697,6 @@ export default function SharpDetectorPage() {
                       {Number.isFinite(trade.sharpStrength) && (
                         <span className={cn('text-[10px] uppercase tracking-[0.3em] font-semibold', resolveStrengthClass(trade.sharpStrength))}>
                           {trade.sharpStrength}% strength
-                        </span>
-                      )}
-                      {trade.status && (
-                        <span
-                          className={cn(
-                            'text-[10px] uppercase tracking-[0.3em] font-semibold',
-                            trade.status === 'respected'
-                              ? 'text-emerald-300'
-                              : 'text-rose-300'
-                          )}
-                        >
-                          {trade.status}
                         </span>
                       )}
                     </div>
@@ -968,22 +734,7 @@ export default function SharpDetectorPage() {
                     <span className="rounded-full border border-white/10 px-2 py-0.5">
                       Detected {formatTimestamp(trade.timestamp)}
                     </span>
-                    {trade.result && (
-                      <span className="rounded-full border border-white/10 px-2 py-0.5">
-                        {trade.result === 'win' ? 'Win' : 'Loss'}
-                      </span>
-                    )}
-                    {trade.result && pnl != null && Number.isFinite(pnl) && (
-                      <span className="rounded-full border border-white/10 px-2 py-0.5">
-                        {formatSignedCurrency(pnl)} ({formatPercent(trade.roi ?? 0)})
-                      </span>
-                    )}
                   </div>
-                  {!trade.status && (
-                    <p className="mt-2 text-[11px] text-white/40">
-                      Respect check in 15 minutes.
-                    </p>
-                  )}
                 </motion.div>
               )
             })}

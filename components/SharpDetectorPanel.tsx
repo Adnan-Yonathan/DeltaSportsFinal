@@ -75,13 +75,6 @@ const resolvePhase = (trade: SharpTrade) => {
   return eventDate < todayStart ? 'Live' : 'Pregame'
 }
 
-const isUpcomingTrade = (trade: SharpTrade) => {
-  if (!trade.eventDate) return false
-  const eventTime = new Date(trade.eventDate).getTime()
-  if (!Number.isFinite(eventTime)) return false
-  return eventTime >= Date.now()
-}
-
 const resolveSharpTier = (notional: number): SharpTier => {
   if (notional >= 10000) return 'mega'
   if (notional >= 5000) return 'blue'
@@ -148,7 +141,6 @@ export default function SharpDetectorPanel({
   const baseTrades = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return trades.filter((trade) => {
-      if (!isUpcomingTrade(trade)) return false
       if (sportFilter !== 'all' && trade.sport !== sportFilter) return false
       if (sizeFilter !== 'all' && resolveSharpTier(trade.notional) !== sizeFilter) return false
       if (query) {
@@ -192,7 +184,13 @@ export default function SharpDetectorPanel({
   )
 
   const topUpcomingSharps = useMemo(() => {
-    const upcoming = trades.filter((trade) => isUpcomingTrade(trade))
+    const now = Date.now()
+    const upcoming = trades.filter((trade) => {
+      if (!trade.eventDate) return false
+      const eventTime = new Date(trade.eventDate).getTime()
+      if (!Number.isFinite(eventTime)) return false
+      return eventTime >= now
+    })
     return [...upcoming]
       .filter((trade) => Number.isFinite(trade.sharpStrength))
       .sort((a, b) => {

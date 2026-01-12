@@ -1,6 +1,9 @@
-﻿import SportSelector from "../market-projections/sport-selector"
+import SportSelector from "../market-projections/sport-selector"
 import PlayerProjectionsTable from "./player-projections-table"
 import ToolsNav from "@/components/tools-nav"
+import Link from "next/link"
+import { createClient } from "@/lib/supabase/server"
+import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -23,11 +26,22 @@ const SPORT_OPTIONS: SportOption[] = [
 // Only unlocked sports are available
 const UNLOCKED_SPORTS = SPORT_OPTIONS.filter((opt) => !opt.locked).map((opt) => opt.key)
 
-export default function PlayerProjectionsPage({
+export default async function PlayerProjectionsPage({
   searchParams,
 }: {
   searchParams?: Record<string, string | string[] | undefined>
 }) {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const membership = getMembershipStatusFromMetadata(user?.user_metadata)
+  const planVersion = membership.planVersion ?? 1
+  const hasAccess = membership.isActive
+    ? planVersion >= 2
+      ? membership.tier === "sharp" || membership.tier === "syndicate"
+      : true
+    : false
   const requestedSport = Array.isArray(searchParams?.sport)
     ? searchParams?.sport[0]
     : searchParams?.sport
@@ -63,7 +77,44 @@ export default function PlayerProjectionsPage({
             Select a sport to explore available projections.
           </p>
         </header>
-        {(sport === "basketball_nba" || sport === "americanfootball_nfl") &&
+        {!hasAccess ? (
+          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+            <div className="pointer-events-none blur-sm">
+              <div className="border-b border-white/10 bg-black/60 px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-white/40">
+                Player • Line • Projection • Edge
+              </div>
+              <div className="space-y-2 px-4 py-4">
+                {[1, 2, 3, 4, 5].map((row) => (
+                  <div key={row} className="grid grid-cols-4 gap-3">
+                    <div className="h-4 rounded bg-white/10" />
+                    <div className="h-4 rounded bg-white/10" />
+                    <div className="h-4 rounded bg-white/10" />
+                    <div className="h-4 rounded bg-white/10" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center p-6">
+              <div className="rounded-2xl border border-white/20 bg-black/80 px-6 py-5 text-center">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+                  Upgrade required
+                </p>
+                <h2 className="mt-3 text-xl font-semibold text-white">
+                  Player projections are for Sharp and Syndicate members.
+                </h2>
+                <p className="mt-2 text-sm text-white/60">
+                  Unlock player edges and prop projections with Sharp.
+                </p>
+                <Link
+                  href="/pricing"
+                  className="mt-5 inline-flex items-center rounded-full border border-emerald-400/60 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
+                >
+                  View plans
+                </Link>
+              </div>
+            </div>
+          </div>
+        ) : (sport === "basketball_nba" || sport === "americanfootball_nfl") &&
         !isLocked ? (
           <PlayerProjectionsTable sport={sport} />
         ) : (
@@ -83,3 +134,6 @@ export default function PlayerProjectionsPage({
     </div>
   )
 }
+
+
+

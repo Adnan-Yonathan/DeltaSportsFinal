@@ -16,6 +16,7 @@ export interface MembershipInfo {
   cancelAt: Date | null
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
+  planVersion: number
 }
 
 const resolveMembershipStatus = (metadata: any): MembershipInfo => {
@@ -33,6 +34,10 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
   const cancelAt = parseDate(metadata?.subscription_cancel_at)
   const stripeCustomerId = metadata?.stripe_customer_id || null
   const stripeSubscriptionId = metadata?.stripe_subscription_id || null
+  const planVersionRaw = metadata?.membership_plan_version
+  const planVersion = Number.isFinite(Number(planVersionRaw))
+    ? Number(planVersionRaw)
+    : 1
 
   // Active statuses: 'active' and 'trialing' allow full access
   // 'past_due' allows access but should show warning
@@ -53,6 +58,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
       cancelAt: null,
       stripeCustomerId,
       stripeSubscriptionId,
+      planVersion,
     }
   }
 
@@ -65,6 +71,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     cancelAt,
     stripeCustomerId,
     stripeSubscriptionId,
+    planVersion,
   }
 }
 
@@ -82,6 +89,7 @@ export const getMembershipStatus = (metadata: any): MembershipInfo => {
       cancelAt: null,
       stripeCustomerId: null,
       stripeSubscriptionId: null,
+      planVersion: 2,
     }
   }
 

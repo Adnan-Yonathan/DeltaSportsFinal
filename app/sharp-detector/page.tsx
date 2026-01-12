@@ -88,6 +88,13 @@ const resolvePhase = (trade: SharpTrade) => {
   return eventDate < todayStart ? 'Live' : 'Pregame'
 }
 
+const isUpcomingTrade = (trade: SharpTrade) => {
+  if (!trade.eventDate) return false
+  const eventTime = new Date(trade.eventDate).getTime()
+  if (!Number.isFinite(eventTime)) return false
+  return eventTime >= Date.now()
+}
+
 const resolveSharpTier = (notional: number): SharpTier => {
   if (notional >= 10000) return 'mega'
   if (notional >= 5000) return 'blue'
@@ -149,14 +156,15 @@ export default function SharpDetectorPage() {
   const resolvingRef = useRef<Set<string>>(new Set())
 
   // Get unique sports for filter
-  const uniqueSports = useMemo(() => {
-    const sports = new Set(trades.map(t => t.sport))
-    return Array.from(sports).sort()
-  }, [trades])
+  const sportButtons = useMemo(
+    () => ['all', 'NBA', 'NFL', 'MLB', 'NHL', 'NCAAB', 'NCAAF', 'WNBA', 'SOCCER', 'GOLF', 'UFC'],
+    []
+  )
 
   const baseTrades = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return trades.filter(trade => {
+      if (!isUpcomingTrade(trade)) return false
       if (sportFilter !== 'all' && trade.sport !== sportFilter) return false
       if (statusFilter === 'respected' && trade.status !== 'respected') return false
       if (statusFilter === 'faded' && trade.status !== 'faded') return false
@@ -251,13 +259,7 @@ export default function SharpDetectorPage() {
   }, [filteredTrades, sortFilter])
 
   const topUpcomingSharps = useMemo(() => {
-    const now = Date.now()
-    const upcoming = trades.filter((trade) => {
-      if (!trade.eventDate) return false
-      const eventTime = new Date(trade.eventDate).getTime()
-      if (!Number.isFinite(eventTime)) return false
-      return eventTime >= now
-    })
+    const upcoming = trades.filter((trade) => isUpcomingTrade(trade))
     return [...upcoming]
       .filter((trade) => Number.isFinite(trade.sharpStrength))
       .sort((a, b) => {
@@ -605,6 +607,27 @@ export default function SharpDetectorPage() {
           )}
         </div>
 
+        {/* Sport Filters */}
+        <div className="mb-4 overflow-x-auto">
+          <div className="flex items-center gap-2 min-w-max">
+            {sportButtons.map((sport) => (
+              <button
+                key={sport}
+                type="button"
+                onClick={() => setSportFilter(sport)}
+                className={cn(
+                  'px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.2em] transition',
+                  sportFilter === sport
+                    ? 'border-emerald-400 text-emerald-200 bg-emerald-400/10'
+                    : 'border-white/10 text-white/50 hover:border-white/30 hover:text-white/80'
+                )}
+              >
+                {sport === 'all' ? 'All' : sport}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <div className="flex-1 min-w-[220px]">
@@ -647,18 +670,6 @@ export default function SharpDetectorPage() {
               )}
             </button>
           </div>
-
-          {/* Sport Filter */}
-          <select
-            value={sportFilter}
-            onChange={(e) => setSportFilter(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 focus:outline-none focus:border-emerald-500/50"
-          >
-            <option value="all">All Sports</option>
-            {uniqueSports.map(sport => (
-              <option key={sport} value={sport}>{sport}</option>
-            ))}
-          </select>
 
           {/* Matchup Filter */}
           <select

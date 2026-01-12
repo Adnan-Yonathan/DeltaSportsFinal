@@ -292,38 +292,58 @@ function ChatPageContent() {
     .slice(0, 2)
     .toUpperCase()
   const canUseSharpDetector = Boolean(user && membership?.isActive)
-  const chatTabs = [
+  const baseChatTabs = [
     {
+      key: 'market-projections',
       label: 'Market Projections',
       shortLabel: 'Markets',
       href: '/market-projections',
       description: 'AI-powered spread, total, and moneyline projections with edge detection',
     },
     {
+      key: 'player-projections',
       label: 'Player Projections',
       shortLabel: 'Players',
       href: '/player-projections',
       description: 'Player prop projections based on recent form and matchup context',
     },
     {
+      key: 'parlay-predictor',
       label: 'Parlay Predictor',
       shortLabel: 'Parlay',
       href: '/parlay-predictor',
       description: 'Calculate true parlay odds with correlation adjustments',
     },
     {
+      key: 'ev-bets',
       label: 'EV Bets',
       shortLabel: 'EV',
       href: '/ev-bets',
       description: 'Find +EV opportunities where sportsbooks disagree on odds',
     },
     {
+      key: 'live-projections',
       label: 'Live Projections',
       shortLabel: 'Live',
       href: '/live-projections',
       description: 'Real-time projections updated during games',
     },
   ]
+  const planVersion = membership?.planVersion ?? 1
+  const shouldGateTabs = Boolean(membership?.isActive && planVersion >= 2)
+  const allowedTabs =
+    shouldGateTabs
+      ? new Set(
+          membership?.tier === 'pro'
+            ? ['market-projections']
+            : membership?.tier === 'sharp'
+              ? ['market-projections', 'player-projections', 'parlay-predictor']
+              : ['market-projections', 'player-projections', 'parlay-predictor', 'ev-bets', 'live-projections']
+        )
+      : null
+  const chatTabs = shouldGateTabs
+    ? baseChatTabs.filter((tab) => allowedTabs?.has(tab.key))
+    : baseChatTabs
   const membershipLabel = membership?.tier
     ? ({ pro: 'Pro', sharp: 'Sharp', syndicate: 'Syndicate' } as const)[membership.tier] || 'Pro'
     : 'Pro'

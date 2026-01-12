@@ -11,9 +11,12 @@ export async function GET() {
   } = await supabase.auth.getUser()
 
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasAccess =
-    membership.isActive &&
-    (membership.tier === "sharp" || membership.tier === "syndicate")
+  const planVersion = membership.planVersion ?? 1
+  const hasAccess = membership.isActive
+    ? planVersion >= 2
+      ? membership.tier === "syndicate"
+      : membership.tier === "sharp" || membership.tier === "syndicate"
+    : false
 
   if (!hasAccess) {
     return NextResponse.json(

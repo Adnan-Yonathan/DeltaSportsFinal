@@ -20,6 +20,9 @@ const KALSHI_SPORT_PREFIXES = [
   'KXNHL',
   'KXMLB',
   'KXWNBA',
+  'KXSOCCER',
+  'KXGOLF',
+  'KXUFC',
 ]
 
 const POLYMARKET_SPORT_PREFIXES = [
@@ -32,7 +35,36 @@ const POLYMARKET_SPORT_PREFIXES = [
   'ncaaf-',
   'nhl-',
   'mlb-',
+  'soccer-',
+  'golf-',
+  'ufc-',
 ]
+
+const POLYMARKET_SPORT_SERIES = new Set([
+  'nba',
+  'wnba',
+  'nfl',
+  'ncaaf',
+  'ncaab',
+  'cfb',
+  'cbb',
+  'mlb',
+  'nhl',
+  'ufc',
+  'mma',
+  'boxing',
+  'soccer',
+  'tennis',
+  'golf',
+  'pga',
+  'mls',
+  'cricket',
+  'esports',
+  'racing',
+  'olympics',
+  'chess',
+  'poker',
+])
 
 const KALSHI_SPORT_LABELS: Record<string, string> = {
   KXNBA: 'NBA',
@@ -42,6 +74,9 @@ const KALSHI_SPORT_LABELS: Record<string, string> = {
   KXNHL: 'NHL',
   KXMLB: 'MLB',
   KXWNBA: 'WNBA',
+  KXSOCCER: 'SOCCER',
+  KXGOLF: 'GOLF',
+  KXUFC: 'UFC',
 }
 
 const POLYMARKET_SPORT_LABELS: Record<string, string> = {
@@ -54,6 +89,9 @@ const POLYMARKET_SPORT_LABELS: Record<string, string> = {
   ncaaf: 'NCAAF',
   nhl: 'NHL',
   mlb: 'MLB',
+  soccer: 'SOCCER',
+  golf: 'GOLF',
+  ufc: 'UFC',
 }
 
 const MONTHS: Record<string, string> = {
@@ -219,6 +257,47 @@ const parsePolymarketDate = (slug?: string) => {
   if (!slug) return undefined
   const match = slug.match(/(\d{4}-\d{2}-\d{2})/)
   return match ? match[1] : undefined
+}
+
+const polymarketEventCache = new Map<string, { isSports: boolean; sportLabel?: string }>()
+
+const fetchPolymarketEvent = async (slug: string) => {
+  if (polymarketEventCache.has(slug)) return polymarketEventCache.get(slug) ?? null
+  try {
+    const url = new URL('https://gamma-api.polymarket.com/events')
+    url.searchParams.set('slug', slug)
+    const res = await fetch(url.toString(), { cache: 'no-store' })
+    if (!res.ok) {
+      polymarketEventCache.set(slug, { isSports: false })
+      return null
+    }
+    const event = await res.json()
+    const category = String(event?.category ?? '').toLowerCase()
+    const seriesSlug = String(event?.seriesSlug ?? event?.series?.[0]?.slug ?? '').toLowerCase()
+    const title = String(event?.title ?? '').toLowerCase()
+    const isSports =
+      category === 'sports' ||
+      POLYMARKET_SPORT_SERIES.has(seriesSlug) ||
+      POLYMARKET_SPORT_PREFIXES.some((prefix) => title.startsWith(prefix.replace('-', '')))
+
+    const sportLabel =
+      (event?.series?.[0]?.title as string | undefined) ||
+      (seriesSlug ? seriesSlug.toUpperCase() : undefined)
+
+    const payload = { isSports, sportLabel }
+    polymarketEventCache.set(slug, payload)
+    return payload
+  } catch {
+    polymarketEventCache.set(slug, { isSports: false })
+    return null
+  }
+}
+
+const resolvePolymarketSportLabel = async (slug?: string, fallback?: string) => {
+  if (!slug) return fallback ?? 'Sports'
+  const event = await fetchPolymarketEvent(slug)
+  if (event?.sportLabel) return event.sportLabel
+  return fallback ?? 'Sports'
 }
 
 const fetchKalshiMarketDetails = async (
@@ -394,15 +473,25 @@ const fetchPolymarketTrades = async (
   const data = (await res.json()) as { value?: PolymarketTrade[] }
   const trades = Array.isArray(data.value) ? data.value : []
 
-  return trades
-    .filter((trade) => isPolymarketSportSlug(trade.eventSlug || trade.slug))
-    .map((trade) => {
+  const results = await Promise.all(
+    trades.map(async (trade) => {
+      const eventSlug = trade.eventSlug || trade.slug
+      if (!eventSlug) return null
+      const isSportsSlug = isPolymarketSportSlug(eventSlug)
+      if (!isSportsSlug) {
+        const event = await fetchPolymarketEvent(eventSlug)
+        if (!event?.isSports) return null
+      }
       const notional = Number(trade.size) * Number(trade.price)
       if (!Number.isFinite(notional) || notional < minNotional) return null
       const priceCents = Math.round(Number(trade.price) * 100)
       const probability = Number(trade.price)
       const americanOdds = probabilityToAmerican(probability)
       if (americanOdds !== null && americanOdds <= -300) return null
+      const sportLabel = await resolvePolymarketSportLabel(
+        eventSlug,
+        parsePolymarketSport(eventSlug)
+      )
       return {
         id: `polymarket:${trade.transactionHash}`,
         source: 'polymarket' as const,
@@ -413,14 +502,16 @@ const fetchPolymarketTrades = async (
         notional,
         contracts: Number(trade.size),
         timestamp: new Date(trade.timestamp * 1000).toISOString(),
-        sport: parsePolymarketSport(trade.eventSlug || trade.slug),
-        eventDate: parsePolymarketDate(trade.eventSlug || trade.slug),
+        sport: sportLabel,
+        eventDate: parsePolymarketDate(eventSlug),
         slug: trade.slug,
         outcomeIndex: trade.outcomeIndex ?? undefined,
         side: trade.side,
       }
     })
-    .filter(Boolean) as WhaleTrade[]
+  )
+
+  return results.filter(Boolean) as WhaleTrade[]
 }
 
 export const fetchWhaleTrades = async (options: {

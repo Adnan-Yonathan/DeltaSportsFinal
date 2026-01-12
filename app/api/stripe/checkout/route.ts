@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         supabase_user_id: user.id,
         plan_key: planKey,
+        plan_version: '2',
       },
     })
 

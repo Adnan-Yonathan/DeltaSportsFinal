@@ -75,6 +75,13 @@ const resolvePhase = (trade: SharpTrade) => {
   return eventDate < todayStart ? 'Live' : 'Pregame'
 }
 
+const isUpcomingTrade = (trade: SharpTrade) => {
+  if (!trade.eventDate) return false
+  const eventTime = new Date(trade.eventDate).getTime()
+  if (!Number.isFinite(eventTime)) return false
+  return eventTime >= Date.now()
+}
+
 const resolveSharpTier = (notional: number): SharpTier => {
   if (notional >= 10000) return 'mega'
   if (notional >= 5000) return 'blue'
@@ -141,6 +148,7 @@ export default function SharpDetectorPanel({
   const baseTrades = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return trades.filter((trade) => {
+      if (!isUpcomingTrade(trade)) return false
       if (sportFilter !== 'all' && trade.sport !== sportFilter) return false
       if (sizeFilter !== 'all' && resolveSharpTier(trade.notional) !== sizeFilter) return false
       if (query) {
@@ -178,19 +186,13 @@ export default function SharpDetectorPanel({
     })
   }, [baseTrades, gameFilter])
 
-  const uniqueSports = useMemo(() => {
-    const sports = new Set(trades.map((trade) => trade.sport))
-    return Array.from(sports).sort()
-  }, [trades])
+  const sportButtons = useMemo(
+    () => ['all', 'NBA', 'NFL', 'MLB', 'NHL', 'NCAAB', 'NCAAF', 'WNBA', 'SOCCER', 'GOLF', 'UFC'],
+    []
+  )
 
   const topUpcomingSharps = useMemo(() => {
-    const now = Date.now()
-    const upcoming = trades.filter((trade) => {
-      if (!trade.eventDate) return false
-      const eventTime = new Date(trade.eventDate).getTime()
-      if (!Number.isFinite(eventTime)) return false
-      return eventTime >= now
-    })
+    const upcoming = trades.filter((trade) => isUpcomingTrade(trade))
     return [...upcoming]
       .filter((trade) => Number.isFinite(trade.sharpStrength))
       .sort((a, b) => {
@@ -468,18 +470,6 @@ export default function SharpDetectorPanel({
         className="min-w-[180px] flex-1 rounded-lg border border-white/10 bg-black px-2.5 py-1.5 text-[11px] text-white/80 placeholder:text-white/40 focus:border-emerald-500/50 focus:outline-none"
       />
       <select
-        value={sportFilter}
-        onChange={(e) => setSportFilter(e.target.value)}
-        className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-black text-[11px] text-white/80 focus:outline-none focus:border-emerald-500/50"
-      >
-        <option value="all">All Sports</option>
-        {uniqueSports.map((sport) => (
-          <option key={sport} value={sport}>
-            {sport}
-          </option>
-        ))}
-      </select>
-      <select
         value={gameFilter}
         onChange={(e) => setGameFilter(e.target.value)}
         className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-black text-[11px] text-white/80 focus:outline-none focus:border-emerald-500/50"
@@ -521,6 +511,25 @@ export default function SharpDetectorPanel({
 
   return (
     <div className={cn('space-y-3', className)}>
+      <div className="overflow-x-auto">
+        <div className="flex items-center gap-2 min-w-max">
+          {sportButtons.map((sport) => (
+            <button
+              key={sport}
+              type="button"
+              onClick={() => setSportFilter(sport)}
+              className={cn(
+                'px-2.5 py-1 rounded-full border text-[10px] uppercase tracking-[0.2em] transition',
+                sportFilter === sport
+                  ? 'border-emerald-400 text-emerald-200 bg-emerald-400/10'
+                  : 'border-white/10 text-white/50 hover:border-white/30 hover:text-white/80'
+              )}
+            >
+              {sport === 'all' ? 'All' : sport}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-semibold text-white">

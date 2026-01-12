@@ -22,9 +22,15 @@ async function updateUserSubscription(
   userId: string,
   subscription: Stripe.Subscription | null,
   planKey?: string,
-  customerId?: string
+  customerId?: string,
+  planVersionOverride?: number
 ) {
   const config = planKey ? PLAN_CONFIG[planKey as PlanKey] : null
+  const rawPlanVersion = subscription?.metadata?.plan_version
+  const parsedPlanVersion = Number.isFinite(Number(rawPlanVersion))
+    ? Number(rawPlanVersion)
+    : 1
+  const planVersion = planVersionOverride ?? parsedPlanVersion
 
   if (!subscription || subscription.status === 'canceled') {
     // Subscription canceled - clear membership
@@ -57,6 +63,7 @@ async function updateUserSubscription(
     stripe_subscription_id: subscription.id,
     stripe_current_period_end: currentPeriodEnd ? new Date(currentPeriodEnd * 1000).toISOString() : null,
     subscription_cancel_at: cancelAt ? new Date(cancelAt * 1000).toISOString() : null,
+    membership_plan_version: planVersion,
   }
 
   // Include customer ID if provided
@@ -162,6 +169,10 @@ export async function POST(req: NextRequest) {
 
         const userId = session.metadata?.supabase_user_id
         const planKey = session.metadata?.plan_key
+        const planVersionRaw = session.metadata?.plan_version
+        const planVersion = Number.isFinite(Number(planVersionRaw))
+          ? Number(planVersionRaw)
+          : 1
         const subscriptionId = session.subscription as string
 
         if (!userId || !subscriptionId) {
@@ -178,11 +189,22 @@ export async function POST(req: NextRequest) {
 
         // Update subscription metadata with plan key for future reference
         await stripe.subscriptions.update(subscriptionId, {
-          metadata: { supabase_user_id: userId, plan_key: planKey || '' },
+          metadata: {
+            supabase_user_id: userId,
+            plan_key: planKey || '',
+            plan_version: String(planVersion),
+          },
         })
 
         // Update user with subscription info (includes customer ID)
-        await updateUserSubscription(supabase, userId, subscription, planKey, session.customer as string)
+        await updateUserSubscription(
+          supabase,
+          userId,
+          subscription,
+          planKey,
+          session.customer as string,
+          planVersion,
+        )
         console.log(`[STRIPE_WEBHOOK] Subscription created for user ${userId}`)
         break
       }

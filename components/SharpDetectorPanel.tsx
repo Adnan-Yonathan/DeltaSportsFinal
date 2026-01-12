@@ -132,6 +132,7 @@ export default function SharpDetectorPanel({
   const [gameFilter, setGameFilter] = useState<string>('all')
   const [sortFilter, setSortFilter] = useState<'newest' | 'strength'>('newest')
   const [searchQuery, setSearchQuery] = useState('')
+  const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'blue' | 'mega'>('all')
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
   const scheduledRef = useRef<Set<string>>(new Set())
@@ -141,13 +142,14 @@ export default function SharpDetectorPanel({
     const query = searchQuery.trim().toLowerCase()
     return trades.filter((trade) => {
       if (sportFilter !== 'all' && trade.sport !== sportFilter) return false
+      if (sizeFilter !== 'all' && resolveSharpTier(trade.notional) !== sizeFilter) return false
       if (query) {
         const haystack = `${trade.marketTitle} ${trade.outcome} ${trade.sport}`.toLowerCase()
         if (!haystack.includes(query)) return false
       }
       return true
     })
-  }, [trades, sportFilter, searchQuery])
+  }, [trades, sportFilter, sizeFilter, searchQuery])
 
   const gameOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -488,6 +490,18 @@ export default function SharpDetectorPanel({
             {option.label}
           </option>
         ))}
+      </select>
+      <select
+        value={sizeFilter}
+        onChange={(e) =>
+          setSizeFilter(e.target.value as 'all' | 'small' | 'blue' | 'mega')
+        }
+        className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-black text-[11px] text-white/80 focus:outline-none focus:border-emerald-500/50"
+      >
+        <option value="all">All Sizes</option>
+        <option value="small">Sharp bet</option>
+        <option value="blue">Big sharp</option>
+        <option value="mega">Whale</option>
       </select>
       <select
         value={sortFilter}

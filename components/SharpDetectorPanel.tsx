@@ -41,7 +41,23 @@ const POLL_INTERVAL_MS = 30000
 const RESPECT_CHECK_MS = 15 * 60 * 1000
 const RESPECT_TOLERANCE_CENTS = 2
 const RESOLUTION_POLL_MS = 5 * 60 * 1000
+const STORAGE_KEY = 'sharp-detector-trades'
+const CACHE_VERSION_KEY = 'sharp-detector-cache-version'
+const CACHE_VERSION = '2'
 const MAX_RESOLVED_TRADES = 300
+
+const ensureSharpCacheVersion = () => {
+  if (typeof window === 'undefined') return
+  try {
+    const current = window.localStorage.getItem(CACHE_VERSION_KEY)
+    if (current !== CACHE_VERSION) {
+      window.localStorage.removeItem(STORAGE_KEY)
+      window.localStorage.setItem(CACHE_VERSION_KEY, CACHE_VERSION)
+    }
+  } catch (error) {
+    console.warn('Failed to validate sharp detector cache version:', error)
+  }
+}
 
 const formatOddsLabel = (priceCents: number, americanOdds: number | null) => {  
   const centsLabel = `${priceCents}c`
@@ -111,13 +127,6 @@ const resolveStrengthClass = (value?: number | null) => {
   return 'text-emerald-300'
 }
 
-const isTradeRecent = (timestamp: string) => {
-  const date = new Date(timestamp)
-  if (Number.isNaN(date.getTime())) return false
-  const now = Date.now()
-  return date.getTime() >= now - 24 * 60 * 60 * 1000
-}
-
 export default function SharpDetectorPanel({
   className,
   onNewSharp,
@@ -127,7 +136,21 @@ export default function SharpDetectorPanel({
   onNewSharp?: (count: number) => void
   onCountChange?: (count: number) => void
 }) {
-  const [trades, setTrades] = useState<SharpTradeWithStatus[]>([])
+  const [trades, setTrades] = useState<SharpTradeWithStatus[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      ensureSharpCacheVersion()
+      const cached = window.localStorage.getItem(STORAGE_KEY)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        return Array.isArray(parsed) ? parsed : []
+      }
+    } catch (error) {
+      console.warn('Failed to load sharp detector cache:', error)
+    }
+    return []
+  })
+  const [hydrated, setHydrated] = useState(typeof window !== 'undefined')       
   const [debugEnabled, setDebugEnabled] = useState(false)
   const [lastFetchAt, setLastFetchAt] = useState<string | null>(null)
   const [lastFetchCount, setLastFetchCount] = useState<number | null>(null)
@@ -230,7 +253,7 @@ export default function SharpDetectorPanel({
   const fetchTrades = async () => {
     try {
       const res = await fetch(
-        `/api/whale-detector?minNotional=${MIN_NOTIONAL}&limit=40`,
+        `/api/whale-detector?minNotional=${MIN_NOTIONAL}&limit=200`,
         { cache: 'no-store' }
       )
       if (!res.ok) return
@@ -259,9 +282,7 @@ export default function SharpDetectorPanel({
         if (!hasInitializedRef.current) {
           hasInitializedRef.current = true
         }
-        const next = Array.from(existing.values()).filter((trade) =>
-          isTradeRecent(trade.timestamp)
-        )
+        const next = Array.from(existing.values())
         const pending = next
           .filter((trade) => !trade.status || trade.status === 'pending')
           .sort(
@@ -411,6 +432,11 @@ export default function SharpDetectorPanel({
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
     try {
       const params = new URLSearchParams(window.location.search)
       setDebugEnabled(params.has('sharpDebug'))
@@ -420,14 +446,24 @@ export default function SharpDetectorPanel({
   }, [])
 
   useEffect(() => {
+    if (!hydrated) return
     trades.forEach((trade) => seenIdsRef.current.add(trade.id))
-  }, [trades])
+  }, [hydrated, trades])
 
   useEffect(() => {
     fetchTrades()
     const interval = setInterval(fetchTrades, POLL_INTERVAL_MS)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    if (!hydrated || typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trades))
+    } catch (error) {
+      console.warn('Failed to persist sharp detector cache:', error)
+    }
+  }, [hydrated, trades])
 
   useEffect(() => {
     const now = Date.now()

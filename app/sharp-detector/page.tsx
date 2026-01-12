@@ -136,6 +136,13 @@ const extractGameKey = (marketTitle: string, sport: string): string => {
 const resolveGameLabel = (marketTitle: string) =>
   marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()
 
+const resolveStrengthClass = (value?: number | null) => {
+  const strength = Number.isFinite(value) ? Number(value) : 0
+  if (strength <= 35) return 'text-rose-300'
+  if (strength <= 55) return 'text-amber-300'
+  return 'text-emerald-300'
+}
+
 export default function SharpDetectorPage() {
   const [trades, setTrades] = useState<SharpTradeWithStatus[]>(() => {
     if (typeof window === 'undefined') return []
@@ -623,7 +630,7 @@ export default function SharpDetectorPage() {
                     <span className="uppercase tracking-[0.2em]">
                       {trade.sport}
                     </span>
-                    <span className="text-emerald-300 font-semibold">
+                    <span className={cn('font-semibold', resolveStrengthClass(trade.sharpStrength))}>
                       {trade.sharpStrength ?? 0}%
                     </span>
                   </div>
@@ -848,11 +855,11 @@ export default function SharpDetectorPage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
-                            {Number.isFinite(trade.sharpStrength) && (
-                              <span className="text-[10px] uppercase font-semibold text-emerald-300">
-                                {trade.sharpStrength}% strength
-                              </span>
-                            )}
+                      {Number.isFinite(trade.sharpStrength) && (
+                        <span className={cn('text-[10px] uppercase font-semibold', resolveStrengthClass(trade.sharpStrength))}>
+                          {trade.sharpStrength}% strength
+                        </span>
+                      )}
                             {trade.status && (
                               <span className={cn(
                                 "text-[10px] uppercase font-semibold",
@@ -910,7 +917,7 @@ export default function SharpDetectorPage() {
                     </span>
                     <div className="flex items-center gap-2">
                       {Number.isFinite(trade.sharpStrength) && (
-                        <span className="text-[10px] uppercase tracking-[0.3em] font-semibold text-emerald-300">
+                        <span className={cn('text-[10px] uppercase tracking-[0.3em] font-semibold', resolveStrengthClass(trade.sharpStrength))}>
                           {trade.sharpStrength}% strength
                         </span>
                       )}

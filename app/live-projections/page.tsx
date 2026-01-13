@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server"
 import ToolsNav from "@/components/tools-nav"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 
+export const dynamic = "force-dynamic"
+
 export default async function LiveProjectionsPage() {
   const supabase = createClient()
   const {

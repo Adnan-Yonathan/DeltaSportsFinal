@@ -55,6 +55,63 @@ const STORAGE_KEY = 'sharp-detector-trades'
 const CACHE_VERSION_KEY = 'sharp-detector-cache-version'
 const CACHE_VERSION = '2'
 const MAX_RESOLVED_TRADES = 300
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+const MAJOR_SPORTS = new Set(['NBA', 'NFL', 'MLB', 'NHL'])
+const TEAM_SPLIT_PATTERN = /\s+(?:vs\.?|v\.?|@|at)\s+/i
+const P4_COLLEGE_TEAMS = [
+  'Arizona', 'Arizona State', 'Baylor', 'BYU', 'Cincinnati', 'Colorado', 'Houston',
+  'Iowa State', 'Kansas', 'Kansas State', 'Oklahoma State', 'TCU', 'Texas Tech',
+  'UCF', 'Utah', 'West Virginia',
+  'Alabama', 'Arkansas', 'Auburn', 'Florida', 'Georgia', 'Kentucky', 'LSU',
+  'Mississippi State', 'Missouri', 'Ole Miss', 'South Carolina', 'Tennessee',
+  'Texas', 'Texas A&M', 'Vanderbilt', 'Oklahoma',
+  'Boston College', 'Clemson', 'Duke', 'Florida State', 'Georgia Tech', 'Louisville',
+  'Miami', 'NC State', 'North Carolina', 'Pittsburgh', 'Syracuse', 'Virginia',
+  'Virginia Tech', 'Wake Forest', 'Notre Dame', 'SMU', 'Stanford', 'Cal',
+  'Illinois', 'Indiana', 'Iowa', 'Maryland', 'Michigan', 'Michigan State', 'Minnesota',
+  'Nebraska', 'Northwestern', 'Ohio State', 'Penn State', 'Purdue', 'Rutgers',
+  'Wisconsin', 'USC', 'UCLA', 'Oregon', 'Washington',
+]
+const P4_TEAM_SET = new Set(
+  P4_COLLEGE_TEAMS.map((team) =>
+    team
+      .toLowerCase()
+      .replace(/[^a-z\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  )
+)
+
+const DEFAULT_SMALL_MARKET_THRESHOLD = {
+  earlyDays: 3,
+  earlyTrades: 2,
+  earlyNotional: 5000,
+  dayTrades: 3,
+  dayNotional: 8000,
+}
+
+const SPORT_UNUSUAL_THRESHOLDS: Record<string, typeof DEFAULT_SMALL_MARKET_THRESHOLD> = {
+  NBA: { earlyDays: 3, earlyTrades: 3, earlyNotional: 12000, dayTrades: 4, dayNotional: 18000 },
+  NFL: { earlyDays: 7, earlyTrades: 3, earlyNotional: 12000, dayTrades: 4, dayNotional: 18000 },
+  MLB: { earlyDays: 3, earlyTrades: 3, earlyNotional: 12000, dayTrades: 4, dayNotional: 18000 },
+  NHL: { earlyDays: 3, earlyTrades: 3, earlyNotional: 12000, dayTrades: 4, dayNotional: 18000 },
+  WNBA: { earlyDays: 3, earlyTrades: 2, earlyNotional: 5000, dayTrades: 3, dayNotional: 8000 },
+  UFC: { earlyDays: 3, earlyTrades: 2, earlyNotional: 5000, dayTrades: 3, dayNotional: 8000 },
+  SOCCER: { earlyDays: 5, earlyTrades: 2, earlyNotional: 5000, dayTrades: 3, dayNotional: 8000 },
+  GOLF: { earlyDays: 5, earlyTrades: 2, earlyNotional: 5000, dayTrades: 3, dayNotional: 8000 },
+}
+
+const COLLEGE_UNUSUAL_THRESHOLDS = {
+  NCAAB: {
+    regular: { earlyDays: 1, earlyTrades: 2, earlyNotional: 4000, dayTrades: 3, dayNotional: 6000 },
+    marquee: { earlyDays: 1, earlyTrades: 3, earlyNotional: 10000, dayTrades: 4, dayNotional: 15000 },
+  },
+  NCAAF: {
+    regular: { earlyDays: 5, earlyTrades: 2, earlyNotional: 6000, dayTrades: 3, dayNotional: 10000 },
+    marquee: { earlyDays: 5, earlyTrades: 3, earlyNotional: 15000, dayTrades: 4, dayNotional: 20000 },
+  },
+}
 
 const ensureSharpCacheVersion = () => {
   if (typeof window === 'undefined') return
@@ -86,13 +143,51 @@ const formatTimestamp = (value: string) => {
   })
 }
 
+const parseEventTime = (value?: string | null) => {
+  if (!value) return null
+  const match = value.match(DATE_ONLY_PATTERN)
+  if (match) {
+    const year = Number(match[1])
+    const month = Number(match[2])
+    const day = Number(match[3])
+    const date = new Date(year, month - 1, day, 23, 59, 59, 999)
+    const time = date.getTime()
+    return Number.isFinite(time) ? time : null
+  }
+  const parsed = new Date(value)
+  const time = parsed.getTime()
+  return Number.isFinite(time) ? time : null
+}
+
+const normalizeTeamLabel = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, '')
+    .replace(/\b(spread|moneyline|total|over|under|points|winner|to win)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const parseMatchupTeams = (marketTitle: string) => {
+  const parts = marketTitle.split(TEAM_SPLIT_PATTERN)
+  if (parts.length !== 2) return null
+  const homeAway = parts.map((part) => normalizeTeamLabel(part))
+  if (homeAway.some((part) => !part)) return null
+  return homeAway
+}
+
+const isMarqueeCollegeMatchup = (marketTitle: string) => {
+  const teams = parseMatchupTeams(marketTitle)
+  if (!teams) return false
+  return teams.every((team) => P4_TEAM_SET.has(team))
+}
+
 const resolvePhase = (trade: SharpTrade) => {
   if (!trade.eventDate) return 'Pregame'
-  const eventDate = new Date(trade.eventDate)
-  if (Number.isNaN(eventDate.getTime())) return 'Pregame'
+  const eventTime = parseEventTime(trade.eventDate)
+  if (eventTime == null || !Number.isFinite(eventTime)) return 'Pregame'
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
-  return eventDate < todayStart ? 'Live' : 'Pregame'
+  return eventTime < todayStart.getTime() ? 'Live' : 'Pregame'
 }
 
 const resolveSharpTier = (notional: number): SharpTier => {
@@ -127,6 +222,57 @@ const extractGameKey = (marketTitle: string, sport: string): string => {
 
 const resolveGameLabel = (marketTitle: string) =>
   marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()
+
+const resolveUnusualReason = (cluster: GameCluster, nowMs: number) => {
+  if (!cluster.eventDate) return null
+  const eventTime = parseEventTime(cluster.eventDate)
+  if (eventTime == null || !Number.isFinite(eventTime)) return null
+  if (eventTime < nowMs) return null
+
+  const daysUntil = Math.floor((eventTime - nowMs) / MS_PER_DAY)
+  const isCollegeSport = cluster.sport === 'NCAAB' || cluster.sport === 'NCAAF'
+  const isMarquee = isCollegeSport && isMarqueeCollegeMatchup(cluster.marketTitle)
+
+  const thresholds = isCollegeSport
+    ? COLLEGE_UNUSUAL_THRESHOLDS[cluster.sport as 'NCAAB' | 'NCAAF'][
+        isMarquee ? 'marquee' : 'regular'
+      ]
+    : SPORT_UNUSUAL_THRESHOLDS[cluster.sport] ?? DEFAULT_SMALL_MARKET_THRESHOLD
+
+  const isEarly = daysUntil >= thresholds.earlyDays
+  const isDayOf = daysUntil >= 0 && daysUntil < 1
+
+  const meetsEarly =
+    isEarly &&
+    cluster.tradeCount >= thresholds.earlyTrades &&
+    cluster.totalNotional >= thresholds.earlyNotional
+  const meetsDayOf =
+    isDayOf &&
+    cluster.tradeCount >= thresholds.dayTrades &&
+    cluster.totalNotional >= thresholds.dayNotional
+
+  if (meetsEarly) {
+    if (isCollegeSport && !isMarquee) {
+      return `College non-marquee early action (${daysUntil}d out)`
+    }
+    if (!MAJOR_SPORTS.has(cluster.sport)) {
+      return `Small-market early action (${daysUntil}d out)`
+    }
+    return `Early big bet (${daysUntil}d out)`
+  }
+
+  if (meetsDayOf) {
+    if (isCollegeSport && !isMarquee) {
+      return 'College small-market day-of surge'
+    }
+    if (!MAJOR_SPORTS.has(cluster.sport)) {
+      return 'Small-market day-of surge'
+    }
+    return 'Day-of surge'
+  }
+
+  return null
+}
 
 const resolveStrengthClass = (value?: number | null) => {
   const strength = Number.isFinite(value) ? Number(value) : 0
@@ -257,22 +403,87 @@ export default function SharpDetectorPage() {
 
   const topUpcomingSharps = useMemo(() => {
     const now = Date.now()
-    const upcoming = trades.filter((trade) => {
-      if (!trade.eventDate) return false
-      const eventTime = new Date(trade.eventDate).getTime()
-      if (!Number.isFinite(eventTime)) return false
-      return eventTime >= now
-    })
-    return [...upcoming]
+    const scoredTrades = trades
       .filter((trade) => Number.isFinite(trade.sharpStrength))
+      .map((trade) => ({
+        trade,
+        strength: trade.sharpStrength ?? 0,
+        eventTime: parseEventTime(trade.eventDate),
+        tradeTime: new Date(trade.timestamp).getTime(),
+      }))
+    const upcoming = scoredTrades.filter(
+      (entry) => entry.eventTime != null && entry.eventTime >= now
+    )
+    const sortedUpcoming = [...upcoming].sort((a, b) => {
+      if (a.strength !== b.strength) return b.strength - a.strength
+      if (a.eventTime != null && b.eventTime != null && a.eventTime !== b.eventTime) {
+        return a.eventTime - b.eventTime
+      }
+      return a.tradeTime - b.tradeTime
+    })
+    const primary = sortedUpcoming.slice(0, 3).map((entry) => entry.trade)
+    if (primary.length >= 3) return primary
+    const fallback = scoredTrades
+      .filter((entry) => !primary.some((trade) => trade.id === entry.trade.id))
       .sort((a, b) => {
-        const strengthA = a.sharpStrength ?? 0
-        const strengthB = b.sharpStrength ?? 0
-        if (strengthA !== strengthB) return strengthB - strengthA
-        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        if (a.strength !== b.strength) return b.strength - a.strength
+        return b.tradeTime - a.tradeTime
+      })
+      .slice(0, 3 - primary.length)
+      .map((entry) => entry.trade)
+    return [...primary, ...fallback]
+  }, [trades])
+
+  const unusualClusters = useMemo(() => {
+    const nowMs = Date.now()
+    const clusters = new Map<string, GameCluster>()
+
+    trades.forEach((trade) => {
+      const gameKey = extractGameKey(trade.marketTitle, trade.sport)
+
+      if (!clusters.has(gameKey)) {
+        clusters.set(gameKey, {
+          gameKey,
+          marketTitle: trade.marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim(),
+          sport: trade.sport,
+          eventDate: trade.eventDate,
+          trades: [],
+          totalNotional: 0,
+          tradeCount: 0,
+        })
+      }
+
+      const cluster = clusters.get(gameKey)!
+      cluster.trades.push(trade)
+      cluster.totalNotional += trade.notional
+      cluster.tradeCount += 1
+    })
+
+    return Array.from(clusters.values())
+      .map((cluster) => {
+        const reason = resolveUnusualReason(cluster, nowMs)
+        if (!reason) return null
+        return { cluster, reason }
+      })
+      .filter(
+        (value): value is { cluster: GameCluster; reason: string } => Boolean(value)
+      )
+      .sort((a, b) => {
+        if (a.cluster.tradeCount !== b.cluster.tradeCount) {
+          return b.cluster.tradeCount - a.cluster.tradeCount
+        }
+        return b.cluster.totalNotional - a.cluster.totalNotional
       })
       .slice(0, 3)
   }, [trades])
+
+  const unusualByKey = useMemo(() => {
+    const map = new Map<string, string>()
+    unusualClusters.forEach(({ cluster, reason }) => {
+      map.set(cluster.gameKey, reason)
+    })
+    return map
+  }, [unusualClusters])
 
   // Stats
   const stats = useMemo(() => {
@@ -450,6 +661,52 @@ export default function SharpDetectorPage() {
           )}
         </div>
 
+        {/* Unusual big bets */}
+        <div className="mb-6 rounded-2xl border border-rose-500/20 bg-gradient-to-r from-rose-500/10 via-transparent to-transparent p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-rose-300" />
+              <span className="text-sm font-semibold text-white">Unusual big bets</span>
+            </div>
+            <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+              signal
+            </span>
+          </div>
+          {unusualClusters.length === 0 ? (
+            <p className="text-xs text-white/50">
+              No unusual betting clusters yet.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-3">
+              {unusualClusters.map(({ cluster, reason }) => (
+                <div
+                  key={cluster.gameKey}
+                  className="rounded-xl border border-white/10 bg-black/50 p-3"
+                >
+                  <div className="flex items-center justify-between text-[11px] text-white/50 mb-2">
+                    <span className="uppercase tracking-[0.2em]">{cluster.sport}</span>
+                    <span className="text-rose-200 font-semibold">
+                      {cluster.tradeCount} bets
+                    </span>
+                  </div>
+                  <div className="text-sm font-semibold text-white">
+                    {cluster.marketTitle}
+                  </div>
+                  <div className="text-[11px] text-white/50 mt-1">
+                    {formatCurrency(cluster.totalNotional)}
+                  </div>
+                  {cluster.eventDate && (
+                    <div className="text-[11px] text-white/40 mt-2">
+                      {cluster.eventDate}
+                    </div>
+                  )}
+                  <div className="text-[11px] text-white/40 mt-2">{reason}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {debugEnabled && (
           <div className="mb-6 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-xs text-amber-100">
             <div className="flex flex-wrap items-center gap-3">
@@ -585,40 +842,49 @@ export default function SharpDetectorPage() {
                 </p>
               </div>
             ) : (
-              gameClusters.map((cluster) => (
-                <motion.div
-                  key={cluster.gameKey}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-transparent p-5"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <Zap className="w-4 h-4 text-emerald-400" />
-                        <span className="text-xs uppercase tracking-wider text-emerald-300/70">
-                          Hot Game - {cluster.tradeCount} sharp bets
+              gameClusters.map((cluster) => {
+                const unusualReason = unusualByKey.get(cluster.gameKey)
+                return (
+                  <motion.div
+                    key={cluster.gameKey}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-transparent p-5"
+                  >
+                    {unusualReason && (
+                      <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-rose-200">
+                        <span className="rounded-full border border-rose-400/40 px-2 py-0.5">
+                          Unusual: {unusualReason}
                         </span>
                       </div>
-                      <h3 className="text-lg font-semibold text-white">{cluster.marketTitle}</h3>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-white/50">
-                        <span className="px-2 py-0.5 rounded-full border border-white/10">
-                          {cluster.sport}
-                        </span>
-                        {cluster.eventDate && (
-                          <span className="px-2 py-0.5 rounded-full border border-white/10">
-                            {cluster.eventDate}
+                    )}
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Zap className="w-4 h-4 text-emerald-400" />
+                          <span className="text-xs uppercase tracking-wider text-emerald-300/70">
+                            Hot Game - {cluster.tradeCount} sharp bets
                           </span>
-                        )}
+                        </div>
+                        <h3 className="text-lg font-semibold text-white">{cluster.marketTitle}</h3>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-white/50">
+                          <span className="px-2 py-0.5 rounded-full border border-white/10">
+                            {cluster.sport}
+                          </span>
+                          {cluster.eventDate && (
+                            <span className="px-2 py-0.5 rounded-full border border-white/10">
+                              {cluster.eventDate}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-emerald-300">
+                          {formatCurrency(cluster.totalNotional)}
+                        </p>
+                        <p className="text-xs text-white/50">total volume</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-emerald-300">
-                        {formatCurrency(cluster.totalNotional)}
-                      </p>
-                      <p className="text-xs text-white/50">total volume</p>
-                    </div>
-                  </div>
 
                   {/* Trades in this cluster */}
                   <div className="space-y-2 border-t border-white/10 pt-4">
@@ -655,8 +921,9 @@ export default function SharpDetectorPage() {
                       )
                     })}
                   </div>
-                </motion.div>
-              ))
+                  </motion.div>
+                )
+              })
             )}
           </div>
         )}

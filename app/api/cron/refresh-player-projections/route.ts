@@ -5,6 +5,8 @@ import { getRoster, type RosterPlayer } from "@/lib/sports-stats-api"
 import { getNbaPropProjectionsForPlayer } from "@/lib/services/nba-player-prop-model"
 import { getNflPropProjectionsForPlayer } from "@/lib/services/nfl-player-prop-model"
 
+export const dynamic = "force-dynamic"
+
 /**
  * GET /api/cron/refresh-player-projections
  * Refreshes player projections cache for NBA and NFL

@@ -4,6 +4,8 @@ import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import { findEVOpportunities } from "@/lib/services/cross-market-ev"
 import { SPORTS } from "@/lib/types/odds"
 
+export const dynamic = "force-dynamic"
+
 export async function GET() {
   const supabase = createClient()
   const {

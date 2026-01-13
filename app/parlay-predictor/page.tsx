@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import ToolsNav from "@/components/tools-nav"
 
+export const dynamic = "force-dynamic"
+
 export default async function ParlayPredictorPage() {
   const supabase = createClient()
   const {

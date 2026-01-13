@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 
+export const dynamic = "force-dynamic"
+
 /**
  * POST /api/cron/refresh-market-projections
  * Refreshes market projections cache for all supported sports

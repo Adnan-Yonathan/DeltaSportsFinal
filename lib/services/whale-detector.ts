@@ -208,6 +208,14 @@ const hasTwoWordName = (value: string) => TWO_WORD_NAME_PATTERN.test(value)
 const isPlayerPropMarket = (sport: string, marketTitle: string, outcome: string) => {
   if (sport.toUpperCase() === 'UFC') return false
   const combined = `${marketTitle} ${outcome}`
+  const combinedLower = combined.toLowerCase()
+  const looksLikeGameMarket =
+    combinedLower.includes('spread') ||
+    combinedLower.includes('moneyline') ||
+    combinedLower.includes('total') ||
+    combinedLower.includes('winner') ||
+    combinedLower.includes('to win')
+  if (looksLikeGameMarket) return false
   return hasTwoWordName(combined)
 }
 

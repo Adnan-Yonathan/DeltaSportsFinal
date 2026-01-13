@@ -21,7 +21,7 @@ import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/mes
 
 const SHARP_STORAGE_KEY = 'sharp-detector-trades'
 const SHARP_CACHE_VERSION_KEY = 'sharp-detector-cache-version'
-const SHARP_CACHE_VERSION = '2'
+const SHARP_CACHE_VERSION = '3'
 
 const ensureSharpCacheVersion = () => {
   if (typeof window === 'undefined') return

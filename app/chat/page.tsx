@@ -14,7 +14,7 @@ import { ParticleButton } from '@/components/ui/particle-button'
 import SharpDetectorPanel from '@/components/SharpDetectorPanel'
 import ToolsNav from '@/components/tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, MessageSquare, Target } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, MessageSquare, Target, Link2 } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
@@ -556,6 +556,16 @@ function ChatPageContent() {
                     <span>Upgrade Plan</span>
                   </button>
                 )}
+                <button
+                  onClick={() => {
+                    setProfileMenuOpen(false)
+                    router.push('/affiliate')
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/5 transition-colors"
+                >
+                  <Link2 className="w-4 h-4" />
+                  <span>Affiliate Program</span>
+                </button>
                 {membership?.isActive && (
                   <button
                     onClick={async () => {

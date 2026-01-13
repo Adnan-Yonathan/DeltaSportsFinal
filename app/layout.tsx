@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { SupabaseAuthListener } from '@/components/SupabaseAuthListener'
 import { AppFooter } from '@/components/AppFooter'
+import AffiliateTracker from '@/components/AffiliateTracker'
 import { Saira_Condensed } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
@@ -55,6 +56,7 @@ export default function RootLayout({
         className={`${saira.variable} flex min-h-screen flex-col bg-bg-primary text-text-primary`}
       >
         <SupabaseAuthListener />
+        <AffiliateTracker />
         <main className="flex-1">{children}</main>
         <AppFooter />
         <Analytics />

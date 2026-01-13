@@ -6,6 +6,7 @@ import type { Database } from '@/lib/supabase/types'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
 
 export const dynamic = 'force-dynamic'
+const AFFILIATE_REF_COOKIE = 'affiliate_ref'
 
 export async function POST(request: NextRequest) {
   const supabase = createRouteHandlerClient<Database>({ cookies })
@@ -35,6 +36,17 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (user) {
+      const affiliateRef = cookies().get(AFFILIATE_REF_COOKIE)?.value
+      const metadata = user.user_metadata || {}
+      if (affiliateRef && !metadata.affiliate_ref) {
+        await supabase.auth.updateUser({
+          data: {
+            affiliate_ref: affiliateRef,
+            affiliate_ref_assigned_at: new Date().toISOString(),
+          },
+        })
+      }
+
       const forceOnboarding =
         process.env.NEXT_PUBLIC_FORCE_ONBOARDING === 'true'
       if (forceOnboarding) {

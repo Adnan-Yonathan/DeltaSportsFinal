@@ -556,6 +556,12 @@ export const SignInPage = ({ className }: SignInPageProps) => {
   const supabase = createClient();
   const router = useRouter();
 
+  const readAffiliateRef = () => {
+    if (typeof document === "undefined") return null;
+    const match = document.cookie.match(/(?:^|; )affiliate_ref=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : null;
+  };
+
   const handleGoogleSignIn = async () => {
     setError("");
     setOauthLoading(true);
@@ -601,7 +607,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, affiliateRef: readAffiliateRef() }),
       });
 
       const signupData = await signupResponse.json();

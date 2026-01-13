@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json()
+    const { email, password, affiliateRef } = await request.json()
 
     if (!email || !password) {
       return NextResponse.json(
@@ -36,6 +36,12 @@ export async function POST(request: Request) {
       email,
       password,
       email_confirm: true, // Auto-confirm email
+      user_metadata: affiliateRef
+        ? {
+            affiliate_ref: affiliateRef,
+            affiliate_ref_assigned_at: new Date().toISOString(),
+          }
+        : undefined,
     })
 
     if (signUpError) {

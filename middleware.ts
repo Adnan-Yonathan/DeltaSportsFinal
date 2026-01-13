@@ -11,7 +11,12 @@ const PUBLIC_PATHS = [
   '/pricing',
   '/onboarding',
   '/chat', // Chat page handles its own guest/member logic
+  '/affiliate',
+  '/admin/affiliates',
 ]
+
+const AFFILIATE_REF_COOKIE = 'affiliate_ref'
+const AFFILIATE_REF_TTL = 60 * 60 * 24 * 30
 
 // Check if path starts with any public path
 const isPublicPath = (pathname: string) => {
@@ -47,6 +52,14 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
   const pathname = req.nextUrl.pathname
+  const affiliateRef = req.nextUrl.searchParams.get('ref')
+  if (affiliateRef) {
+    res.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
+      maxAge: AFFILIATE_REF_TTL,
+      path: '/',
+      sameSite: 'lax',
+    })
+  }
 
   // Allow public paths and API routes (except protected ones)
   if (isPublicPath(pathname)) {
@@ -61,7 +74,15 @@ export async function middleware(req: NextRequest) {
   if (!session) {
     const loginUrl = new URL('/auth/login', req.url)
     loginUrl.searchParams.set('redirect', pathname)
-    return NextResponse.redirect(loginUrl)
+    const redirect = NextResponse.redirect(loginUrl)
+    if (affiliateRef) {
+      redirect.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
+        maxAge: AFFILIATE_REF_TTL,
+        path: '/',
+        sameSite: 'lax',
+      })
+    }
+    return redirect
   }
 
   // Check membership status from user metadata
@@ -71,7 +92,15 @@ export async function middleware(req: NextRequest) {
   // If not an active member, redirect to pricing
   if (!isActive) {
     const pricingUrl = new URL('/pricing', req.url)
-    return NextResponse.redirect(pricingUrl)
+    const redirect = NextResponse.redirect(pricingUrl)
+    if (affiliateRef) {
+      redirect.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
+        maxAge: AFFILIATE_REF_TTL,
+        path: '/',
+        sameSite: 'lax',
+      })
+    }
+    return redirect
   }
 
   return res

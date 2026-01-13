@@ -17,6 +17,64 @@ const relevantEvents = new Set([
   'invoice.payment_failed',
 ])
 
+const RAW_AFFILIATE_COMMISSION_RATE = Number(process.env.AFFILIATE_COMMISSION_RATE ?? '0.2')
+const AFFILIATE_COMMISSION_RATE = Number.isFinite(RAW_AFFILIATE_COMMISSION_RATE)
+  ? RAW_AFFILIATE_COMMISSION_RATE
+  : 0.2
+
+const resolveAffiliateRef = async (
+  supabase: ReturnType<typeof createServiceClient>,
+  userId: string
+): Promise<string | null> => {
+  try {
+    const { data } = await supabase.auth.admin.getUserById(userId)
+    const ref = data?.user?.user_metadata?.affiliate_ref
+    return typeof ref === 'string' && ref.length > 0 ? ref : null
+  } catch (error) {
+    console.warn('[STRIPE_WEBHOOK] Failed to read affiliate ref:', error)
+    return null
+  }
+}
+
+const isSelfReferral = async (
+  supabase: ReturnType<typeof createServiceClient>,
+  code: string,
+  userId: string
+): Promise<boolean> => {
+  const { data } = await supabase
+    .from('affiliates' as any)
+    .select('user_id')
+    .eq('code', code)
+    .limit(1)
+  return Boolean(data?.[0]?.user_id && data[0].user_id === userId)
+}
+
+const upsertAffiliateAttribution = async (
+  supabase: ReturnType<typeof createServiceClient>,
+  payload: {
+    code: string
+    referred_user_id: string
+    subscription_id?: string | null
+    trial_end_at?: string | null
+    converted_at?: string | null
+    amount_cents?: number
+    status: 'pending' | 'earned' | 'paid' | 'blocked'
+  }
+) => {
+  await supabase.from('affiliate_attributions' as any).upsert(
+    {
+      code: payload.code,
+      referred_user_id: payload.referred_user_id,
+      subscription_id: payload.subscription_id ?? null,
+      trial_end_at: payload.trial_end_at ?? null,
+      converted_at: payload.converted_at ?? null,
+      amount_cents: payload.amount_cents ?? 0,
+      status: payload.status,
+    },
+    { onConflict: 'referred_user_id,subscription_id' }
+  )
+}
+
 async function updateUserSubscription(
   supabase: ReturnType<typeof createServiceClient>,
   userId: string,
@@ -212,10 +270,12 @@ export async function POST(req: NextRequest) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription
+        const previousStatus = (event.data as any)?.previous_attributes?.status
         const userId = subscription.metadata?.supabase_user_id
         const planKey = subscription.metadata?.plan_key
 
-        if (!userId) {
+        const resolvedUserId = userId || null
+        if (!resolvedUserId) {
           // Try to get from customer
           const customerId = subscription.customer as string
           const foundUserId = await getUserIdFromCustomer(supabase, customerId)
@@ -224,11 +284,97 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ received: true, warning: 'User not found' })
           }
           await updateUserSubscription(supabase, foundUserId, subscription, planKey)
+
+          const affiliateRef = await resolveAffiliateRef(supabase, foundUserId)
+          if (affiliateRef) {
+            const isTrialing = subscription.status === 'trialing'
+            const isTrialConversion =
+              subscription.status === 'active' && previousStatus === 'trialing'
+            if (await isSelfReferral(supabase, affiliateRef, foundUserId)) {
+              await upsertAffiliateAttribution(supabase, {
+                code: affiliateRef,
+                referred_user_id: foundUserId,
+                subscription_id: subscription.id,
+                status: 'blocked',
+              })
+            } else if (isTrialing) {
+              await upsertAffiliateAttribution(supabase, {
+                code: affiliateRef,
+                referred_user_id: foundUserId,
+                subscription_id: subscription.id,
+                trial_end_at: subscription.trial_end
+                  ? new Date(subscription.trial_end * 1000).toISOString()
+                  : null,
+                status: 'pending',
+              })
+            } else if (isTrialConversion) {
+              let amountCents = 0
+              if (subscription.latest_invoice) {
+                const invoice = await stripe.invoices.retrieve(
+                  subscription.latest_invoice as string
+                )
+                amountCents = Math.round(
+                  (invoice.amount_paid || 0) * AFFILIATE_COMMISSION_RATE
+                )
+              }
+              await upsertAffiliateAttribution(supabase, {
+                code: affiliateRef,
+                referred_user_id: foundUserId,
+                subscription_id: subscription.id,
+                converted_at: new Date().toISOString(),
+                amount_cents: amountCents,
+                status: 'earned',
+              })
+            }
+          }
         } else {
-          await updateUserSubscription(supabase, userId, subscription, planKey)
+          await updateUserSubscription(supabase, resolvedUserId, subscription, planKey)
+
+          const affiliateRef = await resolveAffiliateRef(supabase, resolvedUserId)
+          if (affiliateRef) {
+            const isTrialing = subscription.status === 'trialing'
+            const isTrialConversion =
+              subscription.status === 'active' && previousStatus === 'trialing'
+            if (await isSelfReferral(supabase, affiliateRef, resolvedUserId)) {
+              await upsertAffiliateAttribution(supabase, {
+                code: affiliateRef,
+                referred_user_id: resolvedUserId,
+                subscription_id: subscription.id,
+                status: 'blocked',
+              })
+            } else if (isTrialing) {
+              await upsertAffiliateAttribution(supabase, {
+                code: affiliateRef,
+                referred_user_id: resolvedUserId,
+                subscription_id: subscription.id,
+                trial_end_at: subscription.trial_end
+                  ? new Date(subscription.trial_end * 1000).toISOString()
+                  : null,
+                status: 'pending',
+              })
+            } else if (isTrialConversion) {
+              let amountCents = 0
+              if (subscription.latest_invoice) {
+                const invoice = await stripe.invoices.retrieve(
+                  subscription.latest_invoice as string
+                )
+                amountCents = Math.round(
+                  (invoice.amount_paid || 0) * AFFILIATE_COMMISSION_RATE
+                )
+              }
+              await upsertAffiliateAttribution(supabase, {
+                code: affiliateRef,
+                referred_user_id: resolvedUserId,
+                subscription_id: subscription.id,
+                converted_at: new Date().toISOString(),
+                amount_cents: amountCents,
+                status: 'earned',
+              })
+            }
+          }
         }
 
-        console.log(`[STRIPE_WEBHOOK] Subscription ${event.type} for user ${userId}`)
+        console.log(`[STRIPE_WEBHOOK] Subscription ${event.type} for user ${resolvedUserId ?? 'unknown'}`)
         break
       }
 
@@ -275,6 +421,33 @@ export async function POST(req: NextRequest) {
 
           if (userId) {
             await updateUserSubscription(supabase, userId, subscription)
+            const affiliateRef = await resolveAffiliateRef(supabase, userId)
+            if (affiliateRef) {
+              const isTrialConversion =
+                subscription.status === 'active' &&
+                subscription.trial_end &&
+                subscription.trial_end * 1000 <= Date.now()
+              if (await isSelfReferral(supabase, affiliateRef, userId)) {
+                await upsertAffiliateAttribution(supabase, {
+                  code: affiliateRef,
+                  referred_user_id: userId,
+                  subscription_id: subscription.id,
+                  status: 'blocked',
+                })
+              } else if (isTrialConversion) {
+                const amountCents = Math.round(
+                  (invoice.amount_paid || 0) * AFFILIATE_COMMISSION_RATE
+                )
+                await upsertAffiliateAttribution(supabase, {
+                  code: affiliateRef,
+                  referred_user_id: userId,
+                  subscription_id: subscription.id,
+                  converted_at: new Date().toISOString(),
+                  amount_cents: amountCents,
+                  status: 'earned',
+                })
+              }
+            }
             console.log(`[STRIPE_WEBHOOK] Payment succeeded for user ${userId}`)
           }
         }

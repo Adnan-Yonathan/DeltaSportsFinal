@@ -14,6 +14,8 @@ type SharpTrade = {
   outcome: string
   priceCents: number
   americanOdds: number | null
+  currentPriceCents?: number | null
+  currentAmericanOdds?: number | null
   notional: number
   contracts: number
   timestamp: string
@@ -130,6 +132,16 @@ const formatOddsLabel = (priceCents: number, americanOdds: number | null) => {
   const centsLabel = `${priceCents}c`
   if (americanOdds == null) return centsLabel
   return `${centsLabel} (${formatAmericanOdds(americanOdds)})`
+}
+
+const resolveOddsLabel = (trade: SharpTrade) => {
+  const priceCents = trade.currentPriceCents ?? trade.priceCents
+  const odds = trade.currentAmericanOdds ?? trade.americanOdds
+  const label = formatOddsLabel(priceCents, odds)
+  if (trade.currentPriceCents != null && trade.currentPriceCents !== trade.priceCents) {
+    return `${label} now`
+  }
+  return label
 }
 
 const formatTimestamp = (value: string) => {
@@ -904,7 +916,7 @@ export default function SharpDetectorPage() {
                             </span>
                             <span className="text-sm text-white/80">{trade.outcome}</span>
                             <span className="text-xs text-white/40">
-                              {formatOddsLabel(trade.priceCents, trade.americanOdds)}
+                              {resolveOddsLabel(trade)}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -996,7 +1008,7 @@ export default function SharpDetectorPage() {
                       </span>
                     )}
                     <span className="rounded-full border border-white/10 px-2 py-0.5">
-                      {formatOddsLabel(trade.priceCents, trade.americanOdds)}
+                      {resolveOddsLabel(trade)}
                     </span>
                     <span className="rounded-full border border-white/10 px-2 py-0.5">
                       Detected {formatTimestamp(trade.timestamp)}

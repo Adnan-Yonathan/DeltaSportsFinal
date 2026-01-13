@@ -172,6 +172,8 @@ export type WhaleTrade = {
   outcome: string
   priceCents: number
   americanOdds: number | null
+  currentPriceCents?: number | null
+  currentAmericanOdds?: number | null
   notional: number
   contracts: number
   timestamp: string
@@ -203,6 +205,12 @@ const probabilityToAmerican = (probability: number) => {
     return null
   }
   return decimalToAmerican(1 / probability)
+}
+
+const centsToAmerican = (priceCents?: number | null) => {
+  if (!Number.isFinite(priceCents)) return null
+  const probability = Number(priceCents) / 100
+  return probabilityToAmerican(probability)
 }
 
 const resolveKalshiPriceCents = (trade: KalshiTrade) => {
@@ -639,18 +647,14 @@ const resolveSelectionTeam = (trade: WhaleTrade, teams: ParsedTeams | null) => {
 }
 
 const scoreFromRatio = (ratio: number) => {
-  if (ratio < 1.5) return 0.2
-  if (ratio < 2.5) return 0.5
-  if (ratio < 4) return 0.8
-  return 1
+  const normalized = Math.min(1, Math.max(0, (ratio - 1) / 3.5))
+  return 0.15 + normalized * 0.85
 }
 
 const scoreFromMove = (move: number) => {
   const absMove = Math.abs(move)
-  if (absMove < 1) return 0.2
-  if (absMove < 2.5) return 0.5
-  if (absMove < 5) return 0.8
-  return 1
+  const normalized = Math.min(1, Math.max(0, absMove / 6))
+  return 0.15 + normalized * 0.85
 }
 
 const resolveLiquidityScore = (
@@ -658,18 +662,15 @@ const resolveLiquidityScore = (
   openInterest: number | null,
   spreadCents: number | null
 ) => {
-  let score = 0.3
-  if ((liquidityDollars ?? 0) >= 20000 || (openInterest ?? 0) >= 10000) {
-    score = 1
-  } else if ((liquidityDollars ?? 0) >= 10000 || (openInterest ?? 0) >= 5000) {
-    score = 0.8
-  } else if ((liquidityDollars ?? 0) >= 5000 || (openInterest ?? 0) >= 2000) {
-    score = 0.5
-  } else if ((liquidityDollars ?? 0) > 0 || (openInterest ?? 0) > 0) {
+  const liquidityScore = Math.min(1, Math.max(0, (liquidityDollars ?? 0) / 20000))
+  const interestScore = Math.min(1, Math.max(0, (openInterest ?? 0) / 10000))
+  let score = Math.max(liquidityScore, interestScore)
+  if (score === 0 && ((liquidityDollars ?? 0) > 0 || (openInterest ?? 0) > 0)) {
     score = 0.2
   }
+  score = Math.max(score, 0.25)
   if (spreadCents != null && spreadCents > 6) {
-    score = Math.min(score, 0.4)
+    score = Math.min(score, 0.5)
   }
   return score
 }
@@ -685,10 +686,8 @@ const resolveBookPressureScore = (
     side === 'yes'
       ? yesDepth / Math.max(1, noDepth)
       : noDepth / Math.max(1, yesDepth)
-  if (ratio < 1.2) return 0.2
-  if (ratio < 1.6) return 0.5
-  if (ratio < 2.5) return 0.8
-  return 1
+  const normalized = Math.min(1, Math.max(0, (ratio - 1) / 2.5))
+  return 0.2 + normalized * 0.8
 }
 
 const resolveRecentTradeStats = (trades: KalshiTrade[]) => {
@@ -963,7 +962,7 @@ const computeStrengthScore = (opts: {
     else if (diff >= 1) boost = 4
   }
 
-  return Math.max(0, Math.min(100, Math.round(baseScore + boost)))
+  return Math.max(0, Math.min(100, Math.round((baseScore + boost) * 10) / 10))
 }
 
 const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]) => {
@@ -999,6 +998,9 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]) => {
       const market = marketCache.get(trade.ticker) ?? null
       const orderbook = orderbookCache.get(trade.ticker) ?? null
       const recentTrades = recentTradeCache.get(trade.ticker) ?? null
+      const currentPriceCents =
+        side === 'yes' ? market?.yesPriceCents ?? null : market?.noPriceCents ?? null
+      const currentAmericanOdds = centsToAmerican(currentPriceCents)
       const strength = computeStrengthScore({
         trade,
         side,
@@ -1007,7 +1009,7 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]) => {
         recentTrades,
         sportsbookProb,
       })
-      return { ...trade, sharpStrength: strength }
+      return { ...trade, sharpStrength: strength, currentPriceCents, currentAmericanOdds }
     }
     if (trade.source === 'polymarket') {
       const notional = trade.notional
@@ -1025,8 +1027,13 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]) => {
         else if (diff >= 2) boost = 8
         else if (diff >= 1) boost = 4
       }
-      const strength = Math.max(0, Math.min(100, Math.round(baseScore + boost)))
-      return { ...trade, sharpStrength: strength }
+      const strength = Math.max(0, Math.min(100, Math.round((baseScore + boost) * 10) / 10))
+      return {
+        ...trade,
+        sharpStrength: strength,
+        currentPriceCents: trade.priceCents,
+        currentAmericanOdds: trade.americanOdds,
+      }
     }
     return trade
   })

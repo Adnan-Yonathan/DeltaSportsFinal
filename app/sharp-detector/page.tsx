@@ -52,7 +52,6 @@ type GameCluster = {
 }
 
 const MIN_NOTIONAL = 2000
-const PROP_MIN_NOTIONAL = 1200
 const POLL_INTERVAL_MS = 30000
 const STORAGE_KEY = 'sharp-detector-trades'
 const CACHE_VERSION_KEY = 'sharp-detector-cache-version'
@@ -726,9 +725,7 @@ export default function SharpDetectorPage() {
               <span>Last fetch: {lastFetchAt ?? 'N/A'}</span>
               <span>API trades: {lastFetchCount ?? 'N/A'}</span>
               <span>Visible trades: {sortedTrades.length}</span>
-              <span>
-                Min notional: {formatCurrency(MIN_NOTIONAL)} ({formatCurrency(PROP_MIN_NOTIONAL)} props)
-              </span>
+              <span>Min notional: {formatCurrency(MIN_NOTIONAL)}</span>
               {lastFetchError && <span>Error: {lastFetchError}</span>}
             </div>
           </div>
@@ -953,7 +950,7 @@ export default function SharpDetectorPage() {
                   No sharp bets detected yet.
                 </p>
                 <p className="text-white/40 text-xs mt-1">
-                  Trades &gt;= {formatCurrency(MIN_NOTIONAL)} ({formatCurrency(PROP_MIN_NOTIONAL)} props) will appear here.
+                  Trades &gt;= {formatCurrency(MIN_NOTIONAL)} will appear here.
                 </p>
               </div>
             )}

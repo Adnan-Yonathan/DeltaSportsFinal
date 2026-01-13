@@ -9,7 +9,6 @@ const POLYMARKET_TRADES = 'https://data-api.polymarket.com/trades'
 
 export const DEFAULT_LIMIT = 50
 export const DEFAULT_MIN_NOTIONAL = 2000
-export const PLAYER_PROP_MIN_NOTIONAL = 1200
 export const RESPECT_CHECK_MS = 15 * 60 * 1000
 export const RESPECT_TOLERANCE_CENTS = 2
 
@@ -199,24 +198,6 @@ const parseNumber = (value: unknown) => {
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) return null
   return parsed
-}
-
-const TWO_WORD_NAME_PATTERN = /\b[A-Z][a-z]+(?:[-'][A-Za-z]+)?\s+[A-Z][a-z]+(?:[-'][A-Za-z]+)?\b/
-
-const hasTwoWordName = (value: string) => TWO_WORD_NAME_PATTERN.test(value)
-
-const isPlayerPropMarket = (sport: string, marketTitle: string, outcome: string) => {
-  if (sport.toUpperCase() === 'UFC') return false
-  const combined = `${marketTitle} ${outcome}`
-  const combinedLower = combined.toLowerCase()
-  const looksLikeGameMarket =
-    combinedLower.includes('spread') ||
-    combinedLower.includes('moneyline') ||
-    combinedLower.includes('total') ||
-    combinedLower.includes('winner') ||
-    combinedLower.includes('to win')
-  if (looksLikeGameMarket) return false
-  return hasTwoWordName(combined)
 }
 
 const probabilityToAmerican = (probability: number) => {
@@ -436,7 +417,6 @@ const fetchWhalePriceCents = async (trade: WhaleTrade) => {
 const fetchKalshiTrades = async (
   limit: number,
   minNotional: number,
-  playerPropMinNotional: number,
   since?: string | null
 ) => {
   const url = new URL(`${KALSHI_BASE}/markets/trades`)
@@ -458,7 +438,7 @@ const fetchKalshiTrades = async (
         const priceCents = resolveKalshiPriceCents(trade)
         if (priceCents == null) return null
         const notional = Number(trade.count) * (priceCents / 100)
-        if (!Number.isFinite(notional) || notional < playerPropMinNotional) return null
+        if (!Number.isFinite(notional) || notional < minNotional) return null
         const probability = priceCents / 100
         const americanOdds = probabilityToAmerican(probability)
         if (americanOdds !== null && americanOdds <= -300) return null
@@ -468,14 +448,6 @@ const fetchKalshiTrades = async (
         )
         const outcomeLabel =
           trade.taker_side === 'yes' ? marketDetails.yes : marketDetails.no
-        const propThreshold = isPlayerPropMarket(
-          resolveKalshiSport(trade.ticker),
-          marketDetails.title,
-          outcomeLabel
-        )
-          ? playerPropMinNotional
-          : minNotional
-        if (notional < propThreshold) return null
         return {
           id: `kalshi:${trade.trade_id}`,
           source: 'kalshi' as const,
@@ -499,8 +471,7 @@ const fetchKalshiTrades = async (
 
 const fetchPolymarketTrades = async (
   limit: number,
-  minNotional: number,
-  playerPropMinNotional: number
+  minNotional: number
 ) => {
   const url = new URL(POLYMARKET_TRADES)
   url.searchParams.set('limit', String(Math.min(Math.max(limit, 50), 300)))
@@ -524,7 +495,7 @@ const fetchPolymarketTrades = async (
         if (!event?.isSports) return null
       }
       const notional = Number(trade.size) * Number(trade.price)
-      if (!Number.isFinite(notional) || notional < playerPropMinNotional) return null
+      if (!Number.isFinite(notional) || notional < minNotional) return null
       const priceCents = Math.round(Number(trade.price) * 100)
       const probability = Number(trade.price)
       const americanOdds = probabilityToAmerican(probability)
@@ -533,10 +504,6 @@ const fetchPolymarketTrades = async (
         eventSlug,
         parsePolymarketSport(eventSlug)
       )
-      const propThreshold = isPlayerPropMarket(sportLabel, trade.title, trade.outcome)
-        ? playerPropMinNotional
-        : minNotional
-      if (notional < propThreshold) return null
       return {
         id: `polymarket:${trade.transactionHash}`,
         source: 'polymarket' as const,
@@ -568,11 +535,10 @@ export const fetchWhaleTrades = async (options: {
   const minNotional = Number.isFinite(options.minNotional)
     ? Number(options.minNotional)
     : DEFAULT_MIN_NOTIONAL
-  const playerPropMinNotional = Math.min(PLAYER_PROP_MIN_NOTIONAL, minNotional)
 
   const [kalshi, polymarket] = await Promise.all([
-    fetchKalshiTrades(limit, minNotional, playerPropMinNotional, options.since),
-    fetchPolymarketTrades(limit, minNotional, playerPropMinNotional),
+    fetchKalshiTrades(limit, minNotional, options.since),
+    fetchPolymarketTrades(limit, minNotional),
   ])
 
   const combined = [...kalshi, ...polymarket].sort((a, b) => {

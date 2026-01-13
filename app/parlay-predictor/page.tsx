@@ -29,7 +29,7 @@ export default async function ParlayPredictorPage() {
       {/* Content with top padding to account for fixed header */}
       <div className="pt-[72px] px-2 sm:px-4">
         <div className="mx-auto w-full max-w-5xl py-4 sm:py-6">
-          <h1 className="text-xl sm:text-2xl font-semibold">Parlay Predictor</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold">Parlay Pro</h1>
           <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/60">
             Build a parlay and compare model probability to book odds.
           </p>

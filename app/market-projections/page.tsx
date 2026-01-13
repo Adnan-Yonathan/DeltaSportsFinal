@@ -81,7 +81,7 @@ export default async function MarketProjectionsPage({
         <div className="mx-auto w-full max-w-none space-y-5 py-6">
         <header className="space-y-3">
           <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-            Market Projections
+            Sharp Projections
           </p>
           <h1 className="text-3xl font-semibold">
             Projected markets vs Vegas

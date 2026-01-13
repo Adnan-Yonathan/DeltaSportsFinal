@@ -33,7 +33,7 @@ const defaultTiers: PricingTier[] = [
         included: true,
       },
       {
-        name: "Market Projections",
+        name: "Sharp Projections",
         description: "Projected spreads, totals, and moneylines.",
         included: true,
       },
@@ -64,7 +64,7 @@ const defaultTiers: PricingTier[] = [
     features: [
       {
         name: "Everything in Pro",
-        description: "Sharp detector, market projections, and stats.",
+        description: "Sharp detector, sharp projections, and stats.",
         included: true,
       },
       {
@@ -73,7 +73,7 @@ const defaultTiers: PricingTier[] = [
         included: true,
       },
       {
-        name: "Parlay Predictor",
+        name: "Parlay Pro",
         description: "True parlay odds with correlation adjustments.",
         included: true,
       },
@@ -107,7 +107,7 @@ const defaultTiers: PricingTier[] = [
     features: [
       {
         name: "Everything in Sharp",
-        description: "Player projections + parlay predictor included.",
+        description: "Player projections + parlay pro included.",
         included: true,
       },
       {

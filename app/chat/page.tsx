@@ -311,7 +311,7 @@ function ChatPageContent() {
   const baseChatTabs = [
     {
       key: 'market-projections',
-      label: 'Market Projections',
+      label: 'Sharp Projections',
       shortLabel: 'Markets',
       href: '/market-projections',
       description: 'AI-powered spread, total, and moneyline projections with edge detection',
@@ -325,7 +325,7 @@ function ChatPageContent() {
     },
     {
       key: 'parlay-predictor',
-      label: 'Parlay Predictor',
+      label: 'Parlay Pro',
       shortLabel: 'Parlay',
       href: '/parlay-predictor',
       description: 'Calculate true parlay odds with correlation adjustments',

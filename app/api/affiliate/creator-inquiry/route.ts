@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
 
+export const dynamic = "force-dynamic"
+
 type CreatorInquiryPayload = {
   name: string
   creatorType: "ugc" | "creator"
@@ -28,15 +30,17 @@ export async function POST(req: NextRequest) {
     }
 
     const service = createServiceClient()
-    const { error } = await service.from("creator_inquiries" as any).insert({
-      name: body.name.trim(),
-      creator_type: body.creatorType,
-      social_accounts: body.socialAccounts.trim(),
-      followers_estimate: toNumberOrNull(body.followersEstimate),
-      views_per_month: toNumberOrNull(body.viewsPerMonth),
-      expected_pay: body.expectedPay?.trim() || null,
-      phone: body.phone?.trim() || null,
-    })
+    const { error } = await service.from("creator_inquiries" as any).insert([
+      {
+        name: body.name.trim(),
+        creator_type: body.creatorType,
+        social_accounts: body.socialAccounts.trim(),
+        followers_estimate: toNumberOrNull(body.followersEstimate),
+        views_per_month: toNumberOrNull(body.viewsPerMonth),
+        expected_pay: body.expectedPay?.trim() || null,
+        phone: body.phone?.trim() || null,
+      },
+    ] as any)
 
     if (error) {
       console.error("[AFFILIATE] Creator inquiry insert failed:", error)

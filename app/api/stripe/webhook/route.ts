@@ -46,7 +46,8 @@ const isSelfReferral = async (
     .select('user_id')
     .eq('code', code)
     .limit(1)
-  return Boolean(data?.[0]?.user_id && data[0].user_id === userId)
+  const rows = (data ?? []) as Array<{ user_id?: string | null }>
+  return Boolean(rows[0]?.user_id && rows[0].user_id === userId)
 }
 
 const upsertAffiliateAttribution = async (
@@ -62,15 +63,17 @@ const upsertAffiliateAttribution = async (
   }
 ) => {
   await supabase.from('affiliate_attributions' as any).upsert(
-    {
-      code: payload.code,
-      referred_user_id: payload.referred_user_id,
-      subscription_id: payload.subscription_id ?? null,
-      trial_end_at: payload.trial_end_at ?? null,
-      converted_at: payload.converted_at ?? null,
-      amount_cents: payload.amount_cents ?? 0,
-      status: payload.status,
-    },
+    [
+      {
+        code: payload.code,
+        referred_user_id: payload.referred_user_id,
+        subscription_id: payload.subscription_id ?? null,
+        trial_end_at: payload.trial_end_at ?? null,
+        converted_at: payload.converted_at ?? null,
+        amount_cents: payload.amount_cents ?? 0,
+        status: payload.status,
+      },
+    ] as any,
     { onConflict: 'referred_user_id,subscription_id' }
   )
 }

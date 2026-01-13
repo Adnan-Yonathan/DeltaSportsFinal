@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
 
+export const dynamic = "force-dynamic"
+
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -21,7 +23,13 @@ export async function GET() {
       .eq("user_id", user.id)
       .limit(1)
 
-    if (!affiliateRows || affiliateRows.length === 0) {
+    const rows = (affiliateRows ?? []) as Array<{
+      code: string
+      status: string
+      created_at: string
+    }>
+
+    if (rows.length === 0) {
       return NextResponse.json({
         hasAffiliate: false,
         totals: {
@@ -35,8 +43,8 @@ export async function GET() {
       })
     }
 
-    const affiliate = affiliateRows[0]
-    const code = affiliate.code as string
+    const affiliate = rows[0]
+    const code = affiliate.code
 
     const { count: clickCount } = await service
       .from("affiliate_clicks" as any)
@@ -48,6 +56,13 @@ export async function GET() {
       .select("status, amount_cents, converted_at, created_at, trial_end_at")
       .eq("code", code)
       .order("created_at", { ascending: false })
+    const attributionRows = (attributions ?? []) as Array<{
+      status: string
+      amount_cents: number | null
+      converted_at: string | null
+      created_at: string
+      trial_end_at: string | null
+    }>
 
     const totals = {
       clicks: clickCount ?? 0,
@@ -57,7 +72,7 @@ export async function GET() {
       earnedCents: 0,
     }
 
-    for (const attribution of attributions ?? []) {
+    for (const attribution of attributionRows) {
       if (attribution.status === "earned" || attribution.status === "paid") {
         totals.earnedCount += 1
         totals.earnedCents += attribution.amount_cents || 0
@@ -75,7 +90,7 @@ export async function GET() {
         createdAt: affiliate.created_at,
       },
       totals,
-      attributions: attributions ?? [],
+      attributions: attributionRows,
     })
   } catch (error) {
     console.error("[AFFILIATE] Stats fetch failed:", error)

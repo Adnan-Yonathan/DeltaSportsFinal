@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
 
+export const dynamic = "force-dynamic"
+
 const CODE_LENGTH = 8
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
@@ -31,14 +33,15 @@ export async function POST(req: NextRequest) {
       .select("code")
       .eq("user_id", user.id)
       .limit(1)
+    const existingRows = (existing ?? []) as Array<{ code: string }>
 
     const origin =
       req.headers.get("origin") ||
       process.env.NEXT_PUBLIC_APP_URL ||
       "http://localhost:3000"
 
-    if (existing && existing.length > 0) {
-      const code = existing[0].code as string
+    if (existingRows.length > 0) {
+      const code = existingRows[0].code
       return NextResponse.json({
         code,
         link: `${origin}/?ref=${code}`,
@@ -50,12 +53,13 @@ export async function POST(req: NextRequest) {
       const candidate = generateCode()
       const { data, error } = await service
         .from("affiliates" as any)
-        .insert({ user_id: user.id, code: candidate })
+        .insert([{ user_id: user.id, code: candidate }] as any)
         .select("code")
         .single()
 
-      if (!error && data?.code) {
-        code = data.code
+      const dataRow = (data ?? null) as { code?: string } | null
+      if (!error && dataRow?.code) {
+        code = dataRow.code
         break
       }
 

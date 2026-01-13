@@ -51,13 +51,39 @@ export default async function AdminAffiliatesPage() {
     .select("name, creator_type, social_accounts, followers_estimate, views_per_month, expected_pay, phone, created_at")
     .order("created_at", { ascending: false })
 
+  const affiliateRows = (affiliates ?? []) as Array<{
+    user_id: string
+    code: string
+    status: string
+    created_at: string
+  }>
+  const clickRows = (clicks ?? []) as Array<{ code: string }>
+  const attributionRows = (attributions ?? []) as Array<{
+    code: string
+    status: string
+    amount_cents: number | null
+    converted_at: string | null
+    created_at: string
+    paid_at: string | null
+  }>
+  const inquiryRows = (creatorInquiries ?? []) as Array<{
+    name: string
+    creator_type: string
+    social_accounts: string
+    followers_estimate: number | null
+    views_per_month: number | null
+    expected_pay: string | null
+    phone: string | null
+    created_at: string
+  }>
+
   const clickMap = new Map<string, number>()
-  for (const row of clicks ?? []) {
+  for (const row of clickRows) {
     clickMap.set(row.code, (clickMap.get(row.code) || 0) + 1)
   }
 
   const earningsMap = new Map<string, { earned: number; pending: number; count: number }>()
-  for (const row of attributions ?? []) {
+  for (const row of attributionRows) {
     const entry = earningsMap.get(row.code) || { earned: 0, pending: 0, count: 0 }
     if (row.status === "earned" || row.status === "paid") {
       entry.earned += row.amount_cents || 0
@@ -69,10 +95,10 @@ export default async function AdminAffiliatesPage() {
   }
 
   const summary = {
-    affiliates: affiliates?.length || 0,
-    clicks: clicks?.length || 0,
-    conversions: (attributions || []).filter((row) => row.status === "earned" || row.status === "paid").length,
-    earned: (attributions || [])
+    affiliates: affiliateRows.length,
+    clicks: clickRows.length,
+    conversions: attributionRows.filter((row) => row.status === "earned" || row.status === "paid").length,
+    earned: attributionRows
       .filter((row) => row.status === "earned" || row.status === "paid")
       .reduce((sum, row) => sum + (row.amount_cents || 0), 0),
   }
@@ -109,7 +135,7 @@ export default async function AdminAffiliatesPage() {
         <div className="mt-8 rounded-3xl border border-white/10 bg-black/60 p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Affiliates</h2>
-            <span className="text-xs text-white/50">{affiliates?.length || 0} total</span>
+            <span className="text-xs text-white/50">{affiliateRows.length} total</span>
           </div>
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-left text-xs text-white/70">
@@ -125,7 +151,7 @@ export default async function AdminAffiliatesPage() {
                 </tr>
               </thead>
               <tbody>
-                {(affiliates || []).map((affiliate) => {
+                {affiliateRows.map((affiliate) => {
                   const earnings = earningsMap.get(affiliate.code) || {
                     earned: 0,
                     pending: 0,
@@ -153,7 +179,7 @@ export default async function AdminAffiliatesPage() {
         <div className="mt-8 rounded-3xl border border-white/10 bg-black/60 p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Creator inquiries</h2>
-            <span className="text-xs text-white/50">{creatorInquiries?.length || 0} total</span>
+            <span className="text-xs text-white/50">{inquiryRows.length} total</span>
           </div>
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-left text-xs text-white/70">
@@ -170,7 +196,7 @@ export default async function AdminAffiliatesPage() {
                 </tr>
               </thead>
               <tbody>
-                {(creatorInquiries || []).map((entry, index) => (
+                {inquiryRows.map((entry, index) => (
                   <tr key={`${entry.name}-${entry.created_at}-${index}`} className="border-b border-white/5">
                     <td className="px-3 py-3 font-semibold text-white">{entry.name}</td>
                     <td className="px-3 py-3 uppercase tracking-[0.2em] text-emerald-300/80">
@@ -186,7 +212,7 @@ export default async function AdminAffiliatesPage() {
                     </td>
                   </tr>
                 ))}
-                {creatorInquiries?.length === 0 && (
+                {inquiryRows.length === 0 && (
                   <tr>
                     <td className="px-3 py-4 text-white/40" colSpan={8}>
                       No creator inquiries yet.

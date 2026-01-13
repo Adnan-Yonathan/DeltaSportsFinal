@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
 
+export const dynamic = "force-dynamic"
+
 const startOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1)
 
 export async function POST() {
@@ -22,12 +24,13 @@ export async function POST() {
       .select("code")
       .eq("user_id", user.id)
       .limit(1)
+    const rows = (affiliateRows ?? []) as Array<{ code: string }>
 
-    if (!affiliateRows || affiliateRows.length === 0) {
+    if (rows.length === 0) {
       return NextResponse.json({ error: "No affiliate profile" }, { status: 400 })
     }
 
-    const code = affiliateRows[0].code as string
+    const code = rows[0].code
     const { data: earnedRows } = await service
       .from("affiliate_attributions" as any)
       .select("amount_cents")
@@ -64,12 +67,14 @@ export async function POST() {
 
     const { error } = await service
       .from("affiliate_payout_requests" as any)
-      .insert({
-        affiliate_code: code,
-        user_id: user.id,
-        amount_cents: earnedCents,
-        status: "pending",
-      })
+      .insert([
+        {
+          affiliate_code: code,
+          user_id: user.id,
+          amount_cents: earnedCents,
+          status: "pending",
+        },
+      ] as any)
 
     if (error) {
       return NextResponse.json(

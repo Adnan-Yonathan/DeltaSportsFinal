@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { createHash } from "crypto"
 
+export const dynamic = "force-dynamic"
+
 const hashValue = (value: string) =>
   createHash("sha256").update(value).digest("hex")
 
@@ -27,12 +29,14 @@ export async function POST(req: NextRequest) {
     const ip = forwardedFor.split(",")[0]?.trim() || "unknown"
     const userAgent = req.headers.get("user-agent") || "unknown"
 
-    await service.from("affiliate_clicks" as any).insert({
-      code,
-      session_id: req.cookies.get("affiliate_session")?.value ?? null,
-      ip_hash: ip ? hashValue(ip) : null,
-      user_agent_hash: userAgent ? hashValue(userAgent) : null,
-    })
+    await service.from("affiliate_clicks" as any).insert([
+      {
+        code,
+        session_id: req.cookies.get("affiliate_session")?.value ?? null,
+        ip_hash: ip ? hashValue(ip) : null,
+        user_agent_hash: userAgent ? hashValue(userAgent) : null,
+      },
+    ] as any)
 
     return NextResponse.json({ ok: true })
   } catch (error) {

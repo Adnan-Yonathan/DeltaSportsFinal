@@ -49,6 +49,7 @@ type GameCluster = {
 }
 
 const MIN_NOTIONAL = 2000
+const PROP_MIN_NOTIONAL = 1200
 const POLL_INTERVAL_MS = 30000
 const STORAGE_KEY = 'sharp-detector-trades'
 const CACHE_VERSION_KEY = 'sharp-detector-cache-version'
@@ -206,9 +207,9 @@ const resolveSharpTier = (notional: number): SharpTier => {
 }
 
 const sharpTierLabel: Record<SharpTier, string> = {
-  small: 'Sharp bet',
-  blue: 'Big sharp',
-  mega: 'Whale',
+  small: 'Swordfish',
+  blue: 'Megalodon',
+  mega: 'Blue whale',
 }
 
 const sharpTierClass: Record<SharpTier, string> = {
@@ -596,9 +597,9 @@ export default function SharpDetectorPanel({
         className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-black text-[11px] text-white/80 focus:outline-none focus:border-emerald-500/50"
       >
         <option value="all">All Sizes</option>
-        <option value="small">Sharp bet</option>
-        <option value="blue">Big sharp</option>
-        <option value="mega">Whale</option>
+        <option value="small">Swordfish</option>
+        <option value="blue">Megalodon</option>
+        <option value="mega">Blue whale</option>
       </select>
       <select
         value={sortFilter}
@@ -624,7 +625,9 @@ export default function SharpDetectorPanel({
             <span>Last fetch: {lastFetchAt ?? 'N/A'}</span>
             <span>API trades: {lastFetchCount ?? 'N/A'}</span>
             <span>Visible trades: {sortedTrades.length}</span>
-            <span>Min notional: {formatCurrency(MIN_NOTIONAL)}</span>
+            <span>
+              Min notional: {formatCurrency(MIN_NOTIONAL)} ({formatCurrency(PROP_MIN_NOTIONAL)} props)
+            </span>
             {lastFetchError && <span>Error: {lastFetchError}</span>}
           </div>
         </div>
@@ -726,7 +729,7 @@ export default function SharpDetectorPanel({
       {filters}
       {sortedTrades.length === 0 && (
         <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-xs text-white/60">
-          No sharp bets detected yet. Trades &gt;= {formatCurrency(MIN_NOTIONAL)} will
+          No sharp bets detected yet. Trades &gt;= {formatCurrency(MIN_NOTIONAL)} ({formatCurrency(PROP_MIN_NOTIONAL)} props) will
           appear here.
         </div>
       )}

@@ -521,7 +521,7 @@ export default function MarketProjectionsTable({
                         <div>{moveSummary || "No line movement yet."}</div>
                         {(whales.small || whales.blue || whales.mega) > 0 ? (
                           <div className="text-amber-200">
-                            Whales: Small {whales.small} • Blue {whales.blue} • Megaladon {whales.mega}
+                            Whales: Swordfish {whales.small} • Megalodon {whales.blue} • Blue whale {whales.mega}
                           </div>
                         ) : (
                           <div>No whale activity yet.</div>

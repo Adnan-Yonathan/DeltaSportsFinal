@@ -201,40 +201,14 @@ const parseNumber = (value: unknown) => {
   return parsed
 }
 
-const PROP_MARKET_KEYWORDS = [
-  'points',
-  'rebounds',
-  'assists',
-  'pra',
-  'threes',
-  '3pt',
-  'three pointers',
-  'yards',
-  'passing',
-  'rushing',
-  'receiving',
-  'touchdowns',
-  'tds',
-  'interceptions',
-  'strikeouts',
-  'hits',
-  'home runs',
-  'runs',
-  'rbis',
-  'goals',
-  'shots',
-  'saves',
-  'blocks',
-  'steals',
-  'fantasy',
-  'tackles',
-]
+const TWO_WORD_NAME_PATTERN = /\b[A-Z][a-z]+(?:[-'][A-Za-z]+)?\s+[A-Z][a-z]+(?:[-'][A-Za-z]+)?\b/
 
-const isPlayerPropMarket = (marketTitle: string, outcome: string) => {
-  const combined = `${marketTitle} ${outcome}`.toLowerCase()
-  const hasPropKeyword = PROP_MARKET_KEYWORDS.some((keyword) => combined.includes(keyword))
-  if (!hasPropKeyword) return false
-  return combined.includes('over') || combined.includes('under') || /[+-]?\d+(\.\d+)?/.test(combined)
+const hasTwoWordName = (value: string) => TWO_WORD_NAME_PATTERN.test(value)
+
+const isPlayerPropMarket = (sport: string, marketTitle: string, outcome: string) => {
+  if (sport.toUpperCase() === 'UFC') return false
+  const combined = `${marketTitle} ${outcome}`
+  return hasTwoWordName(combined)
 }
 
 const probabilityToAmerican = (probability: number) => {
@@ -486,7 +460,11 @@ const fetchKalshiTrades = async (
         )
         const outcomeLabel =
           trade.taker_side === 'yes' ? marketDetails.yes : marketDetails.no
-        const propThreshold = isPlayerPropMarket(marketDetails.title, outcomeLabel)
+        const propThreshold = isPlayerPropMarket(
+          resolveKalshiSport(trade.ticker),
+          marketDetails.title,
+          outcomeLabel
+        )
           ? playerPropMinNotional
           : minNotional
         if (notional < propThreshold) return null
@@ -547,7 +525,7 @@ const fetchPolymarketTrades = async (
         eventSlug,
         parsePolymarketSport(eventSlug)
       )
-      const propThreshold = isPlayerPropMarket(trade.title, trade.outcome)
+      const propThreshold = isPlayerPropMarket(sportLabel, trade.title, trade.outcome)
         ? playerPropMinNotional
         : minNotional
       if (notional < propThreshold) return null

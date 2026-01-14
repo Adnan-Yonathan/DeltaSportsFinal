@@ -1,5 +1,5 @@
 import SportSelector from "../market-projections/sport-selector"
-import PlayerProjectionsTable from "./player-projections-table"
+import SharpPlayerPropsTable from "./sharp-player-props-table"
 import ToolsNav from "@/components/tools-nav"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
@@ -15,10 +15,11 @@ type SportOption = {
 }
 
 const SPORT_OPTIONS: SportOption[] = [
+  { key: "all", label: "All Sports", locked: false },
   { key: "basketball_nba", label: "NBA", locked: false },
   { key: "americanfootball_nfl", label: "NFL", locked: false },
-  { key: "basketball_ncaab", label: "NCAAB", locked: true },
-  { key: "americanfootball_ncaaf", label: "CFB", locked: true },
+  { key: "basketball_ncaab", label: "NCAAB", locked: false },
+  { key: "americanfootball_ncaaf", label: "CFB", locked: false },
   { key: "baseball_mlb", label: "MLB", locked: true },
   { key: "icehockey_nhl", label: "NHL", locked: true },
 ]
@@ -46,11 +47,11 @@ export default async function PlayerProjectionsPage({
     ? searchParams?.sport[0]
     : searchParams?.sport
 
-  // Default to NBA if requested sport is locked or invalid
+  // Default to "all" if requested sport is locked or invalid
   const requestedOption = SPORT_OPTIONS.find((option) => option.key === requestedSport)
   const sport = requestedOption && !requestedOption.locked
     ? requestedOption.key
-    : "basketball_nba"
+    : "all"
 
   const selected =
     SPORT_OPTIONS.find((option) => option.key === sport) ?? SPORT_OPTIONS[0]
@@ -64,17 +65,17 @@ export default async function PlayerProjectionsPage({
       <div className="mx-auto w-full max-w-none space-y-6">
         <header className="space-y-3">
           <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-            {selected.label} Player Projections
+            {selected.label} Sharp Props
           </p>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <h1 className="text-3xl font-semibold">
-              Market-driven player edges
+              Sharp Player Prop Bets
             </h1>
             <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
           </div>
           <p className="max-w-2xl text-sm text-white/60">
-            Delta projections highlight where player markets look mispriced.
-            Select a sport to explore available projections.
+            Prediction market whale activity on player props. Ranked by composite
+            score combining edge, volume, sharp strength, and bet clustering.
           </p>
         </header>
         {!hasAccess ? (
@@ -100,10 +101,10 @@ export default async function PlayerProjectionsPage({
                   Upgrade required
                 </p>
                 <h2 className="mt-3 text-xl font-semibold text-white">
-                  Player projections are for Sharp and Syndicate members.
+                  Sharp player props are for Sharp and Syndicate members.
                 </h2>
                 <p className="mt-2 text-sm text-white/60">
-                  Unlock player edges and prop projections with Sharp.
+                  Unlock whale-tracked player prop bets with Sharp.
                 </p>
                 <Link
                   href="/pricing"
@@ -114,19 +115,18 @@ export default async function PlayerProjectionsPage({
               </div>
             </div>
           </div>
-        ) : (sport === "basketball_nba" || sport === "americanfootball_nfl") &&
-        !isLocked ? (
-          <PlayerProjectionsTable sport={sport} />
+        ) : !isLocked ? (
+          <SharpPlayerPropsTable sport={sport} />
         ) : (
           <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-10 text-center">
             <p className="text-xs uppercase tracking-[0.3em] text-white/50">
               Coming soon
             </p>
             <h2 className="mt-3 text-2xl font-semibold text-white">
-              {selected.label} player projections are being finalized.
+              {selected.label} sharp props tracking is being finalized.
             </h2>
             <p className="mt-3 text-sm text-white/60">
-              We&apos;ll unlock this once the model is fully calibrated.
+              We&apos;ll unlock this once prediction market coverage expands.
             </p>
           </div>
         )}

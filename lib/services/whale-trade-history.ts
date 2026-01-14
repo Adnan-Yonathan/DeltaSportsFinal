@@ -301,27 +301,43 @@ const resolvePropType = (text: string, sportKey: string) => {
   return null
 }
 
-const resolvePropSide = (text: string) => {
+const resolvePropSide = (text: string, rawText?: string | null, tradeSide?: string | null) => {
   if (text.includes(' over ')) return 'Over'
   if (text.includes(' under ')) return 'Under'
   if (text.endsWith(' over')) return 'Over'
   if (text.endsWith(' under')) return 'Under'
+  // For Kalshi "X+ yards" format, "yes" = Over, "no" = Under
+  // Check raw text for "+" since normalization removes it
+  if (rawText && /\d+\+/.test(rawText) && tradeSide) {
+    return tradeSide.toLowerCase() === 'yes' ? 'Over' : 'Under'
+  }
   return null
 }
 
-const resolvePropLine = (text: string, propType: string | null) => {
+const resolvePropLine = (text: string, propType: string | null, rawText?: string | null) => {
   if (!propType) return null
   const overUnderMatch = text.match(/(?:over|under)\s+(\d+(?:\.\d+)?)/)
   if (overUnderMatch) {
     const value = Number(overUnderMatch[1])
     return Number.isFinite(value) ? value : null
   }
+  // Match "records 60+ rushing yards" format (number before prop type)
+  // Use raw text if available to preserve "+"
   const propPattern = propType.replace('_', ' ')
-  const propMatch = text.match(
+  const searchText = rawText?.toLowerCase() ?? text
+  const beforeMatch = searchText.match(
+    new RegExp(`(\\d+(?:\\.\\d+)?)\\+?\\s+${propPattern}`)
+  )
+  if (beforeMatch) {
+    const value = Number(beforeMatch[1])
+    return Number.isFinite(value) ? value : null
+  }
+  // Match "rushing yards 60" format (number after prop type)
+  const afterMatch = text.match(
     new RegExp(`${propPattern}[^\\d]{0,6}(\\d+(?:\\.\\d+)?)`)
   )
-  if (propMatch) {
-    const value = Number(propMatch[1])
+  if (afterMatch) {
+    const value = Number(afterMatch[1])
     return Number.isFinite(value) ? value : null
   }
   return null
@@ -502,8 +518,8 @@ const resolvePlayerPropInfo = (
   const propType = resolvePropType(text, sportKey)
   if (!propType) return null
   const player = findPlayerMatch(text, players)
-  const side = resolvePropSide(text)
-  const propLine = resolvePropLine(text, propType)
+  const side = resolvePropSide(text, rawText, trade.side)
+  const propLine = resolvePropLine(text, propType, rawText)
   const matchup = player ? parseMatchupFromGameLabel(player.game) : null
   const fallbackName = extractPlayerNameFromText(rawText)
   const playerName = player?.name ?? fallbackName ?? null
@@ -811,29 +827,41 @@ export const fetchPlayerPropWhaleTrades = async ({
   sportKey,
   limit = 30,
 }: {
-  sportKey: string
+  sportKey: string | 'all'
   limit?: number
 }): Promise<PlayerPropWhaleTrade[]> => {
   const supabase = createServiceClient()
   const now = new Date()
-  let windowEnd = new Date(now.getTime() + resolveSportWindowDays(sportKey) * MS_PER_DAY)
-  if (sportKey === 'americanfootball_nfl') {
-    const window = resolveNflWeekWindow(now)
-    windowEnd = window.weekEnd
-  }
 
-  const { data, error } = (await supabase
+  // Build query
+  let query = supabase
     .from('whale_trade_history' as any)
     .select(
       'id, source, sport_key, player_name, prop_type, prop_line, side, notional, american_odds, price_cents, trade_time, event_time, market_title, outcome'
     )
-    .eq('sport_key', sportKey)
     .eq('market_type', 'player_prop')
     .eq('is_pregame', true)
     .gte('event_time', now.toISOString())
-    .lte('event_time', windowEnd.toISOString())
     .order('notional', { ascending: false })
-    .limit(limit)) as unknown as {
+    .limit(limit)
+
+  // Apply sport filter if not "all"
+  if (sportKey !== 'all') {
+    let windowEnd = new Date(now.getTime() + resolveSportWindowDays(sportKey) * MS_PER_DAY)
+    if (sportKey === 'americanfootball_nfl') {
+      const window = resolveNflWeekWindow(now)
+      windowEnd = window.weekEnd
+    }
+    query = query
+      .eq('sport_key', sportKey)
+      .lte('event_time', windowEnd.toISOString())
+  } else {
+    // For "all" sports, use a 7-day window
+    const windowEnd = new Date(now.getTime() + 7 * MS_PER_DAY)
+    query = query.lte('event_time', windowEnd.toISOString())
+  }
+
+  const { data, error } = (await query) as unknown as {
     data: PlayerPropRow[] | null
     error: { message?: string } | null
   }

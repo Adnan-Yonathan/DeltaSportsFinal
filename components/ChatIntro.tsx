@@ -8,7 +8,6 @@ import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
 import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { GuestHero } from '@/components/ui/guest-hero'
-import { SocialProof } from '@/components/ui/social-proof'
 import { CustomersSection } from '@/components/ui/customers-section'
 import { ComparisonSection } from '@/components/ui/comparison-section'
 import { Typewriter } from '@/components/ui/typewriter-text'
@@ -162,9 +161,6 @@ export default function ChatIntro({
           {/* Guest Hero */}
           <GuestHero onSignUpClick={onSignUpClick || (() => {})} />
 
-          {/* Social Proof */}
-          <SocialProof animated={true} />
-
           {/* Sign Up CTA - styled like PromptBox */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -198,20 +194,23 @@ export default function ChatIntro({
             </button>
           </motion.div>
 
-          {/* Customers Section */}
+          {/* Screenshots */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.5 }}
-            className="w-screen max-w-none -mx-[calc(50vw-50%)]"
+            className="w-screen max-w-none -mx-[calc(50vw-50%)] mt-14"
           >
             <CustomersSection
               customers={CUSTOMER_SCREENSHOTS}
-              className="bg-transparent pt-6 pb-6 md:pt-8 md:pb-10"
+              className="bg-transparent !py-0 md:!py-0"
               containerClassName="max-w-none px-0"
-              gridClassName="mt-4 w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
-              imageClassName="w-full h-[20px] sm:h-[30px] lg:h-[40px] object-cover rounded-3xl shadow-[0_36px_100px_rgba(0,0,0,0.55)] dark:invert-0"
+              gridClassName="mt-0 w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+              imageClassName="w-full h-[24px] sm:h-[36px] lg:h-[48px] object-cover rounded-3xl shadow-[0_36px_100px_rgba(0,0,0,0.55)] dark:invert-0"
             />
+            <p className="mt-6 text-center text-xs uppercase tracking-[0.35em] text-white/70">
+              Trusted by 170+ customers
+            </p>
           </motion.div>
 
           {/* Feature Highlights */}

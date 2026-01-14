@@ -9,13 +9,28 @@ import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { GuestHero } from '@/components/ui/guest-hero'
 import { SocialProof } from '@/components/ui/social-proof'
-import { SportsbookTicker } from '@/components/ui/sportsbook-ticker'
+import { CustomersSection } from '@/components/ui/customers-section'
 import { ComparisonSection } from '@/components/ui/comparison-section'
 import { Typewriter } from '@/components/ui/typewriter-text'
 import { Announcement, AnnouncementTag, AnnouncementTitle } from '@/components/ui/announcement'
 import { FeaturesSix } from '@/components/ui/features-6'
 import SectionWithMockup from '@/components/ui/section-with-mockup'
 import { ArrowUpRight, BarChart3 } from 'lucide-react'
+
+const CUSTOMER_SCREENSHOTS = [
+  {
+    src: '/Screenshot 2026-01-14 001251.png',
+    alt: 'Delta product screenshot 1',
+  },
+  {
+    src: '/Screenshot 2026-01-14 001328.png',
+    alt: 'Delta product screenshot 2',
+  },
+  {
+    src: '/Screenshot 2026-01-14 001403.png',
+    alt: 'Delta product screenshot 3',
+  },
+]
 
 interface ChatIntroProps {
   conversationId: string
@@ -183,13 +198,20 @@ export default function ChatIntro({
             </button>
           </motion.div>
 
-          {/* Sportsbook Ticker */}
+          {/* Customers Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.5 }}
+            className="w-screen max-w-none -mx-[calc(50vw-50%)]"
           >
-            <SportsbookTicker />
+            <CustomersSection
+              customers={CUSTOMER_SCREENSHOTS}
+              className="bg-transparent pt-6 pb-6 md:pt-8 md:pb-10"
+              containerClassName="max-w-none px-0"
+              gridClassName="mt-4 w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+              imageClassName="w-full h-[20px] sm:h-[30px] lg:h-[40px] object-cover rounded-3xl shadow-[0_36px_100px_rgba(0,0,0,0.55)] dark:invert-0"
+            />
           </motion.div>
 
           {/* Feature Highlights */}

@@ -12,7 +12,7 @@ import { FAQSection } from "@/components/ui/faq-section"
 import { SimpleHeader } from "@/components/ui/simple-header"
 import { DottedSurface } from "@/components/ui/dotted-surface"
 import { TextEffect } from "@/components/ui/text-effect"
-import { SportsbookTicker } from "@/components/ui/sportsbook-ticker"
+import { CustomersSection } from "@/components/ui/customers-section"
 import { SocialProof } from "@/components/ui/social-proof"
 
 /** Delta Sports Landing Page - Revolut-inspired design */
@@ -41,6 +41,48 @@ const FadeInSection = ({
 }
 
 const pageGray = '#000000'
+const CUSTOMER_LOGOS = [
+  {
+    src: "https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=240&q=80",
+    alt: "Customer 1",
+    height: 24,
+  },
+  {
+    src: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=240&q=80",
+    alt: "Customer 2",
+    height: 24,
+  },
+  {
+    src: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=240&q=80",
+    alt: "Customer 3",
+    height: 24,
+  },
+  {
+    src: "https://images.unsplash.com/photo-1474631245212-32dc3c8310c6?auto=format&fit=crop&w=240&q=80",
+    alt: "Customer 4",
+    height: 24,
+  },
+  {
+    src: "https://images.unsplash.com/photo-1485217988980-11786ced9454?auto=format&fit=crop&w=240&q=80",
+    alt: "Customer 5",
+    height: 24,
+  },
+  {
+    src: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=240&q=80",
+    alt: "Customer 6",
+    height: 24,
+  },
+  {
+    src: "https://images.unsplash.com/photo-1523475472560-d2df97ec485c?auto=format&fit=crop&w=240&q=80",
+    alt: "Customer 7",
+    height: 24,
+  },
+  {
+    src: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=240&q=80",
+    alt: "Customer 8",
+    height: 24,
+  },
+]
 
 const SoftButton = ({ children, className = "", href, ...props }: any) => {
   const baseClasses =
@@ -318,9 +360,9 @@ export default function LandingPage() {
         </div>
       </FadeInSection>
 
-      {/* Sportsbook Ticker */}
+      {/* Customers Section */}
       <FadeInSection className="w-full mb-12" delay={0.1}>
-        <SportsbookTicker />
+        <CustomersSection customers={CUSTOMER_LOGOS} className="bg-transparent" />
       </FadeInSection>
 
       {/* Promo Mock Showcase */}

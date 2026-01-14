@@ -1,11 +1,22 @@
-﻿"use client"
+"use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { motion } from "framer-motion"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 
 type EdgeFilter = "spread" | "moneyline" | "total"
 
 type MarketEdge = {
   edgePercent: number
+}
+
+type SharpProjectionMarket = {
+  side: string
+  probability: number
+  confidenceInterval: { low: number; high: number }
+  edgePercent: number
+  breakEven: number
 }
 
 type EdgeGame = {
@@ -63,7 +74,7 @@ type EdgeGame = {
   }>
   whaleAlerts?: Array<{
     id: string
-    source: "kalshi" | "polymarket"
+    source: "kalshi" | "polymarket" | "history"
     marketTitle: string
     outcome: string
     notional: number
@@ -71,23 +82,70 @@ type EdgeGame = {
     timestamp: string
     status: "pending" | "respected" | "faded"
   }>
+  sharpProjections?: {
+    spread?: SharpProjectionMarket
+    total?: SharpProjectionMarket
+    moneyline?: SharpProjectionMarket
+    tier?: string
+  }
 }
 
 type WhaleTier = "small" | "blue" | "mega"
 
-const formatSigned = (value?: number | null) => {
-  if (value == null || !Number.isFinite(value)) return "n/a"
-  return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1)
+const AnimatedValue = ({
+  text,
+  pulseKey,
+  className,
+}: {
+  text: string
+  pulseKey: number
+  className?: string
+}) => (
+  <motion.span
+    key={`${pulseKey}-${text}`}
+    initial={{ opacity: 0, y: -6 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ type: "spring", stiffness: 260, damping: 18 }}
+    className={cn("inline-flex", className)}
+  >
+    {text}
+  </motion.span>
+)
+
+const coerceNumber = (value?: number | string | null) => {
+  if (value == null) return null
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
 }
 
-const formatOdds = (value?: number | null) => {
-  if (value == null || !Number.isFinite(value)) return "n/a"
-  return value > 0 ? `+${Math.round(value)}` : `${Math.round(value)}`
+const formatSigned = (value?: number | string | null) => {
+  const numeric = coerceNumber(value)
+  if (numeric == null) return "n/a"
+  return numeric > 0 ? `+${numeric.toFixed(1)}` : numeric.toFixed(1)
 }
 
-const formatCurrency = (value?: number | null) => {
-  if (value == null || !Number.isFinite(value)) return "n/a"
-  return `$${Math.round(value).toLocaleString("en-US")}`
+const formatOdds = (value?: number | string | null) => {
+  const numeric = coerceNumber(value)
+  if (numeric == null) return "n/a"
+  return numeric > 0 ? `+${Math.round(numeric)}` : `${Math.round(numeric)}`
+}
+
+const formatCurrency = (value?: number | string | null) => {
+  const numeric = coerceNumber(value)
+  if (numeric == null) return "n/a"
+  return `$${Math.round(numeric).toLocaleString("en-US")}`
+}
+
+const formatProbability = (value?: number | string | null) => {
+  const numeric = coerceNumber(value)
+  if (numeric == null) return "n/a"
+  return `${(numeric * 100).toFixed(1)}%`
 }
 
 const resolveWhaleTier = (notional: number): WhaleTier => {
@@ -119,26 +177,40 @@ const summarizeWhales = (game: EdgeGame, filter: EdgeFilter) => {
   return counts
 }
 
+const resolveLineFromMovements = (
+  game: EdgeGame,
+  market: "spread" | "total"
+) => {
+  const move = game.lineMovements.find((entry) => entry.market === market)
+  return coerceNumber(move?.currentLine ?? move?.openingLine)
+}
+
 const resolveModelSpread = (game: EdgeGame) => {
   // Prefer prediction market line if it differs from market line
-  const predictionLine = game.spread?.prediction?.line
-  const marketLine = game.spread?.marketLine
-  const targetLine = game.spread?.targetLine
+  const predictionLine = coerceNumber(game.spread?.prediction?.line)
+  const marketLine = coerceNumber(game.spread?.marketLine)
+  const targetLine = coerceNumber(game.spread?.targetLine)
 
   // Use prediction line if available and different from market
-  if (Number.isFinite(predictionLine) && Number.isFinite(marketLine)) {
-    if (Math.abs((predictionLine as number) - (marketLine as number)) > 0.5) {
-      return predictionLine as number
+  if (predictionLine != null && marketLine != null) {
+    if (Math.abs(predictionLine - marketLine) > 0.5) {
+      return predictionLine
     }
   }
 
-  if (!Number.isFinite(targetLine)) return null
+  if (targetLine == null) {
+    return (
+      predictionLine ??
+      marketLine ??
+      resolveLineFromMovements(game, "spread")
+    )
+  }
   const favoredTeam = game.spread?.favoredTeam
-  if (!favoredTeam) return targetLine as number
-  const absLine = Math.abs(targetLine as number)
+  if (!favoredTeam) return targetLine
+  const absLine = Math.abs(targetLine)
   if (favoredTeam === game.homeTeam) return -absLine
   if (favoredTeam === game.awayTeam) return absLine
-  return targetLine as number
+  return targetLine
 }
 
 const computeEdgeRatio = (model?: number | null, market?: number | null) => {
@@ -152,9 +224,9 @@ const computeEdgeRatio = (model?: number | null, market?: number | null) => {
 
 const DEFAULT_VIG_PERCENT = 4.54
 
-const impliedProbability = (odds?: number | null) => {
-  if (!Number.isFinite(odds)) return null
-  const value = odds as number
+const impliedProbability = (odds?: number | string | null) => {
+  const value = coerceNumber(odds)
+  if (value == null) return null
   if (value > 0) return 100 / (value + 100)
   return Math.abs(value) / (Math.abs(value) + 100)
 }
@@ -179,41 +251,159 @@ const resolveEdgeVig = (
   return resolveVigPercent(oddsA ?? null, oddsB ?? null)
 }
 
+const resolveProjection = (game: EdgeGame, filter: EdgeFilter) => {
+  if (!game.sharpProjections) return null
+  const raw =
+    filter === "spread"
+      ? game.sharpProjections.spread ?? null
+      : filter === "total"
+        ? game.sharpProjections.total ?? null
+        : game.sharpProjections.moneyline ?? null
+  return normalizeProjection(game, filter, raw)
+}
+
+const resolveOppositeSide = (side: string, filter: EdgeFilter, game: EdgeGame) => {
+  if (filter === "total") {
+    const normalized = side.toLowerCase()
+    if (normalized.includes("over")) return "Under"
+    if (normalized.includes("under")) return "Over"
+    return side
+  }
+  if (side === game.homeTeam) return game.awayTeam
+  if (side === game.awayTeam) return game.homeTeam
+  return side
+}
+
+const normalizeProjection = (
+  game: EdgeGame,
+  filter: EdgeFilter,
+  projection: SharpProjectionMarket | null
+) => {
+  if (!projection) return null
+  const probability = coerceNumber(projection.probability)
+  if (probability == null || probability >= 0.5) {
+    return projection
+  }
+  const adjustedProbability = 1 - probability
+  const side = resolveOppositeSide(projection.side, filter, game)
+  const breakEven = coerceNumber(projection.breakEven)
+  const edgePercent = breakEven != null
+    ? Math.max(0, (adjustedProbability - breakEven) * 100)
+    : projection.edgePercent
+  return {
+    ...projection,
+    side,
+    probability: adjustedProbability,
+    edgePercent,
+  }
+}
+
+const resolveSpreadProjectionLabel = (
+  game: EdgeGame,
+  projection: SharpProjectionMarket
+) => {
+  const marketLine = coerceNumber(game.spread?.marketLine)
+  const fallbackLine =
+    coerceNumber(game.spread?.prediction?.line) ??
+    coerceNumber(game.spread?.targetLine) ??
+    resolveModelSpread(game)
+  const lineValue = marketLine ?? fallbackLine
+  if (lineValue == null) return projection.side
+
+  let homeLine = lineValue
+  const favoredTeam = game.spread?.favoredTeam
+  if (favoredTeam) {
+    const magnitude = Math.abs(homeLine)
+    if (favoredTeam === game.homeTeam) homeLine = -magnitude
+    if (favoredTeam === game.awayTeam) homeLine = magnitude
+  }
+
+  const isHome = projection.side === game.homeTeam
+  const line = isHome ? homeLine : -homeLine
+  return `${projection.side} ${formatSigned(line)}`
+}
+
+const resolveTotalProjectionLabel = (
+  game: EdgeGame,
+  projection: SharpProjectionMarket
+) => {
+  const marketLine = coerceNumber(game.total?.marketLine)
+  const fallbackLine =
+    coerceNumber(game.total?.prediction?.line) ??
+    coerceNumber(game.total?.targetLine) ??
+    resolveLineFromMovements(game, "total")
+  const lineValue = marketLine ?? fallbackLine
+  if (lineValue == null) return projection.side
+  return `${projection.side} ${formatSigned(lineValue)}`
+}
+
+const formatProjectionPick = (
+  label: string | null,
+  projection: SharpProjectionMarket | null
+) => {
+  if (!label || !projection) return "n/a"
+  return `${label} ${formatProbability(projection.probability)}`
+}
+
+type EdgePick = {
+  label: string | null
+  edgePercent: number | null
+  projection?: SharpProjectionMarket | null
+}
+
+const formatPick = (pick: EdgePick) => {
+  if (pick.projection) return formatProjectionPick(pick.label, pick.projection)
+  return formatEdgePick(pick.label, pick.edgePercent)
+}
+
+const formatPickBrief = (pick: EdgePick) => {
+  if (pick.projection) {
+    if (!pick.label) return formatProbability(pick.projection.probability)
+    return `${pick.label} ${formatProbability(pick.projection.probability)}`
+  }
+  return formatEdgePick(pick.label, pick.edgePercent)
+}
+
 const marketEdge = (
   game: EdgeGame,
   filter: EdgeFilter,
   sport?: string
 ): MarketEdge => {
+  const projection = resolveProjection(game, filter)
+  if (projection) return { edgePercent: projection.edgePercent }
   const scale = sport === "basketball_ncaab" ? 0.5 : 1
   if (filter === "spread") {
     const modelLine = resolveModelSpread(game)
-    if (!Number.isFinite(modelLine) || !Number.isFinite(game.spread?.marketLine)) {
+    const marketLine = coerceNumber(game.spread?.marketLine)
+    const fallbackMarketLine = resolveLineFromMovements(game, "spread")
+    const resolvedMarketLine = marketLine ?? fallbackMarketLine
+    if (modelLine == null || resolvedMarketLine == null) {
       return { edgePercent: 0 }
     }
-    const diff = Math.abs(
-      (modelLine ?? 0) - (game.spread?.marketLine ?? 0)
-    )
+    const diff = Math.abs(modelLine - resolvedMarketLine)
     const edge = diff * 3 - resolveEdgeVig(sport)
     return { edgePercent: clampPercent(edge * scale) }
   }
 
   if (filter === "total") {
-    const marketLine = game.total?.marketLine
-    const predictionLine = game.total?.prediction?.line
-    const targetLine = game.total?.targetLine
+    const marketLine = coerceNumber(game.total?.marketLine)
+    const predictionLine = coerceNumber(game.total?.prediction?.line)
+    const targetLine = coerceNumber(game.total?.targetLine)
+    const fallbackMarketLine = resolveLineFromMovements(game, "total")
 
     // Prefer prediction line if it differs from market
     let modelLine = targetLine
-    if (Number.isFinite(predictionLine) && Number.isFinite(marketLine)) {
-      if (Math.abs((predictionLine as number) - (marketLine as number)) > 1) {
+    const resolvedMarketLine = marketLine ?? fallbackMarketLine
+    if (predictionLine != null && resolvedMarketLine != null) {
+      if (Math.abs(predictionLine - resolvedMarketLine) > 1) {
         modelLine = predictionLine
       }
     }
 
-    if (!Number.isFinite(modelLine) || !Number.isFinite(marketLine)) {
+    if (modelLine == null || resolvedMarketLine == null) {
       return { edgePercent: 0 }
     }
-    const diff = Math.abs((modelLine ?? 0) - (marketLine ?? 0))
+    const diff = Math.abs(modelLine - resolvedMarketLine)
     const vig = resolveEdgeVig(
       sport,
       game.total?.bestOdds ?? null,
@@ -258,12 +448,22 @@ const formatEdgePick = (
 }
 
 const resolveSpreadEdgePick = (game: EdgeGame, sport?: string) => {
+  const projection = resolveProjection(game, "spread")
+  if (projection) {
+    return {
+      label: resolveSpreadProjectionLabel(game, projection),
+      edgePercent: projection.edgePercent,
+      projection,
+    }
+  }
   const modelLine = resolveModelSpread(game)
-  const marketLine = game.spread?.marketLine
-  if (!Number.isFinite(modelLine) || !Number.isFinite(marketLine)) {
+  const marketLine = coerceNumber(game.spread?.marketLine)
+  const fallbackMarketLine = resolveLineFromMovements(game, "spread")
+  const resolvedMarketLine = marketLine ?? fallbackMarketLine
+  if (modelLine == null || resolvedMarketLine == null) {
     return { label: null, edgePercent: null }
   }
-  const pick = (modelLine as number) < (marketLine as number)
+  const pick = modelLine < resolvedMarketLine
     ? game.homeTeam
     : game.awayTeam
   const edgePercent = marketEdge(game, "spread", sport).edgePercent
@@ -271,27 +471,45 @@ const resolveSpreadEdgePick = (game: EdgeGame, sport?: string) => {
 }
 
 const resolveTotalEdgePick = (game: EdgeGame, sport?: string) => {
-  const marketLine = game.total?.marketLine
-  const predictionLine = game.total?.prediction?.line
-  const targetLine = game.total?.targetLine
+  const projection = resolveProjection(game, "total")
+  if (projection) {
+    return {
+      label: resolveTotalProjectionLabel(game, projection),
+      edgePercent: projection.edgePercent,
+      projection,
+    }
+  }
+  const marketLine = coerceNumber(game.total?.marketLine)
+  const predictionLine = coerceNumber(game.total?.prediction?.line)
+  const targetLine = coerceNumber(game.total?.targetLine)
+  const fallbackMarketLine = resolveLineFromMovements(game, "total")
 
   // Prefer prediction line if it differs from market
   let modelLine = targetLine
-  if (Number.isFinite(predictionLine) && Number.isFinite(marketLine)) {
-    if (Math.abs((predictionLine as number) - (marketLine as number)) > 1) {
+  const resolvedMarketLine = marketLine ?? fallbackMarketLine
+  if (predictionLine != null && resolvedMarketLine != null) {
+    if (Math.abs(predictionLine - resolvedMarketLine) > 1) {
       modelLine = predictionLine
     }
   }
 
-  if (!Number.isFinite(modelLine) || !Number.isFinite(marketLine)) {
+  if (modelLine == null || resolvedMarketLine == null) {
     return { label: null, edgePercent: null }
   }
-  const pick = (modelLine ?? 0) > (marketLine ?? 0) ? "Over" : "Under"
+  const pick = modelLine > resolvedMarketLine ? "Over" : "Under"
   const edgePercent = marketEdge(game, "total", sport).edgePercent
   return { label: pick, edgePercent }
 }
 
 const resolveMoneylineEdgePick = (game: EdgeGame, sport?: string) => {
+  const projection = resolveProjection(game, "moneyline")
+  if (projection) {
+    return {
+      label: projection.side,
+      edgePercent: projection.edgePercent,
+      projection,
+    }
+  }
   const modelHomeProb = impliedProbability(
     game.moneyline?.model?.homeOdds ?? game.moneyline?.prediction?.homeOdds     
   )
@@ -319,6 +537,40 @@ const resolveMoneylineEdgePick = (game: EdgeGame, sport?: string) => {
   return { label: pick, edgePercent }
 }
 
+const resolveFilterLabels = (filter: EdgeFilter) => {
+  if (filter === "spread") return { projection: "Spread projection", odds: "Spread odds" }
+  if (filter === "moneyline") return { projection: "ML projection", odds: "ML odds" }
+  return { projection: "Total projection", odds: "Total odds" }
+}
+
+const hasMarketData = (game: EdgeGame, filter: EdgeFilter) => {
+  if (filter === "spread") {
+    return (
+      (coerceNumber(game.spread?.marketLine) != null ||
+        resolveLineFromMovements(game, "spread") != null) &&
+      (coerceNumber(game.spread?.targetLine) != null ||
+        resolveModelSpread(game) != null)
+    )
+  }
+  if (filter === "total") {
+    return (
+      (coerceNumber(game.total?.marketLine) != null ||
+        resolveLineFromMovements(game, "total") != null) &&
+      (coerceNumber(game.total?.targetLine) != null ||
+        coerceNumber(game.total?.prediction?.line) != null)
+    )
+  }
+  return Boolean(
+    game.moneyline?.sportsbook?.homeOdds ??
+      game.moneyline?.sportsbook?.awayOdds ??
+      game.moneyline?.prediction?.homeOdds ??
+      game.moneyline?.prediction?.awayOdds ??
+      game.moneyline?.model?.homeOdds ??
+      game.moneyline?.model?.awayOdds ??
+      game.sharpProjections?.moneyline
+  )
+}
+
 export default function MarketProjectionsTable({
   edges,
   errorMessage,
@@ -329,14 +581,25 @@ export default function MarketProjectionsTable({
   sport?: string
 }) {
   const [filter, setFilter] = useState<EdgeFilter>("spread")
+  const [pulseKey, setPulseKey] = useState(0)
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setPulseKey((prev) => prev + 1)
+    }, 15000)
+    return () => clearInterval(intervalId)
+  }, [])
 
   const sortedEdges = useMemo(() => {
-    return [...edges].sort(
+    const scoped = edges.filter((game) => hasMarketData(game, filter))
+    return [...scoped].sort(
       (a, b) =>
         marketEdge(b, filter, sport).edgePercent -
         marketEdge(a, filter, sport).edgePercent
     )
   }, [edges, filter, sport])
+
+  const filterLabels = resolveFilterLabels(filter)
 
   return (
     <>
@@ -383,19 +646,11 @@ export default function MarketProjectionsTable({
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-        <div className="hidden sm:grid grid-cols-[200px_repeat(5,minmax(0,1fr))] gap-2 bg-black/70 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/50">
-          <span>Matchup</span>
-          <span>Edge</span>
-          <span>Odds</span>
-          <span>Sharp Action</span>
-          <span>Line Movement</span>
-          <span>Whales</span>
-        </div>
         {errorMessage ? (
           <div className="px-4 py-6 text-sm text-red-200">{errorMessage}</div>
         ) : sortedEdges.length === 0 ? (
           <div className="px-4 py-6 text-sm text-white/60">
-            No market projection rows yet.
+            No {filterLabels.projection.toLowerCase()} rows yet.
           </div>
         ) : (
           <>
@@ -408,6 +663,12 @@ export default function MarketProjectionsTable({
                 const spreadPick = resolveSpreadEdgePick(game, sport)
                 const totalPick = resolveTotalEdgePick(game, sport)
                 const moneylinePick = resolveMoneylineEdgePick(game, sport)
+                const activePick =
+                  filter === "spread"
+                    ? spreadPick
+                    : filter === "moneyline"
+                      ? moneylinePick
+                      : totalPick
                 const sharpSummary = game.sharpSignals
                   .slice(0, 2)
                   .map(
@@ -423,11 +684,10 @@ export default function MarketProjectionsTable({
                       `${move.market}: ${move.openingLine} -> ${move.currentLine}`
                   )
                   .join(" | ")
-                const whales = summarizeWhales(game, filter)
-                return (
-                  <details
-                    key={`${game.matchup}-${game.commenceTime}`}
-                    className="group px-3 py-3 text-[12px] text-white/70"
+                    return (
+                      <details
+                        key={`${game.matchup}-${game.commenceTime}`}
+                        className="group px-3 py-3 text-[12px] text-white/70"
                   >
                     <summary className="flex cursor-pointer items-center justify-between gap-3 list-none">
                       <div>
@@ -438,13 +698,7 @@ export default function MarketProjectionsTable({
                           {game.awayTeam} @ {game.homeTeam}
                         </div>
                         <div className="mt-1 text-[11px] text-white/50">
-                          Spread edge{" "}
-                          {formatEdgePick(spreadPick.label, spreadPick.edgePercent)} -
-                          Total edge{" "}
-                          {formatEdgePick(totalPick.label, totalPick.edgePercent)}
-                        </div>
-                        <div className="mt-1 text-[11px] text-white/50">
-                          {game.homeTeam} {formatSigned(spread?.marketLine)} {game.awayTeam} {formatSigned(spread?.marketLine != null ? -(spread.marketLine) : null)}
+                          {filterLabels.projection} {formatPickBrief(activePick)}
                         </div>
                       </div>
                       <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/50 group-open:border-emerald-400/40 group-open:text-emerald-200">
@@ -453,205 +707,168 @@ export default function MarketProjectionsTable({
                     </summary>
                     <div className="mt-3 space-y-3">
                       <div className="space-y-2">
-                        <div>
-                          Spread edge:{" "}
-                          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                            {formatEdgePick(
-                              spreadPick.label,
-                              spreadPick.edgePercent
-                            )}
-                          </span>
-                        </div>
-                        <div>
-                          Total edge:{" "}
-                          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                            {formatEdgePick(
-                              totalPick.label,
-                              totalPick.edgePercent
-                            )}
-                          </span>
-                        </div>
-                        <div>
-                          ML edge:{" "}
-                          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                            {formatEdgePick(
-                              moneylinePick.label,
-                              moneylinePick.edgePercent
-                            )}
-                          </span>
-                        </div>
-                        <div>
-                          Market lines:{" "}
-                          <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70">
-                            {game.homeTeam} {formatSigned(spread?.marketLine)} {game.awayTeam} {formatSigned(spread?.marketLine != null ? -(spread.marketLine) : null)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70">
-                            Total {formatSigned(total?.marketLine)}
+                        <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-sm">
+                          {filterLabels.projection}:{" "}
+                          <span className="whitespace-nowrap rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+                            <AnimatedValue text={formatPick(activePick)} pulseKey={pulseKey} />
                           </span>
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <div>
-                          Spread odds:{" "}
-                          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-                            {spread?.bestBook ?? "n/a"} {formatOdds(spread?.bestOdds)}
-                          </span>
-                        </div>
-                        <div>
-                          Total odds:{" "}
-                          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-                            {total?.bestBook ?? "n/a"} O {formatOdds(total?.bestOdds)} /
-                            U {formatOdds(total?.bestUnderOdds)}
-                          </span>
-                        </div>
-                        <div>
-                          ML odds:{" "}
-                          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-                            {moneyline?.sportsbook?.homeBook ?? "n/a"}{" "}
-                            {formatOdds(moneyline?.sportsbook?.homeOdds)} /{" "}
-                            {moneyline?.sportsbook?.awayBook ?? "n/a"}{" "}
-                            {formatOdds(moneyline?.sportsbook?.awayOdds)}
-                          </span>
+                        <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
+                          {filterLabels.odds}:{" "}
+                          {filter === "spread" ? (
+                            <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+                              <AnimatedValue
+                                text={`${spread?.bestBook ?? "n/a"} ${formatOdds(spread?.bestOdds)}`}
+                                pulseKey={pulseKey}
+                              />
+                            </span>
+                          ) : null}
+                          {filter === "total" ? (
+                            <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+                              <AnimatedValue
+                                text={`${total?.bestBook ?? "n/a"} O ${formatOdds(total?.bestOdds)} / U ${formatOdds(total?.bestUnderOdds)}`}
+                                pulseKey={pulseKey}
+                              />
+                            </span>
+                          ) : null}
+                          {filter === "moneyline" ? (
+                            <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+                              <AnimatedValue
+                                text={`${moneyline?.sportsbook?.homeBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.homeOdds)} / ${moneyline?.sportsbook?.awayBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.awayOdds)}`}
+                                pulseKey={pulseKey}
+                              />
+                            </span>
+                          ) : null}
                         </div>
                       </div>
-                      <div className="space-y-1 text-[11px] text-white/60">
-                        <div>{sharpSummary || "No sharp signals yet."}</div>
-                        <div>{moveSummary || "No line movement yet."}</div>
-                        {(whales.small || whales.blue || whales.mega) > 0 ? (
-                          <div className="text-amber-200">
-                            Whales: Swordfish {whales.small} • Megalodon {whales.blue} • Blue whale {whales.mega}
-                          </div>
-                        ) : (
-                          <div>No whale activity yet.</div>
-                        )}
+                      <div className="space-y-2 text-[11px] text-white/60">
+                        <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
+                          {sharpSummary || "No sharp signals yet."}
+                        </div>
+                        <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
+                          {moveSummary || "No line movement yet."}
+                        </div>
                       </div>
                     </div>
                   </details>
                 )
               })}
             </div>
-            <div className="hidden divide-y divide-white/5 sm:block">
-              {sortedEdges.map((game, index) => {
-                const edgeMetrics = marketEdge(game, filter, sport)
-                const spread = game.spread
-                const total = game.total
-                const moneyline = game.moneyline
-                const spreadPick = resolveSpreadEdgePick(game, sport)
-                const totalPick = resolveTotalEdgePick(game, sport)
-                const moneylinePick = resolveMoneylineEdgePick(game, sport)
-                const sharpSummary = game.sharpSignals
-                  .slice(0, 2)
-                  .map(
-                    (signal) =>
-                      `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
-                  )
-                  .join(" | ")
-                const moveSummary = game.lineMovements
-                  .filter((move) => move.isSharp || move.isSignificant)
-                  .slice(0, 2)
-                  .map(
-                    (move) =>
-                      `${move.market}: ${move.openingLine} -> ${move.currentLine}`
-                  )
-                  .join(" | ")
-                const whales = summarizeWhales(game, filter)
-                return (
-                  <div
-                    key={`${game.matchup}-${game.commenceTime}`}
-                    className="grid grid-cols-[200px_repeat(5,minmax(0,1fr))] gap-2 px-3 py-3 text-[13px] text-white/70"
-                  >
-                    <div className="space-y-2">
-                      <div className="text-xs uppercase tracking-[0.2em] text-white/40">
-                        #{index + 1} - Edge {edgeLabel(edgeMetrics.edgePercent)}
-                      </div>
-                      <div className="text-sm font-semibold text-white">
-                        {game.awayTeam} @ {game.homeTeam}
-                      </div>
-                    </div>
-                    <div className="space-y-2 text-xs text-white/70">
-  <div>
-    Spread edge:{" "}
-    <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-      {formatEdgePick(
-        spreadPick.label,
-        spreadPick.edgePercent
-      )}
-    </span>
-  </div>
-  <div>
-    Total edge:{" "}
-    <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-      {formatEdgePick(
-        totalPick.label,
-        totalPick.edgePercent
-      )}
-    </span>
-  </div>
-  <div>
-    ML edge:{" "}
-    <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-      {formatEdgePick(
-        moneylinePick.label,
-        moneylinePick.edgePercent
-      )}
-    </span>
-  </div>
-  <div>
-    Market lines:{" "}
-    <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70">
-      {game.homeTeam} {formatSigned(spread?.marketLine)} {game.awayTeam} {formatSigned(spread?.marketLine != null ? -(spread.marketLine) : null)}
-    </span>
-  </div>
-  <div>
-    <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70">
-      Total {formatSigned(total?.marketLine)}
-    </span>
-  </div>
-</div>
-                    <div className="space-y-2 text-xs text-white/70">
-  <div>
-    Spread:{" "}
-    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-      {spread?.bestBook ?? "n/a"} {formatOdds(spread?.bestOdds)}
-    </span>
-  </div>
-  <div>
-    Total:{" "}
-    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-      {total?.bestBook ?? "n/a"} O {formatOdds(total?.bestOdds)} /{" "}
-      U {formatOdds(total?.bestUnderOdds)}
-    </span>
-  </div>
-  <div>
-    ML:{" "}
-    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-      {moneyline?.sportsbook?.homeBook ?? "n/a"}{" "}
-      {formatOdds(moneyline?.sportsbook?.homeOdds)} /{" "}
-      {moneyline?.sportsbook?.awayBook ?? "n/a"}{" "}
-      {formatOdds(moneyline?.sportsbook?.awayOdds)}
-    </span>
-  </div>
-</div>
-                    <div className="text-xs text-white/70">
-                      {sharpSummary || "No sharp signals yet."}
-                    </div>
-                    <div className="text-xs text-white/70">
-                      {moveSummary || "No line movement yet."}
-                    </div>
-                    <div className="text-xs text-white/70">
-                      {whales.small || whales.blue || whales.mega ? (
-                        <div>
-                          Small {whales.small} • Blue {whales.blue} • Megaladon {whales.mega}
-                        </div>
-                      ) : (
-                        "No whale activity yet."
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
+            <div className="hidden sm:block">
+              <Table className="text-[13px] text-white/70">
+                <TableHeader className="bg-black/70">
+                  <TableRow className="text-[10px] uppercase tracking-[0.2em] text-white/50">
+                    <TableHead className="w-[200px]">Matchup</TableHead>
+                    <TableHead>{filterLabels.projection}</TableHead>
+                    <TableHead>{filterLabels.odds}</TableHead>
+                    <TableHead>Sharp Action</TableHead>
+                    <TableHead>Line Movement</TableHead>
+                    
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-white/5">
+                  {sortedEdges.map((game, index) => {
+                    const edgeMetrics = marketEdge(game, filter, sport)
+                    const spread = game.spread
+                    const total = game.total
+                    const moneyline = game.moneyline
+                    const spreadPick = resolveSpreadEdgePick(game, sport)
+                    const totalPick = resolveTotalEdgePick(game, sport)
+                    const moneylinePick = resolveMoneylineEdgePick(game, sport)
+                    const activePick =
+                      filter === "spread"
+                        ? spreadPick
+                        : filter === "moneyline"
+                          ? moneylinePick
+                          : totalPick
+                    const sharpSummary = game.sharpSignals
+                      .slice(0, 2)
+                      .map(
+                        (signal) =>
+                          `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
+                      )
+                      .join(" | ")
+                    const moveSummary = game.lineMovements
+                      .filter((move) => move.isSharp || move.isSignificant)
+                      .slice(0, 2)
+                      .map(
+                        (move) =>
+                          `${move.market}: ${move.openingLine} -> ${move.currentLine}`
+                      )
+                      .join(" | ")
+                    return (
+                      <TableRow
+                        key={`${game.matchup}-${game.commenceTime}`}
+                        className="border-white/5"
+                      >
+                        <TableCell className="align-top">
+                          <div className="space-y-2">
+                            <div className="text-xs uppercase tracking-[0.2em] text-white/40">
+                              #{index + 1} - Edge {edgeLabel(edgeMetrics.edgePercent)}
+                            </div>
+                            <div className="text-sm font-semibold text-white">
+                              {game.awayTeam} @ {game.homeTeam}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="space-y-2 text-xs text-white/70">
+                            <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-sm">
+                              {filterLabels.projection}:{" "}
+                              <span className="whitespace-nowrap rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+                                <AnimatedValue text={formatPick(activePick)} pulseKey={pulseKey} />
+                              </span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="space-y-2 text-xs text-white/70">
+                            <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
+                              {filterLabels.odds}:{" "}
+                              {filter === "spread" ? (
+                                <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+                                  <AnimatedValue
+                                    text={`${spread?.bestBook ?? "n/a"} ${formatOdds(spread?.bestOdds)}`}
+                                    pulseKey={pulseKey}
+                                  />
+                                </span>
+                              ) : null}
+                              {filter === "total" ? (
+                                <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+                                  <AnimatedValue
+                                    text={`${total?.bestBook ?? "n/a"} O ${formatOdds(total?.bestOdds)} / U ${formatOdds(total?.bestUnderOdds)}`}
+                                    pulseKey={pulseKey}
+                                  />
+                                </span>
+                              ) : null}
+                              {filter === "moneyline" ? (
+                                <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+                                  <AnimatedValue
+                                    text={`${moneyline?.sportsbook?.homeBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.homeOdds)} / ${moneyline?.sportsbook?.awayBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.awayOdds)}`}
+                                    pulseKey={pulseKey}
+                                  />
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top text-xs text-white/70">
+                          <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
+                            {sharpSummary || "No sharp signals yet."}
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top text-xs text-white/70">
+                          <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
+                            {moveSummary || "No line movement yet."}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
             </div>
           </>
         )}
@@ -659,6 +876,9 @@ export default function MarketProjectionsTable({
     </>
   )
 }
+
+
+
 
 
 

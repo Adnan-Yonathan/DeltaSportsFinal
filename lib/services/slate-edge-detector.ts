@@ -54,10 +54,16 @@ import {
   evaluateWhaleRespect,
   type WhaleTradeWithStatus,
 } from '@/lib/services/whale-detector'
+import { buildSharpProjections, type SharpProjections } from './sharp-projections'
+import {
+  buildMatchupKey,
+  fetchWhaleHistoryForGames,
+  type WhaleHistorySummary,
+} from './whale-trade-history'
 
 export type WhaleAlert = {
   id: string
-  source: 'kalshi' | 'polymarket'
+  source: 'kalshi' | 'polymarket' | 'history'
   marketTitle: string
   outcome: string
   notional: number
@@ -130,6 +136,7 @@ export interface GameEdgeAnalysis {
     total?: EVOpportunity
   }
   whaleAlerts?: WhaleAlert[]
+  sharpProjections?: SharpProjections
 }
 
 export interface SlateEdgeResult {
@@ -186,6 +193,24 @@ const ODDS_API_TO_SBD: Record<string, 'nba' | 'nfl' | 'nhl' | 'mlb' | 'ncaamb' |
   americanfootball_ncaaf: 'ncaafb',
   baseball_mlb: 'mlb',
   icehockey_nhl: 'nhl',
+}
+
+const buildWhaleAlertsFromHistory = (
+  history: WhaleHistorySummary | undefined,
+  homeTeam: string,
+  awayTeam: string
+): WhaleAlert[] => {
+  if (!history?.signals?.length) return []
+  return history.signals.map((signal) => ({
+    id: `history-${history.matchupKey}-${signal.marketType}-${normalizeSelection(signal.side)}`,
+    source: 'history',
+    marketTitle: `${awayTeam} @ ${homeTeam} ${signal.marketType} history`,
+    outcome: signal.side,
+    notional: signal.totalNotional,
+    americanOdds: null,
+    timestamp: signal.lastTradeAt,
+    status: 'respected',
+  }))
 }
 
 const normalizeSelection = (value: string) =>
@@ -1351,6 +1376,13 @@ export async function analyzeSlateEdges(
   const { limit = 15, minEdge, date } = options
   const sportLabel = SPORT_LABELS[sportKey] || sportKey
   const isCfb = sportKey === 'americanfootball_ncaaf'
+  const isFootball = sportKey === 'americanfootball_nfl' || isCfb
+  const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
+    ])
+  }
 
   console.log(`[SLATE EDGE] Analyzing ${sportLabel} slate...`)
 
@@ -1358,12 +1390,16 @@ export async function analyzeSlateEdges(
   let oddsGames: OddsGame[] = []
   if (isCfb) {
     try {
-      const sbdOdds = await fetchSbdOdds('ncaafb')
-      oddsGames = mapSbdOddsToOddsGames('ncaafb', sbdOdds, [
-        MARKETS.H2H,
-        MARKETS.SPREADS,
-        MARKETS.TOTALS,
-      ])
+      const sbdOdds = await withTimeout(fetchSbdOdds('ncaafb'), 12000, null)
+      if (sbdOdds) {
+        oddsGames = mapSbdOddsToOddsGames('ncaafb', sbdOdds, [
+          MARKETS.H2H,
+          MARKETS.SPREADS,
+          MARKETS.TOTALS,
+        ])
+      } else {
+        console.warn('[SLATE EDGE] Timed out fetching SBD odds for CFB.')
+      }
     } catch (error) {
       console.error('[SLATE EDGE] Failed to fetch SBD odds for CFB:', error)
       oddsGames = []
@@ -1398,73 +1434,16 @@ export async function analyzeSlateEdges(
     }
   }
 
-  // Fetch sharp signals for this sport (line movement, RLM, bet%/money% divergence)
-  const sbdLeague = ODDS_API_TO_SBD[sportKey]
-  let sharpResults: SharpEdgeResult[] = []
-  if (sbdLeague) {
-    try {
-      console.log(`[SLATE EDGE] Fetching sharp signals for ${sbdLeague}...`)
-      sharpResults = await detectSharpEdges([sbdLeague])
-      console.log(`[SLATE EDGE] Found ${sharpResults.filter(r => r.hasEdge).length} games with sharp signals`)
-    } catch (error) {
-      console.error(`[SLATE EDGE] Failed to fetch sharp signals:`, error)
-    }
-  }
-
-  let whaleTrades: WhaleTrade[] = []
-  try {
-    whaleTrades = await fetchWhaleTrades({
-      limit: 300,
-      minNotional: isCfb ? CFB_WHALE_MIN_NOTIONAL : DEFAULT_WHALE_MIN_NOTIONAL,
-    })
-  } catch (error) {
-    console.error('[SLATE EDGE] Failed to fetch whale trades:', error)
-  }
-
-  const whaleStatusCache = new Map<string, WhaleTradeWithStatus>()
-
-  const resolveWhaleAlerts = async (
-    homeTeam: string,
-    awayTeam: string
-  ): Promise<WhaleAlert[]> => {
-    if (whaleTrades.length === 0) return []
-    const relevant = whaleTrades.filter((trade) => {
-      const text = `${trade.marketTitle} ${trade.outcome}`
-      return (
-        selectionMatchesTeam(text, homeTeam) &&
-        selectionMatchesTeam(text, awayTeam)
-      )
-    })
-    if (relevant.length === 0) return []
-    const resolved = await Promise.all(
-      relevant.map(async (trade) => {
-        const cached = whaleStatusCache.get(trade.id)
-        if (cached) return cached
-        const evaluated = await evaluateWhaleRespect(trade)
-        whaleStatusCache.set(trade.id, evaluated)
-        return evaluated
-      })
-    )
-    return buildWhaleAlertsForGame(resolved, homeTeam, awayTeam)
-  }
-
-  if (sportKey === 'basketball_nba') {
-    try {
-      console.log('[SLATE EDGE] Warming NBA.com team stats cache...')
-      await getNBATeamStats()
-    } catch (error) {
-      console.warn('[SLATE EDGE] NBA.com warmup failed', error)
-    }
-  }
-
   // Filter to upcoming games (and recent in-progress) for projections.
   const now = new Date()
   const useDateOverride = Boolean(date)
   const upcomingWindowHours = isCfb
     ? 24 * 21
-    : sportKey === 'basketball_ncaab' || sportKey === 'basketball_nba'
-      ? 48
-      : 24
+    : sportKey === 'americanfootball_nfl'
+      ? 24 * 7
+      : sportKey === 'basketball_ncaab' || sportKey === 'basketball_nba'
+        ? 48
+        : 24
   const windowEnd = new Date(now.getTime() + upcomingWindowHours * 60 * 60 * 1000)
   const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000)
 
@@ -1484,7 +1463,7 @@ export async function analyzeSlateEdges(
   const todayStartEastern = new Date(`${targetDate}T00:00:00-05:00`)
   const todayEndEastern = new Date(`${targetDate}T23:59:59-05:00`)
 
-  const upcomingGames = oddsGames
+  let upcomingGames = oddsGames
     .filter((g) => {
       if (isCfb) return true
       const gameTime = new Date(g.commence_time)
@@ -1493,13 +1472,346 @@ export async function analyzeSlateEdges(
       }
       return gameTime >= threeHoursAgo && gameTime <= windowEnd
     })
-    .filter((game) => {
-      if (!isCfb) return true
-      return isCfbPlayoffMatchup(game.home_team, game.away_team)
-    })
     .slice(0, limit)
 
+  if (isCfb) {
+    const playoffGames = upcomingGames.filter((game) =>
+      isCfbPlayoffMatchup(game.home_team, game.away_team)
+    )
+    if (playoffGames.length > 0) {
+      upcomingGames = playoffGames
+    }
+  }
+
   console.log(`[SLATE EDGE] Filtered ${oddsGames.length} odds games to ${upcomingGames.length} today's games`)
+
+  if (upcomingGames.length === 0) {
+    return {
+      sport: sportKey,
+      sportLabel,
+      date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().split('T')[0],
+      gamesAnalyzed: 0,
+      edges: [],
+      summary: { strongEdges: 0, softEdges: 0, noEdges: 0, sharpConfirmed: 0 },
+    }
+  }
+
+  if (isFootball) {
+    let sharpResults: SharpEdgeResult[] = []
+    const sbdLeague = ODDS_API_TO_SBD[sportKey]
+    if (sbdLeague && sportKey === 'americanfootball_nfl') {
+      try {
+        console.log(`[SLATE EDGE] Fetching sharp signals for ${sbdLeague}...`)
+        sharpResults = await withTimeout(detectSharpEdges([sbdLeague]), 8000, [])
+      } catch (error) {
+        console.error(`[SLATE EDGE] Failed to fetch sharp signals:`, error)
+      }
+    }
+
+    let whaleHistoryByMatchup = new Map<string, WhaleHistorySummary>()
+    try {
+      whaleHistoryByMatchup = await withTimeout(
+        fetchWhaleHistoryForGames({
+          sportKey,
+          games: upcomingGames.map((game) => ({
+            homeTeam: game.home_team,
+            awayTeam: game.away_team,
+            commenceTime: game.commence_time,
+          })),
+        }),
+        4000,
+        new Map<string, WhaleHistorySummary>()
+      )
+    } catch (error) {
+      console.warn('[SLATE EDGE] Whale history lookup failed:', error)
+    }
+
+    const edges: GameEdgeAnalysis[] = upcomingGames.map((game) => {
+      const sharpResult = sharpResults.find((r) => {
+        const homeMatch =
+          teamNameMatches(game.home_team, r.homeTeam) ||
+          teamNameMatches(r.homeTeam, game.home_team)
+        const awayMatch =
+          teamNameMatches(game.away_team, r.awayTeam) ||
+          teamNameMatches(r.awayTeam, game.away_team)
+        return homeMatch && awayMatch
+      })
+
+      const sportsbookSpread = getBestSpreadByType(game, 'home', 'sportsbook')
+      const predictionSpread = getBestSpreadByType(game, 'home', 'prediction')
+      let marketSpread = sportsbookSpread ?? predictionSpread
+      const sportsbookTotal = getBestTotalByType(game, 'sportsbook')
+      const predictionTotal = getBestTotalByType(game, 'prediction')
+      let marketTotal = sportsbookTotal ?? predictionTotal
+      const sportsbookMoneylineHome = getBestMoneylineByType(game, 'home', 'sportsbook')
+      const sportsbookMoneylineAway = getBestMoneylineByType(game, 'away', 'sportsbook')
+      const predictionMoneylineHome = getBestMoneylineByType(game, 'home', 'prediction')
+      const predictionMoneylineAway = getBestMoneylineByType(game, 'away', 'prediction')
+
+      if (!marketSpread && sharpResult?.lineMovements?.length) {
+        const spreadMove = sharpResult.lineMovements.find(
+          (move) => move.market === 'spread'
+        )
+        const spreadLine = coerceLineValue(
+          spreadMove?.currentLine ?? spreadMove?.openingLine
+        )
+        if (spreadLine != null) {
+          const spreadOdds = coerceLineValue(
+            spreadMove?.currentOdds ?? spreadMove?.openingOdds
+          )
+          marketSpread = {
+            line: spreadLine,
+            book: 'Market',
+            odds: spreadOdds ?? -110,
+          }
+        }
+      }
+      if (!marketTotal && sharpResult?.lineMovements?.length) {
+        const totalMoves = sharpResult.lineMovements.filter(
+          (move) => move.market === 'total'
+        )
+        const totalLine = coerceLineValue(
+          totalMoves[0]?.currentLine ?? totalMoves[0]?.openingLine
+        )
+        if (totalLine != null) {
+          const overMove = totalMoves.find(
+            (move) => move.side.toLowerCase() === 'over'
+          )
+          const underMove = totalMoves.find(
+            (move) => move.side.toLowerCase() === 'under'
+          )
+          const overOdds = coerceLineValue(
+            overMove?.currentOdds ?? overMove?.openingOdds
+          )
+          const underOdds = coerceLineValue(
+            underMove?.currentOdds ?? underMove?.openingOdds
+          )
+          marketTotal = {
+            line: totalLine,
+            book: 'Market',
+            overOdds: overOdds ?? -110,
+            underOdds: underOdds ?? -110,
+          }
+        }
+      }
+
+      const modelMoneyline = marketSpread ? buildModelMoneyline(marketSpread.line) : null
+      const matchupKey = buildMatchupKey(game.home_team, game.away_team)
+      const whaleHistory = whaleHistoryByMatchup.get(matchupKey)
+      const whaleHistoryAlerts = buildWhaleAlertsFromHistory(
+        whaleHistory,
+        game.home_team,
+        game.away_team
+      )
+
+      const spreadEdge = marketSpread
+        ? evaluateLineEdge({
+            marketType: 'spread',
+            line: marketSpread.line,
+            targetLine: marketSpread.line,
+            supportingSignals: 0,
+          })
+        : undefined
+
+      const totalEdge = marketTotal
+        ? evaluateLineEdge({
+            marketType: 'total',
+            line: marketTotal.line,
+            targetLine: marketTotal.line,
+            supportingSignals: 0,
+          })
+        : undefined
+
+      const analysis: GameEdgeAnalysis = {
+        matchup: `${game.away_team} @ ${game.home_team}`,
+        homeTeam: game.home_team,
+        awayTeam: game.away_team,
+        commenceTime: game.commence_time,
+        moneyline:
+          sportsbookMoneylineHome ||
+          sportsbookMoneylineAway ||
+          predictionMoneylineHome ||
+          predictionMoneylineAway ||
+          modelMoneyline
+            ? {
+                sportsbook: {
+                  homeOdds: sportsbookMoneylineHome?.odds,
+                  homeBook: sportsbookMoneylineHome?.book,
+                  awayOdds: sportsbookMoneylineAway?.odds,
+                  awayBook: sportsbookMoneylineAway?.book,
+                },
+                model: modelMoneyline
+                  ? {
+                      homeOdds: modelMoneyline.homeOdds,
+                      awayOdds: modelMoneyline.awayOdds,
+                      homeProbability: modelMoneyline.homeProbability,
+                    }
+                  : undefined,
+                prediction: {
+                  homeOdds: predictionMoneylineHome?.odds,
+                  homeBook: predictionMoneylineHome?.book,
+                  awayOdds: predictionMoneylineAway?.odds,
+                  awayBook: predictionMoneylineAway?.book,
+                },
+              }
+            : undefined,
+        confidence: 'low',
+        factors: [],
+        injuries: [],
+        matchupFactors: [],
+        sharpSignals: sharpResult?.sharpSignals || [],
+        lineMovements: sharpResult?.lineMovements || [],
+        splits: sharpResult?.splits,
+        whaleAlerts: whaleHistoryAlerts.length ? whaleHistoryAlerts : undefined,
+      }
+
+      if (marketSpread && spreadEdge) {
+        analysis.spread = {
+          marketLine: marketSpread.line,
+          targetLine: marketSpread.line,
+          edge: spreadEdge,
+          bestBook: marketSpread.book,
+          bestOdds: marketSpread.odds,
+          prediction: predictionSpread || undefined,
+          favoredTeam: marketSpread.line < 0 ? game.home_team : game.away_team,
+          sharpConfirmed: false,
+        }
+      }
+
+      if (marketTotal && totalEdge) {
+        analysis.total = {
+          marketLine: marketTotal.line,
+          targetLine: marketTotal.line,
+          edge: totalEdge,
+          bestBook: marketTotal.book,
+          bestOdds: marketTotal.overOdds,
+          bestUnderOdds: marketTotal.underOdds,
+          prediction: predictionTotal || undefined,
+          sharpConfirmed: false,
+        }
+      }
+
+      analysis.sharpProjections = buildSharpProjections({
+        sportKey,
+        homeTeam: game.home_team,
+        awayTeam: game.away_team,
+        spread: analysis.spread,
+        total: analysis.total,
+        moneyline: analysis.moneyline,
+        sharpSignals: analysis.sharpSignals,
+        lineMovements: analysis.lineMovements,
+        splits: analysis.splits,
+        whaleAlerts: analysis.whaleAlerts,
+      })
+
+      return analysis
+    })
+
+    return {
+      sport: sportKey,
+      sportLabel,
+      date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().split('T')[0],
+      gamesAnalyzed: upcomingGames.length,
+      edges,
+      summary: {
+        strongEdges: 0,
+        softEdges: 0,
+        noEdges: edges.length,
+        sharpConfirmed: 0,
+      },
+    }
+  }
+
+  if (sportKey === 'basketball_nba') {
+    try {
+      console.log('[SLATE EDGE] Warming NBA.com team stats cache...')
+      await getNBATeamStats()
+    } catch (error) {
+      console.warn('[SLATE EDGE] NBA.com warmup failed', error)
+    }
+  }
+
+  // Fetch sharp signals for this sport (line movement, RLM, bet%/money% divergence)
+  const sbdLeague = ODDS_API_TO_SBD[sportKey]
+  let sharpResults: SharpEdgeResult[] = []
+  if (sbdLeague && !isFootball) {
+    try {
+      console.log(`[SLATE EDGE] Fetching sharp signals for ${sbdLeague}...`)
+      const sharpTimeoutMs = isFootball ? 8000 : 12000
+      sharpResults = await withTimeout(detectSharpEdges([sbdLeague]), sharpTimeoutMs, [])
+      console.log(`[SLATE EDGE] Found ${sharpResults.filter(r => r.hasEdge).length} games with sharp signals`)
+    } catch (error) {
+      console.error(`[SLATE EDGE] Failed to fetch sharp signals:`, error)
+    }
+  }
+
+  let whaleTrades: WhaleTrade[] = []
+  try {
+    if (!isFootball) {
+      const whaleTimeoutMs = 12000
+      whaleTrades = await withTimeout(fetchWhaleTrades({
+        limit: 300,
+        minNotional: isCfb ? CFB_WHALE_MIN_NOTIONAL : DEFAULT_WHALE_MIN_NOTIONAL,
+      }), whaleTimeoutMs, [])
+    }
+  } catch (error) {
+    console.error('[SLATE EDGE] Failed to fetch whale trades:', error)
+  }
+
+  const whaleStatusCache = new Map<string, WhaleTradeWithStatus>()
+
+  const resolveWhaleAlerts = async (
+    homeTeam: string,
+    awayTeam: string
+  ): Promise<WhaleAlert[]> => {
+    if (whaleTrades.length === 0) return []
+    const relevant = whaleTrades.filter((trade) => {
+      const text = `${trade.marketTitle} ${trade.outcome}`
+      return (
+        selectionMatchesTeam(text, homeTeam) &&
+        selectionMatchesTeam(text, awayTeam)
+      )
+    })
+    if (relevant.length === 0) return []
+
+    const resolved = isFootball
+      ? relevant.map((trade) => ({ ...trade, status: 'pending' as const }))
+      : await Promise.all(
+          relevant.map(async (trade) => {
+            const cached = whaleStatusCache.get(trade.id)
+            if (cached) return cached
+            const evaluated = await evaluateWhaleRespect(trade)
+            whaleStatusCache.set(trade.id, evaluated)
+            return evaluated
+          })
+        )
+
+    return buildWhaleAlertsForGame(resolved, homeTeam, awayTeam)
+  }
+
+  let whaleHistoryByMatchup = new Map<string, WhaleHistorySummary>()
+  if (upcomingGames.length > 0) {
+    try {
+      const historyTimeoutMs = isFootball ? 4000 : 8000
+      whaleHistoryByMatchup = await withTimeout(
+        fetchWhaleHistoryForGames({
+          sportKey,
+          games: upcomingGames.map((game) => ({
+            homeTeam: game.home_team,
+            awayTeam: game.away_team,
+            commenceTime: game.commence_time,
+          })),
+        }),
+        historyTimeoutMs,
+        new Map<string, WhaleHistorySummary>()
+      )
+      console.log(
+        `[SLATE EDGE] Loaded whale history for ${whaleHistoryByMatchup.size} matchups`
+      )
+    } catch (error) {
+      console.warn('[SLATE EDGE] Whale history lookup failed:', error)
+    }
+  }
 
   const edges: GameEdgeAnalysis[] = []
   let strongEdges = 0
@@ -1509,13 +1821,15 @@ export async function analyzeSlateEdges(
   const evByGameId = new Map<string, EVOpportunity[]>()
 
   try {
-    const evOpps = await findEVOpportunities({
-      sports: [sportKey],
-      minEV: 3,
-      includeProps: false,
-      markets: [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS],
-      limit: 200,
-    })
+    const evOpps = isFootball
+      ? []
+      : await withTimeout(findEVOpportunities({
+          sports: [sportKey],
+          minEV: 3,
+          includeProps: false,
+          markets: [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS],
+          limit: 200,
+        }), 15000, [])
     for (const opportunity of evOpps) {
       if (!evByGameId.has(opportunity.gameId)) {
         evByGameId.set(opportunity.gameId, [])
@@ -1524,14 +1838,6 @@ export async function analyzeSlateEdges(
     }
   } catch (error) {
     console.error('[SLATE EDGE] Failed to fetch EV opportunities:', error)
-  }
-
-  // Helper for per-game timeout
-  const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
-    return Promise.race([
-      promise,
-      new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
-    ])
   }
 
   // Analyze games with bounded concurrency to avoid connection saturation
@@ -1546,6 +1852,8 @@ export async function analyzeSlateEdges(
     async (game) => {
       try {
         const matchupLabel = `${game.away_team} @ ${game.home_team}`
+        const matchupKey = buildMatchupKey(game.home_team, game.away_team)
+        const whaleHistory = whaleHistoryByMatchup.get(matchupKey)
 
       // Match sharp signals for this game by team name
       const sharpResult = sharpResults.find((r) => {
@@ -1623,7 +1931,7 @@ export async function analyzeSlateEdges(
             ? 45000
             : 8000
 
-        const matchupAnalysis = isCfb
+        const matchupAnalysis = isFootball
           ? {
               homeTeam: { name: game.home_team, stats: null },
               awayTeam: { name: game.away_team, stats: null },
@@ -1649,12 +1957,20 @@ export async function analyzeSlateEdges(
           game.home_team,
           game.away_team
         )
+        const whaleHistoryAlerts = buildWhaleAlertsFromHistory(
+          whaleHistory,
+          game.home_team,
+          game.away_team
+        )
+        const whaleAlertsForModel = whaleHistoryAlerts.length
+          ? [...whaleAlerts, ...whaleHistoryAlerts]
+          : whaleAlerts
         const marketContext = {
           marketSpread: marketSpread?.line,
           marketTotal: marketTotal?.line,
           sharpSignals: sharpResult?.sharpSignals,
           sharpSplits: sharpResult?.splits,
-          whaleAlerts,
+          whaleAlerts: whaleAlertsForModel,
         }
 
         const recommendationTimeoutMs =
@@ -1671,16 +1987,16 @@ export async function analyzeSlateEdges(
             marketSpread,
             marketTotal,
             sharpResult,
-            whaleAlerts,
+            whaleAlerts: whaleAlertsForModel,
           })
-        } else if (isCfb) {
+        } else if (isFootball) {
           recommendations = buildCfbMarketRecommendations({
             homeTeam: game.home_team,
             awayTeam: game.away_team,
             marketSpread,
             marketTotal,
             sharpResult,
-            whaleAlerts,
+            whaleAlerts: whaleAlertsForModel,
           })
         } else {
           recommendations = await withTimeout(
@@ -1704,20 +2020,6 @@ export async function analyzeSlateEdges(
               marketContext,
               matchupAnalysis
             )
-          }
-          if (
-            recommendations.length === 0 &&
-            sportKey === 'americanfootball_nfl' &&
-            (marketSpread || marketTotal)
-          ) {
-            recommendations = buildCfbMarketRecommendations({
-              homeTeam: game.home_team,
-              awayTeam: game.away_team,
-              marketSpread,
-              marketTotal,
-              sharpResult,
-              whaleAlerts: [],
-            })
           }
           if (recommendations.length === 0) {
             recommendations = buildFallbackRecommendations(matchupAnalysis, sportKey)
@@ -1978,6 +2280,19 @@ export async function analyzeSlateEdges(
           sharpConfirmed: false,
         }
       }
+
+      gameAnalysis.sharpProjections = buildSharpProjections({
+        sportKey,
+        homeTeam: game.home_team,
+        awayTeam: game.away_team,
+        spread: gameAnalysis.spread,
+        total: gameAnalysis.total,
+        moneyline: gameAnalysis.moneyline,
+        sharpSignals: gameAnalysis.sharpSignals,
+        lineMovements: gameAnalysis.lineMovements,
+        splits: gameAnalysis.splits,
+        whaleAlerts: whaleAlertsForModel,
+      })
 
         return { skipped: false, edgeType, analysis: gameAnalysis, sharpConfirmed: hasSharpConfirmation }
       } catch (error) {

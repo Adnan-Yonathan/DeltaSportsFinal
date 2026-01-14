@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { formatAmericanOdds } from "@/lib/utils/odds"
 
 interface MarketLine {
   line: number
@@ -39,6 +41,23 @@ interface ApiResponse {
   count: number
 }
 
+type PropWhaleTrade = {
+  id: string
+  source: "kalshi" | "polymarket"
+  sportKey: string
+  playerName: string | null
+  propType: string | null
+  propLine: number | null
+  side: string | null
+  notional: number | null
+  americanOdds: number | null
+  priceCents: number | null
+  tradeTime: string
+  eventTime: string
+  marketTitle: string | null
+  outcome: string | null
+}
+
 const SPORT_MARKETS: Record<string, readonly string[]> = {
   basketball_nba: ["points", "rebounds", "assists"],
   americanfootball_nfl: ["passing_yards", "rushing_yards", "receiving_yards", "receptions"],
@@ -66,6 +85,9 @@ const MARKET_LABELS: Record<string, string> = {
   rushing_tds: "RUSH TD",
   receiving_yards: "REC YDS",
   receptions: "REC",
+  threes: "3PT",
+  blocks: "BLK",
+  steals: "STL",
 }
 
 const formatNumber = (value?: number | null) => {
@@ -84,6 +106,29 @@ const formatEdge = (value?: number | null) => {
   return `${value.toFixed(1)}%`
 }
 
+const formatCurrency = (value?: number | null) => {
+  if (value == null || !Number.isFinite(value)) return "-"
+  return `$${Math.round(value).toLocaleString("en-US")}`
+}
+
+const formatPropLabel = (propType?: string | null) => {
+  if (!propType) return "PROP"
+  return MARKET_LABELS[propType] ?? propType.replace(/_/g, " ").toUpperCase()
+}
+
+const formatWhaleOdds = (trade: PropWhaleTrade) => {
+  if (trade.americanOdds != null) return formatAmericanOdds(trade.americanOdds)
+  if (trade.priceCents != null) return `${trade.priceCents}c`
+  return "n/a"
+}
+
+const formatWhaleTime = (value?: string | null) => {
+  if (!value) return "n/a"
+  const date = new Date(value)
+  if (!Number.isFinite(date.valueOf())) return "n/a"
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+}
+
 const REFRESH_INTERVAL_MS = 15 * 60 * 1000 // 15 minutes
 
 export default function PlayerProjectionsTable({
@@ -95,10 +140,11 @@ export default function PlayerProjectionsTable({
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [expandedGames, setExpandedGames] = useState<Record<string, boolean>>({})
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [positionFilter, setPositionFilter] = useState<string>("All")
-  const [now, setNow] = useState(Date.now())
+  const [propWhales, setPropWhales] = useState<PropWhaleTrade[]>([])
+  const [propWhaleLoading, setPropWhaleLoading] = useState(true)
+  const [propWhaleError, setPropWhaleError] = useState<string | null>(null)
   const lastLoadedRef = useRef<number>(0)
 
   const isNfl = sport === "americanfootball_nfl"
@@ -108,41 +154,67 @@ export default function PlayerProjectionsTable({
     : (SPORT_MARKETS[sport] ?? SPORT_MARKETS.basketball_nba)
 
   // Countdown timer calculation
-  const lastLoadedMs = lastLoadedRef.current
-  const cooldownMs = lastLoadedMs ? REFRESH_INTERVAL_MS - (now - lastLoadedMs) : 0
-  const remainingSeconds = Math.max(0, Math.ceil(cooldownMs / 1000))
-  const remainingLabel = `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}`
-
   const loadData = useCallback(async (isManual = false) => {
     if (!isManual) setLoading(true)
     setErrorMessage(null)
+    setPropWhaleError(null)
+    setPropWhaleLoading(true)
 
-    try {
-      const params = new URLSearchParams({ sport })
-      if (isNfl && positionFilter !== "All") {
-        params.set("position", positionFilter)
-      }
+    const params = new URLSearchParams({ sport })
+    if (isNfl && positionFilter !== "All") {
+      params.set("position", positionFilter)
+    }
 
+    const projectionsTask = (async () => {
       const res = await fetch(`/api/daily-projections?${params.toString()}`, {
         cache: "no-store",
       })
-
       if (!res.ok) {
         throw new Error("Failed to load player projections.")
       }
+      return (await res.json()) as ApiResponse
+    })()
 
-      const payload: ApiResponse = await res.json()
-      setData(payload)
-      setLastUpdated(new Date())
+    const whalesTask = (async () => {
+      const res = await fetch(`/api/player-prop-whales?sport=${sport}`, {
+        cache: "no-store",
+      })
+      if (!res.ok) {
+        throw new Error("Failed to load whale props.")
+      }
+      const payload = await res.json()
+      return Array.isArray(payload?.trades) ? (payload.trades as PropWhaleTrade[]) : []
+    })()
+
+    const [projectionsResult, whalesResult] = await Promise.allSettled([
+      projectionsTask,
+      whalesTask,
+    ])
+
+    if (projectionsResult.status === "fulfilled") {
+      setData(projectionsResult.value)
       lastLoadedRef.current = Date.now()
-    } catch (error) {
+    } else {
       setErrorMessage(
-        error instanceof Error ? error.message : "Failed to load projections."
+        projectionsResult.reason instanceof Error
+          ? projectionsResult.reason.message
+          : "Failed to load projections."
       )
-    } finally {
-      setLoading(false)
-      setIsRefreshing(false)
     }
+
+    if (whalesResult.status === "fulfilled") {
+      setPropWhales(whalesResult.value)
+    } else {
+      setPropWhaleError(
+        whalesResult.reason instanceof Error
+          ? whalesResult.reason.message
+          : "Failed to load whale props."
+      )
+    }
+
+    setLoading(false)
+    setIsRefreshing(false)
+    setPropWhaleLoading(false)
   }, [sport, positionFilter, isNfl])
 
   // Keep ref to latest loadData function to avoid stale closures
@@ -164,12 +236,6 @@ export default function PlayerProjectionsTable({
         loadDataRef.current(true)
       }
     }, REFRESH_INTERVAL_MS)
-    return () => window.clearInterval(interval)
-  }, [])
-
-  // Countdown timer update every second
-  useEffect(() => {
-    const interval = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(interval)
   }, [])
 
@@ -237,22 +303,79 @@ export default function PlayerProjectionsTable({
     loadData(true)
   }, [isRefreshing, loading, loadData])
 
-  const formatLastUpdated = (date: Date | null) => {
-    if (!date) return ""
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    if (diffMins < 1) return "Just now"
-    if (diffMins === 1) return "1 min ago"
-    if (diffMins < 60) return `${diffMins} mins ago`
-    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-  }
-
   const totalPlayers = data?.count ?? 0
   const displayedPlayers = groupedPlayers.reduce((sum, g) => sum + g.players.length, 0)
+  const columnCount = activeMarkets.length + (isNfl ? 3 : 2)
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+    <div className="space-y-3">
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+        <div className="flex items-center justify-between border-b border-white/5 px-3 py-2">
+          <span className="text-[10px] uppercase tracking-[0.2em] text-white/60">
+            Whale Player Props
+          </span>
+          <span className="text-[10px] text-white/40">
+            {propWhales.length} trades
+          </span>
+        </div>
+        <div className="px-3 py-3">
+          {propWhaleLoading ? (
+            <div className="text-xs text-white/50">Loading whale props...</div>
+          ) : propWhaleError ? (
+            <div className="text-xs text-red-200">{propWhaleError}</div>
+          ) : propWhales.length === 0 ? (
+            <div className="text-xs text-white/50">
+              No player prop whales tracked yet.
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {propWhales.map((trade) => (
+                <div
+                  key={trade.id}
+                  className="rounded-xl border border-white/10 bg-white/5 p-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold text-white">
+                        {trade.playerName ?? trade.marketTitle ?? "Player prop"}
+                      </div>
+                      <div className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-white/40">
+                        {formatPropLabel(trade.propType)}
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-white/40">
+                      {formatWhaleTime(trade.tradeTime)}
+                    </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/60">
+                    <span className="rounded bg-black/40 px-2 py-0.5">
+                      {trade.side ?? trade.outcome ?? "Side"}
+                    </span>
+                    {trade.propLine != null && (
+                      <span className="rounded bg-black/40 px-2 py-0.5">
+                        Line {formatNumber(trade.propLine)}
+                      </span>
+                    )}
+                    <span className="rounded bg-black/40 px-2 py-0.5">
+                      {formatCurrency(trade.notional)}
+                    </span>
+                    <span className="rounded bg-black/40 px-2 py-0.5">
+                      {formatWhaleOdds(trade)}
+                    </span>
+                  </div>
+                  {trade.marketTitle && (
+                    <div className="mt-2 text-[10px] text-white/40 line-clamp-2">
+                      {trade.marketTitle}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
       {/* Toolbar with position filter, refresh button, and last updated */}
       <div className="border-b border-white/5 bg-black/50 px-3 py-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -294,13 +417,6 @@ export default function PlayerProjectionsTable({
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[9px] sm:text-[10px] text-white/40">
-            <span>{remainingLabel}</span>
-            {isRefreshing && (
-              <span className="text-emerald-400">Refreshing...</span>
-            )}
-            {lastUpdated && !isRefreshing && (
-              <span className="hidden sm:inline text-white/30">Updated {formatLastUpdated(lastUpdated)}</span>
-            )}
             {totalPlayers > 0 && (
               <span className="text-white/30">
                 {displayedPlayers}/{totalPlayers}
@@ -308,23 +424,6 @@ export default function PlayerProjectionsTable({
             )}
           </div>
         </div>
-      </div>
-
-      {/* Header row - hidden on mobile */}
-      <div
-        className="hidden sm:grid gap-2 bg-black/70 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/50"
-        style={{
-          gridTemplateColumns: isNfl
-            ? `180px 50px 120px repeat(${activeMarkets.length}, minmax(0, 1fr))`
-            : `200px 140px repeat(${activeMarkets.length}, minmax(0, 1fr))`,
-        }}
-      >
-        <span>Player</span>
-        {isNfl && <span>Pos</span>}
-        <span>Matchup</span>
-        {activeMarkets.map((market) => (
-          <span key={market}>{MARKET_LABELS[market] ?? market.toUpperCase()}</span>
-        ))}
       </div>
 
       {loading ? (
@@ -340,7 +439,8 @@ export default function PlayerProjectionsTable({
             : "No player projections found for today."}
         </div>
       ) : (
-        <div className="divide-y divide-white/5">
+        <>
+        <div className="divide-y divide-white/5 sm:hidden">
           {groupedPlayers.map((group) => {
             const isExpanded = Boolean(expandedGames[group.game])
             const visiblePlayers = isExpanded ? group.players : group.players.slice(0, 5)
@@ -379,8 +479,8 @@ export default function PlayerProjectionsTable({
                           </div>
                           <div className="mt-0.5 text-[10px] text-white/50">
                             {player.teamAbbr || player.team}
-                            {isNfl && player.position && ` • ${player.position}`}
-                            {player.game && ` • ${player.game}`}
+                            {isNfl && player.position && ` - ${player.position}`}
+                            {player.game && ` - ${player.game}`}
                           </div>
                         </div>
                       </div>
@@ -504,7 +604,129 @@ export default function PlayerProjectionsTable({
             )
           })}
         </div>
+        <div className="hidden sm:block">
+          <Table className="text-[13px] text-white/70">
+            <TableHeader className="bg-black/70">
+              <TableRow className="text-[10px] uppercase tracking-[0.2em] text-white/50">
+                <TableHead className={isNfl ? "w-[180px]" : "w-[200px]"}>Player</TableHead>
+                {isNfl && <TableHead className="w-[50px]">Pos</TableHead>}
+                <TableHead className={isNfl ? "w-[120px]" : "w-[140px]"}>Matchup</TableHead>
+                {activeMarkets.map((market) => (
+                  <TableHead key={market}>
+                    {MARKET_LABELS[market] ?? market.toUpperCase()}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-white/5">
+              {groupedPlayers.map((group) => {
+                const isExpanded = Boolean(expandedGames[group.game])
+                const visiblePlayers = isExpanded ? group.players : group.players.slice(0, 5)
+                const remaining = Math.max(0, group.players.length - visiblePlayers.length)
+
+                return (
+                  <React.Fragment key={group.game}>
+                    <TableRow className="border-white/5 bg-white/5 hover:bg-white/5">
+                      <TableCell colSpan={columnCount} className="py-2">
+                        <div className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/60">
+                          <span>{group.game}</span>
+                          {remaining > 0 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedGames((current) => ({
+                                  ...current,
+                                  [group.game]: !isExpanded,
+                                }))
+                              }
+                              className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/70 hover:border-emerald-400/40 hover:text-white transition-colors"
+                            >
+                              {isExpanded ? "Show less" : `+ ${remaining} more`}
+                            </button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {visiblePlayers.map((player) => (
+                      <TableRow key={player.id} className="border-white/5">
+                        <TableCell className="align-top">
+                          <div className="space-y-0.5">
+                            <div className="text-sm font-semibold text-white truncate">
+                              {player.name}
+                            </div>
+                            <div className="text-[10px] text-white/50">
+                              {player.teamAbbr || player.team}
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        {isNfl && (
+                          <TableCell className="align-top text-xs text-white/60 font-medium">
+                            {player.position}
+                          </TableCell>
+                        )}
+
+                        <TableCell className="align-top text-xs text-white/60">
+                          {player.game}
+                        </TableCell>
+
+                        {activeMarkets.map((market) => {
+                          const projection = player.projections?.[market]
+                          const line = player.marketLines?.[market]
+                          const delta = player.delta?.[market]
+                          const hasProjection = projection != null && Number.isFinite(projection) && projection > 0
+                          const hasLine = line != null && Number.isFinite(line.line) && line.line > 0
+
+                          return (
+                            <TableCell key={market} className="align-top">
+                              <div className="space-y-1 text-xs">
+                                <div className={`rounded px-1.5 py-0.5 ${
+                                  hasProjection
+                                    ? "bg-emerald-500/15 text-emerald-200"
+                                    : "bg-white/5 text-white/30"
+                                }`}>
+                                  {hasProjection ? formatNumber(projection) : "-"}
+                                </div>
+
+                                {hasLine ? (
+                                  <>
+                                    <div className="rounded bg-white/10 px-1.5 py-0.5 text-white/60">
+                                      Line {formatNumber(line.line)}
+                                    </div>
+                                    {hasProjection && delta != null && (
+                                      <div className={`rounded px-1.5 py-0.5 ${
+                                        delta > 0
+                                          ? "bg-green-500/15 text-green-300"
+                                          : delta < 0
+                                            ? "bg-red-500/15 text-red-300"
+                                            : "bg-white/10 text-white/60"
+                                      }`}>
+                                        {formatDelta(delta)}
+                                      </div>
+                                    )}
+                                  </>
+                                ) : hasProjection ? (
+                                  <div className="rounded bg-white/5 px-1.5 py-0.5 text-white/30 text-[10px]">
+                                    No line
+                                  </div>
+                                ) : null}
+                              </div>
+                            </TableCell>
+                          )
+                        })}
+                      </TableRow>
+                    ))}
+                  </React.Fragment>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
+        </>
       )}
+    </div>
     </div>
   )
 }
+
+

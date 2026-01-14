@@ -2,6 +2,8 @@ import MarketProjectionsClient from "./market-projections-client"
 import SportSelector from "./sport-selector"
 import ToolsNav from "@/components/tools-nav"
 import { createServiceClient } from "@/lib/supabase/service"
+import { buildSharpProjections } from "@/lib/services/sharp-projections"
+import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 
 export const dynamic = "force-dynamic"
@@ -50,11 +52,77 @@ export default async function MarketProjectionsPage({
         .single()) as unknown as { data: { edges: any[]; updated_at: string } | null; error: any }
 
       if (error || !data) {
-        hasCache = false
-        errorMessage = "No cached projections yet."
+        if (sport === "americanfootball_nfl") {
+          const refreshed = await analyzeSlateEdges(sport, { limit: 200 })
+          if (refreshed.edges?.length) {
+            edges = refreshed.edges
+            lastUpdated = new Date().toISOString()
+            await supabase.from("market_projections_cache" as any).upsert(
+              {
+                sport,
+                edges,
+                updated_at: lastUpdated,
+              } as any,
+              { onConflict: "sport" }
+            )
+          } else {
+            hasCache = false
+            errorMessage = "No cached projections yet."
+          }
+        } else {
+          hasCache = false
+          errorMessage = "No cached projections yet."
+        }
       } else {
         edges = data.edges ?? []
         lastUpdated = data.updated_at ?? null
+        const shouldBackfill =
+          sport === "basketball_nba" ||
+          sport === "basketball_ncaab" ||
+          sport === "americanfootball_ncaaf" ||
+          sport === "americanfootball_nfl"
+        if (shouldBackfill && edges.length > 0) {
+          edges = edges.map((edge) => {
+            if (!edge || edge?.sharpProjections) return edge
+            if (!edge.homeTeam || !edge.awayTeam) return edge
+            try {
+              return {
+                ...edge,
+                sharpProjections: buildSharpProjections({
+                  sportKey: sport,
+                  homeTeam: edge.homeTeam,
+                  awayTeam: edge.awayTeam,
+                  spread: edge.spread,
+                  total: edge.total,
+                  moneyline: edge.moneyline,
+                  sharpSignals: edge.sharpSignals,
+                  lineMovements: edge.lineMovements,
+                  splits: edge.splits,
+                  whaleAlerts: edge.whaleAlerts,
+                }),
+              }
+            } catch (error) {
+              console.warn("[market-projections] backfill failed", error)
+              return edge
+            }
+          })
+        }
+
+        if (sport === "americanfootball_nfl" && edges.length === 0) {
+          const refreshed = await analyzeSlateEdges(sport, { limit: 200 })
+          if (refreshed.edges?.length) {
+            edges = refreshed.edges
+            lastUpdated = new Date().toISOString()
+            await supabase.from("market_projections_cache" as any).upsert(
+              {
+                sport,
+                edges,
+                updated_at: lastUpdated,
+              } as any,
+              { onConflict: "sport" }
+            )
+          }
+        }
       }
     } catch (error) {
       hasCache = false
@@ -87,18 +155,14 @@ export default async function MarketProjectionsPage({
             Projected markets vs Vegas
           </h1>
           <p className="max-w-2xl text-sm text-white/60">
-            Slate edge detection refreshes every 15 minutes and ranks games by
-            edge strength. Compare projected spread, moneyline, and total to the
-            market line, then analyze each matchup.
+            Sharp projections refresh every 15 minutes and rank games by edge
+            strength. Each market shows a projected win rate plus the edge over
+            the break-even line.
           </p>
-          {lastUpdated && (
-            <p className="text-xs uppercase tracking-[0.2em] text-white/40">
-              Last updated {new Date(lastUpdated).toLocaleString()}
-            </p>
-          )}
         </header>
 
         <MarketProjectionsClient
+          key={sport}
           initialEdges={edges}
           initialUpdatedAt={lastUpdated}
           hasCache={hasCache}

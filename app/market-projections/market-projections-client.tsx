@@ -35,6 +35,7 @@ export default function MarketProjectionsClient({
   const [lastUpdated, setLastUpdated] = useState<string | null>(initialUpdatedAt)
   const [cacheReady, setCacheReady] = useState(hasCache)
   const [error, setError] = useState<string | null>(errorMessage)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   useEffect(() => {
     setEdges(initialEdges)
@@ -56,6 +57,14 @@ export default function MarketProjectionsClient({
     }
   }
 
+  const handleStatusChange = (
+    status: "idle" | "loading" | "done" | "error" | "timeout"
+  ) => {
+    setIsRefreshing(status === "loading")
+  }
+
+  const showLoading = isRefreshing && edges.length === 0
+
   return (
     <>
       <MarketProjectionsRefresh
@@ -66,7 +75,16 @@ export default function MarketProjectionsClient({
         lastUpdated={lastUpdated}
         includeEdges
         onUpdated={handleUpdated}
+        onStatusChange={handleStatusChange}
       />
+      {showLoading && (
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-white/60">
+            <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
+            Loading projections...
+          </div>
+        </div>
+      )}
       <MarketProjectionsTable
         edges={edges}
         errorMessage={cacheReady ? error : null}

@@ -22,7 +22,7 @@ export function GuestHero({ onSignUpClick }: GuestHeroProps) {
         <br />
         All in One{' '}
         <span className="bg-gradient-to-r from-[#34d399] via-[#34d399] to-[#16a34a] bg-clip-text text-transparent">
-          Place
+          Platform
         </span>
       </h1>
       <p className="text-base md:text-lg leading-relaxed tracking-tight text-white/80 max-w-2xl mx-auto">

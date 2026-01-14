@@ -29,6 +29,10 @@ type EdgeGame = {
     targetLine: number
     bestBook?: string
     bestOdds?: number
+    bestHomeBook?: string
+    bestHomeOdds?: number
+    bestAwayBook?: string
+    bestAwayOdds?: number
     favoredTeam?: string
     prediction?: { line: number; book: string; odds: number }
   }
@@ -262,6 +266,27 @@ const resolveProjection = (game: EdgeGame, filter: EdgeFilter) => {
   return normalizeProjection(game, filter, raw)
 }
 
+const resolveSpreadOddsDisplay = (game: EdgeGame, pick: EdgePick) => {
+  const spread = game.spread
+  if (!spread) return { book: undefined, odds: undefined }
+  const sideLabel = pick.projection?.side ?? pick.label ?? ""
+  const isHome = sideLabel.includes(game.homeTeam)
+  const isAway = sideLabel.includes(game.awayTeam)
+  if (isHome) {
+    return {
+      book: spread.bestHomeBook ?? spread.bestBook,
+      odds: spread.bestHomeOdds ?? spread.bestOdds,
+    }
+  }
+  if (isAway) {
+    return {
+      book: spread.bestAwayBook ?? spread.bestBook,
+      odds: spread.bestAwayOdds ?? spread.bestOdds,
+    }
+  }
+  return { book: spread.bestBook, odds: spread.bestOdds }
+}
+
 const resolveOppositeSide = (side: string, filter: EdgeFilter, game: EdgeGame) => {
   if (filter === "total") {
     const normalized = side.toLowerCase()
@@ -310,14 +335,7 @@ const resolveSpreadProjectionLabel = (
   const lineValue = marketLine ?? fallbackLine
   if (lineValue == null) return projection.side
 
-  let homeLine = lineValue
-  const favoredTeam = game.spread?.favoredTeam
-  if (favoredTeam) {
-    const magnitude = Math.abs(homeLine)
-    if (favoredTeam === game.homeTeam) homeLine = -magnitude
-    if (favoredTeam === game.awayTeam) homeLine = magnitude
-  }
-
+  const homeLine = lineValue
   const isHome = projection.side === game.homeTeam
   const line = isHome ? homeLine : -homeLine
   return `${projection.side} ${formatSigned(line)}`
@@ -669,6 +687,7 @@ export default function MarketProjectionsTable({
                     : filter === "moneyline"
                       ? moneylinePick
                       : totalPick
+                const spreadOdds = resolveSpreadOddsDisplay(game, activePick)
                 const sharpSummary = game.sharpSignals
                   .slice(0, 2)
                   .map(
@@ -720,7 +739,7 @@ export default function MarketProjectionsTable({
                           {filter === "spread" ? (
                             <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
                               <AnimatedValue
-                                text={`${spread?.bestBook ?? "n/a"} ${formatOdds(spread?.bestOdds)}`}
+                                text={`${spreadOdds.book ?? "n/a"} ${formatOdds(spreadOdds.odds)}`}
                                 pulseKey={pulseKey}
                               />
                             </span>
@@ -783,6 +802,7 @@ export default function MarketProjectionsTable({
                         : filter === "moneyline"
                           ? moneylinePick
                           : totalPick
+                    const spreadOdds = resolveSpreadOddsDisplay(game, activePick)
                     const sharpSummary = game.sharpSignals
                       .slice(0, 2)
                       .map(
@@ -830,7 +850,7 @@ export default function MarketProjectionsTable({
                               {filter === "spread" ? (
                                 <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
                                   <AnimatedValue
-                                    text={`${spread?.bestBook ?? "n/a"} ${formatOdds(spread?.bestOdds)}`}
+                                    text={`${spreadOdds.book ?? "n/a"} ${formatOdds(spreadOdds.odds)}`}
                                     pulseKey={pulseKey}
                                   />
                                 </span>

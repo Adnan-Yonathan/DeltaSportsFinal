@@ -20,6 +20,7 @@ const SPORT_OPTIONS: SportOption[] = [
   { key: "basketball_ncaab", label: "NCAAB", locked: false },
   { key: "americanfootball_ncaaf", label: "CFB", locked: false },
   { key: "americanfootball_nfl", label: "NFL", locked: false },
+  { key: "icehockey_nhl", label: "NHL", locked: false },
 ]
 
 
@@ -80,7 +81,8 @@ export default async function MarketProjectionsPage({
           sport === "basketball_nba" ||
           sport === "basketball_ncaab" ||
           sport === "americanfootball_ncaaf" ||
-          sport === "americanfootball_nfl"
+          sport === "americanfootball_nfl" ||
+          sport === "icehockey_nhl"
         if (shouldBackfill && edges.length > 0) {
           edges = edges.map((edge) => {
             if (!edge || edge?.sharpProjections) return edge

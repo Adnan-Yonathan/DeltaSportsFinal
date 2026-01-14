@@ -104,6 +104,10 @@ export interface GameEdgeAnalysis {
     edge: EdgeAssessment
     bestBook?: string
     bestOdds?: number
+    bestHomeBook?: string
+    bestHomeOdds?: number
+    bestAwayBook?: string
+    bestAwayOdds?: number
     prediction?: { line: number; book: string; odds: number }
     favoredTeam: string // Which team the model favors
     sharpConfirmed?: boolean // Sharp signals agree with model
@@ -1537,9 +1541,25 @@ export async function analyzeSlateEdges(
         return homeMatch && awayMatch
       })
 
-      const sportsbookSpread = getBestSpreadByType(game, 'home', 'sportsbook')
-      const predictionSpread = getBestSpreadByType(game, 'home', 'prediction')
-      let marketSpread = sportsbookSpread ?? predictionSpread
+      const sportsbookSpreadHome = getBestSpreadByType(game, 'home', 'sportsbook')
+      const sportsbookSpreadAway = getBestSpreadByType(game, 'away', 'sportsbook')
+      const predictionSpreadHome = getBestSpreadByType(game, 'home', 'prediction')
+      const predictionSpreadAway = getBestSpreadByType(game, 'away', 'prediction')
+      let marketSpread = sportsbookSpreadHome ?? predictionSpreadHome
+      if (!marketSpread && sportsbookSpreadAway) {
+        marketSpread = {
+          line: -sportsbookSpreadAway.line,
+          book: sportsbookSpreadAway.book,
+          odds: sportsbookSpreadAway.odds,
+        }
+      }
+      if (!marketSpread && predictionSpreadAway) {
+        marketSpread = {
+          line: -predictionSpreadAway.line,
+          book: predictionSpreadAway.book,
+          odds: predictionSpreadAway.odds,
+        }
+      }
       const sportsbookTotal = getBestTotalByType(game, 'sportsbook')
       const predictionTotal = getBestTotalByType(game, 'prediction')
       let marketTotal = sportsbookTotal ?? predictionTotal
@@ -1666,13 +1686,21 @@ export async function analyzeSlateEdges(
       }
 
       if (marketSpread && spreadEdge) {
+        const bestHomeBook = sportsbookSpreadHome?.book ?? predictionSpreadHome?.book
+        const bestHomeOdds = sportsbookSpreadHome?.odds ?? predictionSpreadHome?.odds
+        const bestAwayBook = sportsbookSpreadAway?.book ?? predictionSpreadAway?.book
+        const bestAwayOdds = sportsbookSpreadAway?.odds ?? predictionSpreadAway?.odds
         analysis.spread = {
           marketLine: marketSpread.line,
           targetLine: marketSpread.line,
           edge: spreadEdge,
-          bestBook: marketSpread.book,
-          bestOdds: marketSpread.odds,
-          prediction: predictionSpread || undefined,
+          bestBook: bestHomeBook ?? marketSpread.book,
+          bestOdds: bestHomeOdds ?? marketSpread.odds,
+          bestHomeBook,
+          bestHomeOdds,
+          bestAwayBook,
+          bestAwayOdds,
+          prediction: predictionSpreadHome || undefined,
           favoredTeam: marketSpread.line < 0 ? game.home_team : game.away_team,
           sharpConfirmed: false,
         }
@@ -1867,9 +1895,25 @@ export async function analyzeSlateEdges(
       })
 
       // Get market lines (needed for NCAAB market anchoring)
-      const sportsbookSpread = getBestSpreadByType(game, 'home', 'sportsbook')
-      const predictionSpread = getBestSpreadByType(game, 'home', 'prediction')
-      let marketSpread = sportsbookSpread ?? predictionSpread
+      const sportsbookSpreadHome = getBestSpreadByType(game, 'home', 'sportsbook')
+      const sportsbookSpreadAway = getBestSpreadByType(game, 'away', 'sportsbook')
+      const predictionSpreadHome = getBestSpreadByType(game, 'home', 'prediction')
+      const predictionSpreadAway = getBestSpreadByType(game, 'away', 'prediction')
+      let marketSpread = sportsbookSpreadHome ?? predictionSpreadHome
+      if (!marketSpread && sportsbookSpreadAway) {
+        marketSpread = {
+          line: -sportsbookSpreadAway.line,
+          book: sportsbookSpreadAway.book,
+          odds: sportsbookSpreadAway.odds,
+        }
+      }
+      if (!marketSpread && predictionSpreadAway) {
+        marketSpread = {
+          line: -predictionSpreadAway.line,
+          book: predictionSpreadAway.book,
+          odds: predictionSpreadAway.odds,
+        }
+      }
       const sportsbookTotal = getBestTotalByType(game, 'sportsbook')
       const predictionTotal = getBestTotalByType(game, 'prediction')
       let marketTotal = sportsbookTotal ?? predictionTotal
@@ -2218,13 +2262,21 @@ export async function analyzeSlateEdges(
       }
 
       if (spreadRec && marketSpread && spreadEdge) {
+        const bestHomeBook = sportsbookSpreadHome?.book ?? predictionSpreadHome?.book
+        const bestHomeOdds = sportsbookSpreadHome?.odds ?? predictionSpreadHome?.odds
+        const bestAwayBook = sportsbookSpreadAway?.book ?? predictionSpreadAway?.book
+        const bestAwayOdds = sportsbookSpreadAway?.odds ?? predictionSpreadAway?.odds
         gameAnalysis.spread = {
           marketLine: marketSpread.line,
           targetLine: spreadRec.targetLine,
           edge: spreadEdge,
-          bestBook: marketSpread.book,
-          bestOdds: marketSpread.odds,
-          prediction: predictionSpread || undefined,
+          bestBook: bestHomeBook ?? marketSpread.book,
+          bestOdds: bestHomeOdds ?? marketSpread.odds,
+          bestHomeBook,
+          bestHomeOdds,
+          bestAwayBook,
+          bestAwayOdds,
+          prediction: predictionSpreadHome || undefined,
           favoredTeam: modelFavoredTeam,
           sharpConfirmed: spreadConfirmation.agrees,
         }
@@ -2250,13 +2302,21 @@ export async function analyzeSlateEdges(
           targetLine: marketSpread.line,
           supportingSignals: 0,
         })
+        const bestHomeBook = sportsbookSpreadHome?.book ?? predictionSpreadHome?.book
+        const bestHomeOdds = sportsbookSpreadHome?.odds ?? predictionSpreadHome?.odds
+        const bestAwayBook = sportsbookSpreadAway?.book ?? predictionSpreadAway?.book
+        const bestAwayOdds = sportsbookSpreadAway?.odds ?? predictionSpreadAway?.odds
         gameAnalysis.spread = {
           marketLine: marketSpread.line,
           targetLine: marketSpread.line,
           edge: fallbackEdge,
-          bestBook: marketSpread.book,
-          bestOdds: marketSpread.odds,
-          prediction: predictionSpread || undefined,
+          bestBook: bestHomeBook ?? marketSpread.book,
+          bestOdds: bestHomeOdds ?? marketSpread.odds,
+          bestHomeBook,
+          bestHomeOdds,
+          bestAwayBook,
+          bestAwayOdds,
+          prediction: predictionSpreadHome || undefined,
           favoredTeam: marketSpread.line < 0 ? game.home_team : game.away_team,
           sharpConfirmed: false,
         }

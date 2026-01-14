@@ -25,6 +25,8 @@ type SpreadMarketInput = {
   marketLine: number
   targetLine: number
   bestOdds?: number
+  bestHomeOdds?: number
+  bestAwayOdds?: number
 }
 
 type TotalMarketInput = {
@@ -478,7 +480,11 @@ export const buildSharpProjections = (input: SharpProjectionInput): SharpProject
     const signalBias = pickSide === 'home' ? homeBias : awayBias
 
     const pickLabel = pickSide === 'home' ? input.homeTeam : input.awayTeam
-    const breakEven = resolveBreakEven(input.spread.bestOdds)
+    const breakEven = resolveBreakEven(
+      pickSide === 'home'
+        ? input.spread.bestHomeOdds ?? input.spread.bestOdds
+        : input.spread.bestAwayOdds ?? input.spread.bestOdds
+    )
     const edgePercent = Math.max(0, (probability - breakEven) * 100)
     const confidenceInterval = computeConfidenceInterval(
       probability,

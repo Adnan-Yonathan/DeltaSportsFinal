@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+﻿import type { Metadata } from 'next'
 import './globals.css'
 import { SupabaseAuthListener } from '@/components/SupabaseAuthListener'
 import { AppFooter } from '@/components/AppFooter'
@@ -8,7 +8,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata: Metadata = {
-  title: 'Delta Sports - AI Sports Betting Assistant',
+  title: 'Delta Sports - The Sharp Money Tool for Sports',
   description: 'Delta Sports AI is an AI sports betting assistant for live odds, matchup insights, and betting analytics.',
   applicationName: 'Delta Sports',
   keywords: [
@@ -21,13 +21,13 @@ export const metadata: Metadata = {
     'line shopping',
   ],
   openGraph: {
-    title: 'Delta Sports - AI Sports Betting Assistant',
+    title: 'Delta Sports - The Sharp Money Tool for Sports',
     description:
       'Delta Sports AI is an AI sports betting assistant for live odds, matchup insights, and betting analytics.',
     siteName: 'Delta Sports',
   },
   twitter: {
-    title: 'Delta Sports - AI Sports Betting Assistant',
+    title: 'Delta Sports - The Sharp Money Tool for Sports',
     description:
       'Delta Sports AI is an AI sports betting assistant for live odds, matchup insights, and betting analytics.',
   },
@@ -65,3 +65,4 @@ export default function RootLayout({
     </html>
   )
 }
+

@@ -373,7 +373,7 @@ export default function LandingPage() {
               customers={CUSTOMER_SCREENSHOTS}
               className="bg-transparent pt-6 pb-2 md:pt-8 md:pb-4"
               containerClassName="max-w-none px-0"
-              gridClassName="mt-4 w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+              gridClassName="mt-4 w-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
               imageClassName="w-full h-[140px] sm:h-[180px] lg:h-[220px] object-cover rounded-3xl shadow-[0_36px_100px_rgba(0,0,0,0.55)] dark:invert-0"
             />
           </div>

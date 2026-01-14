@@ -553,9 +553,7 @@ export async function fetchSbdOdds(
   const books =
     opts.books && opts.books.length
       ? opts.books
-      : league === 'ncaamb'
-        ? ['sr:book:18149']
-        : getDefaultBookIds()
+      : getDefaultBookIds()
   const format = opts.format || 'us'
   const url = `${SBD_API_BASE}/wp-json/adpt/v1/${league}-odds?books=${books.join(',')}&format=${format}`
 

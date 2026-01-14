@@ -141,13 +141,15 @@ const SPLIT_IMPACT = 0.0025
 const WHALE_IMPACT = 0.003
 const MAX_SIGNAL_BIAS = 0.12
 
-const normalizeText = (value: string) =>
+export const normalizeCollegeTeam = (value: string) =>
   value
     .toLowerCase()
     .replace(/&/g, 'and')
     .replace(/[^a-z0-9]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+
+const normalizeText = normalizeCollegeTeam
 
 const GENERIC_TEAM_TOKENS = new Set([
   'state',
@@ -239,6 +241,38 @@ const computeOverProbability = (marketLine: number, modelLine: number, stdDev: n
   return clampProbability(1 - normalCDF(zScore))
 }
 
+const resolveStdDev = ({
+  sportKey,
+  tier,
+  base,
+  hasSignals,
+}: {
+  sportKey: string
+  tier: ProjectionTier
+  base: number
+  hasSignals: boolean
+}) => {
+  if (sportKey !== 'basketball_ncaab') return base
+  const tierMultiplier = tier === 'p4' ? 1 : tier === 'mid' ? 1.2 : 1.35
+  const signalMultiplier = hasSignals ? 1 : 1.15
+  return base * tierMultiplier * signalMultiplier
+}
+
+const resolveMarketBlend = ({
+  sportKey,
+  tier,
+  hasSignals,
+}: {
+  sportKey: string
+  tier: ProjectionTier
+  hasSignals: boolean
+}) => {
+  if (sportKey !== 'basketball_ncaab') return 0
+  const tierBlend = tier === 'p4' ? 0.1 : tier === 'mid' ? 0.2 : 0.3
+  const signalBlend = hasSignals ? 0 : 0.15
+  return Math.min(0.45, tierBlend + signalBlend)
+}
+
 const P4_COLLEGE_TEAMS = [
   'Arizona', 'Arizona State', 'Baylor', 'BYU', 'Cincinnati', 'Colorado', 'Houston',
   'Iowa State', 'Kansas', 'Kansas State', 'Oklahoma State', 'TCU', 'Texas Tech',
@@ -252,6 +286,8 @@ const P4_COLLEGE_TEAMS = [
   'Illinois', 'Indiana', 'Iowa', 'Maryland', 'Michigan', 'Michigan State', 'Minnesota',
   'Nebraska', 'Northwestern', 'Ohio State', 'Penn State', 'Purdue', 'Rutgers',
   'Wisconsin', 'USC', 'UCLA', 'Oregon', 'Washington',
+  'Butler', 'Creighton', 'DePaul', 'Georgetown', 'Marquette', 'Providence',
+  'Seton Hall', "St. John's", 'Villanova', 'Xavier', 'Connecticut',
 ]
 
 const HBCU_TEAMS = [
@@ -264,8 +300,8 @@ const HBCU_TEAMS = [
   'Tennessee State', 'Savannah State',
 ]
 
-const P4_TEAM_SET = new Set(P4_COLLEGE_TEAMS.map((team) => normalizeText(team)))
-const HBCU_TEAM_SET = new Set(HBCU_TEAMS.map((team) => normalizeText(team)))
+export const P4_TEAM_SET = new Set(P4_COLLEGE_TEAMS.map((team) => normalizeText(team)))
+export const HBCU_TEAM_SET = new Set(HBCU_TEAMS.map((team) => normalizeText(team)))
 
 const resolveCollegeTier = (homeTeam: string, awayTeam: string): ProjectionTier => {
   const normalizedHome = normalizeText(homeTeam)
@@ -436,6 +472,12 @@ export const buildSharpProjections = (input: SharpProjectionInput): SharpProject
   const tier = resolveTier(input.sportKey, input.homeTeam, input.awayTeam)
   const tierMultiplier = TIER_MULTIPLIERS[tier] ?? TIER_MULTIPLIERS.pro
   const projections: SharpProjections = { tier }
+  const hasSignals =
+    (input.sharpSignals?.length ?? 0) +
+      (input.lineMovements?.length ?? 0) +
+      (input.splits ? 1 : 0) +
+      (input.whaleAlerts?.length ?? 0) >
+    0
 
   if (
     input.spread &&
@@ -444,7 +486,35 @@ export const buildSharpProjections = (input: SharpProjectionInput): SharpProject
   ) {
     const marketLine = input.spread.marketLine
     const modelLine = input.spread.targetLine
-    const baseHomeProb = computeCoverProbability(marketLine, modelLine, config.marginStdDev)
+    const marginStdDev = resolveStdDev({
+      sportKey: input.sportKey,
+      tier,
+      base: config.marginStdDev,
+      hasSignals,
+    })
+    let baseHomeProb = computeCoverProbability(marketLine, modelLine, marginStdDev)
+    const marketBlend = resolveMarketBlend({
+      sportKey: input.sportKey,
+      tier,
+      hasSignals,
+    })
+    const hasMarketOdds =
+      Number.isFinite(input.spread.bestHomeOdds) ||
+      Number.isFinite(input.spread.bestAwayOdds) ||
+      Number.isFinite(input.spread.bestOdds)
+    if (marketBlend > 0 && hasMarketOdds) {
+      const baseAwayProb = 1 - baseHomeProb
+      const marketHome = resolveBreakEven(
+        input.spread.bestHomeOdds ?? input.spread.bestOdds
+      )
+      const marketAway = resolveBreakEven(
+        input.spread.bestAwayOdds ?? input.spread.bestOdds
+      )
+      const blendedHome = baseHomeProb * (1 - marketBlend) + marketHome * marketBlend
+      const blendedAway = baseAwayProb * (1 - marketBlend) + marketAway * marketBlend
+      const total = blendedHome + blendedAway
+      baseHomeProb = total > 0 ? blendedHome / total : blendedHome
+    }
     const homeBias = computeSignalBias({
       market: 'spread',
       pickSide: 'home',
@@ -509,7 +579,30 @@ export const buildSharpProjections = (input: SharpProjectionInput): SharpProject
   ) {
     const marketLine = input.total.marketLine
     const modelLine = input.total.targetLine
-    const baseOverProb = computeOverProbability(marketLine, modelLine, config.totalStdDev)
+    const totalStdDev = resolveStdDev({
+      sportKey: input.sportKey,
+      tier,
+      base: config.totalStdDev,
+      hasSignals,
+    })
+    let baseOverProb = computeOverProbability(marketLine, modelLine, totalStdDev)
+    const marketBlend = resolveMarketBlend({
+      sportKey: input.sportKey,
+      tier,
+      hasSignals,
+    })
+    const hasMarketOdds =
+      Number.isFinite(input.total.bestOdds) ||
+      Number.isFinite(input.total.bestUnderOdds)
+    if (marketBlend > 0 && hasMarketOdds) {
+      const baseUnderProb = 1 - baseOverProb
+      const marketOver = resolveBreakEven(input.total.bestOdds)
+      const marketUnder = resolveBreakEven(input.total.bestUnderOdds ?? input.total.bestOdds)
+      const blendedOver = baseOverProb * (1 - marketBlend) + marketOver * marketBlend
+      const blendedUnder = baseUnderProb * (1 - marketBlend) + marketUnder * marketBlend
+      const total = blendedOver + blendedUnder
+      baseOverProb = total > 0 ? blendedOver / total : blendedOver
+    }
     const overBias = computeSignalBias({
       market: 'total',
       pickSide: 'over',
@@ -569,11 +662,35 @@ export const buildSharpProjections = (input: SharpProjectionInput): SharpProject
   if (moneyline) {
     let baseHomeProb = moneyline.model?.homeProbability
     if (!Number.isFinite(baseHomeProb) && input.spread?.targetLine != null) {
+      const marginStdDev = resolveStdDev({
+        sportKey: input.sportKey,
+        tier,
+        base: config.marginStdDev,
+        hasSignals,
+      })
       baseHomeProb = normalCDF(
-        -(input.spread.targetLine as number) / config.marginStdDev
+        -(input.spread.targetLine as number) / marginStdDev
       )
     }
     if (Number.isFinite(baseHomeProb)) {
+      const marketBlend = resolveMarketBlend({
+        sportKey: input.sportKey,
+        tier,
+        hasSignals,
+      })
+      const hasMarketOdds =
+        Number.isFinite(moneyline.sportsbook?.homeOdds) ||
+        Number.isFinite(moneyline.sportsbook?.awayOdds)
+      if (marketBlend > 0 && hasMarketOdds) {
+        const baseAwayProb = 1 - (baseHomeProb as number)
+        const marketHome = resolveBreakEven(moneyline.sportsbook?.homeOdds)
+        const marketAway = resolveBreakEven(moneyline.sportsbook?.awayOdds)
+        const blendedHome =
+          (baseHomeProb as number) * (1 - marketBlend) + marketHome * marketBlend
+        const blendedAway = baseAwayProb * (1 - marketBlend) + marketAway * marketBlend
+        const total = blendedHome + blendedAway
+        baseHomeProb = total > 0 ? blendedHome / total : blendedHome
+      }
       const homeSignal = computeSignalBias({
         market: 'moneyline',
         pickSide: 'home',

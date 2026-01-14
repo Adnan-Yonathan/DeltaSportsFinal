@@ -16,19 +16,27 @@ export async function GET(req: NextRequest) {
 
     console.log("[Cron: Whale History] Starting ingest for all sports")
 
+    const ncaabResult = await ingestWhaleTradeHistory({
+      sportKey: "basketball_ncaab",
+      minNotional: 500,
+      limit: 800,
+    })
     const result = await ingestWhaleTradeHistory({
       minNotional: 2000,
       limit: 800,
     })
 
     console.log(
-      `[Cron: Whale History] Completed ingest: ${result.inserted} inserted, ${result.skipped} skipped, ${result.attempted} attempted`
+      `[Cron: Whale History] Completed ingest: ${result.inserted + ncaabResult.inserted} inserted, ${result.skipped + ncaabResult.skipped} skipped, ${result.attempted + ncaabResult.attempted} attempted`
     )
 
     return NextResponse.json({
       ok: true,
       timestamp: new Date().toISOString(),
-      result,
+      result: {
+        overall: result,
+        ncaab: ncaabResult,
+      },
     })
   } catch (error: any) {
     console.error("[Cron: Whale History] Fatal error:", error)

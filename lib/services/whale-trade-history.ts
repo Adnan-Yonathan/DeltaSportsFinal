@@ -1,5 +1,12 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { fetchWhaleTrades, type WhaleTrade } from '@/lib/services/whale-detector'
+import { getCbbAdvancedRatingsSnapshot } from '@/lib/services/cbb-advanced-ratings'
+import { normalizeNcaabTeamKey } from '@/lib/providers/ncaab-free-sources'
+import {
+  HBCU_TEAM_SET,
+  P4_TEAM_SET,
+  normalizeCollegeTeam,
+} from '@/lib/services/sharp-projections'
 
 type MarketType = 'spread' | 'moneyline' | 'total'
 
@@ -87,6 +94,7 @@ const EASTERN_FORMATTER = new Intl.DateTimeFormat('en-US', {
   month: '2-digit',
   day: '2-digit',
 })
+const NCAAB_MID_MAJOR_NET_RANK_MAX = 150
 const SPORT_PREGAME_WINDOWS: Record<string, number> = {
   basketball_nba: 1,
   basketball_ncaab: 1,
@@ -109,6 +117,50 @@ const normalizeText = (value: string) =>
     .trim()
 
 const normalizeKey = (value: string) => normalizeText(value).replace(/\s+/g, '-')
+
+const BIG_EAST_TEAMS = [
+  'Butler',
+  'Creighton',
+  'DePaul',
+  'Georgetown',
+  'Marquette',
+  'Providence',
+  'Seton Hall',
+  "St. John's",
+  'Villanova',
+  'Xavier',
+  'Connecticut',
+]
+
+const BIG_EAST_TEAM_SET = new Set(
+  BIG_EAST_TEAMS.map((team) => normalizeCollegeTeam(team))
+)
+
+type NetRankLookup = Map<string, number>
+
+const resolveNcaabWhaleThreshold = (
+  homeTeam: string,
+  awayTeam: string,
+  netRanks?: NetRankLookup | null
+) => {
+  const home = normalizeCollegeTeam(homeTeam)
+  const away = normalizeCollegeTeam(awayTeam)
+  const isBigMajor =
+    P4_TEAM_SET.has(home) ||
+    P4_TEAM_SET.has(away) ||
+    BIG_EAST_TEAM_SET.has(home) ||
+    BIG_EAST_TEAM_SET.has(away)
+  if (isBigMajor) return 2000
+  const isSmall = HBCU_TEAM_SET.has(home) || HBCU_TEAM_SET.has(away)
+  if (isSmall) return 500
+  const homeRank = netRanks?.get(normalizeNcaabTeamKey(homeTeam)) ?? null
+  const awayRank = netRanks?.get(normalizeNcaabTeamKey(awayTeam)) ?? null
+  const isLowMajor = [homeRank, awayRank].some(
+    (rank) => rank != null && rank > NCAAB_MID_MAJOR_NET_RANK_MAX
+  )
+  if (isLowMajor) return 500
+  return 1000
+}
 
 const normalizePlayerName = (name: string): string => {
   let normalized = name.toLowerCase().trim()
@@ -470,8 +522,23 @@ export const ingestWhaleTradeHistory = async ({
 }) => {
   const supabase = createServiceClient()
   const playerIndexBySport = await loadPlayerIndexBySport(supabase)
+  let netRankLookup: NetRankLookup | null = null
+  const ensureNetRankLookup = async () => {
+    if (netRankLookup) return netRankLookup
+    const ratings = await getCbbAdvancedRatingsSnapshot()
+    const map: NetRankLookup = new Map()
+    for (const entry of ratings) {
+      if (!entry?.teamKey) continue
+      if (!Number.isFinite(entry.netRank)) continue
+      map.set(entry.teamKey, entry.netRank as number)
+    }
+    netRankLookup = map
+    return netRankLookup
+  }
 
-  const trades = await fetchWhaleTrades({ limit, minNotional })
+  const effectiveMinNotional =
+    sportKey === 'basketball_ncaab' ? Math.min(minNotional, 500) : minNotional
+  const trades = await fetchWhaleTrades({ limit, minNotional: effectiveMinNotional })
   if (!trades.length) {
     return { inserted: 0, skipped: 0, attempted: 0, attemptedBySport: {} }
   }
@@ -505,6 +572,17 @@ export const ingestWhaleTradeHistory = async ({
     const playerPropInfo = resolvePlayerPropInfo(trade, resolvedKey, playerIndex)
     if (playerPropInfo) {
       const matchup = playerPropInfo.matchup
+      if (resolvedKey === 'basketball_ncaab' && matchup) {
+        const ranks = await ensureNetRankLookup()
+        const threshold = resolveNcaabWhaleThreshold(matchup.home, matchup.away, ranks)
+        if (trade.notional < threshold) {
+          skipped += 1
+          continue
+        }
+      } else if (resolvedKey === 'basketball_ncaab' && trade.notional < 1000) {
+        skipped += 1
+        continue
+      }
       rows.push({
         source: trade.source,
         trade_id: trade.id,
@@ -534,6 +612,18 @@ export const ingestWhaleTradeHistory = async ({
 
     const teams = parseTeamsFromTitle(trade.marketTitle)
     if (!teams) {
+      skipped += 1
+      continue
+    }
+
+    if (resolvedKey === 'basketball_ncaab') {
+      const ranks = await ensureNetRankLookup()
+      const threshold = resolveNcaabWhaleThreshold(teams.home, teams.away, ranks)
+      if (trade.notional < threshold) {
+        skipped += 1
+        continue
+      }
+    } else if (trade.notional < minNotional) {
       skipped += 1
       continue
     }

@@ -309,7 +309,8 @@ const teamNameMatches = (team: string, candidate: string) => {
   return (
     normalizedTeam === normalizedCandidate ||
     normalizedTeam.endsWith(normalizedCandidate) ||
-    normalizedCandidate.endsWith(normalizedTeam)
+    normalizedCandidate.endsWith(normalizedTeam) ||
+    selectionMatchesTeam(team, candidate)
   )
 }
 
@@ -1392,20 +1393,21 @@ export async function analyzeSlateEdges(
 
   // Fetch today's odds
   let oddsGames: OddsGame[] = []
-  if (isCfb) {
+  if (isCfb || sportKey === 'basketball_ncaab') {
+    const league = isCfb ? 'ncaafb' : 'ncaamb'
     try {
-      const sbdOdds = await withTimeout(fetchSbdOdds('ncaafb'), 12000, null)
+      const sbdOdds = await withTimeout(fetchSbdOdds(league), 12000, null)
       if (sbdOdds) {
-        oddsGames = mapSbdOddsToOddsGames('ncaafb', sbdOdds, [
+        oddsGames = mapSbdOddsToOddsGames(league, sbdOdds, [
           MARKETS.H2H,
           MARKETS.SPREADS,
           MARKETS.TOTALS,
         ])
       } else {
-        console.warn('[SLATE EDGE] Timed out fetching SBD odds for CFB.')
+        console.warn(`[SLATE EDGE] Timed out fetching SBD odds for ${league}.`)
       }
     } catch (error) {
-      console.error('[SLATE EDGE] Failed to fetch SBD odds for CFB:', error)
+      console.error(`[SLATE EDGE] Failed to fetch SBD odds for ${league}:`, error)
       oddsGames = []
     }
   } else {

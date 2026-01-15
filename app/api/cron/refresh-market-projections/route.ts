@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
+import { recordMarketProjectionPicks } from "@/lib/services/market-projection-clv"
 
 export const dynamic = "force-dynamic"
 
@@ -42,6 +43,11 @@ export async function GET(req: NextRequest) {
       try {
         const result = await analyzeSlateEdges(sport, { limit: 200 })
         const edges = result.edges ?? []
+        await recordMarketProjectionPicks({
+          sport,
+          edges: edges as any,
+          pickedAt: new Date().toISOString(),
+        })
 
         // Write to cache
         const { error: cacheError } = (await supabase

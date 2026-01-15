@@ -74,6 +74,7 @@ export type WhaleAlert = {
 
 export interface GameEdgeAnalysis {
   matchup: string
+  oddsApiId?: string
   homeTeam: string
   awayTeam: string
   commenceTime: string
@@ -1646,6 +1647,7 @@ export async function analyzeSlateEdges(
 
       const analysis: GameEdgeAnalysis = {
         matchup: `${game.away_team} @ ${game.home_team}`,
+        oddsApiId: game.id,
         homeTeam: game.home_team,
         awayTeam: game.away_team,
         commenceTime: game.commence_time,
@@ -2182,6 +2184,7 @@ export async function analyzeSlateEdges(
 
       const gameAnalysis: GameEdgeAnalysis = {
         matchup: matchupLabel,
+        oddsApiId: game.id,
         homeTeam: game.home_team,
         awayTeam: game.away_team,
         commenceTime: game.commence_time,

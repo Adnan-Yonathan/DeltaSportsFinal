@@ -219,10 +219,15 @@ const computeConfidenceInterval = (
   probability: number,
   score: number,
   baseWidth: number,
-  ciMultiplier: number
+  ciMultiplier: number,
+  penalty = 0
 ) => {
-  const dampener = Math.min(0.45, score * 0.05)
-  const width = Math.min(0.18, Math.max(0.03, baseWidth * ciMultiplier * (1 - dampener)))
+  const dampener = Math.min(0.45, Math.max(0, score) * 0.05)
+  const clampedPenalty = Math.max(0, Math.min(0.5, penalty))
+  const width = Math.min(
+    0.18,
+    Math.max(0.03, baseWidth * ciMultiplier * (1 - dampener) * (1 + clampedPenalty))
+  )
   return {
     low: clampProbability(probability - width),
     high: clampProbability(probability + width),
@@ -271,6 +276,25 @@ const resolveMarketBlend = ({
   const tierBlend = tier === 'p4' ? 0.1 : tier === 'mid' ? 0.2 : 0.3
   const signalBlend = hasSignals ? 0 : 0.15
   return Math.min(0.45, tierBlend + signalBlend)
+}
+
+const applyConfidencePenalty = (value: number, penalty: number) =>
+  0.5 + (value - 0.5) * (1 - Math.max(0, Math.min(0.5, penalty)))
+
+const resolveLineMovePenalty = (
+  lineMovements: LineMovement[] | undefined,
+  market: MarketKey
+) => {
+  const move = lineMovements?.find((entry) => entry.market === market)
+  if (!move) return 0
+  const opening = Number(move.openingLine)
+  const current = Number(move.currentLine)
+  if (!Number.isFinite(opening) || !Number.isFinite(current)) return 0
+  const delta = Math.abs(current - opening)
+  const threshold =
+    market === 'spread' ? 1.5 : market === 'total' ? 3 : 25
+  if (delta <= threshold) return 0
+  return Math.min(0.35, (delta - threshold) / (threshold * 4))
 }
 
 const P4_COLLEGE_TEAMS = [
@@ -543,8 +567,16 @@ export const buildSharpProjections = (input: SharpProjectionInput): SharpProject
     const rawHome = clampProbability(baseHomeProb + homeBias.bias)
     const rawAway = clampProbability(1 - baseHomeProb + awayBias.bias)
     const totalProb = rawHome + rawAway
-    const homeProb = totalProb > 0 ? rawHome / totalProb : rawHome
-    const awayProb = totalProb > 0 ? rawAway / totalProb : rawAway
+    let homeProb = totalProb > 0 ? rawHome / totalProb : rawHome
+    let awayProb = totalProb > 0 ? rawAway / totalProb : rawAway
+    const lineMovePenalty = resolveLineMovePenalty(input.lineMovements, 'spread')
+    if (lineMovePenalty > 0) {
+      const adjustedHome = applyConfidencePenalty(homeProb, lineMovePenalty)
+      const adjustedAway = applyConfidencePenalty(awayProb, lineMovePenalty)
+      const adjustedTotal = adjustedHome + adjustedAway
+      homeProb = adjustedTotal > 0 ? adjustedHome / adjustedTotal : adjustedHome
+      awayProb = adjustedTotal > 0 ? adjustedAway / adjustedTotal : adjustedAway
+    }
     const pickSide: MarketSide = homeProb >= awayProb ? 'home' : 'away'
     const probability = pickSide === 'home' ? homeProb : awayProb
     const signalBias = pickSide === 'home' ? homeBias : awayBias
@@ -560,7 +592,8 @@ export const buildSharpProjections = (input: SharpProjectionInput): SharpProject
       probability,
       signalBias.score,
       config.baseCiWidth,
-      tierMultiplier.ci
+      tierMultiplier.ci,
+      lineMovePenalty
     )
     projections.spread = {
       side: pickLabel,

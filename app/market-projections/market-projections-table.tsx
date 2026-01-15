@@ -189,6 +189,23 @@ const resolveLineFromMovements = (
   return coerceNumber(move?.currentLine ?? move?.openingLine)
 }
 
+const formatLineMovement = (move: EdgeGame["lineMovements"][number]) => {
+  const formatter = move.market === "moneyline" ? formatOdds : formatSigned
+  const opening = formatter(move.openingLine)
+  const current = formatter(move.currentLine)
+  if (opening === "n/a" || current === "n/a") return `${move.market} move n/a`
+  return `${move.market} open ${opening} -> now ${current}`
+}
+
+const resolveMoveSummary = (game: EdgeGame, filter: EdgeFilter) => {
+  const scoped = game.lineMovements.filter((move) => move.market === filter)
+  const moves = scoped.length ? scoped : game.lineMovements
+  return moves
+    .slice(0, 2)
+    .map(formatLineMovement)
+    .join(" | ")
+}
+
 const resolveModelSpread = (game: EdgeGame) => {
   // Prefer prediction market line if it differs from market line
   const predictionLine = coerceNumber(game.spread?.prediction?.line)
@@ -695,14 +712,7 @@ export default function MarketProjectionsTable({
                       `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
                   )
                   .join(" | ")
-                const moveSummary = game.lineMovements
-                  .filter((move) => move.isSharp || move.isSignificant)
-                  .slice(0, 2)
-                  .map(
-                    (move) =>
-                      `${move.market}: ${move.openingLine} -> ${move.currentLine}`
-                  )
-                  .join(" | ")
+                const moveSummary = resolveMoveSummary(game, filter)
                     return (
                       <details
                         key={`${game.matchup}-${game.commenceTime}`}
@@ -810,14 +820,7 @@ export default function MarketProjectionsTable({
                           `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
                       )
                       .join(" | ")
-                    const moveSummary = game.lineMovements
-                      .filter((move) => move.isSharp || move.isSignificant)
-                      .slice(0, 2)
-                      .map(
-                        (move) =>
-                          `${move.market}: ${move.openingLine} -> ${move.currentLine}`
-                      )
-                      .join(" | ")
+                    const moveSummary = resolveMoveSummary(game, filter)
                     return (
                       <TableRow
                         key={`${game.matchup}-${game.commenceTime}`}

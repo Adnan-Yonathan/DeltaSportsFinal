@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
+import { recordMarketProjectionPicks } from "@/lib/services/market-projection-clv"
 
 const CACHE_TTL_MS = 1000 * 60 * 15
 
@@ -118,6 +119,11 @@ export async function GET(request: Request) {
         sport,
         edges: mergedEdges,
       }
+      await recordMarketProjectionPicks({
+        sport,
+        edges: mergedEdges as any,
+        pickedAt: payload.updatedAt,
+      })
       await writeCache(sport, mergedEdges)
       return NextResponse.json({
         ok: true,
@@ -148,7 +154,7 @@ export async function GET(request: Request) {
 
     if (cached) {
       void analyzeSlateEdges(sport, { limit: 200 })
-        .then((result) => {
+        .then(async (result) => {
           if ((result.edges?.length ?? 0) === 0 && cached?.edges?.length) {
             return null
           }
@@ -158,6 +164,11 @@ export async function GET(request: Request) {
             sport,
             edges: mergedEdges,
           }
+          await recordMarketProjectionPicks({
+            sport,
+            edges: mergedEdges as any,
+            pickedAt: payload.updatedAt,
+          })
           return writeCache(sport, mergedEdges)
         })
         .catch((error) =>
@@ -182,6 +193,11 @@ export async function GET(request: Request) {
       sport,
       edges: mergedEdges,
     }
+    await recordMarketProjectionPicks({
+      sport,
+      edges: mergedEdges as any,
+      pickedAt: payload.updatedAt,
+    })
     await writeCache(sport, mergedEdges)
     return NextResponse.json({
       ok: true,

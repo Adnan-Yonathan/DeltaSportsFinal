@@ -1,10 +1,13 @@
 import MarketProjectionsClient from "./market-projections-client"
 import SportSelector from "./sport-selector"
 import ToolsNav from "@/components/tools-nav"
+import MarketProjectionsClvRecap from "./clv-recap"
+import MarketProjectionsClvTracker from "./clv-tracker"
 import { createServiceClient } from "@/lib/supabase/service"
 import { buildSharpProjections } from "@/lib/services/sharp-projections"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
+import { getRollingMarketProjectionClvRecap } from "@/lib/services/market-projection-clv"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -42,6 +45,10 @@ export default async function MarketProjectionsPage({
   let hasCache = true
   let lastUpdated: string | null = null
   const isLocked = Boolean(selected.locked)
+  const clvRecap =
+    sport === "basketball_nba"
+      ? await getRollingMarketProjectionClvRecap({ sport })
+      : null
 
   if (!isLocked) {
     try {
@@ -142,6 +149,14 @@ export default async function MarketProjectionsPage({
         <div className="px-2 sm:px-4 py-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <ToolsNav />
+            {clvRecap ? (
+              <div className="flex w-full justify-center md:w-auto md:flex-1">
+                <MarketProjectionsClvTracker
+                  summary={clvRecap.summary}
+                  updatedAt={clvRecap.updatedAt}
+                />
+              </div>
+            ) : null}
             <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
           </div>
         </div>
@@ -162,6 +177,14 @@ export default async function MarketProjectionsPage({
             the break-even line.
           </p>
         </header>
+
+        {clvRecap ? (
+          <MarketProjectionsClvRecap
+            games={clvRecap.games}
+            history={clvRecap.history}
+            updatedAt={clvRecap.updatedAt}
+          />
+        ) : null}
 
         <MarketProjectionsClient
           key={sport}

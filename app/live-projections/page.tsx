@@ -2,6 +2,7 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import ToolsNav from "@/components/tools-nav"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
+import LiveProjectionsClient from "./live-projections-client"
 
 export const dynamic = "force-dynamic"
 
@@ -18,7 +19,12 @@ export default async function LiveProjectionsPage() {
       <div className="mb-6">
         <ToolsNav />
       </div>
-      <h1 className="text-2xl font-semibold">Live Projections</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-2xl font-semibold">Live Projections</h1>
+        <span className="rounded-full border border-white/20 px-2 py-0.5 text-[10px] uppercase tracking-[0.3em] text-white/60">
+          Beta
+        </span>
+      </div>
       {!hasAccess ? (
         <div className="relative mt-6 max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-white/5">
           <div className="pointer-events-none blur-sm">
@@ -56,14 +62,7 @@ export default async function LiveProjectionsPage() {
           </div>
         </div>
       ) : (
-        <div className="mt-6 max-w-xl rounded-2xl border border-white/10 bg-white/5 p-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-            Coming soon
-          </p>
-          <p className="mt-3 text-sm text-white/70">
-            Live projections are gated for now. We are polishing the feed.
-          </p>
-        </div>
+        <LiveProjectionsClient />
       )}
     </div>
   )

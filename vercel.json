@@ -15,9 +15,6 @@
     "app/api/cron/refresh-player-projections/route.ts": {
       "maxDuration": 300
     },
-    "app/api/cron/backfill-nfl-player-props/route.ts": {
-      "maxDuration": 300
-    },
     "app/api/cron/ingest-whale-trades/route.ts": {
       "maxDuration": 120
     }
@@ -30,10 +27,6 @@
     {
       "path": "/api/cron/refresh-player-projections",
       "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/cron/backfill-nfl-player-props",
-      "schedule": "0 */2 16-18 1 *"
     },
     {
       "path": "/api/cron/ingest-whale-trades",

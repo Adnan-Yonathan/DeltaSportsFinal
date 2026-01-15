@@ -34,7 +34,8 @@ export type AggregatedPlayerPropBet = {
   predMarketProbability: number
   sportsbookAvgProbability: number | null
   sportsbookAvgOdds: number | null
-  edgePercent: number
+  edgePercent: number // Expected Value as percentage (EV-based edge)
+  rawProbabilityEdge: number // Simple probability difference (for reference)
 
   // Clustering detection
   isClustered: boolean
@@ -215,8 +216,10 @@ const computeCompositeScore = (
   prop: Partial<AggregatedPlayerPropBet>,
   weights: CompositeScoreWeights
 ): number => {
-  // Normalize edge to 0-1 (cap at 15% edge)
-  const edgeScore = Math.min(1, Math.max(0, Math.abs(prop.edgePercent ?? 0) / 15))
+  // Normalize EV-based edge to 0-1 (cap at 25% EV)
+  // EV percentages are typically larger than raw probability edges
+  // 10% EV is considered good, 20%+ is excellent
+  const edgeScore = Math.min(1, Math.max(0, Math.abs(prop.edgePercent ?? 0) / 25))
 
   // Normalize notional to 0-1 using log scale (cap at $50k)
   const notionalRaw = prop.totalNotional ?? 0
@@ -460,11 +463,35 @@ export const analyzeSharpPlayerProps = async (
     const { avgProbability: sportsbookAvgProbability, avgOdds: sportsbookAvgOdds } =
       findMatchingSportsbookOdds(playerName, propType, propLine, side, sportsbookData)
 
-    // Calculate edge
-    const edgePercent =
-      sportsbookAvgProbability != null
-        ? (predMarketProbability - sportsbookAvgProbability) * 100
-        : predMarketProbability * 100 - 50 // Default to deviation from 50% if no book odds
+    // Calculate edge using Expected Value (EV)
+    // EV = (trueProb × decimalOdds) - 1, where decimalOdds = 1/sportsbookImpliedProb
+    // This properly accounts for odds - a 5% edge at 70% is worth less than at 50%
+    let edgePercent: number
+    let rawProbabilityEdge: number
+
+    if (sportsbookAvgProbability != null && sportsbookAvgProbability > 0) {
+      // Calculate decimal odds from sportsbook implied probability
+      const decimalOdds = 1 / sportsbookAvgProbability
+      // EV = (true probability × decimal odds) - 1
+      edgePercent = (predMarketProbability * decimalOdds - 1) * 100
+      // Also store raw probability difference for reference
+      rawProbabilityEdge = (predMarketProbability - sportsbookAvgProbability) * 100
+    } else {
+      // No sportsbook odds available - use prediction market deviation from break-even
+      // as a proxy for "confidence level" rather than true EV
+      // Scale more conservatively: only count deviation beyond 55%/45% as meaningful
+      const deviationFromCenter = Math.abs(predMarketProbability - 0.5)
+      const threshold = 0.05 // 5% deviation threshold
+      if (deviationFromCenter > threshold) {
+        // Scale the excess deviation - bets at 60% get small edge, 70%+ get more
+        const excessDeviation = deviationFromCenter - threshold
+        const direction = predMarketProbability > 0.5 ? 1 : -1
+        edgePercent = direction * excessDeviation * 100 // 60% → 5%, 70% → 15%, 80% → 25%
+      } else {
+        edgePercent = 0 // Near 50% = no clear edge
+      }
+      rawProbabilityEdge = (predMarketProbability - 0.5) * 100
+    }
 
     // Detect clustering
     const { isClustered, earliestTime, latestTime } = detectClustering(
@@ -499,6 +526,7 @@ export const analyzeSharpPlayerProps = async (
       sportsbookAvgProbability,
       sportsbookAvgOdds,
       edgePercent,
+      rawProbabilityEdge,
       isClustered,
       clusterWindowHours,
       earliestTradeTime: earliestTime,

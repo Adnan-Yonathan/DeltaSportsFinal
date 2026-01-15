@@ -407,7 +407,7 @@ function ChatPageContent() {
   }
 
   const readCachedSharps = () => {
-    if (typeof window === 'undefined') return [] as Array<{ id?: string }>
+    if (typeof window === 'undefined') return [] as Array<{ id?: string; timestamp?: string }>
     try {
       ensureSharpCacheVersion()
       const cached = window.localStorage.getItem(SHARP_STORAGE_KEY)
@@ -419,7 +419,7 @@ function ChatPageContent() {
     }
   }
 
-  const writeCachedSharps = (trades: Array<{ id?: string }>) => {
+  const writeCachedSharps = (trades: Array<{ id?: string; timestamp?: string }>) => {
     try {
       window.localStorage.setItem(SHARP_STORAGE_KEY, JSON.stringify(trades))
     } catch (error) {
@@ -450,11 +450,11 @@ function ChatPageContent() {
         const data = await res.json()
         const trades = Array.isArray(data?.trades) ? data.trades : []
         const cached = readCachedSharps()
-        const merged = new Map<string, { id?: string }>()
+        const merged = new Map<string, { id?: string; timestamp?: string }>()
         cached.forEach((trade) => {
           if (trade?.id) merged.set(trade.id, trade)
         })
-        trades.forEach((trade: { id?: string }) => {
+        trades.forEach((trade: { id?: string; timestamp?: string }) => {
           if (trade?.id) merged.set(trade.id, trade)
         })
         const combined = Array.from(merged.values())

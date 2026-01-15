@@ -208,6 +208,24 @@ const resolveSharpTier = (notional: number): SharpTier => {
   return 'small'
 }
 
+const EASTERN_TIMEZONE = 'America/New_York'
+
+const getEasternDateKey = (value: Date | string | number) => {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: EASTERN_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const year = parts.find((part) => part.type === 'year')?.value
+  const month = parts.find((part) => part.type === 'month')?.value
+  const day = parts.find((part) => part.type === 'day')?.value
+  if (!year || !month || !day) return null
+  return `${year}-${month}-${day}`
+}
+
 const sharpTierLabel: Record<SharpTier, string> = {
   small: 'Swordfish',
   blue: 'Megalodon',
@@ -500,7 +518,11 @@ export default function SharpDetectorPage() {
   // Stats
   const stats = useMemo(() => {
     const totalNotional = trades.reduce((sum, t) => sum + t.notional, 0)
-    return { totalNotional, totalTrades: trades.length }
+    const todayKey = getEasternDateKey(new Date())
+    const todayTrades = trades.filter(
+      (trade) => getEasternDateKey(trade.timestamp) === todayKey
+    ).length
+    return { totalNotional, todayTrades }
   }, [trades])
 
   const fetchTrades = async () => {
@@ -620,9 +642,9 @@ export default function SharpDetectorPage() {
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center gap-2 text-white/50 text-xs mb-1">
               <Target className="w-3.5 h-3.5" />
-              Trades Today
+              Sharps detected
             </div>
-            <p className="text-lg font-bold text-white">{stats.totalTrades}</p>
+            <p className="text-lg font-bold text-white">{stats.todayTrades}</p>
           </div>
         </div>
 

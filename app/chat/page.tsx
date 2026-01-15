@@ -22,6 +22,31 @@ import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/mes
 const SHARP_STORAGE_KEY = 'sharp-detector-trades'
 const SHARP_CACHE_VERSION_KEY = 'sharp-detector-cache-version'
 const SHARP_CACHE_VERSION = '3'
+const EASTERN_TIMEZONE = 'America/New_York'
+
+const getEasternDateKey = (value: Date | string | number) => {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: EASTERN_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const year = parts.find((part) => part.type === 'year')?.value
+  const month = parts.find((part) => part.type === 'month')?.value
+  const day = parts.find((part) => part.type === 'day')?.value
+  if (!year || !month || !day) return null
+  return `${year}-${month}-${day}`
+}
+
+const countSharpsToday = (trades: Array<{ timestamp?: string }>) => {
+  const todayKey = getEasternDateKey(new Date())
+  if (!todayKey) return 0
+  return trades.filter(
+    (trade) => getEasternDateKey(trade.timestamp ?? '') === todayKey
+  ).length
+}
 
 const ensureSharpCacheVersion = () => {
   if (typeof window === 'undefined') return
@@ -56,7 +81,7 @@ function ChatPageContent() {
       const cached = window.localStorage.getItem(SHARP_STORAGE_KEY)
       if (!cached) return 0
       const parsed = JSON.parse(cached)
-      return Array.isArray(parsed) ? parsed.length : 0
+      return Array.isArray(parsed) ? countSharpsToday(parsed) : 0
     } catch (error) {
       console.warn('Failed to read sharp cache:', error)
       return 0
@@ -318,8 +343,8 @@ function ChatPageContent() {
     },
     {
       key: 'player-projections',
-      label: 'Player Projections',
-      shortLabel: 'Players',
+      label: 'Sharp Props',
+      shortLabel: 'Props',
       href: '/player-projections',
       description: 'Player prop projections based on recent form and matchup context',
     },
@@ -410,7 +435,7 @@ function ChatPageContent() {
         sharpSeenIds.current.add(trade.id)
       }
     })
-    setSharpTotalCount(cached.length)
+    setSharpTotalCount(countSharpsToday(cached))
   }, [user])
 
   useEffect(() => {
@@ -433,7 +458,7 @@ function ChatPageContent() {
           if (trade?.id) merged.set(trade.id, trade)
         })
         const combined = Array.from(merged.values())
-        setSharpTotalCount(combined.length)
+        setSharpTotalCount(countSharpsToday(combined))
         if (combined.length > 0) {
           writeCachedSharps(combined)
         }
@@ -656,7 +681,7 @@ function ChatPageContent() {
                 Sharp Detector
               </p>
               <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
-                {sharpTotalCount} sharps detected
+                {sharpTotalCount} sharps detected today
               </p>
             </div>
             <div className="relative flex items-center gap-2">
@@ -973,7 +998,7 @@ function ChatPageContent() {
                       Sharp Detector
                     </p>
                     <p className="mt-1 text-xs text-white/60">
-                      {sharpTotalCount} sharps detected &bull; $2k+ trade alerts
+                      {sharpTotalCount} sharps detected today &bull; $2k+ trade alerts
                     </p>
                   </div>
                   <button
@@ -1004,7 +1029,7 @@ function ChatPageContent() {
                 Sharp Detector
               </p>
               <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
-                {sharpTotalCount} sharps detected
+                {sharpTotalCount} sharps detected today
               </p>
               <p className="text-[11px] text-white/60">
                 $2k+ trades with price in cents + American odds.

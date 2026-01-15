@@ -205,6 +205,24 @@ const resolveSharpTier = (notional: number): SharpTier => {
   return 'small'
 }
 
+const EASTERN_TIMEZONE = 'America/New_York'
+
+const getEasternDateKey = (value: Date | string | number) => {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: EASTERN_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const year = parts.find((part) => part.type === 'year')?.value
+  const month = parts.find((part) => part.type === 'month')?.value
+  const day = parts.find((part) => part.type === 'day')?.value
+  if (!year || !month || !day) return null
+  return `${year}-${month}-${day}`
+}
+
 const sharpTierLabel: Record<SharpTier, string> = {
   small: 'Swordfish',
   blue: 'Megalodon',
@@ -368,6 +386,13 @@ export default function SharpDetectorPanel({
       return extractGameKey(trade.marketTitle, trade.sport) === gameFilter
     })
   }, [baseTrades, gameFilter])
+
+  const todaySharps = useMemo(() => {
+    const todayKey = getEasternDateKey(new Date())
+    return trades.filter(
+      (trade) => getEasternDateKey(trade.timestamp) === todayKey
+    ).length
+  }, [trades])
 
   const sportButtons = useMemo(
     () => ['all', 'NBA', 'NFL', 'MLB', 'NHL', 'NCAAB', 'NCAAF', 'WNBA', 'SOCCER', 'GOLF', 'UFC'],
@@ -564,8 +589,8 @@ export default function SharpDetectorPanel({
   const now = Date.now()
 
   useEffect(() => {
-    onCountChange?.(sortedTrades.length)
-  }, [onCountChange, sortedTrades.length])
+    onCountChange?.(todaySharps)
+  }, [onCountChange, todaySharps])
 
   const filters = (
     <div className="flex flex-wrap items-center gap-2">
@@ -611,7 +636,7 @@ export default function SharpDetectorPanel({
         <option value="strength">Highest %</option>
       </select>
       <span className="text-[10px] text-white/40">
-        {filteredTrades.length} trades
+        {todaySharps} sharps detected
       </span>
     </div>
   )

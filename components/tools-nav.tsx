@@ -9,7 +9,7 @@ import { BarChart3, Layers3, Percent, PieChart, Users } from "lucide-react"
 const TOOLS_NAV_ITEMS = [
   { href: "/sharp-detector", label: "Sharps" },
   { href: "/market-projections", label: "Markets" },
-  { href: "/player-projections", label: "Players" },
+  { href: "/player-projections", label: "Sharp Props" },
   { href: "/parlay-predictor", label: "Parlay" },
   { href: "/ev-bets", label: "EV Bets" },
   { href: "/stats", label: "Stats" },
@@ -17,7 +17,7 @@ const TOOLS_NAV_ITEMS = [
 
 const MOBILE_NAV_ITEMS = [
   { href: "/market-projections", label: "Markets", icon: BarChart3 },
-  { href: "/player-projections", label: "Players", icon: Users },
+  { href: "/player-projections", label: "Sharp Props", icon: Users },
   { href: "/parlay-predictor", label: "Parlay", icon: Layers3 },
   { href: "/ev-bets", label: "EV Bets", icon: Percent },
   { href: "/stats", label: "Stats", icon: PieChart },

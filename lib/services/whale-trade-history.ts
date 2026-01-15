@@ -236,6 +236,18 @@ const resolvePregameWindow = (sportKey: string, eventTime: Date) => {
   return { windowStart, eventTime }
 }
 
+const resolvePlayerPropWindow = (sportKey: string, eventTime: Date) => {
+  const eventDate = formatEasternDate(eventTime)
+  const dayStart = new Date(`${eventDate}T00:00:00-05:00`)
+  if (sportKey === 'americanfootball_nfl') {
+    const weekStart = resolveNflWeekStart(dayStart)
+    return { windowStart: weekStart, eventTime }
+  }
+  const windowDays = Math.max(resolveSportWindowDays(sportKey), 3)
+  const windowStart = new Date(dayStart.getTime() - windowDays * MS_PER_DAY)
+  return { windowStart, eventTime }
+}
+
 const parseTeamsFromTitle = (title: string) => {
   const parts = title.split(TEAM_SPLIT_PATTERN)
   if (parts.length !== 2) return null
@@ -577,15 +589,17 @@ export const ingestWhaleTradeHistory = async ({
       continue
     }
 
-    const { windowStart } = resolvePregameWindow(resolvedKey, eventTime)
+    const playerIndex = playerIndexBySport.get(resolvedKey) ?? []
+    const playerPropInfo = resolvePlayerPropInfo(trade, resolvedKey, playerIndex)
+    const { windowStart } = playerPropInfo
+      ? resolvePlayerPropWindow(resolvedKey, eventTime)
+      : resolvePregameWindow(resolvedKey, eventTime)
 
     if (tradeTime < windowStart || tradeTime >= eventTime) {
       skipped += 1
       continue
     }
 
-    const playerIndex = playerIndexBySport.get(resolvedKey) ?? []
-    const playerPropInfo = resolvePlayerPropInfo(trade, resolvedKey, playerIndex)
     if (playerPropInfo) {
       const matchup = playerPropInfo.matchup
       if (resolvedKey === 'basketball_ncaab' && matchup) {

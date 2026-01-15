@@ -17,6 +17,9 @@
     },
     "app/api/cron/ingest-whale-trades/route.ts": {
       "maxDuration": 120
+    },
+    "app/api/cron/ingest-nfl-prop-whales/route.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
@@ -31,6 +34,10 @@
     {
       "path": "/api/cron/ingest-whale-trades",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/ingest-nfl-prop-whales",
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/lines/record",

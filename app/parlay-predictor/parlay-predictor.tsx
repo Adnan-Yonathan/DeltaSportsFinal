@@ -79,6 +79,16 @@ type ParlayResult = {
   confidence: 'low' | 'medium' | 'high'
 }
 
+type SharpTrade = {
+  id: string
+  marketTitle: string
+  outcome: string
+  sport: string
+  timestamp: string
+  sharpStrength?: number
+  notional?: number
+}
+
 const NHL_ENABLED = false
 const SPORTS = [
   { value: 'americanfootball_nfl', label: 'NFL' },
@@ -115,6 +125,11 @@ const formatOdds = (odds?: number | null) => {
 const formatLine = (line?: number | null) => {
   if (line == null || !Number.isFinite(line)) return 'n/a'
   return line > 0 ? `+${line}` : `${line}`
+}
+
+const formatSharpPercent = (value?: number) => {
+  if (!Number.isFinite(value)) return 'n/a'
+  return `${Math.round(value as number)}%`
 }
 
 const normalizeTeamKey = (value: string) =>
@@ -227,6 +242,43 @@ export default function ParlayPredictor() {
   const [projecting, setProjecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ParlayResult | null>(null)
+  const [sharpBets, setSharpBets] = useState<SharpTrade[]>([])
+  const [sharpLoading, setSharpLoading] = useState(false)
+  const [sharpError, setSharpError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    const loadSharps = async () => {
+      setSharpLoading(true)
+      setSharpError(null)
+      try {
+        const res = await fetch('/api/whale-detector?minNotional=2000&limit=200', {
+          cache: 'no-store',
+        })
+        const payload = await res.json()
+        if (!res.ok) {
+          throw new Error(payload?.error || 'Failed to load sharp bets.')
+        }
+        const trades = Array.isArray(payload?.trades) ? payload.trades : []
+        if (active) {
+          setSharpBets(trades)
+        }
+      } catch (err: any) {
+        if (active) {
+          setSharpError(err?.message || 'Failed to load sharp bets.')
+        }
+      } finally {
+        if (active) setSharpLoading(false)
+      }
+    }
+
+    loadSharps()
+    const interval = setInterval(loadSharps, 60000)
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [])
 
   useEffect(() => {
     if (mode !== 'single') return
@@ -299,6 +351,13 @@ export default function ParlayPredictor() {
     })
     return map
   }, [gamesBySport])
+
+  const topSharps = useMemo(() => {
+    return sharpBets
+      .filter((trade) => Number.isFinite(trade.sharpStrength))
+      .sort((a, b) => (b.sharpStrength ?? 0) - (a.sharpStrength ?? 0))
+      .slice(0, 10)
+  }, [sharpBets])
 
   const updateLeg = (id: string, next: Partial<LegState>) => {
     setLegs((prev) =>
@@ -470,6 +529,51 @@ export default function ParlayPredictor() {
                 </option>
               ))}
             </select>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-white/50">
+              Sharpest bets right now
+            </p>
+            <p className="text-sm text-white/70">
+              Top 10 by sharp % from the Sharp Detector.
+            </p>
+          </div>
+          <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+            {sharpLoading ? 'Updating...' : 'Live'}
+          </span>
+        </div>
+        {sharpError ? (
+          <div className="mt-3 text-xs text-red-200">{sharpError}</div>
+        ) : topSharps.length === 0 ? (
+          <div className="mt-3 text-xs text-white/50">
+            No sharp bets detected yet.
+          </div>
+        ) : (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {topSharps.map((trade) => (
+              <div
+                key={trade.id}
+                className="rounded-xl border border-white/10 bg-black/40 p-3"
+              >
+                <div className="flex items-center justify-between text-[11px] text-white/50">
+                  <span className="uppercase tracking-[0.2em]">{trade.sport}</span>
+                  <span className="text-emerald-200">
+                    {formatSharpPercent(trade.sharpStrength)}
+                  </span>
+                </div>
+                <div className="mt-1 text-sm font-semibold text-white">
+                  {trade.outcome}
+                </div>
+                <div className="mt-1 text-[11px] text-white/50">
+                  {trade.marketTitle}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

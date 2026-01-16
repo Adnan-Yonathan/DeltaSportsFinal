@@ -46,11 +46,19 @@ export default function MarketProjectionsClvRecap({
   updatedAt,
 }: MarketProjectionsClvRecapProps) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.25em] text-white/50">
+    <details className="group rounded-2xl border border-white/10 bg-white/5 p-4">
+      <summary className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.25em] text-white/50 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
         <span>CLV Recap (rolling 24h)</span>
-        <span>Updated {new Date(updatedAt).toLocaleString()}</span>
-      </div>
+        <span className="flex flex-wrap items-center gap-3">
+          <span>Updated {new Date(updatedAt).toLocaleString()}</span>
+          <span className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] text-white/60 group-open:hidden">
+            Expand
+          </span>
+          <span className="hidden rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] text-white/60 group-open:inline-flex">
+            Collapse
+          </span>
+        </span>
+      </summary>
       <div className="mt-4 space-y-3">
         {games.length === 0 ? (
           <div className="text-sm text-white/50">
@@ -111,6 +119,6 @@ export default function MarketProjectionsClvRecap({
           </div>
         </details>
       ) : null}
-    </section>
+    </details>
   )
 }

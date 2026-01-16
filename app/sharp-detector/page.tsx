@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatAmericanOdds, formatCurrency } from '@/lib/utils/odds'
 import { cn } from '@/lib/utils'
+import { getWalletAlias } from '@/lib/utils/wallet-alias'
 import { SimpleHeader } from '@/components/ui/simple-header'
 import { motion } from 'framer-motion'
 import { Target, Zap, DollarSign } from 'lucide-react'
@@ -116,12 +117,7 @@ const normalizeWallet = (value?: string | null) => {
   return trimmed ? trimmed : null
 }
 
-const formatWallet = (value?: string | null) => {
-  if (!value) return 'Unknown'
-  const trimmed = value.trim()
-  if (trimmed.length <= 12) return trimmed
-  return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`
-}
+const formatWalletAlias = (value?: string | null) => getWalletAlias(value)
 
 const parseEventTime = (value?: string | null) => {
   if (!value) return null
@@ -730,7 +726,7 @@ export default function SharpDetectorPage() {
               onClick={() => setWalletFilter('all')}
               className="px-3 py-2 rounded-xl border border-emerald-400/40 text-xs uppercase tracking-[0.2em] text-emerald-200"
             >
-              Wallet {formatWallet(walletFilter)} ×
+              Wallet {formatWalletAlias(walletFilter)} x
             </button>
           )}
 
@@ -770,10 +766,10 @@ export default function SharpDetectorPage() {
                     <div key={trade.id} className="text-xs text-white/70">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-white/80">
-                          {formatWallet(trade.proxyWallet)}
+                          {formatWalletAlias(trade.proxyWallet)}
                         </span>
                         <span className="text-white/50">
-                          {trade.outcome} · {formatCurrency(trade.notional)}
+                          {trade.outcome} - {formatCurrency(trade.notional)}
                         </span>
                       </div>
                       <div className="mt-1 text-white/40">{trade.marketTitle}</div>
@@ -796,10 +792,10 @@ export default function SharpDetectorPage() {
                     <div key={trade.id} className="text-xs text-white/70">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-emerald-200">
-                          {formatWallet(trade.proxyWallet)}
+                          {formatWalletAlias(trade.proxyWallet)}
                         </span>
                         <span className="text-white/50">
-                          {trade.outcome} · {formatCurrency(trade.notional)}
+                          {trade.outcome} - {formatCurrency(trade.notional)}
                         </span>
                       </div>
                       <div className="mt-1 text-white/40">{trade.marketTitle}</div>
@@ -828,11 +824,11 @@ export default function SharpDetectorPage() {
                   )}
                 >
                   <span className="font-semibold text-white/80">
-                    {formatWallet(wallet.wallet)}
+                    {formatWalletAlias(wallet.wallet)}
                   </span>
                   <span className="text-white/50">
                     {wallet.count} trades
-                    {wallet.lastSeen ? ` · last ${formatTimestamp(wallet.lastSeen)}` : ''}
+                    {wallet.lastSeen ? ` - last ${formatTimestamp(wallet.lastSeen)}` : ''}
                   </span>
                 </button>
               ))}
@@ -865,10 +861,10 @@ export default function SharpDetectorPage() {
                 >
                   <div>
                     <div className="font-semibold text-emerald-200">
-                      {formatWallet(wallet.wallet)}
+                      {formatWalletAlias(wallet.wallet)}
                     </div>
                     <div className="text-white/50">
-                      {wallet.total_wins}W · {wallet.total_losses}L · {wallet.total_pushes}P
+                      {wallet.total_wins}W - {wallet.total_losses}L - {wallet.total_pushes}P
                     </div>
                   </div>
                   <div className="text-right">
@@ -958,7 +954,7 @@ export default function SharpDetectorPage() {
                             </span>
                             {isTrackedWallet && (
                               <span className="px-2 py-0.5 rounded-full border border-emerald-400/40 text-[10px] text-emerald-200">
-                                Tracked {formatWallet(trade.proxyWallet)}
+                                Tracked {formatWalletAlias(trade.proxyWallet)}
                               </span>
                             )}
                           </div>
@@ -1058,7 +1054,7 @@ export default function SharpDetectorPage() {
                     </span>
                     {isTrackedWallet && (
                       <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-emerald-200">
-                        Tracked {formatWallet(trade.proxyWallet)}
+                        Tracked {formatWalletAlias(trade.proxyWallet)}
                       </span>
                     )}
                     <span className="rounded-full border border-white/10 px-2 py-0.5">

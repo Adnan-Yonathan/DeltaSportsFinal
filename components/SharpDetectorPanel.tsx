@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatAmericanOdds, formatCurrency } from '@/lib/utils/odds'
 import { cn } from '@/lib/utils'
+import { getWalletAlias } from '@/lib/utils/wallet-alias'
 
 type SharpTrade = {
   id: string
@@ -94,12 +95,7 @@ const normalizeWallet = (value?: string | null) => {
   return trimmed ? trimmed : null
 }
 
-const formatWallet = (value?: string | null) => {
-  if (!value) return 'Unknown'
-  const trimmed = value.trim()
-  if (trimmed.length <= 12) return trimmed
-  return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`
-}
+const formatWalletAlias = (value?: string | null) => getWalletAlias(value)
 
 const parseEventTime = (value?: string | null) => {
   if (!value) return null
@@ -567,7 +563,7 @@ export default function SharpDetectorPanel({
           onClick={() => setWalletFilter('all')}
           className="rounded-lg border border-emerald-400/40 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200"
         >
-          Wallet {formatWallet(walletFilter)} ×
+          Wallet {formatWalletAlias(walletFilter)} x
         </button>
       )}
     </div>
@@ -637,10 +633,10 @@ export default function SharpDetectorPanel({
                   <div key={trade.id} className="text-[11px] text-white/70">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-white/80">
-                        {formatWallet(trade.proxyWallet)}
+                        {formatWalletAlias(trade.proxyWallet)}
                       </span>
                       <span className="text-white/50">
-                        {trade.outcome} · {formatCurrency(trade.notional)}
+                        {trade.outcome} - {formatCurrency(trade.notional)}
                       </span>
                     </div>
                     <div className="mt-1 text-white/40">{trade.marketTitle}</div>
@@ -663,10 +659,10 @@ export default function SharpDetectorPanel({
                   <div key={trade.id} className="text-[11px] text-white/70">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-emerald-200">
-                        {formatWallet(trade.proxyWallet)}
+                        {formatWalletAlias(trade.proxyWallet)}
                       </span>
                       <span className="text-white/50">
-                        {trade.outcome} · {formatCurrency(trade.notional)}
+                        {trade.outcome} - {formatCurrency(trade.notional)}
                       </span>
                     </div>
                     <div className="mt-1 text-white/40">{trade.marketTitle}</div>
@@ -695,11 +691,11 @@ export default function SharpDetectorPanel({
                 )}
               >
                 <span className="font-semibold text-white/80">
-                  {formatWallet(wallet.wallet)}
+                  {formatWalletAlias(wallet.wallet)}
                 </span>
                 <span className="text-white/50">
                   {wallet.count} trades
-                  {wallet.lastSeen ? ` · last ${formatTimestamp(wallet.lastSeen)}` : ''}
+                  {wallet.lastSeen ? ` - last ${formatTimestamp(wallet.lastSeen)}` : ''}
                 </span>
               </button>
             ))}
@@ -775,7 +771,7 @@ export default function SharpDetectorPanel({
               </span>
               {isTrackedWallet && (
                 <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-emerald-200">
-                  Tracked {formatWallet(trade.proxyWallet)}
+                  Tracked {formatWalletAlias(trade.proxyWallet)}
                 </span>
               )}
               <span className="rounded-full border border-white/10 px-2 py-0.5">

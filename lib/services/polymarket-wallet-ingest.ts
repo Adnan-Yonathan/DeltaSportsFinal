@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { fetchWhaleTrades } from '@/lib/services/whale-detector'
+import { getWalletAlias } from '@/lib/utils/wallet-alias'
 
 const POLYMARKET_TRADES = 'https://data-api.polymarket.com/trades'
 const POLYMARKET_GAMMA = 'https://gamma-api.polymarket.com'
@@ -97,6 +98,7 @@ type WalletRow = {
   wallet: string
   last_trade_ts: number | null
   backfill_completed: boolean | null
+  display_name?: string | null
 }
 
 type IngestWalletResult = {
@@ -472,6 +474,7 @@ export const seedTrackedPolymarketWallets = async ({
     wallet,
     source: 'detector',
     last_seen_at: now,
+    display_name: getWalletAlias(wallet),
   }))
   const supabase = createServiceClient()
   const { data, error } = await supabase
@@ -503,7 +506,7 @@ export const ingestPolymarketWalletTradesForTrackedWallets = async ({
 
   const query = supabase
     .from('polymarket_wallets' as any)
-    .select('wallet, last_trade_ts, backfill_completed')
+    .select('wallet, last_trade_ts, backfill_completed, display_name')
   const { data, error } = wallet
     ? await query.eq('wallet', normalizeWallet(wallet) ?? wallet)
     : await query
@@ -549,6 +552,9 @@ export const ingestPolymarketWalletTradesForTrackedWallets = async ({
     }
     if (fullBackfill) {
       updates.backfill_completed = true
+    }
+    if (!row.display_name) {
+      updates.display_name = getWalletAlias(row.wallet)
     }
     if (Object.keys(updates).length > 0) {
       const { error: updateError } = await (supabase

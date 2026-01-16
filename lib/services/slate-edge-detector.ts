@@ -10,7 +10,7 @@
  */
 
 import { fetchOdds } from '@/lib/api/odds-api'
-import { fetchSbdOdds, mapSbdOddsToOddsGames } from '@/lib/api/sbd'
+import { fetchSbdOdds, mapSbdOddsToOddsGames, resolveBookIds } from '@/lib/api/sbd'
 import { getNBATeamStats } from '@/lib/sports-stats-api'
 import { getGameRecommendations, type GameRecommendation } from './recommendation-engine'
 import { analyzeMatchup, type MatchupAnalysis } from './matchup-analyzer'
@@ -1396,20 +1396,57 @@ export async function analyzeSlateEdges(
   let oddsGames: OddsGame[] = []
   if (isCfb || sportKey === 'basketball_ncaab') {
     const league = isCfb ? 'ncaafb' : 'ncaamb'
-    try {
-      const sbdOdds = await withTimeout(fetchSbdOdds(league), 12000, null)
-      if (sbdOdds) {
-        oddsGames = mapSbdOddsToOddsGames(league, sbdOdds, [
-          MARKETS.H2H,
-          MARKETS.SPREADS,
-          MARKETS.TOTALS,
-        ])
-      } else {
-        console.warn(`[SLATE EDGE] Timed out fetching SBD odds for ${league}.`)
+    const markets = [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS]
+    const books = resolveBookIds()
+
+    const fetchSbdGames = async (bookIds?: string[]) => {
+      try {
+        const payload = await withTimeout(
+          fetchSbdOdds(league, { books: bookIds }),
+          12000,
+          null
+        )
+        if (!payload) {
+          console.warn(`[SLATE EDGE] Timed out fetching SBD odds for ${league}.`)
+          return []
+        }
+        return mapSbdOddsToOddsGames(league, payload, markets)
+      } catch (error) {
+        console.error(`[SLATE EDGE] Failed to fetch SBD odds for ${league}:`, error)
+        return []
       }
-    } catch (error) {
-      console.error(`[SLATE EDGE] Failed to fetch SBD odds for ${league}:`, error)
-      oddsGames = []
+    }
+
+    oddsGames = await fetchSbdGames(books)
+
+    if (league === 'ncaamb' && books.length > 1) {
+      const merged = new Map<string, OddsGame>()
+      const bookResults = await Promise.all(
+        books.map((book) => fetchSbdGames([book]))
+      )
+      for (const bookGames of bookResults) {
+        for (const game of bookGames) {
+          const key = buildMatchupKey(game.home_team, game.away_team)
+          const existing = merged.get(key)
+          if (existing) {
+            const byKey = new Map(
+              (existing.bookmakers ?? []).map((entry) => [entry.key, entry])
+            )
+            for (const entry of game.bookmakers ?? []) {
+              if (!byKey.has(entry.key)) byKey.set(entry.key, entry)
+            }
+            existing.bookmakers = Array.from(byKey.values())
+          } else {
+            merged.set(key, { ...game })
+          }
+        }
+      }
+      if (merged.size) {
+        oddsGames = Array.from(merged.values())
+      } else if (oddsGames.length === 0) {
+        const fallback = await fetchSbdGames(['sr:book:18149'])
+        if (fallback.length) oddsGames = fallback
+      }
     }
   } else {
     oddsGames = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], { revalidateSeconds: 60 })

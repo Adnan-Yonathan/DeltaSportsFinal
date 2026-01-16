@@ -9,6 +9,7 @@ type SharpTrade = {
   source: 'kalshi' | 'polymarket'
   marketTitle: string
   outcome: string
+  proxyWallet?: string
   priceCents: number
   americanOdds: number | null
   currentPriceCents?: number | null
@@ -30,7 +31,7 @@ type SharpTradeStatus = 'pending' | 'respected' | 'faded'
 type SharpTradeWithStatus = SharpTrade & {
   status?: SharpTradeStatus
   checkedAt?: string
-  result?: 'win' | 'loss'
+  result?: 'win' | 'loss' | 'push'
   resolvedAt?: string
   pnl?: number
   roi?: number
@@ -38,79 +39,14 @@ type SharpTradeWithStatus = SharpTrade & {
 
 type SharpTier = 'small' | 'blue' | 'mega'
 
-type GameCluster = {
-  gameKey: string
-  marketTitle: string
-  sport: string
-  eventDate?: string
-  trades: SharpTradeWithStatus[]
-  totalNotional: number
-  tradeCount: number
-}
-
 const MIN_NOTIONAL = 2000
 const POLL_INTERVAL_MS = 30000
 const STORAGE_KEY = 'sharp-detector-trades'
 const CACHE_VERSION_KEY = 'sharp-detector-cache-version'
 const CACHE_VERSION = '3'
+const WALLET_STORAGE_KEY = 'sharp-detector-wallets'
 const MAX_RESOLVED_TRADES = 300
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
-const MS_PER_DAY = 24 * 60 * 60 * 1000
-const MAJOR_SPORTS = new Set(['NBA', 'NFL', 'MLB', 'NHL'])
-const TEAM_SPLIT_PATTERN = /\s+(?:vs\.?|v\.?|@|at)\s+/i
-const P4_COLLEGE_TEAMS = [
-  'Arizona', 'Arizona State', 'Baylor', 'BYU', 'Cincinnati', 'Colorado', 'Houston',
-  'Iowa State', 'Kansas', 'Kansas State', 'Oklahoma State', 'TCU', 'Texas Tech',
-  'UCF', 'Utah', 'West Virginia',
-  'Alabama', 'Arkansas', 'Auburn', 'Florida', 'Georgia', 'Kentucky', 'LSU',
-  'Mississippi State', 'Missouri', 'Ole Miss', 'South Carolina', 'Tennessee',
-  'Texas', 'Texas A&M', 'Vanderbilt', 'Oklahoma',
-  'Boston College', 'Clemson', 'Duke', 'Florida State', 'Georgia Tech', 'Louisville',
-  'Miami', 'NC State', 'North Carolina', 'Pittsburgh', 'Syracuse', 'Virginia',
-  'Virginia Tech', 'Wake Forest', 'Notre Dame', 'SMU', 'Stanford', 'Cal',
-  'Illinois', 'Indiana', 'Iowa', 'Maryland', 'Michigan', 'Michigan State', 'Minnesota',
-  'Nebraska', 'Northwestern', 'Ohio State', 'Penn State', 'Purdue', 'Rutgers',
-  'Wisconsin', 'USC', 'UCLA', 'Oregon', 'Washington',
-]
-const P4_TEAM_SET = new Set(
-  P4_COLLEGE_TEAMS.map((team) =>
-    team
-      .toLowerCase()
-      .replace(/[^a-z\s]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-  )
-)
-
-const DEFAULT_SMALL_MARKET_THRESHOLD = {
-  earlyDays: 3,
-  earlyTrades: 2,
-  earlyNotional: 5000,
-  dayTrades: 3,
-  dayNotional: 8000,
-}
-
-const SPORT_UNUSUAL_THRESHOLDS: Record<string, typeof DEFAULT_SMALL_MARKET_THRESHOLD> = {
-  NBA: { earlyDays: 3, earlyTrades: 3, earlyNotional: 12000, dayTrades: 4, dayNotional: 18000 },
-  NFL: { earlyDays: 7, earlyTrades: 3, earlyNotional: 12000, dayTrades: 4, dayNotional: 18000 },
-  MLB: { earlyDays: 3, earlyTrades: 3, earlyNotional: 12000, dayTrades: 4, dayNotional: 18000 },
-  NHL: { earlyDays: 3, earlyTrades: 3, earlyNotional: 12000, dayTrades: 4, dayNotional: 18000 },
-  WNBA: { earlyDays: 3, earlyTrades: 2, earlyNotional: 5000, dayTrades: 3, dayNotional: 8000 },
-  UFC: { earlyDays: 3, earlyTrades: 2, earlyNotional: 5000, dayTrades: 3, dayNotional: 8000 },
-  SOCCER: { earlyDays: 5, earlyTrades: 2, earlyNotional: 5000, dayTrades: 3, dayNotional: 8000 },
-  GOLF: { earlyDays: 5, earlyTrades: 2, earlyNotional: 5000, dayTrades: 3, dayNotional: 8000 },
-}
-
-const COLLEGE_UNUSUAL_THRESHOLDS = {
-  NCAAB: {
-    regular: { earlyDays: 1, earlyTrades: 2, earlyNotional: 4000, dayTrades: 3, dayNotional: 6000 },
-    marquee: { earlyDays: 1, earlyTrades: 3, earlyNotional: 10000, dayTrades: 4, dayNotional: 15000 },
-  },
-  NCAAF: {
-    regular: { earlyDays: 5, earlyTrades: 2, earlyNotional: 6000, dayTrades: 3, dayNotional: 10000 },
-    marquee: { earlyDays: 5, earlyTrades: 3, earlyNotional: 15000, dayTrades: 4, dayNotional: 20000 },
-  },
-}
 
 const ensureSharpCacheVersion = () => {
   if (typeof window === 'undefined') return
@@ -152,6 +88,19 @@ const formatTimestamp = (value: string) => {
   })
 }
 
+const normalizeWallet = (value?: string | null) => {
+  if (!value) return null
+  const trimmed = value.trim().toLowerCase()
+  return trimmed ? trimmed : null
+}
+
+const formatWallet = (value?: string | null) => {
+  if (!value) return 'Unknown'
+  const trimmed = value.trim()
+  if (trimmed.length <= 12) return trimmed
+  return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`
+}
+
 const parseEventTime = (value?: string | null) => {
   if (!value) return null
   const match = value.match(DATE_ONLY_PATTERN)
@@ -166,28 +115,6 @@ const parseEventTime = (value?: string | null) => {
   const parsed = new Date(value)
   const time = parsed.getTime()
   return Number.isFinite(time) ? time : null
-}
-
-const normalizeTeamLabel = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/[^a-z\s]/g, '')
-    .replace(/\b(spread|moneyline|total|over|under|points|winner|to win)\b/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-const parseMatchupTeams = (marketTitle: string) => {
-  const parts = marketTitle.split(TEAM_SPLIT_PATTERN)
-  if (parts.length !== 2) return null
-  const homeAway = parts.map((part) => normalizeTeamLabel(part))
-  if (homeAway.some((part) => !part)) return null
-  return homeAway
-}
-
-const isMarqueeCollegeMatchup = (marketTitle: string) => {
-  const teams = parseMatchupTeams(marketTitle)
-  if (!teams) return false
-  return teams.every((team) => P4_TEAM_SET.has(team))
 }
 
 const resolvePhase = (trade: SharpTrade) => {
@@ -254,63 +181,6 @@ const resolveStrengthClass = (value?: number | null) => {
   return 'text-emerald-300'
 }
 
-const resolveUnusualReason = (cluster: {
-  marketTitle: string
-  sport: string
-  eventDate?: string
-  tradeCount: number
-  totalNotional: number
-}, nowMs: number) => {
-  if (!cluster.eventDate) return null
-  const eventTime = parseEventTime(cluster.eventDate)
-  if (eventTime == null || !Number.isFinite(eventTime)) return null
-  if (eventTime < nowMs) return null
-
-  const daysUntil = Math.floor((eventTime - nowMs) / MS_PER_DAY)
-  const isCollegeSport = cluster.sport === 'NCAAB' || cluster.sport === 'NCAAF'
-  const isMarquee = isCollegeSport && isMarqueeCollegeMatchup(cluster.marketTitle)
-
-  const thresholds = isCollegeSport
-    ? COLLEGE_UNUSUAL_THRESHOLDS[cluster.sport as 'NCAAB' | 'NCAAF'][
-        isMarquee ? 'marquee' : 'regular'
-      ]
-    : SPORT_UNUSUAL_THRESHOLDS[cluster.sport] ?? DEFAULT_SMALL_MARKET_THRESHOLD
-
-  const isEarly = daysUntil >= thresholds.earlyDays
-  const isDayOf = daysUntil >= 0 && daysUntil < 1
-
-  const meetsEarly =
-    isEarly &&
-    cluster.tradeCount >= thresholds.earlyTrades &&
-    cluster.totalNotional >= thresholds.earlyNotional
-  const meetsDayOf =
-    isDayOf &&
-    cluster.tradeCount >= thresholds.dayTrades &&
-    cluster.totalNotional >= thresholds.dayNotional
-
-  if (meetsEarly) {
-    if (isCollegeSport && !isMarquee) {
-      return `College non-marquee early action (${daysUntil}d out)`
-    }
-    if (!MAJOR_SPORTS.has(cluster.sport)) {
-      return `Small-market early action (${daysUntil}d out)`
-    }
-    return `Early big bet (${daysUntil}d out)`
-  }
-
-  if (meetsDayOf) {
-    if (isCollegeSport && !isMarquee) {
-      return 'College small-market day-of surge'
-    }
-    if (!MAJOR_SPORTS.has(cluster.sport)) {
-      return 'Small-market day-of surge'
-    }
-    return 'Day-of surge'
-  }
-
-  return null
-}
-
 export default function SharpDetectorPanel({
   className,
   onNewSharp,
@@ -344,21 +214,42 @@ export default function SharpDetectorPanel({
   const [sortFilter, setSortFilter] = useState<'newest' | 'strength'>('newest')
   const [searchQuery, setSearchQuery] = useState('')
   const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'blue' | 'mega'>('all')
+  const [walletFilter, setWalletFilter] = useState<string>('all')
+  const [trackedWallets, setTrackedWallets] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const cached = window.localStorage.getItem(WALLET_STORAGE_KEY)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        return Array.isArray(parsed) ? parsed : []
+      }
+    } catch (error) {
+      console.warn('Failed to load tracked wallets:', error)
+    }
+    return []
+  })
+  const [showTrackedWallets, setShowTrackedWallets] = useState(false)
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
 
   const baseTrades = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
+    const walletKey = walletFilter === 'all' ? null : normalizeWallet(walletFilter)
     return trades.filter((trade) => {
       if (sportFilter !== 'all' && trade.sport !== sportFilter) return false
       if (sizeFilter !== 'all' && resolveSharpTier(trade.notional) !== sizeFilter) return false
+      if (walletKey) {
+        if (trade.source !== 'polymarket') return false
+        const tradeWallet = normalizeWallet(trade.proxyWallet)
+        if (!tradeWallet || tradeWallet !== walletKey) return false
+      }
       if (query) {
         const haystack = `${trade.marketTitle} ${trade.outcome} ${trade.sport}`.toLowerCase()
         if (!haystack.includes(query)) return false
       }
       return true
     })
-  }, [trades, sportFilter, sizeFilter, searchQuery])
+  }, [trades, sportFilter, sizeFilter, searchQuery, walletFilter])
 
   const gameOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -399,79 +290,88 @@ export default function SharpDetectorPanel({
     []
   )
 
-  const topUpcomingSharps = useMemo(() => {
-    const now = Date.now()
-    const scoredTrades = trades
-      .filter((trade) => Number.isFinite(trade.sharpStrength))
-      .map((trade) => ({
-        trade,
-        strength: trade.sharpStrength ?? 0,
-        eventTime: parseEventTime(trade.eventDate),
-        tradeTime: new Date(trade.timestamp).getTime(),
-      }))
-    const upcoming = scoredTrades.filter(
-      (entry) => entry.eventTime != null && entry.eventTime >= now
-    )
-    const sortedUpcoming = [...upcoming].sort((a, b) => {
-      if (a.strength !== b.strength) return b.strength - a.strength
-      if (a.eventTime != null && b.eventTime != null && a.eventTime !== b.eventTime) {
-        return a.eventTime - b.eventTime
-      }
-      return a.tradeTime - b.tradeTime
-    })
-    const primary = sortedUpcoming.slice(0, 3).map((entry) => entry.trade)
-    if (primary.length >= 3) return primary
-    const fallback = scoredTrades
-      .filter((entry) => !primary.some((trade) => trade.id === entry.trade.id))
-      .sort((a, b) => {
-        if (a.strength !== b.strength) return b.strength - a.strength
-        return b.tradeTime - a.tradeTime
-      })
-      .slice(0, 3 - primary.length)
-      .map((entry) => entry.trade)
-    return [...primary, ...fallback]
-  }, [trades])
+  const trackedWalletSet = useMemo(
+    () => new Set(trackedWallets.map((wallet) => normalizeWallet(wallet)).filter(Boolean) as string[]),
+    [trackedWallets]
+  )
 
-  const unusualClusters = useMemo(() => {
-    const nowMs = Date.now()
-    const clusters = new Map<string, GameCluster>()
-
-    trades.forEach((trade) => {
-      const gameKey = extractGameKey(trade.marketTitle, trade.sport)
-      if (!clusters.has(gameKey)) {
-        clusters.set(gameKey, {
-          gameKey,
-          marketTitle: resolveGameLabel(trade.marketTitle),
-          sport: trade.sport,
-          eventDate: trade.eventDate,
-          trades: [],
-          totalNotional: 0,
-          tradeCount: 0,
-        })
-      }
-      const cluster = clusters.get(gameKey)!
-      cluster.trades.push(trade)
-      cluster.totalNotional += trade.notional
-      cluster.tradeCount += 1
-    })
-
-    return Array.from(clusters.values())
-      .map((cluster) => {
-        const reason = resolveUnusualReason(cluster, nowMs)
-        if (!reason) return null
-        return { cluster, reason }
+  const trackedWalletTradePreview = useMemo(() => {
+    const preview = trades
+      .filter((trade) => {
+        if (trade.source !== 'polymarket') return false
+        const wallet = normalizeWallet(trade.proxyWallet)
+        return wallet ? trackedWalletSet.has(wallet) : false
       })
-      .filter(
-        (value): value is { cluster: GameCluster; reason: string } => Boolean(value)
-      )
-      .sort((a, b) => {
-        if (a.cluster.tradeCount !== b.cluster.tradeCount) {
-          return b.cluster.tradeCount - a.cluster.tradeCount
-        }
-        return b.cluster.totalNotional - a.cluster.totalNotional
-      })
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 3)
-  }, [trades])
+    return preview
+  }, [trades, trackedWalletSet])
+
+  const winningWallets = useMemo(() => {
+    const stats = new Map<string, { wallet: string; wins: number; pnl: number }>()
+    trades.forEach((trade) => {
+      if (trade.source !== 'polymarket') return
+      const wallet = normalizeWallet(trade.proxyWallet)
+      if (!wallet || !trackedWalletSet.has(wallet)) return
+      const hasWin = trade.result === 'win'
+      const pnl = Number.isFinite(trade.pnl) ? Number(trade.pnl) : 0
+      const roi = Number.isFinite(trade.roi) ? Number(trade.roi) : 0
+      if (!hasWin && pnl <= 0 && roi <= 0) return
+      const entry = stats.get(wallet) ?? { wallet, wins: 0, pnl: 0 }
+      if (hasWin) entry.wins += 1
+      if (pnl > 0) entry.pnl += pnl
+      stats.set(wallet, entry)
+    })
+    return Array.from(stats.values()).sort((a, b) => {
+      if (a.pnl !== b.pnl) return b.pnl - a.pnl
+      return b.wins - a.wins
+    })
+  }, [trades, trackedWalletSet])
+
+  const winningWalletTradePreview = useMemo(() => {
+    if (!winningWallets.length) return []
+    const winners = new Set(winningWallets.map((entry) => entry.wallet))
+    return trades
+      .filter((trade) => {
+        if (trade.source !== 'polymarket') return false
+        const wallet = normalizeWallet(trade.proxyWallet)
+        return wallet ? winners.has(wallet) : false
+      })
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 3)
+  }, [trades, winningWallets])
+
+  const walletStats = useMemo(() => {
+    const stats = new Map<string, { wallet: string; count: number; lastSeen?: string }>()
+    trades.forEach((trade) => {
+      if (trade.source !== 'polymarket') return
+      const walletKey = normalizeWallet(trade.proxyWallet)
+      if (!walletKey) return
+      const entry = stats.get(walletKey) ?? { wallet: walletKey, count: 0 }
+      entry.count += 1
+      if (!entry.lastSeen || trade.timestamp > entry.lastSeen) {
+        entry.lastSeen = trade.timestamp
+      }
+      stats.set(walletKey, entry)
+    })
+
+    const rows = trackedWallets.map((wallet) => {
+      const walletKey = normalizeWallet(wallet) ?? wallet
+      const entry = stats.get(walletKey)
+      return {
+        wallet: walletKey,
+        count: entry?.count ?? 0,
+        lastSeen: entry?.lastSeen ?? null,
+      }
+    })
+
+    return rows.sort((a, b) => {
+      const timeA = a.lastSeen ? new Date(a.lastSeen).getTime() : 0
+      const timeB = b.lastSeen ? new Date(b.lastSeen).getTime() : 0
+      if (timeA !== timeB) return timeB - timeA
+      return b.count - a.count
+    })
+  }, [trades, trackedWallets])
 
   const sortedTrades = useMemo(() => {
     const weight = (status?: SharpTradeStatus) => {
@@ -572,6 +472,20 @@ export default function SharpDetectorPanel({
   }, [hydrated, trades])
 
   useEffect(() => {
+    if (!hydrated) return
+    setTrackedWallets((prev) => {
+      const next = new Set(prev)
+      trades.forEach((trade) => {
+        if (trade.source !== 'polymarket') return
+        const wallet = normalizeWallet(trade.proxyWallet)
+        if (wallet) next.add(wallet)
+      })
+      if (next.size === prev.length) return prev
+      return Array.from(next)
+    })
+  }, [hydrated, trades])
+
+  useEffect(() => {
     fetchTrades()
     const interval = setInterval(fetchTrades, POLL_INTERVAL_MS)
     return () => clearInterval(interval)
@@ -585,6 +499,15 @@ export default function SharpDetectorPanel({
       console.warn('Failed to persist sharp detector cache:', error)
     }
   }, [hydrated, trades])
+
+  useEffect(() => {
+    if (!hydrated || typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify(trackedWallets))
+    } catch (error) {
+      console.warn('Failed to persist tracked wallets:', error)
+    }
+  }, [hydrated, trackedWallets])
 
   const now = Date.now()
 
@@ -638,6 +561,15 @@ export default function SharpDetectorPanel({
       <span className="text-[10px] text-white/40">
         {todaySharps} sharps detected
       </span>
+      {walletFilter !== 'all' && (
+        <button
+          type="button"
+          onClick={() => setWalletFilter('all')}
+          className="rounded-lg border border-emerald-400/40 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200"
+        >
+          Wallet {formatWallet(walletFilter)} ×
+        </button>
+      )}
     </div>
   )
 
@@ -673,82 +605,111 @@ export default function SharpDetectorPanel({
           ))}
         </div>
       </div>
-      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-white">
-            Top 3 upcoming sharps
-          </span>
-          <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-            live
-          </span>
-        </div>
-        {topUpcomingSharps.length === 0 ? (
-          <div className="text-[11px] text-white/50">
-            No upcoming sharp strength rankings yet.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {topUpcomingSharps.map((trade) => (
-              <div
-                key={trade.id}
-                className="rounded-xl border border-white/10 bg-black/40 p-2"
-              >
-                <div className="flex items-center justify-between text-[10px] text-white/50">
-                  <span className="uppercase tracking-[0.2em]">{trade.sport}</span>
-                  <span className={cn('font-semibold', resolveStrengthClass(trade.sharpStrength))}>
-                    {trade.sharpStrength ?? 0}%
-                  </span>
-                </div>
-                <div className="text-[11px] text-white mt-1">
-                  {trade.outcome}
-                </div>
-                <div className="text-[10px] text-white/50">
-                  {trade.marketTitle}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-white">
-            Unusual big bets
-          </span>
-          <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-            signal
-          </span>
-        </div>
-        {unusualClusters.length === 0 ? (
-          <div className="text-[11px] text-white/50">
-            No unusual betting clusters yet.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {unusualClusters.map(({ cluster, reason }) => (
-              <div
-                key={cluster.gameKey}
-                className="rounded-xl border border-white/10 bg-black/40 p-2"
-              >
-                <div className="flex items-center justify-between text-[10px] text-white/50">
-                  <span className="uppercase tracking-[0.2em]">{cluster.sport}</span>
-                  <span className="text-rose-200 font-semibold">
-                    {cluster.tradeCount} bets
-                  </span>
-                </div>
-                <div className="text-[11px] text-white mt-1">
-                  {cluster.marketTitle}
-                </div>
-                <div className="text-[10px] text-white/50">
-                  {formatCurrency(cluster.totalNotional)}
-                </div>
-                <div className="text-[10px] text-white/40 mt-1">{reason}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
       {filters}
+      <div className="rounded-2xl border border-white/10 bg-black/40 p-3">
+        <div className="flex items-center justify-between text-[11px] text-white/60">
+          <span className="uppercase tracking-[0.3em]">Tracked wallets</span>
+          <button
+            type="button"
+            onClick={() => setShowTrackedWallets((prev) => !prev)}
+            className={cn(
+              'rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] transition',
+              showTrackedWallets
+                ? 'border-emerald-400/60 text-emerald-200 bg-emerald-400/10'
+                : 'border-white/10 text-white/50 hover:border-white/30 hover:text-white/80'
+            )}
+          >
+            {showTrackedWallets ? 'Hide' : 'View'} ({trackedWallets.length})
+          </button>
+        </div>
+        <div className="mt-3 space-y-3">
+          <div className="rounded-xl border border-white/10 bg-black/30 p-2">
+            <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+              Recent tracked bets
+            </div>
+            {trackedWalletTradePreview.length === 0 ? (
+              <div className="mt-2 text-[11px] text-white/50">
+                No tracked Polymarket bets yet.
+              </div>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {trackedWalletTradePreview.map((trade) => (
+                  <div key={trade.id} className="text-[11px] text-white/70">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-white/80">
+                        {formatWallet(trade.proxyWallet)}
+                      </span>
+                      <span className="text-white/50">
+                        {trade.outcome} · {formatCurrency(trade.notional)}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-white/40">{trade.marketTitle}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="rounded-xl border border-white/10 bg-black/30 p-2">
+            <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+              Winning wallet bets
+            </div>
+            {winningWalletTradePreview.length === 0 ? (
+              <div className="mt-2 text-[11px] text-white/50">
+                No winning wallets yet.
+              </div>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {winningWalletTradePreview.map((trade) => (
+                  <div key={trade.id} className="text-[11px] text-white/70">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-emerald-200">
+                        {formatWallet(trade.proxyWallet)}
+                      </span>
+                      <span className="text-white/50">
+                        {trade.outcome} · {formatCurrency(trade.notional)}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-white/40">{trade.marketTitle}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        {walletStats.length === 0 ? (
+          <div className="mt-2 text-[11px] text-white/50">
+            No Polymarket wallets tracked yet.
+          </div>
+        ) : showTrackedWallets ? (
+          <div className="mt-2 space-y-2">
+            {walletStats.map((wallet) => (
+              <button
+                type="button"
+                key={wallet.wallet}
+                onClick={() => setWalletFilter(wallet.wallet)}
+                className={cn(
+                  'flex w-full items-center justify-between rounded-xl border px-2.5 py-2 text-[11px] text-white/70 transition',
+                  walletFilter !== 'all' && normalizeWallet(wallet.wallet) === normalizeWallet(walletFilter)
+                    ? 'border-emerald-400/50 bg-emerald-500/10'
+                    : 'border-white/10 bg-black/30 hover:border-white/30'
+                )}
+              >
+                <span className="font-semibold text-white/80">
+                  {formatWallet(wallet.wallet)}
+                </span>
+                <span className="text-white/50">
+                  {wallet.count} trades
+                  {wallet.lastSeen ? ` · last ${formatTimestamp(wallet.lastSeen)}` : ''}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-2 text-[11px] text-white/50">
+            Click to view tracked wallets.
+          </div>
+        )}
+      </div>
       {sortedTrades.length === 0 && (
         <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-xs text-white/60">
           No sharp bets detected yet. Trades &gt;= {formatCurrency(MIN_NOTIONAL)} will
@@ -758,6 +719,9 @@ export default function SharpDetectorPanel({
       {sortedTrades.map((trade) => {
         const isFresh = now - new Date(trade.timestamp).getTime() < 2 * 60 * 1000
         const sharpTier = resolveSharpTier(trade.notional)
+        const walletKey = normalizeWallet(trade.proxyWallet)
+        const isTrackedWallet =
+          trade.source === 'polymarket' && walletKey && trackedWalletSet.has(walletKey)
         return (
           <div
             key={trade.id}
@@ -809,6 +773,11 @@ export default function SharpDetectorPanel({
               <span className="rounded-full border border-white/10 px-2 py-0.5">
                 {resolveOddsLabel(trade)}
               </span>
+              {isTrackedWallet && (
+                <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-emerald-200">
+                  Tracked {formatWallet(trade.proxyWallet)}
+                </span>
+              )}
               <span className="rounded-full border border-white/10 px-2 py-0.5">
                 Detected {formatTimestamp(trade.timestamp)}
               </span>

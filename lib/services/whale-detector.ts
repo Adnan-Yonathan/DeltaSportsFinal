@@ -153,6 +153,7 @@ type KalshiMarketResponse = {
 }
 
 type PolymarketTrade = {
+  proxyWallet?: string
   transactionHash: string
   size: number
   price: number
@@ -170,6 +171,7 @@ export type WhaleTrade = {
   source: 'kalshi' | 'polymarket'
   marketTitle: string
   outcome: string
+  proxyWallet?: string
   priceCents: number
   americanOdds: number | null
   currentPriceCents?: number | null
@@ -509,6 +511,7 @@ const fetchPolymarketTrades = async (
         source: 'polymarket' as const,
         marketTitle: trade.title,
         outcome: trade.outcome,
+        proxyWallet: trade.proxyWallet,
         priceCents,
         americanOdds,
         notional,

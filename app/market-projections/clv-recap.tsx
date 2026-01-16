@@ -45,19 +45,58 @@ export default function MarketProjectionsClvRecap({
   history,
   updatedAt,
 }: MarketProjectionsClvRecapProps) {
+  const previewGame = games[0] ?? null
+
   return (
     <details className="group rounded-2xl border border-white/10 bg-white/5 p-4">
-      <summary className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.25em] text-white/50 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-        <span>CLV Recap (rolling 24h)</span>
-        <span className="flex flex-wrap items-center gap-3">
-          <span>Updated {new Date(updatedAt).toLocaleString()}</span>
-          <span className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] text-white/60 group-open:hidden">
-            Expand
+      <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.25em] text-white/50">
+          <span>CLV Recap (rolling 24h)</span>
+          <span className="flex flex-wrap items-center gap-3">
+            <span>Updated {new Date(updatedAt).toLocaleString()}</span>
+            <span className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] text-white/60 group-open:hidden">
+              Expand
+            </span>
+            <span className="hidden rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] text-white/60 group-open:inline-flex">
+              Collapse
+            </span>
           </span>
-          <span className="hidden rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] text-white/60 group-open:inline-flex">
-            Collapse
-          </span>
-        </span>
+        </div>
+        {previewGame ? (
+          <div className="mt-3 w-full group-open:hidden">
+            <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-emerald-200/80">
+              Most recent
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/5 bg-black/50 px-3 py-2 text-sm text-white/70">
+              <div>
+                <div className="text-white">
+                  {previewGame.awayTeam} @ {previewGame.homeTeam}
+                </div>
+                <div className="text-xs text-white/45">
+                  Pick {buildPickLabel(previewGame)}{" "}
+                  {previewGame.pickBook ? `(${previewGame.pickBook})` : ""}
+                </div>
+              </div>
+              <div className="text-xs text-white/50">
+                Close {formatSigned(previewGame.closingLine)}
+                {previewGame.closingBook ? ` (${previewGame.closingBook})` : ""}
+              </div>
+              <div className="text-xs">
+                <span className={resolveOutcomeClass(previewGame.clvPoints)}>
+                  {resolveOutcome(previewGame.clvPoints)}{" "}
+                  {formatSigned(previewGame.clvPoints)} pts
+                </span>
+                <span className="ml-2 text-white/40">
+                  Odds CLV {formatProbDelta(previewGame.clvImpliedProb)}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 text-sm text-white/50 group-open:hidden">
+            No closing line recaps yet for the last 24 hours.
+          </div>
+        )}
       </summary>
       <div className="mt-4 space-y-3">
         {games.length === 0 ? (

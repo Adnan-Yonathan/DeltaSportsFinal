@@ -202,7 +202,7 @@ export default async function MarketProjectionsPage({
           <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5">
             <div className="pointer-events-none blur-sm">
               <div className="border-b border-white/10 bg-black/60 px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-white/40">
-                Matchup > Market > Projection > Edge
+                Matchup &gt; Market &gt; Projection &gt; Edge
               </div>
               <div className="space-y-3 px-4 py-4">
                 {[1, 2, 3, 4, 5].map((row) => (

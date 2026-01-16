@@ -14,7 +14,7 @@ import { ParticleButton } from '@/components/ui/particle-button'
 import SharpDetectorPanel from '@/components/SharpDetectorPanel'
 import ToolsNav from '@/components/tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, MessageSquare, Target, Link2 } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, MessageSquare, Target, Link2, Check } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
@@ -23,6 +23,10 @@ const SHARP_STORAGE_KEY = 'sharp-detector-trades'
 const SHARP_CACHE_VERSION_KEY = 'sharp-detector-cache-version'
 const SHARP_CACHE_VERSION = '3'
 const EASTERN_TIMEZONE = 'America/New_York'
+const PROMO_DISMISS_KEY = 'promo_links_dismissed'
+const PROMO_CLICK_KEY = 'promo_links_click_source'
+const DISCORD_INVITE_URL = 'https://discord.gg/8jUcaKT9'
+const KALSHI_REFERRAL_URL = 'https://kalshi.com/sign-up/?referral=4807d3a2-7c7c-40bb-986c-608115b5a2c5'
 
 const getEasternDateKey = (value: Date | string | number) => {
   const date = value instanceof Date ? value : new Date(value)
@@ -92,6 +96,7 @@ function ChatPageContent() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
   const [messagesToday, setMessagesToday] = useState<number>(0)
+  const [promoDismissed, setPromoDismissed] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const prefillMessage = searchParams.get('prompt') ?? undefined
@@ -123,6 +128,15 @@ function ChatPageContent() {
       }
 
       setUser(user)
+      const storedPromoDismissed =
+        typeof window !== 'undefined' &&
+        window.localStorage.getItem(PROMO_DISMISS_KEY) === '1'
+      setPromoDismissed(
+        Boolean(
+          storedPromoDismissed ||
+            (user.user_metadata as Record<string, any> | null)?.[PROMO_DISMISS_KEY]
+        )
+      )
 
       const forceOnboarding =
         process.env.NEXT_PUBLIC_FORCE_ONBOARDING === 'true'
@@ -324,6 +338,53 @@ function ChatPageContent() {
     }
   }
 
+  const handlePromoDismiss = async (
+    source: 'discord' | 'kalshi' | 'opt_out' = 'opt_out'
+  ) => {
+    setPromoDismissed(true)
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(PROMO_DISMISS_KEY, '1')
+      } catch (error) {
+        console.warn('Failed to persist promo dismissal locally:', error)
+      }
+    }
+    if (!user) return
+    try {
+      const metadataUpdate: Record<string, unknown> = {
+        [PROMO_DISMISS_KEY]: true,
+      }
+      if (source === 'discord' || source === 'kalshi') {
+        metadataUpdate[PROMO_CLICK_KEY] = source
+      }
+      const { data: updatedUser, error: updateError } = await supabase.auth.updateUser({
+        data: metadataUpdate,
+      })
+      if (updateError) {
+        console.warn('Failed to persist promo dismissal:', updateError.message)
+        return
+      }
+      if (updatedUser?.user) {
+        setUser((prev: any) =>
+          prev
+            ? {
+                ...prev,
+                user_metadata: {
+                  ...(prev.user_metadata || {}),
+                  [PROMO_DISMISS_KEY]: true,
+                  ...(source === 'discord' || source === 'kalshi'
+                    ? { [PROMO_CLICK_KEY]: source }
+                    : {}),
+                },
+              }
+            : prev
+        )
+      }
+    } catch (error) {
+      console.warn('Failed to persist promo dismissal:', error)
+    }
+  }
+
   const profileImage = (user?.user_metadata as { avatar_url?: string })?.avatar_url
   const fallbackName = profileName || user?.email || 'Guest'
   const profileInitials = fallbackName
@@ -390,6 +451,7 @@ function ChatPageContent() {
     : 'Pro'
   const showSharpToggle = !hasMessages
   const sharpPanelOpen = sharpDetectorExpanded || sharpDetectorOpen
+  const showPromoCard = Boolean(user && !promoDismissed)
 
   const openSharpDetector = () => {
     if (!canUseSharpDetector) return
@@ -810,13 +872,77 @@ function ChatPageContent() {
                 ) : currentConversationId ? (
                   <div className="h-full flex flex-col">
                     <div className="flex-1 overflow-hidden min-h-0">
-                      <div className="mx-auto w-full max-w-5xl h-full min-h-0">
-                        <ModernMessageList
-                          conversationId={currentConversationId}
-                          userId={user?.id}
-                          onMessagesChange={setHasMessages}
-                          prefillMessage={prefillMessage}
-                        />
+                      <div className="mx-auto w-full max-w-5xl h-full min-h-0 flex flex-col">
+                        {showPromoCard && (
+                          <div className="mb-4 px-2 sm:px-4">
+                            <div className="relative rounded-3xl border border-emerald-400/30 bg-gradient-to-br from-emerald-500/15 via-black/85 to-black/70 p-5 pr-12 pb-12 shadow-2xl">
+                              <div className="space-y-4">
+                                <div className="space-y-2">
+                                  <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
+                                    Join the Discord
+                                  </p>
+                                  <h2 className="text-lg font-semibold text-white">
+                                    Join the community
+                                  </h2>
+                                  <p className="text-sm text-white/60">
+                                    Connect with the crew for alerts, model drops, and live chatter.
+                                  </p>
+                                  <Link
+                                    href={DISCORD_INVITE_URL}
+                                    onClick={() => void handlePromoDismiss('discord')}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
+                                  >
+                                    Join Discord
+                                  </Link>
+                                </div>
+                                <div className="border-t border-white/10 pt-4 space-y-2">
+                                  <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
+                                    Kalshi referral
+                                  </p>
+                                  <h3 className="text-base font-semibold text-white">
+                                    Get $10 free when you trade $10 on Kalshi.
+                                  </h3>
+                                  <p className="text-sm text-white/60">
+                                    Use the referral link to activate the bonus.
+                                  </p>
+                                  <Link
+                                    href={KALSHI_REFERRAL_URL}
+                                    onClick={() => void handlePromoDismiss('kalshi')}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
+                                  >
+                                    Claim $10 on Kalshi
+                                  </Link>
+                                  <p className="text-[11px] text-white/50">
+                                    Referral disclosure: I receive $10 too if you sign up and trade. Offer
+                                    subject to Kalshi terms and eligibility; must be 18+ and in an approved
+                                    location. Not financial advice.
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => void handlePromoDismiss('opt_out')}
+                                className="absolute bottom-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-400/50 bg-black/70 text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
+                                aria-label="Hide this message"
+                                title="Hide this message"
+                              >
+                                <Check className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex-1 min-h-0">
+                          <ModernMessageList
+                            conversationId={currentConversationId}
+                            userId={user?.id}
+                            onMessagesChange={setHasMessages}
+                            prefillMessage={prefillMessage}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

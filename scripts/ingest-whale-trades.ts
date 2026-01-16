@@ -6,7 +6,7 @@
 
 import 'dotenv/config'
 
-const PROD_URL = 'https://deltasportsai.com/api/cron/ingest-whale-trades'
+const PROD_URL = 'https://deltasports.app/api/cron/ingest-whale-trades'
 
 async function triggerIngestion() {
   const cronSecret = process.env.CRON_SECRET

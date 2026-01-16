@@ -191,11 +191,57 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
             const isCurrentPlan =
               membership?.isActive && membership.tier === tier.tierKey
 
+            const actionButton = isCurrentPlan ? (
+              <Button
+                onClick={handleManageSubscription}
+                disabled={isLoading}
+                className={cn(
+                  "transition-all duration-300 md:w-full h-10 md:h-12",
+                  "bg-white/10 text-white border border-white/20",
+                  "hover:bg-white/20",
+                )}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    "Manage Subscription"
+                  )}
+                </span>
+              </Button>
+            ) : (
+              <Button
+                onClick={() => planKey && handleCheckout(planKey)}
+                disabled={!planKey || isLoading}
+                className={cn(
+                  tier.highlight ? buttonStyles.highlight : buttonStyles.default,
+                  "transition-all duration-300 md:w-full h-10 md:h-12",
+                )}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      Try free for 7 days
+                      <ArrowRightIcon className="w-4 h-4" />
+                    </>
+                  )}
+                </span>
+              </Button>
+            )
+
             return (
               <div
                 key={tier.name}
                 className={cn(
-                  "relative backdrop-blur-sm rounded-3xl border flex flex-col",
+                  "relative backdrop-blur-sm rounded-none md:rounded-3xl border flex flex-col",
                   tier.highlight
                     ? "bg-neutral-800/90 border-emerald-300/40 shadow-2xl"
                     : "bg-neutral-850/90 border-emerald-300/15 shadow-lg",
@@ -213,53 +259,63 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                   </div>
                 )}
 
-                <div className="p-8 flex-1">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="p-3 rounded-2xl bg-emerald-500/15 text-emerald-200">
-                      {tier.icon}
-                    </div>
-                    <h3 className="text-xl font-semibold">{tier.name}</h3>
-                  </div>
+                <div className="p-6 md:p-8 flex-1">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 rounded-2xl bg-emerald-500/15 text-emerald-200">
+                          {tier.icon}
+                        </div>
+                        <h3 className="text-xl font-semibold">{tier.name}</h3>
+                      </div>
 
-                  <div className="mb-6">
-                    {(() => {
-                      const periodPrice =
-                        billingPeriod === "annual"
-                          ? tier.price.yearly
-                          : billingPeriod === "monthly"
-                            ? tier.price.monthly
-                            : tier.price.weekly
-                      const daysInPeriod =
-                        billingPeriod === "annual"
-                          ? 365
-                          : billingPeriod === "monthly"
-                            ? 30
-                            : 7
-                      const dailyPrice =
-                        periodPrice > 0 ? (periodPrice / daysInPeriod).toFixed(2) : 0
-                      const billingLabel =
-                        billingPeriod === "annual"
-                          ? "annually"
-                          : billingPeriod === "monthly"
-                            ? "monthly"
-                            : "weekly"
-                      const isFree = periodPrice === 0
-                      return (
-                        <>
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-4xl font-bold">
-                              {isFree ? "Free" : `$${dailyPrice}`}
-                            </span>
-                            {!isFree && (
-                              <span className="text-sm text-slate-200/70">
-                                /day (billed {billingLabel})
-                              </span>
-                            )}
-                          </div>
-                          <p className="mt-2 text-sm text-slate-200/70">{tier.description}</p>
-                        </>
-                      )
-                    })()}
+                      <div className="mb-6">
+                        {(() => {
+                          const periodPrice =
+                            billingPeriod === "annual"
+                              ? tier.price.yearly
+                              : billingPeriod === "monthly"
+                                ? tier.price.monthly
+                                : tier.price.weekly
+                          const daysInPeriod =
+                            billingPeriod === "annual"
+                              ? 365
+                              : billingPeriod === "monthly"
+                                ? 30
+                                : 7
+                          const dailyPrice =
+                            periodPrice > 0
+                              ? (periodPrice / daysInPeriod).toFixed(2)
+                              : 0
+                          const billingLabel =
+                            billingPeriod === "annual"
+                              ? "annually"
+                              : billingPeriod === "monthly"
+                                ? "monthly"
+                                : "weekly"
+                          const isFree = periodPrice === 0
+                          return (
+                            <>
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-4xl font-bold">
+                                  {isFree ? "Free" : `$${dailyPrice}`}
+                                </span>
+                                {!isFree && (
+                                  <span className="text-sm text-slate-200/70">
+                                    /day (billed {billingLabel})
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-2 text-sm text-slate-200/70">
+                                {tier.description}
+                              </p>
+                            </>
+                          )
+                        })()}
+                      </div>
+                    </div>
+
+                    <div className="md:hidden shrink-0">{actionButton}</div>
                   </div>
 
                   <div className="space-y-4">
@@ -286,52 +342,8 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                   </div>
                 </div>
 
-                <div className="p-8 pt-0 mt-auto">
-                  {isCurrentPlan ? (
-                    <Button
-                      onClick={handleManageSubscription}
-                      disabled={isLoading}
-                      className={cn(
-                        "w-full transition-all duration-300",
-                        "h-12 bg-white/10 text-white border border-white/20",
-                        "hover:bg-white/20",
-                      )}
-                    >
-                      <span className="flex items-center justify-center gap-2">
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Loading...
-                          </>
-                        ) : (
-                          "Manage Subscription"
-                        )}
-                      </span>
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={() => planKey && handleCheckout(planKey)}
-                      disabled={!planKey || isLoading}
-                      className={cn(
-                        "w-full transition-all duration-300",
-                        tier.highlight ? buttonStyles.highlight : buttonStyles.default,
-                      )}
-                    >
-                      <span className="flex items-center justify-center gap-2">
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            Try free for 7 days
-                            <ArrowRightIcon className="w-4 h-4" />
-                          </>
-                        )}
-                      </span>
-                    </Button>
-                  )}
+                <div className="hidden md:block p-8 pt-0 mt-auto">
+                  {actionButton}
                 </div>
               </div>
             )

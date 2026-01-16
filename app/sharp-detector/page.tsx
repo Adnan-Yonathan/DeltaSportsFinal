@@ -53,7 +53,7 @@ type WalletSummary = {
   last_computed_at: string
 }
 
-type SharpTier = 'small' | 'blue' | 'mega'
+type SharpTier = 'small' | 'blue' | 'mega' | 'nuke'
 
 type GameCluster = {
   gameKey: string
@@ -148,8 +148,9 @@ const resolvePhase = (trade: SharpTrade) => {
 }
 
 const resolveSharpTier = (notional: number): SharpTier => {
-  if (notional >= 10000) return 'mega'
-  if (notional >= 5000) return 'blue'
+  if (notional > 100000) return 'nuke'
+  if (notional > 50000) return 'mega'
+  if (notional > 25000) return 'blue'
   return 'small'
 }
 
@@ -175,12 +176,14 @@ const sharpTierLabel: Record<SharpTier, string> = {
   small: 'Swordfish',
   blue: 'Megalodon',
   mega: 'Blue whale',
+  nuke: 'Nuke',
 }
 
 const sharpTierClass: Record<SharpTier, string> = {
   small: 'border-emerald-500/30 text-emerald-200',
   blue: 'border-sky-400/40 text-sky-200',
-  mega: 'border-rose-400/40 text-rose-200',
+  mega: 'border-blue-400/40 text-blue-200',
+  nuke: 'border-rose-400/40 text-rose-200',
 }
 
 // Extract game key from market title for clustering
@@ -233,7 +236,7 @@ export default function SharpDetectorPage() {
   const [gameFilter, setGameFilter] = useState<string>('all')
   const [sortFilter, setSortFilter] = useState<'newest' | 'strength'>('newest')
   const [searchQuery, setSearchQuery] = useState('')
-  const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'blue' | 'mega'>('all')
+  const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'blue' | 'mega' | 'nuke'>('all')
   const [walletFilter, setWalletFilter] = useState<string>('all')
   const [trackedWallets, setTrackedWallets] = useState<string[]>(() => {
     if (typeof window === 'undefined') return []
@@ -870,7 +873,7 @@ export default function SharpDetectorPage() {
           <select
             value={sizeFilter}
             onChange={(e) =>
-              setSizeFilter(e.target.value as 'all' | 'small' | 'blue' | 'mega')
+              setSizeFilter(e.target.value as 'all' | 'small' | 'blue' | 'mega' | 'nuke')
             }
             className="px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 focus:outline-none focus:border-emerald-500/50"
           >
@@ -878,6 +881,7 @@ export default function SharpDetectorPage() {
             <option value="small">Swordfish</option>
             <option value="blue">Megalodon</option>
             <option value="mega">Blue whale</option>
+            <option value="nuke">Nuke</option>
           </select>
 
           {walletFilter !== 'all' && (

@@ -1080,7 +1080,7 @@ function ChatPageContent() {
                     <X className="w-6 h-6" />
                   </button>
                 </div>
-                <div className="mx-auto max-w-4xl p-6">
+                <div className="w-full p-6">
                   <SharpDetectorPanel
                     onNewSharp={handleSharpNotification}
                     onCountChange={setSharpTotalCount}
@@ -1302,7 +1302,6 @@ export default function ChatPage() {
     </Suspense>
   )
 }
-
 
 
 

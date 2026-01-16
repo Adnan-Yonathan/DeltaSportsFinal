@@ -1,8 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLiveScores } from '@/hooks/use-live-scores'
+import type { LeagueId, LiveScoreGame } from '@/lib/live-scores'
 import { formatAmericanOdds, formatCurrency } from '@/lib/utils/odds'
 import { cn } from '@/lib/utils'
+import { normalizeTeamKey } from '@/lib/identity/sport'
 import { getWalletAlias } from '@/lib/utils/wallet-alias'
 
 type SharpTrade = {
@@ -48,6 +51,7 @@ type WalletSummary = {
 }
 
 type SharpTier = 'small' | 'blue' | 'mega' | 'nuke'
+type MarketType = 'spreads' | 'moneyline' | 'totals'
 
 const MIN_NOTIONAL = 2000
 const POLL_INTERVAL_MS = 30000
@@ -88,6 +92,18 @@ const resolveOddsLabel = (trade: SharpTrade) => {
 }
 
 const formatTimestamp = (value: string) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+const formatGameStart = (value?: string | null) => {
+  if (!value) return ''
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString([], {
@@ -170,7 +186,63 @@ const sharpTierClass: Record<SharpTier, string> = {
   nuke: 'border-rose-400/40 text-rose-200',
 }
 
+const LEAGUE_LABEL_BY_ID: Record<LeagueId, string> = {
+  nba: 'NBA',
+  nfl: 'NFL',
+  nhl: 'NHL',
+  ncaab: 'NCAAB',
+  cfb: 'NCAAF',
+}
+
+const LEAGUE_ID_BY_SPORT_LABEL: Record<string, LeagueId> = {
+  NBA: 'nba',
+  NFL: 'nfl',
+  NHL: 'nhl',
+  NCAAB: 'ncaab',
+  NCAAF: 'cfb',
+}
+
+const MARKET_SUFFIX_PATTERN =
+  /\b(half|quarter|period|inning|set|map|moneyline|ml|spread|total|over|under|winner|to win|points|yards|touchdowns|runs|goals|shots|team|props?)\b/i
+
+const cleanTeamLabel = (value: string) => {
+  const trimmed = value.split(':')[0]?.trim() ?? ''
+  if (!trimmed) return ''
+  const withoutParens = trimmed.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim()
+  const normalizedDashes = withoutParens.replace(/[\u2013\u2014]/g, '-')
+  const parts = normalizedDashes.split(/\s*-\s*/g)
+  if (parts.length > 1) {
+    const tail = parts.slice(1).join(' ').toLowerCase()
+    if (MARKET_SUFFIX_PATTERN.test(tail)) {
+      return parts[0].trim()
+    }
+  }
+  return normalizedDashes
+}
+
+const parseTeamsFromTitle = (marketTitle: string) => {
+  const match = marketTitle.split(/\s+(?:vs\.?|v\.?|@|at)\s+/i)
+  if (match.length !== 2) return null
+  const away = cleanTeamLabel(match[0] ?? '')
+  const home = cleanTeamLabel(match[1] ?? '')
+  if (!away || !home) return null
+  return { away, home }
+}
+
+const buildTeamGameKey = (sport: string, away: string, home: string) => {
+  const awayKey = normalizeTeamKey(away)
+  const homeKey = normalizeTeamKey(home)
+  if (!awayKey || !homeKey) return null
+  const ordered = [awayKey, homeKey].sort()
+  return `${sport}:${ordered[0]}@${ordered[1]}`
+}
+
 const extractGameKey = (marketTitle: string, sport: string): string => {
+  const teams = parseTeamsFromTitle(marketTitle)
+  if (teams) {
+    const key = buildTeamGameKey(sport, teams.away, teams.home)
+    if (key) return key
+  }
   const normalized = marketTitle.toLowerCase().trim()
   const cleaned = normalized
     .replace(/\s*(spread|moneyline|total|over|under|points|yards|touchdowns?|winner|to win).*$/i, '')
@@ -179,14 +251,135 @@ const extractGameKey = (marketTitle: string, sport: string): string => {
   return `${sport}:${cleaned}`
 }
 
-const resolveGameLabel = (marketTitle: string) =>
-  marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()
+const resolveGameLabel = (marketTitle: string) => {
+  const teams = parseTeamsFromTitle(marketTitle)
+  if (teams) return `${teams.away} vs ${teams.home}`
+  return marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()
+}
+
+const resolveMarketType = (trade: SharpTrade): MarketType => {
+  const combined = `${trade.outcome} ${trade.marketTitle}`.toLowerCase()
+  if (combined.includes('total') || combined.includes('over') || combined.includes('under')) {
+    return 'totals'
+  }
+  if (combined.includes('spread') || /[+-]\d/.test(combined)) {
+    return 'spreads'
+  }
+  if (
+    combined.includes('moneyline') ||
+    combined.includes('to win') ||
+    combined.includes('winner')
+  ) {
+    return 'moneyline'
+  }
+  return 'moneyline'
+}
+
+const resolveTradeSideLabel = (trade: SharpTrade) => {
+  const marketType = resolveMarketType(trade)
+  if (marketType === 'totals') {
+    const lower = trade.outcome.toLowerCase()
+    if (lower.includes('over')) return 'Over'
+    if (lower.includes('under')) return 'Under'
+    return 'Totals'
+  }
+  const teams = parseTeamsFromTitle(trade.marketTitle)
+  if (teams) {
+    const outcomeKey = normalizeTeamKey(trade.outcome)
+    const homeKey = normalizeTeamKey(teams.home)
+    const awayKey = normalizeTeamKey(teams.away)
+    if (outcomeKey && homeKey && (outcomeKey === homeKey || outcomeKey.includes(homeKey))) {
+      return teams.home
+    }
+    if (outcomeKey && awayKey && (outcomeKey === awayKey || outcomeKey.includes(awayKey))) {
+      return teams.away
+    }
+  }
+  return trade.outcome
+}
+
+const getGameTeams = (game: LiveScoreGame) => {
+  const home = game.competitors.find((team) => team.homeAway === 'home')
+  const away = game.competitors.find((team) => team.homeAway === 'away')
+  if (!home || !away) return null
+  return { home, away }
+}
+
+const buildTeamAliases = (team: { name?: string; shortName?: string; abbreviation?: string }) =>
+  [team.name, team.shortName, team.abbreviation]
+    .filter(Boolean)
+    .map((value) => normalizeTeamKey(String(value)))
+    .filter(Boolean)
+
+const resolveTradeDateKey = (trade: SharpTrade) => {
+  if (!trade.eventDate) return null
+  const match = trade.eventDate.match(DATE_ONLY_PATTERN)
+  if (match) return trade.eventDate
+  return getEasternDateKey(trade.eventDate)
+}
+
+const resolveGameDateKey = (game: LiveScoreGame) => getEasternDateKey(game.startTime)
+
+const isTeamAliasMatch = (candidate: string, aliases: string[]) => {
+  const key = normalizeTeamKey(candidate)
+  if (!key) return false
+  return aliases.some((alias) => alias === key || alias.includes(key) || key.includes(alias))
+}
+
+const doesTradeMatchGame = (trade: SharpTrade, game: LiveScoreGame) => {
+  const teams = getGameTeams(game)
+  if (!teams) return false
+  const awayAliases = buildTeamAliases(teams.away)
+  const homeAliases = buildTeamAliases(teams.home)
+  if (!awayAliases.length || !homeAliases.length) return false
+
+  const parsed = parseTeamsFromTitle(trade.marketTitle)
+  if (parsed) {
+    const awayMatch = isTeamAliasMatch(parsed.away, awayAliases)
+    const homeMatch = isTeamAliasMatch(parsed.home, homeAliases)
+    if (awayMatch && homeMatch) return true
+    const swappedAway = isTeamAliasMatch(parsed.away, homeAliases)
+    const swappedHome = isTeamAliasMatch(parsed.home, awayAliases)
+    if (swappedAway && swappedHome) return true
+  }
+
+  const combined = normalizeTeamKey(`${trade.marketTitle} ${trade.outcome}`)
+  if (!combined) return false
+  const matchedAway = awayAliases.filter((alias) => combined.includes(alias))
+  const matchedHome = homeAliases.filter((alias) => combined.includes(alias))
+  if (matchedAway.length > 0 && matchedHome.length > 0) return true
+
+  const outcomeMatch =
+    isTeamAliasMatch(trade.outcome, awayAliases) ||
+    isTeamAliasMatch(trade.outcome, homeAliases)
+  if (!outcomeMatch) return false
+
+  const tradeDateKey = resolveTradeDateKey(trade)
+  const gameDateKey = resolveGameDateKey(game)
+  if (tradeDateKey && gameDateKey && tradeDateKey === gameDateKey) return true
+
+  return false
+}
+
+const buildLiquidityGameLabel = (game: LiveScoreGame) => {
+  const teams = getGameTeams(game)
+  const awayLabel = teams?.away.shortName || teams?.away.name || 'Away'
+  const homeLabel = teams?.home.shortName || teams?.home.name || 'Home'
+  const leagueLabel = LEAGUE_LABEL_BY_ID[game.league] ?? game.leagueLabel ?? game.league
+  const timeLabel = game.bucket === 'live' ? 'Live' : formatGameStart(game.startTime)
+  return `${awayLabel} at ${homeLabel} / ${leagueLabel} / ${timeLabel}`
+}
 
 const resolveStrengthClass = (value?: number | null) => {
   const strength = Number.isFinite(value) ? Number(value) : 0
   if (strength <= 35) return 'text-rose-300'
   if (strength <= 55) return 'text-amber-300'
   return 'text-emerald-300'
+}
+
+const formatPercent = (value: number, total: number) => {
+  if (!Number.isFinite(value) || !Number.isFinite(total) || total <= 0) return '0%'
+  return `${Math.round((value / total) * 100)}%`
 }
 
 export default function SharpDetectorPanel({
@@ -223,6 +416,12 @@ export default function SharpDetectorPanel({
   const [searchQuery, setSearchQuery] = useState('')
   const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'blue' | 'mega' | 'nuke'>('all')
   const [walletFilter, setWalletFilter] = useState<string>('all')
+  const [liquidityGameKey, setLiquidityGameKey] = useState<string>('')
+  const {
+    data: liveScoresData,
+    loading: liveScoresLoading,
+    error: liveScoresError,
+  } = useLiveScores({ refreshInterval: 30000 })
   const [trackedWallets, setTrackedWallets] = useState<string[]>(() => {
     if (typeof window === 'undefined') return []
     try {
@@ -273,6 +472,44 @@ export default function SharpDetectorPanel({
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [baseTrades])
 
+  const upcomingGames = useMemo(() => {
+    const games = liveScoresData?.games ?? []
+    return games.filter((game) => game.bucket !== 'completed')
+  }, [liveScoresData])
+
+  const liquidityGameOptions = useMemo(() => {
+    const leagueFilter =
+      sportFilter === 'all' ? null : LEAGUE_ID_BY_SPORT_LABEL[sportFilter] ?? null
+    return upcomingGames
+      .filter((game) => !leagueFilter || game.league === leagueFilter)
+      .sort((a, b) => {
+        if (a.bucket !== b.bucket) return a.bucket === 'live' ? -1 : 1
+        return new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+      })
+      .map((game) => ({
+        key: game.id,
+        label: buildLiquidityGameLabel(game),
+        game,
+      }))
+  }, [upcomingGames, sportFilter])
+
+  const liquidityGameLookup = useMemo(
+    () => new Map(liquidityGameOptions.map((option) => [option.key, option.game])),
+    [liquidityGameOptions]
+  )
+
+  const selectedLiquidityGame = liquidityGameLookup.get(liquidityGameKey) ?? null
+
+  useEffect(() => {
+    if (!liquidityGameOptions.length) {
+      if (liquidityGameKey) setLiquidityGameKey('')
+      return
+    }
+    if (!liquidityGameKey || !liquidityGameOptions.some((option) => option.key === liquidityGameKey)) {
+      setLiquidityGameKey(liquidityGameOptions[0].key)
+    }
+  }, [liquidityGameKey, liquidityGameOptions])
+
   useEffect(() => {
     if (gameFilter === 'all') return
     if (!gameOptions.some((option) => option.key === gameFilter)) {
@@ -286,6 +523,48 @@ export default function SharpDetectorPanel({
       return extractGameKey(trade.marketTitle, trade.sport) === gameFilter
     })
   }, [baseTrades, gameFilter])
+
+  const liquidityTrades = useMemo(() => {
+    if (!selectedLiquidityGame) return []
+    return trades.filter((trade) => doesTradeMatchGame(trade, selectedLiquidityGame))
+  }, [selectedLiquidityGame, trades])
+
+  const liquidityBreakdown = useMemo(() => {
+    const marketMaps: Record<MarketType, Map<string, { label: string; bets: number; notional: number }>> = {
+      spreads: new Map(),
+      moneyline: new Map(),
+      totals: new Map(),
+    }
+    const totals: Record<MarketType, { totalBets: number; totalNotional: number }> = {
+      spreads: { totalBets: 0, totalNotional: 0 },
+      moneyline: { totalBets: 0, totalNotional: 0 },
+      totals: { totalBets: 0, totalNotional: 0 },
+    }
+
+    liquidityTrades.forEach((trade) => {
+      const marketType = resolveMarketType(trade)
+      const sideLabel = resolveTradeSideLabel(trade)
+      const map = marketMaps[marketType]
+      const entry = map.get(sideLabel) ?? { label: sideLabel, bets: 0, notional: 0 }
+      entry.bets += 1
+      entry.notional += trade.notional
+      map.set(sideLabel, entry)
+      totals[marketType].totalBets += 1
+      totals[marketType].totalNotional += trade.notional
+    })
+
+    const markets = {
+      spreads: Array.from(marketMaps.spreads.values()).sort((a, b) => b.notional - a.notional),
+      moneyline: Array.from(marketMaps.moneyline.values()).sort((a, b) => b.notional - a.notional),
+      totals: Array.from(marketMaps.totals.values()).sort((a, b) => b.notional - a.notional),
+    }
+
+    return { markets, totals }
+  }, [liquidityTrades])
+
+  const totalLiquidity = useMemo(() => {
+    return liquidityTrades.reduce((sum, trade) => sum + trade.notional, 0)
+  }, [liquidityTrades])
 
   const todaySharps = useMemo(() => {
     const todayKey = getEasternDateKey(new Date())
@@ -659,150 +938,275 @@ export default function SharpDetectorPanel({
           </div>
         </div>
       )}
-      <div className="overflow-x-auto">
-        <div className="flex items-center gap-2 min-w-max">
-          {sportButtons.map((sport) => (
-            <button
-              key={sport}
-              type="button"
-              onClick={() => setSportFilter(sport)}
-              className={cn(
-                'px-2.5 py-1 rounded-full border text-[10px] uppercase tracking-[0.2em] transition',
-                sportFilter === sport
-                  ? 'border-emerald-400 text-emerald-200 bg-emerald-400/10'
-                  : 'border-white/10 text-white/50 hover:border-white/30 hover:text-white/80'
-              )}
-            >
-              {sport === 'all' ? 'All' : sport}
-            </button>
-          ))}
-        </div>
-      </div>
-      {filters}
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-3">
-        <div className="flex items-center justify-between text-[11px] text-white/60">
-          <span className="uppercase tracking-[0.3em]">Tracked wallets</span>
-          <button
-            type="button"
-            onClick={() => setShowTrackedWallets((prev) => !prev)}
-            className={cn(
-              'rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] transition',
-              showTrackedWallets
-                ? 'border-emerald-400/60 text-emerald-200 bg-emerald-400/10'
-                : 'border-white/10 text-white/50 hover:border-white/30 hover:text-white/80'
-            )}
-          >
-            {showTrackedWallets ? 'Hide' : 'View'} ({trackedWallets.length})
-          </button>
-        </div>
-        <div className="mt-3 space-y-3">
-          <div className="rounded-xl border border-white/10 bg-black/30 p-2">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-              Recent tracked bets
-            </div>
-            {trackedWalletTradePreview.length === 0 ? (
-              <div className="mt-2 text-[11px] text-white/50">
-                No tracked Polymarket bets yet.
-              </div>
-            ) : (
-              <div className="mt-2 space-y-2">
-                {trackedWalletTradePreview.map((trade) => (
-                  <div key={trade.id} className="text-[11px] text-white/70">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-white/80">
-                        {formatWalletAlias(trade.proxyWallet)}
-                      </span>
-                      <span className="text-white/50">
-                        {trade.outcome} - {formatCurrency(trade.notional)}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-white/40">{trade.marketTitle}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="rounded-xl border border-white/10 bg-black/30 p-2">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-              Winning wallet bets
-            </div>
-            {winningWalletTradePreview.length === 0 ? (
-              <div className="mt-2 text-[11px] text-white/50">
-                No winning wallets yet.
-              </div>
-            ) : (
-              <div className="mt-2 space-y-2">
-                {winningWalletTradePreview.map((trade) => (
-                  <div key={trade.id} className="text-[11px] text-white/70">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-emerald-200">
-                        {formatWalletAlias(trade.proxyWallet)}
-                      </span>
-                      <span className="text-white/50">
-                        {trade.outcome} - {formatCurrency(trade.notional)}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-white/40">{trade.marketTitle}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-        {walletStats.length === 0 ? (
-          <div className="mt-2 text-[11px] text-white/50">
-            No Polymarket wallets tracked yet.
-          </div>
-        ) : showTrackedWallets ? (
-          <div className="mt-2 space-y-2">
-            {walletStats.map((wallet) => {
-              const walletKey = normalizeWallet(wallet.wallet) ?? wallet.wallet
-              const summary = trackedWalletSummaryMap.get(walletKey)
-              const wins = Number(summary?.total_wins ?? 0)
-              const losses = Number(summary?.total_losses ?? 0)
-              const pushes = Number(summary?.total_pushes ?? 0)
-              const pnlValue = Number(summary?.total_realized_pnl ?? 0)
-              const pnlLabel = Number.isFinite(pnlValue) ? formatCurrency(pnlValue) : '--'
-              return (
+      <div className="flex flex-col gap-4 lg:flex-row">
+        <div className="flex-1 space-y-3">
+          <div className="overflow-x-auto">
+            <div className="flex items-center gap-2 min-w-max">
+              {sportButtons.map((sport) => (
                 <button
+                  key={sport}
                   type="button"
-                  key={wallet.wallet}
-                  onClick={() => setWalletFilter(wallet.wallet)}
+                  onClick={() => setSportFilter(sport)}
                   className={cn(
-                    'flex w-full items-center justify-between rounded-xl border px-2.5 py-2 text-[11px] text-white/70 transition',
-                    walletFilter !== 'all' &&
-                      normalizeWallet(wallet.wallet) === normalizeWallet(walletFilter)
-                      ? 'border-emerald-400/50 bg-emerald-500/10'
-                      : 'border-white/10 bg-black/30 hover:border-white/30'
+                    'px-2.5 py-1 rounded-full border text-[10px] uppercase tracking-[0.2em] transition',
+                    sportFilter === sport
+                      ? 'border-emerald-400 text-emerald-200 bg-emerald-400/10'
+                      : 'border-white/10 text-white/50 hover:border-white/30 hover:text-white/80'
                   )}
                 >
-                  <span className="font-semibold text-white/80">
-                    {formatWalletAlias(wallet.wallet)}
-                    <span className="ml-2 text-[10px] font-normal text-white/40">
-                      {wins}W - {losses}L - {pushes}P
-                    </span>
-                    <span className="ml-2 text-[10px] font-normal text-emerald-200">
-                      P/L {pnlLabel}
-                    </span>
-                  </span>
-                  <span className="text-white/50">
-                    {wallet.count} trades
-                    {wallet.lastSeen ? ` - last ${formatTimestamp(wallet.lastSeen)}` : ''}
-                  </span>
+                  {sport === 'all' ? 'All' : sport}
                 </button>
+              ))}
+            </div>
+          </div>
+          {filters}
+          <div className="rounded-2xl border border-white/10 bg-black/40 p-3">
+            <div className="flex items-center justify-between text-[11px] text-white/60">
+              <span className="uppercase tracking-[0.3em]">Tracked wallets</span>
+              <button
+                type="button"
+                onClick={() => setShowTrackedWallets((prev) => !prev)}
+                className={cn(
+                  'rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] transition',
+                  showTrackedWallets
+                    ? 'border-emerald-400/60 text-emerald-200 bg-emerald-400/10'
+                    : 'border-white/10 text-white/50 hover:border-white/30 hover:text-white/80'
+                )}
+              >
+                {showTrackedWallets ? 'Hide' : 'View'} ({trackedWallets.length})
+              </button>
+            </div>
+            <div className="mt-3 space-y-3">
+              <div className="rounded-xl border border-white/10 bg-black/30 p-2">
+                <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+                  Recent tracked bets
+                </div>
+                {trackedWalletTradePreview.length === 0 ? (
+                  <div className="mt-2 text-[11px] text-white/50">
+                    No tracked Polymarket bets yet.
+                  </div>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    {trackedWalletTradePreview.map((trade) => (
+                      <div key={trade.id} className="text-[11px] text-white/70">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-white/80">
+                            {formatWalletAlias(trade.proxyWallet)}
+                          </span>
+                          <span className="text-white/50">
+                            {trade.outcome} - {formatCurrency(trade.notional)}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-white/40">{trade.marketTitle}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/30 p-2">
+                <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+                  Winning wallet bets
+                </div>
+                {winningWalletTradePreview.length === 0 ? (
+                  <div className="mt-2 text-[11px] text-white/50">
+                    No winning wallets yet.
+                  </div>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    {winningWalletTradePreview.map((trade) => (
+                      <div key={trade.id} className="text-[11px] text-white/70">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-emerald-200">
+                            {formatWalletAlias(trade.proxyWallet)}
+                          </span>
+                          <span className="text-white/50">
+                            {trade.outcome} - {formatCurrency(trade.notional)}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-white/40">{trade.marketTitle}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {walletStats.length === 0 ? (
+              <div className="mt-2 text-[11px] text-white/50">
+                No Polymarket wallets tracked yet.
+              </div>
+            ) : showTrackedWallets ? (
+              <div className="mt-2 space-y-2">
+                {walletStats.map((wallet) => {
+                  const walletKey = normalizeWallet(wallet.wallet) ?? wallet.wallet
+                  const summary = trackedWalletSummaryMap.get(walletKey)
+                  const wins = Number(summary?.total_wins ?? 0)
+                  const losses = Number(summary?.total_losses ?? 0)
+                  const pushes = Number(summary?.total_pushes ?? 0)
+                  const pnlValue = Number(summary?.total_realized_pnl ?? 0)
+                  const pnlLabel = Number.isFinite(pnlValue) ? formatCurrency(pnlValue) : '--'
+                  return (
+                    <button
+                      type="button"
+                      key={wallet.wallet}
+                      onClick={() => setWalletFilter(wallet.wallet)}
+                      className={cn(
+                        'flex w-full items-center justify-between rounded-xl border px-2.5 py-2 text-[11px] text-white/70 transition',
+                        walletFilter !== 'all' &&
+                          normalizeWallet(wallet.wallet) === normalizeWallet(walletFilter)
+                          ? 'border-emerald-400/50 bg-emerald-500/10'
+                          : 'border-white/10 bg-black/30 hover:border-white/30'
+                      )}
+                    >
+                      <span className="font-semibold text-white/80">
+                        {formatWalletAlias(wallet.wallet)}
+                        <span className="ml-2 text-[10px] font-normal text-white/40">
+                          {wins}W - {losses}L - {pushes}P
+                        </span>
+                        <span className="ml-2 text-[10px] font-normal text-emerald-200">
+                          P/L {pnlLabel}
+                        </span>
+                      </span>
+                      <span className="text-white/50">
+                        {wallet.count} trades
+                        {wallet.lastSeen ? ` - last ${formatTimestamp(wallet.lastSeen)}` : ''}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="mt-2 text-[11px] text-white/50">
+                Click to view tracked wallets.
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="w-full lg:w-[340px]">
+          <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.3em] text-white/50">
+                  Liquidity Tracker
+                </p>
+                <p className="text-lg font-bold text-white">
+                  {formatCurrency(totalLiquidity)}
+                </p>
+                <p className="text-xs text-white/40">
+                  {liquidityTrades.length} bets &gt;= {formatCurrency(MIN_NOTIONAL)}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <label className="text-[10px] uppercase tracking-[0.2em] text-white/50">
+                Game
+              </label>
+              <select
+                value={liquidityGameKey}
+                onChange={(e) => setLiquidityGameKey(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white/80 focus:outline-none focus:border-emerald-500/50"
+                disabled={liveScoresLoading && liquidityGameOptions.length === 0}
+              >
+                {liveScoresLoading && liquidityGameOptions.length === 0 && (
+                  <option value="">Loading games...</option>
+                )}
+                {!liveScoresLoading && liveScoresError && (
+                  <option value="">Unable to load games</option>
+                )}
+                {!liveScoresLoading &&
+                  !liveScoresError &&
+                  liquidityGameOptions.length === 0 && (
+                    <option value="">No upcoming games</option>
+                  )}
+                {liquidityGameOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {(['spreads', 'moneyline', 'totals'] as MarketType[]).map((marketKey) => {
+              const marketLabel =
+                marketKey === 'spreads'
+                  ? 'Spreads'
+                  : marketKey === 'moneyline'
+                    ? 'Moneyline'
+                    : 'Totals (O/U)'
+              const sides = liquidityBreakdown.markets[marketKey]
+              const totals = liquidityBreakdown.totals[marketKey]
+              return (
+                <div key={marketKey} className="mt-4">
+                  <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
+                    <span>{marketLabel}</span>
+                    <span>
+                      {totals.totalBets} bets / {formatCurrency(totals.totalNotional)}
+                    </span>
+                  </div>
+                  {sides.length === 0 ? (
+                    <div className="mt-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/50">
+                      No trades yet for this market.
+                    </div>
+                  ) : (
+                    <div className="mt-2 space-y-2">
+                      {sides.map((side) => {
+                        const betPercent = formatPercent(side.bets, totals.totalBets)
+                        const moneyPercent = formatPercent(
+                          side.notional,
+                          totals.totalNotional
+                        )
+                        const moneyValue =
+                          totals.totalNotional > 0
+                            ? Math.round((side.notional / totals.totalNotional) * 100)
+                            : 0
+                        return (
+                          <div
+                            key={`${marketKey}-${side.label}`}
+                            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2"
+                          >
+                            <div className="flex items-center justify-between text-xs text-white/70">
+                              <span className="font-semibold text-white/80">
+                                {side.label}
+                              </span>
+                              <span>{formatCurrency(side.notional)}</span>
+                            </div>
+                            <div className="mt-1 flex items-center justify-between text-[11px] text-white/50">
+                              <span>
+                                {side.bets} bets ({betPercent})
+                              </span>
+                              <span>{moneyPercent} of money</span>
+                            </div>
+                            <div className="mt-2 h-1.5 w-full rounded-full bg-white/10">
+                              <div
+                                className="h-full rounded-full bg-emerald-400/60"
+                                style={{ width: `${moneyValue}%` }}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>
-        ) : (
-          <div className="mt-2 text-[11px] text-white/50">
-            Click to view tracked wallets.
-          </div>
-        )}
+        </div>
       </div>
       {sortedTrades.length === 0 && (
         <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-xs text-white/60">
           No sharp bets detected yet. Trades &gt;= {formatCurrency(MIN_NOTIONAL)} will
           appear here.
+        </div>
+      )}
+      {sortedTrades.length > 0 && (
+        <div className="hidden lg:grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,1fr)] gap-3 px-4 text-[10px] uppercase tracking-[0.25em] text-white/40">
+          <span>Matchup</span>
+          <span>Bet</span>
+          <span>Size</span>
+          <span>Date</span>
+          <span>Odds</span>
+          <span>Detected</span>
         </div>
       )}
       {sortedTrades.map((trade) => {
@@ -811,65 +1215,81 @@ export default function SharpDetectorPanel({
         const walletKey = normalizeWallet(trade.proxyWallet)
         const isTrackedWallet =
           trade.source === 'polymarket' && walletKey && trackedWalletSet.has(walletKey)
+        const matchupLabel = resolveGameLabel(trade.marketTitle)
+        const eventLabel =
+          trade.eventDate ?? new Date(trade.timestamp).toLocaleDateString()
+        const detectedLabel = formatTimestamp(trade.timestamp)
         return (
           <div
             key={trade.id}
             className={cn(
-              'rounded-2xl border border-white/10 bg-black/40 p-4 transition',
+              'w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 transition',
               isFresh &&
                 'border-emerald-400/50 shadow-[0_0_25px_rgba(16,185,129,0.25)]'
             )}
           >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-                      {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {Number.isFinite(trade.sharpStrength) && (
-                        <span className={cn('text-[10px] uppercase tracking-[0.3em] font-semibold', resolveStrengthClass(trade.sharpStrength))}>
-                          {trade.sharpStrength}% strength
-                        </span>
-                      )}
-                    </div>
-                  </div>
-            <p className="mt-2 text-sm font-semibold text-white">
-              Someone put {formatCurrency(trade.notional)} on {trade.outcome} in{' '}
-              {trade.marketTitle}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-white/60">
-              <span
-                className={cn(
-                  'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]',
-                  sharpTierClass[sharpTier]
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,1fr)] lg:gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 sm:hidden">
+                  Matchup
+                </p>
+                <p className="text-sm font-semibold text-white">{matchupLabel}</p>
+                <p className="text-[11px] text-white/45">
+                  {trade.sport} / {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 sm:hidden">
+                  Bet
+                </p>
+                <p className="text-sm text-white/80">{trade.outcome}</p>
+                <p className="text-[11px] text-white/40">{trade.marketTitle}</p>
+                {isTrackedWallet && (
+                  <span className="mt-1 inline-flex rounded-full border border-emerald-400/40 px-2 py-0.5 text-[10px] text-emerald-200">
+                    Tracked {formatWalletAlias(trade.proxyWallet)}
+                  </span>
                 )}
-              >
-                {sharpTierLabel[sharpTier]}
-              </span>
-              <span className="rounded-full border border-white/10 px-2 py-0.5">
-                {trade.outcome}
-              </span>
-              <span className="rounded-full border border-white/10 px-2 py-0.5">
-                {resolvePhase(trade)}
-              </span>
-              <span className="rounded-full border border-white/10 px-2 py-0.5">
-                {trade.sport}
-              </span>
-              {trade.eventDate && (
-                <span className="rounded-full border border-white/10 px-2 py-0.5">
-                  {trade.eventDate}
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 sm:hidden">
+                  Size
+                </p>
+                <span
+                  className={cn(
+                    'inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]',
+                    sharpTierClass[sharpTier]
+                  )}
+                >
+                  {sharpTierLabel[sharpTier]}
                 </span>
-              )}
-              <span className="rounded-full border border-white/10 px-2 py-0.5">
-                {resolveOddsLabel(trade)}
-              </span>
-              {isTrackedWallet && (
-                <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-emerald-200">
-                  Tracked {formatWalletAlias(trade.proxyWallet)}
-                </span>
-              )}
-              <span className="rounded-full border border-white/10 px-2 py-0.5">
-                Detected {formatTimestamp(trade.timestamp)}
-              </span>
+                <p className="mt-1 text-xs text-white/70">
+                  {formatCurrency(trade.notional)}
+                </p>
+                {Number.isFinite(trade.sharpStrength) && (
+                  <p className={cn('text-[10px] uppercase', resolveStrengthClass(trade.sharpStrength))}>
+                    {trade.sharpStrength}% strength
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 sm:hidden">
+                  Date
+                </p>
+                <p className="text-sm text-white/80">{eventLabel}</p>
+                <p className="text-[11px] text-white/40">{resolvePhase(trade)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 sm:hidden">
+                  Odds
+                </p>
+                <p className="text-sm text-white/80">{resolveOddsLabel(trade)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 sm:hidden">
+                  Detected
+                </p>
+                <p className="text-sm text-white/80">{detectedLabel}</p>
+              </div>
             </div>
           </div>
         )

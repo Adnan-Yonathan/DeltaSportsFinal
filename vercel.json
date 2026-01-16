@@ -21,6 +21,9 @@
     "app/api/cron/ingest-polymarket-wallets/route.ts": {
       "maxDuration": 300
     },
+    "app/api/cron/ingest-polymarket-wallets-direct/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/cron/compute-polymarket-wallet-rollups/route.ts": {
       "maxDuration": 300
     },
@@ -43,6 +46,10 @@
     },
     {
       "path": "/api/cron/ingest-polymarket-wallets",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/ingest-polymarket-wallets-direct",
       "schedule": "*/15 * * * *"
     },
     {

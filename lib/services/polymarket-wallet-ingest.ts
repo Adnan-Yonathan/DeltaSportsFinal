@@ -451,6 +451,38 @@ const ingestWalletTrades = async ({
   }
 }
 
+export const upsertTrackedPolymarketWallets = async ({
+  wallets,
+  source = 'manual',
+}: {
+  wallets: string[]
+  source?: string
+}) => {
+  const normalized = Array.from(
+    new Set(wallets.map((wallet) => normalizeWallet(wallet)).filter(Boolean) as string[])
+  )
+  if (!normalized.length) return { inserted: 0, wallets: [] as string[] }
+
+  const now = new Date().toISOString()
+  const rows = normalized.map((wallet) => ({
+    wallet,
+    source,
+    last_seen_at: now,
+    display_name: getWalletAlias(wallet),
+  }))
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('polymarket_wallets' as any)
+    .upsert(rows as any, { onConflict: 'wallet' } as any)
+    .select('wallet')
+
+  if (error) {
+    console.warn('[Polymarket Wallets] Seed failed:', error)
+    return { inserted: 0, wallets: [] as string[] }
+  }
+  return { inserted: data?.length ?? 0, wallets: normalized }
+}
+
 export const seedTrackedPolymarketWallets = async ({
   minNotional = 2000,
   limit = DEFAULT_SEED_LIMIT,
@@ -467,36 +499,19 @@ export const seedTrackedPolymarketWallets = async ({
         .filter(Boolean) as string[]
     )
   )
-  if (!wallets.length) return { inserted: 0, wallets: [] as string[] }
-
-  const now = new Date().toISOString()
-  const rows = wallets.map((wallet) => ({
-    wallet,
-    source: 'detector',
-    last_seen_at: now,
-    display_name: getWalletAlias(wallet),
-  }))
-  const supabase = createServiceClient()
-  const { data, error } = await supabase
-    .from('polymarket_wallets' as any)
-    .upsert(rows as any, { onConflict: 'wallet' } as any)
-    .select('wallet')
-
-  if (error) {
-    console.warn('[Polymarket Wallets] Seed failed:', error)
-    return { inserted: 0, wallets: [] as string[] }
-  }
-  return { inserted: data?.length ?? 0, wallets }
+  return upsertTrackedPolymarketWallets({ wallets, source: 'detector' })
 }
 
 export const ingestPolymarketWalletTradesForTrackedWallets = async ({
   wallet,
+  wallets,
   limit = DEFAULT_LIMIT,
   maxPages = DEFAULT_MAX_PAGES,
   sportsOnly = true,
   fullBackfill = false,
 }: {
   wallet?: string
+  wallets?: string[]
   limit?: number
   maxPages?: number
   sportsOnly?: boolean
@@ -507,9 +522,16 @@ export const ingestPolymarketWalletTradesForTrackedWallets = async ({
   const query = supabase
     .from('polymarket_wallets' as any)
     .select('wallet, last_trade_ts, backfill_completed, display_name')
+  const normalizedWallets = wallets
+    ? Array.from(
+        new Set(wallets.map((value) => normalizeWallet(value)).filter(Boolean) as string[])
+      )
+    : []
   const { data, error } = wallet
     ? await query.eq('wallet', normalizeWallet(wallet) ?? wallet)
-    : await query
+    : normalizedWallets.length
+      ? await query.in('wallet', normalizedWallets.slice(0, 200))
+      : await query
 
   if (error || !data) {
     console.warn('[Polymarket Wallets] Failed to load tracked wallets:', error)

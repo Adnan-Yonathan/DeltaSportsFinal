@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef, ChangeEvent, Suspense } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -97,6 +98,7 @@ function ChatPageContent() {
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
   const [messagesToday, setMessagesToday] = useState<number>(0)
   const [promoDismissed, setPromoDismissed] = useState(false)
+  const [promoMounted, setPromoMounted] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const prefillMessage = searchParams.get('prompt') ?? undefined
@@ -113,6 +115,10 @@ function ChatPageContent() {
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  useEffect(() => {
+    setPromoMounted(true)
   }, [])
 
   useEffect(() => {
@@ -1170,68 +1176,70 @@ function ChatPageContent() {
         )}
       </AnimatePresence>
 
-      {showPromoCard && (
-        <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/70 backdrop-blur-md px-4 py-6">
-          <div className="relative w-full max-w-xl rounded-3xl border border-emerald-400/30 bg-gradient-to-br from-emerald-500/15 via-black/85 to-black/70 p-6 shadow-2xl">
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
-                  Join the Discord
-                </p>
-                <h2 className="text-xl font-semibold text-white">
-                  Join the community
-                </h2>
-                <p className="text-sm text-white/60">
-                  Connect with the crew for alerts, model drops, and live chatter.
-                </p>
-                <Link
-                  href={DISCORD_INVITE_URL}
-                  onClick={() => void handlePromoDismiss('discord')}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
-                >
-                  Join Discord
-                </Link>
+      {promoMounted && showPromoCard && typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 backdrop-blur-md px-4 py-6">
+            <div className="relative w-full max-w-xl rounded-3xl border border-emerald-400/30 bg-gradient-to-br from-emerald-500/15 via-black/85 to-black/70 p-6 shadow-2xl">
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
+                    Join the Discord
+                  </p>
+                  <h2 className="text-xl font-semibold text-white">
+                    Join the community
+                  </h2>
+                  <p className="text-sm text-white/60">
+                    Connect with the crew for alerts, model drops, and live chatter.
+                  </p>
+                  <Link
+                    href={DISCORD_INVITE_URL}
+                    onClick={() => void handlePromoDismiss('discord')}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
+                  >
+                    Join Discord
+                  </Link>
+                </div>
+                <div className="border-t border-white/10 pt-4 space-y-2">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
+                    Kalshi referral
+                  </p>
+                  <h3 className="text-base font-semibold text-white">
+                    Get $10 free when you trade $10 on Kalshi.
+                  </h3>
+                  <p className="text-sm text-white/60">
+                    Use the referral link to activate the bonus.
+                  </p>
+                  <Link
+                    href={KALSHI_REFERRAL_URL}
+                    onClick={() => void handlePromoDismiss('kalshi')}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
+                  >
+                    Claim $10 on Kalshi
+                  </Link>
+                  <p className="text-[11px] text-white/50">
+                    Referral disclosure: I receive $10 too if you sign up and trade. Offer
+                    subject to Kalshi terms and eligibility; must be 18+ and in an approved
+                    location. Not financial advice.
+                  </p>
+                </div>
               </div>
-              <div className="border-t border-white/10 pt-4 space-y-2">
-                <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
-                  Kalshi referral
-                </p>
-                <h3 className="text-base font-semibold text-white">
-                  Get $10 free when you trade $10 on Kalshi.
-                </h3>
-                <p className="text-sm text-white/60">
-                  Use the referral link to activate the bonus.
-                </p>
-                <Link
-                  href={KALSHI_REFERRAL_URL}
-                  onClick={() => void handlePromoDismiss('kalshi')}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
-                >
-                  Claim $10 on Kalshi
-                </Link>
-                <p className="text-[11px] text-white/50">
-                  Referral disclosure: I receive $10 too if you sign up and trade. Offer
-                  subject to Kalshi terms and eligibility; must be 18+ and in an approved
-                  location. Not financial advice.
-                </p>
-              </div>
+              <button
+                type="button"
+                onClick={() => void handlePromoDismiss('opt_out')}
+                className="absolute bottom-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-400/50 bg-black/70 text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
+                aria-label="Hide this message"
+                title="Hide this message"
+              >
+                <Check className="h-4 w-4" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => void handlePromoDismiss('opt_out')}
-              className="absolute bottom-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-400/50 bg-black/70 text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
-              aria-label="Hide this message"
-              title="Hide this message"
-            >
-              <Check className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {/* Mobile Sharp Detector Full-Page Overlay */}
       <AnimatePresence>

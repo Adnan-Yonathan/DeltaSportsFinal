@@ -727,7 +727,10 @@ export default function MarketProjectionsTable({
                           {game.awayTeam} @ {game.homeTeam}
                         </div>
                         <div className="mt-1 text-[11px] text-white/50">
-                          {filterLabels.projection} {formatPickBrief(activePick)}
+                          {filterLabels.projection}:{" "}
+                          <span className="whitespace-nowrap rounded bg-emerald-500/15 px-1 py-0.5 text-[10px] text-emerald-200">
+                            <AnimatedValue text={formatPick(activePick)} pulseKey={pulseKey} />
+                          </span>
                         </div>
                       </div>
                       <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/50 group-open:border-emerald-400/40 group-open:text-emerald-200">

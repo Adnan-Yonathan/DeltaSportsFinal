@@ -245,6 +245,7 @@ export default function SharpDetectorPage() {
   const [showTrackedWallets, setShowTrackedWallets] = useState(false)
   const [walletSummary, setWalletSummary] = useState<WalletSummary[]>([])
   const [walletSummaryError, setWalletSummaryError] = useState<string | null>(null)
+  const [trackedWalletSummary, setTrackedWalletSummary] = useState<WalletSummary[]>([])
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
 
@@ -350,6 +351,15 @@ export default function SharpDetectorPage() {
     [trackedWallets]
   )
 
+  const trackedWalletSummaryMap = useMemo(() => {
+    return new Map(
+      trackedWalletSummary.map((summary) => [
+        normalizeWallet(summary.wallet) ?? summary.wallet,
+        summary,
+      ])
+    )
+  }, [trackedWalletSummary])
+
   const trackedWalletTradePreview = useMemo(() => {
     return trades
       .filter((trade) => {
@@ -396,16 +406,28 @@ export default function SharpDetectorPage() {
   }, [trades, winningWallets])
 
   const walletStats = useMemo(() => {
-    const stats = new Map<string, { wallet: string; count: number; lastSeen?: string }>()
+    const stats = new Map<
+      string,
+      { wallet: string; count: number; wins: number; losses: number; pushes: number; lastSeen?: string }
+    >()
     trades.forEach((trade) => {
       if (trade.source !== 'polymarket') return
       const walletKey = normalizeWallet(trade.proxyWallet)
       if (!walletKey) return
-      const entry = stats.get(walletKey) ?? { wallet: walletKey, count: 0 }
+      const entry = stats.get(walletKey) ?? {
+        wallet: walletKey,
+        count: 0,
+        wins: 0,
+        losses: 0,
+        pushes: 0,
+      }
       entry.count += 1
       if (!entry.lastSeen || trade.timestamp > entry.lastSeen) {
         entry.lastSeen = trade.timestamp
       }
+      if (trade.result === 'win') entry.wins += 1
+      if (trade.result === 'loss') entry.losses += 1
+      if (trade.result === 'push') entry.pushes += 1
       stats.set(walletKey, entry)
     })
 
@@ -416,6 +438,9 @@ export default function SharpDetectorPage() {
         wallet: walletKey,
         count: entry?.count ?? 0,
         lastSeen: entry?.lastSeen ?? null,
+        wins: entry?.wins ?? 0,
+        losses: entry?.losses ?? 0,
+        pushes: entry?.pushes ?? 0,
       }
     })
 
@@ -520,6 +545,45 @@ export default function SharpDetectorPage() {
       return Array.from(next)
     })
   }, [hydrated, trades])
+
+  useEffect(() => {
+    if (!hydrated) return
+    const wallets = Array.from(
+      new Set(
+        trackedWallets.map((wallet) => normalizeWallet(wallet)).filter(Boolean) as string[]
+      )
+    )
+    if (!wallets.length) {
+      setTrackedWalletSummary([])
+      return
+    }
+    const controller = new AbortController()
+    const fetchTrackedSummary = async () => {
+      try {
+        const params = new URLSearchParams()
+        const limitedWallets = wallets.slice(0, 200)
+        params.set('wallets', limitedWallets.join(','))
+        params.set('limit', String(limitedWallets.length))
+        const res = await fetch(`/api/polymarket/wallets/summary?${params.toString()}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+        if (!res.ok) {
+          throw new Error(`Tracked summary fetch failed (${res.status})`)
+        }
+        const data = await res.json()
+        setTrackedWalletSummary(Array.isArray(data?.wallets) ? data.wallets : [])
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        console.warn(
+          'Failed to load tracked wallet summary:',
+          error instanceof Error ? error.message : error
+        )
+      }
+    }
+    fetchTrackedSummary()
+    return () => controller.abort()
+  }, [hydrated, trackedWallets])
 
   useEffect(() => {
     fetchTrades()
@@ -811,27 +875,43 @@ export default function SharpDetectorPage() {
             </div>
           ) : showTrackedWallets ? (
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {walletStats.map((wallet) => (
-                <button
-                  type="button"
-                  key={wallet.wallet}
-                  onClick={() => setWalletFilter(wallet.wallet)}
-                  className={cn(
-                    'flex items-center justify-between rounded-xl border px-3 py-2 text-xs text-white/70 transition',
-                    walletFilter !== 'all' && normalizeWallet(wallet.wallet) === normalizeWallet(walletFilter)
-                      ? 'border-emerald-400/50 bg-emerald-500/10'
-                      : 'border-white/10 bg-black/30 hover:border-white/30'
-                  )}
-                >
-                  <span className="font-semibold text-white/80">
-                    {formatWalletAlias(wallet.wallet)}
-                  </span>
-                  <span className="text-white/50">
-                    {wallet.count} trades
-                    {wallet.lastSeen ? ` - last ${formatTimestamp(wallet.lastSeen)}` : ''}
-                  </span>
-                </button>
-              ))}
+              {walletStats.map((wallet) => {
+                const walletKey = normalizeWallet(wallet.wallet) ?? wallet.wallet
+                const summary = trackedWalletSummaryMap.get(walletKey)
+                const wins = Number(summary?.total_wins ?? 0)
+                const losses = Number(summary?.total_losses ?? 0)
+                const pushes = Number(summary?.total_pushes ?? 0)
+                const pnlValue = Number(summary?.total_realized_pnl ?? 0)
+                const pnlLabel = Number.isFinite(pnlValue) ? formatCurrency(pnlValue) : '--'
+                return (
+                  <button
+                    type="button"
+                    key={wallet.wallet}
+                    onClick={() => setWalletFilter(wallet.wallet)}
+                    className={cn(
+                      'flex items-center justify-between rounded-xl border px-3 py-2 text-xs text-white/70 transition',
+                      walletFilter !== 'all' &&
+                        normalizeWallet(wallet.wallet) === normalizeWallet(walletFilter)
+                        ? 'border-emerald-400/50 bg-emerald-500/10'
+                        : 'border-white/10 bg-black/30 hover:border-white/30'
+                    )}
+                  >
+                    <span className="font-semibold text-white/80">
+                      {formatWalletAlias(wallet.wallet)}
+                      <span className="ml-2 text-[10px] font-normal text-white/40">
+                        {wins}W - {losses}L - {pushes}P
+                      </span>
+                      <span className="ml-2 text-[10px] font-normal text-emerald-200">
+                        P/L {pnlLabel}
+                      </span>
+                    </span>
+                    <span className="text-white/50">
+                      {wallet.count} trades
+                      {wallet.lastSeen ? ` - last ${formatTimestamp(wallet.lastSeen)}` : ''}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           ) : (
             <div className="mt-2 text-xs text-white/50">

@@ -23,6 +23,7 @@
     "ingest:period-scores": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-espn-period-scores.ts",
     "ingest:opponent-stats": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-nba-opponent-stats.ts",
     "ingest:whale-trades": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-whale-trades.ts",
+    "ingest:whale-trades-historical": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-whale-trades-historical.ts",
     "reset:tracking": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/reset-all-tracking.ts",
     "cache:live": "node scripts/fetch-live-scores.js",
     "test:prompts": "ts-node --project tsconfig.test.json tests/run-prompts.ts",

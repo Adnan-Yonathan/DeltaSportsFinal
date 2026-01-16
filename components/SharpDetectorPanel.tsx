@@ -172,6 +172,16 @@ const getEasternDateKey = (value: Date | string | number) => {
   return `${year}-${month}-${day}`
 }
 
+const formatDateOptionLabel = (
+  dateKey: string,
+  todayKey: string | null,
+  tomorrowKey: string | null
+) => {
+  if (todayKey && dateKey === todayKey) return `Today (${dateKey})`
+  if (tomorrowKey && dateKey === tomorrowKey) return `Tomorrow (${dateKey})`
+  return dateKey
+}
+
 const sharpTierLabel: Record<SharpTier, string> = {
   small: 'Swordfish',
   blue: 'Megalodon',
@@ -229,12 +239,30 @@ const parseTeamsFromTitle = (marketTitle: string) => {
   return { away, home }
 }
 
+const extractSingleTeamKey = (value: string) => {
+  const cleaned = value
+    .replace(MARKET_SUFFIX_PATTERN, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return normalizeTeamKey(cleaned)
+}
+
 const buildTeamGameKey = (sport: string, away: string, home: string) => {
   const awayKey = normalizeTeamKey(away)
   const homeKey = normalizeTeamKey(home)
   if (!awayKey || !homeKey) return null
   const ordered = [awayKey, homeKey].sort()
   return `${sport}:${ordered[0]}@${ordered[1]}`
+}
+
+const buildMatchupKey = (sport: string, dateKey: string | null, teamKeys: [string, string]) => {
+  const ordered = [...teamKeys].sort()
+  return `${sport}:${dateKey ?? 'unknown'}:${ordered[0]}@${ordered[1]}`
+}
+
+const isTeamKeyMatch = (candidate: string | null | undefined, teamKey: string) => {
+  if (!candidate) return false
+  return candidate === teamKey || candidate.includes(teamKey) || teamKey.includes(candidate)
 }
 
 const extractGameKey = (marketTitle: string, sport: string): string => {
@@ -312,10 +340,13 @@ const buildTeamAliases = (team: { name?: string; shortName?: string; abbreviatio
     .filter(Boolean)
 
 const resolveTradeDateKey = (trade: SharpTrade) => {
-  if (!trade.eventDate) return null
-  const match = trade.eventDate.match(DATE_ONLY_PATTERN)
-  if (match) return trade.eventDate
-  return getEasternDateKey(trade.eventDate)
+  if (trade.eventDate) {
+    const match = trade.eventDate.match(DATE_ONLY_PATTERN)
+    if (match) return trade.eventDate
+    const resolved = getEasternDateKey(trade.eventDate)
+    if (resolved) return resolved
+  }
+  return getEasternDateKey(trade.timestamp)
 }
 
 const resolveGameDateKey = (game: LiveScoreGame) => getEasternDateKey(game.startTime)
@@ -412,6 +443,7 @@ export default function SharpDetectorPanel({
   const [lastFetchError, setLastFetchError] = useState<string | null>(null)
   const [sportFilter, setSportFilter] = useState<string>('all')
   const [gameFilter, setGameFilter] = useState<string>('all')
+  const [dateFilter, setDateFilter] = useState<string>('all')
   const [sortFilter, setSortFilter] = useState<'newest' | 'strength'>('newest')
   const [searchQuery, setSearchQuery] = useState('')
   const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'blue' | 'mega' | 'nuke'>('all')
@@ -440,7 +472,7 @@ export default function SharpDetectorPanel({
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
 
-  const baseTrades = useMemo(() => {
+  const preDateTrades = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     const walletKey = walletFilter === 'all' ? null : normalizeWallet(walletFilter)
     return trades.filter((trade) => {
@@ -459,18 +491,133 @@ export default function SharpDetectorPanel({
     })
   }, [trades, sportFilter, sizeFilter, searchQuery, walletFilter])
 
+  const dateOptions = useMemo(() => {
+    const dates = new Set<string>()
+    preDateTrades.forEach((trade) => {
+      const dateKey = resolveTradeDateKey(trade)
+      if (dateKey) dates.add(dateKey)
+    })
+    const todayKey = getEasternDateKey(new Date())
+    const tomorrowKey = todayKey
+      ? getEasternDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000))
+      : null
+    return Array.from(dates.values())
+      .sort((a, b) => b.localeCompare(a))
+      .map((key) => ({
+        key,
+        label: formatDateOptionLabel(key, todayKey, tomorrowKey),
+      }))
+  }, [preDateTrades])
+
+  const baseTrades = useMemo(() => {
+    if (dateFilter === 'all') return preDateTrades
+    return preDateTrades.filter((trade) => resolveTradeDateKey(trade) === dateFilter)
+  }, [preDateTrades, dateFilter])
+
+  const matchupIndex = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        label: string
+        sport: string
+        dateKey: string | null
+        teamKeys: [string, string]
+      }
+    >()
+    baseTrades.forEach((trade) => {
+      const parsed = parseTeamsFromTitle(trade.marketTitle)
+      if (!parsed) return
+      const awayKey = normalizeTeamKey(parsed.away)
+      const homeKey = normalizeTeamKey(parsed.home)
+      if (!awayKey || !homeKey) return
+      const dateKey = resolveTradeDateKey(trade)
+      const matchupKey = buildMatchupKey(trade.sport, dateKey, [awayKey, homeKey])
+      if (!map.has(matchupKey)) {
+        map.set(matchupKey, {
+          label: `${parsed.away} vs ${parsed.home}`,
+          sport: trade.sport,
+          dateKey,
+          teamKeys: [awayKey, homeKey],
+        })
+      }
+    })
+    return map
+  }, [baseTrades])
+
+  const tradeMatchupKeyMap = useMemo(() => {
+    const map = new Map<string, string>()
+    baseTrades.forEach((trade) => {
+      const dateKey = resolveTradeDateKey(trade)
+      const parsed = parseTeamsFromTitle(trade.marketTitle)
+      if (parsed) {
+        const awayKey = normalizeTeamKey(parsed.away)
+        const homeKey = normalizeTeamKey(parsed.home)
+        if (awayKey && homeKey) {
+          const matchupKey = buildMatchupKey(trade.sport, dateKey, [awayKey, homeKey])
+          map.set(trade.id, matchupKey)
+          return
+        }
+      }
+      const outcomeKey = normalizeTeamKey(trade.outcome)
+      const marketTeamKey = extractSingleTeamKey(trade.marketTitle)
+      const candidates: string[] = []
+      matchupIndex.forEach((entry, key) => {
+        if (entry.sport !== trade.sport) return
+        if (dateKey && entry.dateKey && entry.dateKey !== dateKey) return
+        const outcomeMatch =
+          isTeamKeyMatch(outcomeKey, entry.teamKeys[0]) ||
+          isTeamKeyMatch(outcomeKey, entry.teamKeys[1])
+        const marketMatch =
+          isTeamKeyMatch(marketTeamKey, entry.teamKeys[0]) ||
+          isTeamKeyMatch(marketTeamKey, entry.teamKeys[1])
+        if (outcomeMatch || marketMatch) {
+          candidates.push(key)
+        }
+      })
+
+      if (candidates.length > 1 && outcomeKey && marketTeamKey) {
+        const refined = candidates.filter((key) => {
+          const entry = matchupIndex.get(key)
+          if (!entry) return false
+          const outcomeMatch =
+            isTeamKeyMatch(outcomeKey, entry.teamKeys[0]) ||
+            isTeamKeyMatch(outcomeKey, entry.teamKeys[1])
+          const marketMatch =
+            isTeamKeyMatch(marketTeamKey, entry.teamKeys[0]) ||
+            isTeamKeyMatch(marketTeamKey, entry.teamKeys[1])
+          return outcomeMatch && marketMatch
+        })
+        if (refined.length === 1) {
+          map.set(trade.id, refined[0])
+          return
+        }
+      }
+
+      if (candidates.length === 1) {
+        map.set(trade.id, candidates[0])
+        return
+      }
+
+      const fallbackSlug = normalizeTeamKey(trade.marketTitle) || trade.id
+      const fallbackKey = `${trade.sport}:${dateKey ?? 'unknown'}:${fallbackSlug}`
+      map.set(trade.id, fallbackKey)
+    })
+    return map
+  }, [baseTrades, matchupIndex])
+
   const gameOptions = useMemo(() => {
     const map = new Map<string, string>()
     baseTrades.forEach((trade) => {
-      const key = extractGameKey(trade.marketTitle, trade.sport)
+      const key =
+        tradeMatchupKeyMap.get(trade.id) ?? extractGameKey(trade.marketTitle, trade.sport)
       if (!map.has(key)) {
-        map.set(key, resolveGameLabel(trade.marketTitle))
+        map.set(key, matchupIndex.get(key)?.label ?? resolveGameLabel(trade.marketTitle))
       }
     })
     return Array.from(map.entries())
       .map(([key, label]) => ({ key, label }))
       .sort((a, b) => a.label.localeCompare(b.label))
-  }, [baseTrades])
+  }, [baseTrades, matchupIndex, tradeMatchupKeyMap])
 
   const upcomingGames = useMemo(() => {
     const games = liveScoresData?.games ?? []
@@ -511,6 +658,13 @@ export default function SharpDetectorPanel({
   }, [liquidityGameKey, liquidityGameOptions])
 
   useEffect(() => {
+    if (dateFilter === 'all') return
+    if (!dateOptions.some((option) => option.key === dateFilter)) {
+      setDateFilter('all')
+    }
+  }, [dateFilter, dateOptions])
+
+  useEffect(() => {
     if (gameFilter === 'all') return
     if (!gameOptions.some((option) => option.key === gameFilter)) {
       setGameFilter('all')
@@ -520,9 +674,11 @@ export default function SharpDetectorPanel({
   const filteredTrades = useMemo(() => {
     return baseTrades.filter((trade) => {
       if (gameFilter === 'all') return true
-      return extractGameKey(trade.marketTitle, trade.sport) === gameFilter
+      const matchupKey =
+        tradeMatchupKeyMap.get(trade.id) ?? extractGameKey(trade.marketTitle, trade.sport)
+      return matchupKey === gameFilter
     })
-  }, [baseTrades, gameFilter])
+  }, [baseTrades, gameFilter, tradeMatchupKeyMap])
 
   const liquidityTrades = useMemo(() => {
     if (!selectedLiquidityGame) return []
@@ -888,6 +1044,18 @@ export default function SharpDetectorPanel({
         ))}
       </select>
       <select
+        value={dateFilter}
+        onChange={(e) => setDateFilter(e.target.value)}
+        className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-black text-[11px] text-white/80 focus:outline-none focus:border-emerald-500/50"
+      >
+        <option value="all">All Dates</option>
+        {dateOptions.map((option) => (
+          <option key={option.key} value={option.key}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <select
         value={sizeFilter}
         onChange={(e) =>
           setSizeFilter(e.target.value as 'all' | 'small' | 'blue' | 'mega' | 'nuke')
@@ -1215,7 +1383,10 @@ export default function SharpDetectorPanel({
         const walletKey = normalizeWallet(trade.proxyWallet)
         const isTrackedWallet =
           trade.source === 'polymarket' && walletKey && trackedWalletSet.has(walletKey)
-        const matchupLabel = resolveGameLabel(trade.marketTitle)
+        const matchupKey = tradeMatchupKeyMap.get(trade.id)
+        const matchupLabel =
+          (matchupKey && matchupIndex.get(matchupKey)?.label) ??
+          resolveGameLabel(trade.marketTitle)
         const eventLabel =
           trade.eventDate ?? new Date(trade.timestamp).toLocaleDateString()
         const detectedLabel = formatTimestamp(trade.timestamp)

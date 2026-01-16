@@ -19,7 +19,6 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const sport = searchParams.get("sport") || "all"
     const minNotional = Number(searchParams.get("minNotional") || 1000)
-    const minEdge = Number(searchParams.get("minEdge") || 0)
     const minComposite = Number(searchParams.get("minComposite") || 0)
     const limit = Number(searchParams.get("limit") || 50)
 
@@ -36,14 +35,8 @@ export async function GET(req: NextRequest) {
       limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 50,
     })
 
-    // Apply client-side filters
+    // Apply client-side filters (filter by minimum composite score)
     let filteredProps = analysis.props
-
-    if (Number.isFinite(minEdge) && minEdge > 0) {
-      filteredProps = filteredProps.filter(
-        (p) => Math.abs(p.edgePercent) >= minEdge
-      )
-    }
 
     if (Number.isFinite(minComposite) && minComposite > 0) {
       filteredProps = filteredProps.filter(
@@ -51,6 +44,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    // Props are already sorted by composite score (highest first)
     // Also filter topPicks and clusterAlerts based on filtered set
     const filteredIds = new Set(filteredProps.map((p) => p.id))
     const filteredTopPicks = analysis.topPicks.filter((p) => filteredIds.has(p.id))

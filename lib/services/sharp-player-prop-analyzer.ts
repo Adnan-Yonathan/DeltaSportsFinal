@@ -2,15 +2,13 @@ import {
   fetchPlayerPropWhaleTrades,
   type PlayerPropWhaleTrade,
 } from './whale-trade-history'
-import { fetchSbdPlayerProps, resolveSbdLeague, type SbdLeague } from '@/lib/api/sbd'
-import { impliedProbability } from '@/lib/utils/odds'
+import { fetchSbdGamePropsList, resolveSbdLeague, type SbdLeague } from '@/lib/api/sbd'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type CompositeScoreWeights = {
-  edge: number
   notional: number
   sharpStrength: number
   volume: number
@@ -30,12 +28,9 @@ export type AggregatedPlayerPropBet = {
   avgPriceCents: number
   avgSharpStrength: number
 
-  // Edge calculation
-  predMarketProbability: number
-  sportsbookAvgProbability: number | null
-  sportsbookAvgOdds: number | null
-  edgePercent: number // Expected Value as percentage (EV-based edge)
-  rawProbabilityEdge: number // Simple probability difference (for reference)
+  // Best sportsbook line for this prop
+  bestOdds: number | null
+  bestOddsFormatted: string | null
 
   // Clustering detection
   isClustered: boolean
@@ -43,7 +38,7 @@ export type AggregatedPlayerPropBet = {
   earliestTradeTime: string
   latestTradeTime: string
 
-  // Composite ranking
+  // Composite score (0-100) - higher = sharper bet
   compositeScore: number
 
   // Source data
@@ -78,11 +73,12 @@ const DEFAULT_CLUSTER_WINDOW_HOURS = 4
 const DEFAULT_TOP_PICKS_COUNT = 5
 const DEFAULT_LIMIT = 100
 
+// Weights for composite score (represents "true probability" of bet hitting)
+// Edge is NOT included here - edge is calculated AS: compositeScore - sportsbookImpliedProb
 const DEFAULT_WEIGHTS: CompositeScoreWeights = {
-  edge: 0.35,
-  notional: 0.25,
-  sharpStrength: 0.25,
-  volume: 0.15,
+  notional: 0.40,       // How much money whales put down
+  sharpStrength: 0.35,  // How sharp the money is
+  volume: 0.25,         // How many bets on this prop
 }
 
 // Prop type normalization for SBD API matching
@@ -133,15 +129,6 @@ const parseSide = (side: string | null): 'Over' | 'Under' | null => {
   if (lower.includes('over') || lower === 'o') return 'Over'
   if (lower.includes('under') || lower === 'u') return 'Under'
   return null
-}
-
-const priceCentsToImpliedProbability = (priceCents: number): number => {
-  // Prediction market price in cents (0-100) maps directly to probability
-  return Math.max(0, Math.min(1, priceCents / 100))
-}
-
-const americanOddsToImpliedProbability = (odds: number): number => {
-  return impliedProbability(odds)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -216,12 +203,11 @@ const computeCompositeScore = (
   prop: Partial<AggregatedPlayerPropBet>,
   weights: CompositeScoreWeights
 ): number => {
-  // Normalize EV-based edge to 0-1 (cap at 25% EV)
-  // EV percentages are typically larger than raw probability edges
-  // 10% EV is considered good, 20%+ is excellent
-  const edgeScore = Math.min(1, Math.max(0, Math.abs(prop.edgePercent ?? 0) / 25))
+  // Composite score represents our confidence in the bet (0-100, like a probability)
+  // Edge is calculated AFTER as: compositeScore - sportsbookImpliedProbability
 
   // Normalize notional to 0-1 using log scale (cap at $50k)
+  // $1k = 0, $5k = ~0.41, $10k = ~0.59, $25k = ~0.81, $50k = 1.0
   const notionalRaw = prop.totalNotional ?? 0
   const notionalScore =
     notionalRaw > 0
@@ -231,20 +217,26 @@ const computeCompositeScore = (
   // Sharp strength already 0-100, normalize to 0-1
   const sharpScore = (prop.avgSharpStrength ?? 50) / 100
 
-  // Volume score: 1 bet = 0.2, 2 = 0.5, 3+ = 0.8-1.0
+  // Volume score: 1 bet = 0.3, 2 = 0.55, 3 = 0.8, 4+ = 1.0
   const betCount = prop.betCount ?? 0
-  const volumeScore = Math.min(1, 0.2 + betCount * 0.25)
+  const volumeScore = Math.min(1, 0.3 + betCount * 0.25)
 
   const raw =
-    weights.edge * edgeScore +
     weights.notional * notionalScore +
     weights.sharpStrength * sharpScore +
     weights.volume * volumeScore
 
-  // Add clustering bonus (+10 points if clustered)
+  // Add clustering bonus (+10 points if clustered within 4h window)
   const clusterBonus = prop.isClustered ? 0.1 : 0
 
-  return Math.min(100, Math.max(0, (raw + clusterBonus) * 100))
+  // Scale to 0-100 range
+  // Base of 30 (minimum confidence for any whale bet that passed filters)
+  // Plus weighted factors (up to 70 more points)
+  // Plus cluster bonus (up to 10 more points)
+  const baseScore = 30
+  const scaledScore = baseScore + (raw * 70) + (clusterBonus * 100)
+
+  return Math.min(100, Math.max(0, scaledScore))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -255,8 +247,8 @@ type SportsbookPropOdds = {
   playerName: string
   propType: string
   line: number
-  overOdds: number | null
-  underOdds: number | null
+  bestOverOdds: number | null
+  bestUnderOdds: number | null
 }
 
 const fetchSportsbookPlayerProps = async (
@@ -266,83 +258,101 @@ const fetchSportsbookPlayerProps = async (
   if (!league) return new Map()
 
   try {
-    const data = await fetchSbdPlayerProps(league, {
+    // Use game props API which has all prop types (rushing, receiving, etc.)
+    const data = await fetchSbdGamePropsList(league, {
       init: { next: { revalidate: 60 } },
     })
 
     const result = new Map<string, SportsbookPropOdds[]>()
 
-    if (!data?.data || !Array.isArray(data.data)) return result
+    if (!Array.isArray(data)) return result
 
-    for (const item of data.data) {
-      const playerName = item?.player?.name
+    for (const entry of data) {
+      // Game props API has player_name directly (in "Last, First" format)
+      const playerName = entry?.player_name || entry?.player?.name
       if (!playerName || typeof playerName !== 'string') continue
 
-      const normalizedPlayer = normalizePlayerName(playerName)
-      const markets = item?.markets
+      // Normalize "Last, First" to "First Last"
+      const normalizedPlayer = normalizePlayerName(
+        playerName.includes(',')
+          ? playerName.split(',').reverse().map(s => s.trim()).join(' ')
+          : playerName
+      )
 
-      if (!markets || typeof markets !== 'object') continue
+      // Market name is in 'name' field, e.g., "total rushing yards"
+      const marketName = entry?.name
+      if (typeof marketName !== 'string') continue
 
-      const playerOdds: SportsbookPropOdds[] = []
+      const normalizedMarketName = marketName.toLowerCase()
+      let propType: string | null = null
 
-      for (const [marketKey, marketData] of Object.entries(markets)) {
-        if (!marketData || typeof marketData !== 'object') continue
-        const md = marketData as any
-        const books = md.books
-        if (!Array.isArray(books)) continue
-
-        // Extract prop type from market key
-        const normalizedMarketKey = marketKey.toLowerCase()
-        let propType: string | null = null
-
-        for (const [key, aliases] of Object.entries(PROP_TYPE_TO_SBD)) {
-          if (aliases.some((alias) => normalizedMarketKey.includes(alias))) {
-            propType = key
-            break
-          }
-        }
-
-        if (!propType) continue
-
-        // Average across books
-        let totalOverOdds = 0
-        let totalUnderOdds = 0
-        let overCount = 0
-        let underCount = 0
-        let line: number | null = null
-
-        for (const book of books) {
-          const over = book?.over
-          const under = book?.under
-          const bookLine = book?.line ?? book?.total
-
-          if (typeof bookLine === 'number') {
-            line = bookLine
-          }
-
-          if (typeof over?.odds === 'number') {
-            totalOverOdds += over.odds
-            overCount++
-          }
-          if (typeof under?.odds === 'number') {
-            totalUnderOdds += under.odds
-            underCount++
-          }
-        }
-
-        if (line != null && (overCount > 0 || underCount > 0)) {
-          playerOdds.push({
-            playerName: normalizedPlayer,
-            propType,
-            line,
-            overOdds: overCount > 0 ? totalOverOdds / overCount : null,
-            underOdds: underCount > 0 ? totalUnderOdds / underCount : null,
-          })
+      for (const [key, aliases] of Object.entries(PROP_TYPE_TO_SBD)) {
+        if (aliases.some((alias) => normalizedMarketName.includes(alias))) {
+          propType = key
+          break
         }
       }
 
-      if (playerOdds.length > 0) {
-        result.set(normalizedPlayer, playerOdds)
+      if (!propType) continue
+
+      const sportsbooks = entry?.sportsbooks
+      if (!Array.isArray(sportsbooks)) continue
+
+      // Find BEST odds across sportsbooks (highest = best for bettor)
+      let bestOverOdds: number | null = null
+      let bestUnderOdds: number | null = null
+      let line: number | null = null
+
+      for (const book of sportsbooks) {
+        const odds = book?.odds
+        if (!odds) continue
+
+        // Game props API has odds in a flat structure
+        const overOddsStr = odds.over_american
+        const underOddsStr = odds.under_american
+        const overPointsStr = odds.over_points
+        const underPointsStr = odds.under_points
+
+        const overOdds = typeof overOddsStr === 'string' ? parseFloat(overOddsStr) :
+                        typeof overOddsStr === 'number' ? overOddsStr : null
+        const underOdds = typeof underOddsStr === 'string' ? parseFloat(underOddsStr) :
+                         typeof underOddsStr === 'number' ? underOddsStr : null
+        const overPoints = typeof overPointsStr === 'string' ? parseFloat(overPointsStr) :
+                          typeof overPointsStr === 'number' ? overPointsStr : null
+        const underPoints = typeof underPointsStr === 'string' ? parseFloat(underPointsStr) :
+                           typeof underPointsStr === 'number' ? underPointsStr : null
+
+        // Use either over or under points for the line
+        const bookLine = overPoints ?? underPoints
+        if (bookLine != null && !isNaN(bookLine)) {
+          line = bookLine
+        }
+
+        // Track best odds (higher American odds = better for bettor)
+        if (overOdds != null && !isNaN(overOdds)) {
+          if (bestOverOdds === null || overOdds > bestOverOdds) {
+            bestOverOdds = overOdds
+          }
+        }
+        if (underOdds != null && !isNaN(underOdds)) {
+          if (bestUnderOdds === null || underOdds > bestUnderOdds) {
+            bestUnderOdds = underOdds
+          }
+        }
+      }
+
+      if (line != null && (bestOverOdds !== null || bestUnderOdds !== null)) {
+        // Add to player's odds list
+        if (!result.has(normalizedPlayer)) {
+          result.set(normalizedPlayer, [])
+        }
+        result.get(normalizedPlayer)!.push({
+          playerName: normalizedPlayer,
+          propType,
+          line,
+          bestOverOdds,
+          bestUnderOdds,
+        })
       }
     }
 
@@ -353,18 +363,18 @@ const fetchSportsbookPlayerProps = async (
   }
 }
 
-const findMatchingSportsbookOdds = (
+const findBestSportsbookOdds = (
   playerName: string,
   propType: string,
   propLine: number | null,
   side: 'Over' | 'Under' | null,
   sportsbookData: Map<string, SportsbookPropOdds[]>
-): { avgProbability: number | null; avgOdds: number | null } => {
+): { bestOdds: number | null } => {
   const normalizedPlayer = normalizePlayerName(playerName)
   const playerOdds = sportsbookData.get(normalizedPlayer)
 
   if (!playerOdds || playerOdds.length === 0) {
-    return { avgProbability: null, avgOdds: null }
+    return { bestOdds: null }
   }
 
   // Find matching prop type
@@ -373,7 +383,7 @@ const findMatchingSportsbookOdds = (
   )
 
   if (matchingProps.length === 0) {
-    return { avgProbability: null, avgOdds: null }
+    return { bestOdds: null }
   }
 
   // Prefer exact line match, otherwise take closest
@@ -393,19 +403,18 @@ const findMatchingSportsbookOdds = (
   }
 
   if (!best) {
-    return { avgProbability: null, avgOdds: null }
+    return { bestOdds: null }
   }
 
-  // Get odds for the relevant side
-  const relevantOdds = side === 'Under' ? best.underOdds : best.overOdds
+  // Get best odds for the relevant side
+  const bestOdds = side === 'Under' ? best.bestUnderOdds : best.bestOverOdds
 
-  if (relevantOdds == null) {
-    return { avgProbability: null, avgOdds: null }
-  }
+  return { bestOdds }
+}
 
-  const avgProbability = americanOddsToImpliedProbability(relevantOdds)
-
-  return { avgProbability, avgOdds: relevantOdds }
+const formatAmericanOdds = (odds: number | null): string | null => {
+  if (odds === null) return null
+  return odds >= 0 ? `+${odds}` : `${odds}`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -456,42 +465,8 @@ export const analyzeSharpPlayerProps = async (
     const avgPriceCents =
       propTrades.reduce((sum, t) => sum + (t.priceCents ?? 50), 0) / betCount
 
-    // Prediction market implied probability
-    const predMarketProbability = priceCentsToImpliedProbability(avgPriceCents)
-
-    // Get sportsbook odds for comparison
-    const { avgProbability: sportsbookAvgProbability, avgOdds: sportsbookAvgOdds } =
-      findMatchingSportsbookOdds(playerName, propType, propLine, side, sportsbookData)
-
-    // Calculate edge using Expected Value (EV)
-    // EV = (trueProb × decimalOdds) - 1, where decimalOdds = 1/sportsbookImpliedProb
-    // This properly accounts for odds - a 5% edge at 70% is worth less than at 50%
-    let edgePercent: number
-    let rawProbabilityEdge: number
-
-    if (sportsbookAvgProbability != null && sportsbookAvgProbability > 0) {
-      // Calculate decimal odds from sportsbook implied probability
-      const decimalOdds = 1 / sportsbookAvgProbability
-      // EV = (true probability × decimal odds) - 1
-      edgePercent = (predMarketProbability * decimalOdds - 1) * 100
-      // Also store raw probability difference for reference
-      rawProbabilityEdge = (predMarketProbability - sportsbookAvgProbability) * 100
-    } else {
-      // No sportsbook odds available - use prediction market deviation from break-even
-      // as a proxy for "confidence level" rather than true EV
-      // Scale more conservatively: only count deviation beyond 55%/45% as meaningful
-      const deviationFromCenter = Math.abs(predMarketProbability - 0.5)
-      const threshold = 0.05 // 5% deviation threshold
-      if (deviationFromCenter > threshold) {
-        // Scale the excess deviation - bets at 60% get small edge, 70%+ get more
-        const excessDeviation = deviationFromCenter - threshold
-        const direction = predMarketProbability > 0.5 ? 1 : -1
-        edgePercent = direction * excessDeviation * 100 // 60% → 5%, 70% → 15%, 80% → 25%
-      } else {
-        edgePercent = 0 // Near 50% = no clear edge
-      }
-      rawProbabilityEdge = (predMarketProbability - 0.5) * 100
-    }
+    // Get best sportsbook odds for this prop
+    const { bestOdds } = findBestSportsbookOdds(playerName, propType, propLine, side, sportsbookData)
 
     // Detect clustering
     const { isClustered, earliestTime, latestTime } = detectClustering(
@@ -522,11 +497,8 @@ export const analyzeSharpPlayerProps = async (
       betCount,
       avgPriceCents,
       avgSharpStrength,
-      predMarketProbability,
-      sportsbookAvgProbability,
-      sportsbookAvgOdds,
-      edgePercent,
-      rawProbabilityEdge,
+      bestOdds,
+      bestOddsFormatted: formatAmericanOdds(bestOdds),
       isClustered,
       clusterWindowHours,
       earliestTradeTime: earliestTime,
@@ -536,7 +508,7 @@ export const analyzeSharpPlayerProps = async (
       sources,
     }
 
-    // Compute composite score
+    // Compute composite score (0-100, higher = sharper bet)
     aggregated.compositeScore = computeCompositeScore(aggregated, weights)
 
     props.push(aggregated)

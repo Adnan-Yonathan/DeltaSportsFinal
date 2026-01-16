@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       limit: 800,
     })
     const result = await ingestWhaleTradeHistory({
-      minNotional: 2000,
+      minNotional: 1000,
       limit: 800,
     })
 

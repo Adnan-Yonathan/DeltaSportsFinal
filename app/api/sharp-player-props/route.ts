@@ -7,11 +7,10 @@ const SUPPORTED_SPORTS = new Set([
   "all",
   "basketball_nba",
   "americanfootball_nfl",
-  "basketball_ncaab",
-  "americanfootball_ncaaf",
   "baseball_mlb",
   "icehockey_nhl",
-  "basketball_wnba",
+  "basketball_ncaab",
+  "americanfootball_ncaaf",
 ])
 
 export async function GET(req: NextRequest) {

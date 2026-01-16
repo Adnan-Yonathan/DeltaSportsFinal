@@ -18,10 +18,10 @@ const SPORT_OPTIONS: SportOption[] = [
   { key: "all", label: "All Sports", locked: false },
   { key: "basketball_nba", label: "NBA", locked: false },
   { key: "americanfootball_nfl", label: "NFL", locked: false },
+  { key: "baseball_mlb", label: "MLB", locked: false },
+  { key: "icehockey_nhl", label: "NHL", locked: false },
   { key: "basketball_ncaab", label: "NCAAB", locked: false },
   { key: "americanfootball_ncaaf", label: "CFB", locked: false },
-  { key: "baseball_mlb", label: "MLB", locked: true },
-  { key: "icehockey_nhl", label: "NHL", locked: true },
 ]
 
 // Only unlocked sports are available

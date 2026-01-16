@@ -64,6 +64,22 @@ const MARKET_LABELS: Record<string, string> = {
   threes: "3PT",
   blocks: "BLK",
   steals: "STL",
+  // MLB
+  strikeouts: "K",
+  hits: "H",
+  home_runs: "HR",
+  rbis: "RBI",
+  runs: "R",
+  total_bases: "TB",
+  walks: "BB",
+  pitcher_outs: "OUTS",
+  hits_allowed: "HA",
+  earned_runs: "ER",
+  // NHL
+  goals: "G",
+  shots: "SOG",
+  saves: "SV",
+  blocked_shots: "BLK",
 }
 
 const SPORT_LABELS: Record<string, string> = {
@@ -78,13 +94,22 @@ const SPORT_LABELS: Record<string, string> = {
 
 const PROP_TYPES = [
   "All",
-  "points",
-  "rebounds",
-  "assists",
+  // Football
   "passing_yards",
   "rushing_yards",
   "receiving_yards",
   "receptions",
+  // Basketball
+  "points",
+  "rebounds",
+  "assists",
+  // Baseball
+  "strikeouts",
+  "hits",
+  "home_runs",
+  // Hockey
+  "goals",
+  "shots",
 ]
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes

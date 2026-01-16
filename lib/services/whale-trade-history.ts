@@ -301,6 +301,26 @@ const PROP_KEYWORDS: Record<string, Array<{ key: string; patterns: string[] }>> 
     { key: 'receiving_yards', patterns: ['receiving yards', 'rec yards', 'rec yds'] },
     { key: 'receptions', patterns: ['receptions', 'reception', 'catches', 'recs'] },
   ],
+  baseball_mlb: [
+    { key: 'strikeouts', patterns: ['strikeouts', 'ks', 'k', 'strikeout'] },
+    { key: 'hits', patterns: ['hits', 'hit'] },
+    { key: 'home_runs', patterns: ['home runs', 'home run', 'hr', 'homer'] },
+    { key: 'rbis', patterns: ['rbis', 'rbi', 'runs batted in'] },
+    { key: 'runs', patterns: ['runs scored', 'runs'] },
+    { key: 'total_bases', patterns: ['total bases', 'tb'] },
+    { key: 'walks', patterns: ['walks', 'bb', 'bases on balls'] },
+    { key: 'pitcher_outs', patterns: ['outs recorded', 'outs', 'innings pitched'] },
+    { key: 'hits_allowed', patterns: ['hits allowed'] },
+    { key: 'earned_runs', patterns: ['earned runs', 'er'] },
+  ],
+  icehockey_nhl: [
+    { key: 'goals', patterns: ['goals', 'goal', 'to score'] },
+    { key: 'assists', patterns: ['assists', 'assist'] },
+    { key: 'points', patterns: ['points', 'pts'] },
+    { key: 'shots', patterns: ['shots on goal', 'shots', 'sog'] },
+    { key: 'saves', patterns: ['saves', 'save'] },
+    { key: 'blocked_shots', patterns: ['blocked shots', 'blocks', 'blocked'] },
+  ],
 }
 
 const resolvePropType = (text: string, sportKey: string) => {

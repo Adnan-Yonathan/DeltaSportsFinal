@@ -7,6 +7,9 @@ import { getWalletAlias } from '@/lib/utils/wallet-alias'
 import { SimpleHeader } from '@/components/ui/simple-header'
 import { motion } from 'framer-motion'
 import { Target, Zap, DollarSign } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
+import Link from 'next/link'
 
 type SharpTrade = {
   id: string
@@ -203,6 +206,9 @@ const resolveStrengthClass = (value?: number | null) => {
 }
 
 export default function SharpDetectorPage() {
+  const [authLoading, setAuthLoading] = useState(true)
+  const [membership, setMembership] = useState<MembershipInfo | null>(null)
+  const supabase = useMemo(() => createClient(), [])
   const [trades, setTrades] = useState<SharpTradeWithStatus[]>(() => {
     if (typeof window === 'undefined') return []
     try {
@@ -248,6 +254,7 @@ export default function SharpDetectorPage() {
   const [trackedWalletSummary, setTrackedWalletSummary] = useState<WalletSummary[]>([])
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
+  const hasAccess = Boolean(membership?.isActive)
 
   // Get unique sports for filter
   const sportButtons = useMemo(
@@ -518,6 +525,35 @@ export default function SharpDetectorPage() {
   }, [])
 
   useEffect(() => {
+    let isMounted = true
+    const loadUser = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!isMounted) return
+        if (!user) {
+          setMembership(null)
+          setAuthLoading(false)
+          return
+        }
+        const membershipInfo = getMembershipStatus(user.user_metadata)
+        setMembership(membershipInfo)
+        setAuthLoading(false)
+      } catch (err) {
+        if (!isMounted) return
+        console.error('[sharp-detector] auth check failed', err)
+        setMembership(null)
+        setAuthLoading(false)
+      }
+    }
+    loadUser()
+    return () => {
+      isMounted = false
+    }
+  }, [supabase])
+
+  useEffect(() => {
     if (typeof window === 'undefined') return
     try {
       const params = new URLSearchParams(window.location.search)
@@ -547,7 +583,7 @@ export default function SharpDetectorPage() {
   }, [hydrated, trades])
 
   useEffect(() => {
-    if (!hydrated) return
+    if (!hydrated || !hasAccess) return
     const wallets = Array.from(
       new Set(
         trackedWallets.map((wallet) => normalizeWallet(wallet)).filter(Boolean) as string[]
@@ -586,12 +622,14 @@ export default function SharpDetectorPage() {
   }, [hydrated, trackedWallets])
 
   useEffect(() => {
+    if (!hasAccess) return
     fetchTrades()
     const interval = setInterval(fetchTrades, POLL_INTERVAL_MS)
     return () => clearInterval(interval)
-  }, [])
+  }, [hasAccess])
 
   useEffect(() => {
+    if (!hasAccess) return
     const fetchSummary = async () => {
       try {
         const res = await fetch('/api/polymarket/wallets/summary?limit=5', {
@@ -610,7 +648,7 @@ export default function SharpDetectorPage() {
       }
     }
     fetchSummary()
-  }, [])
+  }, [hasAccess])
 
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return
@@ -631,6 +669,64 @@ export default function SharpDetectorPage() {
   }, [hydrated, trackedWallets])
 
   const now = Date.now()
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <SimpleHeader />
+        <div className="max-w-6xl mx-auto px-4 py-8 pt-20">
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-8 text-sm text-white/60">
+            Checking access...
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <SimpleHeader />
+        <div className="max-w-6xl mx-auto px-4 py-8 pt-20">
+          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+            <div className="pointer-events-none blur-sm">
+              <div className="space-y-4 p-6">
+                <div className="h-6 w-56 rounded bg-white/10" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="h-20 rounded-2xl border border-white/10 bg-white/5" />
+                  <div className="h-20 rounded-2xl border border-white/10 bg-white/5" />
+                </div>
+                <div className="space-y-3">
+                  {[1, 2, 3, 4].map((row) => (
+                    <div key={row} className="h-14 rounded-2xl border border-white/10 bg-white/5" />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center p-6">
+              <div className="rounded-2xl border border-white/20 bg-black/80 px-6 py-5 text-center">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+                  Upgrade required
+                </p>
+                <h2 className="mt-3 text-xl font-semibold text-white">
+                  Sharp Detector is for members.
+                </h2>
+                <p className="mt-2 text-sm text-white/60">
+                  Upgrade to unlock sharp trade alerts and tracking.
+                </p>
+                <Link
+                  href="/pricing"
+                  className="mt-5 inline-flex items-center rounded-full border border-emerald-400/60 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
+                >
+                  View plans
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-black text-white">

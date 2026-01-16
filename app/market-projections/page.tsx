@@ -3,11 +3,14 @@ import SportSelector from "./sport-selector"
 import ToolsNav from "@/components/tools-nav"
 import MarketProjectionsClvRecap from "./clv-recap"
 import MarketProjectionsClvTracker from "./clv-tracker"
+import Link from "next/link"
+import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { buildSharpProjections } from "@/lib/services/sharp-projections"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 import { getRollingMarketProjectionClvRecap } from "@/lib/services/market-projection-clv"
+import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -32,6 +35,12 @@ export default async function MarketProjectionsPage({
 }: {
   searchParams?: Record<string, string | string[] | undefined>
 }) {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const membership = getMembershipStatusFromMetadata(user?.user_metadata)
+  const hasAccess = membership.isActive
   const requestedSport = Array.isArray(searchParams?.sport)
     ? searchParams?.sport[0]
     : searchParams?.sport
@@ -46,14 +55,17 @@ export default async function MarketProjectionsPage({
   let lastUpdated: string | null = null
   const isLocked = Boolean(selected.locked)
   const clvRecap =
-    sport === "basketball_nba" || sport === "basketball_ncaab"
+    hasAccess && (sport === "basketball_nba" || sport === "basketball_ncaab")
       ? await getRollingMarketProjectionClvRecap({ sport })
       : null
 
-  if (!isLocked) {
+  if (!hasAccess) {
+    hasCache = false
+    errorMessage = "Membership required."
+  } else if (!isLocked) {
     try {
-      const supabase = createServiceClient()
-      const { data, error } = (await supabase
+      const serviceClient = createServiceClient()
+      const { data, error } = (await serviceClient
         .from("market_projections_cache" as any)
         .select("edges, updated_at")
         .eq("sport", sport)
@@ -65,7 +77,7 @@ export default async function MarketProjectionsPage({
           if (refreshed.edges?.length) {
             edges = refreshed.edges
             lastUpdated = new Date().toISOString()
-            await supabase.from("market_projections_cache" as any).upsert(
+            await serviceClient.from("market_projections_cache" as any).upsert(
               {
                 sport,
                 edges,
@@ -122,7 +134,7 @@ export default async function MarketProjectionsPage({
           if (refreshed.edges?.length) {
             edges = refreshed.edges
             lastUpdated = new Date().toISOString()
-            await supabase.from("market_projections_cache" as any).upsert(
+            await serviceClient.from("market_projections_cache" as any).upsert(
               {
                 sport,
                 edges,
@@ -186,15 +198,54 @@ export default async function MarketProjectionsPage({
           />
         ) : null}
 
-        <MarketProjectionsClient
-          key={sport}
-          initialEdges={edges}
-          initialUpdatedAt={lastUpdated}
-          hasCache={hasCache}
-          errorMessage={errorMessage}
-          sport={sport}
-          isLocked={isLocked}
-        />
+        {!hasAccess ? (
+          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+            <div className="pointer-events-none blur-sm">
+              <div className="border-b border-white/10 bg-black/60 px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-white/40">
+                Matchup > Market > Projection > Edge
+              </div>
+              <div className="space-y-3 px-4 py-4">
+                {[1, 2, 3, 4, 5].map((row) => (
+                  <div key={row} className="grid grid-cols-4 gap-3">
+                    <div className="h-4 rounded bg-white/10" />
+                    <div className="h-4 rounded bg-white/10" />
+                    <div className="h-4 rounded bg-white/10" />
+                    <div className="h-4 rounded bg-white/10" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center p-6">
+              <div className="rounded-2xl border border-white/20 bg-black/80 px-6 py-5 text-center">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+                  Upgrade required
+                </p>
+                <h2 className="mt-3 text-xl font-semibold text-white">
+                  Sharp projections are for members.
+                </h2>
+                <p className="mt-2 text-sm text-white/60">
+                  Upgrade to unlock market edges and projections.
+                </p>
+                <Link
+                  href="/pricing"
+                  className="mt-5 inline-flex items-center rounded-full border border-emerald-400/60 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
+                >
+                  View plans
+                </Link>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <MarketProjectionsClient
+            key={sport}
+            initialEdges={edges}
+            initialUpdatedAt={lastUpdated}
+            hasCache={hasCache}
+            errorMessage={errorMessage}
+            sport={sport}
+            isLocked={isLocked}
+          />
+        )}
         </div>
       </div>
     </div>

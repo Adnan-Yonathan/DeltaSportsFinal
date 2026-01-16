@@ -15,6 +15,17 @@ const PUBLIC_PATHS = [
   '/admin/affiliates',
 ]
 
+const SOFT_GATED_PATHS = [
+  '/sharp-detector',
+  '/market-projections',
+  '/player-projections',
+  '/parlay-predictor',
+  '/ev-bets',
+  '/stats',
+  '/live-projections',
+  '/live-scores',
+]
+
 const AFFILIATE_REF_COOKIE = 'affiliate_ref'
 const AFFILIATE_REF_TTL = 60 * 60 * 24 * 30
 
@@ -24,6 +35,9 @@ const isPublicPath = (pathname: string) => {
   if (pathname.startsWith('/api/')) return true
   return PUBLIC_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
 }
+
+const isSoftGatedPath = (pathname: string) =>
+  SOFT_GATED_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
 
 // Check membership status from metadata (mirrors lib/utils/membership.ts logic)
 const checkMembershipActive = (metadata: Record<string, any>): boolean => {
@@ -61,8 +75,8 @@ export async function middleware(req: NextRequest) {
     })
   }
 
-  // Allow public paths and API routes (except protected ones)
-  if (isPublicPath(pathname)) {
+  // Allow public paths, API routes, and soft-gated pages that handle their own access UI
+  if (isPublicPath(pathname) || isSoftGatedPath(pathname)) {
     await supabase.auth.getSession()
     return res
   }

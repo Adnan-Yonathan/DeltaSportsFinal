@@ -19,6 +19,8 @@ type LineRow = {
   spread_away_odds?: number | null
 }
 
+const TRACKED_SPORTS = new Set(['basketball_nba', 'basketball_ncaab'])
+
 export type MarketProjectionClvSummary = {
   total: number
   beat: number
@@ -194,7 +196,7 @@ export const recordMarketProjectionPicks = async ({
   edges: GameEdgeAnalysis[]
   pickedAt?: string
 }) => {
-  if (sport !== 'basketball_nba') return { inserted: 0 }
+  if (!TRACKED_SPORTS.has(sport)) return { inserted: 0 }
   const supabase = createServiceClient()
   const timestamp = pickedAt ?? new Date().toISOString()
   const records = edges

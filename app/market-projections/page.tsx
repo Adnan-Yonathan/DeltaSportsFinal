@@ -46,7 +46,7 @@ export default async function MarketProjectionsPage({
   let lastUpdated: string | null = null
   const isLocked = Boolean(selected.locked)
   const clvRecap =
-    sport === "basketball_nba"
+    sport === "basketball_nba" || sport === "basketball_ncaab"
       ? await getRollingMarketProjectionClvRecap({ sport })
       : null
 

@@ -7,9 +7,17 @@ import { classifyGuideIntent, getIntentResponsePrefix } from '@/lib/guide/intent
 import { fetchAllLiveScores } from '@/lib/live-scores'
 import { getInjuries, getTeamAtsRecord, getTeams, type SportKey } from '@/lib/services/espn-orchestrator'
 import { summarizeCoversSplitsForChat, summarizeCoversGameSplitsForChat } from '@/lib/providers/covers'
+import { fetchOdds } from '@/lib/api/odds-api'
+import { createClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60 // 1 minute is plenty for the guide
+
+// Create Supabase client for server-side operations
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
@@ -153,6 +161,150 @@ async function executeGuideTool(
         return `${matchedTeam.displayName} ATS Record: ${record.wins || 0}-${record.losses || 0}-${record.pushes || 0}`
       }
 
+      case GUIDE_TOOL_NAMES.UPCOMING_GAMES: {
+        const sport = (args.sport as string) || 'nba'
+        const teamFilter = (args.team as string)?.toLowerCase()
+
+        // Map sport to odds-api sport key
+        const sportKeyMap: Record<string, string> = {
+          nba: 'basketball_nba',
+          nfl: 'americanfootball_nfl',
+          ncaab: 'basketball_ncaab',
+          nhl: 'icehockey_nhl',
+        }
+        const sportKey = sportKeyMap[sport] || 'basketball_nba'
+
+        const games = await fetchOdds(sportKey, ['spreads', 'totals'])
+
+        if (!games || games.length === 0) {
+          return `No upcoming games found for ${sport.toUpperCase()}.`
+        }
+
+        // Filter by team if specified
+        const filtered = teamFilter
+          ? games.filter(g =>
+              g.home_team.toLowerCase().includes(teamFilter) ||
+              g.away_team.toLowerCase().includes(teamFilter)
+            )
+          : games.slice(0, 6)
+
+        if (filtered.length === 0) {
+          return `No games found matching "${args.team}" in ${sport.toUpperCase()}.`
+        }
+
+        const lines = filtered.map(g => {
+          const gameTime = new Date(g.commence_time).toLocaleString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            timeZoneName: 'short',
+          })
+
+          // Get consensus spread and total from first bookmaker
+          const book = g.bookmakers?.[0]
+          const spreadsMarket = book?.markets?.find(m => m.key === 'spreads')
+          const totalsMarket = book?.markets?.find(m => m.key === 'totals')
+
+          const homeSpread = spreadsMarket?.outcomes?.find(o => o.name === g.home_team)
+          const total = totalsMarket?.outcomes?.find(o => o.name === 'Over')
+
+          const spreadStr = homeSpread?.point !== undefined
+            ? `${g.home_team} ${homeSpread.point > 0 ? '+' : ''}${homeSpread.point}`
+            : 'N/A'
+          const totalStr = total?.point !== undefined ? `O/U ${total.point}` : 'N/A'
+
+          return `**${g.away_team} @ ${g.home_team}**\n  ${gameTime}\n  Spread: ${spreadStr} | Total: ${totalStr}`
+        })
+
+        return lines.join('\n\n')
+      }
+
+      case GUIDE_TOOL_NAMES.GAME_ODDS: {
+        const team = (args.team as string)?.toLowerCase()
+        const sport = (args.sport as string) || 'nba'
+
+        if (!team) {
+          return 'Please specify a team to get odds for.'
+        }
+
+        // Map sport to odds-api sport key
+        const sportKeyMap: Record<string, string> = {
+          nba: 'basketball_nba',
+          nfl: 'americanfootball_nfl',
+          ncaab: 'basketball_ncaab',
+          nhl: 'icehockey_nhl',
+        }
+        const sportKey = sportKeyMap[sport] || 'basketball_nba'
+
+        const games = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'])
+
+        // Find the game matching the team
+        const game = games?.find(g =>
+          g.home_team.toLowerCase().includes(team) ||
+          g.away_team.toLowerCase().includes(team)
+        )
+
+        if (!game) {
+          return `No upcoming games found for "${args.team}" in ${sport.toUpperCase()}.`
+        }
+
+        const gameTime = new Date(game.commence_time).toLocaleString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          timeZoneName: 'short',
+        })
+
+        // Collect odds from multiple books
+        const oddsLines: string[] = [`**${game.away_team} @ ${game.home_team}**`, `${gameTime}`, '']
+
+        // Get consensus from first major book
+        const book = game.bookmakers?.[0]
+        if (book) {
+          const h2hMarket = book.markets?.find(m => m.key === 'h2h')
+          const spreadsMarket = book.markets?.find(m => m.key === 'spreads')
+          const totalsMarket = book.markets?.find(m => m.key === 'totals')
+
+          if (spreadsMarket) {
+            const homeSpread = spreadsMarket.outcomes?.find(o => o.name === game.home_team)
+            const awaySpread = spreadsMarket.outcomes?.find(o => o.name === game.away_team)
+            if (homeSpread && awaySpread) {
+              oddsLines.push(`**Spread:**`)
+              oddsLines.push(`  ${game.away_team}: ${awaySpread.point! > 0 ? '+' : ''}${awaySpread.point} (${awaySpread.price > 0 ? '+' : ''}${awaySpread.price})`)
+              oddsLines.push(`  ${game.home_team}: ${homeSpread.point! > 0 ? '+' : ''}${homeSpread.point} (${homeSpread.price > 0 ? '+' : ''}${homeSpread.price})`)
+            }
+          }
+
+          if (totalsMarket) {
+            const over = totalsMarket.outcomes?.find(o => o.name === 'Over')
+            const under = totalsMarket.outcomes?.find(o => o.name === 'Under')
+            if (over && under) {
+              oddsLines.push(`**Total:** ${over.point}`)
+              oddsLines.push(`  Over: ${over.price > 0 ? '+' : ''}${over.price}`)
+              oddsLines.push(`  Under: ${under.price > 0 ? '+' : ''}${under.price}`)
+            }
+          }
+
+          if (h2hMarket) {
+            const awayML = h2hMarket.outcomes?.find(o => o.name === game.away_team)
+            const homeML = h2hMarket.outcomes?.find(o => o.name === game.home_team)
+            if (awayML && homeML) {
+              oddsLines.push(`**Moneyline:**`)
+              oddsLines.push(`  ${game.away_team}: ${awayML.price > 0 ? '+' : ''}${awayML.price}`)
+              oddsLines.push(`  ${game.home_team}: ${homeML.price > 0 ? '+' : ''}${homeML.price}`)
+            }
+          }
+
+          oddsLines.push(`\n_Odds via ${book.title}_`)
+        }
+
+        return oddsLines.join('\n')
+      }
+
       default:
         return `Unknown tool: ${toolName}`
     }
@@ -165,8 +317,10 @@ async function executeGuideTool(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { message, history = [] } = body as {
+    const { message, conversationId, userId, history = [] } = body as {
       message: string
+      conversationId?: string
+      userId?: string
       history?: ChatMessage[]
     }
 
@@ -174,9 +328,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message required' }, { status: 400 })
     }
 
+    // Save user message to database if conversationId provided
+    if (conversationId && userId) {
+      await supabase.from('messages').insert({
+        conversation_id: conversationId,
+        role: 'user',
+        content: message,
+      })
+    }
+
     // Classify the user's intent
     const intent = classifyGuideIntent(message)
     const intentPrefix = getIntentResponsePrefix(intent)
+
+    let responseContent: string
 
     // Handle intents that don't need LLM
     if (intent.type === 'PAGE_ROUTE') {
@@ -186,91 +351,135 @@ export async function POST(request: NextRequest) {
           : `[PAGE_CARD:${page}]`
       ).join('\n')
 
-      return NextResponse.json({
-        response: `${intentPrefix}\n\n${cards}`,
-        intent: intent.type,
-      })
-    }
+      responseContent = `${intentPrefix}\n\n${cards}`
+    } else if (intent.type === 'INLINE_SCORE') {
+      responseContent = `${intentPrefix}\n\n[LIVE_SCORE:${intent.team}:${intent.sport}]`
+    } else if (intent.type === 'INLINE_STATS') {
+      responseContent = `${intentPrefix}\n\n[STATS:${intent.entityType}:${intent.name}:${intent.sport}]`
+    } else if (intent.type === 'OFF_TOPIC') {
+      responseContent = "I'm focused on sports betting - can I help you find some bets or explain betting concepts instead?"
+    } else if (intent.type === 'GAME_INFO') {
+      // Fetch game data using tools, then provide page links for deeper analysis
+      try {
+        const sport = intent.sport || 'nba'
+        let gameData: string
 
-    if (intent.type === 'INLINE_SCORE') {
-      return NextResponse.json({
-        response: `${intentPrefix}\n\n[LIVE_SCORE:${intent.team}:${intent.sport}]`,
-        intent: intent.type,
-      })
-    }
+        if (intent.team) {
+          // User asked about a specific team - get their game odds
+          gameData = await executeGuideTool(GUIDE_TOOL_NAMES.GAME_ODDS, {
+            team: intent.team,
+            sport,
+          })
+        } else {
+          // User asked about schedule in general
+          gameData = await executeGuideTool(GUIDE_TOOL_NAMES.UPCOMING_GAMES, {
+            sport,
+          })
+        }
 
-    if (intent.type === 'INLINE_STATS') {
-      return NextResponse.json({
-        response: `${intentPrefix}\n\n[STATS:${intent.entityType}:${intent.name}:${intent.sport}]`,
-        intent: intent.type,
-      })
-    }
+        // Add page cards for deeper analysis
+        const pageCards = `\n\nFor projections and edge analysis:\n\n[PAGE_CARD:market-projections:recommended]\n[PAGE_CARD:player-projections]`
 
-    if (intent.type === 'OFF_TOPIC') {
-      return NextResponse.json({
-        response: "I'm focused on sports betting - can I help you find some bets or explain betting concepts instead?",
-        intent: intent.type,
-      })
-    }
-
-    // Build messages for LLM
-    const messages: ChatCompletionMessageParam[] = [
-      { role: 'system', content: GUIDE_SYSTEM_PROMPT },
-      ...history.map(h => ({ role: h.role as 'user' | 'assistant', content: h.content })),
-      { role: 'user', content: message },
-    ]
-
-    // For LINE_MOVEMENT intent, use tools
-    // For EDUCATION and CONVERSATION, let LLM handle directly
-    const useTools = intent.type === 'LINE_MOVEMENT'
-
-    const completion = await openai.chat.completions.create({
-      model: AI_MODELS.chat,
-      messages,
-      tools: useTools ? guideTools : undefined,
-      tool_choice: useTools ? 'auto' : undefined,
-      max_completion_tokens: 1024,
-    })
-
-    const assistantMessage = completion.choices[0]?.message
-
-    // Handle tool calls
-    if (assistantMessage?.tool_calls && assistantMessage.tool_calls.length > 0) {
-      const toolResults: string[] = []
-
-      for (const toolCall of assistantMessage.tool_calls) {
-        const toolName = toolCall.function.name
-        const toolArgs = JSON.parse(toolCall.function.arguments || '{}')
-        const result = await executeGuideTool(toolName, toolArgs)
-        toolResults.push(`**${toolName}:**\n${result}`)
+        responseContent = gameData + pageCards
+      } catch (error) {
+        console.error('[Chat API] Game info fetch failed:', error)
+        responseContent = `I couldn't fetch the game info right now. Check out our tools:\n\n[PAGE_CARD:market-projections:recommended]\n[PAGE_CARD:live-scores]`
       }
-
-      // Second LLM call to synthesize results
-      const analysisMessages: ChatCompletionMessageParam[] = [
-        { role: 'system', content: GUIDE_ANALYSIS_PROMPT },
-        { role: 'user', content: `User asked: "${message}"\n\nTool results:\n${toolResults.join('\n\n')}\n\nProvide a concise summary for the user.` },
+    } else {
+      // Build messages for LLM
+      const messages: ChatCompletionMessageParam[] = [
+        { role: 'system', content: GUIDE_SYSTEM_PROMPT },
+        ...history.map(h => ({ role: h.role as 'user' | 'assistant', content: h.content })),
+        { role: 'user', content: message },
       ]
 
-      const analysisCompletion = await openai.chat.completions.create({
-        model: AI_MODELS.chat,
-        messages: analysisMessages,
-        max_completion_tokens: 512,
-      })
+      // For LINE_MOVEMENT intent, use tools
+      // For EDUCATION, ADVICE, and CONVERSATION, let LLM handle directly
+      const useTools = intent.type === 'LINE_MOVEMENT'
 
-      const analysis = analysisCompletion.choices[0]?.message?.content || 'Unable to analyze the data.'
+      try {
+        console.log(`[Chat API] Calling LLM with model: ${AI_MODELS.chat}, intent: ${intent.type}`)
 
-      return NextResponse.json({
-        response: analysis,
-        intent: intent.type,
-        toolsUsed: assistantMessage.tool_calls.map(tc => tc.function.name),
+        const completion = await openai.chat.completions.create({
+          model: AI_MODELS.chat,
+          messages,
+          tools: useTools ? guideTools : undefined,
+          tool_choice: useTools ? 'auto' : undefined,
+          max_completion_tokens: 1024,
+        })
+
+        const assistantMessage = completion.choices[0]?.message
+
+        // Handle tool calls
+        if (assistantMessage?.tool_calls && assistantMessage.tool_calls.length > 0) {
+          const toolResults: string[] = []
+
+          for (const toolCall of assistantMessage.tool_calls) {
+            const toolName = toolCall.function.name
+            const toolArgs = JSON.parse(toolCall.function.arguments || '{}')
+            const result = await executeGuideTool(toolName, toolArgs)
+            toolResults.push(`**${toolName}:**\n${result}`)
+          }
+
+          // Second LLM call to synthesize results
+          const analysisMessages: ChatCompletionMessageParam[] = [
+            { role: 'system', content: GUIDE_ANALYSIS_PROMPT },
+            { role: 'user', content: `User asked: "${message}"\n\nTool results:\n${toolResults.join('\n\n')}\n\nProvide a concise summary for the user.` },
+          ]
+
+          const analysisCompletion = await openai.chat.completions.create({
+            model: AI_MODELS.chat,
+            messages: analysisMessages,
+            max_completion_tokens: 512,
+          })
+
+          responseContent = analysisCompletion.choices[0]?.message?.content || 'Unable to analyze the data.'
+        } else {
+          // Direct response from LLM
+          responseContent = assistantMessage?.content || "I'm not sure how to help with that. Can you try rephrasing your question?"
+        }
+      } catch (llmError: any) {
+        console.error('[Chat API] LLM call failed:', llmError?.message || llmError)
+        // Provide a helpful fallback for advice queries
+        if (intent.type === 'ADVICE' || intent.type === 'EDUCATION') {
+          responseContent = `Here are some key tips for becoming a profitable bettor:
+
+**1. Find Value, Not Winners**
+Don't just pick who will win - find lines where the true probability differs from what the odds imply.
+
+**2. Track Everything**
+Record every bet you make. This helps identify what's working and what isn't.
+
+**3. Bankroll Management**
+Never bet more than 1-5% of your bankroll on a single play. This protects you from variance.
+
+**4. Shop Lines**
+Compare odds across multiple sportsbooks. Even half a point matters over hundreds of bets.
+
+**5. Focus on CLV (Closing Line Value)**
+Consistently beating the closing line is the best predictor of long-term profitability.
+
+Check out our tools to help:
+
+[PAGE_CARD:market-projections:recommended]
+[PAGE_CARD:ev-bets]`
+        } else {
+          responseContent = "I'm having trouble processing that request. Please try again in a moment."
+        }
+      }
+    }
+
+    // Save assistant response to database if conversationId provided
+    if (conversationId && userId) {
+      await supabase.from('messages').insert({
+        conversation_id: conversationId,
+        role: 'assistant',
+        content: responseContent,
       })
     }
 
-    // Direct response from LLM
-    const response = assistantMessage?.content || "I'm not sure how to help with that. Can you try rephrasing your question?"
-
     return NextResponse.json({
-      response,
+      response: responseContent,
       intent: intent.type,
     })
 

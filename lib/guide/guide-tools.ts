@@ -115,6 +115,51 @@ Use for:
       },
     },
   },
+
+  // 6. getUpcomingGames - today's schedule with times and basic lines
+  {
+    type: 'function',
+    function: {
+      name: 'getUpcomingGames',
+      description: `Get today's game schedule with start times and current betting lines.
+Use for:
+- "What games are on today?"
+- "When do the Lakers play?"
+- "What time is the Celtics game?"
+- "What's the schedule for tonight?"
+Returns: team matchups, start times, and current spread/total lines.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          sport: { type: 'string', enum: ['nba', 'nfl', 'ncaab', 'nhl'], description: 'Sport league (defaults to nba)' },
+          team: { type: 'string', description: 'Filter to games involving this team (optional)' },
+        },
+        required: [],
+      },
+    },
+  },
+
+  // 7. getGameOdds - current betting lines for a specific matchup
+  {
+    type: 'function',
+    function: {
+      name: 'getGameOdds',
+      description: `Get current betting lines (spread, total, moneyline) for a specific game.
+Use for:
+- "What's the line on the Lakers game?"
+- "What's the spread for Celtics vs Heat?"
+- "What's the over/under for tonight's game?"
+Returns: current spread, total, and moneyline odds from major books.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          team: { type: 'string', description: 'Team name to find the game' },
+          sport: { type: 'string', enum: ['nba', 'nfl', 'ncaab', 'nhl'], description: 'Sport league (defaults to nba)' },
+        },
+        required: ['team'],
+      },
+    },
+  },
 ]
 
 // Export tool names for easy reference
@@ -124,6 +169,8 @@ export const GUIDE_TOOL_NAMES = {
   BETTING_SPLITS: 'get_betting_splits',
   ANALYZE_SPLITS: 'analyze_game_splits',
   TEAM_ATS: 'getTeamAtsAnalysis',
+  UPCOMING_GAMES: 'getUpcomingGames',
+  GAME_ODDS: 'getGameOdds',
 } as const
 
 export type GuideToolName = typeof GUIDE_TOOL_NAMES[keyof typeof GUIDE_TOOL_NAMES]

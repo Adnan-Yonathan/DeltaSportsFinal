@@ -91,17 +91,8 @@ export default function ChatIntro({
         textarea.value = ''
       }
 
-      // Read the response stream first
-      const reader = response.body?.getReader()
-      if (reader) {
-        while (true) {
-          const { done } = await reader.read()
-          if (done) break
-        }
-      }
-
-      // Wait a bit for the database to update, then trigger the callback
-      await new Promise(resolve => setTimeout(resolve, 300))
+      // Wait for the JSON response (messages are saved server-side)
+      await response.json()
 
       // Trigger the callback to indicate message was sent
       onMessageSent()
@@ -316,39 +307,13 @@ export default function ChatIntro({
         animate={{ opacity: 1, y: 0 }}
         className="text-center max-w-3xl w-full"
       >
-        <div className="relative">
-          <form onSubmit={handleSubmit} className="w-full relative">
-            <PromptBox
-              name="message"
-              disabled={true}
-              defaultValue=""
-            />
-          </form>
-          {/* Construction Tape */}
-          <div className="absolute inset-0 overflow-hidden rounded-[28px]">
-            <div className="absolute inset-0 bg-black/40" />
-            <div
-              className="absolute inset-0 opacity-40"
-              style={{
-                background:
-                  'repeating-linear-gradient(45deg, #facc15 0, #facc15 14px, #000 14px, #000 28px)',
-              }}
-            />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div
-                className="w-[160%] py-4 text-center -rotate-12 bg-black/90"
-                style={{
-                  background:
-                    'repeating-linear-gradient(90deg, #facc15 0, #facc15 24px, #000 24px, #000 48px)',
-                }}
-              >
-                <span className="px-4 text-base sm:text-lg font-extrabold uppercase tracking-[0.4em] text-black drop-shadow-[0_1px_0_rgba(250,204,21,0.7)]">
-                  UNDER CONSTRUCTION • UNDER CONSTRUCTION • UNDER CONSTRUCTION
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <form onSubmit={handleSubmit} className="w-full">
+          <PromptBox
+            name="message"
+            disabled={sending}
+            defaultValue={prefillMessage || ''}
+          />
+        </form>
 
       </motion.div>
 

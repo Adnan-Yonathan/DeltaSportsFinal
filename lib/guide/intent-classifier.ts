@@ -8,7 +8,9 @@ export type GuideIntent =
   | { type: 'INLINE_SCORE'; team: string; sport: Sport }
   | { type: 'INLINE_STATS'; name: string; entityType: 'player' | 'team'; sport: Sport }
   | { type: 'LINE_MOVEMENT' }
+  | { type: 'GAME_INFO'; team?: string; sport?: Sport }
   | { type: 'EDUCATION' }
+  | { type: 'ADVICE' }
   | { type: 'OFF_TOPIC' }
   | { type: 'CONVERSATION' }
 
@@ -19,8 +21,8 @@ export type Sport = 'nba' | 'nfl' | 'mlb' | 'nhl' | 'ncaab' | 'ncaaf'
 const PATTERNS = {
   // Route to both player + market projections
   bestBets: [
-    /best\s*bets?/i,
-    /top\s*picks?/i,
+    /best\s*bets?\b/i,  // Word boundary to avoid matching "best betting strategies"
+    /top\s*picks?\b/i,
     /what\s*(should|can)\s*i\s*bet/i,
     /who\s*(should|do)\s*(i|you)\s*(bet|like)/i,
     /give\s*me\s*(some\s*)?bets?/i,
@@ -98,6 +100,19 @@ const PATTERNS = {
     /what('s|s| is)\s*(\w+)\s*(averaging|stats?)/i,
   ],
 
+  // Game info queries (use tools - fetch schedule, lines, times)
+  gameInfo: [
+    /what('s|s| is| are)\s*(the\s*)?(line|spread|total|odds|over\s*under)/i,
+    /what('s|s| is)\s*(the\s*)?game/i,
+    /when\s*(do|does|is|are)\s*(the\s*)?\w+\s*(play|game)/i,
+    /what\s*time\s*(is|does|do)/i,
+    /games?\s*(on\s*)?(today|tonight|tomorrow)/i,
+    /schedule\s*(for\s*)?(today|tonight|tomorrow)?/i,
+    /(\w+)\s*vs\.?\s*(\w+)/i,
+    /(\w+)\s*(playing|plays|game|matchup)/i,
+    /tell\s*me\s*about\s*(the\s*)?(\w+)\s*(game|matchup)/i,
+  ],
+
   // Line movement / betting splits (use tools)
   lineMovement: [
     /line\s*movement/i,
@@ -121,6 +136,28 @@ const PATTERNS = {
     /kelly\s*criterion/i,
     /\bclv\b/i,
     /closing\s*line\s*value/i,
+  ],
+
+  // General advice and tips (answer from LLM knowledge)
+  advice: [
+    /betting\s*tips?/i,
+    /how\s*(do\s*i|to|can\s*i)\s*(make\s*money|win|profit|beat)/i,
+    /how\s*(do\s*i|to|can\s*i)\s*become\s*(a\s*)?(profitable|winning|successful)/i,
+    /profitable\s*(bettor|betting|gambler)/i,
+    /tips?\s*(for|on)\s*betting/i,
+    /betting\s*advice/i,
+    /how\s*to\s*bet/i,
+    /betting\s*strateg(y|ies)/i,
+    /best\s*(betting\s*)?strateg(y|ies)/i,  // "best betting strategies", "best strategies"
+    /what('s|s| is)\s*the\s*(best|smartest)\s*way\s*to\s*bet/i,
+    /should\s*i\s*bet/i,
+    /help\s*me\s*(with\s*)?(betting|bet)/i,
+    /any\s*(tips?|advice)/i,
+    /how\s*(do|can)\s*(i|you)\s*(find|identify)\s*(value|edges?)/i,
+    /beginner\s*tips?/i,
+    /new\s*to\s*betting/i,
+    /improve\s*(my\s*)?(betting|handicapping)/i,
+    /get\s*better\s*at\s*betting/i,
   ],
 }
 
@@ -174,11 +211,59 @@ function matchesAny(query: string, patterns: RegExp[]): boolean {
   return patterns.some(pattern => pattern.test(query))
 }
 
+// List of known team names for matching
+const TEAM_NAMES = [
+  'lakers', 'celtics', 'warriors', 'bulls', 'heat', 'nets', 'knicks', 'suns', 'bucks', 'nuggets',
+  'clippers', 'sixers', 'raptors', 'spurs', 'rockets', 'mavericks', 'grizzlies', 'timberwolves',
+  'pelicans', 'hawks', 'hornets', 'wizards', 'pistons', 'pacers', 'magic', 'cavaliers', 'thunder',
+  'blazers', 'jazz', 'kings', 'chiefs', 'eagles', 'bills', 'cowboys', '49ers', 'dolphins', 'ravens',
+  'lions', 'packers', 'bengals', 'jaguars', 'chargers', 'broncos', 'raiders', 'seahawks', 'rams',
+  'cardinals', 'bears', 'vikings', 'saints', 'falcons', 'panthers', 'buccaneers', 'commanders',
+  'giants', 'jets', 'patriots', 'steelers', 'browns', 'colts', 'texans', 'titans', 'bruins',
+  'penguins', 'capitals', 'rangers', 'islanders', 'flyers', 'devils', 'hurricanes', 'lightning',
+  'panthers', 'maple leafs', 'canadiens', 'senators', 'sabres', 'red wings', 'blue jackets',
+  'predators', 'blackhawks', 'blues', 'wild', 'avalanche', 'stars', 'jets', 'flames', 'oilers',
+  'canucks', 'kraken', 'sharks', 'ducks', 'kings', 'golden knights', 'coyotes'
+]
+
+// Check if query mentions a specific matchup and extract team names
+function extractMatchupTeams(query: string): string[] | null {
+  const q = query.toLowerCase()
+  const foundTeams: string[] = []
+
+  for (const team of TEAM_NAMES) {
+    if (q.includes(team)) {
+      foundTeams.push(team)
+    }
+  }
+
+  // Return if we found at least one team (for single team queries) or two teams (for matchups)
+  return foundTeams.length > 0 ? foundTeams : null
+}
+
+// Check if query mentions a specific matchup (team vs team or two team names)
+function hasSpecificMatchup(query: string): boolean {
+  const teams = extractMatchupTeams(query)
+  return teams !== null && teams.length >= 1
+}
+
 /**
  * Classify the user's query intent for the Guide.
  */
 export function classifyGuideIntent(query: string): GuideIntent {
   const q = query.toLowerCase().trim()
+
+  // PRIORITY: If a specific matchup is mentioned, route to GAME_INFO first
+  // This catches "best bet in pacers pelicans game" etc.
+  if (hasSpecificMatchup(q)) {
+    const teams = extractMatchupTeams(q)
+    const sport = detectSport(q)
+    return {
+      type: 'GAME_INFO',
+      team: teams?.[0],  // Use first extracted team to filter to that game
+      sport,
+    }
+  }
 
   // Check for best bets (routes to both projection pages)
   if (matchesAny(q, PATTERNS.bestBets)) {
@@ -259,6 +344,17 @@ export function classifyGuideIntent(query: string): GuideIntent {
     }
   }
 
+  // Check for game info queries (use tools - schedule, lines, times)
+  if (matchesAny(q, PATTERNS.gameInfo)) {
+    const entity = extractEntity(query)
+    const sport = detectSport(q)
+    return {
+      type: 'GAME_INFO',
+      team: entity?.name,
+      sport,
+    }
+  }
+
   // Check for line movement (use tools)
   if (matchesAny(q, PATTERNS.lineMovement)) {
     return { type: 'LINE_MOVEMENT' }
@@ -267,6 +363,11 @@ export function classifyGuideIntent(query: string): GuideIntent {
   // Check for education topics
   if (matchesAny(q, PATTERNS.education)) {
     return { type: 'EDUCATION' }
+  }
+
+  // Check for general advice/tips
+  if (matchesAny(q, PATTERNS.advice)) {
+    return { type: 'ADVICE' }
   }
 
   // Default to conversation (let LLM handle)
@@ -289,8 +390,12 @@ export function getIntentResponsePrefix(intent: GuideIntent): string {
       return "Here are the stats you're looking for:"
     case 'LINE_MOVEMENT':
       return "Let me check the betting action for you."
+    case 'GAME_INFO':
+      return "" // Tool will provide the game info
     case 'EDUCATION':
       return "" // LLM will provide the education content
+    case 'ADVICE':
+      return "" // LLM will provide the advice
     case 'OFF_TOPIC':
       return "I'm focused on sports betting - can I help you find some bets or explain betting concepts instead?"
     case 'CONVERSATION':

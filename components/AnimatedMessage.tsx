@@ -3,33 +3,155 @@
 import { useAnimatedText } from '@/components/ui/animated-text'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import Link from 'next/link'
 import { parseStatsFromText, removeStatsFromText, ParsedStats } from '@/lib/utils/stats-parser'
 import { PlayerStatsCard } from '@/components/ui/player-stats-card'
 import { TeamStatsCard } from '@/components/ui/team-stats-card'
 import { PlayerPropsCard } from '@/components/ui/player-props-card'
 import { GameOddsCard } from '@/components/ui/game-odds-card'
 import { TeamInsightsCard } from '@/components/ui/team-insights-card'
+import { ArrowUpRight, TrendingUp, Users, Calculator, Zap, Radio } from 'lucide-react'
 
 interface AnimatedMessageProps {
   content: string
   isAnimating?: boolean
 }
 
+interface PageCardData {
+  key: string
+  label: string
+  description: string
+  href: string
+  icon: React.ReactNode
+  recommended?: boolean
+}
+
+const PAGE_METADATA: Record<string, Omit<PageCardData, 'key' | 'recommended'>> = {
+  'live-scores': {
+    label: 'Live Scores',
+    description: 'Live game scores, odds comparison, and arbitrage opportunities',
+    href: '/live-scores',
+    icon: <Radio className="w-4 h-4" />,
+  },
+  'ev-bets': {
+    label: 'EV Bets',
+    description: 'Find +EV opportunities where sportsbooks disagree on odds',
+    href: '/ev-bets',
+    icon: <Zap className="w-4 h-4" />,
+  },
+  'parlay-predictor': {
+    label: 'Parlay Pro',
+    description: 'Calculate true parlay odds with correlation adjustments',
+    href: '/parlay-predictor',
+    icon: <Calculator className="w-4 h-4" />,
+  },
+  'player-projections': {
+    label: 'Sharp Props',
+    description: 'Player prop projections based on recent form and matchup context',
+    href: '/player-projections',
+    icon: <Users className="w-4 h-4" />,
+  },
+  'market-projections': {
+    label: 'Sharp Projections',
+    description: 'AI-powered spread, total, and moneyline projections with edge detection',
+    href: '/market-projections',
+    icon: <TrendingUp className="w-4 h-4" />,
+  },
+  'stats': {
+    label: 'Stats Center',
+    description: 'Team and player statistics across all major sports',
+    href: '/stats',
+    icon: <TrendingUp className="w-4 h-4" />,
+  },
+}
+
+function parsePageCards(text: string): { cards: PageCardData[]; cleanedText: string } {
+  const cards: PageCardData[] = []
+  const cardRegex = /\[PAGE_CARD:([a-z-]+)(?::recommended)?\]/gi
+  let cleanedText = text
+
+  let match
+  while ((match = cardRegex.exec(text)) !== null) {
+    const pageKey = match[1]
+    const isRecommended = match[0].includes(':recommended')
+    const metadata = PAGE_METADATA[pageKey]
+
+    if (metadata) {
+      cards.push({
+        key: pageKey,
+        ...metadata,
+        recommended: isRecommended,
+      })
+    }
+
+    cleanedText = cleanedText.replace(match[0], '')
+  }
+
+  // Clean up extra whitespace from removed markers
+  cleanedText = cleanedText.replace(/\n{3,}/g, '\n\n').trim()
+
+  return { cards, cleanedText }
+}
+
+function PageCard({ card }: { card: PageCardData }) {
+  return (
+    <Link
+      href={card.href}
+      className={`group flex items-center gap-3 rounded-xl border px-4 py-3 transition-all hover:bg-white/10 ${
+        card.recommended
+          ? 'border-emerald-400/40 bg-emerald-500/10 hover:border-emerald-400/60'
+          : 'border-white/10 bg-white/5 hover:border-white/20'
+      }`}
+    >
+      <div
+        className={`flex items-center justify-center w-9 h-9 rounded-lg transition-colors ${
+          card.recommended
+            ? 'bg-emerald-500/30 text-emerald-300 group-hover:bg-emerald-500/40'
+            : 'bg-white/10 text-white/70 group-hover:bg-white/15'
+        }`}
+      >
+        {card.icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-sm font-semibold ${
+              card.recommended ? 'text-emerald-200' : 'text-white'
+            }`}
+          >
+            {card.label}
+          </span>
+          {card.recommended && (
+            <span className="px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide bg-emerald-500/30 text-emerald-300 rounded">
+              Recommended
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-white/50 truncate">{card.description}</p>
+      </div>
+      <ArrowUpRight
+        className={`w-4 h-4 transition-colors ${
+          card.recommended
+            ? 'text-emerald-400/60 group-hover:text-emerald-300'
+            : 'text-white/30 group-hover:text-white/50'
+        }`}
+      />
+    </Link>
+  )
+}
+
 export default function AnimatedMessage({ content, isAnimating = true }: AnimatedMessageProps) {
-  // DISABLED: Stats card UI rendering - just show text content
-  // const [parsedStats, setParsedStats] = useState<ParsedStats[]>([])
-  // const [cleanedContent, setCleanedContent] = useState(content)
+  // Parse page cards from content
+  const { cards, cleanedText } = useMemo(() => parsePageCards(content), [content])
 
   // Use word-by-word animation for smoother reading experience
-  const animatedContent = useAnimatedText(isAnimating ? content : content, ' ')
+  const animatedContent = useAnimatedText(isAnimating ? cleanedText : cleanedText, ' ')
 
   return (
     <div className="space-y-4">
-      {/* DISABLED: Stats card UI rendering */}
-
-      {/* Render text content only */}
-      {content.trim() && (
+      {/* Render text content */}
+      {cleanedText.trim() && (
         <div className="prose prose-invert prose-sm max-w-none">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
@@ -86,6 +208,15 @@ export default function AnimatedMessage({ content, isAnimating = true }: Animate
           >
             {animatedContent}
           </ReactMarkdown>
+        </div>
+      )}
+
+      {/* Render page navigation cards */}
+      {cards.length > 0 && (
+        <div className="space-y-2 mt-3">
+          {cards.map((card) => (
+            <PageCard key={card.key} card={card} />
+          ))}
         </div>
       )}
     </div>

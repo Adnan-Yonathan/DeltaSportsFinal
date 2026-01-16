@@ -16,26 +16,26 @@ export const openai = new OpenAI({
 /**
  * Model configurations for different use cases
  */
-const CHAT_MODEL = process.env.CHAT_MODEL || 'gpt-5-mini'
-const RESEARCH_MODEL = process.env.RESEARCH_MODEL || 'gpt-5'
+const CHAT_MODEL = process.env.CHAT_MODEL || 'gpt-3.5-turbo'
+const RESEARCH_MODEL = process.env.RESEARCH_MODEL || 'gpt-4-turbo'
 export const AI_MODELS = {
   // Main chat - high quality, supports function calling
   chat: CHAT_MODEL,
 
   // Title generation - fast, cheap, good enough
-  titleGen: 'gpt-5-mini',
+  titleGen: 'gpt-3.5-turbo',
 
   // Custom filters - simple yes/no evaluations
-  filters: 'gpt-5-mini',
+  filters: 'gpt-3.5-turbo',
 
   // Model runner - custom model execution
-  modelRunner: 'gpt-5-mini',
+  modelRunner: 'gpt-3.5-turbo',
 
   // Research mode without web search
   research: RESEARCH_MODEL,
 
   // Web search augmented model (Responses API)
-  search: process.env.SEARCH_MODEL || 'gpt-5',
+  search: process.env.SEARCH_MODEL || 'gpt-4-turbo',
 } as const
 
 /**

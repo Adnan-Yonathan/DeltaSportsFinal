@@ -61,6 +61,12 @@ export default function ToolsNav({
           </svg>
           Chat
         </Link>
+        <Link
+          href="/pricing"
+          className={`mr-2 ${showMobileChatBack ? "inline-flex sm:hidden" : "hidden"} items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white/50 hover:border-emerald-500/40 hover:text-emerald-200 transition-colors`}
+        >
+          Pricing
+        </Link>
         <div className="hidden sm:flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
           {TOOLS_NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")

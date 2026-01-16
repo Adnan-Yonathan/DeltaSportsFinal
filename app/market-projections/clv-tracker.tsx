@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import type { MarketProjectionClvSummary } from "@/lib/services/market-projection-clv"
 
 const formatSigned = (value: number | null, digits = 1) => {
@@ -19,16 +20,40 @@ export default function MarketProjectionsClvTracker({
   summary: MarketProjectionClvSummary
   updatedAt: string
 }) {
+  const [isExpanded, setIsExpanded] = useState(false)
   const beatRate =
     summary.total > 0 ? Math.round((summary.beat / summary.total) * 100) : 0
 
   return (
     <div className="w-full rounded-2xl border border-emerald-400/25 bg-gradient-to-br from-emerald-500/15 via-black/80 to-black px-4 py-3 text-xs text-white/70 md:w-auto">
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <span className="text-[10px] uppercase tracking-[0.3em] text-emerald-200/80">
-          CLV tracker
-        </span>
-        <div className="flex flex-wrap items-center justify-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] uppercase tracking-[0.3em] text-emerald-200/80">
+            CLV tracker
+          </span>
+          <span className="text-[10px] text-white/35">
+            {new Date(updatedAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        </div>
+        <button
+          type="button"
+          className="rounded-full border border-white/10 bg-black/40 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-200/80 transition hover:border-emerald-400/60 hover:text-emerald-200"
+          onClick={() => setIsExpanded((prev) => !prev)}
+          aria-expanded={isExpanded}
+          aria-controls="clv-tracker-details"
+        >
+          {isExpanded ? "Collapse" : "Expand"}
+        </button>
+      </div>
+
+      {isExpanded && (
+        <div
+          id="clv-tracker-details"
+          className="mt-3 flex flex-wrap items-center justify-center gap-2"
+        >
           <div className="rounded-full border border-white/10 bg-black/40 px-3 py-1">
             <span className="text-white/50">Avg</span>{" "}
             <span className="text-white">{formatSigned(summary.avgClvPoints)} pts</span>
@@ -53,13 +78,7 @@ export default function MarketProjectionsClvTracker({
             <span className="text-white">24h</span>
           </div>
         </div>
-        <span className="text-[10px] text-white/35">
-          {new Date(updatedAt).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </span>
-      </div>
+      )}
     </div>
   )
 }

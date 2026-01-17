@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const sports = body.sports || [
       'basketball_nba',
+      'basketball_ncaab',
       'americanfootball_nfl',
       'icehockey_nhl',
       'baseball_mlb'
@@ -73,6 +74,7 @@ export async function GET(req: NextRequest) {
   try {
     const sports = [
       'basketball_nba',
+      'basketball_ncaab',
       'americanfootball_nfl',
       'icehockey_nhl',
       'baseball_mlb'

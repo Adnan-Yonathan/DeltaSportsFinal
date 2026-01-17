@@ -35,6 +35,17 @@ type KalshiTrade = {
 
 const MAX_MARKET_PAGES = 10
 
+const parsePlayerName = (title?: string | null) => {
+  if (!title) return null
+  const colonMatch = title.match(/^([^:]+):/)
+  if (colonMatch?.[1]) return colonMatch[1].trim()
+  const recordMatch = title.match(
+    /^([A-Za-z\s.'-]+?)(?:\s+(?:records|scores|to score)\b)/i
+  )
+  if (recordMatch?.[1]) return recordMatch[1].trim()
+  return null
+}
+
 async function fetchMarkets(seriesTicker: string): Promise<KalshiMarket[]> {
   try {
     const markets: KalshiMarket[] = []
@@ -180,9 +191,7 @@ export async function GET(req: NextRequest) {
         }
 
         if (!playerName) {
-          playerName = market.title?.match(
-            /^([A-Za-z\s.']+(?:III|Jr\.?|Sr\.?)?)\s+(?:records|scores|to score)/i
-          )?.[1]?.trim()
+          playerName = parsePlayerName(market.title)
         }
 
         if (!playerName) {

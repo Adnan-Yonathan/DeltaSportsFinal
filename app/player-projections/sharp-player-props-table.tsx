@@ -19,6 +19,7 @@ type AggregatedPlayerPropBet = {
   avgPriceCents: number
   avgSharpStrength: number
   predMarketProbability: number
+  predMarketOdds: number | null
   sportsbookAvgProbability: number | null
   sportsbookAvgOdds: number | null
   edgePercent: number
@@ -61,6 +62,7 @@ const MARKET_LABELS: Record<string, string> = {
   rushing_tds: "RUSH TD",
   receiving_yards: "REC YDS",
   receptions: "REC",
+  anytime_td: "ANYTIME TD",
   threes: "3PT",
   blocks: "BLK",
   steals: "STL",
@@ -96,9 +98,12 @@ const PROP_TYPES = [
   "All",
   // Football
   "passing_yards",
+  "passing_tds",
   "rushing_yards",
+  "rushing_tds",
   "receiving_yards",
   "receptions",
+  "anytime_td",
   // Basketball
   "points",
   "rebounds",
@@ -112,7 +117,7 @@ const PROP_TYPES = [
   "shots",
 ]
 
-const REFRESH_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+const REFRESH_INTERVAL_MS = 30 * 1000 // 30 seconds
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Formatters
@@ -165,6 +170,11 @@ const formatComposite = (value?: number | null) => {
 const formatProbability = (value?: number | null) => {
   if (value == null || !Number.isFinite(value)) return "-"
   return `${(value * 100).toFixed(0)}%`
+}
+
+const formatOdds = (value?: number | null) => {
+  if (value == null || !Number.isFinite(value)) return "-"
+  return formatAmericanOdds(Math.round(value))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -267,9 +277,20 @@ const TopPickCard = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showS
                 : "text-white"
           }`}
         >
-          {formatEdge(prop.edgePercent)}
+          {prop.sportsbookAvgOdds != null ? formatEdge(prop.edgePercent) : "-"}
         </div>
       </div>
+    </div>
+
+    <div className="mt-2 flex items-center gap-2 text-[11px] text-white/70">
+      <span className="text-white/40">Odds</span>
+      <span className="font-medium text-white">
+        Pred {formatOdds(prop.predMarketOdds)}
+      </span>
+      <span className="text-white/30">|</span>
+      <span className="font-medium text-white">
+        Books {formatOdds(prop.sportsbookAvgOdds)}
+      </span>
     </div>
 
     <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -309,18 +330,29 @@ const PropRow = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport
         </div>
         <div className="rounded bg-black/40 px-2 py-1.5">
           <div className="text-[9px] uppercase text-white/40">Edge</div>
-          <div
-            className={`font-medium ${
-              prop.edgePercent > 0
-                ? "text-green-400"
-                : prop.edgePercent < 0
-                  ? "text-red-400"
-                  : "text-white"
-            }`}
-          >
-            {formatEdge(prop.edgePercent)}
-          </div>
+        <div
+          className={`font-medium ${
+            prop.edgePercent > 0
+              ? "text-green-400"
+              : prop.edgePercent < 0
+                ? "text-red-400"
+                : "text-white"
+          }`}
+        >
+          {prop.sportsbookAvgOdds != null ? formatEdge(prop.edgePercent) : "-"}
         </div>
+      </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-[11px] text-white/70">
+        <span className="text-white/40">Odds</span>
+        <span className="font-medium text-white">
+          Pred {formatOdds(prop.predMarketOdds)}
+        </span>
+        <span className="text-white/30">|</span>
+        <span className="font-medium text-white">
+          Books {formatOdds(prop.sportsbookAvgOdds)}
+        </span>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -358,7 +390,7 @@ const PropRow = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport
         <div className="font-medium text-blue-300">
           {formatProbability(prop.predMarketProbability)}
         </div>
-        <div className="text-[10px] text-white/40">Pred Mkt</div>
+        <div className="text-[10px] text-white/40">{formatOdds(prop.predMarketOdds)}</div>
       </div>
 
       {/* Book Prob */}
@@ -368,7 +400,9 @@ const PropRow = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport
             <div className="font-medium text-white/80">
               {formatProbability(prop.sportsbookAvgProbability)}
             </div>
-            <div className="text-[10px] text-white/40">Books</div>
+            <div className="text-[10px] text-white/40">
+              {formatOdds(prop.sportsbookAvgOdds)}
+            </div>
           </>
         ) : (
           <div className="text-white/30">-</div>
@@ -386,7 +420,7 @@ const PropRow = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport
                 : "text-white/60"
           }`}
         >
-          {formatEdge(prop.edgePercent)}
+          {prop.sportsbookAvgOdds != null ? formatEdge(prop.edgePercent) : "-"}
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import {
   type PlayerPropWhaleTrade,
 } from './whale-trade-history'
 import { fetchSbdGamePropsList, resolveSbdLeague, type SbdLeague } from '@/lib/api/sbd'
+import { oddsToImpliedProbability, probabilityToAmericanOdds } from '@/lib/utils/statistics'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -28,9 +29,16 @@ export type AggregatedPlayerPropBet = {
   avgPriceCents: number
   avgSharpStrength: number
 
+  // Prediction market odds/probability
+  predMarketProbability: number
+  predMarketOdds: number | null
+
   // Best sportsbook line for this prop
   bestOdds: number | null
   bestOddsFormatted: string | null
+  sportsbookAvgProbability: number | null
+  sportsbookAvgOdds: number | null
+  edgePercent: number
 
   // Clustering detection
   isClustered: boolean
@@ -217,9 +225,10 @@ const computeCompositeScore = (
   // Sharp strength already 0-100, normalize to 0-1
   const sharpScore = (prop.avgSharpStrength ?? 50) / 100
 
-  // Volume score: 1 bet = 0.3, 2 = 0.55, 3 = 0.8, 4+ = 1.0
+  // Volume score grows with bet count (more bets = stronger signal)
   const betCount = prop.betCount ?? 0
-  const volumeScore = Math.min(1, 0.3 + betCount * 0.25)
+  const volumeScore =
+    betCount > 0 ? Math.min(1, Math.log10(betCount + 1) / Math.log10(12)) : 0
 
   const raw =
     weights.notional * notionalScore +
@@ -234,7 +243,16 @@ const computeCompositeScore = (
   // Plus weighted factors (up to 70 more points)
   // Plus cluster bonus (up to 10 more points)
   const baseScore = 30
-  const scaledScore = baseScore + (raw * 70) + (clusterBonus * 100)
+  let scaledScore = baseScore + (raw * 70) + (clusterBonus * 100)
+
+  // Penalize heavy favorites (e.g., -200 or shorter)
+  const predOdds = prop.predMarketOdds ?? null
+  if (predOdds != null && predOdds <= -200) {
+    const magnitude = Math.abs(predOdds)
+    const penaltySteps = Math.floor((magnitude - 200) / 50)
+    const heavyFavoritePenalty = Math.min(20, 5 + penaltySteps * 5)
+    scaledScore -= heavyFavoritePenalty
+  }
 
   return Math.min(100, Math.max(0, scaledScore))
 }
@@ -486,6 +504,18 @@ export const analyzeSharpPlayerProps = async (
       'kalshi' | 'polymarket'
     >
 
+    const predMarketProbability = avgPriceCents / 100
+    const predMarketOdds =
+      predMarketProbability > 0 && predMarketProbability < 1
+        ? probabilityToAmericanOdds(predMarketProbability)
+        : null
+    const sportsbookAvgProbability =
+      bestOdds != null ? oddsToImpliedProbability(bestOdds) : null
+    const edgePercent =
+      sportsbookAvgProbability != null
+        ? Math.round((predMarketProbability - sportsbookAvgProbability) * 1000) / 10
+        : 0
+
     const aggregated: AggregatedPlayerPropBet = {
       id: key,
       playerName,
@@ -497,8 +527,13 @@ export const analyzeSharpPlayerProps = async (
       betCount,
       avgPriceCents,
       avgSharpStrength,
+      predMarketProbability,
+      predMarketOdds,
       bestOdds,
       bestOddsFormatted: formatAmericanOdds(bestOdds),
+      sportsbookAvgProbability,
+      sportsbookAvgOdds: bestOdds,
+      edgePercent,
       isClustered,
       clusterWindowHours,
       earliestTradeTime: earliestTime,

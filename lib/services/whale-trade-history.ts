@@ -104,6 +104,7 @@ const SPORT_PREGAME_WINDOWS: Record<string, number> = {
   americanfootball_nfl: 7,
   americanfootball_ncaaf: 7,
 }
+const PLAYER_PROP_RECENT_WINDOW_DAYS = 7
 
 export const resolveSportWindowDays = (sportKey: string) =>
   SPORT_PREGAME_WINDOWS[sportKey] ?? 3
@@ -866,6 +867,9 @@ export const fetchPlayerPropWhaleTrades = async ({
 }): Promise<PlayerPropWhaleTrade[]> => {
   const supabase = createServiceClient()
   const now = new Date()
+  const tradeWindowStart = new Date(
+    now.getTime() - PLAYER_PROP_RECENT_WINDOW_DAYS * MS_PER_DAY
+  )
 
   // Build query
   let query = supabase
@@ -874,25 +878,13 @@ export const fetchPlayerPropWhaleTrades = async ({
       'id, source, sport_key, player_name, prop_type, prop_line, side, notional, american_odds, price_cents, trade_time, event_time, market_title, outcome'
     )
     .eq('market_type', 'player_prop')
-    .eq('is_pregame', true)
-    .gte('event_time', now.toISOString())
-    .order('notional', { ascending: false })
+    .gte('trade_time', tradeWindowStart.toISOString())
+    .order('trade_time', { ascending: false })
     .limit(limit)
 
   // Apply sport filter if not "all"
   if (sportKey !== 'all') {
-    let windowEnd = new Date(now.getTime() + resolveSportWindowDays(sportKey) * MS_PER_DAY)
-    if (sportKey === 'americanfootball_nfl') {
-      const window = resolveNflWeekWindow(now)
-      windowEnd = window.weekEnd
-    }
-    query = query
-      .eq('sport_key', sportKey)
-      .lte('event_time', windowEnd.toISOString())
-  } else {
-    // For "all" sports, use a 7-day window
-    const windowEnd = new Date(now.getTime() + 7 * MS_PER_DAY)
-    query = query.lte('event_time', windowEnd.toISOString())
+    query = query.eq('sport_key', sportKey)
   }
 
   const { data, error } = (await query) as unknown as {

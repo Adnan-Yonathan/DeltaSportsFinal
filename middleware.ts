@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   '/auth/signup',
   '/auth/callback',
   '/pricing',
+  '/tools',
   '/onboarding',
   '/chat', // Chat page handles its own guest/member logic
   '/affiliate',

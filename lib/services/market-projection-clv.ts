@@ -17,9 +17,15 @@ type LineRow = {
   spread_away?: number | null
   spread_home_odds?: number | null
   spread_away_odds?: number | null
+  moneyline_home?: number | null
+  moneyline_away?: number | null
 }
 
-const TRACKED_SPORTS = new Set(['basketball_nba', 'basketball_ncaab'])
+type MarketType = 'spread' | 'moneyline'
+
+const isHockeySport = (sport: string) => sport === 'icehockey_nhl'
+
+const TRACKED_SPORTS = new Set(['basketball_nba', 'basketball_ncaab', 'icehockey_nhl'])
 
 export type MarketProjectionClvSummary = {
   total: number
@@ -99,6 +105,37 @@ const resolvePickBook = (edge: GameEdgeAnalysis, pickSide: PickSide) => {
     : spread.bestAwayBook ?? spread.bestBook ?? null
 }
 
+// Hockey moneyline-specific functions
+const resolveMoneylinePickSide = (edge: GameEdgeAnalysis): PickSide | null => {
+  const projectionSide = edge.sharpProjections?.moneyline?.side
+  if (projectionSide === edge.homeTeam) return 'home'
+  if (projectionSide === edge.awayTeam) return 'away'
+  // Fallback: use model probability if available
+  const modelProb = edge.moneyline?.model?.homeProbability
+  const sportsbookHomeOdds = edge.moneyline?.sportsbook?.homeOdds
+  if (modelProb != null && sportsbookHomeOdds != null) {
+    const impliedProb = oddsToImpliedProbability(sportsbookHomeOdds)
+    // Pick the side where our model sees value
+    return modelProb > impliedProb ? 'home' : 'away'
+  }
+  return null
+}
+
+const resolveMoneylinePickOdds = (edge: GameEdgeAnalysis, pickSide: PickSide) => {
+  const ml = edge.moneyline
+  if (!ml?.sportsbook) return null
+  const odds = pickSide === 'home' ? ml.sportsbook.homeOdds : ml.sportsbook.awayOdds
+  return coerceNumber(odds)
+}
+
+const resolveMoneylinePickBook = (edge: GameEdgeAnalysis, pickSide: PickSide) => {
+  const ml = edge.moneyline
+  if (!ml?.sportsbook) return null
+  return pickSide === 'home'
+    ? ml.sportsbook.homeBook ?? null
+    : ml.sportsbook.awayBook ?? null
+}
+
 const resolveClvPoints = (pickLine: number, closingLine: number) => {
   return pickLine - closingLine
 }
@@ -120,13 +157,19 @@ const fetchClosingSnapshot = async ({
   pickSide,
   pickBook,
   commenceTime,
+  marketType = 'spread',
 }: {
   supabase: ReturnType<typeof createServiceClient>
   oddsApiId: string
   pickSide: PickSide
   pickBook: string | null
   commenceTime: string
+  marketType?: MarketType
 }): Promise<ClosingSnapshot | null> => {
+  const selectFields = marketType === 'moneyline'
+    ? 'bookmaker,recorded_at,moneyline_home,moneyline_away'
+    : 'bookmaker,recorded_at,spread_home,spread_away,spread_home_odds,spread_away_odds'
+
   const fetchLatest = async ({
     lineType,
     book,
@@ -138,11 +181,9 @@ const fetchClosingSnapshot = async ({
   }) => {
     let query = supabase
       .from('lines')
-      .select(
-        'bookmaker,recorded_at,spread_home,spread_away,spread_home_odds,spread_away_odds'
-      )
+      .select(selectFields)
       .eq('odds_api_id', oddsApiId)
-      .eq('market_type', 'spread')
+      .eq('market_type', marketType === 'moneyline' ? 'h2h' : 'spread')
       .eq('line_type', lineType)
     if (book) query = query.eq('bookmaker', book)
     if (before) query = query.lte('recorded_at', before)
@@ -170,6 +211,19 @@ const fetchClosingSnapshot = async ({
     })
   }
   if (!line) return null
+
+  if (marketType === 'moneyline') {
+    // For moneyline, we return the odds directly (no "line" concept)
+    const closingOdds =
+      pickSide === 'home'
+        ? coerceNumber(line.moneyline_home)
+        : coerceNumber(line.moneyline_away)
+    return {
+      line: null, // MLs don't have a line
+      odds: closingOdds,
+      book: line.bookmaker ?? null,
+    }
+  }
 
   const closingLine =
     pickSide === 'home'
@@ -199,10 +253,39 @@ export const recordMarketProjectionPicks = async ({
   if (!TRACKED_SPORTS.has(sport)) return { inserted: 0 }
   const supabase = createServiceClient()
   const timestamp = pickedAt ?? new Date().toISOString()
+  const useMoneyline = isHockeySport(sport)
+
   const records = edges
     .map((edge) => {
       const oddsApiId = edge.oddsApiId
-      if (!oddsApiId || !edge.spread) return null
+      if (!oddsApiId) return null
+
+      if (useMoneyline) {
+        // Hockey: track moneylines
+        if (!edge.moneyline?.sportsbook) return null
+        const pickSide = resolveMoneylinePickSide(edge)
+        if (!pickSide) return null
+        const pickOdds = resolveMoneylinePickOdds(edge, pickSide)
+        if (pickOdds == null) return null
+        const pickBook = resolveMoneylinePickBook(edge, pickSide)
+        return {
+          sport,
+          odds_api_id: oddsApiId,
+          market_type: 'moneyline',
+          home_team: edge.homeTeam,
+          away_team: edge.awayTeam,
+          commence_time: edge.commenceTime,
+          pick_side: pickSide,
+          pick_line: null, // MLs don't have a line
+          pick_odds: pickOdds,
+          pick_implied_prob: oddsToImpliedProbability(pickOdds),
+          pick_book: pickBook,
+          picked_at: timestamp,
+        }
+      }
+
+      // Basketball: track spreads
+      if (!edge.spread) return null
       const pickSide = resolvePickSide(edge)
       if (!pickSide) return null
       const pickLine = resolvePickLine(edge, pickSide)
@@ -255,12 +338,14 @@ export const getRollingMarketProjectionClvRecap = async ({
   const now = new Date()
   const since = new Date(now.getTime() - windowHours * 60 * 60 * 1000)
   const historySince = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const useMoneyline = isHockeySport(sport)
+  const marketType = useMoneyline ? 'moneyline' : 'spread'
 
   const { data, error } = (await (supabase as any)
     .from('market_projection_clv')
     .select('*')
     .eq('sport', sport)
-    .eq('market_type', 'spread')
+    .eq('market_type', marketType)
     .gte('commence_time', since.toISOString())
     .lte('commence_time', now.toISOString())
     .order('commence_time', { ascending: false })) as {
@@ -285,7 +370,12 @@ export const getRollingMarketProjectionClvRecap = async ({
   }
 
   for (const row of data) {
-    if (!row || row.clv_points != null || !row.odds_api_id) continue
+    // For moneylines, we use clv_implied_prob as the primary metric
+    // For spreads, we use clv_points
+    const alreadyCalculated = useMoneyline
+      ? row.clv_implied_prob != null
+      : row.clv_points != null
+    if (!row || alreadyCalculated || !row.odds_api_id) continue
     const pickSide = row.pick_side as PickSide | null
     if (!pickSide) continue
     const closing = await fetchClosingSnapshot({
@@ -294,35 +384,66 @@ export const getRollingMarketProjectionClvRecap = async ({
       pickSide,
       pickBook: row.pick_book ?? null,
       commenceTime: row.commence_time,
+      marketType,
     })
-    if (!closing || closing.line == null) continue
-    const pickLine = coerceNumber(row.pick_line)
-    if (pickLine == null) continue
-    const clvPoints = resolveClvPoints(pickLine, closing.line)
-    const clvImpliedProb = resolveClvImpliedProb(
-      coerceNumber(row.pick_odds),
-      closing.odds
-    )
 
-    await (supabase as any)
-      .from('market_projection_clv')
-      .update({
-        closing_line: closing.line,
-        closing_odds: closing.odds,
-        closing_implied_prob:
-          closing.odds != null ? oddsToImpliedProbability(closing.odds) : null,
-        closing_book: closing.book,
-        closing_captured_at: new Date().toISOString(),
-        clv_points: clvPoints,
-        clv_implied_prob: clvImpliedProb,
-      })
-      .eq('id', row.id)
+    if (useMoneyline) {
+      // Moneyline: CLV is based on implied probability difference
+      if (!closing || closing.odds == null) continue
+      const clvImpliedProb = resolveClvImpliedProb(
+        coerceNumber(row.pick_odds),
+        closing.odds
+      )
+      if (clvImpliedProb == null) continue
 
-    row.clv_points = clvPoints
-    row.clv_implied_prob = clvImpliedProb
-    row.closing_line = closing.line
-    row.closing_odds = closing.odds
-    row.closing_book = closing.book
+      await (supabase as any)
+        .from('market_projection_clv')
+        .update({
+          closing_line: null,
+          closing_odds: closing.odds,
+          closing_implied_prob: oddsToImpliedProbability(closing.odds),
+          closing_book: closing.book,
+          closing_captured_at: new Date().toISOString(),
+          clv_points: clvImpliedProb, // Store implied prob as "points" for consistency in beat/miss logic
+          clv_implied_prob: clvImpliedProb,
+        })
+        .eq('id', row.id)
+
+      row.clv_points = clvImpliedProb
+      row.clv_implied_prob = clvImpliedProb
+      row.closing_odds = closing.odds
+      row.closing_book = closing.book
+    } else {
+      // Spread: CLV is based on line difference
+      if (!closing || closing.line == null) continue
+      const pickLine = coerceNumber(row.pick_line)
+      if (pickLine == null) continue
+      const clvPoints = resolveClvPoints(pickLine, closing.line)
+      const clvImpliedProb = resolveClvImpliedProb(
+        coerceNumber(row.pick_odds),
+        closing.odds
+      )
+
+      await (supabase as any)
+        .from('market_projection_clv')
+        .update({
+          closing_line: closing.line,
+          closing_odds: closing.odds,
+          closing_implied_prob:
+            closing.odds != null ? oddsToImpliedProbability(closing.odds) : null,
+          closing_book: closing.book,
+          closing_captured_at: new Date().toISOString(),
+          clv_points: clvPoints,
+          clv_implied_prob: clvImpliedProb,
+        })
+        .eq('id', row.id)
+
+      row.clv_points = clvPoints
+      row.clv_implied_prob = clvImpliedProb
+      row.closing_line = closing.line
+      row.closing_odds = closing.odds
+      row.closing_book = closing.book
+    }
   }
 
   const resolved = data.filter((row) => coerceNumber(row.clv_points) != null)
@@ -381,7 +502,7 @@ export const getRollingMarketProjectionClvRecap = async ({
         .from('market_projection_clv')
         .select('commence_time,clv_points,clv_implied_prob')
         .eq('sport', sport)
-        .eq('market_type', 'spread')
+        .eq('market_type', marketType)
         .gte('commence_time', historySince.toISOString())
         .lte('commence_time', now.toISOString())) as {
         data: any[] | null

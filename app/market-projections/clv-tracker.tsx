@@ -15,12 +15,15 @@ const formatProbDelta = (value: number | null) => {
 export default function MarketProjectionsClvTracker({
   summary,
   updatedAt,
+  sport,
 }: {
   summary: MarketProjectionClvSummary
   updatedAt: string
+  sport?: string
 }) {
   const beatRate =
     summary.total > 0 ? Math.round((summary.beat / summary.total) * 100) : 0
+  const isHockey = sport === "icehockey_nhl"
 
   return (
     <div className="w-full rounded-2xl border border-emerald-400/25 bg-gradient-to-br from-emerald-500/15 via-black/80 to-black px-4 py-3 text-xs text-white/70 md:w-auto">
@@ -31,10 +34,11 @@ export default function MarketProjectionsClvTracker({
         <div className="flex flex-wrap items-center justify-center gap-2">
           <div className="rounded-full border border-white/10 bg-black/40 px-3 py-1">
             <span className="text-white/50">Avg</span>{" "}
-            <span className="text-white">{formatSigned(summary.avgClvPoints)} pts</span>
-            <span className="ml-2 text-white/40">
-              Odds {formatProbDelta(summary.avgClvImpliedProb)}
-            </span>
+            {isHockey ? (
+              <span className="text-white">{formatProbDelta(summary.avgClvImpliedProb)}</span>
+            ) : (
+              <span className="text-white">{formatSigned(summary.avgClvPoints)} pts</span>
+            )}
           </div>
           <div className="rounded-full border border-white/10 bg-black/40 px-3 py-1">
             <span className="text-white/50">Beat</span>{" "}

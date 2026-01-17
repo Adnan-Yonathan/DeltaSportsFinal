@@ -291,6 +291,7 @@ const PROP_KEYWORDS: Record<string, Array<{ key: string; patterns: string[] }>> 
     { key: 'rushing_receiving_yards', patterns: ['rushing and receiving yards', 'rushing + receiving yards', 'rushing/receiving yards', 'rush+rec yards', 'scrimmage yards'] },
     { key: 'receiving_yards', patterns: ['receiving yards', 'rec yards', 'rec yds'] },
     { key: 'receptions', patterns: ['receptions', 'reception', 'catches', 'recs'] },
+    { key: 'anytime_td', patterns: ['anytime touchdown', 'anytime td', 'touchdown scorer', 'to score a touchdown'] },
   ],
   americanfootball_ncaaf: [
     { key: 'passing_yards', patterns: ['passing yards', 'pass yards', 'pass yds'] },
@@ -301,6 +302,7 @@ const PROP_KEYWORDS: Record<string, Array<{ key: string; patterns: string[] }>> 
     { key: 'rushing_receiving_yards', patterns: ['rushing and receiving yards', 'rushing + receiving yards', 'rushing/receiving yards', 'rush+rec yards', 'scrimmage yards'] },
     { key: 'receiving_yards', patterns: ['receiving yards', 'rec yards', 'rec yds'] },
     { key: 'receptions', patterns: ['receptions', 'reception', 'catches', 'recs'] },
+    { key: 'anytime_td', patterns: ['anytime touchdown', 'anytime td', 'touchdown scorer', 'to score a touchdown'] },
   ],
   baseball_mlb: [
     { key: 'strikeouts', patterns: ['strikeouts', 'ks', 'k', 'strikeout'] },

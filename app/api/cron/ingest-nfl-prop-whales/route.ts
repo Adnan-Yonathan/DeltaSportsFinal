@@ -33,14 +33,32 @@ type KalshiTrade = {
   no_price?: number
 }
 
+const MAX_MARKET_PAGES = 10
+
 async function fetchMarkets(seriesTicker: string): Promise<KalshiMarket[]> {
   try {
-    const res = await fetch(`${KALSHI_BASE}/markets?series_ticker=${seriesTicker}&limit=500`, {
-      cache: "no-store",
-    })
-    if (!res.ok) return []
-    const data = await res.json()
-    return data.markets || []
+    const markets: KalshiMarket[] = []
+    let cursor: string | null = null
+
+    for (let page = 0; page < MAX_MARKET_PAGES; page += 1) {
+      const url = new URL(`${KALSHI_BASE}/markets`)
+      url.searchParams.set("series_ticker", seriesTicker)
+      url.searchParams.set("limit", "500")
+      if (cursor) url.searchParams.set("cursor", cursor)
+
+      const res = await fetch(url.toString(), { cache: "no-store" })
+      if (!res.ok) break
+
+      const data = await res.json()
+      const batch = data.markets || []
+      if (!Array.isArray(batch) || batch.length === 0) break
+      markets.push(...batch)
+
+      cursor = data.cursor || null
+      if (!cursor) break
+    }
+
+    return markets
   } catch {
     return []
   }

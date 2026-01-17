@@ -35,15 +35,15 @@ type KalshiTrade = {
 
 const MAX_MARKET_PAGES = 10
 
-const parsePlayerName = (title?: string | null) => {
-  if (!title) return null
+const parsePlayerName = (title?: string | null): string | undefined => {
+  if (!title) return undefined
   const colonMatch = title.match(/^([^:]+):/)
   if (colonMatch?.[1]) return colonMatch[1].trim()
   const recordMatch = title.match(
     /^([A-Za-z\s.'-]+?)(?:\s+(?:records|scores|to score)\b)/i
   )
   if (recordMatch?.[1]) return recordMatch[1].trim()
-  return null
+  return undefined
 }
 
 async function fetchMarkets(seriesTicker: string): Promise<KalshiMarket[]> {

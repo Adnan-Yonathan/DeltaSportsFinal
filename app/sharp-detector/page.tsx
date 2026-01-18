@@ -708,18 +708,18 @@ export default function SharpDetectorPage() {
             </div>
             <div className="absolute inset-0 flex items-center justify-center p-6">
               <div className="rounded-2xl border border-white/20 bg-black/80 px-6 py-5 text-center">
-                <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+                <p className="text-sm uppercase tracking-[0.3em] text-white/50">
                   Upgrade required
                 </p>
                 <h2 className="mt-3 text-xl font-semibold text-white">
                   Sharp Detector is for members.
                 </h2>
-                <p className="mt-2 text-sm text-white/60">
+                <p className="mt-2 text-base text-white/60">
                   Upgrade to unlock sharp trade alerts and tracking.
                 </p>
                 <Link
                   href="/pricing"
-                  className="mt-5 inline-flex items-center rounded-full border border-emerald-400/60 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
+                  className="mt-5 inline-flex items-center rounded-full border border-emerald-400/60 px-6 py-2.5 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
                 >
                   View plans
                 </Link>
@@ -744,7 +744,7 @@ export default function SharpDetectorPage() {
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold">Sharp Detector</h1>
           </div>
-          <p className="text-white/60 text-sm">
+          <p className="text-white/60 text-base">
             Track $2k+ prediction market trades and see if the market respects or fades them
           </p>
         </div>
@@ -752,23 +752,23 @@ export default function SharpDetectorPage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 mb-6">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center gap-2 text-white/50 text-xs mb-1">
-              <DollarSign className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-2 text-white/50 text-sm mb-1">
+              <DollarSign className="w-4 h-4" />
               Total Volume
             </div>
-            <p className="text-lg font-bold text-white">{formatCurrency(stats.totalNotional)}</p>
+            <p className="text-xl font-bold text-white">{formatCurrency(stats.totalNotional)}</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center gap-2 text-white/50 text-xs mb-1">
-              <Target className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-2 text-white/50 text-sm mb-1">
+              <Target className="w-4 h-4" />
               Sharps detected
             </div>
-            <p className="text-lg font-bold text-white">{stats.todayTrades}</p>
+            <p className="text-xl font-bold text-white">{stats.todayTrades}</p>
           </div>
         </div>
 
         {debugEnabled && (
-          <div className="mb-6 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-xs text-amber-100">
+          <div className="mb-6 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
             <div className="flex flex-wrap items-center gap-3">
               <span>Last fetch: {lastFetchAt ?? 'N/A'}</span>
               <span>API trades: {lastFetchCount ?? 'N/A'}</span>
@@ -788,7 +788,7 @@ export default function SharpDetectorPage() {
                 type="button"
                 onClick={() => setSportFilter(sport)}
                 className={cn(
-                  'px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.2em] transition',
+                  'px-4 py-2 rounded-full border text-sm uppercase tracking-[0.2em] transition',
                   sportFilter === sport
                     ? 'border-emerald-400 text-emerald-200 bg-emerald-400/10'
                     : 'border-white/10 text-white/50 hover:border-white/30 hover:text-white/80'
@@ -808,7 +808,7 @@ export default function SharpDetectorPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search bets, teams, or markets..."
-              className="w-full px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 placeholder:text-white/40 focus:outline-none focus:border-emerald-500/50"
+              className="w-full px-3 py-2 rounded-xl border border-white/10 bg-black text-base text-white/80 placeholder:text-white/40 focus:outline-none focus:border-emerald-500/50"
             />
           </div>
           {/* View Mode Toggle */}
@@ -816,7 +816,7 @@ export default function SharpDetectorPage() {
             <button
               onClick={() => setViewMode('all')}
               className={cn(
-                "px-4 py-2 text-sm font-medium transition",
+                "px-4 py-2.5 text-base font-medium transition",
                 viewMode === 'all'
                   ? "bg-emerald-500/20 text-emerald-300"
                   : "text-white/60 hover:bg-white/5"
@@ -827,7 +827,7 @@ export default function SharpDetectorPage() {
             <button
               onClick={() => setViewMode('games')}
               className={cn(
-                "px-4 py-2 text-sm font-medium transition flex items-center gap-2",
+                "px-4 py-2.5 text-base font-medium transition flex items-center gap-2",
                 viewMode === 'games'
                   ? "bg-emerald-500/20 text-emerald-300"
                   : "text-white/60 hover:bg-white/5"
@@ -836,7 +836,7 @@ export default function SharpDetectorPage() {
               <Zap className="w-4 h-4" />
               Hot Games
               {gameClusters.length > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/30 text-[10px] font-bold">
+                <span className="px-2 py-1 rounded-full bg-emerald-500/30 text-xs font-bold">
                   {gameClusters.length}
                 </span>
               )}
@@ -847,7 +847,7 @@ export default function SharpDetectorPage() {
           <select
             value={gameFilter}
             onChange={(e) => setGameFilter(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 focus:outline-none focus:border-emerald-500/50"
+            className="px-3 py-2 rounded-xl border border-white/10 bg-black text-base text-white/80 focus:outline-none focus:border-emerald-500/50"
           >
             <option value="all">All Games</option>
             {gameOptions.map((option) => (
@@ -863,7 +863,7 @@ export default function SharpDetectorPage() {
             onChange={(e) =>
               setSortFilter(e.target.value as 'newest' | 'strength')
             }
-            className="px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 focus:outline-none focus:border-emerald-500/50"
+            className="px-3 py-2 rounded-xl border border-white/10 bg-black text-base text-white/80 focus:outline-none focus:border-emerald-500/50"
           >
             <option value="newest">Newest</option>
             <option value="strength">Highest %</option>
@@ -875,7 +875,7 @@ export default function SharpDetectorPage() {
             onChange={(e) =>
               setSizeFilter(e.target.value as 'all' | 'small' | 'blue' | 'mega' | 'nuke')
             }
-            className="px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 focus:outline-none focus:border-emerald-500/50"
+            className="px-3 py-2 rounded-xl border border-white/10 bg-black text-base text-white/80 focus:outline-none focus:border-emerald-500/50"
           >
             <option value="all">All Sizes</option>
             <option value="small">Swordfish</option>
@@ -888,25 +888,25 @@ export default function SharpDetectorPage() {
             <button
               type="button"
               onClick={() => setWalletFilter('all')}
-              className="px-3 py-2 rounded-xl border border-emerald-400/40 text-xs uppercase tracking-[0.2em] text-emerald-200"
+              className="px-3 py-2 rounded-xl border border-emerald-400/40 text-sm uppercase tracking-[0.2em] text-emerald-200"
             >
               Wallet {formatWalletAlias(walletFilter)} x
             </button>
           )}
 
-          <span className="text-xs text-white/40">
+          <span className="text-sm text-white/40">
             {filteredTrades.length} trades
           </span>
         </div>
 
         <div className="mb-6 rounded-2xl border border-white/10 bg-black/40 p-4">
-          <div className="flex items-center justify-between text-[11px] text-white/60">
+          <div className="flex items-center justify-between text-sm text-white/60">
             <span className="uppercase tracking-[0.3em]">Tracked wallets</span>
             <button
               type="button"
               onClick={() => setShowTrackedWallets((prev) => !prev)}
               className={cn(
-                'rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] transition',
+                'rounded-full border px-3 py-1 text-xs uppercase tracking-[0.2em] transition',
                 showTrackedWallets
                   ? 'border-emerald-400/60 text-emerald-200 bg-emerald-400/10'
                   : 'border-white/10 text-white/50 hover:border-white/30 hover:text-white/80'
@@ -917,17 +917,17 @@ export default function SharpDetectorPage() {
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-              <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+              <div className="text-xs uppercase tracking-[0.3em] text-white/40">
                 Recent tracked bets
               </div>
               {trackedWalletTradePreview.length === 0 ? (
-                <div className="mt-2 text-xs text-white/50">
+                <div className="mt-2 text-sm text-white/50">
                   No tracked Polymarket bets yet.
                 </div>
               ) : (
                 <div className="mt-3 space-y-2">
                   {trackedWalletTradePreview.map((trade) => (
-                    <div key={trade.id} className="text-xs text-white/70">
+                    <div key={trade.id} className="text-sm text-white/70">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-white/80">
                           {formatWalletAlias(trade.proxyWallet)}
@@ -943,17 +943,17 @@ export default function SharpDetectorPage() {
               )}
             </div>
             <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-              <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+              <div className="text-xs uppercase tracking-[0.3em] text-white/40">
                 Winning wallet bets
               </div>
               {winningWalletTradePreview.length === 0 ? (
-                <div className="mt-2 text-xs text-white/50">
+                <div className="mt-2 text-sm text-white/50">
                   No winning wallets yet.
                 </div>
               ) : (
                 <div className="mt-3 space-y-2">
                   {winningWalletTradePreview.map((trade) => (
-                    <div key={trade.id} className="text-xs text-white/70">
+                    <div key={trade.id} className="text-sm text-white/70">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-emerald-200">
                           {formatWalletAlias(trade.proxyWallet)}
@@ -970,7 +970,7 @@ export default function SharpDetectorPage() {
             </div>
           </div>
           {walletStats.length === 0 ? (
-            <div className="mt-2 text-xs text-white/50">
+            <div className="mt-2 text-sm text-white/50">
               No Polymarket wallets tracked yet.
             </div>
           ) : showTrackedWallets ? (
@@ -989,7 +989,7 @@ export default function SharpDetectorPage() {
                     key={wallet.wallet}
                     onClick={() => setWalletFilter(wallet.wallet)}
                     className={cn(
-                      'flex items-center justify-between rounded-xl border px-3 py-2 text-xs text-white/70 transition',
+                      'flex items-center justify-between rounded-xl border px-3 py-2 text-sm text-white/70 transition',
                       walletFilter !== 'all' &&
                         normalizeWallet(wallet.wallet) === normalizeWallet(walletFilter)
                         ? 'border-emerald-400/50 bg-emerald-500/10'
@@ -998,10 +998,10 @@ export default function SharpDetectorPage() {
                   >
                     <span className="font-semibold text-white/80">
                       {formatWalletAlias(wallet.wallet)}
-                      <span className="ml-2 text-[10px] font-normal text-white/40">
+                      <span className="ml-2 text-xs font-normal text-white/40">
                         {wins}W - {losses}L - {pushes}P
                       </span>
-                      <span className="ml-2 text-[10px] font-normal text-emerald-200">
+                      <span className="ml-2 text-xs font-normal text-emerald-200">
                         P/L {pnlLabel}
                       </span>
                     </span>
@@ -1014,22 +1014,22 @@ export default function SharpDetectorPage() {
               })}
             </div>
           ) : (
-            <div className="mt-2 text-xs text-white/50">
+            <div className="mt-2 text-sm text-white/50">
               Click to view tracked wallets.
             </div>
           )}
         </div>
 
         <div className="mb-6 rounded-2xl border border-white/10 bg-black/40 p-4">
-          <div className="flex items-center justify-between text-[11px] text-white/60">
+          <div className="flex items-center justify-between text-sm text-white/60">
             <span className="uppercase tracking-[0.3em]">Top winning wallets</span>
-            <span className="text-[10px] text-white/40">realized P/L</span>
+            <span className="text-xs text-white/40">realized P/L</span>
           </div>
           {walletSummaryError && (
-            <div className="mt-2 text-xs text-rose-200">{walletSummaryError}</div>
+            <div className="mt-2 text-sm text-rose-200">{walletSummaryError}</div>
           )}
           {!walletSummaryError && walletSummary.length === 0 ? (
-            <div className="mt-2 text-xs text-white/50">
+            <div className="mt-2 text-sm text-white/50">
               No winning wallets yet.
             </div>
           ) : (
@@ -1037,7 +1037,7 @@ export default function SharpDetectorPage() {
               {walletSummary.map((wallet) => (
                 <div
                   key={wallet.wallet}
-                  className="flex items-center justify-between rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/70"
+                  className="flex items-center justify-between rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/70"
                 >
                   <div>
                     <div className="font-semibold text-emerald-200">
@@ -1065,10 +1065,10 @@ export default function SharpDetectorPage() {
             {gameClusters.length === 0 ? (
               <div className="rounded-2xl border border-white/10 bg-black/40 p-6 text-center">
                 <Zap className="w-8 h-8 text-white/30 mx-auto mb-3" />
-                <p className="text-white/60 text-sm">
+                <p className="text-white/60 text-base">
                   No games with multiple sharp bets yet.
                 </p>
-                <p className="text-white/40 text-xs mt-1">
+                <p className="text-white/40 text-sm mt-1">
                   Games appear here when 2+ big bets are placed on the same event.
                 </p>
               </div>
@@ -1085,17 +1085,17 @@ export default function SharpDetectorPage() {
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <Zap className="w-4 h-4 text-emerald-400" />
-                          <span className="text-xs uppercase tracking-wider text-emerald-300/70">
+                          <span className="text-sm uppercase tracking-wider text-emerald-300/70">
                             Hot Game - {cluster.tradeCount} sharp bets
                           </span>
                         </div>
-                        <h3 className="text-lg font-semibold text-white">{cluster.marketTitle}</h3>
-                        <div className="flex items-center gap-2 mt-1 text-xs text-white/50">
-                          <span className="px-2 py-0.5 rounded-full border border-white/10">
+                        <h3 className="text-xl font-semibold text-white">{cluster.marketTitle}</h3>
+                        <div className="flex items-center gap-2 mt-1 text-sm text-white/50">
+                          <span className="px-3 py-1 rounded-full border border-white/10">
                             {cluster.sport}
                           </span>
                           {cluster.eventDate && (
-                            <span className="px-2 py-0.5 rounded-full border border-white/10">
+                            <span className="px-3 py-1 rounded-full border border-white/10">
                               {cluster.eventDate}
                             </span>
                           )}
@@ -1105,7 +1105,7 @@ export default function SharpDetectorPage() {
                         <p className="text-2xl font-bold text-emerald-300">
                           {formatCurrency(cluster.totalNotional)}
                         </p>
-                        <p className="text-xs text-white/50">total volume</p>
+                        <p className="text-sm text-white/50">total volume</p>
                       </div>
                     </div>
 
@@ -1123,28 +1123,28 @@ export default function SharpDetectorPage() {
                         >
                           <div className="flex items-center gap-3">
                             <span className={cn(
-                              "px-2 py-0.5 rounded-full border text-[10px] font-semibold uppercase",
+                              "px-3 py-1 rounded-full border text-xs font-semibold uppercase",
                               sharpTierClass[tier]
                             )}>
                               {formatCurrency(trade.notional)}
                             </span>
-                            <span className="text-sm text-white/80">{trade.outcome}</span>
-                            <span className="text-xs text-white/40">
+                            <span className="text-base text-white/80">{trade.outcome}</span>
+                            <span className="text-sm text-white/40">
                               {resolveOddsLabel(trade)}
                             </span>
                             {isTrackedWallet && (
-                              <span className="px-2 py-0.5 rounded-full border border-emerald-400/40 text-[10px] text-emerald-200">
+                              <span className="px-3 py-1 rounded-full border border-emerald-400/40 text-xs text-emerald-200">
                                 Tracked {formatWalletAlias(trade.proxyWallet)}
                               </span>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
                       {Number.isFinite(trade.sharpStrength) && (
-                        <span className={cn('text-[10px] uppercase font-semibold', resolveStrengthClass(trade.sharpStrength))}>
+                        <span className={cn('text-xs uppercase font-semibold', resolveStrengthClass(trade.sharpStrength))}>
                           {trade.sharpStrength}% strength
                         </span>
                       )}
-                            <span className="text-xs text-white/40">
+                            <span className="text-sm text-white/40">
                               {formatTimestamp(trade.timestamp)}
                             </span>
                           </div>
@@ -1165,10 +1165,10 @@ export default function SharpDetectorPage() {
             {sortedTrades.length === 0 && (
               <div className="rounded-2xl border border-white/10 bg-black/40 p-6 text-center">
                 <Target className="w-8 h-8 text-white/30 mx-auto mb-3" />
-                <p className="text-white/60 text-sm">
+                <p className="text-white/60 text-base">
                   No sharp bets detected yet.
                 </p>
-                <p className="text-white/40 text-xs mt-1">
+                <p className="text-white/40 text-sm mt-1">
                   Trades &gt;= {formatCurrency(MIN_NOTIONAL)} will appear here.
                 </p>
               </div>
@@ -1191,53 +1191,53 @@ export default function SharpDetectorPage() {
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+                    <span className="text-xs uppercase tracking-[0.3em] text-white/40">
                       {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
                     </span>
                     <div className="flex items-center gap-2">
                       {Number.isFinite(trade.sharpStrength) && (
-                        <span className={cn('text-[10px] uppercase tracking-[0.3em] font-semibold', resolveStrengthClass(trade.sharpStrength))}>
+                        <span className={cn('text-xs uppercase tracking-[0.3em] font-semibold', resolveStrengthClass(trade.sharpStrength))}>
                           {trade.sharpStrength}% strength
                         </span>
                       )}
                     </div>
                   </div>
-                  <p className="mt-2 text-sm font-semibold text-white">
+                  <p className="mt-2 text-base font-semibold text-white">
                     Someone put {formatCurrency(trade.notional)} on {trade.outcome} in{' '}
                     {trade.marketTitle}
                   </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-white/60">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-white/60">
                     <span
                       className={cn(
-                        'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]',
+                        'rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]',
                         sharpTierClass[sharpTier]
                       )}
                     >
                       {sharpTierLabel[sharpTier]}
                     </span>
-                    <span className="rounded-full border border-white/10 px-2 py-0.5">
+                    <span className="rounded-full border border-white/10 px-3 py-1">
                       {trade.outcome}
                     </span>
-                    <span className="rounded-full border border-white/10 px-2 py-0.5">
+                    <span className="rounded-full border border-white/10 px-3 py-1">
                       {resolvePhase(trade)}
                     </span>
-                    <span className="rounded-full border border-white/10 px-2 py-0.5">
+                    <span className="rounded-full border border-white/10 px-3 py-1">
                       {trade.sport}
                     </span>
                     {trade.eventDate && (
-                      <span className="rounded-full border border-white/10 px-2 py-0.5">
+                      <span className="rounded-full border border-white/10 px-3 py-1">
                         {trade.eventDate}
                       </span>
                     )}
-                    <span className="rounded-full border border-white/10 px-2 py-0.5">
+                    <span className="rounded-full border border-white/10 px-3 py-1">
                       {resolveOddsLabel(trade)}
                     </span>
                     {isTrackedWallet && (
-                      <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-emerald-200">
+                      <span className="rounded-full border border-emerald-400/40 px-3 py-1 text-emerald-200">
                         Tracked {formatWalletAlias(trade.proxyWallet)}
                       </span>
                     )}
-                    <span className="rounded-full border border-white/10 px-2 py-0.5">
+                    <span className="rounded-full border border-white/10 px-3 py-1">
                       Detected {formatTimestamp(trade.timestamp)}
                     </span>
                   </div>

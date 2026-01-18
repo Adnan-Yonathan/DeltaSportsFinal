@@ -881,6 +881,7 @@ export const fetchPlayerPropWhaleTrades = async ({
     )
     .eq('market_type', 'player_prop')
     .gte('trade_time', tradeWindowStart.toISOString())
+    .gte('event_time', now.toISOString())
     .order('trade_time', { ascending: false })
     .limit(limit)
 

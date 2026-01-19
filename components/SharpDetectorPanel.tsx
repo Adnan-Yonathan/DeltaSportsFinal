@@ -1471,6 +1471,7 @@ export default function SharpDetectorPanel({
             const isFresh = now - new Date(trade.timestamp).getTime() < 2 * 60 * 1000
             const sharpTier = resolveSharpTier(trade.notional)
             const hasRlm = trade.ultraSharpReasons?.some(r => r.type === 'rlm')
+            const matchupLabel = resolveGameLabel(trade.marketTitle)
 
             return (
               <motion.div
@@ -1540,9 +1541,26 @@ export default function SharpDetectorPanel({
                     <Clock className="w-3 h-3" />
                     Detected {formatTimestamp(trade.timestamp)}
                   </div>
-                  <span className="text-[10px] uppercase tracking-wider text-white/30">
-                    {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] uppercase tracking-wider text-white/30">
+                      {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
+                    </span>
+                    <ShareTradeButton
+                      trade={{
+                        id: trade.id,
+                        marketTitle: trade.marketTitle,
+                        outcome: trade.outcome,
+                        notional: trade.notional,
+                        source: trade.source,
+                        sport: trade.sport,
+                        eventDate: trade.eventDate,
+                        timestamp: trade.timestamp,
+                        priceCents: trade.priceCents,
+                        americanOdds: trade.americanOdds,
+                      }}
+                      matchupLabel={matchupLabel}
+                    />
+                  </div>
                 </div>
               </motion.div>
             )

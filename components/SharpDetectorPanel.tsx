@@ -149,6 +149,15 @@ const parseEventTime = (value?: string | null) => {
   return Number.isFinite(time) ? time : null
 }
 
+const isTradeLive = (trade: SharpTrade) => {
+  if (!trade.eventDate) return false
+  const eventTime = parseEventTime(trade.eventDate)
+  if (!eventTime) return false
+  const now = Date.now()
+  const fourHoursMs = 4 * 60 * 60 * 1000
+  return eventTime <= now && eventTime > now - fourHoursMs
+}
+
 const resolvePhase = (trade: SharpTrade) => {
   if (!trade.eventDate) return 'Pregame'
   const eventTime = parseEventTime(trade.eventDate)
@@ -764,7 +773,12 @@ export default function SharpDetectorPanel({
     const phaseFiltered = filterByPhase(trades, phaseFilter)
     // Filter to only ultra-sharp trades
     return phaseFiltered
-      .filter((trade) => trade.isUltraSharp === true && (trade.sharpStrength ?? 0) > 55)
+      .filter(
+        (trade) =>
+          trade.isUltraSharp === true &&
+          (trade.sharpStrength ?? 0) > 55 &&
+          !isTradeLive(trade)
+      )
       .sort((a, b) => {
         // Sort by strength first, then by time
         const strengthA = a.sharpStrength ?? 0

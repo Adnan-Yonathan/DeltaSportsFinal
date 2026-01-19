@@ -16,6 +16,7 @@ type SharpTrade = {
   sharpStrength?: number
   sport: string
   timestamp: string
+  eventDate?: string
 }
 
 type SharpAlert = {
@@ -28,6 +29,32 @@ const POLL_INTERVAL_MS = 15000
 const ALERT_TTL_MS = 30000
 const MAX_ALERTS = 4
 const SEEN_STORAGE_KEY = 'sharp-money-alerts-seen'
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+
+const parseEventTime = (value?: string | null) => {
+  if (!value) return null
+  const match = value.match(DATE_ONLY_PATTERN)
+  if (match) {
+    const year = Number(match[1])
+    const month = Number(match[2])
+    const day = Number(match[3])
+    const date = new Date(year, month - 1, day, 23, 59, 59, 999)
+    const time = date.getTime()
+    return Number.isFinite(time) ? time : null
+  }
+  const parsed = new Date(value)
+  const time = parsed.getTime()
+  return Number.isFinite(time) ? time : null
+}
+
+const isTradeLive = (trade: SharpTrade) => {
+  if (!trade.eventDate) return false
+  const eventTime = parseEventTime(trade.eventDate)
+  if (!eventTime) return false
+  const now = Date.now()
+  const fourHoursMs = 4 * 60 * 60 * 1000
+  return eventTime <= now && eventTime > now - fourHoursMs
+}
 
 const formatTimestamp = (value: string) => {
   const date = new Date(value)
@@ -94,7 +121,10 @@ export default function SharpMoneyAlertHub() {
         const data = await res.json()
         const incoming: SharpTrade[] = Array.isArray(data?.trades) ? data.trades : []
         const ultraSharps = incoming.filter(
-          (trade) => trade.isUltraSharp === true && (trade.sharpStrength ?? 0) > 55
+          (trade) =>
+            trade.isUltraSharp === true &&
+            (trade.sharpStrength ?? 0) > 55 &&
+            !isTradeLive(trade)
         )
 
         if (!hasInitializedRef.current) {

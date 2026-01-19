@@ -30,6 +30,7 @@ const SHARP_CACHE_VERSION = '3'
 const EASTERN_TIMEZONE = 'America/New_York'
 const PROMO_DISMISS_KEY = 'promo_links_dismissed'
 const PROMO_CLICK_KEY = 'promo_links_click_source'
+const PERF_DASHBOARD_DISMISS_KEY = 'perf_dashboard_dismissed'
 const DISCORD_INVITE_URL = 'https://discord.gg/8jUcaKT9'
 const KALSHI_REFERRAL_URL = 'https://kalshi.com/sign-up/?referral=4807d3a2-7c7c-40bb-986c-608115b5a2c5'
 
@@ -104,7 +105,10 @@ function ChatPageContent() {
   const [promoDismissed, setPromoDismissed] = useState(false)
   const [promoMounted, setPromoMounted] = useState(false)
   const { recap, dismissed: recapDismissed, dismiss: dismissRecap } = useDailyRecap()
-  const [perfDashboardDismissed, setPerfDashboardDismissed] = useState(false)
+  const [perfDashboardDismissed, setPerfDashboardDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem(PERF_DASHBOARD_DISMISS_KEY) === '1'
+  })
   const router = useRouter()
   const searchParams = useSearchParams()
   const prefillMessage = searchParams.get('prompt') ?? undefined
@@ -1259,7 +1263,12 @@ function ChatPageContent() {
                 (user.user_metadata as { onboarding_profile?: { bankroll?: number } })
                   ?.onboarding_profile?.bankroll || 10000
               }
-              onDismiss={() => setPerfDashboardDismissed(true)}
+              onDismiss={() => {
+                setPerfDashboardDismissed(true)
+                if (typeof window !== 'undefined') {
+                  window.localStorage.setItem(PERF_DASHBOARD_DISMISS_KEY, '1')
+                }
+              }}
             />
           </div>,
           document.body

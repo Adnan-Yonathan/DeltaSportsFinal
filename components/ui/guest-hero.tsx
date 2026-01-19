@@ -15,14 +15,10 @@ export function GuestHero({ onSignUpClick }: GuestHeroProps) {
       className="text-center"
     >
       <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">
-        Bet Like a{' '}
-        <span className="bg-gradient-to-r from-[#34d399] via-[#34d399] to-[#16a34a] bg-clip-text text-transparent">
-          Pro
-        </span>
+        Make Money
         <br />
-        All in One{' '}
         <span className="bg-gradient-to-r from-[#34d399] via-[#34d399] to-[#16a34a] bg-clip-text text-transparent">
-          Platform
+          Tailing Sharp Bettors
         </span>
       </h1>
       <p className="text-base md:text-lg leading-relaxed tracking-tight text-white/80 max-w-2xl mx-auto">

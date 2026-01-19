@@ -199,6 +199,31 @@ export type WhaleTradeWithStatus = WhaleTrade & {
 // Ultra-sharp classification types
 export type UltraSharpReasonType = 'rlm' | 'timing' | 'divergence' | 'cluster'
 
+// Cluster detection configuration by sport
+type ClusterConfig = {
+  minBets: number           // Minimum bets in window to trigger
+  windowMs: number          // Window size in ms (2 minutes)
+  minHoursBeforeEvent: number | null  // Minimum hours before event (null = no requirement)
+}
+
+const CLUSTER_CONFIG: Record<string, ClusterConfig> = {
+  NBA: { minBets: 5, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: 4 },
+  NFL: { minBets: 5, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: 24 },
+  NCAAB: { minBets: 3, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: null },
+  NCAAF: { minBets: 3, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: null },
+  NHL: { minBets: 3, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: null },
+}
+
+const DEFAULT_CLUSTER_CONFIG: ClusterConfig = {
+  minBets: 5,
+  windowMs: 2 * 60 * 1000,
+  minHoursBeforeEvent: null,
+}
+
+const getClusterConfig = (sport: string): ClusterConfig => {
+  return CLUSTER_CONFIG[sport] ?? DEFAULT_CLUSTER_CONFIG
+}
+
 export type UltraSharpReason = {
   type: UltraSharpReasonType
   description: string
@@ -1111,18 +1136,33 @@ const computeStrengthScore = (opts: {
 const classifyUltraSharp = (opts: {
   trade: WhaleTrade
   strengthResult: StrengthScoreResult
+  clusterResult?: ClusterResult
 }): { isUltraSharp: boolean; reasons: UltraSharpReason[] } => {
-  const { trade, strengthResult } = opts
+  const { trade, strengthResult, clusterResult } = opts
   const { score, timingScore, rlmScore, rlmDetected, divergencePercent, sportContext } = strengthResult
   const reasons: UltraSharpReason[] = []
 
-  // Base requirement: strength >= sport-specific minimum
+  // Signal requirements tracking
+  let signalCount = 0
+
+  // Cluster signal - this is a STRONG signal that can override strength requirements
+  if (clusterResult?.isCluster) {
+    signalCount += 2 // Cluster counts as 2 signals since it's very significant
+    const windowMinutes = Math.round(clusterResult.windowMs / (1000 * 60))
+    reasons.push({
+      type: 'cluster',
+      description: `${clusterResult.clusterSize} bets detected on this outcome within ${windowMinutes} minutes - coordinated sharp action`,
+      value: clusterResult.clusterSize,
+    })
+    // If we have a cluster, we can be more lenient on strength requirement
+    // Return early as ultra-sharp if cluster is detected
+    return { isUltraSharp: true, reasons }
+  }
+
+  // For non-cluster trades, require base strength
   if (score < sportContext.minimumStrength) {
     return { isUltraSharp: false, reasons: [] }
   }
-
-  // Signal requirements tracking
-  let signalCount = 0
 
   // RLM signal
   if (rlmDetected && rlmScore >= 0.7) {
@@ -1162,6 +1202,65 @@ const classifyUltraSharp = (opts: {
   return { isUltraSharp, reasons }
 }
 
+// Cluster detection: find trades on the same outcome within a time window
+type ClusterResult = {
+  isCluster: boolean
+  clusterSize: number
+  windowMs: number
+}
+
+const buildOutcomeKey = (trade: WhaleTrade): string => {
+  // Normalize the outcome key to group similar bets together
+  const normalizedOutcome = trade.outcome.toLowerCase().trim()
+  const normalizedMarket = trade.marketTitle.toLowerCase().trim()
+  // Include sport and source to avoid cross-sport/source matching
+  return `${trade.sport}:${trade.source}:${normalizedMarket}:${normalizedOutcome}`
+}
+
+const detectClusterForTrade = (
+  trade: WhaleTrade,
+  allTrades: WhaleTrade[],
+  config: ClusterConfig
+): ClusterResult => {
+  const tradeTime = new Date(trade.timestamp).getTime()
+  if (!Number.isFinite(tradeTime)) {
+    return { isCluster: false, clusterSize: 1, windowMs: config.windowMs }
+  }
+
+  // Check timing requirement for NBA/NFL
+  if (config.minHoursBeforeEvent !== null && trade.eventDate) {
+    const eventTime = new Date(trade.eventDate).getTime()
+    if (Number.isFinite(eventTime)) {
+      const hoursUntilEvent = (eventTime - tradeTime) / (1000 * 60 * 60)
+      if (hoursUntilEvent < config.minHoursBeforeEvent) {
+        // Too close to game time, don't count as cluster
+        return { isCluster: false, clusterSize: 1, windowMs: config.windowMs }
+      }
+    }
+  }
+
+  const outcomeKey = buildOutcomeKey(trade)
+  const windowStart = tradeTime - config.windowMs
+  const windowEnd = tradeTime + config.windowMs
+
+  // Count trades on the same outcome within the window
+  let clusterSize = 0
+  for (const otherTrade of allTrades) {
+    if (buildOutcomeKey(otherTrade) !== outcomeKey) continue
+    const otherTime = new Date(otherTrade.timestamp).getTime()
+    if (!Number.isFinite(otherTime)) continue
+    if (otherTime >= windowStart && otherTime <= windowEnd) {
+      clusterSize++
+    }
+  }
+
+  return {
+    isCluster: clusterSize >= config.minBets,
+    clusterSize,
+    windowMs: config.windowMs,
+  }
+}
+
 const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<UltraSharpTrade[]> => {
   const oddsCache = await buildSportsbookOddsCache(trades)
   const kalshiTrades = trades.filter(
@@ -1192,6 +1291,10 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
     const sportsbookProb = resolveSportsbookProbability(trade, oddsCache)
     const sportContext = getSportContext(trade.sport)
 
+    // Detect cluster for this trade
+    const clusterConfig = getClusterConfig(trade.sport)
+    const clusterResult = detectClusterForTrade(trade, trades, clusterConfig)
+
     if (trade.source === 'kalshi' && trade.ticker) {
       const side = (trade.side ?? 'yes') as 'yes' | 'no'
       const market = marketCache.get(trade.ticker) ?? null
@@ -1208,7 +1311,7 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
         recentTrades,
         sportsbookProb,
       })
-      const { isUltraSharp, reasons } = classifyUltraSharp({ trade, strengthResult })
+      const { isUltraSharp, reasons } = classifyUltraSharp({ trade, strengthResult, clusterResult })
 
       return {
         ...trade,
@@ -1248,9 +1351,32 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
       }
       const score = Math.max(0, Math.min(100, Math.round((baseScore + boost) * 10) / 10))
 
-      // Simplified ultra-sharp for Polymarket (timing + divergence)
+      // Simplified ultra-sharp for Polymarket (timing + divergence + cluster)
       const reasons: UltraSharpReason[] = []
       let signalCount = 0
+
+      // Check for cluster first - if detected, immediately ultra-sharp
+      if (clusterResult.isCluster) {
+        const windowMinutes = Math.round(clusterResult.windowMs / (1000 * 60))
+        reasons.push({
+          type: 'cluster',
+          description: `${clusterResult.clusterSize} bets detected on this outcome within ${windowMinutes} minutes - coordinated sharp action`,
+          value: clusterResult.clusterSize,
+        })
+        // Cluster is strong enough signal on its own
+        return {
+          ...trade,
+          sharpStrength: score,
+          currentPriceCents: trade.priceCents,
+          currentAmericanOdds: trade.americanOdds,
+          isUltraSharp: true,
+          ultraSharpReasons: reasons,
+          sportContext,
+          timingScore,
+          rlmScore: undefined,
+          divergencePercent,
+        }
+      }
 
       if (timingScore >= 0.7) {
         signalCount++

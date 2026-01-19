@@ -6,7 +6,7 @@ import { ArrowUpRight, Mic, Send } from "lucide-react"
 import Link from "next/link"
 import { FeaturesSix } from "@/components/ui/features-6"
 import SectionWithMockup from "@/components/ui/section-with-mockup"
-import { ComparisonSection } from "@/components/ui/comparison-section"
+import { ROICalculator } from "@/components/ui/roi-calculator"
 import { HowWeHelpSection } from "@/components/ui/how-we-help-section"
 import { FAQSection } from "@/components/ui/faq-section"
 import { SimpleHeader } from "@/components/ui/simple-header"
@@ -420,10 +420,10 @@ export default function LandingPage() {
       {/* How We Help Section */}
       <HowWeHelpSection />
 
-      {/* Comparison Section */}
+      {/* ROI Calculator Section */}
       <FadeInSection className="w-full" delay={0.1}>
-        <div id="comparison">
-          <ComparisonSection />
+        <div id="calculator">
+          <ROICalculator />
         </div>
       </FadeInSection>
 

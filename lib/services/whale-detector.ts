@@ -2,7 +2,7 @@ import { decimalToAmerican } from '@/lib/utils/odds'
 import { oddsToImpliedProbability } from '@/lib/utils/statistics'
 import { fetchOdds } from '@/lib/api/odds-api'
 import { normalizeTeamKey } from '@/lib/identity/sport'
-import type { OddsGame } from '@/lib/types/odds'
+import type { Bookmaker, OddsGame } from '@/lib/types/odds'
 
 const KALSHI_BASE = 'https://api.elections.kalshi.com/trade-api/v2'
 const POLYMARKET_TRADES = 'https://data-api.polymarket.com/trades'
@@ -11,6 +11,7 @@ export const DEFAULT_LIMIT = 50
 export const DEFAULT_MIN_NOTIONAL = 2000
 export const RESPECT_CHECK_MS = 15 * 60 * 1000
 export const RESPECT_TOLERANCE_CENTS = 2
+const MAX_FEED_DIVERGENCE_PERCENT = 15
 
 const KALSHI_SPORT_PREFIXES = [
   'KXNBA',
@@ -109,6 +110,8 @@ const MONTHS: Record<string, string> = {
   DEC: '12',
 }
 
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+
 type KalshiTrade = {
   trade_id: string
   ticker: string
@@ -197,7 +200,13 @@ export type WhaleTradeWithStatus = WhaleTrade & {
 }
 
 // Ultra-sharp classification types
-export type UltraSharpReasonType = 'rlm' | 'timing' | 'divergence' | 'cluster'
+export type UltraSharpReasonType =
+  | 'rlm'
+  | 'timing'
+  | 'divergence'
+  | 'cluster'
+  | 'cross-market-ev'
+  | 'big-bet'
 
 // Cluster detection configuration by sport
 type ClusterConfig = {
@@ -207,15 +216,15 @@ type ClusterConfig = {
 }
 
 const CLUSTER_CONFIG: Record<string, ClusterConfig> = {
-  NBA: { minBets: 5, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: 4 },
-  NFL: { minBets: 5, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: 72 }, // 3 days
-  NCAAB: { minBets: 3, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: null },
-  NHL: { minBets: 3, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: null },
+  NBA: { minBets: 5, windowMs: 10 * 60 * 1000, minHoursBeforeEvent: 4 },
+  NFL: { minBets: 5, windowMs: 10 * 60 * 1000, minHoursBeforeEvent: 72 }, // 3 days
+  NCAAB: { minBets: 3, windowMs: 10 * 60 * 1000, minHoursBeforeEvent: null },
+  NHL: { minBets: 3, windowMs: 10 * 60 * 1000, minHoursBeforeEvent: null },
 }
 
 const DEFAULT_CLUSTER_CONFIG: ClusterConfig = {
   minBets: 5,
-  windowMs: 2 * 60 * 1000,
+  windowMs: 10 * 60 * 1000,
   minHoursBeforeEvent: null,
 }
 
@@ -245,6 +254,7 @@ export type UltraSharpTrade = WhaleTrade & {
   timingScore?: number
   rlmScore?: number
   divergencePercent?: number | null
+  crossMarketEvPercent?: number | null
 }
 
 // Sport-specific context configuration
@@ -574,10 +584,11 @@ const fetchPolymarketTrades = async (
         const event = await fetchPolymarketEvent(eventSlug)
         if (!event?.isSports) return null
       }
-      const notional = Number(trade.size) * Number(trade.price)
+      const normalized = normalizePolymarketTrade(trade)
+      const notional = Number(trade.size) * Number(normalized.price)
       if (!Number.isFinite(notional) || notional < minNotional) return null
-      const priceCents = Math.round(Number(trade.price) * 100)
-      const probability = Number(trade.price)
+      const priceCents = Math.round(Number(normalized.price) * 100)
+      const probability = Number(normalized.price)
       const americanOdds = probabilityToAmerican(probability)
       if (americanOdds !== null && americanOdds <= -300) return null
       const sportLabel = await resolvePolymarketSportLabel(
@@ -588,7 +599,7 @@ const fetchPolymarketTrades = async (
         id: `polymarket:${trade.transactionHash}`,
         source: 'polymarket' as const,
         marketTitle: trade.title,
-        outcome: trade.outcome,
+        outcome: normalized.outcome,
         proxyWallet: trade.proxyWallet,
         priceCents,
         americanOdds,
@@ -598,7 +609,7 @@ const fetchPolymarketTrades = async (
         sport: sportLabel,
         eventDate: parsePolymarketDate(eventSlug),
         slug: trade.slug,
-        outcomeIndex: trade.outcomeIndex ?? undefined,
+        outcomeIndex: normalized.outcomeIndex ?? undefined,
         side: trade.side,
       }
     })
@@ -684,6 +695,89 @@ const parseTeamsFromTitle = (title: string): ParsedTeams | null => {
   return { away: first, home: second }
 }
 
+const resolveClusterDateKey = (trade: WhaleTrade) => {
+  if (trade.eventDate && DATE_ONLY_PATTERN.test(trade.eventDate)) {
+    return trade.eventDate
+  }
+  const raw = trade.eventDate ?? trade.timestamp
+  const parsed = new Date(raw)
+  if (!Number.isFinite(parsed.getTime())) return 'unknown'
+  return parsed.toISOString().slice(0, 10)
+}
+
+const buildGameKeyForTrade = (trade: WhaleTrade) => {
+  const teams = parseTeamsFromTitle(trade.marketTitle)
+  if (!teams) return null
+  const awayKey = normalizeTeamKey(teams.away)
+  const homeKey = normalizeTeamKey(teams.home)
+  if (!awayKey || !homeKey) return null
+  const ordered = [awayKey, homeKey].sort()
+  const dateKey = resolveClusterDateKey(trade)
+  return `${trade.sport}:${dateKey}:${ordered[0]}@${ordered[1]}`
+}
+
+const normalizeOutcomeLabel = (value?: string | null) => value?.trim() ?? ''
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const replaceTeamLabel = (label: string, from: string, to: string) => {
+  const pattern = new RegExp(`\\b${escapeRegExp(from)}\\b`, 'i')
+  if (!pattern.test(label)) return label
+  return label.replace(pattern, to)
+}
+
+const flipSignedLineInLabel = (label: string) => {
+  const match = label.match(/([+-])\s?(\d+(?:\.\d+)?)/)
+  if (!match) return label
+  const sign = match[1]
+  const value = match[2]
+  const flipped = sign === '-' ? `+${value}` : `-${value}`
+  return label.replace(match[0], flipped)
+}
+
+const flipOutcomeLabel = (outcome: string, teams: ParsedTeams | null) => {
+  const label = normalizeOutcomeLabel(outcome)
+  if (!label) return outcome
+  const lower = label.toLowerCase()
+  if (lower === 'yes') return 'No'
+  if (lower === 'no') return 'Yes'
+  if (lower.includes('over')) {
+    return label.replace(/over/i, (match) => (match[0] === 'O' ? 'Under' : 'under'))
+  }
+  if (lower.includes('under')) {
+    return label.replace(/under/i, (match) => (match[0] === 'U' ? 'Over' : 'over'))
+  }
+  if (teams) {
+    const outcomeKey = normalizeTeamKey(label)
+    const homeKey = normalizeTeamKey(teams.home)
+    const awayKey = normalizeTeamKey(teams.away)
+    if (outcomeKey && homeKey && (outcomeKey === homeKey || outcomeKey.includes(homeKey))) {
+      return flipSignedLineInLabel(replaceTeamLabel(label, teams.home, teams.away))
+    }
+    if (outcomeKey && awayKey && (outcomeKey === awayKey || outcomeKey.includes(awayKey))) {
+      return flipSignedLineInLabel(replaceTeamLabel(label, teams.away, teams.home))
+    }
+  }
+  return outcome
+}
+
+const normalizePolymarketTrade = (trade: PolymarketTrade) => {
+  const side = trade.side?.toUpperCase()
+  const isSell = side === 'SELL'
+  const teams = parseTeamsFromTitle(trade.title)
+  const outcomeIndex = trade.outcomeIndex
+  const canFlipIndex = outcomeIndex === 0 || outcomeIndex === 1
+  const price = Number(trade.price)
+  const effectivePrice =
+    isSell && Number.isFinite(price) && price > 0 && price < 1 ? 1 - price : price
+  return {
+    isSell,
+    outcome: isSell ? flipOutcomeLabel(trade.outcome, teams) : trade.outcome,
+    outcomeIndex: isSell && canFlipIndex ? 1 - outcomeIndex : outcomeIndex,
+    price: effectivePrice,
+  }
+}
+
 const extractSignedLine = (text?: string | null) => {
   if (!text) return null
   const match = text.match(/([+-]?\d+(?:\.\d+)?)/)
@@ -710,6 +804,17 @@ const resolveMarketType = (trade: WhaleTrade) => {
   return 'h2h'
 }
 
+const formatLineKey = (value: number) => Number(value).toFixed(2)
+
+const normalizeSelectionName = (value: string) => value.trim().toLowerCase()
+
+const SELECTION_KEY_SEPARATOR = '::'
+
+const buildSelectionKey = (name: string, point?: number | null) => {
+  if (point == null) return normalizeSelectionName(name)
+  return `${normalizeSelectionName(name)}${SELECTION_KEY_SEPARATOR}${formatLineKey(point)}`
+}
+
 const resolveTotalSide = (trade: WhaleTrade): 'over' | 'under' | null => {
   const combined = `${trade.outcome} ${trade.marketTitle}`.toLowerCase()
   if (combined.includes('over')) return 'over'
@@ -728,6 +833,121 @@ const resolveSelectionTeam = (trade: WhaleTrade, teams: ParsedTeams | null) => {
   if (outcomeKey && awayKey && (outcomeKey === awayKey || outcomeKey.includes(awayKey))) {
     return teams.away
   }
+  return null
+}
+
+const resolveTradeSelection = (
+  trade: WhaleTrade,
+  marketKey: string,
+  teams: ParsedTeams | null
+) => {
+  const selection = {
+    team: resolveSelectionTeam(trade, teams) || undefined,
+    totalSide: resolveTotalSide(trade) || undefined,
+    line: undefined as number | undefined,
+  }
+
+  const outcomeLine = extractSignedLine(trade.outcome)
+  if (outcomeLine != null) {
+    selection.line = outcomeLine
+    return selection
+  }
+
+  const titleLine = extractSignedLine(trade.marketTitle)
+  if (titleLine != null) {
+    if (marketKey === 'totals' && selection.totalSide) {
+      const titleLower = trade.marketTitle.toLowerCase()
+      if (titleLower.includes(selection.totalSide)) selection.line = titleLine
+    } else if (marketKey === 'spreads' && selection.team) {
+      const titleKey = normalizeTeamKey(trade.marketTitle)
+      const teamKey = normalizeTeamKey(selection.team)
+      if (teamKey && titleKey.includes(teamKey)) selection.line = titleLine
+    } else if (marketKey !== 'spreads' && marketKey !== 'totals') {
+      selection.line = titleLine
+    }
+  }
+
+  return selection
+}
+
+const calculateImpliedProbability = (odds: number) => {
+  if (!Number.isFinite(odds) || odds === 0) return null
+  if (odds > 0) return 100 / (odds + 100)
+  const absolute = Math.abs(odds)
+  return absolute / (absolute + 100)
+}
+
+const buildNoVigConsensusBySelection = (
+  bookmakers: Bookmaker[],
+  marketKey: string
+): Map<string, { impliedProbability: number; bookCount: number }> => {
+  const selectionProbabilities = new Map<string, number[]>()
+
+  for (const bookmaker of bookmakers) {
+    const market = bookmaker.markets?.find((m) => m.key === marketKey)
+    if (!market) continue
+    const implied = (market.outcomes || [])
+      .map((outcome) => {
+        const prob = calculateImpliedProbability(Number(outcome.price))
+        if (prob == null || !Number.isFinite(prob) || prob <= 0) return null
+        return { key: buildSelectionKey(outcome.name, outcome.point), prob }
+      })
+      .filter(Boolean) as Array<{ key: string; prob: number }>
+    if (implied.length < 2) continue
+    const totalProb = implied.reduce((sum, entry) => sum + entry.prob, 0)
+    if (!Number.isFinite(totalProb) || totalProb <= 0) continue
+    for (const entry of implied) {
+      const normalized = entry.prob / totalProb
+      const bucket = selectionProbabilities.get(entry.key) || []
+      bucket.push(normalized)
+      selectionProbabilities.set(entry.key, bucket)
+    }
+  }
+
+  const consensus = new Map<string, { impliedProbability: number; bookCount: number }>()
+  for (const [key, probs] of selectionProbabilities.entries()) {
+    if (!probs.length) continue
+    const avg = probs.reduce((sum, value) => sum + value, 0) / probs.length
+    consensus.set(key, { impliedProbability: avg, bookCount: probs.length })
+  }
+
+  return consensus
+}
+
+const resolveSelectionKeyForTrade = (
+  marketKey: string,
+  selection: { team?: string; totalSide?: 'over' | 'under'; line?: number },
+  consensus: Map<string, { impliedProbability: number; bookCount: number }>
+) => {
+  if (marketKey === 'totals' && selection.totalSide && selection.line != null) {
+    const target = buildSelectionKey(selection.totalSide, selection.line)
+    if (consensus.has(target)) return target
+  }
+
+  if (marketKey === 'spreads' && selection.team && selection.line != null) {
+    const teamKey = normalizeTeamKey(selection.team)
+    const lineKey = formatLineKey(selection.line)
+    for (const key of consensus.keys()) {
+      const [rawName, rawLine] = key.split(SELECTION_KEY_SEPARATOR)
+      if (!rawLine || rawLine !== lineKey) continue
+      const candidateTeamKey = normalizeTeamKey(rawName)
+      if (candidateTeamKey && teamKey && (candidateTeamKey === teamKey || candidateTeamKey.includes(teamKey))) {
+        return key
+      }
+    }
+  }
+
+  if (marketKey === 'h2h' && selection.team) {
+    const teamKey = normalizeTeamKey(selection.team)
+    for (const key of consensus.keys()) {
+      const [rawName] = key.split(SELECTION_KEY_SEPARATOR)
+      const candidateTeamKey = normalizeTeamKey(rawName)
+      if (candidateTeamKey && teamKey && (candidateTeamKey === teamKey || candidateTeamKey.includes(teamKey))) {
+        return key
+      }
+    }
+  }
+
   return null
 }
 
@@ -1004,15 +1224,33 @@ const resolveSportsbookProbability = (
   if (!game) return null
 
   const marketKey = resolveMarketType(trade)
-  const selection = {
-    team: resolveSelectionTeam(trade, teams) || undefined,
-    totalSide: resolveTotalSide(trade) || undefined,
-    line: extractSignedLine(trade.outcome) ?? extractSignedLine(trade.marketTitle) ?? undefined,
-  }
+  const selection = resolveTradeSelection(trade, marketKey, teams)
 
   const bestOdds = findBestOdds(game, marketKey, selection)
   if (!Number.isFinite(bestOdds)) return null
   return oddsToImpliedProbability(bestOdds as number)
+}
+
+const resolveSportsbookNoVigProbability = (
+  trade: WhaleTrade,
+  oddsCache: Map<string, OddsGame[]>
+) => {
+  const sportKey = SPORT_TO_ODDS_KEY[trade.sport]
+  if (!sportKey) return null
+  const games = oddsCache.get(sportKey)
+  if (!games || games.length === 0) return null
+  const teams = parseTeamsFromTitle(trade.marketTitle)
+  const game = findMatchingGame(games, teams)
+  if (!game) return null
+  const marketKey = resolveMarketType(trade)
+  const selection = resolveTradeSelection(trade, marketKey, teams)
+  const consensus = buildNoVigConsensusBySelection(game.bookmakers || [], marketKey)
+  if (consensus.size === 0) return null
+  const selectionKey = resolveSelectionKeyForTrade(marketKey, selection, consensus)
+  if (!selectionKey) return null
+  const entry = consensus.get(selectionKey)
+  if (!entry || !Number.isFinite(entry.impliedProbability)) return null
+  return entry.impliedProbability
 }
 
 const buildSportsbookOddsCache = async (trades: WhaleTrade[]) => {
@@ -1136,31 +1374,24 @@ const classifyUltraSharp = (opts: {
   trade: WhaleTrade
   strengthResult: StrengthScoreResult
   clusterResult?: ClusterResult
+  crossMarketEvPercent?: number | null
 }): { isUltraSharp: boolean; reasons: UltraSharpReason[] } => {
-  const { trade, strengthResult, clusterResult } = opts
+  const { trade, strengthResult, clusterResult, crossMarketEvPercent } = opts
   const { score, timingScore, rlmScore, rlmDetected, divergencePercent, sportContext } = strengthResult
   const reasons: UltraSharpReason[] = []
 
   // Signal requirements tracking
   let signalCount = 0
 
-  // Cluster signal - this is a STRONG signal that can override strength requirements
+  // Cluster signal - group by game
   if (clusterResult?.isCluster) {
-    signalCount += 2 // Cluster counts as 2 signals since it's very significant
+    signalCount++
     const windowMinutes = Math.round(clusterResult.windowMs / (1000 * 60))
     reasons.push({
       type: 'cluster',
-      description: `${clusterResult.clusterSize} bets detected on this outcome within ${windowMinutes} minutes - coordinated sharp action`,
+      description: `${clusterResult.clusterSize} bets detected on this game within ${windowMinutes} minutes - coordinated sharp action`,
       value: clusterResult.clusterSize,
     })
-    // If we have a cluster, we can be more lenient on strength requirement
-    // Return early as ultra-sharp if cluster is detected
-    return { isUltraSharp: true, reasons }
-  }
-
-  // For non-cluster trades, require base strength
-  if (score < sportContext.minimumStrength) {
-    return { isUltraSharp: false, reasons: [] }
   }
 
   // RLM signal
@@ -1195,8 +1426,26 @@ const classifyUltraSharp = (opts: {
     })
   }
 
-  // Need at least 2 signals plus the base strength requirement
-  const isUltraSharp = signalCount >= 2
+  if (crossMarketEvPercent != null && crossMarketEvPercent >= 3) {
+    signalCount++
+    reasons.push({
+      type: 'cross-market-ev',
+      description: `${crossMarketEvPercent}% vs no-vig sportsbooks - cross-market edge`,
+      value: crossMarketEvPercent,
+    })
+  }
+
+  if (trade.notional >= 50000) {
+    signalCount++
+    reasons.push({
+      type: 'big-bet',
+      description: `${Math.round(trade.notional / 1000)}k+ bet size - major stake`,
+      value: trade.notional,
+    })
+  }
+
+  // Only 1 signal required to qualify
+  const isUltraSharp = signalCount >= 1
 
   return { isUltraSharp, reasons }
 }
@@ -1209,11 +1458,11 @@ type ClusterResult = {
 }
 
 const buildOutcomeKey = (trade: WhaleTrade): string => {
-  // Normalize the outcome key to group similar bets together
-  const normalizedOutcome = trade.outcome.toLowerCase().trim()
+  // Cluster by game (ignore side/line) to surface hot matchups
+  const gameKey = buildGameKeyForTrade(trade)
+  if (gameKey) return `${trade.source}:${gameKey}`
   const normalizedMarket = trade.marketTitle.toLowerCase().trim()
-  // Include sport and source to avoid cross-sport/source matching
-  return `${trade.sport}:${trade.source}:${normalizedMarket}:${normalizedOutcome}`
+  return `${trade.source}:${trade.sport}:unknown:${normalizedMarket}`
 }
 
 const detectClusterForTrade = (
@@ -1262,7 +1511,28 @@ const detectClusterForTrade = (
 
 const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<UltraSharpTrade[]> => {
   const oddsCache = await buildSportsbookOddsCache(trades)
-  const kalshiTrades = trades.filter(
+  const preprocessed = trades.map((trade) => {
+    const sportsbookProb = resolveSportsbookProbability(trade, oddsCache)
+    const noVigProb = resolveSportsbookNoVigProbability(trade, oddsCache)
+    let divergencePercent: number | null = null
+    if (trade.priceCents && sportsbookProb != null) {
+      const diff = Math.abs(trade.priceCents / 100 - sportsbookProb) * 100
+      divergencePercent = Math.round(diff * 10) / 10
+    }
+    let crossMarketEvPercent: number | null = null
+    if (trade.priceCents && noVigProb != null) {
+      const edge = (noVigProb - trade.priceCents / 100) * 100
+      crossMarketEvPercent = Math.round(edge * 10) / 10
+    }
+    return { trade, sportsbookProb, divergencePercent, crossMarketEvPercent }
+  })
+  const filtered = preprocessed.filter(
+    (entry) =>
+      entry.divergencePercent == null ||
+      entry.divergencePercent < MAX_FEED_DIVERGENCE_PERCENT
+  )
+  const filteredTrades = filtered.map((entry) => entry.trade)
+  const kalshiTrades = filteredTrades.filter(
     (trade) => trade.source === 'kalshi' && trade.ticker
   ) as (WhaleTrade & { ticker: string })[]
 
@@ -1286,13 +1556,12 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
     )
   )
 
-  return trades.map((trade) => {
-    const sportsbookProb = resolveSportsbookProbability(trade, oddsCache)
+  return filtered.map(({ trade, sportsbookProb, divergencePercent, crossMarketEvPercent }) => {
     const sportContext = getSportContext(trade.sport)
 
     // Detect cluster for this trade
     const clusterConfig = getClusterConfig(trade.sport)
-    const clusterResult = detectClusterForTrade(trade, trades, clusterConfig)
+    const clusterResult = detectClusterForTrade(trade, filteredTrades, clusterConfig)
 
     if (trade.source === 'kalshi' && trade.ticker) {
       const side = (trade.side ?? 'yes') as 'yes' | 'no'
@@ -1310,7 +1579,12 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
         recentTrades,
         sportsbookProb,
       })
-      const { isUltraSharp, reasons } = classifyUltraSharp({ trade, strengthResult, clusterResult })
+      const { isUltraSharp, reasons } = classifyUltraSharp({
+        trade,
+        strengthResult,
+        clusterResult,
+        crossMarketEvPercent,
+      })
 
       return {
         ...trade,
@@ -1323,6 +1597,7 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
         timingScore: strengthResult.timingScore,
         rlmScore: strengthResult.rlmScore,
         divergencePercent: strengthResult.divergencePercent,
+        crossMarketEvPercent,
       }
     }
 
@@ -1338,15 +1613,12 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
       const baseScore = 80 * (0.25 * base + 0.20 * 0.35 + 0.15 * 0.35 + 0.10 * 0.35 + 0.15 * 0.35 + 0.10 * timingScore + 0.05 * 0.5)
 
       let boost = 0
-      let divergencePercent: number | null = null
-      if (trade.priceCents && sportsbookProb != null) {
-        const diff = Math.abs(trade.priceCents / 100 - sportsbookProb) * 100
-        divergencePercent = Math.round(diff * 10) / 10
-        if (diff >= 10) boost = 20
-        else if (diff >= 7) boost = 16
-        else if (diff >= 4) boost = 12
-        else if (diff >= 2) boost = 8
-        else if (diff >= 1) boost = 4
+      if (divergencePercent != null) {
+        if (divergencePercent >= 10) boost = 20
+        else if (divergencePercent >= 7) boost = 16
+        else if (divergencePercent >= 4) boost = 12
+        else if (divergencePercent >= 2) boost = 8
+        else if (divergencePercent >= 1) boost = 4
       }
       const score = Math.max(0, Math.min(100, Math.round((baseScore + boost) * 10) / 10))
 
@@ -1354,27 +1626,23 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
       const reasons: UltraSharpReason[] = []
       let signalCount = 0
 
-      // Check for cluster first - if detected, immediately ultra-sharp
       if (clusterResult.isCluster) {
+        signalCount++
         const windowMinutes = Math.round(clusterResult.windowMs / (1000 * 60))
         reasons.push({
           type: 'cluster',
-          description: `${clusterResult.clusterSize} bets detected on this outcome within ${windowMinutes} minutes - coordinated sharp action`,
+          description: `${clusterResult.clusterSize} bets detected on this game within ${windowMinutes} minutes - coordinated sharp action`,
           value: clusterResult.clusterSize,
         })
-        // Cluster is strong enough signal on its own
-        return {
-          ...trade,
-          sharpStrength: score,
-          currentPriceCents: trade.priceCents,
-          currentAmericanOdds: trade.americanOdds,
-          isUltraSharp: true,
-          ultraSharpReasons: reasons,
-          sportContext,
-          timingScore,
-          rlmScore: undefined,
-          divergencePercent,
-        }
+      }
+
+      if (crossMarketEvPercent != null && crossMarketEvPercent >= 3) {
+        signalCount++
+        reasons.push({
+          type: 'cross-market-ev',
+          description: `${crossMarketEvPercent}% vs no-vig sportsbooks - cross-market edge`,
+          value: crossMarketEvPercent,
+        })
       }
 
       if (timingScore >= 0.7) {
@@ -1402,7 +1670,16 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
         signalCount++
       }
 
-      const isUltraSharp = score >= sportContext.minimumStrength && signalCount >= 2
+      if (trade.notional >= 50000) {
+        signalCount++
+        reasons.push({
+          type: 'big-bet',
+          description: `${Math.round(trade.notional / 1000)}k+ bet size - major stake`,
+          value: trade.notional,
+        })
+      }
+
+      const isUltraSharp = signalCount >= 1
 
       return {
         ...trade,
@@ -1415,6 +1692,7 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
         timingScore,
         rlmScore: undefined,
         divergencePercent,
+        crossMarketEvPercent,
       }
     }
 
@@ -1427,6 +1705,7 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
       timingScore: undefined,
       rlmScore: undefined,
       divergencePercent: undefined,
+      crossMarketEvPercent,
     }
   })
 }

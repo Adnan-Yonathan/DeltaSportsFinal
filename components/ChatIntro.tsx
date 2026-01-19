@@ -9,7 +9,7 @@ import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { GuestHero } from '@/components/ui/guest-hero'
 import { CustomersSection } from '@/components/ui/customers-section'
-import { ComparisonSection } from '@/components/ui/comparison-section'
+import { ROICalculator } from '@/components/ui/roi-calculator'
 import { Typewriter } from '@/components/ui/typewriter-text'
 import { Announcement, AnnouncementTag, AnnouncementTitle } from '@/components/ui/announcement'
 import { FeaturesSix } from '@/components/ui/features-6'
@@ -232,13 +232,13 @@ export default function ChatIntro({
             />
           </motion.div>
 
-          {/* Comparison Section */}
+          {/* ROI Calculator */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.7, duration: 0.5 }}
           >
-            <ComparisonSection />
+            <ROICalculator />
           </motion.div>
 
           <motion.div

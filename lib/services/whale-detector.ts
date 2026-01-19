@@ -208,9 +208,8 @@ type ClusterConfig = {
 
 const CLUSTER_CONFIG: Record<string, ClusterConfig> = {
   NBA: { minBets: 5, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: 4 },
-  NFL: { minBets: 5, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: 24 },
+  NFL: { minBets: 5, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: 72 }, // 3 days
   NCAAB: { minBets: 3, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: null },
-  NCAAF: { minBets: 3, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: null },
   NHL: { minBets: 3, windowMs: 2 * 60 * 1000, minHoursBeforeEvent: null },
 }
 

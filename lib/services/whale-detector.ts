@@ -196,6 +196,60 @@ export type WhaleTradeWithStatus = WhaleTrade & {
   priceCents?: number | null
 }
 
+// Ultra-sharp classification types
+export type UltraSharpReasonType = 'rlm' | 'timing' | 'divergence' | 'cluster'
+
+export type UltraSharpReason = {
+  type: UltraSharpReasonType
+  description: string
+  value?: number
+}
+
+export type SportContext = {
+  sport: string
+  isProSport: boolean
+  isTeamSport: boolean
+  minimumStrength: number
+  rlmThreshold: number
+  moveThreshold: number
+}
+
+export type UltraSharpTrade = WhaleTrade & {
+  isUltraSharp: boolean
+  ultraSharpReasons: UltraSharpReason[]
+  sportContext: SportContext | null
+  timingScore?: number
+  rlmScore?: number
+  divergencePercent?: number | null
+}
+
+// Sport-specific context configuration
+const SPORT_CONTEXTS: Record<string, SportContext> = {
+  NBA: { sport: 'NBA', isProSport: true, isTeamSport: true, minimumStrength: 68, rlmThreshold: -0.10, moveThreshold: 1.5 },
+  NFL: { sport: 'NFL', isProSport: true, isTeamSport: true, minimumStrength: 70, rlmThreshold: -0.10, moveThreshold: 1.5 },
+  MLB: { sport: 'MLB', isProSport: true, isTeamSport: true, minimumStrength: 65, rlmThreshold: -0.10, moveThreshold: 1.5 },
+  NHL: { sport: 'NHL', isProSport: true, isTeamSport: true, minimumStrength: 68, rlmThreshold: -0.10, moveThreshold: 1.5 },
+  NCAAB: { sport: 'NCAAB', isProSport: false, isTeamSport: true, minimumStrength: 72, rlmThreshold: -0.15, moveThreshold: 2.0 },
+  NCAAF: { sport: 'NCAAF', isProSport: false, isTeamSport: true, minimumStrength: 72, rlmThreshold: -0.15, moveThreshold: 2.0 },
+  UFC: { sport: 'UFC', isProSport: true, isTeamSport: false, minimumStrength: 65, rlmThreshold: -0.10, moveThreshold: 1.5 },
+  GOLF: { sport: 'GOLF', isProSport: true, isTeamSport: false, minimumStrength: 60, rlmThreshold: -0.10, moveThreshold: 1.5 },
+  WNBA: { sport: 'WNBA', isProSport: true, isTeamSport: true, minimumStrength: 65, rlmThreshold: -0.10, moveThreshold: 1.5 },
+  SOCCER: { sport: 'SOCCER', isProSport: true, isTeamSport: true, minimumStrength: 65, rlmThreshold: -0.10, moveThreshold: 1.5 },
+}
+
+const DEFAULT_SPORT_CONTEXT: SportContext = {
+  sport: 'Sports',
+  isProSport: true,
+  isTeamSport: true,
+  minimumStrength: 68,
+  rlmThreshold: -0.10,
+  moveThreshold: 1.5,
+}
+
+const getSportContext = (sport: string): SportContext => {
+  return SPORT_CONTEXTS[sport] ?? DEFAULT_SPORT_CONTEXT
+}
+
 const parseNumber = (value: unknown) => {
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) return null
@@ -724,6 +778,59 @@ const resolveRecentTradeStats = (trades: KalshiTrade[]) => {
   return { totalCount, yesCount, noCount, averageYesPrice, averageNoPrice }
 }
 
+// NEW: Timing factor - early steam is more valuable
+const resolveTimingScore = (eventDate: string | undefined, tradeTime: string): number => {
+  if (!eventDate) return 0.5 // Unknown = neutral
+  const eventMs = new Date(eventDate).getTime()
+  const tradeMs = new Date(tradeTime).getTime()
+  if (!Number.isFinite(eventMs) || !Number.isFinite(tradeMs)) return 0.5
+
+  const hoursUntilEvent = (eventMs - tradeMs) / (1000 * 60 * 60)
+
+  // Early steam (12-48h out) = most valuable
+  if (hoursUntilEvent >= 12 && hoursUntilEvent <= 48) return 1.0
+  // Same day but >4h out = strong
+  if (hoursUntilEvent >= 4 && hoursUntilEvent < 12) return 0.85
+  // Close to game (1-4h) = moderate (could be public)
+  if (hoursUntilEvent >= 1 && hoursUntilEvent < 4) return 0.6
+  // Very close (<1h) = lower (often public money)
+  if (hoursUntilEvent >= 0 && hoursUntilEvent < 1) return 0.4
+  // Live = different analysis needed
+  if (hoursUntilEvent < 0) return 0.3
+  // Very early (>48h) = speculative
+  return 0.5
+}
+
+// NEW: Enhanced RLM detection with sport context
+const resolveEnhancedRlmScore = (opts: {
+  recentTrades: KalshiRecentTradeStats | null
+  side: 'yes' | 'no'
+  priceMove: number
+  sportContext: SportContext
+}): { score: number; detected: boolean } => {
+  const { recentTrades, side, priceMove, sportContext } = opts
+
+  if (!recentTrades || recentTrades.totalCount < 5) {
+    return { score: 0.2, detected: false }
+  }
+
+  const sideCount = side === 'yes' ? recentTrades.yesCount : recentTrades.noCount
+  const oppCount = recentTrades.totalCount - sideCount
+  const imbalance = (sideCount - oppCount) / recentTrades.totalCount
+
+  // True RLM: Price moved in direction despite MORE action on other side
+  if (Math.abs(priceMove) >= sportContext.moveThreshold && imbalance <= sportContext.rlmThreshold) {
+    return { score: 1.0, detected: true } // Clear RLM
+  }
+  if (Math.abs(priceMove) >= 1.0 && imbalance <= sportContext.rlmThreshold * 0.5) {
+    return { score: 0.7, detected: true } // Moderate RLM
+  }
+  if (imbalance <= 0 && Math.abs(priceMove) > 0) {
+    return { score: 0.4, detected: false } // Weak RLM signal
+  }
+  return { score: 0.2, detected: false }
+}
+
 const fetchKalshiMarketSnapshot = async (
   ticker: string
 ): Promise<KalshiMarketSnapshot | null> => {
@@ -904,6 +1011,15 @@ const buildSportsbookOddsCache = async (trades: WhaleTrade[]) => {
   return cache
 }
 
+type StrengthScoreResult = {
+  score: number
+  timingScore: number
+  rlmScore: number
+  rlmDetected: boolean
+  divergencePercent: number | null
+  sportContext: SportContext
+}
+
 const computeStrengthScore = (opts: {
   trade: WhaleTrade
   side: 'yes' | 'no'
@@ -911,8 +1027,9 @@ const computeStrengthScore = (opts: {
   orderbook: KalshiOrderbookSnapshot | null
   recentTrades: KalshiRecentTradeStats | null
   sportsbookProb: number | null
-}) => {
+}): StrengthScoreResult => {
   const { trade, side, market, orderbook, recentTrades, sportsbookProb } = opts
+  const sportContext = getSportContext(trade.sport)
 
   const avgPer30 =
     market?.volume24h && market.volume24h > 0 ? market.volume24h / 48 : null
@@ -939,29 +1056,35 @@ const computeStrengthScore = (opts: {
     side === 'yes' ? market?.yesSpreadCents ?? null : market?.noSpreadCents ?? null
   )
 
-  let rlm = 0.2
-  if (recentTrades && recentTrades.totalCount >= 5) {
-    const imbalance =
-      (sideCount - (recentTrades.totalCount - sideCount)) / recentTrades.totalCount
-    if (Math.abs(move) >= 2 && imbalance <= -0.15) {
-      rlm = 1
-    } else if (Math.abs(move) >= 1 && imbalance <= -0.1) {
-      rlm = 0.6
-    }
-  }
+  // NEW: Enhanced RLM detection with sport context
+  const { score: rlm, detected: rlmDetected } = resolveEnhancedRlmScore({
+    recentTrades,
+    side,
+    priceMove: move,
+    sportContext,
+  })
 
+  // NEW: Timing factor
+  const timingScore = resolveTimingScore(trade.eventDate, trade.timestamp)
+
+  // Updated weights with timing factor (80 points max base)
+  // bigBets: 0.25, momentum: 0.20, bookPressure: 0.15, liquidity: 0.10, rlm: 0.15, timing: 0.10, clustering: 0.05 (reserved for future)
   const baseScore =
     80 *
-    (0.3 * bigBets +
-      0.25 * momentum +
-      0.2 * bookPressure +
-      0.15 * liquidity +
-      0.1 * rlm)
+    (0.25 * bigBets +
+      0.20 * momentum +
+      0.15 * bookPressure +
+      0.10 * liquidity +
+      0.15 * rlm +
+      0.10 * timingScore +
+      0.05 * 0.5) // clustering placeholder
 
   let boost = 0
+  let divergencePercent: number | null = null
   if (currentPrice != null && sportsbookProb != null) {
     const kalshiProb = currentPrice / 100
     const diff = Math.abs(kalshiProb - sportsbookProb) * 100
+    divergencePercent = Math.round(diff * 10) / 10
     if (diff >= 10) boost = 20
     else if (diff >= 7) boost = 16
     else if (diff >= 4) boost = 12
@@ -969,10 +1092,77 @@ const computeStrengthScore = (opts: {
     else if (diff >= 1) boost = 4
   }
 
-  return Math.max(0, Math.min(100, Math.round((baseScore + boost) * 10) / 10))
+  // Additional cluster bonus reserved for future (up to +5)
+  const clusterBonus = 0
+
+  const finalScore = Math.max(0, Math.min(100, Math.round((baseScore + boost + clusterBonus) * 10) / 10))
+
+  return {
+    score: finalScore,
+    timingScore,
+    rlmScore: rlm,
+    rlmDetected,
+    divergencePercent,
+    sportContext,
+  }
 }
 
-const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]) => {
+// NEW: Classify a trade as ultra-sharp and generate reasons
+const classifyUltraSharp = (opts: {
+  trade: WhaleTrade
+  strengthResult: StrengthScoreResult
+}): { isUltraSharp: boolean; reasons: UltraSharpReason[] } => {
+  const { trade, strengthResult } = opts
+  const { score, timingScore, rlmScore, rlmDetected, divergencePercent, sportContext } = strengthResult
+  const reasons: UltraSharpReason[] = []
+
+  // Base requirement: strength >= sport-specific minimum
+  if (score < sportContext.minimumStrength) {
+    return { isUltraSharp: false, reasons: [] }
+  }
+
+  // Signal requirements tracking
+  let signalCount = 0
+
+  // RLM signal
+  if (rlmDetected && rlmScore >= 0.7) {
+    signalCount++
+    reasons.push({
+      type: 'rlm',
+      description: 'Reverse line movement detected - price moved toward this side despite more money on the other side',
+      value: Math.round(rlmScore * 100),
+    })
+  }
+
+  // Timing signal
+  if (timingScore >= 0.7) {
+    signalCount++
+    const hoursDesc = timingScore >= 1.0 ? '12-48 hours before event (optimal window)' :
+      timingScore >= 0.85 ? '4-12 hours before event (strong timing)' : 'good timing window'
+    reasons.push({
+      type: 'timing',
+      description: `Early steam detected - bet placed ${hoursDesc}`,
+      value: Math.round(timingScore * 100),
+    })
+  }
+
+  // Divergence signal
+  if (divergencePercent !== null && divergencePercent >= 4) {
+    signalCount++
+    reasons.push({
+      type: 'divergence',
+      description: `${divergencePercent}% price difference vs sportsbooks - indicates market inefficiency`,
+      value: divergencePercent,
+    })
+  }
+
+  // Need at least 2 signals plus the base strength requirement
+  const isUltraSharp = signalCount >= 2
+
+  return { isUltraSharp, reasons }
+}
+
+const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<UltraSharpTrade[]> => {
   const oddsCache = await buildSportsbookOddsCache(trades)
   const kalshiTrades = trades.filter(
     (trade) => trade.source === 'kalshi' && trade.ticker
@@ -1000,6 +1190,8 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]) => {
 
   return trades.map((trade) => {
     const sportsbookProb = resolveSportsbookProbability(trade, oddsCache)
+    const sportContext = getSportContext(trade.sport)
+
     if (trade.source === 'kalshi' && trade.ticker) {
       const side = (trade.side ?? 'yes') as 'yes' | 'no'
       const market = marketCache.get(trade.ticker) ?? null
@@ -1008,7 +1200,7 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]) => {
       const currentPriceCents =
         side === 'yes' ? market?.yesPriceCents ?? null : market?.noPriceCents ?? null
       const currentAmericanOdds = centsToAmerican(currentPriceCents)
-      const strength = computeStrengthScore({
+      const strengthResult = computeStrengthScore({
         trade,
         side,
         market,
@@ -1016,33 +1208,101 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]) => {
         recentTrades,
         sportsbookProb,
       })
-      return { ...trade, sharpStrength: strength, currentPriceCents, currentAmericanOdds }
+      const { isUltraSharp, reasons } = classifyUltraSharp({ trade, strengthResult })
+
+      return {
+        ...trade,
+        sharpStrength: strengthResult.score,
+        currentPriceCents,
+        currentAmericanOdds,
+        isUltraSharp,
+        ultraSharpReasons: reasons,
+        sportContext: strengthResult.sportContext,
+        timingScore: strengthResult.timingScore,
+        rlmScore: strengthResult.rlmScore,
+        divergencePercent: strengthResult.divergencePercent,
+      }
     }
+
     if (trade.source === 'polymarket') {
       const notional = trade.notional
       let base = 0.35
       if (notional >= 10000) base = 0.9
       else if (notional >= 5000) base = 0.7
       else if (notional >= 3000) base = 0.5
-      const baseScore = 80 * (0.3 * base + 0.25 * 0.35 + 0.2 * 0.35 + 0.15 * 0.35 + 0.1 * 0.35)
+
+      // Updated weights for Polymarket (simplified since we lack market data)
+      const timingScore = resolveTimingScore(trade.eventDate, trade.timestamp)
+      const baseScore = 80 * (0.25 * base + 0.20 * 0.35 + 0.15 * 0.35 + 0.10 * 0.35 + 0.15 * 0.35 + 0.10 * timingScore + 0.05 * 0.5)
+
       let boost = 0
+      let divergencePercent: number | null = null
       if (trade.priceCents && sportsbookProb != null) {
         const diff = Math.abs(trade.priceCents / 100 - sportsbookProb) * 100
+        divergencePercent = Math.round(diff * 10) / 10
         if (diff >= 10) boost = 20
         else if (diff >= 7) boost = 16
         else if (diff >= 4) boost = 12
         else if (diff >= 2) boost = 8
         else if (diff >= 1) boost = 4
       }
-      const strength = Math.max(0, Math.min(100, Math.round((baseScore + boost) * 10) / 10))
+      const score = Math.max(0, Math.min(100, Math.round((baseScore + boost) * 10) / 10))
+
+      // Simplified ultra-sharp for Polymarket (timing + divergence)
+      const reasons: UltraSharpReason[] = []
+      let signalCount = 0
+
+      if (timingScore >= 0.7) {
+        signalCount++
+        const hoursDesc = timingScore >= 1.0 ? '12-48 hours before event' :
+          timingScore >= 0.85 ? '4-12 hours before event' : 'good timing window'
+        reasons.push({
+          type: 'timing',
+          description: `Early steam - bet placed ${hoursDesc}`,
+          value: Math.round(timingScore * 100),
+        })
+      }
+
+      if (divergencePercent !== null && divergencePercent >= 4) {
+        signalCount++
+        reasons.push({
+          type: 'divergence',
+          description: `${divergencePercent}% vs sportsbooks - market inefficiency`,
+          value: divergencePercent,
+        })
+      }
+
+      // For Polymarket, larger bets can count as a signal
+      if (notional >= 5000) {
+        signalCount++
+      }
+
+      const isUltraSharp = score >= sportContext.minimumStrength && signalCount >= 2
+
       return {
         ...trade,
-        sharpStrength: strength,
+        sharpStrength: score,
         currentPriceCents: trade.priceCents,
         currentAmericanOdds: trade.americanOdds,
+        isUltraSharp,
+        ultraSharpReasons: reasons,
+        sportContext,
+        timingScore,
+        rlmScore: undefined,
+        divergencePercent,
       }
     }
-    return trade
+
+    // Fallback for unknown sources
+    return {
+      ...trade,
+      isUltraSharp: false,
+      ultraSharpReasons: [],
+      sportContext: null,
+      timingScore: undefined,
+      rlmScore: undefined,
+      divergencePercent: undefined,
+    }
   })
 }
 

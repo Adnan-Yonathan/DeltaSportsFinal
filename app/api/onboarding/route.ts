@@ -7,6 +7,7 @@ interface OnboardingData {
   experience_level: 'beginner' | 'intermediate' | 'advanced'
   risk_tolerance: 'conservative' | 'moderate' | 'aggressive'
   signup_reasons: string[]
+  bankroll?: number
 }
 
 export async function POST(request: NextRequest) {
@@ -79,17 +80,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Update user profile with onboarding data
+    const updateData: Record<string, unknown> = {
+      favorite_sports: body.favorite_sports,
+      preferred_markets: body.preferred_markets,
+      experience_level: body.experience_level,
+      risk_tolerance: body.risk_tolerance,
+      signup_reasons: body.signup_reasons,
+      onboarding_completed: true,
+      updated_at: new Date().toISOString()
+    }
+
+    // Add bankroll if provided
+    if (body.bankroll && body.bankroll > 0) {
+      updateData.bankroll = body.bankroll
+    }
+
     const updateResult = await supabase
       .from('users')
-      .update({
-        favorite_sports: body.favorite_sports,
-        preferred_markets: body.preferred_markets,
-        experience_level: body.experience_level,
-        risk_tolerance: body.risk_tolerance,
-        signup_reasons: body.signup_reasons,
-        onboarding_completed: true,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', user.id)
       .select()
       .single()
@@ -103,6 +111,7 @@ export async function POST(request: NextRequest) {
           experience_level: body.experience_level,
           risk_tolerance: body.risk_tolerance,
           signup_reasons: body.signup_reasons,
+          bankroll: body.bankroll || 0,
         },
       },
     })

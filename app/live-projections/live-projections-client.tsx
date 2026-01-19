@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react"
 import { useLiveScores } from "@/hooks/use-live-scores"
 import type { LiveScoreGame } from "@/lib/live-scores"
 import { useAnimatedText } from "@/components/ui/animated-text"
+import TutorialPopup from "@/components/TutorialPopup"
 
 type LiveProjectionResponse = {
   eventId: string
@@ -124,7 +125,9 @@ export default function LiveProjectionsClient() {
   }
 
   return (
-    <div className="mt-6 space-y-4">
+    <>
+      <TutorialPopup tutorialId="live-projections" />
+      <div className="mt-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-white/50">
@@ -249,6 +252,7 @@ export default function LiveProjectionsClient() {
           Last updated {new Date(lastUpdated).toLocaleTimeString()}
         </p>
       )}
-    </div>
+      </div>
+    </>
   )
 }

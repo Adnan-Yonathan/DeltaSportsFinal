@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import MarketProjectionsRefresh from "./market-projections-refresh"
 import MarketProjectionsTable from "./market-projections-table"
+import TutorialPopup from "@/components/TutorialPopup"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 
 type MarketProjectionsClientProps = {
@@ -67,6 +68,7 @@ export default function MarketProjectionsClient({
 
   return (
     <>
+      <TutorialPopup tutorialId="sharp-projections" />
       <MarketProjectionsRefresh
         hasCache={cacheReady}
         errorMessage={error}

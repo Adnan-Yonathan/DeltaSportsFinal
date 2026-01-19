@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import PlayerPropSelector from './player-prop-selector'
+import TutorialPopup from "@/components/TutorialPopup"
 
 type BestOddsSelection = {
   selection: string
@@ -477,7 +478,9 @@ export default function ParlayPredictor() {
   }
 
   return (
-    <div className="mt-4 sm:mt-8 space-y-4 sm:space-y-6">
+    <>
+      <TutorialPopup tutorialId="parlay-pro" />
+      <div className="mt-4 sm:mt-8 space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex items-center gap-2">
           <label className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-white/50">
@@ -963,6 +966,7 @@ export default function ParlayPredictor() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }

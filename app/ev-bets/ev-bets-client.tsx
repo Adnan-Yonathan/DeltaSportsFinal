@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import EvBetsTable from "./ev-bets-table"
+import TutorialPopup from "@/components/TutorialPopup"
 import type { EVOpportunity } from "@/lib/utils/ev-calculator"
 
 type EvBetsClientProps = {
@@ -70,6 +71,7 @@ export default function EvBetsClient({
 
   return (
     <>
+      <TutorialPopup tutorialId="ev-bets" />
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs uppercase tracking-[0.2em] text-white/50">

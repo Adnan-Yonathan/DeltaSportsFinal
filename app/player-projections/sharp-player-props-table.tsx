@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react"
 import { formatAmericanOdds } from "@/lib/utils/odds"
+import TutorialPopup from "@/components/TutorialPopup"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -564,8 +565,10 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
   }, [data?.topPicks, filteredProps])
 
   return (
-    <div className="space-y-4">
-      {/* Top Picks Section */}
+    <>
+      <TutorialPopup tutorialId="sharp-props" />
+      <div className="space-y-4">
+        {/* Top Picks Section */}
       {!loading && topPicks.length > 0 && (
         <div className="overflow-hidden rounded-2xl border border-emerald-500/20 bg-black/40">
           <div className="flex items-center justify-between border-b border-emerald-500/10 px-4 py-2.5">
@@ -691,7 +694,8 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
             ))}
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }

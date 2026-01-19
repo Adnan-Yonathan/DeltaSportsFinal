@@ -1069,11 +1069,11 @@ export default function SharpDetectorPanel({
         <h2 className="text-lg font-semibold text-white">Sharp Detector</h2>
 
         {/* Tab Buttons - Centered */}
-        <div className="flex items-center gap-1 bg-white/5 rounded-xl p-1">
+        <div className="flex items-center gap-2 bg-white/5 rounded-2xl p-1.5">
           <button
             onClick={() => setActiveTab('bet-feed')}
             className={cn(
-              'px-4 py-2 text-sm font-medium rounded-lg transition-all',
+              'px-8 py-3 text-base font-semibold rounded-xl transition-all min-w-[140px]',
               activeTab === 'bet-feed'
                 ? 'bg-emerald-500/20 text-emerald-400 shadow-sm'
                 : 'text-white/50 hover:text-white/70 hover:bg-white/5'
@@ -1084,22 +1084,22 @@ export default function SharpDetectorPanel({
           <button
             onClick={() => isSyndicate && setActiveTab('sharp-money')}
             className={cn(
-              'px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-1.5',
+              'px-8 py-3 text-base font-semibold rounded-xl transition-all flex items-center justify-center gap-2 min-w-[180px]',
               activeTab === 'sharp-money'
                 ? 'bg-emerald-500/20 text-emerald-400 shadow-sm'
                 : 'text-white/50 hover:text-white/70 hover:bg-white/5',
               !isSyndicate && 'opacity-50 cursor-not-allowed'
             )}
           >
-            <Zap className="w-3.5 h-3.5" />
+            <Zap className="w-4 h-4" />
             Sharp Money
             {!isSyndicate && (
-              <span className="ml-1 px-1.5 py-0.5 text-[9px] bg-amber-500/20 text-amber-300 rounded uppercase tracking-wider">
+              <span className="ml-1 px-2 py-1 text-[10px] bg-amber-500/20 text-amber-300 rounded uppercase tracking-wider">
                 Syndicate
               </span>
             )}
             {isSyndicate && ultraSharpTrades.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 text-[9px] bg-emerald-500/30 text-emerald-300 rounded-full font-bold">
+              <span className="ml-1 px-2 py-1 text-[10px] bg-emerald-500/30 text-emerald-300 rounded-full font-bold">
                 {ultraSharpTrades.length}
               </span>
             )}

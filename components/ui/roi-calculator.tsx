@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Calculator, TrendingUp, DollarSign } from "lucide-react";
+import { Calculator, DollarSign } from "lucide-react";
 import { motion } from "framer-motion";
 
 const EDGE_PERCENT = 2.62;
@@ -23,7 +23,7 @@ interface ROICalculatorProps {
 
 const ROICalculator = ({
   heading = "Calculate Your Edge",
-  description = "See how much you could earn with Delta's 2.62% average edge",
+  description = "See how much you could earn following Delta's sharp projections",
 }: ROICalculatorProps) => {
   const [betSize, setBetSize] = useState<string>("100");
   const [betsPerDay, setBetsPerDay] = useState<string>("5");
@@ -49,23 +49,6 @@ const ROICalculator = ({
         {/* Calculator Card */}
         <div className="max-w-2xl mx-auto">
           <div className="rounded-2xl border border-white/15 bg-black overflow-hidden">
-            {/* Edge Badge */}
-            <div className="p-6 border-b border-white/15 bg-gradient-to-r from-emerald-500/10 to-transparent">
-              <div className="flex items-center justify-center gap-3">
-                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/20">
-                  <TrendingUp className="w-6 h-6 text-emerald-400" />
-                </div>
-                <div className="text-center">
-                  <div className="text-sm text-white/70 uppercase tracking-wider">
-                    Our Average Edge
-                  </div>
-                  <div className="text-4xl font-bold text-emerald-400">
-                    +{EDGE_PERCENT}%
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Inputs */}
             <div className="p-6 space-y-6">
               {/* Bet Size Input */}
@@ -160,15 +143,14 @@ const ROICalculator = ({
 
               {/* Calculation Breakdown */}
               <div className="mt-4 text-center text-sm text-white/50">
-                {formatCurrency(betSizeNum)} x {EDGE_PERCENT}% x {betsPerDayNum}{" "}
-                bets x {DAYS_PER_MONTH} days = {formatCurrency(monthlyReturn)}
+                {formatCurrency(betSizeNum)} x {betsPerDayNum} bets x {DAYS_PER_MONTH} days
               </div>
             </div>
 
             {/* Disclaimer */}
             <div className="p-4 border-t border-white/10">
               <p className="text-xs text-white/40 text-center">
-                Based on our historical 2.62% CLV edge. Past performance does not
+                Based on historical CLV performance. Past performance does not
                 guarantee future results. Results vary based on volume and
                 discipline.
               </p>

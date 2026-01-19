@@ -128,8 +128,27 @@ export default function SharpMoneyAlertHub() {
         )
 
         if (!hasInitializedRef.current) {
-          ultraSharps.forEach((trade) => seenIdsRef.current.add(trade.id))
-          persistSeenIds(seenIdsRef.current)
+          const latest = [...ultraSharps].sort((a, b) => {
+            return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          })[0]
+          if (latest && !seenIdsRef.current.has(latest.id)) {
+            seenIdsRef.current.add(latest.id)
+            persistSeenIds(seenIdsRef.current)
+            setAlerts((prev) => [
+              {
+                id: latest.id,
+                trade: latest,
+                createdAt: new Date().toISOString(),
+              },
+              ...prev,
+            ].slice(0, MAX_ALERTS))
+            setTimeout(() => {
+              setAlerts((prev) => prev.filter((entry) => entry.id !== latest.id))
+            }, ALERT_TTL_MS)
+          } else {
+            ultraSharps.forEach((trade) => seenIdsRef.current.add(trade.id))
+            persistSeenIds(seenIdsRef.current)
+          }
           hasInitializedRef.current = true
           return
         }

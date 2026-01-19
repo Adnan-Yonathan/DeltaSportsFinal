@@ -109,34 +109,40 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
           <div
             style={{
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '28px 48px',
+              padding: '24px 48px',
               borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
               backgroundColor: '#0a0a0a',
-              gap: 16,
+              gap: 8,
             }}
           >
-            {/* Delta logo - white on black */}
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 8,
-                backgroundColor: '#000000',
-                border: '2px solid rgba(255, 255, 255, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 26,
-                fontWeight: 700,
-                color: '#ffffff',
-              }}
-            >
-              Δ
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              {/* Delta logo - white on black */}
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 8,
+                  backgroundColor: '#000000',
+                  border: '2px solid rgba(255, 255, 255, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 26,
+                  fontWeight: 700,
+                  color: '#ffffff',
+                }}
+              >
+                Δ
+              </div>
+              <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: 1, color: '#ffffff' }}>
+                deltasports.app
+              </span>
             </div>
-            <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: 1, color: '#ffffff' }}>
-              deltasports.app
+            <span style={{ fontSize: 18, fontWeight: 600, color: '#34d399', letterSpacing: 0.5 }}>
+              Make money betting like a sharp.
             </span>
           </div>
 

@@ -10,55 +10,57 @@ const wait = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
 export const useShareImage = () => {
   const shareImage = async (element: HTMLElement, filename = 'delta-card.png'): Promise<ShareResult> => {
-    const inlineImages = async () => {
-      const imgs = Array.from(element.querySelectorAll('img'))
-      const originals: Array<{ node: HTMLImageElement; src: string }> = []
-      for (const img of imgs) {
-        if (!img.src || img.src.startsWith('data:')) continue
-        originals.push({ node: img, src: img.src })
-        img.setAttribute('crossorigin', 'anonymous')
-        img.setAttribute('referrerpolicy', 'no-referrer')
-        try {
-          const res = await fetch(img.src, { cache: 'no-store' })
-          if (!res.ok) continue
-          const blob = await res.blob()
-          const reader = new FileReader()
-          const dataUrl: string = await new Promise((resolve, reject) => {
-            reader.onloadend = () => resolve(String(reader.result || ''))
-            reader.onerror = reject
-            reader.readAsDataURL(blob)
-          })
-          if (dataUrl) {
-            img.src = dataUrl
-          }
-        } catch (err) {
-          console.warn('[shareImage] Unable to inline image', img.src, err)
-        }
-      }
-      return () => {
-        for (const entry of originals) {
-          entry.node.src = entry.src
-        }
-      }
-    }
-
     const buildImage = async () => {
-      const restore = await inlineImages()
-      try {
-        const dataUrl = await toPng(element, {
-          pixelRatio: 2,
-          cacheBust: true,
-          imagePlaceholder: '#0e131f',
-          style: {
-            transform: 'none',
-          },
-        })
-        if (!dataUrl) throw new Error('Unable to capture card')
-        const response = await fetch(dataUrl)
-        return await response.blob()
-      } finally {
-        restore()
+      // Use multiple attempts for reliability
+      let lastError: Error | null = null
+
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          // Wait a bit between attempts
+          if (attempt > 0) {
+            await wait(100)
+          }
+
+          const dataUrl = await toPng(element, {
+            pixelRatio: 2,
+            cacheBust: true,
+            skipAutoScale: true,
+            backgroundColor: '#0a0a0a',
+            style: {
+              transform: 'none',
+              opacity: '1',
+            },
+            filter: (node) => {
+              // Skip any script tags or hidden elements
+              if (node instanceof HTMLElement) {
+                const tagName = node.tagName?.toLowerCase()
+                if (tagName === 'script' || tagName === 'noscript') {
+                  return false
+                }
+              }
+              return true
+            },
+          })
+
+          if (!dataUrl || dataUrl === 'data:,') {
+            throw new Error('Empty image generated')
+          }
+
+          const response = await fetch(dataUrl)
+          const blob = await response.blob()
+
+          if (blob.size < 1000) {
+            throw new Error('Image too small, likely failed to render')
+          }
+
+          return blob
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error('Unknown error')
+          console.warn(`[shareImage] Attempt ${attempt + 1} failed:`, lastError.message)
+        }
       }
+
+      throw lastError || new Error('Failed to capture image after 3 attempts')
     }
 
     const tryShare = async (blob: Blob, filename: string) => {

@@ -80,144 +80,158 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
 
     return (
       <div
-        ref={ref}
         style={{
-          width: 1200,
-          height: 628,
-          position: 'absolute',
-          left: -9999,
-          top: -9999,
-          background: 'linear-gradient(135deg, #18181b 0%, #000000 50%, #18181b 100%)',
-          color: '#ffffff',
-          fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          display: 'flex',
-          flexDirection: 'column',
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          zIndex: -9999,
+          pointerEvents: 'none',
+          overflow: 'hidden',
         }}
+        aria-hidden="true"
       >
-        {/* Header */}
         <div
+          ref={ref}
           style={{
+            width: 1200,
+            height: 628,
+            background: '#0a0a0a',
+            color: '#ffffff',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '32px 48px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            flexDirection: 'column',
+            overflow: 'hidden',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {/* Simple Delta logo placeholder - using text instead of image for reliability */}
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 8,
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 28,
-                fontWeight: 700,
-              }}
-            >
-              Δ
-            </div>
-            <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.025em' }}>
-              DELTA SPORTS
-            </span>
-          </div>
-          <span style={{ fontSize: 20, color: 'rgba(255, 255, 255, 0.6)' }}>{eventDate}</span>
-        </div>
-
-        {/* Content */}
-        <div style={{ padding: '40px 48px', flex: 1 }}>
-          {/* Sport and Source */}
+          {/* Header */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              marginBottom: 32,
+              padding: '32px 48px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+              backgroundColor: '#0a0a0a',
             }}
           >
-            <span style={{ fontSize: 20, fontWeight: 600, color: '#34d399' }}>{trade.sport}</span>
-            <span style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)' }}>
-              via {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              {/* Delta logo as styled box */}
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 8,
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: '#ffffff',
+                }}
+              >
+                Δ
+              </div>
+              <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.5, color: '#ffffff' }}>
+                DELTA SPORTS
+              </span>
+            </div>
+            <span style={{ fontSize: 20, color: 'rgba(255, 255, 255, 0.6)' }}>{eventDate}</span>
           </div>
 
-          {/* Main Card */}
-          <div
-            style={{
-              borderRadius: 24,
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              background: 'rgba(255, 255, 255, 0.05)',
-              padding: 40,
-            }}
-          >
-            {/* Matchup */}
-            <h2 style={{ fontSize: 36, fontWeight: 700, color: '#ffffff', marginBottom: 24 }}>
-              {displayMatchup}
-            </h2>
+          {/* Content */}
+          <div style={{ padding: '40px 48px', flex: 1, backgroundColor: '#0a0a0a' }}>
+            {/* Sport and Source */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 32,
+              }}
+            >
+              <span style={{ fontSize: 20, fontWeight: 600, color: '#34d399' }}>{trade.sport}</span>
+              <span style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)' }}>
+                via {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
+              </span>
+            </div>
 
-            {/* Bet Details */}
-            <p style={{ fontSize: 24, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 32 }}>
-              {trade.outcome}
-            </p>
-
-            {/* Odds and Size Row */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <span
-                  style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)', display: 'block', marginBottom: 4 }}
-                >
-                  Odds
-                </span>
-                <span style={{ fontSize: 28, fontWeight: 600, color: '#ffffff' }}>
-                  {formatOdds(trade.priceCents, trade.americanOdds)}
-                </span>
+            {/* Main Card */}
+            <div
+              style={{
+                borderRadius: 24,
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                padding: 40,
+              }}
+            >
+              {/* Matchup */}
+              <div style={{ fontSize: 36, fontWeight: 700, color: '#ffffff', marginBottom: 24 }}>
+                {displayMatchup}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ textAlign: 'right' }}>
-                  <span
-                    style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)', display: 'block', marginBottom: 4 }}
+
+              {/* Bet Details */}
+              <div style={{ fontSize: 24, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 32 }}>
+                {trade.outcome}
+              </div>
+
+              {/* Odds and Size Row */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div
+                    style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)', marginBottom: 4 }}
                   >
-                    Size
-                  </span>
-                  <span style={{ fontSize: 28, fontWeight: 700, color: '#ffffff' }}>
-                    {formatCurrency(trade.notional)}
-                  </span>
+                    Odds
+                  </div>
+                  <div style={{ fontSize: 28, fontWeight: 600, color: '#ffffff' }}>
+                    {formatOdds(trade.priceCents, trade.americanOdds)}
+                  </div>
                 </div>
-                <span
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 9999,
-                    fontSize: 16,
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    background: tierColors.bg,
-                    color: tierColors.text,
-                    border: `1px solid ${tierColors.border}`,
-                  }}
-                >
-                  {tierLabel}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ textAlign: 'right' as const }}>
+                    <div
+                      style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)', marginBottom: 4 }}
+                    >
+                      Size
+                    </div>
+                    <div style={{ fontSize: 28, fontWeight: 700, color: '#ffffff' }}>
+                      {formatCurrency(trade.notional)}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 9999,
+                      fontSize: 16,
+                      fontWeight: 700,
+                      textTransform: 'uppercase' as const,
+                      letterSpacing: 1,
+                      backgroundColor: tierColors.bg,
+                      color: tierColors.text,
+                      border: `1px solid ${tierColors.border}`,
+                    }}
+                  >
+                    {tierLabel}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            padding: '24px 48px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-          }}
-        >
-          <p style={{ textAlign: 'center', fontSize: 18, color: 'rgba(255, 255, 255, 0.5)' }}>
-            Track sharp money at{' '}
-            <span style={{ color: '#34d399', fontWeight: 500 }}>deltasports.app</span>
-          </p>
+          {/* Footer */}
+          <div
+            style={{
+              padding: '24px 48px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+              backgroundColor: '#0a0a0a',
+              textAlign: 'center' as const,
+            }}
+          >
+            <span style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.5)' }}>
+              Track sharp money at{' '}
+            </span>
+            <span style={{ fontSize: 18, color: '#34d399', fontWeight: 500 }}>deltasports.app</span>
+          </div>
         </div>
       </div>
     )

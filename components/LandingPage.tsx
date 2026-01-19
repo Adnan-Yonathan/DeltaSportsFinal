@@ -310,7 +310,7 @@ export default function LandingPage() {
       {/* Dotted Surface Background */}
       <DottedSurface />
 
-      <SimpleHeader />
+      <SimpleHeader widthClass="max-w-6xl" />
 
       {/* Hero area */}
       <FadeInSection className="w-full" delay={0.1}>

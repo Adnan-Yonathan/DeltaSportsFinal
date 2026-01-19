@@ -734,6 +734,7 @@ function ChatPageContent() {
   return (
     <div className="flex min-h-screen flex-col bg-black text-white overflow-hidden">
       <SimpleHeader
+        widthClass="max-w-6xl"
         rightSlot={headerActions}
         mobileLeftSlot={user ? (
           <button
@@ -1349,7 +1350,6 @@ export default function ChatPage() {
     </Suspense>
   )
 }
-
 
 
 

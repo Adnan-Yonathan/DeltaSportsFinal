@@ -20,6 +20,7 @@ import {
 
 const navLinks = [
   { label: "About", href: "/about" },
+  { label: "Blog", href: "/blog" },
   { label: "Affiliate", href: "/affiliate" },
   { label: "Pricing", href: "/pricing" },
 ]
@@ -39,10 +40,12 @@ export function SimpleHeader({
   rightSlot,
   mobileLeftSlot,
   onLogoClick,
+  widthClass = "max-w-5xl",
 }: {
   rightSlot?: React.ReactNode
   mobileLeftSlot?: React.ReactNode
   onLogoClick?: () => void
+  widthClass?: string
 } = {}) {
   const [showAuthButtons, setShowAuthButtons] = React.useState(false)
   const [toolsOpen, setToolsOpen] = React.useState(false)
@@ -108,7 +111,7 @@ export function SimpleHeader({
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 w-full bg-black/95 backdrop-blur border-b border-white/10">
-      <div className="mx-auto flex w-full max-w-5xl items-center gap-2 sm:gap-3">
+      <div className={`mx-auto flex w-full ${widthClass} items-center gap-2 sm:gap-3`}>
         <nav className="flex h-12 sm:h-16 min-w-0 flex-1 items-center justify-between rounded-full border border-white/15 bg-black px-2 sm:px-4 backdrop-blur supports-[backdrop-filter]:bg-black/90 text-white">
           <div className="flex items-center gap-2 sm:gap-3">
             <button

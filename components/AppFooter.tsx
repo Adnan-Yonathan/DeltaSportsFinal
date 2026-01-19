@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { Twitter } from "lucide-react"
 
 export function AppFooter() {
   return (
@@ -12,6 +13,15 @@ export function AppFooter() {
         <p className="text-[11px] text-white/60">
           (c) {new Date().getFullYear()} Delta Sports. All rights reserved.
         </p>
+        <Link
+          href="https://x.com/DeltaSportsAI"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Delta Sports on X"
+          className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200"
+        >
+          <Twitter className="h-4 w-4" />
+        </Link>
       </div>
     </footer>
   )

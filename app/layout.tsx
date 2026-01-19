@@ -10,11 +10,17 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 export const metadata: Metadata = {
   title: 'Delta Sports - The Sharp Money Tool for Sports',
   description: 'Delta Sports AI is an AI sports betting assistant for live odds, matchup insights, and betting analytics.',
+  metadataBase: new URL('https://deltasports.app'),
   applicationName: 'Delta Sports',
   keywords: [
     'Delta Sports',
     'Delta Sports AI',
     'AI sports betting assistant',
+    'sharp betting',
+    'sharp betting tools',
+    'sharp sports betting',
+    'sharp money',
+    'betting software',
     'sports betting analytics',
     'live odds',
     'matchup insights',

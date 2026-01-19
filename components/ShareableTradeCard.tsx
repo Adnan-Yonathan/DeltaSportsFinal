@@ -105,56 +105,55 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
             opacity: 1,
           }}
         >
-          {/* Header */}
+          {/* Header - deltasports.app prominently centered */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '32px 48px',
+              justifyContent: 'center',
+              padding: '28px 48px',
               borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
               backgroundColor: '#0a0a0a',
+              gap: 16,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              {/* Delta logo as styled box */}
-              <div
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 8,
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 28,
-                  fontWeight: 700,
-                  color: '#ffffff',
-                }}
-              >
-                Δ
-              </div>
-              <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.5, color: '#ffffff' }}>
-                DELTA SPORTS
-              </span>
+            {/* Delta logo - white on black */}
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 8,
+                backgroundColor: '#000000',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 26,
+                fontWeight: 700,
+                color: '#ffffff',
+              }}
+            >
+              Δ
             </div>
-            <span style={{ fontSize: 20, color: 'rgba(255, 255, 255, 0.6)' }}>{eventDate}</span>
+            <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: 1, color: '#ffffff' }}>
+              deltasports.app
+            </span>
           </div>
 
           {/* Content */}
-          <div style={{ padding: '40px 48px', flex: 1, backgroundColor: '#0a0a0a' }}>
-            {/* Sport and Source */}
+          <div style={{ padding: '32px 48px', flex: 1, backgroundColor: '#0a0a0a' }}>
+            {/* Sport, Source, and Date Row */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                marginBottom: 32,
+                marginBottom: 28,
               }}
             >
               <span style={{ fontSize: 20, fontWeight: 600, color: '#34d399' }}>{trade.sport}</span>
               <span style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)' }}>
-                via {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
+                {eventDate} • via {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
               </span>
             </div>
 
@@ -220,19 +219,18 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
             </div>
           </div>
 
-          {/* Footer */}
+          {/* Footer - simple tagline */}
           <div
             style={{
-              padding: '24px 48px',
+              padding: '20px 48px',
               borderTop: '1px solid rgba(255, 255, 255, 0.1)',
               backgroundColor: '#0a0a0a',
               textAlign: 'center' as const,
             }}
           >
-            <span style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.5)' }}>
-              Track sharp money at{' '}
+            <span style={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.4)' }}>
+              Track sharp money in real-time
             </span>
-            <span style={{ fontSize: 18, color: '#34d399', fontWeight: 500 }}>deltasports.app</span>
           </div>
         </div>
       </div>

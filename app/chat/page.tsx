@@ -17,8 +17,12 @@ import ToolsNav from '@/components/tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, MessageSquare, Target, Link2, Check } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
+import DailyRecapCard from '@/components/DailyRecapCard'
+import PerformanceDashboard from '@/components/PerformanceDashboard'
+import FakeRecapNotification from '@/components/FakeRecapNotification'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
+import { useDailyRecap } from '@/hooks/useDailyRecap'
 
 const SHARP_STORAGE_KEY = 'sharp-detector-trades'
 const SHARP_CACHE_VERSION_KEY = 'sharp-detector-cache-version'
@@ -99,6 +103,8 @@ function ChatPageContent() {
   const [messagesToday, setMessagesToday] = useState<number>(0)
   const [promoDismissed, setPromoDismissed] = useState(false)
   const [promoMounted, setPromoMounted] = useState(false)
+  const { recap, dismissed: recapDismissed, dismiss: dismissRecap } = useDailyRecap()
+  const [perfDashboardDismissed, setPerfDashboardDismissed] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const prefillMessage = searchParams.get('prompt') ?? undefined
@@ -400,6 +406,7 @@ function ChatPageContent() {
     .slice(0, 2)
     .toUpperCase()
   const canUseSharpDetector = Boolean(user && membership?.isActive)
+  const isSyndicate = Boolean(membership?.isActive && membership?.tier === 'syndicate')
   const baseChatTabs = [
     {
       key: 'market-projections',
@@ -1084,6 +1091,7 @@ function ChatPageContent() {
                   <SharpDetectorPanel
                     onNewSharp={handleSharpNotification}
                     onCountChange={setSharpTotalCount}
+                    isSyndicate={isSyndicate}
                   />
                 </div>
               </div>
@@ -1241,6 +1249,35 @@ function ChatPageContent() {
           document.body
         )}
 
+      {/* Performance Dashboard for trial users - shows after promo is dismissed */}
+      {promoMounted && user && promoDismissed && membership?.isTrial && !perfDashboardDismissed &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 z-[94] flex items-center justify-center bg-black/70 backdrop-blur-md px-4 py-6">
+            <PerformanceDashboard
+              bankroll={
+                (user.user_metadata as { onboarding_profile?: { bankroll?: number } })
+                  ?.onboarding_profile?.bankroll || 10000
+              }
+              onDismiss={() => setPerfDashboardDismissed(true)}
+            />
+          </div>,
+          document.body
+        )}
+
+      {/* Daily Recap Card for non-trial users - shows after promo is dismissed */}
+      {promoMounted && user && promoDismissed && !membership?.isTrial && recap && !recapDismissed &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 z-[94] flex items-center justify-center bg-black/70 backdrop-blur-md px-4 py-6">
+            <DailyRecapCard recap={recap} onDismiss={dismissRecap} />
+          </div>,
+          document.body
+        )}
+
+      {/* Fake Recap Notification for guests (marketing mockup) */}
+      {!user && <FakeRecapNotification />}
+
       {/* Mobile Sharp Detector Full-Page Overlay */}
       <AnimatePresence>
         {sharpDetectorOpen && (
@@ -1274,6 +1311,7 @@ function ChatPageContent() {
                 <SharpDetectorPanel
                   onNewSharp={handleSharpNotification}
                   onCountChange={setSharpTotalCount}
+                  isSyndicate={isSyndicate}
                 />
               </div>
             </div>

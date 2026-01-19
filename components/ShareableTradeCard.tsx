@@ -87,6 +87,7 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
           zIndex: -9999,
           pointerEvents: 'none',
           overflow: 'hidden',
+          opacity: 0,
         }}
         aria-hidden="true"
       >
@@ -101,6 +102,7 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
+            opacity: 1,
           }}
         >
           {/* Header */}

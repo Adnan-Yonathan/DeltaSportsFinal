@@ -1264,13 +1264,12 @@ export default function SharpDetectorPanel({
         </div>
       )}
       {sortedTrades.length > 0 && (
-        <div className="hidden lg:grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.6fr)_minmax(0,0.9fr)] gap-3 px-4 text-[10px] uppercase tracking-[0.25em] text-white/40">
+        <div className="hidden lg:grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,1fr)] gap-3 px-4 text-[10px] uppercase tracking-[0.25em] text-white/40">
           <span>Matchup</span>
           <span>Bet</span>
           <span>Size</span>
           <span>Date</span>
           <span>Odds</span>
-          <span>Grade</span>
           <span>Detected</span>
         </div>
       )}
@@ -1296,7 +1295,7 @@ export default function SharpDetectorPanel({
                 'border-emerald-400/50 shadow-[0_0_25px_rgba(16,185,129,0.25)]'
             )}
           >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,0.5fr)] lg:gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.5fr)] lg:gap-4">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 sm:hidden">
                   Matchup
@@ -1346,18 +1345,6 @@ export default function SharpDetectorPanel({
                   Odds
                 </p>
                 <p className="text-sm text-white/80">{resolveOddsLabel(trade)}</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 sm:hidden">
-                  Grade
-                </p>
-                {Number.isFinite(trade.sharpStrength) ? (
-                  <p className={cn('text-sm font-semibold', resolveStrengthClass(trade.sharpStrength))}>
-                    {trade.sharpStrength}%
-                  </p>
-                ) : (
-                  <p className="text-sm text-white/40">—</p>
-                )}
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 sm:hidden">

@@ -762,7 +762,7 @@ export default function SharpDetectorPanel({
     const phaseFiltered = filterByPhase(trades, phaseFilter)
     // Filter to only ultra-sharp trades
     return phaseFiltered
-      .filter((trade) => trade.isUltraSharp === true)
+      .filter((trade) => trade.isUltraSharp === true && (trade.sharpStrength ?? 0) > 55)
       .sort((a, b) => {
         // Sort by strength first, then by time
         const strengthA = a.sharpStrength ?? 0

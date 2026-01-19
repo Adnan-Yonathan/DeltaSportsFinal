@@ -388,11 +388,13 @@ export default function SharpDetectorPanel({
   onNewSharp,
   onCountChange,
   isSyndicate = false,
+  showLocalAlerts = true,
 }: {
   className?: string
   onNewSharp?: (count: number) => void
   onCountChange?: (count: number) => void
   isSyndicate?: boolean
+  showLocalAlerts?: boolean
 }) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('bet-feed')
   const [phaseFilter, setPhaseFilter] = useState<GamePhase>('all')
@@ -921,7 +923,7 @@ export default function SharpDetectorPanel({
 
   // Alert detection for new ultra-sharp trades
   useEffect(() => {
-    if (!alertsEnabled || activeTab !== 'sharp-money') return
+    if (!showLocalAlerts || !alertsEnabled || activeTab !== 'sharp-money') return
 
     const newUltraSharp = ultraSharpTrades.filter(
       (trade) => !ultraSharpSeenIds.current.has(trade.id)
@@ -943,7 +945,7 @@ export default function SharpDetectorPanel({
 
   // Auto-dismiss alerts after 30 seconds
   useEffect(() => {
-    if (alerts.length === 0) return
+    if (!showLocalAlerts || alerts.length === 0) return
     const timer = setTimeout(() => {
       setAlerts((prev) => prev.slice(1))
     }, 30000)
@@ -1394,15 +1396,17 @@ export default function SharpDetectorPanel({
       {activeTab === 'sharp-money' && isSyndicate && (
         <div className="space-y-4">
           {/* Alerts */}
-          <AnimatePresence>
-            {alerts.map((alert) => (
-              <SharpAlertBanner
-                key={alert.id}
-                alert={alert}
-                onDismiss={() => dismissAlert(alert.id)}
-              />
-            ))}
-          </AnimatePresence>
+          {showLocalAlerts && (
+            <AnimatePresence>
+              {alerts.map((alert) => (
+                <SharpAlertBanner
+                  key={alert.id}
+                  alert={alert}
+                  onDismiss={() => dismissAlert(alert.id)}
+                />
+              ))}
+            </AnimatePresence>
+          )}
 
           {/* Header with filters */}
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1435,16 +1439,17 @@ export default function SharpDetectorPanel({
                 <option value="pregame">Pre-game Only</option>
                 <option value="live">Live Only</option>
               </select>
-              {/* Alerts Toggle */}
-              <label className="flex items-center gap-2 text-[10px] text-white/50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={alertsEnabled}
-                  onChange={(e) => setAlertsEnabled(e.target.checked)}
-                  className="rounded border-white/20 bg-black"
-                />
-                Show alerts
-              </label>
+              {showLocalAlerts && (
+                <label className="flex items-center gap-2 text-[10px] text-white/50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={alertsEnabled}
+                    onChange={(e) => setAlertsEnabled(e.target.checked)}
+                    className="rounded border-white/20 bg-black"
+                  />
+                  Show alerts
+                </label>
+              )}
             </div>
           </div>
 

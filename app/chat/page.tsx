@@ -1097,6 +1097,7 @@ function ChatPageContent() {
                     onNewSharp={handleSharpNotification}
                     onCountChange={setSharpTotalCount}
                     isSyndicate={isSyndicate}
+                    showLocalAlerts={false}
                   />
                 </div>
               </div>
@@ -1322,6 +1323,7 @@ function ChatPageContent() {
                   onNewSharp={handleSharpNotification}
                   onCountChange={setSharpTotalCount}
                   isSyndicate={isSyndicate}
+                  showLocalAlerts={false}
                 />
               </div>
             </div>
@@ -1350,7 +1352,6 @@ export default function ChatPage() {
     </Suspense>
   )
 }
-
 
 
 

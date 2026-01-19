@@ -1,7 +1,6 @@
 'use client'
 
 import { forwardRef } from 'react'
-import Image from 'next/image'
 
 // Sharp tier labels and colors
 const SHARP_TIER_LABELS: Record<string, string> = {
@@ -12,10 +11,10 @@ const SHARP_TIER_LABELS: Record<string, string> = {
 }
 
 const SHARP_TIER_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  dolphin: { bg: 'bg-blue-500/20', text: 'text-blue-300', border: 'border-blue-400/50' },
-  orca: { bg: 'bg-purple-500/20', text: 'text-purple-300', border: 'border-purple-400/50' },
-  whale: { bg: 'bg-amber-500/20', text: 'text-amber-300', border: 'border-amber-400/50' },
-  megalodon: { bg: 'bg-emerald-500/20', text: 'text-emerald-300', border: 'border-emerald-400/50' },
+  dolphin: { bg: 'rgba(59, 130, 246, 0.2)', text: '#93c5fd', border: 'rgba(96, 165, 250, 0.5)' },
+  orca: { bg: 'rgba(168, 85, 247, 0.2)', text: '#d8b4fe', border: 'rgba(192, 132, 252, 0.5)' },
+  whale: { bg: 'rgba(245, 158, 11, 0.2)', text: '#fcd34d', border: 'rgba(251, 191, 36, 0.5)' },
+  megalodon: { bg: 'rgba(16, 185, 129, 0.2)', text: '#6ee7b7', border: 'rgba(52, 211, 153, 0.5)' },
 }
 
 function getSharpTier(notional: number): string {
@@ -69,6 +68,7 @@ export interface ShareableTradeCardProps {
 /**
  * Shareable trade card designed for Twitter/Reddit (1200x628)
  * This component is rendered off-screen and captured as an image
+ * Uses inline styles for html-to-image compatibility
  */
 const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
   ({ trade, matchupLabel }, ref) => {
@@ -87,59 +87,118 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
           position: 'absolute',
           left: -9999,
           top: -9999,
+          background: 'linear-gradient(135deg, #18181b 0%, #000000 50%, #18181b 100%)',
+          color: '#ffffff',
+          fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          display: 'flex',
+          flexDirection: 'column',
         }}
-        className="bg-gradient-to-br from-zinc-900 via-black to-zinc-900 text-white font-sans"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-12 py-8 border-b border-white/10">
-          <div className="flex items-center gap-4">
-            <Image
-              src="/delta-logo.png"
-              alt="Delta Sports"
-              width={48}
-              height={48}
-              className="rounded-lg"
-            />
-            <span className="text-2xl font-bold tracking-tight">DELTA SPORTS</span>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '32px 48px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Simple Delta logo placeholder - using text instead of image for reliability */}
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 8,
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 28,
+                fontWeight: 700,
+              }}
+            >
+              Δ
+            </div>
+            <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.025em' }}>
+              DELTA SPORTS
+            </span>
           </div>
-          <span className="text-xl text-white/60">{eventDate}</span>
+          <span style={{ fontSize: 20, color: 'rgba(255, 255, 255, 0.6)' }}>{eventDate}</span>
         </div>
 
         {/* Content */}
-        <div className="px-12 py-10">
+        <div style={{ padding: '40px 48px', flex: 1 }}>
           {/* Sport and Source */}
-          <div className="flex items-center justify-between mb-8">
-            <span className="text-xl font-semibold text-emerald-400">{trade.sport}</span>
-            <span className="text-lg text-white/60">
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 32,
+            }}
+          >
+            <span style={{ fontSize: 20, fontWeight: 600, color: '#34d399' }}>{trade.sport}</span>
+            <span style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)' }}>
               via {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
             </span>
           </div>
 
           {/* Main Card */}
-          <div className="rounded-3xl border border-white/20 bg-white/5 p-10">
+          <div
+            style={{
+              borderRadius: 24,
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              padding: 40,
+            }}
+          >
             {/* Matchup */}
-            <h2 className="text-4xl font-bold text-white mb-6">{displayMatchup}</h2>
+            <h2 style={{ fontSize: 36, fontWeight: 700, color: '#ffffff', marginBottom: 24 }}>
+              {displayMatchup}
+            </h2>
 
             {/* Bet Details */}
-            <p className="text-2xl text-white/80 mb-8">{trade.outcome}</p>
+            <p style={{ fontSize: 24, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 32 }}>
+              {trade.outcome}
+            </p>
 
             {/* Odds and Size Row */}
-            <div className="flex items-center justify-between">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <span className="text-xl text-white/60 block mb-1">Odds</span>
-                <span className="text-3xl font-semibold text-white">
+                <span
+                  style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)', display: 'block', marginBottom: 4 }}
+                >
+                  Odds
+                </span>
+                <span style={{ fontSize: 28, fontWeight: 600, color: '#ffffff' }}>
                   {formatOdds(trade.priceCents, trade.americanOdds)}
                 </span>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <span className="text-xl text-white/60 block mb-1">Size</span>
-                  <span className="text-3xl font-bold text-white">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ textAlign: 'right' }}>
+                  <span
+                    style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)', display: 'block', marginBottom: 4 }}
+                  >
+                    Size
+                  </span>
+                  <span style={{ fontSize: 28, fontWeight: 700, color: '#ffffff' }}>
                     {formatCurrency(trade.notional)}
                   </span>
                 </div>
                 <span
-                  className={`px-4 py-2 rounded-full text-lg font-bold uppercase tracking-wider ${tierColors.bg} ${tierColors.text} border ${tierColors.border}`}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 9999,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    background: tierColors.bg,
+                    color: tierColors.text,
+                    border: `1px solid ${tierColors.border}`,
+                  }}
                 >
                   {tierLabel}
                 </span>
@@ -149,9 +208,15 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
         </div>
 
         {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 px-12 py-6 border-t border-white/10">
-          <p className="text-center text-lg text-white/50">
-            Track sharp money at <span className="text-emerald-400 font-medium">deltasports.app</span>
+        <div
+          style={{
+            padding: '24px 48px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          }}
+        >
+          <p style={{ textAlign: 'center', fontSize: 18, color: 'rgba(255, 255, 255, 0.5)' }}>
+            Track sharp money at{' '}
+            <span style={{ color: '#34d399', fontWeight: 500 }}>deltasports.app</span>
           </p>
         </div>
       </div>

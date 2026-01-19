@@ -27,6 +27,9 @@ const isHockeySport = (sport: string) => sport === 'icehockey_nhl'
 
 const TRACKED_SPORTS = new Set(['basketball_nba', 'basketball_ncaab', 'icehockey_nhl'])
 
+// Minimum edge percentage required for CLV tracking (NBA and NCAAB)
+const MIN_EDGE_PERCENT_BASKETBALL = 3.0
+
 export type MarketProjectionClvSummary = {
   total: number
   beat: number
@@ -284,8 +287,10 @@ export const recordMarketProjectionPicks = async ({
         }
       }
 
-      // Basketball: track spreads
+      // Basketball: track spreads (only if edge >= 3%)
       if (!edge.spread) return null
+      const edgePercent = edge.sharpProjections?.spread?.edgePercent
+      if (edgePercent == null || edgePercent < MIN_EDGE_PERCENT_BASKETBALL) return null
       const pickSide = resolvePickSide(edge)
       if (!pickSide) return null
       const pickLine = resolvePickLine(edge, pickSide)

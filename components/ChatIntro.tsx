@@ -199,9 +199,6 @@ export default function ChatIntro({
               gridClassName="mt-0 w-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
               imageClassName="w-full h-[24px] sm:h-[36px] lg:h-[48px] object-cover rounded-3xl shadow-[0_36px_100px_rgba(0,0,0,0.55)] dark:invert-0"
             />
-            <p className="mt-6 text-center text-xs uppercase tracking-[0.35em] text-white/70">
-              Trusted by 170+ customers
-            </p>
           </motion.div>
 
           {/* Feature Highlights */}

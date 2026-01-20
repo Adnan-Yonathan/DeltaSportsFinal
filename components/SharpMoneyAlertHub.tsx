@@ -72,6 +72,8 @@ const formatOddsLabel = (value?: number | null) => {
   return odds >= 0 ? `+${odds}` : `${odds}`
 }
 
+const isLiquidityTrade = (trade: SharpTrade) => trade.id?.startsWith('liquidity:')
+
 const loadSeenIds = () => {
   if (typeof window === 'undefined') return new Set<string>()
   try {
@@ -138,7 +140,7 @@ export default function SharpMoneyAlertHub() {
             trade.isUltraSharp === true &&
             (trade.sharpStrength ?? 0) > 55 &&
             !isTradeLive(trade) &&
-            trade.crossMarketEvPercent != null &&
+            (trade.crossMarketEvPercent != null || isLiquidityTrade(trade)) &&
             trade.sportsbookBestOdds != null
         )
 

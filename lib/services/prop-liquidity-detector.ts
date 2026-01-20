@@ -10,8 +10,8 @@ const POLYMARKET_BASE = 'https://gamma-api.polymarket.com'
 const POLYMARKET_CLOB = 'https://clob.polymarket.com'
 const POLYMARKET_GAMES_TAG_ID = '100639'
 
-const PROP_LIQUIDITY_MIN = 10000
-const TEAM_LIQUIDITY_MIN = 100000
+const PROP_ORDER_NOTIONAL_MIN = 500
+const TEAM_ORDER_NOTIONAL_MIN = 2000
 const CACHE_TTL_MS = 60 * 1000
 const MAX_KALSHI_PAGES = 5
 const MAX_POLYMARKET_MARKETS = 120
@@ -97,6 +97,16 @@ type PolymarketMarket = {
 type PolymarketOrderbook = {
   bids?: Array<{ price: string; size: string }>
   asks?: Array<{ price: string; size: string }>
+}
+
+type KalshiOrderSummary = {
+  notional: number
+  priceCents: number | null
+}
+
+type KalshiOrderbookSummary = {
+  yes: KalshiOrderSummary[]
+  no: KalshiOrderSummary[]
 }
 
 type SportsbookPropLine = {
@@ -380,32 +390,54 @@ const resolveTeamNameFromCode = (sportKey: string, code: string | null) => {
   return TEAM_LOOKUP.get(`${sportKey}:${code}`) ?? null
 }
 
-const parseLiquidityValue = (value?: number | string | null) => {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return 0
-  return parsed
-}
-
 const normalizePriceCents = (value: number) => (value <= 1 ? value * 100 : value)
 
-const resolveKalshiSidePriceCents = (market?: KalshiMarketResponse['market'], side?: 'yes' | 'no') => {
-  if (!market || !side) return null
-  const isYes = side === 'yes'
-  const bidCents = Number(isYes ? market.yes_bid : market.no_bid)
-  const askCents = Number(isYes ? market.yes_ask : market.no_ask)
-  const bidDollars = Number(isYes ? market.yes_bid_dollars : market.no_bid_dollars)
-  const askDollars = Number(isYes ? market.yes_ask_dollars : market.no_ask_dollars)
-  if (Number.isFinite(bidCents) && Number.isFinite(askCents)) {
-    return Math.round((bidCents + askCents) / 2)
+const formatAmericanOdds = (value: number | null) => {
+  if (value == null || !Number.isFinite(value)) return null
+  const rounded = Math.round(value)
+  return rounded >= 0 ? `+${rounded}` : `${rounded}`
+}
+
+const parseKalshiOrders = (levels: number[][]): KalshiOrderSummary[] => {
+  const orders: KalshiOrderSummary[] = []
+  for (const level of levels) {
+    const priceRaw = Number(level?.[0])
+    const size = Number(level?.[1])
+    if (!Number.isFinite(priceRaw) || !Number.isFinite(size)) continue
+    const priceCents = normalizePriceCents(priceRaw)
+    const notional = (priceCents / 100) * size
+    if (!Number.isFinite(notional) || notional <= 0) continue
+    orders.push({ notional, priceCents })
   }
-  if (Number.isFinite(bidCents)) return Math.round(bidCents)
-  if (Number.isFinite(askCents)) return Math.round(askCents)
-  if (Number.isFinite(bidDollars) && Number.isFinite(askDollars)) {
-    return Math.round((bidDollars + askDollars) * 50)
+  return orders
+}
+
+const sumOrderNotional = (orders: KalshiOrderSummary[]) =>
+  orders.reduce((sum, order) => sum + order.notional, 0)
+
+const resolveBestPriceOrder = (orders: KalshiOrderSummary[], minNotional: number) => {
+  let best: KalshiOrderSummary | null = null
+  for (const order of orders) {
+    if (order.notional < minNotional) continue
+    if (!best || (order.priceCents ?? 0) > (best.priceCents ?? 0)) {
+      best = order
+    }
   }
-  if (Number.isFinite(bidDollars)) return Math.round(bidDollars * 100)
-  if (Number.isFinite(askDollars)) return Math.round(askDollars * 100)
-  return null
+  return best
+}
+
+const resolveDominantOrder = (orders: KalshiOrderSummary[], minNotional: number) => {
+  const total = sumOrderNotional(orders)
+  if (!total) return null
+  let best: KalshiOrderSummary | null = null
+  for (const order of orders) {
+    if (order.notional < minNotional) continue
+    if (order.notional < total * 0.5) continue
+    if (!best || (order.priceCents ?? 0) > (best.priceCents ?? 0)) {
+      best = order
+    }
+  }
+  return best
 }
 
 const fetchKalshiMarketDetails = async (ticker: string) => {
@@ -415,7 +447,9 @@ const fetchKalshiMarketDetails = async (ticker: string) => {
   return data.market ?? null
 }
 
-const fetchKalshiOrderbookDepth = async (ticker: string) => {
+const fetchKalshiOrderbookSummary = async (
+  ticker: string
+): Promise<KalshiOrderbookSummary | null> => {
   const url = new URL(`${KALSHI_BASE}/markets/${ticker}/orderbook`)
   url.searchParams.set('depth', '5')
   const res = await fetch(url.toString(), { cache: 'no-store' })
@@ -423,15 +457,9 @@ const fetchKalshiOrderbookDepth = async (ticker: string) => {
   const data = (await res.json()) as { orderbook?: { yes?: number[][]; no?: number[][] } }
   const yes = Array.isArray(data.orderbook?.yes) ? data.orderbook?.yes ?? [] : []
   const no = Array.isArray(data.orderbook?.no) ? data.orderbook?.no ?? [] : []
-  const sumDepth = (levels: number[][]) =>
-    levels.reduce((sum, level) => {
-      const priceCents = normalizePriceCents(Number(level?.[0]) || 0)
-      const size = Number(level?.[1]) || 0
-      return sum + (priceCents / 100) * size
-    }, 0)
   return {
-    yesDepth: sumDepth(yes),
-    noDepth: sumDepth(no),
+    yes: parseKalshiOrders(yes),
+    no: parseKalshiOrders(no),
   }
 }
 
@@ -494,17 +522,18 @@ const fetchPolymarketOrderbook = async (tokenId: string): Promise<PolymarketOrde
   return data
 }
 
-const sumPolymarketDepth = (book: PolymarketOrderbook) => {
+const parsePolymarketOrders = (book: PolymarketOrderbook): KalshiOrderSummary[] => {
   const bids = Array.isArray(book.bids) ? book.bids : []
-  const asks = Array.isArray(book.asks) ? book.asks : []
-  const sumSide = (levels: Array<{ price: string; size: string }>) =>
-    levels.reduce((sum, level) => {
-      const price = Number(level.price)
-      const size = Number(level.size)
-      if (!Number.isFinite(price) || !Number.isFinite(size)) return sum
-      return sum + price * size
-    }, 0)
-  return sumSide(bids) + sumSide(asks)
+  const orders: KalshiOrderSummary[] = []
+  for (const level of bids) {
+    const price = Number(level.price)
+    const size = Number(level.size)
+    if (!Number.isFinite(price) || !Number.isFinite(size)) continue
+    const notional = price * size
+    if (!Number.isFinite(notional) || notional <= 0) continue
+    orders.push({ notional, priceCents: Math.round(price * 100) })
+  }
+  return orders
 }
 
 const calculateImpliedProbability = (odds: number) => {
@@ -684,8 +713,8 @@ const formatCurrency = (value: number) => {
   return `$${Math.round(value)}`
 }
 
-const computeSharpStrength = (liquidity: number, edgePercent?: number | null) => {
-  const base = 55 + Math.log10(liquidity / 1000 + 1) * 20
+const computeSharpStrength = (notional: number, edgePercent?: number | null) => {
+  const base = 55 + Math.log10(notional / 1000 + 1) * 20
   const edgeBoost = edgePercent != null && edgePercent >= 3 ? 8 : 0
   return Math.min(100, Math.round(base + edgeBoost))
 }
@@ -915,26 +944,55 @@ const resolveSportsbookPropPrices = async (
   return { bestOdds: bestOdds ?? null, noVigProb, bestBookTitle }
 }
 
-const buildLiquidityReason = (liquidity: number, liquiditySide: string, inferredSide: string) => ({
-  type: 'liquidity' as const,
-  description: `${formatCurrency(liquidity)} liquidity on ${liquiditySide} suggests sharp demand for ${inferredSide}.`,
-  value: liquidity,
-})
+const buildLiquidityReason = (
+  notional: number,
+  outcomeLabel: string,
+  americanOdds: number | null,
+  priceCents: number | null
+) => {
+  const oddsLabel =
+    formatAmericanOdds(americanOdds) ?? (priceCents != null ? `${priceCents}c` : 'market price')
+  return {
+    type: 'liquidity' as const,
+    description: `${formatCurrency(notional)} order on ${outcomeLabel} at ${oddsLabel}.`,
+    value: notional,
+  }
+}
 
-const buildEvReason = (edgePercent: number, bestOdds: number | null) => ({
-  type: 'cross-market-ev' as const,
-  description: `Sportsbook price is ~${edgePercent.toFixed(1)}% better than the prediction market${bestOdds != null ? ` (${bestOdds})` : ''}.`,
-  value: edgePercent,
-})
+const buildEvReason = (edgePercent: number, bestOdds: number | null) => {
+  const absEdge = Math.abs(edgePercent).toFixed(1)
+  const direction =
+    edgePercent >= 0
+      ? `Sportsbook price is ~${absEdge}% better than the order`
+      : `Order price is ~${absEdge}% better than sportsbooks`
+  const oddsLabel =
+    bestOdds != null ? ` (${bestOdds >= 0 ? `+${bestOdds}` : bestOdds})` : ''
+  return {
+    type: 'cross-market-ev' as const,
+    description: `${direction}${oddsLabel}.`,
+    value: edgePercent,
+  }
+}
+
+const buildLiquidityShareReason = (notional: number, totalLiquidity: number) => {
+  if (!totalLiquidity) return null
+  const share = Math.round((notional / totalLiquidity) * 100)
+  if (!Number.isFinite(share) || share < 50) return null
+  return {
+    type: 'liquidity' as const,
+    description: `Order size is ${share}% of this side's liquidity.`,
+    value: notional,
+  }
+}
 
 let cachedSignals: { fetchedAt: number; signals: PropLiquiditySignal[] } | null = null
 
 export const fetchPropLiquiditySignals = async (opts?: {
   sportKey?: string | 'all'
-  minLiquidity?: number
+  minOrderNotional?: number
 }) => {
   const now = Date.now()
-  const minLiquidity = opts?.minLiquidity ?? PROP_LIQUIDITY_MIN
+  const minOrderNotional = opts?.minOrderNotional ?? PROP_ORDER_NOTIONAL_MIN
   const sportFilter = opts?.sportKey ?? 'all'
   if (cachedSignals && now - cachedSignals.fetchedAt < CACHE_TTL_MS) {
     if (sportFilter === 'all') return cachedSignals.signals
@@ -949,94 +1007,114 @@ export const fetchPropLiquiditySignals = async (opts?: {
     const upcoming = markets.filter((market) => {
       const eventDate = parseKalshiDate(market.ticker)
       if (!eventDate || eventDate < today) return false
-      const liquidity = parseLiquidityValue(market.liquidity_dollars ?? market.liquidity)
-      return liquidity >= minLiquidity
+      return true
     })
 
     for (const market of upcoming) {
-      const orderbook = await fetchKalshiOrderbookDepth(market.ticker)
+      const orderbook = await fetchKalshiOrderbookSummary(market.ticker)
       if (!orderbook) continue
-      const yesLiquidity = orderbook.yesDepth || 0
-      const noLiquidity = orderbook.noDepth || 0
-      const maxLiquidity = Math.max(yesLiquidity, noLiquidity)
-      if (maxLiquidity < minLiquidity) continue
-
-      const liquiditySide = yesLiquidity >= noLiquidity ? 'Yes' : 'No'
-      const inferredSide = yesLiquidity >= noLiquidity ? 'no' : 'yes'
       const eventDate = parseKalshiDate(market.ticker) ?? undefined
-
       const marketDetails = await fetchKalshiMarketDetails(market.ticker)
-      const outcomeLabel =
-        inferredSide === 'yes'
-          ? marketDetails?.yes_sub_title || market.yes_sub_title || 'Yes'
-          : marketDetails?.no_sub_title || market.no_sub_title || 'No'
-      const priceCents = resolveKalshiSidePriceCents(marketDetails ?? undefined, inferredSide)
-      const probability = priceCents != null ? priceCents / 100 : null
-      const americanOdds =
-        probability && probability > 0 && probability < 1
-          ? probabilityToAmericanOdds(probability)
-          : null
+      const rawYesLabel = marketDetails?.yes_sub_title || market.yes_sub_title || 'Yes'
+      const rawNoLabel = marketDetails?.no_sub_title || market.no_sub_title || 'No'
 
-      const rawText = `${market.title ?? ''} ${outcomeLabel}`.trim()
-      const normalizedText = normalizeText(rawText)
-      const playerName = parsePlayerNameFromKalshiTitle(market.title) || extractPlayerNameFromText(rawText)
-      const propType = series.propType
-      const propLine = parseLineFromTicker(market.ticker)
-      const propSide = resolvePropSide(normalizedText, rawText, inferredSide)
-
-      if (!playerName || !propType || !propSide) continue
-
-      const { bestOdds, noVigProb, bestBookTitle } = await resolveSportsbookPropPrices(
-        series.sportKey,
-        playerName,
-        propType,
-        propLine,
-        propSide
-      )
-      const edge =
-        noVigProb != null && probability != null
-          ? (probability - noVigProb) * 100
-          : null
-      const edgePercent = edge != null ? Math.round(edge * 10) / 10 : null
-      if (edgePercent == null || edgePercent < 3) continue
-      if (americanOdds != null && americanOdds < -250) continue
-      const reasons: PropLiquiditySignal['reasons'] = [
-        buildLiquidityReason(maxLiquidity, liquiditySide, propSide),
+      const candidateSides: Array<{
+        side: 'yes' | 'no'
+        orders: KalshiOrderSummary[]
+        label: string
+        outcomeIndex: number
+      }> = [
+        { side: 'yes', orders: orderbook.yes, label: rawYesLabel, outcomeIndex: 0 },
+        { side: 'no', orders: orderbook.no, label: rawNoLabel, outcomeIndex: 1 },
       ]
-      reasons.push(buildEvReason(edgePercent, bestOdds))
 
-      const sharpStrength = computeSharpStrength(maxLiquidity, edgePercent ?? undefined)
+      for (const candidate of candidateSides) {
+        const totalLiquidity = sumOrderNotional(candidate.orders)
+        const dominantOrder = resolveDominantOrder(candidate.orders, minOrderNotional)
+        const bestPriceOrder = resolveBestPriceOrder(candidate.orders, minOrderNotional)
+        const selectedOrder = dominantOrder ?? bestPriceOrder
+        if (!selectedOrder) continue
+        const priceCents = selectedOrder.priceCents
+        if (priceCents == null) continue
+        const probability = priceCents / 100
+        const americanOdds =
+          probability > 0 && probability < 1 ? probabilityToAmericanOdds(probability) : null
 
-      const displayOutcome =
-        propLine != null ? `${propSide} ${propLine}` : propSide
+        const rawText = `${market.title ?? ''} ${candidate.label}`.trim()
+        const normalizedText = normalizeText(rawText)
+        const playerName = parsePlayerNameFromKalshiTitle(market.title) || extractPlayerNameFromText(rawText)
+        const propType = series.propType
+        const propLine = parseLineFromTicker(market.ticker)
+        const propSide = resolvePropSide(normalizedText, rawText, candidate.side)
 
-      kalshiSignals.push({
-        id: `kalshi:${market.ticker}:${inferredSide}`,
-        source: 'kalshi',
-        category: 'player_prop',
-        sportKey: series.sportKey,
-        sportLabel: series.sportLabel,
-        marketTitle: market.title ?? market.ticker,
-        outcome: displayOutcome,
-        playerName,
-        propType,
-        propLine,
-        propSide,
-        side: inferredSide,
-        priceCents,
-        americanOdds,
-        liquidity: maxLiquidity,
-        timestamp: new Date().toISOString(),
-        eventDate,
-        ticker: market.ticker,
-        outcomeIndex: inferredSide === 'yes' ? 0 : 1,
-        edgePercent,
-        sportsbookNoVigProb: noVigProb,
-        sportsbookBestOdds: bestOdds,
-        sportsbookBookTitle: bestBookTitle ?? null,
-        sharpStrength,
-        reasons,
-      })
+        if (!playerName || !propType || !propSide) continue
+        if (americanOdds != null && americanOdds < -250) continue
+
+        const { bestOdds, noVigProb, bestBookTitle } = await resolveSportsbookPropPrices(
+          series.sportKey,
+          playerName,
+          propType,
+          propLine,
+          propSide
+        )
+        const sportsbookProb = bestOdds != null ? oddsToImpliedProbability(bestOdds) : null
+        const edge =
+          sportsbookProb != null ? (probability - sportsbookProb) * 100 : null
+        const edgePercent = edge != null ? Math.round(edge * 10) / 10 : null
+
+        const displayOutcome =
+          propLine != null ? `${propSide} ${propLine}` : propSide
+
+        const reasons: PropLiquiditySignal['reasons'] = [
+          buildLiquidityReason(selectedOrder.notional, displayOutcome, americanOdds, priceCents),
+        ]
+        const shareReason = buildLiquidityShareReason(selectedOrder.notional, totalLiquidity)
+        if (shareReason) reasons.push(shareReason)
+        if (edgePercent != null && bestOdds != null) {
+          reasons.push(buildEvReason(edgePercent, bestOdds))
+        }
+
+        const sharpStrength = computeSharpStrength(selectedOrder.notional, edgePercent ?? undefined)
+
+        const orderOdds =
+          americanOdds != null ? americanOdds : probabilityToAmericanOdds(probability)
+        const useSportsbook =
+          sportsbookProb != null && sportsbookProb < probability
+        const bestPriceOdds = useSportsbook ? bestOdds : orderOdds
+        const bestPriceBookTitle = useSportsbook
+          ? bestBookTitle ?? null
+          : 'Kalshi'
+        const bestPriceBookKey = useSportsbook ? null : 'kalshi'
+
+        kalshiSignals.push({
+          id: `kalshi:${market.ticker}:${candidate.side}`,
+          source: 'kalshi',
+          category: 'player_prop',
+          sportKey: series.sportKey,
+          sportLabel: series.sportLabel,
+          marketTitle: market.title ?? market.ticker,
+          outcome: displayOutcome,
+          playerName,
+          propType,
+          propLine,
+          propSide,
+          side: candidate.side,
+          priceCents,
+          americanOdds,
+          liquidity: selectedOrder.notional,
+          timestamp: new Date().toISOString(),
+          eventDate,
+          ticker: market.ticker,
+          outcomeIndex: candidate.outcomeIndex,
+          edgePercent,
+          sportsbookNoVigProb: noVigProb,
+          sportsbookBestOdds: bestPriceOdds ?? null,
+          sportsbookBookTitle: bestPriceBookTitle,
+          sportsbookBookKey: bestPriceBookKey,
+          sharpStrength,
+          reasons,
+        })
+      }
     }
   }
 
@@ -1054,10 +1132,6 @@ export const fetchPropLiquiditySignals = async (opts?: {
   let orderbookCount = 0
   for (const market of markets) {
     if (!market?.active || market.closed) continue
-    const liquidity = Number.isFinite(market.liquidityNum)
-      ? (market.liquidityNum as number)
-      : parseLiquidityValue(market.liquidity)
-    if (liquidity < minLiquidity) continue
     const sportMeta = resolvePolymarketSport(market)
     if (!sportMeta) continue
     if (sportFilter !== 'all' && sportMeta.sportKey !== sportFilter) continue
@@ -1082,85 +1156,101 @@ export const fetchPropLiquiditySignals = async (opts?: {
       fetchPolymarketOrderbook(tokenIds[1]),
     ])
     if (!book0 || !book1) continue
-    const depth0 = sumPolymarketDepth(book0)
-    const depth1 = sumPolymarketDepth(book1)
-    const maxLiquidity = Math.max(depth0, depth1)
-    if (maxLiquidity < minLiquidity) continue
-
-    const liquidityIndex = depth0 >= depth1 ? 0 : 1
-    const inferredIndex = liquidityIndex === 0 ? 1 : 0
-    const inferredOutcome = outcomes[inferredIndex] ?? ''
-    const outcomeLower = inferredOutcome.toLowerCase().trim()
-    const inferredSide =
-      outcomeLower === 'yes' ? 'yes' : outcomeLower === 'no' ? 'no' : null
-    const propSide = resolvePropSide(normalizedText, rawText, inferredSide)
-    if (!propSide) continue
-
-    const playerName = extractPlayerNameFromText(rawText)
-    const propLine = resolvePropLine(normalizedText, propType, rawText)
-    if (!playerName || propLine == null) continue
-
-    const priceRaw = Number(outcomePrices[inferredIndex])
-    const probability = Number.isFinite(priceRaw) ? priceRaw : null
-    const priceCents = probability != null ? Math.round(probability * 100) : null
-    const americanOdds =
-      probability && probability > 0 && probability < 1
-        ? probabilityToAmericanOdds(probability)
-        : null
-
-    const { bestOdds, noVigProb, bestBookTitle } = await resolveSportsbookPropPrices(
-      sportMeta.sportKey,
-      playerName,
-      propType,
-      propLine,
-      propSide
-    )
-    const edge =
-      noVigProb != null && probability != null
-        ? (probability - noVigProb) * 100
-        : null
-    const edgePercent = edge != null ? Math.round(edge * 10) / 10 : null
-    if (edgePercent == null || edgePercent < 3) continue
-    if (americanOdds != null && americanOdds < -250) continue
-
-    const liquiditySideLabel = outcomes[liquidityIndex] ?? 'liquidity'
-    const reasons: PropLiquiditySignal['reasons'] = [
-      buildLiquidityReason(maxLiquidity, liquiditySideLabel, propSide),
+    const orders0 = parsePolymarketOrders(book0)
+    const orders1 = parsePolymarketOrders(book1)
+    const candidates = [
+      { index: 0, orders: orders0 },
+      { index: 1, orders: orders1 },
     ]
-    reasons.push(buildEvReason(edgePercent, bestOdds))
 
-    const sharpStrength = computeSharpStrength(maxLiquidity, edgePercent ?? undefined)
+    for (const candidate of candidates) {
+      const totalLiquidity = sumOrderNotional(candidate.orders)
+      const dominantOrder = resolveDominantOrder(candidate.orders, minOrderNotional)
+      const bestPriceOrder = resolveBestPriceOrder(candidate.orders, minOrderNotional)
+      const selectedOrder = dominantOrder ?? bestPriceOrder
+      if (!selectedOrder) continue
+      const outcome = outcomes[candidate.index] ?? ''
+      const outcomeLower = outcome.toLowerCase().trim()
+      const side = outcomeLower === 'yes' ? 'yes' : outcomeLower === 'no' ? 'no' : null
+      const propSide = resolvePropSide(normalizedText, rawText, side)
+      if (!propSide) continue
 
-    const displayOutcome =
-      propLine != null ? `${propSide} ${propLine}` : propSide
+      const playerName = extractPlayerNameFromText(rawText)
+      const propLine = resolvePropLine(normalizedText, propType, rawText)
+      if (!playerName || propLine == null) continue
 
-    polymarketSignals.push({
-        id: `polymarket:${market.id}:${inferredIndex}`,
+      const priceCents = selectedOrder.priceCents
+      if (priceCents == null) continue
+      const probability = priceCents / 100
+      const americanOdds =
+        probability > 0 && probability < 1 ? probabilityToAmericanOdds(probability) : null
+      if (americanOdds != null && americanOdds < -250) continue
+
+      const { bestOdds, noVigProb, bestBookTitle } = await resolveSportsbookPropPrices(
+        sportMeta.sportKey,
+        playerName,
+        propType,
+        propLine,
+        propSide
+      )
+      const sportsbookProb = bestOdds != null ? oddsToImpliedProbability(bestOdds) : null
+      const edge =
+        sportsbookProb != null ? (probability - sportsbookProb) * 100 : null
+      const edgePercent = edge != null ? Math.round(edge * 10) / 10 : null
+
+      const displayOutcome =
+        propLine != null ? `${propSide} ${propLine}` : propSide
+
+      const reasons: PropLiquiditySignal['reasons'] = [
+        buildLiquidityReason(selectedOrder.notional, displayOutcome, americanOdds, priceCents),
+      ]
+      const shareReason = buildLiquidityShareReason(selectedOrder.notional, totalLiquidity)
+      if (shareReason) reasons.push(shareReason)
+      if (edgePercent != null && bestOdds != null) {
+        reasons.push(buildEvReason(edgePercent, bestOdds))
+      }
+
+      const sharpStrength = computeSharpStrength(selectedOrder.notional, edgePercent ?? undefined)
+
+      const orderOdds =
+        americanOdds != null ? americanOdds : probabilityToAmericanOdds(probability)
+      const useSportsbook =
+        sportsbookProb != null && sportsbookProb < probability
+      const bestPriceOdds = useSportsbook ? bestOdds : orderOdds
+      const bestPriceBookTitle = useSportsbook
+        ? bestBookTitle ?? null
+        : 'Polymarket'
+      const bestPriceBookKey = useSportsbook ? null : 'polymarket'
+
+      polymarketSignals.push({
+        id: `polymarket:${market.id}:${candidate.index}`,
         source: 'polymarket',
         category: 'player_prop',
         sportKey: sportMeta.sportKey,
         sportLabel: sportMeta.sportLabel,
         marketTitle: rawText,
         outcome: displayOutcome,
-      playerName,
-      propType,
-      propLine,
+        playerName,
+        propType,
+        propLine,
       propSide,
-      side: inferredSide,
+      side,
       priceCents,
       americanOdds,
-      liquidity: maxLiquidity,
+      liquidity: selectedOrder.notional,
       timestamp: new Date().toISOString(),
       eventDate: resolvePolymarketEventDate(market) ?? undefined,
       slug: market.id,
-      outcomeIndex: inferredIndex,
+      outcomeIndex: candidate.index,
       edgePercent,
       sportsbookNoVigProb: noVigProb,
-      sportsbookBestOdds: bestOdds,
-      sportsbookBookTitle: bestBookTitle ?? null,
+      sportsbookBestOdds: bestPriceOdds ?? null,
+      sportsbookBookTitle: bestPriceBookTitle,
+      sportsbookBookKey: bestPriceBookKey,
       sharpStrength,
       reasons,
     })
+    }
   }
 
   const teamSignals: PropLiquiditySignal[] = []
@@ -1170,28 +1260,20 @@ export const fetchPropLiquiditySignals = async (opts?: {
     const upcoming = markets.filter((market) => {
       const eventDate = parseKalshiDate(market.ticker)
       if (!eventDate || eventDate < today) return false
-      const liquidity = parseLiquidityValue(market.liquidity_dollars ?? market.liquidity)
-      return liquidity >= TEAM_LIQUIDITY_MIN
+      return true
     })
 
     for (const market of upcoming) {
-      const orderbook = await fetchKalshiOrderbookDepth(market.ticker)
+      const orderbook = await fetchKalshiOrderbookSummary(market.ticker)
       if (!orderbook) continue
-      const yesLiquidity = orderbook.yesDepth || 0
-      const noLiquidity = orderbook.noDepth || 0
-      const maxLiquidity = Math.max(yesLiquidity, noLiquidity)
-      if (maxLiquidity < TEAM_LIQUIDITY_MIN) continue
-
-      const inferredSide = yesLiquidity >= noLiquidity ? 'no' : 'yes'
-      const liquiditySideLabel = yesLiquidity >= noLiquidity ? 'Yes' : 'No'
-      const marketDetails = await fetchKalshiMarketDetails(market.ticker)
-      const priceCents = resolveKalshiSidePriceCents(marketDetails ?? undefined, inferredSide)
-      const probability = priceCents != null ? priceCents / 100 : null
-      const americanOdds =
-        probability && probability > 0 && probability < 1
-          ? probabilityToAmericanOdds(probability)
-          : null
-      if (americanOdds != null && americanOdds < -250) continue
+      const candidateSides: Array<{
+        side: 'yes' | 'no'
+        orders: KalshiOrderSummary[]
+        outcomeIndex: number
+      }> = [
+        { side: 'yes', orders: orderbook.yes, outcomeIndex: 0 },
+        { side: 'no', orders: orderbook.no, outcomeIndex: 1 },
+      ]
 
       const teamCodes = parseTeamsFromTicker(market.ticker)
       if (!teamCodes) continue
@@ -1205,80 +1287,106 @@ export const fetchPropLiquiditySignals = async (opts?: {
         lineTeamName === awayName ? homeName : lineTeamName === homeName ? awayName : null
 
       const lineValue = parseLineFromTitle(market.title ?? '')
-      let selection: { team?: string; totalSide?: 'over' | 'under'; line?: number } = {}
-      let outcomeLabel = ''
 
-      if (series.marketKey === 'totals') {
-        if (lineValue == null) continue
-        const totalSide = inferredSide === 'yes' ? 'over' : 'under'
-        selection = { totalSide, line: lineValue }
-        outcomeLabel = `${totalSide === 'over' ? 'Over' : 'Under'} ${lineValue}`
-      } else if (series.marketKey === 'spreads') {
-        if (lineValue == null || !lineTeamName || !opponentName) continue
-        const line = Math.abs(lineValue)
-        if (inferredSide === 'yes') {
-          selection = { team: lineTeamName, line: -line }
-          outcomeLabel = `${lineTeamName} -${line}`
+      for (const candidate of candidateSides) {
+        const totalLiquidity = sumOrderNotional(candidate.orders)
+        const dominantOrder = resolveDominantOrder(candidate.orders, TEAM_ORDER_NOTIONAL_MIN)
+        const bestPriceOrder = resolveBestPriceOrder(candidate.orders, TEAM_ORDER_NOTIONAL_MIN)
+        const selectedOrder = dominantOrder ?? bestPriceOrder
+        if (!selectedOrder) continue
+        const priceCents = selectedOrder.priceCents
+        if (priceCents == null) continue
+        const probability = priceCents / 100
+        const americanOdds =
+          probability > 0 && probability < 1 ? probabilityToAmericanOdds(probability) : null
+        if (americanOdds != null && americanOdds < -250) continue
+
+        let selection: { team?: string; totalSide?: 'over' | 'under'; line?: number } = {}
+        let outcomeLabel = ''
+
+        if (series.marketKey === 'totals') {
+          if (lineValue == null) continue
+          const totalSide = candidate.side === 'yes' ? 'over' : 'under'
+          selection = { totalSide, line: lineValue }
+          outcomeLabel = `${totalSide === 'over' ? 'Over' : 'Under'} ${lineValue}`
+        } else if (series.marketKey === 'spreads') {
+          if (lineValue == null || !lineTeamName || !opponentName) continue
+          const line = Math.abs(lineValue)
+          if (candidate.side === 'yes') {
+            selection = { team: lineTeamName, line: -line }
+            outcomeLabel = `${lineTeamName} -${line}`
+          } else {
+            selection = { team: opponentName, line }
+            outcomeLabel = `${opponentName} +${line}`
+          }
         } else {
-          selection = { team: opponentName, line }
-          outcomeLabel = `${opponentName} +${line}`
+          if (!lineTeamName || !opponentName) continue
+          const team = candidate.side === 'yes' ? lineTeamName : opponentName
+          selection = { team }
+          outcomeLabel = team
         }
-      } else {
-        if (!lineTeamName || !opponentName) continue
-        const team = inferredSide === 'yes' ? lineTeamName : opponentName
-        selection = { team }
-        outcomeLabel = team
-      }
 
-      const { noVigProb, bestOdds, bestBookKey, bestBookTitle } = await resolveSportsbookNoVig({
-        sportKey: series.sportKey,
-        marketKey: series.marketKey,
-        teams: { home: homeName, away: awayName },
-        selection,
-      })
+        const { noVigProb, bestOdds, bestBookKey, bestBookTitle } = await resolveSportsbookNoVig({
+          sportKey: series.sportKey,
+          marketKey: series.marketKey,
+          teams: { home: homeName, away: awayName },
+          selection,
+        })
+        const sportsbookProb = bestOdds != null ? oddsToImpliedProbability(bestOdds) : null
+        const edge =
+          sportsbookProb != null ? (probability - sportsbookProb) * 100 : null
+        const edgePercent = edge != null ? Math.round(edge * 10) / 10 : null
 
-      const edge =
-        noVigProb != null && probability != null
-          ? (probability - noVigProb) * 100
-          : null
-      const edgePercent = edge != null ? Math.round(edge * 10) / 10 : null
-      if (edgePercent == null || edgePercent < 3) continue
+        const reasons: PropLiquiditySignal['reasons'] = [
+          buildLiquidityReason(selectedOrder.notional, outcomeLabel, americanOdds, priceCents),
+        ]
+        const shareReason = buildLiquidityShareReason(selectedOrder.notional, totalLiquidity)
+        if (shareReason) reasons.push(shareReason)
+        if (edgePercent != null && bestOdds != null) {
+          reasons.push(buildEvReason(edgePercent, bestOdds))
+        }
+        const sharpStrength = computeSharpStrength(selectedOrder.notional, edgePercent)
 
-      const reasons: PropLiquiditySignal['reasons'] = [
-        buildLiquidityReason(maxLiquidity, liquiditySideLabel, outcomeLabel),
-        buildEvReason(edgePercent, bestOdds),
-      ]
-      const sharpStrength = computeSharpStrength(maxLiquidity, edgePercent)
+        const orderOdds =
+          americanOdds != null ? americanOdds : probabilityToAmericanOdds(probability)
+        const useSportsbook =
+          sportsbookProb != null && sportsbookProb < probability
+        const bestPriceOdds = useSportsbook ? bestOdds : orderOdds
+        const bestPriceBookTitle = useSportsbook
+          ? bestBookTitle ?? null
+          : 'Kalshi'
+        const bestPriceBookKey = useSportsbook ? bestBookKey ?? null : 'kalshi'
 
-      teamSignals.push({
-        id: `kalshi:${market.ticker}:${inferredSide}`,
-        source: 'kalshi',
-        category: 'team_market',
-        marketKey: series.marketKey,
-        sportKey: series.sportKey,
-        sportLabel: series.sportLabel,
-        marketTitle: market.title ?? market.ticker,
-        outcome: outcomeLabel,
-        playerName: null,
-        propType: null,
-        propLine: null,
+        teamSignals.push({
+          id: `kalshi:${market.ticker}:${candidate.side}`,
+          source: 'kalshi',
+          category: 'team_market',
+          marketKey: series.marketKey,
+          sportKey: series.sportKey,
+          sportLabel: series.sportLabel,
+          marketTitle: market.title ?? market.ticker,
+          outcome: outcomeLabel,
+          playerName: null,
+          propType: null,
+          propLine: null,
         propSide: null,
-        side: inferredSide,
+        side: candidate.side,
         priceCents,
         americanOdds,
-        liquidity: maxLiquidity,
+        liquidity: selectedOrder.notional,
         timestamp: new Date().toISOString(),
         eventDate: parseKalshiDate(market.ticker) ?? undefined,
         ticker: market.ticker,
-        outcomeIndex: inferredSide === 'yes' ? 0 : 1,
+        outcomeIndex: candidate.outcomeIndex,
         edgePercent,
         sportsbookNoVigProb: noVigProb,
-        sportsbookBestOdds: bestOdds,
-        sportsbookBookKey: bestBookKey,
-        sportsbookBookTitle: bestBookTitle,
+        sportsbookBestOdds: bestPriceOdds ?? null,
+        sportsbookBookKey: bestPriceBookKey,
+        sportsbookBookTitle: bestPriceBookTitle,
         sharpStrength,
         reasons,
       })
+      }
     }
   }
 

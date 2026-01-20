@@ -780,13 +780,13 @@ export default function SharpDetectorPanel({
     // Apply phase filter first
     const phaseFiltered = filterByPhase(trades, phaseFilter)
     // Filter to only ultra-sharp trades
-    return phaseFiltered
+  return phaseFiltered
       .filter(
         (trade) =>
           trade.isUltraSharp === true &&
           (trade.sharpStrength ?? 0) > 55 &&
           !isTradeLive(trade) &&
-          trade.crossMarketEvPercent != null &&
+          (trade.crossMarketEvPercent != null || isLiquidityTrade(trade)) &&
           trade.sportsbookBestOdds != null
       )
       .sort((a, b) => {

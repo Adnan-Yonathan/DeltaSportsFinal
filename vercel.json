@@ -30,6 +30,9 @@
     "app/api/cron/ingest-nfl-prop-whales/route.ts": {
       "maxDuration": 300
     },
+    "app/api/cron/backfill-sharp-feeds/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/cron/generate-daily-recap/route.ts": {
       "maxDuration": 300
     }
@@ -62,6 +65,10 @@
     {
       "path": "/api/cron/ingest-nfl-prop-whales",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/backfill-sharp-feeds",
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/lines/record",

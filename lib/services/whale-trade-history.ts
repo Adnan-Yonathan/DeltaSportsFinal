@@ -566,10 +566,14 @@ export const ingestWhaleTradeHistory = async ({
   sportKey,
   minNotional = 2000,
   limit = 500,
+  since,
+  windowHours,
 }: {
   sportKey?: string
   minNotional?: number
   limit?: number
+  since?: string
+  windowHours?: number
 }) => {
   const supabase = createServiceClient()
   const playerIndexBySport = await loadPlayerIndexBySport(supabase)
@@ -594,11 +598,29 @@ export const ingestWhaleTradeHistory = async ({
     return { inserted: 0, skipped: 0, attempted: 0, attemptedBySport: {} }
   }
 
+  const windowStart = (() => {
+    if (since) {
+      const parsed = new Date(since)
+      if (Number.isFinite(parsed.valueOf())) return parsed
+    }
+    if (windowHours && Number.isFinite(windowHours)) {
+      return new Date(Date.now() - windowHours * 60 * 60 * 1000)
+    }
+    return null
+  })()
+
   const rows: Array<Record<string, unknown>> = []
   let skipped = 0
   const attemptedBySport: Record<string, number> = {}
 
   for (const trade of trades) {
+    if (windowStart) {
+      const tradeTime = new Date(trade.timestamp)
+      if (!Number.isFinite(tradeTime.valueOf()) || tradeTime < windowStart) {
+        skipped += 1
+        continue
+      }
+    }
     const resolvedKey = resolveSportKey(trade)
     if (!resolvedKey || (sportKey && resolvedKey !== sportKey)) {
       skipped += 1
@@ -614,11 +636,11 @@ export const ingestWhaleTradeHistory = async ({
 
     const playerIndex = playerIndexBySport.get(resolvedKey) ?? []
     const playerPropInfo = resolvePlayerPropInfo(trade, resolvedKey, playerIndex)
-    const { windowStart } = playerPropInfo
+    const { windowStart: tradeWindowStart } = playerPropInfo
       ? resolvePlayerPropWindow(resolvedKey, eventTime)
       : resolvePregameWindow(resolvedKey, eventTime)
 
-    if (tradeTime < windowStart || tradeTime >= eventTime) {
+    if (tradeTime < tradeWindowStart || tradeTime >= eventTime) {
       skipped += 1
       continue
     }

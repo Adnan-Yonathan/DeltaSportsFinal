@@ -5,8 +5,9 @@ import { formatAmericanOdds, formatCurrency } from '@/lib/utils/odds'
 import { cn } from '@/lib/utils'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import { getWalletAlias } from '@/lib/utils/wallet-alias'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { TrendingDown, Info, Zap, X, Lock, Clock, ChartBar } from 'lucide-react'
+import Link from 'next/link'
 import ShareTradeButton from './ShareTradeButton'
 import TutorialPopup from './TutorialPopup'
 
@@ -1373,13 +1374,209 @@ export default function SharpDetectorPanel({
       )}
 
       {/* Sharp Money Feed Tab Content */}
-      {activeTab === 'sharp-money' && (
+      {activeTab === 'sharp-money' && !isSyndicate && (
         <div className="p-6 text-center">
           <Lock className="w-8 h-8 mx-auto text-white/30 mb-3" />
           <h3 className="text-lg font-medium text-white">Sharp Money Feed</h3>
-          <p className="text-sm text-white/60 mt-1">
-            Under construction. Please check back soon.
-          </p>
+          <p className="text-sm text-white/60 mt-1">Available for Syndicate members</p>
+          <Link
+            href="/pricing"
+            className="mt-4 inline-flex items-center rounded-full border border-emerald-400/60 px-5 py-2 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
+          >
+            Upgrade to Syndicate
+          </Link>
+        </div>
+      )}
+
+      {activeTab === 'sharp-money' && isSyndicate && (
+          <div className="space-y-4">
+            <TutorialPopup tutorialId="sharp-money" />
+            {/* Alerts */}
+            {showLocalAlerts && (
+              <AnimatePresence>
+                {alerts.map((alert) => (
+                  <SharpAlertBanner
+                  key={alert.id}
+                  alert={alert}
+                  onDismiss={() => dismissAlert(alert.id)}
+                />
+              ))}
+            </AnimatePresence>
+          )}
+
+          {/* Header with filters */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-medium text-white/80 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-emerald-400" />
+                Ultra-Sharp Plays
+              </h3>
+              {activeSportsWithUltraSharp.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  {activeSportsWithUltraSharp.slice(0, 4).map(({ sport, count }) => (
+                    <span
+                      key={sport}
+                      className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-white/5 border border-white/10 rounded text-white/60"
+                    >
+                      {sport} ({count})
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Phase Filter */}
+              <select
+                value={phaseFilter}
+                onChange={(e) => setPhaseFilter(e.target.value as GamePhase)}
+                className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-black text-[11px] text-white/80 focus:outline-none focus:border-emerald-500/50"
+              >
+                <option value="all">All Games</option>
+                <option value="pregame">Pre-game Only</option>
+                <option value="live">Live Only</option>
+              </select>
+              {showLocalAlerts && (
+                <label className="flex items-center gap-2 text-[10px] text-white/50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={alertsEnabled}
+                    onChange={(e) => setAlertsEnabled(e.target.checked)}
+                    className="rounded border-white/20 bg-black"
+                  />
+                  Show alerts
+                </label>
+              )}
+            </div>
+          </div>
+
+          {/* Empty State */}
+          {ultraSharpTrades.length === 0 && (
+            <div className="rounded-2xl border border-white/10 bg-black/40 p-8 text-center">
+              <Zap className="w-10 h-10 text-white/20 mx-auto mb-3" />
+              <p className="text-white/60 text-sm">
+                No ultra-sharp plays detected right now.
+              </p>
+              <p className="text-white/40 text-[11px] mt-1">
+                Ultra-sharp plays trigger on at least one signal (cluster, timing, divergence, cross-market EV, or big bet).
+              </p>
+            </div>
+          )}
+
+          {/* Ultra-Sharp Trade Cards */}
+          {ultraSharpTrades.map((trade) => {
+            const isFresh = now - new Date(trade.timestamp).getTime() < 2 * 60 * 1000
+            const sharpTier = resolveSharpTier(trade.notional)
+            const hasRlm = trade.ultraSharpReasons?.some(r => r.type === 'rlm')
+            const matchupLabel = resolveGameLabel(trade.marketTitle)
+
+            return (
+              <motion.div
+                key={trade.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={cn(
+                  'rounded-2xl border bg-black/40 p-4 transition',
+                  isFresh
+                    ? 'border-emerald-400/50 shadow-[0_0_25px_rgba(16,185,129,0.25)]'
+                    : 'border-emerald-500/30'
+                )}
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-emerald-500/20 border border-emerald-500/30 rounded text-emerald-300">
+                        {trade.sport}
+                      </span>
+                      {hasRlm && <RlmBadge />}
+                      {isFresh && (
+                        <span className="px-2 py-0.5 text-[9px] uppercase tracking-wider bg-amber-500/20 border border-amber-500/30 rounded text-amber-300 animate-pulse">
+                          New
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="text-base font-semibold text-white">
+                      {trade.marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()}
+                    </h4>
+                  </div>
+                  <div className="text-right">
+                    <div className={cn('text-lg font-bold', resolveStrengthClass(trade.sharpStrength))}>
+                      {trade.sharpStrength}%
+                    </div>
+                    <div className="text-[10px] uppercase text-white/40">strength</div>
+                  </div>
+                </div>
+
+                {/* Bet Details */}
+                <div className="flex flex-wrap items-center gap-3 mb-3">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em]',
+                        sharpTierClass[sharpTier]
+                      )}
+                    >
+                      {formatCurrency(trade.notional)}
+                    </span>
+                    <span className="text-sm text-white/80">{trade.outcome}</span>
+                  </div>
+                  <span className="text-sm text-white/50">{resolveOddsLabel(trade)}</span>
+                  <span className="text-[11px] text-white/40">
+                    {trade.eventDate ?? 'TBD'} • {resolvePhase(trade)}
+                  </span>
+                </div>
+
+                {(trade.sportsbookBestOdds != null || trade.crossMarketEvPercent != null) && (
+                  <div className="flex flex-wrap items-center gap-3 mb-3 text-[11px] text-white/60">
+                    {trade.sportsbookBestOdds != null && (
+                      <span>
+                        Best odds: {formatAmericanOdds(trade.sportsbookBestOdds)}
+                        {trade.sportsbookBookTitle || trade.sportsbookBookKey
+                          ? ` (${trade.sportsbookBookTitle ?? trade.sportsbookBookKey})`
+                          : ''}
+                      </span>
+                    )}
+                    {trade.crossMarketEvPercent != null && (
+                      <span>EV: {trade.crossMarketEvPercent.toFixed(1)}%</span>
+                    )}
+                  </div>
+                )}
+
+                {/* Why it's sharp section */}
+                {trade.ultraSharpReasons && trade.ultraSharpReasons.length > 0 && (
+                  <WhyItsSharpSection reasons={trade.ultraSharpReasons} />
+                )}
+
+                {/* Footer */}
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
+                  <div className="flex items-center gap-2 text-[10px] text-white/40">
+                    <Clock className="w-3 h-3" />
+                    Detected {formatTimestamp(trade.timestamp)}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] uppercase tracking-wider text-white/30">
+                      {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
+                    </span>
+                    <ShareTradeButton
+                      trade={{
+                        id: trade.id,
+                        marketTitle: trade.marketTitle,
+                        outcome: trade.outcome,
+                        notional: trade.notional,
+                        source: trade.source,
+                        sport: trade.sport,
+                        eventDate: trade.eventDate,
+                        timestamp: trade.timestamp,
+                        priceCents: trade.priceCents,
+                        americanOdds: trade.americanOdds,
+                      }}
+                      matchupLabel={matchupLabel}
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            )
+          })}
         </div>
       )}
     </div>

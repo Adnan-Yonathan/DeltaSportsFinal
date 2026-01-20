@@ -6,40 +6,31 @@ import { DottedSurface } from "@/components/ui/dotted-surface"
 
 const PATCH_NOTES = [
   {
-    title: "Whale Detector",
+    title: "Sharp Money Feed",
     points: [
-      "New whale detection feed highlights large bets in real time.",
-      "Tier labels now reflect whale types for quick scanning.",
+      "New Sharp Money tab highlights top sharp signals in real time.",
+      "Improved clustering, grading, and market signal tags.",
     ],
   },
   {
-    title: "New Dashboards",
+    title: "Sharp Props Tool",
     points: [
-      "Market Projection dashboard is live.",
-      "EV Bets dashboard now tracks expected value plays.",
+      "Player prop sharp tool now ranks the strongest prop edges.",
+      "New filters help isolate the best props by sport and market.",
     ],
   },
   {
-    title: "Live Odds Enhancements",
+    title: "AI Chat Updates",
     points: [
-      "Arb and line shopping are unified on the Live Odds page.",
-      "Arb cues surface directly on the matchup card.",
-      "Line shopping opens a focused Compare Books modal.",
+      "Faster chat responses with tighter market context.",
+      "Cleaner summaries for matchup and slate questions.",
     ],
   },
   {
-    title: "Mobile UI Fixes",
+    title: "Projection Model Upgrades",
     points: [
-      "Improved spacing and readability across live odds cards.",
-      "Smoother panel transitions for the whale detector on mobile.",
-    ],
-  },
-  {
-    title: "Coming Soon",
-    points: [
-      "Player projections.",
-      "Parlay predictor.",
-      "Live projections.",
+      "Fresh projection models across key sports markets.",
+      "Improved calibration and stability for daily slates.",
     ],
   },
 ]
@@ -53,9 +44,9 @@ export default function PatchNotesPage() {
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.3em] text-white/40">Patch Notes</p>
-            <h1 className="text-3xl font-bold">Patch 0.2</h1>
+            <h1 className="text-3xl font-bold">Patch 0.3</h1>
             <p className="text-sm text-white/60">
-              Whale detection, new dashboards, and a sharper live odds experience.
+              Sharp money feed, sharp props, and new model upgrades.
             </p>
           </div>
           <Link

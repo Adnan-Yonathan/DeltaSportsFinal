@@ -15,7 +15,7 @@ import { ParticleButton } from '@/components/ui/particle-button'
 import SharpDetectorPanel from '@/components/SharpDetectorPanel'
 import ToolsNav from '@/components/tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, MessageSquare, Target, Link2, Check } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, MessageSquare, Target, Link2, Check, ArrowUpRight, Twitter } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
 import DailyRecapCard from '@/components/DailyRecapCard'
 import PerformanceDashboard from '@/components/PerformanceDashboard'
@@ -909,16 +909,35 @@ function ChatPageContent() {
                       animate={{ opacity: 1, y: 0 }}
                       className="text-center"
                     >
-                      <div className="mb-6 flex flex-col items-center gap-3 rounded-2xl border border-[#2a2a2a] bg-black/70 px-4 py-3">
-                        <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">
-                          Patch 0.2
-                        </span>
-                        <span className="text-sm text-white/80">
-                          Sharp detection, new dashboards, and a sharper live odds experience.
-                        </span>
+                      <div className="mb-6 w-full max-w-md rounded-2xl border border-[#2a2a2a] bg-black/70 px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex flex-col gap-2 text-left">
+                            <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">
+                              Patch 0.3
+                            </span>
+                            <span className="text-sm text-white/80">
+                              Sharp money feed, sharp props, and new model upgrades.
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-white/70">
+                            <ArrowUpRight className="h-4 w-4 text-emerald-300" />
+                            <span className="text-[10px] uppercase tracking-[0.25em] text-white/60">
+                              follow our twitter
+                            </span>
+                            <Link
+                              href="https://x.com/DeltaSportsAI"
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-label="Delta Sports on X"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200"
+                            >
+                              <Twitter className="h-4 w-4" />
+                            </Link>
+                          </div>
+                        </div>
                         <Link
                           href="/patch-notes"
-                          className="relative z-10 pointer-events-auto inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+                          className="relative z-10 pointer-events-auto mt-3 inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
                         >
                           View Patch Notes
                         </Link>
@@ -1352,9 +1371,6 @@ export default function ChatPage() {
     </Suspense>
   )
 }
-
-
-
 
 
 

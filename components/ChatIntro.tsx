@@ -134,7 +134,7 @@ export default function ChatIntro({
   if (isGuest) {
     return (
       <div className="flex flex-col items-center justify-center min-h-full bg-black px-3 sm:px-4 py-6 sm:py-8">
-        <div className="hidden lg:flex fixed left-4 top-1/2 -translate-y-1/2 z-30">
+        <div className="fixed left-2 top-2 z-40 lg:left-4 lg:top-1/2 lg:-translate-y-1/2">
           <Link
             href={DISCORD_INVITE_URL}
             target="_blank"

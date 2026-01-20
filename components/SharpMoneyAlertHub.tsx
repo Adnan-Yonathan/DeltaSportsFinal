@@ -124,9 +124,12 @@ export default function SharpMoneyAlertHub() {
     let active = true
     const fetchTrades = async () => {
       try {
-        const res = await fetch('/api/whale-detector?minNotional=2000&limit=200', {
+        const res = await fetch(
+          '/api/whale-detector?minNotional=2000&limit=200&includeLiquidity=true',
+          {
           cache: 'no-store',
-        })
+          }
+        )
         if (!res.ok) return
         const data = await res.json()
         const incoming: SharpTrade[] = Array.isArray(data?.trades) ? data.trades : []

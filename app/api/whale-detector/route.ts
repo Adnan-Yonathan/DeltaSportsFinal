@@ -4,6 +4,10 @@ import {
   DEFAULT_MIN_NOTIONAL,
   fetchWhaleTrades,
 } from '@/lib/services/whale-detector'
+import {
+  fetchPropLiquiditySignals,
+  mapLiquiditySignalsToSharpTrades,
+} from '@/lib/services/prop-liquidity-detector'
 import { createServiceClient } from '@/lib/supabase/service'
 
 export async function GET(request: Request) {
@@ -17,6 +21,7 @@ export async function GET(request: Request) {
     ? minNotionalRaw
     : DEFAULT_MIN_NOTIONAL
   const since = searchParams.get('since')
+  const includeLiquidity = searchParams.get('includeLiquidity') === 'true'
 
   const trades = await fetchWhaleTrades({
     limit,
@@ -25,6 +30,15 @@ export async function GET(request: Request) {
   })
 
   let enrichedTrades = trades
+  let liquidityTrades: any[] = []
+  if (includeLiquidity) {
+    try {
+      const signals = await fetchPropLiquiditySignals({ sportKey: 'all' })
+      liquidityTrades = mapLiquiditySignalsToSharpTrades(signals)
+    } catch (error) {
+      console.warn('[Whale Detector] Failed to load prop liquidity signals:', error)
+    }
+  }
 
   const polymarketTrades = trades.filter(
     (trade) => trade.source === 'polymarket' && trade.proxyWallet && trade.slug
@@ -77,6 +91,6 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
-    trades: enrichedTrades,
+    trades: includeLiquidity ? [...enrichedTrades, ...liquidityTrades] : enrichedTrades,
   })
 }

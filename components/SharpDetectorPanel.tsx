@@ -312,6 +312,8 @@ const resolveStrengthClass = (value?: number | null) => {
   return 'text-emerald-300'
 }
 
+const isLiquidityTrade = (trade: SharpTrade) => trade.id?.startsWith('liquidity:')
+
 // Phase filter helper
 const filterByPhase = (trades: SharpTradeWithStatus[], phase: GamePhase): SharpTradeWithStatus[] => {
   if (phase === 'all') return trades
@@ -464,6 +466,7 @@ export default function SharpDetectorPanel({
     const query = searchQuery.trim().toLowerCase()
     const walletKey = walletFilter === 'all' ? null : normalizeWallet(walletFilter)
     return trades.filter((trade) => {
+      if (isLiquidityTrade(trade)) return false
       if (sportFilter !== 'all' && trade.sport !== sportFilter) return false
       if (sizeFilter !== 'all' && resolveSharpTier(trade.notional) !== sizeFilter) return false
       if (walletKey) {
@@ -808,8 +811,14 @@ export default function SharpDetectorPanel({
 
   const fetchTrades = async () => {
     try {
+      const params = new URLSearchParams()
+      params.set('minNotional', String(MIN_NOTIONAL))
+      params.set('limit', '200')
+      if (activeTab === 'sharp-money') {
+        params.set('includeLiquidity', 'true')
+      }
       const res = await fetch(
-        `/api/whale-detector?minNotional=${MIN_NOTIONAL}&limit=200`,
+        `/api/whale-detector?${params.toString()}`,
         { cache: 'no-store' }
       )
       if (!res.ok) return

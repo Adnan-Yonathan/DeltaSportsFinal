@@ -921,21 +921,16 @@ const resolveSportsbookPropPrices = async (
   const index = await fetchSportsbookPropIndex(sportKey)
   const normalizedPlayer = normalizePlayerName(playerName)
   const props = index.get(normalizedPlayer) ?? []
-  const matches = props.filter((item) => item.propType === propType)
+  let matches = props.filter((item) => item.propType === propType)
+  if (propLine != null) {
+    matches = matches.filter((item) => Math.abs(item.line - propLine) < 0.01)
+  }
   if (!matches.length) return { bestOdds: null, noVigProb: null }
 
   let best: SportsbookPropLine | null = null
-  let bestDiff = Infinity
   for (const candidate of matches) {
-    if (propLine == null) {
-      best = candidate
-      break
-    }
-    const diff = Math.abs(candidate.line - propLine)
-    if (diff < bestDiff) {
-      bestDiff = diff
-      best = candidate
-    }
+    best = candidate
+    break
   }
   if (!best) return { bestOdds: null, noVigProb: null }
 
@@ -1045,6 +1040,7 @@ export const fetchPropLiquiditySignals = async (opts?: {
         const bestPriceOrder = resolveBestPriceOrder(candidate.orders, minOrderNotional)
         const selectedOrder = dominantOrder ?? bestPriceOrder
         if (!selectedOrder) continue
+        if (selectedOrder.notional < marketLiquidity * 0.5) continue
         const priceCents = selectedOrder.priceCents
         if (priceCents == null) continue
         const probability = priceCents / 100
@@ -1184,6 +1180,7 @@ export const fetchPropLiquiditySignals = async (opts?: {
       const bestPriceOrder = resolveBestPriceOrder(candidate.orders, minOrderNotional)
       const selectedOrder = dominantOrder ?? bestPriceOrder
       if (!selectedOrder) continue
+      if (selectedOrder.notional < marketLiquidity * 0.5) continue
       const outcome = outcomes[candidate.index] ?? ''
       const outcomeLower = outcome.toLowerCase().trim()
       const side = outcomeLower === 'yes' ? 'yes' : outcomeLower === 'no' ? 'no' : null
@@ -1316,6 +1313,7 @@ export const fetchPropLiquiditySignals = async (opts?: {
         const bestPriceOrder = resolveBestPriceOrder(candidate.orders, TEAM_ORDER_NOTIONAL_MIN)
         const selectedOrder = dominantOrder ?? bestPriceOrder
         if (!selectedOrder) continue
+        if (selectedOrder.notional < marketLiquidity * 0.5) continue
         const priceCents = selectedOrder.priceCents
         if (priceCents == null) continue
         const probability = priceCents / 100

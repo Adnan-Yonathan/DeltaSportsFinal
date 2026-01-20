@@ -31,6 +31,8 @@ const CUSTOMER_SCREENSHOTS = [
   },
 ]
 
+const DISCORD_INVITE_URL = 'https://discord.gg/8jUcaKT9'
+
 interface ChatIntroProps {
   conversationId: string
   userId: string
@@ -132,6 +134,27 @@ export default function ChatIntro({
   if (isGuest) {
     return (
       <div className="flex flex-col items-center justify-center min-h-full bg-black px-3 sm:px-4 py-6 sm:py-8">
+        <div className="hidden lg:flex fixed left-4 top-1/2 -translate-y-1/2 z-30">
+          <Link
+            href={DISCORD_INVITE_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="relative w-[220px] sm:w-[260px] rounded-3xl border border-emerald-400/40 bg-black/70 p-4 shadow-2xl shadow-emerald-500/20 backdrop-blur hover:border-emerald-400/60 transition-colors"
+          >
+            <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
+              <span>Free Discord</span>
+              <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
+                Open Invite
+              </span>
+            </div>
+            <p className="mt-3 text-xs text-white/60">
+              Join the free Discord for sharp alerts, market chatter, and daily edges.
+            </p>
+            <div className="mt-4 w-full gap-2 rounded-full bg-white text-black px-4 py-2 text-center text-sm font-medium">
+              Join Discord
+            </div>
+          </Link>
+        </div>
         <div className="hidden lg:flex fixed right-4 top-1/2 -translate-y-1/2 z-30">
           <Link href="/sharp-detector" className="relative w-[220px] sm:w-[260px] rounded-3xl border border-emerald-400/40 bg-black/70 p-4 shadow-2xl shadow-emerald-500/20 backdrop-blur hover:border-emerald-400/60 transition-colors">
             <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
@@ -162,21 +185,21 @@ export default function ChatIntro({
             <button
               type="button"
               onClick={onSignUpClick}
-              className="w-full rounded-[22px] sm:rounded-[28px] p-4 sm:p-5 shadow-sm bg-white/5 backdrop-blur-xl border border-white/10 hover:border-emerald-500/30 hover:bg-white/10 transition-all group text-left"
+              className="w-full rounded-[22px] sm:rounded-[28px] p-4 sm:p-5 shadow-sm bg-emerald-500/90 backdrop-blur-xl border border-emerald-400/60 hover:border-emerald-300 hover:bg-emerald-400 transition-all group text-left"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <UserPlus className="w-6 h-6 text-emerald-400" />
+                  <UserPlus className="w-6 h-6 text-white" />
                   <Typewriter
                     text="Try 7 days free"
                     speed={80}
                     cursor=""
                     startDelay={1200}
-                    className="text-lg font-semibold text-white/70 group-hover:text-white transition-colors"
+                    className="text-lg font-semibold text-white"
                   />
                 </div>
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 group-hover:bg-emerald-500/30 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-emerald-400">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white transition-colors">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-emerald-600">
                     <path d="M12 5.25L12 18.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     <path d="M18.75 12L12 5.25L5.25 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>

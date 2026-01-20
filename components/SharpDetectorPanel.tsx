@@ -1378,7 +1378,9 @@ export default function SharpDetectorPanel({
         <div className="p-6 text-center">
           <Lock className="w-8 h-8 mx-auto text-white/30 mb-3" />
           <h3 className="text-lg font-medium text-white">Sharp Money Feed</h3>
-          <p className="text-sm text-white/60 mt-1">Available for Syndicate members</p>
+          <p className="text-sm text-white/60 mt-1">
+            Under construction and gated while we finish updates. Back up on 1/21.
+          </p>
           <Link
             href="/pricing"
             className="mt-4 inline-flex items-center rounded-full border border-emerald-400/60 px-5 py-2 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"

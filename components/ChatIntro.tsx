@@ -238,17 +238,19 @@ export default function ChatIntro({
             transition={{ delay: 0.7, duration: 0.5 }}
           >
             <ROICalculator />
-            <Link
-              href={DISCORD_INVITE_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="mx-auto mt-5 inline-flex items-center gap-4 rounded-full bg-[#5865F2] px-6 py-3 text-xs sm:text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-[0_16px_40px_rgba(88,101,242,0.35)] hover:bg-[#6C77F5] transition-colors"
-            >
-              <span>Free Discord</span>
-              <span className="rounded-full border border-white/60 px-3 py-1 text-[10px] font-semibold text-white">
-                Join Now
-              </span>
-            </Link>
+            <div className="mt-5 w-full max-w-2xl mx-auto flex justify-center">
+              <Link
+                href={DISCORD_INVITE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-4 rounded-full bg-[#5865F2] px-6 py-3 text-xs sm:text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-[0_16px_40px_rgba(88,101,242,0.35)] hover:bg-[#6C77F5] transition-colors"
+              >
+                <span>Free Discord</span>
+                <span className="rounded-full border border-white/60 px-3 py-1 text-[10px] font-semibold text-white">
+                  Join Now
+                </span>
+              </Link>
+            </div>
           </motion.div>
 
           <motion.div

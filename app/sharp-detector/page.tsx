@@ -68,24 +68,9 @@ type GameCluster = {
 const MIN_NOTIONAL = 2000
 const POLL_INTERVAL_MS = 30000
 const STORAGE_KEY = 'sharp-detector-trades'
-const CACHE_VERSION_KEY = 'sharp-detector-cache-version'
-const CACHE_VERSION = '6'
 const WALLET_STORAGE_KEY = 'sharp-detector-wallets'
 const MAX_RESOLVED_TRADES = 300
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
-
-const ensureSharpCacheVersion = () => {
-  if (typeof window === 'undefined') return
-  try {
-    const current = window.localStorage.getItem(CACHE_VERSION_KEY)
-    if (current !== CACHE_VERSION) {
-      window.localStorage.removeItem(STORAGE_KEY)
-      window.localStorage.setItem(CACHE_VERSION_KEY, CACHE_VERSION)
-    }
-  } catch (error) {
-    console.warn('Failed to validate sharp detector cache version:', error)
-  }
-}
 
 const formatOddsLabel = (priceCents: number, americanOdds: number | null) => {
   const centsLabel = `${priceCents}c`
@@ -215,7 +200,6 @@ export default function SharpDetectorPage() {
   const [trades, setTrades] = useState<SharpTradeWithStatus[]>(() => {
     if (typeof window === 'undefined') return []
     try {
-      ensureSharpCacheVersion()
       const cached = window.localStorage.getItem(STORAGE_KEY)
       if (cached) {
         const parsed = JSON.parse(cached)

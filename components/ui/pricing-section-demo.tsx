@@ -33,6 +33,11 @@ const defaultTiers: PricingTier[] = [
         included: true,
       },
       {
+        name: "Sharp Money Feed",
+        description: "Real-time sharp money alerts (Syndicate only).",
+        included: false,
+      },
+      {
         name: "Sharp Projections",
         description: "Projected spreads, totals, and moneylines.",
         included: true,
@@ -66,6 +71,11 @@ const defaultTiers: PricingTier[] = [
         name: "Everything in Pro",
         description: "Sharp detector, sharp projections, and stats.",
         included: true,
+      },
+      {
+        name: "Sharp Money Feed",
+        description: "Syndicate-only sharp money alerts.",
+        included: false,
       },
       {
         name: "Player Projections",
@@ -108,6 +118,11 @@ const defaultTiers: PricingTier[] = [
       {
         name: "Everything in Sharp",
         description: "Player projections + parlay pro included.",
+        included: true,
+      },
+      {
+        name: "Sharp Money Feed",
+        description: "Real-time sharp money alerts and tags.",
         included: true,
       },
       {

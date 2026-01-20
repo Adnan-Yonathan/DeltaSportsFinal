@@ -14,6 +14,10 @@ type SharpTrade = {
   outcome: string
   isUltraSharp?: boolean
   sharpStrength?: number
+  sportsbookBestOdds?: number | null
+  sportsbookBookTitle?: string | null
+  sportsbookBookKey?: string | null
+  crossMarketEvPercent?: number | null
   sport: string
   timestamp: string
   eventDate?: string
@@ -60,6 +64,12 @@ const formatTimestamp = (value: string) => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+const formatOddsLabel = (value?: number | null) => {
+  if (!Number.isFinite(value)) return null
+  const odds = Number(value)
+  return odds >= 0 ? `+${odds}` : `${odds}`
 }
 
 const loadSeenIds = () => {
@@ -124,7 +134,9 @@ export default function SharpMoneyAlertHub() {
           (trade) =>
             trade.isUltraSharp === true &&
             (trade.sharpStrength ?? 0) > 55 &&
-            !isTradeLive(trade)
+            !isTradeLive(trade) &&
+            trade.crossMarketEvPercent != null &&
+            trade.sportsbookBestOdds != null
         )
 
         if (!hasInitializedRef.current) {
@@ -231,6 +243,19 @@ export default function SharpMoneyAlertHub() {
               <p className={cn('text-sm text-white/70', previewClass)}>
                 {trade.outcome} • {trade.sport}
               </p>
+              {trade.sportsbookBestOdds != null && (
+                <p className={cn('text-xs text-white/60', previewClass)}>
+                  Best odds: {formatOddsLabel(trade.sportsbookBestOdds)}
+                  {trade.sportsbookBookTitle || trade.sportsbookBookKey
+                    ? ` (${trade.sportsbookBookTitle ?? trade.sportsbookBookKey})`
+                    : ''}
+                </p>
+              )}
+              {trade.crossMarketEvPercent != null && (
+                <p className={cn('text-xs text-white/60', previewClass)}>
+                  EV: {trade.crossMarketEvPercent.toFixed(1)}%
+                </p>
+              )}
               <p className={cn('text-xs text-emerald-300', previewClass)}>
                 Grade: {Number.isFinite(trade.sharpStrength) ? `${trade.sharpStrength}%` : '—'}
               </p>
@@ -256,3 +281,4 @@ export default function SharpMoneyAlertHub() {
     </div>
   )
 }
+

@@ -15,7 +15,7 @@ import { ParticleButton } from '@/components/ui/particle-button'
 import SharpDetectorPanel from '@/components/SharpDetectorPanel'
 import ToolsNav from '@/components/tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, MessageSquare, Target, Link2, Check, ArrowUpRight, Twitter } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, Target, Link2, Check, ArrowUpRight, Twitter } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
 import DailyRecapCard from '@/components/DailyRecapCard'
 import PerformanceDashboard from '@/components/PerformanceDashboard'
@@ -26,7 +26,7 @@ import { useDailyRecap } from '@/hooks/useDailyRecap'
 
 const SHARP_STORAGE_KEY = 'sharp-detector-trades'
 const SHARP_CACHE_VERSION_KEY = 'sharp-detector-cache-version'
-const SHARP_CACHE_VERSION = '3'
+const SHARP_CACHE_VERSION = '5'
 const EASTERN_TIMEZONE = 'America/New_York'
 const PROMO_DISMISS_KEY = 'promo_links_dismissed'
 const PROMO_CLICK_KEY = 'promo_links_click_source'
@@ -433,13 +433,13 @@ function ChatPageContent() {
       href: '/parlay-predictor',
       description: 'Calculate true parlay odds with correlation adjustments',
     },
-    {
-      key: 'ev-bets',
-      label: 'EV Bets',
-      shortLabel: 'EV',
-      href: '/ev-bets',
-      description: 'Find +EV opportunities where sportsbooks disagree on odds',
-    },
+      {
+        key: 'ev-bets',
+        label: 'Live Odds',
+        shortLabel: 'Odds',
+        href: '/ev-bets',
+        description: 'Compact live odds board across the books we track',
+      },
     {
       key: 'live-projections',
       label: 'Live Projections',
@@ -569,23 +569,22 @@ function ChatPageContent() {
   }, [user, showSharpToggle, sharpPanelOpen])
 
   const headerActions = (
-    <div className="flex items-center gap-1.5 lg:border-l lg:border-white/10 lg:pl-2">
-      <button
-        onClick={() => router.push('/promos')}
-        className="px-1.5 py-1 text-[#34d399] hover:text-[#16a34a] transition-colors"
-        aria-label="View sportsbook promos"
-      >
-        <span className="text-[10px] sm:text-xs font-semibold leading-none">$10k</span>
-      </button>
-
-      <button
-        onClick={() => router.push('/live-scores')}
-        className="inline-flex items-center gap-1 rounded-full border border-[#34d399]/60 px-2 py-1 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
-      >
-        <Radio className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-        <span className="hidden sm:inline">Live</span>
-        <span className="sm:hidden">Live</span>
-      </button>
+      <div className="flex items-center gap-1.5 lg:border-l lg:border-white/10 lg:pl-2">
+        <button
+          onClick={() => router.push('/promos')}
+          className="px-1.5 py-1 text-[#34d399] hover:text-[#16a34a] transition-colors"
+          aria-label="View sportsbook promos"
+        >
+          <span className="text-[10px] sm:text-xs font-semibold leading-none">$10k</span>
+        </button>
+        <button
+          onClick={() => router.push('/live-scores')}
+          className="inline-flex items-center gap-1 rounded-full border border-[#34d399]/60 px-2 py-1 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+        >
+          <Radio className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+          <span className="hidden sm:inline">Live</span>
+          <span className="sm:hidden">Live</span>
+        </button>
 
       {user && (
         <div className="relative hidden sm:block" ref={profileMenuRef}>
@@ -733,21 +732,11 @@ function ChatPageContent() {
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-white overflow-hidden">
-      <SimpleHeader
-        widthClass="max-w-6xl"
-        rightSlot={headerActions}
-        mobileLeftSlot={user ? (
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-white/20 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-            aria-label="Open chat history"
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-medium uppercase tracking-wide">History</span>
-          </button>
-        ) : undefined}
-        onLogoClick={() => handleNewConversation()}
-      />
+        <SimpleHeader
+          widthClass="max-w-6xl"
+          rightSlot={headerActions}
+          onLogoClick={() => handleNewConversation()}
+        />
       {user && (
         <div className="sm:hidden px-2 pt-2">
           <ToolsNav hideMobileTop showMobileChatBack={false} />
@@ -818,9 +807,9 @@ function ChatPageContent() {
             ))}
           </div>
         </div>
-      )}
-      <div className="flex flex-1 min-h-0 relative overflow-hidden">
-        <AnimatePresence>
+        )}
+        <div className="flex flex-1 min-h-0 relative overflow-hidden">
+          <AnimatePresence>
           {sidebarOpen && (
             <>
               <motion.div
@@ -965,29 +954,7 @@ function ChatPageContent() {
         </div>
       </div>
 
-      {user && (
-          <button
-            type="button"
-            className="hidden lg:flex fixed left-4 top-1/2 z-40 -translate-y-1/2 items-center justify-center rounded-full border border-[#34d399] bg-black/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#34d399] transition hover:bg-[#34d399] hover:text-[#0f1f15] backdrop-blur"
-            onClick={() => setSidebarExpanded(true)}
-            aria-label="Open chat history"
-          >
-            Chat History
-          </button>
-        )}
-
-        {user && (
-          <button
-            type="button"
-            className="hidden lg:flex fixed right-4 top-1/2 z-40 -translate-y-1/2 items-center justify-center rounded-full border border-[#34d399] bg-black/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#34d399] transition hover:bg-[#34d399] hover:text-[#0f1f15] backdrop-blur"
-            onClick={() => setLiveScoresExpanded(true)}
-            aria-label="Open live scores"
-          >
-            Live Scores
-          </button>
-        )}
-
-        <AnimatePresence>
+          <AnimatePresence>
           {sidebarExpanded && (
             <>
               <motion.div
@@ -1371,12 +1338,3 @@ export default function ChatPage() {
     </Suspense>
   )
 }
-
-
-
-
-
-
-
-
-

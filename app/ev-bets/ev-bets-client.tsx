@@ -1,91 +1,194 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import EvBetsTable from "./ev-bets-table"
-import TutorialPopup from "@/components/TutorialPopup"
-import type { EVOpportunity } from "@/lib/utils/ev-calculator"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import type { OddsGame } from "@/lib/types/odds"
+import { SPORTS } from "@/lib/types/odds"
+import LiveOddsTable from "./ev-bets-table"
 
-type EvBetsClientProps = {
-  initialOpportunities: EVOpportunity[]
-  initialUpdatedAt: string | null
-  initialError: string | null
-}
+const REFRESH_MS = 30000
 
-export default function EvBetsClient({
-  initialOpportunities,
-  initialUpdatedAt,
-  initialError,
-}: EvBetsClientProps) {
-  const [opportunities, setOpportunities] = useState(initialOpportunities)
-  const [errorMessage, setErrorMessage] = useState(initialError)
-  const [lastUpdated, setLastUpdated] = useState(initialUpdatedAt)
+const SPORT_OPTIONS = [
+  { label: "NBA", key: SPORTS.NBA },
+  { label: "NFL", key: SPORTS.NFL },
+  { label: "NHL", key: SPORTS.NHL },
+  { label: "MLB", key: SPORTS.MLB },
+  { label: "NCAAB", key: SPORTS.NCAA_BB },
+  { label: "NCAAF", key: SPORTS.NCAA_FB },
+]
+
+export default function LiveOddsClient() {
+  const [sportKey, setSportKey] = useState<string>(SPORTS.NBA)
+  const [liveOnly, setLiveOnly] = useState(false)
+  const [games, setGames] = useState<OddsGame[]>([])
+  const [marketKey, setMarketKey] = useState<"h2h" | "spreads" | "totals">("h2h")
+  const [loading, setLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
 
-  const parsedUpdated = lastUpdated ? Date.parse(lastUpdated) : NaN
-  const lastUpdatedMs = Number.isFinite(parsedUpdated) ? parsedUpdated : null
-  const cooldownMs =
-    lastUpdatedMs != null ? 15 * 60 * 1000 - (now - lastUpdatedMs) : 0
-  const remainingSeconds = Math.max(0, Math.ceil(cooldownMs / 1000))
-  const remainingLabel = `${Math.floor(remainingSeconds / 60)}:${String(
-    remainingSeconds % 60
-  ).padStart(2, "0")}`
+  const fetchOdds = useCallback(async () => {
+    setLoading(true)
+    setErrorMessage(null)
+    try {
+      const url = new URL("/api/odds/games", window.location.origin)
+      url.searchParams.set("sport", sportKey)
+      url.searchParams.set("markets", "h2h,spreads,totals")
+      url.searchParams.set("live", liveOnly ? "true" : "false")
+      const res = await fetch(url.toString(), { cache: "no-store" })
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}))
+        throw new Error(payload?.error || "Failed to load odds.")
+      }
+      const payload = await res.json()
+      const nextGames = Array.isArray(payload?.games) ? payload.games : []
+      const filtered = nextGames.filter((game: OddsGame) => {
+        if (game.sport_key !== sportKey) return false
+        if (sportKey === "basketball_ncaab") {
+          const title = (game.sport_title || "").toLowerCase()
+          if (!title.includes("ncaab") && !title.includes("college")) {
+            return false
+          }
+        }
+        return true
+      })
+      setGames(filtered)
+      setLastUpdated(new Date().toISOString())
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to load odds."
+      )
+      setGames([])
+    } finally {
+      setLoading(false)
+    }
+  }, [sportKey, liveOnly])
 
   useEffect(() => {
-    let active = true
-    const refresh = async () => {
-      try {
-        const res = await fetch("/api/ev-bets", { cache: "no-store" })
-        if (!res.ok) {
-          const payload = await res.json().catch(() => ({}))
-          throw new Error(payload?.error || "Failed to refresh EV bets.")
-        }
-        const payload = await res.json()
-        if (!active) return
-        if (Array.isArray(payload?.data)) {
-          setOpportunities(payload.data)
-        }
-        if (payload?.updatedAt) {
-          setLastUpdated(payload.updatedAt)
-        }
-        setErrorMessage(null)
-      } catch (error) {
-        if (!active) return
-        setErrorMessage(
-          error instanceof Error ? error.message : "Failed to refresh EV bets."
-        )
-      }
-    }
+    setGames([])
+  }, [sportKey, liveOnly])
 
-    refresh()
-    const interval = window.setInterval(refresh, 15 * 60 * 1000)
-    return () => {
-      active = false
-      window.clearInterval(interval)
-    }
-  }, [])
+  useEffect(() => {
+    fetchOdds()
+    const interval = window.setInterval(fetchOdds, REFRESH_MS)
+    return () => window.clearInterval(interval)
+  }, [fetchOdds])
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(interval)
   }, [])
 
+  const lastUpdatedLabel = useMemo(() => {
+    if (!lastUpdated) return "-"
+    const date = new Date(lastUpdated)
+    if (Number.isNaN(date.getTime())) return "-"
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  }, [lastUpdated])
+
+  const remainingSeconds = useMemo(() => {
+    if (!lastUpdated) return Math.ceil(REFRESH_MS / 1000)
+    const updatedMs = Date.parse(lastUpdated)
+    if (!Number.isFinite(updatedMs)) return Math.ceil(REFRESH_MS / 1000)
+    return Math.max(0, Math.ceil((updatedMs + REFRESH_MS - now) / 1000))
+  }, [lastUpdated, now])
+
   return (
-    <>
-      <TutorialPopup tutorialId="ev-bets" />
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {SPORT_OPTIONS.map((sport) => (
+            <button
+              key={sport.key}
+              type="button"
+              onClick={() => setSportKey(sport.key)}
+              className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition ${
+                sportKey === sport.key
+                  ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
+                  : "border-white/10 text-white/50 hover:border-white/30 hover:text-white/80"
+              }`}
+            >
+              {sport.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMarketKey("h2h")}
+            className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition ${
+              marketKey === "h2h"
+                ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
+                : "border-white/10 text-white/50 hover:border-white/30 hover:text-white/80"
+            }`}
+          >
+            Moneyline
+          </button>
+          <button
+            type="button"
+            onClick={() => setMarketKey("spreads")}
+            className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition ${
+              marketKey === "spreads"
+                ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
+                : "border-white/10 text-white/50 hover:border-white/30 hover:text-white/80"
+            }`}
+          >
+            Spread
+          </button>
+          <button
+            type="button"
+            onClick={() => setMarketKey("totals")}
+            className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition ${
+              marketKey === "totals"
+                ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
+                : "border-white/10 text-white/50 hover:border-white/30 hover:text-white/80"
+            }`}
+          >
+            Over/Under
+          </button>
+          <button
+            type="button"
+            onClick={() => setLiveOnly(false)}
+            className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition ${
+              !liveOnly
+                ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
+                : "border-white/10 text-white/50 hover:border-white/30 hover:text-white/80"
+            }`}
+          >
+            Pregame
+          </button>
+          <button
+            type="button"
+            onClick={() => setLiveOnly(true)}
+            className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition ${
+              liveOnly
+                ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
+                : "border-white/10 text-white/50 hover:border-white/30 hover:text-white/80"
+            }`}
+          >
+            Live
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[11px] text-white/60">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs uppercase tracking-[0.2em] text-white/50">
-            Auto refresh
-          </div>
-          <div className="text-xs text-white/50">
-            Next refresh in {remainingLabel}
-          </div>
+          <span>
+            {games.length} games | Updated {lastUpdatedLabel}
+          </span>
+          <span>Refresh in {remainingSeconds}s</span>
         </div>
         {errorMessage && (
           <div className="mt-2 text-xs text-red-200">{errorMessage}</div>
         )}
       </div>
-      <EvBetsTable opportunities={opportunities} errorMessage={errorMessage} />
-    </>
+
+      <LiveOddsTable
+        games={games}
+        loading={loading}
+        errorMessage={errorMessage}
+        marketKey={marketKey}
+        sportKey={sportKey}
+      />
+    </div>
   )
 }

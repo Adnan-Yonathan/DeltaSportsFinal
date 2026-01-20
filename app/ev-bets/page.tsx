@@ -2,10 +2,7 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import ToolsNav from "@/components/tools-nav"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
-import { findEVOpportunities } from "@/lib/services/cross-market-ev"
-import { SPORTS } from "@/lib/types/odds"
-import { type EVOpportunity } from "@/lib/utils/ev-calculator"
-import EvBetsClient from "./ev-bets-client"
+import LiveOddsClient from "./ev-bets-client"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -24,26 +21,6 @@ export default async function EvBetsPage() {
       : membership.tier === "sharp" || membership.tier === "syndicate"
     : false
 
-  let opportunities: EVOpportunity[] = []
-  let errorMessage: string | null = null
-  let updatedAt: string | null = null
-
-  if (hasAccess) {
-    try {
-      opportunities = await findEVOpportunities({
-        includeProps: true,
-        minPropEV: 0,
-        limit: 200,
-        slateMode: "next",
-        sports: Object.values(SPORTS),
-      })
-      updatedAt = new Date().toISOString()
-    } catch (error) {
-      errorMessage =
-        error instanceof Error ? error.message : "Unable to load EV bets."
-    }
-  }
-
   return (
     <div className="relative min-h-screen bg-black text-white px-2 py-6 sm:px-4">
       <div className="mb-6">
@@ -52,12 +29,12 @@ export default async function EvBetsPage() {
       <div className="mx-auto w-full max-w-none space-y-6">
         <header className="space-y-3">
           <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-            Cross Market EV
+            Live Odds
           </p>
-          <h1 className="text-3xl font-semibold">Best EV plays across books</h1>
+          <h1 className="text-3xl font-semibold">Live odds across sportsbooks</h1>
           <p className="max-w-2xl text-sm text-white/60">
-            These are cross-market EV opportunities based on consensus pricing
-            across books. Sorted by highest expected value.
+            A compact odds board powered by SBD. Scan moneylines, spreads, and totals
+            across the books we track.
           </p>
         </header>
 
@@ -65,7 +42,7 @@ export default async function EvBetsPage() {
           <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5">
             <div className="pointer-events-none blur-sm">
               <div className="border-b border-white/10 bg-black/60 px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-white/40">
-                Matchup • Market • Odds • Edge
+                Matchup - Moneyline - Spread - Total
               </div>
               <div className="space-y-3 px-4 py-4">
                 {[1, 2, 3, 4, 5].map((row) => (
@@ -84,10 +61,10 @@ export default async function EvBetsPage() {
                   Upgrade required
                 </p>
                 <h2 className="mt-3 text-xl font-semibold text-white">
-                  EV bets are for {upgradeLabel} members.
+                  Live odds are for {upgradeLabel} members.
                 </h2>
                 <p className="mt-2 text-sm text-white/60">
-                  Unlock cross-market EV tools by upgrading your plan.
+                  Unlock the live odds board by upgrading your plan.
                 </p>
                 <Link
                   href="/pricing"
@@ -99,13 +76,11 @@ export default async function EvBetsPage() {
             </div>
           </div>
         ) : (
-          <EvBetsClient
-            initialOpportunities={opportunities}
-            initialUpdatedAt={updatedAt}
-            initialError={errorMessage}
-          />
+          <LiveOddsClient />
         )}
       </div>
     </div>
   )
 }
+
+

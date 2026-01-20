@@ -103,12 +103,26 @@ const resolveSbdLeagueFromFilters = (sport: string, league?: string): SbdLeague 
   const direct = resolveSbdLeague(sportValue)
   if (direct) return direct
 
-  if (sportValue.includes('basketball')) {
-    return leagueValue.includes('nca') ? 'ncaamb' : 'nba'
-  }
-  if (sportValue.includes('football')) {
-    return leagueValue.includes('nca') ? 'ncaafb' : 'nfl'
-  }
+    if (sportValue.includes('basketball')) {
+      if (
+        sportValue.includes('ncaab') ||
+        sportValue.includes('ncaam') ||
+        sportValue.includes('college')
+      ) {
+        return 'ncaamb'
+      }
+      return leagueValue.includes('nca') ? 'ncaamb' : 'nba'
+    }
+    if (sportValue.includes('football')) {
+      if (
+        sportValue.includes('ncaaf') ||
+        sportValue.includes('cfb') ||
+        sportValue.includes('college')
+      ) {
+        return 'ncaafb'
+      }
+      return leagueValue.includes('nca') ? 'ncaafb' : 'nfl'
+    }
   if (sportValue.includes('baseball')) return 'mlb'
   if (sportValue.includes('hockey')) return 'nhl'
   return null
@@ -1255,7 +1269,7 @@ async function fetchOddsIO(
     const now = new Date()
     const from = new Date(now)
     const to = new Date(now)
-    to.setDate(to.getDate() + 3)
+    to.setDate(to.getDate() + 10)
     return { from: from.toISOString(), to: to.toISOString(), limit: 200 }
   }
 

@@ -9,9 +9,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { TrendingDown, Info, Zap, X, Lock, Clock, ChartBar } from 'lucide-react'
 import Link from 'next/link'
 import ShareTradeButton from './ShareTradeButton'
+import TutorialPopup from './TutorialPopup'
 
 type UltraSharpReason = {
-  type: 'rlm' | 'timing' | 'divergence' | 'cluster' | 'cross-market-ev' | 'big-bet'
+  type: 'rlm' | 'timing' | 'divergence' | 'cluster' | 'cross-market-ev' | 'big-bet' | 'liquidity'
   description: string
   value?: number
 }
@@ -36,6 +37,10 @@ type SharpTrade = {
   outcomeIndex?: number
   side?: string
   sharpStrength?: number
+  sportsbookBestOdds?: number | null
+  sportsbookBookTitle?: string | null
+  sportsbookBookKey?: string | null
+  crossMarketEvPercent?: number | null
   // Ultra-sharp fields
   isUltraSharp?: boolean
   ultraSharpReasons?: UltraSharpReason[]
@@ -80,7 +85,7 @@ const POLL_INTERVAL_BET_FEED = 30000
 const POLL_INTERVAL_SHARP_FEED = 15000
 const STORAGE_KEY = 'sharp-detector-trades'
 const CACHE_VERSION_KEY = 'sharp-detector-cache-version'
-const CACHE_VERSION = '3'
+const CACHE_VERSION = '5'
 const WALLET_STORAGE_KEY = 'sharp-detector-wallets'
 const MAX_RESOLVED_TRADES = 300
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
@@ -777,7 +782,9 @@ export default function SharpDetectorPanel({
         (trade) =>
           trade.isUltraSharp === true &&
           (trade.sharpStrength ?? 0) > 55 &&
-          !isTradeLive(trade)
+          !isTradeLive(trade) &&
+          trade.crossMarketEvPercent != null &&
+          trade.sportsbookBestOdds != null
       )
       .sort((a, b) => {
         // Sort by strength first, then by time
@@ -1126,15 +1133,16 @@ export default function SharpDetectorPanel({
         <div className="w-[120px]" />
       </div>
 
-      {/* Bet Feed Tab Content */}
-      {activeTab === 'bet-feed' && (
-      <>
-      <div className="flex flex-col gap-4">
-        <div className="flex-1 space-y-3">
-          <div className="overflow-x-auto">
-            <div className="flex items-center gap-2 min-w-max">
-              {sportButtons.map((sport) => (
-                <button
+        {/* Bet Feed Tab Content */}
+        {activeTab === 'bet-feed' && (
+        <>
+        <TutorialPopup tutorialId="bet-feed" />
+        <div className="flex flex-col gap-4">
+          <div className="flex-1 space-y-3">
+            <div className="overflow-x-auto">
+              <div className="flex items-center gap-2 min-w-max">
+                {sportButtons.map((sport) => (
+                  <button
                   key={sport}
                   type="button"
                   onClick={() => setSportFilter(sport)}
@@ -1408,12 +1416,13 @@ export default function SharpDetectorPanel({
       )}
 
       {activeTab === 'sharp-money' && isSyndicate && (
-        <div className="space-y-4">
-          {/* Alerts */}
-          {showLocalAlerts && (
-            <AnimatePresence>
-              {alerts.map((alert) => (
-                <SharpAlertBanner
+          <div className="space-y-4">
+            <TutorialPopup tutorialId="sharp-money" />
+            {/* Alerts */}
+            {showLocalAlerts && (
+              <AnimatePresence>
+                {alerts.map((alert) => (
+                  <SharpAlertBanner
                   key={alert.id}
                   alert={alert}
                   onDismiss={() => dismissAlert(alert.id)}
@@ -1543,6 +1552,22 @@ export default function SharpDetectorPanel({
                     {trade.eventDate ?? 'TBD'} • {resolvePhase(trade)}
                   </span>
                 </div>
+
+                {(trade.sportsbookBestOdds != null || trade.crossMarketEvPercent != null) && (
+                  <div className="flex flex-wrap items-center gap-3 mb-3 text-[11px] text-white/60">
+                    {trade.sportsbookBestOdds != null && (
+                      <span>
+                        Best odds: {formatAmericanOdds(trade.sportsbookBestOdds)}
+                        {trade.sportsbookBookTitle || trade.sportsbookBookKey
+                          ? ` (${trade.sportsbookBookTitle ?? trade.sportsbookBookKey})`
+                          : ''}
+                      </span>
+                    )}
+                    {trade.crossMarketEvPercent != null && (
+                      <span>EV: {trade.crossMarketEvPercent.toFixed(1)}%</span>
+                    )}
+                  </div>
+                )}
 
                 {/* Why it's sharp section */}
                 {trade.ultraSharpReasons && trade.ultraSharpReasons.length > 0 && (

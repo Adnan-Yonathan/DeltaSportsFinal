@@ -4,21 +4,21 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
-import { BarChart3, Layers3, Percent, PieChart, Users } from "lucide-react"
+import { BarChart3, Eye, Layers3, PieChart, Radio, Target } from "lucide-react"
 
 const TOOLS_NAV_ITEMS = [
-  { href: "/sharp-detector", label: "Sharps" },
-  { href: "/market-projections", label: "Markets" },
-  { href: "/player-projections", label: "Sharp Props" },
-  { href: "/parlay-predictor", label: "Parlay" },
-  { href: "/ev-bets", label: "EV Bets" },
+  { href: "/sharp-detector", label: "Sharps", icon: Eye },
+  { href: "/market-projections", label: "Markets", icon: BarChart3 },
+  { href: "/player-projections", label: "Sharp Props", icon: Target },
+  { href: "/parlay-predictor", label: "Parlay", icon: Layers3 },
+  { href: "/ev-bets", label: "Live Odds", icon: Radio },
 ]
 
 const MOBILE_NAV_ITEMS = [
   { href: "/market-projections", label: "Markets", icon: BarChart3 },
-  { href: "/player-projections", label: "Sharp Props", icon: Users },
+  { href: "/player-projections", label: "Sharp Props", icon: Target },
   { href: "/parlay-predictor", label: "Parlay", icon: Layers3 },
-  { href: "/ev-bets", label: "EV Bets", icon: Percent },
+  { href: "/ev-bets", label: "Live Odds", icon: Radio },
   { href: "/live-projections", label: "Live", icon: PieChart },
 ]
 
@@ -69,16 +69,18 @@ export default function ToolsNav({
         <div className="hidden sm:flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
           {TOOLS_NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
+            const Icon = item.icon
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`rounded-full px-3 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors ${
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors ${
                   isActive
                     ? "bg-emerald-500/20 text-emerald-200 border border-emerald-500/30"
                     : "text-white/50 hover:text-white hover:bg-white/5"
                 }`}
               >
+                <Icon className="h-3.5 w-3.5" />
                 {item.label}
               </Link>
             )

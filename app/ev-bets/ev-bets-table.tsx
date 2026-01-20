@@ -1,267 +1,273 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { calculateEV, type EVOpportunity } from "@/lib/utils/ev-calculator"
+import { useMemo } from "react"
+import type { OddsGame } from "@/lib/types/odds"
 import { formatAmericanOdds } from "@/lib/utils/odds"
+import { normalizeTeamKey } from "@/lib/identity/sport"
 
-type OddsFilter =
-  | "highest"
-  | "plus_1000"
-  | "plus_750_999"
-  | "plus_501_749"
-  | "plus_251_100"
-  | "minus_101"
-  | "minus_500"
-  | "minus_500_lower"
-
-type PredictionFilter = "all" | "prediction_only" | "no_prediction"
-
-const FILTER_OPTIONS: Array<{ value: OddsFilter; label: string }> = [
-  { value: "highest", label: "Highest EV" },
-  { value: "plus_1000", label: "+1000 and up" },
-  { value: "plus_750_999", label: "+750 to +999" },
-  { value: "plus_501_749", label: "+501 to +749" },
-  { value: "plus_251_100", label: "+251 to +100" },
-  { value: "minus_101", label: "-101" },
-  { value: "minus_500", label: "-500" },
-  { value: "minus_500_lower", label: "-500 and lower" },
-]
-
-const PREDICTION_FILTER_OPTIONS: Array<{
-  value: PredictionFilter
-  label: string
-}> = [
-  { value: "all", label: "All books" },
-  { value: "prediction_only", label: "Prediction markets only" },
-  { value: "no_prediction", label: "No prediction markets" },
-]
-
-const MARKET_LABELS: Record<string, string> = {
-  h2h: "Moneyline",
-  spreads: "Spread",
-  totals: "Total",
+type MarketEntry = {
+  book: string
+  bookKey?: string
+  odds: number
+  point?: number
 }
 
-const formatPoint = (point?: number) => {
-  if (!Number.isFinite(point)) return ""
-  return point && point > 0 ? ` +${point}` : ` ${point}`
+const isTeamMatch = (a: string, b: string) => {
+  const left = normalizeTeamKey(a)
+  const right = normalizeTeamKey(b)
+  if (!left || !right) return false
+  return left === right || left.includes(right) || right.includes(left)
 }
 
-const formatSignedPercent = (value: number) => {
-  if (!Number.isFinite(value)) return "0.0%"
-  const sign = value >= 0 ? "+" : ""
-  return `${sign}${value.toFixed(1)}%`
+const formatPoint = (value?: number) => {
+  if (!Number.isFinite(value)) return ""
+  const point = Number(value)
+  return point > 0 ? `+${point}` : `${point}`
 }
 
-const formatGameTime = (value: string) => {
+const formatTime = (value: string) => {
   const date = new Date(value)
-  if (!Number.isFinite(date.getTime())) return "TBD"
-  return date.toLocaleString()
+  if (Number.isNaN(date.getTime())) return "TBD"
+  return date.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 }
 
-const isPredictionMarketBook = (bookName?: string | null) => {
-  if (!bookName) return false
-  const normalized = bookName.toLowerCase()
-  return normalized.includes("polymarket") || normalized.includes("kalshi")
+type BookMarketRow = {
+  bookTitle: string
+  bookKey?: string
+  away?: MarketEntry | null
+  home?: MarketEntry | null
+  over?: MarketEntry | null
+  under?: MarketEntry | null
+  bestOdds: number | null
 }
 
-const matchesFilter = (odds: number, filter: OddsFilter) => {
-  if (filter === "highest") return true
-  if (filter === "plus_1000") return odds >= 1000
-  if (filter === "plus_750_999") return odds >= 750 && odds <= 999
-  if (filter === "plus_501_749") return odds >= 501 && odds <= 749
-  if (filter === "plus_251_100") return odds >= 100 && odds <= 251
-  if (filter === "minus_101") return odds === -101
-  if (filter === "minus_500") return odds === -500
-  if (filter === "minus_500_lower") return odds <= -500
-  return true
+const resolveBestOdds = (entry?: MarketEntry | null, fallback?: number | null) => {
+  if (!entry) return fallback ?? null
+  return Math.max(entry.odds, fallback ?? Number.NEGATIVE_INFINITY)
 }
 
-export default function EvBetsTable({
-  opportunities,
-  errorMessage,
-}: {
-  opportunities: EVOpportunity[]
-  errorMessage: string | null
-}) {
-  const [filter, setFilter] = useState<OddsFilter>("highest")
-  const [predictionFilter, setPredictionFilter] =
-    useState<PredictionFilter>("all")
+const formatEntry = (entry?: MarketEntry | null, prefix?: string) => {
+  if (!entry) return "-"
+  const oddsLabel = formatAmericanOdds(entry.odds)
+  const pointLabel = entry.point != null ? formatPoint(entry.point) : ""
+  const label = [prefix, pointLabel, oddsLabel].filter(Boolean).join(" ")
+  return label
+}
 
-  const filtered = useMemo(() => {
-    const base = opportunities.filter((opp) => {
-      if (!matchesFilter(opp.bestOdds, filter)) return false
-      const isPrediction = isPredictionMarketBook(opp.bestBook)
-      if (predictionFilter === "prediction_only") return isPrediction
-      if (predictionFilter === "no_prediction") return !isPrediction
-      return true
+const buildBookRows = (game: OddsGame, marketKey: MarketKey) => {
+  const rows: BookMarketRow[] = []
+  const bookmakers = game.bookmakers ?? []
+  bookmakers.forEach((book) => {
+    const market = book.markets.find((item) => item.key === marketKey)
+    if (!market) return
+    const awayOutcome = market.outcomes.find((item) =>
+      marketKey === "totals"
+        ? item.name.toLowerCase() === "over"
+        : isTeamMatch(item.name, game.away_team)
+    )
+    const homeOutcome = market.outcomes.find((item) =>
+      marketKey === "totals"
+        ? item.name.toLowerCase() === "under"
+        : isTeamMatch(item.name, game.home_team)
+    )
+    const normalizeOutcome = (outcome?: typeof market.outcomes[number]) => {
+      if (!outcome) return null
+      const rawPoint = outcome.point
+      const parsedPoint = typeof rawPoint === "number" ? rawPoint : Number(rawPoint)
+      return {
+        book: book.title,
+        bookKey: book.key,
+        odds: outcome.price,
+        point: Number.isFinite(parsedPoint) ? parsedPoint : undefined,
+      }
+    }
+    const away = normalizeOutcome(awayOutcome)
+    const home = normalizeOutcome(homeOutcome)
+    const bestOdds = resolveBestOdds(away, resolveBestOdds(home, null))
+    rows.push({
+      bookTitle: book.title,
+      bookKey: book.key,
+      away: marketKey === "totals" ? null : away,
+      home: marketKey === "totals" ? null : home,
+      over: marketKey === "totals" ? away : null,
+      under: marketKey === "totals" ? home : null,
+      bestOdds,
     })
-    return [...base]
-      .map((opp) => ({
-        ...opp,
-        computedEv: calculateEV(
-          opp.consensus.impliedProbability,
-          opp.bestOdds
-        ),
-      }))
-      .sort((a, b) => b.computedEv - a.computedEv)
-  }, [opportunities, filter, predictionFilter])
+  })
+
+  return rows
+}
+
+type MarketKey = "h2h" | "spreads" | "totals"
+
+export default function LiveOddsTable({
+  games,
+  loading,
+  errorMessage,
+  marketKey,
+  sportKey,
+}: {
+  games: OddsGame[]
+  loading: boolean
+  errorMessage: string | null
+  marketKey: MarketKey
+  sportKey: string
+}) {
+  const sortedGames = useMemo(() => {
+    const now = new Date()
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      0,
+      0,
+      0,
+      0
+    ).getTime()
+    const endOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+      999
+    ).getTime()
+    const upcoming = [...games].filter((game) => {
+      const time = Date.parse(game.commence_time)
+      return Number.isFinite(time) && time >= startOfToday
+    })
+
+    const needsNextDate =
+      sportKey === "americanfootball_nfl" || sportKey === "basketball_ncaab"
+    if (!needsNextDate) {
+      return upcoming
+        .filter((game) => {
+          const time = Date.parse(game.commence_time)
+          return Number.isFinite(time) && time <= endOfToday
+        })
+        .sort((a, b) => {
+          const booksA = a.bookmakers?.length ?? 0
+          const booksB = b.bookmakers?.length ?? 0
+          if (booksA !== booksB) return booksB - booksA
+          const timeA = Date.parse(a.commence_time)
+          const timeB = Date.parse(b.commence_time)
+          if (!Number.isFinite(timeA) || !Number.isFinite(timeB)) return 0
+          return timeA - timeB
+        })
+    }
+
+    const dates = upcoming
+      .map((game) => {
+        const time = Date.parse(game.commence_time)
+        if (!Number.isFinite(time)) return null
+        const date = new Date(time)
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+      })
+      .filter((value): value is number => Number.isFinite(value))
+    const nextDate = dates.length ? Math.min(...dates) : null
+    const filtered =
+      nextDate == null
+        ? []
+        : upcoming.filter((game) => {
+            const time = Date.parse(game.commence_time)
+            if (!Number.isFinite(time)) return false
+            const date = new Date(time)
+            const dayKey = new Date(
+              date.getFullYear(),
+              date.getMonth(),
+              date.getDate()
+            ).getTime()
+            return dayKey === nextDate
+          })
+    return filtered
+      .sort((a, b) => {
+        const booksA = a.bookmakers?.length ?? 0
+        const booksB = b.bookmakers?.length ?? 0
+        if (booksA !== booksB) return booksB - booksA
+        const timeA = Date.parse(a.commence_time)
+        const timeB = Date.parse(b.commence_time)
+        if (!Number.isFinite(timeA) || !Number.isFinite(timeB)) return 0
+        return timeA - timeB
+      })
+  }, [games, sportKey])
+
+  if (errorMessage && !games.length) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-black/60 px-4 py-6 text-sm text-red-200">
+        {errorMessage}
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/50">
-              Odds filter
-            </p>
-            <select
-              value={filter}
-              onChange={(event) => setFilter(event.target.value as OddsFilter)}
-              className="w-full rounded-md border border-white/10 bg-black/60 px-3 py-2 text-xs text-white/80"
-            >
-              {FILTER_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/50">
-              Prediction markets
-            </p>
-            <select
-              value={predictionFilter}
-              onChange={(event) =>
-                setPredictionFilter(event.target.value as PredictionFilter)
-              }
-              className="w-full rounded-md border border-white/10 bg-black/60 px-3 py-2 text-xs text-white/80"
-            >
-              {PREDICTION_FILTER_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/60">
+      {loading && !games.length ? (
+        <div className="px-4 py-6 text-sm text-white/60">Loading odds...</div>
+      ) : sortedGames.length === 0 ? (
+        <div className="px-4 py-6 text-sm text-white/60">
+          No odds available for this slate yet.
         </div>
-        <p className="mt-2 text-[10px] text-white/40">
-          Highest EV plays across all books.
-        </p>
-      </div>
+      ) : (
+        <div className="divide-y divide-white/5">
+          {sortedGames.map((game) => {
+            const away = game.away_team
+            const home = game.home_team
+            const bookRows = buildBookRows(game, marketKey).sort((a, b) => {
+              const left = a.bestOdds ?? Number.NEGATIVE_INFINITY
+              const right = b.bestOdds ?? Number.NEGATIVE_INFINITY
+              return right - left
+            })
 
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-        {/* Desktop header - hidden on mobile */}
-        <div className="hidden sm:grid grid-cols-[180px_repeat(4,minmax(0,1fr))] gap-2 bg-black/70 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/50">
-          <span>Matchup</span>
-          <span>Market</span>
-          <span>Best Odds</span>
-          <span>Consensus</span>
-          <span>EV Edge</span>
-        </div>
-        {errorMessage ? (
-          <div className="px-4 py-6 text-sm text-red-200">{errorMessage}</div>
-        ) : filtered.length === 0 ? (
-          <div className="px-4 py-6 text-sm text-white/60">
-            No EV opportunities found for that odds class.
-          </div>
-        ) : (
-          <div className="divide-y divide-white/5">
-            {filtered.map((opp) => (
-              <div
-                key={`${opp.gameId}-${opp.market}-${opp.selection}-${opp.point ?? "na"}`}
-                className="px-3 py-3"
-              >
-                {/* Mobile card layout */}
-                <div className="sm:hidden space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">
-                        {formatGameTime(opp.commenceTime)}
-                      </div>
-                      <div className="mt-1 text-sm font-semibold text-white">
-                        {opp.game}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="inline-block rounded bg-emerald-500/20 px-2 py-1 text-xs font-semibold text-emerald-200">
-                        EV {formatSignedPercent(opp.computedEv)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="rounded bg-white/10 px-2 py-1 text-white/80">
-                      {MARKET_LABELS[opp.market] ?? opp.market}
-                    </span>
-                    <span className="text-white/70">
-                      {opp.selection}{formatPoint(opp.point)}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div>
-                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                        {opp.bestBook} {formatAmericanOdds(opp.bestOdds)}
-                      </span>
-                      <span className="ml-2 text-white/40">{opp.allBooks.length} books</span>
-                    </div>
-                    <div className="text-white/50">
-                      Avg {formatAmericanOdds(Math.round(opp.consensus.averageOdds))}
-                    </div>
-                  </div>
+            return (
+              <div key={game.id} className="px-3 py-3 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-white/60">
+                  <span>{formatTime(game.commence_time)}</span>
+                  <span className="uppercase tracking-[0.2em] text-white/40">
+                    {(game.bookmakers?.length ?? 0)} books
+                  </span>
+                </div>
+                <div className="text-sm font-semibold text-white">
+                  {away} @ {home}
                 </div>
 
-                {/* Desktop grid layout */}
-                <div className="hidden sm:grid grid-cols-[180px_repeat(4,minmax(0,1fr))] gap-2 text-[13px] text-white/70">
-                  <div className="space-y-2">
-                    <div className="text-xs uppercase tracking-[0.2em] text-white/40">
-                      {formatGameTime(opp.commenceTime)}
-                    </div>
-                    <div className="text-sm font-semibold text-white">
-                      {opp.game}
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-xs text-white/70">
-                    <div className="text-white">
-                      {MARKET_LABELS[opp.market] ?? opp.market}
-                    </div>
-                    <div className="text-white/70">
-                      {opp.selection}
-                      {formatPoint(opp.point)}
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-xs text-white/70">
-                    <div>
-                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                        {opp.bestBook} {formatAmericanOdds(opp.bestOdds)}
-                      </span>
-                    </div>
-                    <div className="text-white/50">
-                      {opp.allBooks.length} books compared
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-xs text-white/70">
-                    <div>
-                      Avg {formatAmericanOdds(Math.round(opp.consensus.averageOdds))}
-                    </div>
-                    <div className="text-white/50">
-                      Median {formatAmericanOdds(Math.round(opp.consensus.medianOdds))}
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-xs text-white/70">
-                    <div className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                      EV {formatSignedPercent(opp.computedEv)}
-                    </div>
-                    <div className="text-white/50">
-                      Edge {formatSignedPercent(opp.edgePercent)}
-                    </div>
-                  </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {bookRows.length === 0 ? (
+                    <div className="text-xs text-white/50">No books listed.</div>
+                  ) : (
+                    bookRows.map((book) => (
+                      <div
+                        key={`${game.id}-${book.bookKey ?? book.bookTitle}`}
+                        className="min-w-[140px] rounded-2xl border border-white/10 bg-black/70 px-3 py-2 text-[11px] text-white/70"
+                      >
+                        <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                          {book.bookTitle}
+                        </div>
+                        {marketKey === "totals" ? (
+                          <div className="mt-2 space-y-1">
+                            <div>{formatEntry(book.over, "O")}</div>
+                            <div>{formatEntry(book.under, "U")}</div>
+                          </div>
+                        ) : (
+                          <div className="mt-2 space-y-1">
+                            <div>{formatEntry(book.away, "A")}</div>
+                            <div>{formatEntry(book.home, "H")}</div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

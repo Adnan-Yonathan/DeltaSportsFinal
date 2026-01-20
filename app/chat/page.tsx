@@ -24,9 +24,9 @@ import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
 import { useDailyRecap } from '@/hooks/useDailyRecap'
 
-const SHARP_STORAGE_KEY = 'sharp-detector-trades'
+const SHARP_STORAGE_KEY = 'sharp-detector-trade-ids'
 const SHARP_CACHE_VERSION_KEY = 'sharp-detector-cache-version'
-const SHARP_CACHE_VERSION = '5'
+const SHARP_CACHE_VERSION = '6'
 const EASTERN_TIMEZONE = 'America/New_York'
 const PROMO_DISMISS_KEY = 'promo_links_dismissed'
 const PROMO_CLICK_KEY = 'promo_links_click_source'

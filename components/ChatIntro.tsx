@@ -134,27 +134,6 @@ export default function ChatIntro({
   if (isGuest) {
     return (
       <div className="flex flex-col items-center justify-center min-h-full bg-black px-3 sm:px-4 py-6 sm:py-8">
-        <div className="fixed left-2 top-2 z-40 lg:left-4 lg:top-1/2 lg:-translate-y-1/2">
-          <Link
-            href={DISCORD_INVITE_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="relative w-[220px] sm:w-[260px] rounded-3xl border border-[#5865F2]/50 bg-[#5865F2]/10 p-4 shadow-2xl shadow-[#5865F2]/30 backdrop-blur hover:border-[#5865F2]/70 transition-colors"
-          >
-            <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-[#A5B4FC]">
-              <span>Free Discord</span>
-              <span className="rounded-full border border-[#5865F2]/60 px-2 py-0.5 text-[9px] font-semibold text-[#E0E7FF]">
-                Open Invite
-              </span>
-            </div>
-            <p className="mt-3 text-xs text-white/70">
-              Join the free Discord for sharp alerts, market chatter, and daily edges.
-            </p>
-            <div className="mt-4 w-full gap-2 rounded-full bg-[#5865F2] text-white px-4 py-2 text-center text-sm font-medium">
-              Join Discord
-            </div>
-          </Link>
-        </div>
         <div className="hidden lg:flex fixed right-4 top-1/2 -translate-y-1/2 z-30">
           <Link href="/sharp-detector" className="relative w-[220px] sm:w-[260px] rounded-3xl border border-emerald-400/40 bg-black/70 p-4 shadow-2xl shadow-emerald-500/20 backdrop-blur hover:border-emerald-400/60 transition-colors">
             <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
@@ -259,6 +238,17 @@ export default function ChatIntro({
             transition={{ delay: 0.7, duration: 0.5 }}
           >
             <ROICalculator />
+            <Link
+              href={DISCORD_INVITE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex items-center gap-3 rounded-full border border-[#5865F2]/60 bg-[#5865F2]/10 px-4 py-2 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.25em] text-[#E0E7FF] hover:border-[#5865F2]/80 hover:bg-[#5865F2]/20 transition-colors"
+            >
+              <span>Free Discord</span>
+              <span className="rounded-full border border-[#5865F2]/60 px-2 py-0.5 text-[9px] font-semibold text-[#E0E7FF]">
+                Join Now
+              </span>
+            </Link>
           </motion.div>
 
           <motion.div

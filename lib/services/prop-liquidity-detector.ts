@@ -12,6 +12,7 @@ const POLYMARKET_GAMES_TAG_ID = '100639'
 
 const PROP_ORDER_NOTIONAL_MIN = 500
 const TEAM_ORDER_NOTIONAL_MIN = 2000
+const TEAM_MARKET_LIQUIDITY_MAX = 14000
 const CACHE_TTL_MS = 60 * 1000
 const MAX_KALSHI_PAGES = 5
 const MAX_POLYMARKET_MARKETS = 120
@@ -426,8 +427,12 @@ const resolveBestPriceOrder = (orders: KalshiOrderSummary[], minNotional: number
   return best
 }
 
-const resolveDominantOrder = (orders: KalshiOrderSummary[], minNotional: number) => {
-  const total = sumOrderNotional(orders)
+const resolveDominantOrder = (
+  orders: KalshiOrderSummary[],
+  minNotional: number,
+  totalMarketLiquidity: number
+) => {
+  const total = totalMarketLiquidity
   if (!total) return null
   let best: KalshiOrderSummary | null = null
   for (const order of orders) {
@@ -974,9 +979,9 @@ const buildEvReason = (edgePercent: number, bestOdds: number | null) => {
   }
 }
 
-const buildLiquidityShareReason = (notional: number, totalLiquidity: number) => {
-  if (!totalLiquidity) return null
-  const share = Math.round((notional / totalLiquidity) * 100)
+const buildLiquidityShareReason = (notional: number, totalMarketLiquidity: number) => {
+  if (!totalMarketLiquidity) return null
+  const share = Math.round((notional / totalMarketLiquidity) * 100)
   if (!Number.isFinite(share) || share < 50) return null
   return {
     type: 'liquidity' as const,
@@ -1028,9 +1033,15 @@ export const fetchPropLiquiditySignals = async (opts?: {
         { side: 'no', orders: orderbook.no, label: rawNoLabel, outcomeIndex: 1 },
       ]
 
+      const marketLiquidity =
+        sumOrderNotional(orderbook.yes) + sumOrderNotional(orderbook.no)
+
       for (const candidate of candidateSides) {
-        const totalLiquidity = sumOrderNotional(candidate.orders)
-        const dominantOrder = resolveDominantOrder(candidate.orders, minOrderNotional)
+        const dominantOrder = resolveDominantOrder(
+          candidate.orders,
+          minOrderNotional,
+          marketLiquidity
+        )
         const bestPriceOrder = resolveBestPriceOrder(candidate.orders, minOrderNotional)
         const selectedOrder = dominantOrder ?? bestPriceOrder
         if (!selectedOrder) continue
@@ -1065,14 +1076,14 @@ export const fetchPropLiquiditySignals = async (opts?: {
         const displayOutcome =
           propLine != null ? `${propSide} ${propLine}` : propSide
 
+        if (edgePercent == null || edgePercent < 3 || bestOdds == null) continue
+
         const reasons: PropLiquiditySignal['reasons'] = [
           buildLiquidityReason(selectedOrder.notional, displayOutcome, americanOdds, priceCents),
         ]
-        const shareReason = buildLiquidityShareReason(selectedOrder.notional, totalLiquidity)
+        const shareReason = buildLiquidityShareReason(selectedOrder.notional, marketLiquidity)
         if (shareReason) reasons.push(shareReason)
-        if (edgePercent != null && bestOdds != null) {
-          reasons.push(buildEvReason(edgePercent, bestOdds))
-        }
+        reasons.push(buildEvReason(edgePercent, bestOdds))
 
         const sharpStrength = computeSharpStrength(selectedOrder.notional, edgePercent ?? undefined)
 
@@ -1162,10 +1173,14 @@ export const fetchPropLiquiditySignals = async (opts?: {
       { index: 0, orders: orders0 },
       { index: 1, orders: orders1 },
     ]
+    const marketLiquidity = sumOrderNotional(orders0) + sumOrderNotional(orders1)
 
     for (const candidate of candidates) {
-      const totalLiquidity = sumOrderNotional(candidate.orders)
-      const dominantOrder = resolveDominantOrder(candidate.orders, minOrderNotional)
+      const dominantOrder = resolveDominantOrder(
+        candidate.orders,
+        minOrderNotional,
+        marketLiquidity
+      )
       const bestPriceOrder = resolveBestPriceOrder(candidate.orders, minOrderNotional)
       const selectedOrder = dominantOrder ?? bestPriceOrder
       if (!selectedOrder) continue
@@ -1201,14 +1216,14 @@ export const fetchPropLiquiditySignals = async (opts?: {
       const displayOutcome =
         propLine != null ? `${propSide} ${propLine}` : propSide
 
+      if (edgePercent == null || edgePercent < 3 || bestOdds == null) continue
+
       const reasons: PropLiquiditySignal['reasons'] = [
         buildLiquidityReason(selectedOrder.notional, displayOutcome, americanOdds, priceCents),
       ]
-      const shareReason = buildLiquidityShareReason(selectedOrder.notional, totalLiquidity)
+      const shareReason = buildLiquidityShareReason(selectedOrder.notional, marketLiquidity)
       if (shareReason) reasons.push(shareReason)
-      if (edgePercent != null && bestOdds != null) {
-        reasons.push(buildEvReason(edgePercent, bestOdds))
-      }
+      reasons.push(buildEvReason(edgePercent, bestOdds))
 
       const sharpStrength = computeSharpStrength(selectedOrder.notional, edgePercent ?? undefined)
 
@@ -1288,9 +1303,16 @@ export const fetchPropLiquiditySignals = async (opts?: {
 
       const lineValue = parseLineFromTitle(market.title ?? '')
 
+      const marketLiquidity =
+        sumOrderNotional(orderbook.yes) + sumOrderNotional(orderbook.no)
+      if (marketLiquidity > TEAM_MARKET_LIQUIDITY_MAX) continue
+
       for (const candidate of candidateSides) {
-        const totalLiquidity = sumOrderNotional(candidate.orders)
-        const dominantOrder = resolveDominantOrder(candidate.orders, TEAM_ORDER_NOTIONAL_MIN)
+        const dominantOrder = resolveDominantOrder(
+          candidate.orders,
+          TEAM_ORDER_NOTIONAL_MIN,
+          marketLiquidity
+        )
         const bestPriceOrder = resolveBestPriceOrder(candidate.orders, TEAM_ORDER_NOTIONAL_MIN)
         const selectedOrder = dominantOrder ?? bestPriceOrder
         if (!selectedOrder) continue
@@ -1337,14 +1359,14 @@ export const fetchPropLiquiditySignals = async (opts?: {
           sportsbookProb != null ? (probability - sportsbookProb) * 100 : null
         const edgePercent = edge != null ? Math.round(edge * 10) / 10 : null
 
+        if (edgePercent == null || edgePercent < 3 || bestOdds == null) continue
+
         const reasons: PropLiquiditySignal['reasons'] = [
           buildLiquidityReason(selectedOrder.notional, outcomeLabel, americanOdds, priceCents),
         ]
-        const shareReason = buildLiquidityShareReason(selectedOrder.notional, totalLiquidity)
+        const shareReason = buildLiquidityShareReason(selectedOrder.notional, marketLiquidity)
         if (shareReason) reasons.push(shareReason)
-        if (edgePercent != null && bestOdds != null) {
-          reasons.push(buildEvReason(edgePercent, bestOdds))
-        }
+        reasons.push(buildEvReason(edgePercent, bestOdds))
         const sharpStrength = computeSharpStrength(selectedOrder.notional, edgePercent)
 
         const orderOdds =

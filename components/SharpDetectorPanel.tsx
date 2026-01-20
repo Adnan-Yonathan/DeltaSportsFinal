@@ -83,7 +83,6 @@ type SharpAlert = {
 const MIN_NOTIONAL = 2000
 const POLL_INTERVAL_BET_FEED = 30000
 const POLL_INTERVAL_SHARP_FEED = 15000
-const STORAGE_KEY = 'sharp-detector-trades'
 const WALLET_STORAGE_KEY = 'sharp-detector-wallets'
 const MAX_RESOLVED_TRADES = 300
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
@@ -403,19 +402,7 @@ export default function SharpDetectorPanel({
   const [alertsEnabled, setAlertsEnabled] = useState(true)
   const ultraSharpSeenIds = useRef<Set<string>>(new Set())
 
-  const [trades, setTrades] = useState<SharpTradeWithStatus[]>(() => {
-    if (typeof window === 'undefined') return []
-    try {
-      const cached = window.localStorage.getItem(STORAGE_KEY)
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        return Array.isArray(parsed) ? parsed : []
-      }
-    } catch (error) {
-      console.warn('Failed to load sharp detector cache:', error)
-    }
-    return []
-  })
+  const [trades, setTrades] = useState<SharpTradeWithStatus[]>([])
   const [hydrated, setHydrated] = useState(typeof window !== 'undefined')       
   const [debugEnabled, setDebugEnabled] = useState(false)
   const [lastFetchAt, setLastFetchAt] = useState<string | null>(null)
@@ -971,14 +958,7 @@ export default function SharpDetectorPanel({
     setAlerts((prev) => prev.filter((a) => a.id !== alertId))
   }
 
-  useEffect(() => {
-    if (!hydrated || typeof window === 'undefined') return
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trades))
-    } catch (error) {
-      console.warn('Failed to persist sharp detector cache:', error)
-    }
-  }, [hydrated, trades])
+  // No local caching: always render the latest fetch results.
 
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return

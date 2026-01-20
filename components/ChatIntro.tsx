@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { UserPlus } from 'lucide-react'
+import { UserPlus, Twitter } from 'lucide-react'
 import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
 import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
 import { AnimatedHero } from '@/components/ui/animated-hero'
@@ -296,17 +296,30 @@ export default function ChatIntro({
         animate={{ opacity: 1, y: 0 }}
         className="text-center max-w-3xl w-full mb-4 sm:mb-6"
       >
-        <Link href="/patch-notes" className="mb-6 inline-block relative z-10 pointer-events-auto">
-          <Announcement className="border-[#34d399]/30 bg-black/70 hover:border-[#34d399]/50 hover:bg-black/90 cursor-pointer">
-            <AnnouncementTag className="bg-[#34d399]/20 text-[#34d399]">
-              Patch 0.2
-            </AnnouncementTag>
-            <AnnouncementTitle className="text-white/80 text-sm">
-              View patch notes
-              <ArrowUpRight size={14} className="shrink-0 text-[#34d399]" />
-            </AnnouncementTitle>
-          </Announcement>
-        </Link>
+        <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
+          <Link href="/patch-notes" className="relative z-10 pointer-events-auto">
+            <Announcement className="border-[#34d399]/30 bg-black/70 hover:border-[#34d399]/50 hover:bg-black/90 cursor-pointer">
+              <AnnouncementTag className="bg-[#34d399]/20 text-[#34d399]">
+                Patch 0.3
+              </AnnouncementTag>
+              <AnnouncementTitle className="text-white/80 text-sm">
+                View patch notes
+                <ArrowUpRight size={14} className="shrink-0 text-[#34d399]" />
+              </AnnouncementTitle>
+            </Announcement>
+          </Link>
+          <Link
+            href="https://x.com/DeltaSportsAI"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Delta Sports on X"
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200"
+          >
+            <ArrowUpRight className="h-4 w-4 text-emerald-300" />
+            <span>follow our twitter</span>
+            <Twitter className="h-4 w-4" />
+          </Link>
+        </div>
         <AnimatedHero
           staticText="Make money with"
           interval={2500}

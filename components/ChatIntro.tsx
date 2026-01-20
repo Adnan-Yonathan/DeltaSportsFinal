@@ -242,10 +242,10 @@ export default function ChatIntro({
               href={DISCORD_INVITE_URL}
               target="_blank"
               rel="noreferrer"
-              className="mt-4 inline-flex items-center gap-3 rounded-full border border-[#5865F2]/60 bg-[#5865F2]/10 px-4 py-2 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.25em] text-[#E0E7FF] hover:border-[#5865F2]/80 hover:bg-[#5865F2]/20 transition-colors"
+              className="mx-auto mt-5 inline-flex items-center gap-4 rounded-full bg-[#5865F2] px-6 py-3 text-xs sm:text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-[0_16px_40px_rgba(88,101,242,0.35)] hover:bg-[#6C77F5] transition-colors"
             >
               <span>Free Discord</span>
-              <span className="rounded-full border border-[#5865F2]/60 px-2 py-0.5 text-[9px] font-semibold text-[#E0E7FF]">
+              <span className="rounded-full border border-white/60 px-3 py-1 text-[10px] font-semibold text-white">
                 Join Now
               </span>
             </Link>

@@ -918,7 +918,7 @@ function ChatPageContent() {
                               target="_blank"
                               rel="noreferrer"
                               aria-label="Delta Sports on X"
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200"
+                              className="relative z-20 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200 pointer-events-auto"
                             >
                               <Twitter className="h-4 w-4" />
                             </Link>

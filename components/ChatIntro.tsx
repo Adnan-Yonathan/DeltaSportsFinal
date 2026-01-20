@@ -313,7 +313,7 @@ export default function ChatIntro({
             target="_blank"
             rel="noreferrer"
             aria-label="Delta Sports on X"
-            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200"
+            className="relative z-20 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200 pointer-events-auto"
           >
             <ArrowUpRight className="h-4 w-4 text-emerald-300" />
             <span>follow our twitter</span>

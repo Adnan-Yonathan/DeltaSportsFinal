@@ -2,7 +2,7 @@ import { decimalToAmerican } from '@/lib/utils/odds'
 import { oddsToImpliedProbability } from '@/lib/utils/statistics'
 import { fetchOdds } from '@/lib/api/odds-api'
 import { normalizeTeamKey } from '@/lib/identity/sport'
-import type { Bookmaker, OddsGame } from '@/lib/types/odds'
+import type { Bookmaker, OddsGame, OddsOutcome } from '@/lib/types/odds'
 
 const KALSHI_BASE = 'https://api.elections.kalshi.com/trade-api/v2'
 const POLYMARKET_TRADES = 'https://data-api.polymarket.com/trades'
@@ -12,6 +12,10 @@ export const DEFAULT_MIN_NOTIONAL = 2000
 export const RESPECT_CHECK_MS = 15 * 60 * 1000
 export const RESPECT_TOLERANCE_CENTS = 2
 const MAX_FEED_DIVERGENCE_PERCENT = 15
+const SHARP_SCORE_WINDOW_MS = 30 * 1000
+const SHARP_SCORE_SHORT_WINDOW_MS = 10 * 1000
+const MIN_PROP_NOTIONAL = 500
+const MIN_GAME_NOTIONAL = 2000
 
 const KALSHI_SPORT_PREFIXES = [
   'KXNBA',
@@ -177,6 +181,12 @@ export type WhaleTrade = {
   proxyWallet?: string
   priceCents: number
   americanOdds: number | null
+  sportsbookBestOdds?: number | null
+  sportsbookBookKey?: string | null
+  sportsbookBookTitle?: string | null
+  sharpScoreInstant?: number
+  sharpScore30s?: number
+  sharpScoreDirection?: 'BUY' | 'SELL'
   currentPriceCents?: number | null
   currentAmericanOdds?: number | null
   notional: number
@@ -207,6 +217,7 @@ export type UltraSharpReasonType =
   | 'cluster'
   | 'cross-market-ev'
   | 'big-bet'
+  | 'liquidity'
 
 // Cluster detection configuration by sport
 type ClusterConfig = {
@@ -289,6 +300,14 @@ const parseNumber = (value: unknown) => {
   if (!Number.isFinite(parsed)) return null
   return parsed
 }
+
+const normalizePriceCents = (value: number) => {
+  if (!Number.isFinite(value)) return null
+  if (value <= 1) return Math.round(value * 100)
+  return Math.round(value)
+}
+
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
 
 const probabilityToAmerican = (probability: number) => {
   if (!Number.isFinite(probability) || probability <= 0 || probability >= 1) {
@@ -664,6 +683,18 @@ type KalshiMarketSnapshot = {
 type KalshiOrderbookSnapshot = {
   yesDepth: number
   noDepth: number
+  yesBestBid: number | null
+  noBestBid: number | null
+  yesBestAsk: number | null
+  noBestAsk: number | null
+}
+
+type KalshiTradePoint = {
+  timestampMs: number
+  side: 'yes' | 'no'
+  priceCents: number
+  notional: number
+  count: number
 }
 
 type KalshiRecentTradeStats = {
@@ -672,6 +703,7 @@ type KalshiRecentTradeStats = {
   noCount: number
   averageYesPrice: number | null
   averageNoPrice: number | null
+  trades: KalshiTradePoint[]
 }
 
 const SPORT_TO_ODDS_KEY: Record<string, string> = {
@@ -870,6 +902,11 @@ const resolveTradeSelection = (
   return selection
 }
 
+const resolveIsPropMarket = (trade: WhaleTrade) => {
+  const teams = parseTeamsFromTitle(trade.marketTitle)
+  return !teams
+}
+
 const calculateImpliedProbability = (odds: number) => {
   if (!Number.isFinite(odds) || odds === 0) return null
   if (odds > 0) return 100 / (odds + 100)
@@ -1001,6 +1038,7 @@ const resolveRecentTradeStats = (trades: KalshiTrade[]) => {
   let noCount = 0
   let yesPriceSum = 0
   let noPriceSum = 0
+  const points: KalshiTradePoint[] = []
 
   for (const trade of trades) {
     const count = Number(trade.count) || 0
@@ -1014,12 +1052,24 @@ const resolveRecentTradeStats = (trades: KalshiTrade[]) => {
       const price = resolveKalshiPriceCents(trade)
       if (price != null) noPriceSum += price * count
     }
+
+    const price = resolveKalshiPriceCents(trade)
+    const timestampMs = new Date(trade.created_time).getTime()
+    if (price != null && Number.isFinite(timestampMs) && count > 0) {
+      points.push({
+        timestampMs,
+        side: trade.taker_side,
+        priceCents: price,
+        notional: count * (price / 100),
+        count,
+      })
+    }
   }
 
   const averageYesPrice = yesCount > 0 ? yesPriceSum / yesCount : null
   const averageNoPrice = noCount > 0 ? noPriceSum / noCount : null
 
-  return { totalCount, yesCount, noCount, averageYesPrice, averageNoPrice }
+  return { totalCount, yesCount, noCount, averageYesPrice, averageNoPrice, trades: points }
 }
 
 // NEW: Timing factor - early steam is more valuable
@@ -1124,9 +1174,26 @@ const fetchKalshiOrderbook = async (ticker: string): Promise<KalshiOrderbookSnap
   const no = Array.isArray(data.orderbook?.no) ? data.orderbook?.no ?? [] : []
   const sumDepth = (levels: number[][]) =>
     levels.reduce((sum, level) => sum + (Number(level?.[1]) || 0), 0)
+  const resolveBestBid = (levels: number[][]) => {
+    let best: number | null = null
+    for (const level of levels) {
+      const price = normalizePriceCents(Number(level?.[0]))
+      if (price == null) continue
+      if (best == null || price > best) best = price
+    }
+    return best
+  }
+  const yesBestBid = resolveBestBid(yes)
+  const noBestBid = resolveBestBid(no)
+  const yesBestAsk = noBestBid != null ? 100 - noBestBid : null
+  const noBestAsk = yesBestBid != null ? 100 - yesBestBid : null
   return {
     yesDepth: sumDepth(yes),
     noDepth: sumDepth(no),
+    yesBestBid,
+    noBestBid,
+    yesBestAsk,
+    noBestAsk,
   }
 }
 
@@ -1164,9 +1231,12 @@ const findBestOdds = (
   selection: { team?: string; totalSide?: 'over' | 'under'; line?: number }
 ) => {
   let bestOdds: number | null = null
+  let bestBookKey: string | null = null
+  let bestBookTitle: string | null = null
   let bestLineDiff = Number.POSITIVE_INFINITY
 
   for (const book of game.bookmakers || []) {
+    if (book.key === 'kalshi' || book.key === 'polymarket') continue
     const market = book.markets?.find((m) => m.key === marketKey)
     if (!market) continue
     for (const outcome of market.outcomes || []) {
@@ -1174,7 +1244,11 @@ const findBestOdds = (
       if (!Number.isFinite(price)) continue
       if (marketKey === 'h2h') {
         if (selection.team && normalizeTeamKey(outcome.name).includes(normalizeTeamKey(selection.team))) {
-          if (bestOdds == null || price > bestOdds) bestOdds = price
+          if (bestOdds == null || price > bestOdds) {
+            bestOdds = price
+            bestBookKey = book.key
+            bestBookTitle = book.title ?? book.key
+          }
         }
         continue
       }
@@ -1191,6 +1265,8 @@ const findBestOdds = (
         if (lineDiff < bestLineDiff || (lineDiff === bestLineDiff && (bestOdds == null || price > bestOdds))) {
           bestLineDiff = lineDiff
           bestOdds = price
+          bestBookKey = book.key
+          bestBookTitle = book.title ?? book.key
         }
         continue
       }
@@ -1203,15 +1279,168 @@ const findBestOdds = (
         if (lineDiff < bestLineDiff || (lineDiff === bestLineDiff && (bestOdds == null || price > bestOdds))) {
           bestLineDiff = lineDiff
           bestOdds = price
+          bestBookKey = book.key
+          bestBookTitle = book.title ?? book.key
         }
       }
     }
   }
 
-  return bestOdds
+  return { bestOdds, bestBookKey, bestBookTitle }
 }
 
-const resolveSportsbookProbability = (
+const resolveSelectionOddsFromBook = (
+  market: Bookmaker['markets'][number],
+  marketKey: string,
+  selection: { team?: string; totalSide?: 'over' | 'under'; line?: number },
+  teams: ParsedTeams | null
+) => {
+  const outcomes = market.outcomes || []
+  if (marketKey === 'h2h') {
+    if (!selection.team) return null
+    const selectionKey = normalizeTeamKey(selection.team)
+    const selectionOutcome = outcomes.find((outcome) =>
+      normalizeTeamKey(outcome.name).includes(selectionKey)
+    )
+    if (!selectionOutcome) return null
+    const opposingOutcome = outcomes.find(
+      (outcome) => outcome !== selectionOutcome && Number.isFinite(outcome.price)
+    )
+    return { selectionOutcome, opposingOutcome }
+  }
+
+  if (marketKey === 'totals') {
+    if (!selection.totalSide) return null
+    const grouped = new Map<number, { over?: OddsOutcome; under?: OddsOutcome }>()
+    for (const outcome of outcomes) {
+      const line = Number(outcome.point)
+      if (!Number.isFinite(line)) continue
+      const name = outcome.name.toLowerCase()
+      const isOver = name.includes('over')
+      const isUnder = name.includes('under')
+      if (!isOver && !isUnder) continue
+      const bucket = grouped.get(line) || {}
+      if (isOver) bucket.over = outcome
+      if (isUnder) bucket.under = outcome
+      grouped.set(line, bucket)
+    }
+
+    if (grouped.size === 0) return null
+    let bestLine: number | null = null
+    let bestDiff = Number.POSITIVE_INFINITY
+    for (const line of grouped.keys()) {
+      const diff = selection.line != null ? Math.abs(line - selection.line) : 0
+      if (diff < bestDiff) {
+        bestDiff = diff
+        bestLine = line
+      }
+    }
+    if (bestLine == null) return null
+    const bucket = grouped.get(bestLine)
+    if (!bucket) return null
+    const selectionOutcome = selection.totalSide === 'over' ? bucket.over : bucket.under
+    const opposingOutcome = selection.totalSide === 'over' ? bucket.under : bucket.over
+    if (!selectionOutcome) return null
+    return { selectionOutcome, opposingOutcome }
+  }
+
+  if (marketKey === 'spreads') {
+    if (!selection.team || !teams) return null
+    const selectionKey = normalizeTeamKey(selection.team)
+    const opponentTeam =
+      normalizeTeamKey(teams.home) === selectionKey ? teams.away : teams.home
+    const opponentKey = normalizeTeamKey(opponentTeam)
+    const candidates = outcomes.filter(
+      (outcome) =>
+        normalizeTeamKey(outcome.name).includes(selectionKey) &&
+        Number.isFinite(outcome.point)
+    )
+    if (!candidates.length) return null
+    let best = candidates[0]
+    let bestDiff = Number.POSITIVE_INFINITY
+    for (const outcome of candidates) {
+      const line = Number(outcome.point)
+      const diff = selection.line != null ? Math.abs(line - selection.line) : 0
+      if (diff < bestDiff) {
+        bestDiff = diff
+        best = outcome
+      }
+    }
+    const targetOppLine = Number.isFinite(best.point) ? -Number(best.point) : null
+    const opposingOutcome = outcomes.find((outcome) => {
+      if (!Number.isFinite(outcome.point)) return false
+      const teamKey = normalizeTeamKey(outcome.name)
+      if (!teamKey || !opponentKey || !teamKey.includes(opponentKey)) return false
+      if (targetOppLine == null) return true
+      return Math.abs(Number(outcome.point) - targetOppLine) < 0.01
+    })
+    return { selectionOutcome: best, opposingOutcome }
+  }
+
+  return null
+}
+
+const resolveSportsbookWorstOdds = (
+  trade: WhaleTrade,
+  oddsCache: Map<string, OddsGame[]>
+) => {
+  const sportKey = SPORT_TO_ODDS_KEY[trade.sport]
+  if (!sportKey) return null
+  const games = oddsCache.get(sportKey)
+  if (!games || games.length === 0) return null
+  const teams = parseTeamsFromTitle(trade.marketTitle)
+  const game = findMatchingGame(games, teams)
+  if (!game) return null
+  const marketKey = resolveMarketType(trade)
+  const selection = resolveTradeSelection(trade, marketKey, teams)
+
+  let worst: {
+    odds: number
+    rawProb: number
+    fairProb: number | null
+    bookKey: string
+    bookTitle: string
+    usedNoVig: boolean
+  } | null = null
+
+  for (const book of game.bookmakers || []) {
+    if (book.key === 'kalshi' || book.key === 'polymarket') continue
+    const market = book.markets?.find((m) => m.key === marketKey)
+    if (!market) continue
+    const selectionResult = resolveSelectionOddsFromBook(
+      market,
+      marketKey,
+      selection,
+      teams
+    )
+    if (!selectionResult) continue
+    const { selectionOutcome, opposingOutcome } = selectionResult
+    const rawProb = calculateImpliedProbability(Number(selectionOutcome.price))
+    if (rawProb == null) continue
+    const oppRawProb = opposingOutcome
+      ? calculateImpliedProbability(Number(opposingOutcome.price))
+      : null
+    const fairProb =
+      oppRawProb != null && Number.isFinite(oppRawProb)
+        ? rawProb / (rawProb + oppRawProb)
+        : null
+    const usedNoVig = fairProb != null && Number.isFinite(fairProb)
+    if (!worst || rawProb > worst.rawProb) {
+      worst = {
+        odds: Number(selectionOutcome.price),
+        rawProb,
+        fairProb: usedNoVig ? fairProb : null,
+        bookKey: book.key,
+        bookTitle: book.title ?? book.key,
+        usedNoVig,
+      }
+    }
+  }
+
+  return worst
+}
+
+const resolveSportsbookBestOdds = (
   trade: WhaleTrade,
   oddsCache: Map<string, OddsGame[]>
 ) => {
@@ -1225,10 +1454,7 @@ const resolveSportsbookProbability = (
 
   const marketKey = resolveMarketType(trade)
   const selection = resolveTradeSelection(trade, marketKey, teams)
-
-  const bestOdds = findBestOdds(game, marketKey, selection)
-  if (!Number.isFinite(bestOdds)) return null
-  return oddsToImpliedProbability(bestOdds as number)
+  return findBestOdds(game, marketKey, selection)
 }
 
 const resolveSportsbookNoVigProbability = (
@@ -1244,13 +1470,58 @@ const resolveSportsbookNoVigProbability = (
   if (!game) return null
   const marketKey = resolveMarketType(trade)
   const selection = resolveTradeSelection(trade, marketKey, teams)
-  const consensus = buildNoVigConsensusBySelection(game.bookmakers || [], marketKey)
+  const sportsbookBooks = (game.bookmakers || []).filter(
+    (book) => book.key !== 'kalshi' && book.key !== 'polymarket'
+  )
+  const consensus = buildNoVigConsensusBySelection(sportsbookBooks, marketKey)
   if (consensus.size === 0) return null
   const selectionKey = resolveSelectionKeyForTrade(marketKey, selection, consensus)
   if (!selectionKey) return null
   const entry = consensus.get(selectionKey)
   if (!entry || !Number.isFinite(entry.impliedProbability)) return null
   return entry.impliedProbability
+}
+
+const resolveSideBidAsk = (
+  side: 'yes' | 'no',
+  orderbook: KalshiOrderbookSnapshot | null
+) => {
+  if (!orderbook) return { bid: null, ask: null }
+  const bid = side === 'yes' ? orderbook.yesBestBid : orderbook.noBestBid
+  const ask = side === 'yes' ? orderbook.yesBestAsk : orderbook.noBestAsk
+  return { bid, ask }
+}
+
+const resolveSideMidPriceCents = (
+  side: 'yes' | 'no',
+  orderbook: KalshiOrderbookSnapshot | null,
+  market: KalshiMarketSnapshot | null,
+  trade: WhaleTrade
+) => {
+  const { bid, ask } = resolveSideBidAsk(side, orderbook)
+  if (bid != null && ask != null) return Math.round((bid + ask) / 2)
+  const fallback =
+    side === 'yes' ? market?.yesPriceCents ?? null : market?.noPriceCents ?? null
+  return fallback ?? trade.priceCents
+}
+
+const resolveWindowPriceCents = (
+  trades: KalshiTradePoint[],
+  nowMs: number,
+  windowMs: number,
+  side: 'yes' | 'no',
+  mode: 'latest' | 'earliest',
+  fallback: number
+) => {
+  const start = nowMs - windowMs
+  const candidates = trades.filter(
+    (trade) => trade.side === side && trade.timestampMs >= start && trade.timestampMs <= nowMs
+  )
+  if (!candidates.length) return fallback
+  const sorted = candidates.sort((a, b) =>
+    mode === 'latest' ? b.timestampMs - a.timestampMs : a.timestampMs - b.timestampMs
+  )
+  return sorted[0]?.priceCents ?? fallback
 }
 
 const buildSportsbookOddsCache = async (trades: WhaleTrade[]) => {
@@ -1275,10 +1546,14 @@ const buildSportsbookOddsCache = async (trades: WhaleTrade[]) => {
 
 type StrengthScoreResult = {
   score: number
+  sharpScoreInstant: number
+  sharpScore30s: number
+  sharpScoreDirection: 'BUY' | 'SELL'
   timingScore: number
   rlmScore: number
   rlmDetected: boolean
   divergencePercent: number | null
+  pricingDivergenceOnly: boolean
   sportContext: SportContext
 }
 
@@ -1289,82 +1564,172 @@ const computeStrengthScore = (opts: {
   orderbook: KalshiOrderbookSnapshot | null
   recentTrades: KalshiRecentTradeStats | null
   sportsbookProb: number | null
+  sportsbookProbWeight?: number
 }): StrengthScoreResult => {
-  const { trade, side, market, orderbook, recentTrades, sportsbookProb } = opts
+  const {
+    trade,
+    side,
+    market,
+    orderbook,
+    recentTrades,
+    sportsbookProb,
+    sportsbookProbWeight,
+  } = opts
   const sportContext = getSportContext(trade.sport)
-
-  const avgPer30 =
-    market?.volume24h && market.volume24h > 0 ? market.volume24h / 48 : null
-  const recentCount = recentTrades?.totalCount ?? 0
-  const ratio = avgPer30 ? recentCount / avgPer30 : 1
-  let bigBets = scoreFromRatio(ratio)
-  const sideCount = side === 'yes' ? recentTrades?.yesCount ?? 0 : recentTrades?.noCount ?? 0
-  if (sideCount < 3) bigBets = Math.min(bigBets, 0.6)
-
-  const currentPrice =
-    side === 'yes' ? market?.yesPriceCents ?? trade.priceCents : market?.noPriceCents ?? trade.priceCents
-  const recentAvg =
-    side === 'yes' ? recentTrades?.averageYesPrice : recentTrades?.averageNoPrice
-  const fallbackPrev = market?.previousPriceCents
-  const baseline = recentAvg ?? fallbackPrev ?? trade.priceCents
-  const move = currentPrice != null && baseline != null ? currentPrice - baseline : 0
-  let momentum = scoreFromMove(move)
-  if (move > 0) momentum = Math.min(1, momentum + 0.1)
-
-  const bookPressure = resolveBookPressureScore(side, orderbook)
-  const liquidity = resolveLiquidityScore(
-    market?.liquidityDollars ?? null,
-    market?.openInterest ?? null,
-    side === 'yes' ? market?.yesSpreadCents ?? null : market?.noSpreadCents ?? null
+  const nowMs = new Date(trade.timestamp).getTime()
+  const trades = recentTrades?.trades ?? []
+  const windowTrades = trades.filter(
+    (item) =>
+      Number.isFinite(item.timestampMs) &&
+      item.timestampMs <= nowMs &&
+      item.timestampMs >= nowMs - SHARP_SCORE_WINDOW_MS
   )
 
-  // NEW: Enhanced RLM detection with sport context
+  const minNotional = resolveIsPropMarket(trade) ? MIN_PROP_NOTIONAL : MIN_GAME_NOTIONAL
+  const buyNotional30 = windowTrades
+    .filter((item) => item.side === side)
+    .reduce((sum, item) => sum + item.notional, 0)
+  const sellNotional30 = windowTrades
+    .filter((item) => item.side !== side)
+    .reduce((sum, item) => sum + item.notional, 0)
+  const totalNotional30 = buyNotional30 + sellNotional30
+  const flowImbalance30 =
+    totalNotional30 > 0 ? (buyNotional30 - sellNotional30) / totalNotional30 : 0
+  const sharpDirection: 'BUY' | 'SELL' = flowImbalance30 >= 0 ? 'BUY' : 'SELL'
+
+  const { bid, ask } = resolveSideBidAsk(side, orderbook)
+  const sweepCount30 = windowTrades.filter((item) => {
+    if (item.side !== side) return false
+    if (ask == null) return true
+    return item.priceCents >= ask
+  }).length
+
+  const midNowCents = resolveSideMidPriceCents(side, orderbook, market, trade)
+  const mid10sCents = resolveWindowPriceCents(
+    windowTrades,
+    nowMs,
+    SHARP_SCORE_SHORT_WINDOW_MS,
+    side,
+    'latest',
+    midNowCents
+  )
+  const mid30sCents = resolveWindowPriceCents(
+    windowTrades,
+    nowMs,
+    SHARP_SCORE_WINDOW_MS,
+    side,
+    'earliest',
+    midNowCents
+  )
+
+  const move10s = (midNowCents - mid10sCents) / 100
+  const move30s = (midNowCents - mid30sCents) / 100
+
+  const bidDepth = side === 'yes' ? orderbook?.yesDepth ?? 0 : orderbook?.noDepth ?? 0
+  const askDepth = side === 'yes' ? orderbook?.noDepth ?? 0 : orderbook?.yesDepth ?? 0
+  const buyNotional10s = windowTrades
+    .filter((item) => item.side === side && item.timestampMs >= nowMs - SHARP_SCORE_SHORT_WINDOW_MS)
+    .reduce((sum, item) => sum + item.notional, 0)
+  const sellNotional10s = windowTrades
+    .filter((item) => item.side !== side && item.timestampMs >= nowMs - SHARP_SCORE_SHORT_WINDOW_MS)
+    .reduce((sum, item) => sum + item.notional, 0)
+  const depletionRaw =
+    flowImbalance30 >= 0
+      ? askDepth > 0
+        ? buyNotional10s / askDepth
+        : 0
+      : bidDepth > 0
+        ? sellNotional10s / bidDepth
+        : 0
+  const depletion = clamp01(depletionRaw)
+
+  const spreadPct =
+    bid != null && ask != null && midNowCents > 0
+      ? ((ask - bid) / midNowCents) * 100
+      : null
+
+  const initialMove = (mid10sCents - mid30sCents) / 100
+  const totalMove = (midNowCents - mid30sCents) / 100
+  const microRetentionRaw =
+    initialMove !== 0 ? Math.abs(totalMove / initialMove) : 0
+  const microRetention = clamp01(microRetentionRaw)
+
+  const pmProb = midNowCents / 100
+  const deltaProb = sportsbookProb != null ? pmProb - sportsbookProb : null
+  const divergencePercent =
+    deltaProb != null ? Math.round(Math.abs(deltaProb) * 1000) / 10 : null
+  const divergenceWeight = sportsbookProbWeight ?? 1
+
+  const flowScore = clamp01((Math.abs(flowImbalance30) - 0.2) / (0.8 - 0.2))
+  const sweepScore = clamp01((sweepCount30 - 2) / (10 - 2))
+  const moveScore = clamp01((Math.abs(move30s) - 0.005) / (0.03 - 0.005))
+  const depletionScore = clamp01((depletion - 0.05) / (0.4 - 0.05))
+  const spreadScore =
+    spreadPct == null ? 0.2 : spreadPct <= 0.5 ? 1.0 : spreadPct <= 1.0 ? 0.6 : 0.2
+  const microScore = clamp01((microRetention - 0.3) / (1.0 - 0.3))
+  const divScore =
+    deltaProb == null
+      ? 0
+      : clamp01((Math.abs(deltaProb) - 0.01) / (0.05 - 0.01)) * divergenceWeight
+
+  const rawScore =
+    0.22 * flowScore +
+    0.12 * sweepScore +
+    0.16 * moveScore +
+    0.14 * depletionScore +
+    0.06 * spreadScore +
+    0.12 * microScore +
+    0.18 * divScore
+  const instantRaw =
+    (0.22 * flowScore +
+      0.12 * sweepScore +
+      0.16 * moveScore +
+      0.14 * depletionScore +
+      0.06 * spreadScore +
+      0.18 * divScore) /
+    (1 - 0.12)
+
+  let sharpScore30s = Math.round(100 * clamp01(rawScore))
+  let sharpScoreInstant = Math.round(100 * clamp01(instantRaw))
+  let pricingDivergenceOnly = false
+
+  if (divScore >= 0.7 && flowScore < 0.2) {
+    pricingDivergenceOnly = true
+    sharpScore30s = Math.min(sharpScore30s, 55)
+    sharpScoreInstant = Math.min(sharpScoreInstant, 55)
+  }
+
+  if (microScore < 0.2 && Math.abs(move30s) > 0.002) {
+    sharpScore30s = Math.max(0, sharpScore30s - 15)
+  }
+
+  if (totalNotional30 < minNotional) {
+    sharpScore30s = Math.min(sharpScore30s, 40)
+    sharpScoreInstant = Math.min(sharpScoreInstant, 40)
+  }
+  if (spreadPct != null && spreadPct > 2) {
+    sharpScore30s = Math.min(sharpScore30s, 50)
+    sharpScoreInstant = Math.min(sharpScoreInstant, 50)
+  }
+
   const { score: rlm, detected: rlmDetected } = resolveEnhancedRlmScore({
     recentTrades,
     side,
-    priceMove: move,
+    priceMove: move30s * 100,
     sportContext,
   })
-
-  // NEW: Timing factor
   const timingScore = resolveTimingScore(trade.eventDate, trade.timestamp)
 
-  // Updated weights with timing factor (80 points max base)
-  // bigBets: 0.25, momentum: 0.20, bookPressure: 0.15, liquidity: 0.10, rlm: 0.15, timing: 0.10, clustering: 0.05 (reserved for future)
-  const baseScore =
-    80 *
-    (0.25 * bigBets +
-      0.20 * momentum +
-      0.15 * bookPressure +
-      0.10 * liquidity +
-      0.15 * rlm +
-      0.10 * timingScore +
-      0.05 * 0.5) // clustering placeholder
-
-  let boost = 0
-  let divergencePercent: number | null = null
-  if (currentPrice != null && sportsbookProb != null) {
-    const kalshiProb = currentPrice / 100
-    const diff = Math.abs(kalshiProb - sportsbookProb) * 100
-    divergencePercent = Math.round(diff * 10) / 10
-    if (diff >= 10) boost = 20
-    else if (diff >= 7) boost = 16
-    else if (diff >= 4) boost = 12
-    else if (diff >= 2) boost = 8
-    else if (diff >= 1) boost = 4
-  }
-
-  // Additional cluster bonus reserved for future (up to +5)
-  const clusterBonus = 0
-
-  const finalScore = Math.max(0, Math.min(100, Math.round((baseScore + boost + clusterBonus) * 10) / 10))
-
   return {
-    score: finalScore,
+    score: sharpScore30s,
+    sharpScoreInstant,
+    sharpScore30s,
+    sharpScoreDirection: sharpDirection,
     timingScore,
     rlmScore: rlm,
     rlmDetected,
     divergencePercent,
+    pricingDivergenceOnly,
     sportContext,
   }
 }
@@ -1512,7 +1877,16 @@ const detectClusterForTrade = (
 const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<UltraSharpTrade[]> => {
   const oddsCache = await buildSportsbookOddsCache(trades)
   const preprocessed = trades.map((trade) => {
-    const sportsbookProb = resolveSportsbookProbability(trade, oddsCache)
+    const sportsbookBest = resolveSportsbookBestOdds(trade, oddsCache)
+    const sportsbookWorst = resolveSportsbookWorstOdds(trade, oddsCache)
+    const sportsbookProb =
+      sportsbookWorst?.fairProb ??
+      sportsbookWorst?.rawProb ??
+      (sportsbookBest?.bestOdds != null
+        ? oddsToImpliedProbability(sportsbookBest.bestOdds)
+        : null)
+    const sportsbookProbWeight =
+      sportsbookWorst?.fairProb != null ? 1 : sportsbookWorst?.rawProb != null ? 0.6 : 0.4
     const noVigProb = resolveSportsbookNoVigProbability(trade, oddsCache)
     let divergencePercent: number | null = null
     if (trade.priceCents && sportsbookProb != null) {
@@ -1524,7 +1898,16 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
       const edge = (noVigProb - trade.priceCents / 100) * 100
       crossMarketEvPercent = Math.round(edge * 10) / 10
     }
-    return { trade, sportsbookProb, divergencePercent, crossMarketEvPercent }
+    return {
+      trade,
+      sportsbookProb,
+      sportsbookProbWeight,
+      divergencePercent,
+      crossMarketEvPercent,
+      sportsbookBestOdds: sportsbookBest?.bestOdds ?? null,
+      sportsbookBookKey: sportsbookBest?.bestBookKey ?? null,
+      sportsbookBookTitle: sportsbookBest?.bestBookTitle ?? null,
+    }
   })
   const filtered = preprocessed.filter(
     (entry) =>
@@ -1547,7 +1930,7 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
         const [market, orderbook, recentTrades] = await Promise.all([
           fetchKalshiMarketSnapshot(ticker),
           fetchKalshiOrderbook(ticker),
-          fetchKalshiRecentTrades(ticker, now - 30 * 60 * 1000),
+          fetchKalshiRecentTrades(ticker, now - SHARP_SCORE_WINDOW_MS),
         ])
         marketCache.set(ticker, market)
         orderbookCache.set(ticker, orderbook)
@@ -1556,7 +1939,17 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
     )
   )
 
-  return filtered.map(({ trade, sportsbookProb, divergencePercent, crossMarketEvPercent }) => {
+  return filtered.map((entry) => {
+    const {
+      trade,
+      sportsbookProb,
+      sportsbookProbWeight,
+      divergencePercent,
+      crossMarketEvPercent,
+      sportsbookBestOdds,
+      sportsbookBookKey,
+      sportsbookBookTitle,
+    } = entry
     const sportContext = getSportContext(trade.sport)
 
     // Detect cluster for this trade
@@ -1578,6 +1971,7 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
         orderbook,
         recentTrades,
         sportsbookProb,
+        sportsbookProbWeight,
       })
       const { isUltraSharp, reasons } = classifyUltraSharp({
         trade,
@@ -1588,7 +1982,13 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
 
       return {
         ...trade,
+        sportsbookBestOdds,
+        sportsbookBookKey,
+        sportsbookBookTitle,
         sharpStrength: strengthResult.score,
+        sharpScoreInstant: strengthResult.sharpScoreInstant,
+        sharpScore30s: strengthResult.sharpScore30s,
+        sharpScoreDirection: strengthResult.sharpScoreDirection,
         currentPriceCents,
         currentAmericanOdds,
         isUltraSharp,
@@ -1683,7 +2083,13 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
 
       return {
         ...trade,
+        sportsbookBestOdds,
+        sportsbookBookKey,
+        sportsbookBookTitle,
         sharpStrength: score,
+        sharpScoreInstant: score,
+        sharpScore30s: score,
+        sharpScoreDirection: undefined,
         currentPriceCents: trade.priceCents,
         currentAmericanOdds: trade.americanOdds,
         isUltraSharp,
@@ -1699,6 +2105,9 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
     // Fallback for unknown sources
     return {
       ...trade,
+      sportsbookBestOdds,
+      sportsbookBookKey,
+      sportsbookBookTitle,
       isUltraSharp: false,
       ultraSharpReasons: [],
       sportContext: null,

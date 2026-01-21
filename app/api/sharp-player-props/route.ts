@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     const sport = searchParams.get("sport") || "all"
     const minNotional = Number(searchParams.get("minNotional") || 1000)
     const minComposite = Number(searchParams.get("minComposite") || 0)
-    const limit = Number(searchParams.get("limit") || 50)
+    const limit = Number(searchParams.get("limit") || 1000)
 
     if (!SUPPORTED_SPORTS.has(sport)) {
       return NextResponse.json(
@@ -30,8 +30,8 @@ export async function GET(req: NextRequest) {
 
     const analysis = await analyzeSharpPlayerProps({
       sportKey: sport,
-      minNotional: Number.isFinite(minNotional) ? Math.max(minNotional, 100) : 1000,
-      limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 50,
+      minNotional: Number.isFinite(minNotional) ? Math.max(minNotional, 1000) : 1000,
+      limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 1000) : 1000,
     })
 
     // Apply client-side filters (filter by minimum composite score)

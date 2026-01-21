@@ -2,6 +2,10 @@ import {
   fetchPlayerPropWhaleTrades,
   type PlayerPropWhaleTrade,
 } from './whale-trade-history'
+import {
+  fetchPropLiquiditySignals,
+  mapLiquiditySignalsToPlayerPropTrades,
+} from './prop-liquidity-detector'
 import { fetchSbdGamePropsList, resolveSbdLeague, type SbdLeague } from '@/lib/api/sbd'
 import { oddsToImpliedProbability, probabilityToAmericanOdds } from '@/lib/utils/statistics'
 
@@ -79,7 +83,7 @@ export type AnalyzeSharpPlayerPropsOptions = {
 const DEFAULT_MIN_NOTIONAL = 1000
 const DEFAULT_CLUSTER_WINDOW_HOURS = 4
 const DEFAULT_TOP_PICKS_COUNT = 5
-const DEFAULT_LIMIT = 100
+const DEFAULT_LIMIT = 1000
 
 // Weights for composite score (represents "true probability" of bet hitting)
 // Edge is NOT included here - edge is calculated AS: compositeScore - sportsbookImpliedProb
@@ -453,15 +457,19 @@ export const analyzeSharpPlayerProps = async (
 
   // Fetch whale trades and sportsbook odds in parallel
   // For "all" sports, we skip sportsbook comparison (too many API calls)
-  const [trades, sportsbookData] = await Promise.all([
+  const [trades, sportsbookData, liquiditySignals] = await Promise.all([
     fetchPlayerPropWhaleTrades({ sportKey, limit: limit * 3 }),
     sportKey === 'all'
       ? Promise.resolve(new Map<string, SportsbookPropOdds[]>())
       : fetchSportsbookPlayerProps(sportKey),
+    fetchPropLiquiditySignals({ sportKey }),
   ])
 
+  const liquidityTrades = mapLiquiditySignalsToPlayerPropTrades(liquiditySignals)
+  const combinedTrades = [...trades, ...liquidityTrades]
+
   // Aggregate trades by player/prop/line/side
-  const grouped = aggregateTradesByProp(trades, minNotional)
+  const grouped = aggregateTradesByProp(combinedTrades, minNotional)
 
   // Build aggregated prop bets
   const props: AggregatedPlayerPropBet[] = []
@@ -569,6 +577,6 @@ export const analyzeSharpPlayerProps = async (
     props: limitedProps,
     topPicks,
     clusterAlerts,
-    totalTrades: trades.length,
+    totalTrades: combinedTrades.length,
   }
 }

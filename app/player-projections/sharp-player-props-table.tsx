@@ -505,7 +505,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
       try {
         const params = new URLSearchParams({
           sport,
-          limit: "50",
+          limit: "1000",
         })
 
         const res = await fetch(`/api/sharp-player-props?${params.toString()}`, {

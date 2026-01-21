@@ -700,19 +700,6 @@ export default function SharpDetectorPage() {
       <SimpleHeader />
 
       <div className="max-w-6xl mx-auto px-4 py-8 pt-20">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-xl bg-emerald-500/20">
-              <Target className="w-6 h-6 text-emerald-400" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Sharp Detector</h1>
-          </div>
-          <p className="text-white/60 text-base">
-            Track $2k+ prediction market trades and see if the market respects or fades them
-          </p>
-        </div>
-
         {/* Stats Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 mb-6">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">

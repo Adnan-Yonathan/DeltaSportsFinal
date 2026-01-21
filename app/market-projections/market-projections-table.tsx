@@ -638,7 +638,7 @@ export default function MarketProjectionsTable({
 
   return (
     <>
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+      <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 sm:mt-6">
         <div className="grid grid-cols-3 gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
           <button
             type="button"
@@ -674,10 +674,6 @@ export default function MarketProjectionsTable({
             Top O/U
           </button>
         </div>
-        <p className="mt-2 text-[11px] text-white/40">
-          Updated every 15 minutes. Sorted by highest edge first. Default view
-          is top spread.
-        </p>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">

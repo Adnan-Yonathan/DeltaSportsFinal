@@ -1,7 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import type { MarketProjectionClvSummary } from "@/lib/services/market-projection-clv"
+import MarketProjectionsClvRecap from "./clv-recap"
+import type {
+  MarketProjectionClvSummary,
+  MarketProjectionClvGame,
+  MarketProjectionClvHistory,
+} from "@/lib/services/market-projection-clv"
 
 const formatSigned = (value: number | null, digits = 1) => {
   if (value == null || !Number.isFinite(value)) return "n/a"
@@ -17,15 +22,23 @@ export default function MarketProjectionsClvTracker({
   summary,
   updatedAt,
   sport,
+  recapGames,
+  recapHistory,
+  recapUpdatedAt,
 }: {
   summary: MarketProjectionClvSummary
   updatedAt: string
   sport?: string
+  recapGames?: MarketProjectionClvGame[]
+  recapHistory?: MarketProjectionClvHistory[]
+  recapUpdatedAt?: string
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [showRecap, setShowRecap] = useState(false)
   const beatRate =
     summary.total > 0 ? Math.round((summary.beat / summary.total) * 100) : 0
   const isHockey = sport === "icehockey_nhl"
+  const hasRecap = Boolean(recapGames && recapUpdatedAt)
 
   return (
     <div className="w-full rounded-2xl border border-emerald-400/25 bg-gradient-to-br from-emerald-500/15 via-black/80 to-black px-3 py-2 text-xs text-white/70 sm:px-4 sm:py-3 md:w-auto">
@@ -34,6 +47,15 @@ export default function MarketProjectionsClvTracker({
           <span className="text-[10px] uppercase tracking-[0.3em] text-emerald-200/80">
             CLV tracker
           </span>
+          {hasRecap && (
+            <button
+              type="button"
+              onClick={() => setShowRecap((prev) => !prev)}
+              className="inline-flex items-center rounded-full border border-white/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.3em] text-white/70"
+            >
+              {showRecap ? "Hide recap" : "View recap"}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setIsExpanded((prev) => !prev)}
@@ -83,6 +105,16 @@ export default function MarketProjectionsClvTracker({
           })}
         </span>
       </div>
+      {showRecap && recapGames && recapUpdatedAt && (
+        <div className="mt-3">
+          <MarketProjectionsClvRecap
+            games={recapGames}
+            history={recapHistory ?? []}
+            updatedAt={recapUpdatedAt}
+            showSummary={false}
+          />
+        </div>
+      )}
     </div>
   )
 }

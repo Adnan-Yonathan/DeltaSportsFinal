@@ -14,21 +14,37 @@ interface TutorialPopupProps {
 export default function TutorialPopup({ tutorialId, forceShow = true }: TutorialPopupProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [activeSection, setActiveSection] = useState(0)
+  const storageKey = `tutorial:${tutorialId}:seen`
 
   const tutorial = TUTORIALS[tutorialId]
 
   useEffect(() => {
     if (forceShow && tutorial) {
+      if (typeof window !== "undefined") {
+        try {
+          const seen = window.sessionStorage.getItem(storageKey) === "true"
+          if (seen) return
+        } catch {
+          // ignore storage errors
+        }
+      }
       // Small delay to let the page render first
       const timer = setTimeout(() => setIsOpen(true), 300)
       return () => clearTimeout(timer)
     }
-  }, [forceShow, tutorial])
+  }, [forceShow, tutorial, storageKey])
 
   if (!tutorial) return null
 
   const handleClose = () => {
     setIsOpen(false)
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.setItem(storageKey, "true")
+      } catch {
+        // ignore storage errors
+      }
+    }
   }
 
   const renderMarkdown = (content: string) => {

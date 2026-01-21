@@ -1,7 +1,6 @@
 import MarketProjectionsClient from "./market-projections-client"
 import SportSelector from "./sport-selector"
 import ToolsNav from "@/components/tools-nav"
-import MarketProjectionsClvRecap from "./clv-recap"
 import MarketProjectionsClvTracker from "./clv-tracker"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
@@ -156,7 +155,6 @@ export default async function MarketProjectionsPage({
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Fixed navigation header */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-sm border-b border-white/5">
         <div className="px-2 sm:px-4 py-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -167,6 +165,9 @@ export default async function MarketProjectionsPage({
                   summary={clvRecap.summary}
                   updatedAt={clvRecap.updatedAt}
                   sport={sport}
+                  recapGames={clvRecap.games}
+                  recapHistory={clvRecap.history}
+                  recapUpdatedAt={clvRecap.updatedAt}
                 />
               </div>
             ) : null}
@@ -174,31 +175,8 @@ export default async function MarketProjectionsPage({
           </div>
         </div>
       </div>
-      {/* Content with top padding to account for fixed header */}
       <div className="pt-[72px] px-2 sm:px-4">
         <div className="mx-auto w-full max-w-none space-y-5 py-6">
-        <header className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-            Sharp Projections
-          </p>
-          <h1 className="text-3xl font-semibold">
-            Projected markets vs Vegas
-          </h1>
-          <p className="max-w-2xl text-sm text-white/60">
-            Sharp projections refresh every 15 minutes and rank games by edge
-            strength. Each market shows a projected win rate plus the edge over
-            the break-even line.
-          </p>
-        </header>
-
-        {clvRecap ? (
-          <MarketProjectionsClvRecap
-            games={clvRecap.games}
-            history={clvRecap.history}
-            updatedAt={clvRecap.updatedAt}
-          />
-        ) : null}
-
         {!hasAccess ? (
           <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5">
             <div className="pointer-events-none blur-sm">
@@ -252,3 +230,4 @@ export default async function MarketProjectionsPage({
     </div>
   )
 }
+

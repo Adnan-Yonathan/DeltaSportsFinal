@@ -27,17 +27,6 @@ export default async function EvBetsPage() {
         <ToolsNav />
       </div>
       <div className="mx-auto w-full max-w-none space-y-6">
-        <header className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-            Live Odds
-          </p>
-          <h1 className="text-3xl font-semibold">Live odds across sportsbooks</h1>
-          <p className="max-w-2xl text-sm text-white/60">
-            A compact odds board powered by SBD. Scan moneylines, spreads, and totals
-            across the books we track.
-          </p>
-        </header>
-
         {!hasAccess ? (
           <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5">
             <div className="pointer-events-none blur-sm">

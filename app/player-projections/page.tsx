@@ -62,22 +62,10 @@ export default async function PlayerProjectionsPage({
       <div className="mb-6">
         <ToolsNav />
       </div>
+      <div className="mb-4 flex justify-end">
+        <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
+      </div>
       <div className="mx-auto w-full max-w-none space-y-6">
-        <header className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-            {selected.label} Sharp Props
-          </p>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <h1 className="text-3xl font-semibold">
-              Sharp Player Prop Bets
-            </h1>
-            <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
-          </div>
-          <p className="max-w-2xl text-sm text-white/60">
-            Prediction market whale activity on player props. Ranked by composite
-            score combining edge, volume, sharp strength, and bet clustering.
-          </p>
-        </header>
         {!hasAccess ? (
           <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5">
             <div className="pointer-events-none blur-sm">

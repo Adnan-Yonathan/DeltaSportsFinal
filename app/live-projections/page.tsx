@@ -19,12 +19,6 @@ export default async function LiveProjectionsPage() {
       <div className="mb-6">
         <ToolsNav />
       </div>
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-semibold">Live Projections</h1>
-        <span className="rounded-full border border-white/20 px-2 py-0.5 text-[10px] uppercase tracking-[0.3em] text-white/60">
-          Beta
-        </span>
-      </div>
       {!hasAccess ? (
         <div className="relative mt-6 max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-white/5">
           <div className="pointer-events-none blur-sm">

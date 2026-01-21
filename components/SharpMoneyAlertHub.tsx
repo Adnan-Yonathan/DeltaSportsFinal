@@ -211,25 +211,25 @@ export default function SharpMoneyAlertHub() {
   if (alerts.length === 0) return null
 
   return (
-    <div className="fixed right-4 top-20 z-50 flex w-[320px] flex-col gap-3 sm:right-6 sm:top-24">
+    <div className="fixed right-3 top-16 z-50 flex w-[220px] flex-col gap-2 sm:right-6 sm:top-24 sm:w-[320px] sm:gap-3">
       {alerts.map((alert) => {
         const trade = alert.trade
         const previewClass = isSyndicate ? '' : 'blur-sm select-none'
         return (
           <div
             key={alert.id}
-            className="rounded-2xl border border-emerald-500/30 bg-black/90 p-3 shadow-[0_15px_40px_rgba(0,0,0,0.45)]"
+            className="rounded-full border border-emerald-500/30 bg-black/90 px-3 py-2 shadow-[0_12px_30px_rgba(0,0,0,0.45)] sm:rounded-2xl sm:p-3"
           >
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 sm:items-start">
               <div className="flex items-center gap-2">
-                <div className="rounded-full bg-emerald-500/20 p-2">
-                  <Zap className="h-4 w-4 text-emerald-300" />
+                <div className="rounded-full bg-emerald-500/20 p-1.5 sm:p-2">
+                  <Zap className="h-3.5 w-3.5 text-emerald-300 sm:h-4 sm:w-4" />
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.25em] text-emerald-300">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300 sm:text-xs sm:tracking-[0.25em]">
                     Sharp Alert
                   </p>
-                  <p className="text-[11px] text-white/50">{formatTimestamp(trade.timestamp)}</p>
+                  <p className="text-[10px] text-white/50 sm:text-[11px]">{formatTimestamp(trade.timestamp)}</p>
                 </div>
               </div>
               <button
@@ -237,19 +237,19 @@ export default function SharpMoneyAlertHub() {
                 className="rounded-full p-1 text-white/40 transition hover:text-white"
                 aria-label="Dismiss alert"
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </button>
             </div>
 
-            <div className="mt-3 space-y-1">
-              <p className={cn('text-sm font-semibold text-white', previewClass)}>
+            <div className="mt-2 space-y-1 sm:mt-3">
+              <p className={cn('text-[11px] font-semibold text-white sm:text-sm', previewClass)}>
                 {trade.marketTitle}
               </p>
-              <p className={cn('text-sm text-white/70', previewClass)}>
+              <p className={cn('text-[11px] text-white/70 sm:text-sm', previewClass)}>
                 {trade.outcome} • {trade.sport}
               </p>
               {trade.sportsbookBestOdds != null && (
-                <p className={cn('text-xs text-white/60', previewClass)}>
+                <p className={cn('text-[10px] text-white/60 sm:text-xs', previewClass)}>
                   Best odds: {formatOddsLabel(trade.sportsbookBestOdds)}
                   {trade.sportsbookBookTitle || trade.sportsbookBookKey
                     ? ` (${trade.sportsbookBookTitle ?? trade.sportsbookBookKey})`
@@ -257,24 +257,24 @@ export default function SharpMoneyAlertHub() {
                 </p>
               )}
               {trade.crossMarketEvPercent != null && (
-                <p className={cn('text-xs text-white/60', previewClass)}>
+                <p className={cn('text-[10px] text-white/60 sm:text-xs', previewClass)}>
                   EV: {trade.crossMarketEvPercent.toFixed(1)}%
                 </p>
               )}
-              <p className={cn('text-xs text-emerald-300', previewClass)}>
+              <p className={cn('text-[10px] text-emerald-300 sm:text-xs', previewClass)}>
                 Grade: {Number.isFinite(trade.sharpStrength) ? `${trade.sharpStrength}%` : '—'}
               </p>
             </div>
 
             {!isSyndicate && (
-              <div className="mt-3 flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-2 py-1.5">
-                <div className="flex items-center gap-2 text-[11px] text-white/60">
-                  <Lock className="h-3.5 w-3.5" />
+              <div className="mt-2 flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-2 py-1 sm:mt-3 sm:py-1.5">
+                <div className="flex items-center gap-2 text-[10px] text-white/60 sm:text-[11px]">
+                  <Lock className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   Syndicate preview
                 </div>
                 <Link
                   href="/pricing"
-                  className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-300"
+                  className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300 sm:text-[11px]"
                 >
                   Upgrade
                 </Link>

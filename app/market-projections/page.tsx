@@ -158,7 +158,12 @@ export default async function MarketProjectionsPage({
       <div className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-sm border-b border-white/5">
         <div className="px-2 sm:px-4 py-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <ToolsNav />
+            <div className="flex w-full flex-wrap items-start justify-between gap-4 md:w-auto md:flex-1 md:items-center">
+              <ToolsNav />
+              <div className="ml-auto md:hidden">
+                <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
+              </div>
+            </div>
             {clvRecap ? (
               <div className="flex w-full justify-center md:w-auto md:flex-1">
                 <MarketProjectionsClvTracker
@@ -171,7 +176,9 @@ export default async function MarketProjectionsPage({
                 />
               </div>
             ) : null}
-            <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
+            <div className="hidden md:block">
+              <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
+            </div>
           </div>
         </div>
       </div>

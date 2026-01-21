@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react"
 import { formatAmericanOdds } from "@/lib/utils/odds"
 import TutorialPopup from "@/components/TutorialPopup"
+import SharePropButton from "@/components/SharePropButton"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -178,6 +179,28 @@ const formatOdds = (value?: number | null) => {
   return formatAmericanOdds(Math.round(value))
 }
 
+const buildSharePropPayload = (prop: AggregatedPlayerPropBet) => {
+  const sportLabel = SPORT_LABELS[prop.sportKey] ?? prop.sportKey.toUpperCase()
+  const edgeLabel = prop.sportsbookAvgOdds != null ? formatEdge(prop.edgePercent) : "-"
+  const scoreLabel = formatComposite(prop.compositeScore)
+  const predOddsLabel = formatOdds(prop.predMarketOdds)
+  const bookOddsLabel = formatOdds(prop.sportsbookAvgOdds)
+  const volumeLabel = `${formatCurrency(prop.totalNotional)} (${prop.betCount})`
+  const sourcesLabel = prop.sources.join(", ").toUpperCase()
+  return {
+    id: prop.id,
+    sportLabel,
+    playerName: prop.playerName,
+    propLabel: formatPropLine(prop.propType, prop.propLine, prop.side),
+    edgeLabel,
+    scoreLabel,
+    predOddsLabel,
+    bookOddsLabel,
+    volumeLabel,
+    sourcesLabel,
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Components
 // ─────────────────────────────────────────────────────────────────────────────
@@ -245,9 +268,11 @@ const SportBadge = ({ sportKey }: { sportKey: string }) => {
   )
 }
 
-const TopPickCard = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport?: boolean }) => (
-  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
-    <div className="flex items-start justify-between gap-2">
+const TopPickCard = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport?: boolean }) => {
+  const sharePayload = buildSharePropPayload(prop)
+  return (
+    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+      <div className="flex items-start justify-between gap-2">
       <div>
         <div className="text-base font-semibold text-white">
           {prop.playerName}
@@ -256,7 +281,10 @@ const TopPickCard = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showS
           {formatPropLine(prop.propType, prop.propLine, prop.side)}
         </div>
       </div>
-      <ScoreBadge score={prop.compositeScore} />
+      <div className="flex items-center gap-2">
+        <ScoreBadge score={prop.compositeScore} />
+        <SharePropButton prop={sharePayload} />
+      </div>
     </div>
 
     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
@@ -303,11 +331,14 @@ const TopPickCard = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showS
         <SourceBadge key={source} source={source} />
       ))}
     </div>
-  </div>
-)
+    </div>
+  )
+}
 
-const PropRow = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport?: boolean }) => (
-  <div className="border-b border-white/5 px-3 py-3 hover:bg-white/5 transition-colors">
+const PropRow = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport?: boolean }) => {
+  const sharePayload = buildSharePropPayload(prop)
+  return (
+    <div className="border-b border-white/5 px-3 py-3 hover:bg-white/5 transition-colors">
     {/* Mobile layout */}
     <div className="sm:hidden space-y-3">
       <div className="flex items-start justify-between gap-2">
@@ -367,11 +398,12 @@ const PropRow = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport
         <span className="text-[10px] text-white/40">
           {formatTime(prop.latestTradeTime)}
         </span>
+        <SharePropButton prop={sharePayload} />
       </div>
     </div>
 
     {/* Desktop layout */}
-    <div className="hidden sm:grid sm:grid-cols-[1fr_140px_100px_80px_80px_80px_120px] items-center gap-3 text-sm">
+    <div className="hidden sm:grid sm:grid-cols-[1fr_140px_100px_80px_80px_80px_120px_90px] items-center gap-3 text-sm">
       {/* Player & Prop */}
       <div>
         <div className="font-semibold text-white truncate">{prop.playerName}</div>
@@ -440,9 +472,14 @@ const PropRow = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport
           <SourceBadge key={source} source={source} />
         ))}
       </div>
+
+      <div className="flex justify-end">
+        <SharePropButton prop={sharePayload} />
+      </div>
     </div>
   </div>
-)
+  )
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
@@ -678,7 +715,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
         ) : (
           <div className="divide-y divide-white/5">
             {/* Desktop Header */}
-            <div className="hidden border-b border-white/5 bg-black/30 px-3 py-2 sm:grid sm:grid-cols-[1fr_140px_100px_80px_80px_80px_120px] items-center gap-3 text-[10px] uppercase tracking-[0.15em] text-white/50">
+            <div className="hidden border-b border-white/5 bg-black/30 px-3 py-2 sm:grid sm:grid-cols-[1fr_140px_100px_80px_80px_80px_120px_90px] items-center gap-3 text-[10px] uppercase tracking-[0.15em] text-white/50">
               <div>Player / Prop</div>
               <div>Volume</div>
               <div className="text-center">Pred Mkt</div>
@@ -686,6 +723,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
               <div className="text-center">Edge</div>
               <div className="text-center">Score</div>
               <div className="text-right">Signals</div>
+              <div className="text-right">Share</div>
             </div>
 
             {/* Rows */}

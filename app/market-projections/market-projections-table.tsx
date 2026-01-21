@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import ShareProjectionButton from "@/components/ShareProjectionButton"
 
 type EdgeFilter = "spread" | "moneyline" | "total"
 
@@ -150,6 +151,19 @@ const formatProbability = (value?: number | string | null) => {
   const numeric = coerceNumber(value)
   if (numeric == null) return "n/a"
   return `${(numeric * 100).toFixed(1)}%`
+}
+
+const resolveSportLabel = (sportKey?: string) => {
+  const map: Record<string, string> = {
+    basketball_nba: "NBA",
+    basketball_wnba: "WNBA",
+    basketball_ncaab: "NCAAB",
+    americanfootball_nfl: "NFL",
+    americanfootball_ncaaf: "NCAAF",
+    icehockey_nhl: "NHL",
+    baseball_mlb: "MLB",
+  }
+  return sportKey ? map[sportKey] ?? sportKey.toUpperCase() : "SPORTS"
 }
 
 const resolveWhaleTier = (notional: number): WhaleTier => {
@@ -578,6 +592,49 @@ const resolveFilterLabels = (filter: EdgeFilter) => {
   return { projection: "Total projection", odds: "Total odds" }
 }
 
+const buildProjectionSharePayload = (
+  game: EdgeGame,
+  filter: EdgeFilter,
+  sportKey: string | undefined,
+  activePick: EdgePick,
+  edgePercent: number,
+  spreadOdds: { book?: string; odds?: number | null }
+) => {
+  const filterLabels = resolveFilterLabels(filter)
+  const total = game.total
+  const moneyline = game.moneyline
+
+  let oddsLabel = "n/a"
+  if (filter === "spread") {
+    oddsLabel = `${spreadOdds.book ?? "n/a"} ${formatOdds(spreadOdds.odds)}`
+  } else if (filter === "total") {
+    oddsLabel = `${total?.bestBook ?? "n/a"} O ${formatOdds(total?.bestOdds)} / U ${formatOdds(total?.bestUnderOdds)}`
+  } else {
+    oddsLabel = `${moneyline?.sportsbook?.homeBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.homeOdds)} / ${moneyline?.sportsbook?.awayBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.awayOdds)}`
+  }
+
+  const sharpSummary = game.sharpSignals
+    .slice(0, 2)
+    .map(
+      (signal) =>
+        `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
+    )
+    .join(" | ")
+  const moveSummary = resolveMoveSummary(game, filter)
+
+  return {
+    id: `${game.matchup}-${filter}`,
+    sportLabel: resolveSportLabel(sportKey),
+    matchup: game.matchup,
+    filterLabel: filterLabels.projection,
+    pickLabel: formatPick(activePick),
+    edgeLabel: edgeLabel(edgePercent),
+    oddsLabel,
+    sharpSummary: sharpSummary || "No sharp signals yet.",
+    moveSummary: moveSummary || "No line movement yet.",
+  }
+}
+
 const hasMarketData = (game: EdgeGame, filter: EdgeFilter) => {
   if (filter === "spread") {
     return (
@@ -709,6 +766,14 @@ export default function MarketProjectionsTable({
                   )
                   .join(" | ")
                 const moveSummary = resolveMoveSummary(game, filter)
+                const sharePayload = buildProjectionSharePayload(
+                  game,
+                  filter,
+                  sport,
+                  activePick,
+                  edgeMetrics.edgePercent,
+                  spreadOdds
+                )
                     return (
                       <details
                         key={`${game.matchup}-${game.commenceTime}`}
@@ -778,6 +843,9 @@ export default function MarketProjectionsTable({
                         <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
                           {moveSummary || "No line movement yet."}
                         </div>
+                        <div className="flex justify-end">
+                          <ShareProjectionButton projection={sharePayload} />
+                        </div>
                       </div>
                     </div>
                   </details>
@@ -793,6 +861,7 @@ export default function MarketProjectionsTable({
                     <TableHead>{filterLabels.odds}</TableHead>
                     <TableHead>Sharp Action</TableHead>
                     <TableHead>Line Movement</TableHead>
+                    <TableHead className="text-right">Share</TableHead>
                     
                   </TableRow>
                 </TableHeader>
@@ -820,6 +889,14 @@ export default function MarketProjectionsTable({
                       )
                       .join(" | ")
                     const moveSummary = resolveMoveSummary(game, filter)
+                    const sharePayload = buildProjectionSharePayload(
+                      game,
+                      filter,
+                      sport,
+                      activePick,
+                      edgeMetrics.edgePercent,
+                      spreadOdds
+                    )
                     return (
                       <TableRow
                         key={`${game.matchup}-${game.commenceTime}`}
@@ -884,6 +961,11 @@ export default function MarketProjectionsTable({
                         <TableCell className="align-top text-xs text-white/70">
                           <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
                             {moveSummary || "No line movement yet."}
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex justify-end">
+                            <ShareProjectionButton projection={sharePayload} />
                           </div>
                         </TableCell>
                       </TableRow>

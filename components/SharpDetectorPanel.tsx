@@ -83,9 +83,25 @@ type SharpAlert = {
 const MIN_NOTIONAL = 2000
 const POLL_INTERVAL_BET_FEED = 30000
 const POLL_INTERVAL_SHARP_FEED = 15000
+const STORAGE_KEY = 'sharp-detector-trades'
+const CACHE_VERSION_KEY = 'sharp-detector-cache-version'
+const CACHE_VERSION = '6'
 const WALLET_STORAGE_KEY = 'sharp-detector-wallets'
 const MAX_RESOLVED_TRADES = 300
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+
+const ensureSharpCacheVersion = () => {
+  if (typeof window === 'undefined') return
+  try {
+    const current = window.localStorage.getItem(CACHE_VERSION_KEY)
+    if (current !== CACHE_VERSION) {
+      window.localStorage.removeItem(STORAGE_KEY)
+      window.localStorage.setItem(CACHE_VERSION_KEY, CACHE_VERSION)
+    }
+  } catch (error) {
+    console.warn('Failed to validate sharp detector cache version:', error)
+  }
+}
 
 const formatOddsLabel = (priceCents: number, americanOdds: number | null) => {  
   const centsLabel = `${priceCents}c`
@@ -402,7 +418,20 @@ export default function SharpDetectorPanel({
   const [alertsEnabled, setAlertsEnabled] = useState(true)
   const ultraSharpSeenIds = useRef<Set<string>>(new Set())
 
-  const [trades, setTrades] = useState<SharpTradeWithStatus[]>([])
+  const [trades, setTrades] = useState<SharpTradeWithStatus[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      ensureSharpCacheVersion()
+      const cached = window.localStorage.getItem(STORAGE_KEY)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        return Array.isArray(parsed) ? parsed : []
+      }
+    } catch (error) {
+      console.warn('Failed to load sharp detector cache:', error)
+    }
+    return []
+  })
   const [hydrated, setHydrated] = useState(typeof window !== 'undefined')       
   const [debugEnabled, setDebugEnabled] = useState(false)
   const [lastFetchAt, setLastFetchAt] = useState<string | null>(null)
@@ -788,10 +817,9 @@ export default function SharpDetectorPanel({
       if (activeTab === 'sharp-money') {
         params.set('includeLiquidity', 'true')
       }
-      const res = await fetch(
-        `/api/whale-detector?${params.toString()}`,
-        { cache: 'no-store' }
-      )
+      const res = await fetch(`/api/whale-detector?${params.toString()}`, {
+        cache: 'no-store',
+      })
       if (!res.ok) return
       const data = await res.json()
       const incoming: SharpTrade[] = Array.isArray(data?.trades)
@@ -958,7 +986,14 @@ export default function SharpDetectorPanel({
     setAlerts((prev) => prev.filter((a) => a.id !== alertId))
   }
 
-  // No local caching: always render the latest fetch results.
+  useEffect(() => {
+    if (!hydrated || typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trades))
+    } catch (error) {
+      console.warn('Failed to persist sharp detector cache:', error)
+    }
+  }, [hydrated, trades])
 
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return

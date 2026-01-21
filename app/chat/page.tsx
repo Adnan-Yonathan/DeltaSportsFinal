@@ -24,6 +24,9 @@ import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
 import { useDailyRecap } from '@/hooks/useDailyRecap'
 
+const SHARP_STORAGE_KEY = 'sharp-detector-trades'
+const SHARP_CACHE_VERSION_KEY = 'sharp-detector-cache-version'
+const SHARP_CACHE_VERSION = '6'
 const EASTERN_TIMEZONE = 'America/New_York'
 const PROMO_DISMISS_KEY = 'promo_links_dismissed'
 const PROMO_CLICK_KEY = 'promo_links_click_source'
@@ -55,6 +58,19 @@ const countSharpsToday = (trades: Array<{ timestamp?: string }>) => {
   ).length
 }
 
+const ensureSharpCacheVersion = () => {
+  if (typeof window === 'undefined') return
+  try {
+    const current = window.localStorage.getItem(SHARP_CACHE_VERSION_KEY)
+    if (current !== SHARP_CACHE_VERSION) {
+      window.localStorage.removeItem(SHARP_STORAGE_KEY)
+      window.localStorage.setItem(SHARP_CACHE_VERSION_KEY, SHARP_CACHE_VERSION)
+    }
+  } catch (error) {
+    console.warn('Failed to validate sharp detector cache version:', error)
+  }
+}
+
 function ChatPageContent() {
   const [user, setUser] = useState<any>(null)
   const [profileName, setProfileName] = useState<string | null>(null)
@@ -68,7 +84,19 @@ function ChatPageContent() {
   const [sharpDetectorOpen, setSharpDetectorOpen] = useState(false)
   const [sharpDetectorExpanded, setSharpDetectorExpanded] = useState(false)
   const [sharpUnreadCount, setSharpUnreadCount] = useState(0)
-  const [sharpTotalCount, setSharpTotalCount] = useState(0)
+  const [sharpTotalCount, setSharpTotalCount] = useState(() => {
+    if (typeof window === 'undefined') return 0
+    try {
+      ensureSharpCacheVersion()
+      const cached = window.localStorage.getItem(SHARP_STORAGE_KEY)
+      if (!cached) return 0
+      const parsed = JSON.parse(cached)
+      return Array.isArray(parsed) ? countSharpsToday(parsed) : 0
+    } catch (error) {
+      console.warn('Failed to read sharp cache:', error)
+      return 0
+    }
+  })
   const sharpSeenIds = useRef<Set<string>>(new Set())
   const sharpCountInitialized = useRef(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
@@ -88,6 +116,26 @@ function ChatPageContent() {
   const profileMenuRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const hasWarmedUp = useRef(false)
+  const readCachedSharps = () => {
+    if (typeof window === 'undefined') return [] as Array<{ id?: string; timestamp?: string }>
+    try {
+      ensureSharpCacheVersion()
+      const cached = window.localStorage.getItem(SHARP_STORAGE_KEY)
+      const parsed = cached ? JSON.parse(cached) : []
+      return Array.isArray(parsed) ? parsed : []
+    } catch (error) {
+      console.warn('Failed to read sharp cache:', error)
+      return []
+    }
+  }
+
+  const writeCachedSharps = (trades: Array<{ id?: string; timestamp?: string }>) => {
+    try {
+      window.localStorage.setItem(SHARP_STORAGE_KEY, JSON.stringify(trades))
+    } catch (error) {
+      console.warn('Failed to persist sharp trades:', error)
+    }
+  }
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
@@ -459,7 +507,13 @@ function ChatPageContent() {
 
   useEffect(() => {
     if (!user) return
-    setSharpTotalCount(0)
+    const cached = readCachedSharps()
+    cached.forEach((trade) => {
+      if (trade?.id) {
+        sharpSeenIds.current.add(trade.id)
+      }
+    })
+    setSharpTotalCount(countSharpsToday(cached))
   }, [user])
 
   useEffect(() => {
@@ -473,7 +527,19 @@ function ChatPageContent() {
         if (!res.ok || !active) return
         const data = await res.json()
         const trades = Array.isArray(data?.trades) ? data.trades : []
-        setSharpTotalCount(countSharpsToday(trades))
+        const cached = readCachedSharps()
+        const merged = new Map<string, { id?: string; timestamp?: string }>()
+        cached.forEach((trade) => {
+          if (trade?.id) merged.set(trade.id, trade)
+        })
+        trades.forEach((trade: { id?: string; timestamp?: string }) => {
+          if (trade?.id) merged.set(trade.id, trade)
+        })
+        const combined = Array.from(merged.values())
+        setSharpTotalCount(countSharpsToday(combined))
+        if (combined.length > 0) {
+          writeCachedSharps(combined)
+        }
         let newCount = 0
         trades.forEach((trade: { id?: string }) => {
           if (!trade?.id) return

@@ -49,6 +49,26 @@ export async function GET(req: NextRequest) {
           pickedAt: new Date().toISOString(),
         })
 
+        const { data: existing } = (await supabase
+          .from("market_projections_cache" as any)
+          .select("edges, updated_at")
+          .eq("sport", sport)
+          .single()) as unknown as {
+          data: { edges: any[]; updated_at: string } | null
+        }
+
+        if (edges.length === 0 && existing?.edges?.length) {
+          console.warn(
+            `[Cron: Market Projections] Skipping empty refresh for ${sport}; keeping cached edges.`
+          )
+          results.push({
+            sport,
+            success: true,
+            edgeCount: existing.edges.length,
+          })
+          continue
+        }
+
         // Write to cache
         const { error: cacheError } = (await supabase
           .from("market_projections_cache" as any)

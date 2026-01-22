@@ -28,10 +28,14 @@ export async function GET(request: Request) {
 
   try {
     const url = new URL(request.url)
-    const maxLegOddsParam = url.searchParams.get('maxLegOdds')
-    const maxLegOdds = maxLegOddsParam ? Number(maxLegOddsParam) : undefined
+    const maxParlayOddsParam = url.searchParams.get('maxParlayOdds')
+    const maxParlayOdds = maxParlayOddsParam
+      ? Number(maxParlayOddsParam)
+      : undefined
     const parlays = await buildEvParlays(
-      Number.isFinite(maxLegOdds) ? { maxLegOdds: maxLegOdds as number } : undefined
+      Number.isFinite(maxParlayOdds)
+        ? { maxParlayOdds: maxParlayOdds as number }
+        : undefined
     )
 
     return NextResponse.json({

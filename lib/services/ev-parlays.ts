@@ -38,6 +38,7 @@ const DEFAULT_MAX_LEG_ODDS = 500
 
 type EvParlayOptions = {
   maxLegOdds?: number
+  maxParlayOdds?: number
 }
 
 const isPredictionMarketBook = (bookName?: string | null) => {
@@ -139,6 +140,10 @@ export async function buildEvParlays(
 
   const maxLegOdds = options?.maxLegOdds ?? DEFAULT_MAX_LEG_ODDS
   const legPool = buildLegPool(opportunities, maxLegOdds).slice(0, MAX_POOL)
+  const maxParlayOdds =
+    options?.maxParlayOdds != null && Number.isFinite(options.maxParlayOdds)
+      ? (options.maxParlayOdds as number)
+      : null
   const parlays: EvParlay[] = []
 
   const buildCombos = (startIndex: number, current: EvParlayLeg[]) => {
@@ -175,6 +180,13 @@ export async function buildEvParlays(
       }
 
       if (bestEv >= MIN_EV_PERCENT && bestBook) {
+        if (
+          maxParlayOdds != null &&
+          Number.isFinite(bestBookOdds) &&
+          bestBookOdds > maxParlayOdds
+        ) {
+          return
+        }
         parlays.push({
           id: buildParlayId(current),
           legs: [...current],

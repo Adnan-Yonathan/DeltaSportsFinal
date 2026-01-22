@@ -23,11 +23,10 @@ type EvParlay = {
 }
 
 const REFRESH_MS = 60000
-const HIGHER_ODDS_VALUE = 100000
 const MAX_ODDS_OPTIONS = [
   { label: 'Max +500', value: 500 },
   { label: 'Max +1000', value: 1000 },
-  { label: 'Higher', value: HIGHER_ODDS_VALUE },
+  { label: 'Max +1500', value: 1500 },
 ]
 
 const formatOdds = (odds?: number | null) => {
@@ -48,14 +47,14 @@ export default function EvParlaysClient() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
-  const [maxLegOdds, setMaxLegOdds] = useState<number>(500)
+  const [maxParlayOdds, setMaxParlayOdds] = useState<number>(500)
 
   const fetchParlays = useCallback(async () => {
     setLoading(true)
     setErrorMessage(null)
     try {
       const url = new URL("/api/ev-parlays", window.location.origin)
-      url.searchParams.set("maxLegOdds", String(maxLegOdds))
+      url.searchParams.set("maxParlayOdds", String(maxParlayOdds))
       const res = await fetch(url.toString(), { cache: "no-store" })
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}))
@@ -73,7 +72,7 @@ export default function EvParlaysClient() {
     } finally {
       setLoading(false)
     }
-  }, [maxLegOdds])
+  }, [maxParlayOdds])
 
   useEffect(() => {
     fetchParlays()
@@ -104,15 +103,15 @@ export default function EvParlaysClient() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[10px] uppercase tracking-[0.2em] text-white/50">
-          Max leg odds
+          Max parlay odds
         </span>
         {MAX_ODDS_OPTIONS.map((option) => (
           <button
             key={option.label}
             type="button"
-            onClick={() => setMaxLegOdds(option.value)}
+            onClick={() => setMaxParlayOdds(option.value)}
             className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition ${
-              maxLegOdds === option.value
+              maxParlayOdds === option.value
                 ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
                 : "border-white/10 text-white/50 hover:border-white/30 hover:text-white/80"
             }`}
@@ -124,7 +123,7 @@ export default function EvParlaysClient() {
       <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[11px] text-white/60">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span>
-            Pregame only | Sportsbook-only cross-market EV | EV 3%+ | Legs 2-5 | Max leg odds {maxLegOdds >= HIGHER_ODDS_VALUE ? 'Higher' : `+${maxLegOdds}`}
+            Pregame only | Sportsbook-only cross-market EV | EV 3%+ | Legs 2-5 | Max parlay odds +{maxParlayOdds}
           </span>
           <span>
             Updated {lastUpdatedLabel} | Refresh in {remainingSeconds}s

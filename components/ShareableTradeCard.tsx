@@ -176,7 +176,10 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
                 backgroundImage={CARD_BACKGROUND}
                 backgroundPosition="right top"
                 label={`${trade.sport} SHARP`}
-                idNumber={`LINE ${formatOdds(trade.priceCents, trade.americanOdds)}`}
+                idNumber={`BET ${formatCurrency(trade.notional)} • LINE ${formatOdds(
+                  trade.priceCents,
+                  trade.americanOdds
+                )}`}
                 name={displayMatchup}
                 validThru={cardValidThru}
               />

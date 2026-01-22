@@ -1,6 +1,7 @@
 import { Bookmaker, OddsGame, OddsMarket, OddsOutcome, MARKETS } from '@/lib/types/odds'
 import { decimalToAmerican } from '@/lib/utils/odds'
 import { normalizeTeamKey, resolveSportKey } from '@/lib/identity/sport'
+import { TEAMS_REGISTRY } from '@/lib/data/teams-registry'
 
 const KALSHI_BASE = 'https://api.elections.kalshi.com/trade-api/v2'
 const KALSHI_EVENT_LIMIT = 200
@@ -88,6 +89,12 @@ type ParsedTeams = {
   away: string
 }
 
+const TEAM_LOOKUP = new Map<string, string>()
+for (const team of TEAMS_REGISTRY) {
+  const key = `${team.sport}:${team.abbreviation.toUpperCase()}`
+  TEAM_LOOKUP.set(key, team.name)
+}
+
 const buildFetchInit = (options: KalshiFetchOptions): NextFetchRequestInit => {
   if (options.live) {
     return { cache: 'no-store' }
@@ -115,6 +122,35 @@ const parseTeamsFromTitle = (title: string): ParsedTeams | null => {
   const second = cleanTeamLabel(match[1]?.trim() ?? '')
   if (!first || !second) return null
   return { away: first, home: second }
+}
+
+const parseTeamsFromTicker = (
+  ticker: string,
+  sportKey: string
+): ParsedTeams | null => {
+  const match = ticker.match(/-(\d{2}[A-Z]{3}\d{2})([A-Z]{2,4})([A-Z]{2,4})(?:-|$)/)
+  if (!match) return null
+  const awayCode = match[2]
+  const homeCode = match[3]
+  const awayName = TEAM_LOOKUP.get(`${sportKey}:${awayCode}`) ?? awayCode
+  const homeName = TEAM_LOOKUP.get(`${sportKey}:${homeCode}`) ?? homeCode
+  if (!awayName || !homeName) return null
+  return { away: awayName, home: homeName }
+}
+
+const resolveTeamsForEvent = (
+  event: KalshiEvent,
+  sportKey: string
+): ParsedTeams | null => {
+  if (event.title) {
+    const parsed = parseTeamsFromTitle(event.title)
+    if (parsed) return parsed
+  }
+  if (event.sub_title) {
+    const parsed = parseTeamsFromTitle(event.sub_title)
+    if (parsed) return parsed
+  }
+  return parseTeamsFromTicker(event.event_ticker, sportKey)
 }
 
 const resolveSportTitle = (sport: string) => {
@@ -587,8 +623,7 @@ export async function fetchKalshiOdds(
     const series = selectedSeries[index]
     if (!series) return
     result.value.forEach((event) => {
-      if (!event?.title) return
-      const teams = parseTeamsFromTitle(event.title)
+      const teams = resolveTeamsForEvent(event, canonical)
       if (!teams || !matchesTeamFilter(teams, filters)) return
 
       const oddsMarkets = buildKalshiMarkets(

@@ -423,6 +423,61 @@ const resolveSpreadComparison = (game: EdgeGame) => {
   }
 }
 
+const resolveTotalComparison = (game: EdgeGame) => {
+  const marketLine =
+    coerceNumber(game.total?.marketLine) ?? resolveLineFromMovements(game, "total")
+  const predictionLine = coerceNumber(game.total?.prediction?.line)
+  const targetLine = coerceNumber(game.total?.targetLine)
+  let projectedLine = targetLine ?? predictionLine
+
+  if (predictionLine != null && marketLine != null) {
+    if (Math.abs(predictionLine - marketLine) > 1) {
+      projectedLine = predictionLine
+    }
+  }
+
+  if (marketLine == null || projectedLine == null) return null
+  const delta = Math.abs(projectedLine - marketLine)
+  return {
+    marketLine,
+    projectedLine,
+    delta,
+    marketLabel: marketLine.toFixed(1),
+    projectedLabel: projectedLine.toFixed(1),
+  }
+}
+
+const resolveMoneylineComparison = (game: EdgeGame, pick: EdgePick) => {
+  const label = pick.label ?? pick.projection?.side
+  if (!label) return null
+  const isHome = label.includes(game.homeTeam)
+  const isAway = label.includes(game.awayTeam)
+  if (!isHome && !isAway) return null
+
+  const marketOdds = isHome
+    ? game.moneyline?.sportsbook?.homeOdds
+    : game.moneyline?.sportsbook?.awayOdds
+  const projectedOdds = isHome
+    ? game.moneyline?.model?.homeOdds ?? game.moneyline?.prediction?.homeOdds
+    : game.moneyline?.model?.awayOdds ?? game.moneyline?.prediction?.awayOdds
+  const marketProb = impliedProbability(marketOdds)
+  const projectedProb = impliedProbability(projectedOdds)
+
+  if (marketOdds == null || projectedOdds == null || marketProb == null || projectedProb == null) {
+    return null
+  }
+
+  const delta = Math.abs(projectedProb - marketProb) * 100
+  return {
+    marketOdds,
+    projectedOdds,
+    marketProb,
+    projectedProb,
+    delta,
+    sideLabel: label,
+  }
+}
+
 const toPercent = (value: number, min: number, max: number) => {
   const denom = max - min
   if (!denom) return 50
@@ -456,6 +511,101 @@ const SpreadComparison = ({ game }: { game: EdgeGame }) => {
         </span>
         <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
           {projectedLabel}
+        </span>
+      </div>
+      <div className="relative h-2 w-full rounded-full bg-white/10">
+        <div className="absolute top-1/2 h-[2px] w-full -translate-y-1/2 bg-white/15" />
+        <div
+          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.4)]"
+          style={{ left: `${marketPos}%` }}
+        />
+        <div
+          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.4)]"
+          style={{ left: `${projectedPos}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+const TotalComparison = ({ game }: { game: EdgeGame }) => {
+  const comparison = resolveTotalComparison(game)
+  if (!comparison) return null
+  const { marketLine, projectedLine, delta, marketLabel, projectedLabel } = comparison
+  const min = Math.min(marketLine, projectedLine)
+  const max = Math.max(marketLine, projectedLine)
+  const pad = Math.max(1, (max - min) * 0.6)
+  const minPad = min - pad
+  const maxPad = max + pad
+  const marketPos = toPercent(marketLine, minPad, maxPad)
+  const projectedPos = toPercent(projectedLine, minPad, maxPad)
+
+  return (
+    <div className="space-y-2 text-xs text-white/70">
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
+        <span>Market</span>
+        <span>Projected</span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+          {marketLabel}
+        </span>
+        <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+          Î” {delta.toFixed(1)}
+        </span>
+        <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+          {projectedLabel}
+        </span>
+      </div>
+      <div className="relative h-2 w-full rounded-full bg-white/10">
+        <div className="absolute top-1/2 h-[2px] w-full -translate-y-1/2 bg-white/15" />
+        <div
+          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.4)]"
+          style={{ left: `${marketPos}%` }}
+        />
+        <div
+          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.4)]"
+          style={{ left: `${projectedPos}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+const MoneylineComparison = ({
+  game,
+  pick,
+}: {
+  game: EdgeGame
+  pick: EdgePick
+}) => {
+  const comparison = resolveMoneylineComparison(game, pick)
+  if (!comparison) return null
+  const { marketOdds, projectedOdds, marketProb, projectedProb, delta, sideLabel } =
+    comparison
+  const min = Math.min(marketProb, projectedProb)
+  const max = Math.max(marketProb, projectedProb)
+  const pad = Math.max(0.02, (max - min) * 0.6)
+  const minPad = Math.max(0, min - pad)
+  const maxPad = Math.min(1, max + pad)
+  const marketPos = toPercent(marketProb, minPad, maxPad)
+  const projectedPos = toPercent(projectedProb, minPad, maxPad)
+
+  return (
+    <div className="space-y-2 text-xs text-white/70">
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
+        <span>Market</span>
+        <span>Projected</span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+          {sideLabel} {formatOdds(marketOdds)} ({formatProbability(marketProb)})
+        </span>
+        <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+          Î” {delta.toFixed(1)}%
+        </span>
+        <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+          {sideLabel} {formatOdds(projectedOdds)} ({formatProbability(projectedProb)})
         </span>
       </div>
       <div className="relative h-2 w-full rounded-full bg-white/10">
@@ -884,6 +1034,16 @@ export default function MarketProjectionsTable({
                             <SpreadComparison game={game} />
                           </div>
                         ) : null}
+                        {filter === "total" ? (
+                          <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
+                            <TotalComparison game={game} />
+                          </div>
+                        ) : null}
+                        {filter === "moneyline" ? (
+                          <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
+                            <MoneylineComparison game={game} pick={activePick} />
+                          </div>
+                        ) : null}
                       </div>
                       <div className="space-y-2">
                         <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
@@ -1001,6 +1161,16 @@ export default function MarketProjectionsTable({
                             {filter === "spread" ? (
                               <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
                                 <SpreadComparison game={game} />
+                              </div>
+                            ) : null}
+                            {filter === "total" ? (
+                              <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
+                                <TotalComparison game={game} />
+                              </div>
+                            ) : null}
+                            {filter === "moneyline" ? (
+                              <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
+                                <MoneylineComparison game={game} pick={activePick} />
                               </div>
                             ) : null}
                           </div>

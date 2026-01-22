@@ -74,7 +74,7 @@ type SharpAlert = {
 }
 
 const MIN_NOTIONAL = 2000
-const MIN_PROP_NOTIONAL = 500
+const MIN_PROP_NOTIONAL = 1000
 const MIN_GAME_NOTIONAL = 2000
 const NUKE_NOTIONAL = 100000
 const NCAAB_CLUSTER_MIN = 3
@@ -308,6 +308,9 @@ const cleanTeamLabel = (value: string) => {
   return normalizedDashes
 }
 
+const normalizeMarketKey = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]/g, "")
+
 const parseTeamsFromTitle = (marketTitle: string) => {
   const match = marketTitle.split(/\s+(?:vs\.?|v\.?|@|at)\s+/i)
   if (match.length !== 2) return null
@@ -363,6 +366,28 @@ const resolveGameLabel = (marketTitle: string) => {
   return marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()
 }
 
+const resolveMarketType = (trade: SharpTrade) => {
+  const combined = `${trade.outcome} ${trade.marketTitle}`.toLowerCase()
+  if (combined.includes("over") || combined.includes("under") || combined.includes("total")) {
+    return "total"
+  }
+  if (combined.includes("spread") || /[+-]\d/.test(combined)) {
+    return "spread"
+  }
+  return "moneyline"
+}
+
+const resolveMarketGroupKey = (trade: SharpTrade) => {
+  const marketType = resolveMarketType(trade)
+  const teams = parseTeamsFromTitle(trade.marketTitle)
+  if (teams) {
+    const gameKey = buildTeamGameKey(trade.sport, teams.away, teams.home)
+    if (gameKey) {
+      return `${gameKey}:${marketType}`
+    }
+  }
+  return `${trade.sport}:${normalizeMarketKey(trade.marketTitle)}:${marketType}`
+}
 
 const resolveTradeDateKey = (trade: SharpTrade) => {
   if (trade.eventDate) {
@@ -896,7 +921,29 @@ export default function SharpDetectorPanel({
       if (evA !== evB) return evB - evA
       if (a.trade.notional !== b.trade.notional) return b.trade.notional - a.trade.notional
       return new Date(b.trade.timestamp).getTime() - new Date(a.trade.timestamp).getTime()
-    })
+    }).reduce<{
+      seen: Set<string>
+      rows: Array<{
+        trade: SharpTradeWithStatus
+        evPercent: number | null
+        isEv: boolean
+        isCluster: boolean
+        isNuke: boolean
+        clusterSize: number
+        filtersHit: number
+        minNotional: number
+        targetLine: { priceCents: number; americanOdds: number | null } | null
+      }>
+    }>(
+      (state, entry) => {
+        const key = resolveMarketGroupKey(entry.trade)
+        if (state.seen.has(key)) return state
+        state.seen.add(key)
+        state.rows.push(entry)
+        return state
+      },
+      { seen: new Set<string>(), rows: [] }
+    ).rows
   }, [trades, phaseFilter])
 
   const activeSportsWithSharpMoney = useMemo(() => {

@@ -11,7 +11,7 @@ import { TeamStatsCard } from '@/components/ui/team-stats-card'
 import { PlayerPropsCard } from '@/components/ui/player-props-card'
 import { GameOddsCard } from '@/components/ui/game-odds-card'
 import { TeamInsightsCard } from '@/components/ui/team-insights-card'
-import { ArrowUpRight, TrendingUp, Users, Calculator, Zap, Radio } from 'lucide-react'
+import { ArrowUpRight, TrendingUp, Users, Calculator, Radio } from 'lucide-react'
 
 interface AnimatedMessageProps {
   content: string
@@ -35,14 +35,14 @@ const PAGE_METADATA: Record<string, Omit<PageCardData, 'key' | 'recommended'>> =
     icon: <Radio className="w-4 h-4" />,
   },
   'ev-bets': {
-    label: 'EV Bets',
-    description: 'Find +EV opportunities where sportsbooks disagree on odds',
+    label: 'Line Shopping',
+    description: 'Compare pregame lines across sportsbooks and prediction markets',
     href: '/ev-bets',
-    icon: <Zap className="w-4 h-4" />,
+    icon: <Radio className="w-4 h-4" />,
   },
   'parlay-predictor': {
     label: 'Parlay Pro',
-    description: 'Calculate true parlay odds with correlation adjustments',
+    description: 'Sportsbook EV parlays plus a correlation-aware parlay builder',
     href: '/parlay-predictor',
     icon: <Calculator className="w-4 h-4" />,
   },

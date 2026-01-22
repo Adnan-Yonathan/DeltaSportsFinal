@@ -51,12 +51,64 @@ const resolveBestOdds = (entry?: MarketEntry | null, fallback?: number | null) =
   return Math.max(entry.odds, fallback ?? Number.NEGATIVE_INFINITY)
 }
 
-const formatEntry = (entry?: MarketEntry | null, prefix?: string) => {
+const renderEntry = (
+  entry?: MarketEntry | null,
+  prefix?: string,
+  isBest?: boolean
+) => {
   if (!entry) return "-"
   const oddsLabel = formatAmericanOdds(entry.odds)
   const pointLabel = entry.point != null ? formatPoint(entry.point) : ""
   const label = [prefix, pointLabel, oddsLabel].filter(Boolean).join(" ")
-  return label
+  return (
+    <span className={isBest ? "font-semibold text-emerald-200" : undefined}>
+      {label}
+    </span>
+  )
+}
+
+const isPredictionMarket = (bookKey?: string) =>
+  bookKey === "kalshi" || bookKey === "polymarket"
+
+const resolveBestByCategory = (
+  rows: BookMarketRow[],
+  marketKey: MarketKey
+) => {
+  const best = {
+    prediction: {
+      away: Number.NEGATIVE_INFINITY,
+      home: Number.NEGATIVE_INFINITY,
+      over: Number.NEGATIVE_INFINITY,
+      under: Number.NEGATIVE_INFINITY,
+    },
+    sportsbook: {
+      away: Number.NEGATIVE_INFINITY,
+      home: Number.NEGATIVE_INFINITY,
+      over: Number.NEGATIVE_INFINITY,
+      under: Number.NEGATIVE_INFINITY,
+    },
+  }
+
+  rows.forEach((row) => {
+    const category = isPredictionMarket(row.bookKey) ? "prediction" : "sportsbook"
+    if (marketKey === "totals") {
+      if (row.over?.odds != null) {
+        best[category].over = Math.max(best[category].over, row.over.odds)
+      }
+      if (row.under?.odds != null) {
+        best[category].under = Math.max(best[category].under, row.under.odds)
+      }
+      return
+    }
+    if (row.away?.odds != null) {
+      best[category].away = Math.max(best[category].away, row.away.odds)
+    }
+    if (row.home?.odds != null) {
+      best[category].home = Math.max(best[category].home, row.home.odds)
+    }
+  })
+
+  return best
 }
 
 const buildBookRows = (game: OddsGame, marketKey: MarketKey) => {
@@ -223,6 +275,7 @@ export default function LiveOddsTable({
               const right = b.bestOdds ?? Number.NEGATIVE_INFINITY
               return right - left
             })
+            const bestByCategory = resolveBestByCategory(bookRows, marketKey)
 
             return (
               <div key={game.id} className="px-3 py-3 space-y-3">
@@ -240,27 +293,53 @@ export default function LiveOddsTable({
                   {bookRows.length === 0 ? (
                     <div className="text-xs text-white/50">No books listed.</div>
                   ) : (
-                    bookRows.map((book) => (
-                      <div
-                        key={`${game.id}-${book.bookKey ?? book.bookTitle}`}
-                        className="min-w-[140px] rounded-2xl border border-white/10 bg-black/70 px-3 py-2 text-[11px] text-white/70"
-                      >
-                        <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-                          {book.bookTitle}
-                        </div>
+                    bookRows.map((book) => {
+                      const isPM = isPredictionMarket(book.bookKey)
+                      const category = isPM ? "prediction" : "sportsbook"
+                      const bestAway = book.away?.odds != null &&
+                        book.away.odds === bestByCategory[category].away
+                      const bestHome = book.home?.odds != null &&
+                        book.home.odds === bestByCategory[category].home
+                      const bestOver = book.over?.odds != null &&
+                        book.over.odds === bestByCategory[category].over
+                      const bestUnder = book.under?.odds != null &&
+                        book.under.odds === bestByCategory[category].under
+                      const hasBest =
+                        bestAway || bestHome || bestOver || bestUnder
+
+                      return (
+                        <div
+                          key={`${game.id}-${book.bookKey ?? book.bookTitle}`}
+                          className={`min-w-[140px] rounded-2xl border px-3 py-2 text-[11px] ${
+                            hasBest
+                              ? "border-emerald-400/50 bg-emerald-500/10 text-white"
+                              : "border-white/10 bg-black/70 text-white/70"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                              {book.bookTitle}
+                            </div>
+                            {hasBest && (
+                              <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-[9px] uppercase tracking-[0.2em] text-emerald-200">
+                                {isPM ? "Best PM" : "Best Book"}
+                              </span>
+                            )}
+                          </div>
                         {marketKey === "totals" ? (
                           <div className="mt-2 space-y-1">
-                            <div>{formatEntry(book.over, "O")}</div>
-                            <div>{formatEntry(book.under, "U")}</div>
+                            <div>{renderEntry(book.over, "O", bestOver)}</div>
+                            <div>{renderEntry(book.under, "U", bestUnder)}</div>
                           </div>
                         ) : (
                           <div className="mt-2 space-y-1">
-                            <div>{formatEntry(book.away, "A")}</div>
-                            <div>{formatEntry(book.home, "H")}</div>
+                            <div>{renderEntry(book.away, "A", bestAway)}</div>
+                            <div>{renderEntry(book.home, "H", bestHome)}</div>
                           </div>
                         )}
-                      </div>
-                    ))
+                        </div>
+                      )
+                    })
                   )}
                 </div>
               </div>

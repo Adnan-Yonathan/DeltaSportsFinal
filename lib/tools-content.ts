@@ -55,36 +55,36 @@ export const TOOLS_CONTENT: ToolContent[] = [
     route: "/parlay-predictor",
     icon: "layers",
     summary:
-      "Parlay construction focused on probability, correlation, and payout efficiency.",
+      "Sportsbook EV parlays plus a builder for custom multi-leg tickets.",
     description:
-      "Parlay Pro helps you build multi-leg tickets with clear probability math, avoiding hidden negative EV combos. It checks how each leg impacts the combined win probability and payout fairness.",
+      "Parlay Pro surfaces pregame EV parlays using cross-market sportsbook consensus, then lets you build your own tickets with correlation-aware probability math.",
     howToUse:
-      "Start with one strong edge, add legs that align with the same game script, and compare the implied payout to the model probability. Remove legs that dilute the parlay or introduce negative correlation.",
+      "Start on the EV Parlays tab to grab a sportsbook-ready ticket, then switch to Build Your Own to stack correlated legs. Only keep tickets that meet the listed minimum odds for 3%+ EV.",
     unique:
-      "It highlights correlation and payout efficiency, not just whether a leg looks likely. This keeps parlays grounded in real expected value.",
+      "It combines sportsbook-only EV scans with correlation checks, so you can price-shop and still understand whether a parlay stays +EV.",
     useCases: [
-      "Building 2-4 leg parlays with verified edges.",
-      "Testing alternate legs before locking a ticket.",
-      "Checking if a payout is actually fair for the risk.",
+      "Taking sportsbook EV parlays above a 3% edge.",
+      "Building 2-5 leg parlays with verified edges.",
+      "Checking the minimum odds needed to keep a parlay +EV.",
     ],
   },
   {
     id: "ev-bets",
-    label: "EV Bets",
+    label: "Line Shopping",
     route: "/ev-bets",
     icon: "percent",
     summary:
-      "Expected value scanner that highlights mispriced lines across markets and books.",
+      "Pregame odds board for moneylines, spreads, and totals across the books we track.",
     description:
-      "EV Bets surfaces the highest value lines right now by comparing market odds to fair probability. It is the fastest way to see where the biggest edges exist at the moment.",
+      "Line Shopping is a dense screen for quickly scanning the best pregame prices across sportsbooks and prediction markets.",
     howToUse:
-      "Filter by sport or market, sort by EV, and use the best price column to select the book. Track when an edge narrows to avoid late entries.",
+      "Pick a sport and market, then scan the board for the best pregame line. If the price you want is available, place the bet before it moves.",
     unique:
-      "It is price-first, so it finds value even when a matchup feels obvious. The edge is grounded in math, not hype.",
+      "It compresses the entire slate into one view, showing the strongest price per side without the noise.",
     useCases: [
-      "Daily edge hunting across multiple markets.",
-      "Quick lists of high-EV bets for a slate.",
-      "Monitoring when lines cross into positive EV.",
+      "Fast line shopping before your bet hits.",
+      "Monitoring pregame movement across books.",
+      "Comparing prediction markets vs sportsbooks.",
     ],
   },
   {
@@ -93,11 +93,11 @@ export const TOOLS_CONTENT: ToolContent[] = [
     route: "/live-projections",
     icon: "activity",
     summary:
-      "In-game projection updates as new play-by-play data arrives.",
+      "ESPN win probability with live spread ranges and confidence bands.",
     description:
-      "Live Projections updates win probability and totals in real time, reacting to pace, scoring, and momentum shifts. It is designed for live betting and hedging decisions.",
+      "Live Projections turns ESPN win probability into a live spread range, shrinking the interval as the game progresses. It is designed for live betting and hedging decisions.",
     howToUse:
-      "Select a live game, watch the projection updates, and compare them to live market prices. Focus on moments where the market lags behind a major shift.",
+      "Watch the ESPN win probability meter and compare the spread range to your live book. Focus on moments where the market lags behind a major shift.",
     unique:
       "Real-time recalculation means you are not relying on stale pregame numbers. The model adapts with every meaningful update.",
     useCases: [
@@ -108,13 +108,13 @@ export const TOOLS_CONTENT: ToolContent[] = [
   },
   {
     id: "sharp-detector",
-    label: "Sharp Detector",
+    label: "Whale Feed",
     route: "/sharp-detector",
     icon: "eye",
     summary:
       "Tracks large market-moving bets, wallet behavior, and sharp signal clustering.",
     description:
-      "Sharp Detector monitors high-notional bets and trusted wallet behavior to reveal where sharp money is flowing. It lets you track clusters and timing, not just isolated bets.",
+      "Whale Feed monitors high-notional bets and trusted wallet behavior to reveal where sharp money is flowing. It lets you track clusters and timing, not just isolated bets.",
     howToUse:
       "Filter by game, size, or wallet, then look for clusters of big bets in the same market. Use the timing and wallet history to judge whether a move is real.",
     unique:

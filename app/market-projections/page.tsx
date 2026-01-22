@@ -182,7 +182,7 @@ export default async function MarketProjectionsPage({
           </div>
         </div>
       </div>
-      <div className="pt-[72px] px-2 sm:px-4">
+      <div className="pt-[120px] sm:pt-[140px] px-2 sm:px-4">
         <div className="mx-auto w-full max-w-none space-y-5 py-6">
         {!hasAccess ? (
           <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5">

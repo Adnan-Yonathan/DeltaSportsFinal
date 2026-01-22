@@ -50,10 +50,10 @@ export default async function EvBetsPage() {
                   Upgrade required
                 </p>
                 <h2 className="mt-3 text-xl font-semibold text-white">
-                  Live odds are for {upgradeLabel} members.
+                  Line shopping is for {upgradeLabel} members.
                 </h2>
                 <p className="mt-2 text-sm text-white/60">
-                  Unlock the live odds board by upgrading your plan.
+                  Unlock the pregame line shopping board by upgrading your plan.
                 </p>
                 <Link
                   href="/pricing"

@@ -487,7 +487,7 @@ export default function SharpDetectorPage() {
         return [...pending, ...resolved]
       })
     } catch (error) {
-      console.warn('Sharp detector fetch failed:', error)
+      console.warn('Whale Feed fetch failed:', error)
       setLastFetchAt(new Date().toISOString())
       setLastFetchError(error instanceof Error ? error.message : 'Unknown error')
     }
@@ -676,7 +676,7 @@ export default function SharpDetectorPage() {
                   Upgrade required
                 </p>
                 <h2 className="mt-3 text-xl font-semibold text-white">
-                  Sharp Detector is for members.
+                  Whale Feed is for members.
                 </h2>
                 <p className="mt-2 text-base text-white/60">
                   Upgrade to unlock sharp trade alerts and tracking.

@@ -1,5 +1,5 @@
 import { decimalToAmerican } from '@/lib/utils/odds'
-import { oddsToImpliedProbability } from '@/lib/utils/statistics'
+import { oddsToImpliedProbability, probabilityToAmericanOdds } from '@/lib/utils/statistics'
 import { fetchOdds } from '@/lib/api/odds-api'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import type { Bookmaker, OddsGame, OddsOutcome } from '@/lib/types/odds'
@@ -184,6 +184,10 @@ export type WhaleTrade = {
   sportsbookBestOdds?: number | null
   sportsbookBookKey?: string | null
   sportsbookBookTitle?: string | null
+  sportsbookNoVigProb?: number | null
+  evPercent?: number | null
+  evTargetPriceCents?: number | null
+  evTargetAmericanOdds?: number | null
   sharpScoreInstant?: number
   sharpScore30s?: number
   sharpScoreDirection?: 'BUY' | 'SELL'
@@ -1888,6 +1892,33 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
     const sportsbookProbWeight =
       sportsbookWorst?.fairProb != null ? 1 : sportsbookWorst?.rawProb != null ? 0.6 : 0.4
     const noVigProb = resolveSportsbookNoVigProbability(trade, oddsCache)
+    const priceProb = trade.priceCents ? trade.priceCents / 100 : null
+    const trueProb =
+      noVigProb ??
+      sportsbookWorst?.fairProb ??
+      sportsbookWorst?.rawProb ??
+      (sportsbookBest?.bestOdds != null
+        ? oddsToImpliedProbability(sportsbookBest.bestOdds)
+        : null)
+    let evPercent: number | null = null
+    let evTargetPriceCents: number | null = null
+    let evTargetAmericanOdds: number | null = null
+    if (
+      priceProb != null &&
+      trueProb != null &&
+      Number.isFinite(priceProb) &&
+      Number.isFinite(trueProb) &&
+      priceProb > 0 &&
+      priceProb < 1 &&
+      trueProb > 0 &&
+      trueProb < 1
+    ) {
+      const evRaw = (trueProb / priceProb - 1) * 100
+      evPercent = Math.round(evRaw * 10) / 10
+      const targetProb = clamp01(trueProb / 1.03)
+      evTargetPriceCents = Math.round(targetProb * 100)
+      evTargetAmericanOdds = probabilityToAmericanOdds(targetProb)
+    }
     let divergencePercent: number | null = null
     if (trade.priceCents && sportsbookProb != null) {
       const diff = Math.abs(trade.priceCents / 100 - sportsbookProb) * 100
@@ -1904,6 +1935,10 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
       sportsbookProbWeight,
       divergencePercent,
       crossMarketEvPercent,
+      sportsbookNoVigProb: noVigProb ?? null,
+      evPercent,
+      evTargetPriceCents,
+      evTargetAmericanOdds,
       sportsbookBestOdds: sportsbookBest?.bestOdds ?? null,
       sportsbookBookKey: sportsbookBest?.bestBookKey ?? null,
       sportsbookBookTitle: sportsbookBest?.bestBookTitle ?? null,
@@ -1946,6 +1981,10 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
       sportsbookProbWeight,
       divergencePercent,
       crossMarketEvPercent,
+      sportsbookNoVigProb,
+      evPercent,
+      evTargetPriceCents,
+      evTargetAmericanOdds,
       sportsbookBestOdds,
       sportsbookBookKey,
       sportsbookBookTitle,
@@ -1985,6 +2024,10 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
         sportsbookBestOdds,
         sportsbookBookKey,
         sportsbookBookTitle,
+        sportsbookNoVigProb,
+        evPercent,
+        evTargetPriceCents,
+        evTargetAmericanOdds,
         sharpStrength: strengthResult.score,
         sharpScoreInstant: strengthResult.sharpScoreInstant,
         sharpScore30s: strengthResult.sharpScore30s,
@@ -2086,6 +2129,10 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
         sportsbookBestOdds,
         sportsbookBookKey,
         sportsbookBookTitle,
+        sportsbookNoVigProb,
+        evPercent,
+        evTargetPriceCents,
+        evTargetAmericanOdds,
         sharpStrength: score,
         sharpScoreInstant: score,
         sharpScore30s: score,
@@ -2108,6 +2155,10 @@ const enrichWhaleTradesWithStrength = async (trades: WhaleTrade[]): Promise<Ultr
       sportsbookBestOdds,
       sportsbookBookKey,
       sportsbookBookTitle,
+      sportsbookNoVigProb,
+      evPercent,
+      evTargetPriceCents,
+      evTargetAmericanOdds,
       isUltraSharp: false,
       ultraSharpReasons: [],
       sportContext: null,

@@ -87,7 +87,7 @@ const SPORT_CONFIGS: Record<string, SportProjectionConfig> = {
     marginStdDev: 11.5,
     totalStdDev: 14,
     baseCiWidth: 0.1,
-    lineMoveScale: { spread: 2.5, total: 4, moneyline: 35 },
+    lineMoveScale: { spread: 1.5, total: 2.5, moneyline: 25 },
   },
   americanfootball_nfl: {
     marginStdDev: 13.5,

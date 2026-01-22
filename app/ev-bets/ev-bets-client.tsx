@@ -18,7 +18,6 @@ const SPORT_OPTIONS = [
 
 export default function LiveOddsClient() {
   const [sportKey, setSportKey] = useState<string>(SPORTS.NBA)
-  const [liveOnly, setLiveOnly] = useState(false)
   const [games, setGames] = useState<OddsGame[]>([])
   const [marketKey, setMarketKey] = useState<"h2h" | "spreads" | "totals">("h2h")
   const [loading, setLoading] = useState(false)
@@ -33,7 +32,7 @@ export default function LiveOddsClient() {
       const url = new URL("/api/odds/games", window.location.origin)
       url.searchParams.set("sport", sportKey)
       url.searchParams.set("markets", "h2h,spreads,totals")
-      url.searchParams.set("live", liveOnly ? "true" : "false")
+      url.searchParams.set("live", "false")
       const res = await fetch(url.toString(), { cache: "no-store" })
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}))
@@ -61,11 +60,11 @@ export default function LiveOddsClient() {
     } finally {
       setLoading(false)
     }
-  }, [sportKey, liveOnly])
+  }, [sportKey])
 
   useEffect(() => {
     setGames([])
-  }, [sportKey, liveOnly])
+  }, [sportKey])
 
   useEffect(() => {
     fetchOdds()
@@ -144,28 +143,6 @@ export default function LiveOddsClient() {
             }`}
           >
             Over/Under
-          </button>
-          <button
-            type="button"
-            onClick={() => setLiveOnly(false)}
-            className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition ${
-              !liveOnly
-                ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
-                : "border-white/10 text-white/50 hover:border-white/30 hover:text-white/80"
-            }`}
-          >
-            Pregame
-          </button>
-          <button
-            type="button"
-            onClick={() => setLiveOnly(true)}
-            className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition ${
-              liveOnly
-                ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
-                : "border-white/10 text-white/50 hover:border-white/30 hover:text-white/80"
-            }`}
-          >
-            Live
           </button>
         </div>
       </div>

@@ -2,20 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatAmericanOdds, formatCurrency } from '@/lib/utils/odds'
+import { oddsToImpliedProbability, probabilityToAmericanOdds } from '@/lib/utils/statistics'
 import { cn } from '@/lib/utils'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import { getWalletAlias } from '@/lib/utils/wallet-alias'
 import { motion, AnimatePresence } from 'framer-motion'
-import { TrendingDown, Info, Zap, X, Lock, Clock, ChartBar } from 'lucide-react'
+import { Zap, X, Lock, Clock } from 'lucide-react'
 import Link from 'next/link'
 import ShareTradeButton from './ShareTradeButton'
 import TutorialPopup from './TutorialPopup'
-
-type UltraSharpReason = {
-  type: 'rlm' | 'timing' | 'divergence' | 'cluster' | 'cross-market-ev' | 'big-bet' | 'liquidity'
-  description: string
-  value?: number
-}
 
 type SharpTrade = {
   id: string
@@ -40,13 +35,11 @@ type SharpTrade = {
   sportsbookBestOdds?: number | null
   sportsbookBookTitle?: string | null
   sportsbookBookKey?: string | null
+  sportsbookNoVigProb?: number | null
+  evPercent?: number | null
+  evTargetPriceCents?: number | null
+  evTargetAmericanOdds?: number | null
   crossMarketEvPercent?: number | null
-  // Ultra-sharp fields
-  isUltraSharp?: boolean
-  ultraSharpReasons?: UltraSharpReason[]
-  timingScore?: number
-  rlmScore?: number
-  divergencePercent?: number | null
 }
 
 type SharpTradeStatus = 'pending' | 'respected' | 'faded'
@@ -81,6 +74,12 @@ type SharpAlert = {
 }
 
 const MIN_NOTIONAL = 2000
+const MIN_PROP_NOTIONAL = 500
+const MIN_GAME_NOTIONAL = 2000
+const NUKE_NOTIONAL = 100000
+const NCAAB_CLUSTER_MIN = 3
+const NCAAB_CLUSTER_WINDOW_MS = 10 * 60 * 1000
+const EV_TARGET_EDGE = 0.03
 const POLL_INTERVAL_BET_FEED = 30000
 const POLL_INTERVAL_SHARP_FEED = 15000
 const STORAGE_KEY = 'sharp-detector-trades'
@@ -99,7 +98,7 @@ const ensureSharpCacheVersion = () => {
       window.localStorage.setItem(CACHE_VERSION_KEY, CACHE_VERSION)
     }
   } catch (error) {
-    console.warn('Failed to validate sharp detector cache version:', error)
+    console.warn('Failed to validate Whale Feed cache version:', error)
   }
 }
 
@@ -117,6 +116,56 @@ const resolveOddsLabel = (trade: SharpTrade) => {
     return `${label} now`
   }
   return label
+}
+
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+
+const resolveTradeTrueProb = (trade: SharpTrade) => {
+  if (Number.isFinite(trade.sportsbookNoVigProb)) {
+    return Number(trade.sportsbookNoVigProb)
+  }
+  if (trade.sportsbookBestOdds != null && Number.isFinite(trade.sportsbookBestOdds)) {
+    return oddsToImpliedProbability(trade.sportsbookBestOdds)
+  }
+  return null
+}
+
+const resolveTradeEvPercent = (trade: SharpTrade) => {
+  if (Number.isFinite(trade.evPercent)) {
+    return Number(trade.evPercent)
+  }
+  const trueProb = resolveTradeTrueProb(trade)
+  const priceProb = trade.priceCents ? trade.priceCents / 100 : null
+  if (
+    trueProb == null ||
+    priceProb == null ||
+    !Number.isFinite(trueProb) ||
+    !Number.isFinite(priceProb) ||
+    priceProb <= 0 ||
+    priceProb >= 1
+  ) {
+    return null
+  }
+  const evRaw = (trueProb / priceProb - 1) * 100
+  return Math.round(evRaw * 10) / 10
+}
+
+const resolveEvTargetLine = (trade: SharpTrade) => {
+  if (Number.isFinite(trade.evTargetPriceCents)) {
+    return {
+      priceCents: trade.evTargetPriceCents as number,
+      americanOdds: trade.evTargetAmericanOdds ?? null,
+    }
+  }
+  const trueProb = resolveTradeTrueProb(trade)
+  if (trueProb == null || !Number.isFinite(trueProb) || trueProb <= 0 || trueProb >= 1) {
+    return null
+  }
+  const targetProb = clamp01(trueProb / (1 + EV_TARGET_EDGE))
+  return {
+    priceCents: Math.round(targetProb * 100),
+    americanOdds: probabilityToAmericanOdds(targetProb),
+  }
 }
 
 const formatTimestamp = (value: string) => {
@@ -305,13 +354,6 @@ const resolveTradeDateKey = (trade: SharpTrade) => {
   return getEasternDateKey(trade.timestamp)
 }
 
-const resolveStrengthClass = (value?: number | null) => {
-  const strength = Number.isFinite(value) ? Number(value) : 0
-  if (strength <= 35) return 'text-rose-300'
-  if (strength <= 55) return 'text-amber-300'
-  return 'text-emerald-300'
-}
-
 const isLiquidityTrade = (trade: SharpTrade) => trade.id?.startsWith('liquidity:')
 
 // Phase filter helper
@@ -332,39 +374,6 @@ const filterByPhase = (trades: SharpTradeWithStatus[], phase: GamePhase): SharpT
     return phase === 'live' ? isLive : !isLive
   })
 }
-
-// "Why it's sharp" reasons display component
-const WhyItsSharpSection = ({ reasons }: { reasons: UltraSharpReason[] }) => {
-  if (!reasons || reasons.length === 0) return null
-
-  return (
-    <div className="mt-3 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
-      <p className="text-xs uppercase tracking-wider text-emerald-400 mb-2">Why this is sharp</p>
-      <div className="space-y-1.5">
-        {reasons.map((reason, idx) => (
-          <div key={idx} className="flex items-start gap-2 text-sm">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
-            <span className="text-white/70">{reason.description}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// RLM Indicator Badge
-const RlmBadge = () => (
-  <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-    <TrendingDown className="w-3.5 h-3.5 text-amber-400" />
-    <span className="text-xs font-medium text-amber-300">RLM</span>
-    <div className="group relative">
-      <Info className="w-3 h-3 text-amber-400/60 cursor-help" />
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-black border border-white/20 rounded-lg text-xs text-white/80 w-48 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-        Reverse Line Movement: Price moved toward this side despite more money on the other side. Indicates sharp action.
-      </div>
-    </div>
-  </div>
-)
 
 // Alert Banner Component
 const SharpAlertBanner = ({
@@ -416,7 +425,7 @@ export default function SharpDetectorPanel({
   const [phaseFilter, setPhaseFilter] = useState<GamePhase>('all')
   const [alerts, setAlerts] = useState<SharpAlert[]>([])
   const [alertsEnabled, setAlertsEnabled] = useState(true)
-  const ultraSharpSeenIds = useRef<Set<string>>(new Set())
+  const sharpMoneySeenIds = useRef<Set<string>>(new Set())
 
   const [trades, setTrades] = useState<SharpTradeWithStatus[]>(() => {
     if (typeof window === 'undefined') return []
@@ -428,7 +437,7 @@ export default function SharpDetectorPanel({
         return Array.isArray(parsed) ? parsed : []
       }
     } catch (error) {
-      console.warn('Failed to load sharp detector cache:', error)
+      console.warn('Failed to load Whale Feed cache:', error)
     }
     return []
   })
@@ -462,11 +471,18 @@ export default function SharpDetectorPanel({
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
 
+  const betFeedTrades = useMemo(
+    () =>
+      trades.filter(
+        (trade) => !isLiquidityTrade(trade) && trade.notional >= MIN_NOTIONAL
+      ),
+    [trades]
+  )
+
   const preDateTrades = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     const walletKey = walletFilter === 'all' ? null : normalizeWallet(walletFilter)
-    return trades.filter((trade) => {
-      if (isLiquidityTrade(trade)) return false
+    return betFeedTrades.filter((trade) => {
       if (sportFilter !== 'all' && trade.sport !== sportFilter) return false
       if (sizeFilter !== 'all' && resolveSharpTier(trade.notional) !== sizeFilter) return false
       if (walletKey) {
@@ -480,7 +496,7 @@ export default function SharpDetectorPanel({
       }
       return true
     })
-  }, [trades, sportFilter, sizeFilter, searchQuery, walletFilter])
+  }, [betFeedTrades, sportFilter, sizeFilter, searchQuery, walletFilter])
 
   const dateOptions = useMemo(() => {
     const dates = new Set<string>()
@@ -635,10 +651,10 @@ export default function SharpDetectorPanel({
 
   const todaySharps = useMemo(() => {
     const todayKey = getEasternDateKey(new Date())
-    return trades.filter(
+    return betFeedTrades.filter(
       (trade) => getEasternDateKey(trade.timestamp) === todayKey
     ).length
-  }, [trades])
+  }, [betFeedTrades])
 
   const sportButtons = useMemo(
     () => ['all', 'NBA', 'NFL', 'MLB', 'NHL', 'NCAAB', 'NCAAF', 'WNBA', 'SOCCER', 'GOLF', 'UFC'],
@@ -660,7 +676,7 @@ export default function SharpDetectorPanel({
   }, [trackedWalletSummary])
 
   const trackedWalletTradePreview = useMemo(() => {
-    const preview = trades
+    const preview = betFeedTrades
       .filter((trade) => {
         if (trade.source !== 'polymarket') return false
         const wallet = normalizeWallet(trade.proxyWallet)
@@ -669,11 +685,11 @@ export default function SharpDetectorPanel({
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 3)
     return preview
-  }, [trades, trackedWalletSet])
+  }, [betFeedTrades, trackedWalletSet])
 
   const winningWallets = useMemo(() => {
     const stats = new Map<string, { wallet: string; wins: number; pnl: number }>()
-    trades.forEach((trade) => {
+    betFeedTrades.forEach((trade) => {
       if (trade.source !== 'polymarket') return
       const wallet = normalizeWallet(trade.proxyWallet)
       if (!wallet || !trackedWalletSet.has(wallet)) return
@@ -690,12 +706,12 @@ export default function SharpDetectorPanel({
       if (a.pnl !== b.pnl) return b.pnl - a.pnl
       return b.wins - a.wins
     })
-  }, [trades, trackedWalletSet])
+  }, [betFeedTrades, trackedWalletSet])
 
   const winningWalletTradePreview = useMemo(() => {
     if (!winningWallets.length) return []
     const winners = new Set(winningWallets.map((entry) => entry.wallet))
-    return trades
+    return betFeedTrades
       .filter((trade) => {
         if (trade.source !== 'polymarket') return false
         const wallet = normalizeWallet(trade.proxyWallet)
@@ -703,14 +719,14 @@ export default function SharpDetectorPanel({
       })
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 3)
-  }, [trades, winningWallets])
+  }, [betFeedTrades, winningWallets])
 
   const walletStats = useMemo(() => {
     const stats = new Map<
       string,
       { wallet: string; count: number; wins: number; losses: number; pushes: number; lastSeen?: string }
     >()
-    trades.forEach((trade) => {
+    betFeedTrades.forEach((trade) => {
       if (trade.source !== 'polymarket') return
       const walletKey = normalizeWallet(trade.proxyWallet)
       if (!walletKey) return
@@ -750,7 +766,7 @@ export default function SharpDetectorPanel({
       if (timeA !== timeB) return timeB - timeA
       return b.count - a.count
     })
-  }, [trades, trackedWallets])
+  }, [betFeedTrades, trackedWallets])
 
   const sortedTrades = useMemo(() => {
     const weight = (status?: SharpTradeStatus) => {
@@ -775,48 +791,90 @@ export default function SharpDetectorPanel({
     })
   }, [filteredTrades, sortFilter])
 
-  // Ultra-sharp trades for the Sharp Money Feed tab
-  const ultraSharpTrades = useMemo(() => {
-    // Apply phase filter first
+  const sharpMoneyTrades = useMemo(() => {
     const phaseFiltered = filterByPhase(trades, phaseFilter)
-    // Filter to only ultra-sharp trades
-  return phaseFiltered
-      .filter(
-        (trade) =>
-          trade.isUltraSharp === true &&
-          (trade.sharpStrength ?? 0) > 55 &&
-          !isTradeLive(trade) &&
-          (trade.crossMarketEvPercent != null || isLiquidityTrade(trade)) &&
-          trade.sportsbookBestOdds != null
-      )
-      .sort((a, b) => {
-        // Sort by strength first, then by time
-        const strengthA = a.sharpStrength ?? 0
-        const strengthB = b.sharpStrength ?? 0
-        if (strengthA !== strengthB) return strengthB - strengthA
-        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    const clusterCounts = new Map<string, number>()
+
+    const ncaabTrades = phaseFiltered.filter((trade) => trade.sport === 'NCAAB')
+    ncaabTrades.forEach((trade) => {
+      const tradeTime = new Date(trade.timestamp).getTime()
+      if (!Number.isFinite(tradeTime)) return
+      const key = `${trade.marketTitle}::${trade.outcome}`
+      const windowStart = tradeTime - NCAAB_CLUSTER_WINDOW_MS
+      const windowEnd = tradeTime + NCAAB_CLUSTER_WINDOW_MS
+      let count = 0
+      for (const other of ncaabTrades) {
+        if (`${other.marketTitle}::${other.outcome}` !== key) continue
+        const otherTime = new Date(other.timestamp).getTime()
+        if (!Number.isFinite(otherTime)) continue
+        if (otherTime >= windowStart && otherTime <= windowEnd) count += 1
+      }
+      clusterCounts.set(trade.id, count)
+    })
+
+    const scored = phaseFiltered
+      .map((trade) => {
+        const isGameMarket = Boolean(parseTeamsFromTitle(trade.marketTitle))
+        const minNotional = isGameMarket ? MIN_GAME_NOTIONAL : MIN_PROP_NOTIONAL
+        if (trade.notional < minNotional) return null
+
+        const evPercent = resolveTradeEvPercent(trade)
+        const isEv = evPercent != null && evPercent > 0
+        const clusterSize = clusterCounts.get(trade.id) ?? 0
+        const isCluster =
+          trade.sport === 'NCAAB' && clusterSize >= NCAAB_CLUSTER_MIN
+        const isNuke = trade.notional >= NUKE_NOTIONAL
+        const filtersHit = Number(isEv) + Number(isCluster) + Number(isNuke)
+
+        if (filtersHit === 0) return null
+
+        return {
+          trade,
+          evPercent,
+          isEv,
+          isCluster,
+          isNuke,
+          clusterSize,
+          filtersHit,
+          minNotional,
+        }
       })
+      .filter(Boolean) as Array<{
+        trade: SharpTradeWithStatus
+        evPercent: number | null
+        isEv: boolean
+        isCluster: boolean
+        isNuke: boolean
+        clusterSize: number
+        filtersHit: number
+        minNotional: number
+      }>
+
+    return scored.sort((a, b) => {
+      if (a.filtersHit !== b.filtersHit) return b.filtersHit - a.filtersHit
+      const evA = a.evPercent ?? -999
+      const evB = b.evPercent ?? -999
+      if (evA !== evB) return evB - evA
+      if (a.trade.notional !== b.trade.notional) return b.trade.notional - a.trade.notional
+      return new Date(b.trade.timestamp).getTime() - new Date(a.trade.timestamp).getTime()
+    })
   }, [trades, phaseFilter])
 
-  // Active sports with ultra-sharp action
-  const activeSportsWithUltraSharp = useMemo(() => {
+  const activeSportsWithSharpMoney = useMemo(() => {
     const sports = new Map<string, number>()
-    ultraSharpTrades.forEach((trade) => {
-      sports.set(trade.sport, (sports.get(trade.sport) ?? 0) + 1)
+    sharpMoneyTrades.forEach((entry) => {
+      sports.set(entry.trade.sport, (sports.get(entry.trade.sport) ?? 0) + 1)
     })
     return Array.from(sports.entries())
       .sort((a, b) => b[1] - a[1])
       .map(([sport, count]) => ({ sport, count }))
-  }, [ultraSharpTrades])
+  }, [sharpMoneyTrades])
 
   const fetchTrades = async () => {
     try {
       const params = new URLSearchParams()
-      params.set('minNotional', String(MIN_NOTIONAL))
+      params.set('minNotional', String(MIN_PROP_NOTIONAL))
       params.set('limit', '200')
-      if (activeTab === 'sharp-money') {
-        params.set('includeLiquidity', 'true')
-      }
       const res = await fetch(`/api/whale-detector?${params.toString()}`, {
         cache: 'no-store',
       })
@@ -836,7 +894,9 @@ export default function SharpDetectorPanel({
           const current = existing.get(trade.id)
           existing.set(trade.id, current ? { ...current, ...trade } : trade)
           if (!seenIdsRef.current.has(trade.id)) {
-            newIds.push(trade.id)
+            if (trade.notional >= MIN_NOTIONAL && !isLiquidityTrade(trade)) {
+              newIds.push(trade.id)
+            }
             seenIdsRef.current.add(trade.id)
           }
         })
@@ -863,7 +923,7 @@ export default function SharpDetectorPanel({
         return [...pending, ...resolved]
       })
     } catch (error) {
-      console.warn('Sharp detector fetch failed:', error)
+      console.warn('Whale Feed fetch failed:', error)
       setLastFetchAt(new Date().toISOString())
       setLastFetchError(error instanceof Error ? error.message : 'Unknown error')
     }
@@ -893,7 +953,7 @@ export default function SharpDetectorPanel({
     if (!hydrated) return
     setTrackedWallets((prev) => {
       const next = new Set(prev)
-      trades.forEach((trade) => {
+      betFeedTrades.forEach((trade) => {
         if (trade.source !== 'polymarket') return
         const wallet = normalizeWallet(trade.proxyWallet)
         if (wallet) next.add(wallet)
@@ -901,7 +961,7 @@ export default function SharpDetectorPanel({
       if (next.size === prev.length) return prev
       return Array.from(next)
     })
-  }, [hydrated, trades])
+  }, [hydrated, betFeedTrades])
 
   useEffect(() => {
     if (!hydrated) return
@@ -950,16 +1010,16 @@ export default function SharpDetectorPanel({
     return () => clearInterval(interval)
   }, [activeTab])
 
-  // Alert detection for new ultra-sharp trades
+  // Alert detection for new sharp money trades
   useEffect(() => {
     if (!showLocalAlerts || !alertsEnabled || activeTab !== 'sharp-money') return
 
-    const newUltraSharp = ultraSharpTrades.filter(
-      (trade) => !ultraSharpSeenIds.current.has(trade.id)
-    )
+    const newSharpMoney = sharpMoneyTrades
+      .map((entry) => entry.trade)
+      .filter((trade) => !sharpMoneySeenIds.current.has(trade.id))
 
-    if (newUltraSharp.length > 0) {
-      const newAlerts = newUltraSharp.map((trade) => ({
+    if (newSharpMoney.length > 0) {
+      const newAlerts = newSharpMoney.map((trade) => ({
         id: trade.id,
         trade,
         timestamp: new Date().toISOString(),
@@ -968,9 +1028,9 @@ export default function SharpDetectorPanel({
       setAlerts((prev) => [...newAlerts, ...prev].slice(0, 5)) // Keep max 5 alerts
 
       // Add to seen set
-      newUltraSharp.forEach((trade) => ultraSharpSeenIds.current.add(trade.id))
+      newSharpMoney.forEach((trade) => sharpMoneySeenIds.current.add(trade.id))
     }
-  }, [ultraSharpTrades, alertsEnabled, activeTab])
+  }, [sharpMoneyTrades, alertsEnabled, activeTab])
 
   // Auto-dismiss alerts after 30 seconds
   useEffect(() => {
@@ -991,7 +1051,7 @@ export default function SharpDetectorPanel({
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trades))
     } catch (error) {
-      console.warn('Failed to persist sharp detector cache:', error)
+      console.warn('Failed to persist Whale Feed cache:', error)
     }
   }, [hydrated, trades])
 
@@ -1097,7 +1157,7 @@ export default function SharpDetectorPanel({
 
       {/* Header with Title and Tabs */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-white">Sharp Detector</h2>
+        <h2 className="text-lg font-semibold text-white">Whale Feed</h2>
 
         {/* Tab Buttons - Centered */}
         <div className="flex items-center gap-2 bg-white/5 rounded-2xl p-1.5">
@@ -1129,9 +1189,9 @@ export default function SharpDetectorPanel({
                 Syndicate
               </span>
             )}
-            {isSyndicate && ultraSharpTrades.length > 0 && (
+            {isSyndicate && sharpMoneyTrades.length > 0 && (
               <span className="ml-1 px-2 py-1 text-[10px] bg-emerald-500/30 text-emerald-300 rounded-full font-bold">
-                {ultraSharpTrades.length}
+                {sharpMoneyTrades.length}
               </span>
             )}
           </button>
@@ -1326,11 +1386,11 @@ export default function SharpDetectorPanel({
             <div className="flex items-center gap-3">
               <h3 className="text-sm font-medium text-white/80 flex items-center gap-2">
                 <Zap className="w-4 h-4 text-emerald-400" />
-                Ultra-Sharp Plays
+                Sharp Money Signals
               </h3>
-              {activeSportsWithUltraSharp.length > 0 && (
+              {activeSportsWithSharpMoney.length > 0 && (
                 <div className="flex items-center gap-1.5">
-                  {activeSportsWithUltraSharp.slice(0, 4).map(({ sport, count }) => (
+                  {activeSportsWithSharpMoney.slice(0, 4).map(({ sport, count }) => (
                     <span
                       key={sport}
                       className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-white/5 border border-white/10 rounded text-white/60"
@@ -1367,24 +1427,25 @@ export default function SharpDetectorPanel({
           </div>
 
           {/* Empty State */}
-          {ultraSharpTrades.length === 0 && (
+          {sharpMoneyTrades.length === 0 && (
             <div className="rounded-2xl border border-white/10 bg-black/40 p-8 text-center">
               <Zap className="w-10 h-10 text-white/20 mx-auto mb-3" />
               <p className="text-white/60 text-sm">
-                No ultra-sharp plays detected right now.
+                No sharp money signals detected right now.
               </p>
               <p className="text-white/40 text-[11px] mt-1">
-                Ultra-sharp plays trigger on at least one signal (cluster, timing, divergence, cross-market EV, or big bet).
+                Signals trigger on EV edge, NCAAB clusters, or $100k+ nukes.
               </p>
             </div>
           )}
 
-          {/* Ultra-Sharp Trade Cards */}
-          {ultraSharpTrades.map((trade) => {
+          {/* Sharp Money Trade Cards */}
+          {sharpMoneyTrades.map((entry) => {
+            const { trade, isEv, isCluster, isNuke, clusterSize, evPercent } = entry
             const isFresh = now - new Date(trade.timestamp).getTime() < 2 * 60 * 1000
             const sharpTier = resolveSharpTier(trade.notional)
-            const hasRlm = trade.ultraSharpReasons?.some(r => r.type === 'rlm')
             const matchupLabel = resolveGameLabel(trade.marketTitle)
+            const targetLine = isEv ? resolveEvTargetLine(trade) : null
 
             return (
               <motion.div
@@ -1405,7 +1466,21 @@ export default function SharpDetectorPanel({
                       <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-emerald-500/20 border border-emerald-500/30 rounded text-emerald-300">
                         {trade.sport}
                       </span>
-                      {hasRlm && <RlmBadge />}
+                      {isEv && (
+                        <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-emerald-500/20 border border-emerald-500/30 rounded text-emerald-300">
+                          EV
+                        </span>
+                      )}
+                      {isCluster && (
+                        <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-blue-500/20 border border-blue-500/30 rounded text-blue-200">
+                          Cluster {clusterSize}
+                        </span>
+                      )}
+                      {isNuke && (
+                        <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-rose-500/20 border border-rose-500/30 rounded text-rose-200">
+                          Nuke
+                        </span>
+                      )}
                       {isFresh && (
                         <span className="px-2 py-0.5 text-[9px] uppercase tracking-wider bg-amber-500/20 border border-amber-500/30 rounded text-amber-300 animate-pulse">
                           New
@@ -1417,10 +1492,22 @@ export default function SharpDetectorPanel({
                     </h4>
                   </div>
                   <div className="text-right">
-                    <div className={cn('text-lg font-bold', resolveStrengthClass(trade.sharpStrength))}>
-                      {trade.sharpStrength}%
-                    </div>
-                    <div className="text-[10px] uppercase text-white/40">strength</div>
+                    {evPercent != null ? (
+                      <>
+                        <div
+                          className={cn(
+                            'text-lg font-bold',
+                            evPercent >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                          )}
+                        >
+                          {evPercent >= 0 ? '+' : ''}
+                          {evPercent.toFixed(1)}%
+                        </div>
+                        <div className="text-[10px] uppercase text-white/40">EV</div>
+                      </>
+                    ) : (
+                      <div className="text-[10px] uppercase text-white/40">EV n/a</div>
+                    )}
                   </div>
                 </div>
 
@@ -1443,25 +1530,25 @@ export default function SharpDetectorPanel({
                   </span>
                 </div>
 
-                {(trade.sportsbookBestOdds != null || trade.crossMarketEvPercent != null) && (
+                {(trade.sportsbookBestOdds != null || targetLine) && (
                   <div className="flex flex-wrap items-center gap-3 mb-3 text-[11px] text-white/60">
                     {trade.sportsbookBestOdds != null && (
                       <span>
-                        Best odds: {formatAmericanOdds(trade.sportsbookBestOdds)}
+                        Best book: {formatAmericanOdds(trade.sportsbookBestOdds)}
                         {trade.sportsbookBookTitle || trade.sportsbookBookKey
                           ? ` (${trade.sportsbookBookTitle ?? trade.sportsbookBookKey})`
                           : ''}
                       </span>
                     )}
-                    {trade.crossMarketEvPercent != null && (
-                      <span>EV: {trade.crossMarketEvPercent.toFixed(1)}%</span>
+                    {isEv && targetLine && (
+                      <span>
+                        Target 3% EV: {'<='} {targetLine.priceCents}c
+                        {targetLine.americanOdds != null
+                          ? ` (${formatAmericanOdds(targetLine.americanOdds)})`
+                          : ''}
+                      </span>
                     )}
                   </div>
-                )}
-
-                {/* Why it's sharp section */}
-                {trade.ultraSharpReasons && trade.ultraSharpReasons.length > 0 && (
-                  <WhyItsSharpSection reasons={trade.ultraSharpReasons} />
                 )}
 
                 {/* Footer */}
@@ -1499,3 +1586,4 @@ export default function SharpDetectorPanel({
     </div>
   )
 }
+

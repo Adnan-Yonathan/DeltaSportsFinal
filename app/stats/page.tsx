@@ -33,11 +33,11 @@ export default async function StatsCenterPage() {
             <h1 className="text-3xl font-semibold">
               Team and player stats
             </h1>
-          <p className="max-w-2xl text-sm text-white/60">
-            Pull ESPN-backed stats across NBA, NFL, MLB, NCAAB, and CFB. Search teams,
-            players, and injuries from one place.
-          </p>
-        </header>
+            <p className="max-w-2xl text-sm text-white/60">
+              Pull ESPN-backed stats across NBA, NFL, MLB, NCAAB, and CFB. Search teams,
+              players, and injuries from one place.
+            </p>
+          </header>
           {!hasAccess ? (
             <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5">
               <div className="pointer-events-none blur-sm">

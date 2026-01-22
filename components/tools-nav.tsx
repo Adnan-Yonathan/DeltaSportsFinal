@@ -11,14 +11,14 @@ const TOOLS_NAV_ITEMS = [
   { href: "/market-projections", label: "Markets", icon: BarChart3 },
   { href: "/player-projections", label: "Sharp Props", icon: Target },
   { href: "/parlay-predictor", label: "Parlay", icon: Layers3 },
-  { href: "/ev-bets", label: "Live Odds", icon: Radio },
+  { href: "/ev-bets", label: "Line Shopping", icon: Radio },
 ]
 
 const MOBILE_NAV_ITEMS = [
   { href: "/market-projections", label: "Markets", icon: BarChart3 },
   { href: "/player-projections", label: "Sharp Props", icon: Target },
   { href: "/parlay-predictor", label: "Parlay", icon: Layers3 },
-  { href: "/ev-bets", label: "Live Odds", icon: Radio },
+  { href: "/ev-bets", label: "Line Shopping", icon: Radio },
   { href: "/live-projections", label: "Live", icon: PieChart },
 ]
 

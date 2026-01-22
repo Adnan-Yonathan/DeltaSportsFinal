@@ -6,31 +6,52 @@ import { DottedSurface } from "@/components/ui/dotted-surface"
 
 const PATCH_NOTES = [
   {
-    title: "Sharp Money Feed",
+    title: "Whale Feed + Sharp Money Signals",
     points: [
-      "New Sharp Money tab highlights top sharp signals in real time.",
-      "Improved clustering, grading, and market signal tags.",
+      "Sharp Detector renamed to Whale Feed across the app.",
+      "New signal rules: EV, NCAAB clusters, and $100k+ nukes with filter-based ranking.",
     ],
   },
   {
-    title: "Sharp Props Tool",
+    title: "Parlay Pro + EV Parlays",
     points: [
-      "Player prop sharp tool now ranks the strongest prop edges.",
-      "New filters help isolate the best props by sport and market.",
+      "EV Parlays are now the primary tab with 3%+ EV threshold.",
+      "Parlay builder remains as the secondary tab for custom tickets.",
     ],
   },
   {
-    title: "AI Chat Updates",
+    title: "Line Shopping",
     points: [
-      "Faster chat responses with tighter market context.",
-      "Cleaner summaries for matchup and slate questions.",
+      "Renamed from Live Odds with pregame-only boards.",
+      "Best odds now highlighted for prediction markets vs sportsbooks.",
     ],
   },
   {
-    title: "Projection Model Upgrades",
+    title: "Live Projections",
     points: [
-      "Fresh projection models across key sports markets.",
-      "Improved calibration and stability for daily slates.",
+      "ESPN win probability meter added for every game.",
+      "Live spread interval derived from win probability.",
+    ],
+  },
+  {
+    title: "Shareable Assets + Hero",
+    points: [
+      "Share cards rebuilt with credit-card styling and sportsbook imagery.",
+      "Rotating hero games are now clickable pills with a built-in guide.",
+    ],
+  },
+  {
+    title: "Calculators + News Feed",
+    points: [
+      "New calculators hub: Kelly, arb, parlay, EV, de-vig, promo, and more.",
+      "News feed merged into one ticker (includes CBB) with hover slowdown.",
+    ],
+  },
+  {
+    title: "Quality-of-Life",
+    points: [
+      "Daily recap is now a main-page button and refreshes at 6am ET.",
+      "NCAAB line move sensitivity reduced to NBA levels.",
     ],
   },
 ]
@@ -44,9 +65,9 @@ export default function PatchNotesPage() {
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.3em] text-white/40">Patch Notes</p>
-            <h1 className="text-3xl font-bold">Patch 0.3</h1>
+            <h1 className="text-3xl font-bold">Patch 0.4</h1>
             <p className="text-sm text-white/60">
-              Sharp money feed, sharp props, and new model upgrades.
+              Whale Feed signals, EV parlays, line shopping, and live projections.
             </p>
           </div>
           <Link

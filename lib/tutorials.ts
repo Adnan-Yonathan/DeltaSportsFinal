@@ -166,158 +166,62 @@ Props at -110 with sharp consensus hit at **~57%** (better than sides).
   "parlay-pro": {
     id: "parlay-pro",
     title: "Parlay Pro",
-    subtitle: "Build +EV parlays that actually make money",
+    subtitle: "Sportsbook EV parlays plus a correlation-aware builder",
     sections: [
       {
-        title: "When Parlays Are Profitable",
-        content: `**Most parlays lose money. Ours don't. Here's why:**
+        title: "What the EV Parlays Tab Does",
+        content: `**These are pregame, sportsbook-only EV parlays.**
 
-Books calculate parlays assuming legs are independent. They're not. We exploit this.
+- We only show tickets with **EV 3%+**.
+- We avoid prediction markets and filter longshot legs (default **+500**, with higher caps available).
+- Parlays are capped at **2-5 legs**.
 
-**Only bet parlays when:**
-• **Edge is positive** - Our True Odds < Book Odds
-• **Correlation is positive** - Legs boost each other
-• **2-3 legs max** - More legs = more variance, less edge
-
-**Skip the parlay if:**
-• Edge is negative or near zero
-• Legs are negatively correlated (work against each other)
-• You're adding legs just for bigger payout`,
+**Best book shown** = the sportsbook offering the strongest parlay price across all legs.`,
       },
       {
-        title: "How to Build Profitable Parlays",
-        content: `**The profitable parlay formula:**
+        title: "Minimum Odds Required",
+        content: `**We show the minimum parlay odds needed to stay +EV.**
 
-1. **Start with a sharp side** - Use an edge from Sharp Projections
-2. **Add correlated legs** - Same game, same direction
-3. **Check the edge** - Must be positive after our correlation adjustment
-4. **Keep it short** - 2 legs is ideal, 3 max
-
-**Best correlation combos:**
-• Favorite spread + Over (if team covers, game went high)
-• Underdog ML + Under (close games tend to be lower scoring)
-• Player Over + Team Over (star performs = team scores)
-
-**Avoid:**
-• Favorite spread + Under (contradictory game scripts)
-• Random cross-game parlays (no correlation = just multiplied juice)`,
+- If you shop another book, you need **at least that minimum** for the ticket to remain 3%+ EV.
+- If the best book is below the minimum, **skip** the parlay.`,
       },
       {
-        title: "Parlay Bet Sizing",
-        content: `**Parlays are HIGH variance. Size small, bet often.**
+        title: "Build Your Own",
+        content: `**Use the builder when you want to craft your own ticket.**
 
-| Legs | Bet Size | Expected Hit Rate |
-|------|----------|-------------------|
-| 2 legs | 0.5% of bankroll | ~30% |
-| 3 legs | 0.25% of bankroll | ~15% |
-
-**Why small sizing works:**
-You'll lose most parlays. That's fine. When they hit, they pay 2.5-6x.
-
-**The math:**
-• 2-leg parlay at +260 with 33% true odds = **+5.8% EV**
-• Bet $50 twenty times = -$650 in losses, +$780 in wins
-• **Net: +$130 profit**
-
-**Never chase parlay losses.** Stick to the system.`,
-      },
-      {
-        title: "Expected Parlay Profit",
-        content: `**Profitable parlays require volume:**
-
-With +5% average edge on 2-leg parlays:
-
-**Per 100 parlays at $50/bet:**
-• Total wagered: $5,000
-• Expected return: $5,250
-• **Net profit: +$250**
-
-**Monthly projection (2 parlays/day):**
-• 60 parlays/month
-• ~$150/month profit
-• With $10k bankroll: **~$300/month from parlays**
-
-**Key insight:** Parlays are supplemental income. Your core profit comes from sides and props. Parlays add upside on correlated spots.
-
-**Don't force parlays.** Only bet when our model shows positive edge.`,
+- Start with a strong edge, then add correlated legs.
+- Keep it short and confirm the parlay stays +EV after correlation.
+- The same leg-odds filter and 2-5 leg rules apply.`,
       },
     ],
   },
 
-  "ev-bets": {
+    "ev-bets": {
     id: "ev-bets",
-    title: "EV Bets",
-    subtitle: "Pure math edges across sportsbooks",
+    title: "Line Shopping",
+    subtitle: "Compare pregame lines across books and prediction markets",
     sections: [
       {
-        title: "When to Bet EV Spots",
-        content: `**EV bets are the purest form of profitable betting.**
+        title: "What You Are Seeing",
+        content: `**This page is for pregame line shopping.**
 
-Every bet here has positive expected value based on market consensus.
-
-**Bet when:**
-• **EV 3%+**: Standard profitable play
-• **EV 5%+**: Strong edge, increase size
-• **EV 8%+**: Rare, max value—bet immediately
-
-**Speed is everything:**
-• EV spots disappear in minutes (sometimes seconds)
-• Books adjust lines constantly
-• First to bet = biggest edge
-• If you see it, bet it—don't wait`,
+- Each game shows prices across sportsbooks and prediction markets.
+- Best odds are highlighted separately for prediction markets and sportsbooks.
+- Use it to grab the best number before it moves.`,
       },
       {
-        title: "How to Profit from EV Bets",
-        content: `**Your EV betting workflow:**
+        title: "How to Use It",
+        content: `**A simple workflow:**
 
-1. **Check the board frequently** - EV spots appear and vanish
-2. **Sort by EV %** - Highest first
-3. **Have accounts ready** - You need multiple books (DraftKings, FanDuel, BetMGM, Caesars)
-4. **Bet instantly** - Don't verify, don't hesitate
-5. **Bet everything 3%+** - Volume is your friend
-
-**Why this is profitable:**
-We compare every line across all major books to find mispriced odds. When one book is off, you bet there. Simple math, consistent profit.
-
-**The more you bet, the more you make.** There's no limit to EV volume—bet every spot you can.`,
+1. Pick your sport and market type.
+2. Scan for the highlighted best odds per side.
+3. Take the best pregame number at the book or market you use.`,
       },
       {
-        title: "EV Bet Sizing",
-        content: `**Size based on edge—bigger edge = bigger bet:**
+        title: "Why It Matters",
+        content: `**Shopping the line is instant edge.**
 
-| EV % | Bet Size | Example ($10k roll) |
-|------|----------|---------------------|
-| 3-4% | 1% of bankroll | $100 |
-| 5-6% | 1.5% of bankroll | $150 |
-| 7%+ | 2% of bankroll | $200 |
-
-**Key principles:**
-• EV bets are lower variance than props/parlays
-• You can size more aggressively
-• Still cap at 2% max per bet
-
-**Handle limits:**
-Books will limit you if you only bet +EV. Mix in some recreational action or use multiple accounts across household members.`,
-      },
-      {
-        title: "Expected EV Profit",
-        content: `**EV betting is the most consistent profit source.**
-
-Average EV on our board: **~4%**
-
-**Per 100 bets at $100/bet:**
-• Total wagered: $10,000
-• Expected return: $10,400
-• **Net profit: +$400**
-
-**Monthly projection (10 EV bets/day):**
-• 300 bets/month
-• ~$1,200/month profit per $100 unit
-• With $10k bankroll: **~$2,400/month from EV alone**
-
-**This is your highest volume, most consistent edge.** Sharp Projections tells you what to bet. EV Bets tells you where to bet it for the best price.
-
-**Use both together for maximum profit.**`,
+Even small price improvements add up over a season. Always take the best pregame price available.`,
       },
     ],
   },
@@ -328,20 +232,18 @@ Average EV on our board: **~4%**
     subtitle: "Profit from in-game edges in real-time",
     sections: [
       {
-        title: "When to Bet Live",
-        content: `**Live betting is high-risk, high-reward. Only bet clear edges.**
+        title: "How the Meter Works",
+        content: `**We use ESPN win probability to build a live spread range.**
 
-**Bet when:**
-• **Edge 5%+**: Live vig is higher—you need bigger edges
-• **Line is stale**: Timeout, commercial break, quarter break
-• **Momentum shift**: Books are slow to adjust after big runs
-• **Injury/foul trouble**: Books lag on player impact
+**What you see:**
+• ESPN win probability meter per game
+• A derived spread line (favored team)
+• A confidence range that tightens as time runs out
 
-**Skip when:**
-• Edge under 4% (juice eats it)
-• Game is chaotic/unpredictable
-• Line just moved (books already adjusted)
-• You're chasing a pre-game loss`,
+**Use it to spot:**
+• Books lagging behind a win-probability swing
+• Stale lines after timeouts or quarter breaks
+• Overreactions to short scoring runs`,
       },
       {
         title: "How to Profit from Live Betting",
@@ -399,11 +301,86 @@ With 6% average edge on live bets:
 **Combine all tools for max profit:**
 • Sharp Projections: ~$1,500/mo
 • Sharp Props: ~$680/mo
-• EV Bets: ~$2,400/mo
+• Line Shopping: ~$2,400/mo
 • Parlays: ~$300/mo
 • Live: ~$400/mo
 • **Total: ~$5,280/month on $10k bankroll**`,
       },
     ],
   },
+  "bet-feed": {
+    id: "bet-feed",
+    title: "Bet Feed",
+    subtitle: "Live market activity from prediction markets",
+    sections: [
+      {
+        title: "How it works",
+        content: `The bet feed streams large and fast trades as they hit the market.
+
+- Shows real money moving markets, not opinions.
+- Highlights price moves after size hits.
+- Helps you see which games are attracting action.`,
+      },
+      {
+        title: "How to use it to make money",
+        content: `Use it as a timing and validation tool.
+
+1. Watch for clusters on the same outcome.
+2. Compare the price to your sportsbook.
+3. If your book still has the number, act quickly.
+4. If the price already moved, skip it.
+
+The goal is to beat the closing line, not chase late steam.`,
+      },
+      {
+        title: "Best practices",
+        content: `- Focus on repeat signals, not single bets.
+- Avoid live games unless you are actively live betting.
+- Track one or two games at a time for clarity.
+- Only bet when the price is still available at your book.`,
+      },
+    ],
+  },
+  "sharp-money": {
+    id: "sharp-money",
+    title: "Sharp Money",
+    subtitle: "Verified sharp signals with best-book pricing",
+    sections: [
+      {
+        title: "Signals and criteria",
+        content: `Sharp Money is a short list of bets that trigger one or more signals.
+
+- Big bet size, clusters, timing, divergence.
+- Cross-market EV based on no-vig sportsbook consensus.
+- A best book and price are required to act.
+
+More signals means stronger confirmation, but price is still king.`,
+      },
+      {
+        title: "How to bet the right book",
+        content: `Always use the recommended book and odds.
+
+1. Match the listed book and line.
+2. If the price moved or the book is unavailable, skip it.
+3. Do not assume the same edge exists at a worse price.
+
+The edge is tied to the exact price, not just the side.`,
+      },
+      {
+        title: "Sizing by edge",
+        content: `Scale your bet size with the EV.
+
+| EV Edge | Bet Size |
+|--------|----------|
+| 3-4% | 0.5u |
+| 5-7% | 1.0u |
+| 8%+ | 1.5u |
+
+Sizing matters because small edges need volume, and large edges are rare.
+Never exceed 2u on a single bet.`,
+      },
+    ],
+  },
 }
+
+

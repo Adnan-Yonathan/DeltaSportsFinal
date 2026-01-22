@@ -28,7 +28,7 @@ const defaultTiers: PricingTier[] = [
         included: true,
       },
       {
-        name: "Sharp Detector",
+        name: "Whale Feed",
         description: "Track sharp action and market sentiment.",
         included: true,
       },
@@ -69,7 +69,7 @@ const defaultTiers: PricingTier[] = [
     features: [
       {
         name: "Everything in Pro",
-        description: "Sharp detector, sharp projections, and stats.",
+        description: "Whale Feed, sharp projections, and stats.",
         included: true,
       },
       {

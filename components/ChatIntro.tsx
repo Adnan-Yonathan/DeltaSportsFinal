@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { UserPlus, Twitter } from 'lucide-react'
@@ -15,6 +16,8 @@ import { Announcement, AnnouncementTag, AnnouncementTitle } from '@/components/u
 import { FeaturesSix } from '@/components/ui/features-6'
 import SectionWithMockup from '@/components/ui/section-with-mockup'
 import { ArrowUpRight } from 'lucide-react'
+import DailyRecapCard from '@/components/DailyRecapCard'
+import { useDailyRecap } from '@/hooks/useDailyRecap'
 
 const CUSTOMER_SCREENSHOTS = [
   {
@@ -52,6 +55,8 @@ export default function ChatIntro({
 }: ChatIntroProps) {
   const [sending, setSending] = useState(false)
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null)
+  const [showRecap, setShowRecap] = useState(false)
+  const { recap, loading: recapLoading } = useDailyRecap()
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -137,7 +142,7 @@ export default function ChatIntro({
         <div className="hidden lg:flex fixed right-4 top-1/2 -translate-y-1/2 z-30">
           <Link href="/sharp-detector" className="relative w-[220px] sm:w-[260px] rounded-3xl border border-emerald-400/40 bg-black/70 p-4 shadow-2xl shadow-emerald-500/20 backdrop-blur hover:border-emerald-400/60 transition-colors">
             <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
-              <span>Sharp Detector</span>
+              <span>Whale Feed</span>
               <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
                 Members Only
               </span>
@@ -146,7 +151,7 @@ export default function ChatIntro({
               Track $2k+ prediction market bets and see if the market respects or fades them.
             </p>
             <div className="mt-4 w-full gap-2 rounded-full bg-emerald-400/20 text-emerald-200 px-4 py-2 text-center text-sm font-medium">
-              View Sharp Detector
+              View Whale Feed
             </div>
           </Link>
         </div>
@@ -214,7 +219,7 @@ export default function ChatIntro({
               <SectionWithMockup
                 title={
                   <>
-                    Sharp detector
+                    Whale Feed
                     <br />
                     built on real money.
                   </>
@@ -300,7 +305,7 @@ export default function ChatIntro({
           <Link href="/patch-notes" className="relative z-10 pointer-events-auto">
             <Announcement className="border-[#34d399]/30 bg-black/70 hover:border-[#34d399]/50 hover:bg-black/90 cursor-pointer">
               <AnnouncementTag className="bg-[#34d399]/20 text-[#34d399]">
-                Patch 0.3
+                Patch 0.4
               </AnnouncementTag>
               <AnnouncementTitle className="text-white/80 text-sm">
                 View patch notes
@@ -308,6 +313,19 @@ export default function ChatIntro({
               </AnnouncementTitle>
             </Announcement>
           </Link>
+          <button
+            type="button"
+            onClick={() => {
+              if (recap) setShowRecap(true)
+            }}
+            disabled={!recap || recapLoading}
+            className="relative z-10 pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Daily Recap
+            <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
+              {recapLoading ? 'Loading' : recap?.recapDate ?? 'No recap'}
+            </span>
+          </button>
           <Link
             href="https://x.com/DeltaSportsAI"
             target="_blank"
@@ -346,6 +364,14 @@ export default function ChatIntro({
       <div className="mt-3 w-full">
         <LatestNewsStrip />
       </div>
+
+      {showRecap && recap && typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 z-[94] flex items-center justify-center bg-black/70 backdrop-blur-md px-4 py-6">
+            <DailyRecapCard recap={recap} onDismiss={() => setShowRecap(false)} />
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

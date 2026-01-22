@@ -25,6 +25,7 @@ export interface CrossMarketEVOptions {
   minBooks?: number // Minimum books required for consensus (default 2)
   markets?: string[] // Which markets to include
   limit?: number // Max opportunities to return
+  maxPositiveOdds?: number // Max allowed positive odds for opportunities
   includeProps?: boolean // Include player props (today only)
   propMarkets?: string[] // Which prop markets to include
   slateMode?: 'today' | 'next' | 'all' // Team market filtering mode
@@ -46,6 +47,7 @@ const DEFAULT_OPTIONS: Required<CrossMarketEVOptions> = {
   minBooks: 2,
   markets: [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS],
   limit: 50, // Increased limit
+  maxPositiveOdds: 1000,
   includeProps: true,
   propMarkets: [], // Empty = all markets
   slateMode: 'next',
@@ -54,12 +56,12 @@ const DEFAULT_OPTIONS: Required<CrossMarketEVOptions> = {
 }
 
 const MAX_POSITIVE_ODDS = 1000
-const MAX_ODDS = 1000
+const MAX_ODDS = 100000
 
-const withinOddsCaps = (odds: number): boolean => {
+const withinOddsCaps = (odds: number, maxPositiveOdds: number): boolean => {
   if (!Number.isFinite(odds)) return false
   if (odds > MAX_ODDS) return false
-  if (odds > 0 && odds > MAX_POSITIVE_ODDS) return false
+  if (odds > 0 && odds > maxPositiveOdds) return false
   return true
 }
 
@@ -279,7 +281,8 @@ export async function findEVOpportunities(
 
   // Rank by EV and limit results
   const ranked = rankByEV(allOpportunities)
-  const filtered = ranked.filter((opp) => withinOddsCaps(opp.bestOdds))
+  const maxPositiveOdds = opts.maxPositiveOdds ?? MAX_POSITIVE_ODDS
+  const filtered = ranked.filter((opp) => withinOddsCaps(opp.bestOdds, maxPositiveOdds))
   return filtered.slice(0, opts.limit)
 }
 

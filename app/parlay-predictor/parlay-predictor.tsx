@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import PlayerPropSelector from './player-prop-selector'
 import TutorialPopup from "@/components/TutorialPopup"
+import EvParlaysClient from './ev-parlays-client'
 
 type BestOddsSelection = {
   selection: string
@@ -234,6 +235,7 @@ const buildSelections = (
 }
 
 export default function ParlayPredictor() {
+  const [activeTab, setActiveTab] = useState<'ev-parlays' | 'builder'>('ev-parlays')
   const [sport, setSport] = useState(SPORTS[0]?.value || 'americanfootball_nfl')
   const [mode, setMode] = useState<'single' | 'multi'>('single')
   const [games, setGames] = useState<MatchupGame[]>([])
@@ -248,6 +250,7 @@ export default function ParlayPredictor() {
   const [sharpError, setSharpError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (activeTab !== 'builder') return
     let active = true
     const loadSharps = async () => {
       setSharpLoading(true)
@@ -279,9 +282,10 @@ export default function ParlayPredictor() {
       active = false
       clearInterval(interval)
     }
-  }, [])
+  }, [activeTab])
 
   useEffect(() => {
+    if (activeTab !== 'builder') return
     if (mode !== 'single') return
     let active = true
     const load = async () => {
@@ -314,7 +318,7 @@ export default function ParlayPredictor() {
     return () => {
       active = false
     }
-  }, [sport, mode])
+  }, [sport, mode, activeTab])
 
   const loadGamesForSport = async (targetSport: string) => {
     if (gamesBySport[targetSport]) return
@@ -481,69 +485,98 @@ export default function ParlayPredictor() {
     <>
       <TutorialPopup tutorialId="parlay-pro" />
       <div className="mt-4 sm:mt-8 space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex items-center gap-2">
-          <label className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-white/50">
-            Mode
-          </label>
-          <div className="flex gap-1.5">
-            <button
-              type="button"
-              onClick={() => setMode('single')}
-              className={`rounded-full border px-3 py-1.5 text-[10px] sm:text-xs uppercase tracking-[0.15em] ${
-                mode === 'single'
-                  ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-200'
-                  : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'
-              }`}
-            >
-              Single
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('multi')}
-              className={`rounded-full border px-3 py-1.5 text-[10px] sm:text-xs uppercase tracking-[0.15em] ${
-                mode === 'multi'
-                  ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-200'
-                  : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'
-              }`}
-            >
-              Multi
-            </button>
-          </div>
+        <div className="flex flex-wrap items-center justify-center gap-2 rounded-2xl bg-white/5 p-1.5">
+          <button
+            type="button"
+            onClick={() => setActiveTab('ev-parlays')}
+            className={`rounded-xl px-8 py-3 text-base font-semibold transition-all min-w-[160px] ${
+              activeTab === 'ev-parlays'
+                ? 'bg-emerald-500/20 text-emerald-300 shadow-sm'
+                : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+            }`}
+          >
+            EV Parlays
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('builder')}
+            className={`rounded-xl px-8 py-3 text-base font-semibold transition-all min-w-[180px] ${
+              activeTab === 'builder'
+                ? 'bg-emerald-500/20 text-emerald-300 shadow-sm'
+                : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+            }`}
+          >
+            Build Your Own
+          </button>
         </div>
-        {mode === 'single' && (
-          <div className="flex items-center gap-2">
-            <label className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-white/50">
-              Sport
-            </label>
-            <select
-              value={sport}
-              onChange={(event) => setSport(event.target.value)}
-              className="rounded-full border border-white/20 bg-black/40 px-3 py-1.5 text-xs sm:text-sm text-white"
-            >
-              {SPORTS.map((item) => (
-                <option
-                  key={item.value}
-                  value={item.value}
-                  className="bg-black"
-                  disabled={item.disabled}
-                >
-                  {item.label}{item.disabled ? ' (locked)' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        {activeTab === 'ev-parlays' ? (
+          <EvParlaysClient />
+        ) : (
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-white/50">
+                  Mode
+                </label>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setMode('single')}
+                    className={`rounded-full border px-3 py-1.5 text-[10px] sm:text-xs uppercase tracking-[0.15em] ${
+                      mode === 'single'
+                        ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-200'
+                        : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'
+                    }`}
+                  >
+                    Single
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('multi')}
+                    className={`rounded-full border px-3 py-1.5 text-[10px] sm:text-xs uppercase tracking-[0.15em] ${
+                      mode === 'multi'
+                        ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-200'
+                        : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'
+                    }`}
+                  >
+                    Multi
+                  </button>
+                </div>
+              </div>
+              {mode === 'single' && (
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-white/50">
+                    Sport
+                  </label>
+                  <select
+                    value={sport}
+                    onChange={(event) => setSport(event.target.value)}
+                    className="rounded-full border border-white/20 bg-black/40 px-3 py-1.5 text-xs sm:text-sm text-white"
+                  >
+                    {SPORTS.map((item) => (
+                      <option
+                        key={item.value}
+                        value={item.value}
+                        className="bg-black"
+                        disabled={item.disabled}
+                      >
+                        {item.label}{item.disabled ? ' (locked)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-[10px] uppercase tracking-[0.3em] text-white/50">
               Sharpest bets right now
             </p>
             <p className="text-sm text-white/70">
-              Top 10 by sharp % from the Sharp Detector.
+              Top 10 by sharp % from the Whale Feed.
             </p>
           </div>
           <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">
@@ -966,6 +999,8 @@ export default function ParlayPredictor() {
           </div>
         </div>
       )}
+          </>
+        )}
       </div>
     </>
   )

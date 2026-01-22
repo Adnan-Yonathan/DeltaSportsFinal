@@ -1,6 +1,7 @@
 'use client'
 
 import { forwardRef } from 'react'
+import { VerificationCard } from '@/components/ui/verification-card'
 
 // Sharp tier labels and colors
 const SHARP_TIER_LABELS: Record<string, string> = {
@@ -16,6 +17,8 @@ const SHARP_TIER_COLORS: Record<string, { bg: string; text: string; border: stri
   whale: { bg: 'rgba(245, 158, 11, 0.2)', text: '#fcd34d', border: 'rgba(251, 191, 36, 0.5)' },
   megalodon: { bg: 'rgba(16, 185, 129, 0.2)', text: '#6ee7b7', border: 'rgba(52, 211, 153, 0.5)' },
 }
+
+const CARD_BACKGROUND = '/sportsbook.jpg'
 
 function getSharpTier(notional: number): string {
   if (notional >= 25000) return 'megalodon'
@@ -49,6 +52,14 @@ function formatDate(dateStr: string): string {
   })
 }
 
+function formatMonthYear(dateStr: string): string {
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return 'N/A'
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = String(date.getFullYear()).slice(-2)
+  return `${month}/${year}`
+}
+
 export interface ShareableTradeCardProps {
   trade: {
     id: string
@@ -77,6 +88,7 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
     const tierColors = SHARP_TIER_COLORS[tier]
     const displayMatchup = matchupLabel || trade.marketTitle
     const eventDate = trade.eventDate || formatDate(trade.timestamp)
+    const cardValidThru = formatMonthYear(trade.eventDate || trade.timestamp)
 
     return (
       <div
@@ -96,147 +108,87 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
           style={{
             width: 1200,
             height: 628,
-            background: '#0a0a0a',
+            background: '#000000',
             color: '#ffffff',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
             opacity: 1,
           }}
         >
-          {/* Header - deltasports.app prominently centered */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '28px 48px 12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  backgroundColor: '#0a0a0a',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 22,
+                  fontWeight: 700,
+                }}
+              >
+                Δ
+              </div>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 1 }}>
+                  deltasports.app
+                </div>
+                <div style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.5)' }}>
+                  Sharp money snapshot
+                </div>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' as const }}>
+              <div style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.5)' }}>
+                Market
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 600 }}>{trade.marketTitle}</div>
+            </div>
+          </div>
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '24px 48px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-              backgroundColor: '#0a0a0a',
-              gap: 8,
+              gap: 24,
+              padding: '12px 48px 32px',
+              flex: 1,
+              backgroundColor: '#000000',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              {/* Delta logo - white on black */}
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 8,
-                  backgroundColor: '#000000',
-                  border: '2px solid rgba(255, 255, 255, 0.3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 26,
-                  fontWeight: 700,
-                  color: '#ffffff',
-                }}
-              >
-                Δ
-              </div>
-              <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: 1, color: '#ffffff' }}>
-                deltasports.app
-              </span>
+            <div style={{ transform: 'scale(2.2)', marginTop: 24 }}>
+              <VerificationCard
+                backgroundImage={CARD_BACKGROUND}
+                backgroundPosition="right top"
+                label={`${trade.sport} SHARP`}
+                idNumber={`LINE ${formatOdds(trade.priceCents, trade.americanOdds)}`}
+                name={displayMatchup}
+                validThru={cardValidThru}
+              />
             </div>
-            <span style={{ fontSize: 18, fontWeight: 600, color: '#34d399', letterSpacing: 0.5 }}>
-              Make money betting like a sharp.
-            </span>
-          </div>
-
-          {/* Content */}
-          <div style={{ padding: '32px 48px', flex: 1, backgroundColor: '#0a0a0a' }}>
-            {/* Sport, Source, and Date Row */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 28,
-              }}
-            >
-              <span style={{ fontSize: 20, fontWeight: 600, color: '#34d399' }}>{trade.sport}</span>
-              <span style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)' }}>
-                {eventDate} • via {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
-              </span>
-            </div>
-
-            {/* Main Card */}
-            <div
-              style={{
-                borderRadius: 24,
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                padding: 40,
-              }}
-            >
-              {/* Matchup */}
-              <div style={{ fontSize: 36, fontWeight: 700, color: '#ffffff', marginBottom: 24 }}>
-                {displayMatchup}
+            <div style={{ textAlign: 'center' as const }}>
+              <div style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.6)' }}>
+                {eventDate} - {trade.outcome} - {formatCurrency(trade.notional)} - {tierLabel}
               </div>
-
-              {/* Bet Details */}
-              <div style={{ fontSize: 24, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 32 }}>
-                {trade.outcome}
-              </div>
-
-              {/* Odds and Size Row */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div
-                    style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)', marginBottom: 4 }}
-                  >
-                    Odds
-                  </div>
-                  <div style={{ fontSize: 28, fontWeight: 600, color: '#ffffff' }}>
-                    {formatOdds(trade.priceCents, trade.americanOdds)}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ textAlign: 'right' as const }}>
-                    <div
-                      style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)', marginBottom: 4 }}
-                    >
-                      Size
-                    </div>
-                    <div style={{ fontSize: 28, fontWeight: 700, color: '#ffffff' }}>
-                      {formatCurrency(trade.notional)}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: 9999,
-                      fontSize: 16,
-                      fontWeight: 700,
-                      textTransform: 'uppercase' as const,
-                      letterSpacing: 1,
-                      backgroundColor: tierColors.bg,
-                      color: tierColors.text,
-                      border: `1px solid ${tierColors.border}`,
-                    }}
-                  >
-                    {tierLabel}
-                  </div>
-                </div>
+              <div style={{ fontSize: 12, color: tierColors.text }}>
+                via {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
               </div>
             </div>
-          </div>
-
-          {/* Footer - simple tagline */}
-          <div
-            style={{
-              padding: '20px 48px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-              backgroundColor: '#0a0a0a',
-              textAlign: 'center' as const,
-            }}
-          >
-            <span style={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.4)' }}>
-              Track sharp money in real-time
-            </span>
           </div>
         </div>
       </div>

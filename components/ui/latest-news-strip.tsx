@@ -14,29 +14,18 @@ type Article = {
   league: string
 }
 
-type LeagueKey = "nba" | "nfl" | "mlb" | "nhl"
-
-const LEAGUE_TABS: { key: LeagueKey; label: string }[] = [
-  { key: "nba", label: "NBA" },
-  { key: "nfl", label: "NFL" },
-  { key: "mlb", label: "MLB" },
-  { key: "nhl", label: "NHL" },
-]
-
 export function LatestNewsStrip() {
   const [articles, setArticles] = useState<Article[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [league, setLeague] = useState<LeagueKey>("nba")
-
-  const skeletons = useMemo(() => Array.from({ length: 4 }), [])
+  const [isHovered, setIsHovered] = useState(false)
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch(`/api/news/latest?league=${league}&limit=10`)
+        const res = await fetch(`/api/news/latest?league=all&limit=40`)
         if (!res.ok) throw new Error(`status ${res.status}`)
         const data = await res.json()
         setArticles(Array.isArray(data?.articles) ? data.articles : [])
@@ -49,7 +38,7 @@ export function LatestNewsStrip() {
       }
     }
     load()
-  }, [league])
+  }, [])
 
   // Duplicate articles for seamless loop
   const duplicatedArticles = useMemo(() => {
@@ -58,44 +47,12 @@ export function LatestNewsStrip() {
 
   return (
     <div className="w-full bg-transparent">
-      {/* Mobile: Horizontal League Selector on Top */}
-      <div className="flex md:hidden flex-wrap items-center justify-center gap-1.5 mb-2 px-1">
-        {LEAGUE_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setLeague(tab.key)}
-            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${
-              league === tab.key
-                ? "bg-emerald-500 text-white"
-                : "border border-emerald-500/30 text-emerald-200 hover:bg-emerald-900/40"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Desktop: Side by Side Layout with Selector Outside */}
-      <div className="flex items-center justify-center gap-4">
-        {/* Quadrant League Selector - Hidden on Mobile */}
-        <div className="hidden md:grid grid-cols-2 gap-1.5">
-          {LEAGUE_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setLeague(tab.key)}
-              className={`rounded-md px-2.5 py-1.5 text-[10px] font-semibold transition ${
-                league === tab.key
-                  ? "bg-emerald-500 text-white"
-                  : "border border-emerald-500/30 text-emerald-200 hover:bg-emerald-900/40"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Slideshow Container - Aligned with Chatbox */}
-        <div className="w-full max-w-3xl relative min-h-[50px] px-1">
+      <div className="flex items-center justify-center">
+        <div
+          className="w-full max-w-3xl relative min-h-[50px] px-1"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
         {loading ? (
           <div className="rounded-md border border-emerald-500/10 bg-transparent p-2 animate-pulse">
             <div className="h-2.5 w-2/3 rounded bg-emerald-900/40 mb-1.5" />
@@ -117,7 +74,7 @@ export function LatestNewsStrip() {
                 x: {
                   repeat: Infinity,
                   repeatType: "loop",
-                  duration: articles.length * 2,
+                  duration: (articles.length || 1) * (isHovered ? 3.5 : 1.2),
                   ease: "linear",
                 },
               }}

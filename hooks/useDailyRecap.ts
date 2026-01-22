@@ -19,8 +19,23 @@ export function useDailyRecap(): UseDailyRecapResult {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const getEasternNow = () =>
+    new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
+
+  const getMsUntilNextEasternSix = () => {
+    const easternNow = getEasternNow()
+    const next = new Date(easternNow)
+    next.setHours(6, 0, 0, 0)
+    if (easternNow >= next) {
+      next.setDate(next.getDate() + 1)
+    }
+    return Math.max(1000, next.getTime() - easternNow.getTime())
+  }
+
   // Fetch recap on mount
   useEffect(() => {
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null
+
     const fetchRecap = async () => {
       try {
         const res = await fetch('/api/daily-recap', { cache: 'no-store' })
@@ -53,6 +68,20 @@ export function useDailyRecap(): UseDailyRecapResult {
     }
 
     fetchRecap()
+    const scheduleRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer)
+      const msUntil = getMsUntilNextEasternSix()
+      refreshTimer = setTimeout(async () => {
+        await fetchRecap()
+        scheduleRefresh()
+      }, msUntil)
+    }
+
+    scheduleRefresh()
+
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer)
+    }
   }, [])
 
   // Dismiss the current recap

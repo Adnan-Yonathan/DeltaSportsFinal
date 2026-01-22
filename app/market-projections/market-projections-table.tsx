@@ -203,6 +203,15 @@ const resolveLineFromMovements = (
   return coerceNumber(move?.currentLine ?? move?.openingLine)
 }
 
+const resolveMarketSpreadLine = (game: EdgeGame) =>
+  coerceNumber(game.spread?.marketLine) ?? resolveLineFromMovements(game, "spread")
+
+const formatSpreadLineLabel = (game: EdgeGame, line: number) => {
+  if (line === 0) return "PK"
+  if (line < 0) return `${game.homeTeam} ${formatSigned(line)}`
+  return `${game.awayTeam} ${formatSigned(-line)}`
+}
+
 const formatLineMovement = (move: EdgeGame["lineMovements"][number]) => {
   const formatter = move.market === "moneyline" ? formatOdds : formatSigned
   const opening = formatter(move.openingLine)
@@ -398,6 +407,70 @@ type EdgePick = {
   label: string | null
   edgePercent: number | null
   projection?: SharpProjectionMarket | null
+}
+
+const resolveSpreadComparison = (game: EdgeGame) => {
+  const marketLine = resolveMarketSpreadLine(game)
+  const projectedLine = resolveModelSpread(game)
+  if (marketLine == null || projectedLine == null) return null
+  const delta = Math.abs(projectedLine - marketLine)
+  return {
+    marketLine,
+    projectedLine,
+    delta,
+    marketLabel: formatSpreadLineLabel(game, marketLine),
+    projectedLabel: formatSpreadLineLabel(game, projectedLine),
+  }
+}
+
+const toPercent = (value: number, min: number, max: number) => {
+  const denom = max - min
+  if (!denom) return 50
+  return Math.max(0, Math.min(100, ((value - min) / denom) * 100))
+}
+
+const SpreadComparison = ({ game }: { game: EdgeGame }) => {
+  const comparison = resolveSpreadComparison(game)
+  if (!comparison) return null
+  const { marketLine, projectedLine, delta, marketLabel, projectedLabel } = comparison
+  const min = Math.min(marketLine, projectedLine)
+  const max = Math.max(marketLine, projectedLine)
+  const pad = Math.max(1, (max - min) * 0.6)
+  const minPad = min - pad
+  const maxPad = max + pad
+  const marketPos = toPercent(marketLine, minPad, maxPad)
+  const projectedPos = toPercent(projectedLine, minPad, maxPad)
+
+  return (
+    <div className="space-y-2 text-xs text-white/70">
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
+        <span>Market</span>
+        <span>Projected</span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+          {marketLabel}
+        </span>
+        <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+          Δ {delta.toFixed(1)}
+        </span>
+        <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+          {projectedLabel}
+        </span>
+      </div>
+      <div className="relative h-2 w-full rounded-full bg-white/10">
+        <div className="absolute top-1/2 h-[2px] w-full -translate-y-1/2 bg-white/15" />
+        <div
+          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.4)]"
+          style={{ left: `${marketPos}%` }}
+        />
+        <div
+          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.4)]"
+          style={{ left: `${projectedPos}%` }}
+        />
+      </div>
+    </div>
+  )
 }
 
 const formatPick = (pick: EdgePick) => {
@@ -765,15 +838,15 @@ export default function MarketProjectionsTable({
                       `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
                   )
                   .join(" | ")
-                const moveSummary = resolveMoveSummary(game, filter)
-                const sharePayload = buildProjectionSharePayload(
-                  game,
-                  filter,
-                  sport,
-                  activePick,
-                  edgeMetrics.edgePercent,
-                  spreadOdds
-                )
+                  const moveSummary = resolveMoveSummary(game, filter)
+                  const sharePayload = buildProjectionSharePayload(
+                    game,
+                    filter,
+                    sport,
+                    activePick,
+                    edgeMetrics.edgePercent,
+                    spreadOdds
+                  )
                     return (
                       <details
                         key={`${game.matchup}-${game.commenceTime}`}
@@ -806,6 +879,11 @@ export default function MarketProjectionsTable({
                             <AnimatedValue text={formatPick(activePick)} pulseKey={pulseKey} />
                           </span>
                         </div>
+                        {filter === "spread" ? (
+                          <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
+                            <SpreadComparison game={game} />
+                          </div>
+                        ) : null}
                       </div>
                       <div className="space-y-2">
                         <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
@@ -920,6 +998,11 @@ export default function MarketProjectionsTable({
                                 <AnimatedValue text={formatPick(activePick)} pulseKey={pulseKey} />
                               </span>
                             </div>
+                            {filter === "spread" ? (
+                              <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
+                                <SpreadComparison game={game} />
+                              </div>
+                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell className="align-top">

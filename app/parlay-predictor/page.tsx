@@ -33,7 +33,7 @@ export default async function ParlayPredictorPage() {
             <div className="relative mt-6 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
               <div className="pointer-events-none blur-sm">
                 <div className="border-b border-white/10 bg-black/60 px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-white/40">
-                  Parlay Builder
+                  EV Parlays
                 </div>
                 <div className="space-y-4 px-4 py-5">
                   <div className="h-12 rounded-xl border border-white/10 bg-white/5" />
@@ -51,10 +51,10 @@ export default async function ParlayPredictorPage() {
                     Upgrade required
                   </p>
                   <h2 className="mt-3 text-xl font-semibold text-white">
-                    Parlay predictor is for Sharp and Syndicate members.
+                    EV Parlays are for Sharp and Syndicate members.
                   </h2>
                   <p className="mt-2 text-sm text-white/60">
-                    Unlock parlay modeling and correlation tools with Sharp.
+                    Unlock sportsbook EV parlays and the parlay builder with Sharp.
                   </p>
                   <Link
                     href="/pricing"

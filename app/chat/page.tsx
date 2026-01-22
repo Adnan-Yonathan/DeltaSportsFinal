@@ -17,12 +17,11 @@ import ToolsNav from '@/components/tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, Target, Link2, Check, ArrowUpRight, Twitter } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
-import DailyRecapCard from '@/components/DailyRecapCard'
 import PerformanceDashboard from '@/components/PerformanceDashboard'
 import FakeRecapNotification from '@/components/FakeRecapNotification'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
-import { useDailyRecap } from '@/hooks/useDailyRecap'
+import { formatCurrency } from '@/lib/utils/odds'
 
 const SHARP_STORAGE_KEY = 'sharp-detector-trades'
 const SHARP_CACHE_VERSION_KEY = 'sharp-detector-cache-version'
@@ -33,6 +32,20 @@ const PROMO_CLICK_KEY = 'promo_links_click_source'
 const PERF_DASHBOARD_DISMISS_KEY = 'perf_dashboard_dismissed'
 const DISCORD_INVITE_URL = 'https://discord.gg/8jUcaKT9'
 const KALSHI_REFERRAL_URL = 'https://kalshi.com/sign-up/?referral=4807d3a2-7c7c-40bb-986c-608115b5a2c5'
+
+type SharpTradePreview = {
+  id?: string
+  marketTitle?: string
+  outcome?: string
+  notional?: number
+  timestamp?: string
+  priceCents?: number
+  americanOdds?: number | null
+  currentPriceCents?: number | null
+  currentAmericanOdds?: number | null
+  sport?: string
+  source?: string
+}
 
 const getEasternDateKey = (value: Date | string | number) => {
   const date = value instanceof Date ? value : new Date(value)
@@ -67,8 +80,36 @@ const ensureSharpCacheVersion = () => {
       window.localStorage.setItem(SHARP_CACHE_VERSION_KEY, SHARP_CACHE_VERSION)
     }
   } catch (error) {
-    console.warn('Failed to validate sharp detector cache version:', error)
+    console.warn('Failed to validate Whale Feed cache version:', error)
   }
+}
+
+const formatTradeTimestamp = (value?: string) => {
+  if (!value) return 'n/a'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+const formatTradeOdds = (trade: SharpTradePreview) => {
+  const priceCents = trade.currentPriceCents ?? trade.priceCents
+  const odds = trade.currentAmericanOdds ?? trade.americanOdds
+  if (!priceCents && !odds) return 'n/a'
+  const centsLabel = priceCents ? `${priceCents}c` : ''
+  const oddsLabel = odds != null ? `${odds > 0 ? `+${odds}` : `${odds}`}` : ''
+  if (centsLabel && oddsLabel) return `${centsLabel} (${oddsLabel})`
+  return centsLabel || oddsLabel
+}
+
+const pickLatestTrade = (trades: SharpTradePreview[]) => {
+  if (!trades.length) return null
+  return trades.reduce<SharpTradePreview | null>((acc, trade) => {
+    if (!trade?.timestamp) return acc
+    if (!acc?.timestamp) return trade
+    const accTime = new Date(acc.timestamp).getTime()
+    const tradeTime = new Date(trade.timestamp).getTime()
+    return tradeTime > accTime ? trade : acc
+  }, null)
 }
 
 function ChatPageContent() {
@@ -84,6 +125,7 @@ function ChatPageContent() {
   const [sharpDetectorOpen, setSharpDetectorOpen] = useState(false)
   const [sharpDetectorExpanded, setSharpDetectorExpanded] = useState(false)
   const [sharpUnreadCount, setSharpUnreadCount] = useState(0)
+  const [latestSharpTrade, setLatestSharpTrade] = useState<SharpTradePreview | null>(null)
   const [sharpTotalCount, setSharpTotalCount] = useState(() => {
     if (typeof window === 'undefined') return 0
     try {
@@ -104,7 +146,6 @@ function ChatPageContent() {
   const [messagesToday, setMessagesToday] = useState<number>(0)
   const [promoDismissed, setPromoDismissed] = useState(false)
   const [promoMounted, setPromoMounted] = useState(false)
-  const { recap, dismissed: recapDismissed, dismiss: dismissRecap } = useDailyRecap()
   const [perfDashboardDismissed, setPerfDashboardDismissed] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem(PERF_DASHBOARD_DISMISS_KEY) === '1'
@@ -451,14 +492,14 @@ function ChatPageContent() {
       label: 'Parlay Pro',
       shortLabel: 'Parlay',
       href: '/parlay-predictor',
-      description: 'Calculate true parlay odds with correlation adjustments',
+      description: 'Sportsbook EV parlays plus a correlation-aware parlay builder',
     },
       {
         key: 'ev-bets',
-        label: 'Live Odds',
-        shortLabel: 'Odds',
+        label: 'Line Shopping',
+        shortLabel: 'Line Shop',
         href: '/ev-bets',
-        description: 'Compact live odds board across the books we track',
+        description: 'Compare pregame lines across sportsbooks and prediction markets',
       },
     {
       key: 'live-projections',
@@ -514,6 +555,10 @@ function ChatPageContent() {
       }
     })
     setSharpTotalCount(countSharpsToday(cached))
+    const latest = pickLatestTrade(cached as SharpTradePreview[])
+    if (latest?.id) {
+      setLatestSharpTrade(latest)
+    }
   }, [user])
 
   useEffect(() => {
@@ -539,6 +584,10 @@ function ChatPageContent() {
         setSharpTotalCount(countSharpsToday(combined))
         if (combined.length > 0) {
           writeCachedSharps(combined)
+        }
+        const latest = pickLatestTrade(combined as SharpTradePreview[])
+        if (latest?.id) {
+          setLatestSharpTrade(latest)
         }
         let newCount = 0
         trades.forEach((trade: { id?: string }) => {
@@ -571,16 +620,16 @@ function ChatPageContent() {
       <div className="flex items-center gap-1.5 lg:border-l lg:border-white/10 lg:pl-2">
         <button
           onClick={() => router.push('/promos')}
-          className="px-1.5 py-1 text-[#34d399] hover:text-[#16a34a] transition-colors"
+          className="px-2 py-1 text-[#34d399] hover:text-[#16a34a] transition-colors"
           aria-label="View sportsbook promos"
         >
-          <span className="text-[10px] sm:text-xs font-semibold leading-none">$10k</span>
+          <span className="text-[10px] sm:text-xs font-semibold leading-none">Promos</span>
         </button>
         <button
           onClick={() => router.push('/live-scores')}
-          className="inline-flex items-center gap-1 rounded-full border border-[#34d399]/60 px-2 py-1 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
+          className="inline-flex items-center gap-2 rounded-full border border-[#34d399]/60 px-4 py-2 text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
         >
-          <Radio className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+          <Radio className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
           <span className="hidden sm:inline">Live</span>
           <span className="sm:hidden">Live</span>
         </button>
@@ -746,7 +795,7 @@ function ChatPageContent() {
           <div className="flex items-center justify-between gap-3 px-3 py-2">
             <div className="min-w-0">
               <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
-                Sharp Detector
+                Whale Feed
               </p>
               <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
                 {sharpTotalCount} sharps detected today
@@ -768,8 +817,8 @@ function ChatPageContent() {
                 className="gap-2 rounded-full bg-emerald-400/20 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:bg-emerald-400/30 disabled:opacity-60 disabled:cursor-not-allowed"
                 title={
                   canUseSharpDetector
-                    ? 'Open Sharp Detector'
-                    : 'Membership required to access Sharp Detector'
+                    ? 'Open Whale Feed'
+                    : 'Membership required to access Whale Feed'
                 }
               >
                 Open Sharps
@@ -901,7 +950,7 @@ function ChatPageContent() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex flex-col gap-2 text-left">
                             <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">
-                              Patch 0.3
+                              Patch 0.4
                             </span>
                             <span className="text-sm text-white/80">
                               Sharp money feed, sharp props, and new model upgrades.
@@ -1062,7 +1111,7 @@ function ChatPageContent() {
                 <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-black/80 backdrop-blur px-6 py-4">
                   <div>
                     <p className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-300">
-                      Sharp Detector
+                      Whale Feed
                     </p>
                     <p className="mt-1 text-xs text-white/60">
                       {sharpTotalCount} sharps detected today &bull; $2k+ trade alerts
@@ -1072,7 +1121,7 @@ function ChatPageContent() {
                     type="button"
                     onClick={() => setSharpDetectorExpanded(false)}
                     className="p-2 rounded-full bg-white/10 text-white/60 hover:text-white hover:bg-white/20 transition-colors"
-                    aria-label="Close sharp detector"
+                    aria-label="Close Whale Feed"
                   >
                     <X className="w-6 h-6" />
                   </button>
@@ -1092,10 +1141,10 @@ function ChatPageContent() {
 
       {user && showSharpToggle && (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-emerald-400/30 bg-black/90 backdrop-blur">
-          <div className="hidden sm:flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 px-4 py-3">
             <div className="min-w-0">
               <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
-                Sharp Detector
+                Whale Feed
               </p>
               <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
                 {sharpTotalCount} sharps detected today
@@ -1104,7 +1153,27 @@ function ChatPageContent() {
                 $2k+ trades with price in cents + American odds.
               </p>
             </div>
-            <div className="relative flex items-center gap-3">
+            {latestSharpTrade && (
+              <div className="hidden md:block px-4">
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={latestSharpTrade.id ?? latestSharpTrade.timestamp}
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ type: 'spring', stiffness: 140, damping: 18 }}
+                    className="text-[11px] font-semibold uppercase tracking-[0.2em] text-center truncate bg-gradient-to-r from-emerald-300 via-emerald-200 to-emerald-300 bg-clip-text text-transparent"
+                  >
+                    Latest: {latestSharpTrade.marketTitle || 'Unknown market'} -{' '}
+                    {latestSharpTrade.outcome || 'Unknown outcome'}{' '}
+                    {formatTradeOdds(latestSharpTrade)} -{' '}
+                    {formatCurrency(latestSharpTrade.notional ?? 0)} -{' '}
+                    {formatTradeTimestamp(latestSharpTrade.timestamp)}
+                  </motion.p>
+                </AnimatePresence>
+              </div>
+            )}
+            <div className="relative flex items-center justify-end gap-3">
               {!canUseSharpDetector && (
                 <span className="rounded-full border border-emerald-400/30 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
                   Members Only
@@ -1125,11 +1194,11 @@ function ChatPageContent() {
                 className="gap-2 rounded-full bg-emerald-400/20 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:bg-emerald-400/30 disabled:opacity-60 disabled:cursor-not-allowed"
                 title={
                   canUseSharpDetector
-                    ? 'Open Sharp Detector'
-                    : 'Membership required to access Sharp Detector'
+                    ? 'Open Whale Feed'
+                    : 'Membership required to access Whale Feed'
                 }
               >
-                Open Sharp Detector
+                Open Whale Feed
               </ParticleButton>
             </div>
           </div>
@@ -1261,20 +1330,10 @@ function ChatPageContent() {
           document.body
         )}
 
-      {/* Daily Recap Card for non-trial users - shows after promo is dismissed */}
-      {promoMounted && user && promoDismissed && !membership?.isTrial && recap && !recapDismissed &&
-        typeof document !== 'undefined' &&
-        createPortal(
-          <div className="fixed inset-0 z-[94] flex items-center justify-center bg-black/70 backdrop-blur-md px-4 py-6">
-            <DailyRecapCard recap={recap} onDismiss={dismissRecap} />
-          </div>,
-          document.body
-        )}
-
       {/* Fake Recap Notification for guests (marketing mockup) */}
       {!user && <FakeRecapNotification />}
 
-      {/* Mobile Sharp Detector Full-Page Overlay */}
+      {/* Mobile Whale Feed Full-Page Overlay */}
       <AnimatePresence>
         {sharpDetectorOpen && (
           <motion.div
@@ -1289,7 +1348,7 @@ function ChatPageContent() {
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-black/80 backdrop-blur px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-300">
-                    Sharp Detector
+                    Whale Feed
                   </p>
                   <p className="mt-1 text-xs text-white/60">
                     {sharpTotalCount} sharps detected &bull; $2k+ trade alerts
@@ -1298,7 +1357,7 @@ function ChatPageContent() {
                 <button
                   onClick={() => setSharpDetectorOpen(false)}
                   className="p-2 rounded-full bg-white/10 text-white/60 hover:text-white hover:bg-white/20 transition-colors"
-                  aria-label="Close sharp detector"
+                  aria-label="Close Whale Feed"
                 >
                   <X className="w-6 h-6" />
                 </button>

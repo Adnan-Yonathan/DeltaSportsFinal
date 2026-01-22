@@ -10,6 +10,18 @@ import {
 } from '@/lib/services/prop-liquidity-detector'
 import { createServiceClient } from '@/lib/supabase/service'
 
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> => {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const timeoutPromise = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), timeoutMs)
+  })
+  try {
+    return (await Promise.race([promise, timeoutPromise])) as T | null
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const limitRaw = Number(searchParams.get('limit') ?? DEFAULT_LIMIT)
@@ -33,8 +45,13 @@ export async function GET(request: Request) {
   let liquidityTrades: any[] = []
   if (includeLiquidity) {
     try {
-      const signals = await fetchPropLiquiditySignals({ sportKey: 'all' })
-      liquidityTrades = mapLiquiditySignalsToSharpTrades(signals)
+      const signals = await withTimeout(
+        fetchPropLiquiditySignals({ sportKey: 'all' }),
+        6000
+      )
+      if (signals) {
+        liquidityTrades = mapLiquiditySignalsToSharpTrades(signals)
+      }
     } catch (error) {
       console.warn('[Whale Detector] Failed to load prop liquidity signals:', error)
     }
@@ -90,7 +107,16 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({
-    trades: includeLiquidity ? [...enrichedTrades, ...liquidityTrades] : enrichedTrades,
-  })
+  return NextResponse.json(
+    {
+      trades: includeLiquidity ? [...enrichedTrades, ...liquidityTrades] : enrichedTrades,
+    },
+    {
+      headers: includeLiquidity
+        ? {
+            'Cache-Control': 'public, max-age=15, stale-while-revalidate=30',
+          }
+        : undefined,
+    }
+  )
 }

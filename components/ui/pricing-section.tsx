@@ -175,7 +175,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {tiers.map((tier) => {
             // Get the appropriate plan key based on billing period
             const planKey =
@@ -192,11 +192,11 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
               membership?.isActive && membership.tier === tier.tierKey
 
             const actionButton = isCurrentPlan ? (
-              <Button
-                onClick={handleManageSubscription}
-                disabled={isLoading}
-                className={cn(
-                  "transition-all duration-300 md:w-full h-8 px-2 text-[10px] sm:h-10 sm:text-xs md:h-12 md:text-sm",
+                <Button
+                  onClick={handleManageSubscription}
+                  disabled={isLoading}
+                  className={cn(
+                  "transition-all duration-300 w-full h-10 text-xs sm:h-11 sm:text-sm md:h-12 md:text-sm",
                   "bg-white/10 text-white border border-white/20",
                   "hover:bg-white/20",
                 )}
@@ -213,12 +213,12 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                 </span>
               </Button>
             ) : (
-              <Button
-                onClick={() => planKey && handleCheckout(planKey)}
-                disabled={!planKey || isLoading}
-                className={cn(
-                  tier.highlight ? buttonStyles.highlight : buttonStyles.default,
-                  "transition-all duration-300 md:w-full h-8 px-2 text-[10px] sm:h-10 sm:text-xs md:h-12 md:text-sm",
+                <Button
+                  onClick={() => planKey && handleCheckout(planKey)}
+                  disabled={!planKey || isLoading}
+                  className={cn(
+                    tier.highlight ? buttonStyles.highlight : buttonStyles.default,
+                  "transition-all duration-300 w-full h-10 text-xs sm:h-11 sm:text-sm md:h-12 md:text-sm",
                 )}
               >
                 <span className="flex items-center justify-center gap-2">
@@ -259,7 +259,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                   </div>
                 )}
 
-                <div className="p-3 sm:p-5 md:p-8 flex-1">
+                <div className="p-4 sm:p-6 md:p-8 flex-1">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-4">
@@ -308,7 +308,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                                   </span>
                                 )}
                               </div>
-                              <p className="mt-2 text-xs text-slate-200/70 hidden sm:block">
+                              <p className="mt-2 text-xs sm:text-sm text-slate-200/70">
                                 {tier.description}
                               </p>
                             </>
@@ -316,11 +316,9 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                         })()}
                       </div>
                     </div>
-
-                    <div className="md:hidden shrink-0">{actionButton}</div>
                   </div>
 
-                  <div className="space-y-3 hidden sm:block">
+                  <div className="space-y-3">
                     {tier.features.map((feature) => (
                       <div key={feature.name} className="flex gap-3">
                         <div
@@ -334,8 +332,8 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                           <CheckIcon className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="text-sm font-medium">{feature.name}</div>
-                          <div className="text-sm text-white/60">
+                          <div className="text-xs sm:text-sm font-medium">{feature.name}</div>
+                          <div className="text-xs sm:text-sm text-white/60">
                             {feature.description}
                           </div>
                         </div>
@@ -344,7 +342,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                   </div>
                 </div>
 
-                <div className="hidden md:block p-8 pt-0 mt-auto">
+                <div className="p-4 sm:p-6 md:p-8 pt-0 mt-auto">
                   {actionButton}
                 </div>
               </div>

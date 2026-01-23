@@ -11,6 +11,7 @@ import { StepRiskTolerance } from "./onboarding/StepRiskTolerance"
 import { StepFeatures } from "./onboarding/StepFeatures"
 import { StepPricing } from "./onboarding/StepPricing"
 import { StepBankrollProjection } from "./onboarding/StepBankrollProjection"
+import { StepMonthlyProfit } from "./onboarding/StepMonthlyProfit"
 
 interface OnboardingData {
   favorite_sports: string[]
@@ -19,6 +20,7 @@ interface OnboardingData {
   risk_tolerance: string
   signup_reasons: string[]
   bankroll: number
+  bets_per_day: number
   pricing_intent: string | null
 }
 
@@ -38,6 +40,7 @@ export function OnboardingFlow() {
     risk_tolerance: "",
     signup_reasons: [],
     bankroll: 0,
+    bets_per_day: 10,
     pricing_intent: null,
   })
 
@@ -47,7 +50,11 @@ export function OnboardingFlow() {
     if (saved) {
       try {
         const parsedData = JSON.parse(saved)
-        setData(parsedData)
+        setData((prev) => ({
+          ...prev,
+          ...parsedData,
+          bets_per_day: parsedData?.bets_per_day ?? prev.bets_per_day,
+        }))
       } catch (e) {
         console.error("Failed to parse saved onboarding data")
       }
@@ -59,7 +66,7 @@ export function OnboardingFlow() {
     localStorage.setItem("onboarding_data", JSON.stringify(data))
   }, [data])
 
-  const totalSteps = 7
+  const totalSteps = 8
   const progress = ((currentStep + 1) / totalSteps) * 100
   const isPricingStep = currentStep === totalSteps - 1
 
@@ -113,7 +120,19 @@ export function OnboardingFlow() {
       component: (
         <StepBankrollProjection
           value={data.bankroll}
-          onChange={(value) => setData({ ...data, bankroll: value })}
+          betsPerDay={data.bets_per_day}
+          onChange={(value, betsPerDay) =>
+            setData({ ...data, bankroll: value, bets_per_day: betsPerDay })
+          }
+          onValidation={setIsStepValid}
+        />
+      ),
+    },
+    {
+      component: (
+        <StepMonthlyProfit
+          bankroll={data.bankroll}
+          betsPerDay={data.bets_per_day}
           onValidation={setIsStepValid}
         />
       ),

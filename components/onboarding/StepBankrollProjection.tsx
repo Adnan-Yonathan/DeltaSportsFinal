@@ -6,7 +6,8 @@ import { DollarSign, TrendingUp, Calculator, Info, AlertTriangle, Target, Users,
 
 interface StepBankrollProjectionProps {
   value: number
-  onChange: (value: number) => void
+  betsPerDay: number
+  onChange: (value: number, betsPerDay: number) => void
   onValidation: (isValid: boolean) => void
 }
 
@@ -67,34 +68,55 @@ const calculateToolProfits = (bankroll: number, betsPerDay: number) => {
 
 export function StepBankrollProjection({
   value,
+  betsPerDay,
   onChange,
   onValidation,
 }: StepBankrollProjectionProps) {
   const [bankrollInput, setBankrollInput] = useState<string>(
     value > 0 ? String(value) : ""
   )
-  const [betsPerDay, setBetsPerDay] = useState<number>(10)
+  const [betsPerDayValue, setBetsPerDayValue] = useState<number>(
+    betsPerDay || 10
+  )
   const [showProjection, setShowProjection] = useState(false)
+
+  useEffect(() => {
+    if (value > 0) {
+      setBankrollInput(String(value))
+    }
+  }, [value])
+
+  useEffect(() => {
+    if (betsPerDay) {
+      setBetsPerDayValue(betsPerDay)
+    }
+  }, [betsPerDay])
 
   const bankrollNum = parseFloat(bankrollInput) || 0
   const isValidBankroll = bankrollNum >= 100
 
   // Calculate projections for all tools
-  const toolProfits = calculateToolProfits(bankrollNum, betsPerDay)
+  const toolProfits = calculateToolProfits(bankrollNum, betsPerDayValue)
   const unitSize = bankrollNum * 0.02
-  const monthlyBets = betsPerDay * DAYS_PER_MONTH
 
   useEffect(() => {
     onValidation(isValidBankroll)
     if (isValidBankroll) {
-      onChange(bankrollNum)
+      onChange(bankrollNum, betsPerDayValue)
       // Show projection with a slight delay for effect
       const timer = setTimeout(() => setShowProjection(true), 300)
       return () => clearTimeout(timer)
     } else {
       setShowProjection(false)
     }
-  }, [bankrollInput, isValidBankroll, bankrollNum, onChange, onValidation])
+  }, [
+    bankrollInput,
+    isValidBankroll,
+    bankrollNum,
+    betsPerDayValue,
+    onChange,
+    onValidation,
+  ])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -125,7 +147,7 @@ export function StepBankrollProjection({
         <p className="text-xs uppercase tracking-[0.3em] text-white/40">
           Bankroll
         </p>
-        <h2 className="text-4xl font-bold text-white tracking-tight">
+        <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight">
           What's your betting bankroll?
         </h2>
         <p className="text-white/60">
@@ -148,7 +170,7 @@ export function StepBankrollProjection({
               placeholder="10000"
               min="100"
               step="100"
-              className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/30 border border-white/10 rounded-2xl py-5 pl-14 pr-6 focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 text-2xl font-semibold transition-all"
+              className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/30 border border-white/10 rounded-2xl py-4 sm:py-5 pl-14 pr-6 focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 text-xl sm:text-2xl font-semibold transition-all"
             />
           </div>
           <p className="text-white/40 text-sm">
@@ -161,16 +183,16 @@ export function StepBankrollProjection({
           <label className="text-white/80 text-sm font-medium">
             Bets per day
           </label>
-          <div className="flex gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {BETS_PER_DAY_OPTIONS.map((option) => {
-              const isSelected = betsPerDay === option.value
+              const isSelected = betsPerDayValue === option.value
               return (
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => setBetsPerDay(option.value)}
+                  onClick={() => setBetsPerDayValue(option.value)}
                   className={`
-                    relative flex-1 py-4 px-4 rounded-xl border transition-all font-semibold text-lg
+                    relative flex-1 py-4 px-4 rounded-xl border transition-all font-semibold text-base sm:text-lg
                     ${isSelected
                       ? "bg-gradient-to-b from-emerald-500/20 to-emerald-600/10 border-emerald-500/50 text-white"
                       : "bg-white/[0.03] border-white/10 text-white/60 hover:border-white/20 hover:text-white/80"
@@ -182,7 +204,7 @@ export function StepBankrollProjection({
               )
             })}
           </div>
-          {betsPerDay < 10 && (
+          {betsPerDayValue < 10 && (
             <motion.div
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
@@ -207,14 +229,14 @@ export function StepBankrollProjection({
               className="space-y-6"
             >
               {/* Main Projection Card */}
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500/20 via-emerald-600/10 to-transparent border border-emerald-500/30 p-6">
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500/20 via-emerald-600/10 to-transparent border border-emerald-500/30 p-4 sm:p-6">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl" />
                 <div className="relative">
                   <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium mb-3">
                     <TrendingUp className="w-4 h-4" />
                     Total Expected Monthly Profit
                   </div>
-                  <div className="text-5xl font-bold text-white mb-2">
+                  <div className="text-3xl sm:text-5xl font-bold text-white mb-2">
                     {formatCurrency(toolProfits.total)}
                     <span className="text-lg text-white/60 font-normal ml-2">
                       /month
@@ -233,7 +255,7 @@ export function StepBankrollProjection({
                 </h4>
                 <div className="space-y-2">
                   {/* Sharp Projections */}
-                  <div className="flex items-center justify-between bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3">
+                  <div className="flex flex-col gap-2 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-lg bg-emerald-500/10">
                         <Target className="w-4 h-4 text-emerald-400" />
@@ -243,13 +265,13 @@ export function StepBankrollProjection({
                         <p className="text-white/40 text-xs">Sides & totals at 2.62% edge</p>
                       </div>
                     </div>
-                    <p className="text-emerald-400 font-semibold">
+                    <p className="text-emerald-400 font-semibold sm:text-right">
                       +{formatCurrency(toolProfits.sharpProjections)}
                     </p>
                   </div>
 
                   {/* EV Bets */}
-                  <div className="flex items-center justify-between bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3">
+                  <div className="flex flex-col gap-2 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-lg bg-blue-500/10">
                         <Zap className="w-4 h-4 text-blue-400" />
@@ -259,13 +281,13 @@ export function StepBankrollProjection({
                         <p className="text-white/40 text-xs">Cross-market value at ~4% EV</p>
                       </div>
                     </div>
-                    <p className="text-emerald-400 font-semibold">
+                    <p className="text-emerald-400 font-semibold sm:text-right">
                       +{formatCurrency(toolProfits.evBets)}
                     </p>
                   </div>
 
                   {/* Sharp Props */}
-                  <div className="flex items-center justify-between bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3">
+                  <div className="flex flex-col gap-2 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-lg bg-purple-500/10">
                         <Users className="w-4 h-4 text-purple-400" />
@@ -275,13 +297,13 @@ export function StepBankrollProjection({
                         <p className="text-white/40 text-xs">Whale-backed player props</p>
                       </div>
                     </div>
-                    <p className="text-emerald-400 font-semibold">
+                    <p className="text-emerald-400 font-semibold sm:text-right">
                       +{formatCurrency(toolProfits.sharpProps)}
                     </p>
                   </div>
 
                   {/* Live Projections */}
-                  <div className="flex items-center justify-between bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3">
+                  <div className="flex flex-col gap-2 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-lg bg-red-500/10">
                         <Radio className="w-4 h-4 text-red-400" />
@@ -291,13 +313,13 @@ export function StepBankrollProjection({
                         <p className="text-white/40 text-xs">In-game edges at ~6% EV</p>
                       </div>
                     </div>
-                    <p className="text-emerald-400 font-semibold">
+                    <p className="text-emerald-400 font-semibold sm:text-right">
                       +{formatCurrency(toolProfits.live)}
                     </p>
                   </div>
 
                   {/* Parlay Pro */}
-                  <div className="flex items-center justify-between bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3">
+                  <div className="flex flex-col gap-2 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-lg bg-amber-500/10">
                         <BarChart3 className="w-4 h-4 text-amber-400" />
@@ -307,7 +329,7 @@ export function StepBankrollProjection({
                         <p className="text-white/40 text-xs">Correlated parlays at ~5% EV</p>
                       </div>
                     </div>
-                    <p className="text-emerald-400 font-semibold">
+                    <p className="text-emerald-400 font-semibold sm:text-right">
                       +{formatCurrency(toolProfits.parlays)}
                     </p>
                   </div>
@@ -315,7 +337,7 @@ export function StepBankrollProjection({
               </div>
 
               {/* Quick Stats */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 text-center">
                   <p className="text-white/40 text-xs uppercase tracking-wider mb-1">
                     Base Unit

@@ -8,6 +8,7 @@ interface OnboardingData {
   risk_tolerance: 'conservative' | 'moderate' | 'aggressive'
   signup_reasons: string[]
   bankroll?: number
+  bets_per_day?: number
 }
 
 export async function POST(request: NextRequest) {
@@ -94,6 +95,9 @@ export async function POST(request: NextRequest) {
     if (body.bankroll && body.bankroll > 0) {
       updateData.bankroll = body.bankroll
     }
+    if (body.bets_per_day && body.bets_per_day > 0) {
+      updateData.bets_per_day = body.bets_per_day
+    }
 
     const updateResult = await supabase
       .from('users')
@@ -112,6 +116,7 @@ export async function POST(request: NextRequest) {
           risk_tolerance: body.risk_tolerance,
           signup_reasons: body.signup_reasons,
           bankroll: body.bankroll || 0,
+          bets_per_day: body.bets_per_day || 0,
         },
       },
     })

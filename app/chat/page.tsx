@@ -17,7 +17,6 @@ import ToolsNav from '@/components/tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, Target, Link2, Check, ArrowUpRight, Twitter } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
-import PerformanceDashboard from '@/components/PerformanceDashboard'
 import FakeRecapNotification from '@/components/FakeRecapNotification'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
@@ -29,7 +28,6 @@ const SHARP_CACHE_VERSION = '6'
 const EASTERN_TIMEZONE = 'America/New_York'
 const PROMO_DISMISS_KEY = 'promo_links_dismissed'
 const PROMO_CLICK_KEY = 'promo_links_click_source'
-const PERF_DASHBOARD_DISMISS_KEY = 'perf_dashboard_dismissed'
 const DISCORD_INVITE_URL = 'https://discord.gg/8jUcaKT9'
 const KALSHI_REFERRAL_URL = 'https://kalshi.com/sign-up/?referral=4807d3a2-7c7c-40bb-986c-608115b5a2c5'
 
@@ -146,10 +144,6 @@ function ChatPageContent() {
   const [messagesToday, setMessagesToday] = useState<number>(0)
   const [promoDismissed, setPromoDismissed] = useState(false)
   const [promoMounted, setPromoMounted] = useState(false)
-  const [perfDashboardDismissed, setPerfDashboardDismissed] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return window.localStorage.getItem(PERF_DASHBOARD_DISMISS_KEY) === '1'
-  })
   const router = useRouter()
   const searchParams = useSearchParams()
   const prefillMessage = searchParams.get('prompt') ?? undefined
@@ -1306,27 +1300,6 @@ function ChatPageContent() {
                 <Check className="h-4 w-4" />
               </button>
             </div>
-          </div>,
-          document.body
-        )}
-
-      {/* Performance Dashboard for trial users - shows after promo is dismissed */}
-      {promoMounted && user && promoDismissed && membership?.isTrial && !perfDashboardDismissed &&
-        typeof document !== 'undefined' &&
-        createPortal(
-          <div className="fixed inset-0 z-[94] flex items-center justify-center bg-black/70 backdrop-blur-md px-4 py-6">
-            <PerformanceDashboard
-              bankroll={
-                (user.user_metadata as { onboarding_profile?: { bankroll?: number } })
-                  ?.onboarding_profile?.bankroll || 10000
-              }
-              onDismiss={() => {
-                setPerfDashboardDismissed(true)
-                if (typeof window !== 'undefined') {
-                  window.localStorage.setItem(PERF_DASHBOARD_DISMISS_KEY, '1')
-                }
-              }}
-            />
           </div>,
           document.body
         )}

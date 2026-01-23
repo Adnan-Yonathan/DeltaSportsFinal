@@ -74,6 +74,7 @@ export type AnalyzeSharpPlayerPropsOptions = {
   weights?: CompositeScoreWeights
   limit?: number
   topPicksCount?: number
+  sources?: Array<'kalshi' | 'polymarket'>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -453,20 +454,28 @@ export const analyzeSharpPlayerProps = async (
     weights = DEFAULT_WEIGHTS,
     limit = DEFAULT_LIMIT,
     topPicksCount = DEFAULT_TOP_PICKS_COUNT,
+    sources,
   } = options
 
   // Fetch whale trades and sportsbook odds in parallel
   // For "all" sports, we skip sportsbook comparison (too many API calls)
   const [trades, sportsbookData, liquiditySignals] = await Promise.all([
-    fetchPlayerPropWhaleTrades({ sportKey, limit: limit * 3 }),
+    fetchPlayerPropWhaleTrades({ sportKey, limit: limit * 3, sources }),
     sportKey === 'all'
       ? Promise.resolve(new Map<string, SportsbookPropOdds[]>())
       : fetchSportsbookPlayerProps(sportKey),
     fetchPropLiquiditySignals({ sportKey }),
   ])
 
-  const liquidityTrades = mapLiquiditySignalsToPlayerPropTrades(liquiditySignals)
-  const combinedTrades = [...trades, ...liquidityTrades]
+  const sourceFilter = sources && sources.length > 0 ? new Set(sources) : null
+  const filteredTrades = sourceFilter
+    ? trades.filter((trade) => sourceFilter.has(trade.source))
+    : trades
+  const filteredSignals = sourceFilter
+    ? liquiditySignals.filter((signal) => sourceFilter.has(signal.source))
+    : liquiditySignals
+  const liquidityTrades = mapLiquiditySignalsToPlayerPropTrades(filteredSignals)
+  const combinedTrades = [...filteredTrades, ...liquidityTrades]
 
   // Aggregate trades by player/prop/line/side
   const grouped = aggregateTradesByProp(combinedTrades, minNotional)
@@ -508,7 +517,7 @@ export const analyzeSharpPlayerProps = async (
     )
 
     // Get unique sources
-    const sources = Array.from(new Set(propTrades.map((t) => t.source))) as Array<
+    const propSources = Array.from(new Set(propTrades.map((t) => t.source))) as Array<
       'kalshi' | 'polymarket'
     >
 
@@ -548,7 +557,7 @@ export const analyzeSharpPlayerProps = async (
       latestTradeTime: latestTime,
       compositeScore: 0, // Computed below
       trades: propTrades,
-      sources,
+      sources: propSources,
     }
 
     // Compute composite score (0-100, higher = sharper bet)

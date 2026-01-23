@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react"
 import { formatAmericanOdds } from "@/lib/utils/odds"
+import { cn } from "@/lib/utils"
 import TutorialPopup from "@/components/TutorialPopup"
 import SharePropButton from "@/components/SharePropButton"
 
@@ -49,6 +50,8 @@ type FilterState = {
   minComposite: number
   propType: string
 }
+
+type FeedTab = "sharp" | "ev"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -120,6 +123,7 @@ const PROP_TYPES = [
 ]
 
 const REFRESH_INTERVAL_MS = 30 * 1000 // 30 seconds
+const EV_MIN_EDGE = 3
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Formatters
@@ -495,6 +499,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
     minComposite: 0,
     propType: "All",
   })
+  const [activeTab, setActiveTab] = useState<FeedTab>("sharp")
   const lastLoadedRef = useRef<number>(0)
 
   const loadData = useCallback(
@@ -578,7 +583,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
   }, [isRefreshing, loading, loadData])
 
   // Apply client-side filters
-  const filteredProps = React.useMemo(() => {
+  const sharpProps = React.useMemo(() => {
     if (!data?.props) return []
 
     return data.props.filter((prop) => {
@@ -595,143 +600,200 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
     })
   }, [data?.props, filters])
 
+  const evProps = React.useMemo(() => {
+    if (!data?.props) return []
+
+    const filtered = data.props.filter((prop) => {
+      if (filters.propType !== "All" && prop.propType !== filters.propType) {
+        return false
+      }
+      if (!Number.isFinite(prop.edgePercent)) return false
+      if (prop.edgePercent < EV_MIN_EDGE) return false
+      if (prop.sportsbookAvgOdds == null) return false
+      return true
+    })
+
+    return filtered.sort((a, b) => b.edgePercent - a.edgePercent)
+  }, [data?.props, filters.propType])
+
+  const visibleProps = activeTab === "sharp" ? sharpProps : evProps
+
   const topPicks = React.useMemo(() => {
     if (!data?.topPicks) return []
-    const filteredIds = new Set(filteredProps.map((p) => p.id))
+    const filteredIds = new Set(sharpProps.map((p) => p.id))
     return data.topPicks.filter((p) => filteredIds.has(p.id))
-  }, [data?.topPicks, filteredProps])
+  }, [data?.topPicks, sharpProps])
 
   return (
     <>
-      <TutorialPopup tutorialId="sharp-props" />
+      {activeTab === "sharp" && <TutorialPopup tutorialId="sharp-props" />}
       <div className="space-y-4">
-        {/* Top Picks Section */}
-      {!loading && topPicks.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-emerald-500/20 bg-black/40">
-          <div className="flex items-center justify-between border-b border-emerald-500/10 px-4 py-2.5">
-            <span className="text-xs uppercase tracking-[0.2em] text-emerald-400">
-              Top Sharp Picks
-            </span>
-            <span className="text-xs text-white/40">{topPicks.length} picks</span>
-          </div>
-          <div className="p-4">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {topPicks.slice(0, 6).map((prop) => (
-                <TopPickCard key={prop.id} prop={prop} showSport={sport === "all"} />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Table Section */}
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-        {/* Toolbar */}
-        <div className="border-b border-white/5 bg-black/50 px-3 py-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Prop Type Filter */}
-              <select
-                value={filters.propType}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, propType: e.target.value }))
-                }
-                className="rounded border border-white/10 bg-black/50 px-2 py-1.5 text-xs text-white/80 focus:border-emerald-400/40 focus:outline-none"
-              >
-                {PROP_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type === "All" ? "All Props" : formatPropLabel(type)}
-                  </option>
-                ))}
-              </select>
-
-              {/* Min Composite Filter */}
-              <div className="flex items-center gap-1.5">
-                <label className="text-[10px] uppercase tracking-wider text-white/40">
-                  Min Score
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={80}
-                  step={10}
-                  value={filters.minComposite}
-                  onChange={(e) =>
-                    setFilters((f) => ({
-                      ...f,
-                      minComposite: Number(e.target.value),
-                    }))
-                  }
-                  className="h-1 w-20 cursor-pointer appearance-none rounded bg-white/20 accent-emerald-400"
-                />
-                <span className="min-w-[24px] text-xs text-white/60">
-                  {filters.minComposite > 0 ? filters.minComposite : "0"}
-                </span>
-              </div>
-
-              {/* Refresh Button */}
-              <button
-                type="button"
-                onClick={handleManualRefresh}
-                disabled={isRefreshing || loading}
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.15em] text-white/60 transition-colors hover:border-emerald-400/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <svg
-                  className={`h-3 w-3 ${isRefreshing ? "animate-spin" : ""}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-                <span className="hidden sm:inline">Refresh</span>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 text-[10px] text-white/40">
-              {data?.totalTrades != null && (
-                <span>{data.totalTrades} whale trades tracked</span>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">Sharp Props</h2>
+          <div className="flex items-center gap-2 bg-white/5 rounded-2xl p-1.5">
+            <button
+              type="button"
+              onClick={() => setActiveTab("sharp")}
+              className={cn(
+                "px-8 py-3 text-base font-semibold rounded-xl transition-all min-w-[160px]",
+                activeTab === "sharp"
+                  ? "bg-emerald-500/20 text-emerald-400 shadow-sm"
+                  : "text-white/50 hover:text-white/70 hover:bg-white/5"
               )}
-              <span className="text-white/20">|</span>
-              <span>{filteredProps.length} props</span>
-            </div>
+            >
+              Sharp Props
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("ev")}
+              className={cn(
+                "px-8 py-3 text-base font-semibold rounded-xl transition-all min-w-[160px]",
+                activeTab === "ev"
+                  ? "bg-emerald-500/20 text-emerald-400 shadow-sm"
+                  : "text-white/50 hover:text-white/70 hover:bg-white/5"
+              )}
+            >
+              EV Props
+            </button>
           </div>
+          <div className="w-[120px]" />
         </div>
-
-        {/* Content */}
-        {loading ? (
-          <div className="px-4 py-8 text-sm text-white/60">Loading sharp props...</div>
-        ) : errorMessage ? (
-          <div className="px-4 py-8 text-sm text-red-200">{errorMessage}</div>
-        ) : filteredProps.length === 0 ? (
-          <div className="px-4 py-8 text-sm text-white/60">
-            No sharp player prop bets found. Try adjusting your filters.
-          </div>
-        ) : (
-          <div className="divide-y divide-white/5">
-            {/* Desktop Header */}
-            <div className="hidden border-b border-white/5 bg-black/30 px-3 py-2 sm:grid sm:grid-cols-[1fr_140px_100px_80px_80px_80px_120px_90px] items-center gap-3 text-[10px] uppercase tracking-[0.15em] text-white/50">
-              <div>Player / Prop</div>
-              <div>Volume</div>
-              <div className="text-center">Pred Mkt</div>
-              <div className="text-center">Books</div>
-              <div className="text-center">Edge</div>
-              <div className="text-center">Score</div>
-              <div className="text-right">Signals</div>
-              <div className="text-right">Share</div>
+        {/* Top Picks Section */}
+        {activeTab === "sharp" && !loading && topPicks.length > 0 && (
+          <div className="overflow-hidden rounded-2xl border border-emerald-500/20 bg-black/40">
+            <div className="flex items-center justify-between border-b border-emerald-500/10 px-4 py-2.5">
+              <span className="text-xs uppercase tracking-[0.2em] text-emerald-400">
+                Top Sharp Picks
+              </span>
+              <span className="text-xs text-white/40">{topPicks.length} picks</span>
             </div>
-
-            {/* Rows */}
-            {filteredProps.map((prop) => (
-              <PropRow key={prop.id} prop={prop} showSport={sport === "all"} />
-            ))}
+            <div className="p-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {topPicks.slice(0, 6).map((prop) => (
+                  <TopPickCard key={prop.id} prop={prop} showSport={sport === "all"} />
+                ))}
+              </div>
+            </div>
           </div>
         )}
+
+        {/* Main Table Section */}
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+          {/* Toolbar */}
+          <div className="border-b border-white/5 bg-black/50 px-3 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Prop Type Filter */}
+                <select
+                  value={filters.propType}
+                  onChange={(e) =>
+                    setFilters((f) => ({ ...f, propType: e.target.value }))
+                  }
+                  className="rounded border border-white/10 bg-black/50 px-2 py-1.5 text-xs text-white/80 focus:border-emerald-400/40 focus:outline-none"
+                >
+                  {PROP_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type === "All" ? "All Props" : formatPropLabel(type)}
+                    </option>
+                  ))}
+                </select>
+
+                {activeTab === "sharp" ? (
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[10px] uppercase tracking-wider text-white/40">
+                      Min Score
+                    </label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={80}
+                      step={10}
+                      value={filters.minComposite}
+                      onChange={(e) =>
+                        setFilters((f) => ({
+                          ...f,
+                          minComposite: Number(e.target.value),
+                        }))
+                      }
+                      className="h-1 w-20 cursor-pointer appearance-none rounded bg-white/20 accent-emerald-400"
+                    />
+                    <span className="min-w-[24px] text-xs text-white/60">
+                      {filters.minComposite > 0 ? filters.minComposite : "0"}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.15em] text-emerald-200">
+                    Min EV {EV_MIN_EDGE}%
+                  </div>
+                )}
+
+                {/* Refresh Button */}
+                <button
+                  type="button"
+                  onClick={handleManualRefresh}
+                  disabled={isRefreshing || loading}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.15em] text-white/60 transition-colors hover:border-emerald-400/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <svg
+                    className={`h-3 w-3 ${isRefreshing ? "animate-spin" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 text-[10px] text-white/40">
+                {data?.totalTrades != null && (
+                  <span>{data.totalTrades} whale trades tracked</span>
+                )}
+                <span className="text-white/20">|</span>
+                <span>{visibleProps.length} props</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Content */}
+          {loading ? (
+            <div className="px-4 py-8 text-sm text-white/60">
+              {activeTab === "sharp" ? "Loading sharp props..." : "Loading EV props..."}
+            </div>
+          ) : errorMessage ? (
+            <div className="px-4 py-8 text-sm text-red-200">{errorMessage}</div>
+          ) : visibleProps.length === 0 ? (
+            <div className="px-4 py-8 text-sm text-white/60">
+              {activeTab === "sharp"
+                ? "No sharp player prop bets found. Try adjusting your filters."
+                : `No EV props above ${EV_MIN_EDGE}% found. Try adjusting your filters.`}
+            </div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {/* Desktop Header */}
+              <div className="hidden border-b border-white/5 bg-black/30 px-3 py-2 sm:grid sm:grid-cols-[1fr_140px_100px_80px_80px_80px_120px_90px] items-center gap-3 text-[10px] uppercase tracking-[0.15em] text-white/50">
+                <div>Player / Prop</div>
+                <div>Volume</div>
+                <div className="text-center">Pred Mkt</div>
+                <div className="text-center">Books</div>
+                <div className="text-center">Edge</div>
+                <div className="text-center">Score</div>
+                <div className="text-right">Signals</div>
+                <div className="text-right">Share</div>
+              </div>
+
+              {/* Rows */}
+              {visibleProps.map((prop) => (
+                <PropRow key={prop.id} prop={prop} showSport={sport === "all"} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </>

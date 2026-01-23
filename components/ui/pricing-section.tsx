@@ -64,6 +64,12 @@ const badgeStyles = cn(
   "rounded-full shadow-lg"
 )
 
+const tierRank: Record<PricingTier["tierKey"], number> = {
+  pro: 0,
+  sharp: 1,
+  syndicate: 2,
+}
+
 export function PricingSection({ tiers, className }: PricingSectionProps) {
   const router = useRouter()
   const [billingPeriod, setBillingPeriod] = useState<'weekly' | 'monthly' | 'annual'>('monthly')
@@ -132,6 +138,34 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
     }
   }
 
+  const handleUpgrade = async (planKey: string) => {
+    setLoadingPlan(planKey)
+    try {
+      const response = await fetch('/api/stripe/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planKey }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push('/auth/login?redirect=/pricing')
+          return
+        }
+        throw new Error(data.error || 'Failed to upgrade subscription')
+      }
+
+      router.push('/stripe/success')
+    } catch (error) {
+      console.error('Upgrade error:', error)
+      alert(error instanceof Error ? error.message : 'Failed to upgrade subscription')
+    } finally {
+      setLoadingPlan(null)
+    }
+  }
+
   return (
     <section
       className={cn(
@@ -190,8 +224,56 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
             // Check if this tier is the user's current plan
             const isCurrentPlan =
               membership?.isActive && membership.tier === tier.tierKey
+            const isUpgrade =
+              membership?.isActive &&
+              membership.tier &&
+              tierRank[tier.tierKey] > tierRank[membership.tier]
 
             const actionButton = isCurrentPlan ? (
+                <Button
+                  onClick={handleManageSubscription}
+                  disabled={isLoading}
+                  className={cn(
+                  "transition-all duration-300 w-full h-10 text-xs sm:h-11 sm:text-sm md:h-12 md:text-sm",
+                  "bg-white/10 text-white border border-white/20",
+                  "hover:bg-white/20",
+                )}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    "Manage Subscription"
+                  )}
+                </span>
+              </Button>
+            ) : isUpgrade ? (
+                <Button
+                  onClick={() => planKey && handleUpgrade(planKey)}
+                  disabled={!planKey || isLoading}
+                  className={cn(
+                    tier.highlight ? buttonStyles.highlight : buttonStyles.default,
+                  "transition-all duration-300 w-full h-10 text-xs sm:h-11 sm:text-sm md:h-12 md:text-sm",
+                )}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      Upgrade plan
+                      <ArrowRightIcon className="w-4 h-4" />
+                    </>
+                  )}
+                </span>
+              </Button>
+            ) : membership?.isActive ? (
                 <Button
                   onClick={handleManageSubscription}
                   disabled={isLoading}

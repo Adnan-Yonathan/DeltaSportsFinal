@@ -175,7 +175,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
           {tiers.map((tier) => {
             // Get the appropriate plan key based on billing period
             const planKey =
@@ -196,7 +196,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                 onClick={handleManageSubscription}
                 disabled={isLoading}
                 className={cn(
-                  "transition-all duration-300 md:w-full h-10 md:h-12",
+                  "transition-all duration-300 md:w-full h-8 px-2 text-[10px] sm:h-10 sm:text-xs md:h-12 md:text-sm",
                   "bg-white/10 text-white border border-white/20",
                   "hover:bg-white/20",
                 )}
@@ -218,7 +218,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                 disabled={!planKey || isLoading}
                 className={cn(
                   tier.highlight ? buttonStyles.highlight : buttonStyles.default,
-                  "transition-all duration-300 md:w-full h-10 md:h-12",
+                  "transition-all duration-300 md:w-full h-8 px-2 text-[10px] sm:h-10 sm:text-xs md:h-12 md:text-sm",
                 )}
               >
                 <span className="flex items-center justify-center gap-2">
@@ -259,14 +259,16 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                   </div>
                 )}
 
-                <div className="p-6 md:p-8 flex-1">
+                <div className="p-3 sm:p-5 md:p-8 flex-1">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 rounded-2xl bg-emerald-500/15 text-emerald-200">
+                        <div className="p-2 sm:p-3 rounded-xl md:rounded-2xl bg-emerald-500/15 text-emerald-200">
                           {tier.icon}
                         </div>
-                        <h3 className="text-xl font-semibold">{tier.name}</h3>
+                        <h3 className="text-sm sm:text-lg md:text-xl font-semibold">
+                          {tier.name}
+                        </h3>
                       </div>
 
                       <div className="mb-6">
@@ -296,17 +298,17 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                           const isFree = periodPrice === 0
                           return (
                             <>
-                              <div className="flex items-baseline gap-2">
-                                <span className="text-4xl font-bold">
+                              <div className="flex items-baseline gap-1 sm:gap-2">
+                                <span className="text-lg sm:text-3xl md:text-4xl font-bold">
                                   {isFree ? "Free" : `$${dailyPrice}`}
                                 </span>
                                 {!isFree && (
-                                  <span className="text-sm text-slate-200/70">
+                                  <span className="text-[10px] sm:text-xs md:text-sm text-slate-200/70">
                                     /day (billed {billingLabel})
                                   </span>
                                 )}
                               </div>
-                              <p className="mt-2 text-sm text-slate-200/70">
+                              <p className="mt-2 text-xs text-slate-200/70 hidden sm:block">
                                 {tier.description}
                               </p>
                             </>
@@ -318,9 +320,9 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                     <div className="md:hidden shrink-0">{actionButton}</div>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="space-y-3 hidden sm:block">
                     {tier.features.map((feature) => (
-                      <div key={feature.name} className="flex gap-4">
+                      <div key={feature.name} className="flex gap-3">
                         <div
                           className={cn(
                             "mt-1 rounded-full border p-1",

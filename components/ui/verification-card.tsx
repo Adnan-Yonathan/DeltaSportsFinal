@@ -5,8 +5,6 @@ import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 
 interface VerificationCardProps {
-  backgroundImage?: string
-  backgroundPosition?: string
   idNumber?: string
   name?: string
   validThru?: string
@@ -14,8 +12,6 @@ interface VerificationCardProps {
 }
 
 export function VerificationCard({
-  backgroundImage = "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=800&q=80",
-  backgroundPosition = "center",
   idNumber = "ID **** 4590",
   name = "JANE DOE",
   validThru = "11/29",
@@ -27,11 +23,9 @@ export function VerificationCard({
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
       className={cn(
-        "relative h-52 w-80 rounded-2xl p-6 shadow-2xl text-white flex flex-col justify-between bg-cover"
+        "relative h-52 w-80 rounded-2xl border border-white/30 bg-black p-6 text-emerald-200 shadow-[0_0_28px_rgba(255,255,255,0.45)] flex flex-col justify-between"
       )}
-      style={{ backgroundImage: `url(${backgroundImage})`, backgroundPosition }}
     >
-      <div className="absolute inset-0 rounded-2xl bg-black/50" />
       <div className="relative z-10 flex justify-between items-start text-xs tracking-wide">
         <span>{label}</span>
         <span>VALID</span>

@@ -18,7 +18,6 @@ const SHARP_TIER_COLORS: Record<string, { bg: string; text: string; border: stri
   megalodon: { bg: 'rgba(16, 185, 129, 0.2)', text: '#6ee7b7', border: 'rgba(52, 211, 153, 0.5)' },
 }
 
-const CARD_BACKGROUND = '/sportsbook.jpg'
 
 function getSharpTier(notional: number): string {
   if (notional >= 25000) return 'megalodon'
@@ -172,10 +171,7 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
             }}
           >
             <div style={{ transform: 'scale(2.2)', marginTop: 24 }}>
-              <VerificationCard
-                backgroundImage={CARD_BACKGROUND}
-                backgroundPosition="right top"
-                label={`${trade.sport} SHARP`}
+              <VerificationCard                label={`${trade.sport} SHARP`}
                 idNumber={`BET ${formatCurrency(trade.notional)} • LINE ${formatOdds(
                   trade.priceCents,
                   trade.americanOdds
@@ -202,3 +198,4 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
 ShareableTradeCard.displayName = 'ShareableTradeCard'
 
 export default ShareableTradeCard
+

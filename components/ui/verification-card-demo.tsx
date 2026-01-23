@@ -12,7 +12,6 @@ export default function VerificationCardDemo() {
         rel="noopener noreferrer"
       >
         <VerificationCard
-          backgroundImage="https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=800&q=80"
           idNumber="**** **** **** 7421"
           name="DELTA SPORTS"
           validThru="07/31"
@@ -22,3 +21,4 @@ export default function VerificationCardDemo() {
     </div>
   )
 }
+

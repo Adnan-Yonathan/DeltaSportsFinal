@@ -172,9 +172,14 @@ export default function EvParlaysClient() {
                   <p className="text-sm text-white/90">
                     {parlay.bestBook} {formatOdds(parlay.bestBookOdds)}
                   </p>
-                  <p className="mt-1 text-[11px] text-white/60">
-                    Min odds on another book for 3% EV: {formatOdds(parlay.minOddsForEv)}
-                  </p>
+                  <div className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full border border-emerald-400/50 bg-emerald-400/10 px-3 py-1">
+                    <span className="text-[10px] uppercase tracking-[0.2em] text-emerald-200/80">
+                      Target 3% EV
+                    </span>
+                    <span className="text-base font-semibold text-emerald-200">
+                      {formatOdds(parlay.minOddsForEv)}
+                    </span>
+                  </div>
                 </div>
               </div>
 

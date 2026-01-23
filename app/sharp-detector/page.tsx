@@ -228,7 +228,9 @@ export default function SharpDetectorPage() {
   const [trackedWalletSummary, setTrackedWalletSummary] = useState<WalletSummary[]>([])
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
-  const hasAccess = Boolean(membership?.isActive)
+  const hasAccess = Boolean(
+    membership?.isActive && membership?.tier === 'syndicate'
+  )
 
   // Get unique sports for filter
   const sportButtons = useMemo(
@@ -676,10 +678,10 @@ export default function SharpDetectorPage() {
                   Upgrade required
                 </p>
                 <h2 className="mt-3 text-xl font-semibold text-white">
-                  Whale Feed is for members.
+                  Whale Feed is for Syndicate members.
                 </h2>
                 <p className="mt-2 text-base text-white/60">
-                  Upgrade to unlock sharp trade alerts and tracking.
+                  Upgrade to Syndicate to unlock sharp trade alerts and tracking.
                 </p>
                 <Link
                   href="/pricing"

@@ -13,13 +13,8 @@ export default async function EvBetsPage() {
     data: { user },
   } = await supabase.auth.getUser()
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const planVersion = membership.planVersion ?? 1
-  const upgradeLabel = planVersion >= 2 ? "Syndicate" : "Sharp or Syndicate"
-  const hasAccess = membership.isActive
-    ? planVersion >= 2
-      ? membership.tier === "syndicate"
-      : membership.tier === "sharp" || membership.tier === "syndicate"
-    : false
+  const upgradeLabel = "Syndicate"
+  const hasAccess = membership.isActive && membership.tier === "syndicate"
 
   return (
     <div className="relative min-h-screen bg-black text-white px-2 py-6 sm:px-4">

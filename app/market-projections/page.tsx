@@ -40,6 +40,7 @@ export default async function MarketProjectionsPage({
   } = await supabase.auth.getUser()
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
   const hasAccess = membership.isActive
+  const tier = membership.isActive ? membership.tier : null
   const requestedSport = Array.isArray(searchParams?.sport)
     ? searchParams?.sport[0]
     : searchParams?.sport
@@ -230,6 +231,7 @@ export default async function MarketProjectionsPage({
             errorMessage={errorMessage}
             sport={sport}
             isLocked={isLocked}
+            tier={tier}
           />
         )}
         </div>

@@ -15,7 +15,6 @@ export type ShareableSharpProjection = {
   moveSummary?: string
 }
 
-const CARD_BACKGROUND = '/sportsbook.jpg'
 
 const ShareableSharpProjectionCard = forwardRef<
   HTMLDivElement,
@@ -103,10 +102,7 @@ const ShareableSharpProjectionCard = forwardRef<
           }}
         >
           <div style={{ transform: 'scale(2.2)', marginTop: 24 }}>
-            <VerificationCard
-              backgroundImage={CARD_BACKGROUND}
-              backgroundPosition="right top"
-              label={`${projection.sportLabel} PROJECTION`}
+            <VerificationCard              label={`${projection.sportLabel} PROJECTION`}
               idNumber={`EDGE ${projection.edgeLabel}`}
               name={projection.matchup}
               validThru={projection.pickLabel}
@@ -121,3 +117,4 @@ const ShareableSharpProjectionCard = forwardRef<
 ShareableSharpProjectionCard.displayName = 'ShareableSharpProjectionCard'
 
 export default ShareableSharpProjectionCard
+

@@ -12,12 +12,9 @@ export default async function ParlayPredictorPage() {
     data: { user },
   } = await supabase.auth.getUser()
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const planVersion = membership.planVersion ?? 1
-  const hasAccess = membership.isActive
-    ? planVersion >= 2
-      ? membership.tier === "sharp" || membership.tier === "syndicate"
-      : true
-    : false
+  const hasAccess =
+    membership.isActive &&
+    (membership.tier === "sharp" || membership.tier === "syndicate")
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Fixed navigation header */}

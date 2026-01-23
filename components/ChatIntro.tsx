@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
@@ -56,7 +56,141 @@ export default function ChatIntro({
   const [sending, setSending] = useState(false)
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null)
   const [showRecap, setShowRecap] = useState(false)
+  const [projectionPreview, setProjectionPreview] = useState<{
+    label: string
+    detail: string
+  } | null>(null)
+  const [propPreview, setPropPreview] = useState<{
+    label: string
+    detail: string
+  } | null>(null)
+  const [parlayPreview, setParlayPreview] = useState<{
+    label: string
+    detail: string
+  } | null>(null)
   const { recap, loading: recapLoading } = useDailyRecap()
+
+  useEffect(() => {
+    const formatOdds = (value?: number | null) => {
+      if (value == null || !Number.isFinite(value)) return 'n/a'
+      const rounded = Math.round(value)
+      return rounded > 0 ? `+${rounded}` : `${rounded}`
+    }
+
+    const formatLine = (value?: number | null) => {
+      if (value == null || !Number.isFinite(value)) return 'n/a'
+      return value > 0 ? `+${value}` : `${value}`
+    }
+
+    const pickRandom = <T,>(items: T[]) =>
+      items[Math.floor(Math.random() * items.length)]
+
+    const loadPreviews = async () => {
+      try {
+        const [marketRes, propRes, parlayRes] = await Promise.all([
+          fetch('/api/market-projections?sport=basketball_nba&include=1', {
+            cache: 'no-store',
+          }),
+          fetch('/api/sharp-player-props?sport=basketball_nba&limit=50', {
+            cache: 'no-store',
+          }),
+          fetch('/api/ev-parlays?maxParlayOdds=500', { cache: 'no-store' }),
+        ])
+
+        if (marketRes.ok) {
+          const payload = await marketRes.json()
+          const edges = Array.isArray(payload?.edges)
+            ? (payload.edges as Array<Record<string, any>>)
+            : []
+          if (edges.length) {
+            const edge = pickRandom(edges)
+            if (edge?.spread) {
+              const gap = Math.abs(
+                Number(edge.spread.targetLine) - Number(edge.spread.marketLine)
+              )
+              setProjectionPreview({
+                label: `${edge.spread.favoredTeam} ${formatLine(edge.spread.targetLine)}`,
+                detail: Number.isFinite(gap)
+                  ? `Gap ${gap.toFixed(1)} pts vs market`
+                  : 'Model edge vs market',
+              })
+            } else if (edge?.total) {
+              const gap = Math.abs(
+                Number(edge.total.targetLine) - Number(edge.total.marketLine)
+              )
+              setProjectionPreview({
+                label: `Total ${edge.total.targetLine}`,
+                detail: Number.isFinite(gap)
+                  ? `Gap ${gap.toFixed(1)} pts vs market`
+                  : 'Model edge vs market',
+              })
+            } else if (edge?.moneyline) {
+              setProjectionPreview({
+                label: `${edge.homeTeam} ML`,
+                detail: `${edge.awayTeam} matchup`,
+              })
+            }
+          } else {
+            setProjectionPreview({
+              label: 'No projections yet',
+              detail: 'Check back after lines update.',
+            })
+          }
+        }
+
+        if (propRes.ok) {
+          const payload = await propRes.json()
+          const props = Array.isArray(payload?.props)
+            ? (payload.props as Array<Record<string, any>>)
+            : []
+          if (props.length) {
+            const prop = pickRandom(props)
+            const side = prop.side ? `${prop.side} ` : ''
+            const line = prop.propLine != null ? prop.propLine : ''
+            const market = prop.propType ? String(prop.propType).toUpperCase() : 'PROP'
+            setPropPreview({
+              label: `${prop.playerName} ${side}${line} ${market}`.trim(),
+              detail: `Grade ${Math.round(prop.compositeScore)}`,
+            })
+          } else {
+            setPropPreview({
+              label: 'No props yet',
+              detail: 'Waiting for sharp prop bets.',
+            })
+          }
+        }
+
+        if (parlayRes.ok) {
+          const payload = await parlayRes.json()
+          const parlays = Array.isArray(payload?.data)
+            ? (payload.data as Array<Record<string, any>>)
+            : []
+          if (parlays.length) {
+            const parlay = pickRandom(parlays)
+            setParlayPreview({
+              label: `${parlay.legCount}-Leg ${formatOdds(parlay.bestBookOdds)}`,
+              detail: `EV ${parlay.evPercent.toFixed(1)}%`,
+            })
+          } else {
+            setParlayPreview({
+              label: 'No EV parlays',
+              detail: 'Waiting for edges.',
+            })
+          }
+        } else if (parlayRes.status === 403) {
+          setParlayPreview({
+            label: 'Parlay Pro',
+            detail: 'Upgrade to unlock.',
+          })
+        }
+      } catch (error) {
+        return
+      }
+    }
+
+    loadPreviews()
+
+  }, [])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -144,7 +278,7 @@ export default function ChatIntro({
             <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
               <span>Whale Feed</span>
               <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
-                Members Only
+                Syndicate Only
               </span>
             </div>
             <p className="mt-3 text-xs text-white/60">
@@ -350,7 +484,62 @@ export default function ChatIntro({
         animate={{ opacity: 1, y: 0 }}
         className="text-center max-w-3xl w-full"
       >
-        <form onSubmit={handleSubmit} className="w-full">
+        <div className="sm:hidden w-full">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-white/10 bg-black/70 px-2 py-3 text-left">
+              <div className="text-[9px] uppercase tracking-[0.25em] text-emerald-200/80">
+                Sharp Projection
+              </div>
+              <div className="mt-2 text-xs font-semibold text-white">
+                {projectionPreview?.label ?? 'Loading...'}
+              </div>
+              <div className="text-[10px] text-white/60">
+                {projectionPreview?.detail ?? 'Pulling latest edge...'}
+              </div>
+              <Link
+                href="/market-projections"
+                className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-400/40 px-2 py-1 text-[9px] uppercase tracking-[0.2em] text-emerald-200"
+              >
+                View
+              </Link>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/70 px-2 py-3 text-left">
+              <div className="text-[9px] uppercase tracking-[0.25em] text-emerald-200/80">
+                Sharp Prop
+              </div>
+              <div className="mt-2 text-xs font-semibold text-white">
+                {propPreview?.label ?? 'Loading...'}
+              </div>
+              <div className="text-[10px] text-white/60">
+                {propPreview?.detail ?? 'Pulling top prop...'}
+              </div>
+              <Link
+                href="/player-projections"
+                className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-400/40 px-2 py-1 text-[9px] uppercase tracking-[0.2em] text-emerald-200"
+              >
+                View
+              </Link>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/70 px-2 py-3 text-left">
+              <div className="text-[9px] uppercase tracking-[0.25em] text-emerald-200/80">
+                Sharp Parlay
+              </div>
+              <div className="mt-2 text-xs font-semibold text-white">
+                {parlayPreview?.label ?? 'Loading...'}
+              </div>
+              <div className="text-[10px] text-white/60">
+                {parlayPreview?.detail ?? 'Scanning EV parlays...'}
+              </div>
+              <Link
+                href="/parlay-predictor"
+                className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-400/40 px-2 py-1 text-[9px] uppercase tracking-[0.2em] text-emerald-200"
+              >
+                View
+              </Link>
+            </div>
+          </div>
+        </div>
+        <form onSubmit={handleSubmit} className="hidden sm:block w-full">
           <PromptBox
             name="message"
             disabled={sending}

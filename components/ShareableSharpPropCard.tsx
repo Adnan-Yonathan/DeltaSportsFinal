@@ -16,7 +16,6 @@ export type ShareableSharpProp = {
   sourcesLabel: string
 }
 
-const CARD_BACKGROUND = '/sportsbook.jpg'
 
 const ShareableSharpPropCard = forwardRef<
   HTMLDivElement,
@@ -104,10 +103,7 @@ const ShareableSharpPropCard = forwardRef<
           }}
         >
           <div style={{ transform: 'scale(2.2)', marginTop: 24 }}>
-            <VerificationCard
-              backgroundImage={CARD_BACKGROUND}
-              backgroundPosition="right top"
-              label={`${prop.sportLabel} SHARP PROP`}
+            <VerificationCard              label={`${prop.sportLabel} SHARP PROP`}
               idNumber={`GRADE ${prop.scoreLabel}`}
               name={prop.playerName}
               validThru={prop.propLabel}
@@ -122,3 +118,4 @@ const ShareableSharpPropCard = forwardRef<
 ShareableSharpPropCard.displayName = 'ShareableSharpPropCard'
 
 export default ShareableSharpPropCard
+

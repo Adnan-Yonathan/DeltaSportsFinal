@@ -13,6 +13,7 @@ type MarketProjectionsClientProps = {
   errorMessage: string | null
   sport: string
   isLocked?: boolean
+  tier?: "pro" | "sharp" | "syndicate" | null
 }
 
 type RefreshPayload = {
@@ -31,6 +32,7 @@ export default function MarketProjectionsClient({
   errorMessage,
   sport,
   isLocked,
+  tier,
 }: MarketProjectionsClientProps) {
   const [edges, setEdges] = useState<GameEdgeAnalysis[]>(initialEdges)
   const [lastUpdated, setLastUpdated] = useState<string | null>(initialUpdatedAt)
@@ -91,6 +93,7 @@ export default function MarketProjectionsClient({
         edges={edges}
         errorMessage={cacheReady ? error : null}
         sport={sport}
+        tier={tier ?? null}
       />
     </>
   )

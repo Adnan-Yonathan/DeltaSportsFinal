@@ -470,7 +470,9 @@ function ChatPageContent() {
     .join('')
     .slice(0, 2)
     .toUpperCase()
-  const canUseSharpDetector = Boolean(user && membership?.isActive)
+  const canUseSharpDetector = Boolean(
+    user && membership?.isActive && membership?.tier === 'syndicate'
+  )
   const isSyndicate = Boolean(membership?.isActive && membership?.tier === 'syndicate')
   const baseChatTabs = [
     {
@@ -509,8 +511,7 @@ function ChatPageContent() {
       description: 'Real-time projections updated during games',
     },
   ]
-  const planVersion = membership?.planVersion ?? 1
-  const shouldGateTabs = Boolean(membership?.isActive && planVersion >= 2)
+  const shouldGateTabs = Boolean(membership?.isActive)
   const allowedTabs =
     shouldGateTabs
       ? new Set(
@@ -547,7 +548,7 @@ function ChatPageContent() {
   }
 
   useEffect(() => {
-    if (!user) return
+    if (!user || !canUseSharpDetector) return
     const cached = readCachedSharps()
     cached.forEach((trade) => {
       if (trade?.id) {
@@ -559,10 +560,10 @@ function ChatPageContent() {
     if (latest?.id) {
       setLatestSharpTrade(latest)
     }
-  }, [user])
+  }, [user, canUseSharpDetector])
 
   useEffect(() => {
-    if (!user || !showSharpToggle || sharpPanelOpen) return
+    if (!user || !canUseSharpDetector || !showSharpToggle || sharpPanelOpen) return
     let active = true
     const poll = async () => {
       try {
@@ -614,16 +615,16 @@ function ChatPageContent() {
       active = false
       clearInterval(interval)
     }
-  }, [user, showSharpToggle, sharpPanelOpen])
+  }, [user, canUseSharpDetector, showSharpToggle, sharpPanelOpen])
 
   const headerActions = (
       <div className="flex items-center gap-1.5 lg:border-l lg:border-white/10 lg:pl-2">
         <button
-          onClick={() => router.push('/promos')}
+          onClick={() => router.push('/pricing')}
           className="px-2 py-1 text-[#34d399] hover:text-[#16a34a] transition-colors"
-          aria-label="View sportsbook promos"
+          aria-label="View pricing"
         >
-          <span className="text-[10px] sm:text-xs font-semibold leading-none">Promos</span>
+          <span className="text-[10px] sm:text-xs font-semibold leading-none">Pricing</span>
         </button>
         <button
           onClick={() => router.push('/live-scores')}
@@ -798,7 +799,7 @@ function ChatPageContent() {
                 Whale Feed
               </p>
               <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
-                {sharpTotalCount} sharps detected today
+                {canUseSharpDetector ? `${sharpTotalCount} sharps detected today` : 'Syndicate only'}
               </p>
             </div>
             <div className="relative flex items-center gap-2">
@@ -818,7 +819,7 @@ function ChatPageContent() {
                 title={
                   canUseSharpDetector
                     ? 'Open Whale Feed'
-                    : 'Membership required to access Whale Feed'
+                    : 'Syndicate required to access Whale Feed'
                 }
               >
                 Open Sharps
@@ -1147,13 +1148,13 @@ function ChatPageContent() {
                 Whale Feed
               </p>
               <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
-                {sharpTotalCount} sharps detected today
+                {canUseSharpDetector ? `${sharpTotalCount} sharps detected today` : 'Syndicate only'}
               </p>
               <p className="text-[11px] text-white/60">
                 $2k+ trades with price in cents + American odds.
               </p>
             </div>
-            {latestSharpTrade && (
+            {canUseSharpDetector && latestSharpTrade && (
               <div className="hidden md:block px-4">
                 <AnimatePresence mode="wait">
                   <motion.p
@@ -1176,7 +1177,7 @@ function ChatPageContent() {
             <div className="relative flex items-center justify-end gap-3">
               {!canUseSharpDetector && (
                 <span className="rounded-full border border-emerald-400/30 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
-                  Members Only
+                  Syndicate Only
                 </span>
               )}
               {sharpUnreadCount > 0 && (
@@ -1195,7 +1196,7 @@ function ChatPageContent() {
                 title={
                   canUseSharpDetector
                     ? 'Open Whale Feed'
-                    : 'Membership required to access Whale Feed'
+                    : 'Syndicate required to access Whale Feed'
                 }
               >
                 Open Whale Feed

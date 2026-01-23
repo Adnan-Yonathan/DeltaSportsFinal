@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import ShareProjectionButton from "@/components/ShareProjectionButton"
 
 type EdgeFilter = "spread" | "moneyline" | "total"
+type AccessTier = "pro" | "sharp" | "syndicate" | null
 
 type MarketEdge = {
   edgePercent: number
@@ -127,6 +128,24 @@ const coerceNumber = (value?: number | string | null) => {
     return Number.isFinite(parsed) ? parsed : null
   }
   return null
+}
+
+type AccessConfig = {
+  allowedFilters: EdgeFilter[]
+  maxRows: Partial<Record<EdgeFilter, number>>
+}
+
+const resolveAccessConfig = (tier?: AccessTier): AccessConfig => {
+  if (tier === "pro") {
+    return { allowedFilters: ["spread"], maxRows: { spread: 1 } }
+  }
+  if (tier === "sharp") {
+    return {
+      allowedFilters: ["spread", "moneyline", "total"],
+      maxRows: { spread: 5, moneyline: 5, total: 5 },
+    }
+  }
+  return { allowedFilters: ["spread", "moneyline", "total"], maxRows: {} }
 }
 
 const formatSigned = (value?: number | string | null) => {
@@ -890,12 +909,15 @@ export default function MarketProjectionsTable({
   edges,
   errorMessage,
   sport,
+  tier,
 }: {
   edges: EdgeGame[]
   errorMessage: string | null
   sport?: string
+  tier?: AccessTier
 }) {
-  const [filter, setFilter] = useState<EdgeFilter>("spread")
+  const accessConfig = useMemo(() => resolveAccessConfig(tier), [tier])
+  const [filter, setFilter] = useState<EdgeFilter>(accessConfig.allowedFilters[0] ?? "spread")
   const [pulseKey, setPulseKey] = useState(0)
 
   useEffect(() => {
@@ -905,54 +927,54 @@ export default function MarketProjectionsTable({
     return () => clearInterval(intervalId)
   }, [])
 
+  useEffect(() => {
+    if (!accessConfig.allowedFilters.includes(filter)) {
+      setFilter(accessConfig.allowedFilters[0] ?? "spread")
+    }
+  }, [accessConfig.allowedFilters, filter])
+
   const sortedEdges = useMemo(() => {
     const scoped = edges.filter((game) => hasMarketData(game, filter))
-    return [...scoped].sort(
+    const sorted = [...scoped].sort(
       (a, b) =>
         marketEdge(b, filter, sport).edgePercent -
         marketEdge(a, filter, sport).edgePercent
     )
-  }, [edges, filter, sport])
+    const maxRows = accessConfig.maxRows[filter]
+    return Number.isFinite(maxRows) ? sorted.slice(0, maxRows) : sorted
+  }, [edges, filter, sport, accessConfig.maxRows])
 
   const filterLabels = resolveFilterLabels(filter)
+  const filterButtonLabels: Record<EdgeFilter, string> = {
+    spread: "Top Spread",
+    moneyline: "Top Moneyline",
+    total: "Top O/U",
+  }
+  const filterGridClass =
+    accessConfig.allowedFilters.length === 1
+      ? "grid-cols-1"
+      : accessConfig.allowedFilters.length === 2
+        ? "grid-cols-2"
+        : "grid-cols-3"
 
   return (
     <>
       <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 sm:mt-6">
-        <div className="grid grid-cols-3 gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
-          <button
-            type="button"
-            onClick={() => setFilter("spread")}
-            className={`rounded-md border px-3 py-2 text-center transition-colors ${
-              filter === "spread"
-                ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
-                : "border-white/10 bg-black/40 hover:border-emerald-400/40 hover:text-white"
-            }`}
-          >
-            Top Spread
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter("moneyline")}
-            className={`rounded-md border px-3 py-2 text-center transition-colors ${
-              filter === "moneyline"
-                ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
-                : "border-white/10 bg-black/40 hover:border-emerald-400/40 hover:text-white"
-            }`}
-          >
-            Top Moneyline
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter("total")}
-            className={`rounded-md border px-3 py-2 text-center transition-colors ${
-              filter === "total"
-                ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
-                : "border-white/10 bg-black/40 hover:border-emerald-400/40 hover:text-white"
-            }`}
-          >
-            Top O/U
-          </button>
+        <div className={`grid ${filterGridClass} gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70`}>
+          {accessConfig.allowedFilters.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setFilter(item)}
+              className={`rounded-md border px-3 py-2 text-center transition-colors ${
+                filter === item
+                  ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
+                  : "border-white/10 bg-black/40 hover:border-emerald-400/40 hover:text-white"
+              }`}
+            >
+              {filterButtonLabels[item]}
+            </button>
+          ))}
         </div>
       </div>
 

@@ -19,12 +19,14 @@ type AggregatedPlayerPropBet = {
   sportKey: string
   totalNotional: number
   betCount: number
-  avgPriceCents: number
+  avgPriceCents: number | null
   avgSharpStrength: number
-  predMarketProbability: number
+  predMarketProbability: number | null
   predMarketOdds: number | null
   sportsbookAvgProbability: number | null
   sportsbookAvgOdds: number | null
+  edgeReferenceProbability: number | null
+  edgeReferenceSource: "kalshi" | "books" | null
   edgePercent: number
   isClustered: boolean
   clusterWindowHours: number
@@ -185,7 +187,10 @@ const formatOdds = (value?: number | null) => {
 
 const buildSharePropPayload = (prop: AggregatedPlayerPropBet) => {
   const sportLabel = SPORT_LABELS[prop.sportKey] ?? prop.sportKey.toUpperCase()
-  const edgeLabel = prop.sportsbookAvgOdds != null ? formatEdge(prop.edgePercent) : "-"
+  const edgeLabel =
+    prop.sportsbookAvgOdds != null && prop.edgeReferenceProbability != null
+      ? formatEdge(prop.edgePercent)
+      : "-"
   const scoreLabel = formatComposite(prop.compositeScore)
   const predOddsLabel = formatOdds(prop.predMarketOdds)
   const bookOddsLabel = formatOdds(prop.sportsbookAvgOdds)
@@ -274,6 +279,10 @@ const SportBadge = ({ sportKey }: { sportKey: string }) => {
 
 const TopPickCard = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport?: boolean }) => {
   const sharePayload = buildSharePropPayload(prop)
+  const hasBookOdds = prop.sportsbookAvgOdds != null
+  const showEdge =
+    prop.edgeReferenceProbability != null && Number.isFinite(prop.edgeReferenceProbability) && hasBookOdds
+
   return (
     <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
       <div className="flex items-start justify-between gap-2">
@@ -310,7 +319,7 @@ const TopPickCard = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showS
                 : "text-white"
           }`}
         >
-          {prop.sportsbookAvgOdds != null ? formatEdge(prop.edgePercent) : "-"}
+          {showEdge ? formatEdge(prop.edgePercent) : "-"}
         </div>
       </div>
     </div>
@@ -341,6 +350,11 @@ const TopPickCard = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showS
 
 const PropRow = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport?: boolean }) => {
   const sharePayload = buildSharePropPayload(prop)
+  const hasBookOdds = prop.sportsbookAvgOdds != null
+  const showEdge =
+    prop.edgeReferenceProbability != null &&
+    Number.isFinite(prop.edgeReferenceProbability) &&
+    hasBookOdds
   return (
     <div className="border-b border-white/5 px-3 py-3 hover:bg-white/5 transition-colors">
     {/* Mobile layout */}
@@ -375,7 +389,7 @@ const PropRow = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport
                 : "text-white"
           }`}
         >
-          {prop.sportsbookAvgOdds != null ? formatEdge(prop.edgePercent) : "-"}
+          {showEdge ? formatEdge(prop.edgePercent) : "-"}
         </div>
       </div>
       </div>
@@ -457,7 +471,7 @@ const PropRow = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport
                 : "text-white/60"
           }`}
         >
-          {prop.sportsbookAvgOdds != null ? formatEdge(prop.edgePercent) : "-"}
+          {showEdge ? formatEdge(prop.edgePercent) : "-"}
         </div>
       </div>
 
@@ -607,6 +621,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
       if (filters.propType !== "All" && prop.propType !== filters.propType) {
         return false
       }
+      if (prop.edgeReferenceProbability == null) return false
       if (!Number.isFinite(prop.edgePercent)) return false
       if (prop.edgePercent < EV_MIN_EDGE) return false
       if (prop.sportsbookAvgOdds == null) return false

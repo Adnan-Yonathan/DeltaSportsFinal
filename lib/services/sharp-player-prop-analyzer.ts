@@ -30,11 +30,11 @@ export type AggregatedPlayerPropBet = {
   // Aggregated metrics
   totalNotional: number
   betCount: number
-  avgPriceCents: number
+  avgPriceCents: number | null
   avgSharpStrength: number
 
   // Prediction market odds/probability
-  predMarketProbability: number
+  predMarketProbability: number | null
   predMarketOdds: number | null
 
   // Best sportsbook line for this prop
@@ -42,6 +42,8 @@ export type AggregatedPlayerPropBet = {
   bestOddsFormatted: string | null
   sportsbookAvgProbability: number | null
   sportsbookAvgOdds: number | null
+  edgeReferenceProbability: number | null
+  edgeReferenceSource: 'kalshi' | 'books' | null
   edgePercent: number
 
   // Clustering detection
@@ -74,7 +76,6 @@ export type AnalyzeSharpPlayerPropsOptions = {
   weights?: CompositeScoreWeights
   limit?: number
   topPicksCount?: number
-  sources?: Array<'kalshi' | 'polymarket'>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -272,6 +273,8 @@ type SportsbookPropOdds = {
   line: number
   bestOverOdds: number | null
   bestUnderOdds: number | null
+  overOdds: number[]
+  underOdds: number[]
 }
 
 const fetchSportsbookPlayerProps = async (
@@ -324,6 +327,8 @@ const fetchSportsbookPlayerProps = async (
       // Find BEST odds across sportsbooks (highest = best for bettor)
       let bestOverOdds: number | null = null
       let bestUnderOdds: number | null = null
+      const overOddsList: number[] = []
+      const underOddsList: number[] = []
       let line: number | null = null
 
       for (const book of sportsbooks) {
@@ -353,11 +358,13 @@ const fetchSportsbookPlayerProps = async (
 
         // Track best odds (higher American odds = better for bettor)
         if (overOdds != null && !isNaN(overOdds)) {
+          overOddsList.push(overOdds)
           if (bestOverOdds === null || overOdds > bestOverOdds) {
             bestOverOdds = overOdds
           }
         }
         if (underOdds != null && !isNaN(underOdds)) {
+          underOddsList.push(underOdds)
           if (bestUnderOdds === null || underOdds > bestUnderOdds) {
             bestUnderOdds = underOdds
           }
@@ -375,6 +382,8 @@ const fetchSportsbookPlayerProps = async (
           line,
           bestOverOdds,
           bestUnderOdds,
+          overOdds: overOddsList,
+          underOdds: underOddsList,
         })
       }
     }
@@ -392,12 +401,12 @@ const findBestSportsbookOdds = (
   propLine: number | null,
   side: 'Over' | 'Under' | null,
   sportsbookData: Map<string, SportsbookPropOdds[]>
-): { bestOdds: number | null } => {
+): { bestOdds: number | null; consensusProbability: number | null } => {
   const normalizedPlayer = normalizePlayerName(playerName)
   const playerOdds = sportsbookData.get(normalizedPlayer)
 
   if (!playerOdds || playerOdds.length === 0) {
-    return { bestOdds: null }
+    return { bestOdds: null, consensusProbability: null }
   }
 
   // Find matching prop type
@@ -406,7 +415,7 @@ const findBestSportsbookOdds = (
   )
 
   if (matchingProps.length === 0) {
-    return { bestOdds: null }
+    return { bestOdds: null, consensusProbability: null }
   }
 
   // Prefer exact line match, otherwise take closest
@@ -426,13 +435,21 @@ const findBestSportsbookOdds = (
   }
 
   if (!best) {
-    return { bestOdds: null }
+    return { bestOdds: null, consensusProbability: null }
   }
 
   // Get best odds for the relevant side
   const bestOdds = side === 'Under' ? best.bestUnderOdds : best.bestOverOdds
+  const consensusOdds = side === 'Under' ? best.underOdds : best.overOdds
+  const validConsensus = consensusOdds
+    .map((value) => oddsToImpliedProbability(value))
+    .filter((value) => Number.isFinite(value))
+  const consensusProbability =
+    validConsensus.length > 0
+      ? validConsensus.reduce((sum, value) => sum + value, 0) / validConsensus.length
+      : null
 
-  return { bestOdds }
+  return { bestOdds, consensusProbability }
 }
 
 const formatAmericanOdds = (odds: number | null): string | null => {
@@ -454,28 +471,20 @@ export const analyzeSharpPlayerProps = async (
     weights = DEFAULT_WEIGHTS,
     limit = DEFAULT_LIMIT,
     topPicksCount = DEFAULT_TOP_PICKS_COUNT,
-    sources,
   } = options
 
   // Fetch whale trades and sportsbook odds in parallel
   // For "all" sports, we skip sportsbook comparison (too many API calls)
   const [trades, sportsbookData, liquiditySignals] = await Promise.all([
-    fetchPlayerPropWhaleTrades({ sportKey, limit: limit * 3, sources }),
+    fetchPlayerPropWhaleTrades({ sportKey, limit: limit * 3 }),
     sportKey === 'all'
       ? Promise.resolve(new Map<string, SportsbookPropOdds[]>())
       : fetchSportsbookPlayerProps(sportKey),
     fetchPropLiquiditySignals({ sportKey }),
   ])
 
-  const sourceFilter = sources && sources.length > 0 ? new Set(sources) : null
-  const filteredTrades = sourceFilter
-    ? trades.filter((trade) => sourceFilter.has(trade.source))
-    : trades
-  const filteredSignals = sourceFilter
-    ? liquiditySignals.filter((signal) => sourceFilter.has(signal.source))
-    : liquiditySignals
-  const liquidityTrades = mapLiquiditySignalsToPlayerPropTrades(filteredSignals)
-  const combinedTrades = [...filteredTrades, ...liquidityTrades]
+  const liquidityTrades = mapLiquiditySignalsToPlayerPropTrades(liquiditySignals)
+  const combinedTrades = [...trades, ...liquidityTrades]
 
   // Aggregate trades by player/prop/line/side
   const grouped = aggregateTradesByProp(combinedTrades, minNotional)
@@ -497,11 +506,21 @@ export const analyzeSharpPlayerProps = async (
     const betCount = propTrades.length
 
     // Average price cents from prediction market
+    const kalshiTrades = propTrades.filter((trade) => trade.source === 'kalshi')
     const avgPriceCents =
-      propTrades.reduce((sum, t) => sum + (t.priceCents ?? 50), 0) / betCount
+      kalshiTrades.length > 0
+        ? kalshiTrades.reduce((sum, t) => sum + (t.priceCents ?? 50), 0) /
+          kalshiTrades.length
+        : null
 
     // Get best sportsbook odds for this prop
-    const { bestOdds } = findBestSportsbookOdds(playerName, propType, propLine, side, sportsbookData)
+    const { bestOdds, consensusProbability } = findBestSportsbookOdds(
+      playerName,
+      propType,
+      propLine,
+      side,
+      sportsbookData
+    )
 
     // Detect clustering
     const { isClustered, earliestTime, latestTime } = detectClustering(
@@ -521,16 +540,27 @@ export const analyzeSharpPlayerProps = async (
       'kalshi' | 'polymarket'
     >
 
-    const predMarketProbability = avgPriceCents / 100
+    const predMarketProbability =
+      avgPriceCents != null ? avgPriceCents / 100 : null
     const predMarketOdds =
-      predMarketProbability > 0 && predMarketProbability < 1
+      predMarketProbability != null &&
+      predMarketProbability > 0 &&
+      predMarketProbability < 1
         ? probabilityToAmericanOdds(predMarketProbability)
         : null
     const sportsbookAvgProbability =
       bestOdds != null ? oddsToImpliedProbability(bestOdds) : null
+    const edgeReferenceProbability =
+      predMarketProbability ?? consensusProbability ?? null
+    const edgeReferenceSource =
+      predMarketProbability != null
+        ? 'kalshi'
+        : consensusProbability != null
+          ? 'books'
+          : null
     const edgePercent =
-      sportsbookAvgProbability != null
-        ? Math.round((predMarketProbability - sportsbookAvgProbability) * 1000) / 10
+      edgeReferenceProbability != null && sportsbookAvgProbability != null
+        ? Math.round((edgeReferenceProbability - sportsbookAvgProbability) * 1000) / 10
         : 0
 
     const aggregated: AggregatedPlayerPropBet = {
@@ -550,6 +580,8 @@ export const analyzeSharpPlayerProps = async (
       bestOddsFormatted: formatAmericanOdds(bestOdds),
       sportsbookAvgProbability,
       sportsbookAvgOdds: bestOdds,
+      edgeReferenceProbability,
+      edgeReferenceSource,
       edgePercent,
       isClustered,
       clusterWindowHours,

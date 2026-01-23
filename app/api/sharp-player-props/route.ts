@@ -20,7 +20,6 @@ export async function GET(req: NextRequest) {
     const minNotional = Number(searchParams.get("minNotional") || 1000)
     const minComposite = Number(searchParams.get("minComposite") || 0)
     const limit = Number(searchParams.get("limit") || 1000)
-    const sources: Array<"kalshi" | "polymarket"> = ["kalshi"]
 
     if (!SUPPORTED_SPORTS.has(sport)) {
       return NextResponse.json(
@@ -33,7 +32,6 @@ export async function GET(req: NextRequest) {
       sportKey: sport,
       minNotional: Number.isFinite(minNotional) ? Math.max(minNotional, 1000) : 1000,
       limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 1000) : 1000,
-      sources,
     })
 
     // Apply client-side filters (filter by minimum composite score)

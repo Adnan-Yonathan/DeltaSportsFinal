@@ -885,11 +885,9 @@ export const fetchWhaleHistoryForGames = async ({
 export const fetchPlayerPropWhaleTrades = async ({
   sportKey,
   limit = 30,
-  sources,
 }: {
   sportKey: string | 'all'
   limit?: number
-  sources?: Array<'kalshi' | 'polymarket'>
 }): Promise<PlayerPropWhaleTrade[]> => {
   const supabase = createServiceClient()
   const now = new Date()
@@ -912,9 +910,6 @@ export const fetchPlayerPropWhaleTrades = async ({
   // Apply sport filter if not "all"
   if (sportKey !== 'all') {
     query = query.eq('sport_key', sportKey)
-  }
-  if (sources && sources.length > 0) {
-    query = query.in('source', sources)
   }
 
   const { data, error } = (await query) as unknown as {

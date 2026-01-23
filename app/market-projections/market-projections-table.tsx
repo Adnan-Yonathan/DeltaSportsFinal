@@ -185,6 +185,13 @@ const resolveSportLabel = (sportKey?: string) => {
   return sportKey ? map[sportKey] ?? sportKey.toUpperCase() : "SPORTS"
 }
 
+const isUpcomingGame = (commenceTime?: string) => {
+  if (!commenceTime) return true
+  const time = Date.parse(commenceTime)
+  if (!Number.isFinite(time)) return true
+  return time > Date.now()
+}
+
 const resolveWhaleTier = (notional: number): WhaleTier => {
   if (notional >= 10000) return "mega"
   if (notional >= 5000) return "blue"
@@ -934,7 +941,9 @@ export default function MarketProjectionsTable({
   }, [accessConfig.allowedFilters, filter])
 
   const sortedEdges = useMemo(() => {
-    const scoped = edges.filter((game) => hasMarketData(game, filter))
+    const scoped = edges.filter(
+      (game) => hasMarketData(game, filter) && isUpcomingGame(game.commenceTime)
+    )
     const sorted = [...scoped].sort(
       (a, b) =>
         marketEdge(b, filter, sport).edgePercent -

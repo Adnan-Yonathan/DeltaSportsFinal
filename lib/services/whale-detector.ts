@@ -1263,29 +1263,29 @@ const findBestOdds = (
         if ((selection.totalSide === 'over' && !isOver) || (selection.totalSide === 'under' && !isUnder)) {
           continue
         }
+        if (selection.line == null) continue
         const line = Number(outcome.point)
         if (!Number.isFinite(line)) continue
-        const lineDiff = selection.line != null ? Math.abs(line - selection.line) : 0
-        if (lineDiff < bestLineDiff || (lineDiff === bestLineDiff && (bestOdds == null || price > bestOdds))) {
-          bestLineDiff = lineDiff
-          bestOdds = price
-          bestBookKey = book.key
-          bestBookTitle = book.title ?? book.key
-        }
+        const lineDiff = Math.abs(line - selection.line)
+        if (lineDiff > 0.01) continue
+        bestLineDiff = lineDiff
+        bestOdds = price
+        bestBookKey = book.key
+        bestBookTitle = book.title ?? book.key
         continue
       }
       if (marketKey === 'spreads') {
         if (!selection.team) continue
         if (!normalizeTeamKey(outcome.name).includes(normalizeTeamKey(selection.team))) continue
+        if (selection.line == null) continue
         const line = Number(outcome.point)
         if (!Number.isFinite(line)) continue
-        const lineDiff = selection.line != null ? Math.abs(line - selection.line) : 0
-        if (lineDiff < bestLineDiff || (lineDiff === bestLineDiff && (bestOdds == null || price > bestOdds))) {
-          bestLineDiff = lineDiff
-          bestOdds = price
-          bestBookKey = book.key
-          bestBookTitle = book.title ?? book.key
-        }
+        const lineDiff = Math.abs(line - selection.line)
+        if (lineDiff > 0.01) continue
+        bestLineDiff = lineDiff
+        bestOdds = price
+        bestBookKey = book.key
+        bestBookTitle = book.title ?? book.key
       }
     }
   }
@@ -1315,6 +1315,8 @@ const resolveSelectionOddsFromBook = (
 
   if (marketKey === 'totals') {
     if (!selection.totalSide) return null
+    if (selection.line == null) return null
+    const targetLine = selection.line
     const grouped = new Map<number, { over?: OddsOutcome; under?: OddsOutcome }>()
     for (const outcome of outcomes) {
       const line = Number(outcome.point)
@@ -1329,18 +1331,11 @@ const resolveSelectionOddsFromBook = (
       grouped.set(line, bucket)
     }
 
-    if (grouped.size === 0) return null
-    let bestLine: number | null = null
-    let bestDiff = Number.POSITIVE_INFINITY
-    for (const line of grouped.keys()) {
-      const diff = selection.line != null ? Math.abs(line - selection.line) : 0
-      if (diff < bestDiff) {
-        bestDiff = diff
-        bestLine = line
-      }
-    }
-    if (bestLine == null) return null
-    const bucket = grouped.get(bestLine)
+    const targetKey = Array.from(grouped.keys()).find(
+      (line) => Math.abs(line - targetLine) <= 0.01
+    )
+    if (targetKey == null) return null
+    const bucket = grouped.get(targetKey)
     if (!bucket) return null
     const selectionOutcome = selection.totalSide === 'over' ? bucket.over : bucket.under
     const opposingOutcome = selection.totalSide === 'over' ? bucket.under : bucket.over
@@ -1350,6 +1345,8 @@ const resolveSelectionOddsFromBook = (
 
   if (marketKey === 'spreads') {
     if (!selection.team || !teams) return null
+    if (selection.line == null) return null
+    const targetLine = selection.line
     const selectionKey = normalizeTeamKey(selection.team)
     const opponentTeam =
       normalizeTeamKey(teams.home) === selectionKey ? teams.away : teams.home
@@ -1360,16 +1357,12 @@ const resolveSelectionOddsFromBook = (
         Number.isFinite(outcome.point)
     )
     if (!candidates.length) return null
-    let best = candidates[0]
-    let bestDiff = Number.POSITIVE_INFINITY
-    for (const outcome of candidates) {
+    const best = candidates.find((outcome) => {
       const line = Number(outcome.point)
-      const diff = selection.line != null ? Math.abs(line - selection.line) : 0
-      if (diff < bestDiff) {
-        bestDiff = diff
-        best = outcome
-      }
-    }
+      if (!Number.isFinite(line)) return false
+      return Math.abs(line - targetLine) <= 0.01
+    })
+    if (!best) return null
     const targetOppLine = Number.isFinite(best.point) ? -Number(best.point) : null
     const opposingOutcome = outcomes.find((outcome) => {
       if (!Number.isFinite(outcome.point)) return false

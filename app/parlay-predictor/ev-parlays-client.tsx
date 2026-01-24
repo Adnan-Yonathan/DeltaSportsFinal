@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 type EvParlayLeg = {
   game: string
@@ -48,6 +48,7 @@ export default function EvParlaysClient() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
   const [maxParlayOdds, setMaxParlayOdds] = useState<number>(500)
+  const lastFetchedRef = useRef(0)
 
   const fetchParlays = useCallback(async () => {
     setLoading(true)
@@ -63,7 +64,9 @@ export default function EvParlaysClient() {
       const payload = await res.json()
       const data = Array.isArray(payload?.data) ? payload.data : []
       setParlays(data)
-      setLastUpdated(new Date().toISOString())
+      const stamp = new Date().toISOString()
+      setLastUpdated(stamp)
+      lastFetchedRef.current = Date.now()
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to load EV parlays."
@@ -78,6 +81,18 @@ export default function EvParlaysClient() {
     fetchParlays()
     const interval = window.setInterval(fetchParlays, REFRESH_MS)
     return () => window.clearInterval(interval)
+  }, [fetchParlays])
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return
+      const elapsed = Date.now() - lastFetchedRef.current
+      if (elapsed >= REFRESH_MS) {
+        fetchParlays()
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
   }, [fetchParlays])
 
   useEffect(() => {

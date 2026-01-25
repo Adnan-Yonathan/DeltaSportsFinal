@@ -98,6 +98,12 @@ const CUSTOMER_SCREENSHOTS = [
   },
 ]
 
+const LEGAL_LINKS = [
+  { href: "/privacy-policy", label: "Privacy" },
+  { href: "/terms-of-service", label: "Terms" },
+  { href: "/refund-policy", label: "Refunds" },
+]
+
 const SoftButton = ({ children, className = "", href, ...props }: any) => {
   const baseClasses =
     "rounded-full px-5 py-2.5 text-sm font-medium shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2 " +
@@ -453,6 +459,17 @@ export default function LandingPage() {
         <div className="mb-4 text-sm text-white/70">
           <strong>Disclaimer:</strong> This application is for educational and analytical purposes only. Delta Sports AI does
           not process real bets or transactions. Gambling involves risk. Please bet responsibly.
+        </div>
+        <div className="mb-3 flex flex-wrap items-center justify-center gap-4 text-[11px] text-white/60">
+          {LEGAL_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="transition-colors hover:text-white"
+            >
+              {link.label}
+            </Link>
+          ))}
         </div>
         <div>(c) {new Date().getFullYear()} Delta Sports, Inc. All rights reserved.</div>
       </footer>

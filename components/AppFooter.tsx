@@ -3,6 +3,12 @@
 import Link from "next/link"
 import { Twitter } from "lucide-react"
 
+const legalLinks = [
+  { href: "/privacy-policy", label: "Privacy" },
+  { href: "/terms-of-service", label: "Terms" },
+  { href: "/refund-policy", label: "Refunds" },
+]
+
 export function AppFooter() {
   return (
     <footer className="bg-black text-white">
@@ -13,6 +19,17 @@ export function AppFooter() {
         <p className="text-[11px] text-white/60">
           (c) {new Date().getFullYear()} Delta Sports. All rights reserved.
         </p>
+        <nav className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-white/60">
+          {legalLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="transition-colors hover:text-white"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
         <Link
           href="https://x.com/DeltaSportsAI"
           target="_blank"

@@ -39,10 +39,20 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     ? Number(planVersionRaw)
     : 1
 
+  const fullAccessStatuses: MembershipStatus[] = ['active', 'trialing']
+  const isFullAccessStatus =
+    Boolean(status) && fullAccessStatuses.includes(status as MembershipStatus)
+
   // Active statuses: 'active' and 'trialing' allow full access
   // 'past_due' allows access but should show warning
   const activeStatuses: MembershipStatus[] = ['active', 'trialing', 'past_due']
-  const isActive = Boolean(tier) && Boolean(status) && activeStatuses.includes(status!)
+  const isActive =
+    Boolean(status) &&
+    activeStatuses.includes(status as MembershipStatus) &&
+    (Boolean(tier) || isFullAccessStatus)
+
+  // Temporary patch: grant full access to any paying or trialing membership.
+  const effectiveTier = isFullAccessStatus ? 'syndicate' : tier
 
   // Legacy support: check expiration date if no status but has tier
   // This handles old subscriptions that used expiration dates
@@ -63,7 +73,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
   }
 
   return {
-    tier,
+    tier: effectiveTier,
     status,
     isActive,
     isTrial: status === 'trialing',

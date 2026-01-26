@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import MarketProjectionsRefresh from "./market-projections-refresh"
 import MarketProjectionsTable from "./market-projections-table"
 import TutorialPopup from "@/components/TutorialPopup"
+import BookSelector, { useBookSelection, type BookKey } from "@/components/BookSelector"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 
 type MarketProjectionsClientProps = {
@@ -13,7 +14,8 @@ type MarketProjectionsClientProps = {
   errorMessage: string | null
   sport: string
   isLocked?: boolean
-  tier?: "pro" | "sharp" | "syndicate" | null
+  tier?: "free" | "sharp" | "syndicate" | null
+  previewMode?: boolean
 }
 
 type RefreshPayload = {
@@ -33,12 +35,14 @@ export default function MarketProjectionsClient({
   sport,
   isLocked,
   tier,
+  previewMode = false,
 }: MarketProjectionsClientProps) {
   const [edges, setEdges] = useState<GameEdgeAnalysis[]>(initialEdges)
   const [lastUpdated, setLastUpdated] = useState<string | null>(initialUpdatedAt)
   const [cacheReady, setCacheReady] = useState(hasCache)
   const [error, setError] = useState<string | null>(errorMessage)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const { selectedBooks, setSelectedBooks, isHydrated } = useBookSelection()
 
   useEffect(() => {
     setEdges(initialEdges)
@@ -81,6 +85,18 @@ export default function MarketProjectionsClient({
         onUpdated={handleUpdated}
         onStatusChange={handleStatusChange}
       />
+      {isHydrated && (
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <BookSelector
+            selectedBooks={selectedBooks}
+            onChange={setSelectedBooks}
+            variant="compact"
+          />
+          <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+            {selectedBooks.length} book{selectedBooks.length !== 1 ? 's' : ''} selected
+          </div>
+        </div>
+      )}
       {showLoading && (
         <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-white/60">
@@ -94,6 +110,8 @@ export default function MarketProjectionsClient({
         errorMessage={cacheReady ? error : null}
         sport={sport}
         tier={tier ?? null}
+        selectedBooks={selectedBooks}
+        previewMode={previewMode}
       />
     </>
   )

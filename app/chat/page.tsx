@@ -17,6 +17,7 @@ import ToolsNav from '@/components/tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, Target, Link2, Check, ArrowUpRight, Twitter } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
+import ModeToggle, { type DeltaMode } from '@/components/ModeToggle'
 import FakeRecapNotification from '@/components/FakeRecapNotification'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
@@ -30,6 +31,7 @@ const PROMO_DISMISS_KEY = 'promo_links_dismissed'
 const PROMO_CLICK_KEY = 'promo_links_click_source'
 const DISCORD_INVITE_URL = 'https://discord.gg/8jUcaKT9'
 const KALSHI_REFERRAL_URL = 'https://kalshi.com/sign-up/?referral=4807d3a2-7c7c-40bb-986c-608115b5a2c5'
+const DELTA_MODE_STORAGE_KEY = 'delta-mode'
 
 type SharpTradePreview = {
   id?: string
@@ -147,6 +149,7 @@ function ChatPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const prefillMessage = searchParams.get('prompt') ?? undefined
+  const [deltaMode, setDeltaMode] = useState<DeltaMode>('projections')
   const supabase = createClient()
   const profileMenuRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -221,8 +224,8 @@ function ChatPageContent() {
       const membershipInfo = getMembershipStatus(user.user_metadata)
       setMembership(membershipInfo)
 
-      // Fetch message count for Pro users
-      if (membershipInfo.tier === 'pro' && membershipInfo.isActive) {
+      // Fetch message count for Free users
+      if (membershipInfo.tier === 'free' && membershipInfo.isActive) {
         const count = await countUserMessagesToday(supabase, user.id)
         setMessagesToday(count)
       }
@@ -260,6 +263,13 @@ function ChatPageContent() {
   }, [])
 
   // Warm up odds endpoints once on load to avoid first-request cold start
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(DELTA_MODE_STORAGE_KEY, deltaMode)
+    const root = document.documentElement
+    root.setAttribute('data-delta-mode', deltaMode)
+  }, [deltaMode])
+
   useEffect(() => {
     if (hasWarmedUp.current) return
     hasWarmedUp.current = true
@@ -468,7 +478,7 @@ function ChatPageContent() {
     user && membership?.isActive && membership?.tier === 'syndicate'
   )
   const isSyndicate = Boolean(membership?.isActive && membership?.tier === 'syndicate')
-  const baseChatTabs = [
+  const projectionsTabs = [
     {
       key: 'market-projections',
       label: 'Sharp Projections',
@@ -477,11 +487,11 @@ function ChatPageContent() {
       description: 'AI-powered spread, total, and moneyline projections with edge detection',
     },
     {
-      key: 'player-projections',
-      label: 'Sharp Props',
-      shortLabel: 'Props',
-      href: '/player-projections',
-      description: 'Player prop projections based on recent form and matchup context',
+      key: 'line-shopping',
+      label: 'Line Shopping',
+      shortLabel: 'Lines',
+      href: '/line-shopping',
+      description: 'Compare odds across sportsbooks to find the best lines',
     },
     {
       key: 'parlay-predictor',
@@ -490,38 +500,54 @@ function ChatPageContent() {
       href: '/parlay-predictor',
       description: 'Sportsbook EV parlays plus a correlation-aware parlay builder',
     },
-      {
-        key: 'ev-bets',
-        label: 'Line Shopping',
-        shortLabel: 'Line Shop',
-        href: '/ev-bets',
-        description: 'Compare pregame lines across sportsbooks and prediction markets',
-      },
     {
-      key: 'live-projections',
-      label: 'Live Projections',
-      shortLabel: 'Live',
-      href: '/live-projections',
-      description: 'Real-time projections updated during games',
+      key: 'ev-bets',
+      label: 'EV Bets',
+      shortLabel: 'EV',
+      href: '/ev-bets',
+      description: 'Find +EV opportunities using Pinnacle as sharp baseline',
     },
   ]
+
+  const researchTabs = [
+    {
+      key: 'sharp-action',
+      label: 'Sharp Action',
+      shortLabel: 'Action',
+      href: '/research/sharp-action',
+      description: 'Narrative explanations for why sharps are targeting specific games',
+    },
+    {
+      key: 'betting-trends',
+      label: 'Betting Trends',
+      shortLabel: 'Trends',
+      href: '/research/betting-trends',
+      description: 'ATS records and historical trends for today\'s games',
+    },
+    {
+      key: 'backtesting',
+      label: 'Backtesting',
+      shortLabel: 'Backtest',
+      href: '/research/backtesting',
+      description: 'Simulate betting strategies with historical odds data',
+    },
+  ]
+
+  const baseChatTabs = deltaMode === 'research' ? researchTabs : projectionsTabs
   const shouldGateTabs = Boolean(membership?.isActive)
-  const allowedTabs =
-    shouldGateTabs
-      ? new Set(
-          membership?.tier === 'pro'
-            ? ['market-projections']
-            : membership?.tier === 'sharp'
-              ? ['market-projections', 'player-projections', 'parlay-predictor']
-              : ['market-projections', 'player-projections', 'parlay-predictor', 'ev-bets', 'live-projections']
-        )
-      : null
+  const allowedProjectionTabs = shouldGateTabs
+    ? new Set(['market-projections', 'line-shopping', 'parlay-predictor', 'ev-bets'])
+    : null
+  const allowedResearchTabs = shouldGateTabs
+    ? new Set(['sharp-action', 'betting-trends', 'backtesting'])
+    : null
+  const allowedTabs = deltaMode === 'research' ? allowedResearchTabs : allowedProjectionTabs
   const chatTabs = shouldGateTabs
     ? baseChatTabs.filter((tab) => allowedTabs?.has(tab.key))
     : baseChatTabs
   const membershipLabel = membership?.tier
-    ? ({ pro: 'Pro', sharp: 'Sharp', syndicate: 'Syndicate' } as const)[membership.tier] || 'Pro'
-    : 'Pro'
+    ? ({ free: 'Free', sharp: 'Sharp', syndicate: 'Syndicate' } as const)[membership.tier] || 'Free'
+    : 'Free'
   const showSharpToggle = !hasMessages
   const sharpPanelOpen = sharpDetectorExpanded || sharpDetectorOpen
   const showPromoCard = Boolean(user && !promoDismissed)
@@ -680,7 +706,7 @@ function ChatPageContent() {
                         )}
                       </span>
                     </div>
-                    {membership.tier === 'pro' && membership.isActive && (
+                    {membership.tier === 'free' && membership.isActive && (
                       <p className="text-xs text-white/50">
                         {messagesToday} / {PRO_DAILY_MESSAGE_LIMIT} messages today
                       </p>
@@ -823,27 +849,27 @@ function ChatPageContent() {
         </div>
       )}
       {user && currentConversationId && (
-        <div className="fixed left-0 right-0 top-12 sm:top-16 z-40 border-b border-emerald-500/30 bg-gradient-to-b from-black via-black/95 to-black/90 backdrop-blur-xl shadow-lg shadow-emerald-500/5">
-          <div className="hidden sm:grid w-full grid-cols-5">
+        <div className={`fixed left-0 right-0 top-12 sm:top-16 z-40 border-b ${deltaMode === 'research' ? 'border-amber-500/30' : 'border-emerald-500/30'} bg-gradient-to-b from-black via-black/95 to-black/90 backdrop-blur-xl shadow-lg ${deltaMode === 'research' ? 'shadow-amber-500/5' : 'shadow-emerald-500/5'}`}>
+          <div className={`hidden sm:grid w-full ${chatTabs.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
             {chatTabs.map((tab, index) => (
               <Link
                 key={tab.label}
                 href={tab.href}
-                className="group relative w-full px-1 py-3 text-center transition-all hover:bg-emerald-500/15 sm:px-3 sm:py-4"
+                className={`group relative w-full px-1 py-3 text-center transition-all ${deltaMode === 'research' ? 'hover:bg-amber-500/15' : 'hover:bg-emerald-500/15'} sm:px-3 sm:py-4`}
               >
-                <span className="relative z-10 text-[10px] font-bold uppercase tracking-[0.15em] text-white/90 group-hover:text-emerald-300 sm:text-xs lg:text-sm">
+                <span className={`relative z-10 text-[10px] font-bold uppercase tracking-[0.15em] text-white/90 ${deltaMode === 'research' ? 'group-hover:text-amber-300' : 'group-hover:text-emerald-300'} sm:text-xs lg:text-sm`}>
                   <span className="sm:hidden">{tab.shortLabel}</span>
                   <span className="hidden sm:inline">{tab.label}</span>
                 </span>
-                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                {index < 4 && (
+                <span className={`absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent ${deltaMode === 'research' ? 'via-amber-400/50' : 'via-emerald-400/50'} to-transparent opacity-0 group-hover:opacity-100 transition-opacity`} />
+                {index < chatTabs.length - 1 && (
                   <span className="absolute right-0 top-1/2 -translate-y-1/2 h-6 w-px bg-white/10" />
                 )}
                 {/* Desktop hover tooltip */}
                 {tab.description && (
-                  <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-48 -translate-x-1/2 rounded-lg border border-emerald-500/30 bg-black/95 px-3 py-2 text-[11px] font-normal normal-case tracking-normal text-white/80 shadow-xl backdrop-blur-xl lg:group-hover:block">
+                  <span className={`pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-48 -translate-x-1/2 rounded-lg border ${deltaMode === 'research' ? 'border-amber-500/30' : 'border-emerald-500/30'} bg-black/95 px-3 py-2 text-[11px] font-normal normal-case tracking-normal text-white/80 shadow-xl backdrop-blur-xl lg:group-hover:block`}>
                     {tab.description}
-                    <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 border-l border-t border-emerald-500/30 bg-black/95" />
+                    <span className={`absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 border-l border-t ${deltaMode === 'research' ? 'border-amber-500/30' : 'border-emerald-500/30'} bg-black/95`} />
                   </span>
                 )}
               </Link>
@@ -929,6 +955,8 @@ function ChatPageContent() {
                             userId={user?.id}
                             onMessagesChange={setHasMessages}
                             prefillMessage={prefillMessage}
+                            mode={deltaMode}
+                            onModeChange={setDeltaMode}
                           />
                         </div>
                       </div>
@@ -945,10 +973,10 @@ function ChatPageContent() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex flex-col gap-2 text-left">
                             <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">
-                              Patch 0.4
+                              Patch 0.5
                             </span>
                             <span className="text-sm text-white/80">
-                              Sharp money feed, sharp props, and new model upgrades.
+                              Free tier previews, Odds API expansion, research upgrades.
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 text-white/70">
@@ -974,6 +1002,12 @@ function ChatPageContent() {
                           View Patch Notes
                         </Link>
                       </div>
+
+                      {/* Mode Toggle */}
+                      <div className="mb-6">
+                        <ModeToggle mode={deltaMode} onChange={setDeltaMode} />
+                      </div>
+
                       <motion.div
                         animate={{ rotate: [0, 10, -10, 0] }}
                         transition={{ duration: 2, repeat: Infinity }}

@@ -126,6 +126,9 @@ async function updateUserSubscription(
     subscription_cancel_at: cancelAt ? new Date(cancelAt * 1000).toISOString() : null,
     membership_plan_version: planVersion,
   }
+  if (subscription.trial_end || subscription.trial_start || subscription.status === 'trialing') {
+    metadataUpdate.has_used_trial = true
+  }
 
   // Include customer ID if provided
   if (customerId) {

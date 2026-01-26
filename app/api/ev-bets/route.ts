@@ -1,49 +1,86 @@
-import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
-import { findEVOpportunities } from "@/lib/services/cross-market-ev"
-import { SPORTS } from "@/lib/types/odds"
+import { NextRequest, NextResponse } from 'next/server'
+import { findPinnacleEVOpportunities } from '@/lib/services/pinnacle-ev'
+import { DEFAULT_SELECTED_BOOKS, type BookKey } from '@/lib/config/books'
+import { fetchTheOddsApiSports } from '@/lib/api/the-odds-api'
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
-export async function GET() {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+const SUPPORTED_SPORTS = [
+  'basketball_nba',
+  'basketball_ncaab',
+  'americanfootball_nfl',
+  'americanfootball_ncaaf',
+  'icehockey_nhl',
+  'baseball_mlb',
+]
 
-  const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const planVersion = membership.planVersion ?? 1
-  const hasAccess = membership.isActive
-    ? planVersion >= 2
-      ? membership.tier === "syndicate"
-      : membership.tier === "sharp" || membership.tier === "syndicate"
-    : false
+const DEFAULT_MARKETS = ['h2h', 'spreads', 'totals']
 
-  if (!hasAccess) {
-    return NextResponse.json(
-      { ok: false, error: "Upgrade required." },
-      { status: 403 }
-    )
-  }
-
+export async function GET(request: NextRequest) {
   try {
-    const opportunities = await findEVOpportunities({
-      includeProps: true,
-      minPropEV: 0,
-      limit: 200,
-      slateMode: "next",
-      sports: Object.values(SPORTS),
+    // Parse query params
+    const { searchParams } = new URL(request.url)
+    const minEV = parseFloat(searchParams.get('minEV') || '3')
+    const sport = searchParams.get('sport')
+    const market = searchParams.get('market')
+    const booksParam = searchParams.get('books')
+
+    // Determine sports to scan
+    let sports: string[] = []
+    if (sport && sport !== 'all') {
+      sports = [sport]
+    } else {
+      try {
+        const available = await fetchTheOddsApiSports()
+        sports = (available || [])
+          .filter((entry) => entry.active && !entry.has_outrights)
+          .map((entry) => entry.key)
+      } catch (error) {
+        console.warn('[API /ev-bets] Failed to load active sports, using defaults.', error)
+        sports = SUPPORTED_SPORTS
+      }
+    }
+
+    // Determine markets to include
+    let markets: string[]
+    if (market && market !== 'all') {
+      markets = [market]
+    } else {
+      markets = DEFAULT_MARKETS
+    }
+
+    // Parse user books
+    let userBooks: BookKey[]
+    if (booksParam) {
+      userBooks = booksParam.split(',').filter(Boolean) as BookKey[]
+    } else {
+      userBooks = DEFAULT_SELECTED_BOOKS
+    }
+
+    // Find EV opportunities
+    const opportunities = await findPinnacleEVOpportunities({
+      sports,
+      userBooks,
+      minEV: isNaN(minEV) ? 3 : minEV,
+      markets,
+      includeProps: false, // Props disabled for now
     })
 
     return NextResponse.json({
-      ok: true,
-      updatedAt: new Date().toISOString(),
       data: opportunities,
+      count: opportunities.length,
+      filters: {
+        sports,
+        markets,
+        minEV,
+        userBooks,
+      },
     })
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to load EV bets."
-    return NextResponse.json({ ok: false, error: message }, { status: 500 })
+    console.error('[API /ev-bets] Error:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch EV opportunities.' },
+      { status: 500 }
+    )
   }
 }

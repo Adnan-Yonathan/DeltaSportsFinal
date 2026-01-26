@@ -5,9 +5,10 @@ import { motion } from "framer-motion"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import ShareProjectionButton from "@/components/ShareProjectionButton"
+import { AVAILABLE_BOOKS, type BookKey } from "@/lib/config/books"
 
 type EdgeFilter = "spread" | "moneyline" | "total"
-type AccessTier = "pro" | "sharp" | "syndicate" | null
+type AccessTier = "free" | "sharp" | "syndicate" | null
 
 type MarketEdge = {
   edgePercent: number
@@ -136,14 +137,8 @@ type AccessConfig = {
 }
 
 const resolveAccessConfig = (tier?: AccessTier): AccessConfig => {
-  if (tier === "pro") {
-    return { allowedFilters: ["spread"], maxRows: { spread: 1 } }
-  }
-  if (tier === "sharp") {
-    return {
-      allowedFilters: ["spread", "moneyline", "total"],
-      maxRows: { spread: 5, moneyline: 5, total: 5 },
-    }
+  if (tier === "sharp" || tier === "syndicate") {
+    return { allowedFilters: ["spread", "moneyline", "total"], maxRows: {} }
   }
   return { allowedFilters: ["spread", "moneyline", "total"], maxRows: {} }
 }
@@ -917,12 +912,45 @@ export default function MarketProjectionsTable({
   errorMessage,
   sport,
   tier,
+  selectedBooks,
+  previewMode = false,
 }: {
   edges: EdgeGame[]
   errorMessage: string | null
   sport?: string
   tier?: AccessTier
+  selectedBooks?: BookKey[]
+  previewMode?: boolean
 }) {
+  // Build a set of selected book labels for filtering display
+  const selectedBookLabels = useMemo(() => {
+    if (!selectedBooks || selectedBooks.length === 0) return null
+    const labels = new Set<string>()
+    for (const key of selectedBooks) {
+      const book = AVAILABLE_BOOKS.find(b => b.key === key)
+      if (book) {
+        labels.add(book.label.toLowerCase())
+        labels.add(book.key.toLowerCase())
+        if (book.apiKey) {
+          labels.add(book.apiKey.toLowerCase())
+        }
+      }
+    }
+    return labels
+  }, [selectedBooks])
+
+  // Helper to check if a book should be displayed
+  const isBookSelected = (bookName?: string | null) => {
+    if (!selectedBookLabels || !bookName) return true
+    const normalized = bookName.toLowerCase().replace(/[^a-z0-9]/g, '')
+    for (const label of selectedBookLabels) {
+      const normalizedLabel = label.replace(/[^a-z0-9]/g, '')
+      if (normalized.includes(normalizedLabel) || normalizedLabel.includes(normalized)) {
+        return true
+      }
+    }
+    return false
+  }
   const accessConfig = useMemo(() => resolveAccessConfig(tier), [tier])
   const [filter, setFilter] = useState<EdgeFilter>(accessConfig.allowedFilters[0] ?? "spread")
   const [pulseKey, setPulseKey] = useState(0)
@@ -952,6 +980,7 @@ export default function MarketProjectionsTable({
     const maxRows = accessConfig.maxRows[filter]
     return Number.isFinite(maxRows) ? sorted.slice(0, maxRows) : sorted
   }, [edges, filter, sport, accessConfig.maxRows])
+  const visibleEdges = previewMode ? sortedEdges.slice(0, 1) : sortedEdges
 
   const filterLabels = resolveFilterLabels(filter)
   const filterButtonLabels: Record<EdgeFilter, string> = {
@@ -990,14 +1019,14 @@ export default function MarketProjectionsTable({
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
         {errorMessage ? (
           <div className="px-4 py-6 text-sm text-red-200">{errorMessage}</div>
-        ) : sortedEdges.length === 0 ? (
+        ) : visibleEdges.length === 0 ? (
           <div className="px-4 py-6 text-sm text-white/60">
             No {filterLabels.projection.toLowerCase()} rows yet.
           </div>
         ) : (
           <>
             <div className="divide-y divide-white/5 sm:hidden">
-              {sortedEdges.map((game, index) => {
+              {visibleEdges.map((game, index) => {
                 const edgeMetrics = marketEdge(game, filter, sport)
                 const spread = game.spread
                 const total = game.total
@@ -1135,7 +1164,7 @@ export default function MarketProjectionsTable({
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-white/5">
-                  {sortedEdges.map((game, index) => {
+                  {visibleEdges.map((game, index) => {
                     const edgeMetrics = marketEdge(game, filter, sport)
                     const spread = game.spread
                     const total = game.total
@@ -1261,12 +1290,38 @@ export default function MarketProjectionsTable({
           </>
         )}
       </div>
+      {previewMode && (
+        <div className="relative mt-4 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+          <div className="pointer-events-none blur-sm">
+            <div className="space-y-3 px-4 py-4">
+              {[1, 2, 3].map((row) => (
+                <div key={row} className="grid grid-cols-4 gap-3">
+                  <div className="h-4 rounded bg-white/10" />
+                  <div className="h-4 rounded bg-white/10" />
+                  <div className="h-4 rounded bg-white/10" />
+                  <div className="h-4 rounded bg-white/10" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center p-6">
+            <div className="rounded-2xl border border-white/20 bg-black/80 px-6 py-5 text-center">
+              <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+                Upgrade required
+              </p>
+              <h2 className="mt-3 text-xl font-semibold text-white">
+                Upgrade to get full access.
+              </h2>
+              <p className="mt-2 text-sm text-white/60">
+                Unlock every sharp projection and edge.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
-
-
-
 
 
 

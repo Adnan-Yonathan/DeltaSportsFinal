@@ -27,6 +27,7 @@ import {
 import { fetchPolymarketOdds } from '@/lib/api/polymarket'
 import { fetchKalshiOdds } from '@/lib/api/kalshi'
 import { normalizeTeamKey } from '@/lib/identity/sport'
+import { fetchTheOddsApiOdds, getSportKey as getTheOddsApiSportKey } from '@/lib/api/the-odds-api'
 
 const ODDS_API_BASE = 'https://api.the-odds-api.com/v4'
 const ODDS_IO_BASE = 'https://api.odds-api.io/v3'
@@ -1685,20 +1686,30 @@ export interface FetchOddsOptions {
   revalidateSeconds?: number
   teamFilter?: string[] // Filter events to only these team names (case-insensitive partial match)
   bookmakers?: string | string[] | null // Optional override of bookmaker filter
+  forceProvider?: 'the-odds-api' | 'odds-api-io' | 'sportsbettingdime'
 }
 
 const resolveOddsProvider = () => {
   const raw = (process.env.ODDS_PROVIDER || '').trim().toLowerCase()
-  if (!raw) return process.env.ODDS_API_KEY ? 'odds-api-io' : 'sportsbettingdime'
-  if (
-    raw === 'sbd' ||
-    raw === 'sportsbettingdime' ||
-    raw === 'sports-betting-dime'
-  ) {
-    return 'sportsbettingdime'
+
+  // If explicit provider set, use it
+  if (raw) {
+    if (raw === 'the-odds-api' || raw === 'theoddsapi') {
+      return 'the-odds-api'
+    }
+    if (raw === 'sbd' || raw === 'sportsbettingdime' || raw === 'sports-betting-dime') {
+      return 'sportsbettingdime'
+    }
+    if (raw.includes('odds-api')) return 'odds-api-io'
+    return raw
   }
-  if (raw.includes('odds-api')) return 'odds-api-io'
-  return raw
+
+  // Default: prefer The Odds API v4 if key is available
+  if (process.env.THE_ODDS_API_KEY || process.env.ODDS_API_KEY) {
+    return 'the-odds-api'
+  }
+
+  return 'sportsbettingdime'
 }
 
 async function fetchOddsSbd(
@@ -1789,16 +1800,112 @@ async function fetchOddsSbd(
   return games
 }
 
+/**
+ * Fetch odds from The Odds API v4 (the-odds-api.com)
+ * This is the preferred provider with 50+ bookmakers
+ */
+async function fetchOddsTheOddsApi(
+  sport: string,
+  markets: string[] = [...STANDARD_MARKETS],
+  options: FetchOddsOptions = {}
+): Promise<OddsGame[]> {
+  // Convert sport key to The Odds API format
+  const sportKey = getTheOddsApiSportKey(sport)
+  if (!sportKey) {
+    console.warn(`[ODDS] The Odds API: Unknown sport "${sport}", falling back`)
+    return []
+  }
+
+  try {
+    // Map market keys to The Odds API format
+    const marketKeys: string[] = []
+    if (markets.includes(MARKETS.H2H) || markets.includes('h2h') || markets.includes('moneyline')) {
+      marketKeys.push('h2h')
+    }
+    if (markets.includes(MARKETS.SPREADS) || markets.includes('spreads')) {
+      marketKeys.push('spreads')
+    }
+    if (markets.includes(MARKETS.TOTALS) || markets.includes('totals')) {
+      marketKeys.push('totals')
+    }
+    // Default to all markets if none specified
+    if (marketKeys.length === 0) {
+      marketKeys.push('h2h', 'spreads', 'totals')
+    }
+
+    console.log(`[ODDS] Fetching from The Odds API v4: ${sportKey} with markets: ${marketKeys.join(',')}`)
+
+    const requestedBookmakers = Array.isArray(options.bookmakers)
+      ? options.bookmakers
+      : typeof options.bookmakers === 'string'
+        ? options.bookmakers.split(',').map((entry) => entry.trim()).filter(Boolean)
+        : undefined
+
+    const games = await fetchTheOddsApiOdds(sportKey, {
+      markets: marketKeys.join(','),
+      regions: 'us,us2,eu',
+      bookmakers: requestedBookmakers,
+    })
+
+    // Apply team filter if specified
+    if (options.teamFilter && options.teamFilter.length > 0) {
+      const filters = options.teamFilter.map((t) => t.toLowerCase())
+      return games.filter((game) => {
+        const home = game.home_team.toLowerCase()
+        const away = game.away_team.toLowerCase()
+        return filters.some((team) => home.includes(team) || away.includes(team))
+      })
+    }
+
+    console.log(`[ODDS] The Odds API v4 returned ${games.length} games with ${games.reduce((acc, g) => acc + g.bookmakers.length, 0)} total bookmaker entries`)
+    return games
+  } catch (error) {
+    console.error('[ODDS] The Odds API v4 fetch failed:', error)
+    return []
+  }
+}
+
 export async function fetchOdds(
   sport: string,
   markets: string[] = [...STANDARD_MARKETS],
   options: FetchOddsOptions = {}
 ): Promise<OddsGame[]> {
-  const provider = resolveOddsProvider()
+  const resolvedProvider = resolveOddsProvider()
+  let provider = options.forceProvider ?? resolvedProvider
+  const hasTheOddsApiKey = Boolean(process.env.THE_ODDS_API_KEY || process.env.ODDS_API_KEY)
+  if (provider === 'the-odds-api' && !hasTheOddsApiKey) {
+    console.warn('[ODDS] The Odds API key missing; falling back to default provider.')
+    provider = resolvedProvider
+  }
+
+  // Primary: The Odds API v4 (50+ bookmakers)
+  if (provider === 'the-odds-api') {
+    const games = await fetchOddsTheOddsApi(sport, markets, options)
+    if (games.length) {
+      return attachPredictionMarketOdds(games, sport, markets, options)
+    }
+    // Fallback to odds-api-io if The Odds API returns no data
+    console.warn('[ODDS] The Odds API v4 returned no games, trying odds-api-io fallback')
+    try {
+      const fallback = await fetchOddsIO(sport, markets, options)
+      if (fallback.length) {
+        return attachPredictionMarketOdds(fallback, sport, markets, options)
+      }
+    } catch (error) {
+      console.warn('[ODDS] Odds-api-io fallback failed:', error)
+    }
+    // Final fallback to SBD
+    const sbdFallback = await fetchOddsSbd(sport, markets, options)
+    return attachPredictionMarketOdds(sbdFallback, sport, markets, options)
+  }
+
+  // Legacy: odds-api-io provider
   if (provider === 'odds-api-io') {
     const games = await fetchOddsIO(sport, markets, options)
     return attachPredictionMarketOdds(games, sport, markets, options)
   }
+
+  // Legacy: SportsBettingDime provider
   if (provider === 'sportsbettingdime') {
     const games = await fetchOddsSbd(sport, markets, options)
     if (!games.length && process.env.ODDS_API_KEY) {
@@ -1814,19 +1921,27 @@ export async function fetchOdds(
     return attachPredictionMarketOdds(games, sport, markets, options)
   }
 
-  if (process.env.ODDS_API_KEY) {
+  // Default fallback chain: The Odds API v4 -> odds-api-io -> SBD
+  if (process.env.THE_ODDS_API_KEY || process.env.ODDS_API_KEY) {
+    try {
+      const games = await fetchOddsTheOddsApi(sport, markets, options)
+      if (games.length) {
+        return attachPredictionMarketOdds(games, sport, markets, options)
+      }
+    } catch (error) {
+      console.warn('[ODDS] The Odds API v4 failed:', error)
+    }
+
     try {
       const games = await fetchOddsIO(sport, markets, options)
       if (games.length) {
         return attachPredictionMarketOdds(games, sport, markets, options)
       }
     } catch (error) {
-      console.warn(
-        '[ODDS] Odds-api-io provider failed, retrying with SBD:',
-        error
-      )
+      console.warn('[ODDS] Odds-api-io provider failed:', error)
     }
   }
+
   const fallback = await fetchOddsSbd(sport, markets, options)
   return attachPredictionMarketOdds(fallback, sport, markets, options)
 }

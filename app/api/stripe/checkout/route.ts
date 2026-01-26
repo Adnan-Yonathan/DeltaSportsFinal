@@ -49,6 +49,18 @@ export async function POST(req: NextRequest) {
 
     // Get plan config for trial days
     const planConfig = PLAN_CONFIG[planKey]
+    let hasUsedTrial = Boolean(user.user_metadata?.has_used_trial)
+
+    if (!hasUsedTrial && customerId) {
+      const subscriptions = await stripe.subscriptions.list({
+        customer: customerId,
+        status: 'all',
+        limit: 100,
+      })
+      hasUsedTrial = subscriptions.data.some((subscription) =>
+        Boolean(subscription.trial_end || subscription.trial_start || subscription.status === 'trialing')
+      )
+    }
     const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
     // Create checkout session
@@ -61,7 +73,7 @@ export async function POST(req: NextRequest) {
           quantity: 1,
         },
       ],
-      subscription_data: planConfig.trialDays
+      subscription_data: planConfig.trialDays && !hasUsedTrial
         ? { trial_period_days: planConfig.trialDays }
         : undefined,
       success_url: `${origin}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,

@@ -9,6 +9,7 @@ import {
   mapLiquiditySignalsToSharpTrades,
 } from '@/lib/services/prop-liquidity-detector'
 import { createServiceClient } from '@/lib/supabase/service'
+import { storeWhaleTrades } from '@/lib/services/whale-trades-daily'
 
 const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> => {
   let timer: ReturnType<typeof setTimeout> | null = null
@@ -40,6 +41,13 @@ export async function GET(request: Request) {
     minNotional,
     since,
   })
+
+  // Store trades to daily database (fire-and-forget, non-blocking)
+  if (trades.length > 0) {
+    storeWhaleTrades(trades).catch((error) => {
+      console.warn('[Whale Detector] Failed to store trades to daily db:', error)
+    })
+  }
 
   let enrichedTrades = trades
   let liquidityTrades: any[] = []

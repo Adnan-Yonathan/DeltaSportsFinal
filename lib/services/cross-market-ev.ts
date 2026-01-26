@@ -31,6 +31,8 @@ export interface CrossMarketEVOptions {
   slateMode?: 'today' | 'next' | 'all' // Team market filtering mode
   date?: string // Optional YYYY-MM-DD override (America/New_York)
   timeZone?: string // Timezone for date filtering (default America/New_York)
+  compareBooks?: string[] // Books to use for consensus calculation (optional)
+  placeAtBooks?: string[] // Books where opportunities must exist (optional)
 }
 
 const DEFAULT_OPTIONS: Required<CrossMarketEVOptions> = {
@@ -53,6 +55,17 @@ const DEFAULT_OPTIONS: Required<CrossMarketEVOptions> = {
   slateMode: 'next',
   date: '',
   timeZone: 'America/New_York',
+  compareBooks: [], // Empty = use all books for consensus
+  placeAtBooks: [], // Empty = show opportunities from all books
+}
+
+const normalizeBookKey = (value: string): string =>
+  value.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+const isBookAllowed = (bookKey: string, allowedBooks: string[]): boolean => {
+  if (allowedBooks.length === 0) return true
+  const normalized = normalizeBookKey(bookKey)
+  return allowedBooks.some(b => normalizeBookKey(b) === normalized)
 }
 
 const MAX_POSITIVE_ODDS = 1000
@@ -154,11 +167,15 @@ const filterOutLiveGames = (games: OddsGame[]) => {
 
 const buildNoVigConsensusBySelection = (
   bookmakers: Bookmaker[],
-  marketKey: string
+  marketKey: string,
+  compareBooks: string[] = []
 ): Map<string, { impliedProbability: number; bookCount: number }> => {
   const selectionProbabilities = new Map<string, number[]>()
 
   for (const bookmaker of bookmakers) {
+    // Filter to only use compareBooks for consensus if specified
+    if (!isBookAllowed(bookmaker.key, compareBooks)) continue
+
     const market = bookmaker.markets.find((m) => m.key === marketKey)
     if (!market) continue
 
@@ -227,6 +244,7 @@ export async function findEVOpportunities(
       const games = await fetchOdds(sport, opts.markets, {
         revalidateSeconds: 60,
         live: false,
+        forceProvider: 'the-odds-api',
       })
       return { sport, games }
     } catch (error) {
@@ -259,7 +277,14 @@ export async function findEVOpportunities(
   // Analyze each game for team markets
   for (const { games } of filteredResults) {
     for (const game of games) {
-      const gameOpps = analyzeGameForEV(game, opts.minEV, opts.minBooks, opts.markets)
+      const gameOpps = analyzeGameForEV(
+        game,
+        opts.minEV,
+        opts.minBooks,
+        opts.markets,
+        opts.compareBooks,
+        opts.placeAtBooks
+      )
       if (gameOpps.length > 0) {
         console.log(`[CROSS-MARKET-EV] Found ${gameOpps.length} opportunities in ${game.away_team} @ ${game.home_team}`)
       }
@@ -293,7 +318,9 @@ function analyzeGameForEV(
   game: OddsGame,
   minEV: number,
   minBooks: number,
-  markets: string[]
+  markets: string[],
+  compareBooks: string[] = [],
+  placeAtBooks: string[] = []
 ): EVOpportunity[] {
   const opportunities: EVOpportunity[] = []
   const gameDescription = `${game.away_team} @ ${game.home_team}`
@@ -301,15 +328,21 @@ function analyzeGameForEV(
   for (const marketKey of markets) {
     // Collect all outcomes for this market across books
     const outcomesBySelection = collectOutcomesBySelection(game.bookmakers, marketKey)
-    const noVigConsensusBySelection = buildNoVigConsensusBySelection(game.bookmakers, marketKey)
+    // Build consensus using only compareBooks (if specified)
+    const noVigConsensusBySelection = buildNoVigConsensusBySelection(game.bookmakers, marketKey, compareBooks)
 
     for (const [selectionKey, bookOdds] of outcomesBySelection.entries()) {
+      // Filter bookOdds for consensus calculation
+      const consensusBookOdds = compareBooks.length > 0
+        ? bookOdds.filter(b => isBookAllowed(b.bookmaker, compareBooks))
+        : bookOdds
+
       // Skip if not enough books for reliable consensus
-      if (bookOdds.length < minBooks) {
+      if (consensusBookOdds.length < minBooks) {
         continue
       }
 
-      const consensus = findMarketConsensus(bookOdds)
+      const consensus = findMarketConsensus(consensusBookOdds)
       const noVig = noVigConsensusBySelection.get(selectionKey)
       const consensusProbability =
         noVig && noVig.bookCount > 0
@@ -320,8 +353,16 @@ function analyzeGameForEV(
           ? decimalToAmerican(1 / consensusProbability)
           : consensus.averageOdds
 
-      // Find the best odds available
-      const bestBook = bookOdds.reduce((best, current) =>
+      // Filter to placeAtBooks if specified, otherwise use all books
+      const eligibleBookOdds = placeAtBooks.length > 0
+        ? bookOdds.filter(b => isBookAllowed(b.bookmaker, placeAtBooks))
+        : bookOdds
+
+      // Skip if no eligible books have this selection
+      if (eligibleBookOdds.length === 0) continue
+
+      // Find the best odds available from eligible books
+      const bestBook = eligibleBookOdds.reduce((best, current) =>
         current.odds > best.odds ? current : best
       )
 

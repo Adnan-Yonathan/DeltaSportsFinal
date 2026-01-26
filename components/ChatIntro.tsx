@@ -1,11 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { UserPlus, Twitter } from 'lucide-react'
-import { PromptBox } from '@/components/ui/chatgpt-prompt-input'
 import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { GuestHero } from '@/components/ui/guest-hero'
@@ -16,8 +14,8 @@ import { Announcement, AnnouncementTag, AnnouncementTitle } from '@/components/u
 import { FeaturesSix } from '@/components/ui/features-6'
 import SectionWithMockup from '@/components/ui/section-with-mockup'
 import { ArrowUpRight } from 'lucide-react'
-import DailyRecapCard from '@/components/DailyRecapCard'
-import { useDailyRecap } from '@/hooks/useDailyRecap'
+import ModeToggle, { type DeltaMode } from '@/components/ModeToggle'
+import TutorialPopup from '@/components/TutorialPopup'
 
 const CUSTOMER_SCREENSHOTS = [
   {
@@ -43,6 +41,8 @@ interface ChatIntroProps {
   isGuest?: boolean
   onSignUpClick?: () => void
   prefillMessage?: string
+  mode?: DeltaMode
+  onModeChange?: (mode: DeltaMode) => void
 }
 
 export default function ChatIntro({
@@ -52,10 +52,11 @@ export default function ChatIntro({
   isGuest = false,
   onSignUpClick,
   prefillMessage,
+  mode = 'projections',
+  onModeChange,
 }: ChatIntroProps) {
   const [sending, setSending] = useState(false)
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null)
-  const [showRecap, setShowRecap] = useState(false)
   const [projectionPreview, setProjectionPreview] = useState<{
     label: string
     detail: string
@@ -68,7 +69,8 @@ export default function ChatIntro({
     label: string
     detail: string
   } | null>(null)
-  const { recap, loading: recapLoading } = useDailyRecap()
+  const [activeGuideId, setActiveGuideId] = useState<string | null>(null)
+  const [guideOpen, setGuideOpen] = useState(false)
 
   useEffect(() => {
     const formatOdds = (value?: number | null) => {
@@ -263,9 +265,9 @@ export default function ChatIntro({
         'NBA, NFL, NCAAB, CFB, and NHL are supported today, with more on the way.',
     },
     {
-      question: 'How does the free trial work?',
+      question: 'How does free membership work?',
       answer:
-        'You get 7 days free on any paid plan. Cancel anytime from your billing settings.',
+        'Create an account to access the free tier. Upgrade anytime for full projections and research.',
     },
   ]
 
@@ -309,7 +311,7 @@ export default function ChatIntro({
                 <div className="flex items-center gap-3">
                   <UserPlus className="w-6 h-6 text-white" />
                   <Typewriter
-                    text="Try 7 days free"
+                    text="Start betting like a sharp"
                     speed={80}
                     cursor=""
                     startDelay={1200}
@@ -439,7 +441,7 @@ export default function ChatIntro({
           <Link href="/patch-notes" className="relative z-10 pointer-events-auto">
             <Announcement className="border-[#34d399]/30 bg-black/70 hover:border-[#34d399]/50 hover:bg-black/90 cursor-pointer">
               <AnnouncementTag className="bg-[#34d399]/20 text-[#34d399]">
-                Patch 0.4
+                Patch 0.5
               </AnnouncementTag>
               <AnnouncementTitle className="text-white/80 text-sm">
                 View patch notes
@@ -447,19 +449,11 @@ export default function ChatIntro({
               </AnnouncementTitle>
             </Announcement>
           </Link>
-          <button
-            type="button"
-            onClick={() => {
-              if (recap) setShowRecap(true)
-            }}
-            disabled={!recap || recapLoading}
-            className="relative z-10 pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Daily Recap
-            <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
-              {recapLoading ? 'Loading' : recap?.recapDate ?? 'No recap'}
-            </span>
-          </button>
+          {onModeChange && (
+            <div className="relative z-10 pointer-events-auto">
+              <ModeToggle mode={mode} onChange={onModeChange} />
+            </div>
+          )}
           <Link
             href="https://x.com/DeltaSportsAI"
             target="_blank"
@@ -539,13 +533,66 @@ export default function ChatIntro({
             </div>
           </div>
         </div>
-        <form onSubmit={handleSubmit} className="hidden sm:block w-full">
-          <PromptBox
-            name="message"
-            disabled={sending}
-            defaultValue={prefillMessage || ''}
-          />
-        </form>
+        <div className="hidden sm:block w-full">
+          <div className="grid gap-4 md:grid-cols-3">
+            {[
+              {
+                id: 'guide-navigation',
+                title: 'Navigate Delta',
+                accent: 'text-emerald-200/90',
+                border: 'border-emerald-400/30',
+                glow: 'shadow-[0_20px_60px_rgba(16,185,129,0.12)]',
+              },
+              {
+                id: 'guide-betting-flow',
+                title: 'Use Delta to Bet',
+                accent: 'text-emerald-200/90',
+                border: 'border-emerald-400/30',
+                glow: 'shadow-[0_20px_60px_rgba(16,185,129,0.12)]',
+              },
+              {
+                id: 'guide-research-mode',
+                title: 'Research Mode',
+                accent: 'text-amber-200/90',
+                border: 'border-amber-400/30',
+                glow: 'shadow-[0_20px_60px_rgba(251,191,36,0.12)]',
+              },
+            ].map((guide) => (
+              <button
+                key={guide.id}
+                type="button"
+                onClick={() => {
+                  setActiveGuideId(guide.id)
+                  setGuideOpen(true)
+                }}
+                className={`group relative overflow-hidden rounded-3xl border ${guide.border} bg-gradient-to-br from-white/[0.06] via-black/70 to-black/90 p-5 text-left transition hover:border-white/40 hover:shadow-2xl ${guide.glow}`}
+              >
+                <h3 className="mt-2 text-lg font-semibold text-white">
+                  {guide.title}
+                </h3>
+                <div className="mt-4 flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-white/50">
+                  <span
+                    className={`h-1 w-10 rounded-full bg-gradient-to-r ${
+                      guide.id === 'guide-research-mode'
+                        ? 'from-amber-400/60 to-amber-200/10'
+                        : 'from-emerald-400/60 to-emerald-200/10'
+                    }`}
+                  />
+                  <span className={guide.accent}>Open guide</span>
+                </div>
+                <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/5 blur-2xl transition group-hover:bg-white/10" />
+              </button>
+            ))}
+          </div>
+          {activeGuideId && (
+            <TutorialPopup
+              tutorialId={activeGuideId}
+              forceShow={false}
+              open={guideOpen}
+              onOpenChange={setGuideOpen}
+            />
+          )}
+        </div>
 
       </motion.div>
 
@@ -553,16 +600,6 @@ export default function ChatIntro({
       <div className="mt-3 w-full">
         <LatestNewsStrip />
       </div>
-
-      {showRecap && recap && typeof document !== 'undefined' &&
-        createPortal(
-          <div className="fixed inset-0 z-[94] flex items-center justify-center bg-black/70 backdrop-blur-md px-4 py-6">
-            <DailyRecapCard recap={recap} onDismiss={() => setShowRecap(false)} />
-          </div>,
-          document.body
-        )}
     </div>
   )
 }
-
-

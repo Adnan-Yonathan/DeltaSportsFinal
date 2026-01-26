@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { User, Sparkles } from 'lucide-react'
 import AnimatedMessage from './AnimatedMessage'
 import ChatIntro from './ChatIntro'
+import { type DeltaMode } from './ModeToggle'
 import { ShiningText } from '@/components/ui/shining-text'
 import { getOperationMessage } from '@/lib/chat/operation-messages'
 
@@ -23,6 +24,8 @@ interface MessageListProps {
   userId: string
   onMessagesChange?: (hasMessages: boolean) => void
   prefillMessage?: string
+  mode?: DeltaMode
+  onModeChange?: (mode: DeltaMode) => void
 }
 
 export default function ModernMessageList({
@@ -30,6 +33,8 @@ export default function ModernMessageList({
   userId,
   onMessagesChange,
   prefillMessage,
+  mode = 'projections',
+  onModeChange,
 }: MessageListProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
@@ -191,6 +196,8 @@ export default function ModernMessageList({
           userId={userId}
           onMessageSent={loadMessages}
           prefillMessage={prefillMessage}
+          mode={mode}
+          onModeChange={onModeChange}
         />
       )
   }

@@ -9,16 +9,26 @@ interface TutorialPopupProps {
   tutorialId: string
   /** If true, always show the popup when component mounts */
   forceShow?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-export default function TutorialPopup({ tutorialId, forceShow = true }: TutorialPopupProps) {
-  const [isOpen, setIsOpen] = useState(false)
+export default function TutorialPopup({
+  tutorialId,
+  forceShow = true,
+  open,
+  onOpenChange,
+}: TutorialPopupProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
   const [activeSection, setActiveSection] = useState(0)
   const storageKey = `tutorial:${tutorialId}:seen`
 
   const tutorial = TUTORIALS[tutorialId]
+  const isControlled = typeof open === "boolean"
+  const isOpen = isControlled ? (open as boolean) : internalOpen
 
   useEffect(() => {
+    if (isControlled) return
     if (forceShow && tutorial) {
       if (typeof window !== "undefined") {
         try {
@@ -29,15 +39,19 @@ export default function TutorialPopup({ tutorialId, forceShow = true }: Tutorial
         }
       }
       // Small delay to let the page render first
-      const timer = setTimeout(() => setIsOpen(true), 300)
+      const timer = setTimeout(() => setInternalOpen(true), 300)
       return () => clearTimeout(timer)
     }
-  }, [forceShow, tutorial, storageKey])
+  }, [forceShow, tutorial, storageKey, isControlled])
 
   if (!tutorial) return null
 
   const handleClose = () => {
-    setIsOpen(false)
+    if (isControlled) {
+      onOpenChange?.(false)
+    } else {
+      setInternalOpen(false)
+    }
     if (typeof window !== "undefined") {
       try {
         window.sessionStorage.setItem(storageKey, "true")

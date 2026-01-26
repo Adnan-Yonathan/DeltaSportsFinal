@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatAmericanOdds, formatCurrency } from '@/lib/utils/odds'
-import { oddsToImpliedProbability, probabilityToAmericanOdds } from '@/lib/utils/statistics'
 import { cn } from '@/lib/utils'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import { getWalletAlias } from '@/lib/utils/wallet-alias'
@@ -77,9 +76,7 @@ const MIN_NOTIONAL = 2000
 const MIN_PROP_NOTIONAL = 1000
 const MIN_GAME_NOTIONAL = 2000
 const NUKE_NOTIONAL = 100000
-const NCAAB_CLUSTER_MIN = 3
-const NCAAB_CLUSTER_WINDOW_MS = 10 * 60 * 1000
-const EV_TARGET_EDGE = 0.03
+const SHARP_MONEY_STRENGTH_THRESHOLD = 60
 const POLL_INTERVAL_BET_FEED = 30000
 const POLL_INTERVAL_SHARP_FEED = 15000
 const STORAGE_KEY = 'sharp-detector-trades'
@@ -116,66 +113,6 @@ const resolveOddsLabel = (trade: SharpTrade) => {
     return `${label} now`
   }
   return label
-}
-
-const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
-
-const resolveTradeTrueProb = (trade: SharpTrade) => {
-  if (Number.isFinite(trade.sportsbookNoVigProb)) {
-    return Number(trade.sportsbookNoVigProb)
-  }
-  if (trade.sportsbookBestOdds != null && Number.isFinite(trade.sportsbookBestOdds)) {
-    return oddsToImpliedProbability(trade.sportsbookBestOdds)
-  }
-  return null
-}
-
-const resolveTradeEvPercent = (trade: SharpTrade) => {
-  if (Number.isFinite(trade.evPercent)) {
-    return Number(trade.evPercent)
-  }
-  const trueProb = resolveTradeTrueProb(trade)
-  const priceProb = trade.priceCents ? trade.priceCents / 100 : null
-  if (
-    trueProb == null ||
-    priceProb == null ||
-    !Number.isFinite(trueProb) ||
-    !Number.isFinite(priceProb) ||
-    priceProb <= 0 ||
-    priceProb >= 1
-  ) {
-    return null
-  }
-  const evRaw = (trueProb / priceProb - 1) * 100
-  return Math.round(evRaw * 10) / 10
-}
-
-const resolveEvTargetLine = (trade: SharpTrade) => {
-  if (Number.isFinite(trade.evTargetPriceCents)) {
-    return {
-      priceCents: trade.evTargetPriceCents as number,
-      americanOdds: trade.evTargetAmericanOdds ?? null,
-    }
-  }
-  const trueProb = resolveTradeTrueProb(trade)
-  if (trueProb == null || !Number.isFinite(trueProb) || trueProb <= 0 || trueProb >= 1) {
-    return null
-  }
-  const targetProb = clamp01(trueProb / (1 + EV_TARGET_EDGE))
-  return {
-    priceCents: Math.round(targetProb * 100),
-    americanOdds: probabilityToAmericanOdds(targetProb),
-  }
-}
-
-const resolveEvTargetProb = (targetLine: { priceCents: number; americanOdds: number | null }) => {
-  if (Number.isFinite(targetLine.priceCents)) {
-    return targetLine.priceCents / 100
-  }
-  if (targetLine.americanOdds != null && Number.isFinite(targetLine.americanOdds)) {
-    return oddsToImpliedProbability(targetLine.americanOdds)
-  }
-  return null
 }
 
 const formatTimestamp = (value: string) => {
@@ -840,99 +777,36 @@ export default function SharpDetectorPanel({
     const phaseFiltered = filterByPhase(trades, phaseFilter).filter(
       (trade) => !isPastEvent(trade)
     )
-    const clusterCounts = new Map<string, number>()
-
-    const ncaabTrades = phaseFiltered.filter((trade) => trade.sport === 'NCAAB')
-    ncaabTrades.forEach((trade) => {
-      const tradeTime = new Date(trade.timestamp).getTime()
-      if (!Number.isFinite(tradeTime)) return
-      const key = `${trade.marketTitle}::${trade.outcome}`
-      const windowStart = tradeTime - NCAAB_CLUSTER_WINDOW_MS
-      const windowEnd = tradeTime + NCAAB_CLUSTER_WINDOW_MS
-      let count = 0
-      for (const other of ncaabTrades) {
-        if (`${other.marketTitle}::${other.outcome}` !== key) continue
-        const otherTime = new Date(other.timestamp).getTime()
-        if (!Number.isFinite(otherTime)) continue
-        if (otherTime >= windowStart && otherTime <= windowEnd) count += 1
-      }
-      clusterCounts.set(trade.id, count)
-    })
-
     const scored = phaseFiltered
       .map((trade) => {
         const isGameMarket = Boolean(parseTeamsFromTitle(trade.marketTitle))
         const minNotional = isGameMarket ? MIN_GAME_NOTIONAL : MIN_PROP_NOTIONAL
         if (trade.notional < minNotional) return null
-
-        const evPercent = resolveTradeEvPercent(trade)
-        const isEv = evPercent != null && evPercent > 0
-        const targetLine = isEv ? resolveEvTargetLine(trade) : null
-        if (isEv && targetLine) {
-          const targetProb = resolveEvTargetProb(targetLine)
-          const bestProb =
-            trade.sportsbookBestOdds != null
-              ? oddsToImpliedProbability(trade.sportsbookBestOdds)
-              : null
-          if (
-            targetProb == null ||
-            bestProb == null ||
-            bestProb > targetProb
-          ) {
-            return null
-          }
-        }
-        const clusterSize = clusterCounts.get(trade.id) ?? 0
-        const isCluster =
-          trade.sport === 'NCAAB' && clusterSize >= NCAAB_CLUSTER_MIN
-        const isNuke = trade.notional >= NUKE_NOTIONAL
-        const filtersHit = Number(isEv) + Number(isCluster) + Number(isNuke)
-
-        if (filtersHit === 0) return null
+        const strengthHit =
+          (trade.sharpStrength ?? 0) >= SHARP_MONEY_STRENGTH_THRESHOLD
+        if (!strengthHit) return null
 
         return {
           trade,
-          evPercent,
-          isEv,
-          isCluster,
-          isNuke,
-          clusterSize,
-          filtersHit,
           minNotional,
-          targetLine,
         }
       })
       .filter(Boolean) as Array<{
         trade: SharpTradeWithStatus
-        evPercent: number | null
-        isEv: boolean
-        isCluster: boolean
-        isNuke: boolean
-        clusterSize: number
-        filtersHit: number
         minNotional: number
-        targetLine: { priceCents: number; americanOdds: number | null } | null
       }>
 
     return scored.sort((a, b) => {
-      if (a.filtersHit !== b.filtersHit) return b.filtersHit - a.filtersHit
-      const evA = a.evPercent ?? -999
-      const evB = b.evPercent ?? -999
-      if (evA !== evB) return evB - evA
+      const strengthA = a.trade.sharpStrength ?? 0
+      const strengthB = b.trade.sharpStrength ?? 0
+      if (strengthA !== strengthB) return strengthB - strengthA
       if (a.trade.notional !== b.trade.notional) return b.trade.notional - a.trade.notional
       return new Date(b.trade.timestamp).getTime() - new Date(a.trade.timestamp).getTime()
     }).reduce<{
       seen: Set<string>
       rows: Array<{
         trade: SharpTradeWithStatus
-        evPercent: number | null
-        isEv: boolean
-        isCluster: boolean
-        isNuke: boolean
-        clusterSize: number
-        filtersHit: number
         minNotional: number
-        targetLine: { priceCents: number; americanOdds: number | null } | null
       }>
     }>(
       (state, entry) => {
@@ -1514,20 +1388,20 @@ export default function SharpDetectorPanel({
 
           {/* Empty State */}
           {sharpMoneyTrades.length === 0 && (
-            <div className="rounded-2xl border border-white/10 bg-black/40 p-8 text-center">
-              <Zap className="w-10 h-10 text-white/20 mx-auto mb-3" />
-              <p className="text-white/60 text-sm">
-                No sharp money signals detected right now.
-              </p>
-              <p className="text-white/40 text-[11px] mt-1">
-                Signals trigger on EV edge, NCAAB clusters, or $100k+ nukes.
-              </p>
-            </div>
-          )}
+          <div className="rounded-2xl border border-white/10 bg-black/40 p-8 text-center">
+            <Zap className="w-10 h-10 text-white/20 mx-auto mb-3" />
+            <p className="text-white/60 text-sm">
+              No sharp money signals detected right now.
+            </p>
+            <p className="text-white/40 text-[11px] mt-1">
+              Signals trigger when sharp strength hits {SHARP_MONEY_STRENGTH_THRESHOLD}%.
+            </p>
+          </div>
+        )}
 
           {/* Sharp Money Trade Cards */}
           {sharpMoneyTrades.map((entry) => {
-            const { trade, isEv, isCluster, isNuke, clusterSize, evPercent, targetLine } = entry
+            const { trade } = entry
             const isFresh = now - new Date(trade.timestamp).getTime() < 2 * 60 * 1000
             const sharpTier = resolveSharpTier(trade.notional)
             const matchupLabel = resolveGameLabel(trade.marketTitle)
@@ -1551,21 +1425,6 @@ export default function SharpDetectorPanel({
                       <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-emerald-500/20 border border-emerald-500/30 rounded text-emerald-300">
                         {trade.sport}
                       </span>
-                      {isEv && (
-                        <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-emerald-500/20 border border-emerald-500/30 rounded text-emerald-300">
-                          EV
-                        </span>
-                      )}
-                      {isCluster && (
-                        <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-blue-500/20 border border-blue-500/30 rounded text-blue-200">
-                          Cluster {clusterSize}
-                        </span>
-                      )}
-                      {isNuke && (
-                        <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-rose-500/20 border border-rose-500/30 rounded text-rose-200">
-                          Nuke
-                        </span>
-                      )}
                       {isFresh && (
                         <span className="px-2 py-0.5 text-[9px] uppercase tracking-wider bg-amber-500/20 border border-amber-500/30 rounded text-amber-300 animate-pulse">
                           New
@@ -1577,22 +1436,10 @@ export default function SharpDetectorPanel({
                     </h4>
                   </div>
                   <div className="text-right">
-                    {evPercent != null ? (
-                      <>
-                        <div
-                          className={cn(
-                            'text-lg font-bold',
-                            evPercent >= 0 ? 'text-emerald-300' : 'text-rose-300'
-                          )}
-                        >
-                          {evPercent >= 0 ? '+' : ''}
-                          {evPercent.toFixed(1)}%
-                        </div>
-                        <div className="text-[10px] uppercase text-white/40">EV</div>
-                      </>
-                    ) : (
-                      <div className="text-[10px] uppercase text-white/40">EV n/a</div>
-                    )}
+                    <div className="text-[10px] uppercase text-white/40">Sharp strength</div>
+                    <div className="text-lg font-bold text-emerald-300">
+                      {trade.sharpStrength != null ? `${trade.sharpStrength}%` : 'n/a'}
+                    </div>
                   </div>
                 </div>
 
@@ -1615,21 +1462,13 @@ export default function SharpDetectorPanel({
                   </span>
                 </div>
 
-                {(trade.sportsbookBestOdds != null || targetLine) && (
+                {trade.sportsbookBestOdds != null && (
                   <div className="flex flex-wrap items-center gap-3 mb-3 text-[11px] text-white/60">
                     {trade.sportsbookBestOdds != null && (
                       <span>
                         Best book: {formatAmericanOdds(trade.sportsbookBestOdds)}
                         {trade.sportsbookBookTitle || trade.sportsbookBookKey
                           ? ` (${trade.sportsbookBookTitle ?? trade.sportsbookBookKey})`
-                          : ''}
-                      </span>
-                    )}
-                    {isEv && targetLine && (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/60 bg-emerald-500/20 px-3 py-1 text-sm font-semibold text-emerald-200">
-                        Target 3% EV: {'<='} {targetLine.priceCents}c
-                        {targetLine.americanOdds != null
-                          ? ` (${formatAmericanOdds(targetLine.americanOdds)})`
                           : ''}
                       </span>
                     )}

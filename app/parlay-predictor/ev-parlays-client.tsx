@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type BookKey } from '@/components/BookSelector'
 
 type EvParlayLeg = {
   game: string
@@ -22,6 +23,11 @@ type EvParlay = {
   evPercent: number
 }
 
+interface EvParlaysClientProps {
+  selectedBooks?: BookKey[]
+  previewMode?: boolean
+}
+
 const REFRESH_MS = 60000
 const MAX_ODDS_OPTIONS = [
   { label: 'Max +500', value: 500 },
@@ -41,7 +47,10 @@ const formatMarketLabel = (market: string) => {
   return market
 }
 
-export default function EvParlaysClient() {
+export default function EvParlaysClient({
+  selectedBooks,
+  previewMode = false,
+}: EvParlaysClientProps) {
   const [parlays, setParlays] = useState<EvParlay[]>([])
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -114,6 +123,8 @@ export default function EvParlaysClient() {
     return Math.max(0, Math.ceil((updatedMs + REFRESH_MS - now) / 1000))
   }, [lastUpdated, now])
 
+  const visibleParlays = previewMode ? parlays.slice(0, 1) : parlays
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -162,7 +173,7 @@ export default function EvParlaysClient() {
       )}
 
       <div className="space-y-4">
-        {parlays.map((parlay) => {
+        {visibleParlays.map((parlay) => {
           return (
             <div
               key={parlay.id}
@@ -226,6 +237,34 @@ export default function EvParlaysClient() {
           )
         })}
       </div>
+      {previewMode && (
+        <div className="relative mt-4 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+          <div className="pointer-events-none blur-sm space-y-4 px-4 py-6">
+            {[1, 2].map((row) => (
+              <div
+                key={row}
+                className="rounded-xl border border-white/10 bg-white/5 p-4"
+              >
+                <div className="h-4 w-40 rounded bg-white/10 mb-2" />
+                <div className="h-16 w-full rounded bg-white/5" />
+              </div>
+            ))}
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center p-6">
+            <div className="rounded-2xl border border-white/20 bg-black/80 px-6 py-5 text-center">
+              <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+                Upgrade required
+              </p>
+              <h2 className="mt-3 text-xl font-semibold text-white">
+                Upgrade to get full access.
+              </h2>
+              <p className="mt-2 text-sm text-white/60">
+                Unlock every parlay and builder.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

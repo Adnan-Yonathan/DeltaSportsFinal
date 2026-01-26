@@ -2,6 +2,9 @@
 
 import { forwardRef } from 'react'
 
+const FONT_STACK =
+  'ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace'
+
 // Sharp tier labels and colors
 const SHARP_TIER_LABELS: Record<string, string> = {
   dolphin: 'DOLPHIN',
@@ -25,10 +28,13 @@ function getSharpTier(notional: number): string {
 }
 
 function formatCurrency(amount: number): string {
-  if (amount >= 1000) {
-    return `$${(amount / 1000).toFixed(amount >= 10000 ? 0 : 1)}K`
-  }
-  return `$${amount.toLocaleString()}`
+  if (!Number.isFinite(amount)) return '$0'
+  const rounded = Math.round(amount * 100) / 100
+  const hasCents = Math.abs(rounded % 1) > 0
+  return `$${rounded.toLocaleString('en-US', {
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: 2,
+  })}`
 }
 
 function formatOdds(priceCents: number, americanOdds: number | null): string {
@@ -47,6 +53,92 @@ function formatDate(dateStr: string): string {
     day: 'numeric',
     year: 'numeric',
   })
+}
+
+const MARKET_SUFFIX_PATTERN =
+  /\b(half|quarter|period|inning|set|map|moneyline|ml|spread|total|over|under|winner|to win|points|yards|touchdowns|runs|goals|shots|team|props?)\b/i
+
+const cleanTeamLabel = (value: string) => {
+  const trimmed = value.split(':')[0]?.trim() ?? ''
+  if (!trimmed) return ''
+  const withoutParens = trimmed.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim()
+  const normalizedDashes = withoutParens.replace(/[\u2013\u2014]/g, '-')
+  const parts = normalizedDashes.split(/\s*-\s*/g)
+  if (parts.length > 1) {
+    const tail = parts.slice(1).join(' ').toLowerCase()
+    if (MARKET_SUFFIX_PATTERN.test(tail)) {
+      return parts[0].trim()
+    }
+  }
+  return normalizedDashes
+}
+
+const parseTeamsFromTitle = (marketTitle: string) => {
+  const match = marketTitle.split(/\s+(?:vs\.?|v\.?|@|at)\s+/i)
+  if (match.length !== 2) return null
+  const away = cleanTeamLabel(match[0] ?? '')
+  const home = cleanTeamLabel(match[1] ?? '')
+  if (!away || !home) return null
+  return { away, home }
+}
+
+const resolveMarketType = (trade: ShareableTradeCardProps['trade']) => {
+  const combined = `${trade.outcome} ${trade.marketTitle}`.toLowerCase()
+  if (combined.includes('over') || combined.includes('under') || combined.includes('total')) {
+    return 'total'
+  }
+  if (combined.includes('spread') || /[+-]\s?\d/.test(combined)) {
+    return 'spread'
+  }
+  return 'moneyline'
+}
+
+const extractSpreadLine = (value: string) => {
+  const match = value.match(/([+-]\s?\d+(?:\.\d+)?)/)
+  if (!match?.[1]) return null
+  return match[1].replace(/\s+/g, '')
+}
+
+const findBetTeam = (outcome: string, teams: { away: string; home: string }) => {
+  const lower = outcome.toLowerCase()
+  const awayLower = teams.away.toLowerCase()
+  const homeLower = teams.home.toLowerCase()
+  if (lower.includes(awayLower)) return teams.away
+  if (lower.includes(homeLower)) return teams.home
+  return null
+}
+
+const renderHighlightedOutcome = (outcome: string, teamName: string) => {
+  const lowerOutcome = outcome.toLowerCase()
+  const lowerTeam = teamName.toLowerCase()
+  const index = lowerOutcome.indexOf(lowerTeam)
+  if (index === -1) return outcome
+  const before = outcome.slice(0, index)
+  const team = outcome.slice(index, index + teamName.length)
+  const after = outcome.slice(index + teamName.length)
+  return (
+    <>
+      {before}
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          padding: '4px 12px',
+          margin: '0 4px',
+          borderRadius: 9999,
+          backgroundColor: 'rgba(16, 185, 129, 0.2)',
+          border: '1px solid rgba(16, 185, 129, 0.4)',
+          color: '#6ee7b7',
+          fontWeight: 700,
+          letterSpacing: 0.5,
+          textTransform: 'uppercase',
+        }}
+      >
+        {team}
+      </span>
+      {after}
+    </>
+  )
 }
 
 export interface ShareableTradeCardProps {
@@ -77,6 +169,42 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
     const tierColors = SHARP_TIER_COLORS[tier]
     const displayMatchup = matchupLabel || trade.marketTitle
     const eventDate = trade.eventDate || formatDate(trade.timestamp)
+    const teams = parseTeamsFromTitle(displayMatchup || trade.marketTitle)
+    const betTeam = teams ? findBetTeam(trade.outcome, teams) : null
+    const marketType = resolveMarketType(trade)
+    const spreadLine =
+      marketType === 'spread'
+        ? extractSpreadLine(`${trade.outcome} ${trade.marketTitle}`)
+        : null
+    const outcomeHasLine = /[+-]\s?\d+(?:\.\d+)?/.test(trade.outcome)
+    const betLabel =
+      betTeam && spreadLine && !outcomeHasLine
+        ? (
+          <>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '4px 12px',
+                borderRadius: 9999,
+                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                color: '#6ee7b7',
+                fontWeight: 700,
+                letterSpacing: 0.5,
+                textTransform: 'uppercase',
+              }}
+            >
+              {betTeam}
+            </span>
+            <span style={{ marginLeft: 10, color: '#ffffff', fontWeight: 700 }}>
+              {spreadLine}
+            </span>
+          </>
+        )
+        : betTeam
+          ? renderHighlightedOutcome(trade.outcome, betTeam)
+          : trade.outcome
 
     return (
       <div
@@ -98,7 +226,7 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
             height: 628,
             background: '#0a0a0a',
             color: '#ffffff',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+            fontFamily: FONT_STACK,
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -148,7 +276,7 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
 
           {/* Content */}
           <div style={{ padding: '32px 48px', flex: 1, backgroundColor: '#0a0a0a' }}>
-            {/* Sport, Source, and Date Row */}
+            {/* Pills Row */}
             <div
               style={{
                 display: 'flex',
@@ -157,9 +285,52 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
                 marginBottom: 28,
               }}
             >
-              <span style={{ fontSize: 20, fontWeight: 600, color: '#34d399' }}>{trade.sport}</span>
-              <span style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)' }}>
-                {eventDate} • via {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 9999,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: 2,
+                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    color: '#6ee7b7',
+                  }}
+                >
+                  {trade.sport}
+                </span>
+                <span
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 9999,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: 2,
+                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    border: '1px solid rgba(96, 165, 250, 0.5)',
+                    color: '#bfdbfe',
+                  }}
+                >
+                  {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
+                </span>
+              </div>
+              <span
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 9999,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: 2,
+                  backgroundColor: tierColors.bg,
+                  color: tierColors.text,
+                  border: `1px solid ${tierColors.border}`,
+                }}
+              >
+                {tierLabel}
               </span>
             </div>
 
@@ -173,13 +344,13 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
               }}
             >
               {/* Matchup */}
-              <div style={{ fontSize: 36, fontWeight: 700, color: '#ffffff', marginBottom: 24 }}>
+              <div style={{ fontSize: 36, fontWeight: 700, color: '#ffffff', marginBottom: 20 }}>
                 {displayMatchup}
               </div>
 
               {/* Bet Details */}
-              <div style={{ fontSize: 24, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 32 }}>
-                {trade.outcome}
+              <div style={{ fontSize: 26, color: 'rgba(255, 255, 255, 0.9)', marginBottom: 30 }}>
+                {betLabel}
               </div>
 
               {/* Odds and Size Row */}
@@ -199,26 +370,14 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
                     <div
                       style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.6)', marginBottom: 4 }}
                     >
-                      Size
+                      Bet Size
                     </div>
                     <div style={{ fontSize: 28, fontWeight: 700, color: '#ffffff' }}>
                       {formatCurrency(trade.notional)}
                     </div>
                   </div>
-                  <div
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: 9999,
-                      fontSize: 16,
-                      fontWeight: 700,
-                      textTransform: 'uppercase' as const,
-                      letterSpacing: 1,
-                      backgroundColor: tierColors.bg,
-                      color: tierColors.text,
-                      border: `1px solid ${tierColors.border}`,
-                    }}
-                  >
-                    {tierLabel}
+                  <div style={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.6)' }}>
+                    {eventDate}
                   </div>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-// Tutorial content for each tool
+﻿// Tutorial content for each tool
 
 export type TutorialSection = {
   title: string
@@ -22,16 +22,16 @@ export const TUTORIALS: Record<string, TutorialContent> = {
         title: "When to Bet",
         content: `**The #1 rule: Only bet when you have an edge.**
 
-• **3%+ Edge**: These are your bread-and-butter plays. Bet these consistently.
-• **5%+ Edge**: Strong plays. Increase your bet size slightly.
-• **7%+ Edge**: Rare, high-value spots. Max confidence plays.
-• **Under 2% Edge**: Skip it. The juice eats your profit.
+-  **3%+ Edge**: These are your bread-and-butter plays. Bet these consistently.
+-  **5%+ Edge**: Strong plays. Increase your bet size slightly.
+-  **7%+ Edge**: Rare, high-value spots. Max confidence plays.
+-  **Under 2% Edge**: Skip it. The juice eats your profit.
 
 **Timing matters for profitability:**
-• Bet early in the day when lines are softest
-• Lines get sharper closer to game time as books adjust
-• If our projection matches the current line, the edge is gone—move on
-• Check back after major news (injuries, lineup changes) for new edges`,
+-  Bet early in the day when lines are softest
+-  Lines get sharper closer to game time as books adjust
+-  If our projection matches the current line, the edge is gone--move on
+-  Check back after major news (injuries, lineup changes) for new edges`,
       },
       {
         title: "How to Use This to Make Money",
@@ -44,7 +44,7 @@ export const TUTORIALS: Record<string, TutorialContent> = {
 5. **Log it** - Track every bet. Review weekly.
 
 **What makes this profitable:**
-Our models average **+2.62% CLV** (closing line value). This means if you bet our projected side, you're consistently beating the closing line—the strongest predictor of long-term profit.
+Our models average **+2.62% CLV** (closing line value). This means if you bet our projected side, you're consistently beating the closing line--the strongest predictor of long-term profit.
 
 **Volume is key:** One bet won't make you rich. 10+ bets per day at 3%+ edge compounds into serious profit over months.`,
       },
@@ -59,14 +59,14 @@ Our models average **+2.62% CLV** (closing line value). This means if you bet ou
 | 7%+ | 2% of bankroll | $200 per bet |
 
 **Why this works:**
-• Too small = leaving money on the table
-• Too big = one bad run wipes you out
-• Kelly optimizes growth while protecting your bankroll
+-  Too small = leaving money on the table
+-  Too big = one bad run wipes you out
+-  Kelly optimizes growth while protecting your bankroll
 
 **Golden rules:**
-• Never exceed 2% on any single bet
-• Flat bet (same amount) if you're unsure
-• If you hit a losing streak, don't chase—stick to the system`,
+-  Never exceed 2% on any single bet
+-  Flat bet (same amount) if you're unsure
+-  If you hit a losing streak, don't chase--stick to the system`,
       },
       {
         title: "The Math Behind Your Profit",
@@ -77,14 +77,14 @@ At **-110 odds**, you need to win **52.4%** to break even.
 Our projections hit at **~55%** (2.62% edge). Here's what that means:
 
 **Per 100 bets at $100/bet:**
-• You win 55 bets → +$5,000
-• You lose 45 bets → -$4,950
-• **Net profit: +$50 per 100 bets**
+-  You win 55 bets -> +$5,000
+-  You lose 45 bets -> -$4,950
+-  **Net profit: +$50 per 100 bets**
 
 **Scale it up:**
-• 10 bets/day = 300 bets/month
-• 300 bets × $0.50 profit/bet = **$150/month per $100 unit**
-• With a $10k bankroll ($100 units): **~$1,500/month expected**
+-  10 bets/day = 300 bets/month
+-  300 bets x $0.50 profit/bet = **$150/month per $100 unit**
+-  With a $10k bankroll ($100 units): **~$1,500/month expected**
 
 **This is a long-term game.** You'll have losing days and losing weeks. Trust the math. Over 1,000+ bets, the edge plays out.`,
       },
@@ -100,15 +100,15 @@ Our projections hit at **~55%** (2.62% edge). Here's what that means:
         title: "When to Bet Props",
         content: `**Only bet props where sharps have taken a position.**
 
-• **Sharp Score 70+**: These are your profitable plays. Sharps are aligned.
-• **Sharp Score 85+**: High conviction. Multiple whales on the same side.
-• **Sharp Score below 60**: Skip it. Not enough sharp consensus.
+-  **Sharp Score 70+**: These are your profitable plays. Sharps are aligned.
+-  **Sharp Score 85+**: High conviction. Multiple whales on the same side.
+-  **Sharp Score below 60**: Skip it. Not enough sharp consensus.
 
 **Timing for profit:**
-• Props move FAST once sharps bet. Act within minutes.
-• Best value is 2-4 hours before game time
-• If the line has already moved to match sharp sentiment, the edge is gone
-• Late-breaking injury news creates new opportunities`,
+-  Props move FAST once sharps bet. Act within minutes.
+-  Best value is 2-4 hours before game time
+-  If the line has already moved to match sharp sentiment, the edge is gone
+-  Late-breaking injury news creates new opportunities`,
       },
       {
         title: "How to Make Money with Props",
@@ -127,7 +127,7 @@ Sharps spend millions on player data and models. When multiple whales bet the sa
       },
       {
         title: "Bet Sizing for Props",
-        content: `**Props are higher variance—size conservatively:**
+        content: `**Props are higher variance--size conservatively:**
 
 | Sharp Score | Bet Size | Why |
 |-------------|----------|-----|
@@ -138,9 +138,9 @@ Sharps spend millions on player data and models. When multiple whales bet the sa
 **Never exceed 1% on any single prop.**
 
 **Profitable approach:**
-• Bet 3-5 props per day at 0.5-1% each
-• Total daily prop exposure: 2-4% of bankroll max
-• This diversification smooths out variance`,
+-  Bet 3-5 props per day at 0.5-1% each
+-  Total daily prop exposure: 2-4% of bankroll max
+-  This diversification smooths out variance`,
       },
       {
         title: "Expected Profit from Props",
@@ -149,14 +149,14 @@ Sharps spend millions on player data and models. When multiple whales bet the sa
 Props at -110 with sharp consensus hit at **~57%** (better than sides).
 
 **Per 100 prop bets at $50/bet:**
-• Win 57 → +$2,591
-• Lose 43 → -$2,365
-• **Net profit: +$226 per 100 bets**
+-  Win 57 -> +$2,591
+-  Lose 43 -> -$2,365
+-  **Net profit: +$226 per 100 bets**
 
 **Monthly projection (5 props/day):**
-• 150 props/month
-• ~$340/month profit per $50 unit
-• With $10k bankroll: **~$680/month from props alone**
+-  150 props/month
+-  ~$340/month profit per $50 unit
+-  With $10k bankroll: **~$680/month from props alone**
 
 **Combine with sides for maximum profit.** Props + Sharp Projections = diversified edge across all markets.`,
       },
@@ -236,14 +236,14 @@ Even small price improvements add up over a season. Always take the best pregame
         content: `**We use ESPN win probability to build a live spread range.**
 
 **What you see:**
-• ESPN win probability meter per game
-• A derived spread line (favored team)
-• A confidence range that tightens as time runs out
+-  ESPN win probability meter per game
+-  A derived spread line (favored team)
+-  A confidence range that tightens as time runs out
 
 **Use it to spot:**
-• Books lagging behind a win-probability swing
-• Stale lines after timeouts or quarter breaks
-• Overreactions to short scoring runs`,
+-  Books lagging behind a win-probability swing
+-  Stale lines after timeouts or quarter breaks
+-  Overreactions to short scoring runs`,
       },
       {
         title: "How to Profit from Live Betting",
@@ -256,10 +256,10 @@ Even small price improvements add up over a season. Always take the best pregame
 5. **One bet per spot** - Don't chase, don't double down
 
 **Best live spots:**
-• After a team goes on a 10-0 run (line overreacts)
-• Key player picks up 3rd foul (books underreact)
-• Halftime (books reset, sometimes poorly)
-• After a timeout in a close game
+-  After a team goes on a 10-0 run (line overreacts)
+-  Key player picks up 3rd foul (books underreact)
+-  Halftime (books reset, sometimes poorly)
+-  After a timeout in a close game
 
 **Live spreads > live ML.** The juice on live ML is brutal.`,
       },
@@ -276,9 +276,9 @@ Even small price improvements add up over a season. Always take the best pregame
 **Never exceed 1% on any live bet.**
 
 **Bankroll protection:**
-• Set a daily live loss limit (2% of bankroll max)
-• Don't chase live losses with bigger bets
-• Live is supplemental—not your core strategy`,
+-  Set a daily live loss limit (2% of bankroll max)
+-  Don't chase live losses with bigger bets
+-  Live is supplemental--not your core strategy`,
       },
       {
         title: "Expected Live Profit",
@@ -287,24 +287,24 @@ Even small price improvements add up over a season. Always take the best pregame
 With 6% average edge on live bets:
 
 **Per 50 live bets at $75/bet:**
-• Total wagered: $3,750
-• Expected return: $3,975
-• **Net profit: +$225**
+-  Total wagered: $3,750
+-  Expected return: $3,975
+-  **Net profit: +$225**
 
 **Monthly projection (2 live bets/day):**
-• 60 live bets/month
-• ~$270/month profit
-• With $10k bankroll: **~$400/month from live**
+-  60 live bets/month
+-  ~$270/month profit
+-  With $10k bankroll: **~$400/month from live**
 
 **The real value:** Live betting catches edges the pre-game market missed. It's your hedge when games don't go as projected.
 
 **Combine all tools for max profit:**
-• Sharp Projections: ~$1,500/mo
-• Sharp Props: ~$680/mo
-• Line Shopping: ~$2,400/mo
-• Parlays: ~$300/mo
-• Live: ~$400/mo
-• **Total: ~$5,280/month on $10k bankroll**`,
+-  Sharp Projections: ~$1,500/mo
+-  Sharp Props: ~$680/mo
+-  Line Shopping: ~$2,400/mo
+-  Parlays: ~$300/mo
+-  Live: ~$400/mo
+-  **Total: ~$5,280/month on $10k bankroll**`,
       },
     ],
   },
@@ -381,6 +381,104 @@ Never exceed 2u on a single bet.`,
       },
     ],
   },
+  "guide-navigation": {
+    id: "guide-navigation",
+    title: "Navigate Delta",
+    subtitle: "Find the right tool in seconds",
+    sections: [
+      {
+        title: "Navigation basics",
+        content: `Use the top tool tabs to move between projections and research.
+
+-  **Projections mode** = edges, line shopping, EV, and parlays
+-  **Research mode** = sharp action, trends, and backtesting
+-  The Whale Feed is Syndicate-only and lives in the chat tools`,
+      },
+      {
+        title: "Start here",
+        content: `Most users start in **Sharp Projections** and **Line Shopping**.
+
+1. Open Sharp Projections for the best edges.
+2. Jump to Line Shopping to confirm your best price.
+3. Save a routine so you move faster each day.`,
+      },
+      {
+        title: "Fast switching",
+        content: `Use the mode toggle to change the entire tool set.
+
+-  Projections mode = betting workflow
+-  Research mode = context and explanation
+-  Your mode stays set until you toggle again`,
+      },
+    ],
+  },
+  "guide-betting-flow": {
+    id: "guide-betting-flow",
+    title: "Use Delta to Bet",
+    subtitle: "A simple daily betting workflow",
+    sections: [
+      {
+        title: "Find the edge",
+        content: `Start with **Sharp Projections** and sort by edge.
+
+-  Focus on 3%+ edges
+-  Prefer early lines before they move
+-  Ignore low-edge spots`,
+      },
+      {
+        title: "Shop the line",
+        content: `Open **Line Shopping** next.
+
+-  Confirm the best book and price
+-  A half point or 10 cents matters
+-  Only bet if the price is still available`,
+      },
+      {
+        title: "Scale with EV",
+        content: `Use **Parlay Pro** and **EV Bets** for higher-EV spots.
+
+-  Use EV as the final filter
+-  Keep a simple bankroll rule
+-  Track results weekly`,
+      },
+    ],
+  },
+  "guide-research-mode": {
+    id: "guide-research-mode",
+    title: "Research Mode",
+    subtitle: "Explain why a side is sharp",
+    sections: [
+      {
+        title: "Sharp Action",
+        content: `Use **Sharp Action** to understand the reasoning behind movement.
+
+-  See model vs market deltas
+-  Read signal summaries
+-  Spot why pros are leaning a side`,
+      },
+      {
+        title: "Betting Trends",
+        content: `Use **Betting Trends** to spot 30-day movement patterns.
+
+-  Track average line shifts
+-  Identify the biggest movers
+-  Use it for market context`,
+      },
+      {
+        title: "Backtesting",
+        content: `Use **Backtesting** to simulate strategy performance.
+
+-  Test a rule
+-  Measure ROI and drawdown
+-  Use results to refine your process`,
+      },
+    ],
+  },
 }
+
+
+
+
+
 
 

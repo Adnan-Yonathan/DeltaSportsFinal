@@ -6,52 +6,49 @@ import { DottedSurface } from "@/components/ui/dotted-surface"
 
 const PATCH_NOTES = [
   {
-    title: "Whale Feed + Sharp Money Signals",
+    title: "Free Membership + Access Gates",
     points: [
-      "Sharp Detector renamed to Whale Feed across the app.",
-      "New signal rules: EV, NCAAB clusters, and $100k+ nukes with filter-based ranking.",
+      "New Free tier with top-result previews and blurred full access.",
+      "Sharp = full projections tools, Syndicate = full research tools.",
+      "Sharp Money Feed remains Syndicate-only; Bet Feed is available to Free.",
     ],
   },
   {
-    title: "Parlay Pro + EV Parlays",
+    title: "The Odds API Everywhere",
     points: [
-      "EV Parlays are now the primary tab with 3%+ EV threshold.",
-      "Parlay builder remains as the secondary tab for custom tickets.",
+      "Odds API now powers EV Bets, Parlay Pro EV, Sharp Projections, and Line Shopping.",
+      "Book selector expanded to 50+ books with Kalshi and Polymarket.",
+      "EV Bets now supports all sports with refreshed book defaults.",
     ],
   },
   {
-    title: "Line Shopping",
+    title: "Parlay Pro + EV Bets Updates",
     points: [
-      "Renamed from Live Odds with pregame-only boards.",
-      "Best odds now highlighted for prediction markets vs sportsbooks.",
+      "EV filters removed from Parlay Pro in favor of the book dropdown.",
+      "EV Bets now honors all selected books and fixes the no-bets bug.",
+      "EV opportunities endpoints opened for Free previews.",
     ],
   },
   {
-    title: "Live Projections",
+    title: "Research Suite Improvements",
     points: [
-      "ESPN win probability meter added for every game.",
-      "Live spread interval derived from win probability.",
+      "Sharp Action now includes deeper analysis and a point graph.",
+      "Betting Trends rebuilt from 30-day line history with sport filtering.",
+      "Backtesting and Research pages respect the new access gates.",
     ],
   },
   {
-    title: "Shareable Assets + Hero",
+    title: "Sharp Money Feed Scoring",
     points: [
-      "Share cards rebuilt with credit-card styling and sportsbook imagery.",
-      "Rotating hero games are now clickable pills with a built-in guide.",
+      "Sharp Money feed now triggers on 60%+ strength only.",
+      "Bet Feed continues to show all qualifying market trades.",
     ],
   },
   {
-    title: "Calculators + News Feed",
+    title: "Chat + Onboarding",
     points: [
-      "New calculators hub: Kelly, arb, parlay, EV, de-vig, promo, and more.",
-      "News feed merged into one ticker (includes CBB) with hover slowdown.",
-    ],
-  },
-  {
-    title: "Quality-of-Life",
-    points: [
-      "Daily recap is now a main-page button and refreshes at 6am ET.",
-      "NCAAB line move sensitivity reduced to NBA levels.",
+      "Desktop chat box replaced with clickable Get Started guides.",
+      "Pricing page updated to Free / Sharp / Syndicate structure.",
     ],
   },
 ]
@@ -65,9 +62,9 @@ export default function PatchNotesPage() {
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.3em] text-white/40">Patch Notes</p>
-            <h1 className="text-3xl font-bold">Patch 0.4</h1>
+            <h1 className="text-3xl font-bold">Patch 0.5</h1>
             <p className="text-sm text-white/60">
-              Whale Feed signals, EV parlays, line shopping, and live projections.
+              Free tier previews, Odds API expansion, and research upgrades.
             </p>
           </div>
           <Link

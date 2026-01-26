@@ -1,54 +1,9 @@
 "use client"
 
-import { ArrowDownToDot, Sigma, TrendingUp } from "lucide-react"
+import { Sigma, TrendingUp } from "lucide-react"
 import { PricingSection, type PricingTier } from "@/components/ui/pricing-section"
 
 const defaultTiers: PricingTier[] = [
-  {
-    name: "Pro",
-    tierKey: "pro",
-    price: {
-      weekly: 9.99,
-      monthly: 29,
-      yearly: 108,
-    },
-    description: "7-day trial. Top spread projection per sport.",
-    planKeyWeekly: "pro_weekly",
-    planKeyMonthly: "pro_monthly",
-    planKeyYearly: "pro_annual",
-    icon: (
-      <div className="relative">
-        <ArrowDownToDot className="relative z-10 h-7 w-7 text-black" />
-      </div>
-    ),
-    features: [
-      {
-        name: "Chat + Stats Center",
-        description: "Conversational breakdowns with team and player stats.",
-        included: true,
-      },
-      {
-        name: "Top Spread Projection",
-        description: "One best spread projection per sport.",
-        included: true,
-      },
-      {
-        name: "Moneyline + Total Projections",
-        description: "Locked until Sharp or Syndicate.",
-        included: false,
-      },
-      {
-        name: "Sharp Props",
-        description: "Upgrade to Sharp for player edges and props.",
-        included: false,
-      },
-      {
-        name: "Parlay Pro",
-        description: "Upgrade to Sharp for parlay modeling.",
-        included: false,
-      },
-    ],
-  },
   {
     name: "Sharp",
     tierKey: "sharp",
@@ -57,7 +12,7 @@ const defaultTiers: PricingTier[] = [
       monthly: 59,
       yearly: 249,
     },
-    description: "7-day trial. Projections + sharp props + parlay pro.",
+    description: "Full projections toolkit.",
     planKeyWeekly: "sharp_weekly",
     planKeyMonthly: "sharp_monthly",
     planKeyYearly: "sharp_annual",
@@ -68,28 +23,28 @@ const defaultTiers: PricingTier[] = [
     ),
     features: [
       {
-        name: "5 Projections per Market",
-        description: "Top 5 for spreads, moneylines, and totals.",
+        name: "Sharp Projections",
+        description: "Full spreads, totals, and moneylines.",
         included: true,
       },
       {
-        name: "Sharp Props",
-        description: "Market-driven player edges and props.",
+        name: "Line Shopping",
+        description: "Compare odds across all books.",
         included: true,
       },
       {
         name: "Parlay Pro",
-        description: "True parlay odds with correlation adjustments.",
+        description: "EV parlays + builder.",
         included: true,
       },
       {
-        name: "Whale Feed",
-        description: "Available in Syndicate only.",
-        included: false,
+        name: "EV Bets",
+        description: "Pinnacle-based EV scanning.",
+        included: true,
       },
       {
-        name: "Live Projections + Line Shopping",
-        description: "Available in Syndicate only.",
+        name: "Research Tools",
+        description: "Upgrade to Syndicate for research mode.",
         included: false,
       },
     ],
@@ -102,7 +57,7 @@ const defaultTiers: PricingTier[] = [
       monthly: 79,
       yearly: 299,
     },
-    description: "7-day trial. Unlimited access to every tool.",
+    description: "Full research + sharp money feed.",
     highlight: true,
     badge: "Most Popular",
     planKeyWeekly: "syndicate_weekly",
@@ -116,28 +71,23 @@ const defaultTiers: PricingTier[] = [
     ),
     features: [
       {
-        name: "Unlimited Sharp Projections",
-        description: "Full access to spreads, moneylines, and totals.",
+        name: "Everything in Sharp",
+        description: "Full projections toolkit.",
+        included: true,
+      },
+      {
+        name: "Research Mode",
+        description: "Sharp Action, Trends, Backtesting.",
         included: true,
       },
       {
         name: "Whale Feed",
-        description: "Real-time sharp trade alerts and tags.",
+        description: "Sharp money feed + alerts.",
         included: true,
       },
       {
         name: "Sharp Props",
         description: "Player prop edges and scores.",
-        included: true,
-      },
-      {
-        name: "Parlay Pro",
-        description: "EV parlays + correlation-aware builder.",
-        included: true,
-      },
-      {
-        name: "Live Projections + Line Shopping",
-        description: "In-game projections plus pregame odds board.",
         included: true,
       },
     ],

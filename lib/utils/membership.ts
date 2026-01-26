@@ -1,4 +1,4 @@
-export type MembershipTier = 'pro' | 'sharp' | 'syndicate'
+export type MembershipTier = 'free' | 'sharp' | 'syndicate'
 export type MembershipStatus = 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'paused'
 
 const parseDate = (value: unknown): Date | null => {
@@ -12,6 +12,7 @@ export interface MembershipInfo {
   status: MembershipStatus | null
   isActive: boolean
   isTrial: boolean
+  hasUsedTrial: boolean
   currentPeriodEnd: Date | null
   cancelAt: Date | null
   stripeCustomerId: string | null
@@ -20,10 +21,15 @@ export interface MembershipInfo {
 }
 
 const resolveMembershipStatus = (metadata: any): MembershipInfo => {
+  const rawTier = metadata && typeof metadata.membership_tier === 'string'
+    ? String(metadata.membership_tier)
+    : null
   const tier =
-    metadata && typeof metadata.membership_tier === 'string'
-      ? (metadata.membership_tier as MembershipTier)
-      : null
+    rawTier === 'sharp' || rawTier === 'syndicate'
+      ? (rawTier as MembershipTier)
+      : rawTier === 'pro' || rawTier === 'free'
+        ? 'free'
+        : null
 
   const status =
     metadata && typeof metadata.membership_status === 'string'
@@ -35,6 +41,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
   const stripeCustomerId = metadata?.stripe_customer_id || null
   const stripeSubscriptionId = metadata?.stripe_subscription_id || null
   const planVersionRaw = metadata?.membership_plan_version
+  const hasUsedTrial = Boolean(metadata?.has_used_trial)
   const planVersion = Number.isFinite(Number(planVersionRaw))
     ? Number(planVersionRaw)
     : 1
@@ -51,8 +58,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     activeStatuses.includes(status as MembershipStatus) &&
     (Boolean(tier) || isFullAccessStatus)
 
-  // Temporary patch: grant full access to any paying or trialing membership.
-  const effectiveTier = isFullAccessStatus ? 'syndicate' : tier
+  const effectiveTier = tier
 
   // Legacy support: check expiration date if no status but has tier
   // This handles old subscriptions that used expiration dates
@@ -64,6 +70,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
       status: legacyActive ? 'active' : 'canceled',
       isActive: legacyActive,
       isTrial: false,
+      hasUsedTrial,
       currentPeriodEnd: expiresAt,
       cancelAt: null,
       stripeCustomerId,
@@ -77,6 +84,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     status,
     isActive,
     isTrial: status === 'trialing',
+    hasUsedTrial,
     currentPeriodEnd,
     cancelAt,
     stripeCustomerId,
@@ -95,6 +103,7 @@ export const getMembershipStatus = (metadata: any): MembershipInfo => {
       status: 'active',
       isActive: true,
       isTrial: false,
+      hasUsedTrial: false,
       currentPeriodEnd: devExpiresAt,
       cancelAt: null,
       stripeCustomerId: null,

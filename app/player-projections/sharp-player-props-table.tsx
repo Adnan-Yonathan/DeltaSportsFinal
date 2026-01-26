@@ -55,6 +55,26 @@ type FilterState = {
 
 type FeedTab = "sharp" | "ev"
 
+type EVOpportunity = {
+  game: string
+  gameId: string
+  market: string
+  selection: string
+  point?: number
+  bestBook: string
+  bestOdds: number
+  consensus: {
+    averageOdds: number
+    medianOdds: number
+    impliedProbability: number
+    bookCount: number
+  }
+  ev: number
+  edgePercent: number
+  allBooks: Array<{ bookmaker: string; odds: number; point?: number }>
+  commenceTime: string
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
@@ -516,6 +536,12 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
   const [activeTab, setActiveTab] = useState<FeedTab>("sharp")
   const lastLoadedRef = useRef<number>(0)
 
+  // EV Props state (from cross-market EV endpoint)
+  const [evData, setEvData] = useState<EVOpportunity[]>([])
+  const [evLoading, setEvLoading] = useState(false)
+  const [evError, setEvError] = useState<string | null>(null)
+  const evLoadedRef = useRef<boolean>(false)
+
   const loadData = useCallback(
     async (isManual = false) => {
       if (!isManual) setLoading(true)
@@ -548,6 +574,54 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
     [sport]
   )
 
+  // Load EV props from cross-market EV endpoint
+  const loadEVData = useCallback(async () => {
+    if (evLoadedRef.current) return // Only load once per session
+    setEvLoading(true)
+    setEvError(null)
+
+    try {
+      // Map sport key to the format expected by the EV API
+      const sportKeyMap: Record<string, string> = {
+        basketball_nba: "basketball_nba",
+        americanfootball_nfl: "americanfootball_nfl",
+        baseball_mlb: "baseball_mlb",
+        icehockey_nhl: "icehockey_nhl",
+        basketball_ncaab: "basketball_ncaab",
+        americanfootball_ncaaf: "americanfootball_ncaaf",
+      }
+
+      const sports = sport === "all"
+        ? Object.values(sportKeyMap).join(",")
+        : sportKeyMap[sport] || sport
+
+      const params = new URLSearchParams({
+        sports,
+        betTypes: "player_prop",
+        minEV: "2.5",
+        limit: "100",
+      })
+
+      const res = await fetch(`/api/ev-opportunities?${params.toString()}`, {
+        cache: "no-store",
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.error || "Failed to load EV props.")
+      }
+
+      const json = await res.json()
+      const opportunities = Array.isArray(json?.data) ? json.data : []
+      setEvData(opportunities)
+      evLoadedRef.current = true
+    } catch (err: any) {
+      setEvError(err.message ?? "Failed to load EV props.")
+    } finally {
+      setEvLoading(false)
+    }
+  }, [sport])
+
   // Keep ref to latest loadData
   const loadDataRef = useRef(loadData)
   useEffect(() => {
@@ -558,6 +632,13 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
   useEffect(() => {
     loadData()
   }, [sport])
+
+  // Load EV data when switching to EV tab
+  useEffect(() => {
+    if (activeTab === "ev" && !evLoadedRef.current) {
+      loadEVData()
+    }
+  }, [activeTab, loadEVData])
 
   // Auto-refresh
   useEffect(() => {
@@ -585,9 +666,12 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
   }, [])
 
-  // Reset filters on sport change
+  // Reset filters and EV data on sport change
   useEffect(() => {
     setFilters({ minEdge: 0, minComposite: 0, propType: "All" })
+    setEvData([])
+    setEvError(null)
+    evLoadedRef.current = false
   }, [sport])
 
   const handleManualRefresh = useCallback(() => {
@@ -614,24 +698,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
     })
   }, [data?.props, filters])
 
-  const evProps = React.useMemo(() => {
-    if (!data?.props) return []
-
-    const filtered = data.props.filter((prop) => {
-      if (filters.propType !== "All" && prop.propType !== filters.propType) {
-        return false
-      }
-      if (prop.edgeReferenceProbability == null) return false
-      if (!Number.isFinite(prop.edgePercent)) return false
-      if (prop.edgePercent < EV_MIN_EDGE) return false
-      if (prop.sportsbookAvgOdds == null) return false
-      return true
-    })
-
-    return filtered.sort((a, b) => b.edgePercent - a.edgePercent)
-  }, [data?.props, filters.propType])
-
-  const visibleProps = activeTab === "sharp" ? sharpProps : evProps
+  const visibleProps = sharpProps
 
   const topPicks = React.useMemo(() => {
     if (!data?.topPicks) return []
@@ -738,7 +805,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
                   </div>
                 ) : (
                   <div className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.15em] text-emerald-200">
-                    Min EV {EV_MIN_EDGE}%
+                    Cross-Market EV 2.5%+
                   </div>
                 )}
 
@@ -767,47 +834,146 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
               </div>
 
               <div className="flex items-center gap-2 text-[10px] text-white/40">
-                {data?.totalTrades != null && (
-                  <span>{data.totalTrades} whale trades tracked</span>
+                {activeTab === "sharp" ? (
+                  <>
+                    {data?.totalTrades != null && (
+                      <span>{data.totalTrades} whale trades tracked</span>
+                    )}
+                    <span className="text-white/20">|</span>
+                    <span>{visibleProps.length} props</span>
+                  </>
+                ) : (
+                  <span>{evData.length} +EV props</span>
                 )}
-                <span className="text-white/20">|</span>
-                <span>{visibleProps.length} props</span>
               </div>
             </div>
           </div>
 
           {/* Content */}
-          {loading ? (
-            <div className="px-4 py-8 text-sm text-white/60">
-              {activeTab === "sharp" ? "Loading sharp props..." : "Loading EV props..."}
-            </div>
-          ) : errorMessage ? (
-            <div className="px-4 py-8 text-sm text-red-200">{errorMessage}</div>
-          ) : visibleProps.length === 0 ? (
-            <div className="px-4 py-8 text-sm text-white/60">
-              {activeTab === "sharp"
-                ? "No sharp player prop bets found. Try adjusting your filters."
-                : `No EV props above ${EV_MIN_EDGE}% found. Try adjusting your filters.`}
-            </div>
-          ) : (
-            <div className="divide-y divide-white/5">
-              {/* Desktop Header */}
-              <div className="hidden border-b border-white/5 bg-black/30 px-3 py-2 sm:grid sm:grid-cols-[1fr_140px_100px_80px_80px_80px_120px_90px] items-center gap-3 text-[10px] uppercase tracking-[0.15em] text-white/50">
-                <div>Player / Prop</div>
-                <div>Volume</div>
-                <div className="text-center">Pred Mkt</div>
-                <div className="text-center">Books</div>
-                <div className="text-center">Edge</div>
-                <div className="text-center">Score</div>
-                <div className="text-right">Signals</div>
-                <div className="text-right">Share</div>
+          {activeTab === "sharp" ? (
+            // Sharp Props Tab Content
+            loading ? (
+              <div className="px-4 py-8 text-sm text-white/60">Loading sharp props...</div>
+            ) : errorMessage ? (
+              <div className="px-4 py-8 text-sm text-red-200">{errorMessage}</div>
+            ) : visibleProps.length === 0 ? (
+              <div className="px-4 py-8 text-sm text-white/60">
+                No sharp player prop bets found. Try adjusting your filters.
               </div>
+            ) : (
+              <div className="divide-y divide-white/5">
+                {/* Desktop Header */}
+                <div className="hidden border-b border-white/5 bg-black/30 px-3 py-2 sm:grid sm:grid-cols-[1fr_140px_100px_80px_80px_80px_120px_90px] items-center gap-3 text-[10px] uppercase tracking-[0.15em] text-white/50">
+                  <div>Player / Prop</div>
+                  <div>Volume</div>
+                  <div className="text-center">Pred Mkt</div>
+                  <div className="text-center">Books</div>
+                  <div className="text-center">Edge</div>
+                  <div className="text-center">Score</div>
+                  <div className="text-right">Signals</div>
+                  <div className="text-right">Share</div>
+                </div>
 
-              {/* Rows */}
-              {visibleProps.map((prop) => (
-                <PropRow key={prop.id} prop={prop} showSport={sport === "all"} />
-              ))}
-            </div>
+                {/* Rows */}
+                {visibleProps.map((prop) => (
+                  <PropRow key={prop.id} prop={prop} showSport={sport === "all"} />
+                ))}
+              </div>
+            )
+          ) : (
+            // EV Props Tab Content
+            evLoading ? (
+              <div className="px-4 py-8 text-sm text-white/60">Loading EV props...</div>
+            ) : evError ? (
+              <div className="px-4 py-8 text-sm text-red-200">{evError}</div>
+            ) : evData.length === 0 ? (
+              <div className="px-4 py-8 text-sm text-white/60">
+                No +EV player props found. Looking for props where sportsbooks disagree on odds (2.5%+ EV).
+              </div>
+            ) : (
+              <div className="divide-y divide-white/5">
+                {/* Desktop Header for EV Props */}
+                <div className="hidden border-b border-white/5 bg-black/30 px-3 py-2 sm:grid sm:grid-cols-[1fr_100px_100px_100px_80px_100px] items-center gap-3 text-[10px] uppercase tracking-[0.15em] text-white/50">
+                  <div>Player / Prop</div>
+                  <div className="text-center">Best Book</div>
+                  <div className="text-center">Best Odds</div>
+                  <div className="text-center">Consensus</div>
+                  <div className="text-center">EV</div>
+                  <div className="text-center">Books</div>
+                </div>
+
+                {/* EV Prop Rows */}
+                {evData.map((opp, idx) => (
+                  <div
+                    key={`${opp.gameId}-${opp.market}-${opp.selection}-${idx}`}
+                    className="border-b border-white/5 px-3 py-3 hover:bg-white/5 transition-colors"
+                  >
+                    {/* Mobile layout */}
+                    <div className="sm:hidden space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-sm font-semibold text-white">{opp.market}</div>
+                          <div className="mt-0.5 text-xs text-white/60">
+                            {opp.selection} {opp.point != null ? opp.point : ""}
+                          </div>
+                        </div>
+                        <span className="rounded-full px-2 py-0.5 text-xs font-semibold bg-emerald-500/20 text-emerald-300">
+                          +{opp.ev.toFixed(1)}% EV
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-[11px]">
+                        <div className="rounded bg-black/40 px-2 py-1.5">
+                          <div className="text-[9px] uppercase text-white/40">Best Book</div>
+                          <div className="font-medium text-white truncate">{opp.bestBook}</div>
+                        </div>
+                        <div className="rounded bg-black/40 px-2 py-1.5">
+                          <div className="text-[9px] uppercase text-white/40">Best Odds</div>
+                          <div className="font-medium text-emerald-300">{formatOdds(opp.bestOdds)}</div>
+                        </div>
+                        <div className="rounded bg-black/40 px-2 py-1.5">
+                          <div className="text-[9px] uppercase text-white/40">Consensus</div>
+                          <div className="font-medium text-white/80">{formatOdds(Math.round(opp.consensus.averageOdds))}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-[10px] text-white/50">
+                        <span>{opp.game}</span>
+                        <span className="text-white/20">|</span>
+                        <span>{opp.allBooks.length} books</span>
+                      </div>
+                    </div>
+
+                    {/* Desktop layout */}
+                    <div className="hidden sm:grid sm:grid-cols-[1fr_100px_100px_100px_80px_100px] items-center gap-3 text-sm">
+                      <div>
+                        <div className="font-semibold text-white truncate">{opp.market}</div>
+                        <div className="text-xs text-white/60">
+                          {opp.selection} {opp.point != null ? opp.point : ""} · {opp.game}
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-white/80 truncate">{opp.bestBook}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-medium text-emerald-300">{formatOdds(opp.bestOdds)}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-medium text-white/80">{formatOdds(Math.round(opp.consensus.averageOdds))}</div>
+                      </div>
+                      <div className="text-center">
+                        <span className="rounded-full px-2 py-0.5 text-xs font-semibold bg-emerald-500/20 text-emerald-300">
+                          +{opp.ev.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="text-center text-xs text-white/50">
+                        {opp.allBooks.length} books
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
         </div>
       </div>

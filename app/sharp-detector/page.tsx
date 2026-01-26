@@ -31,6 +31,8 @@ type SharpTrade = {
   outcomeIndex?: number
   side?: string
   sharpStrength?: number
+  is_live?: boolean
+  game_status?: 'pregame' | 'live' | 'final'
 }
 
 type SharpTradeStatus = 'pending' | 'respected' | 'faded'
@@ -442,9 +444,62 @@ export default function SharpDetectorPage() {
     const todayTrades = trades.filter(
       (trade) => getEasternDateKey(trade.timestamp) === todayKey
     ).length
-    return { totalNotional, todayTrades }
+    const liveTrades = trades.filter((trade) => trade.is_live).length
+    return { totalNotional, todayTrades, liveTrades }
   }, [trades])
 
+  // Merge incoming trades with existing trades
+  const mergeTrades = (prev: SharpTradeWithStatus[], incoming: SharpTrade[]) => {
+    const existing = new Map(prev.map((trade) => [trade.id, trade]))
+    incoming.forEach((trade) => {
+      const current = existing.get(trade.id)
+      existing.set(trade.id, current ? { ...current, ...trade } : trade)
+      if (!seenIdsRef.current.has(trade.id)) {
+        seenIdsRef.current.add(trade.id)
+      }
+    })
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true
+    }
+    const next = Array.from(existing.values())
+    const pending = next
+      .filter((trade) => !trade.status || trade.status === 'pending')
+      .sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      )
+    const resolved = next
+      .filter((trade) => trade.status && trade.status !== 'pending')
+      .sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      )
+      .slice(0, MAX_RESOLVED_TRADES)
+    return [...pending, ...resolved]
+  }
+
+  // Fetch today's trades from the daily database (persistent storage)
+  const fetchDailyTrades = async () => {
+    try {
+      const res = await fetch(
+        `/api/whale-trades-daily?minNotional=${MIN_NOTIONAL}&limit=500`,
+        { cache: 'no-store' }
+      )
+      if (!res.ok) return
+      const data = await res.json()
+      const incoming: SharpTrade[] = Array.isArray(data?.trades)
+        ? data.trades
+        : []
+      setLastFetchAt(new Date().toISOString())
+      setLastFetchCount(incoming.length)
+      setLastFetchError(null)
+      setTrades((prev) => mergeTrades(prev, incoming))
+    } catch (error) {
+      console.warn('Daily trades fetch failed:', error)
+    }
+  }
+
+  // Fetch live trades and merge with existing (30s polling)
   const fetchTrades = async () => {
     try {
       const res = await fetch(
@@ -459,35 +514,7 @@ export default function SharpDetectorPage() {
       setLastFetchAt(new Date().toISOString())
       setLastFetchCount(incoming.length)
       setLastFetchError(null)
-
-      setTrades((prev) => {
-        const existing = new Map(prev.map((trade) => [trade.id, trade]))
-        incoming.forEach((trade) => {
-          const current = existing.get(trade.id)
-          existing.set(trade.id, current ? { ...current, ...trade } : trade)
-          if (!seenIdsRef.current.has(trade.id)) {
-            seenIdsRef.current.add(trade.id)
-          }
-        })
-        if (!hasInitializedRef.current) {
-          hasInitializedRef.current = true
-        }
-        const next = Array.from(existing.values())
-        const pending = next
-          .filter((trade) => !trade.status || trade.status === 'pending')
-          .sort(
-            (a, b) =>
-              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-          )
-        const resolved = next
-          .filter((trade) => trade.status && trade.status !== 'pending')
-          .sort(
-            (a, b) =>
-              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-          )
-          .slice(0, MAX_RESOLVED_TRADES)
-        return [...pending, ...resolved]
-      })
+      setTrades((prev) => mergeTrades(prev, incoming))
     } catch (error) {
       console.warn('Whale Feed fetch failed:', error)
       setLastFetchAt(new Date().toISOString())
@@ -599,7 +626,11 @@ export default function SharpDetectorPage() {
 
   useEffect(() => {
     if (!hasAccess) return
-    fetchTrades()
+    // First fetch from daily database (persistent storage), then start polling
+    fetchDailyTrades().then(() => {
+      // After loading persisted trades, fetch live trades for freshest data
+      fetchTrades()
+    })
     const interval = setInterval(fetchTrades, POLL_INTERVAL_MS)
     return () => clearInterval(interval)
   }, [hasAccess])
@@ -703,7 +734,7 @@ export default function SharpDetectorPage() {
 
       <div className="max-w-6xl mx-auto px-4 py-8 pt-20">
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 mb-6">
+        <div className="grid grid-cols-3 gap-3 mb-6">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center gap-2 text-white/50 text-sm mb-1">
               <DollarSign className="w-4 h-4" />
@@ -717,6 +748,13 @@ export default function SharpDetectorPage() {
               Sharps detected
             </div>
             <p className="text-xl font-bold text-white">{stats.todayTrades}</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center gap-2 text-white/50 text-sm mb-1">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              Live bets
+            </div>
+            <p className="text-xl font-bold text-rose-400">{stats.liveTrades}</p>
           </div>
         </div>
 
@@ -953,6 +991,12 @@ export default function SharpDetectorPage() {
                           className="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/5"
                         >
                           <div className="flex items-center gap-3">
+                            {trade.is_live && (
+                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/50 text-rose-400 text-xs font-semibold uppercase">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                                LIVE
+                              </span>
+                            )}
                             <span className={cn(
                               "px-3 py-1 rounded-full border text-xs font-semibold uppercase",
                               sharpTierClass[tier]
@@ -1022,9 +1066,17 @@ export default function SharpDetectorPage() {
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs uppercase tracking-[0.3em] text-white/40">
-                      {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs uppercase tracking-[0.3em] text-white/40">
+                        {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
+                      </span>
+                      {trade.is_live && (
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/50 text-rose-400 text-xs font-semibold uppercase tracking-wide">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                          LIVE
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2">
                       {Number.isFinite(trade.sharpStrength) && (
                         <span className={cn('text-xs uppercase tracking-[0.3em] font-semibold', resolveStrengthClass(trade.sharpStrength))}>

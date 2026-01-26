@@ -18,7 +18,7 @@ interface Feature {
 
 export interface PricingTier {
   name: string
-  tierKey: 'pro' | 'sharp' | 'syndicate'
+  tierKey: 'free' | 'sharp' | 'syndicate'
   price: {
     weekly: number
     monthly: number
@@ -65,7 +65,7 @@ const badgeStyles = cn(
 )
 
 const tierRank: Record<PricingTier["tierKey"], number> = {
-  pro: 0,
+  free: 0,
   sharp: 1,
   syndicate: 2,
 }
@@ -209,7 +209,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mx-auto grid w-full max-w-4xl grid-cols-1 gap-6 md:grid-cols-2 md:gap-8 items-stretch">
           {tiers.map((tier) => {
             // Get the appropriate plan key based on billing period
             const planKey =
@@ -229,7 +229,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
               membership.tier &&
               tierRank[tier.tierKey] > tierRank[membership.tier]
 
-            const actionButton = isCurrentPlan ? (
+            const actionButton = isCurrentPlan && tier.tierKey !== 'free' ? (
                 <Button
                   onClick={handleManageSubscription}
                   disabled={isLoading}
@@ -250,6 +250,16 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                   )}
                 </span>
               </Button>
+            ) : tier.tierKey === 'free' ? (
+                <Button
+                  disabled
+                  className={cn(
+                    "transition-all duration-300 w-full h-10 text-xs sm:h-11 sm:text-sm md:h-12 md:text-sm",
+                    "bg-white/10 text-white/60 border border-white/20 cursor-not-allowed",
+                  )}
+                >
+                  Free membership
+                </Button>
             ) : isUpgrade ? (
                 <Button
                   onClick={() => planKey && handleUpgrade(planKey)}
@@ -311,7 +321,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                     </>
                   ) : (
                     <>
-                      Try free for 7 days
+                      Start betting like a sharp
                       <ArrowRightIcon className="w-4 h-4" />
                     </>
                   )}
@@ -323,7 +333,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
               <div
                 key={tier.name}
                 className={cn(
-                  "relative backdrop-blur-sm rounded-none md:rounded-3xl border flex flex-col",
+                  "relative w-full backdrop-blur-sm rounded-none md:rounded-3xl border flex flex-col",
                   tier.highlight
                     ? "bg-neutral-800/90 border-emerald-300/40 shadow-2xl"
                     : "bg-neutral-850/90 border-emerald-300/15 shadow-lg",
@@ -426,6 +436,11 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
 
                 <div className="p-4 sm:p-6 md:p-8 pt-0 mt-auto">
                   {actionButton}
+                  {!membership?.isActive && membership?.hasUsedTrial && (
+                    <p className="mt-3 text-[11px] uppercase tracking-[0.28em] text-white/50">
+                      Trial already used
+                    </p>
+                  )}
                 </div>
               </div>
             )

@@ -651,7 +651,7 @@ export default function LiveScoresPage() {
 
   const oddsSportKey = ODDS_SPORT_KEY_BY_LEAGUE[activeLeague]
   const isDevAccess = process.env.NODE_ENV !== "production"
-  const canLoadOdds = Boolean(oddsSportKey && (membership?.isActive || isDevAccess))
+  const canLoadOdds = Boolean(oddsSportKey && (membership?.hasFullAccess || isDevAccess))
   const canLoadProps = Boolean(
     canLoadOdds && oddsSportKey && PROPS_SUPPORTED_SPORTS.has(oddsSportKey)
   )

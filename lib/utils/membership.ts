@@ -13,6 +13,7 @@ export interface MembershipInfo {
   isActive: boolean
   isTrial: boolean
   hasUsedTrial: boolean
+  hasFullAccess: boolean
   currentPeriodEnd: Date | null
   cancelAt: Date | null
   stripeCustomerId: string | null
@@ -45,6 +46,10 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
   const planVersion = Number.isFinite(Number(planVersionRaw))
     ? Number(planVersionRaw)
     : 1
+  const hasSignedUp =
+    hasUsedTrial ||
+    Boolean(status) ||
+    Boolean(metadata?.membership_expires_at)
 
   const fullAccessStatuses: MembershipStatus[] = ['active', 'trialing']
   const isFullAccessStatus =
@@ -57,6 +62,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     Boolean(status) &&
     activeStatuses.includes(status as MembershipStatus) &&
     (Boolean(tier) || isFullAccessStatus)
+  const hasFullAccess = isActive || hasSignedUp
 
   const effectiveTier = tier
 
@@ -71,6 +77,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
       isActive: legacyActive,
       isTrial: false,
       hasUsedTrial,
+      hasFullAccess: legacyActive || hasSignedUp,
       currentPeriodEnd: expiresAt,
       cancelAt: null,
       stripeCustomerId,
@@ -85,6 +92,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     isActive,
     isTrial: status === 'trialing',
     hasUsedTrial,
+    hasFullAccess,
     currentPeriodEnd,
     cancelAt,
     stripeCustomerId,
@@ -104,6 +112,7 @@ export const getMembershipStatus = (metadata: any): MembershipInfo => {
       isActive: true,
       isTrial: false,
       hasUsedTrial: false,
+      hasFullAccess: true,
       currentPeriodEnd: devExpiresAt,
       cancelAt: null,
       stripeCustomerId: null,

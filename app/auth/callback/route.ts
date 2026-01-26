@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
       }
 
       const membership = getMembershipStatusFromMetadata(user.user_metadata)
-      if (!membership.isActive) {
+      if (!membership.hasFullAccess) {
         return NextResponse.redirect(new URL('/pricing', requestUrl.origin))
       }
     }

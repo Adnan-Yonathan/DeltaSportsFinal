@@ -474,10 +474,8 @@ function ChatPageContent() {
     .join('')
     .slice(0, 2)
     .toUpperCase()
-  const canUseSharpDetector = Boolean(
-    user && membership?.isActive && membership?.tier === 'syndicate'
-  )
-  const isSyndicate = Boolean(membership?.isActive && membership?.tier === 'syndicate')
+  const canUseSharpDetector = Boolean(user && membership?.hasFullAccess)
+  const isSyndicate = Boolean(membership?.hasFullAccess)
   const projectionsTabs = [
     {
       key: 'market-projections',

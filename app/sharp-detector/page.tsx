@@ -231,7 +231,7 @@ export default function SharpDetectorPage() {
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
   const hasAccess = Boolean(
-    membership?.isActive && membership?.tier === 'syndicate'
+    membership?.hasFullAccess
   )
 
   // Get unique sports for filter

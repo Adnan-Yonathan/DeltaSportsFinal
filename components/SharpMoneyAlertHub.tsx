@@ -102,7 +102,7 @@ export default function SharpMoneyAlertHub() {
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
 
-  const isSyndicate = Boolean(membership?.isActive && membership?.tier === 'syndicate')
+  const isSyndicate = Boolean(membership?.hasFullAccess)
 
   useEffect(() => {
     seenIdsRef.current = loadSeenIds()

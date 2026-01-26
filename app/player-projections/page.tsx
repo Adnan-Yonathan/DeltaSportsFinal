@@ -37,9 +37,7 @@ export default async function PlayerProjectionsPage({
     data: { user },
   } = await supabase.auth.getUser()
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasAccess =
-    membership.isActive &&
-    (membership.tier === "sharp" || membership.tier === "syndicate")
+  const hasAccess = membership.hasFullAccess
   const requestedSport = Array.isArray(searchParams?.sport)
     ? searchParams?.sport[0]
     : searchParams?.sport

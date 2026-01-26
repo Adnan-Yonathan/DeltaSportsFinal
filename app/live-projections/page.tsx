@@ -12,7 +12,7 @@ export default async function LiveProjectionsPage() {
     data: { user },
   } = await supabase.auth.getUser()
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasAccess = membership.isActive && membership.tier === "syndicate"
+  const hasAccess = membership.hasFullAccess
 
   return (
     <div className="relative min-h-screen bg-black text-white px-4 py-6">

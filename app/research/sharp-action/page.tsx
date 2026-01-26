@@ -12,7 +12,7 @@ export default async function SharpActionPage() {
   } = await supabase.auth.getUser()
 
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasPaidAccess = membership.isActive && membership.tier === 'syndicate'
+  const hasPaidAccess = membership.hasFullAccess
   const previewMode = !hasPaidAccess
 
   return (

@@ -47,6 +47,11 @@ const isSoftGatedPath = (pathname: string) =>
 const checkMembershipActive = (metadata: Record<string, any>): boolean => {
   const tier = metadata?.membership_tier
   const status = metadata?.membership_status
+  const hasUsedTrial = Boolean(metadata?.has_used_trial)
+  const hasSignedUp =
+    hasUsedTrial ||
+    Boolean(status) ||
+    Boolean(metadata?.membership_expires_at)
 
   // Check modern status-based membership
   if (tier && status) {
@@ -63,7 +68,7 @@ const checkMembershipActive = (metadata: Record<string, any>): boolean => {
     }
   }
 
-  return false
+  return hasSignedUp
 }
 
 export async function middleware(req: NextRequest) {

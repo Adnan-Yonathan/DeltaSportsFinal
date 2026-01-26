@@ -38,9 +38,7 @@ export default async function MarketProjectionsPage({
     data: { user },
   } = await supabase.auth.getUser()
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasPaidAccess =
-    membership.isActive &&
-    (membership.tier === "sharp" || membership.tier === "syndicate")
+  const hasPaidAccess = membership.hasFullAccess
   const previewMode = !hasPaidAccess
   const tier = membership.isActive ? membership.tier : membership.tier ?? null
   const requestedSport = Array.isArray(searchParams?.sport)

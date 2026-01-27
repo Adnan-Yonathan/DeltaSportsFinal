@@ -3,34 +3,18 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { UserPlus, Twitter } from 'lucide-react'
+import { Twitter } from 'lucide-react'
 import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { GuestHero } from '@/components/ui/guest-hero'
-import { CustomersSection } from '@/components/ui/customers-section'
+import StatsSection from '@/components/ui/call-to-action'
 import { ROICalculator } from '@/components/ui/roi-calculator'
-import { Typewriter } from '@/components/ui/typewriter-text'
 import { Announcement, AnnouncementTag, AnnouncementTitle } from '@/components/ui/announcement'
 import { FeaturesSix } from '@/components/ui/features-6'
 import SectionWithMockup from '@/components/ui/section-with-mockup'
 import { ArrowUpRight } from 'lucide-react'
 import ModeToggle, { type DeltaMode } from '@/components/ModeToggle'
 import TutorialPopup from '@/components/TutorialPopup'
-
-const CUSTOMER_SCREENSHOTS = [
-  {
-    src: '/Screenshot 2026-01-14 001251.png',
-    alt: 'Delta product screenshot 1',
-  },
-  {
-    src: '/Screenshot 2026-01-14 001328.png',
-    alt: 'Delta product screenshot 2',
-  },
-  {
-    src: '/Screenshot 2026-01-14 001403.png',
-    alt: 'Delta product screenshot 3',
-  },
-]
 
 const DISCORD_INVITE_URL = 'https://discord.gg/8jUcaKT9'
 
@@ -275,73 +259,18 @@ export default function ChatIntro({
   if (isGuest) {
     return (
       <div className="flex flex-col items-center justify-center min-h-full bg-black px-3 sm:px-4 py-6 sm:py-8">
-        <div className="hidden lg:flex fixed right-4 top-1/2 -translate-y-1/2 z-30">
-          <Link href="/sharp-detector" className="relative w-[220px] sm:w-[260px] rounded-3xl border border-emerald-400/40 bg-black/70 p-4 shadow-2xl shadow-emerald-500/20 backdrop-blur hover:border-emerald-400/60 transition-colors">
-            <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
-              <span>Whale Feed</span>
-              <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
-                Syndicate Only
-              </span>
-            </div>
-            <p className="mt-3 text-xs text-white/60">
-              Track $2k+ prediction market bets and see if the market respects or fades them.
-            </p>
-            <div className="mt-4 w-full gap-2 rounded-full bg-emerald-400/20 text-emerald-200 px-4 py-2 text-center text-sm font-medium">
-              View Whale Feed
-            </div>
-          </Link>
-        </div>
         <div className="max-w-3xl w-full space-y-8">
           {/* Guest Hero */}
           <GuestHero onSignUpClick={onSignUpClick || (() => {})} />
 
-          {/* Sign Up CTA - styled like PromptBox */}
+          {/* CTA */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.5 }}
-            className="w-full"
+            className="w-full -mt-24 lg:-mt-32"
           >
-            <button
-              type="button"
-              onClick={onSignUpClick}
-              className="w-full rounded-[22px] sm:rounded-[28px] p-4 sm:p-5 shadow-sm bg-emerald-500/90 backdrop-blur-xl border border-emerald-400/60 hover:border-emerald-300 hover:bg-emerald-400 transition-all group text-left"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <UserPlus className="w-6 h-6 text-white" />
-                  <Typewriter
-                    text="Start betting like a sharp"
-                    speed={80}
-                    cursor=""
-                    startDelay={1200}
-                    className="text-lg font-semibold text-white"
-                  />
-                </div>
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-emerald-600">
-                    <path d="M12 5.25L12 18.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M18.75 12L12 5.25L5.25 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-              </div>
-            </button>
-          </motion.div>
-
-          {/* Screenshots */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.5 }}
-            className="w-screen max-w-none -mx-[calc(50vw-50%)] mt-14"
-          >
-            <CustomersSection
-              customers={CUSTOMER_SCREENSHOTS}
-              className="bg-transparent !py-0 md:!py-0"
-              containerClassName="max-w-none px-0"
-              gridClassName="mt-0 w-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-              imageClassName="w-full h-[24px] sm:h-[36px] lg:h-[48px] object-cover rounded-3xl shadow-[0_36px_100px_rgba(0,0,0,0.55)] dark:invert-0"
-            />
+            <StatsSection />
           </motion.div>
 
           {/* Feature Highlights */}
@@ -352,21 +281,27 @@ export default function ChatIntro({
             className="w-full"
           >
             <FeaturesSix />
-              <SectionWithMockup
-                title={
-                  <>
-                    Whale Feed
-                    <br />
-                    built on real money.
-                  </>
-                }
-                description={
-                  <>
-                    We track big bets on peer-to-peer exchanges and compare them
-                    <br />
-                    to sportsbook lines, showing how sharp a bet really is.
-                  </>
-                }
+            <FeaturesSix
+              title="Learn the infrastructure behind sharp money"
+              description="Research mode breaks down where sharp money moves, who moves it, and how lines react in real time."
+              imageSrc="/Screenshot 2026-01-27 134108.png"
+              imageAlt="Research mode sharp money overview"
+            />
+            <SectionWithMockup
+              title={
+                <>
+                  Whale Feed
+                  <br />
+                  built on real money.
+                </>
+              }
+              description={
+                <>
+                  We track big bets on peer-to-peer exchanges and compare them
+                  <br />
+                  to sportsbook lines, showing how sharp a bet really is.
+                </>
+              }
               primaryImageSrc="/Screenshot 2026-01-11 165623.png"
               secondaryImageSrc="/Screenshot 2026-01-11 161550.png"
             />

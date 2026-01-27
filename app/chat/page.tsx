@@ -15,10 +15,10 @@ import { ParticleButton } from '@/components/ui/particle-button'
 import SharpDetectorPanel from '@/components/SharpDetectorPanel'
 import ToolsNav from '@/components/tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, Target, Link2, Check, ArrowUpRight, Twitter } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, Target, Check, ArrowUpRight, Twitter } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
 import ModeToggle, { type DeltaMode } from '@/components/ModeToggle'
-import FakeRecapNotification from '@/components/FakeRecapNotification'
+import { ROICalculator } from '@/components/ui/roi-calculator'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
 import { formatCurrency } from '@/lib/utils/odds'
@@ -726,16 +726,6 @@ function ChatPageContent() {
                     <span>Upgrade Plan</span>
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    setProfileMenuOpen(false)
-                    router.push('/affiliate')
-                  }}
-                  className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/5 transition-colors"
-                >
-                  <Link2 className="w-4 h-4" />
-                  <span>Affiliate Program</span>
-                </button>
                 {membership?.isActive && (
                   <button
                     onClick={async () => {
@@ -1336,8 +1326,16 @@ function ChatPageContent() {
           document.body
         )}
 
-      {/* Fake Recap Notification for guests (marketing mockup) */}
-      {!user && <FakeRecapNotification />}
+      {/* Mini ROI calculator for guests */}
+      {!user && (
+        <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-[320px] z-50">
+          <ROICalculator
+            variant="mini"
+            heading="Calculate Your Edge"
+            description="Here's what you can make betting with delta's edge:"
+          />
+        </div>
+      )}
 
       {/* Mobile Whale Feed Full-Page Overlay */}
       <AnimatePresence>

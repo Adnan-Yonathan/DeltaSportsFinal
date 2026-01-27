@@ -19,11 +19,13 @@ function formatCurrency(amount: number): string {
 interface ROICalculatorProps {
   heading?: string;
   description?: string;
+  variant?: "default" | "mini";
 }
 
 const ROICalculator = ({
   heading = "Calculate Your Edge",
   description = "See how much you could earn following Delta's sharp projections",
+  variant = "default",
 }: ROICalculatorProps) => {
   const [betSize, setBetSize] = useState<string>("100");
   const [betsPerDay, setBetsPerDay] = useState<string>("5");
@@ -34,6 +36,68 @@ const ROICalculator = ({
   const perBetReturn = betSizeNum * (EDGE_PERCENT / 100);
   const dailyReturn = perBetReturn * betsPerDayNum;
   const monthlyReturn = dailyReturn * DAYS_PER_MONTH;
+
+  if (variant === "mini") {
+    return (
+      <div className="rounded-2xl border border-emerald-400/30 bg-gradient-to-br from-emerald-500/10 via-black/95 to-black/90 p-4 shadow-2xl backdrop-blur-xl">
+        <div className="mb-3">
+          <p className="text-[9px] uppercase tracking-[0.25em] text-emerald-300/70">
+            {heading}
+          </p>
+          <p className="text-xs text-white/60">{description}</p>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[10px] font-medium uppercase tracking-[0.2em] text-white/40 mb-1.5">
+              Bet Size
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <DollarSign className="w-3.5 h-3.5 text-white/50" />
+              </div>
+              <input
+                type="number"
+                value={betSize}
+                onChange={(e) => setBetSize(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white text-sm font-semibold focus:outline-none focus:border-emerald-400/50 focus:ring-1 focus:ring-emerald-400/50 transition-colors"
+                placeholder="100"
+                min="0"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-medium uppercase tracking-[0.2em] text-white/40 mb-1.5">
+              Bets / Day
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Calculator className="w-3.5 h-3.5 text-white/50" />
+              </div>
+              <input
+                type="number"
+                value={betsPerDay}
+                onChange={(e) => setBetsPerDay(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white text-sm font-semibold focus:outline-none focus:border-emerald-400/50 focus:ring-1 focus:ring-emerald-400/50 transition-colors"
+                placeholder="5"
+                min="0"
+              />
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3 text-center">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-emerald-300/70">
+            Monthly Return
+          </div>
+          <div className="text-xl font-bold text-emerald-300">
+            {formatCurrency(monthlyReturn)}
+          </div>
+          <div className="mt-1 text-[10px] text-white/50">
+            {formatCurrency(betSizeNum)} x {betsPerDayNum} x {DAYS_PER_MONTH} days
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <section className="py-20 md:py-32">

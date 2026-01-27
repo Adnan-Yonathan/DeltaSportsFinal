@@ -33,7 +33,12 @@ export default function StatsSection() {
                 size="lg"
                 className="h-12 w-full justify-center text-sm bg-[#34d399] text-black hover:bg-[#16a34a] sm:w-60 sm:text-base"
               >
-                <Link href="https://x.com/DeltaSportsAI" target="_blank" rel="noreferrer">
+                <Link
+                  href="https://x.com/DeltaSportsAI"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] leading-tight sm:text-base"
+                >
                   follow us on twitter
                 </Link>
               </Button>

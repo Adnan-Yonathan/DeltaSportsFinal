@@ -14,11 +14,12 @@ export async function getOddsCache(
     .eq("cache_key", cacheKey)
     .maybeSingle()
 
-  if (error || !data?.payload || !data?.updated_at) return null
-  const updatedAt = new Date(data.updated_at).getTime()
+  const row = data as { payload?: OddsGame[]; updated_at?: string } | null
+  if (error || !row?.payload || !row?.updated_at) return null
+  const updatedAt = new Date(row.updated_at).getTime()
   if (!Number.isFinite(updatedAt)) return null
   if (Date.now() - updatedAt > maxAgeMs) return null
-  return data.payload as OddsGame[]
+  return row.payload as OddsGame[]
 }
 
 export async function setOddsCache(

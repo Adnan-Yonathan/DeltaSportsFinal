@@ -273,6 +273,7 @@ function ChatPageContent() {
 
   useEffect(() => {
     if (hasWarmedUp.current) return
+    if (!user || !membership?.hasFullAccess) return
     hasWarmedUp.current = true
     const warm = async () => {
       try {
@@ -282,7 +283,7 @@ function ChatPageContent() {
       }
     }
     warm()
-  }, [])
+  }, [user, membership?.hasFullAccess])
 
   useEffect(() => {
     if (!hasMessages) return

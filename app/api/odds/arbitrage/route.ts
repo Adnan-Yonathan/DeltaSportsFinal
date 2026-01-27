@@ -6,7 +6,7 @@ import {
 } from '@/lib/api/odds-api'
 import { createClient } from '@/lib/supabase/server'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
   try {
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch odds with all markets
     const [games, providerOpportunities] = await Promise.all([
-      fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: true }),
+      fetchOdds(sport, ['h2h', 'spreads', 'totals'], { revalidateSeconds: 600 }),
       providerPromise,
     ])
 

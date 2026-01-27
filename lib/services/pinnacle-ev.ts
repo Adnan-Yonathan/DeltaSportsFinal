@@ -144,6 +144,7 @@ export async function findPinnacleEVOpportunities(
         bookmakers: Array.from(allBooks).join(','),
         live: false,
         forceProvider: 'the-odds-api',
+        revalidateSeconds: 600,
       })
 
       for (const game of games) {

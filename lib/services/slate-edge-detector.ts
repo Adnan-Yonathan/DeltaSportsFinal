@@ -1450,7 +1450,7 @@ export async function analyzeSlateEdges(
     }
   } else {
     oddsGames = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
-      revalidateSeconds: 60,
+      revalidateSeconds: 600,
       forceProvider: 'the-odds-api',
     })
   }

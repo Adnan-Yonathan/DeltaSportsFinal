@@ -61,7 +61,9 @@ async function fetchWithSingleKey(urlBase: string, init?: NextFetchRequestInit):
   return res
 }
 
-const DEFAULT_REVALIDATE_SECONDS = 30
+const DEFAULT_REVALIDATE_SECONDS = 600
+type OddsCacheEntry = { value: OddsGame[]; expiresAt: number }
+const oddsCache = new Map<string, OddsCacheEntry>()
 
 const STANDARD_MARKETS = [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS] as const
 
@@ -1870,6 +1872,72 @@ export async function fetchOdds(
   markets: string[] = [...STANDARD_MARKETS],
   options: FetchOddsOptions = {}
 ): Promise<OddsGame[]> {
+  if (options.live) {
+    console.warn('[ODDS] Live odds disabled; returning empty set.')
+    return []
+  }
+  const shouldCache = true
+  const cacheKey = shouldCache
+    ? JSON.stringify({
+        sport,
+        markets,
+        live: false,
+        revalidateSeconds: options.revalidateSeconds ?? DEFAULT_REVALIDATE_SECONDS,
+        teamFilter: options.teamFilter ?? null,
+        bookmakers: options.bookmakers ?? null,
+        forceProvider: options.forceProvider ?? null,
+      })
+    : null
+
+  if (shouldCache && cacheKey) {
+    const cached = oddsCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value
+    }
+  }
+
+  const shouldUseDbCache = process.env.NEXT_RUNTIME !== 'edge'
+  if (shouldCache && cacheKey && shouldUseDbCache) {
+    try {
+      const { getOddsCache } = await import('@/lib/services/odds-cache')
+      const cached = await getOddsCache(
+        cacheKey,
+        (options.revalidateSeconds ?? DEFAULT_REVALIDATE_SECONDS) * 1000
+      )
+      if (cached) {
+        oddsCache.set(cacheKey, {
+          value: cached,
+          expiresAt:
+            Date.now() +
+            (options.revalidateSeconds ?? DEFAULT_REVALIDATE_SECONDS) * 1000,
+        })
+        return cached
+      }
+    } catch (error) {
+      console.warn('[ODDS] Failed to read odds cache:', error)
+    }
+  }
+
+  const cacheResult = async (value: OddsGame[]) => {
+    if (shouldCache && cacheKey) {
+      oddsCache.set(cacheKey, {
+        value,
+        expiresAt:
+          Date.now() +
+          (options.revalidateSeconds ?? DEFAULT_REVALIDATE_SECONDS) * 1000,
+      })
+      if (shouldUseDbCache) {
+        try {
+          const { setOddsCache } = await import('@/lib/services/odds-cache')
+          await setOddsCache(cacheKey, sport, markets, value)
+        } catch (error) {
+          console.warn('[ODDS] Failed to persist odds cache:', error)
+        }
+      }
+    }
+    return value
+  }
+
   const resolvedProvider = resolveOddsProvider()
   let provider = options.forceProvider ?? resolvedProvider
   const hasTheOddsApiKey = Boolean(process.env.THE_ODDS_API_KEY || process.env.ODDS_API_KEY)
@@ -1879,72 +1947,81 @@ export async function fetchOdds(
   }
 
   // Primary: The Odds API v4 (50+ bookmakers)
-  if (provider === 'the-odds-api') {
-    const games = await fetchOddsTheOddsApi(sport, markets, options)
-    if (games.length) {
-      return attachPredictionMarketOdds(games, sport, markets, options)
-    }
-    // Fallback to odds-api-io if The Odds API returns no data
-    console.warn('[ODDS] The Odds API v4 returned no games, trying odds-api-io fallback')
-    try {
-      const fallback = await fetchOddsIO(sport, markets, options)
-      if (fallback.length) {
-        return attachPredictionMarketOdds(fallback, sport, markets, options)
+    if (provider === 'the-odds-api') {
+      const games = await fetchOddsTheOddsApi(sport, markets, options)
+      if (games.length) {
+        const result = await attachPredictionMarketOdds(games, sport, markets, options)
+        return await cacheResult(result)
       }
-    } catch (error) {
-      console.warn('[ODDS] Odds-api-io fallback failed:', error)
-    }
-    // Final fallback to SBD
-    const sbdFallback = await fetchOddsSbd(sport, markets, options)
-    return attachPredictionMarketOdds(sbdFallback, sport, markets, options)
-  }
-
-  // Legacy: odds-api-io provider
-  if (provider === 'odds-api-io') {
-    const games = await fetchOddsIO(sport, markets, options)
-    return attachPredictionMarketOdds(games, sport, markets, options)
-  }
-
-  // Legacy: SportsBettingDime provider
-  if (provider === 'sportsbettingdime') {
-    const games = await fetchOddsSbd(sport, markets, options)
-    if (!games.length && process.env.ODDS_API_KEY) {
+      // Fallback to odds-api-io if The Odds API returns no data
+      console.warn('[ODDS] The Odds API v4 returned no games, trying odds-api-io fallback')
       try {
         const fallback = await fetchOddsIO(sport, markets, options)
         if (fallback.length) {
-          return attachPredictionMarketOdds(fallback, sport, markets, options)
+          const result = await attachPredictionMarketOdds(fallback, sport, markets, options)
+          return await cacheResult(result)
         }
       } catch (error) {
-        console.warn('[ODDS] SBD fallback to odds-api-io failed:', error)
+        console.warn('[ODDS] Odds-api-io fallback failed:', error)
       }
+      // Final fallback to SBD
+      const sbdFallback = await fetchOddsSbd(sport, markets, options)
+      const result = await attachPredictionMarketOdds(sbdFallback, sport, markets, options)
+      return await cacheResult(result)
     }
-    return attachPredictionMarketOdds(games, sport, markets, options)
-  }
+
+  // Legacy: odds-api-io provider
+    if (provider === 'odds-api-io') {
+      const games = await fetchOddsIO(sport, markets, options)
+      const result = await attachPredictionMarketOdds(games, sport, markets, options)
+      return await cacheResult(result)
+    }
+
+  // Legacy: SportsBettingDime provider
+    if (provider === 'sportsbettingdime') {
+      const games = await fetchOddsSbd(sport, markets, options)
+      if (!games.length && process.env.ODDS_API_KEY) {
+        try {
+          const fallback = await fetchOddsIO(sport, markets, options)
+          if (fallback.length) {
+            const result = await attachPredictionMarketOdds(fallback, sport, markets, options)
+            return await cacheResult(result)
+          }
+        } catch (error) {
+          console.warn('[ODDS] SBD fallback to odds-api-io failed:', error)
+        }
+      }
+      const result = await attachPredictionMarketOdds(games, sport, markets, options)
+      return await cacheResult(result)
+    }
 
   // Default fallback chain: The Odds API v4 -> odds-api-io -> SBD
-  if (process.env.THE_ODDS_API_KEY || process.env.ODDS_API_KEY) {
-    try {
-      const games = await fetchOddsTheOddsApi(sport, markets, options)
-      if (games.length) {
-        return attachPredictionMarketOdds(games, sport, markets, options)
+    if (process.env.THE_ODDS_API_KEY || process.env.ODDS_API_KEY) {
+      try {
+        const games = await fetchOddsTheOddsApi(sport, markets, options)
+        if (games.length) {
+          const result = await attachPredictionMarketOdds(games, sport, markets, options)
+          return await cacheResult(result)
+        }
+      } catch (error) {
+        console.warn('[ODDS] The Odds API v4 failed:', error)
       }
-    } catch (error) {
-      console.warn('[ODDS] The Odds API v4 failed:', error)
+
+      try {
+        const games = await fetchOddsIO(sport, markets, options)
+        if (games.length) {
+          const result = await attachPredictionMarketOdds(games, sport, markets, options)
+          return await cacheResult(result)
+        }
+      } catch (error) {
+        console.warn('[ODDS] Odds-api-io provider failed:', error)
+      }
     }
 
-    try {
-      const games = await fetchOddsIO(sport, markets, options)
-      if (games.length) {
-        return attachPredictionMarketOdds(games, sport, markets, options)
-      }
-    } catch (error) {
-      console.warn('[ODDS] Odds-api-io provider failed:', error)
-    }
+    const fallback = await fetchOddsSbd(sport, markets, options)
+    const result = await attachPredictionMarketOdds(fallback, sport, markets, options)
+    return await cacheResult(result)
   }
-
-  const fallback = await fetchOddsSbd(sport, markets, options)
-  return attachPredictionMarketOdds(fallback, sport, markets, options)
-}
 
 /**
  * Fetch player props via odds-api.io player props endpoint

@@ -15,6 +15,9 @@
     "app/api/cron/refresh-player-projections/route.ts": {
       "maxDuration": 300
     },
+    "app/api/cron/refresh-odds-cache/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/cron/ingest-whale-trades/route.ts": {
       "maxDuration": 120
     },
@@ -45,6 +48,10 @@
     {
       "path": "/api/cron/refresh-player-projections",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-odds-cache",
+      "schedule": "*/10 * * * *"
     },
     {
       "path": "/api/cron/ingest-whale-trades",

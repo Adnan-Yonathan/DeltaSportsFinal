@@ -350,17 +350,8 @@ const filterOddsGameForLive = (
   bucket?: LiveScoreGame["bucket"]
 ) => {
   if (!oddsGame) return null
-  if (bucket !== "live") return oddsGame
-  const bookmakers = (oddsGame.bookmakers ?? []).filter(
-    (book) =>
-      isPredictionMarketBook(book?.key) ||
-      isPredictionMarketBook(book?.title)
-  )
-  if (!bookmakers.length) return null
-  return {
-    ...oddsGame,
-    bookmakers,
-  }
+  if (bucket === "live") return null
+  return oddsGame
 }
 
 const calculateArbProfit = (oddsA?: number, oddsB?: number) => {
@@ -744,13 +735,8 @@ export default function LiveScoresPage() {
       }
       const url = new URL("/api/odds/games", window.location.origin)
       url.searchParams.set("sport", oddsSportKey)
-      const liveUrl = new URL(url)
-      liveUrl.searchParams.set("live", "1")
 
-      const results = await Promise.allSettled([
-        buildRequest(url),
-        buildRequest(liveUrl),
-      ])
+      const results = await Promise.allSettled([buildRequest(url)])
       const errors = results.filter((result) => result.status === "rejected")
       if (errors.length === results.length) {
         throw errors[0]?.reason || new Error("Failed to load odds.")

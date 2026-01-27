@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server'
-import { fetchLineShoppingOdds, fetchAvailableBookmakers } from '@/lib/api/the-odds-api'
+import { fetchOdds } from '@/lib/api/odds-api'
+import { fetchAvailableBookmakers } from '@/lib/api/the-odds-api'
 
 export const dynamic = 'force-dynamic'
-export const revalidate = 60
+export const revalidate = 600
+
+const BOOKMAKER_CACHE_TTL_MS = 24 * 60 * 60 * 1000
+let cachedBookmakers: any[] | null = null
+let cachedBookmakersAt = 0
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -13,7 +18,13 @@ export async function GET(request: Request) {
   try {
     // If requesting list of available bookmakers
     if (listBooks) {
+      const now = Date.now()
+      if (cachedBookmakers && now - cachedBookmakersAt < BOOKMAKER_CACHE_TTL_MS) {
+        return NextResponse.json({ bookmakers: cachedBookmakers })
+      }
       const bookmakers = await fetchAvailableBookmakers()
+      cachedBookmakers = bookmakers
+      cachedBookmakersAt = now
       return NextResponse.json({ bookmakers })
     }
 
@@ -23,7 +34,10 @@ export async function GET(request: Request) {
       : undefined
 
     // Fetch odds from The Odds API
-    const games = await fetchLineShoppingOdds(sport, selectedBooks)
+    const games = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+      revalidateSeconds: 600,
+      bookmakers: selectedBooks,
+    })
 
     // Get unique bookmakers from the response
     const bookmakersInResponse = new Set<string>()

@@ -9,13 +9,14 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const sport = searchParams.get('sport')
     const minProfit = Number(searchParams.get('minProfit') || '1')
-    const live = searchParams.get('live') === 'true'
 
     if (!sport) {
       return NextResponse.json({ error: 'Missing required "sport" (e.g., basketball_nba)' }, { status: 400 })
     }
 
-    const games = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live })
+    const games = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+      revalidateSeconds: 600,
+    })
     if (!games?.length) {
       return NextResponse.json({ sport, opportunities: [], note: 'No games available for arbitrage scan' })
     }

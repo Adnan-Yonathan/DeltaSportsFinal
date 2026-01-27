@@ -230,12 +230,12 @@ const buildPregameSpreadContext = async (
     let oddsGames = await fetchOdds(sportKey, ['spreads', 'totals'], {
       live: false,
       teamFilter: teamFilter.length ? teamFilter : [homeTeam, awayTeam],
-      revalidateSeconds: 60,
+      revalidateSeconds: 600,
     })
     if (!oddsGames.length) {
       oddsGames = await fetchOdds(sportKey, ['spreads', 'totals'], {
         live: false,
-        revalidateSeconds: 60,
+        revalidateSeconds: 600,
       })
     }
     if (!oddsGames.length) return null

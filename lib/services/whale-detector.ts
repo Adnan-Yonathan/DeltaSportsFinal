@@ -1530,7 +1530,8 @@ const buildSportsbookOddsCache = async (trades: WhaleTrade[]) => {
     sportKeys.map(async (sportKey) => {
       try {
         const games = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
-          live: true,
+          live: false,
+          revalidateSeconds: 600,
         })
         cache.set(sportKey, games)
       } catch (error) {

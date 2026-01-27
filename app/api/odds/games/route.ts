@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchOdds } from '@/lib/api/odds-api'
 import { createClient } from '@/lib/supabase/server'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,11 +30,7 @@ export async function GET(req: NextRequest) {
     }
 
     const markets = marketsParam ? marketsParam.split(',') : ['h2h', 'spreads', 'totals']
-    const liveParam = searchParams.get('live')
-    const live =
-      liveParam === null ? false : liveParam === 'true' || liveParam === '1'
-
-    const games = await fetchOdds(sport, markets, { live })
+    const games = await fetchOdds(sport, markets, { revalidateSeconds: 600 })
 
     return NextResponse.json({ games })
   } catch (error: any) {

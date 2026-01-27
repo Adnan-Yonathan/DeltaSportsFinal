@@ -78,8 +78,8 @@ export async function runResearchModel(
         : ['h2h', 'spreads', 'totals']
 
         const oddsPromise = fetchOdds(sport, markets, {
-          live: options.liveOnly,
-          revalidateSeconds: options.skipCache ? 0 : 30,
+          live: false,
+          revalidateSeconds: options.skipCache ? 0 : 600,
         })
 
       const oddsData = await Promise.race([

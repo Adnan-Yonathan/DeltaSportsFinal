@@ -280,7 +280,9 @@ async function tryLoadLiveMarket(
   notes: string[]
 ) {
   try {
-      const oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: true })
+      const oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+        revalidateSeconds: 600,
+      })
     const targetGame = oddsData.find((game) => {
       const home = normalizeTeamName(game.home_team || '')
       const away = normalizeTeamName(game.away_team || '')

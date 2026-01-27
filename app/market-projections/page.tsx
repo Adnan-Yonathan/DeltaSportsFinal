@@ -9,6 +9,7 @@ import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 import { getRollingMarketProjectionClvRecap } from "@/lib/services/market-projection-clv"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
+import { PHASE_PRODUCTION_BUILD } from "next/constants"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -54,6 +55,8 @@ export default async function MarketProjectionsPage({
   let hasCache = true
   let lastUpdated: string | null = null
   const isLocked = Boolean(selected.locked)
+  const isBuild = process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD
+  const allowLiveRefresh = !isBuild
   const clvRecap =
     hasPaidAccess &&
     (sport === "basketball_nba" ||
@@ -73,18 +76,23 @@ export default async function MarketProjectionsPage({
 
       if (error || !data) {
         if (sport === "americanfootball_nfl") {
-          const refreshed = await analyzeSlateEdges(sport, { limit: 200 })
-          if (refreshed.edges?.length) {
-            edges = refreshed.edges
-            lastUpdated = new Date().toISOString()
-            await serviceClient.from("market_projections_cache" as any).upsert(
-              {
-                sport,
-                edges,
-                updated_at: lastUpdated,
-              } as any,
-              { onConflict: "sport" }
-            )
+          if (allowLiveRefresh) {
+            const refreshed = await analyzeSlateEdges(sport, { limit: 200 })
+            if (refreshed.edges?.length) {
+              edges = refreshed.edges
+              lastUpdated = new Date().toISOString()
+              await serviceClient.from("market_projections_cache" as any).upsert(
+                {
+                  sport,
+                  edges,
+                  updated_at: lastUpdated,
+                } as any,
+                { onConflict: "sport" }
+              )
+            } else {
+              hasCache = false
+              errorMessage = "No cached projections yet."
+            }
           } else {
             hasCache = false
             errorMessage = "No cached projections yet."
@@ -129,7 +137,7 @@ export default async function MarketProjectionsPage({
           })
         }
 
-        if (sport === "americanfootball_nfl" && edges.length === 0) {
+        if (sport === "americanfootball_nfl" && edges.length === 0 && allowLiveRefresh) {
           const refreshed = await analyzeSlateEdges(sport, { limit: 200 })
           if (refreshed.edges?.length) {
             edges = refreshed.edges

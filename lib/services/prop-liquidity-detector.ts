@@ -745,7 +745,7 @@ const fetchOddsForMarket = async (
 
   const teamFilter = teams ? [teams.home, teams.away] : undefined
   const games = await fetchOdds(sportKey, [marketKey], {
-    revalidateSeconds: 60,
+    revalidateSeconds: 600,
     teamFilter,
   })
 

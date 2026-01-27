@@ -775,8 +775,8 @@ export async function runCustomModelAcrossSlate(
 > {
   const sportKey = options.sportKey || model.sport_key
   const odds = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
-    live: options.live ?? false,
-    revalidateSeconds: options.live ? 10 : 0,
+    live: false,
+    revalidateSeconds: 600,
   })
 
   const dayFilter = options.day

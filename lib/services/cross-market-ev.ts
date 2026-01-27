@@ -242,7 +242,7 @@ export async function findEVOpportunities(
   const sportPromises = opts.sports.map(async (sport) => {
     try {
       const games = await fetchOdds(sport, opts.markets, {
-        revalidateSeconds: 60,
+        revalidateSeconds: 600,
         live: false,
         forceProvider: 'the-odds-api',
       })

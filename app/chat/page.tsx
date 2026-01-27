@@ -146,6 +146,7 @@ function ChatPageContent() {
   const [messagesToday, setMessagesToday] = useState<number>(0)
   const [promoDismissed, setPromoDismissed] = useState(false)
   const [promoMounted, setPromoMounted] = useState(false)
+  const [guestCalcOpen, setGuestCalcOpen] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const prefillMessage = searchParams.get('prompt') ?? undefined
@@ -1329,11 +1330,39 @@ function ChatPageContent() {
       {/* Mini ROI calculator for guests */}
       {!user && (
         <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-[320px] z-50">
-          <ROICalculator
-            variant="mini"
-            heading="Calculate Your Edge"
-            description="Here's what you can make betting with delta's edge:"
-          />
+          <div className="sm:hidden">
+            {guestCalcOpen ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setGuestCalcOpen(false)}
+                  className="absolute -top-3 -right-2 rounded-full border border-emerald-400/40 bg-black/80 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-200"
+                >
+                  Close
+                </button>
+                <ROICalculator
+                  variant="mini"
+                  heading="Calculate Your Edge"
+                  description="Here's what you can make betting with delta's edge:"
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setGuestCalcOpen(true)}
+                className="ml-auto flex items-center gap-2 rounded-full border border-emerald-400/40 bg-black/80 px-4 py-2 text-[10px] uppercase tracking-[0.25em] text-emerald-200 shadow-lg shadow-emerald-500/20"
+              >
+                Calculate Edge
+              </button>
+            )}
+          </div>
+          <div className="hidden sm:block">
+            <ROICalculator
+              variant="mini"
+              heading="Calculate Your Edge"
+              description="Here's what you can make betting with delta's edge:"
+            />
+          </div>
         </div>
       )}
 

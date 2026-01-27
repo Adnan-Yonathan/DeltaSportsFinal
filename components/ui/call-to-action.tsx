@@ -27,11 +27,11 @@ export default function StatsSection() {
       <div className="py-0">
         <div className="mx-auto max-w-3xl px-6">
           <div className="space-y-6 text-center">
-            <div className="flex flex-wrap justify-center gap-3">
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:justify-center sm:gap-3">
               <Button
                 asChild
                 size="lg"
-                className="h-12 w-60 justify-center text-base bg-[#34d399] text-black hover:bg-[#16a34a]"
+                className="h-12 w-full justify-center text-sm bg-[#34d399] text-black hover:bg-[#16a34a] sm:w-60 sm:text-base"
               >
                 <Link href="https://x.com/DeltaSportsAI" target="_blank" rel="noreferrer">
                   follow us on twitter
@@ -40,7 +40,7 @@ export default function StatsSection() {
               <Button
                 asChild
                 size="lg"
-                className="h-12 w-60 justify-center text-base bg-[#34d399] text-black hover:bg-[#16a34a]"
+                className="h-12 w-full justify-center text-sm bg-[#34d399] text-black hover:bg-[#16a34a] sm:w-60 sm:text-base"
               >
                 <Link href="/auth/login">Start Winning</Link>
               </Button>

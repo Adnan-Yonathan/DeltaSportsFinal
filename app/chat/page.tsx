@@ -487,6 +487,13 @@ function ChatPageContent() {
       description: 'AI-powered spread, total, and moneyline projections with edge detection',
     },
     {
+      key: 'player-prop-odds',
+      label: 'Prop Odds',
+      shortLabel: 'Props',
+      href: '/player-prop-odds',
+      description: 'Player prop odds shopper across main books and DFS markets',
+    },
+    {
       key: 'line-shopping',
       label: 'Line Shopping',
       shortLabel: 'Lines',
@@ -536,7 +543,7 @@ function ChatPageContent() {
   const baseChatTabs = deltaMode === 'research' ? researchTabs : projectionsTabs
   const shouldGateTabs = Boolean(membership?.isActive)
   const allowedProjectionTabs = shouldGateTabs
-    ? new Set(['market-projections', 'line-shopping', 'parlay-predictor', 'ev-bets'])
+    ? new Set(['market-projections', 'player-prop-odds', 'line-shopping', 'parlay-predictor', 'ev-bets'])
     : null
   const allowedResearchTabs = shouldGateTabs
     ? new Set(['sharp-action', 'betting-trends', 'backtesting'])
@@ -840,7 +847,13 @@ function ChatPageContent() {
       )}
       {user && currentConversationId && (
         <div className={`fixed left-0 right-0 top-12 sm:top-16 z-40 border-b ${deltaMode === 'research' ? 'border-amber-500/30' : 'border-emerald-500/30'} bg-gradient-to-b from-black via-black/95 to-black/90 backdrop-blur-xl shadow-lg ${deltaMode === 'research' ? 'shadow-amber-500/5' : 'shadow-emerald-500/5'}`}>
-          <div className={`hidden sm:grid w-full ${chatTabs.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
+          <div className={`hidden sm:grid w-full ${
+            chatTabs.length === 3
+              ? 'grid-cols-3'
+              : chatTabs.length === 5
+                ? 'grid-cols-5'
+                : 'grid-cols-4'
+          }`}>
             {chatTabs.map((tab, index) => (
               <Link
                 key={tab.label}

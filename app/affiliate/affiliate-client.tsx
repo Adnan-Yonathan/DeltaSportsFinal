@@ -30,8 +30,8 @@ type AffiliateStats = {
 const formatMoney = (cents: number) => `$${(cents / 100).toFixed(2)}`
 
 export default function AffiliateClient() {
-  const [stats, setStats] = useState<AffiliateStats | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [stats] = useState<AffiliateStats | null>(null)
+  const [loading, setLoading] = useState(false)
   const [link, setLink] = useState("")
   const [code, setCode] = useState("")
   const [error, setError] = useState("")
@@ -49,30 +49,8 @@ export default function AffiliateClient() {
   const [expectedPay, setExpectedPay] = useState("")
   const [phone, setPhone] = useState("")
 
-  const loadStats = async () => {
-    try {
-      setLoading(true)
-      const res = await fetch("/api/affiliate/stats", { cache: "no-store" })
-      const data = await res.json()
-      if (res.status === 401) {
-        setNeedsAuth(true)
-        setStats(null)
-        return
-      }
-      if (!res.ok) throw new Error(data.error || "Failed to load stats")
-      setStats(data)
-      if (data?.affiliate?.code) {
-        setCode(data.affiliate.code)
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to load affiliate data")
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    void loadStats()
+    setLoading(false)
   }, [])
 
   const handleGenerate = async () => {
@@ -88,7 +66,6 @@ export default function AffiliateClient() {
       if (!res.ok) throw new Error(data.error || "Failed to generate link")
       setLink(data.link)
       setCode(data.code)
-      await loadStats()
     } catch (err: any) {
       setError(err.message || "Failed to generate link")
     } finally {
@@ -143,7 +120,13 @@ export default function AffiliateClient() {
     }
   }
 
-  const totals = stats?.totals
+  const totals = stats?.totals ?? {
+    clicks: 0,
+    pendingCount: 0,
+    earnedCount: 0,
+    pendingCents: 0,
+    earnedCents: 0,
+  }
   const earnedCents = totals?.earnedCents ?? 0
 
   const handlePayoutRequest = async () => {
@@ -154,7 +137,6 @@ export default function AffiliateClient() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to request payout")
       setPayoutStatus("sent")
-      await loadStats()
     } catch (err: any) {
       setPayoutError(err.message || "Failed to request payout")
       setPayoutStatus("idle")
@@ -289,6 +271,10 @@ export default function AffiliateClient() {
         </div>
         {loading ? (
           <div className="mt-6 text-sm text-white/50">Loading...</div>
+        ) : !stats ? (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-black/60 px-4 py-4 text-sm text-white/60">
+            Affiliate stats are temporarily unavailable.
+          </div>
         ) : (
           <>
             <div className="mt-6 grid gap-4 md:grid-cols-4">

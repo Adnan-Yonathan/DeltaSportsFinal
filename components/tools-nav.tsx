@@ -4,11 +4,12 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
-import { BarChart3, Eye, Layers3, Zap, Target } from "lucide-react"
+import { BarChart3, Eye, Layers3, Zap, Target, Users } from "lucide-react"
 
 const TOOLS_NAV_ITEMS = [
   { href: "/sharp-detector", label: "Sharps", icon: Eye },
   { href: "/market-projections", label: "Markets", icon: BarChart3 },
+  { href: "/player-prop-odds", label: "Props", icon: Users },
   { href: "/line-shopping", label: "Lines", icon: Target },
   { href: "/parlay-predictor", label: "Parlay", icon: Layers3 },
   { href: "/ev-bets", label: "EV Bets", icon: Zap },
@@ -16,6 +17,7 @@ const TOOLS_NAV_ITEMS = [
 
 const MOBILE_NAV_ITEMS = [
   { href: "/market-projections", label: "Markets", icon: BarChart3 },
+  { href: "/player-prop-odds", label: "Props", icon: Users },
   { href: "/line-shopping", label: "Lines", icon: Target },
   { href: "/parlay-predictor", label: "Parlay", icon: Layers3 },
   { href: "/ev-bets", label: "EV", icon: Zap },

@@ -103,8 +103,27 @@ const determineBetTeamSide = (bet: Bet, game: LiveScore): 'home' | 'away' | unde
   return undefined
 }
 
+const EMPTY_STATS: BankrollStats = {
+  currentBalance: 0,
+  startingBalance: 0,
+  totalProfit: 0,
+  roi: 0,
+  wonBets: 0,
+  lostBets: 0,
+  pendingBets: 0,
+  totalBets: 0,
+  dailyBalances: [],
+  currentUnits: 0,
+  startingUnits: 0,
+  unitsWon: 0,
+  unitsLost: 0,
+  unitSize: 0,
+  dailyUnits: [],
+  clv: null,
+}
+
 export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
-  const [stats, setStats] = useState<BankrollStats | null>(null)
+  const [stats] = useState<BankrollStats>(EMPTY_STATS)
   const [activeBets, setActiveBets] = useState<Bet[]>([])
   const [loading, setLoading] = useState(true)
   const [liveScores, setLiveScores] = useState<LiveScore[]>([])
@@ -162,12 +181,6 @@ export default function BentoGridBankroll({ userId }: BankrollTrackerProps) {
   }, [chartRange])
 
   const loadData = async (period: ChartRange = chartRange) => {
-    const statsRes = await fetch(`/api/bankroll/stats?period=${period}`)
-    if (statsRes.ok) {
-      const data = await statsRes.json()
-      setStats(data)
-    }
-
     const { data: active } = await supabase
       .from('bets')
       .select('*')

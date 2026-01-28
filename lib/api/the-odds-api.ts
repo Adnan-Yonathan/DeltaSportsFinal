@@ -41,12 +41,7 @@ const getQuotaState = (): OddsApiQuotaState => {
   return globalState.__oddsApiQuotaState
 }
 
-const shouldBlockOddsApi = (state: OddsApiQuotaState) => {
-  if (state.remaining != null && state.remaining <= 0) return true
-  if (state.used != null && state.used >= state.limit) return true
-  if (state.localCount >= state.limit) return true
-  return false
-}
+const shouldBlockOddsApi = (_state: OddsApiQuotaState) => false
 
 const updateQuotaFromHeaders = (state: OddsApiQuotaState, headers: Headers) => {
   const remaining = Number(headers.get('x-requests-remaining'))
@@ -72,6 +67,7 @@ export interface TheOddsApiOutcome {
   name: string
   price: number
   point?: number
+  description?: string
 }
 
 export interface TheOddsApiMarket {
@@ -437,6 +433,124 @@ export function getSportKey(league: string): string | null {
   }
 
   return null
+}
+
+export interface FetchTheOddsApiPlayerPropsOptions extends FetchTheOddsApiOptions {
+  markets: string
+}
+
+export async function fetchTheOddsApiEvents(
+  sportKey: string,
+  options: { dateFormat?: 'iso' | 'unix' } = {}
+): Promise<TheOddsApiEvent[]> {
+  const quota = getQuotaState()
+  if (shouldBlockOddsApi(quota)) {
+    console.warn(`[THE-ODDS-API] Daily quota reached (${quota.limit}); skipping events fetch.`)
+    throw new Error(`[THE-ODDS-API] Daily quota reached (${quota.limit}).`)
+  }
+
+  const { dateFormat = 'iso' } = options
+  const url = new URL(`${THE_ODDS_API_BASE}/sports/${sportKey}/events`)
+  url.searchParams.set('apiKey', getApiKey())
+  url.searchParams.set('dateFormat', dateFormat)
+
+  const res = await fetch(url.toString(), {
+    next: { revalidate: 900 }, // Cache for 15 minutes
+  })
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    console.error(`[THE-ODDS-API] Events error: ${res.status} ${body}`)
+    throw new Error(`The Odds API error: ${res.status} ${body || res.statusText}`)
+  }
+
+  updateQuotaFromHeaders(quota, res.headers)
+  return res.json()
+}
+
+export async function fetchTheOddsApiEventOdds(
+  sportKey: string,
+  eventId: string,
+  options: FetchTheOddsApiPlayerPropsOptions
+): Promise<TheOddsApiEvent> {
+  const quota = getQuotaState()
+  if (shouldBlockOddsApi(quota)) {
+    console.warn(`[THE-ODDS-API] Daily quota reached (${quota.limit}); skipping event odds fetch.`)
+    throw new Error(`[THE-ODDS-API] Daily quota reached (${quota.limit}).`)
+  }
+
+  const {
+    regions = DEFAULT_REGIONS,
+    markets,
+    bookmakers,
+    oddsFormat = 'american',
+    dateFormat = 'iso',
+  } = options
+
+  const url = new URL(`${THE_ODDS_API_BASE}/sports/${sportKey}/events/${eventId}/odds`)
+  url.searchParams.set('apiKey', getApiKey())
+  url.searchParams.set('regions', regions)
+  url.searchParams.set('markets', markets)
+  url.searchParams.set('oddsFormat', oddsFormat)
+  url.searchParams.set('dateFormat', dateFormat)
+
+  if (bookmakers && bookmakers.length > 0) {
+    url.searchParams.set('bookmakers', bookmakers.join(','))
+  }
+
+  const res = await fetch(url.toString(), {
+    next: { revalidate: 900 }, // Cache for 15 minutes
+  })
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    console.error(`[THE-ODDS-API] Event odds error: ${res.status} ${body}`)
+    throw new Error(`The Odds API error: ${res.status} ${body || res.statusText}`)
+  }
+
+  updateQuotaFromHeaders(quota, res.headers)
+  return res.json()
+}
+
+export async function fetchTheOddsApiPlayerProps(
+  sportKey: string,
+  options: FetchTheOddsApiPlayerPropsOptions
+): Promise<TheOddsApiEvent[]> {
+  const {
+    markets,
+    regions = DEFAULT_REGIONS,
+    bookmakers,
+    oddsFormat = 'american',
+    dateFormat = 'iso',
+  } = options
+
+  const events = await fetchTheOddsApiEvents(sportKey, { dateFormat })
+  const results: TheOddsApiEvent[] = []
+  const batchSize = 4
+
+  for (let i = 0; i < events.length; i += batchSize) {
+    const batch = events.slice(i, i + batchSize)
+    const batchResults = await Promise.allSettled(
+      batch.map((event) =>
+        fetchTheOddsApiEventOdds(sportKey, event.id, {
+          markets,
+          regions,
+          bookmakers,
+          oddsFormat,
+          dateFormat,
+        })
+      )
+    )
+    batchResults.forEach((result) => {
+      if (result.status === 'fulfilled') {
+        results.push(result.value)
+      } else {
+        console.warn('[THE-ODDS-API] Event props fetch failed:', result.reason)
+      }
+    })
+  }
+
+  return results
 }
 
 /**

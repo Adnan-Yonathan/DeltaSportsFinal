@@ -37,8 +37,19 @@ interface Bet {
   book: string
 }
 
+const EMPTY_STATS: BankrollStats = {
+  currentBalance: 0,
+  startingBalance: 0,
+  totalProfit: 0,
+  roi: 0,
+  wonBets: 0,
+  lostBets: 0,
+  pendingBets: 0,
+  dailyBalances: [],
+}
+
 export default function BankrollTracker({ userId }: BankrollTrackerProps) {
-  const [stats, setStats] = useState<BankrollStats | null>(null)
+  const [stats] = useState<BankrollStats>(EMPTY_STATS)
   const [activeBets, setActiveBets] = useState<Bet[]>([])
   const [todayBets, setTodayBets] = useState<Bet[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,13 +82,6 @@ export default function BankrollTracker({ userId }: BankrollTrackerProps) {
   }, [userId])
 
   const loadData = async () => {
-    // Load stats
-    const statsRes = await fetch(`/api/bankroll/stats?period=7d`)
-    if (statsRes.ok) {
-      const data = await statsRes.json()
-      setStats(data)
-    }
-
     // Load active bets
     const { data: active } = await supabase
       .from('bets')

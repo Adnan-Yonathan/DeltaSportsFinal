@@ -18,6 +18,7 @@ const ROUTES = [
   '/tools',
   '/live-scores',
   '/market-projections',
+  '/player-prop-odds',
   '/player-projections',
   '/parlay-predictor',
   '/ev-bets',

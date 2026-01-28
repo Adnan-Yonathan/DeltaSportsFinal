@@ -20,6 +20,7 @@ export async function GET() {
     try {
       const games = await fetchOdds(sport, ["h2h", "spreads", "totals"], {
         revalidateSeconds: 600,
+        forceProvider: 'sportsbettingdime',
       })
       results.push({ sport, games: games.length })
     } catch (error: any) {

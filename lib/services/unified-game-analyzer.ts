@@ -175,7 +175,10 @@ export async function analyzeGame(opts: {
     await Promise.allSettled([
       // 1. Odds (8s timeout)
       withTimeout(
-        fetchOdds(sportKey, ['spreads', 'totals', 'h2h'], { teamFilter: [homeTeam, awayTeam] }),
+        fetchOdds(sportKey, ['spreads', 'totals', 'h2h'], {
+          teamFilter: [homeTeam, awayTeam],
+          forceProvider: 'sportsbettingdime',
+        }),
         8000,
         [] as any[]
       ),

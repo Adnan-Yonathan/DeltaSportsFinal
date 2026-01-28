@@ -80,6 +80,7 @@ export async function runResearchModel(
         const oddsPromise = fetchOdds(sport, markets, {
           live: false,
           revalidateSeconds: options.skipCache ? 0 : 600,
+          forceProvider: 'the-odds-api',
         })
 
       const oddsData = await Promise.race([

@@ -43,7 +43,10 @@ export async function GET(req: NextRequest) {
     }
 
     const canonicalSport = resolveSportKey(sport) as CanonicalSportKey | undefined
-    let games = await fetchOdds(sport, ['h2h','spreads','totals'], { live })
+    let games = await fetchOdds(sport, ['h2h','spreads','totals'], {
+      live,
+      forceProvider: 'sportsbettingdime',
+    })
     if (!games.length) {
       const league = resolveSbdLeague(sport)
       if (league) {

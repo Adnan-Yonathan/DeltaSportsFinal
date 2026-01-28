@@ -54,6 +54,7 @@ export async function computeClvForBets(bets: BetRow[]): Promise<{ clvAgg: any; 
   for (const [sportKey, group] of bySport.entries()) {
     const games = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
       revalidateSeconds: 600,
+      forceProvider: 'sportsbettingdime',
     })
     const byId = new Map<string, any>()
     for (const g of games) byId.set(String(g.id), g)

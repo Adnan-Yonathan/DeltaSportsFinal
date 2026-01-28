@@ -51,9 +51,7 @@ const SUPPORTED_SPORTS = [
   'basketball_nba',
   'basketball_ncaab',
   'americanfootball_nfl',
-  'americanfootball_ncaaf',
   'icehockey_nhl',
-  'baseball_mlb',
 ]
 
 const DEFAULT_MARKETS = ['h2h', 'spreads', 'totals']
@@ -143,8 +141,8 @@ export async function findPinnacleEVOpportunities(
       const games = await fetchOdds(sport, markets, {
         bookmakers: Array.from(allBooks).join(','),
         live: false,
-        forceProvider: 'the-odds-api',
-        revalidateSeconds: 600,
+        forceProvider: 'sportsbettingdime',
+        revalidateSeconds: 1800,
       })
 
       for (const game of games) {

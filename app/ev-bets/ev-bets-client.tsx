@@ -5,16 +5,14 @@ import { ArrowRight, Zap, TrendingUp, Filter } from 'lucide-react'
 import BookSelector, { useBookSelection, type BookKey } from '@/components/BookSelector'
 import type { PinnacleEVOpportunity } from '@/lib/services/pinnacle-ev'
 
-const REFRESH_MS = 60000 // 1 minute
+const REFRESH_MS = 300000 // 5 minutes
 
 const SPORT_OPTIONS = [
   { key: 'all', label: 'All Sports' },
   { key: 'basketball_nba', label: 'NBA' },
   { key: 'basketball_ncaab', label: 'NCAAB' },
   { key: 'americanfootball_nfl', label: 'NFL' },
-  { key: 'americanfootball_ncaaf', label: 'CFB' },
   { key: 'icehockey_nhl', label: 'NHL' },
-  { key: 'baseball_mlb', label: 'MLB' },
 ]
 
 const MIN_EV_OPTIONS = [

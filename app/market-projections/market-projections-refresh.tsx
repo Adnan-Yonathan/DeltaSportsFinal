@@ -151,7 +151,7 @@ export default function MarketProjectionsRefresh({
     if (isLocked) return
     const interval = window.setInterval(() => {
       refreshRef.current()
-    }, 15 * 60 * 1000)
+    }, 30 * 60 * 1000)
     return () => window.clearInterval(interval)
   }, [isLocked])
 

@@ -174,7 +174,9 @@ async function executeGuideTool(
         }
         const sportKey = sportKeyMap[sport] || 'basketball_nba'
 
-        const games = await fetchOdds(sportKey, ['spreads', 'totals'])
+        const games = await fetchOdds(sportKey, ['spreads', 'totals'], {
+          forceProvider: 'sportsbettingdime',
+        })
 
         if (!games || games.length === 0) {
           return `No upcoming games found for ${sport.toUpperCase()}.`
@@ -238,7 +240,9 @@ async function executeGuideTool(
         }
         const sportKey = sportKeyMap[sport] || 'basketball_nba'
 
-        const games = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'])
+        const games = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
+          forceProvider: 'sportsbettingdime',
+        })
 
         // Find the game matching the team
         const game = games?.find(g =>

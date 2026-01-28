@@ -34,6 +34,7 @@ export async function recordCurrentLines(sports: string[]): Promise<number> {
     try {
       const oddsData = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
         revalidateSeconds: 600,
+        forceProvider: 'sportsbettingdime',
       })
 
       for (const game of oddsData) {

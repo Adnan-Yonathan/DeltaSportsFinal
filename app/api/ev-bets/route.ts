@@ -1,17 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { findPinnacleEVOpportunities } from '@/lib/services/pinnacle-ev'
 import { DEFAULT_SELECTED_BOOKS, type BookKey } from '@/lib/config/books'
-import { fetchTheOddsApiSports } from '@/lib/api/the-odds-api'
-
 export const dynamic = 'force-dynamic'
+
+const CACHE_TTL_MS = 10 * 60 * 1000
+type CacheEntry = { ts: number; payload: any }
+const responseCache = new Map<string, CacheEntry>()
+
+const buildCacheKey = (params: {
+  minEV: number
+  sport: string | null
+  market: string | null
+  books: string | null
+}) =>
+  JSON.stringify({
+    minEV: params.minEV,
+    sport: params.sport ?? 'all',
+    market: params.market ?? 'all',
+    books: params.books ?? '',
+  })
 
 const SUPPORTED_SPORTS = [
   'basketball_nba',
   'basketball_ncaab',
   'americanfootball_nfl',
-  'americanfootball_ncaaf',
   'icehockey_nhl',
-  'baseball_mlb',
 ]
 
 const DEFAULT_MARKETS = ['h2h', 'spreads', 'totals']
@@ -24,21 +37,28 @@ export async function GET(request: NextRequest) {
     const sport = searchParams.get('sport')
     const market = searchParams.get('market')
     const booksParam = searchParams.get('books')
+    const cacheKey = buildCacheKey({
+      minEV,
+      sport,
+      market,
+      books: booksParam,
+    })
+
+    const cached = responseCache.get(cacheKey)
+    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+      return NextResponse.json({ ...cached.payload, cached: true })
+    }
 
     // Determine sports to scan
     let sports: string[] = []
     if (sport && sport !== 'all') {
       sports = [sport]
     } else {
-      try {
-        const available = await fetchTheOddsApiSports()
-        sports = (available || [])
-          .filter((entry) => entry.active && !entry.has_outrights)
-          .map((entry) => entry.key)
-      } catch (error) {
-        console.warn('[API /ev-bets] Failed to load active sports, using defaults.', error)
-        sports = SUPPORTED_SPORTS
-      }
+      sports = SUPPORTED_SPORTS
+    }
+    sports = sports.filter((entry) => SUPPORTED_SPORTS.includes(entry))
+    if (sports.length === 0) {
+      sports = SUPPORTED_SPORTS
     }
 
     // Determine markets to include
@@ -66,7 +86,7 @@ export async function GET(request: NextRequest) {
       includeProps: false, // Props disabled for now
     })
 
-    return NextResponse.json({
+    const payload = {
       data: opportunities,
       count: opportunities.length,
       filters: {
@@ -75,7 +95,11 @@ export async function GET(request: NextRequest) {
         minEV,
         userBooks,
       },
-    })
+      updatedAt: new Date().toISOString(),
+      cached: false,
+    }
+    responseCache.set(cacheKey, { ts: Date.now(), payload })
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('[API /ev-bets] Error:', error)
     return NextResponse.json(

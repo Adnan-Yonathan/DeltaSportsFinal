@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
 
     const games = await fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
       revalidateSeconds: 600,
+      forceProvider: 'sportsbettingdime',
     })
     if (!games?.length) {
       return NextResponse.json({ sport, opportunities: [], note: 'No games available for arbitrage scan' })

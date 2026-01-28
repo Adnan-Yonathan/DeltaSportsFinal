@@ -231,11 +231,13 @@ const buildPregameSpreadContext = async (
       live: false,
       teamFilter: teamFilter.length ? teamFilter : [homeTeam, awayTeam],
       revalidateSeconds: 600,
+      forceProvider: 'sportsbettingdime',
     })
     if (!oddsGames.length) {
       oddsGames = await fetchOdds(sportKey, ['spreads', 'totals'], {
         live: false,
         revalidateSeconds: 600,
+        forceProvider: 'sportsbettingdime',
       })
     }
     if (!oddsGames.length) return null

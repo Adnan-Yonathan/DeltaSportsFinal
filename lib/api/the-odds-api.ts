@@ -6,6 +6,62 @@
 import { OddsGame, Bookmaker, OddsMarket, OddsOutcome, MARKETS } from '@/lib/types/odds'
 
 const THE_ODDS_API_BASE = 'https://api.the-odds-api.com/v4'
+const DEFAULT_DAILY_LIMIT = 2000
+
+type OddsApiQuotaState = {
+  day: string
+  limit: number
+  used: number | null
+  remaining: number | null
+  localCount: number
+}
+
+const getQuotaDayKey = () => new Date().toISOString().slice(0, 10)
+
+const getQuotaState = (): OddsApiQuotaState => {
+  const globalState = globalThis as typeof globalThis & {
+    __oddsApiQuotaState?: OddsApiQuotaState
+  }
+  const limitRaw = process.env.ODDS_API_DAILY_LIMIT
+  const limit = Number.isFinite(Number(limitRaw)) ? Number(limitRaw) : DEFAULT_DAILY_LIMIT
+  const day = getQuotaDayKey()
+
+  if (!globalState.__oddsApiQuotaState || globalState.__oddsApiQuotaState.day !== day) {
+    globalState.__oddsApiQuotaState = {
+      day,
+      limit,
+      used: null,
+      remaining: null,
+      localCount: 0,
+    }
+  } else {
+    globalState.__oddsApiQuotaState.limit = limit
+  }
+
+  return globalState.__oddsApiQuotaState
+}
+
+const shouldBlockOddsApi = (state: OddsApiQuotaState) => {
+  if (state.remaining != null && state.remaining <= 0) return true
+  if (state.used != null && state.used >= state.limit) return true
+  if (state.localCount >= state.limit) return true
+  return false
+}
+
+const updateQuotaFromHeaders = (state: OddsApiQuotaState, headers: Headers) => {
+  const remaining = Number(headers.get('x-requests-remaining'))
+  const used = Number(headers.get('x-requests-used'))
+  if (Number.isFinite(remaining)) {
+    state.remaining = remaining
+  }
+  if (Number.isFinite(used)) {
+    state.used = used
+    state.localCount = Math.max(state.localCount, used)
+  }
+  if (!Number.isFinite(used) && !Number.isFinite(remaining)) {
+    state.localCount += 1
+  }
+}
 
 export interface TheOddsApiBookmaker {
   key: string
@@ -78,6 +134,12 @@ function getApiKey(): string {
  * Fetch list of all available sports
  */
 export async function fetchTheOddsApiSports(): Promise<TheOddsApiSport[]> {
+  const quota = getQuotaState()
+  if (shouldBlockOddsApi(quota)) {
+    console.warn(`[THE-ODDS-API] Daily quota reached (${quota.limit}); skipping sports list.`)
+    throw new Error(`[THE-ODDS-API] Daily quota reached (${quota.limit}).`)
+  }
+
   const url = new URL(`${THE_ODDS_API_BASE}/sports`)
   url.searchParams.set('apiKey', getApiKey())
 
@@ -89,6 +151,7 @@ export async function fetchTheOddsApiSports(): Promise<TheOddsApiSport[]> {
     throw new Error(`The Odds API error: ${res.status} ${res.statusText}`)
   }
 
+  updateQuotaFromHeaders(quota, res.headers)
   return res.json()
 }
 
@@ -232,6 +295,12 @@ export async function fetchTheOddsApiOdds(
   sportKey: string,
   options: FetchTheOddsApiOptions = {}
 ): Promise<OddsGame[]> {
+  const quota = getQuotaState()
+  if (shouldBlockOddsApi(quota)) {
+    console.warn(`[THE-ODDS-API] Daily quota reached (${quota.limit}); skipping odds fetch.`)
+    throw new Error(`[THE-ODDS-API] Daily quota reached (${quota.limit}).`)
+  }
+
   const {
     regions = DEFAULT_REGIONS,
     markets = ALL_MARKETS,
@@ -255,7 +324,7 @@ export async function fetchTheOddsApiOdds(
   console.log(`[THE-ODDS-API] Fetching odds for ${sportKey} from ${url.toString().replace(getApiKey(), '***')}`)
 
   const res = await fetch(url.toString(), {
-    next: { revalidate: 60 }, // Cache for 1 minute
+    next: { revalidate: 300 }, // Cache for 5 minutes
   })
 
   if (!res.ok) {
@@ -263,6 +332,8 @@ export async function fetchTheOddsApiOdds(
     console.error(`[THE-ODDS-API] Error: ${res.status} ${body}`)
     throw new Error(`The Odds API error: ${res.status} ${body || res.statusText}`)
   }
+
+  updateQuotaFromHeaders(quota, res.headers)
 
   // Log remaining quota
   const remaining = res.headers.get('x-requests-remaining')

@@ -28,7 +28,7 @@ interface EvParlaysClientProps {
   previewMode?: boolean
 }
 
-const REFRESH_MS = 60000
+const REFRESH_MS = 300000
 const MAX_ODDS_OPTIONS = [
   { label: 'Max +500', value: 500 },
   { label: 'Max +1000', value: 1000 },

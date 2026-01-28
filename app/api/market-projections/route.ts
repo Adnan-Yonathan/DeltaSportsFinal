@@ -3,7 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import { recordMarketProjectionPicks } from "@/lib/services/market-projection-clv"
 
-const CACHE_TTL_MS = 1000 * 60 * 15
+const CACHE_TTL_MS = 1000 * 60 * 30
 
 const normalizeKey = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]/g, "")
@@ -101,6 +101,22 @@ export async function GET(request: Request) {
   try {
     const cached = (await readCache(sport)) as any
     if (forceRefresh) {
+      if (cached) {
+        const updatedAtMs = Date.parse(cached.updatedAt ?? "")
+        if (
+          Number.isFinite(updatedAtMs) &&
+          Date.now() - updatedAtMs < CACHE_TTL_MS
+        ) {
+          return NextResponse.json({
+            ok: true,
+            updatedAt: cached.updatedAt,
+            sport,
+            edgeCount: cached.edges?.length ?? 0,
+            ...(includeEdges ? { edges: cached.edges ?? [] } : {}),
+            fromCache: true,
+          })
+        }
+      }
       const result = await analyzeSlateEdges(sport, { limit: 200 })
       const emptyResult = (result.edges?.length ?? 0) === 0
       if (emptyResult && cached?.edges?.length) {

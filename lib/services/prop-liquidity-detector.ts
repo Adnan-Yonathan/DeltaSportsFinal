@@ -747,6 +747,7 @@ const fetchOddsForMarket = async (
   const games = await fetchOdds(sportKey, [marketKey], {
     revalidateSeconds: 600,
     teamFilter,
+    forceProvider: 'sportsbettingdime',
   })
 
   oddsCache.set(cacheKey, { fetchedAt: now, games })

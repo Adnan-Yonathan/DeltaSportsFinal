@@ -777,6 +777,7 @@ export async function runCustomModelAcrossSlate(
   const odds = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
     live: false,
     revalidateSeconds: 600,
+    forceProvider: 'sportsbettingdime',
   })
 
   const dayFilter = options.day

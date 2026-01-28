@@ -13,7 +13,7 @@ const SPORTS = [
   { key: 'mlb', label: 'MLB' },
 ]
 
-// All available bookmakers from The Odds API
+// Book list (SBD-backed)
 const ALL_BOOKS = [
   // US Primary (most popular)
   { key: 'fanduel', label: 'FanDuel', region: 'us' },
@@ -581,7 +581,7 @@ export default function LineShoppingClient({
         <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-8 text-center">
           <div className="flex items-center justify-center gap-2 text-sm text-white/60">
             <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
-            Loading odds from The Odds API...
+            Loading odds from SBD...
           </div>
         </div>
       )}
@@ -635,7 +635,7 @@ export default function LineShoppingClient({
       {/* Info Banner */}
       <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[11px] text-white/50">
         <strong className="text-white/70">Line Shopping</strong> compares odds across{' '}
-        <span className="text-emerald-300">{ALL_BOOKS.length}+ sportsbooks</span> via The Odds API
+        <span className="text-emerald-300">{ALL_BOOKS.length}+ sportsbooks</span> via SBD
         so you can always get the best price. The best odds for each market are highlighted
         with a trophy icon. Sharp books like Pinnacle are great for finding true market value.
       </div>

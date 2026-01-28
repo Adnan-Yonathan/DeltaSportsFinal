@@ -27,7 +27,10 @@ export async function GET() {
   const results = await Promise.allSettled(
     WARMUP_SPORTS.map(sport =>
       withTimeout(
-        fetchOdds(sport, ['h2h', 'spreads', 'totals'], { live: false }),
+        fetchOdds(sport, ['h2h', 'spreads', 'totals'], {
+          live: false,
+          forceProvider: 'sportsbettingdime',
+        }),
         4000
       )
     )

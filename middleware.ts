@@ -19,7 +19,7 @@ const PUBLIC_PATHS = [
   '/admin/affiliates',
 ]
 
-const ALWAYS_PUBLIC_PREFIXES = ['/blog', '/tools', '/calculators', '/about']
+const ALWAYS_PUBLIC_PREFIXES = ['/blog', '/tools', '/calculators', '/about', '/slate']
 
 const SOFT_GATED_PATHS = [
   '/sharp-detector',

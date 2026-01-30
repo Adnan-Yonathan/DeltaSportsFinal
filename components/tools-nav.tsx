@@ -2,9 +2,9 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
-import { BarChart3, Eye, Layers3, Zap, Target, Users } from "lucide-react"
+import { BarChart3, Eye, Layers3, Zap, Target, Users, TrendingUp, BookOpenCheck, LineChart } from "lucide-react"
 
 const TOOLS_NAV_ITEMS = [
   { href: "/sharp-detector", label: "Sharps", icon: Eye },
@@ -22,6 +22,13 @@ const MOBILE_NAV_ITEMS = [
   { href: "/parlay-predictor", label: "Parlay", icon: Layers3 },
   { href: "/ev-bets", label: "EV", icon: Zap },
 ]
+const MOBILE_RESEARCH_ITEMS = [
+  { href: "/research/sharp-action", label: "Action", icon: BookOpenCheck },
+  { href: "/research/betting-trends", label: "Trends", icon: TrendingUp },
+  { href: "/research/backtesting", label: "Backtest", icon: LineChart },
+]
+
+const DELTA_MODE_STORAGE_KEY = "delta-mode"
 
 type ToolsNavProps = {
   hideMobileTop?: boolean
@@ -34,10 +41,38 @@ export default function ToolsNav({
 }: ToolsNavProps) {
   const pathname = usePathname()
   const [mounted, setMounted] = useState(false)
+  const [mobileMode, setMobileMode] = useState<"projections" | "research">("projections")
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const resolveMode = () => {
+      const stored = window.localStorage.getItem(DELTA_MODE_STORAGE_KEY)
+      const attr = document.documentElement.getAttribute("data-delta-mode")
+      const value = stored || attr
+      setMobileMode(value === "research" ? "research" : "projections")
+    }
+    resolveMode()
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key && event.key !== DELTA_MODE_STORAGE_KEY) return
+      resolveMode()
+    }
+    const handleCustom = () => resolveMode()
+    window.addEventListener("storage", handleStorage)
+    window.addEventListener("delta-mode-change", handleCustom)
+    return () => {
+      window.removeEventListener("storage", handleStorage)
+      window.removeEventListener("delta-mode-change", handleCustom)
+    }
+  }, [])
+
+  const mobileNavItems = useMemo(() => {
+    if (pathname?.startsWith("/research")) return MOBILE_RESEARCH_ITEMS
+    return mobileMode === "research" ? MOBILE_RESEARCH_ITEMS : MOBILE_NAV_ITEMS
+  }, [pathname, mobileMode])
 
   return (
     <>
@@ -114,7 +149,7 @@ export default function ToolsNav({
         createPortal(
           <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-black/95 backdrop-blur-sm sm:hidden">
             <div className="flex items-center justify-between gap-3 px-3 py-5">
-              {MOBILE_NAV_ITEMS.map((item) => {
+              {mobileNavItems.map((item) => {
                 const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
                 const Icon = item.icon
                 return (

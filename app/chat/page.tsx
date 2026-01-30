@@ -269,6 +269,7 @@ function ChatPageContent() {
     window.localStorage.setItem(DELTA_MODE_STORAGE_KEY, deltaMode)
     const root = document.documentElement
     root.setAttribute('data-delta-mode', deltaMode)
+    window.dispatchEvent(new CustomEvent('delta-mode-change', { detail: deltaMode }))
   }, [deltaMode])
 
   useEffect(() => {

@@ -19,6 +19,8 @@ const PUBLIC_PATHS = [
   '/admin/affiliates',
 ]
 
+const ALWAYS_PUBLIC_PREFIXES = ['/blog', '/tools', '/calculators', '/about']
+
 const SOFT_GATED_PATHS = [
   '/sharp-detector',
   '/market-projections',
@@ -42,6 +44,9 @@ const isPublicPath = (pathname: string) => {
   if (pathname.startsWith('/api/')) return true
   return PUBLIC_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
 }
+
+const isAlwaysPublicPath = (pathname: string) =>
+  ALWAYS_PUBLIC_PREFIXES.some(path => pathname === path || pathname.startsWith(path + '/'))
 
 const isSoftGatedPath = (pathname: string) =>
   SOFT_GATED_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
@@ -69,6 +74,10 @@ export async function middleware(req: NextRequest) {
       path: '/',
       sameSite: 'lax',
     })
+  }
+
+  if (isAlwaysPublicPath(pathname)) {
+    return res
   }
 
   // Allow public paths, API routes, and soft-gated pages that handle their own access UI

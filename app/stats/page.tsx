@@ -13,7 +13,7 @@ export default async function StatsCenterPage() {
     data: { user },
   } = await supabase.auth.getUser()
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasAccess = membership.hasPaidAccess
+  const hasAccess = membership.hasProjectionAccess
 
   return (
     <div className="min-h-screen bg-black text-white">

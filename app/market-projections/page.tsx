@@ -10,7 +10,6 @@ import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 import { getRollingMarketProjectionClvRecap } from "@/lib/services/market-projection-clv"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import { PHASE_PRODUCTION_BUILD } from "next/constants"
-import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -40,11 +39,8 @@ export default async function MarketProjectionsPage({
     data: { user },
   } = await supabase.auth.getUser()
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasPaidAccess = membership.hasPaidAccess
-  if (!hasPaidAccess) {
-    redirect("/sharp-detector")
-  }
-  const previewMode = false
+  const hasProjectionAccess = membership.hasProjectionAccess
+  const previewMode = !hasProjectionAccess
   const tier = membership.isActive ? membership.tier : membership.tier ?? null
   const requestedSport = Array.isArray(searchParams?.sport)
     ? searchParams?.sport[0]
@@ -62,7 +58,7 @@ export default async function MarketProjectionsPage({
   const isBuild = process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD
   const allowLiveRefresh = !isBuild
   const clvRecap =
-    hasPaidAccess &&
+    hasProjectionAccess &&
     (sport === "basketball_nba" ||
       sport === "basketball_ncaab" ||
       sport === "icehockey_nhl")

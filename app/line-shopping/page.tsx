@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
 import ToolsNav from '@/components/tools-nav'
 import LineShoppingClient from './line-shopping-client'
-import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -14,11 +13,8 @@ export default async function LineShoppingPage() {
   } = await supabase.auth.getUser()
 
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasPaidAccess = membership.hasPaidAccess
-  if (!hasPaidAccess) {
-    redirect('/sharp-detector')
-  }
-  const previewMode = false
+  const hasProjectionAccess = membership.hasProjectionAccess
+  const previewMode = !hasProjectionAccess
 
   return (
     <div className="min-h-screen bg-black text-white">

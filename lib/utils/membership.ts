@@ -14,6 +14,8 @@ export interface MembershipInfo {
   isTrial: boolean
   hasUsedTrial: boolean
   hasPaidAccess: boolean
+  hasProjectionAccess: boolean
+  hasResearchAccess: boolean
   hasFullAccess: boolean
   currentPeriodEnd: Date | null
   cancelAt: Date | null
@@ -61,11 +63,13 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     Boolean(status) &&
     activeStatuses.includes(status as MembershipStatus) &&
     (Boolean(tier) || isFullAccessStatus)
-  const paidStatuses: MembershipStatus[] = ['active', 'past_due']
+  const paidStatuses: MembershipStatus[] = ['active', 'trialing', 'past_due']
   const hasPaidStatus =
     Boolean(status) && paidStatuses.includes(status as MembershipStatus)
   const hasPaidAccess =
     Boolean(metadata?.has_paid) || hasPaidStatus || hasLegacyPaid
+  const hasProjectionAccess = hasPaidAccess
+  const hasResearchAccess = hasPaidAccess && tier === 'syndicate'
   const hasFullAccess = hasPaidAccess
 
   const effectiveTier = tier
@@ -82,6 +86,8 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
       isTrial: false,
       hasUsedTrial,
       hasPaidAccess: legacyHasPaid,
+      hasProjectionAccess: legacyHasPaid,
+      hasResearchAccess: legacyHasPaid && tier === 'syndicate',
       hasFullAccess: legacyHasPaid,
       currentPeriodEnd: legacyExpiresAt,
       cancelAt: null,
@@ -98,6 +104,8 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     isTrial: status === 'trialing',
     hasUsedTrial,
     hasPaidAccess,
+    hasProjectionAccess,
+    hasResearchAccess,
     hasFullAccess,
     currentPeriodEnd,
     cancelAt,
@@ -119,6 +127,8 @@ export const getMembershipStatus = (metadata: any): MembershipInfo => {
       isTrial: false,
       hasUsedTrial: false,
       hasPaidAccess: true,
+      hasProjectionAccess: true,
+      hasResearchAccess: true,
       hasFullAccess: true,
       currentPeriodEnd: devExpiresAt,
       cancelAt: null,

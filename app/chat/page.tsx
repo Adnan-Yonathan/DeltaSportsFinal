@@ -541,17 +541,7 @@ function ChatPageContent() {
   ]
 
   const baseChatTabs = deltaMode === 'research' ? researchTabs : projectionsTabs
-  const shouldGateTabs = Boolean(membership?.hasPaidAccess)
-  const allowedProjectionTabs = shouldGateTabs
-    ? new Set(['market-projections', 'player-prop-odds', 'line-shopping', 'parlay-predictor', 'ev-bets'])
-    : null
-  const allowedResearchTabs = shouldGateTabs
-    ? new Set(['sharp-action', 'betting-trends', 'backtesting'])
-    : null
-  const allowedTabs = deltaMode === 'research' ? allowedResearchTabs : allowedProjectionTabs
-  const chatTabs = shouldGateTabs
-    ? baseChatTabs.filter((tab) => allowedTabs?.has(tab.key))
-    : []
+  const chatTabs = baseChatTabs
   const membershipLabel = membership?.tier
     ? ({ free: 'Free', sharp: 'Sharp', syndicate: 'Syndicate' } as const)[membership.tier] || 'Free'
     : 'Free'

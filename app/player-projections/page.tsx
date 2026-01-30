@@ -4,7 +4,6 @@ import ToolsNav from "@/components/tools-nav"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
-import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -38,10 +37,7 @@ export default async function PlayerProjectionsPage({
     data: { user },
   } = await supabase.auth.getUser()
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasAccess = membership.hasPaidAccess
-  if (!hasAccess) {
-    redirect("/sharp-detector")
-  }
+  const hasAccess = membership.hasProjectionAccess
   const requestedSport = Array.isArray(searchParams?.sport)
     ? searchParams?.sport[0]
     : searchParams?.sport

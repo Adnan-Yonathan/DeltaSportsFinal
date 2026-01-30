@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
 import BettingTrendsClient from './betting-trends-client'
-import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -13,11 +12,8 @@ export default async function BettingTrendsPage() {
   } = await supabase.auth.getUser()
 
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasPaidAccess = membership.hasPaidAccess
-  if (!hasPaidAccess) {
-    redirect('/sharp-detector')
-  }
-  const previewMode = false
+  const hasResearchAccess = membership.hasResearchAccess
+  const previewMode = !hasResearchAccess
 
   return (
     <div className="space-y-6 py-6">

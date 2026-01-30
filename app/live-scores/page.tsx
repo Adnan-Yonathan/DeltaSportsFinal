@@ -12,7 +12,6 @@ import { normalizeTeamKey } from "@/lib/identity/sport"
 import { createClient } from "@/lib/supabase/client"
 import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
 import type { Bookmaker, OddsGame, OddsMarket } from "@/lib/types/odds"
-import { useRouter } from "next/navigation"
 
 const LEAGUE_TABS: Array<{ id: LeagueId; label: string }> =
   ESPN_LEAGUES.map((league) => ({ id: league.id, label: league.label }))
@@ -560,7 +559,6 @@ const EMPTY_ODDS_BY_LEAGUE: Record<LeagueId, OddsGame[]> = {
 }
 
 export default function LiveScoresPage() {
-  const router = useRouter()
   const [activeLeague, setActiveLeague] = useState<(typeof LEAGUE_TABS)[number]["id"]>(LEAGUE_TABS[0]?.id)
   const [selectedDate, setSelectedDate] = useState<string>(todayYMD())
   const [selectedGame, setSelectedGame] = useState<LiveScoreGame | null>(null)
@@ -642,16 +640,10 @@ export default function LiveScoresPage() {
     }
   }, [supabase])
 
-  useEffect(() => {
-    if (authLoading) return
-    if (!membership?.hasPaidAccess) {
-      router.replace("/sharp-detector")
-    }
-  }, [authLoading, membership, router])
 
   const oddsSportKey = ODDS_SPORT_KEY_BY_LEAGUE[activeLeague]
   const isDevAccess = process.env.NODE_ENV !== "production"
-  const canLoadOdds = Boolean(oddsSportKey && (membership?.hasPaidAccess || isDevAccess))
+  const canLoadOdds = Boolean(oddsSportKey && (membership?.hasProjectionAccess || isDevAccess))
   const canLoadProps = Boolean(
     canLoadOdds && oddsSportKey && PROPS_SUPPORTED_SPORTS.has(oddsSportKey)
   )

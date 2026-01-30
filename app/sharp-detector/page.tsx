@@ -197,6 +197,7 @@ const resolveStrengthClass = (value?: number | null) => {
 export default function SharpDetectorPage() {
   const [authLoading, setAuthLoading] = useState(true)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
+  const [user, setUser] = useState<any>(null)
   const supabase = useMemo(() => createClient(), [])
   const [trades, setTrades] = useState<SharpTradeWithStatus[]>([])
   const [hydrated, setHydrated] = useState(typeof window !== 'undefined')
@@ -230,9 +231,7 @@ export default function SharpDetectorPage() {
   const [trackedWalletSummary, setTrackedWalletSummary] = useState<WalletSummary[]>([])
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
-  const hasAccess = Boolean(
-    membership?.hasFullAccess
-  )
+  const hasAccess = Boolean(user)
 
   // Get unique sports for filter
   const sportButtons = useMemo(
@@ -536,10 +535,12 @@ export default function SharpDetectorPage() {
         } = await supabase.auth.getUser()
         if (!isMounted) return
         if (!user) {
+          setUser(null)
           setMembership(null)
           setAuthLoading(false)
           return
         }
+        setUser(user)
         const membershipInfo = getMembershipStatus(user.user_metadata)
         setMembership(membershipInfo)
         setAuthLoading(false)

@@ -273,7 +273,7 @@ function ChatPageContent() {
 
   useEffect(() => {
     if (hasWarmedUp.current) return
-    if (!user || !membership?.hasFullAccess) return
+    if (!user || !membership?.hasPaidAccess) return
     hasWarmedUp.current = true
     const warm = async () => {
       try {
@@ -283,7 +283,7 @@ function ChatPageContent() {
       }
     }
     warm()
-  }, [user, membership?.hasFullAccess])
+  }, [user, membership?.hasPaidAccess])
 
   useEffect(() => {
     if (!hasMessages) return
@@ -476,8 +476,8 @@ function ChatPageContent() {
     .join('')
     .slice(0, 2)
     .toUpperCase()
-  const canUseSharpDetector = Boolean(user && membership?.hasFullAccess)
-  const isSyndicate = Boolean(membership?.hasFullAccess)
+  const canUseSharpDetector = Boolean(user)
+  const isSyndicate = membership?.tier === 'syndicate'
   const projectionsTabs = [
     {
       key: 'market-projections',
@@ -541,7 +541,7 @@ function ChatPageContent() {
   ]
 
   const baseChatTabs = deltaMode === 'research' ? researchTabs : projectionsTabs
-  const shouldGateTabs = Boolean(membership?.isActive)
+  const shouldGateTabs = Boolean(membership?.hasPaidAccess)
   const allowedProjectionTabs = shouldGateTabs
     ? new Set(['market-projections', 'player-prop-odds', 'line-shopping', 'parlay-predictor', 'ev-bets'])
     : null
@@ -551,7 +551,7 @@ function ChatPageContent() {
   const allowedTabs = deltaMode === 'research' ? allowedResearchTabs : allowedProjectionTabs
   const chatTabs = shouldGateTabs
     ? baseChatTabs.filter((tab) => allowedTabs?.has(tab.key))
-    : baseChatTabs
+    : []
   const membershipLabel = membership?.tier
     ? ({ free: 'Free', sharp: 'Sharp', syndicate: 'Syndicate' } as const)[membership.tier] || 'Free'
     : 'Free'

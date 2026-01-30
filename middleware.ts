@@ -45,32 +45,16 @@ const isPublicPath = (pathname: string) => {
 const isSoftGatedPath = (pathname: string) =>
   SOFT_GATED_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
 
-// Check membership status from metadata (mirrors lib/utils/membership.ts logic)
-const checkMembershipActive = (metadata: Record<string, any>): boolean => {
-  const tier = metadata?.membership_tier
+// Check membership paid status from metadata (mirrors lib/utils/membership.ts logic)
+const checkMembershipPaid = (metadata: Record<string, any>): boolean => {
   const status = metadata?.membership_status
-  const hasUsedTrial = Boolean(metadata?.has_used_trial)
-  const hasSignedUp =
-    hasUsedTrial ||
-    Boolean(status) ||
-    Boolean(metadata?.membership_expires_at)
+  const paidStatuses = ['active', 'past_due']
+  const hasPaidStatus =
+    Boolean(status) && paidStatuses.includes(status)
+  const hasPaidFlag = Boolean(metadata?.has_paid)
+  const hasLegacyPaid = Boolean(metadata?.membership_expires_at)
 
-  // Check modern status-based membership
-  if (tier && status) {
-    const activeStatuses = ['active', 'trialing', 'past_due']
-    return activeStatuses.includes(status)
-  }
-
-  // Legacy support: check expiration date if no status but has tier
-  if (tier && !status) {
-    const expiresAt = metadata?.membership_expires_at
-    if (expiresAt) {
-      const expDate = new Date(expiresAt)
-      return !isNaN(expDate.getTime()) && expDate.getTime() > Date.now()
-    }
-  }
-
-  return hasSignedUp
+  return hasPaidFlag || hasPaidStatus || hasLegacyPaid
 }
 
 export async function middleware(req: NextRequest) {
@@ -112,10 +96,10 @@ export async function middleware(req: NextRequest) {
 
   // Check membership status from user metadata
   const metadata = session.user?.user_metadata || {}
-  const isActive = checkMembershipActive(metadata)
+  const isPaid = checkMembershipPaid(metadata)
 
   // If not an active member, redirect to pricing
-  if (!isActive) {
+  if (!isPaid) {
     const pricingUrl = new URL('/pricing', req.url)
     const redirect = NextResponse.redirect(pricingUrl)
     if (affiliateRef) {

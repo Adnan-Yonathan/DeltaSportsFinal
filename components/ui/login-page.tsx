@@ -86,7 +86,7 @@ export const LoginPage = () => {
         }
 
         const membership = getMembershipStatusFromMetadata(data.user.user_metadata)
-        router.push(membership.hasFullAccess ? "/" : "/pricing")
+        router.push(membership.hasPaidAccess ? "/" : "/sharp-detector")
       }
     } catch (err: any) {
       setError(err.message || "Failed to sign in")

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
 import SharpActionClient from './sharp-action-client'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -12,8 +13,11 @@ export default async function SharpActionPage() {
   } = await supabase.auth.getUser()
 
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasPaidAccess = membership.hasFullAccess
-  const previewMode = !hasPaidAccess
+  const hasPaidAccess = membership.hasPaidAccess
+  if (!hasPaidAccess) {
+    redirect('/sharp-detector')
+  }
+  const previewMode = false
 
   return (
     <div className="space-y-6 py-6">

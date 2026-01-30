@@ -13,6 +13,7 @@ export interface MembershipInfo {
   isActive: boolean
   isTrial: boolean
   hasUsedTrial: boolean
+  hasPaidAccess: boolean
   hasFullAccess: boolean
   currentPeriodEnd: Date | null
   cancelAt: Date | null
@@ -46,10 +47,8 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
   const planVersion = Number.isFinite(Number(planVersionRaw))
     ? Number(planVersionRaw)
     : 1
-  const hasSignedUp =
-    hasUsedTrial ||
-    Boolean(status) ||
-    Boolean(metadata?.membership_expires_at)
+  const legacyExpiresAt = parseDate(metadata?.membership_expires_at)
+  const hasLegacyPaid = Boolean(legacyExpiresAt)
 
   const fullAccessStatuses: MembershipStatus[] = ['active', 'trialing']
   const isFullAccessStatus =
@@ -62,23 +61,29 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     Boolean(status) &&
     activeStatuses.includes(status as MembershipStatus) &&
     (Boolean(tier) || isFullAccessStatus)
-  const hasFullAccess = isActive || hasSignedUp
+  const paidStatuses: MembershipStatus[] = ['active', 'past_due']
+  const hasPaidStatus =
+    Boolean(status) && paidStatuses.includes(status as MembershipStatus)
+  const hasPaidAccess =
+    Boolean(metadata?.has_paid) || hasPaidStatus || hasLegacyPaid
+  const hasFullAccess = hasPaidAccess
 
   const effectiveTier = tier
 
   // Legacy support: check expiration date if no status but has tier
   // This handles old subscriptions that used expiration dates
   if (!status && tier) {
-    const expiresAt = parseDate(metadata?.membership_expires_at)
-    const legacyActive = Boolean(expiresAt) && expiresAt!.getTime() > Date.now()
+    const legacyActive = Boolean(legacyExpiresAt) && legacyExpiresAt!.getTime() > Date.now()
+    const legacyHasPaid = Boolean(legacyExpiresAt)
     return {
       tier,
       status: legacyActive ? 'active' : 'canceled',
       isActive: legacyActive,
       isTrial: false,
       hasUsedTrial,
-      hasFullAccess: legacyActive || hasSignedUp,
-      currentPeriodEnd: expiresAt,
+      hasPaidAccess: legacyHasPaid,
+      hasFullAccess: legacyHasPaid,
+      currentPeriodEnd: legacyExpiresAt,
       cancelAt: null,
       stripeCustomerId,
       stripeSubscriptionId,
@@ -92,6 +97,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     isActive,
     isTrial: status === 'trialing',
     hasUsedTrial,
+    hasPaidAccess,
     hasFullAccess,
     currentPeriodEnd,
     cancelAt,
@@ -112,6 +118,7 @@ export const getMembershipStatus = (metadata: any): MembershipInfo => {
       isActive: true,
       isTrial: false,
       hasUsedTrial: false,
+      hasPaidAccess: true,
       hasFullAccess: true,
       currentPeriodEnd: devExpiresAt,
       cancelAt: null,

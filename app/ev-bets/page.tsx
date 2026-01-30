@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
 import ToolsNav from '@/components/tools-nav'
 import EVBetsClient from './ev-bets-client'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -13,8 +14,11 @@ export default async function EVBetsPage() {
   } = await supabase.auth.getUser()
 
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasPaidAccess = membership.hasFullAccess
-  const previewMode = !hasPaidAccess
+  const hasPaidAccess = membership.hasPaidAccess
+  if (!hasPaidAccess) {
+    redirect('/sharp-detector')
+  }
+  const previewMode = false
 
   return (
     <div className="min-h-screen bg-black text-white">

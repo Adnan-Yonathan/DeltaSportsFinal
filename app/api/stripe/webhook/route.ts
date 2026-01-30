@@ -86,6 +86,9 @@ async function updateUserSubscription(
   customerId?: string,
   planVersionOverride?: number
 ) {
+  const { data: existingUser } = await supabase.auth.admin.getUserById(userId)
+  const existingMetadata = existingUser?.user?.user_metadata || {}
+  const existingHasPaid = Boolean(existingMetadata?.has_paid)
   const config = planKey ? PLAN_CONFIG[planKey as PlanKey] : null
   const rawPlanVersion = subscription?.metadata?.plan_version
   const parsedPlanVersion = Number.isFinite(Number(rawPlanVersion))
@@ -101,6 +104,7 @@ async function updateUserSubscription(
         membership_status: 'canceled',
         stripe_subscription_id: null,
         subscription_cancel_at: null,
+        ...(existingHasPaid ? { has_paid: true } : {}),
       },
     })
     return
@@ -125,6 +129,9 @@ async function updateUserSubscription(
     stripe_current_period_end: currentPeriodEnd ? new Date(currentPeriodEnd * 1000).toISOString() : null,
     subscription_cancel_at: cancelAt ? new Date(cancelAt * 1000).toISOString() : null,
     membership_plan_version: planVersion,
+    ...(existingHasPaid || subscription.status === 'active' || subscription.status === 'past_due'
+      ? { has_paid: true }
+      : {}),
   }
   if (subscription.trial_end || subscription.trial_start || subscription.status === 'trialing') {
     metadataUpdate.has_used_trial = true
@@ -390,6 +397,22 @@ export async function POST(req: NextRequest) {
 
         if (userId) {
           await updateUserSubscription(supabase, userId, null)
+          if (subscription.latest_invoice) {
+            try {
+              const invoice = await stripe.invoices.retrieve(
+                subscription.latest_invoice as string
+              )
+              if ((invoice.amount_paid || 0) > 0) {
+                await supabase.auth.admin.updateUserById(userId, {
+                  user_metadata: {
+                    has_paid: true,
+                  },
+                })
+              }
+            } catch (error) {
+              console.warn('[STRIPE_WEBHOOK] Failed to verify latest invoice for canceled subscription:', error)
+            }
+          }
           console.log(`[STRIPE_WEBHOOK] Subscription canceled for user ${userId}`)
         }
         break
@@ -427,6 +450,11 @@ export async function POST(req: NextRequest) {
 
           if (userId) {
             await updateUserSubscription(supabase, userId, subscription)
+            await supabase.auth.admin.updateUserById(userId, {
+              user_metadata: {
+                has_paid: true,
+              },
+            })
             const affiliateRef = await resolveAffiliateRef(supabase, userId)
             if (affiliateRef) {
               const isTrialConversion =

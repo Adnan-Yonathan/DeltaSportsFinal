@@ -3,6 +3,7 @@ import SportSelector from "../market-projections/sport-selector"
 import { createClient } from "@/lib/supabase/server"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import PropOddsClient from "./prop-odds-client"
+import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -31,8 +32,11 @@ export default async function PlayerPropOddsPage({
     data: { user },
   } = await supabase.auth.getUser()
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasPaidAccess = membership.hasFullAccess
-  const previewMode = !hasPaidAccess
+  const hasPaidAccess = membership.hasPaidAccess
+  if (!hasPaidAccess) {
+    redirect("/sharp-detector")
+  }
+  const previewMode = false
 
   const requestedSport = Array.isArray(searchParams?.sport)
     ? searchParams?.sport[0]

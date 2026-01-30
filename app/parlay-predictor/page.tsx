@@ -2,6 +2,7 @@ import ParlayPredictor from './parlay-predictor'
 import { createClient } from "@/lib/supabase/server"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import ToolsNav from "@/components/tools-nav"
+import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 
@@ -11,8 +12,11 @@ export default async function ParlayPredictorPage() {
     data: { user },
   } = await supabase.auth.getUser()
   const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasPaidAccess = membership.hasFullAccess
-  const previewMode = !hasPaidAccess
+  const hasPaidAccess = membership.hasPaidAccess
+  if (!hasPaidAccess) {
+    redirect("/sharp-detector")
+  }
+  const previewMode = false
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Fixed navigation header */}

@@ -23,6 +23,7 @@ const SOFT_GATED_PATHS = [
   '/sharp-detector',
   '/market-projections',
   '/player-projections',
+  '/player-prop-odds',
   '/parlay-predictor',
   '/ev-bets',
   '/line-shopping',

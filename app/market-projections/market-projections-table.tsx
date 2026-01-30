@@ -9,6 +9,7 @@ import { AVAILABLE_BOOKS, type BookKey } from "@/lib/config/books"
 
 type EdgeFilter = "spread" | "moneyline" | "total"
 type AccessTier = "free" | "sharp" | "syndicate" | null
+type DateFilter = "all" | string
 
 type MarketEdge = {
   edgePercent: number
@@ -178,6 +179,29 @@ const resolveSportLabel = (sportKey?: string) => {
     baseball_mlb: "MLB",
   }
   return sportKey ? map[sportKey] ?? sportKey.toUpperCase() : "SPORTS"
+}
+
+const formatEasternDate = (value: Date) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value)
+
+const formatEasternLabel = (value: Date) =>
+  new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(value)
+
+const resolveEasternDate = (commenceTime?: string) => {
+  if (!commenceTime) return null
+  const time = Date.parse(commenceTime)
+  if (!Number.isFinite(time)) return null
+  return formatEasternDate(new Date(time))
 }
 
 const isUpcomingGame = (commenceTime?: string) => {
@@ -953,7 +977,21 @@ export default function MarketProjectionsTable({
   }
   const accessConfig = useMemo(() => resolveAccessConfig(tier), [tier])
   const [filter, setFilter] = useState<EdgeFilter>(accessConfig.allowedFilters[0] ?? "spread")
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all")
   const [pulseKey, setPulseKey] = useState(0)
+
+  const dateOptions = useMemo(() => {
+    const now = new Date()
+    const options: Array<{ value: string; label: string }> = []
+    for (let i = 0; i < 7; i += 1) {
+      const date = new Date(now.getTime() + i * 24 * 60 * 60 * 1000)
+      options.push({
+        value: formatEasternDate(date),
+        label: formatEasternLabel(date),
+      })
+    }
+    return options
+  }, [])
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -968,9 +1006,26 @@ export default function MarketProjectionsTable({
     }
   }, [accessConfig.allowedFilters, filter])
 
+  useEffect(() => {
+    if (dateFilter === "all") return
+    if (!dateOptions.some((option) => option.value === dateFilter)) {
+      setDateFilter("all")
+    }
+  }, [dateFilter, dateOptions])
+
   const sortedEdges = useMemo(() => {
+    const allowedDates = new Set(dateOptions.map((option) => option.value))
+    const matchesDate = (game: EdgeGame) => {
+      const gameDate = resolveEasternDate(game.commenceTime)
+      if (!gameDate) return true
+      if (dateFilter === "all") return allowedDates.has(gameDate)
+      return gameDate === dateFilter
+    }
     const scoped = edges.filter(
-      (game) => hasMarketData(game, filter) && isUpcomingGame(game.commenceTime)
+      (game) =>
+        hasMarketData(game, filter) &&
+        isUpcomingGame(game.commenceTime) &&
+        matchesDate(game)
     )
     const sorted = [...scoped].sort(
       (a, b) =>
@@ -998,6 +1053,33 @@ export default function MarketProjectionsTable({
   return (
     <>
       <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 sm:mt-6">
+        <div className="mb-2 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
+          <button
+            type="button"
+            onClick={() => setDateFilter("all")}
+            className={`rounded-md border px-3 py-2 text-center transition-colors ${
+              dateFilter === "all"
+                ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
+                : "border-white/10 bg-black/40 hover:border-emerald-400/40 hover:text-white"
+            }`}
+          >
+            Next 7 days
+          </button>
+          {dateOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setDateFilter(option.value)}
+              className={`rounded-md border px-3 py-2 text-center transition-colors ${
+                dateFilter === option.value
+                  ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
+                  : "border-white/10 bg-black/40 hover:border-emerald-400/40 hover:text-white"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
         <div className={`grid ${filterGridClass} gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70`}>
           {accessConfig.allowedFilters.map((item) => (
             <button

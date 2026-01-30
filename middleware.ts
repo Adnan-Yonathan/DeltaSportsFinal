@@ -65,7 +65,6 @@ const checkMembershipPaid = (metadata: Record<string, any>): boolean => {
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res })
   const pathname = req.nextUrl.pathname
   const affiliateRef = req.nextUrl.searchParams.get('ref')
   if (affiliateRef) {
@@ -79,6 +78,8 @@ export async function middleware(req: NextRequest) {
   if (isAlwaysPublicPath(pathname)) {
     return res
   }
+
+  const supabase = createMiddlewareClient({ req, res })
 
   // Allow public paths, API routes, and soft-gated pages that handle their own access UI
   if (isPublicPath(pathname) || isSoftGatedPath(pathname)) {

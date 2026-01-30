@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { Twitter } from "lucide-react"
 
 export default function StatsSection() {
   const slides = [
@@ -37,9 +38,10 @@ export default function StatsSection() {
                   href="https://x.com/DeltaSportsAI"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-[11px] leading-tight sm:text-base"
+                  aria-label="Delta Sports on X"
+                  className="flex items-center justify-center"
                 >
-                  follow us on twitter
+                  <Twitter className="h-5 w-5" />
                 </Link>
               </Button>
               <Button

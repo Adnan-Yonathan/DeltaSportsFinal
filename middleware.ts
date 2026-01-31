@@ -2,38 +2,16 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// Pages that don't require authentication
+// Pages that don't require authentication or membership access
 const PUBLIC_PATHS = [
-  '/',
-  '/blog',
-  '/about',
-  '/calculators',
   '/auth/login',
   '/auth/signup',
   '/auth/callback',
   '/pricing',
-  '/tools',
-  '/onboarding',
-  '/chat', // Chat page handles its own guest/member logic
-  '/affiliate',
-  '/admin/affiliates',
+  '/stripe/success',
 ]
 
-const ALWAYS_PUBLIC_PREFIXES = ['/blog', '/tools', '/calculators', '/about', '/slate']
-
-const SOFT_GATED_PATHS = [
-  '/sharp-detector',
-  '/market-projections',
-  '/player-projections',
-  '/player-prop-odds',
-  '/parlay-predictor',
-  '/ev-bets',
-  '/line-shopping',
-  '/research',
-  '/stats',
-  '/live-projections',
-  '/live-scores',
-]
+const ALWAYS_PUBLIC_PREFIXES = ['/blog', '/tools', '/calculators', '/about']
 
 const AFFILIATE_REF_COOKIE = 'affiliate_ref'
 const AFFILIATE_REF_TTL = 60 * 60 * 24 * 30
@@ -48,13 +26,10 @@ const isPublicPath = (pathname: string) => {
 const isAlwaysPublicPath = (pathname: string) =>
   ALWAYS_PUBLIC_PREFIXES.some(path => pathname === path || pathname.startsWith(path + '/'))
 
-const isSoftGatedPath = (pathname: string) =>
-  SOFT_GATED_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
-
 // Check membership paid status from metadata (mirrors lib/utils/membership.ts logic)
 const checkMembershipPaid = (metadata: Record<string, any>): boolean => {
   const status = metadata?.membership_status
-  const paidStatuses = ['active', 'past_due']
+  const paidStatuses = ['active', 'trialing', 'past_due']
   const hasPaidStatus =
     Boolean(status) && paidStatuses.includes(status)
   const hasPaidFlag = Boolean(metadata?.has_paid)
@@ -82,7 +57,7 @@ export async function middleware(req: NextRequest) {
   const supabase = createMiddlewareClient({ req, res })
 
   // Allow public paths, API routes, and soft-gated pages that handle their own access UI
-  if (isPublicPath(pathname) || isSoftGatedPath(pathname)) {
+  if (isPublicPath(pathname)) {
     await supabase.auth.getSession()
     return res
   }

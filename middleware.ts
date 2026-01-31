@@ -4,6 +4,8 @@ import type { NextRequest } from 'next/server'
 
 // Pages that don't require authentication or membership access
 const PUBLIC_PATHS = [
+  '/',
+  '/welcome',
   '/auth/login',
   '/auth/signup',
   '/auth/callback',
@@ -12,6 +14,7 @@ const PUBLIC_PATHS = [
 ]
 
 const ALWAYS_PUBLIC_PREFIXES = ['/blog', '/tools', '/calculators', '/about']
+const MEMBERSHIP_EXEMPT_PATHS = ['/onboarding']
 
 const AFFILIATE_REF_COOKIE = 'affiliate_ref'
 const AFFILIATE_REF_TTL = 60 * 60 * 24 * 30
@@ -25,6 +28,9 @@ const isPublicPath = (pathname: string) => {
 
 const isAlwaysPublicPath = (pathname: string) =>
   ALWAYS_PUBLIC_PREFIXES.some(path => pathname === path || pathname.startsWith(path + '/'))
+
+const isMembershipExemptPath = (pathname: string) =>
+  MEMBERSHIP_EXEMPT_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
 
 // Check membership paid status from metadata (mirrors lib/utils/membership.ts logic)
 const checkMembershipPaid = (metadata: Record<string, any>): boolean => {
@@ -67,9 +73,9 @@ export async function middleware(req: NextRequest) {
 
   // If no session, redirect to login
   if (!session) {
-    const loginUrl = new URL('/auth/login', req.url)
-    loginUrl.searchParams.set('redirect', pathname)
-    const redirect = NextResponse.redirect(loginUrl)
+    const landingUrl = new URL('/welcome', req.url)
+    landingUrl.searchParams.set('redirect', pathname)
+    const redirect = NextResponse.redirect(landingUrl)
     if (affiliateRef) {
       redirect.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
         maxAge: AFFILIATE_REF_TTL,
@@ -83,6 +89,16 @@ export async function middleware(req: NextRequest) {
   // Check membership status from user metadata
   const metadata = session.user?.user_metadata || {}
   const isPaid = checkMembershipPaid(metadata)
+  const onboardingCompleted = Boolean(metadata?.onboarding_completed)
+
+  if (isMembershipExemptPath(pathname)) {
+    return res
+  }
+
+  if (!onboardingCompleted) {
+    const onboardingUrl = new URL('/onboarding', req.url)
+    return NextResponse.redirect(onboardingUrl)
+  }
 
   // If not an active member, redirect to pricing
   if (!isPaid) {

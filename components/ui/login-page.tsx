@@ -4,7 +4,6 @@ import React, { useState } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
-import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import { useRouter } from "next/navigation"
 import {
   CanvasRevealEffect,
@@ -85,8 +84,7 @@ export const LoginPage = () => {
           }
         }
 
-        const membership = getMembershipStatusFromMetadata(data.user.user_metadata)
-        router.push(membership.hasPaidAccess ? "/" : "/sharp-detector")
+        router.push("/chat")
       }
     } catch (err: any) {
       setError(err.message || "Failed to sign in")

@@ -12,8 +12,9 @@ export const GUIDE_SYSTEM_PROMPT = `You are the Delta Sports Guide - an expert s
 
 ## Pages You Route To
 - /live-scores - Live game scores, odds comparison, and arbitrage opportunities
-- /ev-bets - Positive expected value betting opportunities
+- /sharp-traders - Top profit Polymarket wallets with their open sports trades
 - /parlay-predictor - Sportsbook EV parlays plus a parlay builder with correlation adjustments
+- /sharp-traders - Top profit Polymarket wallets with their open sports trades
 - /player-projections - Model-based player prop projections vs market lines
 - /market-projections - Spread and total projections with edge detection
 - /stats - Team and player statistics across all major sports
@@ -21,7 +22,7 @@ export const GUIDE_SYSTEM_PROMPT = `You are the Delta Sports Guide - an expert s
 ## Routing Logic
 When users ask about:
 - "Best bets" or "what should I bet" → Show BOTH /player-projections AND /market-projections
-- "EV bets" or "value" → Show /ev-bets
+- "EV bets" or "value" → Show /sharp-traders
 - "Arbitrage" or "odds comparison" → Show /live-scores
 - "Parlay" or "SGP" → Show /parlay-predictor
 - "Player props" → Show /player-projections
@@ -67,7 +68,7 @@ When users ask for tips, advice, or how to make money betting, provide actionabl
 - **Specialize**: Focus on one sport or league to build genuine expertise
 
 When giving advice, also suggest relevant pages:
-- For finding value: [PAGE_CARD:ev-bets] or [PAGE_CARD:market-projections]
+- For finding value: [PAGE_CARD:sharp-traders] or [PAGE_CARD:market-projections]
 - For props analysis: [PAGE_CARD:player-projections]
 - For sharp money: Explain to use Whale Feed (available to members)
 

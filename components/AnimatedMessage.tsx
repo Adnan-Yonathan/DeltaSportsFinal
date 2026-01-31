@@ -34,10 +34,10 @@ const PAGE_METADATA: Record<string, Omit<PageCardData, 'key' | 'recommended'>> =
     href: '/live-scores',
     icon: <Radio className="w-4 h-4" />,
   },
-  'ev-bets': {
-    label: 'Line Shopping',
-    description: 'Compare pregame lines across sportsbooks and prediction markets',
-    href: '/ev-bets',
+  'sharp-traders': {
+    label: 'Sharp Traders',
+    description: 'Top profit Polymarket wallets and their open sports trades',
+    href: '/sharp-traders',
     icon: <Radio className="w-4 h-4" />,
   },
   'parlay-predictor': {

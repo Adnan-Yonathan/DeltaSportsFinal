@@ -12,7 +12,7 @@ const TOOLS_NAV_ITEMS = [
   { href: "/player-prop-odds", label: "Props", icon: Users },
   { href: "/line-shopping", label: "Lines", icon: Target },
   { href: "/parlay-predictor", label: "Parlay", icon: Layers3 },
-  { href: "/ev-bets", label: "EV Bets", icon: Zap },
+  { href: "/sharp-traders", label: "Sharp Traders", icon: Zap },
 ]
 
 const MOBILE_NAV_ITEMS = [
@@ -20,7 +20,7 @@ const MOBILE_NAV_ITEMS = [
   { href: "/player-prop-odds", label: "Props", icon: Users },
   { href: "/line-shopping", label: "Lines", icon: Target },
   { href: "/parlay-predictor", label: "Parlay", icon: Layers3 },
-  { href: "/ev-bets", label: "EV", icon: Zap },
+  { href: "/sharp-traders", label: "Insiders", icon: Zap },
 ]
 const MOBILE_RESEARCH_ITEMS = [
   { href: "/research/sharp-action", label: "Action", icon: BookOpenCheck },

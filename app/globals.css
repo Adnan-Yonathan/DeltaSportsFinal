@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes slide-track {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-slide-track {
+  animation: slide-track 18s linear infinite;
+}
+
 * {
   box-sizing: border-box;
   padding: 0;

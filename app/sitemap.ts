@@ -21,7 +21,7 @@ const ROUTES = [
   '/player-prop-odds',
   '/player-projections',
   '/parlay-predictor',
-  '/ev-bets',
+  '/sharp-traders',
   '/live-projections',
   '/sharp-detector',
   '/stats',

@@ -466,7 +466,7 @@ Consistently beating the closing line is the best predictor of long-term profita
 Check out our tools to help:
 
 [PAGE_CARD:market-projections:recommended]
-[PAGE_CARD:ev-bets]`
+[PAGE_CARD:sharp-traders]`
         } else {
           responseContent = "I'm having trouble processing that request. Please try again in a moment."
         }

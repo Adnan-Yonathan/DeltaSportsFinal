@@ -69,22 +69,22 @@ export const TOOLS_CONTENT: ToolContent[] = [
     ],
   },
   {
-    id: "ev-bets",
-    label: "Line Shopping",
-    route: "/ev-bets",
+    id: "sharp-traders",
+    label: "Sharp Traders",
+    route: "/sharp-traders",
     icon: "percent",
     summary:
-      "Pregame odds board for moneylines, spreads, and totals across the books we track.",
+      "Top-profit Polymarket wallets with their latest open sports trades.",
     description:
-      "Line Shopping is a dense screen for quickly scanning the best pregame prices across sportsbooks and prediction markets.",
+      "Sharp Traders tracks profitable wallets and surfaces the live sports positions they are still holding. It shows recent conviction, open exposure, and what the sharp wallets are leaning into right now.",
     howToUse:
-      "Pick a sport and market, then scan the board for the best pregame line. If the price you want is available, place the bet before it moves.",
+      "Filter by sport, scan each wallet's open trades, and track the positions that repeat across multiple sharp wallets.",
     unique:
-      "It compresses the entire slate into one view, showing the strongest price per side without the noise.",
+      "Instead of static leaderboards, it links wallet performance directly to live, unsettled trades.",
     useCases: [
-      "Fast line shopping before your bet hits.",
-      "Monitoring pregame movement across books.",
-      "Comparing prediction markets vs sportsbooks.",
+      "Spotting sharp wallets before lines move.",
+      "Following repeat positions across profitable wallets.",
+      "Monitoring open exposure on game day.",
     ],
   },
   {

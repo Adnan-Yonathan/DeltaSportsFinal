@@ -509,11 +509,11 @@ function ChatPageContent() {
       description: 'Sportsbook EV parlays plus a correlation-aware parlay builder',
     },
     {
-      key: 'ev-bets',
-      label: 'EV Bets',
-      shortLabel: 'EV',
-      href: '/ev-bets',
-      description: 'Find +EV opportunities using Pinnacle as sharp baseline',
+      key: 'sharp-traders',
+      label: 'Sharp Traders',
+      shortLabel: 'Traders',
+      href: '/sharp-traders',
+      description: 'Track top profit Polymarket wallets and open sports trades',
     },
   ]
 

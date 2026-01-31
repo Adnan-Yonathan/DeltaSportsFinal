@@ -112,7 +112,7 @@ const processOutcomeTrades = (trades: TradeRow[]) => {
   return { position, costTotal, realized }
 }
 
-const processWalletTrades = (
+export const computeWalletRollupFromTrades = (
   trades: TradeRow[],
   outcomesBySlug: Map<string, MarketOutcomeRow>
 ) => {
@@ -315,7 +315,7 @@ export const computePolymarketWalletRollups = async ({
       totalLosses,
       totalPushes,
       marketsResolved,
-    } = processWalletTrades(trades, outcomesBySlug)
+    } = computeWalletRollupFromTrades(trades, outcomesBySlug)
 
     if (marketRows.length > 0) {
       const { error: marketError } = await supabase

@@ -196,35 +196,35 @@ Props at -110 with sharp consensus hit at **~57%** (better than sides).
     ],
   },
 
-    "ev-bets": {
-    id: "ev-bets",
-    title: "Line Shopping",
-    subtitle: "Compare pregame lines across books and prediction markets",
+    "sharp-traders": {
+    id: "sharp-traders",
+    title: "Sharp Traders",
+    subtitle: "Track top profit Polymarket wallets and open sports trades",
     sections: [
       {
         title: "What You Are Seeing",
-        content: `**This page is for pregame line shopping.**
+          content: `**This page tracks profitable wallets and their open sports trades.**
 
-- Each game shows prices across sportsbooks and prediction markets.
-- Best odds are highlighted separately for prediction markets and sportsbooks.
-- Use it to grab the best number before it moves.`,
-      },
-      {
-        title: "How to Use It",
-        content: `**A simple workflow:**
+  - Each wallet shows all-time P&L and recent performance.
+  - Open trades show what positions are still held today.
+  - Use it to spot sharp conviction before lines move.`,
+        },
+        {
+          title: "How to Use It",
+          content: `**A simple workflow:**
 
-1. Pick your sport and market type.
-2. Scan for the highlighted best odds per side.
-3. Take the best pregame number at the book or market you use.`,
-      },
-      {
-        title: "Why It Matters",
-        content: `**Shopping the line is instant edge.**
+  1. Filter by sport (today + next 7 days).
+  2. Scan for wallets holding similar positions.
+  3. Track repeat trades across the sharp cohort.`,
+        },
+        {
+          title: "Why It Matters",
+          content: `**Open positions are live signals.**
 
-Even small price improvements add up over a season. Always take the best pregame price available.`,
-      },
-    ],
-  },
+  You see what winning wallets are still holding right now, not just what they closed.`,
+        },
+      ],
+    },
 
   "live-projections": {
     id: "live-projections",
@@ -435,7 +435,7 @@ Never exceed 2u on a single bet.`,
       },
       {
         title: "Scale with EV",
-        content: `Use **Parlay Pro** and **EV Bets** for higher-EV spots.
+          content: `Use **Parlay Pro** and **Sharp Traders** for higher-conviction spots.
 
 -  Use EV as the final filter
 -  Keep a simple bankroll rule

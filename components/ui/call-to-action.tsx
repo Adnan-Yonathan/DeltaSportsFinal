@@ -1,8 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { motion } from "framer-motion"
-import Image from "next/image"
+import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Twitter } from "lucide-react"
@@ -13,15 +11,11 @@ export default function StatsSection() {
     "/Screenshot 2026-01-27 131653.png",
     "/Screenshot 2026-01-27 131803.png",
     "/Screenshot 2026-01-27 131856.png",
+    "/IMG_8141.jpg",
+    "/IMG_8159.jpg",
+    "/Screenshot 2026-01-31 010115.png",
   ]
-  const [activeSlide, setActiveSlide] = useState(0)
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % slides.length)
-    }, 3500)
-    return () => clearInterval(interval)
-  }, [slides.length])
+  const slideTrack = useMemo(() => [...slides, ...slides], [slides])
 
   return (
     <section className="w-full -mt-2 lg:-mt-4">
@@ -54,41 +48,23 @@ export default function StatsSection() {
             </div>
           </div>
         </div>
-        <div className="mx-auto mt-6 max-w-4xl px-6">
-          <div className="relative aspect-[5/3] w-full overflow-hidden rounded-3xl border border-white/10 bg-black/60 shadow-[0_22px_60px_rgba(0,0,0,0.4)]">
-            <motion.div
-              className="flex h-full"
-              style={{ width: `${slides.length * 100}%` }}
-              animate={{ x: `-${activeSlide * (100 / slides.length)}%` }}
-              transition={{ type: "tween", duration: 0.7, ease: "easeInOut" }}
-            >
-              {slides.map((src, index) => (
+        <div className="mx-auto mt-6 max-w-5xl px-6">
+          <div className="relative w-full overflow-hidden rounded-3xl border border-white/10 bg-black/60 shadow-[0_22px_60px_rgba(0,0,0,0.4)]">
+            <div className="flex w-max animate-slide-track gap-4 py-4">
+              {slideTrack.map((src, index) => (
                 <div
-                  key={src}
-                  className="relative h-full shrink-0"
-                  style={{ width: `${100 / slides.length}%` }}
+                  key={`${src}-${index}`}
+                  className="relative h-[220px] w-[300px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/80 sm:h-[240px] sm:w-[360px] md:h-[260px] md:w-[420px] lg:h-[280px] lg:w-[520px]"
                 >
-                  <Image
+                  <img
                     src={src}
                     alt={`Delta Sports screenshot ${index + 1}`}
-                    fill
-                    className="object-contain"
-                    sizes="(max-width: 768px) 100vw, 960px"
-                    priority={index === 0}
+                    className="h-full w-full object-contain"
+                    loading={index < slides.length ? "eager" : "lazy"}
                   />
                 </div>
               ))}
-            </motion.div>
-          </div>
-          <div className="mt-3 flex items-center justify-center gap-2">
-            {slides.map((_, index) => (
-              <span
-                key={`dot-${index}`}
-                className={`h-2 w-2 rounded-full transition-colors ${
-                  index === activeSlide ? "bg-[#34d399]" : "bg-white/30"
-                }`}
-              />
-            ))}
+            </div>
           </div>
         </div>
       </div>

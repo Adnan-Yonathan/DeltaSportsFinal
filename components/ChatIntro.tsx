@@ -281,6 +281,25 @@ export default function ChatIntro({
             className="w-full"
           >
             <FeaturesSix />
+            <SectionWithMockup
+              title={
+                <>
+                  Sharp Traders
+                  <br />
+                  reveals the wallets moving markets.
+                </>
+              }
+              description={
+                <>
+                  Follow the most profitable Polymarket wallets and see the open sports trades
+                  they still hold. Track conviction in real time and spot the positions sharps
+                  are leaning into before the public catches up.
+                </>
+              }
+              primaryImageSrc="/Screenshot 2026-01-31 094051.png"
+              secondaryImageSrc="/sharp-traders-blur.png"
+              reverseLayout
+            />
             <FeaturesSix
               title="Learn the infrastructure behind sharp money"
               description="Research mode breaks down where sharp money moves, who moves it, and how lines react in real time."

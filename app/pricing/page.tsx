@@ -14,12 +14,6 @@ export default function PricingPage() {
       </div>
       <div className="-mt-5 md:-mt-10 origin-top scale-[0.68] sm:scale-[0.74] lg:scale-[0.8] flex flex-col items-center">
         <PricingSectionDemo />
-        <Link
-          href="/chat"
-          className="mt-0 text-sm uppercase tracking-[0.3em] text-white/70 hover:text-white transition-colors leading-tight"
-        >
-          Continue free
-        </Link>
       </div>
     </main>
   )

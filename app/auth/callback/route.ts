@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
 
       const membership = getMembershipStatusFromMetadata(user.user_metadata)
       if (!membership.hasPaidAccess) {
-        return NextResponse.redirect(new URL('/sharp-detector', requestUrl.origin))
+        return NextResponse.redirect(new URL('/pricing', requestUrl.origin))
       }
     }
   }

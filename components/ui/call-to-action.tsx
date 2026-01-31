@@ -43,7 +43,7 @@ export default function StatsSection() {
                 size="lg"
                 className="h-12 w-full justify-center text-sm bg-[#34d399] text-black hover:bg-[#16a34a] sm:w-60 sm:text-base"
               >
-                <Link href="/auth/login">Start Winning</Link>
+                <Link href="/auth/signup">Start Winning</Link>
               </Button>
             </div>
           </div>

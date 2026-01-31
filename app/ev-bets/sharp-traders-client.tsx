@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { formatCurrency } from "@/lib/utils/odds"
 
 type OpenTrade = {
@@ -29,6 +29,14 @@ type SharpTradersResponse = {
 }
 
 const BASE_URL = "/api/polymarket/wallets/top-profit"
+
+type SearchParams = {
+  tradeLimit: number
+  tradePages: number
+  top: number
+  minTradeSamples: number
+  openTradeLimit: number
+}
 
 const formatNumber = (value?: number | null, digits = 2) => {
   if (value == null || !Number.isFinite(value)) return "n/a"
@@ -80,48 +88,97 @@ const isTradeInWindow = (endDate?: string | null) => {
 export default function SharpTradersClient({ previewMode }: { previewMode: boolean }) {
   const [data, setData] = useState<SharpTradersResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedWallets, setExpandedWallets] = useState<Record<string, boolean>>({})
   const [sportFilter, setSportFilter] = useState<string>("all")
-  const [searchParams, setSearchParams] = useState({
-    tradeLimit: 500,
-    tradePages: 10,
-    top: 50,
-    minTradeSamples: 5000,
-  })
+  const initialParams = useMemo(
+    () => ({
+      tradeLimit: 250,
+      tradePages: 3,
+      top: 20,
+      minTradeSamples: 2000,
+      openTradeLimit: 3,
+    }),
+    []
+  )
+  const fullParams = useMemo(
+    () => ({
+      tradeLimit: 500,
+      tradePages: 10,
+      top: 50,
+      minTradeSamples: 5000,
+      openTradeLimit: 0,
+    }),
+    []
+  )
+  const [searchParams, setSearchParams] = useState(initialParams)
+  const [hasRequestedFull, setHasRequestedFull] = useState(false)
+  const [hasFullData, setHasFullData] = useState(false)
+  const requestIdRef = useRef(0)
 
-  useEffect(() => {
-    let isMounted = true
-    const load = async () => {
-      setLoading(true)
-      setError(null)
+  const loadData = useCallback(
+    async (params: SearchParams, opts?: { updateSearch?: boolean; background?: boolean; markFull?: boolean }) => {
+      const requestId = requestIdRef.current + 1
+      requestIdRef.current = requestId
+      if (opts?.background) {
+        setLoadingMore(true)
+      } else {
+        setLoading(true)
+        setError(null)
+      }
       try {
-        const params = new URLSearchParams({
-          tradeLimit: String(searchParams.tradeLimit),
-          tradePages: String(searchParams.tradePages),
-          top: String(searchParams.top),
-          minTradeSamples: String(searchParams.minTradeSamples),
+        const search = new URLSearchParams({
+          tradeLimit: String(params.tradeLimit),
+          tradePages: String(params.tradePages),
+          top: String(params.top),
+          minTradeSamples: String(params.minTradeSamples),
         })
-        const res = await fetch(`${BASE_URL}?${params.toString()}`, { cache: "no-store" })
+        if (params.openTradeLimit) {
+          search.set("openTradeLimit", String(params.openTradeLimit))
+        }
+        const res = await fetch(`${BASE_URL}?${search.toString()}`, { cache: "no-store" })
         if (!res.ok) {
           const body = await res.json().catch(() => ({}))
           throw new Error(body?.error || "Failed to load sharp traders.")
         }
         const payload = (await res.json()) as SharpTradersResponse
-        if (!isMounted) return
+        if (requestIdRef.current !== requestId) return
         setData(payload)
+        if (opts?.updateSearch) {
+          setSearchParams(params)
+        }
+        if (opts?.markFull) {
+          setHasFullData(true)
+        }
       } catch (err) {
-        if (!isMounted) return
-        setError(err instanceof Error ? err.message : "Failed to load sharp traders.")
+        if (requestIdRef.current !== requestId) return
+        if (!opts?.background) {
+          setError(err instanceof Error ? err.message : "Failed to load sharp traders.")
+        }
       } finally {
-        if (isMounted) setLoading(false)
+        if (requestIdRef.current !== requestId) return
+        if (opts?.background) {
+          setLoadingMore(false)
+        } else {
+          setLoading(false)
+        }
       }
-    }
-    load()
-    return () => {
-      isMounted = false
-    }
-  }, [searchParams])
+    },
+    []
+  )
+
+  useEffect(() => {
+    void loadData(initialParams, { updateSearch: true })
+  }, [initialParams, loadData])
+
+  useEffect(() => {
+    if (hasRequestedFull) return
+    if (!data) return
+    setHasRequestedFull(true)
+    // Fire the full fetch in the background after initial render.
+    void loadData(fullParams, { updateSearch: true, background: true, markFull: true })
+  }, [data, fullParams, hasRequestedFull, loadData])
 
   const wallets = useMemo(() => {
     const rows = data?.wallets ?? []
@@ -170,17 +227,13 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() =>
-              setSearchParams((prev) => ({
-                tradeLimit: prev.tradeLimit,
-                tradePages: Math.min(20, prev.tradePages + 5),
-                top: Math.min(150, prev.top + 25),
-                minTradeSamples: Math.min(20000, prev.minTradeSamples + 5000),
-              }))
-            }
+            onClick={() => {
+              setHasRequestedFull(true)
+              void loadData(fullParams, { updateSearch: true, background: false, markFull: true })
+            }}
             className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-white/70 transition-colors hover:border-emerald-400/50 hover:text-emerald-200"
           >
-            Expand search
+            Load full search
           </button>
           <span className="text-[11px] text-white/40">
             Pages: {searchParams.tradePages} · Top: {searchParams.top}
@@ -220,6 +273,11 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
       {loading && (
         <div className="rounded-2xl border border-white/10 bg-black/40 p-6 text-sm text-white/60">
           Loading sharp traders...
+        </div>
+      )}
+      {!loading && loadingMore && (
+        <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-xs text-white/60">
+          Loading full trades in the background...
         </div>
       )}
 
@@ -314,7 +372,12 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
                   </div>
                 </div>
               ))}
-              {wallet.open_trades.length > 3 && (
+              {!hasFullData && wallet.open_trades.length >= 3 && (
+                <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-xs text-white/60">
+                  Loading more trades for this wallet...
+                </div>
+              )}
+              {hasFullData && wallet.open_trades.length > 3 && (
                 <div className="flex justify-center">
                   <button
                     type="button"

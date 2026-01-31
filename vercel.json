@@ -38,6 +38,9 @@
     },
     "app/api/cron/generate-daily-recap/route.ts": {
       "maxDuration": 300
+    },
+    "app/api/cron/refresh-sharp-traders/route.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
@@ -84,6 +87,10 @@
     {
       "path": "/api/cron/generate-daily-recap",
       "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-sharp-traders",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

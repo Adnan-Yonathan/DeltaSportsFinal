@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server'
+import { getSharpTradersCache, setSharpTradersCache } from '@/lib/services/polymarket-sharp-traders-cache'
 
 const DATA_API_BASE = 'https://data-api.polymarket.com'
 
 const DEFAULT_TRADE_LIMIT = 500
-const DEFAULT_TRADE_PAGES = 6
-const DEFAULT_TOP_WALLETS = 25
-const DEFAULT_MIN_TRADE_SAMPLES = 2000
+const DEFAULT_TRADE_PAGES = 10
+const DEFAULT_TOP_WALLETS = 50
+const DEFAULT_MIN_TRADE_SAMPLES = 5000
+const FULL_CACHE_KEY = 'sharp_traders_full_v1'
+const CACHE_TTL_MS = 5 * 60 * 1000
 
 const POLYMARKET_SPORT_PREFIXES = [
   'nba-',
@@ -178,23 +181,39 @@ const asyncPool = async <T, R>(
   return Promise.allSettled(ret)
 }
 
-const CACHE_TTL_MS = 60 * 1000
 let lastPayload: { timestamp: number; data: any } | null = null
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const tradeLimit = Number(searchParams.get('tradeLimit') ?? DEFAULT_TRADE_LIMIT)
-  const tradePages = Number(searchParams.get('tradePages') ?? DEFAULT_TRADE_PAGES)
-  const top = Number(searchParams.get('top') ?? DEFAULT_TOP_WALLETS)
-  const minTradeSamples = Number(searchParams.get('minTradeSamples') ?? DEFAULT_MIN_TRADE_SAMPLES)
+const applyOpenTradeLimit = (payload: { wallets: WalletRow[] }, limit?: number | null) => {
+  if (!limit || !Number.isFinite(limit)) return payload
+  return {
+    ...payload,
+    wallets: payload.wallets.map((wallet) => ({
+      ...wallet,
+      open_trades: wallet.open_trades.slice(0, limit),
+    })),
+  }
+}
 
-  const limitValue = Number.isFinite(tradeLimit) ? Math.max(100, Math.min(tradeLimit, 1000)) : DEFAULT_TRADE_LIMIT
-  const pagesValue = Number.isFinite(tradePages) ? Math.max(1, Math.min(tradePages, 20)) : DEFAULT_TRADE_PAGES
-  const topValue = Number.isFinite(top) ? Math.max(1, Math.min(top, 100)) : DEFAULT_TOP_WALLETS
-  const sampleTarget = Number.isFinite(minTradeSamples)
-    ? Math.max(500, Math.min(minTradeSamples, 20000))
-    : DEFAULT_MIN_TRADE_SAMPLES
+const isCacheFresh = (timestamp: string | null | undefined) => {
+  if (!timestamp) return false
+  const parsed = new Date(timestamp)
+  if (Number.isNaN(parsed.getTime())) return false
+  return Date.now() - parsed.getTime() < CACHE_TTL_MS
+}
 
+const buildPayload = async ({
+  limitValue,
+  pagesValue,
+  topValue,
+  sampleTarget,
+  openTradeLimitValue,
+}: {
+  limitValue: number
+  pagesValue: number
+  topValue: number
+  sampleTarget: number
+  openTradeLimitValue: number | null
+}) => {
   const walletSet = new Set<string>()
   let fetchedTrades = 0
 
@@ -210,7 +229,7 @@ export async function GET(request: Request) {
 
   const wallets = Array.from(walletSet)
   if (wallets.length === 0) {
-    return NextResponse.json({ wallets: [] })
+    return { wallets: [] as WalletRow[], fetched_wallets: 0, sampled_trades: fetchedTrades }
   }
 
   const cutoff = new Date()
@@ -242,21 +261,27 @@ export async function GET(request: Request) {
         }
       }
 
+      const mappedTrades = openTrades.map((row) => ({
+        title: row.title ?? null,
+        slug: row.slug ?? null,
+        event_slug: row.eventSlug ?? null,
+        outcome: row.outcome ?? null,
+        size: row.size ?? null,
+        avg_price: row.avgPrice ?? null,
+        cash_pnl: row.cashPnl ?? null,
+        cur_price: row.curPrice ?? null,
+        end_date: row.endDate ?? null,
+      }))
+
+      const limitedTrades = openTradeLimitValue
+        ? mappedTrades.slice(0, openTradeLimitValue)
+        : mappedTrades
+
       return {
         wallet,
         total_pnl: Number(totalPnl.toFixed(2)),
         pnl_30d: Number(pnl30d.toFixed(2)),
-        open_trades: openTrades.map((row) => ({
-          title: row.title ?? null,
-          slug: row.slug ?? null,
-          event_slug: row.eventSlug ?? null,
-          outcome: row.outcome ?? null,
-          size: row.size ?? null,
-          avg_price: row.avgPrice ?? null,
-          cash_pnl: row.cashPnl ?? null,
-          cur_price: row.curPrice ?? null,
-          end_date: row.endDate ?? null,
-        })),
+        open_trades: limitedTrades,
       }
     } catch {
       return null
@@ -271,17 +296,63 @@ export async function GET(request: Request) {
     .sort((a, b) => b.total_pnl - a.total_pnl)
     .slice(0, topValue)
 
-  const payload = {
+  return {
     wallets: topWallets,
     fetched_wallets: wallets.length,
     sampled_trades: fetchedTrades,
   }
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const tradeLimit = Number(searchParams.get('tradeLimit') ?? DEFAULT_TRADE_LIMIT)
+  const tradePages = Number(searchParams.get('tradePages') ?? DEFAULT_TRADE_PAGES)
+  const top = Number(searchParams.get('top') ?? DEFAULT_TOP_WALLETS)
+  const minTradeSamples = Number(searchParams.get('minTradeSamples') ?? DEFAULT_MIN_TRADE_SAMPLES)
+  const openTradeLimitParam = searchParams.get('openTradeLimit')
+  const openTradeLimit = openTradeLimitParam ? Number(openTradeLimitParam) : Number.NaN
+
+  const limitValue = Number.isFinite(tradeLimit) ? Math.max(100, Math.min(tradeLimit, 1000)) : DEFAULT_TRADE_LIMIT
+  const pagesValue = Number.isFinite(tradePages) ? Math.max(1, Math.min(tradePages, 20)) : DEFAULT_TRADE_PAGES
+  const topValue = Number.isFinite(top) ? Math.max(1, Math.min(top, 100)) : DEFAULT_TOP_WALLETS
+  const sampleTarget = Number.isFinite(minTradeSamples)
+    ? Math.max(500, Math.min(minTradeSamples, 20000))
+    : DEFAULT_MIN_TRADE_SAMPLES
+  const openTradeLimitValue = Number.isFinite(openTradeLimit)
+    ? Math.max(1, Math.min(openTradeLimit, 20))
+    : null
+
+  const wantsFullDefaults =
+    limitValue === DEFAULT_TRADE_LIMIT &&
+    pagesValue === DEFAULT_TRADE_PAGES &&
+    topValue === DEFAULT_TOP_WALLETS &&
+    sampleTarget === DEFAULT_MIN_TRADE_SAMPLES
+
+  if (openTradeLimitValue || wantsFullDefaults) {
+    const cached = await getSharpTradersCache(FULL_CACHE_KEY)
+    if (cached && isCacheFresh(cached.fetched_at)) {
+      const payload = cached.payload as { wallets: WalletRow[]; fetched_wallets: number; sampled_trades: number }
+      return NextResponse.json({ ...applyOpenTradeLimit(payload, openTradeLimitValue), cached: true })
+    }
+  }
+
+  const payload = await buildPayload({
+    limitValue,
+    pagesValue,
+    topValue,
+    sampleTarget,
+    openTradeLimitValue,
+  })
 
   if (!payload.wallets.length && lastPayload && Date.now() - lastPayload.timestamp < CACHE_TTL_MS) {
     return NextResponse.json({ ...lastPayload.data, cached: true })
   }
 
   lastPayload = { timestamp: Date.now(), data: payload }
+
+  if (wantsFullDefaults && payload.wallets.length > 0) {
+    await setSharpTradersCache(FULL_CACHE_KEY, payload)
+  }
 
   return NextResponse.json(payload)
 }

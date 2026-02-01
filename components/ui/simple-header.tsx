@@ -16,6 +16,8 @@ import {
   MessageSquare,
   Percent,
   Target,
+  Users,
+  Zap,
 } from "lucide-react"
 
 const navLinks = [
@@ -33,6 +35,8 @@ const TOOL_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>>
   eye: Eye,
   "message-square": MessageSquare,
   clock: Clock,
+  users: Users,
+  zap: Zap,
 }
 
 export function SimpleHeader({

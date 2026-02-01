@@ -12,155 +12,117 @@ export type ToolContent = {
 
 export const TOOLS_CONTENT: ToolContent[] = [
   {
-    id: "sharp-projections",
-    label: "Sharp Projections",
+    id: "sharp-detector",
+    label: "Whale Feed",
+    route: "/sharp-detector",
+    icon: "eye",
+    summary:
+      "Live feed of market-moving bets, sharp wallets, and clustered action.",
+    description:
+      "Whale Feed tracks high-notional bets across prediction markets and groups them by game so you can see where sharp money is concentrating. It pairs bet size with timing and wallet context to surface true conviction.",
+    howToUse:
+      "Filter by sport, size, or wallet, then focus on games with multiple large bets. Use the wallet tags and strength signals to validate whether a move is worth following.",
+    unique:
+      "It combines bet size, wallet history, and clustering so you see real pressure, not just isolated bets.",
+    useCases: [
+      "Tracking sharp steam before lines move.",
+      "Monitoring trusted wallets on game day.",
+      "Validating a position with live money flow.",
+    ],
+  },
+  {
+    id: "market-projections",
+    label: "Market Projections",
     route: "/market-projections",
     icon: "line-chart",
     summary:
-      "Market-level projections that translate model signals into fair prices, confidence, and edge.",
+      "Game-level projections mapped to fair prices, confidence, and edge.",
     description:
-      "Sharp Projections turns raw modeling into actionable market prices, showing where listed lines diverge from fair value. It layers confidence, market movement, and implied probability so you can see the strongest edges without guessing.",
+      "Market Projections converts model output into fair lines and probability ranges, so you can quickly see where the market is mispriced. It ties projections directly to listed odds to highlight value.",
     howToUse:
-      "Choose a sport and slate, sort by edge or confidence, and open matchups to compare fair price vs market price. Focus on lines that stay positive across books, then track movement to time entries.",
+      "Choose a sport and slate, sort by edge or confidence, and compare the fair price to each book. Prioritize lines that stay positive across multiple books.",
     unique:
-      "Instead of just showing projections, it ties the projection to the actual market price and highlights the exact gap. You are always comparing value, not just performance.",
+      "You always compare projection vs price, not just a raw stat projection.",
     useCases: [
-      "Early slate hunting before lines move.",
-      "Cross-book price shopping for the best edge.",
-      "Validating market confidence before placing a bet.",
+      "Finding early slate value before the market shifts.",
+      "Price shopping across books to lock in edge.",
+      "Filtering to the most confident sides and totals.",
     ],
   },
   {
-    id: "sharp-props",
-    label: "Sharp Props",
-    route: "/player-projections",
+    id: "player-prop-odds",
+    label: "Player Prop Odds",
+    route: "/player-prop-odds",
+    icon: "users",
+    summary:
+      "Best prop prices across books with quick EV and discrepancy flags.",
+    description:
+      "Player Prop Odds aggregates prop lines across sportsbooks, highlights the best over/under prices, and surfaces EV signals from consensus pricing.",
+    howToUse:
+      "Filter by market or team, scan for the best prices, and focus on props showing strong discrepancies or EV markers.",
+    unique:
+      "It surfaces both best price and implied edge in one view, so you can act fast.",
+    useCases: [
+      "Finding the best price on a specific prop.",
+      "Spotting mispriced props before books sync.",
+      "Building prop cards with clear value flags.",
+    ],
+  },
+  {
+    id: "line-shopping",
+    label: "Line Shopping",
+    route: "/line-shopping",
     icon: "target",
     summary:
-      "Player prop projections with matchup context, usage rates, and probability splits.",
+      "Side-by-side odds comparison across books for spreads, totals, and moneylines.",
     description:
-      "Sharp Props focuses on player markets, blending projections with opponent tendencies, usage trends, and form. It flags props that are lagging behind recent performance or matchup dynamics.",
+      "Line Shopping scans major sportsbooks so you can instantly see where each line is best. It highlights the price gaps that swing EV from negative to positive.",
     howToUse:
-      "Filter by sport or player, compare the projection to the listed line, and review context notes for matchup or role changes. Prioritize props with stable edges across multiple books.",
+      "Pick the market, compare the best prices, and lock your bet at the top line. Re-check after news to see which book lags.",
     unique:
-      "It is built around player-specific signals instead of generic averages, so the projections adapt to usage, pace, and opponent style.",
+      "It shows the full price distribution so you can see how far off each book is.",
     useCases: [
-      "Finding mispriced lines before public news moves them.",
-      "Building prop ladders from stable projection gaps.",
-      "Stacking correlated props around the same game script.",
+      "Maximizing edge by selecting the best book.",
+      "Tracking which books are slow to move.",
+      "Finding +EV prices before they close.",
     ],
   },
   {
-    id: "parlay-pro",
-    label: "Parlay Pro",
+    id: "parlay-predictor",
+    label: "Parlay Predictor",
     route: "/parlay-predictor",
     icon: "layers",
     summary:
-      "Sportsbook EV parlays plus a builder for custom multi-leg tickets.",
+      "EV parlays plus a builder for custom multi-leg tickets.",
     description:
-      "Parlay Pro surfaces pregame EV parlays using cross-market sportsbook consensus, then lets you build your own tickets with correlation-aware probability math.",
+      "Parlay Predictor surfaces positive-EV parlays from sportsbook pricing, then lets you build your own tickets with correlation-aware math.",
     howToUse:
-      "Start on the EV Parlays tab to grab a sportsbook-ready ticket, then switch to Build Your Own to stack correlated legs. Only keep tickets that meet the listed minimum odds for 3%+ EV.",
+      "Start with the EV list, then switch to Build Your Own to stack legs. Keep tickets that meet the listed minimum odds for +EV.",
     unique:
-      "It combines sportsbook-only EV scans with correlation checks, so you can price-shop and still understand whether a parlay stays +EV.",
+      "It blends sportsbook-only pricing with correlation checks to keep parlays honest.",
     useCases: [
-      "Taking sportsbook EV parlays above a 3% edge.",
-      "Building 2-5 leg parlays with verified edges.",
-      "Checking the minimum odds needed to keep a parlay +EV.",
+      "Taking EV parlays above a 3% edge.",
+      "Building 2-5 leg parlays with verified value.",
+      "Checking minimum odds to keep a parlay +EV.",
     ],
   },
   {
     id: "sharp-traders",
     label: "Sharp Traders",
     route: "/sharp-traders",
-    icon: "percent",
+    icon: "zap",
     summary:
-      "Top-profit Polymarket wallets with their latest open sports trades.",
+      "Top-profit prediction market wallets and their live open positions.",
     description:
-      "Sharp Traders tracks profitable wallets and surfaces the live sports positions they are still holding. It shows recent conviction, open exposure, and what the sharp wallets are leaning into right now.",
+      "Sharp Traders highlights the most profitable wallets and shows the positions they are still holding. It helps you see where sharp accounts are allocating right now.",
     howToUse:
-      "Filter by sport, scan each wallet's open trades, and track the positions that repeat across multiple sharp wallets.",
+      "Filter by sport, scan each wallet's open trades, and note positions that repeat across multiple sharp wallets.",
     unique:
-      "Instead of static leaderboards, it links wallet performance directly to live, unsettled trades.",
+      "It links wallet performance directly to live, unsettled trades.",
     useCases: [
-      "Spotting sharp wallets before lines move.",
       "Following repeat positions across profitable wallets.",
+      "Spotting sharp wallets before lines move.",
       "Monitoring open exposure on game day.",
-    ],
-  },
-  {
-    id: "live-projections",
-    label: "Live Projections",
-    route: "/live-projections",
-    icon: "activity",
-    summary:
-      "ESPN win probability with live spread ranges and confidence bands.",
-    description:
-      "Live Projections turns ESPN win probability into a live spread range, shrinking the interval as the game progresses. It is designed for live betting and hedging decisions.",
-    howToUse:
-      "Watch the ESPN win probability meter and compare the spread range to your live book. Focus on moments where the market lags behind a major shift.",
-    unique:
-      "Real-time recalculation means you are not relying on stale pregame numbers. The model adapts with every meaningful update.",
-    useCases: [
-      "Catching live totals swings before the books adjust.",
-      "Finding mid-game sides when pace flips.",
-      "Hedging positions after unexpected runs.",
-    ],
-  },
-  {
-    id: "sharp-detector",
-    label: "Whale Feed",
-    route: "/sharp-detector",
-    icon: "eye",
-    summary:
-      "Tracks large market-moving bets, wallet behavior, and sharp signal clustering.",
-    description:
-      "Whale Feed monitors high-notional bets and trusted wallet behavior to reveal where sharp money is flowing. It lets you track clusters and timing, not just isolated bets.",
-    howToUse:
-      "Filter by game, size, or wallet, then look for clusters of big bets in the same market. Use the timing and wallet history to judge whether a move is real.",
-    unique:
-      "It combines bet size, timing, and wallet history so you can see patterns and conviction.",
-    useCases: [
-      "Following sharp steam on key markets.",
-      "Validating your own edges before betting.",
-      "Tracking trusted wallets over time.",
-    ],
-  },
-  {
-    id: "ai-chat",
-    label: "AI Chat",
-    route: "/chat",
-    icon: "message-square",
-    summary:
-      "Natural-language assistant for matchups, edges, and tool guidance.",
-    description:
-      "AI Chat provides instant analysis, explanations, and tool recommendations based on the same data powering the platform. It is the fastest way to ask a question and get a structured answer.",
-    howToUse:
-      "Ask about a matchup, request a market summary, or have it explain an edge. Use follow-ups to refine the output into a bet plan.",
-    unique:
-      "It is integrated with the platform data, so the responses reflect live tools and projections rather than generic advice.",
-    useCases: [
-      "Quick research before building a card.",
-      "Explaining why a line moved.",
-      "Finding the best tool for a specific bet type.",
-    ],
-  },
-  {
-    id: "live-odds",
-    label: "Live Odds",
-    route: "/live-scores",
-    icon: "clock",
-    summary:
-      "Real-time odds paired with live scores so you can track movement as games unfold.",
-    description:
-      "Live Odds pairs scoreboards with live lines, giving you a live view of spreads, totals, and moneylines. It helps you time entries and understand the reason behind line movement.",
-    howToUse:
-      "Pick a sport or game, monitor the live odds, and compare them to live game state. Watch for sudden shifts after key plays.",
-    unique:
-      "It combines live scoring context with pricing, which makes odds movement easier to interpret.",
-    useCases: [
-      "Timing live entries after momentum swings.",
-      "Tracking market movement across games.",
-      "Finding hedge opportunities during live action.",
     ],
   },
 ]

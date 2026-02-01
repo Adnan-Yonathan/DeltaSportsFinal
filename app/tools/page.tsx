@@ -11,6 +11,8 @@ import {
   MessageSquare,
   Percent,
   Target,
+  Users,
+  Zap,
 } from "lucide-react"
 
 const TOOL_ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
@@ -22,6 +24,8 @@ const TOOL_ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
   eye: Eye,
   "message-square": MessageSquare,
   clock: Clock,
+  users: Users,
+  zap: Zap,
 }
 
 export default function ToolsPage() {

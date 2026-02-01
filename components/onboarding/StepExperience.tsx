@@ -2,6 +2,8 @@
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Sparkles, TrendingUp, Target } from "lucide-react"
+import { GuestHero } from "@/components/ui/guest-hero"
+import { GlareCard } from "@/components/ui/glare-card"
 
 interface StepExperienceProps {
   value: string
@@ -45,15 +47,16 @@ export function StepExperience({ value, onChange, onValidation }: StepExperience
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <div className="text-center space-y-2">
-        <p className="text-xs uppercase tracking-[0.3em] text-white/40">Experience</p>
-        <h2 className="text-4xl font-bold text-white tracking-tight">
-          How would you describe your betting experience?
-        </h2>
-        <p className="text-white/60">This helps us tune recommendations.</p>
-      </div>
+      <GuestHero
+        eyebrow="Experience"
+        title="What is your experience level?"
+        subtitle="This helps us tune recommendations."
+        compact
+        useCommitsGrid
+      />
 
-      <div className="max-w-2xl mx-auto space-y-4">
+      <div className="max-w-5xl mx-auto">
+        <div className="flex flex-wrap justify-center gap-4">
         {EXPERIENCE_LEVELS.map((level) => {
           const isSelected = value === level.id
           const Icon = level.icon
@@ -61,41 +64,35 @@ export function StepExperience({ value, onChange, onValidation }: StepExperience
             <motion.button
               key={level.id}
               onClick={() => onChange(level.id)}
-              className={`
-                relative w-full p-6 rounded-2xl border transition-all text-left
-                ${isSelected
-                  ? "bg-gradient-to-b from-emerald-500/15 via-emerald-500/10 to-transparent border-emerald-400/70 shadow-[0_14px_40px_rgba(16,185,129,0.2)]"
-                  : "bg-white/[0.03] border-white/10 hover:border-emerald-300/40"
-                }
-              `}
+              className="relative"
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
             >
-              <div className="flex items-start gap-4">
-                <div
-                  className={`
-                    p-3 rounded-xl bg-gradient-to-br ${level.color}
-                    ${isSelected ? "ring-2 ring-white/20" : ""}
-                  `}
-                >
-                  <Icon className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="text-xl font-semibold text-white">{level.name}</h3>
+              <div className="relative scale-[0.9] sm:scale-95">
+                <GlareCard className="flex h-full w-full flex-col justify-between p-5">
+                  <div className="flex items-start justify-between">
+                    <div className={`p-3 rounded-xl bg-gradient-to-br ${level.color}`}>
+                      <Icon className="w-6 h-6 text-white" />
+                    </div>
                     {isSelected && (
-                      <div className="flex items-center gap-2 text-emerald-400 text-sm">
-                        <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                        Selected
+                      <div className="rounded-full bg-emerald-500 p-1">
+                        <div className="w-2 h-2 rounded-full bg-white" />
                       </div>
                     )}
                   </div>
-                  <p className="text-white/60">{level.description}</p>
-                </div>
+                  <div className="mt-6">
+                    <h3 className="text-xl font-semibold text-white">{level.name}</h3>
+                    <p className="mt-2 text-white/60 text-sm">{level.description}</p>
+                  </div>
+                </GlareCard>
+                {isSelected && (
+                  <span className="pointer-events-none absolute inset-0 rounded-[48px] ring-2 ring-emerald-400/60" />
+                )}
               </div>
             </motion.button>
           )
         })}
+        </div>
       </div>
 
       {!value && (

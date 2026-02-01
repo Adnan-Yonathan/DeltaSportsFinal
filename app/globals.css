@@ -88,6 +88,146 @@ a {
   animation: fadeInUp 0.6s ease-out both;
 }
 
+@keyframes moveDot {
+  0%, 100% {
+    top: 10%;
+    right: 10%;
+  }
+  25% {
+    top: 10%;
+    right: calc(100% - 35px);
+  }
+  50% {
+    top: calc(100% - 30px);
+    right: calc(100% - 35px);
+  }
+  75% {
+    top: calc(100% - 30px);
+    right: 10%;
+  }
+}
+
+@keyframes matrixOverlayOut {
+  0% {
+    opacity: 0.85;
+  }
+  70% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.matrix-scramble {
+  position: relative;
+  overflow: hidden;
+}
+
+.matrix-scramble::before {
+  content: "0101100110010110010010110010110100101100101101001100101010011010\n1100101101001011001010010110010010110100101100101001011001001011\n0010110010110100101100101001011001001011001011010010110010100101";
+  position: absolute;
+  inset: 0;
+  padding: 18px;
+  color: rgba(52, 211, 153, 0.45);
+  font-size: 12px;
+  letter-spacing: 0.35em;
+  line-height: 1.6;
+  font-family: var(--font-hero);
+  text-transform: uppercase;
+  opacity: 0.8;
+  animation: matrixOverlayOut 2.6s ease forwards;
+  pointer-events: none;
+  white-space: pre-wrap;
+}
+
+.outer {
+  position: relative;
+  width: 180px;
+  height: 140px;
+}
+
+.dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #34d399;
+  animation: moveDot 3s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.5);
+}
+
+.card {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  border-radius: 18px;
+  background: #0a0f1c;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.ray {
+  position: absolute;
+  inset: -40%;
+  background: radial-gradient(circle, rgba(52, 211, 153, 0.2), transparent 60%);
+  animation: pulse 2.5s ease-in-out infinite;
+}
+
+.text {
+  position: relative;
+  font-size: 28px;
+  font-weight: 700;
+  color: #ffffff;
+  z-index: 1;
+}
+
+.label {
+  position: relative;
+  margin-top: -6px;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  z-index: 1;
+}
+
+.line {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.topl {
+  top: 12px;
+  left: 12px;
+  height: 1px;
+  width: 40px;
+}
+
+.leftl {
+  top: 12px;
+  left: 12px;
+  width: 1px;
+  height: 40px;
+}
+
+.bottoml {
+  bottom: 12px;
+  right: 12px;
+  height: 1px;
+  width: 40px;
+}
+
+.rightl {
+  bottom: 12px;
+  right: 12px;
+  width: 1px;
+  height: 40px;
+}
+
+
 @keyframes accordion-down {
   from {
     height: 0;

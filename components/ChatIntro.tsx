@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { Twitter } from 'lucide-react'
-import { LatestNewsStrip } from '@/components/ui/latest-news-strip'
-import { AnimatedHero } from '@/components/ui/animated-hero'
+import { CardStack, type CardStackItem } from '@/components/ui/card-stack'
 import { GuestHero } from '@/components/ui/guest-hero'
 import StatsSection from '@/components/ui/call-to-action'
 import { ROICalculator } from '@/components/ui/roi-calculator'
@@ -14,7 +13,6 @@ import { FeaturesSix } from '@/components/ui/features-6'
 import SectionWithMockup from '@/components/ui/section-with-mockup'
 import { ArrowUpRight } from 'lucide-react'
 import ModeToggle, { type DeltaMode } from '@/components/ModeToggle'
-import TutorialPopup from '@/components/TutorialPopup'
 
 const DISCORD_INVITE_URL = 'https://discord.gg/8jUcaKT9'
 
@@ -53,8 +51,98 @@ export default function ChatIntro({
     label: string
     detail: string
   } | null>(null)
-  const [activeGuideId, setActiveGuideId] = useState<string | null>(null)
-  const [guideOpen, setGuideOpen] = useState(false)
+  const [cardSize, setCardSize] = useState({ width: 520, height: 320 })
+  const projectionItems: CardStackItem[] = [
+    {
+      id: 'projection',
+      title: projectionPreview?.label ?? 'Sharp Projection',
+      description: projectionPreview?.detail ?? 'Latest model edge loading...',
+      imageSrc:
+        'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1400&q=80',
+      href: '/market-projections',
+      tag: 'Projection',
+    },
+    {
+      id: 'ev-prop',
+      title: propPreview?.label ?? 'EV Prop',
+      description: propPreview?.detail ?? 'Scanning prop value...',
+      imageSrc:
+        'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=1400&q=80',
+      href: '/player-projections',
+      tag: 'Prop',
+    },
+    {
+      id: 'line-shopper',
+      title: 'Betting Line Shopper',
+      description: 'Compare spreads, totals, and moneylines across books.',
+      imageSrc:
+        'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1400&q=80',
+      href: '/line-shopping',
+      tag: 'Line Shopping',
+    },
+    {
+      id: 'parlay',
+      title: parlayPreview?.label ?? 'High-EV Parlay',
+      description: parlayPreview?.detail ?? 'Finding high-EV parlays...',
+      imageSrc:
+        'https://images.unsplash.com/photo-1450101215322-bf5cd27642fc?auto=format&fit=crop&w=1400&q=80',
+      href: '/parlay-predictor',
+      tag: 'Parlay',
+    },
+    {
+      id: 'sharp-wallets',
+      title: 'Sharp Wallets',
+      description: 'Track profitable traders and their open positions.',
+      imageSrc:
+        'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1400&q=80',
+      href: '/sharp-traders',
+      tag: 'Sharp Traders',
+    },
+  ]
+  const researchItems: CardStackItem[] = [
+    {
+      id: 'sharp-action',
+      title: 'Sharp Action',
+      description: 'Narrative explanations for why sharps target specific games.',
+      href: '/research/sharp-action',
+      tag: 'Research',
+    },
+    {
+      id: 'betting-trends',
+      title: 'Betting Trends',
+      description: "ATS records and historical trends for today's slate.",
+      href: '/research/betting-trends',
+      tag: 'Research',
+    },
+    {
+      id: 'backtesting',
+      title: 'Backtesting',
+      description: 'Simulate strategies with historical odds data.',
+      href: '/research/backtesting',
+      tag: 'Research',
+    },
+  ]
+  const cardItems = mode === 'research' ? researchItems : projectionItems
+
+  useEffect(() => {
+    const updateCardSize = () => {
+      const width = window.innerWidth
+      if (width < 420) {
+        setCardSize({ width: 300, height: 220 })
+      } else if (width < 640) {
+        setCardSize({ width: 360, height: 240 })
+      } else if (width < 900) {
+        setCardSize({ width: 440, height: 280 })
+      } else {
+        setCardSize({ width: 520, height: 320 })
+      }
+    }
+
+    updateCardSize()
+    window.addEventListener('resize', updateCardSize)
+
+    return () => window.removeEventListener('resize', updateCardSize)
+  }, [])
 
   useEffect(() => {
     const formatOdds = (value?: number | null) => {
@@ -268,7 +356,7 @@ export default function ChatIntro({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.5 }}
-            className="w-full -mt-24 lg:-mt-32"
+            className="w-full mt-16 lg:mt-20"
           >
             <StatsSection />
           </motion.div>
@@ -384,12 +472,14 @@ export default function ChatIntro({
   }
 
   // Signed-in layout
+  const isResearch = mode === 'research'
+
   return (
     <div className="flex flex-col items-center justify-center min-h-full bg-black px-3 sm:px-4 py-6 sm:py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center max-w-3xl w-full mb-4 sm:mb-6"
+        className="text-center max-w-4xl w-full mb-4 sm:mb-6"
       >
         <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
           <Link href="/patch-notes" className="relative z-10 pointer-events-auto">
@@ -420,140 +510,62 @@ export default function ChatIntro({
             <Twitter className="h-4 w-4" />
           </Link>
         </div>
-        <AnimatedHero
-          staticText="Make money with"
-          interval={2500}
-        />
       </motion.div>
-
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center max-w-3xl w-full"
+        className="w-full max-w-5xl -mt-8"
       >
-        <div className="sm:hidden w-full">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-2xl border border-white/10 bg-black/70 px-2 py-3 text-left">
-              <div className="text-[9px] uppercase tracking-[0.25em] text-emerald-200/80">
-                Sharp Projection
-              </div>
-              <div className="mt-2 text-xs font-semibold text-white">
-                {projectionPreview?.label ?? 'Loading...'}
-              </div>
-              <div className="text-[10px] text-white/60">
-                {projectionPreview?.detail ?? 'Pulling latest edge...'}
-              </div>
-              <Link
-                href="/market-projections"
-                className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-400/40 px-2 py-1 text-[9px] uppercase tracking-[0.2em] text-emerald-200"
-              >
-                View
-              </Link>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/70 px-2 py-3 text-left">
-              <div className="text-[9px] uppercase tracking-[0.25em] text-emerald-200/80">
-                Sharp Prop
-              </div>
-              <div className="mt-2 text-xs font-semibold text-white">
-                {propPreview?.label ?? 'Loading...'}
-              </div>
-              <div className="text-[10px] text-white/60">
-                {propPreview?.detail ?? 'Pulling top prop...'}
-              </div>
-              <Link
-                href="/player-projections"
-                className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-400/40 px-2 py-1 text-[9px] uppercase tracking-[0.2em] text-emerald-200"
-              >
-                View
-              </Link>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/70 px-2 py-3 text-left">
-              <div className="text-[9px] uppercase tracking-[0.25em] text-emerald-200/80">
-                Sharp Parlay
-              </div>
-              <div className="mt-2 text-xs font-semibold text-white">
-                {parlayPreview?.label ?? 'Loading...'}
-              </div>
-              <div className="text-[10px] text-white/60">
-                {parlayPreview?.detail ?? 'Scanning EV parlays...'}
-              </div>
-              <Link
-                href="/parlay-predictor"
-                className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-400/40 px-2 py-1 text-[9px] uppercase tracking-[0.2em] text-emerald-200"
-              >
-                View
-              </Link>
-            </div>
-          </div>
-        </div>
-        <div className="hidden sm:block w-full">
-          <div className="grid gap-4 md:grid-cols-3">
-            {[
-              {
-                id: 'guide-navigation',
-                title: 'Navigate Delta',
-                accent: 'text-emerald-200/90',
-                border: 'border-emerald-400/30',
-                glow: 'shadow-[0_20px_60px_rgba(16,185,129,0.12)]',
-              },
-              {
-                id: 'guide-betting-flow',
-                title: 'Use Delta to Bet',
-                accent: 'text-emerald-200/90',
-                border: 'border-emerald-400/30',
-                glow: 'shadow-[0_20px_60px_rgba(16,185,129,0.12)]',
-              },
-              {
-                id: 'guide-research-mode',
-                title: 'Research Mode',
-                accent: 'text-amber-200/90',
-                border: 'border-amber-400/30',
-                glow: 'shadow-[0_20px_60px_rgba(251,191,36,0.12)]',
-              },
-            ].map((guide) => (
-              <button
-                key={guide.id}
-                type="button"
-                onClick={() => {
-                  setActiveGuideId(guide.id)
-                  setGuideOpen(true)
-                }}
-                className={`group relative overflow-hidden rounded-3xl border ${guide.border} bg-gradient-to-br from-white/[0.06] via-black/70 to-black/90 p-5 text-left transition hover:border-white/40 hover:shadow-2xl ${guide.glow}`}
-              >
-                <h3 className="mt-2 text-lg font-semibold text-white">
-                  {guide.title}
-                </h3>
-                <div className="mt-4 flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-white/50">
+        <CardStack
+          items={cardItems}
+          initialIndex={0}
+          autoAdvance
+          intervalMs={2400}
+          pauseOnHover
+          showDots
+          cardWidth={cardSize.width}
+          cardHeight={cardSize.height}
+          renderCard={(item) => (
+            <div className="relative h-full w-full bg-black">
+              <div
+                className={`pointer-events-none absolute inset-0 bg-gradient-to-t ${
+                  isResearch ? 'from-amber-900/35 via-black/10' : 'from-emerald-900/30 via-black/10'
+                } to-transparent`}
+              />
+              <div className="relative z-10 flex h-full flex-col justify-end p-6 text-left">
+                {item.tag && (
                   <span
-                    className={`h-1 w-10 rounded-full bg-gradient-to-r ${
-                      guide.id === 'guide-research-mode'
-                        ? 'from-amber-400/60 to-amber-200/10'
-                        : 'from-emerald-400/60 to-emerald-200/10'
+                    className={`mb-2 inline-flex w-fit rounded-full border bg-black/50 px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
+                      isResearch
+                        ? 'border-amber-400/50 text-amber-200'
+                        : 'border-emerald-400/40 text-emerald-200'
                     }`}
-                  />
-                  <span className={guide.accent}>Open guide</span>
-                </div>
-                <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/5 blur-2xl transition group-hover:bg-white/10" />
-              </button>
-            ))}
-          </div>
-          {activeGuideId && (
-            <TutorialPopup
-              tutorialId={activeGuideId}
-              forceShow={false}
-              open={guideOpen}
-              onOpenChange={setGuideOpen}
-            />
+                  >
+                    {item.tag}
+                  </span>
+                )}
+                <h3 className="text-xl font-semibold text-white">{item.title}</h3>
+                {item.description && (
+                  <p className="mt-2 text-sm text-white/70">{item.description}</p>
+                )}
+                {item.href && (
+                  <Link
+                    href={item.href}
+                    className={`mt-4 inline-flex w-fit rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.3em] transition ${
+                      isResearch
+                        ? 'border-amber-400/50 text-amber-200 hover:border-amber-300/70 hover:text-amber-100'
+                        : 'border-emerald-400/40 text-emerald-200 hover:border-emerald-300/70 hover:text-emerald-100'
+                    }`}
+                  >
+                    Open
+                  </Link>
+                )}
+              </div>
+            </div>
           )}
-        </div>
-
+        />
       </motion.div>
-
-      {/* News Slideshow */}
-      <div className="mt-3 w-full">
-        <LatestNewsStrip />
-      </div>
     </div>
   )
 }

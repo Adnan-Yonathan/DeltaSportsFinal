@@ -1,15 +1,9 @@
 "use client"
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
-import {
-  Brain,
-  Search,
-  BarChart3,
-  LineChart,
-  TrendingUp,
-  Bell,
-  Check,
-} from "lucide-react"
+import { Search, LineChart, TrendingUp, Check } from "lucide-react"
+import { GuestHero } from "@/components/ui/guest-hero"
+import { GlareCard } from "@/components/ui/glare-card"
 
 interface StepFeaturesProps {
   value: string[]
@@ -17,48 +11,27 @@ interface StepFeaturesProps {
   onValidation: (isValid: boolean) => void
 }
 
-const MAX_SELECTIONS = 2
+const MAX_SELECTIONS = 3
 const GOALS = [
   {
-    id: "live-lines",
-    name: "Live lines",
-    description: "Track live movement and spot fast shifts",
+    id: "sharp-projections",
+    name: "Sharp Projections",
+    description: "Model-driven edges on spreads, totals, and moneylines.",
     icon: TrendingUp,
     color: "from-emerald-500 to-emerald-500",
   },
   {
-    id: "prop-edges",
-    name: "Prop edges",
-    description: "Find mispriced player props quickly",
-    icon: BarChart3,
-    color: "from-emerald-500 to-emerald-500",
-  },
-  {
-    id: "matchup-research",
-    name: "Matchup research",
-    description: "Build clean game notes and trend context",
+    id: "sharp-traders",
+    name: "Track Sharp Traders",
+    description: "Follow the wallets that move markets before the public.",
     icon: Search,
     color: "from-emerald-500 to-emerald-500",
   },
   {
-    id: "arbitrage-ev",
-    name: "Arbitrage and EV scans",
-    description: "Surface pricing gaps and value windows",
+    id: "big-bets",
+    name: "Track Big Bets",
+    description: "See whale-sized bets and compare them to market lines.",
     icon: LineChart,
-    color: "from-emerald-500 to-emerald-500",
-  },
-  {
-    id: "education",
-    name: "Betting education",
-    description: "Learn terminology, risk, and modeling basics",
-    icon: Brain,
-    color: "from-emerald-500 to-emerald-500",
-  },
-  {
-    id: "alerts",
-    name: "Alerts and notifications",
-    description: "Get notified when lines move in your favor",
-    icon: Bell,
     color: "from-emerald-500 to-emerald-500",
   },
 ]
@@ -86,18 +59,16 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <div className="text-center space-y-2">
-        <p className="text-xs uppercase tracking-[0.3em] text-white/40">Your goals</p>
-        <h2 className="text-4xl font-bold text-white tracking-tight">
-          What do you want to get out of Delta?
-        </h2>
-        <p className="text-white/60">
-          Pick up to {MAX_SELECTIONS} so we can tailor your feed.
-        </p>
-      </div>
+      <GuestHero
+        eyebrow="Your goals"
+        title="What do you want to get out of Delta?"
+        subtitle={`Pick up to ${MAX_SELECTIONS} so we can tailor your feed.`}
+        compact
+        useCommitsGrid
+      />
 
-      <div className="max-w-3xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="max-w-5xl mx-auto">
+        <div className="flex flex-wrap justify-center gap-4">
           {GOALS.map((goal) => {
             const isSelected = value.includes(goal.id)
             const Icon = goal.icon
@@ -106,36 +77,31 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
               <motion.button
                 key={goal.id}
                 onClick={() => toggleFeature(goal.id)}
-                className={`
-                  relative p-5 rounded-2xl border transition-all text-left
-                  ${isSelected
-                    ? "bg-gradient-to-b from-emerald-500/15 via-emerald-500/10 to-transparent border-emerald-400/70 shadow-[0_14px_40px_rgba(16,185,129,0.2)]"
-                    : "bg-white/[0.03] border-white/10 hover:border-emerald-300/40"
-                  }
-                  ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}
-                `}
+                className={`relative ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
                 whileHover={isDisabled ? {} : { scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
                 disabled={isDisabled}
               >
-                {isSelected && (
-                  <div className="absolute top-3 right-3 bg-emerald-500 rounded-full p-1">
-                    <Check className="w-4 h-4 text-white" />
-                  </div>
-                )}
-                <div className="flex items-start gap-4">
-                  <div
-                    className={`
-                      p-2.5 rounded-xl bg-gradient-to-br ${goal.color} flex-shrink-0
-                      ${isSelected ? "ring-2 ring-white/20" : ""}
-                    `}
-                  >
-                    <Icon className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1 pr-6">
-                    <h3 className="text-lg font-semibold text-white mb-1">{goal.name}</h3>
-                    <p className="text-white/60 text-sm">{goal.description}</p>
-                  </div>
+                <div className="relative scale-[0.9] sm:scale-95">
+                  <GlareCard className="flex h-full w-full flex-col justify-between p-5">
+                    <div className="flex items-start justify-between">
+                      <div className={`p-2.5 rounded-xl bg-gradient-to-br ${goal.color}`}>
+                        <Icon className="w-5 h-5 text-white" />
+                      </div>
+                      {isSelected && (
+                        <div className="rounded-full bg-emerald-500 p-1">
+                          <Check className="w-4 h-4 text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-6">
+                      <h3 className="text-lg font-semibold text-white mb-2">{goal.name}</h3>
+                      <p className="text-white/60 text-sm">{goal.description}</p>
+                    </div>
+                  </GlareCard>
+                  {isSelected && (
+                    <span className="pointer-events-none absolute inset-0 rounded-[48px] ring-2 ring-emerald-400/60" />
+                  )}
                 </div>
               </motion.button>
             )

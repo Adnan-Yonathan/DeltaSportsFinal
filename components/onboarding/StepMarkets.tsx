@@ -2,6 +2,8 @@
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Check } from "lucide-react"
+import { GuestHero } from "@/components/ui/guest-hero"
+import { GlareCard } from "@/components/ui/glare-card"
 
 interface StepMarketsProps {
   value: string[]
@@ -11,10 +13,9 @@ interface StepMarketsProps {
 
 const MARKETS = [
   { id: "spreads", label: "Spreads", detail: "Point spreads and lines" },
-  { id: "totals", label: "Totals", detail: "Game totals and alt lines" },
   { id: "moneyline", label: "Moneyline", detail: "Straight winners" },
+  { id: "totals", label: "Totals", detail: "Game totals and alt lines" },
   { id: "player-props", label: "Player props", detail: "Points, assists, and more" },
-  { id: "sgp", label: "Parlays", detail: "Multi-leg combinations" },
 ]
 
 export function StepMarkets({ value, onChange, onValidation }: StepMarketsProps) {
@@ -37,40 +38,41 @@ export function StepMarkets({ value, onChange, onValidation }: StepMarketsProps)
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <div className="text-center space-y-2">
-        <p className="text-xs uppercase tracking-[0.3em] text-white/40">Markets</p>
-        <h2 className="text-4xl font-bold text-white tracking-tight">
-          Which markets do you care about most?
-        </h2>
-        <p className="text-white/60">Select all that apply.</p>
-      </div>
+      <GuestHero
+        eyebrow="Markets"
+        title="Which markets do you care about most?"
+        subtitle="Select all that apply."
+        compact
+        useCommitsGrid
+      />
 
-      <div className="max-w-4xl mx-auto">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-wrap lg:flex-nowrap justify-center gap-4">
           {MARKETS.map((market) => {
             const isSelected = value.includes(market.id)
             return (
               <motion.button
                 key={market.id}
                 onClick={() => toggleMarket(market.id)}
-                className={`
-                  relative p-5 rounded-2xl border transition-all text-left
-                  ${isSelected
-                    ? "bg-gradient-to-b from-emerald-500/15 via-emerald-500/10 to-transparent border-emerald-400/70 shadow-[0_14px_40px_rgba(16,185,129,0.2)]"
-                    : "bg-white/[0.03] border-white/10 hover:border-emerald-300/40"
-                  }
-                `}
+                className="relative"
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
               >
-                {isSelected && (
-                  <div className="absolute top-3 right-3 bg-emerald-500 rounded-full p-1">
-                    <Check className="w-4 h-4 text-white" />
-                  </div>
-                )}
-                <div className="space-y-1">
-                  <div className="text-lg font-semibold text-white">{market.label}</div>
-                  <div className="text-xs text-white/50">{market.detail}</div>
+                <div className="relative scale-[0.9] sm:scale-95">
+                  <GlareCard className="flex h-full w-full flex-col justify-between p-5">
+                    <div className="flex items-start justify-between">
+                      <div className="text-lg font-semibold text-white">{market.label}</div>
+                      {isSelected && (
+                        <div className="rounded-full bg-emerald-500 p-1">
+                          <Check className="w-4 h-4 text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-6 text-sm text-white/60">{market.detail}</div>
+                  </GlareCard>
+                  {isSelected && (
+                    <span className="pointer-events-none absolute inset-0 rounded-[48px] ring-2 ring-emerald-400/60" />
+                  )}
                 </div>
               </motion.button>
             )

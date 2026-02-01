@@ -12,7 +12,7 @@ export default function WelcomeClient() {
   return (
     <div className="min-h-screen bg-black">
       <SimpleHeader widthClass="max-w-6xl" />
-      <div className="pt-20 sm:pt-24">
+      <div className="pt-4 sm:pt-8">
         <ChatIntro
           conversationId=""
           userId=""

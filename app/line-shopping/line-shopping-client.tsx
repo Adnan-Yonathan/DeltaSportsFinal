@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { Check, ChevronDown, RefreshCw, Trophy, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ServerManagementTable } from '@/components/ui/server-management-table'
 
 const SPORTS = [
   { key: 'nba', label: 'NBA' },
@@ -393,7 +394,8 @@ export default function LineShoppingClient({
   )
 
   return (
-    <div className="space-y-4">
+    <ServerManagementTable title="Line Shopping" showList={false} className="max-w-none">
+      <div className="space-y-4">
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Sport Selector */}
@@ -639,6 +641,7 @@ export default function LineShoppingClient({
         so you can always get the best price. The best odds for each market are highlighted
         with a trophy icon. Sharp books like Pinnacle are great for finding true market value.
       </div>
-    </div>
+      </div>
+    </ServerManagementTable>
   )
 }

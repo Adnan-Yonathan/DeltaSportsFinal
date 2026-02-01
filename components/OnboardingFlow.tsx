@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-import { StepSports } from "./onboarding/StepSports"
 import { StepMarkets } from "./onboarding/StepMarkets"
 import { StepExperience } from "./onboarding/StepExperience"
 import { StepRiskTolerance } from "./onboarding/StepRiskTolerance"
@@ -12,11 +11,15 @@ import { StepFeatures } from "./onboarding/StepFeatures"
 import { StepPricing } from "./onboarding/StepPricing"
 import { StepBankrollProjection } from "./onboarding/StepBankrollProjection"
 import { StepMonthlyProfit } from "./onboarding/StepMonthlyProfit"
+import { StepSoftwareExperience } from "./onboarding/StepSoftwareExperience"
+import { StepTailSharp } from "./onboarding/StepTailSharp"
+import { StepTimeline } from "./onboarding/StepTimeline"
 
 interface OnboardingData {
-  favorite_sports: string[]
   preferred_markets: string[]
   experience_level: string
+  software_experience: string
+  tail_sharp_experience: string
   risk_tolerance: string
   signup_reasons: string[]
   bankroll: number
@@ -34,9 +37,10 @@ export function OnboardingFlow() {
   const [hasSaved, setHasSaved] = useState(false)
 
   const [data, setData] = useState<OnboardingData>({
-    favorite_sports: [],
     preferred_markets: [],
     experience_level: "",
+    software_experience: "",
+    tail_sharp_experience: "",
     risk_tolerance: "",
     signup_reasons: [],
     bankroll: 0,
@@ -66,9 +70,10 @@ export function OnboardingFlow() {
     localStorage.setItem("onboarding_data", JSON.stringify(data))
   }, [data])
 
-  const totalSteps = 8
+  const totalSteps = 10
   const progress = ((currentStep + 1) / totalSteps) * 100
   const isPricingStep = currentStep === totalSteps - 1
+  const isTimelineStep = currentStep === totalSteps - 2
 
   const steps = [
     {
@@ -76,15 +81,6 @@ export function OnboardingFlow() {
         <StepFeatures
           value={data.signup_reasons}
           onChange={(value) => setData({ ...data, signup_reasons: value })}
-          onValidation={setIsStepValid}
-        />
-      ),
-    },
-    {
-      component: (
-        <StepSports
-          value={data.favorite_sports}
-          onChange={(value) => setData({ ...data, favorite_sports: value })}
           onValidation={setIsStepValid}
         />
       ),
@@ -103,6 +99,24 @@ export function OnboardingFlow() {
         <StepExperience
           value={data.experience_level}
           onChange={(value) => setData({ ...data, experience_level: value })}
+          onValidation={setIsStepValid}
+        />
+      ),
+    },
+    {
+      component: (
+        <StepSoftwareExperience
+          value={data.software_experience}
+          onChange={(value) => setData({ ...data, software_experience: value })}
+          onValidation={setIsStepValid}
+        />
+      ),
+    },
+    {
+      component: (
+        <StepTailSharp
+          value={data.tail_sharp_experience}
+          onChange={(value) => setData({ ...data, tail_sharp_experience: value })}
           onValidation={setIsStepValid}
         />
       ),
@@ -136,6 +150,9 @@ export function OnboardingFlow() {
           onValidation={setIsStepValid}
         />
       ),
+    },
+    {
+      component: <StepTimeline onValidation={setIsStepValid} />,
     },
     {
       component: (
@@ -241,7 +258,7 @@ export function OnboardingFlow() {
       {/* Main Content */}
       <div
         className={`flex-1 flex ${isPricingStep ? "items-start" : "items-center"} justify-center ${
-          isPricingStep ? "px-0 py-0" : "px-4 py-20"
+          isPricingStep ? "px-0 py-0" : "px-4 pt-16 pb-28"
         }`}
       >
         <div className={`w-full ${isPricingStep ? "max-w-none" : "max-w-5xl"}`}>
@@ -270,7 +287,7 @@ export function OnboardingFlow() {
       </div>
 
       {/* Navigation */}
-      {!isPricingStep && (
+      {!isPricingStep && !isTimelineStep && (
         <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/10 p-6">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -287,10 +304,6 @@ export function OnboardingFlow() {
             </div>
 
             <div className="flex items-center gap-4">
-              <div className="text-sm text-white/60">
-                Step {currentStep + 1} of {totalSteps}
-              </div>
-
               <button
                 onClick={handleNext}
                 disabled={!isStepValid || saving}

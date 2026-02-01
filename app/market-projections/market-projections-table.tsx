@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ElectricCard } from "@/components/ui/electric-card"
 import { cn } from "@/lib/utils"
 import ShareProjectionButton from "@/components/ShareProjectionButton"
 import { AVAILABLE_BOOKS, type BookKey } from "@/lib/config/books"
@@ -732,6 +733,31 @@ const marketEdge = (
 }
 
 const edgeLabel = (edgePercent: number) => `${edgePercent.toFixed(1)}%`
+
+const resolveElectricPreset = (edgePercent: number) => {
+  if (edgePercent >= 20) {
+    return {
+      color: "#39ff88",
+      className: "ec-intensity-strong",
+      badge: "Elite Edge",
+    }
+  }
+  if (edgePercent >= 15) {
+    return {
+      color: "#24e07c",
+      className: "ec-intensity-medium",
+      badge: "High Edge",
+    }
+  }
+  if (edgePercent >= 10) {
+    return {
+      color: "#16b865",
+      className: "ec-intensity-low",
+      badge: "Edge",
+    }
+  }
+  return null
+}
 const formatEdgePick = (
   label: string | null,
   edgePercent: number | null
@@ -1042,6 +1068,9 @@ export default function MarketProjectionsTable({
                     : filter === "moneyline"
                       ? moneylinePick
                       : totalPick
+                const projectionText = formatPick(activePick)
+                const electricPreset =
+                  filter !== "moneyline" ? resolveElectricPreset(edgeMetrics.edgePercent) : null
                 const spreadOdds = resolveSpreadOddsDisplay(game, activePick)
                 const sharpSummary = game.sharpSignals
                   .slice(0, 2)
@@ -1085,12 +1114,30 @@ export default function MarketProjectionsTable({
                     </summary>
                     <div className="mt-3 space-y-3">
                       <div className="space-y-2">
-                        <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-sm">
-                          {filterLabels.projection}:{" "}
-                          <span className="whitespace-nowrap rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                            <AnimatedValue text={formatPick(activePick)} pulseKey={pulseKey} />
-                          </span>
-                        </div>
+                        {electricPreset ? (
+                          <div className="rounded-md border border-white/10 bg-black/30 p-2">
+                            <div className="max-w-[320px]">
+                              <ElectricCard
+                                variant="hue"
+                                size="compact"
+                                width="100%"
+                                aspectRatio="3.6 / 1.25"
+                                color={electricPreset.color}
+                                badge={electricPreset.badge}
+                                title={projectionText}
+                                description={`${edgeLabel(edgeMetrics.edgePercent)} edge`}
+                                className={cn("w-full", electricPreset.className)}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-sm">
+                            {filterLabels.projection}:{" "}
+                            <span className="whitespace-nowrap rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+                              <AnimatedValue text={projectionText} pulseKey={pulseKey} />
+                            </span>
+                          </div>
+                        )}
                         {filter === "spread" ? (
                           <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
                             <SpreadComparison game={game} />
@@ -1174,17 +1221,20 @@ export default function MarketProjectionsTable({
                     const spreadPick = resolveSpreadEdgePick(game, sport)
                     const totalPick = resolveTotalEdgePick(game, sport)
                     const moneylinePick = resolveMoneylineEdgePick(game, sport)
-                    const activePick =
-                      filter === "spread"
-                        ? spreadPick
-                        : filter === "moneyline"
-                          ? moneylinePick
-                          : totalPick
-                    const spreadOdds = resolveSpreadOddsDisplay(game, activePick)
-                    const sharpSummary = game.sharpSignals
-                      .slice(0, 2)
-                      .map(
-                        (signal) =>
+                const activePick =
+                  filter === "spread"
+                    ? spreadPick
+                    : filter === "moneyline"
+                      ? moneylinePick
+                      : totalPick
+                const projectionText = formatPick(activePick)
+                const electricPreset =
+                  filter !== "moneyline" ? resolveElectricPreset(edgeMetrics.edgePercent) : null
+                const spreadOdds = resolveSpreadOddsDisplay(game, activePick)
+                const sharpSummary = game.sharpSignals
+                  .slice(0, 2)
+                  .map(
+                    (signal) =>
                           `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
                       )
                       .join(" | ")
@@ -1214,12 +1264,30 @@ export default function MarketProjectionsTable({
                         </TableCell>
                         <TableCell className="align-top">
                           <div className="space-y-2 text-xs text-white/70">
-                            <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-sm">
-                              {filterLabels.projection}:{" "}
-                              <span className="whitespace-nowrap rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                                <AnimatedValue text={formatPick(activePick)} pulseKey={pulseKey} />
-                              </span>
-                            </div>
+                            {electricPreset ? (
+                              <div className="rounded-md border border-white/10 bg-black/30 p-2">
+                                <div className="max-w-[320px]">
+                                  <ElectricCard
+                                    variant="hue"
+                                    size="compact"
+                                    width="100%"
+                                    aspectRatio="3.6 / 1.25"
+                                    color={electricPreset.color}
+                                    badge={electricPreset.badge}
+                                    title={projectionText}
+                                    description={`${edgeLabel(edgeMetrics.edgePercent)} edge`}
+                                    className={cn("w-full", electricPreset.className)}
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-sm">
+                                {filterLabels.projection}:{" "}
+                                <span className="whitespace-nowrap rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
+                                  <AnimatedValue text={projectionText} pulseKey={pulseKey} />
+                                </span>
+                              </div>
+                            )}
                             {filter === "spread" ? (
                               <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
                                 <SpreadComparison game={game} />

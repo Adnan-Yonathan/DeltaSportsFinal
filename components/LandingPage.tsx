@@ -2,8 +2,9 @@
 
 import React from "react"
 import { motion } from "framer-motion"
-import { ArrowUpRight, Mic, Send } from "lucide-react"
+import { Mic, Send } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { FeaturesSix } from "@/components/ui/features-6"
 import SectionWithMockup from "@/components/ui/section-with-mockup"
 import { ROICalculator } from "@/components/ui/roi-calculator"
@@ -13,6 +14,8 @@ import { SimpleHeader } from "@/components/ui/simple-header"
 import { DottedSurface } from "@/components/ui/dotted-surface"
 import { TextEffect } from "@/components/ui/text-effect"
 import { CustomersSection } from "@/components/ui/customers-section"
+import { RotatingWordBadge } from "@/components/ui/rotating-word-badge"
+import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button"
 
 /** Delta Sports Landing Page - Revolut-inspired design */
 
@@ -103,27 +106,6 @@ const LEGAL_LINKS = [
   { href: "/terms-of-service", label: "Terms" },
   { href: "/refund-policy", label: "Refunds" },
 ]
-
-const SoftButton = ({ children, className = "", href, ...props }: any) => {
-  const baseClasses =
-    "rounded-full px-5 py-2.5 text-sm font-medium shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2 " +
-    "bg-[#34d399] text-[#0f1f15] hover:bg-[#16a34a] focus:ring-[#34d399] focus:ring-offset-0 " +
-    className
-
-  if (href) {
-    return (
-      <Link href={href} className={baseClasses} {...props}>
-        {children}
-      </Link>
-    )
-  }
-
-  return (
-    <button className={baseClasses} {...props}>
-      {children}
-    </button>
-  )
-}
 
 function AnimatedOddsCard() {
   const [activeOdds, setActiveOdds] = React.useState(0)
@@ -308,6 +290,8 @@ function PromoMockSection() {
 }
 
 export default function LandingPage() {
+  const router = useRouter()
+
   return (
     <div
       className="relative min-h-screen w-full text-white"
@@ -323,20 +307,11 @@ export default function LandingPage() {
         <div className="container mx-auto">
           <div className="flex gap-4 pt-16 pb-6 lg:pt-24 lg:pb-10 items-center justify-center flex-col px-4">
             <div className="flex gap-4 flex-col items-center">
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white text-center overflow-visible">
-                <TextEffect per="word" preset="blur" delay={0.2}>
-                  Bet Like a
-                </TextEffect>{' '}
-                <span className="bg-gradient-to-r from-[#34d399] via-[#34d399] to-[#16a34a] bg-clip-text text-transparent">
-                  Pro
-                </span>
-                <br />
-                <TextEffect per="word" preset="blur" delay={0.2}>
-                  All in One
-                </TextEffect>{' '}
-                <span className="bg-gradient-to-r from-[#34d399] via-[#34d399] to-[#16a34a] bg-clip-text text-transparent">
-                  Place
-                </span>
+              <h1 className="w-full max-w-4xl">
+                <RotatingWordBadge
+                  prefix="BET LIKE A "
+                  className="rounded-3xl bg-black/40 px-4 py-5 text-center text-3xl font-bold tracking-tight text-white backdrop-blur-md sm:px-6 sm:py-6 md:text-4xl lg:text-5xl"
+                />
               </h1>
               <TextEffect
                 per="word"
@@ -357,22 +332,18 @@ export default function LandingPage() {
               transition={{ delay: 1.4, duration: 0.5 }}
               className="flex flex-row gap-3"
             >
-              <SoftButton href="/chat" className="min-w-[160px]">
-                <span className="flex items-center justify-center gap-1">
-                  <TextEffect per="char" preset="fade" delay={1.6}>
-                    Talk To Delta
-                  </TextEffect>
-                  <ArrowUpRight className="h-4 w-4 flex-shrink-0" />
-                </span>
-              </SoftButton>
-              <SoftButton href="/live-scores" className="min-w-[140px]">
-                <span className="flex items-center justify-center gap-1">
-                  <TextEffect per="char" preset="fade" delay={1.8}>
-                    Live Scores
-                  </TextEffect>
-                  <ArrowUpRight className="h-4 w-4 flex-shrink-0" />
-                </span>
-              </SoftButton>
+              <InteractiveHoverButton
+                text="Talk To Delta"
+                type="button"
+                className="w-[160px] bg-[#34d399] text-[#0f1f15] border-transparent"
+                onClick={() => router.push("/chat")}
+              />
+              <InteractiveHoverButton
+                text="Live Scores"
+                type="button"
+                className="w-[150px] bg-black text-white border-white/40"
+                onClick={() => router.push("/live-scores")}
+              />
             </motion.div>
 
             <CustomersSection
@@ -447,9 +418,11 @@ export default function LandingPage() {
               Join thousands of smart bettors using Delta Sports AI. Get instant access to AI-powered insights, live odds from 10+ sportsbooks, and matchup analytics.
             </p>
             <div className="flex justify-center">
-              <SoftButton href="/auth/login">
-                Sign In
-              </SoftButton>
+              <InteractiveHoverButton
+                text="Sign In"
+                onClick={() => router.push("/auth/login")}
+                className="w-40"
+              />
             </div>
           </div>
         </div>

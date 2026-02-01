@@ -75,6 +75,7 @@ const SPORT_MARKETS: Record<string, string[]> = {
 const BOOK_ALLOWLIST = [
   "betrivers",
   "betmgm",
+  "caesars",
   "fanduel",
   "draftkings",
   "hardrockbet",
@@ -87,11 +88,20 @@ const BOOK_ALLOWLIST = [
   "pick6",
   "novig",
   "prophetx",
+  "bet365",
 ]
 
 const BOOK_ALIASES: Record<string, string> = {
   betmgm: "betmgm",
   mgm: "betmgm",
+  betmgmus: "betmgm",
+  betmgm_us: "betmgm",
+  williamhillus: "caesars",
+  williamhill_us: "caesars",
+  caesars: "caesars",
+  caesars_us: "caesars",
+  caesarsbook: "caesars",
+  williamhill: "caesars",
   fanduel: "fanduel",
   draftkings: "draftkings",
   dk: "draftkings",
@@ -113,6 +123,11 @@ const BOOK_ALIASES: Record<string, string> = {
   novig: "novig",
   novig_us: "novig",
   prophetx: "prophetx",
+  prophetx_us: "prophetx",
+  bet365: "bet365",
+  bet365us: "bet365",
+  bet365usnj: "bet365",
+  bet365nj: "bet365",
 }
 
 const normalizeKey = (value: string) =>
@@ -127,6 +142,8 @@ const resolveBookKeyFromTitle = (value: string) => {
   const normalized = value.toLowerCase()
   if (normalized.includes("bet rivers") || normalized.includes("betrivers")) return "betrivers"
   if (normalized.includes("betmgm") || normalized.includes("mgm")) return "betmgm"
+  if (normalized.includes("caesars") || normalized.includes("william hill")) return "caesars"
+  if (normalized.includes("bet365")) return "bet365"
   if (normalized.includes("fanduel")) return "fanduel"
   if (normalized.includes("draftkings")) return "draftkings"
   if (normalized.includes("hard rock")) return "hardrockbet"
@@ -138,7 +155,7 @@ const resolveBookKeyFromTitle = (value: string) => {
   if (normalized.includes("pick 6")) return "pick6"
   if (normalized.includes("betr")) return "betr"
   if (normalized.includes("novig")) return "novig"
-  if (normalized.includes("prophetx")) return "prophetx"
+  if (normalized.includes("prophetx") || normalized.includes("prophet x")) return "prophetx"
   return ""
 }
 
@@ -165,6 +182,8 @@ const toDisplayBook = (key: string) => {
       return "BetRivers"
     case "betmgm":
       return "BetMGM"
+    case "caesars":
+      return "Caesars"
     case "fanduel":
       return "FanDuel"
     case "draftkings":
@@ -189,6 +208,8 @@ const toDisplayBook = (key: string) => {
       return "NoVig"
     case "prophetx":
       return "ProphetX"
+    case "bet365":
+      return "Bet365"
     default:
       return key
   }
@@ -211,7 +232,8 @@ export async function GET(request: Request) {
   try {
     const events = await fetchTheOddsApiPlayerProps(normalizedSport, {
       markets: markets.join(","),
-      regions: "us,us2",
+      regions: "us,us2,eu",
+      bookmakers: BOOK_ALLOWLIST,
       oddsFormat: "american",
       dateFormat: "iso",
     })
@@ -295,7 +317,7 @@ export async function GET(request: Request) {
       sport: normalizedSport,
       updatedAt: new Date().toISOString(),
       markets,
-      books: BOOK_ALLOWLIST.filter((key) => booksSeen.has(key)).map((key) => ({
+      books: BOOK_ALLOWLIST.map((key) => ({
         key,
         label: toDisplayBook(key),
       })),

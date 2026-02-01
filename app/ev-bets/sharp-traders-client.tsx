@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { formatCurrency } from "@/lib/utils/odds"
+import { ServerManagementTable, type SharpTraderRow } from "@/components/ui/server-management-table"
 
 type OpenTrade = {
   title: string | null
@@ -38,16 +38,9 @@ type SearchParams = {
   openTradeLimit: number
 }
 
-const formatNumber = (value?: number | null, digits = 2) => {
-  if (value == null || !Number.isFinite(value)) return "n/a"
-  return value.toFixed(digits)
-}
-
-const formatDate = (value?: string | null) => {
-  if (!value) return "n/a"
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+const truncateWallet = (wallet: string) => {
+  if (wallet.length <= 10) return wallet
+  return `${wallet.slice(0, 6)}…${wallet.slice(-4)}`
 }
 
 const SPORT_LABELS: Record<string, string> = {
@@ -90,7 +83,6 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [expandedWallets, setExpandedWallets] = useState<Record<string, boolean>>({})
   const [sportFilter, setSportFilter] = useState<string>("all")
   const initialParams = useMemo(
     () => ({
@@ -114,7 +106,6 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
   )
   const [searchParams, setSearchParams] = useState(initialParams)
   const [hasRequestedFull, setHasRequestedFull] = useState(false)
-  const [hasFullData, setHasFullData] = useState(false)
   const requestIdRef = useRef(0)
 
   const loadData = useCallback(
@@ -147,9 +138,6 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
         setData(payload)
         if (opts?.updateSearch) {
           setSearchParams(params)
-        }
-        if (opts?.markFull) {
-          setHasFullData(true)
         }
       } catch (err) {
         if (requestIdRef.current !== requestId) return
@@ -209,38 +197,22 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
     return Array.from(set).sort((a, b) => (SPORT_LABELS[a] ?? a).localeCompare(SPORT_LABELS[b] ?? b))
   }, [data])
 
+  const rankedWallets = useMemo<SharpTraderRow[]>(() => {
+    return [...wallets]
+      .sort((a, b) => b.total_pnl - a.total_pnl)
+      .map((wallet, index) => ({
+        id: wallet.wallet,
+        rank: index + 1,
+        wallet: wallet.wallet,
+        walletShort: truncateWallet(wallet.wallet),
+        totalPnl: wallet.total_pnl,
+        pnl30d: wallet.pnl_30d,
+        openTrades: wallet.open_trades,
+      }))
+  }, [wallets])
+
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-xs text-white/60">
-        <p className="text-[11px] uppercase tracking-[0.3em] text-emerald-300/70">
-          Polymarket data
-        </p>
-        <p className="mt-2">
-          Sampling recent trades to find top profit wallets, then listing their open sports
-          positions.
-        </p>
-        {data && (
-          <p className="mt-2 text-[11px] text-white/50">
-            Sampled {data.sampled_trades} trades across {data.fetched_wallets} wallets.
-          </p>
-        )}
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setHasRequestedFull(true)
-              void loadData(fullParams, { updateSearch: true, background: false, markFull: true })
-            }}
-            className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-white/70 transition-colors hover:border-emerald-400/50 hover:text-emerald-200"
-          >
-            Load full search
-          </button>
-          <span className="text-[11px] text-white/40">
-            Pages: {searchParams.tradePages} · Top: {searchParams.top}
-          </span>
-        </div>
-      </div>
-
       <div className="flex flex-wrap items-center gap-3">
         <div className="rounded-full border border-white/10 bg-black/50 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-white/60">
           Sport
@@ -293,111 +265,9 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
         </div>
       )}
 
-      <div className="space-y-5">
-        {wallets.map((wallet) => {
-          const isExpanded = expandedWallets[wallet.wallet] === true
-          const visibleTrades = isExpanded ? wallet.open_trades : wallet.open_trades.slice(0, 3)
-          return (
-            <div
-              key={wallet.wallet}
-              className="rounded-3xl border border-white/10 bg-black/60 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
-            >
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.3em] text-white/40">Wallet</p>
-                <p className="mt-2 text-sm font-semibold text-white">{wallet.wallet}</p>
-              </div>
-              <div className="flex flex-wrap gap-4 text-xs text-white/70">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.25em] text-white/40">All-time P&L</p>
-                  <p className="mt-1 text-sm font-semibold text-emerald-200">
-                    {formatCurrency(wallet.total_pnl)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.25em] text-white/40">30d P&L</p>
-                  <p className="mt-1 text-sm font-semibold text-white">
-                    {formatCurrency(wallet.pnl_30d)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.25em] text-white/40">Open Trades</p>
-                  <p className="mt-1 text-sm font-semibold text-white">
-                    {wallet.open_trades.length}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {visibleTrades.map((trade, index) => (
-                <div
-                  key={`${trade.slug ?? "trade"}-${index}`}
-                  className="rounded-2xl border border-white/10 bg-black/40 p-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        {trade.outcome ?? "Outcome n/a"}
-                      </p>
-                      <p className="mt-1 text-[11px] text-white/50">
-                        {trade.title ?? trade.slug ?? "Open market"}
-                      </p>
-                    </div>
-                    <div className="text-right text-[11px] text-white/50">
-                      <p>End: {formatDate(trade.end_date)}</p>
-                      <p>Price: {formatNumber(trade.cur_price, 4)}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-3 text-[11px] text-white/60 sm:grid-cols-4">
-                    <div>
-                      <p className="uppercase tracking-[0.2em] text-white/40">Size</p>
-                      <p className="mt-1 text-white">{formatNumber(trade.size, 2)}</p>
-                    </div>
-                    <div>
-                      <p className="uppercase tracking-[0.2em] text-white/40">Avg Price</p>
-                      <p className="mt-1 text-white">{formatNumber(trade.avg_price, 4)}</p>
-                    </div>
-                    <div>
-                      <p className="uppercase tracking-[0.2em] text-white/40">Cash P&L</p>
-                      <p className="mt-1 text-white">
-                        {trade.cash_pnl != null ? formatCurrency(trade.cash_pnl) : "n/a"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="uppercase tracking-[0.2em] text-white/40">Slug</p>
-                      <p className="mt-1 text-white/70">{trade.slug ?? "n/a"}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {!hasFullData && wallet.open_trades.length >= 3 && (
-                <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-xs text-white/60">
-                  Loading more trades for this wallet...
-                </div>
-              )}
-              {hasFullData && wallet.open_trades.length > 3 && (
-                <div className="flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExpandedWallets((prev) => ({
-                        ...prev,
-                        [wallet.wallet]: !isExpanded,
-                      }))
-                    }
-                    className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-white/70 transition-colors hover:border-emerald-400/50 hover:text-emerald-200"
-                  >
-                    {isExpanded ? "Show Less" : "Show All Trades"}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          )
-        })}
-      </div>
+      {!loading && !error && wallets.length > 0 && (
+        <ServerManagementTable wallets={rankedWallets} />
+      )}
     </div>
   )
 }

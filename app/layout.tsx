@@ -7,6 +7,7 @@ import SharpMoneyAlertHub from '@/components/SharpMoneyAlertHub'
 import { Saira_Condensed } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+import { ThemeProvider } from '@/components/theme-provider'
 
 export const metadata: Metadata = {
   title: 'Delta Sports - The Sharp Money Tool for Sports',
@@ -62,13 +63,15 @@ export default function RootLayout({
       <body
         className={`${saira.variable} flex min-h-screen flex-col bg-bg-primary text-text-primary`}
       >
-        <SupabaseAuthListener />
-        <AffiliateTracker />
-        <SharpMoneyAlertHub />
-        <main className="flex-1">{children}</main>
-        <AppFooter />
-        <Analytics />
-        <SpeedInsights />
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+          <SupabaseAuthListener />
+          <AffiliateTracker />
+          <SharpMoneyAlertHub />
+          <main className="flex-1">{children}</main>
+          <AppFooter />
+          <Analytics />
+          <SpeedInsights />
+        </ThemeProvider>
       </body>
     </html>
   )

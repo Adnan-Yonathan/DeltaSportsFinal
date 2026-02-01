@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Search, RefreshCw } from "lucide-react"
+import { ServerManagementTable } from "@/components/ui/server-management-table"
 
 type PropBookOdds = {
   over?: number
@@ -27,7 +28,9 @@ type BookInfo = {
   label: string
 }
 
-const REFRESH_MS = 15 * 60 * 1000
+const REFRESH_MS = 60 * 60 * 1000
+const QUIET_START_HOUR = 1
+const QUIET_END_HOUR = 11
 
 const formatOdds = (value?: number) => {
   if (!Number.isFinite(value)) return "--"
@@ -66,7 +69,22 @@ export default function PropOddsClient({
   const [visibleCount, setVisibleCount] = useState(200)
   const [now, setNow] = useState(Date.now())
 
+  const inQuietHours = useCallback(() => {
+    const now = new Date()
+    const estHour = Number(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        hour: "2-digit",
+        hour12: false,
+      }).format(now)
+    )
+    return estHour >= QUIET_START_HOUR && estHour < QUIET_END_HOUR
+  }, [])
+
   const fetchProps = useCallback(async () => {
+    if (inQuietHours()) {
+      return
+    }
     setLoading(true)
     setErrorMessage(null)
     try {
@@ -90,16 +108,22 @@ export default function PropOddsClient({
     } finally {
       setLoading(false)
     }
-  }, [sport])
+  }, [sport, inQuietHours])
 
   useEffect(() => {
-    fetchProps()
-  }, [fetchProps])
+    if (!inQuietHours()) {
+      fetchProps()
+    }
+  }, [fetchProps, inQuietHours])
 
   useEffect(() => {
-    const interval = window.setInterval(fetchProps, REFRESH_MS)
+    const interval = window.setInterval(() => {
+      if (!inQuietHours()) {
+        fetchProps()
+      }
+    }, REFRESH_MS)
     return () => window.clearInterval(interval)
-  }, [fetchProps])
+  }, [fetchProps, inQuietHours])
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000)
@@ -182,7 +206,8 @@ export default function PropOddsClient({
   )
 
   return (
-    <div className="space-y-4">
+    <ServerManagementTable title="Prop Odds" showList={false} className="max-w-none">
+      <div className="space-y-4">
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white/50">
@@ -263,16 +288,17 @@ export default function PropOddsClient({
 
       {filteredProps.length > 0 && (
         <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/40">
-          <table className="min-w-[1200px] w-full text-left text-xs text-white/60">
-            <thead className="bg-black/60 text-[10px] uppercase tracking-[0.2em] text-white/50">
+          <table className="min-w-0 w-full table-fixed text-left text-[11px] text-white/70">
+            <thead className="bg-black/60 text-[10px] text-white/60">
               <tr>
-                <th className="px-4 py-3">Player</th>
-                <th className="px-4 py-3">Market</th>
-                <th className="px-4 py-3">Line</th>
-                <th className="px-4 py-3">Game</th>
+                <th className="px-3 py-3 w-[18%]">Player</th>
+                <th className="px-3 py-3 w-[12%]">Market</th>
+                <th className="px-3 py-3 w-[6%]">Line</th>
                 {books.map((book) => (
-                  <th key={book.key} className="px-3 py-3 text-center">
-                    {book.label}
+                  <th key={book.key} className="px-1.5 py-3 text-center">
+                    <span className="text-[10px] font-medium text-white/70 leading-tight">
+                      {book.label}
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -286,12 +312,11 @@ export default function PropOddsClient({
 
                 return (
                   <tr key={row.id} className="border-t border-white/5">
-                    <td className="px-4 py-3 text-white/90">{row.player}</td>
-                    <td className="px-4 py-3">{formatMarketLabel(row.market)}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3 text-white/90 truncate">{row.player}</td>
+                    <td className="px-3 py-3 truncate">{formatMarketLabel(row.market)}</td>
+                    <td className="px-3 py-3">
                       {row.point != null ? row.point : "--"}
                     </td>
-                    <td className="px-4 py-3 text-white/50">{row.game}</td>
                     {books.map((book) => {
                       const entry = row.odds[book.key] || {}
                       const over = entry.over
@@ -330,10 +355,10 @@ export default function PropOddsClient({
                         underEv != null ? underEv * 100 : null
 
                       const baseClass =
-                        "rounded-lg border px-2 py-1 text-center text-xs"
+                        "rounded-md border px-1.5 py-1 text-center text-[10px]"
 
                       return (
-                        <td key={book.key} className="px-2 py-2">
+                        <td key={book.key} className="px-1.5 py-2">
                           <div className="flex flex-col gap-1">
                             <div
                               className={`${baseClass} ${
@@ -390,6 +415,7 @@ export default function PropOddsClient({
           </button>
         </div>
       )}
-    </div>
+      </div>
+    </ServerManagementTable>
   )
 }

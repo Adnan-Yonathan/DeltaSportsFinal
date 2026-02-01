@@ -3,6 +3,7 @@
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { TrendingUp, Target } from "lucide-react"
+import { GuestHero } from "@/components/ui/guest-hero"
 
 interface StepMonthlyProfitProps {
   bankroll: number
@@ -11,7 +12,6 @@ interface StepMonthlyProfitProps {
 }
 
 const EDGE = 0.0262
-const UNIT_SIZE = 0.02
 const DAYS_PER_MONTH = 30
 
 const formatCurrency = (amount: number) => {
@@ -32,11 +32,9 @@ export function StepMonthlyProfit({
     onValidation(true)
   }, [onValidation])
 
-  const safeBankroll = Number.isFinite(bankroll) ? bankroll : 0
+  const safeBetSize = Number.isFinite(bankroll) ? bankroll : 0
   const safeBets = Number.isFinite(betsPerDay) ? betsPerDay : 0
-  const monthlyProfit =
-    safeBankroll * UNIT_SIZE * EDGE * safeBets * DAYS_PER_MONTH
-  const unitSize = safeBankroll * UNIT_SIZE
+  const monthlyProfit = safeBetSize * EDGE * safeBets * DAYS_PER_MONTH
   const monthlyBets = safeBets * DAYS_PER_MONTH
 
   return (
@@ -46,17 +44,13 @@ export function StepMonthlyProfit({
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <div className="text-center space-y-2">
-        <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-          Delta Estimate
-        </p>
-        <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight">
-          Your projected monthly profit
-        </h2>
-        <p className="text-white/60">
-          Based on a 2.62% assumed edge from Delta projections.
-        </p>
-      </div>
+      <GuestHero
+        eyebrow="Delta Estimate"
+        title="Your projected monthly profit"
+        subtitle="Based on a 2.62% assumed edge per bet."
+        compact
+        useCommitsGrid
+      />
 
       <div className="mx-auto w-full max-w-xl">
         <div className="rounded-2xl border border-emerald-500/40 bg-gradient-to-br from-emerald-500/20 via-emerald-600/10 to-transparent p-5 sm:p-6">
@@ -71,10 +65,10 @@ export function StepMonthlyProfit({
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center">
               <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">
-                Unit size
+                Bet size
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
-                {formatCurrency(unitSize)}
+                {formatCurrency(safeBetSize)}
               </p>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center">
@@ -96,7 +90,7 @@ export function StepMonthlyProfit({
           </div>
           <div className="mt-4 flex items-start gap-2 text-white/50 text-xs">
             <Target className="h-4 w-4 mt-0.5 text-emerald-300" />
-            Assumes 2% unit size and 2.62% edge on each bet.
+            Assumes a 2.62% edge on each bet.
           </div>
         </div>
       </div>

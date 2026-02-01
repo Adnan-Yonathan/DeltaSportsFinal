@@ -1,33 +1,77 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import { RotatingWordBadge } from '@/components/ui/rotating-word-badge'
+import { TextEffect } from '@/components/ui/text-effect'
+import { CommitsGrid } from '@/components/ui/commits-grid'
 
 interface GuestHeroProps {
-  onSignUpClick: () => void
+  onSignUpClick?: () => void
+  title?: React.ReactNode
+  subtitle?: string
+  eyebrow?: string
+  compact?: boolean
+  className?: string
+  useCommitsGrid?: boolean
 }
 
-export function GuestHero({ onSignUpClick }: GuestHeroProps) {
+export function GuestHero({
+  title,
+  subtitle = 'See exactly what the pros see. Uncover the hidden signals and smart money moves that dictate outcomes.',
+  eyebrow,
+  compact = false,
+  className = '',
+  useCommitsGrid = false,
+}: GuestHeroProps) {
+  const titleText = typeof title === 'string' ? title : ''
+  const commitsScale =
+    titleText.length > 28 ? 0.75 : titleText.length > 22 ? 0.85 : 1
+
+  const heading =
+    typeof title === 'string' ? (
+      useCommitsGrid ? (
+        <div className="flex justify-center">
+          <div
+            className="matrix-scramble w-fit max-w-full"
+            style={{ transform: `scale(${commitsScale})`, transformOrigin: 'center' }}
+          >
+            <CommitsGrid text={title} />
+          </div>
+        </div>
+      ) : (
+        <div className="matrix-scramble rounded-3xl bg-black/40 px-4 py-5 text-center text-3xl font-bold tracking-tight text-white backdrop-blur-md sm:px-6 sm:py-6 sm:text-4xl lg:text-5xl">
+          <TextEffect per="word" preset="blur" delay={0.1}>
+            {title}
+          </TextEffect>
+        </div>
+      )
+    ) : (
+      title ?? (
+        <RotatingWordBadge
+          prefix="BET LIKE A "
+          className="rounded-3xl bg-black/40 px-4 py-5 text-center text-3xl font-bold tracking-tight text-white backdrop-blur-md sm:px-6 sm:py-6 sm:text-4xl lg:text-5xl"
+        />
+      )
+    )
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6 }}
-      className="text-center"
+      className={`text-center ${compact ? 'mb-4 lg:mb-6' : 'mb-8 lg:mb-10'} ${className}`}
     >
-      <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">
-        Make{" "}
-        <span className="bg-gradient-to-r from-[#34d399] via-[#34d399] to-[#16a34a] bg-clip-text text-transparent">
-          Money
-        </span>
-        <br />
-        Betting Like a{" "}
-        <span className="bg-gradient-to-r from-[#34d399] via-[#34d399] to-[#16a34a] bg-clip-text text-transparent">
-          Sharp
-        </span>
-      </h1>
-      <p className="text-base md:text-lg leading-relaxed tracking-tight text-white/80 max-w-2xl mx-auto">
-        See exactly what the pros see. Uncover the hidden signals and smart money moves that dictate outcomes.
-      </p>
+      {eyebrow && (
+        <p className="mb-2 text-xs uppercase tracking-[0.3em] text-white/40">
+          {eyebrow}
+        </p>
+      )}
+      <h1 className="w-full">{heading}</h1>
+      {subtitle && (
+        <p className={`mx-auto mt-6 max-w-2xl text-base leading-relaxed tracking-tight text-white/80 md:text-lg`}>
+          {subtitle}
+        </p>
+      )}
     </motion.div>
   )
 }

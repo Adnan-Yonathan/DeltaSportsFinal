@@ -33,13 +33,20 @@ const isMembershipExemptPath = (pathname: string) =>
   MEMBERSHIP_EXEMPT_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
 
 // Check membership paid status from metadata (mirrors lib/utils/membership.ts logic)
+const parseDate = (value?: string | null) => {
+  if (!value || typeof value !== 'string') return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
 const checkMembershipPaid = (metadata: Record<string, any>): boolean => {
   const status = metadata?.membership_status
   const paidStatuses = ['active', 'trialing', 'past_due']
   const hasPaidStatus =
     Boolean(status) && paidStatuses.includes(status)
   const hasPaidFlag = Boolean(metadata?.has_paid)
-  const hasLegacyPaid = Boolean(metadata?.membership_expires_at)
+  const legacyExpiresAt = parseDate(metadata?.membership_expires_at)
+  const hasLegacyPaid = Boolean(legacyExpiresAt && legacyExpiresAt.getTime() > Date.now())
   const tier = typeof metadata?.membership_tier === 'string'
     ? metadata.membership_tier
     : typeof metadata?.subscription_tier === 'string'
@@ -47,7 +54,11 @@ const checkMembershipPaid = (metadata: Record<string, any>): boolean => {
       : null
   const hasTierAccess = tier === 'sharp' || tier === 'syndicate' || tier === 'unlimited' || tier === 'pro'
 
-  return hasPaidFlag || hasPaidStatus || hasLegacyPaid || hasTierAccess
+  if (status && !hasPaidStatus) {
+    return false
+  }
+
+  return hasPaidStatus || hasPaidFlag || hasLegacyPaid || hasTierAccess
 }
 
 export async function middleware(req: NextRequest) {

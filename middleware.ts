@@ -40,8 +40,14 @@ const checkMembershipPaid = (metadata: Record<string, any>): boolean => {
     Boolean(status) && paidStatuses.includes(status)
   const hasPaidFlag = Boolean(metadata?.has_paid)
   const hasLegacyPaid = Boolean(metadata?.membership_expires_at)
+  const tier = typeof metadata?.membership_tier === 'string'
+    ? metadata.membership_tier
+    : typeof metadata?.subscription_tier === 'string'
+      ? metadata.subscription_tier
+      : null
+  const hasTierAccess = tier === 'sharp' || tier === 'syndicate' || tier === 'unlimited' || tier === 'pro'
 
-  return hasPaidFlag || hasPaidStatus || hasLegacyPaid
+  return hasPaidFlag || hasPaidStatus || hasLegacyPaid || hasTierAccess
 }
 
 export async function middleware(req: NextRequest) {

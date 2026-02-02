@@ -24,6 +24,19 @@ export type SharpTraderRow = {
   walletShort: string
   totalPnl: number
   pnl30d: number
+  pnlPrevDay: number
+  topSports: Array<{
+    sport: string
+    pnl: number
+    trades: number
+  }>
+  arbScore7d: number
+  arbLabel7d: "likely_arb" | "possible_arb" | "likely_directional"
+  arbReasons7d: string[]
+  tradeCount7d: number
+  winRate7d: number | null
+  avgPnl7d: number | null
+  pnlStddev7d: number | null
   openTrades: SharpTrade[]
 }
 
@@ -34,6 +47,8 @@ interface ServerManagementTableProps {
   showList?: boolean
   showHeaderRow?: boolean
   className?: string
+  trackedWallets?: Set<string>
+  onToggleTrack?: (wallet: string) => void
 }
 
 const formatNumber = (value?: number | null, digits = 2) => {
@@ -48,6 +63,34 @@ const formatDate = (value?: string | null) => {
   return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
+const SPORT_LABELS: Record<string, string> = {
+  nba: "NBA",
+  nfl: "NFL",
+  ncaaf: "NCAAF",
+  ncaab: "NCAAB",
+  cfb: "NCAAF",
+  cbb: "NCAAB",
+  nhl: "NHL",
+  mlb: "MLB",
+  wnba: "WNBA",
+  soccer: "Soccer",
+  golf: "Golf",
+  ufc: "UFC",
+}
+
+const formatSportLabel = (sport: string) => SPORT_LABELS[sport] ?? sport.toUpperCase()
+
+const formatArbLabel = (label: SharpTraderRow["arbLabel7d"]) => {
+  if (label === "likely_arb") return "Likely Arb"
+  if (label === "possible_arb") return "Possible Arb"
+  return "Likely Directional"
+}
+
+const formatPercent = (value?: number | null) => {
+  if (value == null || !Number.isFinite(value)) return "n/a"
+  return `${(value * 100).toFixed(1)}%`
+}
+
 export function ServerManagementTable({
   title = "Sharp Traders",
   wallets: initialWallets = [],
@@ -55,6 +98,8 @@ export function ServerManagementTable({
   showList = true,
   showHeaderRow = true,
   className = "",
+  trackedWallets,
+  onToggleTrack,
 }: ServerManagementTableProps = {}) {
   const [wallets, setWallets] = useState<SharpTraderRow[]>(initialWallets)
   const [selectedWallet, setSelectedWallet] = useState<SharpTraderRow | null>(null)
@@ -88,7 +133,7 @@ export function ServerManagementTable({
           </div>
           {showStats ? (
             <div className="text-xs text-white/60">
-              {headerStats.total} wallets • {headerStats.trades} open trades
+              {headerStats.total} wallets | {headerStats.trades} open trades
             </div>
           ) : null}
         </div>
@@ -111,8 +156,9 @@ export function ServerManagementTable({
               <div className="hidden sm:grid grid-cols-12 gap-4 px-4 py-2 text-[11px] font-medium text-white/50 uppercase tracking-[0.2em]">
                 <div className="col-span-1">Rank</div>
                 <div className="col-span-4">Wallet</div>
-                <div className="col-span-4">Total P/L (30d)</div>
-                <div className="col-span-3 text-right">Open Trades</div>
+                <div className="col-span-3">Total P/L (30d)</div>
+                <div className="col-span-2">Prev Day</div>
+                <div className="col-span-2 text-right">Open Trades</div>
               </div>
             ) : null}
 
@@ -150,8 +196,36 @@ export function ServerManagementTable({
                     <div className="sm:col-span-4">
                       <div className="text-white font-medium">{wallet.walletShort}</div>
                       <div className="text-[11px] text-white/40">{wallet.wallet}</div>
+                      {onToggleTrack && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            onToggleTrack(wallet.wallet)
+                          }}
+                          className={`mt-2 inline-flex items-center rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition-colors ${
+                            trackedWallets?.has(wallet.wallet.toLowerCase())
+                              ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
+                              : "border-white/15 bg-black/40 text-white/70 hover:border-white/40"
+                          }`}
+                        >
+                          {trackedWallets?.has(wallet.wallet.toLowerCase()) ? "Tracked" : "Track"}
+                        </button>
+                      )}
+                      {wallet.topSports.length > 0 && (
+                        <div className="text-[10px] uppercase tracking-[0.2em] text-white/35 mt-2">
+                          Best:{" "}
+                          {wallet.topSports
+                            .slice(0, 2)
+                            .map((sport) => formatSportLabel(sport.sport))
+                            .join(", ")}
+                        </div>
+                      )}
+                      <div className="mt-2 text-[11px] text-white/60">
+                        Arb {wallet.arbScore7d} | {formatArbLabel(wallet.arbLabel7d)}
+                      </div>
                     </div>
-                    <div className="sm:col-span-4">
+                    <div className="sm:col-span-3">
                       <div className="text-sm font-semibold text-emerald-200">
                         {formatCurrency(wallet.totalPnl)}
                         <span className="text-white/50 font-normal">
@@ -160,7 +234,12 @@ export function ServerManagementTable({
                         </span>
                       </div>
                     </div>
-                    <div className="sm:col-span-3 sm:text-right">
+                    <div className="sm:col-span-2">
+                      <div className="text-sm font-semibold text-white">
+                        {formatCurrency(wallet.pnlPrevDay)}
+                      </div>
+                    </div>
+                    <div className="sm:col-span-2 sm:text-right">
                       <span className="text-sm font-semibold text-white">
                         {wallet.openTrades.length}
                       </span>
@@ -190,21 +269,37 @@ export function ServerManagementTable({
                   </p>
                   <h3 className="text-lg font-semibold text-white mt-1">{selectedWallet.wallet}</h3>
                   <div className="text-xs text-white/60 mt-1">
-                    Total {formatCurrency(selectedWallet.totalPnl)} • 30d {formatCurrency(selectedWallet.pnl30d)}
+                    Total {formatCurrency(selectedWallet.totalPnl)} | 30d {formatCurrency(selectedWallet.pnl30d)} | Prev day{" "}
+                    {formatCurrency(selectedWallet.pnlPrevDay)}
                   </div>
                 </div>
-                <motion.button
-                  className="w-9 h-9 bg-black/70 hover:bg-black rounded-full flex items-center justify-center border border-white/10"
-                  onClick={() => setSelectedWallet(null)}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <X className="w-4 h-4 text-white/80" />
-                </motion.button>
+                <div className="flex items-center gap-2">
+                  {onToggleTrack && (
+                    <button
+                      type="button"
+                      onClick={() => onToggleTrack(selectedWallet.wallet)}
+                      className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition-colors ${
+                        trackedWallets?.has(selectedWallet.wallet.toLowerCase())
+                          ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
+                          : "border-white/15 bg-black/40 text-white/70 hover:border-white/40"
+                      }`}
+                    >
+                      {trackedWallets?.has(selectedWallet.wallet.toLowerCase()) ? "Tracked" : "Track"}
+                    </button>
+                  )}
+                  <motion.button
+                    className="w-9 h-9 bg-black/70 hover:bg-black rounded-full flex items-center justify-center border border-white/10"
+                    onClick={() => setSelectedWallet(null)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <X className="w-4 h-4 text-white/80" />
+                  </motion.button>
+                </div>
               </div>
 
               <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div className="bg-black/50 rounded-xl p-3 border border-white/10">
                     <label className="text-[11px] font-medium text-white/50 uppercase tracking-[0.2em]">
                       Wallet
@@ -225,6 +320,86 @@ export function ServerManagementTable({
                     </label>
                     <div className="text-sm font-medium mt-1 text-white">
                       {formatCurrency(selectedWallet.pnl30d)}
+                    </div>
+                  </div>
+                  <div className="bg-black/50 rounded-xl p-3 border border-white/10">
+                    <label className="text-[11px] font-medium text-white/50 uppercase tracking-[0.2em]">
+                      Prev Day P/L
+                    </label>
+                    <div className="text-sm font-medium mt-1 text-white">
+                      {formatCurrency(selectedWallet.pnlPrevDay)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">
+                      Best Sports
+                    </p>
+                    <p className="text-[11px] text-white/40">
+                      Ranked by P/L
+                    </p>
+                  </div>
+                  {selectedWallet.topSports.length > 0 ? (
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      {selectedWallet.topSports.map((sport) => (
+                        <div
+                          key={`${selectedWallet.id}-${sport.sport}`}
+                          className="rounded-xl border border-white/10 bg-black/60 px-3 py-2"
+                        >
+                          <div className="text-xs font-semibold text-white">
+                            {formatSportLabel(sport.sport)}
+                          </div>
+                          <div className="mt-1 text-[11px] text-white/60">
+                            {formatCurrency(sport.pnl)} | {sport.trades} trades
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-xs text-white/60">No sport breakdown available yet.</div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">
+                      Arb Detection (7d)
+                    </p>
+                    <p className="text-[11px] text-white/40">
+                      Strict score
+                    </p>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-white/10 bg-black/60 px-3 py-2">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/40">Score</div>
+                      <div className="mt-1 text-sm font-semibold text-white">{selectedWallet.arbScore7d}</div>
+                      <div className="mt-1 text-[11px] text-white/60">
+                        {formatArbLabel(selectedWallet.arbLabel7d)}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-black/60 px-3 py-2">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/40">7d Stats</div>
+                      <div className="mt-1 text-[11px] text-white/60">
+                        Trades: {selectedWallet.tradeCount7d} | Win rate: {formatPercent(selectedWallet.winRate7d)}
+                      </div>
+                      <div className="mt-1 text-[11px] text-white/60">
+                        Avg P/L: {selectedWallet.avgPnl7d != null ? formatCurrency(selectedWallet.avgPnl7d) : "n/a"}
+                      </div>
+                      <div className="mt-1 text-[11px] text-white/60">
+                        P/L stddev: {selectedWallet.pnlStddev7d != null ? formatCurrency(selectedWallet.pnlStddev7d) : "n/a"}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-black/60 px-3 py-2">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/40">Reasons</div>
+                      {selectedWallet.arbReasons7d.length > 0 ? (
+                        <div className="mt-1 text-[11px] text-white/60">
+                          {selectedWallet.arbReasons7d.join(" | ")}
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-[11px] text-white/60">No arb flags detected.</div>
+                      )}
                     </div>
                   </div>
                 </div>

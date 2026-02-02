@@ -82,6 +82,19 @@ type WalletRow = {
   wallet: string
   total_pnl: number
   pnl_30d: number
+  pnl_prev_day: number
+  top_sports: Array<{
+    sport: string
+    pnl: number
+    trades: number
+  }>
+  arb_score_7d: number
+  arb_label_7d: 'likely_arb' | 'possible_arb' | 'likely_directional'
+  arb_reasons_7d: string[]
+  trade_count_7d: number
+  win_rate_7d: number | null
+  avg_pnl_7d: number | null
+  pnl_stddev_7d: number | null
   open_trades: Array<{
     title: string | null
     slug: string | null
@@ -123,6 +136,22 @@ const fetchJson = async <T,>(url: string, timeoutMs = 20000): Promise<T> => {
 const isSportsSlug = (value?: string | null) => {
   if (!value) return false
   return POLYMARKET_SPORT_PREFIXES.some((prefix) => value.startsWith(prefix))
+}
+
+const resolveSportKey = (trade: { slug?: string | null; eventSlug?: string | null; title?: string | null }) => {
+  const slug = (trade.eventSlug ?? trade.slug ?? '').toLowerCase()
+  const prefix = slug.split('-')[0]
+  if (prefix) {
+    if (prefix === 'cfb') return 'ncaaf'
+    if (prefix === 'cbb') return 'ncaab'
+    return prefix
+  }
+  const title = (trade.title ?? '').toLowerCase()
+  const titlePrefix = title.split(' ')[0]
+  if (!titlePrefix) return null
+  if (titlePrefix === 'cfb') return 'ncaaf'
+  if (titlePrefix === 'cbb') return 'ncaab'
+  return titlePrefix
 }
 
 const isSportsTrade = (trade: { slug?: string | null; eventSlug?: string | null; title?: string | null }) => {
@@ -201,6 +230,115 @@ const isCacheFresh = (timestamp: string | null | undefined) => {
   return Date.now() - parsed.getTime() < CACHE_TTL_MS
 }
 
+const computeArbProfile7d = (closedPositions: ClosedPositionRow[]) => {
+  const now = Date.now()
+  const startTs = Math.floor((now - 7 * 24 * 60 * 60 * 1000) / 1000)
+  const recent = closedPositions.filter((row) => row.timestamp && row.timestamp >= startTs)
+  const tradeCount = recent.length
+  if (tradeCount === 0) {
+    return {
+      tradeCount,
+      winRate: null,
+      avgPnl: null,
+      stddev: null,
+      score: 0,
+      label: 'likely_directional' as const,
+      reasons: [] as string[],
+    }
+  }
+
+  let wins = 0
+  let losses = 0
+  let total = 0
+  let absTotal = 0
+  const pnls: number[] = []
+
+  for (const row of recent) {
+    const realized = Number(row.realizedPnl ?? 0)
+    total += realized
+    absTotal += Math.abs(realized)
+    pnls.push(realized)
+    if (realized > 0) wins += 1
+    if (realized < 0) losses += 1
+  }
+
+  const count = wins + losses
+  const winRate = count > 0 ? wins / count : null
+  const avgPnl = total / tradeCount
+  const avgAbs = absTotal / tradeCount
+  const mean = avgPnl
+  const variance = pnls.reduce((sum, pnl) => sum + Math.pow(pnl - mean, 2), 0) / tradeCount
+  const stddev = Math.sqrt(variance)
+
+  let score = 0
+  const reasons: string[] = []
+
+  if (tradeCount >= 12) {
+    score += 20
+    reasons.push('High trade count (7d)')
+  }
+  if (tradeCount >= 25) score += 10
+  if (winRate != null && winRate >= 0.85) {
+    score += 25
+    reasons.push('Very high win rate')
+  }
+  if (winRate != null && winRate >= 0.92) score += 10
+  if (avgAbs <= 25) {
+    score += 20
+    reasons.push('Small avg profit per trade')
+  }
+  if (avgAbs <= 15) score += 10
+  if (stddev <= 60) {
+    score += 15
+    reasons.push('Low P/L volatility')
+  }
+  if (stddev <= 30) score += 5
+  if (Math.abs(total) <= 1500) {
+    score += 10
+    reasons.push('Low total P/L for volume')
+  }
+
+  const normalizedScore = Math.min(100, Math.max(0, Math.round(score)))
+  const label =
+    normalizedScore >= 80 ? 'likely_arb' : normalizedScore >= 60 ? 'possible_arb' : 'likely_directional'
+
+  return {
+    tradeCount,
+    winRate,
+    avgPnl: Number(avgPnl.toFixed(2)),
+    stddev: Number(stddev.toFixed(2)),
+    score: normalizedScore,
+    label,
+    reasons: reasons.slice(0, 3),
+  }
+}
+
+const computeTopSports = (positions: PositionRow[]) => {
+  const totals = new Map<string, { pnl: number; trades: number }>()
+
+  for (const position of positions) {
+    if (!isSportsTrade(position)) continue
+    const sportKey = resolveSportKey(position)
+    if (!sportKey) continue
+    const cash = Number(position.cashPnl ?? 0)
+    const realized = Number(position.realizedPnl ?? 0)
+    const pnl = cash + realized
+    const entry = totals.get(sportKey) ?? { pnl: 0, trades: 0 }
+    entry.pnl += Number.isFinite(pnl) ? pnl : 0
+    entry.trades += 1
+    totals.set(sportKey, entry)
+  }
+
+  return Array.from(totals.entries())
+    .map(([sport, data]) => ({
+      sport,
+      pnl: Number(data.pnl.toFixed(2)),
+      trades: data.trades,
+    }))
+    .sort((a, b) => b.pnl - a.pnl)
+    .slice(0, 3)
+}
+
 const buildPayload = async ({
   limitValue,
   pagesValue,
@@ -235,6 +373,12 @@ const buildPayload = async ({
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - 30)
   const cutoffTs = Math.floor(cutoff.getTime() / 1000)
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  const startPrevDay = new Date(startOfToday)
+  startPrevDay.setDate(startPrevDay.getDate() - 1)
+  const startPrevDayTs = Math.floor(startPrevDay.getTime() / 1000)
+  const startTodayTs = Math.floor(startOfToday.getTime() / 1000)
 
   const walletStatsResults = await asyncPool(4, wallets, async (wallet) => {
     try {
@@ -245,7 +389,10 @@ const buildPayload = async ({
 
       let totalPnl = 0
       let pnl30d = 0
+      let pnlPrevDay = 0
       const openTrades = positions.filter((row) => isSportsTrade(row))
+      const topSports = computeTopSports(positions)
+      const arbProfile = computeArbProfile7d(closedPositions)
 
       for (const position of positions) {
         const cash = Number(position.cashPnl ?? 0)
@@ -258,6 +405,9 @@ const buildPayload = async ({
         totalPnl += realized
         if (row.timestamp && row.timestamp >= cutoffTs) {
           pnl30d += realized
+        }
+        if (row.timestamp && row.timestamp >= startPrevDayTs && row.timestamp < startTodayTs) {
+          pnlPrevDay += realized
         }
       }
 
@@ -281,6 +431,15 @@ const buildPayload = async ({
         wallet,
         total_pnl: Number(totalPnl.toFixed(2)),
         pnl_30d: Number(pnl30d.toFixed(2)),
+        pnl_prev_day: Number(pnlPrevDay.toFixed(2)),
+        top_sports: topSports,
+        arb_score_7d: arbProfile.score,
+        arb_label_7d: arbProfile.label,
+        arb_reasons_7d: arbProfile.reasons,
+        trade_count_7d: arbProfile.tradeCount,
+        win_rate_7d: arbProfile.winRate != null ? Number(arbProfile.winRate.toFixed(3)) : null,
+        avg_pnl_7d: arbProfile.avgPnl,
+        pnl_stddev_7d: arbProfile.stddev,
         open_trades: limitedTrades,
       }
     } catch {

@@ -19,6 +19,19 @@ type WalletRow = {
   wallet: string
   total_pnl: number
   pnl_30d: number
+  pnl_prev_day: number
+  top_sports: Array<{
+    sport: string
+    pnl: number
+    trades: number
+  }>
+  arb_score_7d: number
+  arb_label_7d: "likely_arb" | "possible_arb" | "likely_directional"
+  arb_reasons_7d: string[]
+  trade_count_7d: number
+  win_rate_7d: number | null
+  avg_pnl_7d: number | null
+  pnl_stddev_7d: number | null
   open_trades: OpenTrade[]
 }
 
@@ -40,7 +53,7 @@ type SearchParams = {
 
 const truncateWallet = (wallet: string) => {
   if (wallet.length <= 10) return wallet
-  return `${wallet.slice(0, 6)}…${wallet.slice(-4)}`
+  return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`
 }
 
 const SPORT_LABELS: Record<string, string> = {
@@ -84,12 +97,14 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sportFilter, setSportFilter] = useState<string>("all")
+  const [arbFilter, setArbFilter] = useState<"all" | "no-arb">("all")
+  const [trackedWallets, setTrackedWallets] = useState<string[]>([])
   const initialParams = useMemo(
     () => ({
-      tradeLimit: 250,
-      tradePages: 3,
-      top: 20,
-      minTradeSamples: 2000,
+      tradeLimit: 300,
+      tradePages: 5,
+      top: 30,
+      minTradeSamples: 3000,
       openTradeLimit: 3,
     }),
     []
@@ -97,9 +112,9 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
   const fullParams = useMemo(
     () => ({
       tradeLimit: 500,
-      tradePages: 10,
-      top: 50,
-      minTradeSamples: 5000,
+      tradePages: 12,
+      top: 75,
+      minTradeSamples: 8000,
       openTradeLimit: 0,
     }),
     []
@@ -168,6 +183,48 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
     void loadData(fullParams, { updateSearch: true, background: true, markFull: true })
   }, [data, fullParams, hasRequestedFull, loadData])
 
+  useEffect(() => {
+    let active = true
+    const loadTracked = async () => {
+      try {
+        const res = await fetch("/api/polymarket/wallets/track", { cache: "no-store" })
+        if (!res.ok) return
+        const payload = (await res.json()) as { wallets?: string[] }
+        if (!active) return
+        setTrackedWallets(payload.wallets ?? [])
+      } catch {
+        // Ignore if auth is not available.
+      }
+    }
+    void loadTracked()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const toggleTrackWallet = useCallback(async (wallet: string) => {
+    const normalized = wallet.trim().toLowerCase()
+    if (!normalized) return
+    const isTracked = trackedWallets.includes(normalized)
+    setTrackedWallets((prev) =>
+      isTracked ? prev.filter((entry) => entry !== normalized) : [...prev, normalized]
+    )
+    try {
+      const res = await fetch("/api/polymarket/wallets/track", {
+        method: isTracked ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: normalized }),
+      })
+      if (!res.ok) {
+        throw new Error("Failed to update tracked wallets.")
+      }
+    } catch {
+      setTrackedWallets((prev) =>
+        isTracked ? [...prev, normalized] : prev.filter((entry) => entry !== normalized)
+      )
+    }
+  }, [trackedWallets])
+
   const wallets = useMemo(() => {
     const rows = data?.wallets ?? []
     return rows
@@ -182,8 +239,14 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
               return sportKey === sportFilter
             }) ?? [],
       }))
+      .filter((row) => {
+        if (arbFilter === "no-arb") {
+          return row.arb_label_7d === "likely_directional"
+        }
+        return true
+      })
       .filter((row) => row.open_trades.length > 0)
-  }, [data, sportFilter])
+  }, [data, sportFilter, arbFilter])
 
   const availableSports = useMemo(() => {
     const set = new Set<string>()
@@ -207,9 +270,23 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
         walletShort: truncateWallet(wallet.wallet),
         totalPnl: wallet.total_pnl,
         pnl30d: wallet.pnl_30d,
+        pnlPrevDay: wallet.pnl_prev_day,
+        topSports: wallet.top_sports ?? [],
+        arbScore7d: wallet.arb_score_7d ?? 0,
+        arbLabel7d: wallet.arb_label_7d ?? "likely_directional",
+        arbReasons7d: wallet.arb_reasons_7d ?? [],
+        tradeCount7d: wallet.trade_count_7d ?? 0,
+        winRate7d: wallet.win_rate_7d ?? null,
+        avgPnl7d: wallet.avg_pnl_7d ?? null,
+        pnlStddev7d: wallet.pnl_stddev_7d ?? null,
         openTrades: wallet.open_trades,
       }))
   }, [wallets])
+
+  const trackedWalletSet = useMemo(
+    () => new Set(trackedWallets.map((wallet) => wallet.trim().toLowerCase()).filter(Boolean)),
+    [trackedWallets]
+  )
 
   return (
     <div className="space-y-6">
@@ -231,7 +308,23 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
             ))}
           </select>
           <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/40">
-            ▾
+            v
+          </span>
+        </div>
+        <div className="rounded-full border border-white/10 bg-black/50 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-white/60">
+          Arb Filter
+        </div>
+        <div className="relative">
+          <select
+            value={arbFilter}
+            onChange={(event) => setArbFilter(event.target.value as "all" | "no-arb")}
+            className="appearance-none rounded-full border border-white/10 bg-black/60 px-4 py-2 pr-10 text-[11px] uppercase tracking-[0.2em] text-white/80 transition-colors hover:border-emerald-400/50 focus:outline-none"
+          >
+            <option value="all">All Wallets</option>
+            <option value="no-arb">No Potential Arb</option>
+          </select>
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/40">
+            v
           </span>
         </div>
       </div>
@@ -266,7 +359,11 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
       )}
 
       {!loading && !error && wallets.length > 0 && (
-        <ServerManagementTable wallets={rankedWallets} />
+        <ServerManagementTable
+          wallets={rankedWallets}
+          trackedWallets={trackedWalletSet}
+          onToggleTrack={toggleTrackWallet}
+        />
       )}
     </div>
   )

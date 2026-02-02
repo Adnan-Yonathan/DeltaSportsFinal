@@ -82,7 +82,6 @@ type WalletRow = {
   wallet: string
   total_pnl: number
   pnl_30d: number
-  pnl_prev_day: number
   top_sports: Array<{
     sport: string
     pnl: number
@@ -373,13 +372,6 @@ const buildPayload = async ({
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - 30)
   const cutoffTs = Math.floor(cutoff.getTime() / 1000)
-  const startOfToday = new Date()
-  startOfToday.setHours(0, 0, 0, 0)
-  const startPrevDay = new Date(startOfToday)
-  startPrevDay.setDate(startPrevDay.getDate() - 1)
-  const startPrevDayTs = Math.floor(startPrevDay.getTime() / 1000)
-  const startTodayTs = Math.floor(startOfToday.getTime() / 1000)
-
   const walletStatsResults = await asyncPool(4, wallets, async (wallet) => {
     try {
       const [positions, closedPositions] = await Promise.all([
@@ -389,7 +381,6 @@ const buildPayload = async ({
 
       let totalPnl = 0
       let pnl30d = 0
-      let pnlPrevDay = 0
       const openTrades = positions.filter((row) => isSportsTrade(row))
       const topSports = computeTopSports(positions)
       const arbProfile = computeArbProfile7d(closedPositions)
@@ -405,9 +396,6 @@ const buildPayload = async ({
         totalPnl += realized
         if (row.timestamp && row.timestamp >= cutoffTs) {
           pnl30d += realized
-        }
-        if (row.timestamp && row.timestamp >= startPrevDayTs && row.timestamp < startTodayTs) {
-          pnlPrevDay += realized
         }
       }
 
@@ -431,7 +419,6 @@ const buildPayload = async ({
         wallet,
         total_pnl: Number(totalPnl.toFixed(2)),
         pnl_30d: Number(pnl30d.toFixed(2)),
-        pnl_prev_day: Number(pnlPrevDay.toFixed(2)),
         top_sports: topSports,
         arb_score_7d: arbProfile.score,
         arb_label_7d: arbProfile.label,

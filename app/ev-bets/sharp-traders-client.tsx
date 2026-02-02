@@ -19,7 +19,6 @@ type WalletRow = {
   wallet: string
   total_pnl: number
   pnl_30d: number
-  pnl_prev_day: number
   top_sports: Array<{
     sport: string
     pnl: number
@@ -270,7 +269,6 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
         walletShort: truncateWallet(wallet.wallet),
         totalPnl: wallet.total_pnl,
         pnl30d: wallet.pnl_30d,
-        pnlPrevDay: wallet.pnl_prev_day,
         topSports: wallet.top_sports ?? [],
         arbScore7d: wallet.arb_score_7d ?? 0,
         arbLabel7d: wallet.arb_label_7d ?? "likely_directional",

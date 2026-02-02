@@ -24,7 +24,6 @@ export type SharpTraderRow = {
   walletShort: string
   totalPnl: number
   pnl30d: number
-  pnlPrevDay: number
   topSports: Array<{
     sport: string
     pnl: number
@@ -156,9 +155,8 @@ export function ServerManagementTable({
               <div className="hidden sm:grid grid-cols-12 gap-4 px-4 py-2 text-[11px] font-medium text-white/50 uppercase tracking-[0.2em]">
                 <div className="col-span-1">Rank</div>
                 <div className="col-span-4">Wallet</div>
-                <div className="col-span-3">Total P/L (30d)</div>
-                <div className="col-span-2">Prev Day</div>
-                <div className="col-span-2 text-right">Open Trades</div>
+                <div className="col-span-4">Total P/L (30d)</div>
+                <div className="col-span-3 text-right">Open Trades</div>
               </div>
             ) : null}
 
@@ -225,7 +223,7 @@ export function ServerManagementTable({
                         Arb {wallet.arbScore7d} | {formatArbLabel(wallet.arbLabel7d)}
                       </div>
                     </div>
-                    <div className="sm:col-span-3">
+                    <div className="sm:col-span-4">
                       <div className="text-sm font-semibold text-emerald-200">
                         {formatCurrency(wallet.totalPnl)}
                         <span className="text-white/50 font-normal">
@@ -234,12 +232,7 @@ export function ServerManagementTable({
                         </span>
                       </div>
                     </div>
-                    <div className="sm:col-span-2">
-                      <div className="text-sm font-semibold text-white">
-                        {formatCurrency(wallet.pnlPrevDay)}
-                      </div>
-                    </div>
-                    <div className="sm:col-span-2 sm:text-right">
+                    <div className="sm:col-span-3 sm:text-right">
                       <span className="text-sm font-semibold text-white">
                         {wallet.openTrades.length}
                       </span>
@@ -269,8 +262,7 @@ export function ServerManagementTable({
                   </p>
                   <h3 className="text-lg font-semibold text-white mt-1">{selectedWallet.wallet}</h3>
                   <div className="text-xs text-white/60 mt-1">
-                    Total {formatCurrency(selectedWallet.totalPnl)} | 30d {formatCurrency(selectedWallet.pnl30d)} | Prev day{" "}
-                    {formatCurrency(selectedWallet.pnlPrevDay)}
+                    Total {formatCurrency(selectedWallet.totalPnl)} | 30d {formatCurrency(selectedWallet.pnl30d)}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -299,7 +291,7 @@ export function ServerManagementTable({
               </div>
 
               <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="bg-black/50 rounded-xl p-3 border border-white/10">
                     <label className="text-[11px] font-medium text-white/50 uppercase tracking-[0.2em]">
                       Wallet
@@ -320,14 +312,6 @@ export function ServerManagementTable({
                     </label>
                     <div className="text-sm font-medium mt-1 text-white">
                       {formatCurrency(selectedWallet.pnl30d)}
-                    </div>
-                  </div>
-                  <div className="bg-black/50 rounded-xl p-3 border border-white/10">
-                    <label className="text-[11px] font-medium text-white/50 uppercase tracking-[0.2em]">
-                      Prev Day P/L
-                    </label>
-                    <div className="text-sm font-medium mt-1 text-white">
-                      {formatCurrency(selectedWallet.pnlPrevDay)}
                     </div>
                   </div>
                 </div>

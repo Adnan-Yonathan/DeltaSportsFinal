@@ -10,7 +10,6 @@ const rows: SharpTraderRow[] = [
     walletShort: "0x8fe3...a9c1",
     totalPnl: 187420,
     pnl30d: 38210,
-    pnlPrevDay: 1450,
     topSports: [
       { sport: "nba", pnl: 8420, trades: 12 },
       { sport: "nfl", pnl: 3210, trades: 5 },

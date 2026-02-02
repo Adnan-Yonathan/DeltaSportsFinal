@@ -2,6 +2,7 @@ import Link from "next/link"
 import type { ComponentType } from "react"
 import { SimpleHeader } from "@/components/ui/simple-header"
 import { TOOLS_CONTENT } from "@/lib/tools-content"
+import HomeLink from "@/components/home-link"
 import {
   Activity,
   Clock,
@@ -33,12 +34,10 @@ export default function ToolsPage() {
     <div className="min-h-screen bg-black text-white">
       <SimpleHeader
         rightSlot={
-          <Link
-            href="/welcome"
+          <HomeLink
             className="hidden sm:inline-flex items-center rounded-full border border-emerald-500/40 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-emerald-200 hover:border-emerald-400 hover:text-white transition-colors"
-          >
-            Home
-          </Link>
+            label="Home"
+          />
         }
       />
       <main className="mx-auto w-full max-w-6xl px-4 pb-16 pt-24 sm:px-6 lg:px-8">

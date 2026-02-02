@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { BarChart3, Eye, Layers3, Zap, Target, Users, TrendingUp, BookOpenCheck, LineChart } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { getMembershipStatus } from "@/lib/utils/membership"
 
 const TOOLS_NAV_ITEMS = [
   { href: "/sharp-detector", label: "Sharps", icon: Eye },
@@ -42,9 +44,31 @@ export default function ToolsNav({
   const pathname = usePathname()
   const [mounted, setMounted] = useState(false)
   const [mobileMode, setMobileMode] = useState<"projections" | "research">("projections")
+  const [homeHref, setHomeHref] = useState("/welcome")
 
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const supabase = createClient()
+    let active = true
+    const load = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!active) return
+      if (!user) {
+        setHomeHref("/welcome")
+        return
+      }
+      const membership = getMembershipStatus(user.user_metadata)
+      setHomeHref(membership.hasPaidAccess ? "/chat" : "/welcome")
+    }
+    load()
+    return () => {
+      active = false
+    }
   }, [])
 
   useEffect(() => {
@@ -78,7 +102,7 @@ export default function ToolsNav({
     <>
       <nav className="flex items-center gap-1 sm:gap-2">
         <Link
-          href="/welcome"
+          href={homeHref}
           className={`mr-2 ${showMobileChatBack ? "inline-flex" : "hidden"} sm:inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white/50 hover:border-emerald-500/40 hover:text-emerald-200 transition-colors`}
         >
           <svg

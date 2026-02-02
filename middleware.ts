@@ -154,8 +154,6 @@ export async function middleware(req: NextRequest) {
     })
   }
   return redirect
-
-  return res
 }
 
 export const config = {

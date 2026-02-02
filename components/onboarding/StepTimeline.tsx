@@ -1,11 +1,13 @@
 ﻿"use client"
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
+import { Loader2 } from "lucide-react"
 import { GuestHero } from "@/components/ui/guest-hero"
-import { useRouter } from "next/navigation"
 
 interface StepTimelineProps {
   onValidation: (isValid: boolean) => void
+  onContinue?: () => void
+  saving?: boolean
 }
 
 const TIMELINE = [
@@ -50,9 +52,7 @@ const TIMELINE = [
   },
 ]
 
-export function StepTimeline({ onValidation }: StepTimelineProps) {
-  const router = useRouter()
-
+export function StepTimeline({ onValidation, onContinue, saving }: StepTimelineProps) {
   useEffect(() => {
     onValidation(true)
   }, [onValidation])
@@ -91,10 +91,18 @@ export function StepTimeline({ onValidation }: StepTimelineProps) {
         <div className="mt-8 flex justify-center">
           <button
             type="button"
-            onClick={() => router.push("/pricing")}
-            className="rounded-full bg-[#34d399] px-8 py-3 text-sm font-semibold text-[#0f1f15] transition-colors hover:bg-[#16a34a]"
+            onClick={onContinue}
+            disabled={saving}
+            className="rounded-full bg-[#34d399] px-8 py-3 text-sm font-semibold text-[#0f1f15] transition-colors hover:bg-[#16a34a] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Become an Insider Today
+            {saving ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </span>
+            ) : (
+              "Become an Insider Today"
+            )}
           </button>
         </div>
       </div>

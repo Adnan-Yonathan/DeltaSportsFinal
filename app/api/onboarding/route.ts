@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 interface OnboardingData {
-  favorite_sports: string[]
+  favorite_sports?: string[]
   preferred_markets: string[]
   experience_level: 'beginner' | 'intermediate' | 'advanced'
   risk_tolerance: 'conservative' | 'moderate' | 'aggressive'
@@ -29,7 +29,6 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (
-      !body.favorite_sports ||
       !body.preferred_markets ||
       !body.experience_level ||
       !body.risk_tolerance ||
@@ -37,14 +36,6 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: 'Missing required fields' },
-        { status: 400 }
-      )
-    }
-
-    // Validate arrays have at least one item
-    if (body.favorite_sports.length === 0) {
-      return NextResponse.json(
-        { error: 'Please select at least one sport' },
         { status: 400 }
       )
     }
@@ -82,7 +73,9 @@ export async function POST(request: NextRequest) {
 
     // Update user profile with onboarding data
     const updateData: Record<string, unknown> = {
-      favorite_sports: body.favorite_sports,
+      ...(body.favorite_sports && body.favorite_sports.length > 0
+        ? { favorite_sports: body.favorite_sports }
+        : {}),
       preferred_markets: body.preferred_markets,
       experience_level: body.experience_level,
       risk_tolerance: body.risk_tolerance,
@@ -110,7 +103,9 @@ export async function POST(request: NextRequest) {
       data: {
         onboarding_completed: true,
         onboarding_profile: {
-          favorite_sports: body.favorite_sports,
+          ...(body.favorite_sports && body.favorite_sports.length > 0
+            ? { favorite_sports: body.favorite_sports }
+            : {}),
           preferred_markets: body.preferred_markets,
           experience_level: body.experience_level,
           risk_tolerance: body.risk_tolerance,

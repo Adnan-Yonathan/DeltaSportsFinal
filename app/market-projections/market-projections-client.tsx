@@ -14,7 +14,7 @@ type MarketProjectionsClientProps = {
   errorMessage: string | null
   sport: string
   isLocked?: boolean
-  tier?: "free" | "sharp" | "syndicate" | null
+  tier?: "free" | "pro" | "sharp" | "syndicate" | null
   previewMode?: boolean
 }
 

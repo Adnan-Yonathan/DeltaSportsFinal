@@ -544,7 +544,7 @@ function ChatPageContent() {
   const baseChatTabs = deltaMode === 'research' ? researchTabs : projectionsTabs
   const chatTabs = baseChatTabs
   const membershipLabel = membership?.tier
-    ? ({ free: 'Free', sharp: 'Sharp', syndicate: 'Syndicate' } as const)[membership.tier] || 'Free'
+    ? ({ free: 'Free', pro: 'Pro', sharp: 'Sharp', syndicate: 'Syndicate' } as const)[membership.tier] || 'Free'
     : 'Free'
   const showSharpToggle = !hasMessages
   const sharpPanelOpen = sharpDetectorExpanded || sharpDetectorOpen

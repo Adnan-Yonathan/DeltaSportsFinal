@@ -152,7 +152,19 @@ export function OnboardingFlow() {
       ),
     },
     {
-      component: <StepTimeline onValidation={setIsStepValid} />,
+      component: (
+        <StepTimeline
+          onValidation={setIsStepValid}
+          onContinue={async () => {
+            if (!hasSaved) {
+              const saved = await saveOnboarding()
+              if (!saved) return
+            }
+            router.push("/pricing")
+          }}
+          saving={saving}
+        />
+      ),
     },
     {
       component: (

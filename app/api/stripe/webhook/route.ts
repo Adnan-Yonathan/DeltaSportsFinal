@@ -129,7 +129,7 @@ async function updateUserSubscription(
     stripe_current_period_end: currentPeriodEnd ? new Date(currentPeriodEnd * 1000).toISOString() : null,
     subscription_cancel_at: cancelAt ? new Date(cancelAt * 1000).toISOString() : null,
     membership_plan_version: planVersion,
-    ...(existingHasPaid || subscription.status === 'active' || subscription.status === 'past_due'
+    ...(existingHasPaid || subscription.status === 'active' || subscription.status === 'trialing' || subscription.status === 'past_due'
       ? { has_paid: true }
       : {}),
   }

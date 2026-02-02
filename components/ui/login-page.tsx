@@ -9,6 +9,7 @@ import {
   CanvasRevealEffect,
   MiniNavbar,
 } from "@/components/ui/sign-in-flow-1"
+import { getMembershipStatus } from "@/lib/utils/membership"
 
 export const LoginPage = () => {
   const [email, setEmail] = useState("")
@@ -62,6 +63,13 @@ export const LoginPage = () => {
           return
         }
 
+        // Check membership status first — paid users go straight to chat
+        const membership = getMembershipStatus(data.user.user_metadata)
+        if (membership.isActive) {
+          router.push("/chat")
+          return
+        }
+
         const metadataCompleted = Boolean(
           (data.user.user_metadata as any)?.onboarding_completed
         )
@@ -84,7 +92,8 @@ export const LoginPage = () => {
           }
         }
 
-        router.push("/chat")
+        // Onboarding done but not paid — go to pricing
+        router.push("/pricing")
       }
     } catch (err: any) {
       setError(err.message || "Failed to sign in")

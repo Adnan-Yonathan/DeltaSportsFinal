@@ -18,7 +18,7 @@ interface Feature {
 
 export interface PricingTier {
   name: string
-  tierKey: 'free' | 'sharp' | 'syndicate'
+  tierKey: 'free' | 'pro' | 'sharp' | 'syndicate'
   price: {
     weekly: number
     monthly: number
@@ -66,8 +66,9 @@ const badgeStyles = cn(
 
 const tierRank: Record<PricingTier["tierKey"], number> = {
   free: 0,
-  sharp: 1,
-  syndicate: 2,
+  pro: 1,
+  sharp: 2,
+  syndicate: 3,
 }
 
 export function PricingSection({ tiers, className }: PricingSectionProps) {

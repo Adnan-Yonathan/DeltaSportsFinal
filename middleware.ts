@@ -94,7 +94,7 @@ export async function middleware(req: NextRequest) {
 
   // Check membership status from user metadata
   const metadata = session.user?.user_metadata || {}
-  const isPaid = checkMembershipPaid(metadata)
+  let isPaid = checkMembershipPaid(metadata)
   const onboardingCompleted = Boolean(metadata?.onboarding_completed)
 
   if (isMembershipExemptPath(pathname)) {
@@ -104,6 +104,23 @@ export async function middleware(req: NextRequest) {
   if (!onboardingCompleted) {
     const onboardingUrl = new URL('/onboarding', req.url)
     return NextResponse.redirect(onboardingUrl)
+  }
+
+  // If not an active member, fall back to profile table tier lookup
+  if (!isPaid) {
+    try {
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('subscription_tier')
+        .eq('id', session.user.id)
+        .single()
+      const tier = userProfile?.subscription_tier
+      if (tier === 'pro' || tier === 'unlimited' || tier === 'sharp' || tier === 'syndicate') {
+        isPaid = true
+      }
+    } catch {
+      // Ignore lookup failures and fall back to pricing redirect below.
+    }
   }
 
   // If not an active member, redirect to pricing

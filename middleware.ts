@@ -117,36 +117,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(onboardingUrl)
   }
 
-  // If not an active member, fall back to profile table tier lookup
-  if (!isPaid) {
-    try {
-      const { data: userProfile } = await supabase
-        .from('users')
-        .select('subscription_tier')
-        .eq('id', session.user.id)
-        .single()
-      const tier = userProfile?.subscription_tier
-      if (tier === 'pro' || tier === 'unlimited' || tier === 'sharp' || tier === 'syndicate') {
-        isPaid = true
-      }
-    } catch {
-      // Ignore lookup failures and fall back to pricing redirect below.
-    }
-  }
+  // TEMP: Full free access for all authenticated users.
+  return res
 
-  // If not an active member, redirect to pricing
-  if (!isPaid) {
-    const pricingUrl = new URL('/pricing', req.url)
-    const redirect = NextResponse.redirect(pricingUrl)
-    if (affiliateRef) {
-      redirect.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
-        maxAge: AFFILIATE_REF_TTL,
-        path: '/',
-        sameSite: 'lax',
-      })
-    }
-    return redirect
-  }
+  // TEMP: Membership gating disabled below.
 
   return res
 }

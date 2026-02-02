@@ -34,10 +34,10 @@ export default function ToolsPage() {
       <SimpleHeader
         rightSlot={
           <Link
-            href="/chat"
+            href="/welcome"
             className="hidden sm:inline-flex items-center rounded-full border border-emerald-500/40 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-emerald-200 hover:border-emerald-400 hover:text-white transition-colors"
           >
-            Back to chat
+            Home
           </Link>
         }
       />

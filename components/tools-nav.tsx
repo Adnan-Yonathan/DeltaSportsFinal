@@ -78,7 +78,7 @@ export default function ToolsNav({
     <>
       <nav className="flex items-center gap-1 sm:gap-2">
         <Link
-          href="/chat"
+          href="/welcome"
           className={`mr-2 ${showMobileChatBack ? "inline-flex" : "hidden"} sm:inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white/50 hover:border-emerald-500/40 hover:text-emerald-200 transition-colors`}
         >
           <svg
@@ -94,7 +94,7 @@ export default function ToolsNav({
               d="M10 19l-7-7m0 0l7-7m-7 7h18"
             />
           </svg>
-          Chat
+          Home
         </Link>
         <Link
           href="/pricing"

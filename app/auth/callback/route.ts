@@ -111,6 +111,8 @@ export async function GET(request: NextRequest) {
       if (!membership.hasPaidAccess) {
         return NextResponse.redirect(new URL('/pricing', requestUrl.origin))
       }
+
+      return NextResponse.redirect(new URL('/chat', requestUrl.origin))
     }
   }
 

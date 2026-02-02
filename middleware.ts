@@ -152,6 +152,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(onboardingUrl)
   }
 
+  if (isPaid && (pathname === '/welcome' || pathname === '/pricing')) {
+    return NextResponse.redirect(new URL('/chat', req.url))
+  }
+
   // If not an active member, redirect to pricing
   if (!isPaid) {
     const pricingUrl = new URL('/pricing', req.url)

@@ -112,39 +112,30 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
-  if (!onboardingCompleted) {
-    try {
-      const { data: userProfile } = await supabase
-        .from('users')
-        .select('onboarding_completed,subscription_tier')
-        .eq('id', session.user.id)
-        .single()
-      if (userProfile?.onboarding_completed) {
-        onboardingCompleted = true
-      }
-      if (!isPaid) {
-        const tier = userProfile?.subscription_tier
-        if (tier === 'pro' || tier === 'unlimited' || tier === 'sharp' || tier === 'syndicate') {
-          isPaid = true
-        }
-      }
-    } catch {
-      // Ignore lookup failures and fall back to redirects below.
+  try {
+    const { data: userProfile } = await supabase
+      .from('users')
+      .select('onboarding_completed,subscription_tier')
+      .eq('id', session.user.id)
+      .single()
+    if (userProfile?.onboarding_completed) {
+      onboardingCompleted = true
     }
-  } else if (!isPaid) {
-    try {
-      const { data: userProfile } = await supabase
-        .from('users')
-        .select('subscription_tier')
-        .eq('id', session.user.id)
-        .single()
+    if (!isPaid) {
       const tier = userProfile?.subscription_tier
       if (tier === 'pro' || tier === 'unlimited' || tier === 'sharp' || tier === 'syndicate') {
         isPaid = true
       }
-    } catch {
-      // Ignore lookup failures and fall back to pricing redirect below.
     }
+  } catch {
+    // Ignore lookup failures and fall back to redirects below.
+  }
+
+  if (isPaid) {
+    if (pathname === '/welcome' || pathname === '/pricing' || pathname === '/onboarding') {
+      return NextResponse.redirect(new URL('/chat', req.url))
+    }
+    return res
   }
 
   if (!onboardingCompleted) {
@@ -152,23 +143,17 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(onboardingUrl)
   }
 
-  if (isPaid && (pathname === '/welcome' || pathname === '/pricing')) {
-    return NextResponse.redirect(new URL('/chat', req.url))
-  }
-
   // If not an active member, redirect to pricing
-  if (!isPaid) {
-    const pricingUrl = new URL('/pricing', req.url)
-    const redirect = NextResponse.redirect(pricingUrl)
-    if (affiliateRef) {
-      redirect.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
-        maxAge: AFFILIATE_REF_TTL,
-        path: '/',
-        sameSite: 'lax',
-      })
-    }
-    return redirect
+  const pricingUrl = new URL('/pricing', req.url)
+  const redirect = NextResponse.redirect(pricingUrl)
+  if (affiliateRef) {
+    redirect.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
+      maxAge: AFFILIATE_REF_TTL,
+      path: '/',
+      sameSite: 'lax',
+    })
   }
+  return redirect
 
   return res
 }

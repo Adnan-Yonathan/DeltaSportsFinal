@@ -75,7 +75,32 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
       }
 
-      const membership = getMembershipStatusFromMetadata(user.user_metadata)
+      let membership = getMembershipStatusFromMetadata(user.user_metadata)
+      if (!membership.hasPaidAccess) {
+        const { data: profile, error } = await supabase
+          .from('users')
+          .select('subscription_tier')
+          .eq('id', user.id)
+          .single()
+
+        const tier = profile?.subscription_tier
+        if (!error && (tier === 'pro' || tier === 'unlimited' || tier === 'sharp' || tier === 'syndicate')) {
+          await supabase.auth.updateUser({
+            data: {
+              membership_tier: tier === 'unlimited' ? 'syndicate' : tier,
+              membership_status: 'active',
+              has_paid: true,
+            },
+          })
+          membership = getMembershipStatusFromMetadata({
+            ...user.user_metadata,
+            membership_tier: tier === 'unlimited' ? 'syndicate' : tier,
+            membership_status: 'active',
+            has_paid: true,
+          })
+        }
+      }
+
       if (!membership.hasPaidAccess) {
         return NextResponse.redirect(new URL('/pricing', requestUrl.origin))
       }

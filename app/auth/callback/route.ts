@@ -68,6 +68,13 @@ export async function GET(request: NextRequest) {
 
         if (!error) {
           onboardingCompleted = Boolean(profile?.onboarding_completed)
+          if (onboardingCompleted && !metadataCompleted) {
+            await supabase.auth.updateUser({
+              data: {
+                onboarding_completed: true,
+              },
+            })
+          }
         }
       }
 

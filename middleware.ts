@@ -106,10 +106,45 @@ export async function middleware(req: NextRequest) {
   // Check membership status from user metadata
   const metadata = session.user?.user_metadata || {}
   let isPaid = checkMembershipPaid(metadata)
-  const onboardingCompleted = Boolean(metadata?.onboarding_completed)
+  let onboardingCompleted = Boolean(metadata?.onboarding_completed)
 
   if (isMembershipExemptPath(pathname)) {
     return res
+  }
+
+  if (!onboardingCompleted) {
+    try {
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('onboarding_completed,subscription_tier')
+        .eq('id', session.user.id)
+        .single()
+      if (userProfile?.onboarding_completed) {
+        onboardingCompleted = true
+      }
+      if (!isPaid) {
+        const tier = userProfile?.subscription_tier
+        if (tier === 'pro' || tier === 'unlimited' || tier === 'sharp' || tier === 'syndicate') {
+          isPaid = true
+        }
+      }
+    } catch {
+      // Ignore lookup failures and fall back to redirects below.
+    }
+  } else if (!isPaid) {
+    try {
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('subscription_tier')
+        .eq('id', session.user.id)
+        .single()
+      const tier = userProfile?.subscription_tier
+      if (tier === 'pro' || tier === 'unlimited' || tier === 'sharp' || tier === 'syndicate') {
+        isPaid = true
+      }
+    } catch {
+      // Ignore lookup failures and fall back to pricing redirect below.
+    }
   }
 
   if (!onboardingCompleted) {
@@ -117,10 +152,19 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(onboardingUrl)
   }
 
-  // TEMP: Full free access for all authenticated users.
-  return res
-
-  // TEMP: Membership gating disabled below.
+  // If not an active member, redirect to pricing
+  if (!isPaid) {
+    const pricingUrl = new URL('/pricing', req.url)
+    const redirect = NextResponse.redirect(pricingUrl)
+    if (affiliateRef) {
+      redirect.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
+        maxAge: AFFILIATE_REF_TTL,
+        path: '/',
+        sameSite: 'lax',
+      })
+    }
+    return redirect
+  }
 
   return res
 }

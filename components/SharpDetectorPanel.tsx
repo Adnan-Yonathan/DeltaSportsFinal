@@ -79,25 +79,9 @@ const NUKE_NOTIONAL = 100000
 const SHARP_MONEY_STRENGTH_THRESHOLD = 60
 const POLL_INTERVAL_BET_FEED = 30000
 const POLL_INTERVAL_SHARP_FEED = 15000
-const STORAGE_KEY = 'sharp-detector-trades'
-const CACHE_VERSION_KEY = 'sharp-detector-cache-version'
-const CACHE_VERSION = '6'
 const WALLET_STORAGE_KEY = 'sharp-detector-wallets'
 const MAX_RESOLVED_TRADES = 300
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
-
-const ensureSharpCacheVersion = () => {
-  if (typeof window === 'undefined') return
-  try {
-    const current = window.localStorage.getItem(CACHE_VERSION_KEY)
-    if (current !== CACHE_VERSION) {
-      window.localStorage.removeItem(STORAGE_KEY)
-      window.localStorage.setItem(CACHE_VERSION_KEY, CACHE_VERSION)
-    }
-  } catch (error) {
-    console.warn('Failed to validate Whale Feed cache version:', error)
-  }
-}
 
 const formatOddsLabel = (priceCents: number, americanOdds: number | null) => {  
   const centsLabel = `${priceCents}c`
@@ -409,20 +393,7 @@ export default function SharpDetectorPanel({
   const [alertsEnabled, setAlertsEnabled] = useState(true)
   const sharpMoneySeenIds = useRef<Set<string>>(new Set())
 
-  const [trades, setTrades] = useState<SharpTradeWithStatus[]>(() => {
-    if (typeof window === 'undefined') return []
-    try {
-      ensureSharpCacheVersion()
-      const cached = window.localStorage.getItem(STORAGE_KEY)
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        return Array.isArray(parsed) ? parsed : []
-      }
-    } catch (error) {
-      console.warn('Failed to load Whale Feed cache:', error)
-    }
-    return []
-  })
+  const [trades, setTrades] = useState<SharpTradeWithStatus[]>([])
   const [hydrated, setHydrated] = useState(typeof window !== 'undefined')       
   const [debugEnabled, setDebugEnabled] = useState(false)
   const [lastFetchAt, setLastFetchAt] = useState<string | null>(null)
@@ -834,8 +805,11 @@ export default function SharpDetectorPanel({
     try {
       const params = new URLSearchParams()
       params.set('minNotional', String(MIN_PROP_NOTIONAL))
-      params.set('limit', '200')
-      const res = await fetch(`/api/whale-detector?${params.toString()}`, {
+      params.set('limit', '500')
+      if (dateFilter !== 'all') {
+        params.set('date', dateFilter)
+      }
+      const res = await fetch(`/api/whale-trades-daily?${params.toString()}`, {
         cache: 'no-store',
       })
       if (!res.ok) return
@@ -1005,15 +979,6 @@ export default function SharpDetectorPanel({
   const dismissAlert = (alertId: string) => {
     setAlerts((prev) => prev.filter((a) => a.id !== alertId))
   }
-
-  useEffect(() => {
-    if (!hydrated || typeof window === 'undefined') return
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trades))
-    } catch (error) {
-      console.warn('Failed to persist Whale Feed cache:', error)
-    }
-  }, [hydrated, trades])
 
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return

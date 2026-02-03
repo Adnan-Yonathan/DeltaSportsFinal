@@ -41,6 +41,9 @@
     },
     "app/api/cron/refresh-sharp-traders/route.ts": {
       "maxDuration": 300
+    },
+    "app/api/cron/refresh-whale-trades-daily/route.ts": {
+      "maxDuration": 120
     }
   },
   "crons": [
@@ -90,6 +93,10 @@
     },
     {
       "path": "/api/cron/refresh-sharp-traders",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-whale-trades-daily",
       "schedule": "*/5 * * * *"
     }
   ]

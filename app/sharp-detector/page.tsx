@@ -498,29 +498,6 @@ export default function SharpDetectorPage() {
     }
   }
 
-  // Fetch live trades and merge with existing (30s polling)
-  const fetchTrades = async () => {
-    try {
-      const res = await fetch(
-        `/api/whale-detector?minNotional=${MIN_NOTIONAL}&limit=200`,
-        { cache: 'no-store' }
-      )
-      if (!res.ok) return
-      const data = await res.json()
-      const incoming: SharpTrade[] = Array.isArray(data?.trades)
-        ? data.trades
-        : []
-      setLastFetchAt(new Date().toISOString())
-      setLastFetchCount(incoming.length)
-      setLastFetchError(null)
-      setTrades((prev) => mergeTrades(prev, incoming))
-    } catch (error) {
-      console.warn('Whale Feed fetch failed:', error)
-      setLastFetchAt(new Date().toISOString())
-      setLastFetchError(error instanceof Error ? error.message : 'Unknown error')
-    }
-  }
-
   useEffect(() => {
     if (typeof window === 'undefined') return
     setHydrated(true)
@@ -627,12 +604,9 @@ export default function SharpDetectorPage() {
 
   useEffect(() => {
     if (!hasAccess) return
-    // First fetch from daily database (persistent storage), then start polling
-    fetchDailyTrades().then(() => {
-      // After loading persisted trades, fetch live trades for freshest data
-      fetchTrades()
-    })
-    const interval = setInterval(fetchTrades, POLL_INTERVAL_MS)
+    // Only use daily storage so every user sees the same feed.
+    fetchDailyTrades()
+    const interval = setInterval(fetchDailyTrades, POLL_INTERVAL_MS)
     return () => clearInterval(interval)
   }, [hasAccess])
 

@@ -284,6 +284,39 @@ const LineMovementChart = ({
   )
 }
 
+const buildSeriesFromMovements = (
+  lineMovements: any[],
+  market: 'spread' | 'total' | 'moneyline'
+): LineSeries | undefined => {
+  const movement = lineMovements.find((item) => item.market === market)
+  if (!movement) return undefined
+
+  const opening = Number.isFinite(movement.openingLine)
+    ? Number(movement.openingLine)
+    : null
+  const current = Number.isFinite(movement.currentLine)
+    ? Number(movement.currentLine)
+    : null
+  if (opening == null && current == null) return undefined
+
+  const now = Date.now()
+  const points: LinePoint[] = []
+  if (opening != null) {
+    points.push({
+      t: new Date(now - 12 * 60 * 60 * 1000).toISOString(),
+      value: opening,
+    })
+  }
+  if (current != null) {
+    points.push({
+      t: new Date().toISOString(),
+      value: current,
+    })
+  }
+
+  return points.length ? { points } : undefined
+}
+
 export default function SharpActionClient({
   previewMode = false,
 }: {
@@ -353,6 +386,11 @@ export default function SharpActionClient({
                 moneyline:
                   edge?.moneyline?.sportsbook?.homeOdds ?? resolveFallback('moneyline'),
               },
+              lineHistory: {
+                spread: buildSeriesFromMovements(lineMovements, 'spread'),
+                total: buildSeriesFromMovements(lineMovements, 'total'),
+                moneyline: buildSeriesFromMovements(lineMovements, 'moneyline'),
+              },
             }
           })
 
@@ -404,10 +442,17 @@ export default function SharpActionClient({
 
       const enrichedSections = nextSections.map((section) => ({
         ...section,
-        games: section.games.map((game) => ({
-          ...game,
-          lineHistory: historySeries[game.gameId],
-        })),
+        games: section.games.map((game) => {
+          const history = historySeries[game.gameId]
+          return {
+            ...game,
+            lineHistory: {
+              spread: history?.spread ?? game.lineHistory?.spread,
+              total: history?.total ?? game.lineHistory?.total,
+              moneyline: history?.moneyline ?? game.lineHistory?.moneyline,
+            },
+          }
+        }),
       }))
 
       setSections(enrichedSections)

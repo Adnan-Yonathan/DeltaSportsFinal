@@ -11,7 +11,8 @@ import { ThemeProvider } from '@/components/theme-provider'
 
 export const metadata: Metadata = {
   title: 'Delta Sports - The Sharp Money Tool for Sports',
-  description: 'Delta Sports AI is an AI sports betting assistant for live odds, matchup insights, and betting analytics.',
+  description:
+    'Delta Sports AI is an AI sports betting assistant for sharp betting, sharp action research, sharp money tracking, live odds, and betting analytics.',
   metadataBase: new URL('https://deltasports.app'),
   applicationName: 'Delta Sports',
   keywords: [
@@ -31,13 +32,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Delta Sports - The Sharp Money Tool for Sports',
     description:
-      'Delta Sports AI is an AI sports betting assistant for live odds, matchup insights, and betting analytics.',
+      'Delta Sports AI is an AI sports betting assistant for sharp betting, sharp action research, sharp money tracking, live odds, and betting analytics.',
     siteName: 'Delta Sports',
   },
   twitter: {
     title: 'Delta Sports - The Sharp Money Tool for Sports',
     description:
-      'Delta Sports AI is an AI sports betting assistant for live odds, matchup insights, and betting analytics.',
+      'Delta Sports AI is an AI sports betting assistant for sharp betting, sharp action research, sharp money tracking, live odds, and betting analytics.',
   },
   icons: {
     icon: '/delta-logo.png',

@@ -5,14 +5,14 @@ import { SimpleHeader } from '@/components/ui/simple-header'
 export const metadata: Metadata = {
   title: 'Sharp Betting Tools | Delta Sports',
   description:
-    'Sharp betting tools for serious bettors: line shopping, sharp money signals, AI projections, and real-time market movement. Find sharp bets faster with Delta Sports.',
+    'Sharp betting tools for serious bettors: sharp action research, sharp money signals, line shopping, AI projections, and real-time market movement. Find sharp bets faster with Delta Sports.',
   alternates: {
     canonical: 'https://deltasports.app/sharp-betting-tools',
   },
   openGraph: {
     title: 'Sharp Betting Tools | Delta Sports',
     description:
-      'Sharp betting tools for serious bettors: line shopping, sharp money signals, AI projections, and real-time market movement.',
+      'Sharp betting tools for serious bettors: sharp action research, sharp money signals, line shopping, AI projections, and real-time market movement.',
     url: 'https://deltasports.app/sharp-betting-tools',
     siteName: 'Delta Sports',
     type: 'website',
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   twitter: {
     title: 'Sharp Betting Tools | Delta Sports',
     description:
-      'Sharp betting tools for serious bettors: line shopping, sharp money signals, AI projections, and real-time market movement.',
+      'Sharp betting tools for serious bettors: sharp action research, sharp money signals, line shopping, AI projections, and real-time market movement.',
   },
 }
 
@@ -28,7 +28,7 @@ const TOOL_PILLARS = [
   {
     title: 'Sharp Money Signals',
     description:
-      'Track market movement, bet splits, and line moves to spot sharp pressure before it hits the public.',
+      'Track market movement, bet splits, and line moves to spot sharp action before it hits the public.',
   },
   {
     title: 'Line Shopping',
@@ -43,7 +43,7 @@ const TOOL_PILLARS = [
   {
     title: 'Live Market Tools',
     description:
-      'React to in-game movement with live projections, real-time odds, and instant alerts.',
+      'React to in-game movement with live projections, real-time odds, and instant sharp money alerts.',
   },
 ]
 
@@ -51,7 +51,7 @@ const USE_CASES = [
   {
     title: 'Where to find sharp bets',
     description:
-      'Use sharp money signals plus line shopping to identify where pros are shaping the market.',
+      'Use sharp money signals plus line shopping to identify where pros are shaping the market and creating sharp action.',
   },
   {
     title: 'Betting for sharps',
@@ -69,17 +69,17 @@ const FAQS = [
   {
     question: 'What are sharp betting tools?',
     answer:
-      'Sharp betting tools help you find efficient lines by tracking market movement, comparing odds, and modeling true prices.',
+      'Sharp betting tools help you find efficient lines by tracking sharp action, monitoring sharp money signals, comparing odds, and modeling true prices.',
   },
   {
     question: 'How do I find sharp bets?',
     answer:
-      'Start with sharp money signals, confirm the best line via line shopping, and compare against model projections.',
+      'Start with sharp money signals, confirm the best line via line shopping, and compare against AI projections plus line movement history.',
   },
   {
     question: 'Is Delta Sports betting software?',
     answer:
-      'Delta Sports is an AI-powered sports betting assistant for analytics, projections, and market tools. It does not place bets.',
+      'Delta Sports is an AI sports betting assistant for analytics, projections, sharp money tracking, and sharp action research. It does not place bets.',
   },
 ]
 
@@ -93,7 +93,7 @@ export default function SharpBettingToolsPage() {
         applicationCategory: 'SportsApplication',
         operatingSystem: 'Web',
         description:
-          'Sharp betting tools for serious bettors: line shopping, sharp money signals, AI projections, and real-time market movement.',
+          'Sharp betting tools for serious bettors: sharp action research, sharp money signals, line shopping, AI projections, and real-time market movement.',
         offers: {
           '@type': 'Offer',
           price: '0',
@@ -130,8 +130,9 @@ export default function SharpBettingToolsPage() {
               Sharp betting tools built for serious bettors.
             </h1>
             <p className="mt-4 max-w-2xl text-base text-white/70">
-              Delta Sports gives you sharp money signals, line shopping, AI projections, and
-              real-time market movement so you can find sharp bets faster and price every angle.
+              Delta Sports gives you sharp money signals, sharp action research, line shopping,
+              AI projections, and real-time market movement so you can find sharp bets faster and
+              price every angle.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -186,7 +187,7 @@ export default function SharpBettingToolsPage() {
             <h2 className="text-2xl font-semibold">Why Delta Sports for sharp betting</h2>
             <ul className="mt-6 grid gap-3 text-sm text-white/70 md:grid-cols-2">
               <li className="rounded-xl border border-white/10 bg-white/5 p-4">
-                See line movement, bet splits, and sharp indicators in one workspace.
+                See line movement, sharp action, bet splits, and sharp indicators in one workspace.
               </li>
               <li className="rounded-xl border border-white/10 bg-white/5 p-4">
                 Compare odds instantly to lock the best price before it moves.

@@ -50,7 +50,8 @@ export default function ToolsPage() {
           </h1>
           <p className="mt-3 text-sm text-white/60">
             Each tool below includes what it does, how to use it, why it is unique,
-            and where it fits in your workflow.
+            and where it fits in your sharp betting workflow, including sharp action
+            research, sharp money signals, and AI sports betting analysis.
           </p>
         </div>
         <div className="mt-8 space-y-6">

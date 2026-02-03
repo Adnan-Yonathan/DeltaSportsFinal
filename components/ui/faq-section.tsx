@@ -13,24 +13,24 @@ import { cn } from "@/lib/utils"
 
 const faqs = [
   {
-    question: "Do I need previous betting models to use Delta Sports AI?",
+    question: "Is Delta Sports an AI sports betting tool or a pick service?",
     answer:
-      "No. Pro includes pre-built workflows for line shopping and market monitoring. Sharp adds limited live projections and EV scans. Syndicate unlocks unlimited modeling and live tools.",
+      "Delta Sports is an AI sports betting assistant for sharp betting analysis. It helps you analyze sharp action, sharp money flow, and line movement, but it does not place bets or guarantee picks.",
   },
   {
-    question: "How does live odds tracking work?",
+    question: "What is sharp action and how do you track it?",
     answer:
-      "We ingest prices from major US and international books in real time. You can tag favorite markets, set alerts, and compare lines before you fire.",
+      "Sharp action is informed betting activity that moves a line. We track sharp money signals, line movement history, and market context so you can see where pressure is building.",
   },
   {
-    question: "What counts toward my daily message limit on Pro?",
+    question: "How does the AI help with sharp betting?",
     answer:
-      "Only prompts sent to the Delta Sports AI copilot. System alerts and score updates do not consume your 25-message allowance. Sharp and Syndicate remove message caps, with separate limits for live projections and EV tools.",
+      "The AI summarizes key line moves, compares prices across books, and explains why a sharp money signal is meaningful. It turns raw betting data into actionable sharp betting insights.",
   },
   {
-    question: "Can I invite teammates?",
+    question: "Do I need my own models to use the tools?",
     answer:
-      "Yes. Every plan supports shared workspaces per organization. Syndicate offers priority support for modeling squads.",
+      "No. You can use the built-in workflows for AI sports betting, sharp action research, and line shopping without building models. Advanced users can still layer in their own numbers.",
   },
 ]
 

@@ -114,11 +114,10 @@ export async function middleware(req: NextRequest) {
     return redirect
   }
 
-  // Fetch fresh user data from Supabase auth server (not the stale JWT).
-  // getSession() reads from the cookie which may have outdated metadata
-  // from before the Stripe webhook updated the user.
-  const { data: { user: freshUser } } = await supabase.auth.getUser()
-  const metadata = freshUser?.user_metadata || session.user?.user_metadata || {}
+  // Use session metadata from the JWT cookie (no API call).
+  // If the JWT is stale (e.g. after Stripe webhook), the DB lookup below
+  // will catch the updated subscription_tier as a fallback.
+  const metadata = session.user?.user_metadata || {}
   let isPaid = checkMembershipPaid(metadata)
   let onboardingCompleted = Boolean(metadata?.onboarding_completed)
 

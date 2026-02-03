@@ -114,8 +114,11 @@ export async function middleware(req: NextRequest) {
     return redirect
   }
 
-  // Check membership status from user metadata
-  const metadata = session.user?.user_metadata || {}
+  // Fetch fresh user data from Supabase auth server (not the stale JWT).
+  // getSession() reads from the cookie which may have outdated metadata
+  // from before the Stripe webhook updated the user.
+  const { data: { user: freshUser } } = await supabase.auth.getUser()
+  const metadata = freshUser?.user_metadata || session.user?.user_metadata || {}
   let isPaid = checkMembershipPaid(metadata)
   let onboardingCompleted = Boolean(metadata?.onboarding_completed)
 

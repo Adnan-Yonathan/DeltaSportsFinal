@@ -9,7 +9,7 @@ import ShareProjectionButton from "@/components/ShareProjectionButton"
 import { AVAILABLE_BOOKS, type BookKey } from "@/lib/config/books"
 
 type EdgeFilter = "spread" | "moneyline" | "total"
-type AccessTier = "free" | "pro" | "sharp" | "syndicate" | null
+type AccessTier = "free" | "sharp" | "syndicate" | null
 
 type MarketEdge = {
   edgePercent: number

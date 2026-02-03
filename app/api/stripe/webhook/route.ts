@@ -111,12 +111,13 @@ async function updateUserSubscription(
   }
 
   // Determine tier from plan key or existing metadata
-  let tier: 'pro' | 'sharp' | 'syndicate' = 'pro'
+  let tier: 'sharp' | 'syndicate' = 'sharp'
   if (config) {
-    tier = config.tier
+    tier = config.tier as 'sharp' | 'syndicate'
   } else if (subscription.metadata?.plan_key) {
     const key = subscription.metadata.plan_key as PlanKey
-    tier = PLAN_CONFIG[key]?.tier || 'pro'
+    const configTier = PLAN_CONFIG[key]?.tier
+    tier = configTier === 'syndicate' ? 'syndicate' : 'sharp'
   }
 
   // Update user metadata with subscription info
@@ -156,14 +157,17 @@ async function updateUserSubscription(
   console.log('[STRIPE_WEBHOOK] Successfully updated user metadata for:', userId)
   console.log('[STRIPE_WEBHOOK] Updated user data:', JSON.stringify(updateData?.user?.user_metadata, null, 2))
 
-  // Also update users table if it exists
-  const usersUpdate = supabase.from('users') as any
-  await usersUpdate
+  // Also update users table
+  const { error: usersTableError } = await (supabase.from('users') as any)
     .update({
       subscription_tier: tier,
       updated_at: new Date().toISOString(),
     })
     .eq('id', userId)
+
+  if (usersTableError) {
+    console.error('[STRIPE_WEBHOOK] Failed to update users table:', JSON.stringify(usersTableError, null, 2))
+  }
 }
 
 async function getUserIdFromCustomer(

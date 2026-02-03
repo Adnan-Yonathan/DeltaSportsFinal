@@ -5,9 +5,8 @@ import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
 
 export const runtime = 'nodejs'
 
-const tierRank: Record<'free' | 'pro' | 'sharp' | 'syndicate', number> = {
+const tierRank: Record<string, number> = {
   free: 0,
-  pro: 0,
   sharp: 1,
   syndicate: 2,
 }

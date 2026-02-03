@@ -1,4 +1,4 @@
-export type MembershipTier = 'free' | 'pro' | 'sharp' | 'syndicate'
+export type MembershipTier = 'free' | 'sharp' | 'syndicate'
 export type MembershipStatus = 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'paused'
 
 const parseDate = (value: unknown): Date | null => {
@@ -29,11 +29,13 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     ? String(metadata.membership_tier)
     : null
   const tier =
-    rawTier === 'pro' || rawTier === 'sharp' || rawTier === 'syndicate'
+    rawTier === 'sharp' || rawTier === 'syndicate'
       ? (rawTier as MembershipTier)
-      : rawTier === 'free'
-        ? 'free'
-        : null
+      : rawTier === 'pro'
+        ? ('sharp' as MembershipTier)
+        : rawTier === 'free'
+          ? 'free'
+          : null
 
   const status =
     metadata && typeof metadata.membership_status === 'string'

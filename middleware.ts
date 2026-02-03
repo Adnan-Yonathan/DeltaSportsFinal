@@ -5,13 +5,14 @@ import type { NextRequest } from 'next/server'
 // Pages that don't require authentication or membership access
 const PUBLIC_PATHS = [
   '/',
-  '/welcome',
   '/auth/login',
   '/auth/signup',
   '/auth/callback',
-  '/pricing',
   '/stripe/success',
 ]
+
+// Public paths where paid users should be redirected to /chat
+const PAID_REDIRECT_PATHS = ['/welcome', '/pricing']
 
 const ALWAYS_PUBLIC_PREFIXES = ['/blog', '/tools', '/calculators', '/about']
 const MEMBERSHIP_EXEMPT_PATHS = ['/onboarding']
@@ -79,14 +80,24 @@ export async function middleware(req: NextRequest) {
 
   const supabase = createMiddlewareClient({ req, res })
 
-  // Allow public paths, API routes, and soft-gated pages that handle their own access UI
-  if (isPublicPath(pathname)) {
+  const isPaidRedirectPath = PAID_REDIRECT_PATHS.some(
+    path => pathname === path || pathname.startsWith(path + '/')
+  )
+
+  // Allow public paths (but not paid-redirect paths, which need the paid check below)
+  if (isPublicPath(pathname) && !isPaidRedirectPath) {
     await supabase.auth.getSession()
     return res
   }
 
   // Get session
   const { data: { session } } = await supabase.auth.getSession()
+
+  // For paid-redirect paths (/welcome, /pricing), allow access if no session
+  // but continue to the paid check if there IS a session
+  if (isPaidRedirectPath && !session) {
+    return res
+  }
 
   // If no session, redirect to login
   if (!session) {

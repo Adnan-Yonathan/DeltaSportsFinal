@@ -97,7 +97,7 @@
     },
     {
       "path": "/api/cron/refresh-whale-trades-daily",
-      "schedule": "*/5 * * * *"
+      "schedule": "* * * * *"
     }
   ]
 }

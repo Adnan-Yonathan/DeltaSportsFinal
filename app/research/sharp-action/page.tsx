@@ -21,7 +21,7 @@ export default async function SharpActionPage() {
       <div className="text-center">
         <h1 className="text-2xl font-bold text-white sm:text-3xl">Sharp Action</h1>
         <p className="mt-2 text-sm text-white/60">
-          Narrative explanations for why sharps are betting each game
+          Every game on today&apos;s slate, separated by sport with line movement history
         </p>
       </div>
 

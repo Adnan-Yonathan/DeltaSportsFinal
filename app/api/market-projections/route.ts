@@ -96,12 +96,29 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const sport = searchParams.get("sport") || "basketball_nba"
   const forceRefresh = searchParams.get("refresh") === "1"
+  const forceBypass = searchParams.get("force") === "1"
+  const noCache = searchParams.get("nocache") === "1"
   const includeEdges = searchParams.get("include") === "1"
+  const date = searchParams.get("date") || undefined
+  const limitParam = Number(searchParams.get("limit") ?? "")
+  const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 200
 
   try {
+    if (noCache) {
+      const result = await analyzeSlateEdges(sport, { limit, date })
+      return NextResponse.json({
+        ok: true,
+        updatedAt: new Date().toISOString(),
+        sport,
+        edgeCount: result.edges?.length ?? 0,
+        ...(includeEdges ? { edges: result.edges ?? [] } : {}),
+        fromCache: false,
+      })
+    }
+
     const cached = (await readCache(sport)) as any
     if (forceRefresh) {
-      if (cached) {
+      if (cached && !forceBypass) {
         const updatedAtMs = Date.parse(cached.updatedAt ?? "")
         if (
           Number.isFinite(updatedAtMs) &&
@@ -117,7 +134,7 @@ export async function GET(request: Request) {
           })
         }
       }
-      const result = await analyzeSlateEdges(sport, { limit: 200 })
+      const result = await analyzeSlateEdges(sport, { limit, date })
       const emptyResult = (result.edges?.length ?? 0) === 0
       if (emptyResult && cached?.edges?.length) {
         return NextResponse.json({
@@ -169,7 +186,7 @@ export async function GET(request: Request) {
     }
 
     if (cached) {
-      void analyzeSlateEdges(sport, { limit: 200 })
+      void analyzeSlateEdges(sport, { limit, date })
         .then(async (result) => {
           if ((result.edges?.length ?? 0) === 0 && cached?.edges?.length) {
             return null
@@ -202,7 +219,7 @@ export async function GET(request: Request) {
       })
     }
 
-    const result = await analyzeSlateEdges(sport, { limit: 200 })
+    const result = await analyzeSlateEdges(sport, { limit, date })
     const mergedEdges = mergeWhaleAlerts((result as any)?.edges ?? [], cached?.edges)
     const payload = {
       updatedAt: new Date().toISOString(),

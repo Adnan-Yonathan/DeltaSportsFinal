@@ -78,17 +78,16 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
-  const supabase = createMiddlewareClient({ req, res })
-
   const isPaidRedirectPath = PAID_REDIRECT_PATHS.some(
     path => pathname === path || pathname.startsWith(path + '/')
   )
 
   // Allow public paths (but not paid-redirect paths, which need the paid check below)
   if (isPublicPath(pathname) && !isPaidRedirectPath) {
-    await supabase.auth.getSession()
     return res
   }
+
+  const supabase = createMiddlewareClient({ req, res })
 
   // Get session
   const { data: { session } } = await supabase.auth.getSession()

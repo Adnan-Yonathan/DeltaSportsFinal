@@ -46,7 +46,7 @@
   "crons": [
     {
       "path": "/api/cron/refresh-market-projections",
-      "schedule": "*/1 * * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/refresh-player-projections",

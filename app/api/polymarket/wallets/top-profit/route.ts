@@ -8,7 +8,15 @@ const DEFAULT_TRADE_PAGES = 10
 const DEFAULT_TOP_WALLETS = 50
 const DEFAULT_MIN_TRADE_SAMPLES = 5000
 const FULL_CACHE_KEY = 'sharp_traders_full_v1'
+const EXTENDED_CACHE_KEY = 'sharp_traders_extended_v1'
+const PREVIEW_CACHE_KEY = 'sharp_traders_preview_v1'
 const CACHE_TTL_MS = 5 * 60 * 1000
+const PREVIEW_TOP_WALLETS = 30
+const PREVIEW_OPEN_TRADE_LIMIT = 3
+const EXTENDED_TRADE_LIMIT = 500
+const EXTENDED_TRADE_PAGES = 12
+const EXTENDED_TOP_WALLETS = 75
+const EXTENDED_MIN_TRADE_SAMPLES = 8000
 
 const POLYMARKET_SPORT_PREFIXES = [
   'nba-',
@@ -219,6 +227,14 @@ const applyOpenTradeLimit = (payload: { wallets: WalletRow[] }, limit?: number |
       ...wallet,
       open_trades: wallet.open_trades.slice(0, limit),
     })),
+  }
+}
+
+const applyWalletLimit = (payload: { wallets: WalletRow[] }, limit?: number | null) => {
+  if (!limit || !Number.isFinite(limit)) return payload
+  return {
+    ...payload,
+    wallets: payload.wallets.slice(0, limit),
   }
 }
 
@@ -473,12 +489,56 @@ export async function GET(request: Request) {
     pagesValue === DEFAULT_TRADE_PAGES &&
     topValue === DEFAULT_TOP_WALLETS &&
     sampleTarget === DEFAULT_MIN_TRADE_SAMPLES
+  const wantsExtendedDefaults =
+    limitValue === EXTENDED_TRADE_LIMIT &&
+    pagesValue === EXTENDED_TRADE_PAGES &&
+    topValue === EXTENDED_TOP_WALLETS &&
+    sampleTarget === EXTENDED_MIN_TRADE_SAMPLES
 
-  if (openTradeLimitValue || wantsFullDefaults) {
-    const cached = await getSharpTradersCache(FULL_CACHE_KEY)
+  const isPreviewRequest = Boolean(openTradeLimitValue)
+
+  const respondWithCache = (cached: { fetched_at: string | null; payload: unknown }, stale: boolean) => {
+    const payload = cached.payload as { wallets: WalletRow[]; fetched_wallets: number; sampled_trades: number }
+    const limited = applyWalletLimit(applyOpenTradeLimit(payload, openTradeLimitValue), topValue)
+    return NextResponse.json({ ...limited, cached: true, stale })
+  }
+
+  if (isPreviewRequest) {
+    const previewCached = await getSharpTradersCache(PREVIEW_CACHE_KEY)
+    if (previewCached) {
+      if (isCacheFresh(previewCached.fetched_at)) {
+        return respondWithCache(previewCached, false)
+      }
+      void buildPayload({
+        limitValue,
+        pagesValue,
+        topValue,
+        sampleTarget,
+        openTradeLimitValue,
+      })
+        .then((payload) => {
+          if (payload.wallets.length > 0) {
+            return setSharpTradersCache(PREVIEW_CACHE_KEY, payload)
+          }
+          return false
+        })
+        .catch(() => undefined)
+      return respondWithCache(previewCached, true)
+    }
+
+    const fullCached = await getSharpTradersCache(FULL_CACHE_KEY)
+    if (fullCached && isCacheFresh(fullCached.fetched_at)) {
+      return respondWithCache(fullCached, false)
+    }
+    const extendedCached = await getSharpTradersCache(EXTENDED_CACHE_KEY)
+    if (extendedCached && isCacheFresh(extendedCached.fetched_at)) {
+      return respondWithCache(extendedCached, false)
+    }
+  } else if (wantsFullDefaults || wantsExtendedDefaults) {
+    const cacheKey = wantsExtendedDefaults ? EXTENDED_CACHE_KEY : FULL_CACHE_KEY
+    const cached = await getSharpTradersCache(cacheKey)
     if (cached && isCacheFresh(cached.fetched_at)) {
-      const payload = cached.payload as { wallets: WalletRow[]; fetched_wallets: number; sampled_trades: number }
-      return NextResponse.json({ ...applyOpenTradeLimit(payload, openTradeLimitValue), cached: true })
+      return respondWithCache(cached, false)
     }
   }
 
@@ -496,8 +556,15 @@ export async function GET(request: Request) {
 
   lastPayload = { timestamp: Date.now(), data: payload }
 
-  if (wantsFullDefaults && payload.wallets.length > 0) {
-    await setSharpTradersCache(FULL_CACHE_KEY, payload)
+  if ((wantsFullDefaults || wantsExtendedDefaults) && payload.wallets.length > 0) {
+    await setSharpTradersCache(wantsExtendedDefaults ? EXTENDED_CACHE_KEY : FULL_CACHE_KEY, payload)
+    const previewPayload = applyWalletLimit(
+      applyOpenTradeLimit(payload, PREVIEW_OPEN_TRADE_LIMIT),
+      PREVIEW_TOP_WALLETS
+    )
+    await setSharpTradersCache(PREVIEW_CACHE_KEY, previewPayload)
+  } else if (isPreviewRequest && payload.wallets.length > 0) {
+    await setSharpTradersCache(PREVIEW_CACHE_KEY, payload)
   }
 
   return NextResponse.json(payload)

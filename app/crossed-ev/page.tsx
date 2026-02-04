@@ -44,19 +44,18 @@ export default async function CrossedEvPage({
   return (
     <div className="min-h-screen bg-black text-white">
       <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/95 backdrop-blur-sm">
-        <div className="px-2 py-4 sm:px-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="px-2 py-3 sm:px-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <ToolsNav />
             <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
           </div>
         </div>
       </div>
-      <div className="pt-[120px] sm:pt-[140px] px-2 sm:px-4">
-        <div className="mx-auto w-full max-w-none space-y-5 py-6">
+      <div className="pt-[96px] sm:pt-[112px] px-2 sm:px-4">
+        <div className="mx-auto w-full max-w-none space-y-4 py-4">
           <CrossedEvClient sport={sport} previewMode={previewMode} />
         </div>
       </div>
     </div>
   )
 }
-

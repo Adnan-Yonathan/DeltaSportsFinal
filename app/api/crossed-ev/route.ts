@@ -3,7 +3,7 @@ import { fetchTheOddsApiPlayerProps } from "@/lib/api/the-odds-api"
 
 export const dynamic = "force-dynamic"
 
-const CACHE_TTL_MS = 15 * 60 * 1000
+const CACHE_TTL_MS = 10 * 60 * 1000
 type CacheEntry = { ts: number; payload: any }
 const responseCache = new Map<string, CacheEntry>()
 

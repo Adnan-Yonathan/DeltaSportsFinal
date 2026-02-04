@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { RefreshCw, Search } from "lucide-react"
+import { Search } from "lucide-react"
 import { ServerManagementTable } from "@/components/ui/server-management-table"
 
 type CrossedRow = {
@@ -31,7 +31,7 @@ type BookInfo = {
   isConsensus?: boolean
 }
 
-const REFRESH_MS = 60 * 60 * 1000
+const REFRESH_MS = 10 * 60 * 1000
 const QUIET_START_HOUR = 1
 const QUIET_END_HOUR = 11
 
@@ -64,12 +64,10 @@ export default function CrossedEvClient({
   const [books, setBooks] = useState<BookInfo[]>([])
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [marketFilter, setMarketFilter] = useState("all")
   const [bookFilter, setBookFilter] = useState("all")
   const [visibleCount, setVisibleCount] = useState(200)
-  const [now, setNow] = useState(Date.now())
 
   const inQuietHours = useCallback(() => {
     const current = new Date()
@@ -98,7 +96,6 @@ export default function CrossedEvClient({
       const payload = await res.json()
       setRows(Array.isArray(payload?.rows) ? payload.rows : [])
       setBooks(Array.isArray(payload?.books) ? payload.books : [])
-      setLastUpdated(payload?.updatedAt ?? new Date().toISOString())
       setVisibleCount(200)
     } catch (error) {
       setErrorMessage(
@@ -120,18 +117,6 @@ export default function CrossedEvClient({
     }, REFRESH_MS)
     return () => window.clearInterval(interval)
   }, [fetchRows, inQuietHours])
-
-  useEffect(() => {
-    const interval = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(interval)
-  }, [])
-
-  const remainingSeconds = useMemo(() => {
-    if (!lastUpdated) return Math.ceil(REFRESH_MS / 1000)
-    const updatedMs = Date.parse(lastUpdated)
-    if (!Number.isFinite(updatedMs)) return Math.ceil(REFRESH_MS / 1000)
-    return Math.max(0, Math.ceil((updatedMs + REFRESH_MS - now) / 1000))
-  }, [lastUpdated, now])
 
   const marketOptions = useMemo(() => {
     const set = new Set<string>()
@@ -180,31 +165,22 @@ export default function CrossedEvClient({
   return (
     <ServerManagementTable title="Sharp Props" showList={false} className="max-w-none">
       <div className="space-y-4">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white/50">
-              <RefreshCw className="h-4 w-4" />
-              Refresh in {remainingSeconds}s
-            </div>
-          </div>
-        </div>
-
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
           <Search className="h-4 w-4 text-white/40" />
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search player, matchup, or book..."
-            className="w-64 bg-transparent text-sm text-white placeholder:text-white/30 focus:outline-none"
+            className="w-64 bg-transparent text-[13px] text-white placeholder:text-white/30 focus:outline-none sm:text-sm"
           />
           <div className="h-4 w-px bg-white/10" />
-          <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+          <span className="text-[11px] uppercase tracking-[0.2em] text-white/40 sm:text-xs">
             Book
           </span>
           <select
             value={bookFilter}
             onChange={(event) => setBookFilter(event.target.value)}
-            className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[10px] uppercase tracking-[0.15em] text-white/70 focus:border-emerald-400/60 focus:outline-none"
+            className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[11px] uppercase tracking-[0.15em] text-white/70 focus:border-emerald-400/60 focus:outline-none sm:text-xs"
           >
             {bookOptions.map((bookKey) => (
               <option key={bookKey} value={bookKey}>
@@ -215,7 +191,7 @@ export default function CrossedEvClient({
             ))}
           </select>
           <div className="h-4 w-px bg-white/10" />
-          <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+          <span className="text-[11px] uppercase tracking-[0.2em] text-white/40 sm:text-xs">
             Market
           </span>
           <div className="flex flex-wrap items-center gap-2">
@@ -224,7 +200,7 @@ export default function CrossedEvClient({
                 key={market}
                 type="button"
                 onClick={() => setMarketFilter(market)}
-                className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] transition ${
+                className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.15em] transition sm:text-xs ${
                   marketFilter === market
                     ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
                     : "border-white/10 text-white/50 hover:border-white/30 hover:text-white/80"
@@ -236,10 +212,11 @@ export default function CrossedEvClient({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/60">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-[13px] text-white/60 sm:text-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span>{filteredRows.length} props ranked</span>
-            <span>Sorted by EV% (then discrepancy)</span>
+            <span className="font-semibold text-white/70">
+              Sorted by EV% (then discrepancy)
+            </span>
           </div>
           {errorMessage && (
             <div className="mt-2 text-xs text-red-200">{errorMessage}</div>
@@ -260,8 +237,8 @@ export default function CrossedEvClient({
 
         {filteredRows.length > 0 && (
           <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/40">
-            <table className="min-w-0 w-full table-fixed text-left text-[11px] text-white/70">
-              <thead className="bg-black/60 text-[10px] text-white/60">
+            <table className="min-w-0 w-full table-fixed text-left text-[12.5px] text-white/70 sm:text-sm">
+              <thead className="bg-black/60 text-[11px] text-white/60 sm:text-xs">
                 <tr>
                   <th className="px-3 py-3 w-[7%]">Rank</th>
                   <th className="px-3 py-3 w-[20%]">Player</th>
@@ -298,7 +275,9 @@ export default function CrossedEvClient({
                       <td className="px-3 py-3 text-white/80">{index + 1}</td>
                       <td className="px-3 py-3 text-white/90 truncate">
                         <div className="font-semibold text-white">{row.player}</div>
-                        <div className="text-[10px] text-white/45 truncate">{row.game}</div>
+                        <div className="text-[11px] text-white/45 truncate sm:text-xs">
+                          {row.game}
+                        </div>
                       </td>
                       <td className="px-3 py-3 truncate">{formatMarketLabel(row.market)}</td>
                       <td className="px-3 py-3 truncate">{row.bookLabel}</td>
@@ -310,7 +289,7 @@ export default function CrossedEvClient({
                       </td>
                       <td className="px-3 py-3">
                         <span className="font-semibold text-white">{deltaLabel}</span>
-                        <span className="ml-2 text-[10px] text-white/45">
+                        <span className="ml-2 text-[11px] text-white/45 sm:text-xs">
                           ({row.discrepancy.toFixed(1)})
                         </span>
                       </td>
@@ -319,17 +298,19 @@ export default function CrossedEvClient({
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.2em] ${chip}`}>
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] ${chip} sm:text-xs`}
+                          >
                             {row.recommendedSide}
                           </span>
                           <span className="inline-flex items-center gap-1.5">
-                            <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[11px] font-semibold text-white">
+                            <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[12px] font-semibold text-white sm:text-sm">
                               {formatOdds(angleOdds)}
                             </span>
                             <span className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/35">
                               vs
                             </span>
-                            <span className="rounded-full border border-white/10 bg-black/30 px-2.5 py-1 text-[11px] font-semibold text-white/70">
+                            <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[12px] font-semibold text-white/70 sm:text-sm">
                               {formatOdds(consensusOdds ?? undefined)}
                             </span>
                           </span>

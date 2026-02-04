@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowRightIcon, CheckIcon } from "@radix-ui/react-icons"
-import { Loader2 } from "lucide-react"
+import { Loader2, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
@@ -169,16 +169,21 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
   return (
     <section
       className={cn(
-        "relative bg-gradient-to-b from-neutral-850 to-neutral-900 text-slate-50",
-        "pt-6 pb-10 px-4 md:pt-10 md:pb-14 lg:pt-12 lg:pb-16",
+        "relative bg-transparent text-slate-50",
+        "pt-4 pb-8 px-4 md:pt-8 md:pb-10 lg:pt-10 lg:pb-12",
         "overflow-hidden",
         className,
       )}
     >
       <div className="w-full max-w-5xl mx-auto">
-        <div className="flex flex-col items-center gap-2 mb-6 text-center md:mb-8">
-          <p className="text-sm uppercase tracking-[0.3em] text-emerald-200/80">Pricing</p>
-          <h2 className="text-3xl font-bold text-white md:text-4xl">Simple, transparent pricing</h2>
+        <div className="flex flex-col items-center gap-2 mb-4 text-center md:mb-6">
+          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-white/70">
+            <Sparkles className="h-4 w-4 text-emerald-200/80" />
+            Pricing//Secure
+          </div>
+          <h2 className="text-3xl font-bold text-white md:text-4xl">
+            Simple, transparent pricing
+          </h2>
           <div className="inline-flex items-center p-1.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 backdrop-blur">
             {(["Weekly", "Monthly", "Annual"] as const).map((period) => (
               <button
@@ -351,7 +356,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                   </div>
                 )}
 
-                <div className="p-4 sm:p-6 md:p-8 flex-1">
+                <div className="p-4 sm:p-5 md:p-6 flex-1 min-h-0">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-4">
@@ -363,7 +368,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                         </h3>
                       </div>
 
-                      <div className="mb-6">
+                      <div className="mb-4">
                         {(() => {
                           const periodPrice =
                             billingPeriod === "annual"
@@ -410,31 +415,34 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    {tier.features.map((feature) => (
-                      <div key={feature.name} className="flex gap-3">
-                        <div
-                          className={cn(
-                            "mt-1 rounded-full border p-1",
-                            feature.included
-                              ? "text-emerald-300 border-emerald-300/50 bg-emerald-500/10"
-                              : "text-slate-300/40 border-emerald-400/10",
-                          )}
-                        >
-                          <CheckIcon className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs sm:text-sm font-medium">{feature.name}</div>
-                          <div className="text-xs sm:text-sm text-white/60">
-                            {feature.description}
+                  <div className="min-h-0">
+                    <div className="space-y-2 md:max-h-[240px] md:overflow-auto md:pr-1 lg:max-h-[280px]">
+                      {tier.features.map((feature) => (
+                        <div key={feature.name} className="flex gap-3">
+                          <div
+                            className={cn(
+                              "mt-1 rounded-full border p-1",
+                              feature.included
+                                ? "text-emerald-300 border-emerald-300/50 bg-emerald-500/10"
+                                : "text-slate-300/40 border-emerald-400/10",
+                            )}
+                          >
+                            <CheckIcon className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="text-xs sm:text-sm font-medium">{feature.name}</div>
+                            <div className="text-xs sm:text-sm text-white/60">
+                              {feature.description}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                    <div className="pointer-events-none hidden md:block mt-2 h-6 bg-gradient-to-t from-neutral-850/80 to-transparent" />
                   </div>
                 </div>
 
-                <div className="p-4 sm:p-6 md:p-8 pt-0 mt-auto">
+                <div className="p-4 sm:p-5 md:p-6 pt-0 mt-auto">
                   {actionButton}
                   {!membership?.isActive && membership?.hasUsedTrial && (
                     <p className="mt-3 text-[11px] uppercase tracking-[0.28em] text-white/50">

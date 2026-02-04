@@ -8,7 +8,14 @@ interface OnboardingData {
   risk_tolerance: 'conservative' | 'moderate' | 'aggressive'
   signup_reasons: string[]
   bankroll?: number
+  unit_size?: number
   bets_per_day?: number
+  primary_intent?: string
+  bet_frequency?: string
+  research_style?: string
+  bet_focus?: string
+  skill_level?: string
+  tailing_experience?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -88,6 +95,10 @@ export async function POST(request: NextRequest) {
     if (body.bankroll && body.bankroll > 0) {
       updateData.bankroll = body.bankroll
     }
+
+    if (body.unit_size && body.unit_size > 0) {
+      updateData.unit_size = body.unit_size
+    }
     if (body.bets_per_day && body.bets_per_day > 0) {
       updateData.bets_per_day = body.bets_per_day
     }
@@ -106,11 +117,18 @@ export async function POST(request: NextRequest) {
           ...(body.favorite_sports && body.favorite_sports.length > 0
             ? { favorite_sports: body.favorite_sports }
             : {}),
+          primary_intent: body.primary_intent,
+          bet_frequency: body.bet_frequency,
+          research_style: body.research_style,
+          bet_focus: body.bet_focus,
+          skill_level: body.skill_level,
+          tailing_experience: body.tailing_experience,
           preferred_markets: body.preferred_markets,
           experience_level: body.experience_level,
           risk_tolerance: body.risk_tolerance,
           signup_reasons: body.signup_reasons,
           bankroll: body.bankroll || 0,
+          unit_size: body.unit_size || 0,
           bets_per_day: body.bets_per_day || 0,
         },
       },

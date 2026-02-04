@@ -5,12 +5,12 @@ import { motion } from "framer-motion"
 import { TrendingUp, Target } from "lucide-react"
 
 interface StepMonthlyProfitProps {
-  bankroll: number
+  unitSize: number
   betsPerDay: number
   onValidation: (isValid: boolean) => void
 }
 
-const EDGE = 0.0262
+const EDGE = 0.03
 const DAYS_PER_MONTH = 30
 
 const formatCurrency = (amount: number) => {
@@ -23,7 +23,7 @@ const formatCurrency = (amount: number) => {
 }
 
 export function StepMonthlyProfit({
-  bankroll,
+  unitSize,
   betsPerDay,
   onValidation,
 }: StepMonthlyProfitProps) {
@@ -31,7 +31,7 @@ export function StepMonthlyProfit({
     onValidation(true)
   }, [onValidation])
 
-  const safeBetSize = Number.isFinite(bankroll) ? bankroll : 0
+  const safeBetSize = Number.isFinite(unitSize) ? unitSize : 0
   const safeBets = Number.isFinite(betsPerDay) ? betsPerDay : 0
   const monthlyProfit = safeBetSize * EDGE * safeBets * DAYS_PER_MONTH
   const monthlyBets = safeBets * DAYS_PER_MONTH
@@ -48,10 +48,10 @@ export function StepMonthlyProfit({
           Delta Estimate
         </p>
         <h1 className="text-2xl font-semibold text-white sm:text-3xl">
-          Your projected monthly profit
+          Here&apos;s how much you could make per month
         </h1>
         <p className="text-sm text-white/80 sm:text-base">
-          Based on a 2.62% assumed edge per bet.
+          Based on a 3% assumed edge per bet (illustrative, not guaranteed).
         </p>
       </div>
 
@@ -68,7 +68,7 @@ export function StepMonthlyProfit({
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center">
               <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">
-                Bet size
+                Unit size
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
                 {formatCurrency(safeBetSize)}
@@ -93,7 +93,7 @@ export function StepMonthlyProfit({
           </div>
           <div className="mt-4 flex items-start gap-2 text-white/50 text-xs">
             <Target className="h-4 w-4 mt-0.5 text-emerald-300" />
-            Assumes a 2.62% edge on each bet.
+            Assumes 3% profit per bet on average.
           </div>
         </div>
       </div>

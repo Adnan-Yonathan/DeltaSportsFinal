@@ -24,7 +24,7 @@ const BETS_PER_DAY_OPTIONS = [
 ]
 
 // Profit calculation based purely on per-bet edge.
-const EDGE = 0.0262
+const EDGE = 0.03
 const calculateToolProfits = (betSize: number, betsPerDay: number) => {
   const totalProfit = betSize * EDGE * betsPerDay * DAYS_PER_MONTH
 
@@ -217,7 +217,7 @@ export function StepBankrollProjection({
 
               {/* Edge Explanation */}
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-center text-sm text-white/70">
-                Profit is calculated as bet size × 2.62% edge × bets per day × 30 days.
+                Profit is calculated as bet size × 3% edge × bets per day × 30 days.
                 <div className="mt-2 text-xs text-white/50">
                   Per-bet profit: {formatCurrencyDetailed(betSizeNum * EDGE)}
                 </div>
@@ -230,7 +230,7 @@ export function StepBankrollProjection({
                     Edge Assumed
                   </p>
                   <p className="text-xl font-semibold text-white">
-                    2.62%
+                    3%
                   </p>
                   <p className="text-white/40 text-xs mt-1">per bet</p>
                 </div>

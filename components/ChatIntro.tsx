@@ -41,11 +41,7 @@ export default function ChatIntro({
     label: string
     detail: string
   } | null>(null)
-  const [propPreview, setPropPreview] = useState<{
-    label: string
-    detail: string
-  } | null>(null)
-  const [parlayPreview, setParlayPreview] = useState<{
+  const [sharpPropsPreview, setSharpPropsPreview] = useState<{
     label: string
     detail: string
   } | null>(null)
@@ -53,39 +49,21 @@ export default function ChatIntro({
   const projectionItems: CardStackItem[] = [
     {
       id: 'projection',
-      title: projectionPreview?.label ?? 'Sharp Projection',
-      description: projectionPreview?.detail ?? 'Latest model edge loading...',
+      title: projectionPreview?.label ?? 'Sharp Projections',
+      description: projectionPreview?.detail ?? 'Scanning for market edges...',
       imageSrc:
         'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1400&q=80',
       href: '/market-projections',
-      tag: 'Projection',
+      tag: 'Sharp Projections',
     },
     {
-      id: 'ev-prop',
-      title: propPreview?.label ?? 'EV Prop',
-      description: propPreview?.detail ?? 'Scanning prop value...',
+      id: 'sharp-props',
+      title: sharpPropsPreview?.label ?? 'Sharp Props',
+      description: sharpPropsPreview?.detail ?? 'Scanning player prop EV...',
       imageSrc:
         'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=1400&q=80',
-      href: '/player-projections',
-      tag: 'Prop',
-    },
-    {
-      id: 'line-shopper',
-      title: 'Betting Line Shopper',
-      description: 'Compare spreads, totals, and moneylines across books.',
-      imageSrc:
-        'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1400&q=80',
-      href: '/line-shopping',
-      tag: 'Line Shopping',
-    },
-    {
-      id: 'parlay',
-      title: parlayPreview?.label ?? 'High-EV Parlay',
-      description: parlayPreview?.detail ?? 'Finding high-EV parlays...',
-      imageSrc:
-        'https://images.unsplash.com/photo-1450101215322-bf5cd27642fc?auto=format&fit=crop&w=1400&q=80',
-      href: '/parlay-predictor',
-      tag: 'Parlay',
+      href: '/crossed-ev',
+      tag: 'Sharp Props',
     },
     {
       id: 'sharp-wallets',
@@ -154,19 +132,25 @@ export default function ChatIntro({
       return value > 0 ? `+${value}` : `${value}`
     }
 
+    const formatMarket = (value?: string | null) => {
+      const raw = String(value || '')
+      const cleaned = raw.replace(/^player_/, '').replace(/_/g, ' ').trim()
+      if (!cleaned) return 'Prop'
+      return cleaned.replace(/\b\w/g, (m) => m.toUpperCase())
+    }
+
     const pickRandom = <T,>(items: T[]) =>
       items[Math.floor(Math.random() * items.length)]
 
     const loadPreviews = async () => {
       try {
-        const [marketRes, propRes, parlayRes] = await Promise.all([
+        const [marketRes, sharpPropsRes] = await Promise.all([
           fetch('/api/market-projections?sport=basketball_nba&include=1', {
             cache: 'no-store',
           }),
-          fetch('/api/sharp-player-props?sport=basketball_nba&limit=50', {
+          fetch('/api/crossed-ev?sport=basketball_nba', {
             cache: 'no-store',
           }),
-          fetch('/api/ev-parlays?maxParlayOdds=500', { cache: 'no-store' }),
         ])
 
         if (marketRes.ok) {
@@ -210,48 +194,32 @@ export default function ChatIntro({
           }
         }
 
-        if (propRes.ok) {
-          const payload = await propRes.json()
-          const props = Array.isArray(payload?.props)
-            ? (payload.props as Array<Record<string, any>>)
+        if (sharpPropsRes.ok) {
+          const payload = await sharpPropsRes.json()
+          const rows = Array.isArray(payload?.rows)
+            ? (payload.rows as Array<Record<string, any>>)
             : []
-          if (props.length) {
-            const prop = pickRandom(props)
-            const side = prop.side ? `${prop.side} ` : ''
-            const line = prop.propLine != null ? prop.propLine : ''
-            const market = prop.propType ? String(prop.propType).toUpperCase() : 'PROP'
-            setPropPreview({
-              label: `${prop.playerName} ${side}${line} ${market}`.trim(),
-              detail: `Grade ${Math.round(prop.compositeScore)}`,
-            })
-          } else {
-            setPropPreview({
-              label: 'No props yet',
-              detail: 'Waiting for sharp prop bets.',
-            })
-          }
-        }
 
-        if (parlayRes.ok) {
-          const payload = await parlayRes.json()
-          const parlays = Array.isArray(payload?.data)
-            ? (payload.data as Array<Record<string, any>>)
-            : []
-          if (parlays.length) {
-            const parlay = pickRandom(parlays)
-            setParlayPreview({
-              label: `${parlay.legCount}-Leg ${formatOdds(parlay.bestBookOdds)}`,
-              detail: `EV ${parlay.evPercent.toFixed(1)}%`,
+          if (rows.length) {
+            const row = pickRandom(rows)
+            const oddsA =
+              row.recommendedSide === 'over' ? row.overOdds : row.underOdds
+            const oddsB =
+              row.recommendedSide === 'over' ? row.underOdds : row.overOdds
+
+            setSharpPropsPreview({
+              label: `${row.player ?? 'Sharp Prop'} • ${formatMarket(row.market)}`,
+              detail: `${row.bookLabel ?? 'Book'} ${row.recommendedSide ?? ''} ${row.bookPoint ?? ''} (${formatOdds(oddsA)} vs ${formatOdds(oddsB)})`,
             })
           } else {
-            setParlayPreview({
-              label: 'No EV parlays',
-              detail: 'Waiting for edges.',
+            setSharpPropsPreview({
+              label: 'No sharp props yet',
+              detail: 'Check back when markets are live.',
             })
           }
-        } else if (parlayRes.status === 403) {
-          setParlayPreview({
-            label: 'Parlay Pro',
+        } else if (sharpPropsRes.status === 403) {
+          setSharpPropsPreview({
+            label: 'Sharp Props',
             detail: 'Upgrade to unlock.',
           })
         }

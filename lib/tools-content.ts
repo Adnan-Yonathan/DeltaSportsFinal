@@ -50,60 +50,22 @@ export const TOOLS_CONTENT: ToolContent[] = [
     ],
   },
   {
-    id: "player-prop-odds",
-    label: "Player Prop Odds",
-    route: "/player-prop-odds",
-    icon: "users",
+    id: "crossed-ev",
+    label: "Sharp Props",
+    route: "/crossed-ev",
+    icon: "percent",
     summary:
-      "Best prop prices across books with quick EV and discrepancy flags.",
+      "Find crossed prop lines and rank them by EV vs consensus.",
     description:
-      "Player Prop Odds aggregates prop lines across sportsbooks, highlights the best over/under prices, and surfaces EV signals from consensus pricing.",
+      "Sharp Props ranks player props where a specific book’s line is far off the market consensus line, then estimates EV% by comparing book odds to consensus odds and accounting for line discrepancy.",
     howToUse:
-      "Filter by market or team, scan for the best prices, and focus on props showing strong discrepancies or EV markers.",
+      "Pick a sport, then scan the top-ranked props. If a book is low vs consensus, it tends to favor the over. If it’s high vs consensus, it tends to favor the under. Always confirm injury/news context before firing.",
     unique:
-      "It surfaces both best price and implied edge in one view, so you can act fast.",
+      "It’s line-first: you see which books are crossed from consensus before the market snaps back.",
     useCases: [
-      "Finding the best price on a specific prop.",
-      "Spotting mispriced props before books sync.",
-      "Building prop cards with clear value flags.",
-    ],
-  },
-  {
-    id: "line-shopping",
-    label: "Line Shopping",
-    route: "/line-shopping",
-    icon: "target",
-    summary:
-      "Side-by-side odds comparison across books for spreads, totals, and moneylines.",
-    description:
-      "Line Shopping scans major sportsbooks so you can instantly see where each line is best. It highlights the price gaps that swing EV from negative to positive.",
-    howToUse:
-      "Pick the market, compare the best prices, and lock your bet at the top line. Re-check after news to see which book lags.",
-    unique:
-      "It shows the full price distribution so you can see how far off each book is.",
-    useCases: [
-      "Maximizing edge by selecting the best book.",
-      "Tracking which books are slow to move.",
-      "Finding +EV prices before they close.",
-    ],
-  },
-  {
-    id: "parlay-predictor",
-    label: "Parlay Predictor",
-    route: "/parlay-predictor",
-    icon: "layers",
-    summary:
-      "EV parlays plus a builder for custom multi-leg tickets.",
-    description:
-      "Parlay Predictor surfaces positive-EV parlays from sportsbook pricing, then lets you build your own tickets with correlation-aware math.",
-    howToUse:
-      "Start with the EV list, then switch to Build Your Own to stack legs. Keep tickets that meet the listed minimum odds for +EV.",
-    unique:
-      "It blends sportsbook-only pricing with correlation checks to keep parlays honest.",
-    useCases: [
-      "Taking EV parlays above a 3% edge.",
-      "Building 2-5 leg parlays with verified value.",
-      "Checking minimum odds to keep a parlay +EV.",
+      "Finding books that are slow to update prop lines.",
+      "Spotting crossed numbers after news or lineup changes.",
+      "Identifying the cleanest line edges before prices converge.",
     ],
   },
   {

@@ -587,13 +587,14 @@ function ChatPageContent() {
 
   const headerActions = (
       <div className="flex items-center gap-1.5 lg:border-l lg:border-white/10 lg:pl-2">
-        <button
-          onClick={() => router.push('/pricing')}
-          className="px-2 py-1 text-[#34d399] hover:text-[#16a34a] transition-colors"
+        <Link
+          href="/pricing"
+          prefetch={false}
+          className="pointer-events-auto px-2 py-1 text-[#34d399] hover:text-[#16a34a] transition-colors"
           aria-label="View pricing"
         >
           <span className="text-[10px] sm:text-xs font-semibold leading-none">Pricing</span>
-        </button>
+        </Link>
         <button
           onClick={() => router.push('/live-scores')}
           className="inline-flex items-center gap-2 rounded-full border border-[#34d399]/60 px-4 py-2 text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"

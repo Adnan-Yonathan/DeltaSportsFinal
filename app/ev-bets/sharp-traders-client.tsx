@@ -110,10 +110,10 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
   )
   const fullParams = useMemo(
     () => ({
-      tradeLimit: 500,
+      tradeLimit: 250,
       tradePages: 12,
       top: 75,
-      minTradeSamples: 8000,
+      minTradeSamples: 3000,
       openTradeLimit: 0,
     }),
     []

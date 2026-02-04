@@ -22,10 +22,10 @@ export async function GET(req: NextRequest) {
     }
 
     const url = new URL('/api/polymarket/wallets/top-profit', req.nextUrl.origin)
-    url.searchParams.set('tradeLimit', '500')
+    url.searchParams.set('tradeLimit', '250')
     url.searchParams.set('tradePages', '12')
     url.searchParams.set('top', '75')
-    url.searchParams.set('minTradeSamples', '8000')
+    url.searchParams.set('minTradeSamples', '3000')
     const res = await fetch(url.toString(), { cache: 'no-store' })
     const payload = await res.json().catch(() => ({}))
 

@@ -2,7 +2,6 @@
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Shield, Scale, Zap } from "lucide-react"
-import { GuestHero } from "@/components/ui/guest-hero"
 import { GlareCard } from "@/components/ui/glare-card"
 
 interface StepRiskToleranceProps {
@@ -54,13 +53,15 @@ export function StepRiskTolerance({
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <GuestHero
-        eyebrow="Risk"
-        title="What's your risk preference?"
-        subtitle="How do you like to play it?"
-        compact
-        useCommitsGrid
-      />
+      <div className="text-center space-y-2">
+        <p className="text-xs uppercase tracking-[0.3em] text-white/70">Risk</p>
+        <h1 className="text-2xl font-semibold text-white sm:text-3xl">
+          What&apos;s your risk preference?
+        </h1>
+        <p className="text-sm text-white/80 sm:text-base">
+          How do you like to play it?
+        </p>
+      </div>
 
       <div className="max-w-5xl mx-auto">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 place-items-center">

@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { DollarSign, Info, AlertTriangle } from "lucide-react"
-import { GuestHero } from "@/components/ui/guest-hero"
 import DotCard from "@/components/ui/moving-dot-card"
 import { GlareCard } from "@/components/ui/glare-card"
 
@@ -111,13 +110,17 @@ export function StepBankrollProjection({
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <GuestHero
-        eyebrow="Bet Size"
-        title="What's your average bet size?"
-        subtitle="We’ll calculate expected profit based on your bet size and volume."
-        compact
-        useCommitsGrid
-      />
+      <div className="text-center space-y-2">
+        <p className="text-xs uppercase tracking-[0.3em] text-white/70">
+          Bet Size
+        </p>
+        <h1 className="text-2xl font-semibold text-white sm:text-3xl">
+          What&apos;s your average bet size?
+        </h1>
+        <p className="text-sm text-white/80 sm:text-base">
+          We&apos;ll calculate expected profit based on your bet size and volume.
+        </p>
+      </div>
 
       <div className="max-w-5xl mx-auto space-y-5 text-center">
         {/* Bankroll Input */}
@@ -278,3 +281,4 @@ export function StepBankrollProjection({
     </motion.div>
   )
 }
+

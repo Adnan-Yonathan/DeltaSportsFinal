@@ -2,7 +2,6 @@
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Check } from "lucide-react"
-import { GuestHero } from "@/components/ui/guest-hero"
 import { GlareCard } from "@/components/ui/glare-card"
 
 interface StepSoftwareExperienceProps {
@@ -45,13 +44,17 @@ export function StepSoftwareExperience({
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <GuestHero
-        eyebrow="Software"
-        title="Have you tried betting software before?"
-        subtitle="This helps us tailor the onboarding flow."
-        compact
-        useCommitsGrid
-      />
+      <div className="text-center space-y-2">
+        <p className="text-xs uppercase tracking-[0.3em] text-white/70">
+          Software
+        </p>
+        <h1 className="text-2xl font-semibold text-white sm:text-3xl">
+          Have you tried betting software before?
+        </h1>
+        <p className="text-sm text-white/80 sm:text-base">
+          This helps us tailor the onboarding flow.
+        </p>
+      </div>
 
       <div className="max-w-5xl mx-auto">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 place-items-center">

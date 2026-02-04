@@ -2,7 +2,6 @@
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Check } from "lucide-react"
-import { GuestHero } from "@/components/ui/guest-hero"
 import { GlareCard } from "@/components/ui/glare-card"
 
 interface StepMarketsProps {
@@ -38,13 +37,17 @@ export function StepMarkets({ value, onChange, onValidation }: StepMarketsProps)
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <GuestHero
-        eyebrow="Markets"
-        title="Which markets do you care about most?"
-        subtitle="Select all that apply."
-        compact
-        useCommitsGrid
-      />
+      <div className="text-center space-y-2">
+        <p className="text-xs uppercase tracking-[0.3em] text-white/70">
+          Markets
+        </p>
+        <h1 className="text-2xl font-semibold text-white sm:text-3xl">
+          Which markets do you care about most?
+        </h1>
+        <p className="text-sm text-white/80 sm:text-base">
+          Select all that apply.
+        </p>
+      </div>
 
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:gap-4 place-items-center">

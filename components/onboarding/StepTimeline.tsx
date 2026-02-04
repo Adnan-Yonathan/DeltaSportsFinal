@@ -2,7 +2,6 @@
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Loader2 } from "lucide-react"
-import { GuestHero } from "@/components/ui/guest-hero"
 
 interface StepTimelineProps {
   onValidation: (isValid: boolean) => void
@@ -64,13 +63,17 @@ export function StepTimeline({ onValidation, onContinue, saving }: StepTimelineP
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <GuestHero
-        eyebrow="First 7 Days"
-        title="What to expect during your first week"
-        subtitle="A quick timeline to keep your edge building every day."
-        compact
-        useCommitsGrid
-      />
+      <div className="text-center space-y-2">
+        <p className="text-xs uppercase tracking-[0.3em] text-white/70">
+          First 7 Days
+        </p>
+        <h1 className="text-2xl font-semibold text-white sm:text-3xl">
+          What to expect during your first week
+        </h1>
+        <p className="text-sm text-white/80 sm:text-base">
+          A quick timeline to keep your edge building every day.
+        </p>
+      </div>
 
       <div className="mx-auto w-full max-w-5xl rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
         <div className="space-y-5">

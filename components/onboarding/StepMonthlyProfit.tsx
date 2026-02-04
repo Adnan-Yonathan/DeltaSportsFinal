@@ -3,7 +3,6 @@
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { TrendingUp, Target } from "lucide-react"
-import { GuestHero } from "@/components/ui/guest-hero"
 
 interface StepMonthlyProfitProps {
   bankroll: number
@@ -44,13 +43,17 @@ export function StepMonthlyProfit({
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <GuestHero
-        eyebrow="Delta Estimate"
-        title="Your projected monthly profit"
-        subtitle="Based on a 2.62% assumed edge per bet."
-        compact
-        useCommitsGrid
-      />
+      <div className="text-center space-y-2">
+        <p className="text-xs uppercase tracking-[0.3em] text-white/70">
+          Delta Estimate
+        </p>
+        <h1 className="text-2xl font-semibold text-white sm:text-3xl">
+          Your projected monthly profit
+        </h1>
+        <p className="text-sm text-white/80 sm:text-base">
+          Based on a 2.62% assumed edge per bet.
+        </p>
+      </div>
 
       <div className="mx-auto w-full max-w-xl">
         <div className="rounded-2xl border border-emerald-500/40 bg-gradient-to-br from-emerald-500/20 via-emerald-600/10 to-transparent p-5 sm:p-6">

@@ -2,7 +2,6 @@
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Search, LineChart, TrendingUp, Check } from "lucide-react"
-import { GuestHero } from "@/components/ui/guest-hero"
 import { GlareCard } from "@/components/ui/glare-card"
 
 interface StepFeaturesProps {
@@ -59,13 +58,17 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <GuestHero
-        eyebrow="Your goals"
-        title="What do you want to get out of Delta?"
-        subtitle={`Pick up to ${MAX_SELECTIONS} so we can tailor your feed.`}
-        compact
-        useCommitsGrid
-      />
+      <div className="text-center space-y-2">
+        <p className="text-xs uppercase tracking-[0.3em] text-white/70">
+          Your goals
+        </p>
+        <h1 className="text-2xl font-semibold text-white sm:text-3xl">
+          What do you want to get out of Delta?
+        </h1>
+        <p className="text-sm text-white/80 sm:text-base">
+          Pick up to {MAX_SELECTIONS} so we can tailor your feed.
+        </p>
+      </div>
 
       <div className="max-w-5xl mx-auto">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 place-items-center">

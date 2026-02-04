@@ -2,7 +2,6 @@
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Check } from "lucide-react"
-import { GuestHero } from "@/components/ui/guest-hero"
 import { GlareCard } from "@/components/ui/glare-card"
 
 interface StepTailSharpProps {
@@ -46,13 +45,17 @@ export function StepTailSharp({ value, onChange, onValidation }: StepTailSharpPr
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <GuestHero
-        eyebrow="Sharp Tracking"
-        title="Have you ever tried to tail a sharp?"
-        subtitle="We use this to personalize your tooling."
-        compact
-        useCommitsGrid
-      />
+      <div className="text-center space-y-2">
+        <p className="text-xs uppercase tracking-[0.3em] text-white/70">
+          Sharp Tracking
+        </p>
+        <h1 className="text-2xl font-semibold text-white sm:text-3xl">
+          Have you ever tried to tail a sharp?
+        </h1>
+        <p className="text-sm text-white/80 sm:text-base">
+          We use this to personalize your tooling.
+        </p>
+      </div>
 
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:gap-4 place-items-center">

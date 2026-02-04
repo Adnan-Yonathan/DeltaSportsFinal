@@ -2,7 +2,6 @@
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Sparkles, TrendingUp, Target } from "lucide-react"
-import { GuestHero } from "@/components/ui/guest-hero"
 import { GlareCard } from "@/components/ui/glare-card"
 
 interface StepExperienceProps {
@@ -47,13 +46,17 @@ export function StepExperience({ value, onChange, onValidation }: StepExperience
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <GuestHero
-        eyebrow="Experience"
-        title="What is your experience level?"
-        subtitle="This helps us tune recommendations."
-        compact
-        useCommitsGrid
-      />
+      <div className="text-center space-y-2">
+        <p className="text-xs uppercase tracking-[0.3em] text-white/70">
+          Experience
+        </p>
+        <h1 className="text-2xl font-semibold text-white sm:text-3xl">
+          What is your experience level?
+        </h1>
+        <p className="text-sm text-white/80 sm:text-base">
+          This helps us tune recommendations.
+        </p>
+      </div>
 
       <div className="max-w-5xl mx-auto">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 place-items-center">

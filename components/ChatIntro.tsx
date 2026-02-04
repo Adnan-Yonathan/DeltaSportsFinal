@@ -366,6 +366,38 @@ export default function ChatIntro({
             transition={{ delay: 0.6, duration: 0.5 }}
             className="w-full"
           >
+            <div className="grid grid-cols-2 gap-4 sm:hidden">
+              {[
+                {
+                  title: 'Sharp Projections',
+                  description: 'Full spreads, totals, and moneylines with model edges.',
+                },
+                {
+                  title: 'Sharp Traders',
+                  description: 'Track the wallets moving markets before the public.',
+                },
+                {
+                  title: 'Whale Feed',
+                  description: 'See big bets and compare them to market lines.',
+                },
+                {
+                  title: 'Research Mode',
+                  description: 'Explain line movement, sharp action, and market context.',
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left"
+                >
+                  <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/80">
+                    Feature
+                  </p>
+                  <h3 className="mt-2 text-sm font-semibold text-white">{item.title}</h3>
+                  <p className="mt-2 text-xs text-white/70">{item.description}</p>
+                </div>
+              ))}
+            </div>
+
             <div className="hidden sm:block">
               <FeaturesSix
                 title="Sharp Projections that update in real time"
@@ -520,21 +552,26 @@ export default function ChatIntro({
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-5xl -mt-8"
       >
-        <div className="grid grid-cols-2 gap-4 sm:hidden">
-          {cardItems.slice(0, 4).map((item) => (
-            <div
-              key={item.id}
-              className="relative overflow-hidden rounded-2xl border border-white/10 bg-black"
-            >
+        <CardStack
+          items={cardItems}
+          initialIndex={0}
+          autoAdvance
+          intervalMs={2400}
+          pauseOnHover
+          showDots
+          cardWidth={cardSize.width}
+          cardHeight={cardSize.height}
+          renderCard={(item) => (
+            <div className="relative h-full w-full bg-black">
               <div
-                className={`absolute inset-0 bg-gradient-to-t ${
+                className={`pointer-events-none absolute inset-0 bg-gradient-to-t ${
                   isResearch ? 'from-amber-900/35 via-black/10' : 'from-emerald-900/30 via-black/10'
                 } to-transparent`}
               />
-              <div className="relative z-10 flex h-full flex-col justify-end p-4 text-left">
+              <div className="relative z-10 flex h-full flex-col justify-end p-6 text-left">
                 {item.tag && (
                   <span
-                    className={`mb-2 inline-flex w-fit rounded-full border bg-black/50 px-2 py-1 text-[9px] uppercase tracking-[0.28em] ${
+                    className={`mb-2 inline-flex w-fit rounded-full border bg-black/50 px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
                       isResearch
                         ? 'border-amber-400/50 text-amber-200'
                         : 'border-emerald-400/40 text-emerald-200'
@@ -543,65 +580,26 @@ export default function ChatIntro({
                     {item.tag}
                   </span>
                 )}
-                <h3 className="text-sm font-semibold text-white">{item.title}</h3>
+                <h3 className="text-xl font-semibold text-white">{item.title}</h3>
                 {item.description && (
-                  <p className="mt-1 text-[11px] text-white/70">{item.description}</p>
+                  <p className="mt-2 text-sm text-white/70">{item.description}</p>
+                )}
+                {item.href && (
+                  <Link
+                    href={item.href}
+                    className={`mt-4 inline-flex w-fit rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.3em] transition ${
+                      isResearch
+                        ? 'border-amber-400/50 text-amber-200 hover:border-amber-300/70 hover:text-amber-100'
+                        : 'border-emerald-400/40 text-emerald-200 hover:border-emerald-300/70 hover:text-emerald-100'
+                    }`}
+                  >
+                    Open
+                  </Link>
                 )}
               </div>
             </div>
-          ))}
-        </div>
-
-        <div className="hidden sm:block">
-          <CardStack
-            items={cardItems}
-            initialIndex={0}
-            autoAdvance
-            intervalMs={2400}
-            pauseOnHover
-            showDots
-            cardWidth={cardSize.width}
-            cardHeight={cardSize.height}
-            renderCard={(item) => (
-              <div className="relative h-full w-full bg-black">
-                <div
-                  className={`pointer-events-none absolute inset-0 bg-gradient-to-t ${
-                    isResearch ? 'from-amber-900/35 via-black/10' : 'from-emerald-900/30 via-black/10'
-                  } to-transparent`}
-                />
-                <div className="relative z-10 flex h-full flex-col justify-end p-6 text-left">
-                  {item.tag && (
-                    <span
-                      className={`mb-2 inline-flex w-fit rounded-full border bg-black/50 px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
-                        isResearch
-                          ? 'border-amber-400/50 text-amber-200'
-                          : 'border-emerald-400/40 text-emerald-200'
-                      }`}
-                    >
-                      {item.tag}
-                    </span>
-                  )}
-                  <h3 className="text-xl font-semibold text-white">{item.title}</h3>
-                  {item.description && (
-                    <p className="mt-2 text-sm text-white/70">{item.description}</p>
-                  )}
-                  {item.href && (
-                    <Link
-                      href={item.href}
-                      className={`mt-4 inline-flex w-fit rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.3em] transition ${
-                        isResearch
-                          ? 'border-amber-400/50 text-amber-200 hover:border-amber-300/70 hover:text-amber-100'
-                          : 'border-emerald-400/40 text-emerald-200 hover:border-emerald-300/70 hover:text-emerald-100'
-                      }`}
-                    >
-                      Open
-                    </Link>
-                  )}
-                </div>
-              </div>
-            )}
-          />
-        </div>
+          )}
+        />
       </motion.div>
     </div>
   )

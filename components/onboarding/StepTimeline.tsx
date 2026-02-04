@@ -91,7 +91,10 @@ export function StepTimeline({ onValidation, onContinue, saving }: StepTimelineP
         <div className="mt-8 flex justify-center">
           <button
             type="button"
-            onClick={onContinue}
+            onClick={(event) => {
+              event.preventDefault()
+              onContinue?.()
+            }}
             disabled={saving}
             className="rounded-full bg-[#34d399] px-8 py-3 text-sm font-semibold text-[#0f1f15] transition-colors hover:bg-[#16a34a] disabled:opacity-50 disabled:cursor-not-allowed"
           >

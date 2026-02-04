@@ -160,7 +160,7 @@ export function OnboardingFlow() {
               const saved = await saveOnboarding()
               if (!saved) return
             }
-            router.push("/pricing")
+            setCurrentStep((prev) => Math.min(prev + 1, totalSteps - 1))
           }}
           saving={saving}
         />

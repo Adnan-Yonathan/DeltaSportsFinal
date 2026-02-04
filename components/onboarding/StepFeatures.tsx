@@ -68,7 +68,7 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
       />
 
       <div className="max-w-5xl mx-auto">
-        <div className="flex flex-wrap justify-center gap-4">
+        <div className="grid grid-cols-2 gap-4 place-items-center sm:grid-cols-3">
           {GOALS.map((goal) => {
             const isSelected = value.includes(goal.id)
             const Icon = goal.icon
@@ -77,7 +77,7 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
               <motion.button
                 key={goal.id}
                 onClick={() => toggleFeature(goal.id)}
-                className={`relative ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                className={`relative w-full max-w-[240px] ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
                 whileHover={isDisabled ? {} : { scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
                 disabled={isDisabled}

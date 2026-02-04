@@ -64,14 +64,14 @@ export function StepSports({ value, onChange, onValidation }: StepSportsProps) {
       />
 
       <div className="max-w-5xl mx-auto">
-        <div className="flex flex-wrap justify-center gap-4">
+        <div className="grid grid-cols-2 gap-4 place-items-center sm:grid-cols-3">
           {SPORTS.map((sport) => {
             const isSelected = value.includes(sport.id)
             return (
               <motion.button
                 key={sport.id}
                 onClick={() => toggleSport(sport.id)}
-                className="relative"
+                className="relative w-full max-w-[240px]"
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
               >

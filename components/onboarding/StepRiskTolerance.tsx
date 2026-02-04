@@ -63,7 +63,7 @@ export function StepRiskTolerance({
       />
 
       <div className="max-w-5xl mx-auto">
-        <div className="flex flex-wrap justify-center gap-4">
+        <div className="grid grid-cols-2 gap-4 place-items-center sm:grid-cols-3">
         {RISK_LEVELS.map((level) => {
           const isSelected = value === level.id
           const Icon = level.icon
@@ -71,7 +71,7 @@ export function StepRiskTolerance({
             <motion.button
               key={level.id}
               onClick={() => onChange(level.id)}
-              className="relative"
+              className="relative w-full max-w-[240px]"
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
             >

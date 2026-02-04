@@ -54,14 +54,14 @@ export function StepSoftwareExperience({
       />
 
       <div className="max-w-5xl mx-auto">
-        <div className="flex flex-wrap justify-center gap-4">
+        <div className="grid grid-cols-2 gap-4 place-items-center sm:grid-cols-3">
           {OPTIONS.map((option) => {
             const isSelected = value === option.id
             return (
               <motion.button
                 key={option.id}
                 onClick={() => onChange(option.id)}
-                className="relative"
+                className="relative w-full max-w-[240px]"
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
               >

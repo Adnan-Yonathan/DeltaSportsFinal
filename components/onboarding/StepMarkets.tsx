@@ -47,14 +47,14 @@ export function StepMarkets({ value, onChange, onValidation }: StepMarketsProps)
       />
 
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-wrap lg:flex-nowrap justify-center gap-4">
+        <div className="grid grid-cols-2 gap-4 place-items-center sm:grid-cols-4">
           {MARKETS.map((market) => {
             const isSelected = value.includes(market.id)
             return (
               <motion.button
                 key={market.id}
                 onClick={() => toggleMarket(market.id)}
-                className="relative"
+                className="relative w-full max-w-[240px]"
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
               >

@@ -147,7 +147,7 @@ export function StepBankrollProjection({
           <label className="text-white/80 text-sm font-medium">
             Bets per day
           </label>
-          <div className="flex flex-nowrap justify-center gap-3">
+          <div className="flex flex-wrap justify-center gap-3">
             {BETS_PER_DAY_OPTIONS.map((option) => {
               const isSelected = betsPerDayValue === option.value
               return (
@@ -155,7 +155,7 @@ export function StepBankrollProjection({
                   key={option.value}
                   type="button"
                   onClick={() => setBetsPerDayValue(option.value)}
-                  className="relative"
+                  className="relative w-full max-w-[160px]"
                 >
                   <div className="relative scale-[0.86] sm:scale-[0.9]">
                     <GlareCard className="flex h-full w-full items-center justify-center p-4">

@@ -96,7 +96,14 @@ type PlayerPropsResponse = {
 }
 
 
-const todayYMD = () => new Date().toISOString().slice(0, 10)
+const formatLocalYMD = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+const todayYMD = () => formatLocalYMD(new Date())
 
 function formatStartTime(dateString: string) {
   try {
@@ -114,7 +121,7 @@ function formatStartTime(dateString: string) {
 function formatDisplayDate(dateString: string | undefined) {
   if (!dateString) return ""
   try {
-    const date = new Date(`${dateString}T00:00:00Z`)
+    const date = new Date(`${dateString}T00:00:00`)
     return new Intl.DateTimeFormat("en-US", {
       weekday: "short",
       month: "short",
@@ -131,7 +138,7 @@ const sanitizeText = (text?: string | null) =>
 function adjustDate(date: string, delta: number) {
   const parsed = new Date(`${date}T00:00:00`)
   parsed.setDate(parsed.getDate() + delta)
-  return parsed.toISOString().slice(0, 10)
+  return formatLocalYMD(parsed)
 }
 
 function resolveHeadshot(src?: string | null) {

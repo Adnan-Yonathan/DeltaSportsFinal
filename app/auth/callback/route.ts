@@ -94,14 +94,14 @@ export async function GET(request: NextRequest) {
         if (!error && (tier === 'pro' || tier === 'unlimited' || tier === 'sharp' || tier === 'syndicate')) {
           await supabase.auth.updateUser({
             data: {
-              membership_tier: tier === 'unlimited' ? 'syndicate' : tier,
+              membership_tier: tier === 'unlimited' ? 'syndicate' : tier === 'pro' ? 'sharp' : tier,
               membership_status: 'active',
               has_paid: true,
             },
           })
           membership = getMembershipStatusFromMetadata({
             ...user.user_metadata,
-            membership_tier: tier === 'unlimited' ? 'syndicate' : tier,
+            membership_tier: tier === 'unlimited' ? 'syndicate' : tier === 'pro' ? 'sharp' : tier,
             membership_status: 'active',
             has_paid: true,
           })

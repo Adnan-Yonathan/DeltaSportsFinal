@@ -8,6 +8,7 @@ import { Saira_Condensed } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { ThemeProvider } from '@/components/theme-provider'
+import Script from 'next/script'
 
 export const metadata: Metadata = {
   title: 'Delta Sports - The Sharp Money Tool for Sports',
@@ -72,6 +73,12 @@ export default function RootLayout({
           <AppFooter />
           <Analytics />
           <SpeedInsights />
+          <Script
+            src="https://datafa.st/js/script.js"
+            strategy="afterInteractive"
+            data-website-id="dfid_qwoyZutB3jpH2mat1d9Ox"
+            data-domain="deltasports.app"
+          />
         </ThemeProvider>
       </body>
     </html>

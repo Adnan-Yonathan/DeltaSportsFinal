@@ -454,6 +454,7 @@ const collectOutcomeEntries = (
   const entries: MarketEntry[] = []
   if (!oddsGame) return entries
   oddsGame.bookmakers.forEach((book) => {
+    if (isPredictionMarketBook(book.title)) return
     const markets = book.markets.filter((market) => market.key === marketKey)
     markets.forEach((market) => {
       const outcome = market.outcomes.find((item) =>
@@ -486,6 +487,7 @@ const buildMarketRows = (
   if (!oddsGame) return [] as Array<Record<string, any>>
   const rows: Array<Record<string, any>> = []
   oddsGame.bookmakers.forEach((book) => {
+    if (isPredictionMarketBook(book.title)) return
     const markets = book.markets.filter((market) => market.key === marketKey)
     markets.forEach((market) => {
       if (marketKey === "h2h") {

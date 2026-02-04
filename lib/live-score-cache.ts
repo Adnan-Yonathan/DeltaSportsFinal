@@ -60,9 +60,13 @@ export const saveCachedGameDetails = (
   eventId: string,
   data: LiveScoreGameDetails
 ) => {
-  ensureDir(CACHE_ROOT)
-  const filePath = path.join(CACHE_ROOT, `${league}-${eventId}.json`)
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
+  try {
+    ensureDir(CACHE_ROOT)
+    const filePath = path.join(CACHE_ROOT, `${league}-${eventId}.json`)
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
+  } catch (error) {
+    console.warn("[live-cache] save game details failed", error)
+  }
 }
 
 export const loadCachedAnalysis = (
@@ -81,9 +85,13 @@ export const saveCachedAnalysis = (
   eventId: string,
   data: LiveGameState
 ) => {
-  ensureDir(ANALYSIS_ROOT)
-  const filePath = path.join(ANALYSIS_ROOT, `${league}-${eventId}.json`)
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
+  try {
+    ensureDir(ANALYSIS_ROOT)
+    const filePath = path.join(ANALYSIS_ROOT, `${league}-${eventId}.json`)
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
+  } catch (error) {
+    console.warn("[live-cache] save analysis failed", error)
+  }
 }
 
 export const listCacheMeta = () => {

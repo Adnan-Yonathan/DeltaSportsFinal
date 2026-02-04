@@ -516,7 +516,7 @@ export default function ChatIntro({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="hidden w-full max-w-5xl -mt-8 sm:block"
+        className="hidden w-full max-w-5xl -mt-8 md:block"
       >
         <CardStack
           items={cardItems}

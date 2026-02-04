@@ -14,8 +14,6 @@ import SectionWithMockup from '@/components/ui/section-with-mockup'
 import { ArrowUpRight } from 'lucide-react'
 import ModeToggle, { type DeltaMode } from '@/components/ModeToggle'
 
-const DISCORD_INVITE_URL = 'https://discord.gg/8jUcaKT9'
-
 interface ChatIntroProps {
   conversationId: string
   userId: string
@@ -368,50 +366,89 @@ export default function ChatIntro({
             transition={{ delay: 0.6, duration: 0.5 }}
             className="w-full"
           >
-            <FeaturesSix />
-            <SectionWithMockup
-              title={
-                <>
-                  Sharp Traders
-                  <br />
-                  reveals the wallets moving markets.
-                </>
-              }
-              description={
-                <>
-                  Follow the most profitable Polymarket wallets and see the open sports trades
-                  they still hold. Track conviction in real time and spot the positions sharps
-                  are leaning into before the public catches up.
-                </>
-              }
-              primaryImageSrc="/Screenshot 2026-01-31 094051.png"
-              secondaryImageSrc="/sharp-traders-blur.png"
-              reverseLayout
-            />
-            <FeaturesSix
-              title="Learn the infrastructure behind sharp money"
-              description="Research mode breaks down where sharp money moves, who moves it, and how lines react in real time."
-              imageSrc="/Screenshot 2026-01-27 134108.png"
-              imageAlt="Research mode sharp money overview"
-            />
-            <SectionWithMockup
-              title={
-                <>
-                  Whale Feed
-                  <br />
-                  built on real money.
-                </>
-              }
-              description={
-                <>
-                  We track big bets on peer-to-peer exchanges and compare them
-                  <br />
-                  to sportsbook lines, showing how sharp a bet really is.
-                </>
-              }
-              primaryImageSrc="/Screenshot 2026-01-11 165623.png"
-              secondaryImageSrc="/Screenshot 2026-01-11 161550.png"
-            />
+            <div className="grid grid-cols-2 gap-4 sm:hidden">
+              {[
+                {
+                  title: 'Sharp Projections',
+                  description: 'Full spreads, totals, and moneylines with model edges.',
+                },
+                {
+                  title: 'Sharp Traders',
+                  description: 'Track the wallets moving markets before the public.',
+                },
+                {
+                  title: 'Whale Feed',
+                  description: 'See big bets and compare them to market lines.',
+                },
+                {
+                  title: 'Research Mode',
+                  description: 'Explain line movement, sharp action, and market context.',
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left"
+                >
+                  <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/80">
+                    Feature
+                  </p>
+                  <h3 className="mt-2 text-sm font-semibold text-white">{item.title}</h3>
+                  <p className="mt-2 text-xs text-white/70">{item.description}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden sm:block">
+              <FeaturesSix
+                title="Sharp Projections that update in real time"
+                description="Stay synced to live market movement while your projections update for games, players, and parlays."
+                imageSrc="/Screenshot 2026-01-11 170628.png"
+                imageAlt="Sharp projections overview"
+              />
+              <SectionWithMockup
+                title={
+                  <>
+                    Sharp Traders
+                    <br />
+                    reveals the wallets moving markets.
+                  </>
+                }
+                description={
+                  <>
+                    Follow the most profitable Polymarket wallets and see the open sports trades
+                    they still hold. Track conviction in real time and spot the positions sharps
+                    are leaning into before the public catches up.
+                  </>
+                }
+                primaryImageSrc="/Screenshot 2026-01-31 094051.png"
+                secondaryImageSrc="/sharp-traders-blur.png"
+                reverseLayout
+              />
+              <FeaturesSix
+                title="Research mode for sharper decisions"
+                description="Understand why lines move, summarize sharp action, and build a stronger read before you bet."
+                imageSrc="/Screenshot 2026-01-27 134108.png"
+                imageAlt="Research mode sharp money overview"
+              />
+              <SectionWithMockup
+                title={
+                  <>
+                    Whale Feed
+                    <br />
+                    built on real money.
+                  </>
+                }
+                description={
+                  <>
+                    We track big bets on peer-to-peer exchanges and compare them
+                    <br />
+                    to sportsbook lines, showing how sharp a bet really is.
+                  </>
+                }
+                primaryImageSrc="/Screenshot 2026-01-11 165623.png"
+                secondaryImageSrc="/Screenshot 2026-01-11 161550.png"
+              />
+            </div>
           </motion.div>
 
           {/* ROI Calculator */}
@@ -423,14 +460,12 @@ export default function ChatIntro({
             <ROICalculator />
             <div className="mt-5 w-full max-w-2xl mx-auto flex justify-center">
               <Link
-                href={DISCORD_INVITE_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-4 rounded-full bg-[#5865F2] px-6 py-3 text-xs sm:text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-[0_16px_40px_rgba(88,101,242,0.35)] hover:bg-[#6C77F5] transition-colors"
+                href="/pricing"
+                className="inline-flex items-center gap-4 rounded-full bg-emerald-400 px-6 py-3 text-xs sm:text-sm font-semibold uppercase tracking-[0.3em] text-black shadow-[0_16px_40px_rgba(16,185,129,0.35)] hover:bg-emerald-300 transition-colors"
               >
-                <span>Free Discord</span>
-                <span className="rounded-full border border-white/60 px-3 py-1 text-[10px] font-semibold text-white">
-                  Join Now
+                <span>Bet like an insider</span>
+                <span className="rounded-full border border-black/60 px-3 py-1 text-[10px] font-semibold text-black/80">
+                  View plans
                 </span>
               </Link>
             </div>

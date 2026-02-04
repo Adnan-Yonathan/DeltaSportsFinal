@@ -366,89 +366,55 @@ export default function ChatIntro({
             transition={{ delay: 0.6, duration: 0.5 }}
             className="w-full"
           >
-            <div className="grid grid-cols-2 gap-4 sm:hidden">
-              {[
-                {
-                  title: 'Sharp Projections',
-                  description: 'Full spreads, totals, and moneylines with model edges.',
-                },
-                {
-                  title: 'Sharp Traders',
-                  description: 'Track the wallets moving markets before the public.',
-                },
-                {
-                  title: 'Whale Feed',
-                  description: 'See big bets and compare them to market lines.',
-                },
-                {
-                  title: 'Research Mode',
-                  description: 'Explain line movement, sharp action, and market context.',
-                },
-              ].map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left"
-                >
-                  <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/80">
-                    Feature
-                  </p>
-                  <h3 className="mt-2 text-sm font-semibold text-white">{item.title}</h3>
-                  <p className="mt-2 text-xs text-white/70">{item.description}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="hidden sm:block">
-              <FeaturesSix
-                title="Sharp Projections that update in real time"
-                description="Stay synced to live market movement while your projections update for games, players, and parlays."
-                imageSrc="/Screenshot 2026-01-11 170628.png"
-                imageAlt="Sharp projections overview"
-              />
-              <SectionWithMockup
-                title={
-                  <>
-                    Sharp Traders
-                    <br />
-                    reveals the wallets moving markets.
-                  </>
-                }
-                description={
-                  <>
-                    Follow the most profitable Polymarket wallets and see the open sports trades
-                    they still hold. Track conviction in real time and spot the positions sharps
-                    are leaning into before the public catches up.
-                  </>
-                }
-                primaryImageSrc="/Screenshot 2026-01-31 094051.png"
-                secondaryImageSrc="/sharp-traders-blur.png"
-                reverseLayout
-              />
-              <FeaturesSix
-                title="Research mode for sharper decisions"
-                description="Understand why lines move, summarize sharp action, and build a stronger read before you bet."
-                imageSrc="/Screenshot 2026-01-27 134108.png"
-                imageAlt="Research mode sharp money overview"
-              />
-              <SectionWithMockup
-                title={
-                  <>
-                    Whale Feed
-                    <br />
-                    built on real money.
-                  </>
-                }
-                description={
-                  <>
-                    We track big bets on peer-to-peer exchanges and compare them
-                    <br />
-                    to sportsbook lines, showing how sharp a bet really is.
-                  </>
-                }
-                primaryImageSrc="/Screenshot 2026-01-11 165623.png"
-                secondaryImageSrc="/Screenshot 2026-01-11 161550.png"
-              />
-            </div>
+            <FeaturesSix
+              title="Sharp Projections that update in real time"
+              description="Stay synced to live market movement while your projections update for games, players, and parlays."
+              imageSrc="/Screenshot 2026-01-11 170628.png"
+              imageAlt="Sharp projections overview"
+            />
+            <SectionWithMockup
+              title={
+                <>
+                  Sharp Traders
+                  <br />
+                  reveals the wallets moving markets.
+                </>
+              }
+              description={
+                <>
+                  Follow the most profitable Polymarket wallets and see the open sports trades
+                  they still hold. Track conviction in real time and spot the positions sharps
+                  are leaning into before the public catches up.
+                </>
+              }
+              primaryImageSrc="/Screenshot 2026-01-31 094051.png"
+              secondaryImageSrc="/sharp-traders-blur.png"
+              reverseLayout
+            />
+            <FeaturesSix
+              title="Research mode for sharper decisions"
+              description="Understand why lines move, summarize sharp action, and build a stronger read before you bet."
+              imageSrc="/Screenshot 2026-01-27 134108.png"
+              imageAlt="Research mode sharp money overview"
+            />
+            <SectionWithMockup
+              title={
+                <>
+                  Whale Feed
+                  <br />
+                  built on real money.
+                </>
+              }
+              description={
+                <>
+                  We track big bets on peer-to-peer exchanges and compare them
+                  <br />
+                  to sportsbook lines, showing how sharp a bet really is.
+                </>
+              }
+              primaryImageSrc="/Screenshot 2026-01-11 165623.png"
+              secondaryImageSrc="/Screenshot 2026-01-11 161550.png"
+            />
           </motion.div>
 
           {/* ROI Calculator */}
@@ -550,7 +516,7 @@ export default function ChatIntro({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-5xl -mt-8"
+        className="hidden w-full max-w-5xl -mt-8 sm:block"
       >
         <CardStack
           items={cardItems}

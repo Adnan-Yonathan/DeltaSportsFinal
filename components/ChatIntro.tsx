@@ -460,7 +460,7 @@ export default function ChatIntro({
             <ROICalculator />
             <div className="mt-5 w-full max-w-2xl mx-auto flex justify-center">
               <Link
-                href="/pricing"
+                href="/onboarding"
                 className="inline-flex items-center gap-4 rounded-full bg-emerald-400 px-6 py-3 text-xs sm:text-sm font-semibold uppercase tracking-[0.3em] text-black shadow-[0_16px_40px_rgba(16,185,129,0.35)] hover:bg-emerald-300 transition-colors"
               >
                 <span>Bet like an insider</span>

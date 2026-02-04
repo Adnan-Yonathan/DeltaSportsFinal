@@ -77,12 +77,12 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
               <motion.button
                 key={goal.id}
                 onClick={() => toggleFeature(goal.id)}
-                className={`relative w-full max-w-[520px] sm:max-w-[240px] ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                className={`relative w-full max-w-none sm:max-w-[240px] ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
                 whileHover={isDisabled ? {} : { scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
                 disabled={isDisabled}
               >
-                <div className="relative scale-[0.9] sm:scale-95">
+                <div className="relative scale-100 sm:scale-95">
                   <GlareCard className="flex h-full w-full flex-row items-center justify-between gap-4 p-4 sm:flex-col sm:items-start sm:gap-0 sm:p-5">
                     <div className="flex items-start gap-3 sm:w-full sm:items-start sm:justify-between">
                       <div className={`p-2.5 rounded-xl bg-gradient-to-br ${goal.color}`}>

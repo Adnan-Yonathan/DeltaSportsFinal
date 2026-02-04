@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import clsx from "clsx"
-import { ArrowLeft, Calendar, ChevronDown, ChevronLeft, ChevronRight, Lock, RefreshCw, X } from "lucide-react"
+import { ArrowLeft, Calendar, ChevronDown, ChevronLeft, ChevronRight, Lock, Plus, RefreshCw, X } from "lucide-react"
 import { useLiveScores } from "@/hooks/use-live-scores"
 import { useGameDetails } from "@/hooks/use-game-details"
 import { ESPN_LEAGUES, type LeagueId, type LiveScoreGame, type LiveScoreGameDetails, type GamePlayerSummary } from "@/lib/live-scores"
@@ -580,6 +580,7 @@ export default function LiveScoresPage() {
   const [arbDropdownOpen, setArbDropdownOpen] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
+  const [pinnedGameIds, setPinnedGameIds] = useState<string[]>([])
   const supabase = useMemo(() => createClient(), [])
   const { data, loading, error, lastUpdated, refetch, isRefreshing } = useLiveScores({
     refreshInterval: 1000,
@@ -865,7 +866,7 @@ export default function LiveScoresPage() {
   ])
 
   const bucketed = useMemo(() => {
-    return filteredGames.reduce(
+    const bucketedGames = filteredGames.reduce(
       (acc, game) => {
         acc[game.bucket].push(game)
         return acc
@@ -876,7 +877,23 @@ export default function LiveScoresPage() {
         completed: [] as LiveScoreGame[],
       }
     )
-  }, [filteredGames])
+    if (pinnedGameIds.length) {
+      const pinnedSet = new Set(pinnedGameIds)
+      bucketedGames.live = [...bucketedGames.live].sort((a, b) => {
+        const aPinned = pinnedSet.has(a.id)
+        const bPinned = pinnedSet.has(b.id)
+        if (aPinned === bPinned) return 0
+        return aPinned ? -1 : 1
+      })
+    }
+    return bucketedGames
+  }, [filteredGames, pinnedGameIds])
+
+  const togglePin = useCallback((gameId: string) => {
+    setPinnedGameIds((prev) =>
+      prev.includes(gameId) ? prev.filter((id) => id !== gameId) : [...prev, gameId]
+    )
+  }, [])
 
   const selectedDateLabel = formatDisplayDate(data?.requestedDate ?? selectedDate)
   const completedDateLabel = formatDisplayDate(data?.previousDate)
@@ -1198,6 +1215,7 @@ export default function LiveScoresPage() {
                           game.bucket === "upcoming"
                             ? formatStartTime(game.startTime)
                             : shortDetail || detail || (game.bucket === "completed" ? "Final" : "Live")
+                        const isPinned = game.bucket === "live" && pinnedGameIds.includes(game.id)
                         const summaryRows = [
                           {
                             key: "moneyline",
@@ -1261,6 +1279,24 @@ export default function LiveScoresPage() {
                           <div className="flex items-center justify-between text-[11px] text-white/60 gap-2">
                             <span className="uppercase tracking-[0.3em]">{game.leagueLabel}</span>
                             <div className="flex items-center gap-2">
+                              {game.bucket === "live" && (
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    togglePin(game.id)
+                                  }}
+                                  aria-label={isPinned ? "Unpin game" : "Pin game"}
+                                  className={clsx(
+                                    "inline-flex h-6 w-6 items-center justify-center rounded-full border transition-colors",
+                                    isPinned
+                                      ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-200"
+                                      : "border-white/20 text-white/60 hover:border-white/50 hover:text-white"
+                                  )}
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                               {game.bucket === "live" && (
                                 <span className="inline-flex items-center gap-1 rounded-full border border-red-500/60 bg-red-500/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-red-200">
                                   <span className="h-1.5 w-1.5 rounded-full bg-red-400" />

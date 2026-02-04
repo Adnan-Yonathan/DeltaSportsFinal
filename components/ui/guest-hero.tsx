@@ -39,7 +39,7 @@ export function GuestHero({
           </div>
         </div>
       ) : (
-        <div className="matrix-scramble rounded-3xl bg-black/30 px-4 py-4 text-center text-2xl font-bold tracking-tight text-white backdrop-blur-md sm:px-6 sm:py-6 sm:text-3xl lg:text-5xl">
+        <div className="matrix-scramble rounded-3xl bg-black/20 px-4 py-4 text-center text-xl font-bold tracking-tight text-white backdrop-blur-md sm:px-6 sm:py-6 sm:text-3xl lg:text-5xl">
           <TextEffect per="word" preset="blur" delay={0.1}>
             {title}
           </TextEffect>
@@ -49,7 +49,7 @@ export function GuestHero({
       title ?? (
         <RotatingWordBadge
           prefix="BET LIKE A "
-          className="rounded-3xl bg-black/30 px-4 py-4 text-center text-2xl font-bold tracking-tight text-white backdrop-blur-md sm:px-6 sm:py-6 sm:text-3xl lg:text-5xl"
+          className="rounded-3xl bg-black/20 px-4 py-4 text-center text-xl font-bold tracking-tight text-white backdrop-blur-md sm:px-6 sm:py-6 sm:text-3xl lg:text-5xl"
         />
       )
     )
@@ -62,13 +62,13 @@ export function GuestHero({
       className={`text-center ${compact ? 'mb-4 lg:mb-6' : 'mb-8 lg:mb-10'} ${className}`}
     >
       {eyebrow && (
-        <p className="mb-2 text-xs uppercase tracking-[0.3em] text-white/70">
+        <p className="mb-2 text-xs uppercase tracking-[0.3em] text-white/85">
           {eyebrow}
         </p>
       )}
       <h1 className="w-full">{heading}</h1>
       {subtitle && (
-        <p className={`mx-auto mt-5 max-w-2xl px-4 text-sm leading-relaxed tracking-tight text-white/90 sm:text-base md:text-lg`}>
+        <p className={`mx-auto mt-4 max-w-2xl px-4 text-xs leading-relaxed tracking-tight text-white sm:text-base md:text-lg`}>
           {subtitle}
         </p>
       )}

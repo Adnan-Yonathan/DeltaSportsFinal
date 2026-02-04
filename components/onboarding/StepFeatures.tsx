@@ -68,7 +68,7 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
       />
 
       <div className="max-w-5xl mx-auto">
-        <div className="grid grid-cols-2 gap-4 place-items-center sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 place-items-center">
           {GOALS.map((goal) => {
             const isSelected = value.includes(goal.id)
             const Icon = goal.icon
@@ -77,26 +77,26 @@ export function StepFeatures({ value, onChange, onValidation }: StepFeaturesProp
               <motion.button
                 key={goal.id}
                 onClick={() => toggleFeature(goal.id)}
-                className={`relative w-full max-w-[240px] ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                className={`relative w-full max-w-[520px] sm:max-w-[240px] ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
                 whileHover={isDisabled ? {} : { scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
                 disabled={isDisabled}
               >
                 <div className="relative scale-[0.9] sm:scale-95">
-                  <GlareCard className="flex h-full w-full flex-col justify-between p-5">
-                    <div className="flex items-start justify-between">
+                  <GlareCard className="flex h-full w-full flex-row items-center justify-between gap-4 p-4 sm:flex-col sm:items-start sm:gap-0 sm:p-5">
+                    <div className="flex items-start gap-3 sm:w-full sm:items-start sm:justify-between">
                       <div className={`p-2.5 rounded-xl bg-gradient-to-br ${goal.color}`}>
                         <Icon className="w-5 h-5 text-white" />
                       </div>
                       {isSelected && (
-                        <div className="rounded-full bg-emerald-500 p-1">
+                        <div className="rounded-full bg-emerald-500 p-1 sm:ml-auto">
                           <Check className="w-4 h-4 text-white" />
                         </div>
                       )}
                     </div>
-                    <div className="mt-6">
-                      <h3 className="text-lg font-semibold text-white mb-2">{goal.name}</h3>
-                      <p className="text-white/60 text-sm">{goal.description}</p>
+                    <div className="text-left sm:mt-6">
+                      <h3 className="text-base font-semibold text-white sm:text-lg sm:mb-2">{goal.name}</h3>
+                      <p className="text-white/60 text-xs sm:text-sm">{goal.description}</p>
                     </div>
                   </GlareCard>
                   {isSelected && (

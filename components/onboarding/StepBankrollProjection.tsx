@@ -155,11 +155,11 @@ export function StepBankrollProjection({
                   key={option.value}
                   type="button"
                   onClick={() => setBetsPerDayValue(option.value)}
-                  className="relative w-full max-w-[160px]"
+                  className="relative w-full max-w-[320px] sm:max-w-[160px]"
                 >
                   <div className="relative scale-[0.86] sm:scale-[0.9]">
-                    <GlareCard className="flex h-full w-full items-center justify-center p-4">
-                      <div className="text-xl font-semibold text-white">{option.label}</div>
+                    <GlareCard className="flex h-full w-full items-center justify-between gap-4 p-4 sm:justify-center">
+                      <div className="text-base font-semibold text-white sm:text-xl">{option.label}</div>
                     </GlareCard>
                     {isSelected && (
                       <span className="pointer-events-none absolute inset-0 rounded-[48px] ring-2 ring-emerald-400/60" />

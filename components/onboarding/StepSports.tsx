@@ -64,28 +64,30 @@ export function StepSports({ value, onChange, onValidation }: StepSportsProps) {
       />
 
       <div className="max-w-5xl mx-auto">
-        <div className="grid grid-cols-2 gap-4 place-items-center sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 place-items-center">
           {SPORTS.map((sport) => {
             const isSelected = value.includes(sport.id)
             return (
               <motion.button
                 key={sport.id}
                 onClick={() => toggleSport(sport.id)}
-                className="relative w-full max-w-[240px]"
+                className="relative w-full max-w-[520px] sm:max-w-[240px]"
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
               >
                 <div className="relative scale-[0.9] sm:scale-95">
-                  <GlareCard className="flex h-full w-full flex-col justify-between p-5">
-                    <div className="flex items-start justify-between">
-                      <div className="text-lg font-semibold text-white">{sport.label}</div>
+                  <GlareCard className="flex h-full w-full flex-row items-center justify-between gap-4 p-4 sm:flex-col sm:items-start sm:gap-0 sm:p-5">
+                    <div className="flex items-start gap-3 sm:w-full sm:items-start sm:justify-between">
+                      <div className="text-base font-semibold text-white sm:text-lg">{sport.label}</div>
                       {isSelected && (
-                        <div className="rounded-full bg-emerald-500 p-1">
+                        <div className="rounded-full bg-emerald-500 p-1 sm:ml-auto">
                           <Check className="w-4 h-4 text-white" />
                         </div>
                       )}
                     </div>
-                    <div className="mt-6 text-sm text-white/60">{sport.detail}</div>
+                    <div className="text-left text-xs text-white/60 sm:mt-6 sm:text-sm">
+                      {sport.detail}
+                    </div>
                   </GlareCard>
                   {isSelected && (
                     <span className="pointer-events-none absolute inset-0 rounded-[48px] ring-2 ring-emerald-400/60" />

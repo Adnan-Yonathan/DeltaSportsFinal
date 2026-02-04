@@ -300,40 +300,26 @@ export function OnboardingFlow() {
 
       {/* Navigation */}
       {!isPricingStep && !isTimelineStep && (
-        <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/10 p-6">
-          <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {currentStep > 0 && (
-                <button
-                  onClick={handleBack}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-white"
-                  disabled={saving}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Back
-                </button>
+        <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none">
+          <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/60 via-black/20 to-transparent backdrop-blur-sm" />
+          <div className="relative mx-auto flex items-center justify-end px-6 pb-6">
+            <button
+              onClick={handleNext}
+              disabled={!isStepValid || saving}
+              className="pointer-events-auto flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500 px-7 py-3 text-sm font-semibold text-black shadow-[0_10px_30px_rgba(16,185,129,0.35)] transition-all hover:from-emerald-300 hover:to-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </>
               )}
-            </div>
-
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleNext}
-                disabled={!isStepValid || saving}
-                className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    Next
-                    <ChevronRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </div>
+            </button>
           </div>
         </div>
       )}

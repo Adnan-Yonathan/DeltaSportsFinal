@@ -89,9 +89,6 @@ export function StepSports({ value, onChange, onValidation }: StepSportsProps) {
                       {sport.detail}
                     </div>
                   </GlareCard>
-                  {isSelected && (
-                    <span className="pointer-events-none absolute inset-0 rounded-[48px] ring-2 ring-emerald-400/60" />
-                  )}
                 </div>
               </motion.button>
             )

@@ -93,9 +93,6 @@ export function StepRiskTolerance({
                     <p className="mt-1 text-white/50 text-[11px] sm:mt-2 sm:text-xs">{level.details}</p>
                   </div>
                 </GlareCard>
-                {isSelected && (
-                  <span className="pointer-events-none absolute inset-0 rounded-[48px] ring-2 ring-emerald-400/60" />
-                )}
               </div>
             </motion.button>
           )

@@ -32,14 +32,14 @@ export function GuestHero({
       useCommitsGrid ? (
         <div className="flex justify-center">
           <div
-            className="matrix-scramble w-fit max-w-full"
+            className="matrix-scramble w-fit max-w-full overflow-visible"
             style={{ transform: `scale(${commitsScale})`, transformOrigin: 'center' }}
           >
             <CommitsGrid text={title} />
           </div>
         </div>
       ) : (
-        <div className="matrix-scramble rounded-3xl bg-black/20 px-4 py-4 text-center text-xl font-bold tracking-tight text-white backdrop-blur-md sm:px-6 sm:py-6 sm:text-3xl lg:text-5xl">
+        <div className="matrix-scramble overflow-visible rounded-3xl bg-black/20 px-4 py-4 text-center text-xl font-bold tracking-tight text-white backdrop-blur-md sm:px-6 sm:py-6 sm:text-3xl lg:text-5xl">
           <TextEffect per="word" preset="blur" delay={0.1}>
             {title}
           </TextEffect>
@@ -49,7 +49,7 @@ export function GuestHero({
       title ?? (
         <RotatingWordBadge
           prefix="BET LIKE A "
-          className="rounded-3xl bg-black/20 px-4 py-4 text-center text-xl font-bold tracking-tight text-white backdrop-blur-md sm:px-6 sm:py-6 sm:text-3xl lg:text-5xl"
+          className="overflow-visible rounded-3xl bg-black/20 px-4 py-4 text-center text-xl font-bold tracking-tight text-white backdrop-blur-md sm:px-6 sm:py-6 sm:text-3xl lg:text-5xl"
         />
       )
     )
@@ -66,7 +66,7 @@ export function GuestHero({
           {eyebrow}
         </p>
       )}
-      <h1 className="w-full">{heading}</h1>
+      <h1 className="w-full overflow-visible">{heading}</h1>
       {subtitle && (
         <p className={`mx-auto mt-4 max-w-2xl px-4 text-xs leading-relaxed tracking-tight text-white sm:text-base md:text-lg`}>
           {subtitle}

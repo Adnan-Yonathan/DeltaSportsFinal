@@ -161,9 +161,6 @@ export function StepBankrollProjection({
                     <GlareCard className="flex h-full w-full items-center justify-between gap-4 p-4 sm:justify-center">
                       <div className="text-base font-semibold text-white sm:text-xl">{option.label}</div>
                     </GlareCard>
-                    {isSelected && (
-                      <span className="pointer-events-none absolute inset-0 rounded-[48px] ring-2 ring-emerald-400/60" />
-                    )}
                   </div>
                 </button>
               )

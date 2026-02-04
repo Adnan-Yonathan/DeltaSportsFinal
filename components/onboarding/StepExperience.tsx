@@ -85,9 +85,6 @@ export function StepExperience({ value, onChange, onValidation }: StepExperience
                     <p className="mt-1 text-white/60 text-xs sm:mt-2 sm:text-sm">{level.description}</p>
                   </div>
                 </GlareCard>
-                {isSelected && (
-                  <span className="pointer-events-none absolute inset-0 rounded-[48px] ring-2 ring-emerald-400/60" />
-                )}
               </div>
             </motion.button>
           )

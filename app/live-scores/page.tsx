@@ -95,11 +95,6 @@ type PlayerPropsResponse = {
   data: PlayerProp[]
 }
 
-type ArbitrageResult = {
-  market: "moneyline" | "spreads" | "totals"
-  profitPct: number
-  line?: number
-}
 
 const todayYMD = () => new Date().toISOString().slice(0, 10)
 
@@ -354,82 +349,6 @@ const filterOddsGameForLive = (
   return oddsGame
 }
 
-const calculateArbProfit = (oddsA?: number, oddsB?: number) => {
-  if (!Number.isFinite(oddsA) || !Number.isFinite(oddsB)) return null
-  const probA = impliedProbability(oddsA as number)
-  const probB = impliedProbability(oddsB as number)
-  if (probA == null || probB == null) return null
-  const total = probA + probB
-  if (total >= 1) return null
-  return (1 / total - 1) * 100
-}
-
-const bestOddsByLine = (entries: MarketEntry[]) => {
-  const map = new Map<number, MarketEntry>()
-  entries.forEach((entry) => {
-    if (!Number.isFinite(entry.point)) return
-    const line = entry.point as number
-    const existing = map.get(line)
-    if (!existing || entry.odds > existing.odds) {
-      map.set(line, entry)
-    }
-  })
-  return map
-}
-
-const findArbitrage = (
-  oddsGame: OddsGame | null,
-  homeName: string,
-  awayName: string
-): ArbitrageResult | null => {
-  if (!oddsGame) return null
-  const results: ArbitrageResult[] = []
-
-  const homeMl = pickBestEntry(
-    collectOutcomeEntries(oddsGame, "h2h", homeName),
-    "h2h"
-  )
-  const awayMl = pickBestEntry(
-    collectOutcomeEntries(oddsGame, "h2h", awayName),
-    "h2h"
-  )
-  const mlProfit = calculateArbProfit(homeMl?.odds, awayMl?.odds)
-  if (mlProfit != null && mlProfit > 0) {
-    results.push({ market: "moneyline", profitPct: mlProfit })
-  }
-
-  const homeSpreads = collectOutcomeEntries(oddsGame, "spreads", homeName)
-  const awaySpreads = collectOutcomeEntries(oddsGame, "spreads", awayName)
-  const bestHomeByLine = bestOddsByLine(homeSpreads)
-  const bestAwayByLine = bestOddsByLine(awaySpreads)
-  bestHomeByLine.forEach((homeEntry, line) => {
-    const awayEntry = bestAwayByLine.get(-line)
-    if (!awayEntry) return
-    const profit = calculateArbProfit(homeEntry.odds, awayEntry.odds)
-    if (profit != null && profit > 0) {
-      results.push({ market: "spreads", profitPct: profit, line })
-    }
-  })
-
-  const overTotals = collectOutcomeEntries(oddsGame, "totals", "over")
-  const underTotals = collectOutcomeEntries(oddsGame, "totals", "under")
-  const bestOverByLine = bestOddsByLine(overTotals)
-  const bestUnderByLine = bestOddsByLine(underTotals)
-  bestOverByLine.forEach((overEntry, line) => {
-    const underEntry = bestUnderByLine.get(line)
-    if (!underEntry) return
-    const profit = calculateArbProfit(overEntry.odds, underEntry.odds)
-    if (profit != null && profit > 0) {
-      results.push({ market: "totals", profitPct: profit, line })
-    }
-  })
-
-  if (!results.length) return null
-  return results.reduce((best, current) =>
-    current.profitPct > best.profitPct ? current : best
-  )
-}
-
 const pickBestEntry = (entries: MarketEntry[], marketKey: string) => {
   if (!entries.length) return null
   return entries.reduce((best, current) => {
@@ -565,7 +484,6 @@ export default function LiveScoresPage() {
   const [selectedDate, setSelectedDate] = useState<string>(todayYMD())
   const [selectedGame, setSelectedGame] = useState<LiveScoreGame | null>(null)
   const [conference, setConference] = useState<string>("")
-    const [lineShoppingGame, setLineShoppingGame] = useState<LiveScoreGame | null>(null)
   const [oddsByLeague, setOddsByLeague] = useState<Record<LeagueId, OddsGame[]>>(
     EMPTY_ODDS_BY_LEAGUE
   )
@@ -577,7 +495,6 @@ export default function LiveScoresPage() {
   const [propsLoadingByGame, setPropsLoadingByGame] = useState<Record<string, boolean>>({})
   const [propsErrorByGame, setPropsErrorByGame] = useState<Record<string, string | null>>({})
   const [oddsRefreshToken, setOddsRefreshToken] = useState(0)
-  const [arbDropdownOpen, setArbDropdownOpen] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
   const [pinnedGameIds, setPinnedGameIds] = useState<string[]>([])
@@ -611,7 +528,6 @@ export default function LiveScoresPage() {
   // Reset conference filter when league changes
   useEffect(() => {
     setConference("")
-    setLineShoppingGame(null)
   }, [activeLeague])
 
   useEffect(() => {
@@ -689,39 +605,6 @@ export default function LiveScoresPage() {
     [oddsGames, oddsMatchIndex]
   )
 
-  type ArbEntry = {
-    game: LiveScoreGame
-    teams: ReturnType<typeof getTeamsFromGame>
-    arbitrage: ArbitrageResult
-    label: string
-  }
-
-  const allArbs = useMemo<ArbEntry[]>(() => {
-    if (!canLoadOdds) return []
-    const arbs: ArbEntry[] = []
-    filteredGames.forEach((game) => {
-      const teams = getTeamsFromGame(game)
-      const rawOddsGame = findOddsGame(teams.homeName, teams.awayName) ?? null
-      const oddsGame = filterOddsGameForLive(rawOddsGame, game.bucket)
-      if (!oddsGame) return
-      const arb = findArbitrage(oddsGame, teams.homeName, teams.awayName)
-      if (arb) {
-        const marketLabel =
-          arb.market === "moneyline"
-            ? "ML"
-            : arb.market === "spreads"
-            ? "Spread"
-            : "Total"
-        arbs.push({
-          game,
-          teams,
-          arbitrage: arb,
-          label: `${teams.awayAbbr || teams.awayName} @ ${teams.homeAbbr || teams.homeName} - ${marketLabel} +${arb.profitPct.toFixed(1)}%`,
-        })
-      }
-    })
-    return arbs.sort((a, b) => b.arbitrage.profitPct - a.arbitrage.profitPct)
-  }, [filteredGames, canLoadOdds, findOddsGame])
 
   const fetchOddsForLeague = useCallback(async () => {
     if (!canLoadOdds) return
@@ -769,19 +652,6 @@ export default function LiveScoresPage() {
     fetchOddsForLeague()
   }, [canLoadOdds, fetchOddsForLeague, oddsRefreshToken])
 
-  // Close arb dropdown on click outside
-  useEffect(() => {
-    if (!arbDropdownOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest("[data-arb-dropdown]")) {
-        setArbDropdownOpen(false)
-      }
-    }
-    document.addEventListener("click", handleClickOutside)
-    return () => document.removeEventListener("click", handleClickOutside)
-  }, [arbDropdownOpen])
-
   const handleRefresh = useCallback(() => {
     refetch()
     setOddsRefreshToken((prev) => prev + 1)
@@ -821,49 +691,6 @@ export default function LiveScoresPage() {
     },
     [canLoadProps, oddsSportKey, propMarkets, propsLoadingByGame, wantsAllProps]
   )
-
-  const lineShoppingTeams = useMemo(
-    () => (lineShoppingGame ? getTeamsFromGame(lineShoppingGame) : null),
-    [lineShoppingGame]
-  )
-  const lineShoppingOddsGame = useMemo(() => {
-    if (!lineShoppingGame || !lineShoppingTeams) return null
-    const oddsGame =
-      findOddsGame(lineShoppingTeams.homeName, lineShoppingTeams.awayName) ??
-      null
-    return filterOddsGameForLive(oddsGame, lineShoppingGame.bucket)
-  }, [findOddsGame, lineShoppingGame, lineShoppingTeams])
-  const lineShoppingProps = lineShoppingGame
-    ? propsByGame[lineShoppingGame.id]
-    : undefined
-  const lineShoppingPropsLoading = lineShoppingGame
-    ? propsLoadingByGame[lineShoppingGame.id]
-    : false
-  const lineShoppingPropsError = lineShoppingGame
-    ? propsErrorByGame[lineShoppingGame.id]
-    : null
-
-  useEffect(() => {
-    if (!lineShoppingGame || !lineShoppingTeams) return
-    if (
-      canLoadProps &&
-      !lineShoppingProps &&
-      !lineShoppingPropsLoading
-    ) {
-      fetchPropsForGame(
-        lineShoppingGame.id,
-        lineShoppingTeams.homeName,
-        lineShoppingTeams.awayName
-      )
-    }
-  }, [
-    canLoadProps,
-    fetchPropsForGame,
-    lineShoppingGame,
-    lineShoppingProps,
-    lineShoppingPropsLoading,
-    lineShoppingTeams,
-  ])
 
   const bucketed = useMemo(() => {
     const bucketedGames = filteredGames.reduce(
@@ -942,71 +769,6 @@ export default function LiveScoresPage() {
               </button>
             </div>
 
-            <div className="relative" data-arb-dropdown>
-              <button
-                onClick={() => setArbDropdownOpen((prev) => !prev)}
-                className={clsx(
-                  "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-colors",
-                  allArbs.length > 0
-                    ? "border-[#34d399] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15]"
-                    : "border-[#6b6b6b] text-white/60"
-                )}
-              >
-                {allArbs.length > 0 ? (
-                  <>
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#34d399] text-[10px] font-bold text-[#0f1f15]">
-                      {allArbs.length}
-                    </span>
-                    Arbs Found
-                  </>
-                ) : (
-                  "No Arbs"
-                )}
-                <ChevronDown className={clsx("h-4 w-4 transition-transform", arbDropdownOpen && "rotate-180")} />
-              </button>
-              {arbDropdownOpen && (
-                <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-[#6b6b6b] bg-black shadow-lg shadow-black/50">
-                  <div className="flex items-center justify-between border-b border-[#6b6b6b] px-4 py-3">
-                    <span className="text-sm font-medium text-white">Arbitrage Opportunities</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRefresh()
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-[#34d399] px-2.5 py-1 text-xs text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
-                    >
-                      <RefreshCw className={clsx("h-3 w-3", { "animate-spin": isRefreshing })} />
-                      Refresh
-                    </button>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    {allArbs.length === 0 ? (
-                      <div className="px-4 py-6 text-center text-sm text-white/50">
-                        No arbitrage opportunities found for {LEAGUE_TABS.find((t) => t.id === activeLeague)?.label || activeLeague}
-                      </div>
-                    ) : (
-                      allArbs.map((arb, idx) => (
-                        <button
-                          key={`${arb.game.eventId}-${idx}`}
-                          onClick={() => {
-                            setLineShoppingGame(arb.game)
-                            setArbDropdownOpen(false)
-                          }}
-                          className="flex w-full items-center justify-between gap-2 border-b border-[#6b6b6b]/50 px-4 py-3 text-left text-sm text-white/80 hover:bg-white/5 transition-colors last:border-b-0"
-                        >
-                          <span className="truncate">
-                            {arb.teams.awayAbbr || arb.teams.awayName} @ {arb.teams.homeAbbr || arb.teams.homeName}
-                          </span>
-                          <span className="shrink-0 rounded-full bg-[#34d399]/20 px-2 py-0.5 text-xs font-medium text-[#34d399]">
-                            {arb.arbitrage.market === "moneyline" ? "ML" : arb.arbitrage.market === "spreads" ? "Spread" : "Total"} +{arb.arbitrage.profitPct.toFixed(1)}%
-                          </span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
             <div className="text-right">
               <p className="text-xs text-white/50">Updated</p>
               <p className="text-sm font-medium text-white">{lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "-"}</p>
@@ -1014,24 +776,6 @@ export default function LiveScoresPage() {
           </div>
         </header>
 
-        {!authLoading && !canLoadOdds && (
-          <div className="rounded-2xl border border-[#6b6b6b] bg-black p-4 text-xs text-white/70 flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-2 text-white/60 uppercase tracking-[0.3em] text-[10px]">
-              <Lock className="h-3.5 w-3.5" />
-              Line Shopping Locked
-            </span>
-            <span>
-              Sign in or upgrade to unlock live odds comparisons and player props.
-            </span>
-            <Link
-              href="/pricing"
-              className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
-              onClick={(event) => event.stopPropagation()}
-            >
-              View Plans
-            </Link>
-          </div>
-        )}
         {canLoadOdds && oddsError && (
           <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-xs text-red-200">
             {oddsError}
@@ -1144,19 +888,6 @@ export default function LiveScoresPage() {
                           rawOddsGame,
                           game.bucket
                         )
-                        const arbitrage = findArbitrage(
-                          oddsGame ?? null,
-                          teams.homeName,
-                          teams.awayName
-                        )
-                        const arbitrageLabel = arbitrage
-                          ? `${arbitrage.market === "moneyline"
-                              ? "ML"
-                              : arbitrage.market === "spreads"
-                                ? "Spread"
-                                : "Total"
-                            } Arb +${arbitrage.profitPct.toFixed(1)}%`
-                          : null
                         const moneylineAwayEntries = collectOutcomeEntries(
                           oddsGame,
                           "h2h",
@@ -1303,11 +1034,6 @@ export default function LiveScoresPage() {
                                   Live
                                 </span>
                               )}
-                              {arbitrageLabel && (
-                                <span className="inline-flex items-center rounded-full border border-emerald-400/50 bg-emerald-500/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200">
-                                  {arbitrageLabel}
-                                </span>
-                              )}
                               <span>{statusLabel}</span>
                             </div>
                           </div>
@@ -1361,57 +1087,12 @@ export default function LiveScoresPage() {
                             {odds && <span>- {odds}</span>}
                           </div>
 
-                          <div
-                            className="mt-4 rounded-2xl border border-[#2a2a2a] bg-black/80 p-3 space-y-3"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <div className="flex items-center justify-end sm:justify-between text-[10px] uppercase tracking-[0.3em] text-white/50">
-                              <span className="hidden sm:inline">Line Shopping</span>
-                              <div className="flex items-center gap-2">
-                                {oddsGame?.bookmakers?.length ? (
-                                  <span className="hidden sm:inline text-[10px] text-white/40">
-                                    {oddsGame.bookmakers.length} books
-                                  </span>
-                                ) : null}
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.preventDefault()
-                                    event.stopPropagation()
-                                    if (!canLoadOdds) return
-                                    setLineShoppingGame(game)
-                                  }}
-                                  disabled={!canLoadOdds}
-                                  className={clsx(
-                                    "inline-flex items-center gap-2 rounded-full border border-[#34d399] px-2 py-1 text-[10px] text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors",
-                                    !canLoadOdds && "cursor-not-allowed opacity-60"
-                                  )}
-                                >
-                                  Compare Books
-                                  <ChevronDown className="h-3 w-3" />
-                                </button>
-                              </div>
+                          <div className="mt-4 rounded-2xl border border-[#2a2a2a] bg-black/80 p-3 space-y-3">
+                            <div className="text-[10px] uppercase tracking-[0.3em] text-white/50">
+                              Market Summary
                             </div>
-
-                            {authLoading ? (
-                              <div className="text-xs text-white/60">
-                                Checking line shopping access...
-                              </div>
-                            ) : !canLoadOdds ? (
-                              <div className="flex items-center gap-2 text-xs text-white/60">
-                                <Lock className="h-3.5 w-3.5" />
-                                <span>Upgrade to unlock odds comparisons.</span>
-                              </div>
-                            ) : oddsLoading ? (
-                              <div className="text-xs text-white/60">Loading odds...</div>
-                            ) : oddsError ? (
-                              <div className="text-xs text-red-200">{oddsError}</div>
-                            ) : !oddsGame ? (
-                              <div className="text-xs text-white/60">
-                                No odds found for this matchup yet.
-                              </div>
-                            ) : (
-                              <div className="hidden sm:grid gap-2 text-xs">
+                            {oddsGame ? (
+                              <div className="grid gap-2 text-xs">
                                 {summaryRows.map((row) => (
                                   <div
                                     key={row.key}
@@ -1437,8 +1118,11 @@ export default function LiveScoresPage() {
                                   </div>
                                 ))}
                               </div>
+                            ) : (
+                              <div className="text-xs text-white/60">
+                                No odds found for this matchup yet.
+                              </div>
                             )}
-
                           </div>
 
                           </>
@@ -1458,32 +1142,6 @@ export default function LiveScoresPage() {
       {selectedGame && (
         <GameDetailsModal game={selectedGame} onClose={() => setSelectedGame(null)} detailsState={detailsState} />
       )}
-      {lineShoppingGame && lineShoppingTeams && (
-        <LineShoppingModal
-          game={lineShoppingGame}
-          teams={lineShoppingTeams}
-          oddsGame={lineShoppingOddsGame}
-          authLoading={authLoading}
-          canLoadOdds={canLoadOdds}
-          oddsLoading={oddsLoading}
-          oddsError={oddsError}
-          canLoadProps={canLoadProps}
-          propMarkets={propMarkets}
-          propsData={lineShoppingProps}
-          propsLoading={lineShoppingPropsLoading}
-          propsError={lineShoppingPropsError}
-          onLoadProps={() => {
-            if (!lineShoppingGame || !lineShoppingTeams) return
-            fetchPropsForGame(
-              lineShoppingGame.id,
-              lineShoppingTeams.homeName,
-              lineShoppingTeams.awayName
-            )
-          }}
-          onClose={() => setLineShoppingGame(null)}
-        />
-      )}
-
     </div>
   )
 }

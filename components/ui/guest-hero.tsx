@@ -59,7 +59,7 @@ export function GuestHero({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6 }}
-      className={`text-center ${compact ? 'mb-4 lg:mb-6' : 'mb-8 lg:mb-10'} ${className}`}
+      className={`font-hero text-center ${compact ? 'mb-4 lg:mb-6' : 'mb-8 lg:mb-10'} ${className}`}
     >
       {eyebrow && (
         <p className="mb-2 text-xs uppercase tracking-[0.3em] text-white/85">

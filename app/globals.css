@@ -27,7 +27,7 @@ body {
   overflow-x: hidden;
   background-color: #4E4E4E;
   color: #f5f5f5;
-  font-family: var(--font-hero);
+  font-family: var(--font-sans);
   scroll-behavior: smooth;
 }
 
@@ -122,6 +122,10 @@ a {
 .matrix-scramble {
   position: relative;
   overflow: hidden;
+}
+
+.font-hero {
+  font-family: var(--font-hero);
 }
 
 .matrix-scramble::before {

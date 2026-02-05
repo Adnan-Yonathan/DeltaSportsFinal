@@ -10,7 +10,7 @@ export const PRICING_TIERS: PricingTier[] = [
       monthly: 59,
       yearly: 249,
     },
-    description: "Full projections toolkit.",
+    description: "Sharp projections + sharp props.",
     planKeyWeekly: "sharp_weekly",
     planKeyMonthly: "sharp_monthly",
     planKeyYearly: "sharp_annual",
@@ -26,18 +26,8 @@ export const PRICING_TIERS: PricingTier[] = [
         included: true,
       },
       {
-        name: "Line Shopping",
-        description: "Compare odds across all books.",
-        included: true,
-      },
-      {
-        name: "Parlay Pro",
-        description: "EV parlays + builder.",
-        included: true,
-      },
-      {
-        name: "EV Bets",
-        description: "Pinnacle-based EV scanning.",
+        name: "Sharp Props",
+        description: "Player prop edges and scores.",
         included: true,
       },
       {
@@ -55,7 +45,7 @@ export const PRICING_TIERS: PricingTier[] = [
       monthly: 79,
       yearly: 299,
     },
-    description: "Full research + sharp money feed.",
+    description: "Sharp traders, whale feed, research mode.",
     highlight: true,
     badge: "Most Popular",
     planKeyWeekly: "syndicate_weekly",
@@ -70,12 +60,17 @@ export const PRICING_TIERS: PricingTier[] = [
     features: [
       {
         name: "Everything in Sharp",
-        description: "Full projections toolkit.",
+        description: "Sharp projections and sharp props.",
         included: true,
       },
       {
         name: "Research Mode",
-        description: "Sharp Action, Trends, Backtesting.",
+        description: "Sharp action, trends, backtesting.",
+        included: true,
+      },
+      {
+        name: "Sharp Traders",
+        description: "Track top Polymarket wallets.",
         included: true,
       },
       {
@@ -83,12 +78,6 @@ export const PRICING_TIERS: PricingTier[] = [
         description: "Sharp money feed + alerts.",
         included: true,
       },
-      {
-        name: "Sharp Props",
-        description: "Player prop edges and scores.",
-        included: true,
-      },
     ],
   },
 ]
-

@@ -22,6 +22,7 @@ import { ROICalculator } from '@/components/ui/roi-calculator'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
 import { formatCurrency } from '@/lib/utils/odds'
+import { FORCE_ONBOARDING, ONBOARDING_ENABLED } from '@/lib/config/onboarding'
 
 const EASTERN_TIMEZONE = 'America/New_York'
 const PROMO_DISMISS_KEY = 'promo_links_dismissed'
@@ -164,9 +165,7 @@ function ChatPageContent() {
         )
       )
 
-      const forceOnboarding =
-        process.env.NEXT_PUBLIC_FORCE_ONBOARDING === 'true'
-      if (forceOnboarding) {
+      if (FORCE_ONBOARDING) {
         router.push('/onboarding')
         setLoading(false)
         return
@@ -182,27 +181,28 @@ function ChatPageContent() {
         setMessagesToday(count)
       }
 
-      const metadataCompleted = Boolean(
-        (user.user_metadata as { onboarding_completed?: boolean })?.onboarding_completed
-      )
-
       const { data: profile, error: profileError } = await supabase
         .from('users')
         .select('display_name, onboarding_completed')
         .eq('id', user.id)
         .single()
 
-      if (profileError) {
-        console.warn('Profile lookup failed:', profileError.message)
-        if (!metadataCompleted) {
+      if (ONBOARDING_ENABLED) {
+        const metadataCompleted = Boolean(
+          (user.user_metadata as { onboarding_completed?: boolean })?.onboarding_completed
+        )
+        if (profileError) {
+          console.warn('Profile lookup failed:', profileError.message)
+          if (!metadataCompleted) {
+            router.push('/onboarding')
+            setLoading(false)
+            return
+          }
+        } else if (profile?.onboarding_completed === false && !metadataCompleted) {
           router.push('/onboarding')
           setLoading(false)
           return
         }
-      } else if (profile?.onboarding_completed === false && !metadataCompleted) {
-        router.push('/onboarding')
-        setLoading(false)
-        return
       }
 
       setProfileName(profile?.display_name || user.email || 'Guest')

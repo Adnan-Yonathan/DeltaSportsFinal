@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/lib/supabase/types'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
+import { FORCE_ONBOARDING, ONBOARDING_ENABLED } from '@/lib/config/onboarding'
 
 export const dynamic = 'force-dynamic'
 const AFFILIATE_REF_COOKIE = 'affiliate_ref'
@@ -47,39 +48,39 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      const forceOnboarding =
-        process.env.NEXT_PUBLIC_FORCE_ONBOARDING === 'true'
-      if (forceOnboarding) {
+      if (FORCE_ONBOARDING) {
         return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
       }
 
-      const metadataCompleted = Boolean(
-        (user.user_metadata as { onboarding_completed?: boolean })
-          ?.onboarding_completed
-      )
+      if (ONBOARDING_ENABLED) {
+        const metadataCompleted = Boolean(
+          (user.user_metadata as { onboarding_completed?: boolean })
+            ?.onboarding_completed
+        )
 
-      let onboardingCompleted = metadataCompleted
-      if (!onboardingCompleted) {
-        const { data: profile, error } = await supabase
-          .from('users')
-          .select('onboarding_completed')
-          .eq('id', user.id)
-          .single()
+        let onboardingCompleted = metadataCompleted
+        if (!onboardingCompleted) {
+          const { data: profile, error } = await supabase
+            .from('users')
+            .select('onboarding_completed')
+            .eq('id', user.id)
+            .single()
 
-        if (!error) {
-          onboardingCompleted = Boolean(profile?.onboarding_completed)
-          if (onboardingCompleted && !metadataCompleted) {
-            await supabase.auth.updateUser({
-              data: {
-                onboarding_completed: true,
-              },
-            })
+          if (!error) {
+            onboardingCompleted = Boolean(profile?.onboarding_completed)
+            if (onboardingCompleted && !metadataCompleted) {
+              await supabase.auth.updateUser({
+                data: {
+                  onboarding_completed: true,
+                },
+              })
+            }
           }
         }
-      }
 
-      if (!onboardingCompleted) {
-        return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
+        if (!onboardingCompleted) {
+          return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
+        }
       }
 
       let membership = getMembershipStatusFromMetadata(user.user_metadata)

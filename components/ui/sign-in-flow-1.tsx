@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { getMembershipStatus } from '@/lib/utils/membership';
 import { ParticleButton } from "@/components/ui/particle-button";
+import { ONBOARDING_ENABLED } from "@/lib/config/onboarding";
 
 import * as THREE from "three";
 
@@ -625,7 +626,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
       if (error) throw error;
 
       if (data.session) {
-        router.push('/onboarding');
+        router.push(ONBOARDING_ENABLED ? '/onboarding' : '/pricing');
       }
     } catch (err: any) {
       setError(err.message || "Failed to create account");

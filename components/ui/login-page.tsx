@@ -10,6 +10,7 @@ import {
   MiniNavbar,
 } from "@/components/ui/sign-in-flow-1"
 import { getMembershipStatus } from "@/lib/utils/membership"
+import { FORCE_ONBOARDING, ONBOARDING_ENABLED } from "@/lib/config/onboarding"
 
 export const LoginPage = () => {
   const [email, setEmail] = useState("")
@@ -56,9 +57,7 @@ export const LoginPage = () => {
       if (error) throw error
 
       if (data.user) {
-        const forceOnboarding =
-          process.env.NEXT_PUBLIC_FORCE_ONBOARDING === "true"
-        if (forceOnboarding) {
+        if (FORCE_ONBOARDING) {
           router.push("/onboarding")
           return
         }
@@ -70,25 +69,27 @@ export const LoginPage = () => {
           return
         }
 
-        const metadataCompleted = Boolean(
-          (data.user.user_metadata as any)?.onboarding_completed
-        )
+        if (ONBOARDING_ENABLED) {
+          const metadataCompleted = Boolean(
+            (data.user.user_metadata as any)?.onboarding_completed
+          )
 
-        if (!metadataCompleted) {
-          const { data: profile, error: profileError } = await supabase
-            .from("users")
-            .select("onboarding_completed")
-            .eq("id", data.user.id)
-            .single()
+          if (!metadataCompleted) {
+            const { data: profile, error: profileError } = await supabase
+              .from("users")
+              .select("onboarding_completed")
+              .eq("id", data.user.id)
+              .single()
 
-          if (!profileError && profile?.onboarding_completed === false) {
-            router.push("/onboarding")
-            return
-          }
+            if (!profileError && profile?.onboarding_completed === false) {
+              router.push("/onboarding")
+              return
+            }
 
-          if (profileError) {
-            router.push("/onboarding")
-            return
+            if (profileError) {
+              router.push("/onboarding")
+              return
+            }
           }
         }
 

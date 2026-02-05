@@ -1,6 +1,7 @@
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { ONBOARDING_ENABLED } from '@/lib/config/onboarding'
 
 // Pages that don't require authentication or membership access
 const PUBLIC_PATHS = [
@@ -118,7 +119,9 @@ export async function middleware(req: NextRequest) {
   // will catch the updated subscription_tier as a fallback.
   const metadata = session.user?.user_metadata || {}
   let isPaid = checkMembershipPaid(metadata)
-  let onboardingCompleted = Boolean(metadata?.onboarding_completed)
+  let onboardingCompleted = ONBOARDING_ENABLED
+    ? Boolean(metadata?.onboarding_completed)
+    : true
 
   if (isMembershipExemptPath(pathname)) {
     return res
@@ -130,7 +133,7 @@ export async function middleware(req: NextRequest) {
       .select('onboarding_completed,subscription_tier')
       .eq('id', session.user.id)
       .single()
-    if (userProfile?.onboarding_completed) {
+    if (ONBOARDING_ENABLED && userProfile?.onboarding_completed) {
       onboardingCompleted = true
     }
     if (!isPaid) {
@@ -153,6 +156,10 @@ export async function middleware(req: NextRequest) {
   if (!onboardingCompleted) {
     const onboardingUrl = new URL('/onboarding', req.url)
     return NextResponse.redirect(onboardingUrl)
+  }
+
+  if (!isPaid && pathname.startsWith('/pricing')) {
+    return res
   }
 
   // If not an active member, redirect to pricing

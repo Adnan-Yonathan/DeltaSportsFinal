@@ -170,21 +170,21 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
     <section
       className={cn(
         "relative bg-transparent text-slate-50",
-        "pt-4 pb-8 px-4 md:pt-8 md:pb-10 lg:pt-10 lg:pb-12",
+        "pt-2 pb-5 px-4 md:pt-5 md:pb-7 lg:pt-6 lg:pb-8",
         "overflow-hidden",
         className,
       )}
     >
-      <div className="w-full max-w-5xl mx-auto">
-        <div className="flex flex-col items-center gap-2 mb-4 text-center md:mb-6">
+      <div className="w-full max-w-4xl mx-auto">
+        <div className="flex flex-col items-center gap-1.5 mb-2 text-center md:mb-4">
           <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-white/70">
             <Sparkles className="h-4 w-4 text-emerald-200/80" />
             Pricing//Secure
           </div>
-          <h2 className="text-3xl font-bold text-white md:text-4xl">
+          <h2 className="text-xl font-bold text-white md:text-2xl">
             Simple, transparent pricing
           </h2>
-          <div className="inline-flex items-center p-1.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 backdrop-blur">
+          <div className="inline-flex items-center p-0.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 backdrop-blur">
             {(["Weekly", "Monthly", "Annual"] as const).map((period) => (
               <button
                 key={period}
@@ -198,7 +198,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                   )
                 }
                 className={cn(
-                  "px-8 py-2.5 text-sm font-medium rounded-full transition-all duration-300",
+                  "px-5 py-1.5 text-[11px] font-medium rounded-full transition-all duration-300",
                   (period === "Weekly"
                     ? billingPeriod === "weekly"
                     : period === "Monthly"
@@ -214,7 +214,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
           </div>
         </div>
 
-        <div className="mx-auto grid w-full max-w-4xl grid-cols-1 gap-6 md:grid-cols-2 md:gap-8 items-stretch">
+        <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-3 md:grid-cols-2 md:gap-5 items-stretch">
           {tiers.map((tier) => {
             // Get the appropriate plan key based on billing period
             const planKey =
@@ -356,19 +356,19 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                   </div>
                 )}
 
-                <div className="p-4 sm:p-5 md:p-6 flex-1 min-h-0">
+                <div className="p-3 sm:p-3.5 md:p-4 flex-1 min-h-0">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="p-2 sm:p-3 rounded-xl md:rounded-2xl bg-emerald-500/15 text-emerald-200">
+                      <div className="flex items-center justify-between mb-2.5">
+                        <div className="p-1.5 sm:p-2 rounded-xl md:rounded-2xl bg-emerald-500/15 text-emerald-200">
                           {tier.icon}
                         </div>
-                        <h3 className="text-sm sm:text-lg md:text-xl font-semibold">
+                        <h3 className="text-sm sm:text-base md:text-lg font-semibold">
                           {tier.name}
                         </h3>
                       </div>
 
-                      <div className="mb-4">
+                      <div className="mb-2.5">
                         {(() => {
                           const periodPrice =
                             billingPeriod === "annual"
@@ -396,16 +396,16 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                           return (
                             <>
                               <div className="flex items-baseline gap-1 sm:gap-2">
-                                <span className="text-lg sm:text-3xl md:text-4xl font-bold">
+                                <span className="text-base sm:text-2xl md:text-3xl font-bold">
                                   {isFree ? "Free" : `$${dailyPrice}`}
                                 </span>
                                 {!isFree && (
-                                  <span className="text-[10px] sm:text-xs md:text-sm text-slate-200/70">
+                                  <span className="text-[11px] sm:text-xs text-slate-200/70">
                                     /day (billed {billingLabel})
                                   </span>
                                 )}
                               </div>
-                              <p className="mt-2 text-xs sm:text-sm text-slate-200/70">
+                              <p className="mt-1.5 text-xs text-slate-200/70">
                                 {tier.description}
                               </p>
                             </>
@@ -416,7 +416,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                   </div>
 
                   <div className="min-h-0">
-                    <div className="space-y-2 md:max-h-[240px] md:overflow-auto md:pr-1 lg:max-h-[280px]">
+                    <div className="space-y-1.5 md:max-h-[170px] md:overflow-auto md:pr-1 lg:max-h-[200px]">
                       {tier.features.map((feature) => (
                         <div key={feature.name} className="flex gap-3">
                           <div
@@ -442,7 +442,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                   </div>
                 </div>
 
-                <div className="p-4 sm:p-5 md:p-6 pt-0 mt-auto">
+                <div className="p-3 sm:p-3.5 md:p-4 pt-0 mt-auto">
                   {actionButton}
                   {!membership?.isActive && membership?.hasUsedTrial && (
                     <p className="mt-3 text-[11px] uppercase tracking-[0.28em] text-white/50">

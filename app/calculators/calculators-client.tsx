@@ -30,7 +30,8 @@ const SectionCard = ({
   description: string
   children: React.ReactNode
 }) => (
-  <section className="rounded-3xl border border-white/10 bg-black/50 p-5 sm:p-6">
+  <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-black/55 p-5 backdrop-blur sm:p-6">
+    <div aria-hidden className="pointer-events-none absolute inset-0 insider-grid opacity-20" />
     <div className="flex flex-col gap-2">
       <h2 className="text-lg font-semibold text-white">{title}</h2>
       <p className="text-sm text-white/60">{description}</p>
@@ -52,7 +53,7 @@ const Field = ({
   placeholder?: string
   helper?: string
 }) => (
-  <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.2em] text-white/50">
+  <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-white/50 sm:tracking-[0.2em]">
     {label}
     <input
       value={value}

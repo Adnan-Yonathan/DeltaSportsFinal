@@ -13,6 +13,17 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Fix: server runtime was trying to load chunks from `.next/server/<id>.js`
+      // while Next emits them under `.next/server/chunks/<id>.js`.
+      const current = String(config.output?.chunkFilename ?? '')
+      if (!current.includes('chunks/')) {
+        config.output.chunkFilename = 'chunks/[id].js'
+      }
+    }
+    return config
+  },
 }
 
 module.exports = nextConfig

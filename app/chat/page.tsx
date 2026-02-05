@@ -12,6 +12,7 @@ import { LiveScoresPreview } from '@/components/LiveScoresPreview'
 import { AnimatedHero } from '@/components/ui/animated-hero'
 import { SimpleHeader } from '@/components/ui/simple-header'
 import { ParticleButton } from '@/components/ui/particle-button'
+import { OddsMatrixSurface } from '@/components/ui/odds-matrix-surface'
 import SharpDetectorPanel from '@/components/SharpDetectorPanel'
 import ToolsNav from '@/components/tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -707,11 +708,17 @@ function ChatPageContent() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black text-white">
+      <div className="relative flex items-center justify-center min-h-screen bg-black text-white">
+        <OddsMatrixSurface intensity={0.55} className="opacity-95" />
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.14),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(56,189,248,0.10),transparent_50%)]" />
+          <div className="insider-grid absolute inset-0 opacity-45" />
+          <div className="insider-scanlines absolute inset-0 opacity-30" />
+        </div>
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center gap-4"
+          className="relative z-10 flex flex-col items-center gap-4"
         >
           <motion.div
             animate={{ rotate: 360 }}
@@ -725,7 +732,13 @@ function ChatPageContent() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-black text-white overflow-hidden">
+    <div className="relative flex min-h-screen flex-col bg-black text-white overflow-hidden">
+      <OddsMatrixSurface intensity={0.55} className="opacity-95" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.14),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(56,189,248,0.10),transparent_50%)]" />
+        <div className="insider-grid absolute inset-0 opacity-45" />
+        <div className="insider-scanlines absolute inset-0 opacity-30" />
+      </div>
         <SimpleHeader
           widthClass="max-w-6xl"
           rightSlot={headerActions}

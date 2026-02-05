@@ -172,7 +172,7 @@ export default function ModernMessageList({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-black">
+      <div className="flex items-center justify-center h-full bg-transparent">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -203,7 +203,7 @@ export default function ModernMessageList({
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-black px-1.5 sm:px-4 py-2 sm:py-6 custom-scrollbar">
+    <div className="h-full overflow-y-auto bg-transparent px-1.5 sm:px-4 py-2 sm:py-6 custom-scrollbar">
       <div className="max-w-4xl mx-auto space-y-2 sm:space-y-6">
         <AnimatePresence initial={false}>
           {messages.map((message, index) => (

@@ -8,6 +8,9 @@ import {
   getSportLabel,
 } from '@/lib/blog/market-projections'
 import { SimpleHeader } from '@/components/ui/simple-header'
+import { OddsMatrixSurface } from '@/components/ui/odds-matrix-surface'
+import { CardSpotlight } from '@/components/ui/card-spotlight'
+import { ArrowRight } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -99,17 +102,23 @@ export default async function BlogIndexPage({
     .slice(0, 12)
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="relative min-h-screen bg-black text-white">
+      <OddsMatrixSurface intensity={0.32} className="opacity-90" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
+        <div className="absolute inset-0 insider-grid opacity-50" />
+        <div className="absolute inset-0 insider-scanlines opacity-25" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.12),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(56,189,248,0.10),transparent_50%)]" />
+      </div>
       <SimpleHeader widthClass="max-w-6xl" />
-      <div className="px-4 sm:px-6 lg:px-10 pt-24 pb-12 max-w-5xl mx-auto space-y-10">
-        <header className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-            Delta Sports Blog
+      <div className="relative z-10 mx-auto max-w-5xl space-y-10 px-4 pb-12 pt-20 sm:px-6 sm:pt-24 lg:px-10">
+        <header className="rounded-3xl border border-white/10 bg-black/55 p-6 backdrop-blur sm:p-10">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-emerald-200/70">
+            Delta Blog
           </p>
-          <h1 className="text-3xl sm:text-4xl font-semibold">
+          <h1 className="mt-3 font-hero text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Market projection breakdowns
           </h1>
-          <p className="text-sm text-white/70 max-w-2xl">
+          <p className="mt-3 max-w-2xl text-sm text-white/70 sm:text-base">
             Every game in our market projections gets a breakdown. If data is missing,
             the post calls it out explicitly.
           </p>
@@ -117,12 +126,12 @@ export default async function BlogIndexPage({
 
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">Filter by sport</h2>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <Link
               href="/blog"
-              className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition ${
+              className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] transition ${
                 !sportParam
-                  ? 'border-emerald-400/60 text-emerald-200'
+                  ? 'border-emerald-400/60 text-emerald-200 bg-emerald-400/10'
                   : 'border-white/10 text-white/70 hover:border-emerald-500/40 hover:text-emerald-200'
               }`}
             >
@@ -132,9 +141,9 @@ export default async function BlogIndexPage({
               <Link
                 key={sport}
                 href={`/blog?sport=${sport}`}
-                className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition ${
+                className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] transition ${
                   sportParam === sport
-                    ? 'border-emerald-400/60 text-emerald-200'
+                    ? 'border-emerald-400/60 text-emerald-200 bg-emerald-400/10'
                     : 'border-white/10 text-white/70 hover:border-emerald-500/40 hover:text-emerald-200'
                 }`}
               >
@@ -149,31 +158,31 @@ export default async function BlogIndexPage({
           {recentSlates.length ? (
             <div className="grid gap-4 sm:grid-cols-2">
               {recentSlates.map((slate) => (
-                <div
-                  key={`${slate.sport}-${slate.date}`}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-3"
-                >
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-                      {getSportLabel(slate.sport)}
-                    </p>
-                    <p className="text-xl font-semibold">
-                      Slate for {slate.date}
-                    </p>
-                  </div>
-                  <p className="text-sm text-white/60">
-                    {slate.gameCount} games • Updated{' '}
-                    {slate.updatedAt
-                      ? new Date(slate.updatedAt).toLocaleString('en-US', { timeZone: 'America/New_York' })
-                      : 'TBD'}
-                  </p>
-                  <Link
-                    href={buildSlatePath(slate.sport, slate.date)}
-                    className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.2em] text-white/70 hover:border-emerald-500/40 hover:text-emerald-200 transition-colors"
+                <Link key={`${slate.sport}-${slate.date}`} href={buildSlatePath(slate.sport, slate.date)}>
+                  <CardSpotlight
+                    className="relative rounded-3xl border border-white/10 bg-black/55 p-5 backdrop-blur transition-colors hover:border-emerald-400/35"
+                    color="rgba(16,185,129,0.10)"
+                    radius={360}
                   >
-                    View slate
-                  </Link>
-                </div>
+                    <div aria-hidden className="pointer-events-none absolute inset-0 insider-grid opacity-15" />
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">
+                        {getSportLabel(slate.sport)}
+                      </p>
+                      <p className="mt-2 text-xl font-semibold text-white">Slate for {slate.date}</p>
+                      <p className="mt-3 text-sm text-white/60">
+                        {slate.gameCount} games - Updated{' '}
+                        {slate.updatedAt
+                          ? new Date(slate.updatedAt).toLocaleString('en-US', { timeZone: 'America/New_York' })
+                          : 'TBD'}
+                      </p>
+                      <div className="mt-4 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-200/90">
+                        <span>View slate</span>
+                        <ArrowRight className="h-4 w-4" />
+                      </div>
+                    </div>
+                  </CardSpotlight>
+                </Link>
               ))}
             </div>
           ) : (
@@ -187,35 +196,41 @@ export default async function BlogIndexPage({
             <div className="grid gap-4 sm:grid-cols-2">
               {summaries.length ? (
                 summaries.map((summary) => (
-                  <div
+                  <CardSpotlight
                     key={summary.sport}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-3"
+                    className="relative rounded-3xl border border-white/10 bg-black/55 p-5 backdrop-blur"
+                    color="rgba(56,189,248,0.08)"
+                    radius={340}
                   >
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-                        {getSportLabel(summary.sport)}
+                    <div aria-hidden className="pointer-events-none absolute inset-0 insider-grid opacity-15" />
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">
+                          {getSportLabel(summary.sport)}
+                        </p>
+                        <p className="mt-2 text-xl font-semibold text-white">
+                          {summary.date ? `Latest slate: ${summary.date}` : 'No slate available'}
+                        </p>
+                      </div>
+                      <p className="text-sm text-white/60">
+                        {summary.gameCount} games - Updated{' '}
+                        {summary.updatedAt
+                          ? new Date(summary.updatedAt).toLocaleString('en-US', { timeZone: 'America/New_York' })
+                          : 'TBD'}
                       </p>
-                      <p className="text-xl font-semibold">
-                        {summary.date ? `Latest slate: ${summary.date}` : 'No slate available'}
-                      </p>
+                      {summary.date ? (
+                        <Link
+                          href={buildSlatePath(summary.sport, summary.date)}
+                          className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-200/90 hover:text-emerald-100"
+                        >
+                          <span>View slate</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-white/50">Slate missing.</span>
+                      )}
                     </div>
-                    <p className="text-sm text-white/60">
-                      {summary.gameCount} games • Updated{' '}
-                      {summary.updatedAt
-                        ? new Date(summary.updatedAt).toLocaleString('en-US', { timeZone: 'America/New_York' })
-                        : 'TBD'}
-                    </p>
-                    {summary.date ? (
-                      <Link
-                        href={buildSlatePath(summary.sport, summary.date)}
-                        className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.2em] text-white/70 hover:border-emerald-500/40 hover:text-emerald-200 transition-colors"
-                      >
-                        View slate
-                      </Link>
-                    ) : (
-                      <span className="text-xs text-white/50">Slate missing.</span>
-                    )}
-                  </div>
+                  </CardSpotlight>
                 ))
               ) : (
                 <p className="text-sm text-white/60">No market projection data available.</p>

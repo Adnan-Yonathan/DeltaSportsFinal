@@ -5,6 +5,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import type { GameEdgeAnalysis } from '@/lib/services/slate-edge-detector'
 import { SimpleHeader } from '@/components/ui/simple-header'
 import { BlogNavButtons } from '@/components/blog/BlogNavButtons'
+import { OddsMatrixSurface } from '@/components/ui/odds-matrix-surface'
 import {
   buildSlatePath,
   findEdgeForSlug,
@@ -40,15 +41,15 @@ const parseSlugTeams = (slug: string) => {
 }
 
 const formatOdds = (value?: number | null) => {
-  if (value == null || !Number.isFinite(value)) return '—'
+  if (value == null || !Number.isFinite(value)) return '--'
   return value > 0 ? `+${value}` : `${value}`
 }
 
 const formatLine = (value?: number | null) =>
-  value == null || !Number.isFinite(value) ? '—' : value.toFixed(1)
+  value == null || !Number.isFinite(value) ? '--' : value.toFixed(1)
 
 const formatPct = (value?: number | null) =>
-  value == null || !Number.isFinite(value) ? '—' : `${value.toFixed(1)}%`
+  value == null || !Number.isFinite(value) ? '--' : `${value.toFixed(1)}%`
 
 const formatTime = (value?: string | null) => {
   if (!value) return 'TBD'
@@ -67,31 +68,31 @@ const isNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value)
 
 const formatStatValue = (value: unknown) =>
-  isNumber(value) ? value.toFixed(1) : '—'
+  isNumber(value) ? value.toFixed(1) : '--'
 
 const buildTeamStatsLine = (stats: GameEdgeAnalysis['homeStats']) => {
   if (!stats) return 'Team stats missing.'
   if ('ortg' in stats || 'drtg' in stats || 'pace' in stats) {
-    const ortg = 'ortg' in stats ? formatStatValue((stats as any).ortg) : '—'
-    const drtg = 'drtg' in stats ? formatStatValue((stats as any).drtg) : '—'
-    const pace = 'pace' in stats ? formatStatValue((stats as any).pace) : '—'
-    return `ORtg ${ortg} • DRtg ${drtg} • Pace ${pace}`
+    const ortg = 'ortg' in stats ? formatStatValue((stats as any).ortg) : '--'
+    const drtg = 'drtg' in stats ? formatStatValue((stats as any).drtg) : '--'
+    const pace = 'pace' in stats ? formatStatValue((stats as any).pace) : '--'
+    return `ORtg ${ortg}  -  DRtg ${drtg}  -  Pace ${pace}`
   }
   if (
     'pointsForPerGame' in stats ||
     'pointsAgainstPerGame' in stats ||
     'yardsPerPlay' in stats
   ) {
-    const ppg = 'pointsForPerGame' in stats ? formatStatValue((stats as any).pointsForPerGame) : '—'
-    const papg = 'pointsAgainstPerGame' in stats ? formatStatValue((stats as any).pointsAgainstPerGame) : '—'
-    const ypp = 'yardsPerPlay' in stats ? formatStatValue((stats as any).yardsPerPlay) : '—'
-    return `Points ${ppg} • Allowed ${papg} • Yards/Play ${ypp}`
+    const ppg = 'pointsForPerGame' in stats ? formatStatValue((stats as any).pointsForPerGame) : '--'
+    const papg = 'pointsAgainstPerGame' in stats ? formatStatValue((stats as any).pointsAgainstPerGame) : '--'
+    const ypp = 'yardsPerPlay' in stats ? formatStatValue((stats as any).yardsPerPlay) : '--'
+    return `Points ${ppg}  -  Allowed ${papg}  -  Yards/Play ${ypp}`
   }
   if ('goalsForPerGame' in stats || 'goalsAgainstPerGame' in stats || 'shotsForPerGame' in stats) {
-    const gpg = 'goalsForPerGame' in stats ? formatStatValue((stats as any).goalsForPerGame) : '—'
-    const gapg = 'goalsAgainstPerGame' in stats ? formatStatValue((stats as any).goalsAgainstPerGame) : '—'
-    const shots = 'shotsForPerGame' in stats ? formatStatValue((stats as any).shotsForPerGame) : '—'
-    return `Goals ${gpg} • Allowed ${gapg} • Shots ${shots}`
+    const gpg = 'goalsForPerGame' in stats ? formatStatValue((stats as any).goalsForPerGame) : '--'
+    const gapg = 'goalsAgainstPerGame' in stats ? formatStatValue((stats as any).goalsAgainstPerGame) : '--'
+    const shots = 'shotsForPerGame' in stats ? formatStatValue((stats as any).shotsForPerGame) : '--'
+    return `Goals ${gpg}  -  Allowed ${gapg}  -  Shots ${shots}`
   }
   return 'Team stats missing.'
 }
@@ -269,7 +270,7 @@ export async function generateMetadata(
   const away = edge?.awayTeam || fallback.away || 'Away'
   const home = edge?.homeTeam || fallback.home || 'Home'
   const dateLabel = params.date
-  const title = `${away} vs ${home} betting breakdown (sharp money, best lines) – ${dateLabel}`
+  const title = `${away} vs ${home} betting breakdown (sharp money, best lines) - ${dateLabel}`
   const description = `Full betting breakdown for ${away} vs ${home}. Lines, movement, splits, and sharp/public signals for the ${sportLabel} slate on ${dateLabel}.`
 
   return {
@@ -348,20 +349,26 @@ export default async function BlogGamePage({
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="relative min-h-screen bg-black text-white">
+      <OddsMatrixSurface intensity={0.30} className="opacity-90" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
+        <div className="absolute inset-0 insider-grid opacity-50" />
+        <div className="absolute inset-0 insider-scanlines opacity-25" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.12),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(56,189,248,0.10),transparent_50%)]" />
+      </div>
       <SimpleHeader widthClass="max-w-6xl" />
-      <div className="px-4 sm:px-6 lg:px-10 pt-24 pb-10 max-w-5xl mx-auto space-y-10">
-        <header className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-            {sportLabel} Betting Breakdown
+      <div className="relative z-10 mx-auto max-w-5xl space-y-10 px-4 pb-10 pt-20 sm:px-6 sm:pt-24 lg:px-10">
+        <header className="rounded-3xl border border-white/10 bg-black/55 p-6 backdrop-blur sm:p-10">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-emerald-200/70">
+            {sportLabel} Breakdown
           </p>
-          <h1 className="text-3xl sm:text-4xl font-semibold">
+          <h1 className="mt-3 font-hero text-3xl font-bold tracking-tight text-white sm:text-4xl">
             {edge.awayTeam} vs {edge.homeTeam}
           </h1>
-          <p className="text-sm text-white/70">
-            Game time: {formatTime(commenceTime)} • Updated {formatTime(updatedAt)}
+          <p className="mt-3 text-sm text-white/70 sm:text-base">
+            Game time: {formatTime(commenceTime)} - Updated {formatTime(updatedAt)}
           </p>
-          <div className="flex flex-wrap gap-3 text-xs text-white/70">
+          <div className="mt-4 flex flex-wrap gap-3 text-xs text-white/70">
             <BlogNavButtons />
             <Link className="text-white/70 hover:text-emerald-200" href="/blog">
               Back to blog
@@ -369,7 +376,10 @@ export default async function BlogGamePage({
             <Link className="text-white/70 hover:text-emerald-200" href="/">
               Home
             </Link>
-            <Link className="text-emerald-400 hover:text-emerald-300" href={buildSlatePath(params.sport, params.date)}>
+            <Link
+              className="text-emerald-300 hover:text-emerald-200"
+              href={buildSlatePath(params.sport, params.date)}
+            >
               View full {sportLabel} slate
             </Link>
           </div>
@@ -377,47 +387,47 @@ export default async function BlogGamePage({
 
         <section className="space-y-4">
           <h2 className="text-xl font-semibold">Best lines right now</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs uppercase text-white/50">Spread</p>
+          <div className="grid gap-5 sm:grid-cols-3">
+            <div className="rounded-3xl border border-white/10 bg-black/55 p-5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">Spread</p>
               {bestLines.spread ? (
                 <>
                   <p className="text-lg font-semibold">
                     {formatLine(bestLines.spread.line)} ({formatOdds(bestLines.spread.homeOdds)})
                   </p>
                   <p className="text-xs text-white/60">
-                    Favorite: {edge.spread?.favoredTeam || '—'}
+                    Favorite: {edge.spread?.favoredTeam || '--'}
                   </p>
-                  <p className="text-xs text-white/60">Best at {bestLines.spread.book || '—'}</p>
+                  <p className="text-xs text-white/60">Best at {bestLines.spread.book || '--'}</p>
                 </>
               ) : (
                 <p className="text-sm text-white/60">Spread line missing.</p>
               )}
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs uppercase text-white/50">Total</p>
+            <div className="rounded-3xl border border-white/10 bg-black/55 p-5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">Total</p>
               {bestLines.total ? (
                 <>
                   <p className="text-lg font-semibold">
                     {formatLine(bestLines.total.line)} (O {formatOdds(bestLines.total.overOdds)} / U {formatOdds(bestLines.total.underOdds)})
                   </p>
-                  <p className="text-xs text-white/60">Best at {bestLines.total.book || '—'}</p>
+                  <p className="text-xs text-white/60">Best at {bestLines.total.book || '--'}</p>
                 </>
               ) : (
                 <p className="text-sm text-white/60">Total line missing.</p>
               )}
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs uppercase text-white/50">Moneyline</p>
+            <div className="rounded-3xl border border-white/10 bg-black/55 p-5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">Moneyline</p>
               {bestLines.moneyline ? (
                 <>
                   <p className="text-lg font-semibold">
                     {formatOdds(bestLines.moneyline.awayOdds)} / {formatOdds(bestLines.moneyline.homeOdds)}
                   </p>
                   <p className="text-xs text-white/60">
-                    Favorite: {moneylineFavorite || '—'}
+                    Favorite: {moneylineFavorite || '--'}
                   </p>
-                  <p className="text-xs text-white/60">Best at {bestLines.moneyline.book || '—'}</p>
+                  <p className="text-xs text-white/60">Best at {bestLines.moneyline.book || '--'}</p>
                 </>
               ) : (
                 <p className="text-sm text-white/60">Moneyline data missing.</p>
@@ -429,20 +439,20 @@ export default async function BlogGamePage({
         <section className="space-y-4">
           <h2 className="text-xl font-semibold">Betting splits</h2>
           {splits.length ? (
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-3">
               {(['spread', 'total', 'moneyline'] as const).map((market) => {
                 const row = splitByMarket[market]
                 if (!row) {
                   return (
-                    <div key={market} className="rounded-xl border border-white/10 bg-white/5 p-4">
-                      <p className="text-xs uppercase text-white/50">{market}</p>
+                    <div key={market} className="rounded-3xl border border-white/10 bg-black/55 p-5">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">{market}</p>
                       <p className="text-sm text-white/60">Splits missing.</p>
                     </div>
                   )
                 }
                 return (
-                  <div key={market} className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-1">
-                    <p className="text-xs uppercase text-white/50">{market}</p>
+                  <div key={market} className="rounded-3xl border border-white/10 bg-black/55 p-5 space-y-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">{market}</p>
                     <p className="text-sm text-white/70">
                       Bets: Away {formatPct(row.away_bets_pct)} / Home {formatPct(row.home_bets_pct)}
                     </p>
@@ -478,17 +488,17 @@ export default async function BlogGamePage({
           <h2 className="text-xl font-semibold">Matchup snapshot</h2>
           <p className="text-sm text-white/70">
             This matchup brings together {edge.awayTeam} and {edge.homeTeam} with a market snapshot
-            based on current lines, movement, and projection inputs. We’re pulling pace/efficiency
+            based on current lines, movement, and projection inputs. We&apos;re pulling pace/efficiency
             context, travel/rest factors, and any sharp/public signals to explain why the market is
-            priced the way it is. This section is descriptive only and doesn’t suggest a winner.
+            priced the way it is. This section is descriptive only and doesn&apos;t suggest a winner.
           </p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs uppercase text-white/50">{edge.awayTeam}</p>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="rounded-3xl border border-white/10 bg-black/55 p-5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">{edge.awayTeam}</p>
               <p className="text-sm text-white/70">{buildTeamStatsLine(edge.awayStats)}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs uppercase text-white/50">{edge.homeTeam}</p>
+            <div className="rounded-3xl border border-white/10 bg-black/55 p-5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">{edge.homeTeam}</p>
               <p className="text-sm text-white/70">{buildTeamStatsLine(edge.homeStats)}</p>
             </div>
           </div>

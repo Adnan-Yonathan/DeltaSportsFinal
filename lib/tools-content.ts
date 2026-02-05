@@ -57,11 +57,11 @@ export const TOOLS_CONTENT: ToolContent[] = [
     summary:
       "Find crossed prop lines and rank them by EV vs consensus.",
     description:
-      "Sharp Props ranks player props where a specific book’s line is far off the market consensus line, then estimates EV% by comparing book odds to consensus odds and accounting for line discrepancy.",
+      "Sharp Props ranks player props where a specific book's line is far off the market consensus line, then estimates EV% by comparing book odds to consensus odds and accounting for line discrepancy.",
     howToUse:
-      "Pick a sport, then scan the top-ranked props. If a book is low vs consensus, it tends to favor the over. If it’s high vs consensus, it tends to favor the under. Always confirm injury/news context before firing.",
+      "Pick a sport, then scan the top-ranked props. If a book is low vs consensus, it tends to favor the over. If it's high vs consensus, it tends to favor the under. Always confirm injury/news context before firing.",
     unique:
-      "It’s line-first: you see which books are crossed from consensus before the market snaps back.",
+      "It's line-first: you see which books are crossed from consensus before the market snaps back.",
     useCases: [
       "Finding books that are slow to update prop lines.",
       "Spotting crossed numbers after news or lineup changes.",

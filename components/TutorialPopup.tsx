@@ -15,7 +15,7 @@ interface TutorialPopupProps {
 
 export default function TutorialPopup({
   tutorialId,
-  forceShow = true,
+  forceShow = false,
   open,
   onOpenChange,
 }: TutorialPopupProps) {

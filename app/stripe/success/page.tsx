@@ -385,7 +385,7 @@ export default function StripeSuccessPage() {
               <CheckCircle className="w-16 h-16 text-emerald-500 mx-auto mb-6" />
             </motion.div>
             <h1 className="text-2xl font-bold text-white mb-2">
-              You're all set!
+              You&apos;re all set!
             </h1>
             <p className="text-white/60">
               We matched the best tools for your style and risk profile.
@@ -487,7 +487,7 @@ export default function StripeSuccessPage() {
               Taking longer than expected
             </h1>
             <p className="text-white/60 mb-6">
-              Your payment was successful, but we're still setting up your account.
+              Your payment was successful, but we&apos;re still setting up your account.
               This can sometimes take a minute.
             </p>
             <div className="space-y-3">

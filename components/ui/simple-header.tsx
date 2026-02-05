@@ -6,7 +6,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
-import { TOOLS_CONTENT } from "@/lib/tools-content"
+import { CORE_TOOLS } from "@/lib/core-tools"
 import {
   Activity,
   Clock,
@@ -18,6 +18,9 @@ import {
   Target,
   Users,
   Zap,
+  Radar,
+  Waves,
+  Beaker,
 } from "lucide-react"
 
 const navLinks = [
@@ -37,6 +40,9 @@ const TOOL_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>>
   clock: Clock,
   users: Users,
   zap: Zap,
+  radar: Radar,
+  waves: Waves,
+  beaker: Beaker,
 }
 
 export function SimpleHeader({
@@ -151,8 +157,8 @@ export function SimpleHeader({
                   className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/70"
                 >
                   <option value="/tools">Tools</option>
-                  {TOOLS_CONTENT.map((tool) => (
-                    <option key={tool.id} value={`/tools#${tool.id}`}>
+                  {CORE_TOOLS.map((tool) => (
+                    <option key={tool.key} value={tool.guideRoute}>
                       {tool.label}
                     </option>
                   ))}
@@ -177,7 +183,7 @@ export function SimpleHeader({
                           Tools Overview
                         </p>
                         <p className="text-sm text-white/70">
-                          Click any tool to read the full guide.
+                          Click any tool to see the guide and example.
                         </p>
                       </div>
                       <Link
@@ -188,12 +194,12 @@ export function SimpleHeader({
                       </Link>
                     </div>
                     <div className="mt-4 max-h-[70vh] space-y-2 overflow-y-auto pr-1">
-                      {TOOLS_CONTENT.map((tool) => {
+                      {CORE_TOOLS.map((tool) => {
                         const Icon = TOOL_ICON_MAP[tool.icon] ?? LineChart
                         return (
                           <Link
-                            key={tool.id}
-                            href={`/tools#${tool.id}`}
+                            key={tool.key}
+                            href={tool.guideRoute}
                             className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 transition hover:border-emerald-400/50"
                           >
                             <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-emerald-200">

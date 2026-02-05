@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowRightIcon, CheckIcon } from "@radix-ui/react-icons"
-import { Loader2, Sparkles } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
@@ -177,10 +177,6 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
     >
       <div className="w-full max-w-4xl mx-auto">
         <div className="flex flex-col items-center gap-1.5 mb-2 text-center md:mb-4">
-          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-white/70">
-            <Sparkles className="h-4 w-4 text-emerald-200/80" />
-            Pricing//Secure
-          </div>
           <h2 className="text-xl font-bold text-white md:text-2xl">
             Simple, transparent pricing
           </h2>

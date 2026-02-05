@@ -5,13 +5,15 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowRightIcon, CheckIcon } from "@radix-ui/react-icons"
-import { Loader2, Lock, Sparkles } from "lucide-react"
+import { Loader2, Lock } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
 import { cn } from "@/lib/utils"
 import { PricingSection } from "@/components/ui/pricing-section"
 import { PRICING_TIERS } from "@/components/pricing/pricing-tiers"
 import type { PricingTier } from "@/components/ui/pricing-section"
+import { SimpleHeader } from "@/components/ui/simple-header"
+import { OddsMatrixSurface } from "@/components/ui/odds-matrix-surface"
 
 type BillingPeriod = "weekly" | "monthly" | "annual"
 type TierKey = "sharp" | "syndicate"
@@ -162,7 +164,7 @@ export function PricingPageClient() {
 
     if (isCurrentPlan && selectedTier.tierKey !== "free") {
       return {
-        label: isLoading ? "Loading…" : "Manage subscription",
+        label: isLoading ? "Loading..." : "Manage subscription",
         disabled: isLoading,
         onClick: handleManageSubscription,
       }
@@ -170,7 +172,7 @@ export function PricingPageClient() {
 
     if (isUpgrade) {
       return {
-        label: isLoading ? "Processing…" : `Upgrade to ${selectedTier.name}`,
+        label: isLoading ? "Processing..." : `Upgrade to ${selectedTier.name}`,
         disabled: isLoading,
         onClick: () => handleUpgrade(selectedPlanKey),
       }
@@ -178,14 +180,14 @@ export function PricingPageClient() {
 
     if (membership?.isActive) {
       return {
-        label: isLoading ? "Loading…" : "Manage subscription",
+        label: isLoading ? "Loading..." : "Manage subscription",
         disabled: isLoading,
         onClick: handleManageSubscription,
       }
     }
 
     return {
-      label: isLoading ? "Processing…" : `Unlock ${selectedTier.name}`,
+      label: isLoading ? "Processing..." : `Unlock ${selectedTier.name}`,
       disabled: isLoading,
       onClick: () => handleCheckout(selectedPlanKey),
     }
@@ -197,9 +199,11 @@ export function PricingPageClient() {
 
   return (
     <main className="relative min-h-screen bg-black text-white">
+      <OddsMatrixSurface intensity={0.22} className="opacity-90" />
       <div aria-hidden className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),rgba(0,0,0,0.0)_42%),radial-gradient(circle_at_bottom,rgba(255,255,255,0.06),rgba(0,0,0,0.0)_45%)]" />
-        <div className="absolute inset-0 opacity-[0.22] [background-image:repeating-linear-gradient(180deg,rgba(255,255,255,0.06)_0px,rgba(255,255,255,0.06)_1px,transparent_2px,transparent_6px)]" />
+        <div className="absolute inset-0 insider-grid opacity-45" />
+        <div className="absolute inset-0 insider-scanlines opacity-25" />
         <div className="absolute inset-0 flex items-center justify-center">
           <Image
             src="/delta-logo.png"
@@ -214,23 +218,12 @@ export function PricingPageClient() {
       </div>
 
       <div className="relative z-10">
-        <div className="fixed left-4 top-10 z-50 pointer-events-auto">
-          <Link
-            href="/"
-            className="rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 transition hover:border-white/40 hover:bg-white/10 hover:text-white"
-          >
-            Back to Home
-          </Link>
-        </div>
+        <SimpleHeader widthClass="max-w-6xl" />
 
         {/* Mobile */}
         <div className="sm:hidden">
-          <div className="mx-auto w-full max-w-md px-5 pb-64 pt-16">
+          <div className="mx-auto w-full max-w-md px-5 pb-64 pt-20">
             <div className="text-center space-y-2">
-              <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-white/70">
-                <Sparkles className="h-4 w-4 text-emerald-200/80" />
-                Pricing//Secure
-              </div>
               <h1 className="text-3xl font-semibold tracking-tight text-white">
                 Choose your access
               </h1>
@@ -360,7 +353,7 @@ export function PricingPageClient() {
                     {loadingPlan ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Loading…
+                        Loading...
                       </>
                     ) : (
                       <>
@@ -409,7 +402,7 @@ export function PricingPageClient() {
         </div>
 
         {/* Desktop */}
-        <div className="hidden sm:block pt-6 sm:pt-8">
+        <div className="hidden sm:block pt-20 sm:pt-24">
           <PricingSection tiers={PRICING_TIERS} className="bg-transparent" />
         </div>
       </div>

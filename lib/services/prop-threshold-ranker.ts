@@ -738,7 +738,7 @@ function getStatValue(player: ParsedPlayer, propType: string): number {
   return 0
 }
 
-function usePoissonDistribution(propType: string, sport: SupportedSport): boolean {
+function shouldUsePoissonDistribution(propType: string, sport: SupportedSport): boolean {
   const type = propType.toLowerCase()
 
   if (sport === 'nba') {
@@ -843,7 +843,7 @@ export async function getRankedPlayersByPropThreshold(
     const adjustedAverage = seasonAverage * adjustments.combined
 
     // Calculate probability with adjusted average
-    const probability = usePoissonDistribution(propType, sport)
+    const probability = shouldUsePoissonDistribution(propType, sport)
       ? calculateOverProbability(adjustedAverage, threshold)
       : calculateOverProbabilityNormal(adjustedAverage, threshold)
 
@@ -923,7 +923,7 @@ export function formatRankedPlayersForChat(
   })
 
   output += `\n**Methodology:**\n`
-  output += `- Base probability from ${usePoissonDistribution(propType, sport) ? 'Poisson' : 'normal'} distribution\n`
+  output += `- Base probability from ${shouldUsePoissonDistribution(propType, sport) ? 'Poisson' : 'normal'} distribution\n`
 
   if (sport === 'nba') {
     output += `- Adjustments: opponent defense, pace, home/away, rest\n`
@@ -1058,7 +1058,7 @@ export async function getSinglePlayerPropProbability(
   const adjustedAverage = seasonAverage * adjustments.combined
 
   // Calculate probability
-  const probability = usePoissonDistribution(propType, sport)
+  const probability = shouldUsePoissonDistribution(propType, sport)
     ? calculateOverProbability(adjustedAverage, threshold)
     : calculateOverProbabilityNormal(adjustedAverage, threshold)
 
@@ -1122,7 +1122,7 @@ export function formatSinglePlayerPropForChat(result: SinglePlayerPropResult): s
     }
   }
 
-  const method = usePoissonDistribution(result.propType, result.sport) ? 'Poisson' : 'normal'
+  const method = shouldUsePoissonDistribution(result.propType, result.sport) ? 'Poisson' : 'normal'
   output += `\n*Probability calculated using ${method} distribution based on season average${result.gameFound ? ' with matchup adjustments' : ''}.*`
 
   return output

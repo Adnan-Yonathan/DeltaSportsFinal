@@ -1,128 +1,78 @@
-import Link from "next/link"
-import type { ComponentType } from "react"
-import { SimpleHeader } from "@/components/ui/simple-header"
-import { TOOLS_CONTENT } from "@/lib/tools-content"
-import HomeLink from "@/components/home-link"
-import {
-  Activity,
-  Clock,
-  Eye,
-  Layers3,
-  LineChart,
-  MessageSquare,
-  Percent,
-  Target,
-  Users,
-  Zap,
-} from "lucide-react"
+import Link from 'next/link'
+import { SimpleHeader } from '@/components/ui/simple-header'
+import { OddsMatrixSurface } from '@/components/ui/odds-matrix-surface'
+import { CORE_TOOLS } from '@/lib/core-tools'
+import { CardSpotlight } from '@/components/ui/card-spotlight'
+import { ArrowRight } from 'lucide-react'
+import { ToolVibePreview } from '@/components/tools/tool-vibe-preview'
 
-const TOOL_ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
-  "line-chart": LineChart,
-  target: Target,
-  layers: Layers3,
-  percent: Percent,
-  activity: Activity,
-  eye: Eye,
-  "message-square": MessageSquare,
-  clock: Clock,
-  users: Users,
-  zap: Zap,
-}
+export const dynamic = 'force-static'
 
 export default function ToolsPage() {
   return (
-    <div className="min-h-screen bg-black text-white">
-      <SimpleHeader
-        rightSlot={
-          <HomeLink
-            className="hidden sm:inline-flex items-center rounded-full border border-emerald-500/40 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-emerald-200 hover:border-emerald-400 hover:text-white transition-colors"
-            label="Home"
-          />
-        }
-      />
-      <main className="mx-auto w-full max-w-6xl px-4 pb-16 pt-24 sm:px-6 lg:px-8">
-        <div className="rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.16),_rgba(0,0,0,0.2)_55%)] p-6 text-left sm:p-12">
-          <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/80">
-            Tools Guide
+    <div className="relative min-h-screen bg-black text-white">
+      <OddsMatrixSurface intensity={0.34} className="opacity-90" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
+        <div className="absolute inset-0 insider-grid opacity-50" />
+        <div className="absolute inset-0 insider-scanlines opacity-25" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.12),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(56,189,248,0.10),transparent_50%)]" />
+      </div>
+
+      <SimpleHeader widthClass="max-w-6xl" />
+
+      <main className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-16 pt-20 sm:pt-24">
+        <header className="rounded-3xl border border-white/10 bg-black/55 p-6 backdrop-blur sm:p-10">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-emerald-200/70">
+            Tools
           </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Everything Delta does, explained.
+          <h1 className="mt-3 font-hero text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            Five tools. One insider workflow.
           </h1>
-          <p className="mt-3 text-sm text-white/60">
-            Each tool below includes what it does, how to use it, why it is unique,
-            and where it fits in your sharp betting workflow, including sharp action
-            research, sharp money signals, and AI sports betting analysis.
+          <p className="mt-3 max-w-3xl text-sm text-white/70 sm:text-base">
+            Click a tool to see what it does and a visual example, then jump into the live
+            product when you are ready.
           </p>
-        </div>
-        <div className="mt-8 space-y-6">
-          {TOOLS_CONTENT.map((tool) => {
-            const Icon = TOOL_ICON_MAP[tool.icon] ?? LineChart
-            return (
-              <section
-                key={tool.id}
-                id={tool.id}
-                className="scroll-mt-24 rounded-3xl border border-white/10 bg-black/50 p-6 sm:p-8"
+        </header>
+
+        <section className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {CORE_TOOLS.map((tool, idx) => (
+            <Link key={tool.key} href={tool.guideRoute} className="block">
+              <CardSpotlight
+                className="relative h-full rounded-3xl border border-white/10 bg-black/55 p-6 backdrop-blur transition-colors hover:border-emerald-400/35"
+                color={idx % 2 ? 'rgba(56,189,248,0.09)' : 'rgba(16,185,129,0.10)'}
+                radius={360}
               >
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-emerald-200">
-                      <Icon className="h-6 w-6" />
-                    </span>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-                        Tool
-                      </p>
-                      <h2 className="mt-2 text-3xl font-semibold text-white sm:text-5xl">
-                        {tool.label}
-                      </h2>
-                      <p className="mt-2 text-xs text-white/60 sm:text-sm">
-                        {tool.summary}
-                      </p>
-                    </div>
-                  </div>
-                  <Link
-                    href={tool.route}
-                    className="inline-flex items-center rounded-full border border-emerald-400/40 px-4 py-1.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-400 hover:text-white transition-colors"
-                  >
-                    Open tool
-                  </Link>
-                </div>
-                <div className="mt-6 grid gap-5 text-sm text-white/70 lg:grid-cols-2">
-                  <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-                    <p className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-                      What it does
-                    </p>
-                    <p className="mt-2">{tool.description}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-                    <p className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-                      How to use
-                    </p>
-                    <p className="mt-2">{tool.howToUse}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-                    <p className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-                      Why it is unique
-                    </p>
-                    <p className="mt-2">{tool.unique}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-                    <p className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-                      Use cases
-                    </p>
-                    <ul className="mt-2 space-y-2">
-                      {tool.useCases.map((item) => (
-                        <li key={item} className="flex items-start gap-2">
-                          <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-300/80" />
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
+                <div aria-hidden className="pointer-events-none absolute inset-0 insider-grid opacity-20" />
+                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">
+                  {tool.shortLabel}
+                </p>
+                <h2 className="mt-3 text-xl font-semibold text-white">{tool.label}</h2>
+                <p className="mt-2 text-sm leading-relaxed text-white/70">{tool.summary}</p>
+
+                <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-black/50">
+                  <div className="aspect-[16/9] w-full p-3">
+                    <ToolVibePreview toolKey={tool.key} size="sm" className="h-full w-full" />
                   </div>
                 </div>
-              </section>
-            )
-          })}
+
+                <div className="mt-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-200/90">
+                  <span>View guide</span>
+                  <ArrowRight className="h-4 w-4" />
+                </div>
+              </CardSpotlight>
+            </Link>
+          ))}
+        </section>
+
+        <div className="mt-10 flex justify-center">
+          <Link
+            href="/pricing"
+            className="inline-flex w-full max-w-md items-center justify-center gap-3 rounded-full border border-emerald-400/35 bg-black/70 px-6 py-3 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-200 shadow-[0_18px_50px_rgba(16,185,129,0.18)] backdrop-blur hover:border-emerald-300/70 hover:text-emerald-100 sm:w-auto sm:max-w-none sm:tracking-[0.35em]"
+          >
+            <span className="text-white/60">Unlock:</span>
+            <span>Become an insider</span>
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </main>
     </div>

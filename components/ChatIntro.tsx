@@ -313,7 +313,7 @@ export default function ChatIntro({
   // Guest layout
   if (isGuest) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-full bg-black px-3 sm:px-4 py-6 sm:py-8">
+      <div className="flex flex-col items-center justify-center min-h-full bg-transparent px-3 sm:px-4 py-6 sm:py-8">
         <div className="max-w-3xl w-full space-y-8">
           {/* Guest Hero */}
           <GuestHero onSignUpClick={onSignUpClick || (() => {})} />
@@ -445,7 +445,7 @@ export default function ChatIntro({
   const isResearch = mode === 'research'
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full bg-black px-3 sm:px-4 py-6 sm:py-8">
+    <div className="flex flex-col items-center justify-center min-h-full bg-transparent px-3 sm:px-4 py-6 sm:py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

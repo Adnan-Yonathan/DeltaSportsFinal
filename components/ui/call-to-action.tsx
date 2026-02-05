@@ -3,7 +3,6 @@
 import { Button } from "@/components/ui/button"
 import { FlippingCard } from "@/components/ui/flipping-card"
 import Link from "next/link"
-import { Twitter } from "lucide-react"
 
 interface CardData {
   front: {
@@ -22,13 +21,26 @@ const featureCards: Array<CardData & { id: string }> = [
     id: "sharp-projections",
     front: {
       title: "Sharp Projections",
-      description: "Model-driven lines that show where the market is wrong.",
+      description: "Market-driven lines that show where the number is wrong.",
       icon: <KnifeIcon />,
     },
     back: {
       description:
-        "Compare Delta’s projections to live market lines and spot the biggest gaps in spreads, totals, and moneylines.",
-      buttonText: "Explore Projections",
+        "Compare Delta's projections to live market lines and spot the biggest gaps in spreads, totals, and moneylines.",
+      buttonText: "View Guide",
+    },
+  },
+  {
+    id: "sharp-props",
+    front: {
+      title: "Sharp Props",
+      description: "Crossed numbers and EV-ranked prop opportunities.",
+      icon: <WaterfallIcon />,
+    },
+    back: {
+      description:
+        "Scan prop EV and lock the best number across books in one view. No spreadsheet grind.",
+      buttonText: "View Guide",
     },
   },
   {
@@ -58,66 +70,53 @@ const featureCards: Array<CardData & { id: string }> = [
     },
   },
   {
-    id: "line-shopper",
+    id: "research-mode",
     front: {
-      title: "Game & Prop Line Shopper",
-      description: "Find the best numbers across books in seconds.",
-      icon: <WaterfallIcon />,
+      title: "Research Mode",
+      description: "Explain movement, validate a thesis, and study closes.",
+      icon: <BeakerIcon />,
     },
     back: {
       description:
-        "Compare game lines and player props across sportsbooks to lock in the best price before you bet.",
-      buttonText: "Shop Lines",
+        "Review closes, investigate movement, and backtest edges to build a repeatable process.",
+      buttonText: "View Guide",
     },
   },
 ]
 
-export default function StatsSection() {
+export default function StatsSection({ showCards = true }: { showCards?: boolean }) {
   return (
     <section className="w-full -mt-2 lg:-mt-4">
-      <div className="py-0">
-        <div className="mx-auto max-w-3xl px-6">
+        <div className="py-0">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <div className="space-y-6 text-center">
-            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:justify-center sm:gap-3">
+            <div className="flex w-full justify-center">
               <Button
                 asChild
                 size="lg"
-                className="h-12 w-full justify-center text-sm bg-[#34d399] text-black hover:bg-[#16a34a] sm:w-60 sm:text-base"
-              >
-                <Link
-                  href="https://x.com/DeltaSportsAI"
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Delta Sports on X"
-                  className="flex items-center justify-center"
-                >
-                  <Twitter className="h-5 w-5" />
-                </Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                className="h-12 w-full justify-center text-sm bg-[#34d399] text-black hover:bg-[#16a34a] sm:w-60 sm:text-base"
+                className="h-12 w-full justify-center text-sm bg-[#34d399] text-black hover:bg-[#16a34a] sm:w-72 sm:text-base shadow-[0_18px_60px_rgba(16,185,129,0.22)]"
               >
                 <Link href="/auth/signup">Become an Insider</Link>
               </Button>
             </div>
           </div>
         </div>
-        <div className="mx-auto mt-6 max-w-7xl px-6">
-          <div className="flex flex-nowrap items-center justify-center gap-6 rounded-3xl border border-white/10 bg-black/60 px-4 py-6 shadow-[0_22px_60px_rgba(0,0,0,0.4)]">
-            {featureCards.map((card) => (
-              <div key={card.id} className="h-[280px] w-[240px] shrink-0">
-                <FlippingCard
-                  width={240}
-                  height={280}
-                  frontContent={<GenericCardFront data={card.front} />}
-                  backContent={<GenericCardBack data={card.back} />}
-                />
-              </div>
-            ))}
+        {showCards && (
+          <div className="mx-auto mt-6 max-w-7xl px-4 sm:px-6">
+            <div className="flex flex-nowrap items-center justify-start gap-4 overflow-x-auto rounded-3xl border border-white/10 bg-black/60 px-4 py-6 shadow-[0_22px_60px_rgba(0,0,0,0.4)] backdrop-blur sm:justify-center sm:gap-6">
+              {featureCards.map((card) => (
+                <div key={card.id} className="h-[280px] w-[240px] shrink-0">
+                  <FlippingCard
+                    width={240}
+                    height={280}
+                    frontContent={<GenericCardFront data={card.front} />}
+                    backContent={<GenericCardBack id={card.id} data={card.back} />}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </section>
   )
@@ -137,15 +136,33 @@ function GenericCardFront({ data }: { data: CardData["front"] }) {
   )
 }
 
-function GenericCardBack({ data }: { data: CardData["back"] }) {
+function GenericCardBack({
+  id,
+  data,
+}: {
+  id: string
+  data: CardData["back"]
+}) {
+  const hrefById: Record<string, string> = {
+    "sharp-projections": "/tools/sharp-projections",
+    "sharp-props": "/tools/sharp-props",
+    "sharp-traders": "/tools/sharp-traders",
+    "whale-feed": "/tools/whale-feed",
+    "research-mode": "/tools/research-mode",
+  }
+  const href = hrefById[id] ?? "/tools"
+
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-6 text-white">
       <p className="mt-2 text-center text-[13.5px] text-white/80">
         {data.description}
       </p>
-      <button className="mt-6 flex h-8 w-min items-center justify-center whitespace-nowrap rounded-md bg-white px-4 py-2 text-[13.5px] text-black">
+      <Link
+        href={href}
+        className="mt-6 inline-flex h-9 items-center justify-center whitespace-nowrap rounded-md bg-white px-4 text-[13.5px] font-semibold text-black transition-transform hover:-translate-y-[1px]"
+      >
         {data.buttonText}
-      </button>
+      </Link>
     </div>
   )
 }
@@ -222,6 +239,31 @@ function WaterfallIcon() {
         stroke="currentColor"
         strokeWidth="4"
         strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+function BeakerIcon() {
+  return (
+    <svg viewBox="0 0 64 64" className="h-10 w-10 text-white" fill="none">
+      <path
+        d="M24 10h16v6l-4 6v14.5c0 2.6 1.1 5.1 3 6.9l5 5.1c1.8 1.8.5 4.9-2 4.9H22c-2.6 0-3.8-3.1-2-4.9l5-5.1c1.9-1.9 3-4.3 3-6.9V22l-4-6v-6z"
+        fill="currentColor"
+        opacity="0.92"
+      />
+      <path
+        d="M22 46c6 3 14 3 20 0"
+        stroke="#0b1220"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+      <path
+        d="M26 30h12"
+        stroke="#0b1220"
+        strokeWidth="3"
+        strokeLinecap="round"
+        opacity="0.8"
       />
     </svg>
   )

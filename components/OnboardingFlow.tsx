@@ -522,12 +522,11 @@ export function OnboardingFlow() {
 
   const handleComplete = async () => {
     if (hasSaved) {
-      router.push("/pricing")
       return
     }
     const saved = await saveOnboarding()
     if (saved) {
-      router.push("/pricing")
+      return
     }
   }
 

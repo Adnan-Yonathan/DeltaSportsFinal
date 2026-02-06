@@ -57,7 +57,7 @@ export function StepIntroFeature({
               Insider Briefing
             </div>
             <div className="mt-1 text-sm text-white/70">
-              Tap next to decrypt the next module.
+              Decrypting next module...
             </div>
           </div>
           <div className="shrink-0 rounded-2xl border border-emerald-400/25 bg-black/30 px-3 py-2 text-right">

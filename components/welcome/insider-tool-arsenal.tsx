@@ -127,7 +127,7 @@ export function InsiderToolArsenal() {
           className="inline-flex w-full max-w-md items-center justify-center gap-3 rounded-full border border-emerald-400/35 bg-black/70 px-6 py-3 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-200 shadow-[0_18px_50px_rgba(16,185,129,0.18)] backdrop-blur hover:border-emerald-300/70 hover:text-emerald-100 sm:w-auto sm:max-w-none sm:tracking-[0.35em]"
         >
           <span className="text-white/60">Unlock:</span>
-          <span>Become an insider</span>
+          <span>Try free for 7 days</span>
           <ArrowRight className="h-4 w-4" />
         </Link>
       </div>

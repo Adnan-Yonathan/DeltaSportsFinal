@@ -96,7 +96,7 @@ export default function StatsSection({ showCards = true }: { showCards?: boolean
                 size="lg"
                 className="h-12 w-full justify-center text-sm bg-[#34d399] text-black hover:bg-[#16a34a] sm:w-72 sm:text-base shadow-[0_18px_60px_rgba(16,185,129,0.22)]"
               >
-                <Link href="/auth/signup">Become an Insider</Link>
+                <Link href="/auth/signup">Try free for 7 days</Link>
               </Button>
             </div>
           </div>

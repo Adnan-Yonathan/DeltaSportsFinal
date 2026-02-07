@@ -548,20 +548,9 @@ export function MiniNavbar() {
 }
 
 export const SignInPage = ({ className }: SignInPageProps) => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [error, setError] = useState("");
   const supabase = createClient();
-  const router = useRouter();
-
-  const readAffiliateRef = () => {
-    if (typeof document === "undefined") return null;
-    const match = document.cookie.match(/(?:^|; )affiliate_ref=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : null;
-  };
 
   const handleGoogleSignIn = async () => {
     setError("");
@@ -580,60 +569,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
     }
   };
 
-  const isBusy = loading || oauthLoading;
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (oauthLoading || loading) {
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-
-    try {
-      // Call our API endpoint to create user (bypasses email confirmation)
-      const signupResponse = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password, affiliateRef: readAffiliateRef() }),
-      });
-
-      const signupData = await signupResponse.json();
-
-      if (!signupResponse.ok) {
-        throw new Error(signupData.error || 'Failed to create account');
-      }
-
-      // Now sign in the user with their credentials
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      if (data.session) {
-        router.push(ONBOARDING_ENABLED ? '/onboarding' : '/pricing');
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to create account");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const isBusy = oauthLoading;
 
   return (
     <div className={cn("flex w-[100%] flex-col min-h-screen bg-black relative", className)}>
@@ -703,7 +639,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                   </div>
                 )}
 
-                <form onSubmit={handleSignUp} className="space-y-4">
+                <div className="space-y-4">
                   <button
                     type="button"
                     onClick={handleGoogleSignIn}
@@ -718,56 +654,19 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                     </span>
                   </button>
 
-                  <div className="flex items-center gap-4">
-                    <div className="h-px bg-white/10 flex-1" />
-                    <span className="text-white/40 text-sm">Or use email</span>
-                    <div className="h-px bg-white/10 flex-1" />
+                  <div className="rounded-3xl border border-white/10 bg-zinc-900/60 p-4 text-sm text-white/70 backdrop-blur">
+                    <p className="text-white/80">
+                      New accounts are Google-only.
+                    </p>
+                    <p className="mt-1">
+                      If you already have an account, you can{" "}
+                      <Link href="/auth/login" className="underline text-white/70 hover:text-white transition-colors">
+                        sign in with email
+                      </Link>{" "}
+                      or Google.
+                    </p>
                   </div>
-
-                  <input
-                    type="email"
-                    placeholder="Email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
-                    required
-                  />
-
-                  <input
-                    type="password"
-                    placeholder="Password (min 6 characters)"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
-                    required
-                    minLength={6}
-                  />
-
-                  <input
-                    type="password"
-                    placeholder="Confirm Password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full bg-zinc-900/80 backdrop-blur-sm text-white placeholder:text-white/40 border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
-                    required
-                    minLength={6}
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={isBusy}
-                    className="w-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium py-3 hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                        Creating account...
-                      </span>
-                    ) : (
-                      'Sign Up'
-                    )}
-                  </button>
-                </form>
+                </div>
 
                 <p className="text-xs text-white/40 pt-10">
                   By signing up, you agree to the <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">MSA</Link>, <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Product Terms</Link>, <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Policies</Link>, <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Privacy Notice</Link>, and <Link href="#" className="underline text-white/40 hover:text-white/60 transition-colors">Cookie Notice</Link>.

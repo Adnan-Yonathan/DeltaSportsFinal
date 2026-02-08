@@ -10,6 +10,8 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import Script from 'next/script'
 
+const GA_MEASUREMENT_ID = 'G-Y78D13G4NJ'
+
 export const metadata: Metadata = {
   title: 'Delta Sports - The Sharp Money Tool for Sports',
   description:
@@ -62,6 +64,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <Script
+          async
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+          strategy="beforeInteractive"
+        />
+        <Script id="google-analytics" strategy="beforeInteractive">
+          {`
+window.dataLayer = window.dataLayer || [];
+function gtag(){window.dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${GA_MEASUREMENT_ID}');
+          `}
+        </Script>
+      </head>
       <body
         className={`${saira.variable} flex min-h-screen flex-col bg-bg-primary text-text-primary`}
       >

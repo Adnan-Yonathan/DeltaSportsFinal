@@ -13,6 +13,7 @@
     "test:odds": "ts-node --project tsconfig.test.json -r tsconfig-paths/register tests/odds-api.spec.ts",
     "test:ai-gateway": "npx tsx scripts/test-ai-gateway.ts",
     "compare:gpt5": "npx tsx scripts/compare-gpt5-models.ts",
+    "stripe:migrate-trial-days": "ts-node --project tsconfig.scripts.json scripts/stripe-migrate-trial-days.ts",
     "cleanup:messages": "npx ts-node scripts/cleanup-null-messages.ts",
     "create:test-user": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/create-test-user.ts",
     "ingest:injuries": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/ingest-injuries.ts",

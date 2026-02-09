@@ -2,12 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowRightIcon, CheckIcon } from "@radix-ui/react-icons"
 import { Loader2, Lock } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
+import { getMembershipStatusFromMetadata, type MembershipInfo } from "@/lib/utils/membership"
 import { cn } from "@/lib/utils"
 import { PricingSection } from "@/components/ui/pricing-section"
 import { PRICING_TIERS } from "@/components/pricing/pricing-tiers"
@@ -39,6 +38,35 @@ const getPeriodPrice = (tier: PricingTier, billing: BillingPeriod) =>
       ? tier.price.monthly
       : tier.price.weekly
 
+const getDaysInPeriod = (billing: BillingPeriod) =>
+  billing === "annual" ? 365 : billing === "monthly" ? 30 : 7
+
+const getAnnualizedCost = (tier: PricingTier, billing: BillingPeriod) => {
+  const periodPrice = getPeriodPrice(tier, billing)
+
+  if (billing === "annual") return periodPrice
+  if (billing === "monthly") return periodPrice * 12
+  return periodPrice * 52
+}
+
+const getSavingsVsWeekly = (tier: PricingTier, billing: BillingPeriod) => {
+  const weeklyAnnualized = getAnnualizedCost(tier, "weekly")
+  const selectedAnnualized = getAnnualizedCost(tier, billing)
+
+  const savedAmount = weeklyAnnualized - selectedAnnualized
+  const savedPercent = weeklyAnnualized > 0 ? (savedAmount / weeklyAnnualized) * 100 : 0
+
+  return {
+    savedAmount,
+    savedPercent,
+  }
+}
+
+const formatSavingsPercent = (percent: number) => {
+  const clamped = Math.max(0, percent)
+  return Math.floor(clamped / 5) * 5
+}
+
 const getPlanKey = (tier: PricingTier, billing: BillingPeriod) =>
   tier.planKey ||
   (billing === "annual"
@@ -49,7 +77,8 @@ const getPlanKey = (tier: PricingTier, billing: BillingPeriod) =>
 
 export function PricingPageClient() {
   const router = useRouter()
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly")
+  const searchParams = useSearchParams()
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("weekly")
   const [selectedTierKey, setSelectedTierKey] = useState<TierKey>("syndicate")
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
@@ -60,7 +89,7 @@ export function PricingPageClient() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        setMembership(getMembershipStatus(user.user_metadata))
+        setMembership(getMembershipStatusFromMetadata(user.user_metadata))
       }
       setIsLoadingMembership(false)
     }
@@ -90,13 +119,30 @@ export function PricingPageClient() {
     }
   }
 
+  const buildCheckoutRedirects = () => {
+    const next = searchParams.get('next')
+    const resumeStep = searchParams.get('resumeStep')
+    const cancelStep = searchParams.get('cancelStep')
+
+    if (next === '/onboarding' && resumeStep) {
+      const successPath = `/stripe/success?next=/onboarding&step=${encodeURIComponent(resumeStep)}`
+      const cancelPath = `/pricing?next=/onboarding&resumeStep=${encodeURIComponent(resumeStep)}${
+        cancelStep ? `&cancelStep=${encodeURIComponent(cancelStep)}` : ''
+      }`
+      return { successPath, cancelPath }
+    }
+
+    return {}
+  }
+
   const handleCheckout = async (planKey: string) => {
     setLoadingPlan(planKey)
     try {
+      const redirects = buildCheckoutRedirects()
       const response = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planKey }),
+        body: JSON.stringify({ planKey, ...redirects }),
       })
 
       const data = await response.json()
@@ -187,15 +233,15 @@ export function PricingPageClient() {
     }
 
     return {
-      label: isLoading ? "Processing..." : `Unlock ${selectedTier.name}`,
+      label: isLoading ? "Processing..." : "Start your free trial",
       disabled: isLoading,
       onClick: () => handleCheckout(selectedPlanKey),
     }
   }
 
   const mobileAction = buildMobileAction()
-  const mobilePrice = getPeriodPrice(selectedTier, billingPeriod)
-  const billingLabel = billingPeriod === "annual" ? "annually" : billingPeriod
+  const isEligibleForTrial = !membership?.isActive && !membership?.hasUsedTrial
+  const onboardingCancelStep = searchParams.get('cancelStep')
 
   return (
     <main className="relative min-h-screen bg-black text-white">
@@ -222,118 +268,180 @@ export function PricingPageClient() {
 
         {/* Mobile */}
         <div className="sm:hidden">
-          <div className="mx-auto w-full max-w-md px-5 pb-64 pt-20">
+          <div className="mx-auto w-full max-w-md px-5 pb-40 pt-20">
             <div className="text-center space-y-2">
               <h1 className="text-3xl font-semibold tracking-tight text-white">
-                Choose your access
+                Try Delta Sports Free for 7 Days.
               </h1>
               <p className="text-sm text-white/65">
-                Pick a plan, review the toolkit, then choose your billing.
+                Test the edge this week. Cancel anytime.
               </p>
             </div>
 
-            <div className="mt-8 rounded-3xl border border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 via-white/[0.03] to-transparent p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.28em] text-white/45">
-                    Selected plan
+            {isEligibleForTrial && (
+              <div className="mt-6 rounded-3xl border border-emerald-300/20 bg-white/[0.03] p-5">
+                <div className="flex gap-4">
+                  <div className="flex flex-col items-center">
+                    <div className="h-full w-1 rounded-full bg-gradient-to-b from-emerald-400/70 via-emerald-400/20 to-white/10" />
                   </div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedTier.name}
-                  </div>
-                  <div className="mt-1 text-sm text-white/65">
-                    {selectedTier.description}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs font-semibold uppercase tracking-[0.28em] text-white/45">
-                    {billingLabel}
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-emerald-200">
-                    {formatUsd(mobilePrice)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 h-[2px] overflow-hidden rounded-full bg-white/10">
-                <div className="h-full w-1/2 bg-gradient-to-r from-transparent via-emerald-300/70 to-transparent animate-[scan_1.4s_linear_infinite]" />
-              </div>
-
-              <div className="mt-6 space-y-3">
-                {selectedTier.features.map((feature) => (
-                  <div key={feature.name} className="flex gap-3">
-                    <div
-                      className={cn(
-                        "mt-1 rounded-full border p-1",
-                        feature.included
-                          ? "text-emerald-300 border-emerald-300/50 bg-emerald-500/10"
-                          : "text-white/35 border-white/10 bg-black/20"
-                      )}
-                    >
-                      {feature.included ? (
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 p-1.5 text-emerald-200">
                         <CheckIcon className="h-4 w-4" />
-                      ) : (
-                        <Lock className="h-4 w-4" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-white">
-                        {feature.name}
                       </div>
-                      <div className="text-xs text-white/60">
-                        {feature.description}
+                      <div>
+                        <div className="text-xs font-semibold text-white">Today</div>
+                        <div className="text-xs text-white/60">Start free trial</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 rounded-full border border-white/10 bg-black/20 p-1.5">
+                        <span className="block h-4 w-4 rounded-full bg-white/10" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white">Day 7</div>
+                        <div className="text-xs text-white/60">Trial ends, reminder sent</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 rounded-full border border-white/10 bg-black/20 p-1.5">
+                        <span className="block h-4 w-4 rounded-full bg-white/10" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white">Day 8</div>
+                        <div className="text-xs text-white/60">First billing (if not canceled)</div>
                       </div>
                     </div>
                   </div>
-                ))}
+                </div>
               </div>
+            )}
+
+            <div className="mt-6 rounded-full border border-emerald-300/30 bg-emerald-500/10 p-1.5 backdrop-blur">
+              {(
+                [
+                  { label: "Weekly", value: "weekly" as const, badge: null },
+                  { label: "Monthly", value: "monthly" as const, badge: null },
+                  { label: "Annually", value: "annual" as const, badge: "Best Value" },
+                ] as const
+              ).map((period) => {
+                const isSelected = billingPeriod === period.value
+                return (
+                  <button
+                    key={period.value}
+                    type="button"
+                    onClick={() => setBillingPeriod(period.value)}
+                    className={cn(
+                      "relative w-1/3 rounded-full px-3 py-2 text-xs font-semibold transition-colors",
+                      isSelected
+                        ? "bg-white text-black"
+                        : "text-white/70 hover:text-white"
+                    )}
+                  >
+                    {period.badge ? (
+                      <span className="absolute -top-2 right-2 rounded-full bg-emerald-400 px-2 py-0.5 text-[9px] font-bold text-slate-900 shadow">
+                        {period.badge}
+                      </span>
+                    ) : null}
+                    {period.label}
+                  </button>
+                )
+              })}
             </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              {PRICING_TIERS.map((tier) => {
+                const isSelected = tier.tierKey === selectedTierKey
+                const periodPrice = getPeriodPrice(tier, billingPeriod)
+                const dailyPrice = periodPrice > 0 ? periodPrice / getDaysInPeriod(billingPeriod) : 0
+                const weeklyEquivalent = billingPeriod === "annual" && periodPrice > 0 ? periodPrice / 52 : null
+                const savings = getSavingsVsWeekly(tier, billingPeriod)
+                const savingsPercent = formatSavingsPercent(savings.savedPercent)
+
+                return (
+                  <button
+                    key={tier.tierKey}
+                    type="button"
+                    onClick={() => setSelectedTierKey(tier.tierKey as TierKey)}
+                    className={cn(
+                      "relative rounded-3xl border p-4 text-left transition-colors",
+                      "bg-white/[0.02] hover:bg-white/[0.05]",
+                      isSelected
+                        ? "border-emerald-400/60 bg-emerald-500/10"
+                        : "border-white/10"
+                    )}
+                  >
+                    {isEligibleForTrial && isSelected && (
+                      <span className="absolute -top-3 right-4 rounded-full bg-emerald-400 px-3 py-1 text-[10px] font-bold text-slate-900 shadow">
+                        7-Day Free Trial
+                      </span>
+                    )}
+
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-white">{tier.name}</div>
+                        <div className="mt-1 text-[11px] text-white/60">{tier.description}</div>
+                      </div>
+                      <div
+                        className={cn(
+                          "mt-1 h-4 w-4 rounded-full border",
+                          isSelected
+                            ? "border-emerald-300 bg-emerald-400"
+                            : "border-white/20 bg-transparent"
+                        )}
+                        aria-hidden
+                      />
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="text-xl font-semibold text-white">
+                        {formatUsd(periodPrice)}
+                        <span className="ml-1 text-xs font-semibold text-white/60">
+                          /{billingPeriod === "annual" ? "yr" : billingPeriod === "monthly" ? "mo" : "wk"}
+                        </span>
+                      </div>
+
+                      <div className="mt-1 text-[11px] text-white/60">
+                        ~ {formatUsd(dailyPrice)}/day
+                        {weeklyEquivalent != null && (
+                          <span> | {formatUsd(weeklyEquivalent)}/week</span>
+                        )}
+                      </div>
+
+                      {billingPeriod !== "weekly" && savings.savedAmount > 0 && (
+                        <div className="mt-1 text-[11px] font-semibold text-emerald-200">
+                          Save {formatUsd(savings.savedAmount)}/yr ({savingsPercent}% off)
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {membership?.hasUsedTrial && !membership?.isActive && (
+              <div className="mt-4 text-center text-[11px] uppercase tracking-[0.28em] text-white/45">
+                Trial already used
+              </div>
+            )}
+
+            {searchParams.get('next') === '/onboarding' && onboardingCancelStep && (
+              <button
+                type="button"
+                onClick={() => router.push(`/onboarding?step=${encodeURIComponent(onboardingCancelStep)}`)}
+                className="mt-4 w-full rounded-full border border-white/10 bg-white/5 px-6 py-3 text-xs font-semibold uppercase tracking-[0.28em] text-white/70 hover:border-emerald-400/40 hover:text-emerald-200 transition-colors"
+              >
+                Continue onboarding
+              </button>
+            )}
           </div>
 
-          {/* Bottom panel */}
           <div className="fixed inset-x-0 bottom-0 z-50">
             <div className="pointer-events-none absolute inset-x-0 -top-12 h-12 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-            <div className="rounded-t-3xl border-t border-white/10 bg-black/70 backdrop-blur-xl">
+            <div className="border-t border-white/10 bg-black/70 backdrop-blur-xl">
               <div className="mx-auto w-full max-w-md px-5 pb-6 pt-5">
-                <div className="space-y-3">
-                  {PRICING_TIERS.map((tier) => {
-                    const isSelected = tier.tierKey === selectedTierKey
-                    return (
-                      <button
-                        key={tier.tierKey}
-                        type="button"
-                        onClick={() => setSelectedTierKey(tier.tierKey as TierKey)}
-                        className={cn(
-                          "w-full rounded-2xl border px-5 py-4 text-left transition-colors",
-                          "bg-white/[0.02] hover:bg-white/[0.05]",
-                          isSelected
-                            ? "border-emerald-400/60 bg-emerald-500/10"
-                            : "border-white/10"
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <div className="text-sm font-semibold text-white">
-                              {tier.name}
-                            </div>
-                            <div className="mt-1 text-xs text-white/60">
-                              {tier.description}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xs font-semibold text-emerald-200">
-                              {formatUsd(getPeriodPrice(tier, billingPeriod))}
-                            </div>
-                            <div className="mt-1 text-[10px] uppercase tracking-[0.25em] text-white/35">
-                              {billingLabel}
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-
                 <button
                   type="button"
                   disabled={
@@ -343,7 +451,7 @@ export function PricingPageClient() {
                   }
                   onClick={mobileAction.onClick}
                   className={cn(
-                    "mt-4 w-full rounded-full px-6 py-4 text-sm font-semibold",
+                    "w-full rounded-full px-6 py-4 text-sm font-semibold",
                     "bg-gradient-to-r from-emerald-400 to-emerald-500 text-black",
                     "shadow-[0_10px_30px_rgba(16,185,129,0.28)]",
                     "disabled:opacity-50 disabled:cursor-not-allowed"
@@ -364,38 +472,11 @@ export function PricingPageClient() {
                   </span>
                 </button>
 
-                {!membership?.isActive && membership?.hasUsedTrial && (
-                  <div className="mt-3 text-center text-[11px] uppercase tracking-[0.28em] text-white/45">
-                    Trial already used
+                {!membership?.isActive && (
+                  <div className="mt-3 text-center text-xs text-white/60">
+                    No payment due now • Cancel anytime • We&apos;ll remind you before your trial ends
                   </div>
                 )}
-
-                <div className="mt-5 flex items-center justify-between rounded-full border border-white/10 bg-white/[0.03] p-1.5">
-                  {(
-                    [
-                      { label: "Weekly", value: "weekly" as const },
-                      { label: "Monthly", value: "monthly" as const },
-                      { label: "Annually", value: "annual" as const },
-                    ] as const
-                  ).map((period) => {
-                    const isSelected = billingPeriod === period.value
-                    return (
-                      <button
-                        key={period.value}
-                        type="button"
-                        onClick={() => setBillingPeriod(period.value)}
-                        className={cn(
-                          "flex-1 rounded-full px-3 py-2 text-xs font-semibold transition-colors",
-                          isSelected
-                            ? "bg-white text-black"
-                            : "text-white/70 hover:text-white"
-                        )}
-                      >
-                        {period.label}
-                      </button>
-                    )
-                  })}
-                </div>
               </div>
             </div>
           </div>
@@ -403,7 +484,11 @@ export function PricingPageClient() {
 
         {/* Desktop */}
         <div className="hidden sm:block pt-20 sm:pt-24">
-          <PricingSection tiers={PRICING_TIERS} className="bg-transparent" />
+          <PricingSection
+            tiers={PRICING_TIERS}
+            className="bg-transparent"
+            checkoutRedirects={buildCheckoutRedirects()}
+          />
         </div>
       </div>
 

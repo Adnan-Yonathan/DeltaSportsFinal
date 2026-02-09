@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { getMembershipStatus } from '@/lib/utils/membership'
+import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
 
 type OnboardingProfile = {
   favorite_sports?: string[]
@@ -224,6 +224,19 @@ export default function StripeSuccessPage() {
     [profile]
   )
 
+  const getPostCheckoutRedirect = () => {
+    if (typeof window === 'undefined') return null
+    const params = new URLSearchParams(window.location.search)
+    const next = params.get('next')
+    const step = params.get('step')
+
+    if (next === '/onboarding' && step) {
+      return `/onboarding?step=${encodeURIComponent(step)}`
+    }
+
+    return null
+  }
+
   const summaryItems = useMemo(() => {
     return [
       {
@@ -272,10 +285,15 @@ export default function StripeSuccessPage() {
       }
 
       // Check membership status from user metadata
-      const membership = getMembershipStatus(user.user_metadata)
+      const membership = getMembershipStatusFromMetadata(user.user_metadata)
 
       if (membership.isActive) {
         setStatus('success')
+        const postCheckoutRedirect = getPostCheckoutRedirect()
+        if (postCheckoutRedirect) {
+          router.replace(postCheckoutRedirect)
+          return
+        }
         if (!profileLoaded) {
           const metadataProfile = user.user_metadata?.onboarding_profile
           if (metadataProfile && typeof metadataProfile === 'object') {
@@ -314,10 +332,15 @@ export default function StripeSuccessPage() {
         const { data: { user } } = await supabase.auth.getUser()
 
         if (user) {
-          const membership = getMembershipStatus(user.user_metadata)
+          const membership = getMembershipStatusFromMetadata(user.user_metadata)
 
           if (membership.isActive) {
             setStatus('success')
+            const postCheckoutRedirect = getPostCheckoutRedirect()
+            if (postCheckoutRedirect) {
+              router.replace(postCheckoutRedirect)
+              return
+            }
             if (!profileLoaded) {
               const metadataProfile = user.user_metadata?.onboarding_profile
               if (metadataProfile && typeof metadataProfile === 'object') {

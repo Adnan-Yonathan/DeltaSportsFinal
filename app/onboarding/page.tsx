@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { OnboardingFlow } from '@/components/OnboardingFlow'
+import { Suspense } from 'react'
 
 export const metadata: Metadata = {
   title: 'Onboarding | Delta Sports',
@@ -7,5 +8,9 @@ export const metadata: Metadata = {
 }
 
 export default function OnboardingPage() {
-  return <OnboardingFlow />
+  return (
+    <Suspense fallback={null}>
+      <OnboardingFlow />
+    </Suspense>
+  )
 }

@@ -69,7 +69,7 @@ export default function WelcomeLanding() {
             className="inline-flex w-full max-w-md items-center justify-center gap-3 rounded-full border border-emerald-400/35 bg-black/70 px-6 py-3 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-200 shadow-[0_18px_50px_rgba(16,185,129,0.18)] backdrop-blur hover:border-emerald-300/70 hover:text-emerald-100 sm:w-auto sm:max-w-none sm:tracking-[0.35em]"
           >
             <span className="text-white/60">Access:</span>
-            <span>Try free for 7 days</span>
+            <span>Start your free trial</span>
             <span className="rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-[10px] text-emerald-200">
               free
             </span>

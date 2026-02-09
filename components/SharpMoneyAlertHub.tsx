@@ -276,7 +276,7 @@ export default function SharpMoneyAlertHub() {
                   href="/pricing"
                   className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300 sm:text-[11px]"
                 >
-                  Upgrade
+                  Start your free trial
                 </Link>
               </div>
             )}

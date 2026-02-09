@@ -207,7 +207,7 @@ export function InsiderComparison() {
               href="/auth/signup"
               className="inline-flex w-full max-w-md items-center justify-center gap-3 rounded-full border border-emerald-400/35 bg-black/70 px-5 py-3 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-200 shadow-[0_18px_50px_rgba(16,185,129,0.18)] backdrop-blur hover:border-emerald-300/70 hover:text-emerald-100 sm:w-auto sm:max-w-none sm:tracking-[0.35em]"
             >
-              <span>Try free for 7 days</span>
+              <span>Start your free trial</span>
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>

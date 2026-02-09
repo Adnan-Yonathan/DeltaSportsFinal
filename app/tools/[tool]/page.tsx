@@ -71,7 +71,7 @@ export default function ToolDetailPage({ params }: PageProps) {
               href="/pricing"
               className="inline-flex items-center justify-center gap-3 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-xs font-semibold uppercase tracking-[0.28em] text-white/75 hover:border-emerald-400/50 hover:text-emerald-200 sm:w-auto"
             >
-              Unlock access
+              Start your free trial
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>

@@ -145,7 +145,7 @@ export default function SharpBettingToolsPage() {
                 href="/pricing"
                 className="rounded-full border border-white/15 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 transition hover:border-emerald-400/60 hover:text-emerald-200"
               >
-                View Plans
+                Start your free trial
               </Link>
             </div>
           </div>

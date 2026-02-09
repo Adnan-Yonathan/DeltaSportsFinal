@@ -8,13 +8,58 @@ import { ArrowRightIcon, CheckIcon } from "@radix-ui/react-icons"
 import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
-import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
+import { getMembershipStatusFromMetadata, type MembershipInfo } from "@/lib/utils/membership"
 
 interface Feature {
   name: string
   description: string
   included: boolean
 }
+
+const formatUsd = (amount: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+  }).format(amount)
+
+const getDaysInPeriod = (billingPeriod: 'weekly' | 'monthly' | 'annual') =>
+  billingPeriod === "annual" ? 365 : billingPeriod === "monthly" ? 30 : 7
+
+const getAnnualizedCost = (tier: PricingTier, billingPeriod: 'weekly' | 'monthly' | 'annual') => {
+  const periodPrice =
+    billingPeriod === "annual"
+      ? tier.price.yearly
+      : billingPeriod === "monthly"
+        ? tier.price.monthly
+        : tier.price.weekly
+
+  if (billingPeriod === "annual") return periodPrice
+  if (billingPeriod === "monthly") return periodPrice * 12
+  return periodPrice * 52
+}
+
+const getSavingsVsWeekly = (tier: PricingTier, billingPeriod: 'weekly' | 'monthly' | 'annual') => {
+  const weeklyAnnualized = getAnnualizedCost(tier, "weekly")
+  const selectedAnnualized = getAnnualizedCost(tier, billingPeriod)
+
+  const savedAmount = weeklyAnnualized - selectedAnnualized
+  const savedPercent = weeklyAnnualized > 0 ? (savedAmount / weeklyAnnualized) * 100 : 0
+
+  return {
+    savedAmount,
+    savedPercent,
+  }
+}
+
+const formatSavingsPercent = (percent: number) => {
+  const clamped = Math.max(0, percent)
+  // Marketing-friendly: avoid over-promising, round down to nearest 5.
+  return Math.floor(clamped / 5) * 5
+}
+
+const formatSavingsSuffix = (percent: number) => (percent > 0 ? ` (${percent}% off)` : "")
 
 export interface PricingTier {
   name: string
@@ -40,6 +85,10 @@ export interface PricingTier {
 interface PricingSectionProps {
   tiers: PricingTier[]
   className?: string
+  checkoutRedirects?: {
+    successPath?: string
+    cancelPath?: string
+  }
 }
 
 const buttonStyles = {
@@ -70,12 +119,11 @@ const tierRank: Record<PricingTier["tierKey"], number> = {
   syndicate: 2,
 }
 
-export function PricingSection({ tiers, className }: PricingSectionProps) {
+export function PricingSection({ tiers, className, checkoutRedirects }: PricingSectionProps) {
   const router = useRouter()
-  const [billingPeriod, setBillingPeriod] = useState<'weekly' | 'monthly' | 'annual'>('monthly')
+  const [billingPeriod, setBillingPeriod] = useState<'weekly' | 'monthly' | 'annual'>('weekly')
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
-  const [isLoadingMembership, setIsLoadingMembership] = useState(true)
 
   useEffect(() => {
     const fetchMembership = async () => {
@@ -83,10 +131,9 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (user) {
-        const membershipInfo = getMembershipStatus(user.user_metadata)
+        const membershipInfo = getMembershipStatusFromMetadata(user.user_metadata)
         setMembership(membershipInfo)
       }
-      setIsLoadingMembership(false)
     }
     fetchMembership()
   }, [])
@@ -112,7 +159,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
       const response = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planKey }),
+        body: JSON.stringify({ planKey, ...checkoutRedirects }),
       })
 
       const data = await response.json()
@@ -178,36 +225,78 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
       <div className="w-full max-w-4xl mx-auto">
         <div className="flex flex-col items-center gap-1.5 mb-2 text-center md:mb-4">
           <h2 className="text-xl font-bold text-white md:text-2xl">
-            Simple, transparent pricing
+            Try Delta Sports free for 7 days.
           </h2>
+          {!membership?.isActive && !membership?.hasUsedTrial && (
+            <div className="mt-2 w-full max-w-md rounded-3xl border border-emerald-300/20 bg-white/[0.03] p-4 text-left">
+              <div className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <div className="h-full w-1 rounded-full bg-gradient-to-b from-emerald-400/60 via-emerald-400/20 to-white/10" />
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 p-1.5 text-emerald-200">
+                      <CheckIcon className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-white">Today</div>
+                      <div className="text-xs text-white/60">Start free trial</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-full border border-white/10 bg-black/20 p-1.5 text-white/70">
+                      <span className="block h-4 w-4 rounded-full bg-white/10" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-white">Day 7</div>
+                      <div className="text-xs text-white/60">Trial ends, reminder sent</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-full border border-white/10 bg-black/20 p-1.5 text-white/70">
+                      <span className="block h-4 w-4 rounded-full bg-white/10" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-white">Day 8</div>
+                      <div className="text-xs text-white/60">First billing (if not canceled)</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="inline-flex items-center p-0.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 backdrop-blur">
-            {(["Weekly", "Monthly", "Annual"] as const).map((period) => (
+            {(
+              [
+                { label: "Weekly", value: "weekly" as const, badge: null },
+                { label: "Monthly", value: "monthly" as const, badge: null },
+                { label: "Annually", value: "annual" as const, badge: "Best Value" },
+              ] as const
+            ).map((period) => (
               <button
-                key={period}
-                onClick={() =>
-                  setBillingPeriod(
-                    period === "Weekly"
-                      ? "weekly"
-                      : period === "Monthly"
-                        ? "monthly"
-                        : "annual",
-                  )
-                }
+                key={period.value}
+                onClick={() => setBillingPeriod(period.value)}
                 className={cn(
-                  "px-5 py-1.5 text-[11px] font-medium rounded-full transition-all duration-300",
-                  (period === "Weekly"
-                    ? billingPeriod === "weekly"
-                    : period === "Monthly"
-                      ? billingPeriod === "monthly"
-                      : billingPeriod === "annual")
+                  "relative px-5 py-1.5 text-[11px] font-medium rounded-full transition-all duration-300",
+                  billingPeriod === period.value
                     ? "bg-white text-slate-900 shadow-lg"
                     : "text-slate-200/70 hover:text-white",
                 )}
               >
-                {period}
+                {period.badge ? (
+                  <span className="absolute -top-2 right-2 rounded-full bg-emerald-400 px-2 py-0.5 text-[9px] font-bold text-slate-900 shadow">
+                    {period.badge}
+                  </span>
+                ) : null}
+                {period.label}
               </button>
             ))}
           </div>
+          {!membership?.isActive && !membership?.hasUsedTrial && (
+            <p className="mt-2 text-xs text-white/60">
+              No payment due now &bull; Cancel anytime &bull; We&apos;ll remind you before your trial ends
+            </p>
+          )}
         </div>
 
         <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-3 md:grid-cols-2 md:gap-5 items-stretch">
@@ -322,7 +411,7 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                     </>
                   ) : (
                     <>
-                      Start betting like a sharp
+                      Start your free trial
                       <ArrowRightIcon className="w-4 h-4" />
                     </>
                   )}
@@ -372,38 +461,55 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
                               : billingPeriod === "monthly"
                                 ? tier.price.monthly
                                 : tier.price.weekly
-                          const daysInPeriod =
-                            billingPeriod === "annual"
-                              ? 365
-                              : billingPeriod === "monthly"
-                                ? 30
-                                : 7
-                          const dailyPrice =
-                            periodPrice > 0
-                              ? (periodPrice / daysInPeriod).toFixed(2)
-                              : 0
+                          const daysInPeriod = getDaysInPeriod(billingPeriod)
+                          const dailyPrice = periodPrice > 0 ? periodPrice / daysInPeriod : 0
+                          const weeklyEquivalent =
+                            billingPeriod === "annual" && periodPrice > 0
+                              ? periodPrice / 52
+                              : null
                           const billingLabel =
                             billingPeriod === "annual"
-                              ? "annually"
+                              ? "year"
                               : billingPeriod === "monthly"
-                                ? "monthly"
-                                : "weekly"
+                                ? "month"
+                                : "week"
                           const isFree = periodPrice === 0
+                          const savings = getSavingsVsWeekly(tier, billingPeriod)
+                          const savingsPercent = formatSavingsPercent(savings.savedPercent)
                           return (
                             <>
-                              <div className="flex items-baseline gap-1 sm:gap-2">
+                              <div className="flex items-baseline gap-2">
                                 <span className="text-base sm:text-2xl md:text-3xl font-bold">
-                                  {isFree ? "Free" : `$${dailyPrice}`}
+                                  {isFree ? "Free" : formatUsd(periodPrice)}
                                 </span>
                                 {!isFree && (
-                                  <span className="text-[11px] sm:text-xs text-slate-200/70">
-                                    /day (billed {billingLabel})
-                                  </span>
+                                  <span className="text-xs text-slate-200/70">/{billingLabel}</span>
                                 )}
                               </div>
+                              {!isFree && (
+                                <div className="mt-1 text-[11px] text-slate-200/70">
+                                  ~ {formatUsd(dailyPrice)}/day
+                                  {weeklyEquivalent != null && (
+                                    <span>
+                                      {" "}
+                                      | {formatUsd(weeklyEquivalent)}/week
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              {!isFree && billingPeriod !== "weekly" && savings.savedAmount > 0 && (
+                                <div className="mt-1 text-[11px] font-semibold text-emerald-200">
+                                  Save {formatUsd(savings.savedAmount)}/yr{formatSavingsSuffix(savingsPercent)}
+                                </div>
+                              )}
                               <p className="mt-1.5 text-xs text-slate-200/70">
                                 {tier.description}
                               </p>
+                      {!membership?.isActive && !membership?.hasUsedTrial && tier.highlight && (
+                        <div className="mt-2 inline-flex">
+                          <Badge className={cn(badgeStyles, "bg-emerald-400")}>7-Day Free Trial</Badge>
+                        </div>
+                      )}
                             </>
                           )
                         })()}
@@ -440,6 +546,11 @@ export function PricingSection({ tiers, className }: PricingSectionProps) {
 
                 <div className="p-3 sm:p-3.5 md:p-4 pt-0 mt-auto">
                   {actionButton}
+                  {!membership?.isActive && !membership?.hasUsedTrial && (
+                    <div className="mt-2 text-center text-xs text-white/60">
+                      No payment due now &bull; Cancel anytime
+                    </div>
+                  )}
                   {!membership?.isActive && membership?.hasUsedTrial && (
                     <p className="mt-3 text-[11px] uppercase tracking-[0.28em] text-white/50">
                       Trial already used

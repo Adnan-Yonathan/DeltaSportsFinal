@@ -2,12 +2,11 @@
 import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronRight, Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-import { StepPricing } from "./onboarding/StepPricing"
 import { StepMonthlyProfit } from "./onboarding/StepMonthlyProfit"
-import { StepTimeline } from "./onboarding/StepTimeline"
+import { StepRecommendations } from "./onboarding/StepRecommendations"
 import { StepIntroFeature } from "./onboarding/StepIntroFeature"
 import { StepNarrative } from "./onboarding/StepNarrative"
 import { StepSingleSelect } from "./onboarding/StepSingleSelect"
@@ -30,6 +29,7 @@ interface OnboardingData {
 
 export function OnboardingFlow() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
   const [currentStep, setCurrentStep] = useState(0)
   const [isStepValid, setIsStepValid] = useState(false)
@@ -69,6 +69,19 @@ export function OnboardingFlow() {
       }
     }
   }, [])
+
+  useEffect(() => {
+    const stepParam = searchParams.get('step')
+    if (!stepParam) return
+
+    const parsed = Number(stepParam)
+    if (!Number.isFinite(parsed)) return
+
+    const clamped = Math.max(0, Math.min(parsed, steps.length - 1))
+    setCurrentStep(clamped)
+    router.replace('/onboarding')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   // Save to localStorage whenever data changes
   useEffect(() => {
@@ -372,7 +385,7 @@ export function OnboardingFlow() {
     },
     {
       component: (
-        <StepTimeline
+        <StepRecommendations
           onValidation={setIsStepValid}
           profile={{
             primaryIntent: data.primary_intent,
@@ -380,31 +393,24 @@ export function OnboardingFlow() {
             goals: data.goals,
           }}
           onContinue={async () => {
-            if (!hasSaved) {
-              const saved = await saveOnboarding()
-              if (!saved) return
-            }
-            startStepTransition(Math.min(currentStep + 1, totalSteps - 1))
+            const saved = hasSaved ? true : await saveOnboarding()
+            if (!saved) return
+            router.push('/chat')
           }}
-          saving={saving}
         />
-      ),
-    },
-    {
-      component: (
-        <StepPricing value={null} onChange={() => {}} onValidation={setIsStepValid} />
       ),
     },
   ]
 
   const totalSteps = steps.length
   const progress = ((currentStep + 1) / totalSteps) * 100
-  const isPricingStep = currentStep === totalSteps - 1
-  const isTimelineStep = currentStep === totalSteps - 2
+  const isTimelineStep = currentStep === totalSteps - 1
   const isAutoLockedStep = currentStep >= 1 && currentStep <= 6
   const stepCode = String(currentStep + 1).padStart(2, "0")
   const nextLabel = steps[currentStep]?.nextLabel ?? "Next"
   const nextStepCode = String(Math.min(currentStep + 2, totalSteps)).padStart(2, "0")
+
+  const paywallTriggerStep = 7
 
   const startStepTransition = (targetStep: number) => {
     if (targetStep === currentStep) return
@@ -503,15 +509,19 @@ export function OnboardingFlow() {
 
   const handleNext = async () => {
     if (currentStep < totalSteps - 1) {
-      if (currentStep === totalSteps - 2 && !hasSaved) {
-        const saved = await saveOnboarding()
-        if (!saved) return
-      }
       if (currentStep === 0 && !welcomeUnlocking) {
         setWelcomeUnlocking(true)
         window.setTimeout(() => {
           startStepTransition(1)
         }, 520)
+        return
+      }
+
+      if (currentStep === paywallTriggerStep) {
+        const resumeStep = Math.min(currentStep + 1, totalSteps - 1)
+        router.push(
+          `/pricing?next=/onboarding&resumeStep=${resumeStep}&cancelStep=${currentStep}`
+        )
         return
       }
       startStepTransition(currentStep + 1)
@@ -579,16 +589,14 @@ export function OnboardingFlow() {
       </div>
 
       {/* Progress Bar */}
-      {!isPricingStep && (
-        <div className="fixed top-0 left-0 right-0 h-1 bg-white/10 z-50">
-          <motion.div
-            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-500"
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.3 }}
-          />
-        </div>
-      )}
+      <div className="fixed top-0 left-0 right-0 h-1 bg-white/10 z-50">
+        <motion.div
+          className="h-full bg-gradient-to-r from-emerald-500 to-emerald-500"
+          initial={{ width: 0 }}
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.3 }}
+        />
+      </div>
 
       <div className="fixed top-4 right-6 z-50">
         <button
@@ -602,11 +610,9 @@ export function OnboardingFlow() {
 
       {/* Main Content */}
       <div
-        className={`flex-1 flex ${isPricingStep ? "items-start" : "items-center"} justify-center ${
-          isPricingStep ? "px-0 py-0" : "px-4 pt-16 pb-28"
-        }`}
+        className="flex-1 flex items-center justify-center px-4 pt-16 pb-28"
       >
-        <div className={`relative z-10 w-full ${isPricingStep ? "max-w-none" : "max-w-5xl"}`}>
+        <div className="relative z-10 w-full max-w-5xl">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -635,7 +641,7 @@ export function OnboardingFlow() {
       </div>
 
       {/* Navigation */}
-      {!isPricingStep && !isTimelineStep && !isAutoLockedStep && (
+      {!isTimelineStep && !isAutoLockedStep && (
         <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none">
           <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/60 via-black/20 to-transparent backdrop-blur-sm" />
           <div className="relative mx-auto flex items-center justify-end px-6 pb-6">

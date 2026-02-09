@@ -1285,7 +1285,7 @@ export default function SharpDetectorPanel({
             href="/pricing"
             className="mt-4 inline-flex items-center rounded-full border border-emerald-400/60 px-5 py-2 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
           >
-            Upgrade to Syndicate
+            Start your free trial
           </Link>
         </div>
       )}

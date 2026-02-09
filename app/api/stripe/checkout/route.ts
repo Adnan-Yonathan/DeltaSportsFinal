@@ -4,9 +4,22 @@ import { stripe, PRICE_IDS, PLAN_CONFIG, type PlanKey } from '@/lib/stripe'
 
 export const runtime = 'nodejs'
 
+const isSafeInternalPath = (value: unknown): value is string => {
+  if (typeof value !== 'string') return false
+  if (!value.startsWith('/')) return false
+  if (value.startsWith('//')) return false
+  if (value.includes('://')) return false
+  if (value.includes('\\')) return false
+  return true
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { planKey } = await req.json() as { planKey: PlanKey }
+    const { planKey, successPath, cancelPath } = await req.json() as {
+      planKey: PlanKey
+      successPath?: string
+      cancelPath?: string
+    }
 
     if (!planKey || !PRICE_IDS[planKey]) {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
@@ -62,6 +75,14 @@ export async function POST(req: NextRequest) {
       )
     }
     const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const safeSuccessPath = isSafeInternalPath(successPath) ? successPath : undefined
+    const safeCancelPath = isSafeInternalPath(cancelPath) ? cancelPath : undefined
+    const resolvedSuccessUrl = safeSuccessPath
+      ? `${origin}${safeSuccessPath}`
+      : `${origin}/stripe/success?session_id={CHECKOUT_SESSION_ID}`
+    const resolvedCancelUrl = safeCancelPath
+      ? `${origin}${safeCancelPath}`
+      : `${origin}/pricing`
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
@@ -76,8 +97,8 @@ export async function POST(req: NextRequest) {
       subscription_data: planConfig.trialDays && !hasUsedTrial
         ? { trial_period_days: planConfig.trialDays }
         : undefined,
-      success_url: `${origin}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/pricing`,
+      success_url: resolvedSuccessUrl,
+      cancel_url: resolvedCancelUrl,
       metadata: {
         supabase_user_id: user.id,
         plan_key: planKey,

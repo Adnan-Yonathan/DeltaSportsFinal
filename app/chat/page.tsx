@@ -661,7 +661,7 @@ function ChatPageContent() {
                     className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-emerald-400 hover:bg-white/5 transition-colors"
                   >
                     <Crown className="w-4 h-4" />
-                    <span>Upgrade Plan</span>
+                    <span>Start your free trial</span>
                   </button>
                 )}
                 {membership?.isActive && (

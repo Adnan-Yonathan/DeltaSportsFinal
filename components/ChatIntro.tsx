@@ -398,9 +398,9 @@ export default function ChatIntro({
                 href={ONBOARDING_ENABLED ? '/onboarding' : '/pricing'}
                 className="inline-flex items-center gap-4 rounded-full bg-emerald-400 px-6 py-3 text-xs sm:text-sm font-semibold uppercase tracking-[0.3em] text-black shadow-[0_16px_40px_rgba(16,185,129,0.35)] hover:bg-emerald-300 transition-colors"
               >
-                <span>Bet like an insider</span>
+                <span>Start your free trial</span>
                 <span className="rounded-full border border-black/60 px-3 py-1 text-[10px] font-semibold text-black/80">
-                  View plans
+                  7-Day Free Trial
                 </span>
               </Link>
             </div>

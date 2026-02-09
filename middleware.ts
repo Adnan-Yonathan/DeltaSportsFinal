@@ -147,19 +147,21 @@ export async function middleware(req: NextRequest) {
   }
 
   if (isPaid) {
-    if (pathname === '/welcome' || pathname === '/pricing' || pathname === '/onboarding') {
+    if (pathname === '/welcome' || pathname === '/pricing') {
       return NextResponse.redirect(new URL('/chat', req.url))
     }
+    return res
+  }
+
+  // Allow the pricing page during onboarding so users can start a trial
+  // mid-flow (onboarding redirects to /pricing before onboarding_completed).
+  if (!isPaid && pathname.startsWith('/pricing')) {
     return res
   }
 
   if (!onboardingCompleted) {
     const onboardingUrl = new URL('/onboarding', req.url)
     return NextResponse.redirect(onboardingUrl)
-  }
-
-  if (!isPaid && pathname.startsWith('/pricing')) {
-    return res
   }
 
   // If not an active member, redirect to pricing

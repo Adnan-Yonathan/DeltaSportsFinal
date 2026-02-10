@@ -864,45 +864,6 @@ export default function SharpDetectorPage() {
             {filteredTrades.length} trades
           </span>
         </div>
-        <div className="mb-6 rounded-2xl border border-white/10 bg-black/40 p-4">
-          <div className="flex items-center justify-between text-sm text-white/60">
-            <span className="uppercase tracking-[0.3em]">Top winning wallets</span>
-            <span className="text-xs text-white/40">realized P/L</span>
-          </div>
-          {walletSummaryError && (
-            <div className="mt-2 text-sm text-rose-200">{walletSummaryError}</div>
-          )}
-          {!walletSummaryError && walletSummary.length === 0 ? (
-            <div className="mt-2 text-sm text-white/50">
-              No winning wallets yet.
-            </div>
-          ) : (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {walletSummary.map((wallet) => (
-                <div
-                  key={wallet.wallet}
-                  className="flex items-center justify-between rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/70"
-                >
-                  <div>
-                    <div className="font-semibold text-emerald-200">
-                      {formatWalletAlias(wallet.wallet)}
-                    </div>
-                    <div className="text-white/50">
-                      {wallet.total_wins}W - {wallet.total_losses}L - {wallet.total_pushes}P
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-emerald-200">
-                      {formatCurrency(wallet.total_realized_pnl)}
-                    </div>
-                    <div className="text-white/40">lifetime</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
         {/* Game Clusters View */}
         {viewMode === 'games' && (
           <div className="space-y-4 mb-8">

@@ -158,6 +158,13 @@ const getEasternDateKey = (value: Date | string | number) => {
   return `${year}-${month}-${day}`
 }
 
+const getEventEasternDateKey = (value?: string | null) => {
+  if (!value) return null
+  const match = value.match(DATE_ONLY_PATTERN)
+  if (match) return `${match[1]}-${match[2]}-${match[3]}`
+  return getEasternDateKey(value)
+}
+
 const sharpTierLabel: Record<SharpTier, string> = {
   small: 'Swordfish',
   blue: 'Megalodon',
@@ -186,13 +193,6 @@ const extractGameKey = (marketTitle: string, sport: string): string => {
 
 const resolveGameLabel = (marketTitle: string) =>
   marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()
-
-const resolveStrengthClass = (value?: number | null) => {
-  const strength = Number.isFinite(value) ? Number(value) : 0
-  if (strength <= 35) return 'text-rose-300'
-  if (strength <= 55) return 'text-amber-300'
-  return 'text-emerald-300'
-}
 
 export default function SharpDetectorPage() {
   const [authLoading, setAuthLoading] = useState(true)
@@ -289,8 +289,12 @@ export default function SharpDetectorPage() {
   // Cluster trades by game
   const gameClusters = useMemo(() => {
     const clusters = new Map<string, GameCluster>()
+    const todayEasternKey = getEasternDateKey(new Date())
 
     filteredTrades.forEach(trade => {
+      if (!todayEasternKey) return
+      const eventKey = getEventEasternDateKey(trade.eventDate)
+      if (eventKey !== todayEasternKey) return
       const gameKey = extractGameKey(trade.marketTitle, trade.sport)
 
       if (!clusters.has(gameKey)) {
@@ -950,11 +954,6 @@ export default function SharpDetectorPage() {
                             )}
                           </div>
                           <div className="flex items-center gap-2">
-                      {Number.isFinite(trade.sharpStrength) && (
-                        <span className={cn('text-xs uppercase font-semibold', resolveStrengthClass(trade.sharpStrength))}>
-                          {trade.sharpStrength}% strength
-                        </span>
-                      )}
                             <span className="text-sm text-white/40">
                               {formatTimestamp(trade.timestamp)}
                             </span>
@@ -1014,11 +1013,6 @@ export default function SharpDetectorPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      {Number.isFinite(trade.sharpStrength) && (
-                        <span className={cn('text-xs uppercase tracking-[0.3em] font-semibold', resolveStrengthClass(trade.sharpStrength))}>
-                          {trade.sharpStrength}% strength
-                        </span>
-                      )}
                     </div>
                   </div>
                   <p className="mt-2 text-base font-semibold text-white">

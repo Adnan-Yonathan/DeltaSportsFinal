@@ -55,6 +55,9 @@ export function OddsMatrixSurface({
   const blipsRef = useRef<Blip[]>([])
   const rafRef = useRef<number>(0)
   const lastTickRef = useRef<number>(0)
+  const resizeRafRef = useRef<number>(0)
+  const sizeRef = useRef({ w: 0, h: 0, dpr: 0 })
+  const lowPowerRef = useRef(false)
 
   const strings = useMemo(() => {
     const TEAMS = [
@@ -123,32 +126,57 @@ export function OddsMatrixSurface({
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
 
+    const getLowPower = () => {
+      const w = window.innerWidth
+      const h = window.innerHeight
+      const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
+      const cores = navigator.hardwareConcurrency
+      return w < 768 || h < 520 || (memory != null && memory <= 4) || (cores != null && cores <= 4)
+    }
+
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const resize = () => {
-      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1))
-      canvas.width = Math.floor(window.innerWidth * dpr)
-      canvas.height = Math.floor(window.innerHeight * dpr)
+    const applyResize = () => {
+      const nextLowPower = getLowPower()
+      lowPowerRef.current = nextLowPower
+      const maxDpr = nextLowPower ? 1.3 : 2
+      const dpr = Math.max(1, Math.min(maxDpr, window.devicePixelRatio || 1))
+      const width = window.innerWidth
+      const height = window.innerHeight
+
+      if (
+        width === sizeRef.current.w &&
+        height === sizeRef.current.h &&
+        dpr === sizeRef.current.dpr
+      ) {
+        return
+      }
+
+      sizeRef.current = { w: width, h: height, dpr }
+      canvas.width = Math.floor(width * dpr)
+      canvas.height = Math.floor(height * dpr)
       canvas.style.width = '100%'
       canvas.style.height = '100%'
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     }
 
+    const resize = () => {
+      if (resizeRafRef.current) {
+        cancelAnimationFrame(resizeRafRef.current)
+      }
+      resizeRafRef.current = requestAnimationFrame(applyResize)
+    }
+
     resize()
     window.addEventListener('resize', resize)
-
-    const maxBlips = 280
-    const baseSpawn = clamp(intensity, 0.1, 0.9) * 18
-    const fontSize = 13
-    const lineH = 18
-    const leftPad = 24
 
     const draw = (t: number) => {
       // Only advance the simulation when enough time has elapsed.
       // (Do not update the tick timestamp when skipping, otherwise it can "freeze" at 60fps.)
       if (!lastTickRef.current) lastTickRef.current = t
-      const step = reduceMotion ? 250 : 16
+      const lowPower = lowPowerRef.current
+      const step = reduceMotion ? 250 : lowPower ? 48 : 16
       const rawDt = t - lastTickRef.current
       if (rawDt < step) {
         rafRef.current = requestAnimationFrame(draw)
@@ -170,6 +198,8 @@ export function OddsMatrixSurface({
 
       // Spawn new blips.
       if (!reduceMotion) {
+        const maxBlips = lowPower ? 140 : 280
+        const baseSpawn = clamp(intensity, 0.1, 0.9) * (lowPower ? 9 : 18)
         const spawnCount = Math.max(2, Math.floor(baseSpawn))
         const w = window.innerWidth
         const h = window.innerHeight
@@ -177,7 +207,8 @@ export function OddsMatrixSurface({
         const cols = isSmall ? 2 : 4
         const maxNow = isSmall ? Math.floor(maxBlips * 0.62) : maxBlips
         const spawnNow = isSmall ? Math.max(2, Math.floor(spawnCount * 0.75)) : spawnCount
-        const lineHNow = isSmall ? 20 : lineH
+        const lineHNow = isSmall ? 20 : lowPower ? 19 : 18
+        const leftPad = lowPower ? 18 : 24
         for (let i = 0; i < spawnNow; i += 1) {
           if (blips.length >= maxNow) break
           const y = Math.floor(rand(0, h / lineHNow)) * lineHNow + 24
@@ -198,6 +229,7 @@ export function OddsMatrixSurface({
       }
 
       // Clear with transparent, then redraw current blips.
+      const fontSize = lowPower ? 12 : 13
       ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
       ctx.font = `${fontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace`
       ctx.textBaseline = 'top'
@@ -225,6 +257,9 @@ export function OddsMatrixSurface({
     return () => {
       window.removeEventListener('resize', resize)
       cancelAnimationFrame(rafRef.current)
+      if (resizeRafRef.current) {
+        cancelAnimationFrame(resizeRafRef.current)
+      }
     }
   }, [intensity, strings, tone])
 

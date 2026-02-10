@@ -22,9 +22,18 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
     useEffect(() => {
         if (!containerRef.current) return;
 
-        const SEPARATION = 80;
-        const AMOUNTX = 100;
-        const AMOUNTY = 150;
+        const prefersReducedMotion = window.matchMedia(
+            '(prefers-reduced-motion: reduce)',
+        ).matches;
+        const isSmallScreen = window.matchMedia('(max-width: 768px)').matches;
+        const memory = (navigator as Navigator & { deviceMemory?: number })
+            .deviceMemory;
+        const lowPower =
+            prefersReducedMotion || isSmallScreen || (memory != null && memory <= 4);
+
+        const SEPARATION = lowPower ? 90 : 80;
+        const AMOUNTX = lowPower ? 50 : 100;
+        const AMOUNTY = lowPower ? 70 : 150;
 
         // Scene setup
         const scene = new THREE.Scene();
@@ -42,7 +51,10 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
             alpha: true,
             antialias: true,
         });
-        renderer.setPixelRatio(window.devicePixelRatio);
+        const maxDpr = lowPower ? 1.1 : 1.6;
+        renderer.setPixelRatio(
+            Math.max(1, Math.min(maxDpr, window.devicePixelRatio || 1)),
+        );
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setClearColor(scene.fog.color, 0);
 
@@ -92,10 +104,18 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
 
         let count = 0;
         let animationId: number = 0;
+        let frame = 0;
 
         // Animation function
         const animate = () => {
             animationId = requestAnimationFrame(animate);
+            if (lowPower) {
+                frame += 1;
+                if (frame % 2 !== 0) {
+                    renderer.render(scene, camera);
+                    return;
+                }
+            }
 
             const positionAttribute = geometry.attributes.position;
             const positions = positionAttribute.array as Float32Array;
@@ -126,7 +146,7 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
             }
 
             renderer.render(scene, camera);
-            count += 0.1;
+            count += lowPower ? 0.06 : 0.1;
         };
 
         // Handle window resize
@@ -139,7 +159,11 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
         window.addEventListener('resize', handleResize);
 
         // Start animation
-        animate();
+        if (prefersReducedMotion) {
+            renderer.render(scene, camera);
+        } else {
+            animate();
+        }
 
         // Store references
         sceneRef.current = {

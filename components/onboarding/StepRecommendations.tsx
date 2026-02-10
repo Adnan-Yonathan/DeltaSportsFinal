@@ -129,7 +129,7 @@ export function StepRecommendations({ onValidation, profile, onContinue }: StepR
           Recommended features to try first
         </h1>
         <p className="text-sm text-white/80 sm:text-base">
-          Based on what you told us, here's where you'll see value fastest.
+          Based on what you told us, here&apos;s where you&apos;ll see value fastest.
         </p>
       </div>
 

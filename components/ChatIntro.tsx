@@ -75,6 +75,15 @@ export default function ChatIntro({
       href: '/sharp-traders',
       tag: 'Sharp Traders',
     },
+    {
+      id: 'whale-feed',
+      title: 'Whale Feed',
+      description: 'Big money alerts with clustering and timing context.',
+      imageSrc:
+        'https://images.unsplash.com/photo-1518544887873-1a2df5a4a0e1?auto=format&fit=crop&w=1400&q=80',
+      href: '/sharp-detector',
+      tag: 'Whale Feed',
+    },
   ]
   const researchItems: CardStackItem[] = [
     {
@@ -149,7 +158,7 @@ export default function ChatIntro({
           fetch('/api/market-projections?sport=basketball_nba&include=1', {
             cache: 'no-store',
           }),
-          fetch('/api/crossed-ev?sport=basketball_nba', {
+          fetch('/api/prop-orderbooks?sport=basketball_nba&limit=40&depth=6', {
             cache: 'no-store',
           }),
         ])
@@ -197,20 +206,27 @@ export default function ChatIntro({
 
         if (sharpPropsRes.ok) {
           const payload = await sharpPropsRes.json()
-          const rows = Array.isArray(payload?.rows)
-            ? (payload.rows as Array<Record<string, any>>)
+          const items = Array.isArray(payload?.items)
+            ? (payload.items as Array<Record<string, any>>)
             : []
 
-          if (rows.length) {
-            const row = pickRandom(rows)
-            const oddsA =
-              row.recommendedSide === 'over' ? row.overOdds : row.underOdds
-            const oddsB =
-              row.recommendedSide === 'over' ? row.underOdds : row.overOdds
+          if (items.length) {
+            const item = pickRandom(items)
+            const propLabel = item.propType ? formatMarket(item.propType) : 'Prop'
+            const lineLabel =
+              item.propLine != null && Number.isFinite(Number(item.propLine))
+                ? ` ${item.propLine}`
+                : ''
+            const sharpLineOdds = formatOdds(item.sharpLeanAmericanOdds)
+            const liquiditySide = item.sharpLiquiditySide ?? 'Liquidity'
+            const wallSide = Array.isArray(item.sides)
+              ? item.sides.find((side: any) => side.propSide === item.sharpLiquiditySide)
+              : null
+            const wallOdds = formatOdds(wallSide?.wallAmericanOdds)
 
             setSharpPropsPreview({
-              label: `${row.player ?? 'Sharp Prop'} • ${formatMarket(row.market)}`,
-              detail: `${row.bookLabel ?? 'Book'} ${row.recommendedSide ?? ''} ${row.bookPoint ?? ''} (${formatOdds(oddsA)} vs ${formatOdds(oddsB)})`,
+              label: `${item.playerName ?? 'Sharp Prop'} • ${propLabel}${lineLabel}`,
+              detail: `${liquiditySide} wall ${wallOdds} • Sharp line ${sharpLineOdds}`,
             })
           } else {
             setSharpPropsPreview({
@@ -452,22 +468,14 @@ export default function ChatIntro({
         className="text-center max-w-4xl w-full mb-4 sm:mb-6"
       >
         <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
-          <Link href="/patch-notes" className="relative z-10 pointer-events-auto">
-            <Announcement className="border-[#34d399]/30 bg-black/70 hover:border-[#34d399]/50 hover:bg-black/90 cursor-pointer">
-              <AnnouncementTag className="bg-[#34d399]/20 text-[#34d399]">
-                Patch 0.5
-              </AnnouncementTag>
-              <AnnouncementTitle className="text-white/80 text-sm">
-                View patch notes
-                <ArrowUpRight size={14} className="shrink-0 text-[#34d399]" />
-              </AnnouncementTitle>
-            </Announcement>
-          </Link>
           {onModeChange && (
             <div className="relative z-10 pointer-events-auto">
               <ModeToggle mode={mode} onChange={onModeChange} />
             </div>
           )}
+          <span className="sm:hidden text-[10px] uppercase tracking-[0.25em] text-white/50">
+            Best in landscape mode
+          </span>
           <Link
             href="https://x.com/DeltaSportsAI"
             target="_blank"

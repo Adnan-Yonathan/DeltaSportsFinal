@@ -502,3 +502,91 @@ a {
 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
+@keyframes box1 {
+  0%,
+  50% {
+    transform: translate(100%, 0);
+  }
+  100% {
+    transform: translate(200%, 0);
+  }
+}
+
+@keyframes box2 {
+  0% {
+    transform: translate(0, 100%);
+  }
+  50% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(100%, 0);
+  }
+}
+
+@keyframes box3 {
+  0%,
+  50% {
+    transform: translate(100%, 100%);
+  }
+  100% {
+    transform: translate(0, 100%);
+  }
+}
+
+@keyframes box4 {
+  0% {
+    transform: translate(200%, 0);
+  }
+  50% {
+    transform: translate(200%, 100%);
+  }
+  100% {
+    transform: translate(100%, 100%);
+  }
+}
+
+.boxes {
+  --size: 1.4rem;
+  position: relative;
+  width: calc(var(--size) * 2);
+  height: calc(var(--size) * 2);
+}
+
+.boxes-lg {
+  --size: 2.6rem;
+}
+
+.box {
+  position: absolute;
+  width: var(--size);
+  height: var(--size);
+  top: 0;
+  left: 0;
+}
+
+.box-1 {
+  animation: box1 1.35s infinite ease-in-out;
+}
+
+.box-2 {
+  animation: box2 1.35s infinite ease-in-out;
+}
+
+.box-3 {
+  animation: box3 1.35s infinite ease-in-out;
+}
+
+.box-4 {
+  animation: box4 1.35s infinite ease-in-out;
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(52, 211, 153, 0.9);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);
+}

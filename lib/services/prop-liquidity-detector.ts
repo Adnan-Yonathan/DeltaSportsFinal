@@ -3,6 +3,7 @@ import { fetchSbdGamePropsList, resolveSbdLeague } from '@/lib/api/sbd'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import { TEAMS_REGISTRY } from '@/lib/data/teams-registry'
 import { oddsToImpliedProbability, probabilityToAmericanOdds } from '@/lib/utils/statistics'
+import { resolveOverUnderSide } from '@/lib/utils/props'
 import type { Bookmaker, OddsGame } from '@/lib/types/odds'
 
 const KALSHI_BASE = 'https://api.elections.kalshi.com/trade-api/v2'
@@ -15,8 +16,12 @@ const TEAM_ORDER_NOTIONAL_MIN = 2000
 const TEAM_MARKET_LIQUIDITY_MAX = 14000
 const CACHE_TTL_MS = 60 * 1000
 const MAX_KALSHI_PAGES = 5
-const MAX_POLYMARKET_MARKETS = 120
-const MAX_POLYMARKET_ORDERBOOKS = 40
+const MAX_POLYMARKET_MARKETS = 250
+const MAX_POLYMARKET_ORDERBOOKS = 80
+const POLYMARKET_SERIES_PAGE_LIMIT = 300
+const MAX_POLYMARKET_SERIES_PAGES = 8
+const MAX_POLYMARKET_EVENT_FETCHES = 6
+const MAX_POLYMARKET_EVENT_MARKETS = 60
 
 type PropLiquiditySignal = {
   id: string
@@ -78,9 +83,15 @@ type PolymarketMarket = {
   id: string
   question?: string
   title?: string
+  slug?: string
   outcomes?: string
   outcomePrices?: string
   clobTokenIds?: string
+  sportsMarketType?: string
+  line?: number
+  acceptingOrders?: boolean
+  bestAsk?: number
+  bestBid?: number
   liquidityNum?: number
   liquidity?: string
   active?: boolean
@@ -92,12 +103,100 @@ type PolymarketMarket = {
     endDate?: string
     seriesSlug?: string
     series?: Array<{ slug?: string }>
+    ended?: boolean
   }>
+}
+
+type PolymarketSeries = {
+  id: string
+  slug?: string
+  ticker?: string
+  title?: string
+  active?: boolean
+  closed?: boolean
+}
+
+type PolymarketSeriesDetail = PolymarketSeries & {
+  events?: Array<{
+    id: string
+    title?: string
+    slug?: string
+    ticker?: string
+    active?: boolean
+    closed?: boolean
+    eventDate?: string
+    startTime?: string
+  }>
+}
+
+type PolymarketEventDetail = {
+  id: string
+  title?: string
+  slug?: string
+  ticker?: string
+  seriesSlug?: string
+  eventDate?: string
+  startTime?: string
+  active?: boolean
+  closed?: boolean
+  markets?: PolymarketMarket[]
 }
 
 type PolymarketOrderbook = {
   bids?: Array<{ price: string; size: string }>
   asks?: Array<{ price: string; size: string }>
+}
+
+export type PropOrderbookLevel = {
+  priceCents: number
+  notional: number
+}
+
+export type PropOrderbookSide = {
+  outcome: string
+  propSide: 'Over' | 'Under' | null
+  platformSide: 'yes' | 'no' | null
+  levels: PropOrderbookLevel[]
+  totalNotional: number
+
+  // "Wall" = largest resting liquidity level in the displayed depth.
+  wallPriceCents: number | null
+  wallNotional: number | null
+  wallAmericanOdds: number | null
+
+  // OddsJam-style "sharp line" interpretation:
+  // liquidity on one side at price P implies the opposite side at (100 - P).
+  sharpLinePriceCents: number | null
+  sharpLineAmericanOdds: number | null
+}
+
+export type PropOrderbookItem = {
+  id: string
+  source: 'kalshi' | 'polymarket'
+  sportKey: string
+  sportLabel: string
+  marketTitle: string
+  playerName: string | null
+  propType: string | null
+  propLine: number | null
+  eventDate?: string
+  ticker?: string
+  slug?: string
+  sides: PropOrderbookSide[]
+  sharpLiquiditySide: 'Over' | 'Under' | null
+  sharpLiquidityNotional: number | null
+  sharpLeanSide: 'Over' | 'Under' | null
+  sharpLeanAmericanOdds: number | null
+  updatedAt: string
+}
+
+const MAX_FAVORITE_ODDS = -200
+
+const priceCentsToAmericanOdds = (priceCents: number | null) => {
+  if (priceCents == null) return null
+  const probability = priceCents / 100
+  if (!Number.isFinite(probability) || probability <= 0 || probability >= 1) return null
+  return probabilityToAmericanOdds(probability)
 }
 
 type KalshiOrderSummary = {
@@ -257,26 +356,18 @@ const resolvePropType = (text: string, sportKey: string) => {
   return null
 }
 
-const resolvePropSide = (text: string, rawText?: string | null, tradeSide?: string | null) => {
-  if (text.includes(' over ')) return 'Over'
-  if (text.includes(' under ')) return 'Under'
-  if (text.endsWith(' over')) return 'Over'
-  if (text.endsWith(' under')) return 'Under'
-  if (rawText && /\d+\+/.test(rawText) && tradeSide) {
-    return tradeSide.toLowerCase() === 'yes' ? 'Over' : 'Under'
-  }
-  return null
-}
+const resolvePropSide = (text: string, rawText?: string | null, tradeSide?: string | null) =>
+  resolveOverUnderSide(text, rawText, tradeSide)
 
 const resolvePropLine = (text: string, propType: string | null, rawText?: string | null) => {
   if (!propType) return null
-  const overUnderMatch = text.match(/(?:over|under)\s+(\d+(?:\.\d+)?)/)
+  const searchText = rawText?.toLowerCase() ?? text
+  const overUnderMatch = searchText.match(/\b(?:over|under)\s+(-?\d+(?:\.\d+)?)/)
   if (overUnderMatch) {
     const value = Number(overUnderMatch[1])
     return Number.isFinite(value) ? value : null
   }
   const propPattern = propType.replace('_', ' ')
-  const searchText = rawText?.toLowerCase() ?? text
   const beforeMatch = searchText.match(
     new RegExp(`(\\d+(?:\\.\\d+)?)\\+?\\s+${propPattern}`)
   )
@@ -284,7 +375,7 @@ const resolvePropLine = (text: string, propType: string | null, rawText?: string
     const value = Number(beforeMatch[1])
     return Number.isFinite(value) ? value : null
   }
-  const afterMatch = text.match(
+  const afterMatch = searchText.match(
     new RegExp(`${propPattern}[^\\d]{0,6}(\\d+(?:\\.\\d+)?)`)
   )
   if (afterMatch) {
@@ -515,7 +606,19 @@ const resolvePolymarketSport = (market: PolymarketMarket) => {
   const event = market.events?.[0]
   const seriesSlug = event?.seriesSlug || event?.series?.[0]?.slug || null
   if (!seriesSlug) return null
-  return POLYMARKET_SERIES_TO_SPORT_KEY[seriesSlug] ?? null
+
+  const exact = POLYMARKET_SERIES_TO_SPORT_KEY[seriesSlug]
+  if (exact) return exact
+
+  // Polymarket sports series slugs often include seasons, e.g. "nba-2026".
+  // We treat any slug prefixed by a known series key as the same sport.
+  for (const key of Object.keys(POLYMARKET_SERIES_TO_SPORT_KEY)) {
+    if (seriesSlug === key || seriesSlug.startsWith(`${key}-`)) {
+      return POLYMARKET_SERIES_TO_SPORT_KEY[key]
+    }
+  }
+
+  return null
 }
 
 const fetchPolymarketOrderbook = async (tokenId: string): Promise<PolymarketOrderbook | null> => {
@@ -525,6 +628,96 @@ const fetchPolymarketOrderbook = async (tokenId: string): Promise<PolymarketOrde
   if (!res.ok) return null
   const data = (await res.json()) as PolymarketOrderbook
   return data
+}
+
+const fetchPolymarketSeriesIndex = async () => {
+  const results: PolymarketSeries[] = []
+  for (let page = 0; page < MAX_POLYMARKET_SERIES_PAGES; page += 1) {
+    const url = new URL(`${POLYMARKET_BASE}/series`)
+    url.searchParams.set('active', 'true')
+    url.searchParams.set('closed', 'false')
+    url.searchParams.set('limit', String(POLYMARKET_SERIES_PAGE_LIMIT))
+    url.searchParams.set('offset', String(page * POLYMARKET_SERIES_PAGE_LIMIT))
+    const res = await fetch(url.toString(), { cache: 'no-store' })
+    if (!res.ok) break
+    const batch = (await res.json()) as PolymarketSeries[]
+    if (!Array.isArray(batch) || batch.length === 0) break
+    results.push(...batch)
+    if (batch.length < POLYMARKET_SERIES_PAGE_LIMIT) break
+  }
+  return results
+}
+
+const resolveBestPolymarketSeries = (
+  series: PolymarketSeries[],
+  baseSlug: string
+) => {
+  const normalized = baseSlug.toLowerCase()
+  const candidates = series.filter((entry) => {
+    const slug = String(entry.slug || entry.ticker || '').toLowerCase()
+    return slug === normalized || slug.startsWith(`${normalized}-`)
+  })
+
+  if (candidates.length === 0) return null
+
+  const parseYear = (slug: string) => {
+    const match = slug.match(/-(\d{4})$/)
+    if (!match) return null
+    const year = Number(match[1])
+    return Number.isFinite(year) ? year : null
+  }
+
+  const withYear = candidates
+    .map((entry) => {
+      const slug = String(entry.slug || entry.ticker || '')
+      return { entry, year: parseYear(slug) }
+    })
+    .filter((item) => item.year != null)
+    .sort((a, b) => (b.year ?? 0) - (a.year ?? 0))
+
+  return withYear[0]?.entry ?? candidates[0]
+}
+
+const resolvePolymarketSportsMarketTypes = (sportKey: string | 'all') => {
+  if (sportKey === 'all') {
+    return ['points', 'assists', 'rebounds']
+  }
+
+  if (sportKey === 'basketball_nba' || sportKey === 'basketball_ncaab') {
+    return ['points', 'assists', 'rebounds']
+  }
+
+  return []
+}
+
+const fetchPolymarketSeriesDetail = async (id: string) => {
+  const res = await fetch(`${POLYMARKET_BASE}/series/${id}`, { cache: 'no-store' })
+  if (!res.ok) return null
+  const data = (await res.json()) as PolymarketSeriesDetail
+  return data
+}
+
+const fetchPolymarketEventDetail = async (id: string) => {
+  const res = await fetch(`${POLYMARKET_BASE}/events/${id}`, { cache: 'no-store' })
+  if (!res.ok) return null
+  const data = (await res.json()) as PolymarketEventDetail
+  return data
+}
+
+const isPlayerPropQuestion = (question: string) => {
+  const trimmed = question.trim()
+  if (!trimmed.includes(':')) return false
+  if (/^(spread|total|moneyline|1h\s+spread|1h\s+o\/?u|o\/?u)\s*:/i.test(trimmed)) {
+    return false
+  }
+  // Likely "Player Name: Stat Over X".
+  return /^[A-Za-z][A-Za-z'.-]+(?:\s+[A-Za-z][A-Za-z'.-]+){0,2}\s*:\s*/.test(trimmed)
+}
+
+const resolveSportMetaFromSeriesSlug = (seriesSlug: string | null) => {
+  if (!seriesSlug) return null
+  const base = seriesSlug.split('-')[0]
+  return POLYMARKET_SERIES_TO_SPORT_KEY[base] ?? null
 }
 
 const parsePolymarketOrders = (book: PolymarketOrderbook): KalshiOrderSummary[] => {
@@ -539,6 +732,402 @@ const parsePolymarketOrders = (book: PolymarketOrderbook): KalshiOrderSummary[] 
     orders.push({ notional, priceCents: Math.round(price * 100) })
   }
   return orders
+}
+
+const parsePolymarketLevels = (book: PolymarketOrderbook): PropOrderbookLevel[] => {
+  const levels: PropOrderbookLevel[] = []
+
+  const ingest = (entries: Array<{ price: string; size: string }> | undefined) => {
+    if (!Array.isArray(entries)) return
+    for (const level of entries) {
+      const price = Number(level.price)
+      const size = Number(level.size)
+      if (!Number.isFinite(price) || !Number.isFinite(size)) continue
+      const notional = price * size
+      if (!Number.isFinite(notional) || notional <= 0) continue
+      const rawCents = Math.round(price * 100)
+      // Clamp to (0, 100) so we can always compute American odds + complements.
+      const priceCents = Math.max(1, Math.min(99, rawCents))
+      levels.push({ priceCents, notional })
+    }
+  }
+
+  // For Polymarket, "available liquidity" for a user to take is typically on the ask side
+  // (resting sell orders). This aligns with our heuristic: if there's liquidity on a side
+  // at price P, it implies sharper conviction on the opposite side at (100 - P).
+  ingest(book.asks)
+  if (levels.length === 0) ingest(book.bids)
+
+  return levels
+}
+
+const parseKalshiLevels = (levels: number[][]): PropOrderbookLevel[] => {
+  const parsed: PropOrderbookLevel[] = []
+  for (const level of levels) {
+    const priceRaw = Number(level?.[0])
+    const size = Number(level?.[1])
+    if (!Number.isFinite(priceRaw) || !Number.isFinite(size)) continue
+    const priceCents = normalizePriceCents(priceRaw)
+    const notional = (priceCents / 100) * size
+    if (!Number.isFinite(notional) || notional <= 0) continue
+    parsed.push({ priceCents, notional })
+  }
+  return parsed
+}
+
+const summarizeSide = (
+  outcome: string,
+  propSide: 'Over' | 'Under' | null,
+  platformSide: 'yes' | 'no' | null,
+  levels: PropOrderbookLevel[],
+  minSharpNotional: number,
+  depth: number
+): PropOrderbookSide => {
+  const byNotional = [...levels].sort((a, b) => b.notional - a.notional)
+  const trimmed = byNotional.slice(0, depth)
+  const totalNotional = levels.reduce((sum, level) => sum + level.notional, 0)
+  const wall = trimmed[0] ?? null
+  const wallPriceCents = wall?.priceCents ?? null
+  const wallNotional = wall?.notional ?? null
+  const wallAmericanOdds = priceCentsToAmericanOdds(wallPriceCents)
+
+  const sharpLinePriceCents =
+    wallPriceCents != null ? Math.max(0, Math.min(100, 100 - wallPriceCents)) : null
+  const sharpLineAmericanOdds = priceCentsToAmericanOdds(sharpLinePriceCents)
+
+  return {
+    outcome,
+    propSide,
+    platformSide,
+    levels: trimmed,
+    totalNotional,
+    wallPriceCents,
+    wallNotional,
+    wallAmericanOdds,
+    sharpLinePriceCents,
+    sharpLineAmericanOdds,
+  }
+}
+
+const resolveSharpLean = (
+  sides: PropOrderbookSide[],
+  minSharpNotional: number
+): {
+  sharpLiquiditySide: 'Over' | 'Under' | null
+  sharpLiquidityNotional: number | null
+  sharpLeanSide: 'Over' | 'Under' | null
+  sharpLeanAmericanOdds: number | null
+} => {
+  const eligible = sides
+    .filter((side) => side.propSide && (side.wallNotional ?? 0) > 0)
+    .filter((side) => (side.wallNotional ?? 0) >= minSharpNotional)
+
+  if (!eligible.length) {
+    return {
+      sharpLiquiditySide: null,
+      sharpLiquidityNotional: null,
+      sharpLeanSide: null,
+      sharpLeanAmericanOdds: null,
+    }
+  }
+
+  const best = eligible.sort((a, b) => (b.wallNotional ?? 0) - (a.wallNotional ?? 0))[0]
+  const sharpLiquiditySide = best.propSide as 'Over' | 'Under'
+  const sharpLiquidityNotional = best.wallNotional ?? null
+
+  // OddsJam crossed-market logic: the side showing the wall liquidity is a "trap".
+  // The sharp line is the opposite side at (100 - price).
+  const sharpLeanSide: 'Over' | 'Under' =
+    sharpLiquiditySide === 'Over' ? 'Under' : 'Over'
+  const sharpLeanAmericanOdds = best.sharpLineAmericanOdds ?? null
+
+  return {
+    sharpLiquiditySide,
+    sharpLiquidityNotional,
+    sharpLeanSide,
+    sharpLeanAmericanOdds,
+  }
+}
+
+let cachedOrderbooks: {
+  fetchedAt: number
+  items: PropOrderbookItem[]
+} | null = null
+
+export const fetchPropOrderbooksSnapshot = async (opts?: {
+  sportKey?: string | 'all'
+  limit?: number
+  depth?: number
+  minSharpNotional?: number
+}) => {
+  const now = Date.now()
+  const sportFilter = opts?.sportKey ?? 'all'
+  const limit = opts?.limit ?? 60
+  const depth = opts?.depth ?? 8
+  const minSharpNotional = opts?.minSharpNotional ?? 1000
+
+  if (cachedOrderbooks && now - cachedOrderbooks.fetchedAt < CACHE_TTL_MS) {
+    const filtered =
+      sportFilter === 'all'
+        ? cachedOrderbooks.items
+        : cachedOrderbooks.items.filter((item) => item.sportKey === sportFilter)
+    return {
+      updatedAt: new Date(cachedOrderbooks.fetchedAt).toISOString(),
+      items: filtered.slice(0, limit),
+    }
+  }
+
+  const today = new Date().toISOString().slice(0, 10)
+  const updatedAt = new Date().toISOString()
+
+  const kalshiItems: PropOrderbookItem[] = []
+  const polymarketItems: PropOrderbookItem[] = []
+
+  const interleave = (
+    a: PropOrderbookItem[],
+    b: PropOrderbookItem[],
+    max: number
+  ) => {
+    const result: PropOrderbookItem[] = []
+    let i = 0
+    let j = 0
+    while (result.length < max && (i < a.length || j < b.length)) {
+      if (i < a.length) result.push(a[i++])
+      if (result.length >= max) break
+      if (j < b.length) result.push(b[j++])
+    }
+    return result
+  }
+
+  // Kalshi props
+  for (const series of KALSHI_PROP_SERIES) {
+    if (sportFilter !== 'all' && series.sportKey !== sportFilter) continue
+    const markets = await fetchKalshiPropMarkets(series.ticker)
+    const upcoming = markets.filter((market) => {
+      const eventDate = parseKalshiDate(market.ticker)
+      if (!eventDate || eventDate < today) return false
+      return true
+    })
+
+    for (const market of upcoming) {
+      if (kalshiItems.length >= limit) break
+      const url = new URL(`${KALSHI_BASE}/markets/${market.ticker}/orderbook`)
+      url.searchParams.set('depth', String(Math.max(depth, 8)))
+      const res = await fetch(url.toString(), { cache: 'no-store' })
+      if (!res.ok) continue
+      const data = (await res.json()) as { orderbook?: { yes?: number[][]; no?: number[][] } }
+      const yesRaw = Array.isArray(data.orderbook?.yes) ? data.orderbook?.yes ?? [] : []
+      const noRaw = Array.isArray(data.orderbook?.no) ? data.orderbook?.no ?? [] : []
+
+      const marketDetails = await fetchKalshiMarketDetails(market.ticker)
+      const rawYesLabel = marketDetails?.yes_sub_title || market.yes_sub_title || 'Yes'
+      const rawNoLabel = marketDetails?.no_sub_title || market.no_sub_title || 'No'
+
+      const rawText = `${market.title ?? ''}`.trim()
+      const normalizedText = normalizeText(`${rawText} ${rawYesLabel} ${rawNoLabel}`.trim())
+      const playerName =
+        parsePlayerNameFromKalshiTitle(market.title) ||
+        (rawText ? extractPlayerNameFromText(rawText) : null)
+      const propType = series.propType
+      const propLine = parseLineFromTicker(market.ticker)
+      if (!playerName || !propType) continue
+
+      const yesLevels = parseKalshiLevels(yesRaw)
+      const noLevels = parseKalshiLevels(noRaw)
+
+      const yesPropSide = resolvePropSide(normalizedText, rawText, 'yes')
+      const noPropSide = resolvePropSide(normalizedText, rawText, 'no')
+
+      const sides: PropOrderbookSide[] = [
+        summarizeSide(
+          rawYesLabel,
+          yesPropSide,
+          'yes',
+          yesLevels,
+          minSharpNotional,
+          depth
+        ),
+        summarizeSide(
+          rawNoLabel,
+          noPropSide,
+          'no',
+          noLevels,
+          minSharpNotional,
+          depth
+        ),
+      ]
+
+      const sharpLean = resolveSharpLean(sides, minSharpNotional)
+      if (
+        sharpLean.sharpLeanAmericanOdds != null &&
+        sharpLean.sharpLeanAmericanOdds < MAX_FAVORITE_ODDS
+      ) {
+        continue
+      }
+
+      kalshiItems.push({
+        id: `kalshi:${market.ticker}`,
+        source: 'kalshi',
+        sportKey: series.sportKey,
+        sportLabel: series.sportLabel,
+        marketTitle: market.title ?? market.ticker,
+        playerName,
+        propType,
+        propLine,
+        eventDate: parseKalshiDate(market.ticker) ?? undefined,
+        ticker: market.ticker,
+        sides,
+        ...sharpLean,
+        updatedAt,
+      })
+    }
+  }
+
+  // Polymarket props
+  {
+    const pageLimit = 250
+    const sportsMarketTypes = resolvePolymarketSportsMarketTypes(sportFilter)
+    // When we can use sports_market_types, Polymarket returns mostly props and we
+    // don't need deep pagination. Otherwise, we still scan deeper but cap expensive
+    // CLOB orderbook fetches via MAX_POLYMARKET_ORDERBOOKS.
+    const maxPages = sportsMarketTypes.length ? 6 : 20
+    let orderbookFetches = 0
+
+    for (let page = 0; page < maxPages; page += 1) {
+      if (polymarketItems.length >= limit) break
+      if (orderbookFetches >= MAX_POLYMARKET_ORDERBOOKS) break
+
+      const url = new URL(`${POLYMARKET_BASE}/markets`)
+      url.searchParams.set('tag_id', POLYMARKET_GAMES_TAG_ID)
+      url.searchParams.set('active', 'true')
+      url.searchParams.set('closed', 'false')
+      url.searchParams.set('limit', String(pageLimit))
+      url.searchParams.set('offset', String(page * pageLimit))
+      for (const marketType of sportsMarketTypes) {
+        url.searchParams.append('sports_market_types', marketType)
+      }
+
+      const res = await fetch(url.toString(), { cache: 'no-store' })
+      if (!res.ok) break
+      const batch = (await res.json()) as PolymarketMarket[]
+      if (!Array.isArray(batch) || batch.length === 0) break
+
+      for (const market of batch) {
+        if (polymarketItems.length >= limit) break
+        if (orderbookFetches >= MAX_POLYMARKET_ORDERBOOKS) break
+        if (!market?.active || market.closed) continue
+
+        const sportMeta = resolvePolymarketSport(market)
+        if (!sportMeta) continue
+        if (sportFilter !== 'all' && sportMeta.sportKey !== sportFilter) continue
+
+        const question = market.question || market.title
+        if (!question) continue
+        const rawText = question.trim()
+        if (!isPlayerPropQuestion(rawText)) continue
+
+        const normalizedText = normalizeText(rawText)
+        const propType =
+          market.sportsMarketType || resolvePropType(normalizedText, sportMeta.sportKey)
+        if (!propType) continue
+
+        const outcomes = parseJsonArray<string>(market.outcomes)
+        const tokenIds = parseJsonArray<string>(market.clobTokenIds)
+        if (outcomes.length < 2 || tokenIds.length < 2) continue
+
+        orderbookFetches += 1
+
+        const [book0, book1] = await Promise.all([
+          fetchPolymarketOrderbook(tokenIds[0]),
+          fetchPolymarketOrderbook(tokenIds[1]),
+        ])
+        if (!book0 || !book1) continue
+
+        const levels0 = parsePolymarketLevels(book0)
+        const levels1 = parsePolymarketLevels(book1)
+        if (levels0.length === 0 && levels1.length === 0) continue
+
+        const outcome0 = outcomes[0] ?? ''
+        const outcome1 = outcomes[1] ?? ''
+        const side0 =
+          outcome0.toLowerCase().trim() === 'yes'
+            ? 'yes'
+            : outcome0.toLowerCase().trim() === 'no'
+              ? 'no'
+              : null
+        const side1 =
+          outcome1.toLowerCase().trim() === 'yes'
+            ? 'yes'
+            : outcome1.toLowerCase().trim() === 'no'
+              ? 'no'
+              : null
+
+        const propSide0 = resolvePropSide(normalizedText, rawText, side0)
+        const propSide1 = resolvePropSide(normalizedText, rawText, side1)
+
+        const playerName = extractPlayerNameFromText(rawText)
+        const propLine =
+          typeof market.line === 'number' && Number.isFinite(market.line)
+            ? market.line
+            : resolvePropLine(normalizedText, propType, rawText)
+        if (!playerName || propLine == null) continue
+
+        const sides: PropOrderbookSide[] = [
+          summarizeSide(
+            outcome0,
+            propSide0,
+            side0,
+            levels0,
+            minSharpNotional,
+            depth
+          ),
+          summarizeSide(
+            outcome1,
+            propSide1,
+            side1,
+            levels1,
+            minSharpNotional,
+            depth
+          ),
+        ]
+
+        const sharpLean = resolveSharpLean(sides, minSharpNotional)
+        if (
+          sharpLean.sharpLeanAmericanOdds != null &&
+          sharpLean.sharpLeanAmericanOdds < MAX_FAVORITE_ODDS
+        ) {
+          continue
+        }
+
+        polymarketItems.push({
+          id: `polymarket:${market.id}`,
+          source: 'polymarket',
+          sportKey: sportMeta.sportKey,
+          sportLabel: sportMeta.sportLabel,
+          marketTitle: rawText,
+          playerName,
+          propType,
+          propLine,
+          eventDate: resolvePolymarketEventDate(market) ?? undefined,
+          slug: market.slug ?? market.id,
+          sides,
+          ...sharpLean,
+          updatedAt,
+        })
+      }
+
+      if (batch.length < pageLimit) break
+    }
+  }
+
+  const combined = interleave(kalshiItems, polymarketItems, limit)
+
+  cachedOrderbooks = { fetchedAt: now, items: combined }
+
+  return {
+    updatedAt,
+    items: combined,
+  }
 }
 
 const calculateImpliedProbability = (odds: number) => {
@@ -794,9 +1383,7 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
   const league = resolveSbdLeague(sportKey)
   if (!league) return new Map<string, SportsbookPropLine[]>()
 
-  const data = await fetchSbdGamePropsList(league, {
-    init: { next: { revalidate: 60 } },
-  })
+  const data = await fetchSbdGamePropsList(league)
   const result = new Map<string, SportsbookPropLine[]>()
 
   if (!Array.isArray(data)) {

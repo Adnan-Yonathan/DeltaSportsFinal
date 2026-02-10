@@ -2,7 +2,7 @@ import ToolsNav from "@/components/tools-nav"
 import SportSelector from "../market-projections/sport-selector"
 import { createClient } from "@/lib/supabase/server"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
-import CrossedEvClient from "./crossed-ev-client"
+import SharpPropsHub from "./sharp-props-hub"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -53,7 +53,7 @@ export default async function CrossedEvPage({
       </div>
       <div className="pt-[96px] sm:pt-[112px] px-2 sm:px-4">
         <div className="mx-auto w-full max-w-none space-y-4 py-4">
-          <CrossedEvClient sport={sport} previewMode={previewMode} />
+          <SharpPropsHub sport={sport} previewMode={previewMode} />
         </div>
       </div>
     </div>

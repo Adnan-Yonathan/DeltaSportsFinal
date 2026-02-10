@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef } from 'react'
 type OddsMatrixSurfaceProps = {
   className?: string
   intensity?: number
+  tone?: 'emerald' | 'amber'
 }
 
 function clamp(n: number, min: number, max: number) {
@@ -48,6 +49,7 @@ type Blip = {
 export function OddsMatrixSurface({
   className = '',
   intensity = 0.62,
+  tone = 'emerald',
 }: OddsMatrixSurfaceProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const blipsRef = useRef<Blip[]>([])
@@ -203,9 +205,15 @@ export function OddsMatrixSurface({
       for (const b of blips) {
         const alpha = b.a * 0.95
         if (alpha <= 0) continue
-        if (b.color === 'g') ctx.fillStyle = `rgba(52,211,153,${alpha})`
-        else if (b.color === 'c') ctx.fillStyle = `rgba(56,189,248,${alpha * 0.95})`
-        else ctx.fillStyle = `rgba(255,255,255,${alpha * 0.72})`
+        if (tone === 'amber') {
+          if (b.color === 'g') ctx.fillStyle = `rgba(251,191,36,${alpha})`
+          else if (b.color === 'c') ctx.fillStyle = `rgba(245,158,11,${alpha * 0.95})`
+          else ctx.fillStyle = `rgba(255,255,255,${alpha * 0.72})`
+        } else {
+          if (b.color === 'g') ctx.fillStyle = `rgba(52,211,153,${alpha})`
+          else if (b.color === 'c') ctx.fillStyle = `rgba(56,189,248,${alpha * 0.95})`
+          else ctx.fillStyle = `rgba(255,255,255,${alpha * 0.72})`
+        }
         ctx.fillText(b.text, b.x, b.y)
       }
 
@@ -218,7 +226,7 @@ export function OddsMatrixSurface({
       window.removeEventListener('resize', resize)
       cancelAnimationFrame(rafRef.current)
     }
-  }, [intensity, strings])
+  }, [intensity, strings, tone])
 
   return (
     <div

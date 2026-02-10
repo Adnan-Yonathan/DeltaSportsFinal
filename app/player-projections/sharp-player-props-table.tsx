@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useCallback, useRef } from "react"
-import { formatAmericanOdds } from "@/lib/utils/odds"
+import { formatAmericanOdds as formatAmericanOddsLabel } from "@/lib/utils/odds"
 import { cn } from "@/lib/utils"
 import TutorialPopup from "@/components/TutorialPopup"
 import SharePropButton from "@/components/SharePropButton"
@@ -53,7 +53,7 @@ type FilterState = {
   propType: string
 }
 
-type FeedTab = "sharp" | "ev"
+type FeedTab = "sharp" | "ev" | "orderbooks"
 
 type EVOpportunity = {
   game: string
@@ -73,6 +73,44 @@ type EVOpportunity = {
   edgePercent: number
   allBooks: Array<{ bookmaker: string; odds: number; point?: number }>
   commenceTime: string
+}
+
+type OrderbookLevel = {
+  priceCents: number
+  notional: number
+}
+
+type OrderbookSide = {
+  outcome: string
+  propSide: "Over" | "Under" | null
+  platformSide: "yes" | "no" | null
+  levels: OrderbookLevel[]
+  totalNotional: number
+  wallPriceCents: number | null
+  wallNotional: number | null
+  wallAmericanOdds: number | null
+  sharpLinePriceCents: number | null
+  sharpLineAmericanOdds: number | null
+}
+
+type OrderbookItem = {
+  id: string
+  source: "kalshi" | "polymarket"
+  sportKey: string
+  sportLabel: string
+  marketTitle: string
+  playerName: string | null
+  propType: string | null
+  propLine: number | null
+  eventDate?: string
+  ticker?: string
+  slug?: string
+  sharpLiquiditySide: "Over" | "Under" | null
+  sharpLiquidityNotional: number | null
+  sharpLeanSide: "Over" | "Under" | null
+  sharpLeanAmericanOdds: number | null
+  updatedAt: string
+  sides: OrderbookSide[]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -154,6 +192,11 @@ const EV_MIN_EDGE = 3
 const formatCurrency = (value?: number | null) => {
   if (value == null || !Number.isFinite(value)) return "-"
   return `$${Math.round(value).toLocaleString("en-US")}`
+}
+
+const formatAmericanOdds = (value?: number | null) => {
+  if (value == null || !Number.isFinite(value)) return "-"
+  return formatAmericanOddsLabel(value) ?? "-"
 }
 
 const formatNumber = (value?: number | null, decimals = 1) => {
@@ -533,7 +576,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
     minComposite: 0,
     propType: "All",
   })
-  const [activeTab, setActiveTab] = useState<FeedTab>("sharp")
+  const [activeTab, setActiveTab] = useState<FeedTab>("orderbooks")
   const lastLoadedRef = useRef<number>(0)
 
   // EV Props state (from cross-market EV endpoint)
@@ -541,6 +584,11 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
   const [evLoading, setEvLoading] = useState(false)
   const [evError, setEvError] = useState<string | null>(null)
   const evLoadedRef = useRef<boolean>(false)
+
+  const [orderbooks, setOrderbooks] = useState<OrderbookItem[]>([])
+  const [orderbooksLoading, setOrderbooksLoading] = useState(false)
+  const [orderbooksError, setOrderbooksError] = useState<string | null>(null)
+  const orderbooksLoadedRef = useRef<boolean>(false)
 
   const loadData = useCallback(
     async (isManual = false) => {
@@ -622,6 +670,39 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
     }
   }, [sport])
 
+  const loadOrderbooks = useCallback(async () => {
+    if (orderbooksLoadedRef.current) return
+    setOrderbooksLoading(true)
+    setOrderbooksError(null)
+
+    try {
+      const params = new URLSearchParams({
+        sport,
+        limit: "80",
+        depth: "8",
+        minSharpNotional: "1000",
+      })
+
+      const res = await fetch(`/api/prop-orderbooks?${params.toString()}`, {
+        cache: "no-store",
+      })
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}))
+        throw new Error(payload?.error || "Failed to load order books.")
+      }
+
+      const json = await res.json()
+      setOrderbooks(Array.isArray(json?.items) ? json.items : [])
+      orderbooksLoadedRef.current = true
+    } catch (err: any) {
+      setOrderbooksError(err.message ?? "Failed to load order books.")
+      setOrderbooks([])
+    } finally {
+      setOrderbooksLoading(false)
+    }
+  }, [sport])
+
   // Keep ref to latest loadData
   const loadDataRef = useRef(loadData)
   useEffect(() => {
@@ -638,7 +719,10 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
     if (activeTab === "ev" && !evLoadedRef.current) {
       loadEVData()
     }
-  }, [activeTab, loadEVData])
+    if (activeTab === "orderbooks" && !orderbooksLoadedRef.current) {
+      loadOrderbooks()
+    }
+  }, [activeTab, loadEVData, loadOrderbooks])
 
   // Auto-refresh
   useEffect(() => {
@@ -672,6 +756,9 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
     setEvData([])
     setEvError(null)
     evLoadedRef.current = false
+    setOrderbooks([])
+    setOrderbooksError(null)
+    orderbooksLoadedRef.current = false
   }, [sport])
 
   const handleManualRefresh = useCallback(() => {
@@ -736,6 +823,18 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
               )}
             >
               EV Props
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("orderbooks")}
+              className={cn(
+                "px-8 py-3 text-base font-semibold rounded-xl transition-all min-w-[160px]",
+                activeTab === "orderbooks"
+                  ? "bg-emerald-500/20 text-emerald-400 shadow-sm"
+                  : "text-white/50 hover:text-white/70 hover:bg-white/5"
+              )}
+            >
+              Order Books
             </button>
           </div>
           <div className="w-[120px]" />
@@ -842,8 +941,10 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
                     <span className="text-white/20">|</span>
                     <span>{visibleProps.length} props</span>
                   </>
-                ) : (
+                ) : activeTab === "ev" ? (
                   <span>{evData.length} +EV props</span>
+                ) : (
+                  <span>{orderbooks.length} order books</span>
                 )}
               </div>
             </div>
@@ -880,7 +981,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
                 ))}
               </div>
             )
-          ) : (
+          ) : activeTab === "ev" ? (
             // EV Props Tab Content
             evLoading ? (
               <div className="px-4 py-8 text-sm text-white/60">Loading EV props...</div>
@@ -969,6 +1070,85 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
                       <div className="text-center text-xs text-white/50">
                         {opp.allBooks.length} books
                       </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : (
+            // Order Books Tab Content
+            orderbooksLoading ? (
+              <div className="px-4 py-8 text-sm text-white/60">Loading order books...</div>
+            ) : orderbooksError ? (
+              <div className="px-4 py-8 text-sm text-red-200">{orderbooksError}</div>
+            ) : orderbooks.length === 0 ? (
+              <div className="px-4 py-8 text-sm text-white/60">No order books available.</div>
+            ) : (
+              <div className="divide-y divide-white/5">
+                <div className="px-4 py-3 text-[11px] uppercase tracking-[0.2em] text-white/40">
+                  Largest resting liquidity wall. Sharp lean uses complement pricing.
+                </div>
+
+                {orderbooks.map((item) => (
+                  <div key={item.id} className="px-4 py-4 hover:bg-white/5 transition-colors">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-white">
+                          {item.playerName ?? "Unknown"}{" "}
+                          <span className="text-white/50 font-normal">
+                            {item.propType?.replace(/_/g, " ")}
+                            {item.propLine != null ? ` ${item.propLine}` : ""}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-white/50">
+                          {item.source.toUpperCase()} • {item.marketTitle}
+                        </div>
+                      </div>
+
+                      {item.sharpLeanSide && (
+                        <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200">
+                          Sharp leaning {item.sharpLeanSide} ({formatAmericanOdds(item.sharpLeanAmericanOdds)})
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {item.sides.map((side) => {
+                        return (
+                          <div
+                            key={`${item.id}-${side.outcome}`}
+                            className="rounded-2xl border border-white/10 bg-black/30 p-3"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="text-xs font-semibold text-white">
+                                {side.propSide ?? side.outcome}
+                              </div>
+                              <div className="text-[11px] text-white/50">
+                                Wall: {formatAmericanOdds(side.wallAmericanOdds)}
+                              </div>
+                            </div>
+
+                            <div className="mt-3 grid grid-cols-2 gap-3 text-[12px]">
+                              <div>
+                                <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+                                  Wall Size
+                                </div>
+                                <div className="mt-1 font-semibold text-white">
+                                  {formatCurrency(side.wallNotional)}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+                                  Sharp Line
+                                </div>
+                                <div className="mt-1 font-semibold text-white">
+                                  {formatAmericanOdds(side.sharpLineAmericanOdds)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 ))}

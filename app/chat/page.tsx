@@ -431,56 +431,13 @@ function ChatPageContent() {
     .toUpperCase()
   const canUseSharpDetector = Boolean(user)
   const isSyndicate = membership?.tier === 'syndicate'
-  const projectionsTabs = [
-    {
-      key: 'market-projections',
-      label: 'Sharp Projections',
-      shortLabel: 'Markets',
-      href: '/market-projections',
-      description: 'AI-powered spread, total, and moneyline projections with edge detection',
-    },
-    {
-      key: 'crossed-ev',
-      label: 'Sharp Props',
-      shortLabel: 'Props',
-      href: '/crossed-ev',
-      description: 'Crossed player prop lines ranked by EV vs market consensus',
-    },
-    {
-      key: 'sharp-traders',
-      label: 'Sharp Traders',
-      shortLabel: 'Traders',
-      href: '/sharp-traders',
-      description: 'Track top profit Polymarket wallets and open sports trades',
-    },
-  ]
-
-  const researchTabs = [
-    {
-      key: 'sharp-action',
-      label: 'Sharp Action',
-      shortLabel: 'Action',
-      href: '/research/sharp-action',
-      description: 'Narrative explanations for why sharps are targeting specific games',
-    },
-    {
-      key: 'betting-trends',
-      label: 'Betting Trends',
-      shortLabel: 'Trends',
-      href: '/research/betting-trends',
-      description: 'ATS records and historical trends for today\'s games',
-    },
-    {
-      key: 'backtesting',
-      label: 'Backtesting',
-      shortLabel: 'Backtest',
-      href: '/research/backtesting',
-      description: 'Simulate betting strategies with historical odds data',
-    },
-  ]
-
-  const baseChatTabs = deltaMode === 'research' ? researchTabs : projectionsTabs
-  const chatTabs = baseChatTabs
+  const chatTabs = [] as {
+    key: string
+    label: string
+    shortLabel: string
+    href: string
+    description?: string
+  }[]
   const membershipLabel = membership?.tier
     ? ({ free: 'Free', sharp: 'Sharp', syndicate: 'Syndicate' } as const)[membership.tier] || 'Free'
     : 'Free'
@@ -574,23 +531,6 @@ function ChatPageContent() {
 
   const headerActions = (
       <div className="flex items-center gap-1.5 lg:border-l lg:border-white/10 lg:pl-2">
-        <Link
-          href="/pricing"
-          prefetch={false}
-          className="pointer-events-auto px-2 py-1 text-[#34d399] hover:text-[#16a34a] transition-colors"
-          aria-label="View pricing"
-        >
-          <span className="text-[10px] sm:text-xs font-semibold leading-none">Pricing</span>
-        </Link>
-        <button
-          onClick={() => router.push('/live-scores')}
-          className="inline-flex items-center gap-2 rounded-full border border-[#34d399]/60 px-4 py-2 text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
-        >
-          <Radio className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-          <span className="hidden sm:inline">Live</span>
-          <span className="sm:hidden">Live</span>
-        </button>
-
       {user && (
         <div className="relative hidden sm:block" ref={profileMenuRef}>
           <button
@@ -706,12 +646,24 @@ function ChatPageContent() {
     </div>
   )
 
+  const isResearch = deltaMode === 'research'
+
   if (loading) {
     return (
       <div className="relative flex items-center justify-center min-h-screen bg-black text-white">
-        <OddsMatrixSurface intensity={0.55} className="opacity-95" />
+        <OddsMatrixSurface
+          intensity={0.55}
+          className="opacity-95"
+          tone={isResearch ? 'amber' : 'emerald'}
+        />
         <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.14),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(56,189,248,0.10),transparent_50%)]" />
+          <div
+            className={
+              isResearch
+                ? 'absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.18),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(245,158,11,0.12),transparent_50%)]'
+                : 'absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.14),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(56,189,248,0.10),transparent_50%)]'
+            }
+          />
           <div className="insider-grid absolute inset-0 opacity-45" />
           <div className="insider-scanlines absolute inset-0 opacity-30" />
         </div>
@@ -723,7 +675,9 @@ function ChatPageContent() {
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-            className="w-16 h-16 rounded-full border-4 border-emerald-500 border-t-transparent"
+            className={`w-16 h-16 rounded-full border-4 border-t-transparent ${
+              isResearch ? 'border-amber-400' : 'border-emerald-500'
+            }`}
           />
           <p className="text-white/80 text-xl font-medium">Loading DELTA...</p>
         </motion.div>
@@ -733,9 +687,19 @@ function ChatPageContent() {
 
   return (
     <div className="relative flex min-h-screen flex-col bg-black text-white overflow-hidden">
-      <OddsMatrixSurface intensity={0.55} className="opacity-95" />
+      <OddsMatrixSurface
+        intensity={0.55}
+        className="opacity-95"
+        tone={isResearch ? 'amber' : 'emerald'}
+      />
       <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.14),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(56,189,248,0.10),transparent_50%)]" />
+        <div
+          className={
+            isResearch
+              ? 'absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.18),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(245,158,11,0.12),transparent_50%)]'
+              : 'absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.14),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(56,189,248,0.10),transparent_50%)]'
+          }
+        />
         <div className="insider-grid absolute inset-0 opacity-45" />
         <div className="insider-scanlines absolute inset-0 opacity-30" />
       </div>
@@ -749,79 +713,9 @@ function ChatPageContent() {
           <ToolsNav hideMobileTop showMobileChatBack={false} />
         </div>
       )}
-      {user && showSharpToggle && (
-        <div className="sm:hidden fixed left-0 right-0 top-12 z-40 border-b border-emerald-400/30 bg-black/90 backdrop-blur">
-          <div className="flex items-center justify-between gap-3 px-3 py-2">
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
-                Whale Feed
-              </p>
-              <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
-                {canUseSharpDetector ? `${sharpTotalCount} sharps detected today` : 'Syndicate only'}
-              </p>
-            </div>
-            <div className="relative flex items-center gap-2">
-              {sharpUnreadCount > 0 && (
-                <span className="absolute -top-2 -right-2 flex h-4 w-4">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
-                  <span className="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400 text-[9px] font-semibold text-black">
-                    {sharpUnreadCount}
-                  </span>
-                </span>
-              )}
-              <ParticleButton
-                type="button"
-                disabled={!canUseSharpDetector}
-                onClick={openSharpDetector}
-                className="gap-2 rounded-full bg-emerald-400/20 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:bg-emerald-400/30 disabled:opacity-60 disabled:cursor-not-allowed"
-                title={
-                  canUseSharpDetector
-                    ? 'Open Whale Feed'
-                    : 'Syndicate required to access Whale Feed'
-                }
-              >
-                Open Sharps
-              </ParticleButton>
-            </div>
-          </div>
-        </div>
-      )}
-      {user && currentConversationId && (
-        <div className={`fixed left-0 right-0 top-12 sm:top-16 z-40 border-b ${deltaMode === 'research' ? 'border-amber-500/30' : 'border-emerald-500/30'} bg-gradient-to-b from-black via-black/95 to-black/90 backdrop-blur-xl shadow-lg ${deltaMode === 'research' ? 'shadow-amber-500/5' : 'shadow-emerald-500/5'}`}>
-          <div className={`hidden sm:grid w-full ${
-            chatTabs.length === 3
-              ? 'grid-cols-3'
-              : chatTabs.length === 5
-                ? 'grid-cols-5'
-                : 'grid-cols-4'
-          }`}>
-            {chatTabs.map((tab, index) => (
-              <Link
-                key={tab.label}
-                href={tab.href}
-                className={`group relative w-full px-1 py-3 text-center transition-all ${deltaMode === 'research' ? 'hover:bg-amber-500/15' : 'hover:bg-emerald-500/15'} sm:px-3 sm:py-4`}
-              >
-                <span className={`relative z-10 text-[10px] font-bold uppercase tracking-[0.15em] text-white/90 ${deltaMode === 'research' ? 'group-hover:text-amber-300' : 'group-hover:text-emerald-300'} sm:text-xs lg:text-sm`}>
-                  <span className="sm:hidden">{tab.shortLabel}</span>
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </span>
-                <span className={`absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent ${deltaMode === 'research' ? 'via-amber-400/50' : 'via-emerald-400/50'} to-transparent opacity-0 group-hover:opacity-100 transition-opacity`} />
-                {index < chatTabs.length - 1 && (
-                  <span className="absolute right-0 top-1/2 -translate-y-1/2 h-6 w-px bg-white/10" />
-                )}
-                {/* Desktop hover tooltip */}
-                {tab.description && (
-                  <span className={`pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-48 -translate-x-1/2 rounded-lg border ${deltaMode === 'research' ? 'border-amber-500/30' : 'border-emerald-500/30'} bg-black/95 px-3 py-2 text-[11px] font-normal normal-case tracking-normal text-white/80 shadow-xl backdrop-blur-xl lg:group-hover:block`}>
-                    {tab.description}
-                    <span className={`absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 border-l border-t ${deltaMode === 'research' ? 'border-amber-500/30' : 'border-emerald-500/30'} bg-black/95`} />
-                  </span>
-                )}
-              </Link>
-            ))}
-          </div>
-        </div>
-        )}
-        <div className="flex flex-1 min-h-0 relative overflow-hidden">
+      {/* Whale Feed is now accessible via Tools dropdown. */}
+      {/* Removed the secondary tool tab navbar; navigation now lives in the header dropdown. */}
+      <div className="flex flex-1 min-h-0 relative overflow-hidden">
           <AnimatePresence>
           {sidebarOpen && (
             <>
@@ -1112,71 +1006,7 @@ function ChatPageContent() {
           )}
         </AnimatePresence>
 
-      {user && showSharpToggle && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-emerald-400/30 bg-black/90 backdrop-blur">
-          <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 px-4 py-3">
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
-                Whale Feed
-              </p>
-              <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
-                {canUseSharpDetector ? `${sharpTotalCount} sharps detected today` : 'Syndicate only'}
-              </p>
-              <p className="text-[11px] text-white/60">
-                $2k+ trades with price in cents + American odds.
-              </p>
-            </div>
-            {canUseSharpDetector && latestSharpTrade && (
-              <div className="hidden md:block px-4">
-                <AnimatePresence mode="wait">
-                  <motion.p
-                    key={latestSharpTrade.id ?? latestSharpTrade.timestamp}
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 8 }}
-                    transition={{ type: 'spring', stiffness: 140, damping: 18 }}
-                    className="text-[11px] font-semibold uppercase tracking-[0.2em] text-center truncate bg-gradient-to-r from-emerald-300 via-emerald-200 to-emerald-300 bg-clip-text text-transparent"
-                  >
-                    Latest: {latestSharpTrade.marketTitle || 'Unknown market'} -{' '}
-                    {latestSharpTrade.outcome || 'Unknown outcome'}{' '}
-                    {formatTradeOdds(latestSharpTrade)} -{' '}
-                    {formatCurrency(latestSharpTrade.notional ?? 0)} -{' '}
-                    {formatTradeTimestamp(latestSharpTrade.timestamp)}
-                  </motion.p>
-                </AnimatePresence>
-              </div>
-            )}
-            <div className="relative flex items-center justify-end gap-3">
-              {!canUseSharpDetector && (
-                <span className="rounded-full border border-emerald-400/30 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
-                  Syndicate Only
-                </span>
-              )}
-              {sharpUnreadCount > 0 && (
-                <span className="absolute -top-2 -right-2 flex h-4 w-4">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
-                  <span className="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400 text-[9px] font-semibold text-black">
-                    {sharpUnreadCount}
-                  </span>
-                </span>
-              )}
-              <ParticleButton
-                type="button"
-                disabled={!canUseSharpDetector}
-                onClick={openSharpDetector}
-                className="gap-2 rounded-full bg-emerald-400/20 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:bg-emerald-400/30 disabled:opacity-60 disabled:cursor-not-allowed"
-                title={
-                  canUseSharpDetector
-                    ? 'Open Whale Feed'
-                    : 'Syndicate required to access Whale Feed'
-                }
-              >
-                Open Whale Feed
-              </ParticleButton>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Desktop Whale Feed panel removed (Tools dropdown now routes to Whale Feed). */}
 
       {/* Mobile Live Scores Modal */}
       <AnimatePresence>

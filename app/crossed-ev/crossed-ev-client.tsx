@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Search } from "lucide-react"
+import BoxLoader from "@/components/ui/box-loader"
 import { ServerManagementTable } from "@/components/ui/server-management-table"
 
 type CrossedRow = {
@@ -224,8 +225,8 @@ export default function CrossedEvClient({
         </div>
 
         {loading && (
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/60">
-            Loading crossed EV props...
+          <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-6">
+            <BoxLoader />
           </div>
         )}
 

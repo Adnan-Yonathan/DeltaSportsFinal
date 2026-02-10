@@ -226,7 +226,12 @@ export default function CrossedEvClient({
 
         {loading && (
           <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-6">
-            <BoxLoader />
+            <div className="flex flex-col items-center gap-4">
+              <BoxLoader />
+              <span className="text-xs uppercase tracking-[0.3em] text-white/50">
+                Loading...
+              </span>
+            </div>
           </div>
         )}
 

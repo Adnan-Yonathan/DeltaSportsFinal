@@ -34,7 +34,7 @@ const TOOLS: Tool[] = [
     title: 'Sharp Props',
     subtitle: 'Price-shop EV',
     href: '/tools/sharp-props',
-    meta: 'Prop EV scanner plus best-book pricing in one view.',
+    meta: 'Prop EV scanner plus order-book liquidity for sharp lines.',
     cta: 'View guide',
     Icon: ArrowUpRight,
     priority: 'primary',

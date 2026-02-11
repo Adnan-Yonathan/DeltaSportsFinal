@@ -189,8 +189,11 @@ export type PropOrderbookItem = {
   sides: PropOrderbookSide[]
   sharpLiquiditySide: 'Over' | 'Under' | null
   sharpLiquidityNotional: number | null
+  sharpOrderAmericanOdds: number | null
   sharpLeanSide: 'Over' | 'Under' | null
   sharpLeanAmericanOdds: number | null
+  sharpLeanBestOdds: number | null
+  sharpLeanBestBookTitle: string | null
   updatedAt: string
 }
 
@@ -846,6 +849,7 @@ const resolveSharpLean = (
 ): {
   sharpLiquiditySide: 'Over' | 'Under' | null
   sharpLiquidityNotional: number | null
+  sharpOrderAmericanOdds: number | null
   sharpLeanSide: 'Over' | 'Under' | null
   sharpLeanAmericanOdds: number | null
 } => {
@@ -857,6 +861,7 @@ const resolveSharpLean = (
     return {
       sharpLiquiditySide: null,
       sharpLiquidityNotional: null,
+      sharpOrderAmericanOdds: null,
       sharpLeanSide: null,
       sharpLeanAmericanOdds: null,
     }
@@ -865,6 +870,7 @@ const resolveSharpLean = (
   const best = eligible.sort((a, b) => (b.wallNotional ?? 0) - (a.wallNotional ?? 0))[0]
   const sharpLiquiditySide = best.propSide as 'Over' | 'Under'
   const sharpLiquidityNotional = best.wallNotional ?? null
+  const sharpOrderAmericanOdds = best.wallAmericanOdds ?? null
 
   // OddsJam crossed-market logic: the side showing the wall liquidity is a "trap".
   // The sharp line is the opposite side at (100 - price).
@@ -875,6 +881,7 @@ const resolveSharpLean = (
   return {
     sharpLiquiditySide,
     sharpLiquidityNotional,
+    sharpOrderAmericanOdds,
     sharpLeanSide,
     sharpLeanAmericanOdds,
   }
@@ -995,6 +1002,16 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
       ) {
         continue
       }
+      const leanSportsbookQuote =
+        sharpLean.sharpLeanSide != null
+          ? await resolveSportsbookPropPrices(
+              series.sportKey,
+              playerName,
+              propType,
+              propLine,
+              sharpLean.sharpLeanSide
+            )
+          : { bestOdds: null, noVigProb: null, bestBookTitle: null }
 
       kalshiItems.push({
         id: `kalshi:${market.ticker}`,
@@ -1009,6 +1026,8 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         ticker: market.ticker,
         sides,
         ...sharpLean,
+        sharpLeanBestOdds: leanSportsbookQuote.bestOdds ?? null,
+        sharpLeanBestBookTitle: leanSportsbookQuote.bestBookTitle ?? null,
         updatedAt,
       })
     }
@@ -1145,6 +1164,16 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         ) {
           continue
         }
+        const leanSportsbookQuote =
+          sharpLean.sharpLeanSide != null
+            ? await resolveSportsbookPropPrices(
+                sportMeta.sportKey,
+                playerName,
+                propType,
+                propLine,
+                sharpLean.sharpLeanSide
+              )
+            : { bestOdds: null, noVigProb: null, bestBookTitle: null }
 
         polymarketItems.push({
           id: `polymarket:${market.id}`,
@@ -1159,6 +1188,8 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           slug: market.slug ?? market.id,
           sides,
           ...sharpLean,
+          sharpLeanBestOdds: leanSportsbookQuote.bestOdds ?? null,
+          sharpLeanBestBookTitle: leanSportsbookQuote.bestBookTitle ?? null,
           updatedAt,
         })
       }
@@ -1552,7 +1583,7 @@ const resolveSportsbookPropPrices = async (
   propLine: number | null,
   propSide: 'Over' | 'Under' | null
 ) => {
-  if (!propSide) return { bestOdds: null, noVigProb: null }
+  if (!propSide) return { bestOdds: null, noVigProb: null, bestBookTitle: null }
   const index = await fetchSportsbookPropIndex(sportKey)
   const normalizedPlayer = normalizePlayerName(playerName)
   const props = index.get(normalizedPlayer) ?? []
@@ -1560,14 +1591,14 @@ const resolveSportsbookPropPrices = async (
   if (propLine != null) {
     matches = matches.filter((item) => Math.abs(item.line - propLine) < 0.01)
   }
-  if (!matches.length) return { bestOdds: null, noVigProb: null }
+  if (!matches.length) return { bestOdds: null, noVigProb: null, bestBookTitle: null }
 
   let best: SportsbookPropLine | null = null
   for (const candidate of matches) {
     best = candidate
     break
   }
-  if (!best) return { bestOdds: null, noVigProb: null }
+  if (!best) return { bestOdds: null, noVigProb: null, bestBookTitle: null }
 
   const bestOdds = propSide === 'Under' ? best.bestUnderOdds : best.bestOverOdds
   const bestBookTitle =
@@ -1576,7 +1607,7 @@ const resolveSportsbookPropPrices = async (
   const noVigProb = noVigPool.length
     ? noVigPool.reduce((sum, value) => sum + value, 0) / noVigPool.length
     : null
-  return { bestOdds: bestOdds ?? null, noVigProb, bestBookTitle }
+  return { bestOdds: bestOdds ?? null, noVigProb, bestBookTitle: bestBookTitle ?? null }
 }
 
 const buildLiquidityReason = (

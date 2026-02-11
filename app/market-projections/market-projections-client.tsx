@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import MarketProjectionsRefresh from "./market-projections-refresh"
 import MarketProjectionsTable from "./market-projections-table"
 import TutorialPopup from "@/components/TutorialPopup"
-import BookSelector, { useBookSelection, type BookKey } from "@/components/BookSelector"
+import BookSelector, { useBookSelection } from "@/components/BookSelector"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 
 type MarketProjectionsClientProps = {
@@ -42,7 +42,8 @@ export default function MarketProjectionsClient({
   const [cacheReady, setCacheReady] = useState(hasCache)
   const [error, setError] = useState<string | null>(errorMessage)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const { selectedBooks, setSelectedBooks, isHydrated } = useBookSelection()
+  const { selectedBooks, setSelectedBooks, isHydrated, apiKeys } = useBookSelection()
+  const booksQuery = apiKeys.join(",")
 
   useEffect(() => {
     setEdges(initialEdges)
@@ -79,6 +80,7 @@ export default function MarketProjectionsClient({
         hasCache={cacheReady}
         errorMessage={error}
         sport={sport}
+        booksQuery={booksQuery}
         isLocked={isLocked}
         lastUpdated={lastUpdated}
         includeEdges

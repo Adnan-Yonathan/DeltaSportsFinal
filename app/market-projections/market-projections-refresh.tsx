@@ -6,6 +6,7 @@ export default function MarketProjectionsRefresh({
   hasCache,
   errorMessage,
   sport,
+  booksQuery,
   isLocked,
   lastUpdated,
   includeEdges = false,
@@ -15,6 +16,7 @@ export default function MarketProjectionsRefresh({
   hasCache: boolean
   errorMessage: string | null
   sport: string
+  booksQuery?: string
   isLocked?: boolean
   lastUpdated?: string | null
   includeEdges?: boolean
@@ -66,7 +68,7 @@ export default function MarketProjectionsRefresh({
       const res = await fetch(
         `/api/market-projections?sport=${sport}&refresh=1${
           includeEdges ? "&include=1" : ""
-        }`,
+        }${booksQuery ? `&books=${encodeURIComponent(booksQuery)}` : ""}`,
         { signal: controller.signal, cache: "no-store" }
       )
       clearRefreshTimeout()
@@ -134,7 +136,7 @@ export default function MarketProjectionsRefresh({
   useEffect(() => {
     if (status !== "idle" || isLocked) return
     refresh()
-  }, [status, isLocked, sport])
+  }, [status, isLocked, sport, booksQuery])
 
   useEffect(() => {
     if (abortRef.current) {
@@ -144,7 +146,7 @@ export default function MarketProjectionsRefresh({
     clearRefreshTimeout()
     setRetryCount(0)
     setStatus("idle")
-  }, [sport])
+  }, [sport, booksQuery])
 
   // Auto-refresh interval - created once, fires every 15 minutes
   useEffect(() => {

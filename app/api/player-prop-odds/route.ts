@@ -86,6 +86,7 @@ const BOOK_ALLOWLIST = [
   "prizepicks",
   "betr",
   "pick6",
+  "sleeper",
   "novig",
   "prophetx",
   "bet365",
@@ -120,6 +121,8 @@ const BOOK_ALIASES: Record<string, string> = {
   betr_pick6: "pick6",
   betrpick6: "pick6",
   pick6: "pick6",
+  sleeper: "sleeper",
+  sleeperfantasy: "sleeper",
   novig: "novig",
   novig_us: "novig",
   prophetx: "prophetx",
@@ -154,6 +157,7 @@ const resolveBookKeyFromTitle = (value: string) => {
   if (normalized.includes("prizepicks")) return "prizepicks"
   if (normalized.includes("pick 6")) return "pick6"
   if (normalized.includes("betr")) return "betr"
+  if (normalized.includes("sleeper")) return "sleeper"
   if (normalized.includes("novig")) return "novig"
   if (normalized.includes("prophetx") || normalized.includes("prophet x")) return "prophetx"
   return ""
@@ -204,6 +208,8 @@ const toDisplayBook = (key: string) => {
       return "Betr Pick 6"
     case "pick6":
       return "Pick 6"
+    case "sleeper":
+      return "Sleeper"
     case "novig":
       return "NoVig"
     case "prophetx":

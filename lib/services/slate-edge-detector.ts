@@ -1377,9 +1377,13 @@ export async function analyzeSlateEdges(
     minEdge?: 'soft' | 'strong' // Only return games with at least this edge level
     includeProps?: boolean
     date?: string // YYYY-MM-DD (America/New_York)
+    bookmakers?: string[]
   } = {}
 ): Promise<SlateEdgeResult> {
-  const { limit = 15, minEdge, date } = options
+  const { limit = 15, minEdge, date, bookmakers } = options
+  const requestedBookmakers = (bookmakers ?? [])
+    .map((entry) => String(entry).trim().toLowerCase())
+    .filter(Boolean)
   const sportLabel = SPORT_LABELS[sportKey] || sportKey
   const isCfb = sportKey === 'americanfootball_ncaaf'
   const isFootball = sportKey === 'americanfootball_nfl' || isCfb
@@ -1397,7 +1401,9 @@ export async function analyzeSlateEdges(
   if (isCfb || sportKey === 'basketball_ncaab') {
     const league = isCfb ? 'ncaafb' : 'ncaamb'
     const markets = [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS]
-    const books = resolveBookIds()
+    const books = resolveBookIds(
+      requestedBookmakers.length ? requestedBookmakers : undefined
+    )
 
     const fetchSbdGames = async (bookIds?: string[]) => {
       try {
@@ -1452,6 +1458,7 @@ export async function analyzeSlateEdges(
     oddsGames = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
       revalidateSeconds: 1800,
       forceProvider: 'sportsbettingdime',
+      bookmakers: requestedBookmakers.length ? requestedBookmakers : undefined,
     })
   }
 

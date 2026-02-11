@@ -35,8 +35,11 @@ export type OrderbookItem = {
   slug?: string
   sharpLiquiditySide: "Over" | "Under" | null
   sharpLiquidityNotional: number | null
+  sharpOrderAmericanOdds: number | null
   sharpLeanSide: "Over" | "Under" | null
   sharpLeanAmericanOdds: number | null
+  sharpLeanBestOdds: number | null
+  sharpLeanBestBookTitle: string | null
   updatedAt: string
   sides: OrderbookSide[]
 }
@@ -170,20 +173,24 @@ export default function PropOrderbooksPanel({
         if (!haystack.includes(query)) return false
       }
 
+      const displayLeanOdds =
+        item.sharpLeanBestOdds ?? item.sharpLeanAmericanOdds ?? null
       const hasSharpLeanOdds =
         item.sharpLeanSide != null &&
-        item.sharpLeanAmericanOdds != null &&
-        Number.isFinite(item.sharpLeanAmericanOdds)
+        displayLeanOdds != null &&
+        Number.isFinite(displayLeanOdds)
       if (!hasSharpLeanOdds) return false
 
       if (resolvedRange.min == null && resolvedRange.max == null) return true
 
-      return matchesOddsRange(item.sharpLeanAmericanOdds, resolvedRange)
+      return matchesOddsRange(displayLeanOdds, resolvedRange)
     })
 
     return filtered.sort((a, b) => {
-      const aHasSharpLean = a.sharpLeanAmericanOdds != null && Number.isFinite(a.sharpLeanAmericanOdds)
-      const bHasSharpLean = b.sharpLeanAmericanOdds != null && Number.isFinite(b.sharpLeanAmericanOdds)
+      const aDisplayLeanOdds = a.sharpLeanBestOdds ?? a.sharpLeanAmericanOdds ?? null
+      const bDisplayLeanOdds = b.sharpLeanBestOdds ?? b.sharpLeanAmericanOdds ?? null
+      const aHasSharpLean = aDisplayLeanOdds != null && Number.isFinite(aDisplayLeanOdds)
+      const bHasSharpLean = bDisplayLeanOdds != null && Number.isFinite(bDisplayLeanOdds)
       if (aHasSharpLean !== bHasSharpLean) return aHasSharpLean ? -1 : 1
 
       const aLiquidity = resolveDisplayOrderSize(a) ?? 0
@@ -298,6 +305,11 @@ export default function PropOrderbooksPanel({
                 : null)
           const inferredLeanOdds =
             item.sharpLeanAmericanOdds ?? largestWall?.sharpLineAmericanOdds ?? null
+          const orderTakenOdds =
+            item.sharpOrderAmericanOdds ?? largestWall?.wallAmericanOdds ?? null
+          const bestLeanOdds =
+            item.sharpLeanBestOdds ?? inferredLeanOdds ?? null
+          const bestLeanBook = item.sharpLeanBestBookTitle ?? null
           const totalWallLiquidity = item.sides.reduce(
             (sum, side) => sum + (side.wallNotional ?? 0),
             0
@@ -307,7 +319,7 @@ export default function PropOrderbooksPanel({
               ? Math.round((orderSize / totalWallLiquidity) * 100)
               : null
           const leanLabel = item.sharpLeanSide
-            ? `${item.sharpLeanSide} ${formatAmericanOdds(item.sharpLeanAmericanOdds)}`
+            ? `${item.sharpLeanSide} ${formatAmericanOdds(bestLeanOdds)}`
             : "No clear sharp lean"
 
           return (
@@ -357,12 +369,14 @@ export default function PropOrderbooksPanel({
 
                 <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2.5">
                   <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
-                    Sharp Lean
+                    Best Odds
                   </div>
                   <div className="mt-1 text-base font-semibold text-white">{leanLabel}</div>
                   <div className="text-[11px] text-white/45">
                     {item.sharpLiquiditySide && item.sharpLeanSide
-                      ? `Wall on ${item.sharpLiquiditySide} implies ${item.sharpLeanSide}`
+                      ? bestLeanBook
+                        ? `Best available at ${bestLeanBook}`
+                        : `Wall on ${item.sharpLiquiditySide} implies ${item.sharpLeanSide}`
                       : "Waiting for a wall above the sharp threshold"}
                   </div>
                 </div>
@@ -385,7 +399,11 @@ export default function PropOrderbooksPanel({
                         <span className="font-semibold text-emerald-200">
                           {formatCurrency(orderSize)}
                         </span>{" "}
-                        in visible size.
+                        in visible size, posted around{" "}
+                        <span className="font-semibold text-white">
+                          {formatAmericanOdds(orderTakenOdds)}
+                        </span>
+                        .
                       </p>
                     </div>
 
@@ -401,7 +419,12 @@ export default function PropOrderbooksPanel({
                         , sharp intent is inferred on the opposite side around{" "}
                         <span className="font-semibold text-white">
                           {inferredLeanSide ?? "N/A"} {formatAmericanOdds(inferredLeanOdds)}
+                        </span>{" "}
+                        and the best available book price is{" "}
+                        <span className="font-semibold text-white">
+                          {inferredLeanSide ?? "N/A"} {formatAmericanOdds(bestLeanOdds)}
                         </span>
+                        {bestLeanBook ? ` at ${bestLeanBook}` : ""}
                         . {wallSharePercent != null ? `That wall is ${wallSharePercent}% of visible wall liquidity.` : ""}
                       </p>
                     </div>
@@ -411,10 +434,14 @@ export default function PropOrderbooksPanel({
                         How To Use
                       </div>
                       <p className="mt-2 text-[12px] leading-relaxed text-white/75">
-                        Treat this as a price-discovery signal, not an auto-bet. Follow the inferred lean only if you
-                        can execute at{" "}
+                        Treat this as a price-discovery signal, not an auto-bet. The card above shows the current best
+                        sportsbook price; this order was posted at{" "}
                         <span className="font-semibold text-white">
-                          {formatAmericanOdds(inferredLeanOdds)}
+                          {formatAmericanOdds(orderTakenOdds)}
+                        </span>
+                        . Follow the inferred lean only if you can execute at{" "}
+                        <span className="font-semibold text-white">
+                          {formatAmericanOdds(bestLeanOdds)}
                         </span>{" "}
                         or better, and re-check before placing since orderbook walls can move quickly.
                       </p>

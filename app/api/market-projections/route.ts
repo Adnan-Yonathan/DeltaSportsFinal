@@ -102,8 +102,30 @@ export async function GET(request: Request) {
   const date = searchParams.get("date") || undefined
   const limitParam = Number(searchParams.get("limit") ?? "")
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 200
+  const booksParam = searchParams.get("books") || ""
+  const requestedBooks = booksParam
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean)
+  const hasBookFilter = requestedBooks.length > 0
 
   try {
+    if (hasBookFilter) {
+      const result = await analyzeSlateEdges(sport, {
+        limit,
+        date,
+        bookmakers: requestedBooks,
+      })
+      return NextResponse.json({
+        ok: true,
+        updatedAt: new Date().toISOString(),
+        sport,
+        edgeCount: result.edges?.length ?? 0,
+        ...(includeEdges ? { edges: result.edges ?? [] } : {}),
+        fromCache: false,
+      })
+    }
+
     if (noCache) {
       const result = await analyzeSlateEdges(sport, { limit, date })
       return NextResponse.json({

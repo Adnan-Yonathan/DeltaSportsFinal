@@ -1,13 +1,11 @@
 import MarketProjectionsClient from "./market-projections-client"
 import SportSelector from "./sport-selector"
 import ToolsNav from "@/components/tools-nav"
-import MarketProjectionsClvTracker from "./clv-tracker"
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { buildSharpProjections } from "@/lib/services/sharp-projections"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
-import { getRollingMarketProjectionClvRecap } from "@/lib/services/market-projection-clv"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import { PHASE_PRODUCTION_BUILD } from "next/constants"
 
@@ -57,13 +55,6 @@ export default async function MarketProjectionsPage({
   const isLocked = Boolean(selected.locked)
   const isBuild = process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD
   const allowLiveRefresh = !isBuild
-  const clvRecap =
-    hasProjectionAccess &&
-    (sport === "basketball_nba" ||
-      sport === "basketball_ncaab" ||
-      sport === "icehockey_nhl")
-      ? await getRollingMarketProjectionClvRecap({ sport })
-      : null
 
   if (!isLocked) {
     try {
@@ -173,18 +164,6 @@ export default async function MarketProjectionsPage({
                 <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
               </div>
             </div>
-            {clvRecap ? (
-              <div className="flex w-full justify-center md:w-auto md:flex-1">
-                <MarketProjectionsClvTracker
-                  summary={clvRecap.summary}
-                  updatedAt={clvRecap.updatedAt}
-                  sport={sport}
-                  recapGames={clvRecap.games}
-                  recapHistory={clvRecap.history}
-                  recapUpdatedAt={clvRecap.updatedAt}
-                />
-              </div>
-            ) : null}
             <div className="hidden md:block">
               <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
             </div>

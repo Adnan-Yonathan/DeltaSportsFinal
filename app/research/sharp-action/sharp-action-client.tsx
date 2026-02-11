@@ -11,6 +11,13 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { SharpSignal } from '@/lib/services/edge-detection'
+import {
+  formatSharpSignalStrengthPlain,
+  formatSharpSignalSummaryLine,
+  getSharpSignalPlainExplanation,
+  getSharpSignalPlainLabel,
+  getSharpSignalStrengthPlain,
+} from '@/lib/utils/sharp-signal-language'
 
 type LinePoint = {
   t: string
@@ -106,9 +113,6 @@ const getSignalIcon = (type: SharpSignal['type']) => {
   }
 }
 
-const formatSignalLabel = (type: SharpSignal['type']) =>
-  type === 'SHARP_MONEY' ? 'SHARP MONEY' : type
-
 const getStrengthColor = (strength: number) => {
   if (strength >= 5) return 'text-emerald-300 border-emerald-400/40'
   if (strength >= 4) return 'text-amber-300 border-amber-400/40'
@@ -128,7 +132,7 @@ const buildAnalyticalNarrative = (edge: any) => {
       next.strength > best.strength ? next : best
     )
     parts.push(
-      `Top signal: ${formatSignalLabel(strongest.type)} on ${strongest.side} (${strongest.strength}/5).`
+      `Top signal: ${formatSharpSignalSummaryLine(strongest)}`
     )
   } else {
     parts.push('No sharp signals yet; line history shows early positioning.')
@@ -538,14 +542,22 @@ export default function SharpActionClient({
       </div>
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
         <p>
-          Signal strength uses a 5-point scale. 3/5 = credible sharp action, 4/5 = strong,
-          5/5 = elite market move. Strongest signals are highlighted per game.
+          Signals are graded on a 5-point scale based on how clearly market behavior suggests
+          respected bettors are driving the move.
         </p>
         <div className="mt-3 flex flex-wrap gap-2 text-xs text-white/60">
-          <span className="rounded-full border border-white/10 px-2.5 py-1">RLM: line moves against public</span>
-          <span className="rounded-full border border-white/10 px-2.5 py-1">STEAM: fast coordinated move</span>
-          <span className="rounded-full border border-white/10 px-2.5 py-1">SHARP MONEY: money vs tickets split</span>
-          <span className="rounded-full border border-white/10 px-2.5 py-1">STALLED: move fades or stalls</span>
+          <span className="rounded-full border border-white/10 px-2.5 py-1">
+            {getSharpSignalPlainLabel('RLM')}
+          </span>
+          <span className="rounded-full border border-white/10 px-2.5 py-1">
+            {getSharpSignalPlainLabel('STEAM')}
+          </span>
+          <span className="rounded-full border border-white/10 px-2.5 py-1">
+            {getSharpSignalPlainLabel('SHARP_MONEY')}
+          </span>
+          <span className="rounded-full border border-white/10 px-2.5 py-1">
+            {getSharpSignalPlainLabel('STALLED')}
+          </span>
         </div>
       </div>
 
@@ -600,8 +612,8 @@ export default function SharpActionClient({
                       <div className="flex items-center gap-2 text-xs text-white/50">
                         <span>{formatGameTime(game.gameTime)}</span>
                         {game.strongestSignal ? (
-                          <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-emerald-300">
-                            {game.strongestSignal.strength}/5
+                          <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300">
+                            {formatSharpSignalStrengthPlain(game.strongestSignal.strength)}
                           </span>
                         ) : (
                           <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-white/40">
@@ -615,7 +627,7 @@ export default function SharpActionClient({
                     </div>
                     <div className="text-right">
                       <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-                        Sharp Side
+                        Pro Betting Lean
                       </div>
                       <div className="mt-1 text-base font-semibold text-amber-200">
                         {game.sharpSide}
@@ -658,7 +670,7 @@ export default function SharpActionClient({
 
                   <div className="mt-4">
                     <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-                      Sharp signals
+                      Signal Breakdown
                     </div>
                     {game.sharpSignals.length === 0 ? (
                       <p className="mt-2 text-xs text-white/50">No sharp signals detected yet.</p>
@@ -669,14 +681,18 @@ export default function SharpActionClient({
                           return (
                             <div
                               key={`${signal.type}-${idx}`}
-                              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${getStrengthColor(signal.strength)}`}
+                              className={`flex items-center gap-2 rounded-full border px-2.5 py-1 ${getStrengthColor(signal.strength)}`}
+                              title={getSharpSignalPlainExplanation(signal.type)}
                             >
                               <Icon className="h-3 w-3" />
                               <span className="text-[10px] font-medium">
-                                {formatSignalLabel(signal.type)} {signal.market} {signal.side}
+                                {getSharpSignalPlainLabel(signal.type)}
+                              </span>
+                              <span className="text-[10px] opacity-80">
+                                Pros leaning {signal.side} ({signal.market})
                               </span>
                               <span className="text-[9px] opacity-60">
-                                ({signal.strength}/5)
+                                {getSharpSignalStrengthPlain(signal.strength)}
                               </span>
                             </div>
                           )

@@ -7,6 +7,7 @@ import { ElectricCard } from "@/components/ui/electric-card"
 import { cn } from "@/lib/utils"
 import ShareProjectionButton from "@/components/ShareProjectionButton"
 import { AVAILABLE_BOOKS, type BookKey } from "@/lib/config/books"
+import { formatSharpSignalSummaryLine } from "@/lib/utils/sharp-signal-language"
 
 type EdgeFilter = "spread" | "moneyline" | "total"
 type AccessTier = "free" | "sharp" | "syndicate" | null
@@ -250,6 +251,15 @@ const resolveMoveSummary = (game: EdgeGame, filter: EdgeFilter) => {
     .map(formatLineMovement)
     .join(" | ")
 }
+
+const summarizeSharpSignalsPlain = (
+  signals: EdgeGame["sharpSignals"],
+  limit = 2
+) =>
+  signals
+    .slice(0, limit)
+    .map((signal) => formatSharpSignalSummaryLine(signal))
+    .join(" | ")
 
 const resolveModelSpread = (game: EdgeGame) => {
   // Prefer prediction market line if it differs from market line
@@ -883,13 +893,7 @@ const buildProjectionSharePayload = (
     oddsLabel = `${moneyline?.sportsbook?.homeBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.homeOdds)} / ${moneyline?.sportsbook?.awayBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.awayOdds)}`
   }
 
-  const sharpSummary = game.sharpSignals
-    .slice(0, 2)
-    .map(
-      (signal) =>
-        `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
-    )
-    .join(" | ")
+  const sharpSummary = summarizeSharpSignalsPlain(game.sharpSignals)
   const moveSummary = resolveMoveSummary(game, filter)
 
   return {
@@ -1072,13 +1076,7 @@ export default function MarketProjectionsTable({
                 const electricPreset =
                   filter !== "moneyline" ? resolveElectricPreset(edgeMetrics.edgePercent) : null
                 const spreadOdds = resolveSpreadOddsDisplay(game, activePick)
-                const sharpSummary = game.sharpSignals
-                  .slice(0, 2)
-                  .map(
-                    (signal) =>
-                      `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
-                  )
-                  .join(" | ")
+                const sharpSummary = summarizeSharpSignalsPlain(game.sharpSignals)
                   const moveSummary = resolveMoveSummary(game, filter)
                   const sharePayload = buildProjectionSharePayload(
                     game,
@@ -1206,7 +1204,7 @@ export default function MarketProjectionsTable({
                     <TableHead className="w-[200px]">Matchup</TableHead>
                     <TableHead>{filterLabels.projection}</TableHead>
                     <TableHead>{filterLabels.odds}</TableHead>
-                    <TableHead>Sharp Action</TableHead>
+                    <TableHead>Why Pros Lean</TableHead>
                     <TableHead>Line Movement</TableHead>
                     <TableHead className="text-right">Share</TableHead>
                     
@@ -1231,13 +1229,7 @@ export default function MarketProjectionsTable({
                 const electricPreset =
                   filter !== "moneyline" ? resolveElectricPreset(edgeMetrics.edgePercent) : null
                 const spreadOdds = resolveSpreadOddsDisplay(game, activePick)
-                const sharpSummary = game.sharpSignals
-                  .slice(0, 2)
-                  .map(
-                    (signal) =>
-                          `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`
-                      )
-                      .join(" | ")
+                const sharpSummary = summarizeSharpSignalsPlain(game.sharpSignals)
                     const moveSummary = resolveMoveSummary(game, filter)
                     const sharePayload = buildProjectionSharePayload(
                       game,

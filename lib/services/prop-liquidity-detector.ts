@@ -22,6 +22,10 @@ const POLYMARKET_SERIES_PAGE_LIMIT = 300
 const MAX_POLYMARKET_SERIES_PAGES = 8
 const MAX_POLYMARKET_EVENT_FETCHES = 6
 const MAX_POLYMARKET_EVENT_MARKETS = 60
+const POLYMARKET_COMPETITIVE_BAND_CENTS = 20
+const MAX_POLYMARKET_COMPETITIVE_LEVELS = 25
+const POLYMARKET_MIN_COMPETITIVE_PRICE_CENTS = 10
+const POLYMARKET_MAX_COMPETITIVE_PRICE_CENTS = 90
 
 type PropLiquiditySignal = {
   id: string
@@ -735,10 +739,11 @@ const parsePolymarketOrders = (book: PolymarketOrderbook): KalshiOrderSummary[] 
 }
 
 const parsePolymarketLevels = (book: PolymarketOrderbook): PropOrderbookLevel[] => {
-  const levels: PropOrderbookLevel[] = []
-
-  const ingest = (entries: Array<{ price: string; size: string }> | undefined) => {
-    if (!Array.isArray(entries)) return
+  const parseEntries = (
+    entries: Array<{ price: string; size: string }> | undefined
+  ): PropOrderbookLevel[] => {
+    if (!Array.isArray(entries)) return []
+    const parsed: PropOrderbookLevel[] = []
     for (const level of entries) {
       const price = Number(level.price)
       const size = Number(level.size)
@@ -748,17 +753,43 @@ const parsePolymarketLevels = (book: PolymarketOrderbook): PropOrderbookLevel[] 
       const rawCents = Math.round(price * 100)
       // Clamp to (0, 100) so we can always compute American odds + complements.
       const priceCents = Math.max(1, Math.min(99, rawCents))
-      levels.push({ priceCents, notional })
+      // Ignore deep edge quotes (near 0/1) that are commonly parked and non-actionable.
+      if (
+        priceCents < POLYMARKET_MIN_COMPETITIVE_PRICE_CENTS ||
+        priceCents > POLYMARKET_MAX_COMPETITIVE_PRICE_CENTS
+      ) {
+        continue
+      }
+      parsed.push({ priceCents, notional })
     }
+    return parsed
   }
 
-  // For Polymarket, "available liquidity" for a user to take is typically on the ask side
-  // (resting sell orders). This aligns with our heuristic: if there's liquidity on a side
-  // at price P, it implies sharper conviction on the opposite side at (100 - P).
-  ingest(book.asks)
-  if (levels.length === 0) ingest(book.bids)
+  const pickCompetitiveWindow = (
+    levels: PropOrderbookLevel[],
+    side: 'ask' | 'bid'
+  ): PropOrderbookLevel[] => {
+    if (!levels.length) return []
+    const byPrice = [...levels].sort((a, b) =>
+      side === 'ask' ? a.priceCents - b.priceCents : b.priceCents - a.priceCents
+    )
+    const best = byPrice[0]?.priceCents ?? null
+    if (best == null) return byPrice.slice(0, MAX_POLYMARKET_COMPETITIVE_LEVELS)
+    const inBand = byPrice.filter((level) =>
+      side === 'ask'
+        ? level.priceCents <= best + POLYMARKET_COMPETITIVE_BAND_CENTS
+        : level.priceCents >= best - POLYMARKET_COMPETITIVE_BAND_CENTS
+    )
+    return (inBand.length ? inBand : byPrice).slice(0, MAX_POLYMARKET_COMPETITIVE_LEVELS)
+  }
 
-  return levels
+  // For Polymarket, actionable liquidity to buy a token is on the ask side.
+  // We keep only price-competitive asks to avoid deep, non-actionable parked quotes.
+  const askLevels = pickCompetitiveWindow(parseEntries(book.asks), 'ask')
+  if (askLevels.length) return askLevels
+
+  // Fallback to bids if asks are empty.
+  return pickCompetitiveWindow(parseEntries(book.bids), 'bid')
 }
 
 const parseKalshiLevels = (levels: number[][]): PropOrderbookLevel[] => {
@@ -1021,6 +1052,9 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         if (!sportMeta) continue
         if (sportFilter !== 'all' && sportMeta.sportKey !== sportFilter) continue
 
+        const eventDate = resolvePolymarketEventDate(market)
+        if (!eventDate || eventDate < today) continue
+
         const question = market.question || market.title
         if (!question) continue
         const rawText = question.trim()
@@ -1091,6 +1125,19 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           ),
         ]
 
+        const sideWalls = sides
+          .map((side) => side.wallPriceCents)
+          .filter((price): price is number => price != null)
+        const hasMirroredExtremeWalls =
+          sideWalls.length === 2 &&
+          ((sideWalls[0] >= 95 && sideWalls[1] >= 95) ||
+            (sideWalls[0] <= 5 && sideWalls[1] <= 5))
+        if (hasMirroredExtremeWalls) {
+          // Non-actionable mirrored books (both outcomes priced near 0 or 1)
+          // are common with parked CLOB quotes and produce synthetic +/-9900 lines.
+          continue
+        }
+
         const sharpLean = resolveSharpLean(sides, minSharpNotional)
         if (
           sharpLean.sharpLeanAmericanOdds != null &&
@@ -1108,7 +1155,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           playerName,
           propType,
           propLine,
-          eventDate: resolvePolymarketEventDate(market) ?? undefined,
+          eventDate: eventDate ?? undefined,
           slug: market.slug ?? market.id,
           sides,
           ...sharpLean,

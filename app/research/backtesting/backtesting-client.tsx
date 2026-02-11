@@ -26,8 +26,8 @@ const STRATEGIES: { key: Strategy; label: string; description: string }[] = [
   },
   {
     key: 'follow_rlm',
-    label: 'Follow RLM',
-    description: 'Bet on the side with reverse line movement',
+    label: 'Follow Line vs Public Moves',
+    description: 'Bet the side where the line moves against most public tickets',
   },
   {
     key: 'closing_line_value',

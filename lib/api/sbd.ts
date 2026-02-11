@@ -297,8 +297,12 @@ export const getDefaultBookIds = (): string[] => {
   return resolvedIds.length ? resolvedIds : DEFAULT_BOOK_IDS.slice()
 }
 
-export const resolveBookIds = (bookmakers?: string | string[] | null): string[] => {
-  if (!bookmakers) return getDefaultBookIds()
+export const resolveBookIds = (
+  bookmakers?: string | string[] | null,
+  options?: { fallbackToDefault?: boolean }
+): string[] => {
+  const fallbackToDefault = options?.fallbackToDefault ?? true
+  if (!bookmakers) return fallbackToDefault ? getDefaultBookIds() : []
   const entries = Array.isArray(bookmakers)
     ? bookmakers.map((entry) => String(entry).trim()).filter(Boolean)
     : String(bookmakers)
@@ -306,14 +310,15 @@ export const resolveBookIds = (bookmakers?: string | string[] | null): string[] 
         .map((entry) => entry.trim())
         .filter(Boolean)
 
-  if (!entries.length) return getDefaultBookIds()
+  if (!entries.length) return fallbackToDefault ? getDefaultBookIds() : []
   if (entries.some((entry) => entry.startsWith('sr:book:'))) {
     return entries
   }
 
   const mapped = entries.map(resolveBookSlug).filter(Boolean)
   const resolvedIds = mapped.map(resolveBookId).filter(Boolean)
-  return resolvedIds.length ? resolvedIds : getDefaultBookIds()
+  if (resolvedIds.length) return resolvedIds
+  return fallbackToDefault ? getDefaultBookIds() : []
 }
 
 export const resolveBookSlugs = (bookmakers?: string | string[] | null): string[] => {

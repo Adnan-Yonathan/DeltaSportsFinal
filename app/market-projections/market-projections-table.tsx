@@ -981,6 +981,29 @@ export default function MarketProjectionsTable({
     }
     return false
   }
+  const hasSelectedBookForFilter = (game: EdgeGame, marketFilter: EdgeFilter) => {
+    if (!selectedBookLabels) return true
+    if (marketFilter === "spread") {
+      return Boolean(
+        isBookSelected(game.spread?.bestHomeBook) ||
+        isBookSelected(game.spread?.bestAwayBook) ||
+        isBookSelected(game.spread?.bestBook) ||
+        isBookSelected(game.spread?.prediction?.book)
+      )
+    }
+    if (marketFilter === "total") {
+      return Boolean(
+        isBookSelected(game.total?.bestBook) ||
+        isBookSelected(game.total?.prediction?.book)
+      )
+    }
+    return Boolean(
+      isBookSelected(game.moneyline?.sportsbook?.homeBook) ||
+      isBookSelected(game.moneyline?.sportsbook?.awayBook) ||
+      isBookSelected(game.moneyline?.prediction?.homeBook) ||
+      isBookSelected(game.moneyline?.prediction?.awayBook)
+    )
+  }
   const accessConfig = useMemo(() => resolveAccessConfig(tier), [tier])
   const [filter, setFilter] = useState<EdgeFilter>(accessConfig.allowedFilters[0] ?? "spread")
   const [pulseKey, setPulseKey] = useState(0)
@@ -1002,6 +1025,7 @@ export default function MarketProjectionsTable({
     const scoped = edges.filter(
       (game) =>
         hasMarketData(game, filter) &&
+        hasSelectedBookForFilter(game, filter) &&
         isUpcomingGame(game.commenceTime)
     )
     const sorted = [...scoped].sort(

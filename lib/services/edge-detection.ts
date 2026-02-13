@@ -222,6 +222,29 @@ function analyzeMovement(
   }
 }
 
+const resolveRlmStrength = (publicPct: number) =>
+  (publicPct >= 75 ? 5 : publicPct >= 70 ? 4 : 3) as 1 | 2 | 3 | 4 | 5
+
+const pickLargestMovement = <T extends { movement: number; oddsMovement: number }>(
+  candidates: T[]
+): T | null => {
+  if (!candidates.length) return null
+
+  let best = candidates[0]
+  for (const candidate of candidates.slice(1)) {
+    const bestAbs = Math.abs(best.movement)
+    const nextAbs = Math.abs(candidate.movement)
+    if (nextAbs > bestAbs) {
+      best = candidate
+      continue
+    }
+    if (nextAbs === bestAbs && Math.abs(candidate.oddsMovement) > Math.abs(best.oddsMovement)) {
+      best = candidate
+    }
+  }
+  return best
+}
+
 /**
  * Detect Reverse Line Movement (RLM)
  * Line moves opposite to where public money is going
@@ -232,40 +255,97 @@ function detectRLM(
   homeTeam: string,
   awayTeam: string
 ): SharpSignal | null {
-  const { market, side, movement: lineMove } = movement
-
-  let publicPct: number | undefined
-  let moneyPct: number | undefined
-  let isHome = side === homeTeam
+  const { market, movement: lineMove } = movement
 
   if (market === 'spread') {
-    publicPct = isHome ? splits.spreadHomeBetPct : splits.spreadAwayBetPct
-    moneyPct = isHome ? splits.spreadHomeMoneyPct : splits.spreadAwayMoneyPct
-  } else if (market === 'total') {
-    const isOver = side === 'Over'
-    publicPct = isOver ? splits.totalOverBetPct : splits.totalUnderBetPct
-    moneyPct = isOver ? splits.totalOverMoneyPct : splits.totalUnderMoneyPct
-  } else if (market === 'moneyline') {
-    publicPct = isHome ? splits.mlHomeBetPct : splits.mlAwayBetPct
-    moneyPct = isHome ? splits.mlHomeMoneyPct : splits.mlAwayMoneyPct
+    // Spread movement is tracked from home-team perspective.
+    if (lineMove > 0) {
+      const publicPct = splits.spreadHomeBetPct
+      if (publicPct != null && publicPct >= 60) {
+        return {
+          type: 'RLM',
+          market,
+          side: awayTeam,
+          strength: resolveRlmStrength(publicPct),
+          description: `${publicPct}% of bets on ${homeTeam} but line moved against them`,
+          confidence: publicPct >= 70 ? 'high' : 'medium',
+        }
+      }
+    } else if (lineMove < 0) {
+      const publicPct = splits.spreadAwayBetPct
+      if (publicPct != null && publicPct >= 60) {
+        return {
+          type: 'RLM',
+          market,
+          side: homeTeam,
+          strength: resolveRlmStrength(publicPct),
+          description: `${publicPct}% of bets on ${awayTeam} but line moved against them`,
+          confidence: publicPct >= 70 ? 'high' : 'medium',
+        }
+      }
+    }
+    return null
   }
 
-  if (publicPct == null || publicPct < 60) return null // Need clear public side
+  if (market === 'total') {
+    // Total movement is tracked from opening total to current total.
+    // Downward movement is against public Over; upward movement is against public Under.
+    if (lineMove < 0) {
+      const publicPct = splits.totalOverBetPct
+      if (publicPct != null && publicPct >= 60) {
+        return {
+          type: 'RLM',
+          market,
+          side: 'Under',
+          strength: resolveRlmStrength(publicPct),
+          description: `${publicPct}% of bets on Over but line moved against them`,
+          confidence: publicPct >= 70 ? 'high' : 'medium',
+        }
+      }
+    } else if (lineMove > 0) {
+      const publicPct = splits.totalUnderBetPct
+      if (publicPct != null && publicPct >= 60) {
+        return {
+          type: 'RLM',
+          market,
+          side: 'Over',
+          strength: resolveRlmStrength(publicPct),
+          description: `${publicPct}% of bets on Under but line moved against them`,
+          confidence: publicPct >= 70 ? 'high' : 'medium',
+        }
+      }
+    }
+    return null
+  }
 
-  // RLM: Public heavily on one side (60%+) but line moves against them
-  // For spreads: if public on home -3, line moves to home -4 = sharps on away
-  // lineMove > 0 for spread means line went up (more points for that side)
-  const lineMovedAgainstPublic = lineMove > 0 // Line moved to give more points (less favorable)
+  if (market === 'moneyline') {
+    if (lineMove === 0) return null
 
-  if (lineMovedAgainstPublic && publicPct >= 60) {
-    const strength = publicPct >= 75 ? 5 : publicPct >= 70 ? 4 : 3
-    return {
-      type: 'RLM',
-      market,
-      side: isHome ? awayTeam : homeTeam, // Sharp side is opposite
-      strength: strength as 1 | 2 | 3 | 4 | 5,
-      description: `${publicPct}% of bets on ${side} but line moved against them`,
-      confidence: publicPct >= 70 ? 'high' : 'medium',
+    const movedTowardHome = movement.side === homeTeam
+    if (movedTowardHome) {
+      const publicPct = splits.mlAwayBetPct
+      if (publicPct != null && publicPct >= 60) {
+        return {
+          type: 'RLM',
+          market,
+          side: homeTeam,
+          strength: resolveRlmStrength(publicPct),
+          description: `${publicPct}% of bets on ${awayTeam} but line moved against them`,
+          confidence: publicPct >= 70 ? 'high' : 'medium',
+        }
+      }
+    } else {
+      const publicPct = splits.mlHomeBetPct
+      if (publicPct != null && publicPct >= 60) {
+        return {
+          type: 'RLM',
+          market,
+          side: awayTeam,
+          strength: resolveRlmStrength(publicPct),
+          description: `${publicPct}% of bets on ${homeTeam} but line moved against them`,
+          confidence: publicPct >= 70 ? 'high' : 'medium',
+        }
+      }
     }
   }
 
@@ -374,6 +454,7 @@ function extractLineMovements(
 
   // Process spread
   const spreadBooks = markets?.spread?.books || []
+  const spreadCandidates: LineMovement[] = []
   for (const book of spreadBooks) {
     const homeSpread = parseLine(book?.home?.spread)
     const homeOpenSpread = parseLine(book?.home?.opening_spread)
@@ -384,7 +465,7 @@ function extractLineMovements(
       const movement = homeSpread - homeOpenSpread
       const { isSharp, isSignificant } = analyzeMovement('spread', movement, sport)
 
-      movements.push({
+      spreadCandidates.push({
         market: 'spread',
         side: homeTeam,
         openingLine: homeOpenSpread,
@@ -397,12 +478,14 @@ function extractLineMovements(
         isSignificant,
         direction: movement > 0 ? 'away' : movement < 0 ? 'toward' : 'neutral',
       })
-      break // Only need one book for movement
     }
   }
+  const bestSpread = pickLargestMovement(spreadCandidates)
+  if (bestSpread) movements.push(bestSpread)
 
   // Process total
   const totalBooks = markets?.total?.books || []
+  const totalCandidates: LineMovement[] = []
   for (const book of totalBooks) {
     const total = parseLine(book?.over?.total ?? book?.total)
     const openTotal = parseLine(book?.over?.opening_total ?? book?.opening_total)
@@ -413,7 +496,7 @@ function extractLineMovements(
       const movement = total - openTotal
       const { isSharp, isSignificant } = analyzeMovement('total', movement, sport)
 
-      movements.push({
+      totalCandidates.push({
         market: 'total',
         side: movement > 0 ? 'Over' : 'Under', // Sharp side is where it moved
         openingLine: openTotal,
@@ -424,14 +507,16 @@ function extractLineMovements(
         oddsMovement: overOdds && openOverOdds ? calculateOddsMovement(openOverOdds, overOdds) : 0,
         isSharp,
         isSignificant,
-        direction: movement > 0 ? 'toward' : movement < 0 ? 'away' : 'neutral',
+        direction: movement === 0 ? 'neutral' : 'toward',
       })
-      break
     }
   }
+  const bestTotal = pickLargestMovement(totalCandidates)
+  if (bestTotal) movements.push(bestTotal)
 
   // Process moneyline
   const mlBooks = markets?.moneyline?.books || []
+  const moneylineCandidates: LineMovement[] = []
   for (const book of mlBooks) {
     const homeOdds = parseOdds(book?.home?.odds)
     const homeOpenOdds = parseOdds(book?.home?.opening_odds)
@@ -443,10 +528,12 @@ function extractLineMovements(
       // Determine which side the line moved toward
       const movedTowardHome = (homeOpenOdds > 0 && homeOdds < homeOpenOdds) ||
                               (homeOpenOdds < 0 && homeOdds < homeOpenOdds)
+      const direction: LineMovement['direction'] =
+        oddsMove === 0 ? 'neutral' : movedTowardHome ? 'toward' : 'away'
 
-      movements.push({
+      moneylineCandidates.push({
         market: 'moneyline',
-        side: movedTowardHome ? homeTeam : awayTeam,
+        side: direction === 'neutral' ? homeTeam : movedTowardHome ? homeTeam : awayTeam,
         openingLine: homeOpenOdds,
         currentLine: homeOdds,
         movement: oddsMove,
@@ -455,11 +542,12 @@ function extractLineMovements(
         oddsMovement: oddsMove,
         isSharp,
         isSignificant,
-        direction: movedTowardHome ? 'toward' : 'away',
+        direction,
       })
-      break
     }
   }
+  const bestMoneyline = pickLargestMovement(moneylineCandidates)
+  if (bestMoneyline) movements.push(bestMoneyline)
 
   return movements
 }

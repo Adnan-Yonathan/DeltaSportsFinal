@@ -1137,7 +1137,14 @@ const resolvePropTypeFromMarketKey = (marketKey: string) => {
 }
 
 const resolveEventDate = (commenceTime: string | null | undefined) => {
-  const raw = String(commenceTime ?? '')
+  const raw = String(commenceTime ?? '').trim()
+  if (!raw) return null
+
+  const parsed = new Date(raw)
+  if (Number.isFinite(parsed.getTime())) {
+    return getUsMarketDayKey(parsed)
+  }
+
   const match = raw.match(/^\d{4}-\d{2}-\d{2}/)
   return match ? match[0] : null
 }

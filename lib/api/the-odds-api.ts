@@ -578,15 +578,21 @@ export async function fetchTheOddsApiPlayerProps(
     includeMultipliers = false,
   } = options
 
-  const events = await fetchTheOddsApiEvents(sportKey, { dateFormat })
-  const results: TheOddsApiEvent[] = []
-  const batchSize = 4
+  const sleep = (ms: number) =>
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, ms)
+    })
 
-  for (let i = 0; i < events.length; i += batchSize) {
-    const batch = events.slice(i, i + batchSize)
-    const batchResults = await Promise.allSettled(
-      batch.map((event) =>
-        fetchTheOddsApiEventOdds(sportKey, event.id, {
+  const shouldRetryRateLimit = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error ?? '')
+    return message.includes('429') || message.includes('EXCEEDED_FREQ_LIMIT')
+  }
+
+  const fetchEventOddsWithRetry = async (eventId: string) => {
+    const maxAttempts = 4
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await fetchTheOddsApiEventOdds(sportKey, eventId, {
           markets,
           regions,
           bookmakers,
@@ -598,7 +604,25 @@ export async function fetchTheOddsApiPlayerProps(
           includeRotationNumbers,
           includeMultipliers,
         })
-      )
+      } catch (error) {
+        if (!shouldRetryRateLimit(error) || attempt === maxAttempts) {
+          throw error
+        }
+        const waitMs = 400 * attempt
+        await sleep(waitMs)
+      }
+    }
+    throw new Error('Failed to fetch event odds after retries')
+  }
+
+  const events = await fetchTheOddsApiEvents(sportKey, { dateFormat })
+  const results: TheOddsApiEvent[] = []
+  const batchSize = 2
+
+  for (let i = 0; i < events.length; i += batchSize) {
+    const batch = events.slice(i, i + batchSize)
+    const batchResults = await Promise.allSettled(
+      batch.map((event) => fetchEventOddsWithRetry(event.id))
     )
     batchResults.forEach((result) => {
       if (result.status === 'fulfilled') {
@@ -607,6 +631,9 @@ export async function fetchTheOddsApiPlayerProps(
         console.warn('[THE-ODDS-API] Event props fetch failed:', result.reason)
       }
     })
+    if (i + batchSize < events.length) {
+      await sleep(150)
+    }
   }
 
   return results

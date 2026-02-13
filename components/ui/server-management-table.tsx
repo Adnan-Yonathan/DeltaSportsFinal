@@ -288,33 +288,22 @@ export function ServerManagementTable({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 24 }}
                 transition={{ duration: 0.2 }}
-                className="fixed inset-x-0 bottom-0 top-[72px] z-[75] overflow-hidden rounded-t-3xl border border-white/10 bg-black/95 sm:inset-6 sm:top-auto sm:max-h-[90vh] sm:rounded-3xl"
+                className="fixed inset-x-0 bottom-0 top-[72px] z-[75] flex flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-black/95 sm:inset-6 sm:top-auto sm:max-h-[90vh] sm:rounded-3xl"
                 onClick={(event) => event.stopPropagation()}
               >
-                <div className="relative flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-black/85 to-black/65 p-4">
-                  <div>
+                <div className="relative flex items-start justify-between gap-3 border-b border-white/10 bg-gradient-to-r from-black/85 to-black/65 p-4">
+                  <div className="min-w-0 pr-2">
                     <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">
                       Rank #{selectedWallet.rank}
                     </p>
-                    <h3 className="mt-1 text-lg font-semibold text-white">{selectedWallet.wallet}</h3>
+                    <h3 className="mt-1 break-all text-sm font-semibold text-white sm:text-lg">
+                      {selectedWallet.wallet}
+                    </h3>
                     <div className="mt-1 text-xs text-white/60">
                       Total {formatCurrency(selectedWallet.totalPnl)} | 30d {formatCurrency(selectedWallet.pnl30d)}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {onToggleTrack && (
-                      <button
-                        type="button"
-                        onClick={() => onToggleTrack(selectedWallet.wallet)}
-                        className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition-colors ${
-                          trackedWallets?.has(selectedWallet.wallet.toLowerCase())
-                            ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
-                            : "border-white/15 bg-black/40 text-white/70 hover:border-white/40"
-                        }`}
-                      >
-                        {trackedWallets?.has(selectedWallet.wallet.toLowerCase()) ? "Tracked" : "Track"}
-                      </button>
-                    )}
+                  <div className="shrink-0">
                     <motion.button
                       type="button"
                       className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/70 hover:bg-black"
@@ -331,7 +320,7 @@ export function ServerManagementTable({
                   </div>
                 </div>
 
-                <div className="flex-1 space-y-4 overflow-y-auto p-4">
+                <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <div className="bg-black/50 rounded-xl p-3 border border-white/10">
                       <label className="text-[11px] font-medium text-white/50 uppercase tracking-[0.2em]">

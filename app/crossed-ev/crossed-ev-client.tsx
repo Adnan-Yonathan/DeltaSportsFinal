@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Search } from "lucide-react"
+import { ChevronDown, ChevronUp, Search } from "lucide-react"
 import BoxLoader from "@/components/ui/box-loader"
 import { ServerManagementTable } from "@/components/ui/server-management-table"
 
@@ -54,6 +54,23 @@ const formatEv = (value: number | null) => {
   return `${value >= 0 ? "+" : ""}${rounded}%`
 }
 
+const formatPoint = (value?: number | null) => {
+  if (value == null || !Number.isFinite(value)) return "--"
+  if (Number.isInteger(value)) return value.toString()
+  return value.toFixed(1)
+}
+
+const formatCommenceTime = (value: string) => {
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return "n/a"
+  return date.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
 export default function CrossedEvClient({
   sport,
   previewMode = false,
@@ -69,6 +86,7 @@ export default function CrossedEvClient({
   const [marketFilter, setMarketFilter] = useState("all")
   const [bookFilter, setBookFilter] = useState("all")
   const [visibleCount, setVisibleCount] = useState(200)
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 
   const inQuietHours = useCallback(() => {
     const current = new Date()
@@ -98,6 +116,7 @@ export default function CrossedEvClient({
       setRows(Array.isArray(payload?.rows) ? payload.rows : [])
       setBooks(Array.isArray(payload?.books) ? payload.books : [])
       setVisibleCount(200)
+      setExpandedRows(new Set())
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to load crossed EV props."
@@ -242,92 +261,234 @@ export default function CrossedEvClient({
         )}
 
         {filteredRows.length > 0 && (
-          <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/40">
-            <table className="min-w-0 w-full table-fixed text-left text-[12.5px] text-white/70 sm:text-sm">
-              <thead className="bg-black/60 text-[11px] text-white/60 sm:text-xs">
-                <tr>
-                  <th className="px-3 py-3 w-[7%]">Rank</th>
-                  <th className="px-3 py-3 w-[20%]">Player</th>
-                  <th className="px-3 py-3 w-[14%]">Market</th>
-                  <th className="px-3 py-3 w-[16%]">Book</th>
-                  <th className="px-3 py-3 w-[10%]">Book line</th>
-                  <th className="px-3 py-3 w-[10%]">Consensus</th>
-                  <th className="px-3 py-3 w-[10%]">Δ</th>
-                  <th className="px-3 py-3 w-[8%]">EV</th>
-                  <th className="px-3 py-3 w-[15%]">Angle</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRows.map((row, index) => {
-                  const angleOdds =
-                    row.recommendedSide === "over" ? row.overOdds : row.underOdds
-                  const consensusOdds =
-                    row.recommendedSide === "over"
-                      ? row.consensusOverOdds
-                      : row.consensusUnderOdds
-                  const deltaLabel =
-                    row.delta > 0 ? `+${row.delta.toFixed(1)}` : row.delta.toFixed(1)
-                  const chip =
-                    row.recommendedSide === "over"
-                      ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
-                      : "border-amber-400/60 bg-amber-500/10 text-amber-200"
-                  const evClass =
-                    row.evPercent != null && row.evPercent >= 0
-                      ? "text-emerald-300"
-                      : "text-white/55"
+          <>
+            <div className="space-y-3 sm:hidden">
+              {visibleRows.map((row, index) => {
+                const rowKey = `${row.id}:${row.bookKey}:${index}`
+                const isExpanded = expandedRows.has(rowKey)
+                const angleOdds =
+                  row.recommendedSide === "over" ? row.overOdds : row.underOdds
+                const consensusOdds =
+                  row.recommendedSide === "over"
+                    ? row.consensusOverOdds
+                    : row.consensusUnderOdds
+                const evClass =
+                  row.evPercent != null && row.evPercent >= 0
+                    ? "text-emerald-300"
+                    : "text-white/75"
 
-                  return (
-                    <tr key={`${row.id}:${row.bookKey}:${index}`} className="border-t border-white/5">
-                      <td className="px-3 py-3 text-white/80">{index + 1}</td>
-                      <td className="px-3 py-3 text-white/90 truncate">
-                        <div className="font-semibold text-white">{row.player}</div>
-                        <div className="text-[11px] text-white/45 truncate sm:text-xs">
-                          {row.game}
+                return (
+                  <article
+                    key={rowKey}
+                    className="rounded-2xl border border-white/10 bg-black/50 p-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="min-w-0 truncate text-sm font-semibold text-white">
+                        {row.player}
+                      </p>
+                      <span className="shrink-0 rounded-full border border-white/10 bg-black/60 px-2 py-0.5 text-[10px] text-white/50">
+                        #{index + 1}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                          Over/Under
+                        </p>
+                        <p className="mt-1 text-xs font-semibold uppercase text-white">
+                          {row.recommendedSide}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                          Book line
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-white">
+                          {formatPoint(row.bookPoint)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">EV</p>
+                        <p className={`mt-1 text-xs font-semibold ${evClass}`}>
+                          {formatEv(row.evPercent)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                          Odds comparison
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-white">
+                          {formatOdds(angleOdds)} vs {formatOdds(consensusOdds ?? undefined)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedRows((previous) => {
+                          const next = new Set(previous)
+                          if (next.has(rowKey)) next.delete(rowKey)
+                          else next.add(rowKey)
+                          return next
+                        })
+                      }
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/50 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/75"
+                    >
+                      {isExpanded ? "Show less" : "Show more"}
+                      {isExpanded ? (
+                        <ChevronUp className="h-3 w-3" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3" />
+                      )}
+                    </button>
+
+                    {isExpanded && (
+                      <div className="mt-3 border-t border-white/10 pt-3">
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                          <section className="min-w-[180px] rounded-xl border border-white/10 bg-black/60 p-3">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                              Matchup
+                            </p>
+                            <p className="mt-1 text-xs text-white">{row.game}</p>
+                            <p className="mt-2 text-[11px] text-white/60">
+                              {formatCommenceTime(row.commenceTime)}
+                            </p>
+                          </section>
+                          <section className="min-w-[180px] rounded-xl border border-white/10 bg-black/60 p-3">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                              Market + Book
+                            </p>
+                            <p className="mt-1 text-xs text-white">{formatMarketLabel(row.market)}</p>
+                            <p className="mt-2 text-[11px] text-white/70">{row.bookLabel}</p>
+                          </section>
+                          <section className="min-w-[180px] rounded-xl border border-white/10 bg-black/60 p-3">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                              Line edge
+                            </p>
+                            <p className="mt-1 text-xs text-white">
+                              Consensus line: {formatPoint(row.consensusPoint)}
+                            </p>
+                            <p className="mt-2 text-[11px] text-white/70">
+                              Delta: {row.delta > 0 ? `+${row.delta.toFixed(1)}` : row.delta.toFixed(1)}
+                            </p>
+                            <p className="mt-1 text-[11px] text-white/60">
+                              Discrepancy: {row.discrepancy.toFixed(1)}
+                            </p>
+                          </section>
+                          <section className="min-w-[180px] rounded-xl border border-white/10 bg-black/60 p-3">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                              Full odds
+                            </p>
+                            <p className="mt-1 text-xs text-white">
+                              Over: {formatOdds(row.overOdds)}
+                            </p>
+                            <p className="mt-2 text-xs text-white">
+                              Under: {formatOdds(row.underOdds)}
+                            </p>
+                            <p className="mt-2 text-[11px] text-white/70">
+                              Consensus O/U: {formatOdds(row.consensusOverOdds ?? undefined)} / {formatOdds(row.consensusUnderOdds ?? undefined)}
+                            </p>
+                          </section>
                         </div>
-                      </td>
-                      <td className="px-3 py-3 truncate">{formatMarketLabel(row.market)}</td>
-                      <td className="px-3 py-3 truncate">{row.bookLabel}</td>
-                      <td className="px-3 py-3">
-                        <span className="font-semibold text-white">{row.bookPoint}</span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className="text-white/70">{Math.round(row.consensusPoint)}</span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className="font-semibold text-white">{deltaLabel}</span>
-                        <span className="ml-2 text-[11px] text-white/45 sm:text-xs">
-                          ({row.discrepancy.toFixed(1)})
-                        </span>
-                      </td>
-                      <td className={`px-3 py-3 font-semibold ${evClass}`}>
-                        {formatEv(row.evPercent)}
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={`rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] ${chip} sm:text-xs`}
-                          >
-                            {row.recommendedSide}
+                      </div>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+
+            <div className="hidden overflow-x-auto rounded-2xl border border-white/10 bg-black/40 sm:block">
+              <table className="min-w-0 w-full table-fixed text-left text-[12.5px] text-white/70 sm:text-sm">
+                <thead className="bg-black/60 text-[11px] text-white/60 sm:text-xs">
+                  <tr>
+                    <th className="px-3 py-3 w-[7%]">Rank</th>
+                    <th className="px-3 py-3 w-[20%]">Player</th>
+                    <th className="px-3 py-3 w-[14%]">Market</th>
+                    <th className="px-3 py-3 w-[16%]">Book</th>
+                    <th className="px-3 py-3 w-[10%]">Book line</th>
+                    <th className="px-3 py-3 w-[10%]">Consensus</th>
+                    <th className="px-3 py-3 w-[10%]">Delta</th>
+                    <th className="px-3 py-3 w-[8%]">EV</th>
+                    <th className="px-3 py-3 w-[15%]">Angle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRows.map((row, index) => {
+                    const angleOdds =
+                      row.recommendedSide === "over" ? row.overOdds : row.underOdds
+                    const consensusOdds =
+                      row.recommendedSide === "over"
+                        ? row.consensusOverOdds
+                        : row.consensusUnderOdds
+                    const deltaLabel =
+                      row.delta > 0 ? `+${row.delta.toFixed(1)}` : row.delta.toFixed(1)
+                    const chip =
+                      row.recommendedSide === "over"
+                        ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
+                        : "border-amber-400/60 bg-amber-500/10 text-amber-200"
+                    const evClass =
+                      row.evPercent != null && row.evPercent >= 0
+                        ? "text-emerald-300"
+                        : "text-white/55"
+
+                    return (
+                      <tr
+                        key={`${row.id}:${row.bookKey}:${index}`}
+                        className="border-t border-white/5"
+                      >
+                        <td className="px-3 py-3 text-white/80">{index + 1}</td>
+                        <td className="px-3 py-3 text-white/90 truncate">
+                          <div className="font-semibold text-white">{row.player}</div>
+                          <div className="text-[11px] text-white/45 truncate sm:text-xs">
+                            {row.game}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 truncate">{formatMarketLabel(row.market)}</td>
+                        <td className="px-3 py-3 truncate">{row.bookLabel}</td>
+                        <td className="px-3 py-3">
+                          <span className="font-semibold text-white">{row.bookPoint}</span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <span className="text-white/70">{Math.round(row.consensusPoint)}</span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <span className="font-semibold text-white">{deltaLabel}</span>
+                          <span className="ml-2 text-[11px] text-white/45 sm:text-xs">
+                            ({row.discrepancy.toFixed(1)})
                           </span>
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[12px] font-semibold text-white sm:text-sm">
-                              {formatOdds(angleOdds)}
+                        </td>
+                        <td className={`px-3 py-3 font-semibold ${evClass}`}>
+                          {formatEv(row.evPercent)}
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] ${chip} sm:text-xs`}
+                            >
+                              {row.recommendedSide}
                             </span>
-                            <span className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/35">
-                              vs
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[12px] font-semibold text-white sm:text-sm">
+                                {formatOdds(angleOdds)}
+                              </span>
+                              <span className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/35">
+                                vs
+                              </span>
+                              <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[12px] font-semibold text-white/70 sm:text-sm">
+                                {formatOdds(consensusOdds ?? undefined)}
+                              </span>
                             </span>
-                            <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[12px] font-semibold text-white/70 sm:text-sm">
-                              {formatOdds(consensusOdds ?? undefined)}
-                            </span>
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         {filteredRows.length > visibleRows.length && (
@@ -345,3 +506,4 @@ export default function CrossedEvClient({
     </ServerManagementTable>
   )
 }
+

@@ -530,12 +530,12 @@ function ChatPageContent() {
   }, [user, canUseSharpDetector, showSharpToggle, sharpPanelOpen])
 
   const headerActions = (
-      <div className="flex items-center gap-1.5 lg:border-l lg:border-white/10 lg:pl-2">
+      <div className="flex items-center gap-1 lg:border-l lg:border-white/10 lg:pl-2">
       {user && (
-        <div className="relative hidden sm:block" ref={profileMenuRef}>
+        <div className="relative block" ref={profileMenuRef}>
           <button
             onClick={() => setProfileMenuOpen((prev) => !prev)}
-            className="h-10 w-10 rounded-full border border-[#2a2a2a] hover:border-white/60 overflow-hidden transition-colors"
+            className="h-9 w-9 overflow-hidden rounded-full border border-[#2a2a2a] transition-colors hover:border-white/60 sm:h-10 sm:w-10"
             aria-label="Profile menu"
           >
             {profileImage ? (
@@ -562,7 +562,7 @@ function ChatPageContent() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15 }}
-                className="absolute right-0 mt-3 w-60 rounded-2xl border border-[#1f1f1f] bg-black text-white shadow-2xl z-50 overflow-hidden"
+                className="absolute right-0 z-50 mt-3 w-[min(92vw,15rem)] overflow-hidden rounded-2xl border border-[#1f1f1f] bg-black text-white shadow-2xl sm:w-60"
               >
                 <div className="px-4 py-3 border-b border-[#1f1f1f]">
                   <p className="text-sm font-semibold">{fallbackName}</p>

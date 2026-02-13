@@ -26,6 +26,63 @@ const SPORT_OPTIONS: SportOption[] = [
   { key: "icehockey_nhl", label: "NHL", locked: false },
 ]
 
+const hydrateMissingSharpProjections = (
+  edges: GameEdgeAnalysis[],
+  sport: string
+): GameEdgeAnalysis[] => {
+  return edges.map((edge) => {
+    if (!edge || !edge.homeTeam || !edge.awayTeam) return edge
+
+    const hasSpreadMarket = Boolean(edge.spread)
+    const hasTotalMarket = Boolean(edge.total)
+    const hasMoneylineMarket = Boolean(edge.moneyline)
+    const existing = edge.sharpProjections as
+      | {
+          spread?: unknown
+          total?: unknown
+          moneyline?: unknown
+          tier?: unknown
+        }
+      | undefined
+
+    const needsBackfill =
+      !existing ||
+      (hasSpreadMarket && !existing.spread) ||
+      (hasTotalMarket && !existing.total) ||
+      (hasMoneylineMarket && !existing.moneyline)
+
+    if (!needsBackfill) return edge
+
+    try {
+      const computed = buildSharpProjections({
+        sportKey: sport,
+        homeTeam: edge.homeTeam,
+        awayTeam: edge.awayTeam,
+        spread: edge.spread,
+        total: edge.total,
+        moneyline: edge.moneyline,
+        sharpSignals: edge.sharpSignals,
+        lineMovements: edge.lineMovements,
+        splits: edge.splits,
+        whaleAlerts: edge.whaleAlerts,
+      })
+
+      return {
+        ...edge,
+        sharpProjections: {
+          tier: computed.tier,
+          spread: (existing?.spread as any) ?? computed.spread,
+          total: (existing?.total as any) ?? computed.total,
+          moneyline: (existing?.moneyline as any) ?? computed.moneyline,
+        },
+      }
+    } catch (error) {
+      console.warn("[market-projections] backfill failed", error)
+      return edge
+    }
+  })
+}
+
 
 export default async function MarketProjectionsPage({
   searchParams,
@@ -102,30 +159,7 @@ export default async function MarketProjectionsPage({
           sport === "americanfootball_nfl" ||
           sport === "icehockey_nhl"
         if (shouldBackfill && edges.length > 0) {
-          edges = edges.map((edge) => {
-            if (!edge || edge?.sharpProjections) return edge
-            if (!edge.homeTeam || !edge.awayTeam) return edge
-            try {
-              return {
-                ...edge,
-                sharpProjections: buildSharpProjections({
-                  sportKey: sport,
-                  homeTeam: edge.homeTeam,
-                  awayTeam: edge.awayTeam,
-                  spread: edge.spread,
-                  total: edge.total,
-                  moneyline: edge.moneyline,
-                  sharpSignals: edge.sharpSignals,
-                  lineMovements: edge.lineMovements,
-                  splits: edge.splits,
-                  whaleAlerts: edge.whaleAlerts,
-                }),
-              }
-            } catch (error) {
-              console.warn("[market-projections] backfill failed", error)
-              return edge
-            }
-          })
+          edges = hydrateMissingSharpProjections(edges, sport)
         }
 
         if (sport === "americanfootball_nfl" && edges.length === 0 && allowLiveRefresh) {

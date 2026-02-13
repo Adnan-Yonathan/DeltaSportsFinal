@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import { recordMarketProjectionPicks } from "@/lib/services/market-projection-clv"
+import { buildSharpProjections } from "@/lib/services/sharp-projections"
 
 const CACHE_TTL_MS = 1000 * 60 * 30
 
@@ -50,6 +51,60 @@ const mergeWhaleAlerts = (
   })
 }
 
+const hydrateMissingSharpProjections = (edges: any[], sport: string): any[] => {
+  if (!Array.isArray(edges) || edges.length === 0) return edges
+  return edges.map((edge) => {
+    if (!edge || !edge.homeTeam || !edge.awayTeam) return edge
+
+    const hasSpreadMarket = Boolean(edge.spread)
+    const hasTotalMarket = Boolean(edge.total)
+    const hasMoneylineMarket = Boolean(edge.moneyline)
+    const existing = edge.sharpProjections as
+      | {
+          spread?: unknown
+          total?: unknown
+          moneyline?: unknown
+          tier?: unknown
+        }
+      | undefined
+
+    const needsBackfill =
+      !existing ||
+      (hasSpreadMarket && !existing.spread) ||
+      (hasTotalMarket && !existing.total) ||
+      (hasMoneylineMarket && !existing.moneyline)
+
+    if (!needsBackfill) return edge
+
+    try {
+      const computed = buildSharpProjections({
+        sportKey: sport,
+        homeTeam: edge.homeTeam,
+        awayTeam: edge.awayTeam,
+        spread: edge.spread,
+        total: edge.total,
+        moneyline: edge.moneyline,
+        sharpSignals: edge.sharpSignals,
+        lineMovements: edge.lineMovements,
+        splits: edge.splits,
+        whaleAlerts: edge.whaleAlerts,
+      })
+
+      return {
+        ...edge,
+        sharpProjections: {
+          tier: existing?.tier ?? computed.tier,
+          spread: existing?.spread ?? computed.spread,
+          total: existing?.total ?? computed.total,
+          moneyline: existing?.moneyline ?? computed.moneyline,
+        },
+      }
+    } catch {
+      return edge
+    }
+  })
+}
+
 const readCache = async (sport: string) => {
   try {
     const supabase = createServiceClient()
@@ -60,8 +115,9 @@ const readCache = async (sport: string) => {
       .single()) as unknown as { data: { edges: any[]; updated_at: string } | null; error: any }
 
     if (error || !data) return null
+    const hydratedEdges = hydrateMissingSharpProjections(data.edges ?? [], sport)
     return {
-      edges: data.edges,
+      edges: hydratedEdges,
       updatedAt: data.updated_at,
       sport,
     }
@@ -73,10 +129,11 @@ const readCache = async (sport: string) => {
 const writeCache = async (sport: string, edges: any[]) => {
   try {
     const supabase = createServiceClient()
+    const hydratedEdges = hydrateMissingSharpProjections(edges, sport)
     const { error } = (await supabase.from("market_projections_cache" as any).upsert(
       {
         sport,
-        edges,
+        edges: hydratedEdges,
         updated_at: new Date().toISOString(),
       } as any,
       { onConflict: "sport" }
@@ -116,24 +173,26 @@ export async function GET(request: Request) {
         date,
         bookmakers: requestedBooks,
       })
+      const hydratedEdges = hydrateMissingSharpProjections(result.edges ?? [], sport)
       return NextResponse.json({
         ok: true,
         updatedAt: new Date().toISOString(),
         sport,
-        edgeCount: result.edges?.length ?? 0,
-        ...(includeEdges ? { edges: result.edges ?? [] } : {}),
+        edgeCount: hydratedEdges.length,
+        ...(includeEdges ? { edges: hydratedEdges } : {}),
         fromCache: false,
       })
     }
 
     if (noCache) {
       const result = await analyzeSlateEdges(sport, { limit, date })
+      const hydratedEdges = hydrateMissingSharpProjections(result.edges ?? [], sport)
       return NextResponse.json({
         ok: true,
         updatedAt: new Date().toISOString(),
         sport,
-        edgeCount: result.edges?.length ?? 0,
-        ...(includeEdges ? { edges: result.edges ?? [] } : {}),
+        edgeCount: hydratedEdges.length,
+        ...(includeEdges ? { edges: hydratedEdges } : {}),
         fromCache: false,
       })
     }
@@ -169,17 +228,18 @@ export async function GET(request: Request) {
         })
       }
       const mergedEdges = mergeWhaleAlerts(result.edges ?? [], cached?.edges)
+      const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
       const payload = {
         updatedAt: new Date().toISOString(),
         sport,
-        edges: mergedEdges,
+        edges: hydratedEdges,
       }
       await recordMarketProjectionPicks({
         sport,
-        edges: mergedEdges as any,
+        edges: hydratedEdges as any,
         pickedAt: payload.updatedAt,
       })
-      await writeCache(sport, mergedEdges)
+      await writeCache(sport, hydratedEdges)
       return NextResponse.json({
         ok: true,
         updatedAt: payload.updatedAt,
@@ -243,17 +303,18 @@ export async function GET(request: Request) {
 
     const result = await analyzeSlateEdges(sport, { limit, date })
     const mergedEdges = mergeWhaleAlerts((result as any)?.edges ?? [], cached?.edges)
+    const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
     const payload = {
       updatedAt: new Date().toISOString(),
       sport,
-      edges: mergedEdges,
+      edges: hydratedEdges,
     }
     await recordMarketProjectionPicks({
       sport,
-      edges: mergedEdges as any,
+      edges: hydratedEdges as any,
       pickedAt: payload.updatedAt,
     })
-    await writeCache(sport, mergedEdges)
+    await writeCache(sport, hydratedEdges)
     return NextResponse.json({
       ok: true,
       updatedAt: payload.updatedAt,

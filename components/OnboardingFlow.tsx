@@ -535,7 +535,7 @@ export function OnboardingFlow() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 text-white flex flex-col font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-black via-[#05110d] to-[#08110e] text-white flex flex-col font-sans">
 
       {/* Progress Bar */}
       <div className="fixed top-0 left-0 right-0 h-1 bg-white/10 z-50">

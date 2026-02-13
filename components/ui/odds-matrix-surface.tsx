@@ -21,7 +21,7 @@ export function OddsMatrixSurface({
       aria-hidden="true"
       className={`pointer-events-none fixed inset-0 z-0 opacity-90 ${className}`}
     >
-      <div className="h-full w-full bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800" />
+      <div className="h-full w-full bg-gradient-to-br from-black via-[#05110d] to-[#08110e]" />
     </div>
   )
 }

@@ -46,7 +46,11 @@ export default function ChatIntro({
     label: string
     detail: string
   } | null>(null)
-  const [cardSize, setCardSize] = useState({ width: 520, height: 320 })
+  const [cardSize, setCardSize] = useState({
+    width: 520,
+    height: 320,
+    stageHeight: 400,
+  })
   const projectionItems: CardStackItem[] = [
     {
       id: 'projection',
@@ -113,14 +117,30 @@ export default function ChatIntro({
   useEffect(() => {
     const updateCardSize = () => {
       const width = window.innerWidth
+      const height = window.innerHeight
+      const clamp = (value: number, min: number, max: number) =>
+        Math.min(max, Math.max(min, value))
+
       if (width < 420) {
-        setCardSize({ width: 300, height: 220 })
+        const cardWidth = clamp(width - 28, 250, 320)
+        const cardHeight = clamp(height - 380, 145, 220)
+        setCardSize({
+          width: cardWidth,
+          height: cardHeight,
+          stageHeight: cardHeight + 48,
+        })
       } else if (width < 640) {
-        setCardSize({ width: 360, height: 240 })
+        const cardWidth = clamp(width - 32, 300, 360)
+        const cardHeight = clamp(height - 390, 170, 240)
+        setCardSize({
+          width: cardWidth,
+          height: cardHeight,
+          stageHeight: cardHeight + 52,
+        })
       } else if (width < 900) {
-        setCardSize({ width: 440, height: 280 })
+        setCardSize({ width: 440, height: 280, stageHeight: 360 })
       } else {
-        setCardSize({ width: 520, height: 320 })
+        setCardSize({ width: 520, height: 320, stageHeight: 400 })
       }
     }
 
@@ -469,13 +489,10 @@ export default function ChatIntro({
       >
         <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
           {onModeChange && (
-            <div className="relative z-10 pointer-events-auto">
+            <div className="relative z-10 hidden pointer-events-auto sm:block">
               <ModeToggle mode={mode} onChange={onModeChange} />
             </div>
           )}
-          <span className="sm:hidden text-[10px] uppercase tracking-[0.25em] text-white/50">
-            Best in landscape mode
-          </span>
           <Link
             href="https://x.com/DeltaSportsAI"
             target="_blank"
@@ -493,7 +510,7 @@ export default function ChatIntro({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="hidden w-full max-w-5xl -mt-8 md:block"
+        className="w-full max-w-5xl"
       >
         <CardStack
           items={cardItems}
@@ -504,6 +521,7 @@ export default function ChatIntro({
           showDots
           cardWidth={cardSize.width}
           cardHeight={cardSize.height}
+          stageHeight={cardSize.stageHeight}
           renderCard={(item) => (
             <div className="relative h-full w-full bg-black">
               <div
@@ -511,7 +529,7 @@ export default function ChatIntro({
                   isResearch ? 'from-amber-900/35 via-black/10' : 'from-emerald-900/30 via-black/10'
                 } to-transparent`}
               />
-              <div className="relative z-10 flex h-full flex-col justify-end p-6 text-left">
+              <div className="relative z-10 flex h-full flex-col justify-end p-4 text-left sm:p-6">
                 {item.tag && (
                   <span
                     className={`mb-2 inline-flex w-fit rounded-full border bg-black/50 px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
@@ -523,14 +541,14 @@ export default function ChatIntro({
                     {item.tag}
                   </span>
                 )}
-                <h3 className="text-xl font-semibold text-white">{item.title}</h3>
+                <h3 className="text-lg font-semibold text-white sm:text-xl">{item.title}</h3>
                 {item.description && (
-                  <p className="mt-2 text-sm text-white/70">{item.description}</p>
+                  <p className="mt-1.5 text-xs text-white/70 sm:mt-2 sm:text-sm">{item.description}</p>
                 )}
                 {item.href && (
                   <Link
                     href={item.href}
-                    className={`mt-4 inline-flex w-fit rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.3em] transition ${
+                    className={`mt-3 inline-flex w-fit rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.25em] transition sm:mt-4 sm:px-4 sm:py-2 sm:text-[11px] sm:tracking-[0.3em] ${
                       isResearch
                         ? 'border-amber-400/50 text-amber-200 hover:border-amber-300/70 hover:text-amber-100'
                         : 'border-emerald-400/40 text-emerald-200 hover:border-emerald-300/70 hover:text-emerald-100'

@@ -31,6 +31,7 @@ export type CardStackProps<T extends CardStackItem> = {
   /** Card sizing */
   cardWidth?: number;
   cardHeight?: number;
+  stageHeight?: number;
 
   /** How much cards overlap each other (0..0.8). Higher = more overlap */
   overlap?: number;
@@ -91,6 +92,7 @@ export function CardStack<T extends CardStackItem>({
 
   cardWidth = 520,
   cardHeight = 320,
+  stageHeight,
 
   overlap = 0.48,
   spreadDeg = 48,
@@ -202,7 +204,7 @@ export function CardStack<T extends CardStackItem>({
       {/* Stage */}
       <div
         className="relative w-full"
-        style={{ height: Math.max(380, cardHeight + 80) }}
+        style={{ height: stageHeight ?? Math.max(380, cardHeight + 80) }}
         tabIndex={0}
         onKeyDown={onKeyDown}
       >

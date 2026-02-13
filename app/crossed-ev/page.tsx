@@ -1,4 +1,5 @@
 import ToolsNav from "@/components/tools-nav"
+import MobileToolsNav from "@/components/mobile-tools-nav"
 import SportSelector from "../market-projections/sport-selector"
 import { createClient } from "@/lib/supabase/server"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
@@ -47,16 +48,19 @@ export default async function CrossedEvPage({
       <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/95 backdrop-blur-sm">
         <div className="px-2 py-3 sm:px-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <ToolsNav />
+            <div className="hidden md:block">
+              <ToolsNav />
+            </div>
             <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
           </div>
         </div>
       </div>
-      <div className="pt-[96px] sm:pt-[112px] px-2 sm:px-4">
+      <div className="pt-[96px] px-2 pb-[96px] sm:px-4 sm:pt-[112px] sm:pb-0">
         <div className="mx-auto w-full max-w-none space-y-4 py-4">
           <SharpPropsHub sport={sport} previewMode={previewMode} />
         </div>
       </div>
+      <MobileToolsNav />
     </div>
   )
 }

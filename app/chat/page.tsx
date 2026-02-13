@@ -14,7 +14,7 @@ import { SimpleHeader } from '@/components/ui/simple-header'
 import { ParticleButton } from '@/components/ui/particle-button'
 import { OddsMatrixSurface } from '@/components/ui/odds-matrix-surface'
 import SharpDetectorPanel from '@/components/SharpDetectorPanel'
-import ToolsNav from '@/components/tools-nav'
+import MobileToolsNav from '@/components/mobile-tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, Target, Check, ArrowUpRight, Twitter } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
@@ -681,16 +681,11 @@ function ChatPageContent() {
         className="opacity-95"
         tone={isResearch ? 'amber' : 'emerald'}
       />
-        <SimpleHeader
-          widthClass="max-w-6xl"
-          rightSlot={headerActions}
-          onLogoClick={() => handleNewConversation()}
-        />
-      {user && (
-        <div className="sm:hidden px-2 pt-2">
-          <ToolsNav hideMobileTop showMobileChatBack={false} />
-        </div>
-      )}
+      <SimpleHeader
+        widthClass="max-w-6xl"
+        rightSlot={headerActions}
+        onLogoClick={() => handleNewConversation()}
+      />
       {/* Whale Feed is now accessible via Tools dropdown. */}
       {/* Removed the secondary tool tab navbar; navigation now lives in the header dropdown. */}
       <div className="flex flex-1 min-h-0 relative overflow-hidden">
@@ -748,7 +743,11 @@ function ChatPageContent() {
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           <div className="flex-1 flex flex-col items-center overflow-hidden min-h-0">
             <div className="w-full max-w-none flex flex-col h-full min-h-0">
-              <div className="flex-1 overflow-hidden min-h-0 pt-[152px] pb-[150px] sm:pt-[144px] sm:pb-[160px]">
+              <div
+                className={`flex-1 overflow-hidden min-h-0 pt-[112px] sm:pt-[144px] sm:pb-[160px] ${
+                  hasMessages ? 'pb-[224px]' : 'pb-[108px]'
+                }`}
+              >
                 {!user ? (
                   // Guest view - show intro with sign-up prompt
                   <div className="h-full overflow-y-auto">
@@ -820,7 +819,7 @@ function ChatPageContent() {
                       </div>
 
                       {/* Mode Toggle */}
-                      <div className="mb-6">
+                      <div className="mb-6 hidden sm:block">
                         <ModeToggle mode={deltaMode} onChange={setDeltaMode} />
                       </div>
 
@@ -1171,7 +1170,7 @@ function ChatPageContent() {
         )}
       </AnimatePresence>
       {currentConversationId && hasMessages && (
-        <div className="fixed bottom-0 left-0 right-0 z-40">
+        <div className="fixed bottom-[calc(70px+env(safe-area-inset-bottom))] left-0 right-0 z-50 md:bottom-0 md:z-40">
           <div className="mx-auto max-w-5xl px-2 py-1.5 sm:px-4 sm:py-3">
             <RichMessageInput
               conversationId={currentConversationId}
@@ -1180,6 +1179,7 @@ function ChatPageContent() {
           </div>
         </div>
       )}
+      {user && <MobileToolsNav />}
 
     </div>
   )

@@ -5,6 +5,7 @@ import { formatAmericanOdds, formatCurrency } from '@/lib/utils/odds'
 import { cn } from '@/lib/utils'
 import { getWalletAlias } from '@/lib/utils/wallet-alias'
 import { SimpleHeader } from '@/components/ui/simple-header'
+import MobileToolsNav from '@/components/mobile-tools-nav'
 import { motion } from 'framer-motion'
 import { Target, Zap, DollarSign } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -653,11 +654,12 @@ export default function SharpDetectorPage() {
     return (
       <div className="min-h-screen bg-black text-white">
         <SimpleHeader />
-        <div className="max-w-6xl mx-auto px-4 py-8 pt-20">
+        <div className="max-w-6xl mx-auto px-4 py-8 pt-20 pb-[108px] sm:pb-8">
           <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-8 text-sm text-white/60">
             Checking access...
           </div>
         </div>
+        <MobileToolsNav />
       </div>
     )
   }
@@ -666,7 +668,7 @@ export default function SharpDetectorPage() {
     return (
       <div className="min-h-screen bg-black text-white">
         <SimpleHeader />
-        <div className="max-w-6xl mx-auto px-4 py-8 pt-20">
+        <div className="max-w-6xl mx-auto px-4 py-8 pt-20 pb-[108px] sm:pb-8">
           <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5">
             <div className="pointer-events-none blur-sm">
               <div className="space-y-4 p-6">
@@ -703,6 +705,7 @@ export default function SharpDetectorPage() {
             </div>
           </div>
         </div>
+        <MobileToolsNav />
       </div>
     )
   }
@@ -711,7 +714,7 @@ export default function SharpDetectorPage() {
     <div className="min-h-screen bg-black text-white">
       <SimpleHeader />
 
-      <div className="max-w-6xl mx-auto px-4 py-8 pt-20">
+      <div className="max-w-6xl mx-auto px-4 py-8 pt-20 pb-[108px] sm:pb-8">
         {/* Stats Grid */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -1060,6 +1063,7 @@ export default function SharpDetectorPage() {
           </div>
         )}
       </div>
+      <MobileToolsNav />
     </div>
   )
 }

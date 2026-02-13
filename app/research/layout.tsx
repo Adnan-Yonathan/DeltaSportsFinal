@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import ResearchNav from './research-nav'
+import MobileToolsNav from '@/components/mobile-tools-nav'
 
 export default function ResearchLayout({
   children,
@@ -31,17 +32,20 @@ export default function ResearchLayout({
             </div>
 
             {/* Research Nav - Client Component */}
-            <ResearchNav />
+            <div className="hidden md:block">
+              <ResearchNav />
+            </div>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="pt-24 px-4 pb-8">
+      <div className="px-4 pt-24 pb-[96px] sm:pb-8">
         <div className="mx-auto max-w-6xl">
           {children}
         </div>
       </div>
+      <MobileToolsNav />
     </div>
   )
 }

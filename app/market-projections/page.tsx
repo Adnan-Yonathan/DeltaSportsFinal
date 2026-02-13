@@ -1,6 +1,7 @@
 import MarketProjectionsClient from "./market-projections-client"
 import SportSelector from "./sport-selector"
 import ToolsNav from "@/components/tools-nav"
+import MobileToolsNav from "@/components/mobile-tools-nav"
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { buildSharpProjections } from "@/lib/services/sharp-projections"
@@ -193,7 +194,9 @@ export default async function MarketProjectionsPage({
         <div className="px-2 sm:px-4 py-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex w-full flex-wrap items-start justify-between gap-4 md:w-auto md:flex-1 md:items-center">
-              <ToolsNav />
+              <div className="hidden md:block">
+                <ToolsNav />
+              </div>
               <div className="ml-auto md:hidden">
                 <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
               </div>
@@ -204,7 +207,7 @@ export default async function MarketProjectionsPage({
           </div>
         </div>
       </div>
-      <div className="pt-[120px] sm:pt-[140px] px-2 sm:px-4">
+      <div className="pt-[120px] px-2 pb-[96px] sm:px-4 sm:pt-[140px] sm:pb-0">
         <div className="mx-auto w-full max-w-none space-y-5 py-6">
           <MarketProjectionsClient
             key={sport}
@@ -219,6 +222,7 @@ export default async function MarketProjectionsPage({
           />
         </div>
       </div>
+      <MobileToolsNav />
     </div>
   )
 }

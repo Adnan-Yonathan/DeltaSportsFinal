@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ChevronDown, ChevronUp, Search } from "lucide-react"
+import { Search } from "lucide-react"
 import BoxLoader from "@/components/ui/box-loader"
 import { ServerManagementTable } from "@/components/ui/server-management-table"
 
@@ -86,7 +86,6 @@ export default function CrossedEvClient({
   const [marketFilter, setMarketFilter] = useState("all")
   const [bookFilter, setBookFilter] = useState("all")
   const [visibleCount, setVisibleCount] = useState(200)
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 
   const inQuietHours = useCallback(() => {
     const current = new Date()
@@ -116,7 +115,6 @@ export default function CrossedEvClient({
       setRows(Array.isArray(payload?.rows) ? payload.rows : [])
       setBooks(Array.isArray(payload?.books) ? payload.books : [])
       setVisibleCount(200)
-      setExpandedRows(new Set())
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to load crossed EV props."
@@ -265,7 +263,6 @@ export default function CrossedEvClient({
             <div className="space-y-3 sm:hidden">
               {visibleRows.map((row, index) => {
                 const rowKey = `${row.id}:${row.bookKey}:${index}`
-                const isExpanded = expandedRows.has(rowKey)
                 const angleOdds =
                   row.recommendedSide === "over" ? row.overOdds : row.underOdds
                 const consensusOdds =
@@ -324,76 +321,54 @@ export default function CrossedEvClient({
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedRows((previous) => {
-                          const next = new Set(previous)
-                          if (next.has(rowKey)) next.delete(rowKey)
-                          else next.add(rowKey)
-                          return next
-                        })
-                      }
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/50 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/75"
-                    >
-                      {isExpanded ? "Show less" : "Show more"}
-                      {isExpanded ? (
-                        <ChevronUp className="h-3 w-3" />
-                      ) : (
-                        <ChevronDown className="h-3 w-3" />
-                      )}
-                    </button>
-
-                    {isExpanded && (
-                      <div className="mt-3 border-t border-white/10 pt-3">
-                        <div className="flex gap-2 overflow-x-auto pb-1">
-                          <section className="min-w-[180px] rounded-xl border border-white/10 bg-black/60 p-3">
-                            <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
-                              Matchup
-                            </p>
-                            <p className="mt-1 text-xs text-white">{row.game}</p>
-                            <p className="mt-2 text-[11px] text-white/60">
-                              {formatCommenceTime(row.commenceTime)}
-                            </p>
-                          </section>
-                          <section className="min-w-[180px] rounded-xl border border-white/10 bg-black/60 p-3">
-                            <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
-                              Market + Book
-                            </p>
-                            <p className="mt-1 text-xs text-white">{formatMarketLabel(row.market)}</p>
-                            <p className="mt-2 text-[11px] text-white/70">{row.bookLabel}</p>
-                          </section>
-                          <section className="min-w-[180px] rounded-xl border border-white/10 bg-black/60 p-3">
-                            <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
-                              Line edge
-                            </p>
-                            <p className="mt-1 text-xs text-white">
-                              Consensus line: {formatPoint(row.consensusPoint)}
-                            </p>
-                            <p className="mt-2 text-[11px] text-white/70">
-                              Delta: {row.delta > 0 ? `+${row.delta.toFixed(1)}` : row.delta.toFixed(1)}
-                            </p>
-                            <p className="mt-1 text-[11px] text-white/60">
-                              Discrepancy: {row.discrepancy.toFixed(1)}
-                            </p>
-                          </section>
-                          <section className="min-w-[180px] rounded-xl border border-white/10 bg-black/60 p-3">
-                            <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
-                              Full odds
-                            </p>
-                            <p className="mt-1 text-xs text-white">
-                              Over: {formatOdds(row.overOdds)}
-                            </p>
-                            <p className="mt-2 text-xs text-white">
-                              Under: {formatOdds(row.underOdds)}
-                            </p>
-                            <p className="mt-2 text-[11px] text-white/70">
-                              Consensus O/U: {formatOdds(row.consensusOverOdds ?? undefined)} / {formatOdds(row.consensusUnderOdds ?? undefined)}
-                            </p>
-                          </section>
-                        </div>
+                    <div className="mt-3 border-t border-white/10 pt-3">
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        <section className="min-w-[180px] rounded-xl border border-white/10 bg-black/60 p-3">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                            Matchup
+                          </p>
+                          <p className="mt-1 text-xs text-white">{row.game}</p>
+                          <p className="mt-2 text-[11px] text-white/60">
+                            {formatCommenceTime(row.commenceTime)}
+                          </p>
+                        </section>
+                        <section className="min-w-[180px] rounded-xl border border-white/10 bg-black/60 p-3">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                            Market + Book
+                          </p>
+                          <p className="mt-1 text-xs text-white">{formatMarketLabel(row.market)}</p>
+                          <p className="mt-2 text-[11px] text-white/70">{row.bookLabel}</p>
+                        </section>
+                        <section className="min-w-[180px] rounded-xl border border-white/10 bg-black/60 p-3">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                            Line edge
+                          </p>
+                          <p className="mt-1 text-xs text-white">
+                            Consensus line: {formatPoint(row.consensusPoint)}
+                          </p>
+                          <p className="mt-2 text-[11px] text-white/70">
+                            Delta: {row.delta > 0 ? `+${row.delta.toFixed(1)}` : row.delta.toFixed(1)}
+                          </p>
+                          <p className="mt-1 text-[11px] text-white/60">
+                            Discrepancy: {row.discrepancy.toFixed(1)}
+                          </p>
+                        </section>
+                        <section className="min-w-[180px] rounded-xl border border-white/10 bg-black/60 p-3">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                            Full odds
+                          </p>
+                          <p className="mt-1 text-xs text-white">
+                            Over: {formatOdds(row.overOdds)}
+                          </p>
+                          <p className="mt-2 text-xs text-white">
+                            Under: {formatOdds(row.underOdds)}
+                          </p>
+                          <p className="mt-2 text-[11px] text-white/70">
+                            Consensus O/U: {formatOdds(row.consensusOverOdds ?? undefined)} / {formatOdds(row.consensusUnderOdds ?? undefined)}
+                          </p>
+                        </section>
                       </div>
-                    )}
+                    </div>
                   </article>
                 )
               })}

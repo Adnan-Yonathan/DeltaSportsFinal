@@ -247,9 +247,6 @@ export function PricingPageClient() {
     <main className="relative min-h-screen bg-black text-white">
       <OddsMatrixSurface intensity={0.22} className="opacity-90" />
       <div aria-hidden className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),rgba(0,0,0,0.0)_42%),radial-gradient(circle_at_bottom,rgba(255,255,255,0.06),rgba(0,0,0,0.0)_45%)]" />
-        <div className="absolute inset-0 insider-grid opacity-45" />
-        <div className="absolute inset-0 insider-scanlines opacity-25" />
         <div className="absolute inset-0 flex items-center justify-center">
           <Image
             src="/delta-logo.png"

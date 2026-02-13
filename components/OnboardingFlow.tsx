@@ -1,7 +1,6 @@
 "use client"
 import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronRight, Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
@@ -13,7 +12,6 @@ import { StepSingleSelect } from "./onboarding/StepSingleSelect"
 import { StepMultiSelect } from "./onboarding/StepMultiSelect"
 import { StepUnitSize } from "./onboarding/StepUnitSize"
 import { StepWelcome } from "./onboarding/StepWelcome"
-import { MatrixTransition } from "./onboarding/MatrixTransition"
 
 interface OnboardingData {
   primary_intent: string
@@ -36,7 +34,6 @@ export function OnboardingFlow() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [hasSaved, setHasSaved] = useState(false)
-  const [transitionPulse, setTransitionPulse] = useState(false)
   const [isScrambling, setIsScrambling] = useState(false)
   const [targetStep, setTargetStep] = useState<number | null>(null)
   const [welcomeUnlocking, setWelcomeUnlocking] = useState(false)
@@ -87,12 +84,6 @@ export function OnboardingFlow() {
   useEffect(() => {
     localStorage.setItem("onboarding_data", JSON.stringify(data))
   }, [data])
-
-  useEffect(() => {
-    setTransitionPulse(true)
-    const timer = setTimeout(() => setTransitionPulse(false), 240)
-    return () => clearTimeout(timer)
-  }, [currentStep])
 
   useEffect(() => {
     const AUTO_START = 1
@@ -406,9 +397,7 @@ export function OnboardingFlow() {
   const progress = ((currentStep + 1) / totalSteps) * 100
   const isTimelineStep = currentStep === totalSteps - 1
   const isAutoLockedStep = currentStep >= 1 && currentStep <= 6
-  const stepCode = String(currentStep + 1).padStart(2, "0")
   const nextLabel = steps[currentStep]?.nextLabel ?? "Next"
-  const nextStepCode = String(Math.min(currentStep + 2, totalSteps)).padStart(2, "0")
 
   const paywallTriggerStep = 7
 
@@ -546,47 +535,7 @@ export function OnboardingFlow() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col font-sans">
-      <MatrixTransition
-        active={isScrambling}
-        label={`DECRYPTING ${nextStepCode}`}
-      />
-      {/* Hacker Backdrop */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),rgba(0,0,0,0.0)_40%),radial-gradient(circle_at_bottom,rgba(255,255,255,0.06),rgba(0,0,0,0.0)_45%)]" />
-        <div className="absolute inset-0 opacity-[0.22] [background-image:repeating-linear-gradient(180deg,rgba(255,255,255,0.06)_0px,rgba(255,255,255,0.06)_1px,transparent_2px,transparent_6px)]" />
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={stepCode}
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            <Image
-              src="/delta-logo.png"
-              alt=""
-              aria-hidden
-              width={360}
-              height={360}
-              priority
-              className="h-[240px] w-[240px] select-none opacity-[0.07] sm:h-[320px] sm:w-[320px]"
-            />
-          </motion.div>
-        </AnimatePresence>
-        <AnimatePresence>
-          {transitionPulse && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.12 }}
-              className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(16,185,129,0.12),transparent)] mix-blend-screen"
-            />
-          )}
-        </AnimatePresence>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 text-white flex flex-col font-sans">
 
       {/* Progress Bar */}
       <div className="fixed top-0 left-0 right-0 h-1 bg-white/10 z-50">

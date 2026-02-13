@@ -7,11 +7,6 @@ export default function CalculatorsPage() {
   return (
     <div className="relative min-h-screen bg-black text-white">
       <OddsMatrixSurface intensity={0.26} className="opacity-90" />
-      <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
-        <div className="absolute inset-0 insider-grid opacity-50" />
-        <div className="absolute inset-0 insider-scanlines opacity-25" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.12),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(56,189,248,0.10),transparent_50%)]" />
-      </div>
       <SimpleHeader
         rightSlot={
           <Link

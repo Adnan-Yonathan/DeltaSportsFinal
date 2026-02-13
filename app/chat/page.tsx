@@ -656,17 +656,6 @@ function ChatPageContent() {
           className="opacity-95"
           tone={isResearch ? 'amber' : 'emerald'}
         />
-        <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
-          <div
-            className={
-              isResearch
-                ? 'absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.18),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(245,158,11,0.12),transparent_50%)]'
-                : 'absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.14),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(56,189,248,0.10),transparent_50%)]'
-            }
-          />
-          <div className="insider-grid absolute inset-0 opacity-45" />
-          <div className="insider-scanlines absolute inset-0 opacity-30" />
-        </div>
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -692,17 +681,6 @@ function ChatPageContent() {
         className="opacity-95"
         tone={isResearch ? 'amber' : 'emerald'}
       />
-      <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
-        <div
-          className={
-            isResearch
-              ? 'absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.18),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(245,158,11,0.12),transparent_50%)]'
-              : 'absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.14),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(56,189,248,0.10),transparent_50%)]'
-          }
-        />
-        <div className="insider-grid absolute inset-0 opacity-45" />
-        <div className="insider-scanlines absolute inset-0 opacity-30" />
-      </div>
         <SimpleHeader
           widthClass="max-w-6xl"
           rightSlot={headerActions}

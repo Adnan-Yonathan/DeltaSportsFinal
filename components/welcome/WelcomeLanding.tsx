@@ -18,16 +18,6 @@ export default function WelcomeLanding() {
     <div className="relative min-h-screen overflow-hidden bg-black text-white">
       <OddsMatrixSurface intensity={0.72} className="opacity-100" />
 
-      {/* Ambient hacker wash */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-0"
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.18),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(56,189,248,0.10),transparent_50%),radial-gradient(circle_at_50%_85%,rgba(34,197,94,0.12),transparent_55%)]" />
-        <div className="insider-grid absolute inset-0 opacity-50" />
-        <div className="insider-scanlines absolute inset-0 opacity-30" />
-      </div>
-
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-10 pt-20 sm:pt-24">
         {/* Hero must remain unchanged */}
         <GuestHero />

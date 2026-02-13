@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown } from "lucide-react"
 
@@ -32,25 +32,11 @@ type Props = {
 
 export function DropdownNavigation({ navItems, className }: Props) {
   const pathname = usePathname()
-  const router = useRouter()
 
   const [openMenu, setOpenMenu] = React.useState<string | null>(null)
   const [activeId, setActiveId] = React.useState<number | null>(null)
   const [isHover, setIsHover] = useState<number | null>(null)
   const containerRef = useRef<HTMLUListElement | null>(null)
-
-  const prefetchableHrefs = useMemo(() => {
-    const out = new Set<string>()
-    navItems.forEach((navItem) => {
-      if (navItem.link?.href?.startsWith("/")) out.add(navItem.link.href)
-      navItem.subMenus?.forEach((sub) => {
-        sub.items.forEach((item) => {
-          if (item.href?.startsWith("/")) out.add(item.href)
-        })
-      })
-    })
-    return Array.from(out)
-  }, [navItems])
 
   useEffect(() => {
     setOpenMenu(null)
@@ -71,17 +57,6 @@ export function DropdownNavigation({ navItems, className }: Props) {
   const handleHover = (menuLabel: string | null) => {
     setOpenMenu(menuLabel)
   }
-
-  const handlePrefetch = (href: string) => {
-    if (!href.startsWith("/")) return
-    router.prefetch(href)
-  }
-
-  useEffect(() => {
-    // Warm up the most common internal routes to make clicks feel instant.
-    prefetchableHrefs.slice(0, 8).forEach((href) => handlePrefetch(href))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   return (
     <ul
@@ -145,7 +120,7 @@ export function DropdownNavigation({ navItems, className }: Props) {
               ) : (
                 <Link
                   href={navItem.link.href}
-                  onPointerEnter={() => handlePrefetch(navItem.link!.href)}
+                  prefetch={false}
                   onMouseEnter={() => setActiveId(navItem.id)}
                   className="text-sm py-1.5 px-4 flex cursor-pointer group transition-colors duration-300 items-center justify-center gap-1 text-white/70 hover:text-white relative"
                 >
@@ -210,7 +185,7 @@ export function DropdownNavigation({ navItems, className }: Props) {
                                     <Link
                                       href={item.href}
                                       onClick={() => setOpenMenu(null)}
-                                      onPointerEnter={() => handlePrefetch(item.href)}
+                                      prefetch={false}
                                       className="flex items-start space-x-3 group"
                                     >
                                       {content}

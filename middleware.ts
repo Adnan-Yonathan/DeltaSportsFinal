@@ -66,6 +66,9 @@ const checkMembershipPaid = (metadata: Record<string, any>): boolean => {
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const pathname = req.nextUrl.pathname
+  const isPrefetchRequest =
+    req.headers.get('purpose') === 'prefetch' ||
+    req.headers.has('next-router-prefetch')
   const affiliateRef = req.nextUrl.searchParams.get('ref')
   if (affiliateRef) {
     res.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
@@ -73,6 +76,12 @@ export async function middleware(req: NextRequest) {
       path: '/',
       sameSite: 'lax',
     })
+  }
+
+  // Avoid caching auth redirects from speculative prefetch requests.
+  // Actual navigations still go through the full auth/membership checks below.
+  if (isPrefetchRequest) {
+    return res
   }
 
   if (isAlwaysPublicPath(pathname)) {

@@ -66,7 +66,7 @@ export function SimpleHeader({
               className="flex items-center gap-1.5 sm:gap-2 text-white"
               onClick={handleLogoClick}
             >
-                <div className="relative h-6 w-6 sm:h-8 sm:w-8">
+              <div className="relative h-6 w-6 sm:h-8 sm:w-8">
                   <Image
                     src="/delta-logo.png"
                     alt="Delta Sports Logo"
@@ -75,7 +75,7 @@ export function SimpleHeader({
                     priority
                   />
                 </div>
-              <div className="flex items-center gap-1 sm:gap-2">
+              <div className="hidden items-center gap-1 sm:flex sm:gap-2">
                 <p className="text-sm sm:text-lg font-semibold">Delta Sports</p>
               </div>
             </button>

@@ -131,9 +131,6 @@ export function DropdownNavigation({ navItems, className }: Props) {
   return (
     <>
       <div className="md:hidden flex items-center gap-2">
-        <span className="text-[10px] uppercase tracking-[0.2em] text-white/50">
-          Menu
-        </span>
         <select
           value={currentMobileValue}
           onChange={handleMobileChange}

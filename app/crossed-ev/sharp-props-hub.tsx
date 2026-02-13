@@ -19,14 +19,14 @@ export default function SharpPropsHub({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between">
         <h1 className="text-lg font-semibold text-white">Sharp Props</h1>
-        <div className="flex items-center gap-2 bg-white/5 rounded-2xl p-1.5">
+        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white/5 p-1.5 sm:flex sm:items-center sm:gap-2">
           <button
             type="button"
             onClick={() => setActiveTab("orderbooks")}
             className={cn(
-              "px-6 py-2.5 text-sm font-semibold rounded-xl transition-all min-w-[160px]",
+              "px-3 py-2.5 text-sm font-semibold rounded-xl transition-all min-w-0 sm:min-w-[160px]",
               activeTab === "orderbooks"
                 ? "bg-emerald-500/20 text-emerald-400 shadow-sm"
                 : "text-white/50 hover:text-white/70 hover:bg-white/5"
@@ -38,7 +38,7 @@ export default function SharpPropsHub({
             type="button"
             onClick={() => setActiveTab("crossed_ev")}
             className={cn(
-              "px-6 py-2.5 text-sm font-semibold rounded-xl transition-all min-w-[160px]",
+              "px-3 py-2.5 text-sm font-semibold rounded-xl transition-all min-w-0 sm:min-w-[160px]",
               activeTab === "crossed_ev"
                 ? "bg-emerald-500/20 text-emerald-400 shadow-sm"
                 : "text-white/50 hover:text-white/70 hover:bg-white/5"
@@ -47,7 +47,6 @@ export default function SharpPropsHub({
             Crossed EV
           </button>
         </div>
-        <div className="w-[120px]" />
       </div>
 
       {activeTab === "orderbooks" ? (
@@ -58,4 +57,3 @@ export default function SharpPropsHub({
     </div>
   )
 }
-

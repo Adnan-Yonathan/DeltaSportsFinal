@@ -161,9 +161,8 @@ export function ServerManagementTable({
             ) : null}
 
             {wallets.map((wallet) => (
-              <motion.button
+              <motion.div
                 key={wallet.id}
-                type="button"
                 variants={{
                   hidden: { opacity: 0, x: -16, scale: 0.98, filter: "blur(3px)" },
                   visible: {
@@ -181,6 +180,14 @@ export function ServerManagementTable({
                 }}
                 className="relative w-full text-left"
                 onClick={() => setSelectedWallet(wallet)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault()
+                    setSelectedWallet(wallet)
+                  }
+                }}
+                role="button"
+                tabIndex={0}
                 whileHover={!shouldReduceMotion ? { y: -1 } : undefined}
               >
                 <div className="relative bg-black/70 border border-white/10 rounded-2xl p-4 overflow-hidden">
@@ -193,7 +200,7 @@ export function ServerManagementTable({
                     </div>
                     <div className="sm:col-span-4">
                       <div className="text-white font-medium">{wallet.walletShort}</div>
-                      <div className="text-[11px] text-white/40">{wallet.wallet}</div>
+                      <div className="hidden text-[11px] text-white/40 sm:block">{wallet.wallet}</div>
                       {onToggleTrack && (
                         <button
                           type="button"
@@ -211,7 +218,7 @@ export function ServerManagementTable({
                         </button>
                       )}
                       {wallet.topSports.length > 0 && (
-                        <div className="text-[10px] uppercase tracking-[0.2em] text-white/35 mt-2">
+                        <div className="mt-2 hidden text-[10px] uppercase tracking-[0.2em] text-white/35 sm:block">
                           Best:{" "}
                           {wallet.topSports
                             .slice(0, 2)
@@ -219,7 +226,7 @@ export function ServerManagementTable({
                             .join(", ")}
                         </div>
                       )}
-                      <div className="mt-2 text-[11px] text-white/60">
+                      <div className="mt-2 hidden text-[11px] text-white/60 sm:block">
                         Arb {wallet.arbScore7d} | {formatArbLabel(wallet.arbLabel7d)}
                       </div>
                     </div>
@@ -238,8 +245,23 @@ export function ServerManagementTable({
                       </span>
                     </div>
                   </div>
+                  <div className="mt-3 flex items-center justify-between sm:hidden">
+                    <div className="text-[11px] text-white/60">
+                      {wallet.openTrades.length} open trades
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setSelectedWallet(wallet)
+                      }}
+                      className="rounded-full border border-white/15 bg-black/50 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/75"
+                    >
+                      Show more
+                    </button>
+                  </div>
                 </div>
-              </motion.button>
+              </motion.div>
             ))}
           </motion.div>
         ) : (
@@ -248,53 +270,72 @@ export function ServerManagementTable({
 
         <AnimatePresence>
           {selectedWallet && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col rounded-3xl z-10 overflow-hidden"
-            >
-              <div className="relative bg-gradient-to-r from-black/70 to-transparent p-4 border-b border-white/10 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">
-                    Rank #{selectedWallet.rank}
-                  </p>
-                  <h3 className="text-lg font-semibold text-white mt-1">{selectedWallet.wallet}</h3>
-                  <div className="text-xs text-white/60 mt-1">
-                    Total {formatCurrency(selectedWallet.totalPnl)} | 30d {formatCurrency(selectedWallet.pnl30d)}
+            <>
+              <motion.button
+                key="wallet-detail-backdrop"
+                type="button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 z-[70] bg-black/75 backdrop-blur-sm"
+                onClick={() => setSelectedWallet(null)}
+                aria-label="Close wallet details"
+              />
+              <motion.div
+                key="wallet-detail-panel"
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 24 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-x-0 bottom-0 top-[72px] z-[75] overflow-hidden rounded-t-3xl border border-white/10 bg-black/95 sm:inset-6 sm:top-auto sm:max-h-[90vh] sm:rounded-3xl"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="relative flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-black/85 to-black/65 p-4">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">
+                      Rank #{selectedWallet.rank}
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold text-white">{selectedWallet.wallet}</h3>
+                    <div className="mt-1 text-xs text-white/60">
+                      Total {formatCurrency(selectedWallet.totalPnl)} | 30d {formatCurrency(selectedWallet.pnl30d)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {onToggleTrack && (
+                      <button
+                        type="button"
+                        onClick={() => onToggleTrack(selectedWallet.wallet)}
+                        className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition-colors ${
+                          trackedWallets?.has(selectedWallet.wallet.toLowerCase())
+                            ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
+                            : "border-white/15 bg-black/40 text-white/70 hover:border-white/40"
+                        }`}
+                      >
+                        {trackedWallets?.has(selectedWallet.wallet.toLowerCase()) ? "Tracked" : "Track"}
+                      </button>
+                    )}
+                    <motion.button
+                      type="button"
+                      className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/70 hover:bg-black"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setSelectedWallet(null)
+                      }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      aria-label="Close wallet details"
+                    >
+                      <X className="h-4 w-4 text-white/80" />
+                    </motion.button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {onToggleTrack && (
-                    <button
-                      type="button"
-                      onClick={() => onToggleTrack(selectedWallet.wallet)}
-                      className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition-colors ${
-                        trackedWallets?.has(selectedWallet.wallet.toLowerCase())
-                          ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
-                          : "border-white/15 bg-black/40 text-white/70 hover:border-white/40"
-                      }`}
-                    >
-                      {trackedWallets?.has(selectedWallet.wallet.toLowerCase()) ? "Tracked" : "Track"}
-                    </button>
-                  )}
-                  <motion.button
-                    className="w-9 h-9 bg-black/70 hover:bg-black rounded-full flex items-center justify-center border border-white/10"
-                    onClick={() => setSelectedWallet(null)}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <X className="w-4 h-4 text-white/80" />
-                  </motion.button>
-                </div>
-              </div>
 
-              <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="bg-black/50 rounded-xl p-3 border border-white/10">
-                    <label className="text-[11px] font-medium text-white/50 uppercase tracking-[0.2em]">
-                      Wallet
+                <div className="flex-1 space-y-4 overflow-y-auto p-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="bg-black/50 rounded-xl p-3 border border-white/10">
+                      <label className="text-[11px] font-medium text-white/50 uppercase tracking-[0.2em]">
+                        Wallet
                     </label>
                     <div className="text-sm font-medium mt-1 text-white">{selectedWallet.wallet}</div>
                   </div>
@@ -437,8 +478,9 @@ export function ServerManagementTable({
                     </div>
                   )}
                 </div>
-              </div>
-            </motion.div>
+                </div>
+              </motion.div>
+            </>
           )}
         </AnimatePresence>
       </div>

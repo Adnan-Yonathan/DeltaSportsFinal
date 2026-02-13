@@ -288,42 +288,47 @@ export default function SharpTradersClient({ previewMode }: { previewMode: boole
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="rounded-full border border-white/10 bg-black/50 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-white/60">
-          Sport
-        </div>
-        <div className="relative">
-          <select
-            value={sportFilter}
-            onChange={(event) => setSportFilter(event.target.value)}
-            className="appearance-none rounded-full border border-white/10 bg-black/60 px-4 py-2 pr-10 text-[11px] uppercase tracking-[0.2em] text-white/80 transition-colors hover:border-emerald-400/50 focus:outline-none"
-          >
-            <option value="all">All Sports</option>
-            {availableSports.map((sport) => (
-              <option key={sport} value={sport}>
-                {SPORT_LABELS[sport] ?? sport.toUpperCase()}
-              </option>
-            ))}
-          </select>
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/40">
-            v
+      <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+        <div className="flex items-center gap-2">
+          <span className="w-16 text-[11px] uppercase tracking-[0.2em] text-white/55 sm:w-auto sm:rounded-full sm:border sm:border-white/10 sm:bg-black/50 sm:px-4 sm:py-2">
+            Sport
           </span>
+          <div className="relative flex-1 sm:flex-none">
+            <select
+              value={sportFilter}
+              onChange={(event) => setSportFilter(event.target.value)}
+              className="w-full appearance-none rounded-full border border-white/10 bg-black/60 px-4 py-2 pr-10 text-[11px] uppercase tracking-[0.2em] text-white/80 transition-colors hover:border-emerald-400/50 focus:outline-none sm:w-auto"
+            >
+              <option value="all">All Sports</option>
+              {availableSports.map((sport) => (
+                <option key={sport} value={sport}>
+                  {SPORT_LABELS[sport] ?? sport.toUpperCase()}
+                </option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/40">
+              v
+            </span>
+          </div>
         </div>
-        <div className="rounded-full border border-white/10 bg-black/50 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-white/60">
-          Arb Filter
-        </div>
-        <div className="relative">
-          <select
-            value={arbFilter}
-            onChange={(event) => setArbFilter(event.target.value as "all" | "no-arb")}
-            className="appearance-none rounded-full border border-white/10 bg-black/60 px-4 py-2 pr-10 text-[11px] uppercase tracking-[0.2em] text-white/80 transition-colors hover:border-emerald-400/50 focus:outline-none"
-          >
-            <option value="all">All Wallets</option>
-            <option value="no-arb">No Potential Arb</option>
-          </select>
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/40">
-            v
+
+        <div className="flex items-center gap-2">
+          <span className="w-16 text-[11px] uppercase tracking-[0.2em] text-white/55 sm:w-auto sm:rounded-full sm:border sm:border-white/10 sm:bg-black/50 sm:px-4 sm:py-2">
+            Filter
           </span>
+          <div className="relative flex-1 sm:flex-none">
+            <select
+              value={arbFilter}
+              onChange={(event) => setArbFilter(event.target.value as "all" | "no-arb")}
+              className="w-full appearance-none rounded-full border border-white/10 bg-black/60 px-4 py-2 pr-10 text-[11px] uppercase tracking-[0.2em] text-white/80 transition-colors hover:border-emerald-400/50 focus:outline-none sm:w-auto"
+            >
+              <option value="all">All Wallets</option>
+              <option value="no-arb">No Potential Arb</option>
+            </select>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/40">
+              v
+            </span>
+          </div>
         </div>
       </div>
 

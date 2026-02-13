@@ -23,9 +23,10 @@ type OrderbookSide = {
 
 export type OrderbookItem = {
   id: string
-  source: "kalshi" | "polymarket"
+  source: "kalshi" | "polymarket" | "novig" | "prophetx"
   sportKey: string
   sportLabel: string
+  matchup?: string
   marketTitle: string
   playerName: string | null
   propType: string | null
@@ -54,6 +55,13 @@ const formatAmericanOdds = (value?: number | null) => {
   return value > 0 ? `+${Math.round(value)}` : `${Math.round(value)}`
 }
 
+const formatSourceLabel = (source: OrderbookItem["source"]) => {
+  if (source === "kalshi") return "Kalshi"
+  if (source === "polymarket") return "Polymarket"
+  if (source === "novig") return "NoVig"
+  return "ProphetX"
+}
+
 const resolveLargestWall = (item: OrderbookItem) =>
   [...item.sides]
     .filter((side) => (side.wallNotional ?? 0) > 0)
@@ -68,7 +76,7 @@ export default function PropOrderbooksPanel({
   sport,
   limit = 80,
   depth = 8,
-  minSharpNotional = 1000,
+  minSharpNotional = 100,
 }: {
   sport: string
   limit?: number
@@ -78,8 +86,8 @@ export default function PropOrderbooksPanel({
   const [items, setItems] = useState<OrderbookItem[]>([])
   const [search, setSearch] = useState("")
   const [oddsPreset, setOddsPreset] = useState<
-    "default" | "underdog200" | "plusMoney" | "evenish" | "favorites" | "custom"
-  >("default")
+    "all" | "default" | "underdog200" | "plusMoney" | "evenish" | "favorites" | "custom"
+  >("all")
   const [minOdds, setMinOdds] = useState<string>("-200")
   const [maxOdds, setMaxOdds] = useState<string>("")
   const [loading, setLoading] = useState(false)
@@ -125,7 +133,7 @@ export default function PropOrderbooksPanel({
     setItems([])
     setErrorMessage(null)
     setSearch("")
-    setOddsPreset("default")
+    setOddsPreset("all")
     setMinOdds("-200")
     setMaxOdds("")
     setExpandedCards({})
@@ -139,6 +147,7 @@ export default function PropOrderbooksPanel({
     const query = search.trim().toLowerCase()
 
     const resolvedRange = (() => {
+      if (oddsPreset === "all") return { min: null as number | null, max: null as number | null }
       if (oddsPreset === "underdog200") return { min: 200, max: null as number | null }
       if (oddsPreset === "plusMoney") return { min: 100, max: null as number | null }
       if (oddsPreset === "evenish") return { min: -120, max: 120 }
@@ -167,7 +176,7 @@ export default function PropOrderbooksPanel({
 
     const filtered = items.filter((item) => {
       if (query) {
-        const haystack = `${item.playerName ?? ""} ${item.marketTitle ?? ""}`
+        const haystack = `${item.playerName ?? ""} ${item.matchup ?? ""} ${item.marketTitle ?? ""}`
           .toLowerCase()
           .trim()
         if (!haystack.includes(query)) return false
@@ -175,13 +184,13 @@ export default function PropOrderbooksPanel({
 
       const displayLeanOdds =
         item.sharpLeanBestOdds ?? item.sharpLeanAmericanOdds ?? null
+      if (resolvedRange.min == null && resolvedRange.max == null) return true
+
       const hasSharpLeanOdds =
         item.sharpLeanSide != null &&
         displayLeanOdds != null &&
         Number.isFinite(displayLeanOdds)
       if (!hasSharpLeanOdds) return false
-
-      if (resolvedRange.min == null && resolvedRange.max == null) return true
 
       return matchesOddsRange(displayLeanOdds, resolvedRange)
     })
@@ -245,7 +254,7 @@ export default function PropOrderbooksPanel({
             Sharp lean uses complement pricing (100 - wall price).
           </div>
           <div className="text-[10px] text-white/40">
-            Showing props with a resolved sharp lean odds signal.
+            Showing all available books; odds filters require a resolved lean signal.
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">
@@ -254,6 +263,7 @@ export default function PropOrderbooksPanel({
             onChange={(event) => setOddsPreset(event.target.value as any)}
             className="h-9 rounded-xl border border-white/10 bg-black/40 px-3 text-xs text-white/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
           >
+            <option value="all">Odds: Any (show all)</option>
             <option value="default">Odds: -200 or better</option>
             <option value="underdog200">Odds: +200 or worse</option>
             <option value="plusMoney">Odds: +100 or worse</option>
@@ -334,9 +344,12 @@ export default function PropOrderbooksPanel({
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-white/50">
-                    {item.sportLabel} | {item.source === "polymarket" ? "Polymarket" : "Kalshi"}
+                    {item.sportLabel} | {formatSourceLabel(item.source)}
                     {item.eventDate ? ` | ${item.eventDate}` : ""}
                   </div>
+                  {item.matchup && (
+                    <div className="mt-0.5 text-xs text-white/45">{item.matchup}</div>
+                  )}
                 </div>
 
                 <button

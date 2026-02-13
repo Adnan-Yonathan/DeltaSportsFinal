@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import React, { useEffect, useState, useCallback, useRef } from "react"
 import { formatAmericanOdds as formatAmericanOddsLabel } from "@/lib/utils/odds"
@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils"
 import TutorialPopup from "@/components/TutorialPopup"
 import SharePropButton from "@/components/SharePropButton"
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Types
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type AggregatedPlayerPropBet = {
   id: string
@@ -95,9 +95,10 @@ type OrderbookSide = {
 
 type OrderbookItem = {
   id: string
-  source: "kalshi" | "polymarket"
+  source: "kalshi" | "polymarket" | "novig" | "prophetx"
   sportKey: string
   sportLabel: string
+  matchup?: string
   marketTitle: string
   playerName: string | null
   propType: string | null
@@ -113,9 +114,11 @@ type OrderbookItem = {
   sides: OrderbookSide[]
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+type SourceKey = "kalshi" | "polymarket" | "novig" | "prophetx"
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Constants
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const MARKET_LABELS: Record<string, string> = {
   points: "PTS",
@@ -185,9 +188,9 @@ const PROP_TYPES = [
 const REFRESH_INTERVAL_MS = 30 * 1000 // 30 seconds
 const EV_MIN_EDGE = 3
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Formatters
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const formatCurrency = (value?: number | null) => {
   if (value == null || !Number.isFinite(value)) return "-"
@@ -248,6 +251,13 @@ const formatOdds = (value?: number | null) => {
   return formatAmericanOdds(Math.round(value))
 }
 
+const formatSourceLabel = (source: SourceKey) => {
+  if (source === "kalshi") return "Kalshi"
+  if (source === "polymarket") return "Polymarket"
+  if (source === "novig") return "NoVig"
+  return "ProphetX"
+}
+
 const buildSharePropPayload = (prop: AggregatedPlayerPropBet) => {
   const sportLabel = SPORT_LABELS[prop.sportKey] ?? prop.sportKey.toUpperCase()
   const edgeLabel =
@@ -273,9 +283,9 @@ const buildSharePropPayload = (prop: AggregatedPlayerPropBet) => {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Components
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const ScoreBadge = ({ score }: { score: number }) => {
   let color = "bg-white/10 text-white/60"
@@ -311,15 +321,19 @@ const ClusterBadge = ({ betCount, windowHours }: { betCount: number; windowHours
   </span>
 )
 
-const SourceBadge = ({ source }: { source: "kalshi" | "polymarket" }) => (
+const SourceBadge = ({ source }: { source: SourceKey }) => (
   <span
     className={`rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wider ${
       source === "kalshi"
         ? "bg-purple-500/20 text-purple-300"
-        : "bg-blue-500/20 text-blue-300"
+        : source === "polymarket"
+          ? "bg-blue-500/20 text-blue-300"
+          : source === "novig"
+            ? "bg-emerald-500/20 text-emerald-300"
+            : "bg-rose-500/20 text-rose-300"
     }`}
   >
-    {source}
+    {formatSourceLabel(source)}
   </span>
 )
 
@@ -562,9 +576,9 @@ const PropRow = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Main Component
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
   const [data, setData] = useState<ApiResponse | null>(null)
@@ -680,7 +694,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
         sport,
         limit: "80",
         depth: "8",
-        minSharpNotional: "1000",
+        minSharpNotional: "100",
       })
 
       const res = await fetch(`/api/prop-orderbooks?${params.toString()}`, {
@@ -1050,7 +1064,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
                       <div>
                         <div className="font-semibold text-white truncate">{opp.market}</div>
                         <div className="text-xs text-white/60">
-                          {opp.selection} {opp.point != null ? opp.point : ""} · {opp.game}
+                          {opp.selection} {opp.point != null ? opp.point : ""} Â· {opp.game}
                         </div>
                       </div>
                       <div className="text-center">
@@ -1101,8 +1115,11 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
                           </span>
                         </div>
                         <div className="mt-1 text-xs text-white/50">
-                          {item.source.toUpperCase()} • {item.marketTitle}
+                          {formatSourceLabel(item.source)}
+                          {item.matchup ? ` • ${item.matchup}` : ""}
+                          {item.eventDate ? ` • ${item.eventDate}` : ""}
                         </div>
+                        <div className="mt-0.5 text-xs text-white/40">{item.marketTitle}</div>
                       </div>
 
                       {item.sharpLeanSide && (
@@ -1160,3 +1177,5 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
     </>
   )
 }
+
+

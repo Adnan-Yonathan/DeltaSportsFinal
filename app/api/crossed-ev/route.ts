@@ -6,14 +6,17 @@ export const dynamic = "force-dynamic"
 const CACHE_TTL_MS = 10 * 60 * 1000
 type CacheEntry = { ts: number; payload: any }
 const responseCache = new Map<string, CacheEntry>()
+type PlayerPropEvents = Awaited<ReturnType<typeof fetchTheOddsApiPlayerProps>>
 
-const SUPPORTED_SPORTS = [
+const BASE_SPORTS = [
   "basketball_nba",
   "basketball_ncaab",
   "americanfootball_nfl",
   "icehockey_nhl",
   "baseball_mlb",
 ]
+
+const SUPPORTED_SPORTS = ["all", ...BASE_SPORTS]
 
 const SPORT_MARKETS: Record<string, string[]> = {
   basketball_nba: [
@@ -59,7 +62,7 @@ const SPORT_MARKETS: Record<string, string[]> = {
     "player_assists",
     "player_shots_on_goal",
     "player_blocked_shots",
-    "player_saves",
+    "player_total_saves",
   ],
   baseball_mlb: [
     "player_hits",
@@ -298,12 +301,20 @@ type PropOfferRow = {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const sport = searchParams.get("sport") || "basketball_nba"
-  const normalizedSport = SUPPORTED_SPORTS.includes(sport)
-    ? sport
-    : "basketball_nba"
-  const markets = SPORT_MARKETS[normalizedSport] || SPORT_MARKETS.basketball_nba
-  const cacheKey = `${normalizedSport}:${markets.join(",")}`
+  const requestedSport = searchParams.get("sport") || "all"
+  const normalizedSport = SUPPORTED_SPORTS.includes(requestedSport)
+    ? requestedSport
+    : "all"
+  const targetSports =
+    normalizedSport === "all"
+      ? BASE_SPORTS
+      : ([normalizedSport] as string[])
+  const markets = Array.from(
+    new Set(targetSports.flatMap((sportKey) => SPORT_MARKETS[sportKey] ?? []))
+  )
+  const cacheKey = targetSports
+    .map((sportKey) => `${sportKey}:${(SPORT_MARKETS[sportKey] ?? []).join(",")}`)
+    .join("|")
 
   const cached = responseCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
@@ -311,79 +322,96 @@ export async function GET(request: Request) {
   }
 
   try {
-    const events = await fetchTheOddsApiPlayerProps(normalizedSport, {
-      markets: markets.join(","),
-      regions: "us,us2,eu",
-      bookmakers: BOOK_ALLOWLIST,
-      oddsFormat: "american",
-      dateFormat: "iso",
-    })
+    const eventsBySport = await Promise.all(
+      targetSports.map(async (sportKey) => {
+        const sportMarkets = SPORT_MARKETS[sportKey] ?? []
+        if (!sportMarkets.length) {
+          return { sportKey, events: [] as PlayerPropEvents }
+        }
+
+        try {
+          const events = await fetchTheOddsApiPlayerProps(sportKey, {
+            markets: sportMarkets.join(","),
+            regions: "us,us2,eu",
+            bookmakers: BOOK_ALLOWLIST,
+            oddsFormat: "american",
+            dateFormat: "iso",
+          })
+          return { sportKey, events: events ?? [] }
+        } catch (error) {
+          console.warn(`[crossed-ev] failed to fetch ${sportKey}:`, error)
+          return { sportKey, events: [] as PlayerPropEvents }
+        }
+      })
+    )
 
     const offersByProp = new Map<string, { base: PropBase; offers: Record<string, BookOffer> }>()
 
-    for (const event of events || []) {
-      const gameLabel = `${event.away_team} @ ${event.home_team}`
-      for (const book of event.bookmakers || []) {
-        const bookKey = resolveBookKeyFromBook(book)
-        if (!bookKey) continue
+    for (const { sportKey, events } of eventsBySport) {
+      for (const event of events || []) {
+        const gameLabel = `${event.away_team} @ ${event.home_team}`
+        for (const book of event.bookmakers || []) {
+          const bookKey = resolveBookKeyFromBook(book)
+          if (!bookKey) continue
 
-        for (const market of book.markets || []) {
-          const marketKey = market.key
-          for (const outcome of market.outcomes || []) {
-            const rawName = String(outcome.name || "").trim()
-            const rawDesc = String((outcome as any).description || "").trim()
-            const side = isOverUnder(rawName)
-              ? rawName.toLowerCase()
-              : isOverUnder(rawDesc)
-                ? rawDesc.toLowerCase()
-                : ""
-            if (side !== "over" && side !== "under") continue
+          for (const market of book.markets || []) {
+            const marketKey = market.key
+            for (const outcome of market.outcomes || []) {
+              const rawName = String(outcome.name || "").trim()
+              const rawDesc = String((outcome as any).description || "").trim()
+              const side = isOverUnder(rawName)
+                ? rawName.toLowerCase()
+                : isOverUnder(rawDesc)
+                  ? rawDesc.toLowerCase()
+                  : ""
+              if (side !== "over" && side !== "under") continue
 
-            const player = isOverUnder(rawName) ? rawDesc : rawName
-            if (!player) continue
+              const player = isOverUnder(rawName) ? rawDesc : rawName
+              if (!player) continue
 
-            const point = typeof outcome.point === "number" ? outcome.point : null
-            if (point == null) continue
+              const point = typeof outcome.point === "number" ? outcome.point : null
+              if (point == null) continue
 
-            const price = Number(outcome.price)
-            if (!Number.isFinite(price)) continue
+              const price = Number(outcome.price)
+              if (!Number.isFinite(price)) continue
 
-            const propKey = `${event.id}:${player}:${marketKey}`
-            const existing = offersByProp.get(propKey) || {
-              base: {
-                id: propKey,
-                player,
-                market: marketKey,
-                game: gameLabel,
-                commenceTime: event.commence_time,
-                homeTeam: event.home_team,
-                awayTeam: event.away_team,
-                teams: [event.home_team, event.away_team].filter(Boolean),
-              },
-              offers: {} as Record<string, BookOffer>,
-            }
-
-            const current = existing.offers[bookKey] || { point }
-            // If a book returns multiple points for the same player/market, prefer the one that
-            // has both sides filled.
-            if (current.point !== point) {
-              const currentFilled = Number.isFinite(current.over) && Number.isFinite(current.under)
-              const nextFilled =
-                (side === "over" ? Number.isFinite(price) : Number.isFinite(current.over)) &&
-                (side === "under" ? Number.isFinite(price) : Number.isFinite(current.under))
-              if (currentFilled && !nextFilled) {
-                // keep existing
-              } else {
-                current.point = point
-                delete current.over
-                delete current.under
+              const propKey = `${sportKey}:${event.id}:${player}:${marketKey}`
+              const existing = offersByProp.get(propKey) || {
+                base: {
+                  id: propKey,
+                  player,
+                  market: marketKey,
+                  game: gameLabel,
+                  commenceTime: event.commence_time,
+                  homeTeam: event.home_team,
+                  awayTeam: event.away_team,
+                  teams: [event.home_team, event.away_team].filter(Boolean),
+                },
+                offers: {} as Record<string, BookOffer>,
               }
-            }
 
-            if (side === "over") current.over = price
-            if (side === "under") current.under = price
-            existing.offers[bookKey] = current
-            offersByProp.set(propKey, existing)
+              const current = existing.offers[bookKey] || { point }
+              // If a book returns multiple points for the same player/market, prefer the one that
+              // has both sides filled.
+              if (current.point !== point) {
+                const currentFilled = Number.isFinite(current.over) && Number.isFinite(current.under)
+                const nextFilled =
+                  (side === "over" ? Number.isFinite(price) : Number.isFinite(current.over)) &&
+                  (side === "under" ? Number.isFinite(price) : Number.isFinite(current.under))
+                if (currentFilled && !nextFilled) {
+                  // keep existing
+                } else {
+                  current.point = point
+                  delete current.over
+                  delete current.under
+                }
+              }
+
+              if (side === "over") current.over = price
+              if (side === "under") current.under = price
+              existing.offers[bookKey] = current
+              offersByProp.set(propKey, existing)
+            }
           }
         }
       }

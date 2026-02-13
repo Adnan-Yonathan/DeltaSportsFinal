@@ -548,24 +548,104 @@ export function MiniNavbar() {
 }
 
 export const SignInPage = ({ className }: SignInPageProps) => {
+  const OAUTH_RATE_LIMIT_KEY = "auth_rate_limit_until_oauth";
   const [oauthLoading, setOauthLoading] = useState(false);
   const [error, setError] = useState("");
+  const inFlightRef = useRef(false);
   const supabase = createClient();
 
+  const readRateLimitUntil = (key: string) => {
+    if (typeof window === "undefined") return 0;
+    const raw = window.localStorage.getItem(key);
+    const value = Number(raw ?? 0);
+    return Number.isFinite(value) ? value : 0;
+  };
+
+  const getRemainingRateLimitMs = (key: string) => {
+    const remaining = readRateLimitUntil(key) - Date.now();
+    return remaining > 0 ? remaining : 0;
+  };
+
+  const setRateLimitCooldown = (key: string, ms: number) => {
+    if (typeof window === "undefined") return;
+    const safeMs = Math.max(ms, 30_000);
+    window.localStorage.setItem(
+      key,
+      String(Date.now() + safeMs)
+    );
+  };
+
+  const formatRateLimitMessage = (remainingMs: number) => {
+    const waitSeconds = Math.max(1, Math.ceil(remainingMs / 1000));
+    return `Too many login attempts. Please wait ${waitSeconds}s and try again.`;
+  };
+
+  const extractRateLimitMs = (message: string) => {
+    const normalized = message.toLowerCase();
+    const secondsMatch = normalized.match(/(\d+)\s*(second|sec|s)\b/);
+    if (secondsMatch) {
+      const seconds = Number(secondsMatch[1]);
+      if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000;
+    }
+    const minutesMatch = normalized.match(/(\d+)\s*(minute|min|m)\b/);
+    if (minutesMatch) {
+      const minutes = Number(minutesMatch[1]);
+      if (Number.isFinite(minutes) && minutes > 0) return minutes * 60_000;
+    }
+    return 60_000;
+  };
+
+  const isRateLimitError = (message: string) => {
+    const normalized = message.toLowerCase();
+    return (
+      normalized.includes("rate limit") ||
+      normalized.includes("too many request") ||
+      normalized.includes("over request rate limit")
+    );
+  };
+
   const handleGoogleSignIn = async () => {
+    if (inFlightRef.current) return;
     setError("");
+    const remaining = getRemainingRateLimitMs(OAUTH_RATE_LIMIT_KEY);
+    if (remaining > 0) {
+      setError(formatRateLimitMessage(remaining));
+      return;
+    }
+
+    inFlightRef.current = true;
     setOauthLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-
-    if (error) {
-      setError(error.message || "Failed to sign in with Google");
+      if (error) {
+        const message = error.message || "Failed to sign in with Google";
+        if (isRateLimitError(message)) {
+          const cooldownMs = extractRateLimitMs(message);
+          setRateLimitCooldown(OAUTH_RATE_LIMIT_KEY, cooldownMs);
+          setError(formatRateLimitMessage(cooldownMs));
+        } else {
+          setError(message);
+        }
+        setOauthLoading(false);
+        inFlightRef.current = false;
+      }
+    } catch (err: any) {
+      const message = err?.message || "Failed to sign in with Google";
+      if (isRateLimitError(message)) {
+        const cooldownMs = extractRateLimitMs(message);
+        setRateLimitCooldown(OAUTH_RATE_LIMIT_KEY, cooldownMs);
+        setError(formatRateLimitMessage(cooldownMs));
+      } else {
+        setError(message);
+      }
       setOauthLoading(false);
+      inFlightRef.current = false;
     }
   };
 

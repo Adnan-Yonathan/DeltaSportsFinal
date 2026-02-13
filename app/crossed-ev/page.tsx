@@ -14,6 +14,7 @@ type SportOption = {
 }
 
 const SPORT_OPTIONS: SportOption[] = [
+  { key: "all", label: "All Sports", locked: false },
   { key: "basketball_nba", label: "NBA", locked: false },
   { key: "basketball_ncaab", label: "NCAAB", locked: false },
   { key: "americanfootball_nfl", label: "NFL", locked: false },
@@ -39,7 +40,7 @@ export default async function CrossedEvPage({
     : searchParams?.sport
   const sport =
     SPORT_OPTIONS.find((option) => option.key === requestedSport)?.key ??
-    "basketball_nba"
+    "all"
 
   return (
     <div className="min-h-screen bg-black text-white">

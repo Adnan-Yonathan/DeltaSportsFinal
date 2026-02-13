@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const sport = searchParams.get('sport') || 'all'
     const limit = Number(searchParams.get('limit') || 60)
     const depth = Number(searchParams.get('depth') || 8)
-    const minSharpNotional = Number(searchParams.get('minSharpNotional') || 1000)
+    const minSharpNotional = Number(searchParams.get('minSharpNotional') || 100)
 
     if (!SUPPORTED_SPORTS.has(sport)) {
       return NextResponse.json(
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       depth: Number.isFinite(depth) ? Math.min(Math.max(depth, 1), 20) : 8,
       minSharpNotional: Number.isFinite(minSharpNotional)
         ? Math.max(minSharpNotional, 0)
-        : 1000,
+        : 100,
     })
 
     return NextResponse.json({
@@ -53,4 +53,3 @@ export async function GET(req: NextRequest) {
     )
   }
 }
-

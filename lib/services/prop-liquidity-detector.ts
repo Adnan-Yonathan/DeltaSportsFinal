@@ -1,4 +1,5 @@
 import { fetchOdds } from '@/lib/api/odds-api'
+import { fetchTheOddsApiPlayerProps } from '@/lib/api/the-odds-api'
 import { fetchSbdGamePropsList, resolveSbdLeague } from '@/lib/api/sbd'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import { TEAMS_REGISTRY } from '@/lib/data/teams-registry'
@@ -26,6 +27,23 @@ const POLYMARKET_COMPETITIVE_BAND_CENTS = 20
 const MAX_POLYMARKET_COMPETITIVE_LEVELS = 25
 const POLYMARKET_MIN_COMPETITIVE_PRICE_CENTS = 10
 const POLYMARKET_MAX_COMPETITIVE_PRICE_CENTS = 90
+const KALSHI_RETRY_ATTEMPTS = 3
+const KALSHI_RETRY_BASE_DELAY_MS = 250
+const US_MARKET_TIME_ZONE = 'America/New_York'
+const US_MARKET_DAY_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: US_MARKET_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+const getUsMarketDayKey = (date = new Date()) => {
+  try {
+    const value = US_MARKET_DAY_FORMATTER.format(date)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  } catch {}
+  return date.toISOString().slice(0, 10)
+}
 
 type PropLiquiditySignal = {
   id: string
@@ -101,6 +119,7 @@ type PolymarketMarket = {
   active?: boolean
   closed?: boolean
   events?: Array<{
+    title?: string
     eventDate?: string
     gameStartTime?: string
     startTime?: string
@@ -176,9 +195,10 @@ export type PropOrderbookSide = {
 
 export type PropOrderbookItem = {
   id: string
-  source: 'kalshi' | 'polymarket'
+  source: 'kalshi' | 'polymarket' | 'novig' | 'prophetx'
   sportKey: string
   sportLabel: string
+  matchup?: string
   marketTitle: string
   playerName: string | null
   propType: string | null
@@ -323,6 +343,68 @@ const PROP_KEYWORDS: Record<string, Array<{ key: string; patterns: string[] }>> 
   ],
 }
 
+type ExchangeSportKey = 'basketball_nba' | 'basketball_ncaab' | 'icehockey_nhl'
+
+const EXCHANGE_PROP_MARKETS: Record<ExchangeSportKey, string[]> = {
+  basketball_nba: [
+    'player_points',
+    'player_rebounds',
+    'player_assists',
+    'player_threes',
+    'player_points_rebounds_assists',
+    'player_points_rebounds',
+    'player_points_assists',
+    'player_rebounds_assists',
+    'player_blocks',
+    'player_steals',
+    'player_turnovers',
+  ],
+  basketball_ncaab: [
+    'player_points',
+    'player_rebounds',
+    'player_assists',
+    'player_threes',
+    'player_points_rebounds_assists',
+    'player_points_rebounds',
+    'player_points_assists',
+    'player_rebounds_assists',
+  ],
+  icehockey_nhl: [
+    'player_points',
+    'player_goals',
+    'player_assists',
+    'player_shots_on_goal',
+    'player_blocked_shots',
+    'player_total_saves',
+  ],
+}
+
+const EXCHANGE_BOOKMAKERS = ['novig', 'prophetx'] as const
+
+const EXCHANGE_SOURCE_LABELS: Record<'novig' | 'prophetx', string> = {
+  novig: 'NoVig',
+  prophetx: 'ProphetX',
+}
+
+const MARKET_KEY_TO_PROP_TYPE: Record<string, string> = {
+  player_points: 'points',
+  player_rebounds: 'rebounds',
+  player_assists: 'assists',
+  player_threes: 'threes',
+  player_points_rebounds_assists: 'points_rebounds_assists',
+  player_points_rebounds: 'points_rebounds',
+  player_points_assists: 'points_assists',
+  player_rebounds_assists: 'rebounds_assists',
+  player_blocks: 'blocks',
+  player_steals: 'steals',
+  player_turnovers: 'turnovers',
+  player_goals: 'goals',
+  player_shots_on_goal: 'shots',
+  player_blocked_shots: 'blocked_shots',
+  player_total_saves: 'saves',
+  player_saves: 'saves',
+}
+
 const SUPPORTED_TEAM_SPORTS = new Set([
   'basketball_nba',
   'basketball_ncaab',
@@ -344,6 +426,31 @@ const normalizeText = (value: string) =>
     .replace(/[^a-z0-9]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
+
+const fetchKalshiJson = async <T,>(url: string): Promise<T | null> => {
+  for (let attempt = 0; attempt <= KALSHI_RETRY_ATTEMPTS; attempt += 1) {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (res.ok) {
+      try {
+        return (await res.json()) as T
+      } catch {
+        return null
+      }
+    }
+
+    const canRetry =
+      (res.status === 429 || res.status >= 500) && attempt < KALSHI_RETRY_ATTEMPTS
+    if (!canRetry) return null
+    const waitMs = KALSHI_RETRY_BASE_DELAY_MS * (attempt + 1)
+    await sleep(waitMs)
+  }
+  return null
+}
 
 const normalizePlayerName = (name: string): string =>
   name
@@ -478,6 +585,36 @@ const parseTeamsFromTicker = (ticker: string) => {
   return { awayCode: match[1], homeCode: match[2] }
 }
 
+const parseCombinedTeamCodesFromTicker = (ticker: string) => {
+  const match = ticker.match(/-\d{2}[A-Z]{3}\d{2}([A-Z]{4,8})-/)
+  return match?.[1] ?? null
+}
+
+const splitCombinedTeamCodes = (sportKey: string, combined: string) => {
+  const normalized = combined.toUpperCase()
+  const preferredSplits = [3, 2, 4]
+  const dynamicSplits: number[] = []
+  for (let i = 2; i <= normalized.length - 2; i += 1) {
+    if (!preferredSplits.includes(i)) dynamicSplits.push(i)
+  }
+
+  for (const splitIndex of [...preferredSplits, ...dynamicSplits]) {
+    if (splitIndex <= 1 || splitIndex >= normalized.length - 1) continue
+    const awayCode = normalized.slice(0, splitIndex)
+    const homeCode = normalized.slice(splitIndex)
+    if (awayCode.length < 2 || awayCode.length > 4) continue
+    if (homeCode.length < 2 || homeCode.length > 4) continue
+    if (
+      TEAM_LOOKUP.has(`${sportKey}:${awayCode}`) &&
+      TEAM_LOOKUP.has(`${sportKey}:${homeCode}`)
+    ) {
+      return { awayCode, homeCode }
+    }
+  }
+
+  return null
+}
+
 const parseTeamCodeFromTicker = (ticker: string) => {
   const lastSegment = ticker.split('-').pop() ?? ''
   const match = lastSegment.match(/^([A-Z]{2,4})/)
@@ -487,6 +624,29 @@ const parseTeamCodeFromTicker = (ticker: string) => {
 const resolveTeamNameFromCode = (sportKey: string, code: string | null) => {
   if (!code) return null
   return TEAM_LOOKUP.get(`${sportKey}:${code}`) ?? null
+}
+
+const resolveMatchupLabel = (
+  sportKey: string,
+  awayCode: string | null,
+  homeCode: string | null
+) => {
+  if (!awayCode || !homeCode) return null
+  const awayLabel = resolveTeamNameFromCode(sportKey, awayCode) ?? awayCode
+  const homeLabel = resolveTeamNameFromCode(sportKey, homeCode) ?? homeCode
+  return `${awayLabel} @ ${homeLabel}`
+}
+
+const resolveKalshiMatchup = (sportKey: string, ticker: string) => {
+  const direct = parseTeamsFromTicker(ticker)
+  const directMatchup = resolveMatchupLabel(sportKey, direct?.awayCode ?? null, direct?.homeCode ?? null)
+  if (directMatchup) return directMatchup
+
+  const combined = parseCombinedTeamCodesFromTicker(ticker)
+  if (!combined) return null
+  const split = splitCombinedTeamCodes(sportKey, combined)
+  if (!split) return null
+  return resolveMatchupLabel(sportKey, split.awayCode, split.homeCode)
 }
 
 const normalizePriceCents = (value: number) => (value <= 1 ? value * 100 : value)
@@ -544,9 +704,8 @@ const resolveDominantOrder = (
 }
 
 const fetchKalshiMarketDetails = async (ticker: string) => {
-  const res = await fetch(`${KALSHI_BASE}/markets/${ticker}`, { cache: 'no-store' })
-  if (!res.ok) return null
-  const data = (await res.json()) as KalshiMarketResponse
+  const data = await fetchKalshiJson<KalshiMarketResponse>(`${KALSHI_BASE}/markets/${ticker}`)
+  if (!data) return null
   return data.market ?? null
 }
 
@@ -555,9 +714,10 @@ const fetchKalshiOrderbookSummary = async (
 ): Promise<KalshiOrderbookSummary | null> => {
   const url = new URL(`${KALSHI_BASE}/markets/${ticker}/orderbook`)
   url.searchParams.set('depth', '5')
-  const res = await fetch(url.toString(), { cache: 'no-store' })
-  if (!res.ok) return null
-  const data = (await res.json()) as { orderbook?: { yes?: number[][]; no?: number[][] } }
+  const data = await fetchKalshiJson<{ orderbook?: { yes?: number[][]; no?: number[][] } }>(
+    url.toString()
+  )
+  if (!data) return null
   const yes = Array.isArray(data.orderbook?.yes) ? data.orderbook?.yes ?? [] : []
   const no = Array.isArray(data.orderbook?.no) ? data.orderbook?.no ?? [] : []
   return {
@@ -574,9 +734,10 @@ const fetchKalshiPropMarkets = async (seriesTicker: string) => {
     url.searchParams.set('series_ticker', seriesTicker)
     url.searchParams.set('limit', '500')
     if (cursor) url.searchParams.set('cursor', cursor)
-    const res = await fetch(url.toString(), { cache: 'no-store' })
-    if (!res.ok) break
-    const data = await res.json()
+    const data = await fetchKalshiJson<{ markets?: KalshiMarket[]; cursor?: string | null }>(
+      url.toString()
+    )
+    if (!data) break
     const batch = Array.isArray(data?.markets) ? data.markets : []
     if (batch.length === 0) break
     markets.push(...batch)
@@ -624,6 +785,23 @@ const resolvePolymarketSport = (market: PolymarketMarket) => {
       return POLYMARKET_SERIES_TO_SPORT_KEY[key]
     }
   }
+
+  return null
+}
+
+const resolvePolymarketMatchup = (market: PolymarketMarket) => {
+  const event = market.events?.[0]
+  const eventTitle = String(event?.title ?? '').trim()
+  if (eventTitle) return eventTitle
+
+  const raw = String(market.question || market.title || '').trim()
+  if (!raw) return null
+
+  const vsMatch = raw.match(/\bin\s+(.+?\s+vs\.?\s+.+?)(?:\s+game|[?.]|$)/i)
+  if (vsMatch?.[1]) return vsMatch[1].trim()
+
+  const atMatch = raw.match(/\bin\s+(.+?\s+@\s+.+?)(?:\s+game|[?.]|$)/i)
+  if (atMatch?.[1]) return atMatch[1].trim()
 
   return null
 }
@@ -887,6 +1065,293 @@ const resolveSharpLean = (
   }
 }
 
+const resolveExchangeSource = (
+  bookKey?: string | null,
+  bookTitle?: string | null
+): 'novig' | 'prophetx' | null => {
+  const key = String(bookKey ?? '').toLowerCase()
+  const title = String(bookTitle ?? '').toLowerCase()
+  const combined = `${key} ${title}`
+  if (combined.includes('novig')) return 'novig'
+  if (combined.includes('prophetx') || combined.includes('prophet x')) return 'prophetx'
+  return null
+}
+
+const resolveOverUnderFromOutcomeName = (value: string): 'Over' | 'Under' | null => {
+  const normalized = value.trim().toLowerCase()
+  if (!normalized) return null
+  if (normalized === 'over' || normalized.startsWith('over ')) return 'Over'
+  if (normalized === 'under' || normalized.startsWith('under ')) return 'Under'
+  return null
+}
+
+const parseOptionalNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/[^0-9.-]/g, ''))
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+const oddsToPriceCents = (odds: number): number | null => {
+  if (!Number.isFinite(odds)) return null
+  const implied = oddsToImpliedProbability(odds)
+  if (!Number.isFinite(implied) || implied <= 0 || implied >= 1) return null
+  return Math.max(1, Math.min(99, Math.round(implied * 100)))
+}
+
+const resolveExchangeOutcomeNotional = (
+  outcome: Record<string, unknown>,
+  market: Record<string, unknown>,
+  bookmaker: Record<string, unknown>
+) => {
+  const candidates: unknown[] = [
+    outcome.bet_limit,
+    outcome.betLimit,
+    outcome.limit,
+    outcome.max,
+    outcome.max_limit,
+    (outcome.limits as any)?.max,
+    (outcome.limits as any)?.bet_limit,
+    market.bet_limit,
+    market.betLimit,
+    market.limit,
+    market.max,
+    bookmaker.bet_limit,
+    bookmaker.betLimit,
+    bookmaker.limit,
+    bookmaker.max,
+  ]
+
+  for (const candidate of candidates) {
+    const parsed = parseOptionalNumber(candidate)
+    if (parsed != null && parsed > 0) return parsed
+  }
+  return null
+}
+
+const resolvePropTypeFromMarketKey = (marketKey: string) => {
+  if (!marketKey) return null
+  return MARKET_KEY_TO_PROP_TYPE[marketKey] ?? marketKey.replace(/^player_/, '')
+}
+
+const resolveEventDate = (commenceTime: string | null | undefined) => {
+  const raw = String(commenceTime ?? '')
+  const match = raw.match(/^\d{4}-\d{2}-\d{2}/)
+  return match ? match[0] : null
+}
+
+const fetchExchangePropOrderbookItems = async (opts: {
+  sportFilter: string | 'all'
+  today: string
+  depth: number
+  minSharpNotional: number
+  updatedAt: string
+  limit: number
+}) => {
+  const { sportFilter, today, depth, minSharpNotional, updatedAt, limit } = opts
+  const selectedSports: ExchangeSportKey[] =
+    sportFilter === 'all'
+      ? (Object.keys(EXCHANGE_PROP_MARKETS) as ExchangeSportKey[])
+      : (sportFilter in EXCHANGE_PROP_MARKETS
+          ? [sportFilter as ExchangeSportKey]
+          : [])
+
+  const items: PropOrderbookItem[] = []
+
+  for (const sportKey of selectedSports) {
+    if (items.length >= limit) break
+
+    const markets = EXCHANGE_PROP_MARKETS[sportKey]
+    if (!markets?.length) continue
+
+    let events: Array<{
+      id: string
+      commence_time?: string
+      home_team?: string
+      away_team?: string
+      bookmakers?: Array<{
+        key?: string
+        title?: string
+        markets?: Array<{
+          key?: string
+          outcomes?: Array<Record<string, unknown>>
+        }>
+      }>
+    }> = []
+
+    try {
+      events = await fetchTheOddsApiPlayerProps(sportKey, {
+        markets: markets.join(','),
+        regions: 'us_ex,us,us2,eu',
+        bookmakers: [...EXCHANGE_BOOKMAKERS],
+        oddsFormat: 'american',
+        dateFormat: 'iso',
+        includeBetLimits: true,
+      })
+    } catch (error) {
+      console.warn(`[prop-orderbooks] exchange fetch failed for ${sportKey}:`, error)
+      continue
+    }
+
+    for (const event of events) {
+      if (items.length >= limit) break
+      const eventDate = resolveEventDate(event?.commence_time)
+      if (!eventDate || eventDate < today) continue
+      const gameLabel = `${event?.away_team ?? 'Away'} @ ${event?.home_team ?? 'Home'}`
+
+      for (const bookmaker of event.bookmakers ?? []) {
+        if (items.length >= limit) break
+        const source = resolveExchangeSource(bookmaker?.key, bookmaker?.title)
+        if (!source) continue
+
+        type ExchangeRow = {
+          playerName: string
+          propType: string
+          propLine: number
+          eventDate: string
+          matchup: string
+          marketTitle: string
+          over: { odds: number; priceCents: number; notional: number } | null
+          under: { odds: number; priceCents: number; notional: number } | null
+        }
+
+        const rows = new Map<string, ExchangeRow>()
+
+        for (const market of bookmaker.markets ?? []) {
+          const marketKey = String(market?.key ?? '')
+          const propType = resolvePropTypeFromMarketKey(marketKey)
+          if (!propType) continue
+
+          for (const outcome of market.outcomes ?? []) {
+            const side = resolveOverUnderFromOutcomeName(String(outcome?.name ?? ''))
+            if (!side) continue
+
+            const line = parseOptionalNumber(outcome?.point)
+            if (line == null) continue
+
+            const odds = parseOptionalNumber(outcome?.price)
+            if (odds == null) continue
+
+            const priceCents = oddsToPriceCents(odds)
+            if (priceCents == null) continue
+
+            const notional = resolveExchangeOutcomeNotional(
+              outcome,
+              (market as Record<string, unknown>) ?? {},
+              (bookmaker as Record<string, unknown>) ?? {}
+            )
+            const effectiveNotional = notional != null && notional > 0
+              ? notional
+              : minSharpNotional
+
+            const describedPlayer = String(outcome?.description ?? '').trim()
+            const playerName =
+              describedPlayer ||
+              extractPlayerNameFromText(String(outcome?.name ?? '')) ||
+              null
+            if (!playerName) continue
+
+            const key = `${normalizePlayerName(playerName)}:${propType}:${formatLineKey(line)}`
+            const existing = rows.get(key) ?? {
+              playerName,
+              propType,
+              propLine: line,
+              eventDate,
+              matchup: gameLabel,
+              marketTitle: `${gameLabel} | ${playerName}`,
+              over: null,
+              under: null,
+            }
+
+            if (side === 'Over') {
+              const current = existing.over
+              if (!current || effectiveNotional > current.notional) {
+                existing.over = { odds, priceCents, notional: effectiveNotional }
+              }
+            } else {
+              const current = existing.under
+              if (!current || effectiveNotional > current.notional) {
+                existing.under = { odds, priceCents, notional: effectiveNotional }
+              }
+            }
+
+            rows.set(key, existing)
+          }
+        }
+
+        for (const row of rows.values()) {
+          if (items.length >= limit) break
+
+          const sides: PropOrderbookSide[] = []
+          if (row.over) {
+            sides.push(
+              summarizeSide(
+                'Over',
+                'Over',
+                'yes',
+                [{ priceCents: row.over.priceCents, notional: row.over.notional }],
+                minSharpNotional,
+                depth
+              )
+            )
+          }
+          if (row.under) {
+            sides.push(
+              summarizeSide(
+                'Under',
+                'Under',
+                'no',
+                [{ priceCents: row.under.priceCents, notional: row.under.notional }],
+                minSharpNotional,
+                depth
+              )
+            )
+          }
+          if (!sides.length) continue
+
+          const sharpLean = resolveSharpLean(sides, minSharpNotional)
+          if (
+            sharpLean.sharpLeanAmericanOdds != null &&
+            sharpLean.sharpLeanAmericanOdds < MAX_FAVORITE_ODDS
+          ) {
+            continue
+          }
+
+          const quotedLeanOdds =
+            sharpLean.sharpLeanSide === 'Over'
+              ? row.over?.odds ?? null
+              : sharpLean.sharpLeanSide === 'Under'
+                ? row.under?.odds ?? null
+                : null
+
+          const safeSourceLabel = EXCHANGE_SOURCE_LABELS[source]
+          items.push({
+            id: `${source}:${event.id}:${normalizePlayerName(row.playerName)}:${row.propType}:${formatLineKey(row.propLine)}`,
+            source,
+            sportKey,
+            sportLabel: sportKey === 'basketball_nba' ? 'NBA' : sportKey === 'basketball_ncaab' ? 'NCAAB' : 'NHL',
+            matchup: row.matchup,
+            marketTitle: row.marketTitle,
+            playerName: row.playerName,
+            propType: row.propType,
+            propLine: row.propLine,
+            eventDate: row.eventDate,
+            sides,
+            ...sharpLean,
+            sharpLeanBestOdds: quotedLeanOdds ?? sharpLean.sharpLeanAmericanOdds ?? null,
+            sharpLeanBestBookTitle: safeSourceLabel,
+            updatedAt,
+          })
+        }
+      }
+    }
+  }
+
+  return items
+}
+
 let cachedOrderbooks: {
   fetchedAt: number
   items: PropOrderbookItem[]
@@ -902,7 +1367,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
   const sportFilter = opts?.sportKey ?? 'all'
   const limit = opts?.limit ?? 60
   const depth = opts?.depth ?? 8
-  const minSharpNotional = opts?.minSharpNotional ?? 1000
+  const minSharpNotional = opts?.minSharpNotional ?? 100
 
   if (cachedOrderbooks && now - cachedOrderbooks.fetchedAt < CACHE_TTL_MS) {
     const filtered =
@@ -915,24 +1380,35 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
     }
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getUsMarketDayKey()
   const updatedAt = new Date().toISOString()
 
   const kalshiItems: PropOrderbookItem[] = []
   const polymarketItems: PropOrderbookItem[] = []
+  const exchangeItems = await fetchExchangePropOrderbookItems({
+    sportFilter,
+    today,
+    depth,
+    minSharpNotional,
+    updatedAt,
+    limit,
+  })
 
-  const interleave = (
-    a: PropOrderbookItem[],
-    b: PropOrderbookItem[],
-    max: number
-  ) => {
+  const interleave = (groups: PropOrderbookItem[][], max: number) => {
     const result: PropOrderbookItem[] = []
-    let i = 0
-    let j = 0
-    while (result.length < max && (i < a.length || j < b.length)) {
-      if (i < a.length) result.push(a[i++])
-      if (result.length >= max) break
-      if (j < b.length) result.push(b[j++])
+    const indexes = groups.map(() => 0)
+    while (result.length < max) {
+      let appended = false
+      for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+        const group = groups[groupIndex]
+        const itemIndex = indexes[groupIndex]
+        if (itemIndex >= group.length) continue
+        result.push(group[itemIndex])
+        indexes[groupIndex] += 1
+        appended = true
+        if (result.length >= max) break
+      }
+      if (!appended) break
     }
     return result
   }
@@ -951,9 +1427,10 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
       if (kalshiItems.length >= limit) break
       const url = new URL(`${KALSHI_BASE}/markets/${market.ticker}/orderbook`)
       url.searchParams.set('depth', String(Math.max(depth, 8)))
-      const res = await fetch(url.toString(), { cache: 'no-store' })
-      if (!res.ok) continue
-      const data = (await res.json()) as { orderbook?: { yes?: number[][]; no?: number[][] } }
+      const data = await fetchKalshiJson<{ orderbook?: { yes?: number[][]; no?: number[][] } }>(
+        url.toString()
+      )
+      if (!data) continue
       const yesRaw = Array.isArray(data.orderbook?.yes) ? data.orderbook?.yes ?? [] : []
       const noRaw = Array.isArray(data.orderbook?.no) ? data.orderbook?.no ?? [] : []
 
@@ -962,6 +1439,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
       const rawNoLabel = marketDetails?.no_sub_title || market.no_sub_title || 'No'
 
       const rawText = `${market.title ?? ''}`.trim()
+      const matchup = resolveKalshiMatchup(series.sportKey, market.ticker)
       const normalizedText = normalizeText(`${rawText} ${rawYesLabel} ${rawNoLabel}`.trim())
       const playerName =
         parsePlayerNameFromKalshiTitle(market.title) ||
@@ -1018,6 +1496,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         source: 'kalshi',
         sportKey: series.sportKey,
         sportLabel: series.sportLabel,
+        matchup: matchup ?? undefined,
         marketTitle: market.title ?? market.ticker,
         playerName,
         propType,
@@ -1077,6 +1556,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         const question = market.question || market.title
         if (!question) continue
         const rawText = question.trim()
+        const matchup = resolvePolymarketMatchup(market)
         if (!isPlayerPropQuestion(rawText)) continue
 
         const normalizedText = normalizeText(rawText)
@@ -1180,6 +1660,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           source: 'polymarket',
           sportKey: sportMeta.sportKey,
           sportLabel: sportMeta.sportLabel,
+          matchup: matchup ?? undefined,
           marketTitle: rawText,
           playerName,
           propType,
@@ -1198,7 +1679,10 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
     }
   }
 
-  const combined = interleave(kalshiItems, polymarketItems, limit)
+  const combined = interleave(
+    [kalshiItems, polymarketItems, exchangeItems],
+    limit
+  )
 
   cachedOrderbooks = { fetchedAt: now, items: combined }
 
@@ -1664,7 +2148,7 @@ export const fetchPropLiquiditySignals = async (opts?: {
     if (sportFilter === 'all') return cachedSignals.signals
     return cachedSignals.signals.filter((signal) => signal.sportKey === sportFilter)
   }
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getUsMarketDayKey()
 
   const kalshiSignals: PropLiquiditySignal[] = []
   for (const series of KALSHI_PROP_SERIES) {

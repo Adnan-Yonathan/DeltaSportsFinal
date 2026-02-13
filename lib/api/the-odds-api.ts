@@ -68,12 +68,15 @@ export interface TheOddsApiOutcome {
   price: number
   point?: number
   description?: string
+  bet_limit?: number
+  [key: string]: unknown
 }
 
 export interface TheOddsApiMarket {
   key: string
   last_update: string
   outcomes: TheOddsApiOutcome[]
+  [key: string]: unknown
 }
 
 export interface TheOddsApiBookmakerOdds {
@@ -81,6 +84,7 @@ export interface TheOddsApiBookmakerOdds {
   title: string
   last_update: string
   markets: TheOddsApiMarket[]
+  [key: string]: unknown
 }
 
 export interface TheOddsApiEvent {
@@ -282,6 +286,11 @@ export interface FetchTheOddsApiOptions {
   bookmakers?: string[] // Specific bookmakers to fetch
   oddsFormat?: 'decimal' | 'american'
   dateFormat?: 'iso' | 'unix'
+  includeLinks?: boolean
+  includeSids?: boolean
+  includeBetLimits?: boolean
+  includeRotationNumbers?: boolean
+  includeMultipliers?: boolean
 }
 
 /**
@@ -303,6 +312,11 @@ export async function fetchTheOddsApiOdds(
     bookmakers,
     oddsFormat = 'decimal',
     dateFormat = 'iso',
+    includeLinks = false,
+    includeSids = false,
+    includeBetLimits = false,
+    includeRotationNumbers = false,
+    includeMultipliers = false,
   } = options
 
   const url = new URL(`${THE_ODDS_API_BASE}/sports/${sportKey}/odds`)
@@ -315,6 +329,21 @@ export async function fetchTheOddsApiOdds(
   // If specific bookmakers requested, add them
   if (bookmakers && bookmakers.length > 0) {
     url.searchParams.set('bookmakers', bookmakers.join(','))
+  }
+  if (includeLinks) {
+    url.searchParams.set('includeLinks', 'true')
+  }
+  if (includeSids) {
+    url.searchParams.set('includeSids', 'true')
+  }
+  if (includeBetLimits) {
+    url.searchParams.set('includeBetLimits', 'true')
+  }
+  if (includeRotationNumbers) {
+    url.searchParams.set('includeRotationNumbers', 'true')
+  }
+  if (includeMultipliers) {
+    url.searchParams.set('includeMultipliers', 'true')
   }
 
   console.log(`[THE-ODDS-API] Fetching odds for ${sportKey} from ${url.toString().replace(getApiKey(), '***')}`)
@@ -485,6 +514,11 @@ export async function fetchTheOddsApiEventOdds(
     bookmakers,
     oddsFormat = 'american',
     dateFormat = 'iso',
+    includeLinks = false,
+    includeSids = false,
+    includeBetLimits = false,
+    includeRotationNumbers = false,
+    includeMultipliers = false,
   } = options
 
   const url = new URL(`${THE_ODDS_API_BASE}/sports/${sportKey}/events/${eventId}/odds`)
@@ -496,6 +530,21 @@ export async function fetchTheOddsApiEventOdds(
 
   if (bookmakers && bookmakers.length > 0) {
     url.searchParams.set('bookmakers', bookmakers.join(','))
+  }
+  if (includeLinks) {
+    url.searchParams.set('includeLinks', 'true')
+  }
+  if (includeSids) {
+    url.searchParams.set('includeSids', 'true')
+  }
+  if (includeBetLimits) {
+    url.searchParams.set('includeBetLimits', 'true')
+  }
+  if (includeRotationNumbers) {
+    url.searchParams.set('includeRotationNumbers', 'true')
+  }
+  if (includeMultipliers) {
+    url.searchParams.set('includeMultipliers', 'true')
   }
 
   const res = await fetch(url.toString(), {
@@ -522,6 +571,11 @@ export async function fetchTheOddsApiPlayerProps(
     bookmakers,
     oddsFormat = 'american',
     dateFormat = 'iso',
+    includeLinks = false,
+    includeSids = false,
+    includeBetLimits = false,
+    includeRotationNumbers = false,
+    includeMultipliers = false,
   } = options
 
   const events = await fetchTheOddsApiEvents(sportKey, { dateFormat })
@@ -538,6 +592,11 @@ export async function fetchTheOddsApiPlayerProps(
           bookmakers,
           oddsFormat,
           dateFormat,
+          includeLinks,
+          includeSids,
+          includeBetLimits,
+          includeRotationNumbers,
+          includeMultipliers,
         })
       )
     )

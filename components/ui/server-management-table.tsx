@@ -288,10 +288,10 @@ export function ServerManagementTable({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 24 }}
                 transition={{ duration: 0.2 }}
-                className="fixed inset-x-0 bottom-0 top-[72px] z-[75] flex flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-black/95 sm:inset-6 sm:top-auto sm:max-h-[90vh] sm:rounded-3xl"
+                className="fixed inset-0 z-[75] flex flex-col overflow-hidden bg-black/95 sm:inset-6 sm:max-h-[90vh] sm:rounded-3xl sm:border sm:border-white/10"
                 onClick={(event) => event.stopPropagation()}
               >
-                <div className="relative flex items-start justify-between gap-3 border-b border-white/10 bg-gradient-to-r from-black/85 to-black/65 p-4">
+                <div className="relative flex items-start justify-between gap-3 border-b border-white/10 bg-gradient-to-r from-black/85 to-black/65 p-4 pt-[calc(1rem+env(safe-area-inset-top))]">
                   <div className="min-w-0 pr-2">
                     <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">
                       Rank #{selectedWallet.rank}
@@ -320,7 +320,10 @@ export function ServerManagementTable({
                   </div>
                 </div>
 
-                <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
+                <div
+                  className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain touch-pan-y p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+                  style={{ WebkitOverflowScrolling: "touch" }}
+                >
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <div className="bg-black/50 rounded-xl p-3 border border-white/10">
                       <label className="text-[11px] font-medium text-white/50 uppercase tracking-[0.2em]">

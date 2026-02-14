@@ -485,6 +485,14 @@ export function OnboardingFlow() {
         throw new Error(result.error || "Failed to save onboarding data")
       }
 
+      // Pull fresh auth metadata (including onboarding_completed) into the client session
+      // so middleware/client guards do not read stale values on the next navigation.
+      try {
+        await supabase.auth.refreshSession()
+      } catch (refreshError) {
+        console.warn("Failed to refresh auth session after onboarding save", refreshError)
+      }
+
       localStorage.removeItem("onboarding_data")
       setHasSaved(true)
       return true

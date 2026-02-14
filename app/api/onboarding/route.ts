@@ -78,12 +78,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update user profile with onboarding data
+    // Update user profile with onboarding data.
+    // Keep this payload aligned with columns that exist in public.users.
+    // Rich profile details are still preserved in auth metadata below.
     const updateData: Record<string, unknown> = {
       ...(body.favorite_sports && body.favorite_sports.length > 0
         ? { favorite_sports: body.favorite_sports }
         : {}),
-      preferred_markets: body.preferred_markets,
       experience_level: body.experience_level,
       risk_tolerance: body.risk_tolerance,
       signup_reasons: body.signup_reasons,
@@ -99,15 +100,11 @@ export async function POST(request: NextRequest) {
     if (body.unit_size && body.unit_size > 0) {
       updateData.unit_size = body.unit_size
     }
-    if (body.bets_per_day && body.bets_per_day > 0) {
-      updateData.bets_per_day = body.bets_per_day
-    }
-
     const updateResult = await supabase
       .from('users')
       .update(updateData)
       .eq('id', user.id)
-      .select()
+      .select('id')
       .single()
 
     const metadataUpdate = await supabase.auth.updateUser({
@@ -135,7 +132,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (updateResult.error) {
-      console.error('Error saving onboarding data:', updateResult.error)
+      console.error('Error saving onboarding profile row:', updateResult.error)
       if (metadataUpdate.error) {
         console.error('Error saving onboarding metadata:', metadataUpdate.error)
         return NextResponse.json(
@@ -145,7 +142,7 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json({
         success: true,
-        data: { fallback: true },
+        data: { profile_updated: false, metadata_updated: true },
       })
     }
 
@@ -155,7 +152,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: updateResult.data
+      data: {
+        profile_updated: true,
+        metadata_updated: !metadataUpdate.error,
+      }
     })
   } catch (error) {
     console.error('Onboarding error:', error)

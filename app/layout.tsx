@@ -4,7 +4,6 @@ import { SupabaseAuthListener } from '@/components/SupabaseAuthListener'
 import { AppFooter } from '@/components/AppFooter'
 import AffiliateTracker from '@/components/AffiliateTracker'
 import SharpMoneyAlertHub from '@/components/SharpMoneyAlertHub'
-import { Saira_Condensed } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -50,13 +49,6 @@ export const metadata: Metadata = {
   },
 }
 
-const saira = Saira_Condensed({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  display: 'swap',
-  variable: '--font-sans',
-})
-
 export default function RootLayout({
   children,
 }: {
@@ -80,7 +72,7 @@ gtag('config', '${GA_MEASUREMENT_ID}');
         </Script>
       </head>
       <body
-        className={`${saira.variable} flex min-h-screen flex-col bg-bg-primary text-text-primary`}
+        className="flex min-h-screen flex-col bg-bg-primary text-text-primary"
       >
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <SupabaseAuthListener />

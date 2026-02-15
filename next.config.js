@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // Avoid child_process spawn in constrained Windows environments during build.
+    workerThreads: true,
+  },
   images: {
     unoptimized: true,
     domains: ['a.espncdn.com'],

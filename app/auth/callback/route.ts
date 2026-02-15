@@ -52,13 +52,16 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
       }
 
+      const paywallSeen = Boolean((user.user_metadata as any)?.onboarding_paywall_seen)
+
+      // Resolve onboarding completion (metadata first, then public.users as a fallback).
+      let onboardingCompleted = true
       if (ONBOARDING_ENABLED) {
         const metadataCompleted = Boolean(
-          (user.user_metadata as { onboarding_completed?: boolean })
-            ?.onboarding_completed
+          (user.user_metadata as { onboarding_completed?: boolean })?.onboarding_completed
         )
+        onboardingCompleted = metadataCompleted
 
-        let onboardingCompleted = metadataCompleted
         if (!onboardingCompleted) {
           const { data: profile, error } = await supabase
             .from('users')
@@ -69,22 +72,19 @@ export async function GET(request: NextRequest) {
           if (!error) {
             onboardingCompleted = Boolean(profile?.onboarding_completed)
             if (onboardingCompleted && !metadataCompleted) {
-              await supabase.auth.updateUser({
-                data: {
-                  onboarding_completed: true,
-                },
-              })
+              await supabase.auth.updateUser({ data: { onboarding_completed: true } })
             }
           }
         }
-
-        if (!onboardingCompleted) {
-          return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
-        }
       }
 
+      // Resolve paid access (auth metadata first, then public.users.subscription_tier as a fallback).
       let membership = getMembershipStatusFromMetadata(user.user_metadata)
-      if (!membership.hasPaidAccess) {
+      const paidStatuses = new Set(['active', 'trialing', 'past_due'])
+      const isPaidNow = (info: typeof membership) =>
+        info.status ? paidStatuses.has(info.status) : info.hasPaidAccess
+
+      if (!isPaidNow(membership)) {
         const { data: profile, error } = await supabase
           .from('users')
           .select('subscription_tier')
@@ -93,23 +93,41 @@ export async function GET(request: NextRequest) {
 
         const tier = profile?.subscription_tier
         if (!error && (tier === 'pro' || tier === 'unlimited' || tier === 'sharp' || tier === 'syndicate')) {
+          const normalizedTier =
+            tier === 'unlimited' ? 'syndicate' : tier === 'pro' ? 'sharp' : tier
           await supabase.auth.updateUser({
             data: {
-              membership_tier: tier === 'unlimited' ? 'syndicate' : tier === 'pro' ? 'sharp' : tier,
+              membership_tier: normalizedTier,
               membership_status: 'active',
               has_paid: true,
             },
           })
           membership = getMembershipStatusFromMetadata({
             ...user.user_metadata,
-            membership_tier: tier === 'unlimited' ? 'syndicate' : tier === 'pro' ? 'sharp' : tier,
+            membership_tier: normalizedTier,
             membership_status: 'active',
             has_paid: true,
           })
         }
       }
 
-      if (!membership.hasPaidAccess) {
+      // If onboarding isn't complete:
+      // - Paid users should continue onboarding.
+      // - Unpaid users who already hit the paywall should be sent back to the onboarding pricing step.
+      if (ONBOARDING_ENABLED && !onboardingCompleted) {
+        if (isPaidNow(membership)) {
+          return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
+        }
+        if (paywallSeen) {
+          return NextResponse.redirect(
+            new URL('/pricing?next=/onboarding&resumeStep=8&cancelStep=7', requestUrl.origin)
+          )
+        }
+        return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
+      }
+
+      // Onboarding complete: route by paid access.
+      if (!isPaidNow(membership)) {
         return NextResponse.redirect(new URL('/pricing', requestUrl.origin))
       }
 

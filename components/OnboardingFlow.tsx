@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronRight, Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import { StepMonthlyProfit } from "./onboarding/StepMonthlyProfit"
 import { StepRecommendations } from "./onboarding/StepRecommendations"
 import { StepIntroFeature } from "./onboarding/StepIntroFeature"
@@ -515,6 +516,35 @@ export function OnboardingFlow() {
       }
 
       if (currentStep === paywallTriggerStep) {
+        // If the user is already paid/trialing, skip the pricing detour and continue onboarding.
+        // This avoids a redirect loop (/pricing -> /chat -> /onboarding -> /pricing) for paid users.
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          const membership = getMembershipStatusFromMetadata(user?.user_metadata)
+          const paidStatuses = new Set(['active', 'trialing', 'past_due'])
+          const isPaidNow = membership.status
+            ? paidStatuses.has(membership.status)
+            : membership.hasPaidAccess
+          if (isPaidNow) {
+            startStepTransition(currentStep + 1)
+            return
+          }
+        } catch (error) {
+          console.warn("Failed to check membership at paywall step", error)
+        }
+
+        // Persist that this user reached the paywall step so future sign-ins can send them back here.
+        try {
+          await supabase.auth.updateUser({
+            data: {
+              onboarding_paywall_seen: true,
+              onboarding_paywall_seen_at: new Date().toISOString(),
+            },
+          })
+        } catch (error) {
+          console.warn("Failed to persist onboarding paywall marker", error)
+        }
+
         const resumeStep = Math.min(currentStep + 1, totalSteps - 1)
         router.push(
           `/pricing?next=/onboarding&resumeStep=${resumeStep}&cancelStep=${currentStep}`

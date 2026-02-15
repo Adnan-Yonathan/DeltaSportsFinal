@@ -9,7 +9,7 @@ import {
   CanvasRevealEffect,
   MiniNavbar,
 } from "@/components/ui/sign-in-flow-1"
-import { getMembershipStatus } from "@/lib/utils/membership"
+import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import { FORCE_ONBOARDING, ONBOARDING_ENABLED } from "@/lib/config/onboarding"
 
 export const LoginPage = () => {
@@ -163,37 +163,59 @@ export const LoginPage = () => {
         }
 
         // Check membership status first — paid users go straight to chat
-        const membership = getMembershipStatus(data.user.user_metadata)
-        if (membership.isActive) {
-          router.push("/chat")
-          return
-        }
+        const membership = getMembershipStatusFromMetadata(data.user.user_metadata)
+        const paidStatuses = new Set(['active', 'trialing', 'past_due'])
+        const isPaidNow = membership.status
+          ? paidStatuses.has(membership.status)
+          : membership.hasPaidAccess
 
         if (ONBOARDING_ENABLED) {
           const metadataCompleted = Boolean(
             (data.user.user_metadata as any)?.onboarding_completed
           )
 
-          if (!metadataCompleted) {
+          let onboardingCompleted = metadataCompleted
+          if (!onboardingCompleted) {
             const { data: profile, error: profileError } = await supabase
               .from("users")
               .select("onboarding_completed")
               .eq("id", data.user.id)
               .single()
 
-            if (!profileError && profile?.onboarding_completed === false) {
+            if (!profileError) {
+              onboardingCompleted = Boolean(profile?.onboarding_completed)
+            }
+          }
+
+          if (!onboardingCompleted) {
+            // Paid users should continue onboarding until it's marked complete.
+            if (isPaidNow) {
               router.push("/onboarding")
               return
             }
 
-            if (profileError) {
-              router.push("/onboarding")
+            // If they already reached the onboarding paywall, send them back to pricing
+            // until they start a trial/pay.
+            const paywallSeen = Boolean(
+              (data.user.user_metadata as any)?.onboarding_paywall_seen
+            )
+
+            if (paywallSeen) {
+              router.push("/pricing?next=/onboarding&resumeStep=8&cancelStep=7")
               return
             }
+
+            router.push("/onboarding")
+            return
           }
         }
 
         // Onboarding done but not paid — go to pricing
+        if (isPaidNow) {
+          router.push("/chat")
+          return
+        }
+
         router.push("/pricing")
       }
     } catch (err: any) {

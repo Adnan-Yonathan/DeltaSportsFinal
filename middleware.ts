@@ -131,6 +131,15 @@ export async function middleware(req: NextRequest) {
   let onboardingCompleted = ONBOARDING_ENABLED
     ? Boolean(metadata?.onboarding_completed)
     : true
+  const paywallSeen = Boolean((metadata as any)?.onboarding_paywall_seen)
+
+  // If the user already reached the onboarding paywall and is not paid yet,
+  // keep them at the onboarding pricing step until they start a trial/pay.
+  if (!isPaid && paywallSeen && pathname.startsWith('/onboarding')) {
+    return NextResponse.redirect(
+      new URL('/pricing?next=/onboarding&resumeStep=8&cancelStep=7', req.url)
+    )
+  }
 
   if (isMembershipExemptPath(pathname)) {
     return res
@@ -162,6 +171,11 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
+  // If they cancel checkout or choose not to continue, let them stay on the landing page.
+  if (pathname === '/welcome') {
+    return res
+  }
+
   // Allow the pricing page during onboarding so users can start a trial
   // mid-flow (onboarding redirects to /pricing before onboarding_completed).
   if (!isPaid && pathname.startsWith('/pricing')) {
@@ -169,6 +183,11 @@ export async function middleware(req: NextRequest) {
   }
 
   if (!onboardingCompleted) {
+    if (paywallSeen) {
+      return NextResponse.redirect(
+        new URL('/pricing?next=/onboarding&resumeStep=8&cancelStep=7', req.url)
+      )
+    }
     const onboardingUrl = new URL('/onboarding', req.url)
     return NextResponse.redirect(onboardingUrl)
   }

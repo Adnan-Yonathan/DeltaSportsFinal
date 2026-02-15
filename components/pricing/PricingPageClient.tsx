@@ -126,9 +126,9 @@ export function PricingPageClient() {
 
     if (next === '/onboarding' && resumeStep) {
       const successPath = `/stripe/success?next=/onboarding&step=${encodeURIComponent(resumeStep)}`
-      const cancelPath = `/pricing?next=/onboarding&resumeStep=${encodeURIComponent(resumeStep)}${
-        cancelStep ? `&cancelStep=${encodeURIComponent(cancelStep)}` : ''
-      }`
+      // If the user cancels checkout, send them back to the landing page.
+      // If they sign in again, we'll route them back to the onboarding pricing step.
+      const cancelPath = `/welcome`
       return { successPath, cancelPath }
     }
 

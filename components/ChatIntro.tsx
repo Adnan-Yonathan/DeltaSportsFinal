@@ -574,20 +574,6 @@ export default function ChatIntro({
         animate={{ opacity: 1, y: 0 }}
         className="relative h-full w-full p-2 sm:p-3"
       >
-        <div className="pointer-events-none absolute inset-0 z-30 hidden items-center justify-center md:flex">
-          <Link
-            href="https://x.com/DeltaSportsAI"
-            target="_blank"
-            rel="noreferrer"
-            aria-label="Delta Sports on X"
-            className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/80 px-3 py-1.5 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200"
-          >
-            <ArrowUpRight className="h-4 w-4 text-emerald-300" />
-            <span>follow our twitter</span>
-            <Twitter className="h-4 w-4" />
-          </Link>
-        </div>
-
         <div className="grid h-full grid-cols-1 gap-3 overflow-y-auto md:hidden">
           <div className="flex justify-center">
             <Link

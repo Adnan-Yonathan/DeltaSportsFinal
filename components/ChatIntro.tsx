@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { ArrowUpRight, Star, Twitter } from 'lucide-react'
+import { Star } from 'lucide-react'
 import { GuestHero } from '@/components/ui/guest-hero'
 import StatsSection from '@/components/ui/call-to-action'
 import { ROICalculator } from '@/components/ui/roi-calculator'
@@ -574,28 +574,11 @@ export default function ChatIntro({
         animate={{ opacity: 1, y: 0 }}
         className="relative h-full w-full p-2 sm:p-3"
       >
-        <div className="grid h-full grid-cols-1 gap-3 overflow-y-auto md:hidden">
-          <div className="flex justify-center">
-            <Link
-              href="https://x.com/DeltaSportsAI"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Delta Sports on X"
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/80 px-3 py-1.5 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200"
-            >
-              <ArrowUpRight className="h-4 w-4 text-emerald-300" />
-              <span>follow our twitter</span>
-              <Twitter className="h-4 w-4" />
-            </Link>
-          </div>
-          {orderedCards.map((card) => renderToolCard(card))}
-        </div>
-
-        <div className="hidden h-full grid-rows-2 gap-3 md:grid">
-          <div className="grid h-full min-h-0 grid-cols-2 gap-3">
+        <div className="grid h-full grid-cols-1 gap-3 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-3 md:h-full md:min-h-0">
             {topCards.map((card) => renderToolCard(card))}
           </div>
-          <div className="grid h-full min-h-0 grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3 md:h-full md:min-h-0">
             {bottomCards.map((card) => renderToolCard(card))}
           </div>
         </div>

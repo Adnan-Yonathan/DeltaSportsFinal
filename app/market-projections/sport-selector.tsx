@@ -1,6 +1,6 @@
- "use client"
+"use client"
 
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 type SportOption = {
@@ -8,6 +8,9 @@ type SportOption = {
   label: string
   locked?: boolean
 }
+
+const SPORT_PREFERENCE_COOKIE = "market_projections_sport"
+const SPORT_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 
 export default function SportSelector({
   options,
@@ -24,6 +27,14 @@ export default function SportSelector({
     return options.find((option) => option.key === currentSport) ?? options[0]
   }, [options, currentSport])
 
+  useEffect(() => {
+    const selectedOption = options.find((option) => option.key === currentSport)
+    if (!selectedOption || selectedOption.locked) return
+    document.cookie = `${SPORT_PREFERENCE_COOKIE}=${encodeURIComponent(
+      selectedOption.key
+    )}; path=/; max-age=${SPORT_COOKIE_MAX_AGE}; samesite=lax`
+  }, [options, currentSport])
+
   const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const next = event.target.value
     const selectedOption = options.find((opt) => opt.key === next)
@@ -33,6 +44,9 @@ export default function SportSelector({
       return
     }
 
+    document.cookie = `${SPORT_PREFERENCE_COOKIE}=${encodeURIComponent(
+      next
+    )}; path=/; max-age=${SPORT_COOKIE_MAX_AGE}; samesite=lax`
     const params = new URLSearchParams(searchParams.toString())
     params.set("sport", next)
     router.push(`${pathname}?${params.toString()}`)

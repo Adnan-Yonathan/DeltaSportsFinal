@@ -41,6 +41,8 @@ export type OrderbookItem = {
   sharpLeanAmericanOdds: number | null
   sharpLeanBestOdds: number | null
   sharpLeanBestBookTitle: string | null
+  pinnacleLeanOdds: number | null
+  pinnacleLeanBookTitle: string | null
   updatedAt: string
   sides: OrderbookSide[]
 }
@@ -320,6 +322,8 @@ export default function PropOrderbooksPanel({
           const bestLeanOdds =
             item.sharpLeanBestOdds ?? inferredLeanOdds ?? null
           const bestLeanBook = item.sharpLeanBestBookTitle ?? null
+          const pinnacleLeanOdds = item.pinnacleLeanOdds ?? null
+          const pinnacleLeanBookTitle = item.pinnacleLeanBookTitle ?? null
           const totalWallLiquidity = item.sides.reduce(
             (sum, side) => sum + (side.wallNotional ?? 0),
             0
@@ -438,6 +442,9 @@ export default function PropOrderbooksPanel({
                           {inferredLeanSide ?? "N/A"} {formatAmericanOdds(bestLeanOdds)}
                         </span>
                         {bestLeanBook ? ` at ${bestLeanBook}` : ""}
+                        {pinnacleLeanOdds != null
+                          ? ` | Pinnacle ${inferredLeanSide ?? "N/A"} ${formatAmericanOdds(pinnacleLeanOdds)}${pinnacleLeanBookTitle ? ` (${pinnacleLeanBookTitle})` : ""}`
+                          : ""}
                         . {wallSharePercent != null ? `That wall is ${wallSharePercent}% of visible wall liquidity.` : ""}
                       </p>
                     </div>

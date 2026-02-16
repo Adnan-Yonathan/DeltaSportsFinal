@@ -23,6 +23,9 @@ type AggregatedPlayerPropBet = {
   avgSharpStrength: number
   predMarketProbability: number | null
   predMarketOdds: number | null
+  pinnacleOdds: number | null
+  pinnacleProbability: number | null
+  sportsbookLabel: "Pinnacle" | "Books"
   sportsbookAvgProbability: number | null
   sportsbookAvgOdds: number | null
   edgeReferenceProbability: number | null
@@ -108,8 +111,13 @@ type OrderbookItem = {
   slug?: string
   sharpLiquiditySide: "Over" | "Under" | null
   sharpLiquidityNotional: number | null
+  sharpOrderAmericanOdds: number | null
   sharpLeanSide: "Over" | "Under" | null
   sharpLeanAmericanOdds: number | null
+  sharpLeanBestOdds: number | null
+  sharpLeanBestBookTitle: string | null
+  pinnacleLeanOdds: number | null
+  pinnacleLeanBookTitle: string | null
   updatedAt: string
   sides: OrderbookSide[]
 }
@@ -408,7 +416,7 @@ const TopPickCard = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showS
       </span>
       <span className="text-white/30">|</span>
       <span className="font-medium text-white">
-        Books {formatOdds(prop.sportsbookAvgOdds)}
+        {prop.sportsbookLabel} {formatOdds(prop.sportsbookAvgOdds)}
       </span>
     </div>
 
@@ -478,7 +486,7 @@ const PropRow = ({ prop, showSport }: { prop: AggregatedPlayerPropBet; showSport
         </span>
         <span className="text-white/30">|</span>
         <span className="font-medium text-white">
-          Books {formatOdds(prop.sportsbookAvgOdds)}
+          {prop.sportsbookLabel} {formatOdds(prop.sportsbookAvgOdds)}
         </span>
       </div>
 
@@ -982,7 +990,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
                   <div>Player / Prop</div>
                   <div>Volume</div>
                   <div className="text-center">Pred Mkt</div>
-                  <div className="text-center">Books</div>
+                  <div className="text-center">Sharp Book</div>
                   <div className="text-center">Edge</div>
                   <div className="text-center">Score</div>
                   <div className="text-right">Signals</div>
@@ -1103,7 +1111,12 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
                   Largest resting liquidity wall. Sharp lean uses complement pricing.
                 </div>
 
-                {orderbooks.map((item) => (
+                {orderbooks.map((item) => {
+                  const displayLeanOdds =
+                    item.pinnacleLeanOdds ??
+                    item.sharpLeanBestOdds ??
+                    item.sharpLeanAmericanOdds
+                  return (
                   <div key={item.id} className="px-4 py-4 hover:bg-white/5 transition-colors">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
@@ -1124,7 +1137,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
 
                       {item.sharpLeanSide && (
                         <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200">
-                          Sharp leaning {item.sharpLeanSide} ({formatAmericanOdds(item.sharpLeanAmericanOdds)})
+                          Sharp leaning {item.sharpLeanSide} ({formatAmericanOdds(displayLeanOdds)})
                         </span>
                       )}
                     </div>
@@ -1167,8 +1180,16 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
                         )
                       })}
                     </div>
+                    {item.pinnacleLeanOdds != null && (
+                      <div className="mt-2 text-xs text-white/55">
+                        Pinnacle reference: {item.sharpLeanSide ?? "Lean"}{" "}
+                        {formatAmericanOdds(item.pinnacleLeanOdds)}
+                        {item.pinnacleLeanBookTitle ? ` (${item.pinnacleLeanBookTitle})` : ""}
+                      </div>
+                    )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )
           )}

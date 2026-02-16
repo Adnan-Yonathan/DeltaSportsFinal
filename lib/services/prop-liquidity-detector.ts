@@ -214,6 +214,8 @@ export type PropOrderbookItem = {
   sharpLeanAmericanOdds: number | null
   sharpLeanBestOdds: number | null
   sharpLeanBestBookTitle: string | null
+  pinnacleLeanOdds: number | null
+  pinnacleLeanBookTitle: string | null
   updatedAt: string
 }
 
@@ -244,6 +246,10 @@ type SportsbookPropLine = {
   bestUnderOdds: number | null
   bestOverBookTitle: string | null
   bestUnderBookTitle: string | null
+  pinnacleOverOdds: number | null
+  pinnacleUnderOdds: number | null
+  pinnacleOverBookTitle: string | null
+  pinnacleUnderBookTitle: string | null
   noVigOverProbs: number[]
   noVigUnderProbs: number[]
 }
@@ -1136,6 +1142,13 @@ const resolvePropTypeFromMarketKey = (marketKey: string) => {
   return MARKET_KEY_TO_PROP_TYPE[marketKey] ?? marketKey.replace(/^player_/, '')
 }
 
+const isPinnacleBook = (book: any) => {
+  const normalized = `${book?.key ?? ''} ${book?.name ?? ''} ${book?.title ?? ''}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+  return normalized.includes('pinnacle')
+}
+
 const resolveEventDate = (commenceTime: string | null | undefined) => {
   const raw = String(commenceTime ?? '').trim()
   if (!raw) return null
@@ -1349,6 +1362,8 @@ const fetchExchangePropOrderbookItems = async (opts: {
             ...sharpLean,
             sharpLeanBestOdds: quotedLeanOdds ?? sharpLean.sharpLeanAmericanOdds ?? null,
             sharpLeanBestBookTitle: safeSourceLabel,
+            pinnacleLeanOdds: null,
+            pinnacleLeanBookTitle: null,
             updatedAt,
           })
         }
@@ -1496,7 +1511,13 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
               propLine,
               sharpLean.sharpLeanSide
             )
-          : { bestOdds: null, noVigProb: null, bestBookTitle: null }
+          : {
+              bestOdds: null,
+              noVigProb: null,
+              bestBookTitle: null,
+              pinnacleOdds: null,
+              pinnacleBookTitle: null,
+            }
 
       kalshiItems.push({
         id: `kalshi:${market.ticker}`,
@@ -1512,8 +1533,11 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         ticker: market.ticker,
         sides,
         ...sharpLean,
-        sharpLeanBestOdds: leanSportsbookQuote.bestOdds ?? null,
-        sharpLeanBestBookTitle: leanSportsbookQuote.bestBookTitle ?? null,
+        sharpLeanBestOdds: leanSportsbookQuote.pinnacleOdds ?? leanSportsbookQuote.bestOdds ?? null,
+        sharpLeanBestBookTitle:
+          leanSportsbookQuote.pinnacleBookTitle ?? leanSportsbookQuote.bestBookTitle ?? null,
+        pinnacleLeanOdds: leanSportsbookQuote.pinnacleOdds ?? null,
+        pinnacleLeanBookTitle: leanSportsbookQuote.pinnacleBookTitle ?? null,
         updatedAt,
       })
     }
@@ -1660,7 +1684,13 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
                 propLine,
                 sharpLean.sharpLeanSide
               )
-            : { bestOdds: null, noVigProb: null, bestBookTitle: null }
+            : {
+                bestOdds: null,
+                noVigProb: null,
+                bestBookTitle: null,
+                pinnacleOdds: null,
+                pinnacleBookTitle: null,
+              }
 
         polymarketItems.push({
           id: `polymarket:${market.id}`,
@@ -1676,8 +1706,11 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           slug: market.slug ?? market.id,
           sides,
           ...sharpLean,
-          sharpLeanBestOdds: leanSportsbookQuote.bestOdds ?? null,
-          sharpLeanBestBookTitle: leanSportsbookQuote.bestBookTitle ?? null,
+          sharpLeanBestOdds: leanSportsbookQuote.pinnacleOdds ?? leanSportsbookQuote.bestOdds ?? null,
+          sharpLeanBestBookTitle:
+            leanSportsbookQuote.pinnacleBookTitle ?? leanSportsbookQuote.bestBookTitle ?? null,
+          pinnacleLeanOdds: leanSportsbookQuote.pinnacleOdds ?? null,
+          pinnacleLeanBookTitle: leanSportsbookQuote.pinnacleBookTitle ?? null,
           updatedAt,
         })
       }
@@ -2023,6 +2056,10 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
           bestUnderOdds: null,
           bestOverBookTitle: null,
           bestUnderBookTitle: null,
+          pinnacleOverOdds: null,
+          pinnacleUnderOdds: null,
+          pinnacleOverBookTitle: null,
+          pinnacleUnderBookTitle: null,
           noVigOverProbs: [],
           noVigUnderProbs: [],
         }
@@ -2039,12 +2076,20 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
               : null
 
       if (overOdds != null && !Number.isNaN(overOdds)) {
+        if (isPinnacleBook(book)) {
+          bucket.pinnacleOverOdds = overOdds
+          bucket.pinnacleOverBookTitle = bookTitle
+        }
         if (bucket.bestOverOdds == null || overOdds > bucket.bestOverOdds) {
           bucket.bestOverOdds = overOdds
           bucket.bestOverBookTitle = bookTitle
         }
       }
       if (underOdds != null && !Number.isNaN(underOdds)) {
+        if (isPinnacleBook(book)) {
+          bucket.pinnacleUnderOdds = underOdds
+          bucket.pinnacleUnderBookTitle = bookTitle
+        }
         if (bucket.bestUnderOdds == null || underOdds > bucket.bestUnderOdds) {
           bucket.bestUnderOdds = underOdds
           bucket.bestUnderBookTitle = bookTitle
@@ -2074,7 +2119,15 @@ const resolveSportsbookPropPrices = async (
   propLine: number | null,
   propSide: 'Over' | 'Under' | null
 ) => {
-  if (!propSide) return { bestOdds: null, noVigProb: null, bestBookTitle: null }
+  if (!propSide) {
+    return {
+      bestOdds: null,
+      noVigProb: null,
+      bestBookTitle: null,
+      pinnacleOdds: null,
+      pinnacleBookTitle: null,
+    }
+  }
   const index = await fetchSportsbookPropIndex(sportKey)
   const normalizedPlayer = normalizePlayerName(playerName)
   const props = index.get(normalizedPlayer) ?? []
@@ -2082,23 +2135,49 @@ const resolveSportsbookPropPrices = async (
   if (propLine != null) {
     matches = matches.filter((item) => Math.abs(item.line - propLine) < 0.01)
   }
-  if (!matches.length) return { bestOdds: null, noVigProb: null, bestBookTitle: null }
+  if (!matches.length) {
+    return {
+      bestOdds: null,
+      noVigProb: null,
+      bestBookTitle: null,
+      pinnacleOdds: null,
+      pinnacleBookTitle: null,
+    }
+  }
 
   let best: SportsbookPropLine | null = null
   for (const candidate of matches) {
     best = candidate
     break
   }
-  if (!best) return { bestOdds: null, noVigProb: null, bestBookTitle: null }
+  if (!best) {
+    return {
+      bestOdds: null,
+      noVigProb: null,
+      bestBookTitle: null,
+      pinnacleOdds: null,
+      pinnacleBookTitle: null,
+    }
+  }
 
   const bestOdds = propSide === 'Under' ? best.bestUnderOdds : best.bestOverOdds
   const bestBookTitle =
     propSide === 'Under' ? best.bestUnderBookTitle : best.bestOverBookTitle
+  const pinnacleOdds =
+    propSide === 'Under' ? best.pinnacleUnderOdds : best.pinnacleOverOdds
+  const pinnacleBookTitle =
+    propSide === 'Under' ? best.pinnacleUnderBookTitle : best.pinnacleOverBookTitle
   const noVigPool = propSide === 'Under' ? best.noVigUnderProbs : best.noVigOverProbs
   const noVigProb = noVigPool.length
     ? noVigPool.reduce((sum, value) => sum + value, 0) / noVigPool.length
     : null
-  return { bestOdds: bestOdds ?? null, noVigProb, bestBookTitle: bestBookTitle ?? null }
+  return {
+    bestOdds: bestOdds ?? null,
+    noVigProb,
+    bestBookTitle: bestBookTitle ?? null,
+    pinnacleOdds: pinnacleOdds ?? null,
+    pinnacleBookTitle: pinnacleBookTitle ?? null,
+  }
 }
 
 const buildLiquidityReason = (

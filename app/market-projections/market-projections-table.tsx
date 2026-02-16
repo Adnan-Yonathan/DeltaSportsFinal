@@ -6,7 +6,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ElectricCard } from "@/components/ui/electric-card"
 import { cn } from "@/lib/utils"
 import ShareProjectionButton from "@/components/ShareProjectionButton"
-import { AVAILABLE_BOOKS, type BookKey } from "@/lib/config/books"
 import { formatSharpSignalSummaryLine } from "@/lib/utils/sharp-signal-language"
 
 type EdgeFilter = "spread" | "moneyline" | "total"
@@ -867,7 +866,7 @@ const resolveMoneylineEdgePick = (game: EdgeGame, sport?: string) => {
 }
 
 const resolveFilterLabels = (filter: EdgeFilter) => {
-  if (filter === "spread") return { projection: "Spread projection", odds: "Spread odds" }
+  if (filter === "spread") return { projection: "Spread projection", odds: "Sharp line" }
   if (filter === "moneyline") return { projection: "ML projection", odds: "ML odds" }
   return { projection: "Total projection", odds: "Total odds" }
 }
@@ -942,68 +941,14 @@ export default function MarketProjectionsTable({
   errorMessage,
   sport,
   tier,
-  selectedBooks,
   previewMode = false,
 }: {
   edges: EdgeGame[]
   errorMessage: string | null
   sport?: string
   tier?: AccessTier
-  selectedBooks?: BookKey[]
   previewMode?: boolean
 }) {
-  // Build a set of selected book labels for filtering display
-  const selectedBookLabels = useMemo(() => {
-    if (!selectedBooks || selectedBooks.length === 0) return null
-    const labels = new Set<string>()
-    for (const key of selectedBooks) {
-      const book = AVAILABLE_BOOKS.find(b => b.key === key)
-      if (book) {
-        labels.add(book.label.toLowerCase())
-        labels.add(book.key.toLowerCase())
-        if (book.apiKey) {
-          labels.add(book.apiKey.toLowerCase())
-        }
-      }
-    }
-    return labels
-  }, [selectedBooks])
-
-  // Helper to check if a book should be displayed
-  const isBookSelected = (bookName?: string | null) => {
-    if (!selectedBookLabels || !bookName) return true
-    const normalized = bookName.toLowerCase().replace(/[^a-z0-9]/g, '')
-    for (const label of selectedBookLabels) {
-      const normalizedLabel = label.replace(/[^a-z0-9]/g, '')
-      if (normalized.includes(normalizedLabel) || normalizedLabel.includes(normalized)) {
-        return true
-      }
-    }
-    return false
-  }
-  const hasSelectedBookForFilter = (game: EdgeGame, marketFilter: EdgeFilter) => {
-    if (!selectedBookLabels) return true
-    if (marketFilter === "spread") {
-      return Boolean(
-        isBookSelected(game.spread?.bestHomeBook) ||
-        isBookSelected(game.spread?.bestAwayBook) ||
-        isBookSelected(game.spread?.bestBook) ||
-        isBookSelected(game.spread?.prediction?.book)
-      )
-    }
-    if (marketFilter === "total") {
-      return Boolean(
-        isBookSelected(game.total?.bestBook) ||
-        isBookSelected(game.total?.prediction?.book)
-      )
-    }
-    return Boolean(
-      isBookSelected(game.moneyline?.sportsbook?.homeBook) ||
-      isBookSelected(game.moneyline?.sportsbook?.awayBook) ||
-      isBookSelected(game.moneyline?.prediction?.homeBook) ||
-      isBookSelected(game.moneyline?.prediction?.awayBook)
-    )
-  }
   const accessConfig = useMemo(() => resolveAccessConfig(tier), [tier])
   const [filter, setFilter] = useState<EdgeFilter>(accessConfig.allowedFilters[0] ?? "spread")
   const [pulseKey, setPulseKey] = useState(0)
@@ -1025,7 +970,6 @@ export default function MarketProjectionsTable({
     const scoped = edges.filter(
       (game) =>
         hasMarketData(game, filter) &&
-        hasSelectedBookForFilter(game, filter) &&
         isUpcomingGame(game.commenceTime)
     )
     const sorted = [...scoped].sort(
@@ -1053,14 +997,14 @@ export default function MarketProjectionsTable({
 
   return (
     <>
-      <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 sm:mt-6">
-        <div className={`grid ${filterGridClass} gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70`}>
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+        <div className={`grid ${filterGridClass} gap-0 overflow-hidden rounded-md border border-white/10 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70`}>
           {accessConfig.allowedFilters.map((item) => (
             <button
               key={item}
               type="button"
               onClick={() => setFilter(item)}
-              className={`rounded-md border px-3 py-2 text-center transition-colors ${
+              className={`border border-white/10 px-3 py-2 text-center transition-colors ${
                 filter === item
                   ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
                   : "border-white/10 bg-black/40 hover:border-emerald-400/40 hover:text-white"

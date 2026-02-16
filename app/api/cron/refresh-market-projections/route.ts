@@ -4,6 +4,7 @@ import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import { recordMarketProjectionPicks } from "@/lib/services/market-projection-clv"
 
 export const dynamic = "force-dynamic"
+const SHARP_PROJECTION_BOOKS = ["pinnacle", "circa"] as const
 
 /**
  * POST /api/cron/refresh-market-projections
@@ -41,7 +42,11 @@ export async function GET(req: NextRequest) {
 
     for (const sport of sports) {
       try {
-        const result = await analyzeSlateEdges(sport, { limit: 200 })
+        const result = await analyzeSlateEdges(sport, {
+          limit: 200,
+          bookmakers: [...SHARP_PROJECTION_BOOKS],
+          oddsPreference: "lowest",
+        })
         const edges = result.edges ?? []
         await recordMarketProjectionPicks({
           sport,

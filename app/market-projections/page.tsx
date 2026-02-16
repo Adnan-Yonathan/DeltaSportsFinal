@@ -9,6 +9,7 @@ import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import { PHASE_PRODUCTION_BUILD } from "next/constants"
+import { cookies } from "next/headers"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -26,6 +27,142 @@ const SPORT_OPTIONS: SportOption[] = [
   { key: "americanfootball_nfl", label: "NFL", locked: false },
   { key: "icehockey_nhl", label: "NHL", locked: false },
 ]
+const SHARP_PROJECTION_BOOKS = ["pinnacle", "circa"] as const
+const SPORT_PREFERENCE_COOKIE = "market_projections_sport"
+const normalizeBook = (value?: string | null) =>
+  (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "")
+const isSharpProjectionBook = (value?: string | null) => {
+  const normalized = normalizeBook(value)
+  if (!normalized) return true
+  return normalized.includes("pinnacle") || normalized.includes("circa")
+}
+const hasOnlySharpProjectionBooks = (edges: GameEdgeAnalysis[]) =>
+  edges.every((edge) => {
+    const books = [
+      edge.spread?.bestBook,
+      edge.spread?.bestHomeBook,
+      edge.spread?.bestAwayBook,
+      edge.total?.bestBook,
+      edge.moneyline?.sportsbook?.homeBook,
+      edge.moneyline?.sportsbook?.awayBook,
+    ]
+    return books.every((book) => isSharpProjectionBook(book))
+  })
+
+const stripNonSharpBookOdds = (edges: GameEdgeAnalysis[]) =>
+  edges.map((edge) => {
+    const spread = edge.spread
+      ? {
+          ...edge.spread,
+          bestBook: isSharpProjectionBook(edge.spread.bestBook)
+            ? edge.spread.bestBook
+            : undefined,
+          bestOdds: isSharpProjectionBook(edge.spread.bestBook)
+            ? edge.spread.bestOdds
+            : undefined,
+          bestHomeBook: isSharpProjectionBook(edge.spread.bestHomeBook)
+            ? edge.spread.bestHomeBook
+            : undefined,
+          bestHomeOdds: isSharpProjectionBook(edge.spread.bestHomeBook)
+            ? edge.spread.bestHomeOdds
+            : undefined,
+          bestAwayBook: isSharpProjectionBook(edge.spread.bestAwayBook)
+            ? edge.spread.bestAwayBook
+            : undefined,
+          bestAwayOdds: isSharpProjectionBook(edge.spread.bestAwayBook)
+            ? edge.spread.bestAwayOdds
+            : undefined,
+          prediction:
+            edge.spread.prediction &&
+            isSharpProjectionBook(edge.spread.prediction.book)
+              ? edge.spread.prediction
+              : undefined,
+        }
+      : undefined
+
+    const total = edge.total
+      ? {
+          ...edge.total,
+          bestBook: isSharpProjectionBook(edge.total.bestBook)
+            ? edge.total.bestBook
+            : undefined,
+          bestOdds: isSharpProjectionBook(edge.total.bestBook)
+            ? edge.total.bestOdds
+            : undefined,
+          bestUnderOdds: isSharpProjectionBook(edge.total.bestBook)
+            ? edge.total.bestUnderOdds
+            : undefined,
+          prediction:
+            edge.total.prediction && isSharpProjectionBook(edge.total.prediction.book)
+              ? edge.total.prediction
+              : undefined,
+        }
+      : undefined
+
+    const homeBookAllowed = isSharpProjectionBook(
+      edge.moneyline?.sportsbook?.homeBook
+    )
+    const awayBookAllowed = isSharpProjectionBook(
+      edge.moneyline?.sportsbook?.awayBook
+    )
+    const predictionHomeAllowed = isSharpProjectionBook(
+      edge.moneyline?.prediction?.homeBook
+    )
+    const predictionAwayAllowed = isSharpProjectionBook(
+      edge.moneyline?.prediction?.awayBook
+    )
+
+    const moneyline = edge.moneyline
+      ? {
+          ...edge.moneyline,
+          sportsbook:
+            edge.moneyline.sportsbook &&
+            (homeBookAllowed || awayBookAllowed)
+              ? {
+                  ...edge.moneyline.sportsbook,
+                  homeBook: homeBookAllowed
+                    ? edge.moneyline.sportsbook.homeBook
+                    : undefined,
+                  homeOdds: homeBookAllowed
+                    ? edge.moneyline.sportsbook.homeOdds
+                    : undefined,
+                  awayBook: awayBookAllowed
+                    ? edge.moneyline.sportsbook.awayBook
+                    : undefined,
+                  awayOdds: awayBookAllowed
+                    ? edge.moneyline.sportsbook.awayOdds
+                    : undefined,
+                }
+              : undefined,
+          prediction:
+            edge.moneyline.prediction &&
+            (predictionHomeAllowed || predictionAwayAllowed)
+              ? {
+                  ...edge.moneyline.prediction,
+                  homeBook: predictionHomeAllowed
+                    ? edge.moneyline.prediction.homeBook
+                    : undefined,
+                  homeOdds: predictionHomeAllowed
+                    ? edge.moneyline.prediction.homeOdds
+                    : undefined,
+                  awayBook: predictionAwayAllowed
+                    ? edge.moneyline.prediction.awayBook
+                    : undefined,
+                  awayOdds: predictionAwayAllowed
+                    ? edge.moneyline.prediction.awayOdds
+                    : undefined,
+                }
+              : undefined,
+        }
+      : undefined
+
+    return {
+      ...edge,
+      spread,
+      total,
+      moneyline,
+    }
+  })
 
 const hydrateMissingSharpProjections = (
   edges: GameEdgeAnalysis[],
@@ -98,11 +235,18 @@ export default async function MarketProjectionsPage({
   const hasProjectionAccess = membership.hasProjectionAccess
   const previewMode = !hasProjectionAccess
   const tier = membership.isActive ? membership.tier : membership.tier ?? null
+  const cookieStore = cookies()
+  const cookieSport = cookieStore.get(SPORT_PREFERENCE_COOKIE)?.value
   const requestedSport = Array.isArray(searchParams?.sport)
     ? searchParams?.sport[0]
     : searchParams?.sport
+  const fallbackSport =
+    SPORT_OPTIONS.find(
+      (option) => option.key === cookieSport && !option.locked
+    )?.key ?? null
   const sport =
     SPORT_OPTIONS.find((option) => option.key === requestedSport)?.key ??
+    fallbackSport ??
     "basketball_nba"
   const selected = SPORT_OPTIONS.find((option) => option.key === sport) ??
     SPORT_OPTIONS[0]
@@ -113,6 +257,11 @@ export default async function MarketProjectionsPage({
   const isLocked = Boolean(selected.locked)
   const isBuild = process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD
   const allowLiveRefresh = !isBuild
+  const sharpOddsOptions = {
+    limit: 200,
+    bookmakers: [...SHARP_PROJECTION_BOOKS],
+    oddsPreference: "lowest" as const,
+  }
 
   if (!isLocked) {
     try {
@@ -126,7 +275,7 @@ export default async function MarketProjectionsPage({
       if (error || !data) {
         if (sport === "americanfootball_nfl") {
           if (allowLiveRefresh) {
-            const refreshed = await analyzeSlateEdges(sport, { limit: 200 })
+            const refreshed = await analyzeSlateEdges(sport, sharpOddsOptions)
             if (refreshed.edges?.length) {
               edges = refreshed.edges
               lastUpdated = new Date().toISOString()
@@ -153,6 +302,21 @@ export default async function MarketProjectionsPage({
       } else {
         edges = data.edges ?? []
         lastUpdated = data.updated_at ?? null
+        if (edges.length > 0 && !hasOnlySharpProjectionBooks(edges)) {
+          const refreshed = await analyzeSlateEdges(sport, sharpOddsOptions)
+          if (refreshed.edges?.length) {
+            edges = refreshed.edges
+            lastUpdated = new Date().toISOString()
+            await serviceClient.from("market_projections_cache" as any).upsert(
+              {
+                sport,
+                edges,
+                updated_at: lastUpdated,
+              } as any,
+              { onConflict: "sport" }
+            )
+          }
+        }
         const shouldBackfill =
           sport === "basketball_nba" ||
           sport === "basketball_ncaab" ||
@@ -164,7 +328,7 @@ export default async function MarketProjectionsPage({
         }
 
         if (sport === "americanfootball_nfl" && edges.length === 0 && allowLiveRefresh) {
-          const refreshed = await analyzeSlateEdges(sport, { limit: 200 })
+          const refreshed = await analyzeSlateEdges(sport, sharpOddsOptions)
           if (refreshed.edges?.length) {
             edges = refreshed.edges
             lastUpdated = new Date().toISOString()
@@ -184,8 +348,11 @@ export default async function MarketProjectionsPage({
       errorMessage = "Unable to load projections."
     }
   } else {
-    hasCache = false
-    errorMessage = "This sport is locked."
+      hasCache = false
+      errorMessage = "This sport is locked."
+  }
+  if (edges.length > 0) {
+    edges = stripNonSharpBookOdds(edges)
   }
 
   return (
@@ -208,7 +375,7 @@ export default async function MarketProjectionsPage({
         </div>
       </div>
       <div className="pt-[120px] px-2 pb-[96px] sm:px-4 sm:pt-[140px] sm:pb-0">
-        <div className="mx-auto w-full max-w-none space-y-5 py-6">
+        <div className="mx-auto w-full max-w-none">
           <MarketProjectionsClient
             key={sport}
             initialEdges={edges}

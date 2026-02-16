@@ -18,7 +18,7 @@ import MobileToolsNav from '@/components/mobile-tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, Target, Check, ArrowUpRight, Twitter } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
-import ModeToggle, { type DeltaMode } from '@/components/ModeToggle'
+import { type DeltaMode } from '@/components/ModeToggle'
 import { ROICalculator } from '@/components/ui/roi-calculator'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
@@ -744,8 +744,14 @@ function ChatPageContent() {
           <div className="flex-1 flex flex-col items-center overflow-hidden min-h-0">
             <div className="w-full max-w-none flex flex-col h-full min-h-0">
               <div
-                className={`flex-1 overflow-hidden min-h-0 pt-[112px] sm:pt-[144px] sm:pb-[160px] ${
-                  hasMessages ? 'pb-[224px]' : 'pb-[108px]'
+                className={`flex-1 overflow-hidden min-h-0 ${
+                  user && !hasMessages
+                    ? 'pt-[56px] sm:pt-[72px] pb-0 sm:pb-0'
+                    : `pt-[112px] sm:pt-[144px] ${
+                        hasMessages
+                          ? 'pb-[224px] sm:pb-[160px]'
+                          : 'pb-[108px] sm:pb-[160px]'
+                      }`
                 }`}
               >
                 {!user ? (
@@ -763,7 +769,7 @@ function ChatPageContent() {
                 ) : currentConversationId ? (
                   <div className="h-full flex flex-col">
                     <div className="flex-1 overflow-hidden min-h-0">
-                      <div className="mx-auto w-full max-w-5xl h-full min-h-0 flex flex-col">
+                      <div className={`mx-auto w-full h-full min-h-0 flex flex-col ${hasMessages ? 'max-w-5xl' : 'max-w-none'}`}>
                         <div className="flex-1 min-h-0">
                           <ModernMessageList
                             conversationId={currentConversationId}
@@ -816,11 +822,6 @@ function ChatPageContent() {
                         >
                           View Patch Notes
                         </Link>
-                      </div>
-
-                      {/* Mode Toggle */}
-                      <div className="mb-6 hidden sm:block">
-                        <ModeToggle mode={deltaMode} onChange={setDeltaMode} />
                       </div>
 
                       <motion.div

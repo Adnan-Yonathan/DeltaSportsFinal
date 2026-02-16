@@ -231,6 +231,32 @@ const isPredictionMarketBook = (book: { key?: string; title?: string }) => {
   return key.includes('polymarket') || key.includes('kalshi')
 }
 
+const normalizeBookToken = (value?: string | null) =>
+  String(value ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+
+const matchesAllowedBook = (
+  book: { key?: string; title?: string },
+  allowedTokens: string[]
+) => {
+  if (!allowedTokens.length) return true
+  const keyToken = normalizeBookToken(book.key)
+  const titleToken = normalizeBookToken(book.title)
+  if (!keyToken && !titleToken) return false
+  return allowedTokens.some((allowed) => {
+    if (!allowed) return false
+    return (
+      keyToken === allowed ||
+      titleToken === allowed ||
+      keyToken.includes(allowed) ||
+      titleToken.includes(allowed) ||
+      allowed.includes(keyToken) ||
+      allowed.includes(titleToken)
+    )
+  })
+}
+
 const runWithConcurrency = async <T, R>(
   items: T[],
   limit: number,
@@ -1229,7 +1255,8 @@ function getBestSpread(game: OddsGame, side: 'home' | 'away'): { line: number; b
 function getBestSpreadByType(
   game: OddsGame,
   side: 'home' | 'away',
-  type: 'sportsbook' | 'prediction'
+  type: 'sportsbook' | 'prediction',
+  oddsPreference: 'best' | 'lowest' = 'best'
 ): { line: number; book: string; odds: number } | null {
   if (!game.bookmakers?.length) return null
 
@@ -1248,7 +1275,15 @@ function getBestSpreadByType(
     )
     if (!outcome?.point) continue
 
-    if (!best || outcome.point > best.line) {
+    const shouldReplace =
+      !best ||
+      (oddsPreference === 'lowest'
+        ? outcome.price < best.odds ||
+          (outcome.price === best.odds && outcome.point > best.line)
+        : outcome.point > best.line ||
+          (outcome.point === best.line && outcome.price > best.odds))
+
+    if (shouldReplace) {
       best = { line: outcome.point, book: book.title, odds: outcome.price }
     }
   }
@@ -1283,7 +1318,8 @@ function getBestMoneyline(game: OddsGame, side: 'home' | 'away'): { odds: number
 function getBestMoneylineByType(
   game: OddsGame,
   side: 'home' | 'away',
-  type: 'sportsbook' | 'prediction'
+  type: 'sportsbook' | 'prediction',
+  oddsPreference: 'best' | 'lowest' = 'best'
 ): { odds: number; book: string } | null {
   if (!game.bookmakers?.length) return null
 
@@ -1302,7 +1338,13 @@ function getBestMoneylineByType(
     )
     if (outcome?.price == null) continue
 
-    if (!best || outcome.price > best.odds) {
+    const shouldReplace =
+      !best ||
+      (oddsPreference === 'lowest'
+        ? outcome.price < best.odds
+        : outcome.price > best.odds)
+
+    if (shouldReplace) {
       best = { odds: outcome.price, book: book.title }
     }
   }
@@ -1337,7 +1379,8 @@ function getBestTotal(game: OddsGame): { line: number; book: string; overOdds: n
 
 function getBestTotalByType(
   game: OddsGame,
-  type: 'sportsbook' | 'prediction'
+  type: 'sportsbook' | 'prediction',
+  oddsPreference: 'best' | 'lowest' = 'best'
 ): { line: number; book: string; overOdds: number; underOdds: number } | null {
   if (!game.bookmakers?.length) return null
 
@@ -1354,7 +1397,13 @@ function getBestTotalByType(
     const under = totalMarket.outcomes?.find((o) => o.name === 'Under')
     if (!over?.point || !under?.point) continue
 
-    if (!best || over.price > best.overOdds) {
+    const shouldReplace =
+      !best ||
+      (oddsPreference === 'lowest'
+        ? over.price < best.overOdds
+        : over.price > best.overOdds)
+
+    if (shouldReplace) {
       best = {
         line: over.point,
         book: book.title,
@@ -1378,9 +1427,10 @@ export async function analyzeSlateEdges(
     includeProps?: boolean
     date?: string // YYYY-MM-DD (America/New_York)
     bookmakers?: string[]
+    oddsPreference?: 'best' | 'lowest'
   } = {}
 ): Promise<SlateEdgeResult> {
-  const { limit = 15, minEdge, date, bookmakers } = options
+  const { limit = 15, minEdge, date, bookmakers, oddsPreference = 'best' } = options
   const requestedBookmakers = (bookmakers ?? [])
     .map((entry) => String(entry).trim().toLowerCase())
     .filter(Boolean)
@@ -1405,9 +1455,7 @@ export async function analyzeSlateEdges(
       ? resolveBookIds(requestedBookmakers, { fallbackToDefault: false })
       : resolveBookIds()
 
-    const shouldUseTheOddsApiForRequestedBooks =
-      requestedBookmakers.length > 0 &&
-      books.length !== requestedBookmakers.length
+    const shouldUseTheOddsApiForRequestedBooks = requestedBookmakers.length > 0
 
     if (shouldUseTheOddsApiForRequestedBooks) {
       oddsGames = await fetchOdds(sportKey, ['h2h', 'spreads', 'totals'], {
@@ -1473,6 +1521,23 @@ export async function analyzeSlateEdges(
       forceProvider: 'the-odds-api',
       bookmakers: requestedBookmakers.length ? requestedBookmakers : undefined,
     })
+  }
+
+  // Hard allowlist bookmaker filtering when a caller requests specific books
+  // (e.g. sharp projections: Pinnacle/Circa). This prevents extra books from
+  // sneaking in via provider-level fallbacks or merged payloads.
+  if (requestedBookmakers.length > 0) {
+    const allowedTokens = requestedBookmakers.map((entry) =>
+      normalizeBookToken(entry)
+    )
+    oddsGames = oddsGames
+      .map((game) => ({
+        ...game,
+        bookmakers: (game.bookmakers ?? []).filter((book) =>
+          matchesAllowedBook(book, allowedTokens)
+        ),
+      }))
+      .filter((game) => (game.bookmakers?.length ?? 0) > 0)
   }
 
   if (sportKey === 'basketball_ncaab') {
@@ -1604,10 +1669,10 @@ export async function analyzeSlateEdges(
         return homeMatch && awayMatch
       })
 
-      const sportsbookSpreadHome = getBestSpreadByType(game, 'home', 'sportsbook')
-      const sportsbookSpreadAway = getBestSpreadByType(game, 'away', 'sportsbook')
-      const predictionSpreadHome = getBestSpreadByType(game, 'home', 'prediction')
-      const predictionSpreadAway = getBestSpreadByType(game, 'away', 'prediction')
+      const sportsbookSpreadHome = getBestSpreadByType(game, 'home', 'sportsbook', oddsPreference)
+      const sportsbookSpreadAway = getBestSpreadByType(game, 'away', 'sportsbook', oddsPreference)
+      const predictionSpreadHome = getBestSpreadByType(game, 'home', 'prediction', oddsPreference)
+      const predictionSpreadAway = getBestSpreadByType(game, 'away', 'prediction', oddsPreference)
       let marketSpread = sportsbookSpreadHome ?? predictionSpreadHome
       if (!marketSpread && sportsbookSpreadAway) {
         marketSpread = {
@@ -1623,13 +1688,13 @@ export async function analyzeSlateEdges(
           odds: predictionSpreadAway.odds,
         }
       }
-      const sportsbookTotal = getBestTotalByType(game, 'sportsbook')
-      const predictionTotal = getBestTotalByType(game, 'prediction')
+      const sportsbookTotal = getBestTotalByType(game, 'sportsbook', oddsPreference)
+      const predictionTotal = getBestTotalByType(game, 'prediction', oddsPreference)
       let marketTotal = sportsbookTotal ?? predictionTotal
-      const sportsbookMoneylineHome = getBestMoneylineByType(game, 'home', 'sportsbook')
-      const sportsbookMoneylineAway = getBestMoneylineByType(game, 'away', 'sportsbook')
-      const predictionMoneylineHome = getBestMoneylineByType(game, 'home', 'prediction')
-      const predictionMoneylineAway = getBestMoneylineByType(game, 'away', 'prediction')
+      const sportsbookMoneylineHome = getBestMoneylineByType(game, 'home', 'sportsbook', oddsPreference)
+      const sportsbookMoneylineAway = getBestMoneylineByType(game, 'away', 'sportsbook', oddsPreference)
+      const predictionMoneylineHome = getBestMoneylineByType(game, 'home', 'prediction', oddsPreference)
+      const predictionMoneylineAway = getBestMoneylineByType(game, 'away', 'prediction', oddsPreference)
 
       if (!marketSpread && sharpResult?.lineMovements?.length) {
         const spreadMove = sharpResult.lineMovements.find(
@@ -1959,10 +2024,10 @@ export async function analyzeSlateEdges(
       })
 
       // Get market lines (needed for NCAAB market anchoring)
-      const sportsbookSpreadHome = getBestSpreadByType(game, 'home', 'sportsbook')
-      const sportsbookSpreadAway = getBestSpreadByType(game, 'away', 'sportsbook')
-      const predictionSpreadHome = getBestSpreadByType(game, 'home', 'prediction')
-      const predictionSpreadAway = getBestSpreadByType(game, 'away', 'prediction')
+      const sportsbookSpreadHome = getBestSpreadByType(game, 'home', 'sportsbook', oddsPreference)
+      const sportsbookSpreadAway = getBestSpreadByType(game, 'away', 'sportsbook', oddsPreference)
+      const predictionSpreadHome = getBestSpreadByType(game, 'home', 'prediction', oddsPreference)
+      const predictionSpreadAway = getBestSpreadByType(game, 'away', 'prediction', oddsPreference)
       let marketSpread = sportsbookSpreadHome ?? predictionSpreadHome
       if (!marketSpread && sportsbookSpreadAway) {
         marketSpread = {
@@ -1978,13 +2043,13 @@ export async function analyzeSlateEdges(
           odds: predictionSpreadAway.odds,
         }
       }
-      const sportsbookTotal = getBestTotalByType(game, 'sportsbook')
-      const predictionTotal = getBestTotalByType(game, 'prediction')
+      const sportsbookTotal = getBestTotalByType(game, 'sportsbook', oddsPreference)
+      const predictionTotal = getBestTotalByType(game, 'prediction', oddsPreference)
       let marketTotal = sportsbookTotal ?? predictionTotal
-      const sportsbookMoneylineHome = getBestMoneylineByType(game, 'home', 'sportsbook')
-      const sportsbookMoneylineAway = getBestMoneylineByType(game, 'away', 'sportsbook')
-      const predictionMoneylineHome = getBestMoneylineByType(game, 'home', 'prediction')
-      const predictionMoneylineAway = getBestMoneylineByType(game, 'away', 'prediction')
+      const sportsbookMoneylineHome = getBestMoneylineByType(game, 'home', 'sportsbook', oddsPreference)
+      const sportsbookMoneylineAway = getBestMoneylineByType(game, 'away', 'sportsbook', oddsPreference)
+      const predictionMoneylineHome = getBestMoneylineByType(game, 'home', 'prediction', oddsPreference)
+      const predictionMoneylineAway = getBestMoneylineByType(game, 'away', 'prediction', oddsPreference)
       if (!marketSpread && sharpResult?.lineMovements?.length) {
         const spreadMove = sharpResult.lineMovements.find(
           (move) => move.market === 'spread'

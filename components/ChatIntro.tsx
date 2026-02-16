@@ -1,19 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { Twitter } from 'lucide-react'
-import { CardStack, type CardStackItem } from '@/components/ui/card-stack'
+import { ArrowUpRight, Star, Twitter } from 'lucide-react'
 import { GuestHero } from '@/components/ui/guest-hero'
 import StatsSection from '@/components/ui/call-to-action'
 import { ROICalculator } from '@/components/ui/roi-calculator'
-import { Announcement, AnnouncementTag, AnnouncementTitle } from '@/components/ui/announcement'
 import { FeaturesSix } from '@/components/ui/features-6'
 import SectionWithMockup from '@/components/ui/section-with-mockup'
-import { ArrowUpRight } from 'lucide-react'
-import ModeToggle, { type DeltaMode } from '@/components/ModeToggle'
 import { ONBOARDING_ENABLED } from '@/lib/config/onboarding'
+
+type DeltaMode = 'projections' | 'research'
 
 interface ChatIntroProps {
   conversationId: string
@@ -26,303 +24,392 @@ interface ChatIntroProps {
   onModeChange?: (mode: DeltaMode) => void
 }
 
+type ToolCardId =
+  | 'sharp-projections'
+  | 'sharp-props'
+  | 'sharp-traders'
+  | 'whale-feed'
+  | 'research'
+
+type ToolCard = {
+  id: ToolCardId
+  title: string
+  href: string
+  subtitle: string
+}
+
+const HOME_FAVORITES_STORAGE_KEY = 'delta_home_tool_favorites_v1'
+
+const TOOL_CARDS: ToolCard[] = [
+  {
+    id: 'sharp-projections',
+    title: 'Sharp Projections',
+    href: '/market-projections',
+    subtitle: 'Top spread, moneyline, and total edges',
+  },
+  {
+    id: 'sharp-props',
+    title: 'Sharp Props',
+    href: '/crossed-ev',
+    subtitle: 'Crossed EV and orderbook-based sharp lines',
+  },
+  {
+    id: 'sharp-traders',
+    title: 'Sharp Traders',
+    href: '/sharp-traders',
+    subtitle: 'Most profitable wallets and open positions',
+  },
+  {
+    id: 'whale-feed',
+    title: 'Whale Feed',
+    href: '/sharp-detector',
+    subtitle: 'Big-money trades with timing and price context',
+  },
+  {
+    id: 'research',
+    title: 'Research',
+    href: '/research/sharp-action',
+    subtitle: 'Game-level sharp signals and movement notes',
+  },
+]
+
+const FALLBACK_PREVIEWS: Record<ToolCardId, string[]> = {
+  'sharp-projections': [
+    'Scanning top spread edges...',
+    'Scanning top moneyline edges...',
+    'Scanning top total edges...',
+  ],
+  'sharp-props': [
+    'Scanning top crossed EV props...',
+    'Scanning sharp line deltas...',
+    'Scanning best orderbook signals...',
+  ],
+  'sharp-traders': [
+    'Loading top wallet performance...',
+    'Loading latest open trades...',
+    'Loading strongest recent pnl...',
+  ],
+  'whale-feed': [
+    'Loading latest whale tickets...',
+    'Loading largest notional bets...',
+    'Loading sharp market movement...',
+  ],
+  research: [
+    'Loading top game narratives...',
+    'Loading sharp signal summaries...',
+    'Loading line movement context...',
+  ],
+}
+
 export default function ChatIntro({
-  conversationId,
-  userId,
-  onMessageSent,
   isGuest = false,
   onSignUpClick,
-  prefillMessage,
-  mode = 'projections',
-  onModeChange,
 }: ChatIntroProps) {
-  const [sending, setSending] = useState(false)
-  const [selectedCapability, setSelectedCapability] = useState<string | null>(null)
-  const [projectionPreview, setProjectionPreview] = useState<{
-    label: string
-    detail: string
-  } | null>(null)
-  const [sharpPropsPreview, setSharpPropsPreview] = useState<{
-    label: string
-    detail: string
-  } | null>(null)
-  const [cardSize, setCardSize] = useState({
-    width: 520,
-    height: 320,
-    stageHeight: 400,
-  })
-  const projectionItems: CardStackItem[] = [
-    {
-      id: 'projection',
-      title: projectionPreview?.label ?? 'Sharp Projections',
-      description: projectionPreview?.detail ?? 'Scanning for market edges...',
-      imageSrc:
-        'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1400&q=80',
-      href: '/market-projections',
-      tag: 'Sharp Projections',
-    },
-    {
-      id: 'sharp-props',
-      title: sharpPropsPreview?.label ?? 'Sharp Props',
-      description: sharpPropsPreview?.detail ?? 'Scanning player prop EV...',
-      imageSrc:
-        'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=1400&q=80',
-      href: '/crossed-ev',
-      tag: 'Sharp Props',
-    },
-    {
-      id: 'sharp-wallets',
-      title: 'Sharp Wallets',
-      description: 'Track profitable traders and their open positions.',
-      imageSrc:
-        'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1400&q=80',
-      href: '/sharp-traders',
-      tag: 'Sharp Traders',
-    },
-    {
-      id: 'whale-feed',
-      title: 'Whale Feed',
-      description: 'Big money alerts with clustering and timing context.',
-      imageSrc:
-        'https://images.unsplash.com/photo-1518544887873-1a2df5a4a0e1?auto=format&fit=crop&w=1400&q=80',
-      href: '/sharp-detector',
-      tag: 'Whale Feed',
-    },
-  ]
-  const researchItems: CardStackItem[] = [
-    {
-      id: 'sharp-action',
-      title: 'Sharp Action',
-      description: 'Narrative explanations for why sharps target specific games.',
-      href: '/research/sharp-action',
-      tag: 'Research',
-    },
-    {
-      id: 'betting-trends',
-      title: 'Betting Trends',
-      description: "ATS records and historical trends for today's slate.",
-      href: '/research/betting-trends',
-      tag: 'Research',
-    },
-    {
-      id: 'backtesting',
-      title: 'Backtesting',
-      description: 'Simulate strategies with historical odds data.',
-      href: '/research/backtesting',
-      tag: 'Research',
-    },
-  ]
-  const cardItems = mode === 'research' ? researchItems : projectionItems
+  const [favoriteOrder, setFavoriteOrder] = useState<ToolCardId[]>([])
+  const [toolPreviews, setToolPreviews] =
+    useState<Record<ToolCardId, string[]>>(FALLBACK_PREVIEWS)
+
+  const formatSignedNumber = (value?: number | null, digits = 1) => {
+    if (value == null || !Number.isFinite(value)) return 'n/a'
+    const rounded = Number(value).toFixed(digits)
+    return value >= 0 ? `+${rounded}` : rounded
+  }
+
+  const formatOdds = (value?: number | null) => {
+    if (value == null || !Number.isFinite(value)) return 'n/a'
+    const rounded = Math.round(value)
+    return rounded > 0 ? `+${rounded}` : `${rounded}`
+  }
+
+  const formatMarket = (value?: string | null) => {
+    const cleaned = String(value ?? '')
+      .replace(/^player_/, '')
+      .replace(/_/g, ' ')
+      .trim()
+    if (!cleaned) return 'Prop'
+    return cleaned.replace(/\b\w/g, (char) => char.toUpperCase())
+  }
+
+  const formatWallet = (value?: string | null) => {
+    const wallet = String(value ?? '')
+    if (wallet.length <= 12) return wallet || 'Wallet'
+    return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`
+  }
 
   useEffect(() => {
-    const updateCardSize = () => {
-      const width = window.innerWidth
-      const height = window.innerHeight
-      const clamp = (value: number, min: number, max: number) =>
-        Math.min(max, Math.max(min, value))
-
-      if (width < 420) {
-        const cardWidth = clamp(width - 28, 250, 320)
-        const cardHeight = clamp(height - 380, 145, 220)
-        setCardSize({
-          width: cardWidth,
-          height: cardHeight,
-          stageHeight: cardHeight + 48,
-        })
-      } else if (width < 640) {
-        const cardWidth = clamp(width - 32, 300, 360)
-        const cardHeight = clamp(height - 390, 170, 240)
-        setCardSize({
-          width: cardWidth,
-          height: cardHeight,
-          stageHeight: cardHeight + 52,
-        })
-      } else if (width < 900) {
-        setCardSize({ width: 440, height: 280, stageHeight: 360 })
-      } else {
-        setCardSize({ width: 520, height: 320, stageHeight: 400 })
-      }
+    if (isGuest || typeof window === 'undefined') return
+    try {
+      const cached = window.localStorage.getItem(HOME_FAVORITES_STORAGE_KEY)
+      if (!cached) return
+      const parsed = JSON.parse(cached)
+      if (!Array.isArray(parsed)) return
+      const filtered = parsed.filter((id): id is ToolCardId =>
+        TOOL_CARDS.some((card) => card.id === id)
+      )
+      setFavoriteOrder(filtered)
+    } catch {
+      setFavoriteOrder([])
     }
-
-    updateCardSize()
-    window.addEventListener('resize', updateCardSize)
-
-    return () => window.removeEventListener('resize', updateCardSize)
-  }, [])
+  }, [isGuest])
 
   useEffect(() => {
-    const formatOdds = (value?: number | null) => {
-      if (value == null || !Number.isFinite(value)) return 'n/a'
-      const rounded = Math.round(value)
-      return rounded > 0 ? `+${rounded}` : `${rounded}`
-    }
+    if (isGuest || typeof window === 'undefined') return
+    window.localStorage.setItem(
+      HOME_FAVORITES_STORAGE_KEY,
+      JSON.stringify(favoriteOrder)
+    )
+  }, [favoriteOrder, isGuest])
 
-    const formatLine = (value?: number | null) => {
-      if (value == null || !Number.isFinite(value)) return 'n/a'
-      return value > 0 ? `+${value}` : `${value}`
-    }
+  useEffect(() => {
+    if (isGuest) return
+    let active = true
 
-    const formatMarket = (value?: string | null) => {
-      const raw = String(value || '')
-      const cleaned = raw.replace(/^player_/, '').replace(/_/g, ' ').trim()
-      if (!cleaned) return 'Prop'
-      return cleaned.replace(/\b\w/g, (m) => m.toUpperCase())
-    }
-
-    const pickRandom = <T,>(items: T[]) =>
-      items[Math.floor(Math.random() * items.length)]
+    const pickTopThree = (lines: string[]) =>
+      Array.from(
+        new Set(
+          lines
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0)
+        )
+      ).slice(0, 3)
 
     const loadPreviews = async () => {
       try {
-        const [marketRes, sharpPropsRes] = await Promise.all([
-          fetch('/api/market-projections?sport=basketball_nba&include=1', {
+        const [marketRes, propsRes, tradersRes, whalesRes] = await Promise.all([
+          fetch('/api/market-projections?sport=basketball_nba&include=1&limit=120', {
             cache: 'no-store',
           }),
-          fetch('/api/prop-orderbooks?sport=basketball_nba&limit=40&depth=6', {
+          fetch('/api/crossed-ev?sport=basketball_nba', {
+            cache: 'no-store',
+          }),
+          fetch(
+            '/api/polymarket/wallets/top-profit?top=6&tradeLimit=120&tradePages=2&openTradeLimit=1',
+            {
+              cache: 'no-store',
+            }
+          ),
+          fetch('/api/whale-trades-daily?limit=12&minNotional=2000', {
             cache: 'no-store',
           }),
         ])
+
+        const nextPreviews: Partial<Record<ToolCardId, string[]>> = {}
 
         if (marketRes.ok) {
           const payload = await marketRes.json()
           const edges = Array.isArray(payload?.edges)
             ? (payload.edges as Array<Record<string, any>>)
             : []
-          if (edges.length) {
-            const edge = pickRandom(edges)
-            if (edge?.spread) {
-              const gap = Math.abs(
-                Number(edge.spread.targetLine) - Number(edge.spread.marketLine)
-              )
-              setProjectionPreview({
-                label: `${edge.spread.favoredTeam} ${formatLine(edge.spread.targetLine)}`,
-                detail: Number.isFinite(gap)
-                  ? `Gap ${gap.toFixed(1)} pts vs market`
-                  : 'Model edge vs market',
-              })
-            } else if (edge?.total) {
-              const gap = Math.abs(
-                Number(edge.total.targetLine) - Number(edge.total.marketLine)
-              )
-              setProjectionPreview({
-                label: `Total ${edge.total.targetLine}`,
-                detail: Number.isFinite(gap)
-                  ? `Gap ${gap.toFixed(1)} pts vs market`
-                  : 'Model edge vs market',
-              })
-            } else if (edge?.moneyline) {
-              setProjectionPreview({
-                label: `${edge.homeTeam} ML`,
-                detail: `${edge.awayTeam} matchup`,
-              })
-            }
-          } else {
-            setProjectionPreview({
-              label: 'No projections yet',
-              detail: 'Check back after lines update.',
+
+          const projectionLines = pickTopThree(
+            edges.map((edge) => {
+              const away = edge?.awayTeam ?? 'Away'
+              const home = edge?.homeTeam ?? 'Home'
+              const matchup = `${away} @ ${home}`
+              if (edge?.spread?.favoredTeam) {
+                const edgePct = formatSignedNumber(edge?.spread?.edgePercent, 1)
+                return `${matchup} - ${edge.spread.favoredTeam} spread (${edgePct}%)`
+              }
+              if (edge?.total?.targetLine != null) {
+                const edgePct = formatSignedNumber(edge?.total?.edgePercent, 1)
+                return `${matchup} - Total ${edge.total.targetLine} (${edgePct}%)`
+              }
+              if (edge?.moneyline?.projection?.side) {
+                const edgePct = formatSignedNumber(
+                  edge?.moneyline?.projection?.edgePercent,
+                  1
+                )
+                return `${matchup} - ${edge.moneyline.projection.side} ML (${edgePct}%)`
+              }
+              return ''
             })
+          )
+
+          const researchLines = pickTopThree(
+            edges.map((edge) => {
+              const away = edge?.awayTeam ?? 'Away'
+              const home = edge?.homeTeam ?? 'Home'
+              const matchup = `${away} @ ${home}`
+              const strongestSignal = Array.isArray(edge?.sharpSignals)
+                ? edge.sharpSignals.reduce(
+                    (best: any, signal: any) =>
+                      !best || (signal?.strength ?? 0) > (best?.strength ?? 0)
+                        ? signal
+                        : best,
+                    null
+                  )
+                : null
+              if (strongestSignal?.type) {
+                return `${matchup} - ${String(strongestSignal.type).toUpperCase()} signal (${strongestSignal.strength ?? 0}/5)`
+              }
+              if (Array.isArray(edge?.lineMovements) && edge.lineMovements[0]) {
+                const move = edge.lineMovements[0]
+                return `${matchup} - ${move.market ?? 'Line'} moved ${move.openingLine ?? 'n/a'} to ${move.currentLine ?? 'n/a'}`
+              }
+              return `${matchup} - Research update available`
+            })
+          )
+
+          if (projectionLines.length) {
+            nextPreviews['sharp-projections'] = projectionLines
+          }
+          if (researchLines.length) {
+            nextPreviews.research = researchLines
           }
         }
 
-        if (sharpPropsRes.ok) {
-          const payload = await sharpPropsRes.json()
-          const items = Array.isArray(payload?.items)
-            ? (payload.items as Array<Record<string, any>>)
+        if (propsRes.ok) {
+          const payload = await propsRes.json()
+          const rows = Array.isArray(payload?.rows)
+            ? (payload.rows as Array<Record<string, any>>)
             : []
-
-          if (items.length) {
-            const item = pickRandom(items)
-            const propLabel = item.propType ? formatMarket(item.propType) : 'Prop'
-            const lineLabel =
-              item.propLine != null && Number.isFinite(Number(item.propLine))
-                ? ` ${item.propLine}`
-                : ''
-            const sharpLineOdds = formatOdds(item.sharpLeanAmericanOdds)
-            const liquiditySide = item.sharpLiquiditySide ?? 'Liquidity'
-            const wallSide = Array.isArray(item.sides)
-              ? item.sides.find((side: any) => side.propSide === item.sharpLiquiditySide)
-              : null
-            const wallOdds = formatOdds(wallSide?.wallAmericanOdds)
-
-            setSharpPropsPreview({
-              label: `${item.playerName ?? 'Sharp Prop'} • ${propLabel}${lineLabel}`,
-              detail: `${liquiditySide} wall ${wallOdds} • Sharp line ${sharpLineOdds}`,
+          const propLines = pickTopThree(
+            rows.map((row) => {
+              const side = String(row?.recommendedSide ?? '').toUpperCase()
+              const evPct = formatSignedNumber(row?.evPercent, 1)
+              return `${row?.player ?? 'Player'} - ${formatMarket(row?.market)} ${row?.bookPoint ?? 'n/a'} ${side} (${evPct}%)`
             })
-          } else {
-            setSharpPropsPreview({
-              label: 'No sharp props yet',
-              detail: 'Check back when markets are live.',
-            })
+          )
+          if (propLines.length) {
+            nextPreviews['sharp-props'] = propLines
           }
-        } else if (sharpPropsRes.status === 403) {
-          setSharpPropsPreview({
-            label: 'Sharp Props',
-            detail: 'Upgrade to unlock.',
-          })
         }
-      } catch (error) {
+
+        if (tradersRes.ok) {
+          const payload = await tradersRes.json()
+          const wallets = Array.isArray(payload?.wallets)
+            ? (payload.wallets as Array<Record<string, any>>)
+            : []
+          const traderLines = pickTopThree(
+            wallets.map((wallet) => {
+              const topSport = wallet?.top_sports?.[0]?.sport
+              const openTrade = Array.isArray(wallet?.open_trades)
+                ? wallet.open_trades[0]
+                : null
+              if (openTrade?.outcome) {
+                return `${formatWallet(wallet?.wallet)} - ${openTrade.outcome}`
+              }
+              if (topSport) {
+                return `${formatWallet(wallet?.wallet)} - ${String(topSport).toUpperCase()} focus`
+              }
+              return `${formatWallet(wallet?.wallet)} - ${formatSignedNumber(wallet?.total_pnl, 0)} pnl`
+            })
+          )
+          if (traderLines.length) {
+            nextPreviews['sharp-traders'] = traderLines
+          }
+        }
+
+        if (whalesRes.ok) {
+          const payload = await whalesRes.json()
+          const trades = Array.isArray(payload?.trades)
+            ? (payload.trades as Array<Record<string, any>>)
+            : []
+          const whaleLines = pickTopThree(
+            trades.map((trade) => {
+              const notional =
+                trade?.notional != null && Number.isFinite(Number(trade.notional))
+                  ? `$${Math.round(Number(trade.notional)).toLocaleString('en-US')}`
+                  : '$--'
+              return `${trade?.sport ?? 'Sports'} - ${notional} on ${trade?.outcome ?? 'market'} (${formatOdds(trade?.americanOdds)})`
+            })
+          )
+          if (whaleLines.length) {
+            nextPreviews['whale-feed'] = whaleLines
+          }
+        }
+
+        if (active && Object.keys(nextPreviews).length > 0) {
+          setToolPreviews((prev) => ({ ...prev, ...nextPreviews }))
+        }
+      } catch {
         return
       }
     }
 
-    loadPreviews()
+    void loadPreviews()
 
-  }, [])
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    // If guest, redirect to sign up
-    if (isGuest && onSignUpClick) {
-      onSignUpClick()
-      return
+    return () => {
+      active = false
     }
+  }, [isGuest])
 
-    const textarea = event.currentTarget.querySelector('textarea')
-    const message = textarea?.value?.trim()
+  const orderedCards = useMemo(() => {
+    if (!favoriteOrder.length) return TOOL_CARDS
+    const favoritesRank = new Map(
+      favoriteOrder.map((id, index) => [id, index])
+    )
+    return [...TOOL_CARDS].sort((a, b) => {
+      const aRank = favoritesRank.get(a.id)
+      const bRank = favoritesRank.get(b.id)
+      if (aRank != null && bRank != null) return aRank - bRank
+      if (aRank != null) return -1
+      if (bRank != null) return 1
+      return (
+        TOOL_CARDS.findIndex((card) => card.id === a.id) -
+        TOOL_CARDS.findIndex((card) => card.id === b.id)
+      )
+    })
+  }, [favoriteOrder])
 
-    if (!message || sending) return
-
-    setSending(true)
-
-    try {
-      // All queries go to the unified /api/chat endpoint
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message,
-          conversationId,
-          userId,
-          capability: selectedCapability,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to send message')
-      }
-
-      // Clear the textarea
-      if (textarea) {
-        textarea.value = ''
-      }
-
-      // Wait for the JSON response (messages are saved server-side)
-      await response.json()
-
-      // Trigger the callback to indicate message was sent
-      onMessageSent()
-    } catch (error) {
-      console.error('Error sending message:', error)
-      alert('Failed to send message. Please try again.')
-    } finally {
-      setSending(false)
-      setSelectedCapability(null)
-    }
+  const toggleFavorite = (id: ToolCardId) => {
+    setFavoriteOrder((prev) => {
+      if (prev.includes(id)) return prev.filter((entry) => entry !== id)
+      return [id, ...prev.filter((entry) => entry !== id)]
+    })
   }
 
+  const renderToolCard = (card: ToolCard) => {
+    const isFavorite = favoriteOrder.includes(card.id)
+    const previewLines = toolPreviews[card.id] ?? FALLBACK_PREVIEWS[card.id]
+    return (
+      <article key={card.id} className="relative h-full min-h-0">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            toggleFavorite(card.id)
+          }}
+          aria-label={isFavorite ? `Unfavorite ${card.title}` : `Favorite ${card.title}`}
+          className={`absolute right-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${
+            isFavorite
+              ? 'border-emerald-300/60 bg-emerald-500/20 text-emerald-200'
+              : 'border-white/15 bg-black/50 text-white/55 hover:border-emerald-400/50 hover:text-emerald-200'
+          }`}
+        >
+          <Star className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
+        </button>
+
+        <Link
+          href={card.href}
+          className="group flex h-full min-h-0 flex-col rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-black to-black p-3 sm:p-4 transition-colors hover:border-emerald-400/60"
+        >
+          <div className="pr-10">
+            <h3 className="text-lg font-extrabold leading-tight text-emerald-100 drop-shadow-[0_0_18px_rgba(16,185,129,0.22)] sm:text-xl">
+              {card.title}
+            </h3>
+            <p className="mt-1 text-xs text-white/55 sm:text-sm">{card.subtitle}</p>
+          </div>
+
+          <div className="mt-3 space-y-1.5 overflow-hidden">
+            {previewLines.slice(0, 3).map((line) => (
+              <div
+                key={`${card.id}-${line}`}
+                className="truncate rounded-lg border border-white/10 bg-black/45 px-3 py-2 text-[11px] text-white/80"
+              >
+                {line}
+              </div>
+            ))}
+          </div>
+
+          <span className="mt-auto pt-3 text-[10px] uppercase tracking-[0.22em] text-emerald-300/80">
+            Open tool
+          </span>
+        </Link>
+      </article>
+    )
+  }
   const guestFaq = [
     {
       question: 'What is Delta?',
@@ -477,91 +564,57 @@ export default function ChatIntro({
     )
   }
 
-  // Signed-in layout
-  const isResearch = mode === 'research'
+  const topCards = orderedCards.slice(0, 2)
+  const bottomCards = orderedCards.slice(2, 5)
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full bg-transparent px-3 sm:px-4 py-6 sm:py-8">
+    <div className="h-full w-full bg-black">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center max-w-4xl w-full mb-4 sm:mb-6"
+        className="relative h-full w-full p-2 sm:p-3"
       >
-        <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
-          {onModeChange && (
-            <div className="relative z-10 hidden pointer-events-auto sm:block">
-              <ModeToggle mode={mode} onChange={onModeChange} />
-            </div>
-          )}
+        <div className="pointer-events-none absolute inset-0 z-30 hidden items-center justify-center md:flex">
           <Link
             href="https://x.com/DeltaSportsAI"
             target="_blank"
             rel="noreferrer"
             aria-label="Delta Sports on X"
-            className="relative z-20 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200 pointer-events-auto"
+            className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/80 px-3 py-1.5 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200"
           >
             <ArrowUpRight className="h-4 w-4 text-emerald-300" />
             <span>follow our twitter</span>
             <Twitter className="h-4 w-4" />
           </Link>
         </div>
-      </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-5xl"
-      >
-        <CardStack
-          items={cardItems}
-          initialIndex={0}
-          autoAdvance
-          intervalMs={2400}
-          pauseOnHover
-          showDots
-          cardWidth={cardSize.width}
-          cardHeight={cardSize.height}
-          stageHeight={cardSize.stageHeight}
-          renderCard={(item) => (
-            <div className="relative h-full w-full bg-black">
-              <div
-                className={`pointer-events-none absolute inset-0 bg-gradient-to-t ${
-                  isResearch ? 'from-amber-900/35 via-black/10' : 'from-emerald-900/30 via-black/10'
-                } to-transparent`}
-              />
-              <div className="relative z-10 flex h-full flex-col justify-end p-4 text-left sm:p-6">
-                {item.tag && (
-                  <span
-                    className={`mb-2 inline-flex w-fit rounded-full border bg-black/50 px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
-                      isResearch
-                        ? 'border-amber-400/50 text-amber-200'
-                        : 'border-emerald-400/40 text-emerald-200'
-                    }`}
-                  >
-                    {item.tag}
-                  </span>
-                )}
-                <h3 className="text-lg font-semibold text-white sm:text-xl">{item.title}</h3>
-                {item.description && (
-                  <p className="mt-1.5 text-xs text-white/70 sm:mt-2 sm:text-sm">{item.description}</p>
-                )}
-                {item.href && (
-                  <Link
-                    href={item.href}
-                    className={`mt-3 inline-flex w-fit rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.25em] transition sm:mt-4 sm:px-4 sm:py-2 sm:text-[11px] sm:tracking-[0.3em] ${
-                      isResearch
-                        ? 'border-amber-400/50 text-amber-200 hover:border-amber-300/70 hover:text-amber-100'
-                        : 'border-emerald-400/40 text-emerald-200 hover:border-emerald-300/70 hover:text-emerald-100'
-                    }`}
-                  >
-                    Open
-                  </Link>
-                )}
-              </div>
-            </div>
-          )}
-        />
+        <div className="grid h-full grid-cols-1 gap-3 overflow-y-auto md:hidden">
+          <div className="flex justify-center">
+            <Link
+              href="https://x.com/DeltaSportsAI"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Delta Sports on X"
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/80 px-3 py-1.5 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-colors hover:border-emerald-400/60 hover:text-emerald-200"
+            >
+              <ArrowUpRight className="h-4 w-4 text-emerald-300" />
+              <span>follow our twitter</span>
+              <Twitter className="h-4 w-4" />
+            </Link>
+          </div>
+          {orderedCards.map((card) => renderToolCard(card))}
+        </div>
+
+        <div className="hidden h-full grid-rows-2 gap-3 md:grid">
+          <div className="grid h-full min-h-0 grid-cols-2 gap-3">
+            {topCards.map((card) => renderToolCard(card))}
+          </div>
+          <div className="grid h-full min-h-0 grid-cols-3 gap-3">
+            {bottomCards.map((card) => renderToolCard(card))}
+          </div>
+        </div>
       </motion.div>
     </div>
   )
 }
+

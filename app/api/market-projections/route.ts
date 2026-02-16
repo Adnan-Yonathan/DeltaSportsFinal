@@ -5,6 +5,7 @@ import { recordMarketProjectionPicks } from "@/lib/services/market-projection-cl
 import { buildSharpProjections } from "@/lib/services/sharp-projections"
 
 const CACHE_TTL_MS = 1000 * 60 * 30
+const SHARP_PROJECTION_BOOKS = ["pinnacle", "circa"] as const
 
 const normalizeKey = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]/g, "")
@@ -13,6 +14,124 @@ const buildMatchupKey = (homeTeam?: string, awayTeam?: string) => {
   if (!homeTeam || !awayTeam) return ""
   return `${normalizeKey(awayTeam)}@${normalizeKey(homeTeam)}`
 }
+
+const normalizeBook = (value?: string | null) =>
+  (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "")
+
+const isSharpProjectionBook = (value?: string | null) => {
+  const normalized = normalizeBook(value)
+  if (!normalized) return true
+  return normalized.includes("pinnacle") || normalized.includes("circa")
+}
+
+const stripNonSharpBookOdds = (edges: any[]) =>
+  edges.map((edge) => {
+    const spread = edge?.spread
+      ? {
+          ...edge.spread,
+          bestBook: isSharpProjectionBook(edge.spread.bestBook)
+            ? edge.spread.bestBook
+            : undefined,
+          bestOdds: isSharpProjectionBook(edge.spread.bestBook)
+            ? edge.spread.bestOdds
+            : undefined,
+          bestHomeBook: isSharpProjectionBook(edge.spread.bestHomeBook)
+            ? edge.spread.bestHomeBook
+            : undefined,
+          bestHomeOdds: isSharpProjectionBook(edge.spread.bestHomeBook)
+            ? edge.spread.bestHomeOdds
+            : undefined,
+          bestAwayBook: isSharpProjectionBook(edge.spread.bestAwayBook)
+            ? edge.spread.bestAwayBook
+            : undefined,
+          bestAwayOdds: isSharpProjectionBook(edge.spread.bestAwayBook)
+            ? edge.spread.bestAwayOdds
+            : undefined,
+          prediction:
+            edge.spread.prediction && isSharpProjectionBook(edge.spread.prediction.book)
+              ? edge.spread.prediction
+              : undefined,
+        }
+      : undefined
+
+    const total = edge?.total
+      ? {
+          ...edge.total,
+          bestBook: isSharpProjectionBook(edge.total.bestBook)
+            ? edge.total.bestBook
+            : undefined,
+          bestOdds: isSharpProjectionBook(edge.total.bestBook)
+            ? edge.total.bestOdds
+            : undefined,
+          bestUnderOdds: isSharpProjectionBook(edge.total.bestBook)
+            ? edge.total.bestUnderOdds
+            : undefined,
+          prediction:
+            edge.total.prediction && isSharpProjectionBook(edge.total.prediction.book)
+              ? edge.total.prediction
+              : undefined,
+        }
+      : undefined
+
+    const homeBookAllowed = isSharpProjectionBook(
+      edge?.moneyline?.sportsbook?.homeBook
+    )
+    const awayBookAllowed = isSharpProjectionBook(
+      edge?.moneyline?.sportsbook?.awayBook
+    )
+    const predictionHomeAllowed = isSharpProjectionBook(
+      edge?.moneyline?.prediction?.homeBook
+    )
+    const predictionAwayAllowed = isSharpProjectionBook(
+      edge?.moneyline?.prediction?.awayBook
+    )
+
+    const moneyline = edge?.moneyline
+      ? {
+          ...edge.moneyline,
+          sportsbook:
+            edge.moneyline.sportsbook &&
+            (homeBookAllowed || awayBookAllowed)
+              ? {
+                  ...edge.moneyline.sportsbook,
+                  homeBook: homeBookAllowed
+                    ? edge.moneyline.sportsbook.homeBook
+                    : undefined,
+                  homeOdds: homeBookAllowed
+                    ? edge.moneyline.sportsbook.homeOdds
+                    : undefined,
+                  awayBook: awayBookAllowed
+                    ? edge.moneyline.sportsbook.awayBook
+                    : undefined,
+                  awayOdds: awayBookAllowed
+                    ? edge.moneyline.sportsbook.awayOdds
+                    : undefined,
+                }
+              : undefined,
+          prediction:
+            edge.moneyline.prediction &&
+            (predictionHomeAllowed || predictionAwayAllowed)
+              ? {
+                  ...edge.moneyline.prediction,
+                  homeBook: predictionHomeAllowed
+                    ? edge.moneyline.prediction.homeBook
+                    : undefined,
+                  homeOdds: predictionHomeAllowed
+                    ? edge.moneyline.prediction.homeOdds
+                    : undefined,
+                  awayBook: predictionAwayAllowed
+                    ? edge.moneyline.prediction.awayBook
+                    : undefined,
+                  awayOdds: predictionAwayAllowed
+                    ? edge.moneyline.prediction.awayOdds
+                    : undefined,
+                }
+              : undefined,
+        }
+      : undefined
+
+    return { ...edge, spread, total, moneyline }
+  })
 
 const mergeWhaleAlerts = (
   nextEdges: any[],
@@ -116,8 +235,9 @@ const readCache = async (sport: string) => {
 
     if (error || !data) return null
     const hydratedEdges = hydrateMissingSharpProjections(data.edges ?? [], sport)
+    const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
     return {
-      edges: hydratedEdges,
+      edges: sanitizedEdges,
       updatedAt: data.updated_at,
       sport,
     }
@@ -130,10 +250,11 @@ const writeCache = async (sport: string, edges: any[]) => {
   try {
     const supabase = createServiceClient()
     const hydratedEdges = hydrateMissingSharpProjections(edges, sport)
+    const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
     const { error } = (await supabase.from("market_projections_cache" as any).upsert(
       {
         sport,
-        edges: hydratedEdges,
+        edges: sanitizedEdges,
         updated_at: new Date().toISOString(),
       } as any,
       { onConflict: "sport" }
@@ -159,40 +280,24 @@ export async function GET(request: Request) {
   const date = searchParams.get("date") || undefined
   const limitParam = Number(searchParams.get("limit") ?? "")
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 200
-  const booksParam = searchParams.get("books") || ""
-  const requestedBooks = booksParam
-    .split(",")
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean)
-  const hasBookFilter = requestedBooks.length > 0
+  const sharpOddsOptions = {
+    limit,
+    date,
+    bookmakers: [...SHARP_PROJECTION_BOOKS],
+    oddsPreference: "lowest" as const,
+  }
 
   try {
-    if (hasBookFilter) {
-      const result = await analyzeSlateEdges(sport, {
-        limit,
-        date,
-        bookmakers: requestedBooks,
-      })
-      const hydratedEdges = hydrateMissingSharpProjections(result.edges ?? [], sport)
-      return NextResponse.json({
-        ok: true,
-        updatedAt: new Date().toISOString(),
-        sport,
-        edgeCount: hydratedEdges.length,
-        ...(includeEdges ? { edges: hydratedEdges } : {}),
-        fromCache: false,
-      })
-    }
-
     if (noCache) {
-      const result = await analyzeSlateEdges(sport, { limit, date })
+      const result = await analyzeSlateEdges(sport, sharpOddsOptions)
       const hydratedEdges = hydrateMissingSharpProjections(result.edges ?? [], sport)
+      const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
       return NextResponse.json({
         ok: true,
         updatedAt: new Date().toISOString(),
         sport,
-        edgeCount: hydratedEdges.length,
-        ...(includeEdges ? { edges: hydratedEdges } : {}),
+        edgeCount: sanitizedEdges.length,
+        ...(includeEdges ? { edges: sanitizedEdges } : {}),
         fromCache: false,
       })
     }
@@ -215,31 +320,21 @@ export async function GET(request: Request) {
           })
         }
       }
-      const result = await analyzeSlateEdges(sport, { limit, date })
-      const emptyResult = (result.edges?.length ?? 0) === 0
-      if (emptyResult && cached?.edges?.length) {
-        return NextResponse.json({
-          ok: true,
-          updatedAt: cached.updatedAt,
-          sport,
-          edgeCount: cached.edges?.length ?? 0,
-          ...(includeEdges ? { edges: cached.edges ?? [] } : {}),
-          fromCache: true,
-        })
-      }
+      const result = await analyzeSlateEdges(sport, sharpOddsOptions)
       const mergedEdges = mergeWhaleAlerts(result.edges ?? [], cached?.edges)
       const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
+      const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
       const payload = {
         updatedAt: new Date().toISOString(),
         sport,
-        edges: hydratedEdges,
+        edges: sanitizedEdges,
       }
       await recordMarketProjectionPicks({
         sport,
-        edges: hydratedEdges as any,
+        edges: sanitizedEdges as any,
         pickedAt: payload.updatedAt,
       })
-      await writeCache(sport, hydratedEdges)
+      await writeCache(sport, sanitizedEdges)
       return NextResponse.json({
         ok: true,
         updatedAt: payload.updatedAt,
@@ -268,23 +363,25 @@ export async function GET(request: Request) {
     }
 
     if (cached) {
-      void analyzeSlateEdges(sport, { limit, date })
+      void analyzeSlateEdges(sport, sharpOddsOptions)
         .then(async (result) => {
           if ((result.edges?.length ?? 0) === 0 && cached?.edges?.length) {
             return null
           }
           const mergedEdges = mergeWhaleAlerts(result.edges ?? [], cached?.edges)
+          const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
+          const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
           const payload = {
             updatedAt: new Date().toISOString(),
             sport,
-            edges: mergedEdges,
+            edges: sanitizedEdges,
           }
           await recordMarketProjectionPicks({
             sport,
-            edges: mergedEdges as any,
+            edges: sanitizedEdges as any,
             pickedAt: payload.updatedAt,
           })
-          return writeCache(sport, mergedEdges)
+          return writeCache(sport, sanitizedEdges)
         })
         .catch((error) =>
           console.error("[market-projections] refresh failed", error)
@@ -301,20 +398,21 @@ export async function GET(request: Request) {
       })
     }
 
-    const result = await analyzeSlateEdges(sport, { limit, date })
+    const result = await analyzeSlateEdges(sport, sharpOddsOptions)
     const mergedEdges = mergeWhaleAlerts((result as any)?.edges ?? [], cached?.edges)
     const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
+    const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
     const payload = {
       updatedAt: new Date().toISOString(),
       sport,
-      edges: hydratedEdges,
+      edges: sanitizedEdges,
     }
     await recordMarketProjectionPicks({
       sport,
-      edges: hydratedEdges as any,
+      edges: sanitizedEdges as any,
       pickedAt: payload.updatedAt,
     })
-    await writeCache(sport, hydratedEdges)
+    await writeCache(sport, sanitizedEdges)
     return NextResponse.json({
       ok: true,
       updatedAt: payload.updatedAt,

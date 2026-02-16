@@ -23,6 +23,9 @@ type CrossedRow = {
   recommendedSide: "over" | "under"
   overOdds?: number
   underOdds?: number
+  pinnaclePoint: number | null
+  pinnacleOverOdds: number | null
+  pinnacleUnderOdds: number | null
   evPercent: number | null
 }
 
@@ -181,7 +184,7 @@ export default function CrossedEvClient({
   }, [books])
 
   return (
-    <ServerManagementTable title="Sharp Props" showList={false} className="max-w-none">
+    <ServerManagementTable title="Crossed EV" showList={false} className="max-w-none">
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
           <Search className="h-4 w-4 text-white/40" />
@@ -269,6 +272,10 @@ export default function CrossedEvClient({
                   row.recommendedSide === "over"
                     ? row.consensusOverOdds
                     : row.consensusUnderOdds
+                const pinnacleOdds =
+                  row.recommendedSide === "over"
+                    ? row.pinnacleOverOdds
+                    : row.pinnacleUnderOdds
                 const evClass =
                   row.evPercent != null && row.evPercent >= 0
                     ? "text-emerald-300"
@@ -316,7 +323,7 @@ export default function CrossedEvClient({
                           Odds comparison
                         </p>
                         <p className="mt-1 text-xs font-semibold text-white">
-                          {formatOdds(angleOdds)} vs {formatOdds(consensusOdds ?? undefined)}
+                          {formatOdds(angleOdds)} vs {formatOdds(consensusOdds ?? undefined)} (Pin {formatOdds(pinnacleOdds ?? undefined)})
                         </p>
                       </div>
                     </div>
@@ -364,6 +371,12 @@ export default function CrossedEvClient({
                             Under: {formatOdds(row.underOdds)}
                           </p>
                           <p className="mt-2 text-[11px] text-white/70">
+                            Pinnacle line: {formatPoint(row.pinnaclePoint)}
+                          </p>
+                          <p className="mt-1 text-[11px] text-white/70">
+                            Pinnacle O/U: {formatOdds(row.pinnacleOverOdds ?? undefined)} / {formatOdds(row.pinnacleUnderOdds ?? undefined)}
+                          </p>
+                          <p className="mt-2 text-[11px] text-white/70">
                             Consensus O/U: {formatOdds(row.consensusOverOdds ?? undefined)} / {formatOdds(row.consensusUnderOdds ?? undefined)}
                           </p>
                         </section>
@@ -397,6 +410,10 @@ export default function CrossedEvClient({
                       row.recommendedSide === "over"
                         ? row.consensusOverOdds
                         : row.consensusUnderOdds
+                    const pinnacleOdds =
+                      row.recommendedSide === "over"
+                        ? row.pinnacleOverOdds
+                        : row.pinnacleUnderOdds
                     const deltaLabel =
                       row.delta > 0 ? `+${row.delta.toFixed(1)}` : row.delta.toFixed(1)
                     const chip =
@@ -453,6 +470,9 @@ export default function CrossedEvClient({
                               </span>
                               <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[12px] font-semibold text-white/70 sm:text-sm">
                                 {formatOdds(consensusOdds ?? undefined)}
+                              </span>
+                              <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-[12px] font-semibold text-cyan-200 sm:text-sm">
+                                Pin {formatOdds(pinnacleOdds ?? undefined)}
                               </span>
                             </span>
                           </div>

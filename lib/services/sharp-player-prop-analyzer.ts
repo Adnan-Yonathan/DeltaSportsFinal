@@ -36,6 +36,9 @@ export type AggregatedPlayerPropBet = {
   // Prediction market odds/probability
   predMarketProbability: number | null
   predMarketOdds: number | null
+  pinnacleOdds: number | null
+  pinnacleProbability: number | null
+  sportsbookLabel: 'Pinnacle' | 'Books'
 
   // Best sportsbook line for this prop
   bestOdds: number | null
@@ -273,8 +276,17 @@ type SportsbookPropOdds = {
   line: number
   bestOverOdds: number | null
   bestUnderOdds: number | null
+  pinnacleOverOdds: number | null
+  pinnacleUnderOdds: number | null
   overOdds: number[]
   underOdds: number[]
+}
+
+const isPinnacleBook = (book: any) => {
+  const raw = `${book?.key ?? ""} ${book?.sportsbook ?? ""} ${book?.name ?? ""} ${book?.title ?? ""}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+  return raw.includes("pinnacle")
 }
 
 const fetchSportsbookPlayerProps = async (
@@ -327,6 +339,8 @@ const fetchSportsbookPlayerProps = async (
       // Find BEST odds across sportsbooks (highest = best for bettor)
       let bestOverOdds: number | null = null
       let bestUnderOdds: number | null = null
+      let pinnacleOverOdds: number | null = null
+      let pinnacleUnderOdds: number | null = null
       const overOddsList: number[] = []
       const underOddsList: number[] = []
       let line: number | null = null
@@ -359,12 +373,18 @@ const fetchSportsbookPlayerProps = async (
         // Track best odds (higher American odds = better for bettor)
         if (overOdds != null && !isNaN(overOdds)) {
           overOddsList.push(overOdds)
+          if (isPinnacleBook(book)) {
+            pinnacleOverOdds = overOdds
+          }
           if (bestOverOdds === null || overOdds > bestOverOdds) {
             bestOverOdds = overOdds
           }
         }
         if (underOdds != null && !isNaN(underOdds)) {
           underOddsList.push(underOdds)
+          if (isPinnacleBook(book)) {
+            pinnacleUnderOdds = underOdds
+          }
           if (bestUnderOdds === null || underOdds > bestUnderOdds) {
             bestUnderOdds = underOdds
           }
@@ -382,6 +402,8 @@ const fetchSportsbookPlayerProps = async (
           line,
           bestOverOdds,
           bestUnderOdds,
+          pinnacleOverOdds,
+          pinnacleUnderOdds,
           overOdds: overOddsList,
           underOdds: underOddsList,
         })
@@ -401,12 +423,12 @@ const findBestSportsbookOdds = (
   propLine: number | null,
   side: 'Over' | 'Under' | null,
   sportsbookData: Map<string, SportsbookPropOdds[]>
-): { bestOdds: number | null; consensusProbability: number | null } => {
+): { bestOdds: number | null; pinnacleOdds: number | null; consensusProbability: number | null } => {
   const normalizedPlayer = normalizePlayerName(playerName)
   const playerOdds = sportsbookData.get(normalizedPlayer)
 
   if (!playerOdds || playerOdds.length === 0) {
-    return { bestOdds: null, consensusProbability: null }
+    return { bestOdds: null, pinnacleOdds: null, consensusProbability: null }
   }
 
   // Find matching prop type
@@ -415,7 +437,7 @@ const findBestSportsbookOdds = (
   )
 
   if (matchingProps.length === 0) {
-    return { bestOdds: null, consensusProbability: null }
+    return { bestOdds: null, pinnacleOdds: null, consensusProbability: null }
   }
 
   // Prefer exact line match, otherwise take closest
@@ -435,11 +457,13 @@ const findBestSportsbookOdds = (
   }
 
   if (!best) {
-    return { bestOdds: null, consensusProbability: null }
+    return { bestOdds: null, pinnacleOdds: null, consensusProbability: null }
   }
 
   // Get best odds for the relevant side
   const bestOdds = side === 'Under' ? best.bestUnderOdds : best.bestOverOdds
+  const pinnacleOdds =
+    side === 'Under' ? best.pinnacleUnderOdds : best.pinnacleOverOdds
   const consensusOdds = side === 'Under' ? best.underOdds : best.overOdds
   const validConsensus = consensusOdds
     .map((value) => oddsToImpliedProbability(value))
@@ -449,7 +473,7 @@ const findBestSportsbookOdds = (
       ? validConsensus.reduce((sum, value) => sum + value, 0) / validConsensus.length
       : null
 
-  return { bestOdds, consensusProbability }
+  return { bestOdds, pinnacleOdds, consensusProbability }
 }
 
 const formatAmericanOdds = (odds: number | null): string | null => {
@@ -514,13 +538,14 @@ export const analyzeSharpPlayerProps = async (
         : null
 
     // Get best sportsbook odds for this prop
-    const { bestOdds, consensusProbability } = findBestSportsbookOdds(
+    const { bestOdds, pinnacleOdds, consensusProbability } = findBestSportsbookOdds(
       playerName,
       propType,
       propLine,
       side,
       sportsbookData
     )
+    const displaySportsbookOdds = pinnacleOdds ?? bestOdds
 
     // Detect clustering
     const { isClustered, earliestTime, latestTime } = detectClustering(
@@ -549,7 +574,11 @@ export const analyzeSharpPlayerProps = async (
         ? probabilityToAmericanOdds(predMarketProbability)
         : null
     const sportsbookAvgProbability =
-      bestOdds != null ? oddsToImpliedProbability(bestOdds) : null
+      displaySportsbookOdds != null
+        ? oddsToImpliedProbability(displaySportsbookOdds)
+        : null
+    const pinnacleProbability =
+      pinnacleOdds != null ? oddsToImpliedProbability(pinnacleOdds) : null
     const edgeReferenceProbability =
       predMarketProbability ?? consensusProbability ?? null
     const edgeReferenceSource =
@@ -576,10 +605,13 @@ export const analyzeSharpPlayerProps = async (
       avgSharpStrength,
       predMarketProbability,
       predMarketOdds,
-      bestOdds,
-      bestOddsFormatted: formatAmericanOdds(bestOdds),
+      pinnacleOdds: pinnacleOdds ?? null,
+      pinnacleProbability,
+      sportsbookLabel: pinnacleOdds != null ? 'Pinnacle' : 'Books',
+      bestOdds: displaySportsbookOdds,
+      bestOddsFormatted: formatAmericanOdds(displaySportsbookOdds),
       sportsbookAvgProbability,
-      sportsbookAvgOdds: bestOdds,
+      sportsbookAvgOdds: displaySportsbookOdds,
       edgeReferenceProbability,
       edgeReferenceSource,
       edgePercent,

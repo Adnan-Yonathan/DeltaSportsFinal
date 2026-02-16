@@ -3,7 +3,8 @@ import MobileToolsNav from "@/components/mobile-tools-nav"
 import SportSelector from "../market-projections/sport-selector"
 import { createClient } from "@/lib/supabase/server"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
-import SharpPropsHub from "./sharp-props-hub"
+import SharpPropsHub, { type HubTab } from "./sharp-props-hub"
+import Link from "next/link"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -39,25 +40,60 @@ export default async function CrossedEvPage({
   const requestedSport = Array.isArray(searchParams?.sport)
     ? searchParams?.sport[0]
     : searchParams?.sport
+  const requestedTab = Array.isArray(searchParams?.tab)
+    ? searchParams?.tab[0]
+    : searchParams?.tab
   const sport =
     SPORT_OPTIONS.find((option) => option.key === requestedSport)?.key ??
     "all"
+  const activeTab: HubTab =
+    requestedTab === "crossed_ev" ? "crossed_ev" : "orderbooks"
+  const orderbooksHref = `?sport=${encodeURIComponent(sport)}&tab=orderbooks`
+  const crossedEvHref = `?sport=${encodeURIComponent(sport)}&tab=crossed_ev`
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/95 backdrop-blur-sm">
+      <div className="sticky top-0 z-50 border-b border-white/5 bg-black/95 backdrop-blur-sm">
         <div className="px-2 py-3 sm:px-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="hidden md:block">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="hidden shrink-0 md:block">
               <ToolsNav />
             </div>
-            <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
+            <div className="ml-auto shrink-0">
+              <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 rounded-2xl bg-white/5 p-1.5">
+            <Link
+              href={orderbooksHref}
+              className={`rounded-xl px-3 py-2.5 text-center text-sm font-semibold transition-all ${
+                activeTab === "orderbooks"
+                  ? "bg-emerald-500/20 text-emerald-300 shadow-sm"
+                  : "text-white/60 hover:bg-white/5 hover:text-white/85"
+              }`}
+            >
+              Order Books
+            </Link>
+            <Link
+              href={crossedEvHref}
+              className={`rounded-xl px-3 py-2.5 text-center text-sm font-semibold transition-all ${
+                activeTab === "crossed_ev"
+                  ? "bg-emerald-500/20 text-emerald-300 shadow-sm"
+                  : "text-white/60 hover:bg-white/5 hover:text-white/85"
+              }`}
+            >
+              Crossed EV
+            </Link>
           </div>
         </div>
       </div>
-      <div className="pt-[96px] px-2 pb-[96px] sm:px-4 sm:pt-[112px] sm:pb-0">
-        <div className="mx-auto w-full max-w-none space-y-4 py-4">
-          <SharpPropsHub sport={sport} previewMode={previewMode} />
+      <div className="px-2 pb-[96px] sm:px-4 sm:pb-0">
+        <div className="mx-auto w-full max-w-none">
+          <SharpPropsHub
+            sport={sport}
+            activeTab={activeTab}
+            previewMode={previewMode}
+          />
         </div>
       </div>
       <MobileToolsNav />

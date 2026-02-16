@@ -296,6 +296,9 @@ type PropOfferRow = {
   recommendedSide: "over" | "under"
   overOdds?: number
   underOdds?: number
+  pinnaclePoint: number | null
+  pinnacleOverOdds: number | null
+  pinnacleUnderOdds: number | null
   evPercent: number | null
 }
 
@@ -419,6 +422,20 @@ export async function GET(request: Request) {
 
     const rows: PropOfferRow[] = []
     for (const entry of offersByProp.values()) {
+      const pinnacleOffer = entry.offers["pinnacle"]
+      const pinnaclePoint =
+        pinnacleOffer && Number.isFinite(pinnacleOffer.point)
+          ? pinnacleOffer.point
+          : null
+      const pinnacleOverOdds =
+        pinnacleOffer && Number.isFinite(pinnacleOffer.over)
+          ? (pinnacleOffer.over as number)
+          : null
+      const pinnacleUnderOdds =
+        pinnacleOffer && Number.isFinite(pinnacleOffer.under)
+          ? (pinnacleOffer.under as number)
+          : null
+
       const consensusPoints: number[] = []
       let consensusBookCount = 0
       for (const [bookKey, offer] of Object.entries(entry.offers)) {
@@ -511,6 +528,9 @@ export async function GET(request: Request) {
           recommendedSide,
           overOdds: offer.over,
           underOdds: offer.under,
+          pinnaclePoint,
+          pinnacleOverOdds,
+          pinnacleUnderOdds,
           evPercent: evPercent == null ? null : Number(evPercent.toFixed(2)),
         })
       }

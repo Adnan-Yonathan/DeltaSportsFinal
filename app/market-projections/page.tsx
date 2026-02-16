@@ -5,10 +5,8 @@ import MobileToolsNav from "@/components/mobile-tools-nav"
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { buildSharpProjections } from "@/lib/services/sharp-projections"
-import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
-import { PHASE_PRODUCTION_BUILD } from "next/constants"
 import { cookies } from "next/headers"
 
 export const dynamic = "force-dynamic"
@@ -27,8 +25,14 @@ const SPORT_OPTIONS: SportOption[] = [
   { key: "americanfootball_nfl", label: "NFL", locked: false },
   { key: "icehockey_nhl", label: "NHL", locked: false },
 ]
-const SHARP_PROJECTION_BOOKS = ["pinnacle", "circa"] as const
 const SPORT_PREFERENCE_COOKIE = "market_projections_sport"
+const DEFAULT_SPORT_PRIORITY = [
+  "basketball_ncaab",
+  "icehockey_nhl",
+  "americanfootball_nfl",
+  "americanfootball_ncaaf",
+  "basketball_nba",
+]
 const normalizeBook = (value?: string | null) =>
   (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "")
 const isSharpProjectionBook = (value?: string | null) => {
@@ -36,18 +40,6 @@ const isSharpProjectionBook = (value?: string | null) => {
   if (!normalized) return true
   return normalized.includes("pinnacle") || normalized.includes("circa")
 }
-const hasOnlySharpProjectionBooks = (edges: GameEdgeAnalysis[]) =>
-  edges.every((edge) => {
-    const books = [
-      edge.spread?.bestBook,
-      edge.spread?.bestHomeBook,
-      edge.spread?.bestAwayBook,
-      edge.total?.bestBook,
-      edge.moneyline?.sportsbook?.homeBook,
-      edge.moneyline?.sportsbook?.awayBook,
-    ]
-    return books.every((book) => isSharpProjectionBook(book))
-  })
 
 const stripNonSharpBookOdds = (edges: GameEdgeAnalysis[]) =>
   edges.map((edge) => {
@@ -240,107 +232,78 @@ export default async function MarketProjectionsPage({
   const requestedSport = Array.isArray(searchParams?.sport)
     ? searchParams?.sport[0]
     : searchParams?.sport
-  const fallbackSport =
-    SPORT_OPTIONS.find(
-      (option) => option.key === cookieSport && !option.locked
-    )?.key ?? null
-  const sport =
-    SPORT_OPTIONS.find((option) => option.key === requestedSport)?.key ??
-    fallbackSport ??
-    "basketball_nba"
-  const selected = SPORT_OPTIONS.find((option) => option.key === sport) ??
-    SPORT_OPTIONS[0]
+
+  const isUnlockedSport = (value: string | undefined) =>
+    Boolean(
+      value &&
+        SPORT_OPTIONS.some((option) => option.key === value && !option.locked)
+    )
+
+  const requestedSportKey = isUnlockedSport(requestedSport)
+    ? requestedSport!
+    : null
+  const cookieSportKey = isUnlockedSport(cookieSport) ? cookieSport! : null
+
+  let sport = requestedSportKey ?? cookieSportKey ?? "basketball_nba"
   let edges: GameEdgeAnalysis[] = []
   let errorMessage: string | null = null
   let hasCache = true
   let lastUpdated: string | null = null
-  const isLocked = Boolean(selected.locked)
-  const isBuild = process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD
-  const allowLiveRefresh = !isBuild
-  const sharpOddsOptions = {
-    limit: 200,
-    bookmakers: [...SHARP_PROJECTION_BOOKS],
-    oddsPreference: "lowest" as const,
-  }
+  let selected = SPORT_OPTIONS.find((option) => option.key === sport) ?? SPORT_OPTIONS[0]
+  let isLocked = Boolean(selected.locked)
 
   if (!isLocked) {
     try {
       const serviceClient = createServiceClient()
-      const { data, error } = (await serviceClient
-        .from("market_projections_cache" as any)
-        .select("edges, updated_at")
-        .eq("sport", sport)
-        .single()) as unknown as { data: { edges: any[]; updated_at: string } | null; error: any }
+      const loadCacheForSport = async (sportKey: string) => {
+        const { data, error } = (await serviceClient
+          .from("market_projections_cache" as any)
+          .select("edges, updated_at")
+          .eq("sport", sportKey)
+          .single()) as unknown as {
+          data: { edges: any[]; updated_at: string } | null
+          error: any
+        }
 
-      if (error || !data) {
-        if (sport === "americanfootball_nfl") {
-          if (allowLiveRefresh) {
-            const refreshed = await analyzeSlateEdges(sport, sharpOddsOptions)
-            if (refreshed.edges?.length) {
-              edges = refreshed.edges
-              lastUpdated = new Date().toISOString()
-              await serviceClient.from("market_projections_cache" as any).upsert(
-                {
-                  sport,
-                  edges,
-                  updated_at: lastUpdated,
-                } as any,
-                { onConflict: "sport" }
-              )
-            } else {
-              hasCache = false
-              errorMessage = "No cached projections yet."
-            }
-          } else {
-            hasCache = false
-            errorMessage = "No cached projections yet."
-          }
-        } else {
-          hasCache = false
-          errorMessage = "No cached projections yet."
+        if (error || !data) return null
+        return {
+          edges: Array.isArray(data.edges) ? (data.edges as GameEdgeAnalysis[]) : [],
+          updatedAt: data.updated_at ?? null,
         }
+      }
+
+      let cached = await loadCacheForSport(sport)
+
+      if (!requestedSportKey && (!cached || cached.edges.length === 0)) {
+        for (const candidateSport of DEFAULT_SPORT_PRIORITY) {
+          if (!isUnlockedSport(candidateSport) || candidateSport === sport) continue
+          const candidateCache = await loadCacheForSport(candidateSport)
+          if (candidateCache && candidateCache.edges.length > 0) {
+            sport = candidateSport
+            selected =
+              SPORT_OPTIONS.find((option) => option.key === sport) ?? SPORT_OPTIONS[0]
+            isLocked = Boolean(selected.locked)
+            cached = candidateCache
+            break
+          }
+        }
+      }
+
+      if (!cached || cached.edges.length === 0) {
+        hasCache = false
+        errorMessage = "No cached projections yet."
       } else {
-        edges = data.edges ?? []
-        lastUpdated = data.updated_at ?? null
-        if (edges.length > 0 && !hasOnlySharpProjectionBooks(edges)) {
-          const refreshed = await analyzeSlateEdges(sport, sharpOddsOptions)
-          if (refreshed.edges?.length) {
-            edges = refreshed.edges
-            lastUpdated = new Date().toISOString()
-            await serviceClient.from("market_projections_cache" as any).upsert(
-              {
-                sport,
-                edges,
-                updated_at: lastUpdated,
-              } as any,
-              { onConflict: "sport" }
-            )
-          }
-        }
+        edges = cached.edges
+        lastUpdated = cached.updatedAt
+
         const shouldBackfill =
           sport === "basketball_nba" ||
           sport === "basketball_ncaab" ||
           sport === "americanfootball_ncaaf" ||
           sport === "americanfootball_nfl" ||
           sport === "icehockey_nhl"
-        if (shouldBackfill && edges.length > 0) {
+        if (shouldBackfill) {
           edges = hydrateMissingSharpProjections(edges, sport)
-        }
-
-        if (sport === "americanfootball_nfl" && edges.length === 0 && allowLiveRefresh) {
-          const refreshed = await analyzeSlateEdges(sport, sharpOddsOptions)
-          if (refreshed.edges?.length) {
-            edges = refreshed.edges
-            lastUpdated = new Date().toISOString()
-            await serviceClient.from("market_projections_cache" as any).upsert(
-              {
-                sport,
-                edges,
-                updated_at: lastUpdated,
-              } as any,
-              { onConflict: "sport" }
-            )
-          }
         }
       }
     } catch (error) {
@@ -348,8 +311,8 @@ export default async function MarketProjectionsPage({
       errorMessage = "Unable to load projections."
     }
   } else {
-      hasCache = false
-      errorMessage = "This sport is locked."
+    hasCache = false
+    errorMessage = "This sport is locked."
   }
   if (edges.length > 0) {
     edges = stripNonSharpBookOdds(edges)

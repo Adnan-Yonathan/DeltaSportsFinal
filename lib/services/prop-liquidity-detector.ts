@@ -1177,10 +1177,17 @@ const fetchExchangePropOrderbookItems = async (opts: {
       : (sportFilter in EXCHANGE_PROP_MARKETS
           ? [sportFilter as ExchangeSportKey]
           : [])
+  const perSportLimit =
+    sportFilter === 'all' && selectedSports.length > 0
+      ? Math.max(Math.ceil(limit / selectedSports.length), 40)
+      : limit
 
   const items: PropOrderbookItem[] = []
 
   for (const sportKey of selectedSports) {
+    const sportStartCount = items.length
+    const reachedSportLimit = () =>
+      sportFilter === 'all' && items.length - sportStartCount >= perSportLimit
     if (items.length >= limit) break
 
     const markets = EXCHANGE_PROP_MARKETS[sportKey]
@@ -1216,12 +1223,14 @@ const fetchExchangePropOrderbookItems = async (opts: {
     }
 
     for (const event of events) {
+      if (reachedSportLimit()) break
       if (items.length >= limit) break
       const eventDate = resolveEventDate(event?.commence_time)
       if (!eventDate || eventDate < today) continue
       const gameLabel = `${event?.away_team ?? 'Away'} @ ${event?.home_team ?? 'Home'}`
 
       for (const bookmaker of event.bookmakers ?? []) {
+        if (reachedSportLimit()) break
         if (items.length >= limit) break
         const source = resolveExchangeSource(bookmaker?.key, bookmaker?.title)
         if (!source) continue
@@ -1302,6 +1311,7 @@ const fetchExchangePropOrderbookItems = async (opts: {
         }
 
         for (const row of rows.values()) {
+          if (reachedSportLimit()) break
           if (items.length >= limit) break
 
           const sides: PropOrderbookSide[] = []
@@ -1374,10 +1384,13 @@ const fetchExchangePropOrderbookItems = async (opts: {
   return items
 }
 
-let cachedOrderbooks: {
+type OrderbookCacheEntry = {
   fetchedAt: number
+  updatedAt: string
   items: PropOrderbookItem[]
-} | null = null
+}
+
+const orderbooksCache = new Map<string, OrderbookCacheEntry>()
 
 export const fetchPropOrderbooksSnapshot = async (opts?: {
   sportKey?: string | 'all'
@@ -1387,18 +1400,20 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
 }) => {
   const now = Date.now()
   const sportFilter = opts?.sportKey ?? 'all'
-  const limit = opts?.limit ?? 60
+  const requestedLimit = opts?.limit ?? 60
   const depth = opts?.depth ?? 8
   const minSharpNotional = opts?.minSharpNotional ?? 100
+  const collectionLimit =
+    sportFilter === 'all'
+      ? Math.min(Math.max(requestedLimit * 3, requestedLimit), 360)
+      : requestedLimit
+  const cacheKey = `${sportFilter}:${requestedLimit}:${depth}:${minSharpNotional}`
+  const cached = orderbooksCache.get(cacheKey)
 
-  if (cachedOrderbooks && now - cachedOrderbooks.fetchedAt < CACHE_TTL_MS) {
-    const filtered =
-      sportFilter === 'all'
-        ? cachedOrderbooks.items
-        : cachedOrderbooks.items.filter((item) => item.sportKey === sportFilter)
+  if (cached && now - cached.fetchedAt < CACHE_TTL_MS) {
     return {
-      updatedAt: new Date(cachedOrderbooks.fetchedAt).toISOString(),
-      items: filtered.slice(0, limit),
+      updatedAt: cached.updatedAt,
+      items: cached.items.slice(0, requestedLimit),
     }
   }
 
@@ -1413,7 +1428,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
     depth,
     minSharpNotional,
     updatedAt,
-    limit,
+    limit: collectionLimit,
   })
 
   const interleave = (groups: PropOrderbookItem[][], max: number) => {
@@ -1446,7 +1461,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
     })
 
     for (const market of upcoming) {
-      if (kalshiItems.length >= limit) break
+      if (kalshiItems.length >= collectionLimit) break
       const url = new URL(`${KALSHI_BASE}/markets/${market.ticker}/orderbook`)
       url.searchParams.set('depth', String(Math.max(depth, 8)))
       const data = await fetchKalshiJson<{ orderbook?: { yes?: number[][]; no?: number[][] } }>(
@@ -1554,7 +1569,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
     let orderbookFetches = 0
 
     for (let page = 0; page < maxPages; page += 1) {
-      if (polymarketItems.length >= limit) break
+      if (polymarketItems.length >= collectionLimit) break
       if (orderbookFetches >= MAX_POLYMARKET_ORDERBOOKS) break
 
       const url = new URL(`${POLYMARKET_BASE}/markets`)
@@ -1573,7 +1588,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
       if (!Array.isArray(batch) || batch.length === 0) break
 
       for (const market of batch) {
-        if (polymarketItems.length >= limit) break
+        if (polymarketItems.length >= collectionLimit) break
         if (orderbookFetches >= MAX_POLYMARKET_ORDERBOOKS) break
         if (!market?.active || market.closed) continue
 
@@ -1721,14 +1736,57 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
 
   const combined = interleave(
     [kalshiItems, polymarketItems, exchangeItems],
-    limit
+    collectionLimit
   )
 
-  cachedOrderbooks = { fetchedAt: now, items: combined }
+  const interleaveBySport = (items: PropOrderbookItem[], max: number) => {
+    const grouped = new Map<string, PropOrderbookItem[]>()
+    for (const item of items) {
+      const group = grouped.get(item.sportKey) ?? []
+      group.push(item)
+      grouped.set(item.sportKey, group)
+    }
+
+    const preferredSports = ['basketball_nba', 'basketball_ncaab', 'icehockey_nhl']
+    const orderedSports = [
+      ...preferredSports,
+      ...Array.from(grouped.keys()).filter((sportKey) => !preferredSports.includes(sportKey)),
+    ]
+    const indexes = new Map<string, number>()
+    const result: PropOrderbookItem[] = []
+
+    while (result.length < max) {
+      let appended = false
+      for (const sportKey of orderedSports) {
+        const group = grouped.get(sportKey)
+        if (!group || group.length === 0) continue
+        const index = indexes.get(sportKey) ?? 0
+        if (index >= group.length) continue
+        result.push(group[index])
+        indexes.set(sportKey, index + 1)
+        appended = true
+        if (result.length >= max) break
+      }
+      if (!appended) break
+    }
+
+    return result
+  }
+
+  const finalItems =
+    sportFilter === 'all'
+      ? interleaveBySport(combined, requestedLimit)
+      : combined.slice(0, requestedLimit)
+
+  orderbooksCache.set(cacheKey, {
+    fetchedAt: now,
+    updatedAt,
+    items: finalItems,
+  })
 
   return {
     updatedAt,
-    items: combined,
+    items: finalItems,
   }
 }
 

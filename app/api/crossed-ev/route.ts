@@ -15,6 +15,11 @@ const BASE_SPORTS = [
   "icehockey_nhl",
   "baseball_mlb",
 ]
+const ALL_SPORTS_TARGET = [
+  "basketball_nba",
+  "basketball_ncaab",
+  "icehockey_nhl",
+]
 
 const SUPPORTED_SPORTS = ["all", ...BASE_SPORTS]
 
@@ -267,6 +272,7 @@ type BookOffer = {
 
 type PropBase = {
   id: string
+  sportKey: string
   player: string
   market: string
   game: string
@@ -278,6 +284,7 @@ type PropBase = {
 
 type PropOfferRow = {
   id: string
+  sportKey: string
   player: string
   market: string
   game: string
@@ -302,6 +309,62 @@ type PropOfferRow = {
   evPercent: number | null
 }
 
+const parseCommenceMs = (value: string) => {
+  const ts = Date.parse(value)
+  return Number.isFinite(ts) ? ts : Number.POSITIVE_INFINITY
+}
+
+const compareRowsWithinSport = (a: PropOfferRow, b: PropOfferRow) => {
+  const timeDiff = parseCommenceMs(a.commenceTime) - parseCommenceMs(b.commenceTime)
+  if (timeDiff !== 0) return timeDiff
+  const aEv = a.evPercent ?? -Infinity
+  const bEv = b.evPercent ?? -Infinity
+  if (bEv !== aEv) return bEv - aEv
+  if (b.discrepancy !== a.discrepancy) return b.discrepancy - a.discrepancy
+  return a.game.localeCompare(b.game)
+}
+
+const interleaveRowsBySport = (
+  rows: PropOfferRow[],
+  sportOrder: string[],
+  maxRows: number
+) => {
+  const grouped = new Map<string, PropOfferRow[]>()
+  for (const row of rows) {
+    const bucket = grouped.get(row.sportKey) ?? []
+    bucket.push(row)
+    grouped.set(row.sportKey, bucket)
+  }
+
+  for (const group of grouped.values()) {
+    group.sort(compareRowsWithinSport)
+  }
+
+  const orderedSports = [
+    ...sportOrder,
+    ...Array.from(grouped.keys()).filter((sport) => !sportOrder.includes(sport)),
+  ]
+  const indexes = new Map<string, number>()
+  const interleaved: PropOfferRow[] = []
+
+  while (interleaved.length < maxRows) {
+    let appended = false
+    for (const sportKey of orderedSports) {
+      const group = grouped.get(sportKey)
+      if (!group || group.length === 0) continue
+      const index = indexes.get(sportKey) ?? 0
+      if (index >= group.length) continue
+      interleaved.push(group[index])
+      indexes.set(sportKey, index + 1)
+      appended = true
+      if (interleaved.length >= maxRows) break
+    }
+    if (!appended) break
+  }
+
+  return interleaved
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const requestedSport = searchParams.get("sport") || "all"
@@ -310,7 +373,7 @@ export async function GET(request: Request) {
     : "all"
   const targetSports =
     normalizedSport === "all"
-      ? BASE_SPORTS
+      ? ALL_SPORTS_TARGET
       : ([normalizedSport] as string[])
   const markets = Array.from(
     new Set(targetSports.flatMap((sportKey) => SPORT_MARKETS[sportKey] ?? []))
@@ -382,6 +445,7 @@ export async function GET(request: Request) {
               const existing = offersByProp.get(propKey) || {
                 base: {
                   id: propKey,
+                  sportKey,
                   player,
                   market: marketKey,
                   game: gameLabel,
@@ -544,6 +608,11 @@ export async function GET(request: Request) {
       return a.game.localeCompare(b.game)
     })
 
+    const rankedRows =
+      normalizedSport === "all"
+        ? interleaveRowsBySport(rows, ALL_SPORTS_TARGET, 1500)
+        : rows.slice(0, 1500)
+
     const payload = {
       sport: normalizedSport,
       updatedAt: new Date().toISOString(),
@@ -553,7 +622,7 @@ export async function GET(request: Request) {
         label: toDisplayBook(key),
         isConsensus: CONSENSUS_BOOKS.includes(key),
       })),
-      rows: rows.slice(0, 1500),
+      rows: rankedRows,
       cached: false,
     }
 

@@ -64,7 +64,7 @@ export default function MarketProjectionsRefresh({
 
     try {
       const res = await fetch(
-        `/api/market-projections?sport=${sport}&refresh=1&force=1${
+        `/api/market-projections?sport=${sport}&refresh=1${
           includeEdges ? "&include=1" : ""
         }`,
         { signal: controller.signal, cache: "no-store" }
@@ -132,9 +132,10 @@ export default function MarketProjectionsRefresh({
   }, [status, onStatusChange])
 
   useEffect(() => {
-    if (status !== "idle" || isLocked) return
+    const needsBootstrapRefresh = !hasCache || Boolean(errorMessage)
+    if (status !== "idle" || isLocked || !needsBootstrapRefresh) return
     refreshRef.current()
-  }, [status, isLocked, sport])
+  }, [status, isLocked, sport, hasCache, errorMessage])
 
   useEffect(() => {
     if (abortRef.current) {

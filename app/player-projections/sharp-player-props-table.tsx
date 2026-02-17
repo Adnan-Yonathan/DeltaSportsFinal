@@ -611,6 +611,8 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
   const [orderbooksLoading, setOrderbooksLoading] = useState(false)
   const [orderbooksError, setOrderbooksError] = useState<string | null>(null)
   const orderbooksLoadedRef = useRef<boolean>(false)
+  const orderbooksRequestIdRef = useRef(0)
+  const orderbooksAbortControllerRef = useRef<AbortController | null>(null)
 
   const loadData = useCallback(
     async (isManual = false) => {
@@ -694,6 +696,11 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
 
   const loadOrderbooks = useCallback(async () => {
     if (orderbooksLoadedRef.current) return
+    const requestId = orderbooksRequestIdRef.current + 1
+    orderbooksRequestIdRef.current = requestId
+    orderbooksAbortControllerRef.current?.abort()
+    const controller = new AbortController()
+    orderbooksAbortControllerRef.current = controller
     setOrderbooksLoading(true)
     setOrderbooksError(null)
 
@@ -707,6 +714,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
 
       const res = await fetch(`/api/prop-orderbooks?${params.toString()}`, {
         cache: "no-store",
+        signal: controller.signal,
       })
 
       if (!res.ok) {
@@ -715,12 +723,15 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
       }
 
       const json = await res.json()
+      if (requestId !== orderbooksRequestIdRef.current) return
       setOrderbooks(Array.isArray(json?.items) ? json.items : [])
       orderbooksLoadedRef.current = true
     } catch (err: any) {
+      if (controller.signal.aborted || requestId !== orderbooksRequestIdRef.current) return
       setOrderbooksError(err.message ?? "Failed to load order books.")
       setOrderbooks([])
     } finally {
+      if (requestId !== orderbooksRequestIdRef.current) return
       setOrderbooksLoading(false)
     }
   }, [sport])
@@ -780,8 +791,16 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
     evLoadedRef.current = false
     setOrderbooks([])
     setOrderbooksError(null)
+    orderbooksRequestIdRef.current += 1
+    orderbooksAbortControllerRef.current?.abort()
     orderbooksLoadedRef.current = false
   }, [sport])
+
+  useEffect(() => {
+    return () => {
+      orderbooksAbortControllerRef.current?.abort()
+    }
+  }, [])
 
   const handleManualRefresh = useCallback(() => {
     if (isRefreshing || loading) return

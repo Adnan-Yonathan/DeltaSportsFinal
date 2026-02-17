@@ -96,9 +96,16 @@ export default function PropOrderbooksPanel({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({})
   const loadedRef = useRef(false)
+  const requestIdRef = useRef(0)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const load = useCallback(async () => {
     if (loadedRef.current) return
+    const requestId = requestIdRef.current + 1
+    requestIdRef.current = requestId
+    abortControllerRef.current?.abort()
+    const controller = new AbortController()
+    abortControllerRef.current = controller
     setLoading(true)
     setErrorMessage(null)
 
@@ -112,6 +119,7 @@ export default function PropOrderbooksPanel({
 
       const res = await fetch(`/api/prop-orderbooks?${params.toString()}`, {
         cache: "no-store",
+        signal: controller.signal,
       })
 
       if (!res.ok) {
@@ -120,17 +128,22 @@ export default function PropOrderbooksPanel({
       }
 
       const json = await res.json()
+      if (requestId !== requestIdRef.current) return
       setItems(Array.isArray(json?.items) ? json.items : [])
       loadedRef.current = true
     } catch (err: any) {
+      if (controller.signal.aborted || requestId !== requestIdRef.current) return
       setErrorMessage(err?.message ?? "Failed to load order books.")
       setItems([])
     } finally {
+      if (requestId !== requestIdRef.current) return
       setLoading(false)
     }
   }, [sport, limit, depth, minSharpNotional])
 
   useEffect(() => {
+    requestIdRef.current += 1
+    abortControllerRef.current?.abort()
     loadedRef.current = false
     setItems([])
     setErrorMessage(null)
@@ -144,6 +157,12 @@ export default function PropOrderbooksPanel({
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort()
+    }
+  }, [])
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase()

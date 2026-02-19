@@ -188,23 +188,10 @@ export const LoginPage = () => {
           }
 
           if (!onboardingCompleted) {
-            // Paid users should continue onboarding until it's marked complete.
             if (isPaidNow) {
-              router.push("/onboarding")
+              router.push("/chat")
               return
             }
-
-            // If they already reached the onboarding paywall, send them back to pricing
-            // until they start a trial/pay.
-            const paywallSeen = Boolean(
-              (data.user.user_metadata as any)?.onboarding_paywall_seen
-            )
-
-            if (paywallSeen) {
-              router.push("/pricing?next=/onboarding&resumeStep=8&cancelStep=7")
-              return
-            }
-
             router.push("/onboarding")
             return
           }

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowRightIcon, CheckIcon } from "@radix-ui/react-icons"
-import { Loader2, Lock } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { getMembershipStatusFromMetadata, type MembershipInfo } from "@/lib/utils/membership"
 import { cn } from "@/lib/utils"
@@ -75,10 +75,19 @@ const getPlanKey = (tier: PricingTier, billing: BillingPeriod) =>
       ? tier.planKeyMonthly
       : tier.planKeyWeekly)
 
+const isSafeInternalPath = (value: string | null): value is string => {
+  if (!value) return false
+  if (!value.startsWith("/")) return false
+  if (value.startsWith("//")) return false
+  if (value.includes("://")) return false
+  if (value.includes("\\")) return false
+  return true
+}
+
 export function PricingPageClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("weekly")
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly")
   const [selectedTierKey, setSelectedTierKey] = useState<TierKey>("syndicate")
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
@@ -121,14 +130,16 @@ export function PricingPageClient() {
 
   const buildCheckoutRedirects = () => {
     const next = searchParams.get('next')
-    const resumeStep = searchParams.get('resumeStep')
-    const cancelStep = searchParams.get('cancelStep')
+    const source = searchParams.get("source")
 
-    if (next === '/onboarding' && resumeStep) {
-      const successPath = `/stripe/success?next=/onboarding&step=${encodeURIComponent(resumeStep)}`
-      // If the user cancels checkout, send them back to the landing page.
-      // If they sign in again, we'll route them back to the onboarding pricing step.
-      const cancelPath = `/welcome`
+    if (isSafeInternalPath(next)) {
+      const successParams = new URLSearchParams({ next })
+      const cancelParams = new URLSearchParams({ next })
+      if (source) {
+        cancelParams.set("source", source)
+      }
+      const successPath = `/stripe/success?${successParams.toString()}`
+      const cancelPath = `/pricing?${cancelParams.toString()}`
       return { successPath, cancelPath }
     }
 
@@ -241,7 +252,6 @@ export function PricingPageClient() {
 
   const mobileAction = buildMobileAction()
   const isEligibleForTrial = !membership?.isActive && !membership?.hasUsedTrial
-  const onboardingCancelStep = searchParams.get('cancelStep')
 
   return (
     <main className="relative min-h-screen bg-black text-white">
@@ -424,15 +434,6 @@ export function PricingPageClient() {
               </div>
             )}
 
-            {searchParams.get('next') === '/onboarding' && onboardingCancelStep && (
-              <button
-                type="button"
-                onClick={() => router.push(`/onboarding?step=${encodeURIComponent(onboardingCancelStep)}`)}
-                className="mt-4 w-full rounded-full border border-white/10 bg-white/5 px-6 py-3 text-xs font-semibold uppercase tracking-[0.28em] text-white/70 hover:border-emerald-400/40 hover:text-emerald-200 transition-colors"
-              >
-                Continue onboarding
-              </button>
-            )}
           </div>
 
           <div className="fixed inset-x-0 bottom-0 z-50">

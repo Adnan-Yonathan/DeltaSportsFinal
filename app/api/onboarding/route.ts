@@ -33,50 +33,30 @@ export async function POST(request: NextRequest) {
     }
 
     const body: OnboardingData = await request.json()
-
-    // Validate required fields
-    if (
-      !body.preferred_markets ||
-      !body.experience_level ||
-      !body.risk_tolerance ||
-      !body.signup_reasons
-    ) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
-    }
-
-    if (body.signup_reasons.length === 0) {
-      return NextResponse.json(
-        { error: 'Please select at least one goal' },
-        { status: 400 }
-      )
-    }
-
-    if (body.preferred_markets.length === 0) {
-      return NextResponse.json(
-        { error: 'Please select at least one market' },
-        { status: 400 }
-      )
-    }
-
-    // Validate enum values
     const validExperienceLevels = ['beginner', 'intermediate', 'advanced']
-    if (!validExperienceLevels.includes(body.experience_level)) {
-      return NextResponse.json(
-        { error: 'Invalid experience level' },
-        { status: 400 }
-      )
-    }
-
     const validRiskTolerances = ['conservative', 'moderate', 'aggressive']
-    if (!validRiskTolerances.includes(body.risk_tolerance)) {
-      return NextResponse.json(
-        { error: 'Invalid risk tolerance' },
-        { status: 400 }
-      )
-    }
+    const preferredMarketsInput = Array.isArray(body.preferred_markets)
+      ? body.preferred_markets.filter(
+          (value): value is string => typeof value === 'string' && value.length > 0
+        )
+      : []
+    const signupReasonsInput = Array.isArray(body.signup_reasons)
+      ? body.signup_reasons.filter(
+          (value): value is string => typeof value === 'string' && value.length > 0
+        )
+      : []
+    const preferredMarkets = preferredMarketsInput.length > 0
+      ? preferredMarketsInput
+      : ['spreads']
+    const signupReasons = signupReasonsInput.length > 0
+      ? signupReasonsInput
+      : ['get-started']
+    const experienceLevel = validExperienceLevels.includes(body.experience_level || '')
+      ? body.experience_level
+      : 'beginner'
+    const riskTolerance = validRiskTolerances.includes(body.risk_tolerance || '')
+      ? body.risk_tolerance
+      : 'moderate'
 
     // Update user profile with onboarding data.
     // Keep this payload aligned with columns that exist in public.users.
@@ -85,9 +65,9 @@ export async function POST(request: NextRequest) {
       ...(body.favorite_sports && body.favorite_sports.length > 0
         ? { favorite_sports: body.favorite_sports }
         : {}),
-      experience_level: body.experience_level,
-      risk_tolerance: body.risk_tolerance,
-      signup_reasons: body.signup_reasons,
+      experience_level: experienceLevel,
+      risk_tolerance: riskTolerance,
+      signup_reasons: signupReasons,
       onboarding_completed: true,
       updated_at: new Date().toISOString()
     }
@@ -120,10 +100,10 @@ export async function POST(request: NextRequest) {
           bet_focus: body.bet_focus,
           skill_level: body.skill_level,
           tailing_experience: body.tailing_experience,
-          preferred_markets: body.preferred_markets,
-          experience_level: body.experience_level,
-          risk_tolerance: body.risk_tolerance,
-          signup_reasons: body.signup_reasons,
+          preferred_markets: preferredMarkets,
+          experience_level: experienceLevel,
+          risk_tolerance: riskTolerance,
+          signup_reasons: signupReasons,
           bankroll: body.bankroll || 0,
           unit_size: body.unit_size || 0,
           bets_per_day: body.bets_per_day || 0,

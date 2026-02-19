@@ -52,8 +52,6 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
       }
 
-      const paywallSeen = Boolean((user.user_metadata as any)?.onboarding_paywall_seen)
-
       // Resolve onboarding completion (metadata first, then public.users as a fallback).
       let onboardingCompleted = true
       if (ONBOARDING_ENABLED) {
@@ -111,17 +109,12 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // If onboarding isn't complete:
-      // - Paid users should continue onboarding.
-      // - Unpaid users who already hit the paywall should be sent back to the onboarding pricing step.
+      // If onboarding is not complete:
+      // - paid users should not be blocked from core access
+      // - unpaid users continue onboarding
       if (ONBOARDING_ENABLED && !onboardingCompleted) {
         if (isPaidNow(membership)) {
-          return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
-        }
-        if (paywallSeen) {
-          return NextResponse.redirect(
-            new URL('/pricing?next=/onboarding&resumeStep=8&cancelStep=7', requestUrl.origin)
-          )
+          return NextResponse.redirect(new URL('/chat', requestUrl.origin))
         }
         return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
       }

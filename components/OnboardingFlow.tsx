@@ -88,7 +88,7 @@ export function OnboardingFlow() {
 
   useEffect(() => {
     const AUTO_START = 1
-    const AUTO_END = 6
+    const AUTO_END = 7
     const AUTO_FEATURE_INTERVAL_MS = 5500
     const AUTO_NARRATIVE_INTERVAL_MS = 3500
 
@@ -98,7 +98,7 @@ export function OnboardingFlow() {
 
     const timer = window.setTimeout(() => {
       startStepTransition(currentStep + 1)
-    }, currentStep <= 3 ? AUTO_FEATURE_INTERVAL_MS : AUTO_NARRATIVE_INTERVAL_MS)
+    }, currentStep <= 4 ? AUTO_FEATURE_INTERVAL_MS : AUTO_NARRATIVE_INTERVAL_MS)
 
     return () => window.clearTimeout(timer)
   }, [currentStep, isScrambling, welcomeUnlocking])
@@ -111,8 +111,9 @@ export function OnboardingFlow() {
     {
       component: (
         <StepIntroFeature
-          title="Research"
-          description="Scan line movement across hundreds of games and surface sharp signals in real time."
+          heading="Feature Briefing"
+          title="Sharp Projections"
+          description="Attack spreads, totals, and moneylines with projection-driven edges that track market movement."
           onValidation={setIsStepValid}
         />
       ),
@@ -120,8 +121,9 @@ export function OnboardingFlow() {
     {
       component: (
         <StepIntroFeature
-          title="Track"
-          description="Follow the money: monitor big bets on exchanges and track profitable wallets on Polymarket."
+          heading="Feature Briefing"
+          title="Sharp Props"
+          description="Find player-prop value with crossed numbers, price differences, and quick confidence signals."
           onValidation={setIsStepValid}
         />
       ),
@@ -129,8 +131,19 @@ export function OnboardingFlow() {
     {
       component: (
         <StepIntroFeature
-          title="Project"
-          description="Combine signals with ML to generate confidence ranges and predict the closing line."
+          heading="Feature Briefing"
+          title="Sharp Traders"
+          description="Track top-performing wallets and follow their open positions before broad market reactions."
+          onValidation={setIsStepValid}
+        />
+      ),
+    },
+    {
+      component: (
+        <StepIntroFeature
+          heading="Feature Briefing"
+          title="Whale Feed"
+          description="Monitor large notional trades and timing windows so you can see where serious money is flowing."
           onValidation={setIsStepValid}
         />
       ),
@@ -138,7 +151,7 @@ export function OnboardingFlow() {
     {
       component: (
         <StepNarrative
-          message="Delta is the all in one platform that turns you into a Sharp Bettor."
+          message="Delta combines projections, props, sharp traders, and whale activity in one operating layer."
           onValidation={setIsStepValid}
         />
       ),
@@ -146,15 +159,7 @@ export function OnboardingFlow() {
     {
       component: (
         <StepNarrative
-          message="We pull thousands of signals and put them all in one place."
-          onValidation={setIsStepValid}
-        />
-      ),
-    },
-    {
-      component: (
-        <StepNarrative
-          message="We find the Sharps so you can tail them."
+          message="Next, answer a few questions so we can tune your setup and recommendations."
           onValidation={setIsStepValid}
         />
       ),
@@ -167,7 +172,7 @@ export function OnboardingFlow() {
           onValidation={setIsStepValid}
         />
       ),
-      nextLabel: "I’m ready",
+      nextLabel: "I'm ready",
     },
     {
       component: (
@@ -384,11 +389,7 @@ export function OnboardingFlow() {
             betFocus: data.bet_focus,
             goals: data.goals,
           }}
-          onContinue={async () => {
-            const saved = hasSaved ? true : await saveOnboarding()
-            if (!saved) return
-            router.push('/chat')
-          }}
+          onContinue={handleComplete}
         />
       ),
     },
@@ -397,10 +398,8 @@ export function OnboardingFlow() {
   const totalSteps = steps.length
   const progress = ((currentStep + 1) / totalSteps) * 100
   const isTimelineStep = currentStep === totalSteps - 1
-  const isAutoLockedStep = currentStep >= 1 && currentStep <= 6
+  const isAutoLockedStep = currentStep >= 1 && currentStep <= 7
   const nextLabel = steps[currentStep]?.nextLabel ?? "Next"
-
-  const paywallTriggerStep = 7
 
   const startStepTransition = (targetStep: number) => {
     if (targetStep === currentStep) return
@@ -514,57 +513,38 @@ export function OnboardingFlow() {
         }, 520)
         return
       }
-
-      if (currentStep === paywallTriggerStep) {
-        // If the user is already paid/trialing, skip the pricing detour and continue onboarding.
-        // This avoids a redirect loop (/pricing -> /chat -> /onboarding -> /pricing) for paid users.
-        try {
-          const { data: { user } } = await supabase.auth.getUser()
-          const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-          const paidStatuses = new Set(['active', 'trialing', 'past_due'])
-          const isPaidNow = membership.status
-            ? paidStatuses.has(membership.status)
-            : membership.hasPaidAccess
-          if (isPaidNow) {
-            startStepTransition(currentStep + 1)
-            return
-          }
-        } catch (error) {
-          console.warn("Failed to check membership at paywall step", error)
-        }
-
-        // Persist that this user reached the paywall step so future sign-ins can send them back here.
-        try {
-          await supabase.auth.updateUser({
-            data: {
-              onboarding_paywall_seen: true,
-              onboarding_paywall_seen_at: new Date().toISOString(),
-            },
-          })
-        } catch (error) {
-          console.warn("Failed to persist onboarding paywall marker", error)
-        }
-
-        const resumeStep = Math.min(currentStep + 1, totalSteps - 1)
-        router.push(
-          `/pricing?next=/onboarding&resumeStep=${resumeStep}&cancelStep=${currentStep}`
-        )
-        return
-      }
       startStepTransition(currentStep + 1)
     } else {
       await handleComplete()
     }
   }
 
-  const handleComplete = async () => {
-    if (hasSaved) {
+  async function routeAfterOnboarding() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const membership = getMembershipStatusFromMetadata(user?.user_metadata)
+      const paidStatuses = new Set(["active", "trialing", "past_due"])
+      const isPaidNow = membership.status
+        ? paidStatuses.has(membership.status)
+        : membership.hasPaidAccess
+
+      if (isPaidNow) {
+        router.push("/chat")
+        return
+      }
+    } catch (membershipError) {
+      console.warn("Failed to resolve membership after onboarding save", membershipError)
+    }
+
+    router.push("/pricing?next=/chat&source=onboarding")
+  }
+
+  async function handleComplete() {
+    const saved = hasSaved ? true : await saveOnboarding()
+    if (!saved) {
       return
     }
-    const saved = await saveOnboarding()
-    if (saved) {
-      return
-    }
+    await routeAfterOnboarding()
   }
 
   const handleSignOut = async () => {

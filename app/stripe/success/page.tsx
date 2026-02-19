@@ -211,6 +211,15 @@ const buildRecommendations = (profile: OnboardingProfile | null): ToolRecommenda
   }))
 }
 
+const isSafeInternalPath = (value: string | null): value is string => {
+  if (!value) return false
+  if (!value.startsWith('/')) return false
+  if (value.startsWith('//')) return false
+  if (value.includes('://')) return false
+  if (value.includes('\\')) return false
+  return true
+}
+
 export default function StripeSuccessPage() {
   const router = useRouter()
   const [status, setStatus] = useState<'checking' | 'success' | 'timeout'>('checking')
@@ -229,6 +238,10 @@ export default function StripeSuccessPage() {
     const params = new URLSearchParams(window.location.search)
     const next = params.get('next')
     const step = params.get('step')
+
+    if (isSafeInternalPath(next) && next !== '/onboarding') {
+      return next
+    }
 
     if (next === '/onboarding' && step) {
       return `/onboarding?step=${encodeURIComponent(step)}`

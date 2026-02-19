@@ -16,7 +16,6 @@ const PUBLIC_PATHS = [
 const PAID_REDIRECT_PATHS = ['/welcome', '/pricing']
 
 const ALWAYS_PUBLIC_PREFIXES = ['/blog', '/tools', '/calculators', '/about']
-const MEMBERSHIP_EXEMPT_PATHS = ['/onboarding']
 
 const AFFILIATE_REF_COOKIE = 'affiliate_ref'
 const AFFILIATE_REF_TTL = 60 * 60 * 24 * 30
@@ -30,9 +29,6 @@ const isPublicPath = (pathname: string) => {
 
 const isAlwaysPublicPath = (pathname: string) =>
   ALWAYS_PUBLIC_PREFIXES.some(path => pathname === path || pathname.startsWith(path + '/'))
-
-const isMembershipExemptPath = (pathname: string) =>
-  MEMBERSHIP_EXEMPT_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
 
 // Check membership paid status from metadata (mirrors lib/utils/membership.ts logic)
 const parseDate = (value?: string | null) => {
@@ -131,19 +127,6 @@ export async function middleware(req: NextRequest) {
   let onboardingCompleted = ONBOARDING_ENABLED
     ? Boolean(metadata?.onboarding_completed)
     : true
-  const paywallSeen = Boolean((metadata as any)?.onboarding_paywall_seen)
-
-  // If the user already reached the onboarding paywall and is not paid yet,
-  // keep them at the onboarding pricing step until they start a trial/pay.
-  if (!isPaid && paywallSeen && pathname.startsWith('/onboarding')) {
-    return NextResponse.redirect(
-      new URL('/pricing?next=/onboarding&resumeStep=8&cancelStep=7', req.url)
-    )
-  }
-
-  if (isMembershipExemptPath(pathname)) {
-    return res
-  }
 
   try {
     const { data: userProfile } = await supabase
@@ -164,6 +147,17 @@ export async function middleware(req: NextRequest) {
     // Ignore lookup failures and fall back to redirects below.
   }
 
+  const isOnboardingPath = pathname === '/onboarding' || pathname.startsWith('/onboarding/')
+  if (isOnboardingPath) {
+    if (isPaid) {
+      return NextResponse.redirect(new URL('/chat', req.url))
+    }
+    if (onboardingCompleted) {
+      return NextResponse.redirect(new URL('/pricing', req.url))
+    }
+    return res
+  }
+
   if (isPaid) {
     if (pathname === '/welcome' || pathname === '/pricing') {
       return NextResponse.redirect(new URL('/chat', req.url))
@@ -171,25 +165,19 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
+  if (!onboardingCompleted) {
+    const onboardingUrl = new URL('/onboarding', req.url)
+    return NextResponse.redirect(onboardingUrl)
+  }
+
   // If they cancel checkout or choose not to continue, let them stay on the landing page.
   if (pathname === '/welcome') {
     return res
   }
 
-  // Allow the pricing page during onboarding so users can start a trial
-  // mid-flow (onboarding redirects to /pricing before onboarding_completed).
+  // Onboarding complete but unpaid: allow pricing.
   if (!isPaid && pathname.startsWith('/pricing')) {
     return res
-  }
-
-  if (!onboardingCompleted) {
-    if (paywallSeen) {
-      return NextResponse.redirect(
-        new URL('/pricing?next=/onboarding&resumeStep=8&cancelStep=7', req.url)
-      )
-    }
-    const onboardingUrl = new URL('/onboarding', req.url)
-    return NextResponse.redirect(onboardingUrl)
   }
 
   // If not an active member, redirect to pricing

@@ -121,7 +121,7 @@ const tierRank: Record<PricingTier["tierKey"], number> = {
 
 export function PricingSection({ tiers, className, checkoutRedirects }: PricingSectionProps) {
   const router = useRouter()
-  const [billingPeriod, setBillingPeriod] = useState<'weekly' | 'monthly' | 'annual'>('weekly')
+  const [billingPeriod, setBillingPeriod] = useState<'weekly' | 'monthly' | 'annual'>('monthly')
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
 

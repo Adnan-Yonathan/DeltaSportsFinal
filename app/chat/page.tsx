@@ -175,6 +175,10 @@ function ChatPageContent() {
       // Get membership status from user metadata
       const membershipInfo = getMembershipStatus(user.user_metadata)
       setMembership(membershipInfo)
+      const paidStatuses = new Set(['active', 'trialing', 'past_due'])
+      const isPaidNow = membershipInfo.status
+        ? paidStatuses.has(membershipInfo.status)
+        : membershipInfo.hasPaidAccess
 
       // Fetch message count for Free users
       if (membershipInfo.tier === 'free' && membershipInfo.isActive) {
@@ -188,7 +192,7 @@ function ChatPageContent() {
         .eq('id', user.id)
         .single()
 
-      if (ONBOARDING_ENABLED) {
+      if (ONBOARDING_ENABLED && !isPaidNow) {
         const metadataCompleted = Boolean(
           (user.user_metadata as { onboarding_completed?: boolean })?.onboarding_completed
         )

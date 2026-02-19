@@ -13,6 +13,14 @@ const isSafeInternalPath = (value: unknown): value is string => {
   return true
 }
 
+const withCheckoutSessionPlaceholder = (origin: string, path: string) => {
+  const url = new URL(path, origin)
+  if (!url.searchParams.has('session_id')) {
+    url.searchParams.set('session_id', '{CHECKOUT_SESSION_ID}')
+  }
+  return url.toString()
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { planKey, successPath, cancelPath } = await req.json() as {
@@ -78,7 +86,7 @@ export async function POST(req: NextRequest) {
     const safeSuccessPath = isSafeInternalPath(successPath) ? successPath : undefined
     const safeCancelPath = isSafeInternalPath(cancelPath) ? cancelPath : undefined
     const resolvedSuccessUrl = safeSuccessPath
-      ? `${origin}${safeSuccessPath}`
+      ? withCheckoutSessionPlaceholder(origin, safeSuccessPath)
       : `${origin}/stripe/success?session_id={CHECKOUT_SESSION_ID}`
     const resolvedCancelUrl = safeCancelPath
       ? `${origin}${safeCancelPath}`

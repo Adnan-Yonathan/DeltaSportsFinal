@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { unstable_cache } from 'next/cache'
 
-import { fetchPropOrderbooksSnapshot } from '@/lib/services/prop-liquidity-detector'
+import {
+  fetchPropOrderbooksSnapshot,
+  type PropOrderbookItem,
+} from '@/lib/services/prop-liquidity-detector'
+import {
+  getPropOrderbooksCache,
+  setPropOrderbooksCache,
+} from '@/lib/services/prop-orderbooks-cache'
 
 export const dynamic = 'force-dynamic'
-const CACHE_REVALIDATE_SECONDS = 30 * 60
+const DEFAULT_DEPTH = 8
+const DEFAULT_MIN_SHARP_NOTIONAL = 100
+const PERSISTED_CACHE_LIMIT = 200
 
 const SUPPORTED_SPORTS = new Set([
   'all',
@@ -16,22 +24,58 @@ const SUPPORTED_SPORTS = new Set([
   'americanfootball_ncaaf',
 ])
 
-const getCachedPropOrderbooksSnapshot = unstable_cache(
-  async (
-    sportKey: string,
-    limit: number,
-    depth: number,
-    minSharpNotional: number
-  ) =>
-    fetchPropOrderbooksSnapshot({
-      sportKey,
-      limit,
-      depth,
-      minSharpNotional,
-    }),
-  ['prop-orderbooks'],
-  { revalidate: CACHE_REVALIDATE_SECONDS }
-)
+type PersistedPayload = {
+  sport: string
+  depth: number
+  minSharpNotional: number
+  updatedAt: string
+  items: PropOrderbookItem[]
+}
+
+const buildCacheKey = (sport: string, depth: number, minSharpNotional: number) =>
+  `sport:${sport}:depth:${depth}:min:${minSharpNotional}`
+
+const parsePersistedPayload = (value: unknown): PersistedPayload | null => {
+  if (!value || typeof value !== 'object') return null
+  const payload = value as Partial<PersistedPayload>
+  if (
+    typeof payload.sport !== 'string' ||
+    typeof payload.depth !== 'number' ||
+    typeof payload.minSharpNotional !== 'number' ||
+    typeof payload.updatedAt !== 'string' ||
+    !Array.isArray(payload.items)
+  ) {
+    return null
+  }
+  return payload as PersistedPayload
+}
+
+const buildCachedResponse = (
+  sport: string,
+  normalizedLimit: number,
+  cachedPayload: PersistedPayload,
+  cacheSource: 'persistent' | 'persistent_all_fallback',
+  fetchedAt: string | null
+) => {
+  const items =
+    sport === 'all'
+      ? cachedPayload.items
+      : cachedPayload.items.filter((item) => item.sportKey === sport)
+  const sliced = items.slice(0, normalizedLimit)
+
+  return NextResponse.json({
+    ok: true,
+    sport,
+    updatedAt: cachedPayload.updatedAt,
+    count: sliced.length,
+    items: sliced,
+    cache: {
+      forcedRefresh: false,
+      source: cacheSource,
+      fetchedAt,
+    },
+  })
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -55,29 +99,79 @@ export async function GET(req: NextRequest) {
       ? Math.max(minSharpNotional, 0)
       : 100
 
+    const canUsePersistentCache =
+      normalizedDepth === DEFAULT_DEPTH &&
+      normalizedMinSharpNotional === DEFAULT_MIN_SHARP_NOTIONAL
+
+    if (canUsePersistentCache && !forceRefresh) {
+      const exactCacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
+      const cachedExact = await getPropOrderbooksCache(exactCacheKey)
+      const exactPayload = parsePersistedPayload(cachedExact?.payload)
+      if (exactPayload) {
+        return buildCachedResponse(
+          sport,
+          normalizedLimit,
+          exactPayload,
+          'persistent',
+          cachedExact?.fetched_at ?? null
+        )
+      }
+
+      if (sport !== 'all') {
+        const allCacheKey = buildCacheKey('all', normalizedDepth, normalizedMinSharpNotional)
+        const cachedAll = await getPropOrderbooksCache(allCacheKey)
+        const allPayload = parsePersistedPayload(cachedAll?.payload)
+        if (allPayload) {
+          return buildCachedResponse(
+            sport,
+            normalizedLimit,
+            allPayload,
+            'persistent_all_fallback',
+            cachedAll?.fetched_at ?? null
+          )
+        }
+      }
+    }
+
+    const computeLimit = canUsePersistentCache
+      ? Math.max(normalizedLimit, PERSISTED_CACHE_LIMIT)
+      : normalizedLimit
+
     const snapshot = forceRefresh
       ? await fetchPropOrderbooksSnapshot({
           sportKey: sport,
-          limit: normalizedLimit,
+          limit: computeLimit,
           depth: normalizedDepth,
           minSharpNotional: normalizedMinSharpNotional,
         })
-      : await getCachedPropOrderbooksSnapshot(
-          sport,
-          normalizedLimit,
-          normalizedDepth,
-          normalizedMinSharpNotional
-        )
+      : await fetchPropOrderbooksSnapshot({
+          sportKey: sport,
+          limit: computeLimit,
+          depth: normalizedDepth,
+          minSharpNotional: normalizedMinSharpNotional,
+        })
+
+    if (canUsePersistentCache) {
+      const cacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
+      const payload: PersistedPayload = {
+        sport,
+        depth: normalizedDepth,
+        minSharpNotional: normalizedMinSharpNotional,
+        updatedAt: snapshot.updatedAt,
+        items: snapshot.items,
+      }
+      await setPropOrderbooksCache(cacheKey, payload)
+    }
 
     return NextResponse.json({
       ok: true,
       sport,
       updatedAt: snapshot.updatedAt,
-      count: snapshot.items.length,
-      items: snapshot.items,
+      count: snapshot.items.slice(0, normalizedLimit).length,
+      items: snapshot.items.slice(0, normalizedLimit),
       cache: {
         forcedRefresh: forceRefresh,
-        revalidateSeconds: CACHE_REVALIDATE_SECONDS,
+        source: canUsePersistentCache ? 'live_computed_persisted' : 'live_computed',
       },
     })
   } catch (error: any) {

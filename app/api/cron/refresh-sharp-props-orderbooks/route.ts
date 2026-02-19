@@ -60,9 +60,10 @@ export async function GET(req: NextRequest) {
 
     const url = new URL('/api/prop-orderbooks', req.nextUrl.origin)
     url.searchParams.set('sport', 'all')
-    url.searchParams.set('limit', '80')
+    url.searchParams.set('limit', '200')
     url.searchParams.set('depth', '8')
     url.searchParams.set('minSharpNotional', '100')
+    url.searchParams.set('refresh', '1')
 
     const res = await fetch(url.toString(), { cache: 'no-store' })
     const payload = await res.json().catch(() => ({}))

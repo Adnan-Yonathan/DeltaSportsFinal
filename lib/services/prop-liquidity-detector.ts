@@ -732,10 +732,13 @@ const fetchKalshiOrderbookSummary = async (
   }
 }
 
-const fetchKalshiPropMarkets = async (seriesTicker: string) => {
+const fetchKalshiPropMarkets = async (
+  seriesTicker: string,
+  maxPages: number = MAX_KALSHI_PAGES
+) => {
   const markets: KalshiMarket[] = []
   let cursor: string | null = null
-  for (let page = 0; page < MAX_KALSHI_PAGES; page += 1) {
+  for (let page = 0; page < maxPages; page += 1) {
     const url = new URL(`${KALSHI_BASE}/markets`)
     url.searchParams.set('series_ticker', seriesTicker)
     url.searchParams.set('limit', '500')
@@ -1391,23 +1394,58 @@ type OrderbookCacheEntry = {
 }
 
 const orderbooksCache = new Map<string, OrderbookCacheEntry>()
+type PropOrderbooksSnapshot = {
+  updatedAt: string
+  items: PropOrderbookItem[]
+}
+type SnapshotMode = 'fast' | 'full'
+const orderbooksInFlight = new Map<string, Promise<PropOrderbooksSnapshot>>()
+
+const mapWithConcurrency = async <T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R | null>
+) => {
+  if (!items.length) return [] as R[]
+  const size = Math.max(1, Math.floor(concurrency))
+  const results: R[] = []
+  let index = 0
+
+  const runWorker = async () => {
+    while (true) {
+      const current = index
+      index += 1
+      if (current >= items.length) break
+      const value = await worker(items[current], current)
+      if (value != null) results.push(value)
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, () => runWorker()))
+  return results
+}
 
 export const fetchPropOrderbooksSnapshot = async (opts?: {
   sportKey?: string | 'all'
   limit?: number
   depth?: number
   minSharpNotional?: number
+  mode?: SnapshotMode
 }) => {
   const now = Date.now()
   const sportFilter = opts?.sportKey ?? 'all'
   const requestedLimit = opts?.limit ?? 60
   const depth = opts?.depth ?? 8
   const minSharpNotional = opts?.minSharpNotional ?? 100
+  const mode = opts?.mode ?? 'full'
+  const isFastMode = mode === 'fast'
   const collectionLimit =
     sportFilter === 'all'
-      ? Math.min(Math.max(requestedLimit * 3, requestedLimit), 360)
+      ? isFastMode
+        ? Math.min(Math.max(requestedLimit + 20, requestedLimit), 110)
+        : Math.min(Math.max(requestedLimit * 3, requestedLimit), 360)
       : requestedLimit
-  const cacheKey = `${sportFilter}:${requestedLimit}:${depth}:${minSharpNotional}`
+  const cacheKey = `${sportFilter}:${requestedLimit}:${depth}:${minSharpNotional}:${mode}`
   const cached = orderbooksCache.get(cacheKey)
 
   if (cached && now - cached.fetchedAt < CACHE_TTL_MS) {
@@ -1417,63 +1455,76 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
     }
   }
 
-  const today = getUsMarketDayKey()
-  const updatedAt = new Date().toISOString()
-
-  const kalshiItems: PropOrderbookItem[] = []
-  const polymarketItems: PropOrderbookItem[] = []
-  const exchangeItems = await fetchExchangePropOrderbookItems({
-    sportFilter,
-    today,
-    depth,
-    minSharpNotional,
-    updatedAt,
-    limit: collectionLimit,
-  })
-
-  const interleave = (groups: PropOrderbookItem[][], max: number) => {
-    const result: PropOrderbookItem[] = []
-    const indexes = groups.map(() => 0)
-    while (result.length < max) {
-      let appended = false
-      for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
-        const group = groups[groupIndex]
-        const itemIndex = indexes[groupIndex]
-        if (itemIndex >= group.length) continue
-        result.push(group[itemIndex])
-        indexes[groupIndex] += 1
-        appended = true
-        if (result.length >= max) break
-      }
-      if (!appended) break
-    }
-    return result
+  const inFlight = orderbooksInFlight.get(cacheKey)
+  if (inFlight) {
+    return inFlight
   }
 
-  // Kalshi props
-  for (const series of KALSHI_PROP_SERIES) {
-    if (sportFilter !== 'all' && series.sportKey !== sportFilter) continue
-    const markets = await fetchKalshiPropMarkets(series.ticker)
-    const upcoming = markets.filter((market) => {
-      const eventDate = parseKalshiDate(market.ticker)
-      if (!eventDate || eventDate < today) return false
-      return true
-    })
+  const computePromise = (async (): Promise<PropOrderbooksSnapshot> => {
+    const today = getUsMarketDayKey()
+    const updatedAt = new Date().toISOString()
+    const polymarketOrderbookLimit = isFastMode
+      ? Math.min(MAX_POLYMARKET_ORDERBOOKS, 16)
+      : MAX_POLYMARKET_ORDERBOOKS
+    const kalshiPageLimit = isFastMode ? 1 : MAX_KALSHI_PAGES
+    const kalshiMarketBudget = isFastMode
+      ? Math.min(Math.max(requestedLimit + 20, 60), 120)
+      : Number.POSITIVE_INFINITY
+    const kalshiConcurrency = isFastMode ? 10 : 5
+    const polymarketConcurrency = isFastMode ? 8 : 4
 
-    for (const market of upcoming) {
-      if (kalshiItems.length >= collectionLimit) break
+    const kalshiItems: PropOrderbookItem[] = []
+    const polymarketItems: PropOrderbookItem[] = []
+    const exchangeItems = isFastMode
+      ? []
+      : await fetchExchangePropOrderbookItems({
+          sportFilter,
+          today,
+          depth,
+          minSharpNotional,
+          updatedAt,
+          limit: collectionLimit,
+        })
+
+    const interleave = (groups: PropOrderbookItem[][], max: number) => {
+      const result: PropOrderbookItem[] = []
+      const indexes = groups.map(() => 0)
+      while (result.length < max) {
+        let appended = false
+        for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+          const group = groups[groupIndex]
+          const itemIndex = indexes[groupIndex]
+          if (itemIndex >= group.length) continue
+          result.push(group[itemIndex])
+          indexes[groupIndex] += 1
+          appended = true
+          if (result.length >= max) break
+        }
+        if (!appended) break
+      }
+      return result
+    }
+
+    const buildKalshiItem = async (
+      series: (typeof KALSHI_PROP_SERIES)[number],
+      market: KalshiMarket
+    ): Promise<PropOrderbookItem | null> => {
       const url = new URL(`${KALSHI_BASE}/markets/${market.ticker}/orderbook`)
       url.searchParams.set('depth', String(Math.max(depth, 8)))
       const data = await fetchKalshiJson<{ orderbook?: { yes?: number[][]; no?: number[][] } }>(
         url.toString()
       )
-      if (!data) continue
+      if (!data) return null
       const yesRaw = Array.isArray(data.orderbook?.yes) ? data.orderbook?.yes ?? [] : []
       const noRaw = Array.isArray(data.orderbook?.no) ? data.orderbook?.no ?? [] : []
 
-      const marketDetails = await fetchKalshiMarketDetails(market.ticker)
-      const rawYesLabel = marketDetails?.yes_sub_title || market.yes_sub_title || 'Yes'
-      const rawNoLabel = marketDetails?.no_sub_title || market.no_sub_title || 'No'
+      let rawYesLabel = market.yes_sub_title || 'Yes'
+      let rawNoLabel = market.no_sub_title || 'No'
+      if (!isFastMode && (!market.yes_sub_title || !market.no_sub_title)) {
+        const marketDetails = await fetchKalshiMarketDetails(market.ticker)
+        rawYesLabel = marketDetails?.yes_sub_title || rawYesLabel
+        rawNoLabel = marketDetails?.no_sub_title || rawNoLabel
+      }
 
       const rawText = `${market.title ?? ''}`.trim()
       const matchup = resolveKalshiMatchup(series.sportKey, market.ticker)
@@ -1483,7 +1534,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         (rawText ? extractPlayerNameFromText(rawText) : null)
       const propType = series.propType
       const propLine = parseLineFromTicker(market.ticker)
-      if (!playerName || !propType) continue
+      if (!playerName || !propType) return null
 
       const yesLevels = parseKalshiLevels(yesRaw)
       const noLevels = parseKalshiLevels(noRaw)
@@ -1515,7 +1566,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         sharpLean.sharpLeanAmericanOdds != null &&
         sharpLean.sharpLeanAmericanOdds < MAX_FAVORITE_ODDS
       ) {
-        continue
+        return null
       }
       const leanSportsbookQuote =
         sharpLean.sharpLeanSide != null
@@ -1534,7 +1585,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
               pinnacleBookTitle: null,
             }
 
-      kalshiItems.push({
+      return {
         id: `kalshi:${market.ticker}`,
         source: 'kalshi',
         sportKey: series.sportKey,
@@ -1554,77 +1605,74 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         pinnacleLeanOdds: leanSportsbookQuote.pinnacleOdds ?? null,
         pinnacleLeanBookTitle: leanSportsbookQuote.pinnacleBookTitle ?? null,
         updatedAt,
-      })
-    }
-  }
-
-  // Polymarket props
-  {
-    const pageLimit = 250
-    const sportsMarketTypes = resolvePolymarketSportsMarketTypes(sportFilter)
-    // When we can use sports_market_types, Polymarket returns mostly props and we
-    // don't need deep pagination. Otherwise, we still scan deeper but cap expensive
-    // CLOB orderbook fetches via MAX_POLYMARKET_ORDERBOOKS.
-    const maxPages = sportsMarketTypes.length ? 6 : 20
-    let orderbookFetches = 0
-
-    for (let page = 0; page < maxPages; page += 1) {
-      if (polymarketItems.length >= collectionLimit) break
-      if (orderbookFetches >= MAX_POLYMARKET_ORDERBOOKS) break
-
-      const url = new URL(`${POLYMARKET_BASE}/markets`)
-      url.searchParams.set('tag_id', POLYMARKET_GAMES_TAG_ID)
-      url.searchParams.set('active', 'true')
-      url.searchParams.set('closed', 'false')
-      url.searchParams.set('limit', String(pageLimit))
-      url.searchParams.set('offset', String(page * pageLimit))
-      for (const marketType of sportsMarketTypes) {
-        url.searchParams.append('sports_market_types', marketType)
       }
+    }
 
-      const res = await fetch(url.toString(), { cache: 'no-store' })
-      if (!res.ok) break
-      const batch = (await res.json()) as PolymarketMarket[]
-      if (!Array.isArray(batch) || batch.length === 0) break
+    let kalshiMarketFetches = 0
+    for (const series of KALSHI_PROP_SERIES) {
+      if (sportFilter !== 'all' && series.sportKey !== sportFilter) continue
+      if (kalshiItems.length >= collectionLimit) break
+      if (kalshiMarketFetches >= kalshiMarketBudget) break
 
-      for (const market of batch) {
-        if (polymarketItems.length >= collectionLimit) break
-        if (orderbookFetches >= MAX_POLYMARKET_ORDERBOOKS) break
-        if (!market?.active || market.closed) continue
+      const markets = await fetchKalshiPropMarkets(series.ticker, kalshiPageLimit)
+      const upcoming = markets.filter((market) => {
+        const eventDate = parseKalshiDate(market.ticker)
+        return Boolean(eventDate && eventDate >= today)
+      })
+      const remaining = collectionLimit - kalshiItems.length
+      if (remaining <= 0) break
+      const remainingBudget = kalshiMarketBudget - kalshiMarketFetches
+      if (remainingBudget <= 0) break
+      const seriesCap = isFastMode
+        ? Math.min(upcoming.length, Math.max(remaining, 12), remainingBudget, 12)
+        : Math.min(upcoming.length, Math.max(remaining * 2, remaining), 80)
+      const candidates = upcoming.slice(0, seriesCap)
+      kalshiMarketFetches += candidates.length
+      const built = await mapWithConcurrency(candidates, kalshiConcurrency, (market) =>
+        buildKalshiItem(series, market)
+      )
+      if (built.length) {
+        kalshiItems.push(...built)
+        if (kalshiItems.length > collectionLimit) {
+          kalshiItems.length = collectionLimit
+          break
+        }
+      }
+    }
 
-        const sportMeta = resolvePolymarketSport(market)
-        if (!sportMeta) continue
-        if (sportFilter !== 'all' && sportMeta.sportKey !== sportFilter) continue
+    {
+      const pageLimit = 250
+      const sportsMarketTypes = resolvePolymarketSportsMarketTypes(sportFilter)
+      const maxPages = sportsMarketTypes.length ? 6 : 20
+      let orderbookFetches = 0
 
-        const eventDate = resolvePolymarketEventDate(market)
-        if (!eventDate || eventDate < today) continue
-
+      const buildPolymarketItem = async (
+        market: PolymarketMarket
+      ): Promise<PropOrderbookItem | null> => {
         const question = market.question || market.title
-        if (!question) continue
+        if (!question) return null
         const rawText = question.trim()
-        const matchup = resolvePolymarketMatchup(market)
-        if (!isPlayerPropQuestion(rawText)) continue
-
+        const sportMeta = resolvePolymarketSport(market)
+        if (!sportMeta) return null
         const normalizedText = normalizeText(rawText)
+        const matchup = resolvePolymarketMatchup(market)
         const propType =
           market.sportsMarketType || resolvePropType(normalizedText, sportMeta.sportKey)
-        if (!propType) continue
+        if (!propType) return null
 
         const outcomes = parseJsonArray<string>(market.outcomes)
         const tokenIds = parseJsonArray<string>(market.clobTokenIds)
-        if (outcomes.length < 2 || tokenIds.length < 2) continue
-
-        orderbookFetches += 1
+        if (outcomes.length < 2 || tokenIds.length < 2) return null
 
         const [book0, book1] = await Promise.all([
           fetchPolymarketOrderbook(tokenIds[0]),
           fetchPolymarketOrderbook(tokenIds[1]),
         ])
-        if (!book0 || !book1) continue
+        if (!book0 || !book1) return null
 
         const levels0 = parsePolymarketLevels(book0)
         const levels1 = parsePolymarketLevels(book1)
-        if (levels0.length === 0 && levels1.length === 0) continue
+        if (levels0.length === 0 && levels1.length === 0) return null
 
         const outcome0 = outcomes[0] ?? ''
         const outcome1 = outcomes[1] ?? ''
@@ -1649,7 +1697,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           typeof market.line === 'number' && Number.isFinite(market.line)
             ? market.line
             : resolvePropLine(normalizedText, propType, rawText)
-        if (!playerName || propLine == null) continue
+        if (!playerName || propLine == null) return null
 
         const sides: PropOrderbookSide[] = [
           summarizeSide(
@@ -1677,18 +1725,14 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           sideWalls.length === 2 &&
           ((sideWalls[0] >= 95 && sideWalls[1] >= 95) ||
             (sideWalls[0] <= 5 && sideWalls[1] <= 5))
-        if (hasMirroredExtremeWalls) {
-          // Non-actionable mirrored books (both outcomes priced near 0 or 1)
-          // are common with parked CLOB quotes and produce synthetic +/-9900 lines.
-          continue
-        }
+        if (hasMirroredExtremeWalls) return null
 
         const sharpLean = resolveSharpLean(sides, minSharpNotional)
         if (
           sharpLean.sharpLeanAmericanOdds != null &&
           sharpLean.sharpLeanAmericanOdds < MAX_FAVORITE_ODDS
         ) {
-          continue
+          return null
         }
         const leanSportsbookQuote =
           sharpLean.sharpLeanSide != null
@@ -1707,7 +1751,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
                 pinnacleBookTitle: null,
               }
 
-        polymarketItems.push({
+        return {
           id: `polymarket:${market.id}`,
           source: 'polymarket',
           sportKey: sportMeta.sportKey,
@@ -1717,7 +1761,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           playerName,
           propType,
           propLine,
-          eventDate: eventDate ?? undefined,
+          eventDate: resolvePolymarketEventDate(market) ?? undefined,
           slug: market.slug ?? market.id,
           sides,
           ...sharpLean,
@@ -1727,66 +1771,123 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           pinnacleLeanOdds: leanSportsbookQuote.pinnacleOdds ?? null,
           pinnacleLeanBookTitle: leanSportsbookQuote.pinnacleBookTitle ?? null,
           updatedAt,
-        })
+        }
       }
 
-      if (batch.length < pageLimit) break
-    }
-  }
+      for (let page = 0; page < maxPages; page += 1) {
+        if (polymarketItems.length >= collectionLimit) break
+        if (orderbookFetches >= polymarketOrderbookLimit) break
 
-  const combined = interleave(
-    [kalshiItems, polymarketItems, exchangeItems],
-    collectionLimit
-  )
+        const url = new URL(`${POLYMARKET_BASE}/markets`)
+        url.searchParams.set('tag_id', POLYMARKET_GAMES_TAG_ID)
+        url.searchParams.set('active', 'true')
+        url.searchParams.set('closed', 'false')
+        url.searchParams.set('limit', String(pageLimit))
+        url.searchParams.set('offset', String(page * pageLimit))
+        for (const marketType of sportsMarketTypes) {
+          url.searchParams.append('sports_market_types', marketType)
+        }
 
-  const interleaveBySport = (items: PropOrderbookItem[], max: number) => {
-    const grouped = new Map<string, PropOrderbookItem[]>()
-    for (const item of items) {
-      const group = grouped.get(item.sportKey) ?? []
-      group.push(item)
-      grouped.set(item.sportKey, group)
-    }
+        const res = await fetch(url.toString(), { cache: 'no-store' })
+        if (!res.ok) break
+        const batch = (await res.json()) as PolymarketMarket[]
+        if (!Array.isArray(batch) || batch.length === 0) break
 
-    const preferredSports = ['basketball_nba', 'basketball_ncaab', 'icehockey_nhl']
-    const orderedSports = [
-      ...preferredSports,
-      ...Array.from(grouped.keys()).filter((sportKey) => !preferredSports.includes(sportKey)),
-    ]
-    const indexes = new Map<string, number>()
-    const result: PropOrderbookItem[] = []
+        const candidates: PolymarketMarket[] = []
+        for (const market of batch) {
+          if (!market?.active || market.closed) continue
+          const sportMeta = resolvePolymarketSport(market)
+          if (!sportMeta) continue
+          if (sportFilter !== 'all' && sportMeta.sportKey !== sportFilter) continue
+          const eventDate = resolvePolymarketEventDate(market)
+          if (!eventDate || eventDate < today) continue
+          const question = market.question || market.title
+          if (!question) continue
+          if (!isPlayerPropQuestion(question.trim())) continue
+          candidates.push(market)
+        }
 
-    while (result.length < max) {
-      let appended = false
-      for (const sportKey of orderedSports) {
-        const group = grouped.get(sportKey)
-        if (!group || group.length === 0) continue
-        const index = indexes.get(sportKey) ?? 0
-        if (index >= group.length) continue
-        result.push(group[index])
-        indexes.set(sportKey, index + 1)
-        appended = true
-        if (result.length >= max) break
+        const remainingBudget = polymarketOrderbookLimit - orderbookFetches
+        if (remainingBudget <= 0) break
+        const cappedCandidates = candidates.slice(0, remainingBudget)
+        orderbookFetches += cappedCandidates.length
+
+        const built = await mapWithConcurrency(cappedCandidates, polymarketConcurrency, (market) =>
+          buildPolymarketItem(market)
+        )
+        if (built.length) {
+          polymarketItems.push(...built)
+          if (polymarketItems.length > collectionLimit) {
+            polymarketItems.length = collectionLimit
+            break
+          }
+        }
+
+        if (batch.length < pageLimit) break
       }
-      if (!appended) break
     }
 
-    return result
-  }
+    const combined = interleave(
+      [kalshiItems, polymarketItems, exchangeItems],
+      collectionLimit
+    )
 
-  const finalItems =
-    sportFilter === 'all'
-      ? interleaveBySport(combined, requestedLimit)
-      : combined.slice(0, requestedLimit)
+    const interleaveBySport = (items: PropOrderbookItem[], max: number) => {
+      const grouped = new Map<string, PropOrderbookItem[]>()
+      for (const item of items) {
+        const group = grouped.get(item.sportKey) ?? []
+        group.push(item)
+        grouped.set(item.sportKey, group)
+      }
 
-  orderbooksCache.set(cacheKey, {
-    fetchedAt: now,
-    updatedAt,
-    items: finalItems,
-  })
+      const preferredSports = ['basketball_nba', 'basketball_ncaab', 'icehockey_nhl']
+      const orderedSports = [
+        ...preferredSports,
+        ...Array.from(grouped.keys()).filter((sportKey) => !preferredSports.includes(sportKey)),
+      ]
+      const indexes = new Map<string, number>()
+      const result: PropOrderbookItem[] = []
 
-  return {
-    updatedAt,
-    items: finalItems,
+      while (result.length < max) {
+        let appended = false
+        for (const sportKey of orderedSports) {
+          const group = grouped.get(sportKey)
+          if (!group || group.length === 0) continue
+          const index = indexes.get(sportKey) ?? 0
+          if (index >= group.length) continue
+          result.push(group[index])
+          indexes.set(sportKey, index + 1)
+          appended = true
+          if (result.length >= max) break
+        }
+        if (!appended) break
+      }
+
+      return result
+    }
+
+    const finalItems =
+      sportFilter === 'all'
+        ? interleaveBySport(combined, requestedLimit)
+        : combined.slice(0, requestedLimit)
+
+    orderbooksCache.set(cacheKey, {
+      fetchedAt: Date.now(),
+      updatedAt,
+      items: finalItems,
+    })
+
+    return {
+      updatedAt,
+      items: finalItems,
+    }
+  })()
+
+  orderbooksInFlight.set(cacheKey, computePromise)
+  try {
+    return await computePromise
+  } finally {
+    orderbooksInFlight.delete(cacheKey)
   }
 }
 
@@ -1977,6 +2078,7 @@ const sportsbookCache = new Map<
   string,
   { fetchedAt: number; data: Map<string, SportsbookPropLine[]> }
 >()
+const sportsbookInFlight = new Map<string, Promise<Map<string, SportsbookPropLine[]>>>()
 
 const oddsCache = new Map<string, { fetchedAt: number; games: OddsGame[] }>()
 
@@ -2040,134 +2142,148 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
     return cached.data
   }
 
-  const league = resolveSbdLeague(sportKey)
-  if (!league) return new Map<string, SportsbookPropLine[]>()
-
-  const data = await fetchSbdGamePropsList(league)
-  const result = new Map<string, SportsbookPropLine[]>()
-
-  if (!Array.isArray(data)) {
-    return result
+  const pending = sportsbookInFlight.get(sportKey)
+  if (pending) {
+    return pending
   }
 
-  for (const entry of data) {
-    const playerName = entry?.player_name || entry?.player?.name
-    if (!playerName || typeof playerName !== 'string') continue
-    const normalizedPlayer = normalizePlayerName(
-      playerName.includes(',')
-        ? playerName.split(',').reverse().map((part: string) => part.trim()).join(' ')
-        : playerName
-    )
+  const loadPromise = (async () => {
+    const league = resolveSbdLeague(sportKey)
+    if (!league) return new Map<string, SportsbookPropLine[]>()
 
-    const marketName = entry?.name
-    if (typeof marketName !== 'string') continue
-    const normalizedMarketName = marketName.toLowerCase()
+    const data = await fetchSbdGamePropsList(league)
+    const result = new Map<string, SportsbookPropLine[]>()
 
-    let propType: string | null = null
-    const mappings = PROP_KEYWORDS[sportKey] ?? []
-    const hit = mappings.find((mapping) =>
-      mapping.patterns.some((pattern) => normalizedMarketName.includes(pattern))
-    )
-    if (hit) {
-      propType = hit.key
+    if (!Array.isArray(data)) {
+      return result
     }
-    if (!propType) continue
 
-    const sportsbooks = entry?.sportsbooks
-    if (!Array.isArray(sportsbooks)) continue
-
-    for (const book of sportsbooks) {
-      const odds = book?.odds
-      if (!odds) continue
-
-      const overOddsStr = odds.over_american
-      const underOddsStr = odds.under_american
-      const overPointsStr = odds.over_points
-      const underPointsStr = odds.under_points
-
-      const overOdds = typeof overOddsStr === 'string' ? parseFloat(overOddsStr) :
-        typeof overOddsStr === 'number' ? overOddsStr : null
-      const underOdds = typeof underOddsStr === 'string' ? parseFloat(underOddsStr) :
-        typeof underOddsStr === 'number' ? underOddsStr : null
-      const overPoints = typeof overPointsStr === 'string' ? parseFloat(overPointsStr) :
-        typeof overPointsStr === 'number' ? overPointsStr : null
-      const underPoints = typeof underPointsStr === 'string' ? parseFloat(underPointsStr) :
-        typeof underPointsStr === 'number' ? underPointsStr : null
-
-      const line = overPoints ?? underPoints
-      if (line == null || Number.isNaN(line)) continue
-
-      if (!result.has(normalizedPlayer)) {
-        result.set(normalizedPlayer, [])
-      }
-
-      let bucket = result.get(normalizedPlayer)!.find(
-        (item) => item.propType === propType && item.line === line
+    for (const entry of data) {
+      const playerName = entry?.player_name || entry?.player?.name
+      if (!playerName || typeof playerName !== 'string') continue
+      const normalizedPlayer = normalizePlayerName(
+        playerName.includes(',')
+          ? playerName.split(',').reverse().map((part: string) => part.trim()).join(' ')
+          : playerName
       )
 
-      if (!bucket) {
-        bucket = {
-          playerName: normalizedPlayer,
-          propType,
-          line,
-          bestOverOdds: null,
-          bestUnderOdds: null,
-          bestOverBookTitle: null,
-          bestUnderBookTitle: null,
-          pinnacleOverOdds: null,
-          pinnacleUnderOdds: null,
-          pinnacleOverBookTitle: null,
-          pinnacleUnderBookTitle: null,
-          noVigOverProbs: [],
-          noVigUnderProbs: [],
-        }
-        result.get(normalizedPlayer)!.push(bucket)
-      }
+      const marketName = entry?.name
+      if (typeof marketName !== 'string') continue
+      const normalizedMarketName = marketName.toLowerCase()
 
-      const bookTitle =
-        typeof book?.name === 'string'
-          ? book.name
-          : typeof book?.title === 'string'
-            ? book.title
-            : book?.key
-              ? String(book.key)
-              : null
-
-      if (overOdds != null && !Number.isNaN(overOdds)) {
-        if (isPinnacleBook(book)) {
-          bucket.pinnacleOverOdds = overOdds
-          bucket.pinnacleOverBookTitle = bookTitle
-        }
-        if (bucket.bestOverOdds == null || overOdds > bucket.bestOverOdds) {
-          bucket.bestOverOdds = overOdds
-          bucket.bestOverBookTitle = bookTitle
-        }
+      let propType: string | null = null
+      const mappings = PROP_KEYWORDS[sportKey] ?? []
+      const hit = mappings.find((mapping) =>
+        mapping.patterns.some((pattern) => normalizedMarketName.includes(pattern))
+      )
+      if (hit) {
+        propType = hit.key
       }
-      if (underOdds != null && !Number.isNaN(underOdds)) {
-        if (isPinnacleBook(book)) {
-          bucket.pinnacleUnderOdds = underOdds
-          bucket.pinnacleUnderBookTitle = bookTitle
-        }
-        if (bucket.bestUnderOdds == null || underOdds > bucket.bestUnderOdds) {
-          bucket.bestUnderOdds = underOdds
-          bucket.bestUnderBookTitle = bookTitle
-        }
-      }
+      if (!propType) continue
 
-      if (overOdds != null && underOdds != null) {
-        const overProb = oddsToImpliedProbability(overOdds)
-        const underProb = oddsToImpliedProbability(underOdds)
-        const total = overProb + underProb
-        if (Number.isFinite(total) && total > 0) {
-          bucket.noVigOverProbs.push(overProb / total)
-          bucket.noVigUnderProbs.push(underProb / total)
+      const sportsbooks = entry?.sportsbooks
+      if (!Array.isArray(sportsbooks)) continue
+
+      for (const book of sportsbooks) {
+        const odds = book?.odds
+        if (!odds) continue
+
+        const overOddsStr = odds.over_american
+        const underOddsStr = odds.under_american
+        const overPointsStr = odds.over_points
+        const underPointsStr = odds.under_points
+
+        const overOdds = typeof overOddsStr === 'string' ? parseFloat(overOddsStr) :
+          typeof overOddsStr === 'number' ? overOddsStr : null
+        const underOdds = typeof underOddsStr === 'string' ? parseFloat(underOddsStr) :
+          typeof underOddsStr === 'number' ? underOddsStr : null
+        const overPoints = typeof overPointsStr === 'string' ? parseFloat(overPointsStr) :
+          typeof overPointsStr === 'number' ? overPointsStr : null
+        const underPoints = typeof underPointsStr === 'string' ? parseFloat(underPointsStr) :
+          typeof underPointsStr === 'number' ? underPointsStr : null
+
+        const line = overPoints ?? underPoints
+        if (line == null || Number.isNaN(line)) continue
+
+        if (!result.has(normalizedPlayer)) {
+          result.set(normalizedPlayer, [])
+        }
+
+        let bucket = result.get(normalizedPlayer)!.find(
+          (item) => item.propType === propType && item.line === line
+        )
+
+        if (!bucket) {
+          bucket = {
+            playerName: normalizedPlayer,
+            propType,
+            line,
+            bestOverOdds: null,
+            bestUnderOdds: null,
+            bestOverBookTitle: null,
+            bestUnderBookTitle: null,
+            pinnacleOverOdds: null,
+            pinnacleUnderOdds: null,
+            pinnacleOverBookTitle: null,
+            pinnacleUnderBookTitle: null,
+            noVigOverProbs: [],
+            noVigUnderProbs: [],
+          }
+          result.get(normalizedPlayer)!.push(bucket)
+        }
+
+        const bookTitle =
+          typeof book?.name === 'string'
+            ? book.name
+            : typeof book?.title === 'string'
+              ? book.title
+              : book?.key
+                ? String(book.key)
+                : null
+
+        if (overOdds != null && !Number.isNaN(overOdds)) {
+          if (isPinnacleBook(book)) {
+            bucket.pinnacleOverOdds = overOdds
+            bucket.pinnacleOverBookTitle = bookTitle
+          }
+          if (bucket.bestOverOdds == null || overOdds > bucket.bestOverOdds) {
+            bucket.bestOverOdds = overOdds
+            bucket.bestOverBookTitle = bookTitle
+          }
+        }
+        if (underOdds != null && !Number.isNaN(underOdds)) {
+          if (isPinnacleBook(book)) {
+            bucket.pinnacleUnderOdds = underOdds
+            bucket.pinnacleUnderBookTitle = bookTitle
+          }
+          if (bucket.bestUnderOdds == null || underOdds > bucket.bestUnderOdds) {
+            bucket.bestUnderOdds = underOdds
+            bucket.bestUnderBookTitle = bookTitle
+          }
+        }
+
+        if (overOdds != null && underOdds != null) {
+          const overProb = oddsToImpliedProbability(overOdds)
+          const underProb = oddsToImpliedProbability(underOdds)
+          const total = overProb + underProb
+          if (Number.isFinite(total) && total > 0) {
+            bucket.noVigOverProbs.push(overProb / total)
+            bucket.noVigUnderProbs.push(underProb / total)
+          }
         }
       }
     }
-  }
 
-  sportsbookCache.set(sportKey, { fetchedAt: now, data: result })
-  return result
+    sportsbookCache.set(sportKey, { fetchedAt: now, data: result })
+    return result
+  })()
+
+  sportsbookInFlight.set(sportKey, loadPromise)
+  try {
+    return await loadPromise
+  } finally {
+    sportsbookInFlight.delete(sportKey)
+  }
 }
 
 const resolveSportsbookPropPrices = async (

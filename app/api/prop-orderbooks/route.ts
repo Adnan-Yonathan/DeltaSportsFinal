@@ -133,23 +133,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const computeLimit = canUsePersistentCache
-      ? Math.max(normalizedLimit, PERSISTED_CACHE_LIMIT)
-      : normalizedLimit
+    const computeLimit =
+      forceRefresh && canUsePersistentCache
+        ? Math.max(normalizedLimit, PERSISTED_CACHE_LIMIT)
+        : normalizedLimit
+    const mode = forceRefresh ? 'full' : 'fast'
 
-    const snapshot = forceRefresh
-      ? await fetchPropOrderbooksSnapshot({
-          sportKey: sport,
-          limit: computeLimit,
-          depth: normalizedDepth,
-          minSharpNotional: normalizedMinSharpNotional,
-        })
-      : await fetchPropOrderbooksSnapshot({
-          sportKey: sport,
-          limit: computeLimit,
-          depth: normalizedDepth,
-          minSharpNotional: normalizedMinSharpNotional,
-        })
+    const snapshot = await fetchPropOrderbooksSnapshot({
+      sportKey: sport,
+      limit: computeLimit,
+      depth: normalizedDepth,
+      minSharpNotional: normalizedMinSharpNotional,
+      mode,
+    })
 
     if (canUsePersistentCache) {
       const cacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
@@ -171,7 +167,13 @@ export async function GET(req: NextRequest) {
       items: snapshot.items.slice(0, normalizedLimit),
       cache: {
         forcedRefresh: forceRefresh,
-        source: canUsePersistentCache ? 'live_computed_persisted' : 'live_computed',
+        source: forceRefresh
+          ? canUsePersistentCache
+            ? 'live_computed_persisted_full'
+            : 'live_computed_full'
+          : canUsePersistentCache
+            ? 'live_computed_persisted_fast'
+            : 'live_computed_fast',
       },
     })
   } catch (error: any) {

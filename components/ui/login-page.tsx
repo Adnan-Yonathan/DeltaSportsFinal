@@ -164,10 +164,7 @@ export const LoginPage = () => {
 
         // Check membership status first — paid users go straight to chat
         const membership = getMembershipStatusFromMetadata(data.user.user_metadata)
-        const paidStatuses = new Set(['active', 'trialing', 'past_due'])
-        const isPaidNow = membership.status
-          ? paidStatuses.has(membership.status)
-          : membership.hasPaidAccess
+        const isPaidNow = membership.hasPaidAccess
 
         if (ONBOARDING_ENABLED) {
           const metadataCompleted = Boolean(

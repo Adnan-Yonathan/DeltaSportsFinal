@@ -1,10 +1,21 @@
 export type MembershipTier = 'free' | 'sharp' | 'syndicate'
 export type MembershipStatus = 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'paused'
+const PAST_DUE_GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000
 
 const parseDate = (value: unknown): Date | null => {
   if (!value || typeof value !== 'string') return null
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+const parseBoolean = (value: unknown): boolean => {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    return ['true', '1', 'yes', 'y', 't'].includes(normalized)
+  }
+  return false
 }
 
 export interface MembershipInfo {
@@ -52,24 +63,43 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     ? Number(planVersionRaw)
     : 1
   const legacyExpiresAt = parseDate(metadata?.membership_expires_at)
-  const hasLegacyPaid = Boolean(legacyExpiresAt)
+  const hasLegacyPaid = Boolean(legacyExpiresAt) && legacyExpiresAt!.getTime() > Date.now()
+  const hasEverPaid = parseBoolean(metadata?.has_paid)
+  const paymentFailedAt = parseDate(metadata?.payment_failed_at)
+  const periodEnd = parseDate(metadata?.stripe_current_period_end)
+  const pastDueAnchor = paymentFailedAt || periodEnd
+  const isCanceledWithRemainingAccess =
+    status === 'canceled' &&
+    (Boolean(currentPeriodEnd) && currentPeriodEnd!.getTime() > Date.now())
+  const isPastDueWithinGrace =
+    status === 'past_due' &&
+    Boolean(pastDueAnchor) &&
+    Date.now() <= pastDueAnchor!.getTime() + PAST_DUE_GRACE_PERIOD_MS
 
   const fullAccessStatuses: MembershipStatus[] = ['active', 'trialing']
   const isFullAccessStatus =
     Boolean(status) && fullAccessStatuses.includes(status as MembershipStatus)
 
-  // Active statuses: 'active' and 'trialing' allow full access
-  // 'past_due' allows access but should show warning
-  const activeStatuses: MembershipStatus[] = ['active', 'trialing', 'past_due']
+  // Active statuses: 'active'/'trialing' always allow access.
+  // 'past_due' is only allowed during a 3-day grace period.
+  const activeStatuses: MembershipStatus[] = ['active', 'trialing']
   const isActive =
     Boolean(status) &&
-    activeStatuses.includes(status as MembershipStatus) &&
+    (
+      activeStatuses.includes(status as MembershipStatus) ||
+      isPastDueWithinGrace ||
+      isCanceledWithRemainingAccess
+    ) &&
     (Boolean(tier) || isFullAccessStatus)
-  const paidStatuses: MembershipStatus[] = ['active', 'trialing', 'past_due']
-  const hasPaidStatus =
-    Boolean(status) && paidStatuses.includes(status as MembershipStatus)
+  const hasStatusAccess =
+    status === 'active' ||
+    status === 'trialing' ||
+    isPastDueWithinGrace ||
+    isCanceledWithRemainingAccess
   const hasPaidAccess =
-    Boolean(metadata?.has_paid) || hasPaidStatus || hasLegacyPaid
+    status
+      ? hasStatusAccess
+      : hasEverPaid || hasLegacyPaid
   const hasProjectionAccess = hasPaidAccess
   const hasResearchAccess = hasPaidAccess && tier === 'syndicate'
   const hasFullAccess = hasPaidAccess
@@ -80,7 +110,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
   // This handles old subscriptions that used expiration dates
   if (!status && tier) {
     const legacyActive = Boolean(legacyExpiresAt) && legacyExpiresAt!.getTime() > Date.now()
-    const legacyHasPaid = Boolean(legacyExpiresAt)
+    const legacyHasPaid = hasLegacyPaid || hasEverPaid
     return {
       tier,
       status: legacyActive ? 'active' : 'canceled',
@@ -149,7 +179,7 @@ export const getMembershipStatusFromMetadata = (metadata: any): MembershipInfo =
 // Helper to check if user should see payment warning
 export const shouldShowPaymentWarning = (metadata: any): boolean => {
   const membership = getMembershipStatus(metadata)
-  return membership.status === 'past_due'
+  return membership.status === 'past_due' && membership.hasPaidAccess
 }
 
 // Helper to check if subscription is set to cancel

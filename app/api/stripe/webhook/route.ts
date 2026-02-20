@@ -22,6 +22,69 @@ const AFFILIATE_COMMISSION_RATE = Number.isFinite(RAW_AFFILIATE_COMMISSION_RATE)
   ? RAW_AFFILIATE_COMMISSION_RATE
   : 0.2
 
+const resolveStripeCustomerId = (
+  customer: string | Stripe.Customer | Stripe.DeletedCustomer | null | undefined
+): string | null => {
+  if (!customer) return null
+  if (typeof customer === 'string') return customer
+  if ('id' in customer && typeof customer.id === 'string') return customer.id
+  return null
+}
+
+const findUserIdByCustomerIdInAuthUsers = async (
+  supabase: ReturnType<typeof createServiceClient>,
+  customerId: string
+): Promise<string | null> => {
+  const perPage = 200
+  for (let page = 1; page <= 50; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage })
+    if (error) {
+      console.warn('[STRIPE_WEBHOOK] listUsers fallback lookup failed:', error)
+      return null
+    }
+    const users = data?.users ?? []
+    if (users.length === 0) return null
+
+    const matched = users.find(
+      (user) => user.user_metadata?.stripe_customer_id === customerId
+    )
+    if (matched?.id) return matched.id
+
+    if (users.length < perPage) return null
+  }
+  return null
+}
+
+const ensureStripeCustomerMetadata = async (
+  customerId: string,
+  userId: string
+) => {
+  try {
+    await stripe.customers.update(customerId, {
+      metadata: { supabase_user_id: userId },
+    })
+  } catch (error) {
+    console.warn('[STRIPE_WEBHOOK] Failed to update customer metadata mapping:', error)
+  }
+}
+
+const ensureStripeSubscriptionMetadata = async (
+  subscriptionId: string,
+  metadataPatch: Record<string, string>
+) => {
+  try {
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+    await stripe.subscriptions.update(subscriptionId, {
+      metadata: {
+        ...(subscription.metadata || {}),
+        ...metadataPatch,
+      },
+    })
+  } catch (error) {
+    console.warn('[STRIPE_WEBHOOK] Failed to update subscription metadata mapping:', error)
+  }
+}
+
 const resolveAffiliateRef = async (
   supabase: ReturnType<typeof createServiceClient>,
   userId: string
@@ -89,42 +152,94 @@ async function updateUserSubscription(
   const { data: existingUser } = await supabase.auth.admin.getUserById(userId)
   const existingMetadata = existingUser?.user?.user_metadata || {}
   const existingHasPaid = Boolean(existingMetadata?.has_paid)
+  const resolvedCustomerId =
+    customerId || resolveStripeCustomerId(subscription?.customer as any) || undefined
   const config = planKey ? PLAN_CONFIG[planKey as PlanKey] : null
+  const normalizeTier = (value: unknown): 'sharp' | 'syndicate' | null => {
+    if (value === 'syndicate') return 'syndicate'
+    if (value === 'sharp' || value === 'pro') return 'sharp'
+    return null
+  }
+  const toIsoFromUnix = (value: unknown): string | null => {
+    if (!Number.isFinite(Number(value))) return null
+    return new Date(Number(value) * 1000).toISOString()
+  }
   const rawPlanVersion = subscription?.metadata?.plan_version
   const parsedPlanVersion = Number.isFinite(Number(rawPlanVersion))
     ? Number(rawPlanVersion)
     : 1
   const planVersion = planVersionOverride ?? parsedPlanVersion
-
-  if (!subscription || subscription.status === 'canceled') {
-    // Subscription canceled - clear membership
-    await supabase.auth.admin.updateUserById(userId, {
-      user_metadata: {
-        membership_tier: null,
-        membership_status: 'canceled',
-        stripe_subscription_id: null,
-        subscription_cancel_at: null,
-        ...(existingHasPaid ? { has_paid: true } : {}),
-      },
-    })
-    return
-  }
-
-  // Determine tier from plan key or existing metadata
-  let tier: 'sharp' | 'syndicate' = 'sharp'
-  if (config) {
-    tier = config.tier as 'sharp' | 'syndicate'
-  } else if (subscription.metadata?.plan_key) {
+  let tier = config?.tier as 'sharp' | 'syndicate' | undefined
+  if (!tier && subscription?.metadata?.plan_key) {
     const key = subscription.metadata.plan_key as PlanKey
     const configTier = PLAN_CONFIG[key]?.tier
     tier = configTier === 'syndicate' ? 'syndicate' : 'sharp'
   }
+  if (!tier) {
+    tier = normalizeTier(existingMetadata?.membership_tier) ?? undefined
+  }
+
+  if (!subscription || subscription.status === 'canceled') {
+    const now = Date.now()
+    const currentPeriodEndIso = subscription
+      ? toIsoFromUnix((subscription as any).current_period_end)
+      : (typeof existingMetadata?.stripe_current_period_end === 'string'
+        ? existingMetadata.stripe_current_period_end
+        : null)
+    const currentPeriodEndMs = currentPeriodEndIso ? new Date(currentPeriodEndIso).getTime() : NaN
+    const legacyExpiresAtRaw = existingMetadata?.membership_expires_at
+    const legacyExpiresAtMs =
+      typeof legacyExpiresAtRaw === 'string' ? new Date(legacyExpiresAtRaw).getTime() : NaN
+    const hasRemainingAccess =
+      (Number.isFinite(currentPeriodEndMs) && currentPeriodEndMs > now) ||
+      (Number.isFinite(legacyExpiresAtMs) && legacyExpiresAtMs > now)
+    const effectiveTier = hasRemainingAccess ? (tier ?? null) : null
+    const cancelAtIso = subscription
+      ? toIsoFromUnix((subscription as any).cancel_at ?? (subscription as any).canceled_at)
+      : (typeof existingMetadata?.subscription_cancel_at === 'string'
+        ? existingMetadata.subscription_cancel_at
+        : null)
+
+    const metadataUpdate: Record<string, any> = {
+      membership_tier: effectiveTier,
+      membership_status: 'canceled',
+      stripe_subscription_id: subscription?.id ?? null,
+      stripe_current_period_end: currentPeriodEndIso,
+      subscription_cancel_at: cancelAtIso,
+      membership_plan_version: planVersion,
+      ...(existingHasPaid || hasRemainingAccess ? { has_paid: true } : {}),
+      ...(resolvedCustomerId ? { stripe_customer_id: resolvedCustomerId } : {}),
+      ...(existingMetadata?.payment_failed_at ? { payment_failed_at: null } : {}),
+    }
+
+    await supabase.auth.admin.updateUserById(userId, {
+      user_metadata: {
+        ...existingMetadata,
+        ...metadataUpdate,
+      },
+    })
+
+    const { error: canceledUsersTableError } = await (supabase.from('users') as any)
+      .update({
+        subscription_tier: effectiveTier,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId)
+
+    if (canceledUsersTableError) {
+      console.error('[STRIPE_WEBHOOK] Failed to update users table for canceled subscription:', JSON.stringify(canceledUsersTableError, null, 2))
+    }
+    return
+  }
+
+  const resolvedTier: 'sharp' | 'syndicate' = tier ?? 'sharp'
 
   // Update user metadata with subscription info
   const currentPeriodEnd = (subscription as any).current_period_end
   const cancelAt = (subscription as any).cancel_at
+  const previousStatus = existingMetadata?.membership_status
   const metadataUpdate: Record<string, any> = {
-    membership_tier: tier,
+    membership_tier: resolvedTier,
     membership_status: subscription.status,
     stripe_subscription_id: subscription.id,
     stripe_current_period_end: currentPeriodEnd ? new Date(currentPeriodEnd * 1000).toISOString() : null,
@@ -137,16 +252,28 @@ async function updateUserSubscription(
   if (subscription.trial_end || subscription.trial_start || subscription.status === 'trialing') {
     metadataUpdate.has_used_trial = true
   }
+  if (subscription.status === 'past_due') {
+    metadataUpdate.payment_failed_at =
+      typeof existingMetadata?.payment_failed_at === 'string' &&
+      previousStatus === 'past_due'
+        ? existingMetadata.payment_failed_at
+        : new Date().toISOString()
+  } else if (existingMetadata?.payment_failed_at) {
+    metadataUpdate.payment_failed_at = null
+  }
 
   // Include customer ID if provided
-  if (customerId) {
-    metadataUpdate.stripe_customer_id = customerId
+  if (resolvedCustomerId) {
+    metadataUpdate.stripe_customer_id = resolvedCustomerId
   }
 
   console.log('[STRIPE_WEBHOOK] Updating user metadata:', { userId, metadataUpdate })
 
   const { data: updateData, error: updateError } = await supabase.auth.admin.updateUserById(userId, {
-    user_metadata: metadataUpdate,
+    user_metadata: {
+      ...existingMetadata,
+      ...metadataUpdate,
+    },
   })
 
   if (updateError) {
@@ -160,7 +287,7 @@ async function updateUserSubscription(
   // Also update users table
   const { error: usersTableError } = await (supabase.from('users') as any)
     .update({
-      subscription_tier: tier,
+      subscription_tier: resolvedTier,
       updated_at: new Date().toISOString(),
     })
     .eq('id', userId)
@@ -181,9 +308,8 @@ async function getUserIdFromCustomer(
   const userId = (customer as Stripe.Customer).metadata?.supabase_user_id
   if (userId) return userId
 
-  // Fallback: search users table by stripe_customer_id in metadata
-  // This requires querying auth.users which we can do via admin API
-  return null
+  // Fallback: scan auth users for stripe_customer_id in metadata.
+  return findUserIdByCustomerIdInAuthUsers(supabase, customerId)
 }
 
 export async function POST(req: NextRequest) {
@@ -242,13 +368,18 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ received: true })
         }
 
-        const userId = session.metadata?.supabase_user_id
+        const customerId = resolveStripeCustomerId(session.customer)
+        let userId = session.metadata?.supabase_user_id || null
         const planKey = session.metadata?.plan_key
         const planVersionRaw = session.metadata?.plan_version
         const planVersion = Number.isFinite(Number(planVersionRaw))
           ? Number(planVersionRaw)
           : 1
         const subscriptionId = session.subscription as string
+
+        if (!userId && customerId) {
+          userId = await getUserIdFromCustomer(supabase, customerId)
+        }
 
         if (!userId || !subscriptionId) {
           console.error('[STRIPE_WEBHOOK] Missing userId or subscriptionId in checkout session:', {
@@ -262,14 +393,16 @@ export async function POST(req: NextRequest) {
         // Get the subscription details
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
 
-        // Update subscription metadata with plan key for future reference
-        await stripe.subscriptions.update(subscriptionId, {
-          metadata: {
-            supabase_user_id: userId,
-            plan_key: planKey || '',
-            plan_version: String(planVersion),
-          },
+        // Update subscription metadata with mapping info for future reference
+        await ensureStripeSubscriptionMetadata(subscriptionId, {
+          supabase_user_id: userId,
+          ...(planKey ? { plan_key: planKey } : {}),
+          plan_version: String(planVersion),
         })
+
+        if (customerId) {
+          await ensureStripeCustomerMetadata(customerId, userId)
+        }
 
         // Update user with subscription info (includes customer ID)
         await updateUserSubscription(
@@ -277,7 +410,7 @@ export async function POST(req: NextRequest) {
           userId,
           subscription,
           planKey,
-          session.customer as string,
+          customerId ?? undefined,
           planVersion,
         )
         console.log(`[STRIPE_WEBHOOK] Subscription created for user ${userId}`)
@@ -288,106 +421,77 @@ export async function POST(req: NextRequest) {
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription
         const previousStatus = (event.data as any)?.previous_attributes?.status
+        const customerId = resolveStripeCustomerId(subscription.customer)
         const userId = subscription.metadata?.supabase_user_id
         const planKey = subscription.metadata?.plan_key
 
-        const resolvedUserId = userId || null
+        let resolvedUserId = userId || null
+        if (!resolvedUserId && customerId) {
+          resolvedUserId = await getUserIdFromCustomer(supabase, customerId)
+        }
         if (!resolvedUserId) {
-          // Try to get from customer
-          const customerId = subscription.customer as string
-          const foundUserId = await getUserIdFromCustomer(supabase, customerId)
-          if (!foundUserId) {
-            console.error('[STRIPE_WEBHOOK] Could not find user for subscription:', subscription.id)
-            return NextResponse.json({ received: true, warning: 'User not found' })
-          }
-          await updateUserSubscription(supabase, foundUserId, subscription, planKey)
+          console.error('[STRIPE_WEBHOOK] Could not find user for subscription:', subscription.id)
+          return NextResponse.json({ received: true, warning: 'User not found' })
+        }
 
-          const affiliateRef = await resolveAffiliateRef(supabase, foundUserId)
-          if (affiliateRef) {
-            const isTrialing = subscription.status === 'trialing'
-            const isTrialConversion =
-              subscription.status === 'active' && previousStatus === 'trialing'
-            if (await isSelfReferral(supabase, affiliateRef, foundUserId)) {
-              await upsertAffiliateAttribution(supabase, {
-                code: affiliateRef,
-                referred_user_id: foundUserId,
-                subscription_id: subscription.id,
-                status: 'blocked',
-              })
-            } else if (isTrialing) {
-              await upsertAffiliateAttribution(supabase, {
-                code: affiliateRef,
-                referred_user_id: foundUserId,
-                subscription_id: subscription.id,
-                trial_end_at: subscription.trial_end
-                  ? new Date(subscription.trial_end * 1000).toISOString()
-                  : null,
-                status: 'pending',
-              })
-            } else if (isTrialConversion) {
-              let amountCents = 0
-              if (subscription.latest_invoice) {
-                const invoice = await stripe.invoices.retrieve(
-                  subscription.latest_invoice as string
-                )
-                amountCents = Math.round(
-                  (invoice.amount_paid || 0) * AFFILIATE_COMMISSION_RATE
-                )
-              }
-              await upsertAffiliateAttribution(supabase, {
-                code: affiliateRef,
-                referred_user_id: foundUserId,
-                subscription_id: subscription.id,
-                converted_at: new Date().toISOString(),
-                amount_cents: amountCents,
-                status: 'earned',
-              })
-            }
-          }
-        } else {
-          await updateUserSubscription(supabase, resolvedUserId, subscription, planKey)
+        if (!subscription.metadata?.supabase_user_id) {
+          await ensureStripeSubscriptionMetadata(subscription.id, {
+            supabase_user_id: resolvedUserId,
+            ...(planKey ? { plan_key: planKey } : {}),
+          })
+        }
+        if (customerId) {
+          await ensureStripeCustomerMetadata(customerId, resolvedUserId)
+        }
 
-          const affiliateRef = await resolveAffiliateRef(supabase, resolvedUserId)
-          if (affiliateRef) {
-            const isTrialing = subscription.status === 'trialing'
-            const isTrialConversion =
-              subscription.status === 'active' && previousStatus === 'trialing'
-            if (await isSelfReferral(supabase, affiliateRef, resolvedUserId)) {
-              await upsertAffiliateAttribution(supabase, {
-                code: affiliateRef,
-                referred_user_id: resolvedUserId,
-                subscription_id: subscription.id,
-                status: 'blocked',
-              })
-            } else if (isTrialing) {
-              await upsertAffiliateAttribution(supabase, {
-                code: affiliateRef,
-                referred_user_id: resolvedUserId,
-                subscription_id: subscription.id,
-                trial_end_at: subscription.trial_end
-                  ? new Date(subscription.trial_end * 1000).toISOString()
-                  : null,
-                status: 'pending',
-              })
-            } else if (isTrialConversion) {
-              let amountCents = 0
-              if (subscription.latest_invoice) {
-                const invoice = await stripe.invoices.retrieve(
-                  subscription.latest_invoice as string
-                )
-                amountCents = Math.round(
-                  (invoice.amount_paid || 0) * AFFILIATE_COMMISSION_RATE
-                )
-              }
-              await upsertAffiliateAttribution(supabase, {
-                code: affiliateRef,
-                referred_user_id: resolvedUserId,
-                subscription_id: subscription.id,
-                converted_at: new Date().toISOString(),
-                amount_cents: amountCents,
-                status: 'earned',
-              })
+        await updateUserSubscription(
+          supabase,
+          resolvedUserId,
+          subscription,
+          planKey,
+          customerId ?? undefined
+        )
+
+        const affiliateRef = await resolveAffiliateRef(supabase, resolvedUserId)
+        if (affiliateRef) {
+          const isTrialing = subscription.status === 'trialing'
+          const isTrialConversion =
+            subscription.status === 'active' && previousStatus === 'trialing'
+          if (await isSelfReferral(supabase, affiliateRef, resolvedUserId)) {
+            await upsertAffiliateAttribution(supabase, {
+              code: affiliateRef,
+              referred_user_id: resolvedUserId,
+              subscription_id: subscription.id,
+              status: 'blocked',
+            })
+          } else if (isTrialing) {
+            await upsertAffiliateAttribution(supabase, {
+              code: affiliateRef,
+              referred_user_id: resolvedUserId,
+              subscription_id: subscription.id,
+              trial_end_at: subscription.trial_end
+                ? new Date(subscription.trial_end * 1000).toISOString()
+                : null,
+              status: 'pending',
+            })
+          } else if (isTrialConversion) {
+            let amountCents = 0
+            if (subscription.latest_invoice) {
+              const invoice = await stripe.invoices.retrieve(
+                subscription.latest_invoice as string
+              )
+              amountCents = Math.round(
+                (invoice.amount_paid || 0) * AFFILIATE_COMMISSION_RATE
+              )
             }
+            await upsertAffiliateAttribution(supabase, {
+              code: affiliateRef,
+              referred_user_id: resolvedUserId,
+              subscription_id: subscription.id,
+              converted_at: new Date().toISOString(),
+              amount_cents: amountCents,
+              status: 'earned',
+            })
           }
         }
 
@@ -397,18 +501,28 @@ export async function POST(req: NextRequest) {
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription
-        const userId = subscription.metadata?.supabase_user_id
+        const customerId = resolveStripeCustomerId(subscription.customer)
+        let userId = subscription.metadata?.supabase_user_id || null
+        if (!userId && customerId) {
+          userId = await getUserIdFromCustomer(supabase, customerId)
+        }
 
         if (userId) {
-          await updateUserSubscription(supabase, userId, null)
+          if (customerId) {
+            await ensureStripeCustomerMetadata(customerId, userId)
+          }
+          await updateUserSubscription(supabase, userId, subscription)
           if (subscription.latest_invoice) {
             try {
               const invoice = await stripe.invoices.retrieve(
                 subscription.latest_invoice as string
               )
               if ((invoice.amount_paid || 0) > 0) {
+                const { data: existingUser } = await supabase.auth.admin.getUserById(userId)
+                const existingMetadata = existingUser?.user?.user_metadata || {}
                 await supabase.auth.admin.updateUserById(userId, {
                   user_metadata: {
+                    ...existingMetadata,
                     has_paid: true,
                   },
                 })
@@ -428,12 +542,27 @@ export async function POST(req: NextRequest) {
 
         if (subscriptionId) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId)
-          const userId = subscription.metadata?.supabase_user_id
+          const customerId = resolveStripeCustomerId(subscription.customer)
+          let userId = subscription.metadata?.supabase_user_id || null
+          if (!userId && customerId) {
+            userId = await getUserIdFromCustomer(supabase, customerId)
+          }
 
           if (userId) {
+            if (!subscription.metadata?.supabase_user_id) {
+              await ensureStripeSubscriptionMetadata(subscription.id, {
+                supabase_user_id: userId,
+              })
+            }
+            if (customerId) {
+              await ensureStripeCustomerMetadata(customerId, userId)
+            }
+            const { data: existingUser } = await supabase.auth.admin.getUserById(userId)
+            const existingMetadata = existingUser?.user?.user_metadata || {}
             // Mark payment as failed but don't cancel yet
             await supabase.auth.admin.updateUserById(userId, {
               user_metadata: {
+                ...existingMetadata,
                 membership_status: 'past_due',
                 payment_failed_at: new Date().toISOString(),
               },
@@ -450,12 +579,34 @@ export async function POST(req: NextRequest) {
 
         if (subscriptionId) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId)
-          const userId = subscription.metadata?.supabase_user_id
+          const customerId = resolveStripeCustomerId(subscription.customer)
+          let userId = subscription.metadata?.supabase_user_id || null
+          if (!userId && customerId) {
+            userId = await getUserIdFromCustomer(supabase, customerId)
+          }
 
           if (userId) {
-            await updateUserSubscription(supabase, userId, subscription)
+            if (!subscription.metadata?.supabase_user_id) {
+              await ensureStripeSubscriptionMetadata(subscription.id, {
+                supabase_user_id: userId,
+              })
+            }
+            if (customerId) {
+              await ensureStripeCustomerMetadata(customerId, userId)
+            }
+
+            await updateUserSubscription(
+              supabase,
+              userId,
+              subscription,
+              subscription.metadata?.plan_key,
+              customerId ?? undefined
+            )
+            const { data: existingUser } = await supabase.auth.admin.getUserById(userId)
+            const existingMetadata = existingUser?.user?.user_metadata || {}
             await supabase.auth.admin.updateUserById(userId, {
               user_metadata: {
+                ...existingMetadata,
                 has_paid: true,
               },
             })

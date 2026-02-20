@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { stripe, PRICE_IDS, PLAN_CONFIG, type PlanKey } from '@/lib/stripe'
+import type Stripe from 'stripe'
 
 export const runtime = 'nodejs'
 
@@ -68,6 +69,20 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    // Ensure existing customers always map back to the Supabase user.
+    // This prevents webhook mapping gaps when subscription metadata is missing.
+    if (customerId) {
+      try {
+        await stripe.customers.update(customerId, {
+          metadata: {
+            supabase_user_id: user.id,
+          },
+        })
+      } catch (error) {
+        console.warn('[STRIPE_CHECKOUT] Failed to ensure customer metadata mapping:', error)
+      }
+    }
+
     // Get plan config for trial days
     const planConfig = PLAN_CONFIG[planKey]
     let hasUsedTrial = Boolean(user.user_metadata?.has_used_trial)
@@ -92,6 +107,17 @@ export async function POST(req: NextRequest) {
       ? `${origin}${safeCancelPath}`
       : `${origin}/pricing`
 
+    const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {
+      metadata: {
+        supabase_user_id: user.id,
+        plan_key: planKey,
+        plan_version: '2',
+      },
+      ...(planConfig.trialDays && !hasUsedTrial
+        ? { trial_period_days: planConfig.trialDays }
+        : {}),
+    }
+
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -102,9 +128,7 @@ export async function POST(req: NextRequest) {
           quantity: 1,
         },
       ],
-      subscription_data: planConfig.trialDays && !hasUsedTrial
-        ? { trial_period_days: planConfig.trialDays }
-        : undefined,
+      subscription_data: subscriptionData,
       success_url: resolvedSuccessUrl,
       cancel_url: resolvedCancelUrl,
       metadata: {

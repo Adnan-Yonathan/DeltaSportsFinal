@@ -78,11 +78,10 @@ export async function GET(request: NextRequest) {
 
       // Resolve paid access (auth metadata first, then public.users.subscription_tier as a fallback).
       let membership = getMembershipStatusFromMetadata(user.user_metadata)
-      const paidStatuses = new Set(['active', 'trialing', 'past_due'])
       const isPaidNow = (info: typeof membership) =>
-        info.status ? paidStatuses.has(info.status) : info.hasPaidAccess
+        info.hasPaidAccess
 
-      if (!isPaidNow(membership)) {
+      if (!isPaidNow(membership) && !membership.status) {
         const { data: profile, error } = await supabase
           .from('users')
           .select('subscription_tier')

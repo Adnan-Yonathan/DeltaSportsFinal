@@ -175,10 +175,7 @@ function ChatPageContent() {
       // Get membership status from user metadata
       const membershipInfo = getMembershipStatus(user.user_metadata)
       setMembership(membershipInfo)
-      const paidStatuses = new Set(['active', 'trialing', 'past_due'])
-      const isPaidNow = membershipInfo.status
-        ? paidStatuses.has(membershipInfo.status)
-        : membershipInfo.hasPaidAccess
+      const isPaidNow = membershipInfo.hasPaidAccess
 
       // Fetch message count for Free users
       if (membershipInfo.tier === 'free' && membershipInfo.isActive) {

@@ -19,6 +19,7 @@ const ALWAYS_PUBLIC_PREFIXES = ['/blog', '/tools', '/calculators', '/about']
 
 const AFFILIATE_REF_COOKIE = 'affiliate_ref'
 const AFFILIATE_REF_TTL = 60 * 60 * 24 * 30
+const PAST_DUE_GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000
 
 // Check if path starts with any public path
 const isPublicPath = (pathname: string) => {
@@ -37,26 +38,53 @@ const parseDate = (value?: string | null) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
+const parseBoolean = (value: unknown) => {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') {
+    return ['true', '1', 'yes', 'y', 't'].includes(value.trim().toLowerCase())
+  }
+  return false
+}
+
 const checkMembershipPaid = (metadata: Record<string, any>): boolean => {
-  const status = metadata?.membership_status
-  const paidStatuses = ['active', 'trialing', 'past_due']
-  const hasPaidStatus =
-    Boolean(status) && paidStatuses.includes(status)
-  const hasPaidFlag = Boolean(metadata?.has_paid)
+  const status = typeof metadata?.membership_status === 'string'
+    ? metadata.membership_status
+    : null
+  const hasPaidFlag = parseBoolean(metadata?.has_paid)
   const legacyExpiresAt = parseDate(metadata?.membership_expires_at)
   const hasLegacyPaid = Boolean(legacyExpiresAt && legacyExpiresAt.getTime() > Date.now())
+
+  if (status === 'active' || status === 'trialing') {
+    return true
+  }
+  if (status === 'past_due') {
+    const paymentFailedAt = parseDate(metadata?.payment_failed_at)
+    const currentPeriodEnd = parseDate(metadata?.stripe_current_period_end)
+    const anchor = paymentFailedAt || currentPeriodEnd
+    if (!anchor) return false
+    return Date.now() <= anchor.getTime() + PAST_DUE_GRACE_PERIOD_MS
+  }
+  if (status === 'canceled') {
+    const currentPeriodEnd = parseDate(metadata?.stripe_current_period_end)
+    return Boolean(
+      (currentPeriodEnd && currentPeriodEnd.getTime() > Date.now()) ||
+      hasLegacyPaid
+    )
+  }
+  if (status) {
+    return false
+  }
+
   const tier = typeof metadata?.membership_tier === 'string'
     ? metadata.membership_tier
     : typeof metadata?.subscription_tier === 'string'
       ? metadata.subscription_tier
       : null
-  const hasTierAccess = tier === 'sharp' || tier === 'syndicate' || tier === 'unlimited' || tier === 'pro'
+  const hasTierAccess =
+    tier === 'sharp' || tier === 'syndicate' || tier === 'unlimited' || tier === 'pro'
 
-  if (status && !hasPaidStatus) {
-    return false
-  }
-
-  return hasPaidStatus || hasPaidFlag || hasLegacyPaid || hasTierAccess
+  return hasPaidFlag || hasLegacyPaid || hasTierAccess
 }
 
 export async function middleware(req: NextRequest) {
@@ -137,7 +165,10 @@ export async function middleware(req: NextRequest) {
     if (ONBOARDING_ENABLED && userProfile?.onboarding_completed) {
       onboardingCompleted = true
     }
-    if (!isPaid) {
+    const hasAuthoritativeStatus =
+      typeof metadata?.membership_status === 'string' &&
+      metadata.membership_status.length > 0
+    if (!isPaid && !hasAuthoritativeStatus) {
       const tier = userProfile?.subscription_tier
       if (tier === 'pro' || tier === 'unlimited' || tier === 'sharp' || tier === 'syndicate') {
         isPaid = true

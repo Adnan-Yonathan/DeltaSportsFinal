@@ -523,10 +523,7 @@ export function OnboardingFlow() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-      const paidStatuses = new Set(["active", "trialing", "past_due"])
-      const isPaidNow = membership.status
-        ? paidStatuses.has(membership.status)
-        : membership.hasPaidAccess
+      const isPaidNow = membership.hasPaidAccess
 
       if (isPaidNow) {
         router.push("/chat")

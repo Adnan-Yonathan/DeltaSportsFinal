@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server"
-import { fetchTheOddsApiPlayerProps } from "@/lib/api/the-odds-api"
+import { fetchSbdGamePropsList, resolveSbdLeague } from "@/lib/api/sbd"
 
 export const dynamic = "force-dynamic"
 
 const CACHE_TTL_MS = 10 * 60 * 1000
 type CacheEntry = { ts: number; payload: any }
 const responseCache = new Map<string, CacheEntry>()
-type PlayerPropEvents = Awaited<ReturnType<typeof fetchTheOddsApiPlayerProps>>
 
 const BASE_SPORTS = [
   "basketball_nba",
@@ -25,58 +24,58 @@ const SUPPORTED_SPORTS = ["all", ...BASE_SPORTS]
 
 const SPORT_MARKETS: Record<string, string[]> = {
   basketball_nba: [
-    "player_points",
-    "player_rebounds",
-    "player_assists",
-    "player_threes",
-    "player_points_rebounds_assists",
-    "player_points_rebounds",
-    "player_points_assists",
-    "player_rebounds_assists",
-    "player_blocks",
-    "player_steals",
-    "player_turnovers",
+    "points",
+    "rebounds",
+    "assists",
+    "threes",
+    "pra",
+    "points_rebounds",
+    "points_assists",
+    "rebounds_assists",
+    "blocks",
+    "steals",
+    "turnovers",
   ],
   basketball_ncaab: [
-    "player_points",
-    "player_rebounds",
-    "player_assists",
-    "player_threes",
-    "player_points_rebounds_assists",
-    "player_points_rebounds",
-    "player_points_assists",
-    "player_rebounds_assists",
+    "points",
+    "rebounds",
+    "assists",
+    "threes",
+    "pra",
+    "points_rebounds",
+    "points_assists",
+    "rebounds_assists",
   ],
   americanfootball_nfl: [
-    "player_pass_yds",
-    "player_pass_tds",
-    "player_pass_completions",
-    "player_pass_attempts",
-    "player_interceptions",
-    "player_rush_yds",
-    "player_rush_tds",
-    "player_receptions",
-    "player_reception_yds",
-    "player_receiving_tds",
-    "player_longest_reception",
-    "player_longest_rush",
+    "passing_yards",
+    "passing_touchdowns",
+    "passing_completions",
+    "passing_attempts",
+    "interceptions",
+    "rushing_yards",
+    "rushing_touchdowns",
+    "receptions",
+    "receiving_yards",
+    "receiving_touchdowns",
+    "longest_reception",
+    "longest_rush",
   ],
   icehockey_nhl: [
-    "player_points",
-    "player_goals",
-    "player_assists",
-    "player_shots_on_goal",
-    "player_blocked_shots",
-    "player_total_saves",
+    "points",
+    "goals",
+    "assists",
+    "shots_on_goal",
+    "blocked_shots",
+    "saves",
   ],
   baseball_mlb: [
-    "player_hits",
-    "player_total_bases",
-    "player_home_runs",
-    "player_rbis",
-    "player_runs_scored",
-    "player_strikeouts",
-    "player_walks",
+    "hits",
+    "total_bases",
+    "home_runs",
+    "rbis",
+    "runs",
+    "strikeouts",
+    "walks",
   ],
 }
 
@@ -126,6 +125,7 @@ const BOOK_ALIASES: Record<string, string> = {
   caesars_us: "caesars",
   caesarsbook: "caesars",
   williamhill: "caesars",
+  williamhillnewjersey: "caesars",
   fanduel: "fanduel",
   draftkings: "draftkings",
   dk: "draftkings",
@@ -164,43 +164,92 @@ const resolveBookKey = (value: string) => {
   return BOOK_ALIASES[normalized] || normalized
 }
 
-const resolveBookKeyFromTitle = (value: string) => {
-  const normalized = value.toLowerCase()
-  if (normalized.includes("bet rivers") || normalized.includes("betrivers")) return "betrivers"
-  if (normalized.includes("betmgm") || normalized.includes("mgm")) return "betmgm"
-  if (normalized.includes("caesars") || normalized.includes("william hill")) return "caesars"
-  if (normalized.includes("bet365")) return "bet365"
-  if (normalized.includes("fanduel")) return "fanduel"
-  if (normalized.includes("draftkings")) return "draftkings"
-  if (normalized.includes("hard rock")) return "hardrockbet"
-  if (normalized.includes("espn bet")) return "espnbet"
-  if (normalized.includes("fanatics")) return "fanatics"
-  if (normalized.includes("pinnacle")) return "pinnacle"
-  if (normalized.includes("underdog")) return "underdog"
-  if (normalized.includes("prizepicks")) return "prizepicks"
-  if (normalized.includes("pick 6")) return "pick6"
-  if (normalized.includes("betr")) return "betr"
-  if (normalized.includes("sleeper")) return "sleeper"
-  if (normalized.includes("novig")) return "novig"
-  if (normalized.includes("prophetx") || normalized.includes("prophet x")) return "prophetx"
+const normalizeSbdMarketKey = (value: string) => {
+  const cleaned = value.toLowerCase().replace(/\(.*?\)/g, "").trim()
+  if (!cleaned) return ""
+
+  if (cleaned.includes("points plus assists plus rebounds") || cleaned.includes("pts + reb + ast")) return "pra"
+  if (cleaned.includes("points plus rebounds") || cleaned.includes("pts + reb")) return "points_rebounds"
+  if (cleaned.includes("points plus assists") || cleaned.includes("pts + ast")) return "points_assists"
+  if (cleaned.includes("rebounds plus assists") || cleaned.includes("reb + ast")) return "rebounds_assists"
+  if (cleaned.includes("blocks plus steals")) return "blocks_steals"
+  if (cleaned.includes("3-point") || cleaned.includes("three")) return "threes"
+  if (cleaned.includes("turnovers")) return "turnovers"
+  if (cleaned.includes("passing yards")) return "passing_yards"
+  if (cleaned.includes("passing tds") || cleaned.includes("passing touchdowns")) return "passing_touchdowns"
+  if (cleaned.includes("pass completions") || cleaned.includes("passing completions")) return "passing_completions"
+  if (cleaned.includes("pass attempts") || cleaned.includes("passing attempts")) return "passing_attempts"
+  if (cleaned.includes("interceptions")) return "interceptions"
+  if (cleaned.includes("rushing yards")) return "rushing_yards"
+  if (cleaned.includes("rushing tds") || cleaned.includes("rushing touchdowns")) return "rushing_touchdowns"
+  if (cleaned.includes("receiving yards")) return "receiving_yards"
+  if (cleaned.includes("receiving tds") || cleaned.includes("receiving touchdowns")) return "receiving_touchdowns"
+  if (cleaned.includes("receptions")) return "receptions"
+  if (cleaned.includes("longest rush")) return "longest_rush"
+  if (cleaned.includes("longest reception")) return "longest_reception"
+  if (cleaned.includes("shots on goal") || cleaned.includes("total shots")) return "shots_on_goal"
+  if (cleaned.includes("blocked shots")) return "blocked_shots"
+  if (cleaned.includes("saves")) return "saves"
+  if (cleaned.includes("total bases")) return "total_bases"
+  if (cleaned.includes("home runs") || cleaned.includes("homers")) return "home_runs"
+  if (cleaned.includes("rbis") || cleaned.includes("runs batted")) return "rbis"
+  if (cleaned.includes("runs scored") || cleaned.includes("total runs")) return "runs"
+  if (cleaned.includes("walks")) return "walks"
+  if (cleaned.includes("strikeouts")) return "strikeouts"
+  if (cleaned.includes("points")) return "points"
+  if (cleaned.includes("rebounds")) return "rebounds"
+  if (cleaned.includes("assists")) return "assists"
+  if (cleaned.includes("goals")) return "goals"
+  if (cleaned.includes("hits")) return "hits"
+
+  return cleaned
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+}
+
+const parseAmericanOdds = (value: unknown) => {
+  if (value == null) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  const normalized = raw.replace(/[^\d+\-.]/g, "")
+  const parsed = Number(normalized)
+  if (!Number.isFinite(parsed)) return null
+  if (parsed > 1 && parsed < 10) {
+    if (parsed >= 2) return Math.round((parsed - 1) * 100)
+    return Math.round(-100 / (parsed - 1))
+  }
+  return Math.round(parsed)
+}
+
+const normalizePlayerName = (value: string) => {
+  const trimmed = value.trim()
+  const parts = trimmed.split(",").map((part) => part.trim()).filter(Boolean)
+  if (parts.length === 2) return `${parts[1]} ${parts[0]}`
+  return trimmed
+}
+
+const getTeamName = (team: any) => {
+  if (!team) return ""
+  if (typeof team.name === "string") return team.name
   return ""
 }
 
-const resolveBookKeyFromBook = (book: { key?: string; title?: string }) => {
-  const keyCandidate = book.key ? resolveBookKey(book.key) : ""
-  if (keyCandidate && BOOK_ALLOWLIST.includes(keyCandidate)) {
-    return keyCandidate
+const extractGameTeams = (entry: any) => {
+  const homeFromEntry = getTeamName(entry?.home_team)
+  const awayFromEntry = getTeamName(entry?.away_team)
+  if (homeFromEntry && awayFromEntry) {
+    return { homeTeam: homeFromEntry, awayTeam: awayFromEntry }
   }
-  const titleCandidate = book.title ? resolveBookKeyFromTitle(book.title) : ""
-  if (titleCandidate && BOOK_ALLOWLIST.includes(titleCandidate)) {
-    return titleCandidate
-  }
-  return ""
-}
 
-const isOverUnder = (value: string) => {
-  const normalized = value.toLowerCase()
-  return normalized === "over" || normalized === "under"
+  const competitors = Array.isArray(entry?.sport_event?.competitors)
+    ? entry.sport_event.competitors
+    : []
+  const homeFromCompetitors = competitors.find((team: any) => String(team?.qualifier || "").toLowerCase() === "home")
+  const awayFromCompetitors = competitors.find((team: any) => String(team?.qualifier || "").toLowerCase() === "away")
+  return {
+    homeTeam: getTeamName(homeFromCompetitors),
+    awayTeam: getTeamName(awayFromCompetitors),
+  }
 }
 
 const toDisplayBook = (key: string) => {
@@ -303,15 +352,25 @@ type PropOfferRow = {
   recommendedSide: "over" | "under"
   overOdds?: number
   underOdds?: number
-  pinnaclePoint: number | null
-  pinnacleOverOdds: number | null
-  pinnacleUnderOdds: number | null
   evPercent: number | null
 }
 
 const parseCommenceMs = (value: string) => {
   const ts = Date.parse(value)
   return Number.isFinite(ts) ? ts : Number.POSITIVE_INFINITY
+}
+
+const CURRENT_SLATE_LOOKBACK_MS = 1000 * 60 * 60 * 3
+const CURRENT_SLATE_LOOKAHEAD_MS = 1000 * 60 * 60 * 48
+
+const isCurrentSlateGame = (commenceTime?: string | null, nowMs = Date.now()) => {
+  if (!commenceTime) return false
+  const gameTimeMs = Date.parse(commenceTime)
+  if (!Number.isFinite(gameTimeMs)) return false
+  return (
+    gameTimeMs >= nowMs - CURRENT_SLATE_LOOKBACK_MS &&
+    gameTimeMs <= nowMs + CURRENT_SLATE_LOOKAHEAD_MS
+  )
 }
 
 const compareRowsWithinSport = (a: PropOfferRow, b: PropOfferRow) => {
@@ -388,118 +447,128 @@ export async function GET(request: Request) {
   }
 
   try {
-    const eventsBySport = await Promise.all(
+    const entriesBySport = await Promise.all(
       targetSports.map(async (sportKey) => {
         const sportMarkets = SPORT_MARKETS[sportKey] ?? []
         if (!sportMarkets.length) {
-          return { sportKey, events: [] as PlayerPropEvents }
+          return { sportKey, entries: [] as any[] }
+        }
+
+        const league = resolveSbdLeague(sportKey)
+        if (!league) {
+          return { sportKey, entries: [] as any[] }
         }
 
         try {
-          const events = await fetchTheOddsApiPlayerProps(sportKey, {
-            markets: sportMarkets.join(","),
-            regions: "us,us2,eu",
-            bookmakers: BOOK_ALLOWLIST,
-            oddsFormat: "american",
-            dateFormat: "iso",
+          const payload = await fetchSbdGamePropsList(league, {
+            init: { cache: "no-store" },
           })
-          return { sportKey, events: events ?? [] }
+          const entries = Array.isArray(payload)
+            ? payload
+            : Array.isArray((payload as any)?.data)
+              ? (payload as any).data
+              : []
+          return { sportKey, entries }
         } catch (error) {
           console.warn(`[crossed-ev] failed to fetch ${sportKey}:`, error)
-          return { sportKey, events: [] as PlayerPropEvents }
+          return { sportKey, entries: [] as any[] }
         }
       })
     )
 
     const offersByProp = new Map<string, { base: PropBase; offers: Record<string, BookOffer> }>()
+    const nowMs = Date.now()
 
-    for (const { sportKey, events } of eventsBySport) {
-      for (const event of events || []) {
-        const gameLabel = `${event.away_team} @ ${event.home_team}`
-        for (const book of event.bookmakers || []) {
-          const bookKey = resolveBookKeyFromBook(book)
-          if (!bookKey) continue
+    for (const { sportKey, entries } of entriesBySport) {
+      const allowedMarkets = new Set(SPORT_MARKETS[sportKey] ?? [])
 
-          for (const market of book.markets || []) {
-            const marketKey = market.key
-            for (const outcome of market.outcomes || []) {
-              const rawName = String(outcome.name || "").trim()
-              const rawDesc = String((outcome as any).description || "").trim()
-              const side = isOverUnder(rawName)
-                ? rawName.toLowerCase()
-                : isOverUnder(rawDesc)
-                  ? rawDesc.toLowerCase()
-                  : ""
-              if (side !== "over" && side !== "under") continue
+      for (const entry of entries || []) {
+        const rawPlayerName = String(entry?.player_name || entry?.player?.name || "").trim()
+        if (!rawPlayerName) continue
+        const player = normalizePlayerName(rawPlayerName)
 
-              const player = isOverUnder(rawName) ? rawDesc : rawName
-              if (!player) continue
+        const marketKey = normalizeSbdMarketKey(String(entry?.name || ""))
+        if (!marketKey || (allowedMarkets.size > 0 && !allowedMarkets.has(marketKey))) {
+          continue
+        }
 
-              const point = typeof outcome.point === "number" ? outcome.point : null
-              if (point == null) continue
+        const commenceTime = String(
+          entry?.start_time ||
+            entry?.sport_event?.start_time ||
+            ""
+        )
+        if (!isCurrentSlateGame(commenceTime, nowMs)) continue
 
-              const price = Number(outcome.price)
-              if (!Number.isFinite(price)) continue
+        const { homeTeam, awayTeam } = extractGameTeams(entry)
+        if (!homeTeam || !awayTeam) continue
+        const gameLabel = `${awayTeam} @ ${homeTeam}`
+        const eventId = String(
+          entry?.sport_event?.id ||
+            entry?.sde_id ||
+            `${sportKey}:${homeTeam}:${awayTeam}:${commenceTime}`
+        )
 
-              const propKey = `${sportKey}:${event.id}:${player}:${marketKey}`
-              const existing = offersByProp.get(propKey) || {
-                base: {
-                  id: propKey,
-                  sportKey,
-                  player,
-                  market: marketKey,
-                  game: gameLabel,
-                  commenceTime: event.commence_time,
-                  homeTeam: event.home_team,
-                  awayTeam: event.away_team,
-                  teams: [event.home_team, event.away_team].filter(Boolean),
-                },
-                offers: {} as Record<string, BookOffer>,
-              }
+        const sportsbooks = Array.isArray(entry?.sportsbooks) ? entry.sportsbooks : []
+        for (const sportsbook of sportsbooks) {
+          const bookKey = resolveBookKey(String(sportsbook?.name || ""))
+          if (!bookKey || !BOOK_ALLOWLIST.includes(bookKey) || bookKey === "consensus") continue
 
-              const current = existing.offers[bookKey] || { point }
-              // If a book returns multiple points for the same player/market, prefer the one that
-              // has both sides filled.
-              if (current.point !== point) {
-                const currentFilled = Number.isFinite(current.over) && Number.isFinite(current.under)
-                const nextFilled =
-                  (side === "over" ? Number.isFinite(price) : Number.isFinite(current.over)) &&
-                  (side === "under" ? Number.isFinite(price) : Number.isFinite(current.under))
-                if (currentFilled && !nextFilled) {
-                  // keep existing
-                } else {
-                  current.point = point
-                  delete current.over
-                  delete current.under
-                }
-              }
+          const odds = sportsbook?.odds || {}
+          const point = Number(
+            odds?.over_points ??
+              odds?.under_points ??
+              sportsbook?.over_points ??
+              sportsbook?.under_points
+          )
+          if (!Number.isFinite(point)) continue
 
-              if (side === "over") current.over = price
-              if (side === "under") current.under = price
-              existing.offers[bookKey] = current
-              offersByProp.set(propKey, existing)
+          const overPrice = parseAmericanOdds(
+            odds?.over_american ?? odds?.over_decimal ?? sportsbook?.over_odds
+          )
+          const underPrice = parseAmericanOdds(
+            odds?.under_american ?? odds?.under_decimal ?? sportsbook?.under_odds
+          )
+          if (!Number.isFinite(overPrice) && !Number.isFinite(underPrice)) continue
+
+          const propKey = `${sportKey}:${eventId}:${player}:${marketKey}`
+          const existing = offersByProp.get(propKey) || {
+            base: {
+              id: propKey,
+              sportKey,
+              player,
+              market: marketKey,
+              game: gameLabel,
+              commenceTime,
+              homeTeam,
+              awayTeam,
+              teams: [homeTeam, awayTeam].filter(Boolean),
+            },
+            offers: {} as Record<string, BookOffer>,
+          }
+
+          const current = existing.offers[bookKey] || { point }
+          if (current.point !== point) {
+            const currentFilled = Number.isFinite(current.over) && Number.isFinite(current.under)
+            const nextFilled =
+              (Number.isFinite(overPrice) || Number.isFinite(current.over)) &&
+              (Number.isFinite(underPrice) || Number.isFinite(current.under))
+            if (!currentFilled || nextFilled) {
+              current.point = point
+              delete current.over
+              delete current.under
             }
           }
+
+          if (Number.isFinite(overPrice)) current.over = overPrice as number
+          if (Number.isFinite(underPrice)) current.under = underPrice as number
+          existing.offers[bookKey] = current
+          offersByProp.set(propKey, existing)
         }
       }
     }
 
     const rows: PropOfferRow[] = []
     for (const entry of offersByProp.values()) {
-      const pinnacleOffer = entry.offers["pinnacle"]
-      const pinnaclePoint =
-        pinnacleOffer && Number.isFinite(pinnacleOffer.point)
-          ? pinnacleOffer.point
-          : null
-      const pinnacleOverOdds =
-        pinnacleOffer && Number.isFinite(pinnacleOffer.over)
-          ? (pinnacleOffer.over as number)
-          : null
-      const pinnacleUnderOdds =
-        pinnacleOffer && Number.isFinite(pinnacleOffer.under)
-          ? (pinnacleOffer.under as number)
-          : null
-
       const consensusPoints: number[] = []
       let consensusBookCount = 0
       for (const [bookKey, offer] of Object.entries(entry.offers)) {
@@ -592,9 +661,6 @@ export async function GET(request: Request) {
           recommendedSide,
           overOdds: offer.over,
           underOdds: offer.under,
-          pinnaclePoint,
-          pinnacleOverOdds,
-          pinnacleUnderOdds,
           evPercent: evPercent == null ? null : Number(evPercent.toFixed(2)),
         })
       }

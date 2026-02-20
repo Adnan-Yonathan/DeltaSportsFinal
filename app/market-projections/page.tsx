@@ -33,128 +33,33 @@ const DEFAULT_SPORT_PRIORITY = [
   "americanfootball_ncaaf",
   "basketball_nba",
 ]
-const normalizeBook = (value?: string | null) =>
-  (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "")
-const isSharpProjectionBook = (value?: string | null) => {
-  const normalized = normalizeBook(value)
-  if (!normalized) return true
-  return normalized.includes("pinnacle") || normalized.includes("circa")
+const CURRENT_SLATE_LOOKBACK_MS = 1000 * 60 * 60 * 3
+const CURRENT_SLATE_LOOKAHEAD_MS = 1000 * 60 * 60 * 48
+
+const isCurrentSlateGame = (commenceTime?: string | null, nowMs = Date.now()) => {
+  if (!commenceTime) return false
+  const gameTimeMs = Date.parse(commenceTime)
+  if (!Number.isFinite(gameTimeMs)) return false
+  return (
+    gameTimeMs >= nowMs - CURRENT_SLATE_LOOKBACK_MS &&
+    gameTimeMs <= nowMs + CURRENT_SLATE_LOOKAHEAD_MS
+  )
 }
 
-const stripNonSharpBookOdds = (edges: GameEdgeAnalysis[]) =>
-  edges.map((edge) => {
-    const spread = edge.spread
-      ? {
-          ...edge.spread,
-          bestBook: isSharpProjectionBook(edge.spread.bestBook)
-            ? edge.spread.bestBook
-            : undefined,
-          bestOdds: isSharpProjectionBook(edge.spread.bestBook)
-            ? edge.spread.bestOdds
-            : undefined,
-          bestHomeBook: isSharpProjectionBook(edge.spread.bestHomeBook)
-            ? edge.spread.bestHomeBook
-            : undefined,
-          bestHomeOdds: isSharpProjectionBook(edge.spread.bestHomeBook)
-            ? edge.spread.bestHomeOdds
-            : undefined,
-          bestAwayBook: isSharpProjectionBook(edge.spread.bestAwayBook)
-            ? edge.spread.bestAwayBook
-            : undefined,
-          bestAwayOdds: isSharpProjectionBook(edge.spread.bestAwayBook)
-            ? edge.spread.bestAwayOdds
-            : undefined,
-          prediction:
-            edge.spread.prediction &&
-            isSharpProjectionBook(edge.spread.prediction.book)
-              ? edge.spread.prediction
-              : undefined,
-        }
-      : undefined
+const countCurrentSlateEdges = (edges: GameEdgeAnalysis[]) => {
+  if (!Array.isArray(edges) || edges.length === 0) return 0
+  const nowMs = Date.now()
+  return edges.reduce((count, edge) => {
+    const commenceTime =
+      (edge as unknown as { commenceTime?: string; commence_time?: string })
+        ?.commenceTime ??
+      (edge as unknown as { commenceTime?: string; commence_time?: string })
+        ?.commence_time
+    return isCurrentSlateGame(commenceTime, nowMs) ? count + 1 : count
+  }, 0)
+}
 
-    const total = edge.total
-      ? {
-          ...edge.total,
-          bestBook: isSharpProjectionBook(edge.total.bestBook)
-            ? edge.total.bestBook
-            : undefined,
-          bestOdds: isSharpProjectionBook(edge.total.bestBook)
-            ? edge.total.bestOdds
-            : undefined,
-          bestUnderOdds: isSharpProjectionBook(edge.total.bestBook)
-            ? edge.total.bestUnderOdds
-            : undefined,
-          prediction:
-            edge.total.prediction && isSharpProjectionBook(edge.total.prediction.book)
-              ? edge.total.prediction
-              : undefined,
-        }
-      : undefined
-
-    const homeBookAllowed = isSharpProjectionBook(
-      edge.moneyline?.sportsbook?.homeBook
-    )
-    const awayBookAllowed = isSharpProjectionBook(
-      edge.moneyline?.sportsbook?.awayBook
-    )
-    const predictionHomeAllowed = isSharpProjectionBook(
-      edge.moneyline?.prediction?.homeBook
-    )
-    const predictionAwayAllowed = isSharpProjectionBook(
-      edge.moneyline?.prediction?.awayBook
-    )
-
-    const moneyline = edge.moneyline
-      ? {
-          ...edge.moneyline,
-          sportsbook:
-            edge.moneyline.sportsbook &&
-            (homeBookAllowed || awayBookAllowed)
-              ? {
-                  ...edge.moneyline.sportsbook,
-                  homeBook: homeBookAllowed
-                    ? edge.moneyline.sportsbook.homeBook
-                    : undefined,
-                  homeOdds: homeBookAllowed
-                    ? edge.moneyline.sportsbook.homeOdds
-                    : undefined,
-                  awayBook: awayBookAllowed
-                    ? edge.moneyline.sportsbook.awayBook
-                    : undefined,
-                  awayOdds: awayBookAllowed
-                    ? edge.moneyline.sportsbook.awayOdds
-                    : undefined,
-                }
-              : undefined,
-          prediction:
-            edge.moneyline.prediction &&
-            (predictionHomeAllowed || predictionAwayAllowed)
-              ? {
-                  ...edge.moneyline.prediction,
-                  homeBook: predictionHomeAllowed
-                    ? edge.moneyline.prediction.homeBook
-                    : undefined,
-                  homeOdds: predictionHomeAllowed
-                    ? edge.moneyline.prediction.homeOdds
-                    : undefined,
-                  awayBook: predictionAwayAllowed
-                    ? edge.moneyline.prediction.awayBook
-                    : undefined,
-                  awayOdds: predictionAwayAllowed
-                    ? edge.moneyline.prediction.awayOdds
-                    : undefined,
-                }
-              : undefined,
-        }
-      : undefined
-
-    return {
-      ...edge,
-      spread,
-      total,
-      moneyline,
-    }
-  })
+const stripNonSharpBookOdds = (edges: GameEdgeAnalysis[]) => edges
 
 const hydrateMissingSharpProjections = (
   edges: GameEdgeAnalysis[],
@@ -266,19 +171,26 @@ export default async function MarketProjectionsPage({
         }
 
         if (error || !data) return null
+        const cachedEdges = Array.isArray(data.edges)
+          ? (data.edges as GameEdgeAnalysis[])
+          : []
         return {
-          edges: Array.isArray(data.edges) ? (data.edges as GameEdgeAnalysis[]) : [],
+          edges: cachedEdges,
+          currentSlateEdgeCount: countCurrentSlateEdges(cachedEdges),
           updatedAt: data.updated_at ?? null,
         }
       }
 
       let cached = await loadCacheForSport(sport)
 
-      if (!requestedSportKey && (!cached || cached.edges.length === 0)) {
+      if (
+        !requestedSportKey &&
+        (!cached || cached.currentSlateEdgeCount === 0)
+      ) {
         for (const candidateSport of DEFAULT_SPORT_PRIORITY) {
           if (!isUnlockedSport(candidateSport) || candidateSport === sport) continue
           const candidateCache = await loadCacheForSport(candidateSport)
-          if (candidateCache && candidateCache.edges.length > 0) {
+          if (candidateCache && candidateCache.currentSlateEdgeCount > 0) {
             sport = candidateSport
             selected =
               SPORT_OPTIONS.find((option) => option.key === sport) ?? SPORT_OPTIONS[0]
@@ -289,9 +201,9 @@ export default async function MarketProjectionsPage({
         }
       }
 
-      if (!cached || cached.edges.length === 0) {
+      if (!cached || cached.currentSlateEdgeCount === 0) {
         hasCache = false
-        errorMessage = "No cached projections yet."
+        errorMessage = "No current projections yet."
       } else {
         edges = cached.edges
         lastUpdated = cached.updatedAt

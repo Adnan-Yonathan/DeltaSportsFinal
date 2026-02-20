@@ -4,7 +4,36 @@ import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import { recordMarketProjectionPicks } from "@/lib/services/market-projection-clv"
 
 export const dynamic = "force-dynamic"
-const SHARP_PROJECTION_BOOKS = ["pinnacle", "circa"] as const
+const CURRENT_SLATE_LOOKBACK_MS = 1000 * 60 * 60 * 3
+const CURRENT_SLATE_LOOKAHEAD_MS = 1000 * 60 * 60 * 48
+
+const isCurrentSlateGame = (commenceTime?: string | null, nowMs = Date.now()) => {
+  if (!commenceTime) return false
+  const gameTimeMs = Date.parse(commenceTime)
+  if (!Number.isFinite(gameTimeMs)) return false
+  return (
+    gameTimeMs >= nowMs - CURRENT_SLATE_LOOKBACK_MS &&
+    gameTimeMs <= nowMs + CURRENT_SLATE_LOOKAHEAD_MS
+  )
+}
+
+const countCurrentSlateEdges = (edges?: any[]) => {
+  if (!Array.isArray(edges) || edges.length === 0) return 0
+  const nowMs = Date.now()
+  return edges.reduce((count, edge) => {
+    const commenceTime = edge?.commenceTime ?? edge?.commence_time
+    return isCurrentSlateGame(commenceTime, nowMs) ? count + 1 : count
+  }, 0)
+}
+
+const analyzeWithSharpFallback = async (sport: string) => {
+  const result = await analyzeSlateEdges(sport, {
+    limit: 200,
+    oddsPreference: "best",
+  })
+
+  return { result, usedFallback: false as const }
+}
 
 /**
  * POST /api/cron/refresh-market-projections
@@ -35,6 +64,7 @@ export async function GET(req: NextRequest) {
       sport: string
       success: boolean
       edgeCount?: number
+      usedFallback?: boolean
       error?: string
     }> = []
 
@@ -42,11 +72,7 @@ export async function GET(req: NextRequest) {
 
     for (const sport of sports) {
       try {
-        const result = await analyzeSlateEdges(sport, {
-          limit: 200,
-          bookmakers: [...SHARP_PROJECTION_BOOKS],
-          oddsPreference: "lowest",
-        })
+        const { result, usedFallback } = await analyzeWithSharpFallback(sport)
         const edges = result.edges ?? []
         await recordMarketProjectionPicks({
           sport,
@@ -62,14 +88,18 @@ export async function GET(req: NextRequest) {
           data: { edges: any[]; updated_at: string } | null
         }
 
-        if (edges.length === 0 && existing?.edges?.length) {
+        const hasCurrentSlateExistingEdges =
+          countCurrentSlateEdges(existing?.edges) > 0
+
+        if (edges.length === 0 && hasCurrentSlateExistingEdges) {
           console.warn(
             `[Cron: Market Projections] Skipping empty refresh for ${sport}; keeping cached edges.`
           )
           results.push({
             sport,
             success: true,
-            edgeCount: existing.edges.length,
+            edgeCount: existing?.edges?.length ?? 0,
+            usedFallback,
           })
           continue
         }
@@ -95,6 +125,7 @@ export async function GET(req: NextRequest) {
             sport,
             success: false,
             error: cacheError.message,
+            usedFallback,
           })
         } else {
           console.log(
@@ -104,6 +135,7 @@ export async function GET(req: NextRequest) {
             sport,
             success: true,
             edgeCount: edges.length,
+            usedFallback,
           })
         }
       } catch (error: any) {

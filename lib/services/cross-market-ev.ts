@@ -5,8 +5,14 @@
  * where books disagree significantly on odds.
  */
 
-import { fetchOdds } from '@/lib/api/odds-api'
-import { fetchSbdGamePropsList, fetchSbdPlayerProps, type SbdLeague } from '@/lib/api/sbd'
+import {
+  fetchSbdGamePropsList,
+  fetchSbdOdds,
+  fetchSbdPlayerProps,
+  mapSbdOddsToOddsGames,
+  resolveSbdLeague,
+  type SbdLeague,
+} from '@/lib/api/sbd'
 import { OddsGame, Bookmaker, OddsMarket, OddsOutcome, MARKETS, SPORTS } from '@/lib/types/odds'
 import {
   BookOdds,
@@ -240,12 +246,13 @@ export async function findEVOpportunities(
 
   // Fetch odds for each sport in parallel
   const sportPromises = opts.sports.map(async (sport) => {
+    const sbdLeague = resolveSbdLeague(sport)
+    if (!sbdLeague) {
+      return { sport, games: [] as OddsGame[] }
+    }
     try {
-      const games = await fetchOdds(sport, opts.markets, {
-        revalidateSeconds: 1800,
-        live: false,
-        forceProvider: 'sportsbettingdime',
-      })
+      const payload = await fetchSbdOdds(sbdLeague)
+      const games = mapSbdOddsToOddsGames(sbdLeague, payload, opts.markets)
       return { sport, games }
     } catch (error) {
       console.error(`[CROSS-MARKET-EV] Failed to fetch ${sport}:`, error)

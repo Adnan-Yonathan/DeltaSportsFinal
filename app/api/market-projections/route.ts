@@ -16,6 +16,110 @@ const buildMatchupKey = (homeTeam?: string, awayTeam?: string) => {
   return `${normalizeKey(awayTeam)}@${normalizeKey(homeTeam)}`
 }
 
+const resolveEdgeCommenceTime = (edge: any): string | undefined => {
+  if (!edge || typeof edge !== "object") return undefined
+  if (typeof edge.commenceTime === "string" && edge.commenceTime) return edge.commenceTime
+  if (typeof edge.commence_time === "string" && edge.commence_time) return edge.commence_time
+  return undefined
+}
+
+const buildEdgeContextKey = (edge: any) => {
+  const matchupKey = buildMatchupKey(edge?.homeTeam, edge?.awayTeam)
+  if (!matchupKey) return ""
+  const commenceTime = resolveEdgeCommenceTime(edge)
+  if (!commenceTime) return matchupKey
+  const commenceMs = Date.parse(commenceTime)
+  if (!Number.isFinite(commenceMs)) return matchupKey
+  return `${matchupKey}|${new Date(commenceMs).toISOString().slice(0, 10)}`
+}
+
+const hasNumericSplitValue = (splits: any) => {
+  if (!splits || typeof splits !== "object") return false
+  return Object.values(splits).some(
+    (value) => typeof value === "number" && Number.isFinite(value)
+  )
+}
+
+const hasSharpProjectionData = (sharpProjections: any) => {
+  if (!sharpProjections || typeof sharpProjections !== "object") return false
+  return Boolean(
+    sharpProjections.spread ||
+      sharpProjections.total ||
+      sharpProjections.moneyline
+  )
+}
+
+const mergeSharpContextFromCache = (
+  nextEdges: any[],
+  cachedEdges?: any[]
+) => {
+  if (!Array.isArray(nextEdges) || nextEdges.length === 0) return nextEdges
+  if (!Array.isArray(cachedEdges) || cachedEdges.length === 0) return nextEdges
+
+  const byContextKey = new Map<string, any>()
+  const byMatchupKey = new Map<string, any>()
+  for (const edge of cachedEdges) {
+    const contextKey = buildEdgeContextKey(edge)
+    if (contextKey) byContextKey.set(contextKey, edge)
+    const matchupKey = buildMatchupKey(edge?.homeTeam, edge?.awayTeam)
+    if (matchupKey && !byMatchupKey.has(matchupKey)) byMatchupKey.set(matchupKey, edge)
+  }
+
+  return nextEdges.map((edge) => {
+    const contextKey = buildEdgeContextKey(edge)
+    const matchupKey = buildMatchupKey(edge?.homeTeam, edge?.awayTeam)
+    const cached =
+      (contextKey ? byContextKey.get(contextKey) : undefined) ||
+      (matchupKey ? byMatchupKey.get(matchupKey) : undefined)
+    if (!cached) return edge
+
+    const nextHasSignals =
+      Array.isArray(edge?.sharpSignals) && edge.sharpSignals.length > 0
+    const cachedHasSignals =
+      Array.isArray(cached?.sharpSignals) && cached.sharpSignals.length > 0
+
+    const nextHasLineMovements =
+      Array.isArray(edge?.lineMovements) && edge.lineMovements.length > 0
+    const cachedHasLineMovements =
+      Array.isArray(cached?.lineMovements) && cached.lineMovements.length > 0
+
+    const nextHasSplits = hasNumericSplitValue(edge?.splits)
+    const cachedHasSplits = hasNumericSplitValue(cached?.splits)
+
+    const nextHasSharpProjection = hasSharpProjectionData(edge?.sharpProjections)
+    const cachedHasSharpProjection = hasSharpProjectionData(cached?.sharpProjections)
+
+    if (
+      (nextHasSignals || !cachedHasSignals) &&
+      (nextHasLineMovements || !cachedHasLineMovements) &&
+      (nextHasSplits || !cachedHasSplits) &&
+      (nextHasSharpProjection || !cachedHasSharpProjection)
+    ) {
+      return edge
+    }
+
+    return {
+      ...edge,
+      sharpSignals:
+        nextHasSignals || !cachedHasSignals
+          ? edge.sharpSignals
+          : cached.sharpSignals,
+      lineMovements:
+        nextHasLineMovements || !cachedHasLineMovements
+          ? edge.lineMovements
+          : cached.lineMovements,
+      splits:
+        nextHasSplits || !cachedHasSplits
+          ? edge.splits
+          : cached.splits,
+      sharpProjections:
+        nextHasSharpProjection || !cachedHasSharpProjection
+          ? edge.sharpProjections
+          : cached.sharpProjections,
+    }
+  })
+}
+
 const stripNonSharpBookOdds = (edges: any[]) => edges
 
 const mergeWhaleAlerts = (
@@ -250,7 +354,10 @@ export async function GET(request: Request) {
         limit,
         date,
       })
-      const mergedEdges = mergeWhaleAlerts(result.edges ?? [], cached?.edges)
+      const mergedEdges = mergeSharpContextFromCache(
+        mergeWhaleAlerts(result.edges ?? [], cached?.edges),
+        cached?.edges
+      )
       const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
       const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
 
@@ -309,7 +416,10 @@ export async function GET(request: Request) {
     if (cached && hasCurrentSlateCache) {
       void analyzeWithSharpFallback({ sport, limit, date })
         .then(async ({ result }) => {
-          const mergedEdges = mergeWhaleAlerts(result.edges ?? [], cached?.edges)
+          const mergedEdges = mergeSharpContextFromCache(
+            mergeWhaleAlerts(result.edges ?? [], cached?.edges),
+            cached?.edges
+          )
           const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
           const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
           if (countCurrentSlateEdges(sanitizedEdges) === 0 && hasCurrentSlateCache) {
@@ -347,7 +457,10 @@ export async function GET(request: Request) {
       limit,
       date,
     })
-    const mergedEdges = mergeWhaleAlerts((result as any)?.edges ?? [], cached?.edges)
+    const mergedEdges = mergeSharpContextFromCache(
+      mergeWhaleAlerts((result as any)?.edges ?? [], cached?.edges),
+      cached?.edges
+    )
     const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
     const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
     const payload = {

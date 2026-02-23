@@ -385,6 +385,7 @@ export default function PropOrderbooksPanel({
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
   const hasItemsRef = useRef((initialData?.items?.length ?? 0) > 0)
+  const isMountedRef = useRef(true)
 
   const load = useCallback(
     async ({
@@ -488,6 +489,7 @@ export default function PropOrderbooksPanel({
 
   useEffect(() => {
     return () => {
+      isMountedRef.current = false
       abortControllerRef.current?.abort()
     }
   }, [])
@@ -574,6 +576,9 @@ export default function PropOrderbooksPanel({
             if (!res.ok) {
               throw new Error("Failed to preload player headshots.")
             }
+            if (!payload?.ok || !payload?.headshots || typeof payload.headshots !== "object") {
+              throw new Error("Invalid player headshot payload.")
+            }
             if (cancelled) return
 
             setPlayerHeadshotsByKey((prev) => {
@@ -589,7 +594,7 @@ export default function PropOrderbooksPanel({
             if (cancelled) return
             // Keep keys unresolved on request failure so subsequent renders can retry.
           } finally {
-            if (cancelled) return
+            if (!isMountedRef.current) return
             setHeadshotLoadingByKey((prev) => {
               const next = { ...prev }
               chunk.forEach((entry) => {
@@ -645,6 +650,9 @@ export default function PropOrderbooksPanel({
             if (!res.ok) {
               throw new Error("Failed to preload player intel.")
             }
+            if (!payload?.ok || !payload?.players || typeof payload.players !== "object") {
+              throw new Error("Invalid player intel payload.")
+            }
             if (cancelled) return
 
             setPlayerIntelByKey((prev) => {
@@ -659,7 +667,7 @@ export default function PropOrderbooksPanel({
             if (cancelled) return
             // Keep keys unresolved on request failure so subsequent renders can retry.
           } finally {
-            if (cancelled) return
+            if (!isMountedRef.current) return
             setPlayerIntelLoadingByKey((prev) => {
               const next = { ...prev }
               chunk.forEach((entry) => {

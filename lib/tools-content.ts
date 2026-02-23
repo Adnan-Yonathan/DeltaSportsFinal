@@ -50,41 +50,22 @@ export const TOOLS_CONTENT: ToolContent[] = [
     ],
   },
   {
-    id: "crossed-ev",
+    id: "sharp-props",
     label: "Sharp Props",
-    route: "/crossed-ev",
+    route: "/sharp-props",
     icon: "percent",
     summary:
-      "Find crossed prop lines and rank them by EV vs consensus.",
+      "Read live prop order books to find liquidity walls and sharp leaning sides.",
     description:
-      "Sharp Props ranks player props where a specific book's line is far off the market consensus line, then estimates EV% by comparing book odds to consensus odds and accounting for line discrepancy.",
+      "Sharp Props scans live prediction-market order books and highlights where the largest resting liquidity sits for each player prop. It converts wall prices into American odds and surfaces the side with the strongest orderbook support.",
     howToUse:
-      "Pick a sport, then scan the top-ranked props. If a book is low vs consensus, it tends to favor the over. If it's high vs consensus, it tends to favor the under. Always confirm injury/news context before firing.",
+      "Pick a sport, then sort by order size. Start with markets showing large walls, compare sharp lean odds to your sportsbook price, and prioritize spots where orderbook direction aligns with your projection.",
     unique:
-      "It's line-first: you see which books are crossed from consensus before the market snaps back.",
+      "It is liquidity-first: you see where real money is resting in the book, not just a model output.",
     useCases: [
-      "Finding books that are slow to update prop lines.",
-      "Spotting crossed numbers after news or lineup changes.",
-      "Identifying the cleanest line edges before prices converge.",
-    ],
-  },
-  {
-    id: "sharp-traders",
-    label: "Sharp Traders",
-    route: "/sharp-traders",
-    icon: "zap",
-    summary:
-      "Top-profit prediction market wallets and their live open positions.",
-    description:
-      "Sharp Traders highlights the most profitable wallets and shows the positions they are still holding. It helps you see where sharp accounts are allocating right now.",
-    howToUse:
-      "Filter by sport, scan each wallet's open trades, and note positions that repeat across multiple sharp wallets.",
-    unique:
-      "It links wallet performance directly to live, unsettled trades.",
-    useCases: [
-      "Following repeat positions across profitable wallets.",
-      "Spotting sharp wallets before lines move.",
-      "Monitoring open exposure on game day.",
+      "Finding props with the largest resting liquidity walls.",
+      "Tracking over/under side pressure before sportsbook adjustments.",
+      "Validating your projection with live orderbook conviction.",
     ],
   },
 ]

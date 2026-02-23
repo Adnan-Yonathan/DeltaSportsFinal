@@ -39,10 +39,10 @@
     "app/api/cron/generate-daily-recap/route.ts": {
       "maxDuration": 300
     },
-    "app/api/cron/refresh-sharp-traders/route.ts": {
+    "app/api/cron/refresh-sharp-props-orderbooks/route.ts": {
       "maxDuration": 300
     },
-    "app/api/cron/refresh-sharp-props-orderbooks/route.ts": {
+    "app/api/cron/refresh-market-orderbooks/route.ts": {
       "maxDuration": 300
     },
     "app/api/cron/refresh-whale-trades-daily/route.ts": {
@@ -95,12 +95,12 @@
       "schedule": "0 11 * * *"
     },
     {
-      "path": "/api/cron/refresh-sharp-traders",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/cron/refresh-sharp-props-orderbooks",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-market-orderbooks",
+      "schedule": "*/20 * * * *"
     },
     {
       "path": "/api/cron/refresh-whale-trades-daily",

@@ -129,68 +129,37 @@ function PropsPreview() {
       <div className="rounded-xl border border-white/10 bg-black/70 p-3">
         <div className="flex items-center justify-between gap-3 font-mono text-[11px] text-white/55">
           <span>PLAYER</span>
-          <span>LINE</span>
-          <span>BOOK</span>
-          <span className="text-cyan-200/80">EV</span>
+          <span>PROP</span>
+          <span>LEAN</span>
+          <span className="text-cyan-200/80">WALL</span>
         </div>
         <div className="mt-2 space-y-2">
           <div className="grid grid-cols-12 items-center gap-2 font-mono text-[11px]">
-            <span className="col-span-5 truncate text-white/70">Tatum PTS</span>
-            <span className="col-span-2 text-white/60">O 27.5</span>
-            <span className="col-span-3 text-white/60">DK -110</span>
-            <span className="col-span-2 text-emerald-200/90">+3.1%</span>
+            <span className="col-span-5 truncate text-white/70">Tatum</span>
+            <span className="col-span-2 text-white/60">PTS 27.5</span>
+            <span className="col-span-3 text-white/60">OVER -108</span>
+            <span className="col-span-2 text-emerald-200/90">$2.8k</span>
           </div>
           <div className="grid grid-cols-12 items-center gap-2 font-mono text-[11px]">
-            <span className="col-span-5 truncate text-white/70">Curry 3PM</span>
-            <span className="col-span-2 text-white/60">U 4.5</span>
-            <span className="col-span-3 text-white/60">FD -105</span>
-            <span className="col-span-2 text-emerald-200/90">+2.4%</span>
+            <span className="col-span-5 truncate text-white/70">Curry</span>
+            <span className="col-span-2 text-white/60">3PM 4.5</span>
+            <span className="col-span-3 text-white/60">UNDER +102</span>
+            <span className="col-span-2 text-emerald-200/90">$1.9k</span>
           </div>
           <div className="grid grid-cols-12 items-center gap-2 font-mono text-[11px]">
-            <span className="col-span-5 truncate text-white/70">Luka AST</span>
-            <span className="col-span-2 text-white/60">O 8.5</span>
-            <span className="col-span-3 text-white/60">PIN -112</span>
-            <span className="col-span-2 text-emerald-200/90">+2.9%</span>
+            <span className="col-span-5 truncate text-white/70">Luka</span>
+            <span className="col-span-2 text-white/60">AST 8.5</span>
+            <span className="col-span-3 text-white/60">OVER -114</span>
+            <span className="col-span-2 text-emerald-200/90">$1.2k</span>
           </div>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Pill tone="cyan">crossed number</Pill>
-        <Pill>best book</Pill>
-        <Pill tone="white">filters: nba, 24h</Pill>
+        <Pill tone="cyan">orderbook</Pill>
+        <Pill>sharp lean</Pill>
+        <Pill tone="white">filters: sport, odds</Pill>
       </div>
     </Panel>
-  )
-}
-
-function TradersPreview() {
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
-      <div className="sm:col-span-6">
-        <Panel title="Sharp Traders" tone="emerald">
-          <div className="rounded-xl border border-white/10 bg-black/70 p-3">
-            <MonoLine left="wallet 0x7a...d2" right="+18.2u" good />
-            <MonoLine left="wallet 0x4c...19" right="+12.9u" good />
-            <MonoLine left="wallet 0x93...af" right="+9.6u" good />
-            <div className="mt-2 h-px w-full bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-            <MonoLine left="signal" right="repeat positions" good />
-          </div>
-        </Panel>
-      </div>
-      <div className="sm:col-span-6">
-        <Panel title="Open Positions" tone="cyan">
-          <div className="rounded-xl border border-white/10 bg-black/70 p-3">
-            <MonoLine left="DAL ML +120" right="size: 4.0u" good />
-            <MonoLine left="NYK +3.5 (-108)" right="size: 2.5u" good />
-            <MonoLine left="O 229.5 (-110)" right="size: 1.8u" />
-          </div>
-          <div className="flex items-center gap-2">
-            <Pill tone="cyan">conviction</Pill>
-            <Pill tone="white">updated: live</Pill>
-          </div>
-        </Panel>
-      </div>
-    </div>
   )
 }
 
@@ -287,8 +256,6 @@ export function ToolVibePreview({
           <ProjectionsPreview />
         ) : toolKey === 'sharp-props' ? (
           <PropsPreview />
-        ) : toolKey === 'sharp-traders' ? (
-          <TradersPreview />
         ) : toolKey === 'whale-feed' ? (
           <WhalePreview />
         ) : (
@@ -298,4 +265,3 @@ export function ToolVibePreview({
     </div>
   )
 }
-

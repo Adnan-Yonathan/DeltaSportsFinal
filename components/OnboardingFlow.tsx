@@ -88,7 +88,7 @@ export function OnboardingFlow() {
 
   useEffect(() => {
     const AUTO_START = 1
-    const AUTO_END = 7
+    const AUTO_END = 6
     const AUTO_FEATURE_INTERVAL_MS = 5500
     const AUTO_NARRATIVE_INTERVAL_MS = 3500
 
@@ -123,17 +123,7 @@ export function OnboardingFlow() {
         <StepIntroFeature
           heading="Feature Briefing"
           title="Sharp Props"
-          description="Find player-prop value with crossed numbers, price differences, and quick confidence signals."
-          onValidation={setIsStepValid}
-        />
-      ),
-    },
-    {
-      component: (
-        <StepIntroFeature
-          heading="Feature Briefing"
-          title="Sharp Traders"
-          description="Track top-performing wallets and follow their open positions before broad market reactions."
+          description="Track player-prop orderbook liquidity walls and sharp over/under lean in real time."
           onValidation={setIsStepValid}
         />
       ),
@@ -151,7 +141,7 @@ export function OnboardingFlow() {
     {
       component: (
         <StepNarrative
-          message="Delta combines projections, props, sharp traders, and whale activity in one operating layer."
+          message="Delta combines projections, props, whale activity, and research in one operating layer."
           onValidation={setIsStepValid}
         />
       ),
@@ -187,7 +177,7 @@ export function OnboardingFlow() {
             },
             {
               id: "track-profitable-bettors",
-              label: "Tracking the most profitable bettors on exchanges",
+              label: "Tracking line movement and sharp market behavior",
             },
             {
               id: "find-whales",

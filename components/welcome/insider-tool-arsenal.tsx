@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { motion, useReducedMotion } from 'framer-motion'
-import { ArrowRight, ArrowUpRight, Beaker, Brain, Radar, Waves } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Beaker, Radar, Waves } from 'lucide-react'
 import { CardSpotlight } from '@/components/ui/card-spotlight'
 
 type Tool = {
@@ -32,23 +32,13 @@ const TOOLS: Tool[] = [
   {
     key: 'sharp-props',
     title: 'Sharp Props',
-    subtitle: 'Price-shop EV',
+    subtitle: 'Read orderbook pressure',
     href: '/tools/sharp-props',
-    meta: 'Prop EV scanner plus order-book liquidity for sharp lines.',
+    meta: 'Prop orderbook scanner with liquidity walls and sharp over/under lean.',
     cta: 'View guide',
     Icon: ArrowUpRight,
     priority: 'primary',
     accent: 'from-cyan-400/15 via-black/60 to-black',
-  },
-  {
-    key: 'sharp-traders',
-    title: 'Sharp Traders',
-    subtitle: 'Follow conviction',
-    href: '/tools/sharp-traders',
-    meta: 'Track profitable wallets and their open positions.',
-    cta: 'View guide',
-    Icon: Brain,
-    accent: 'from-sky-400/15 via-black/60 to-black',
   },
   {
     key: 'whale-feed',
@@ -89,7 +79,7 @@ export function InsiderToolArsenal() {
         </h2>
         <p className="max-w-3xl text-sm text-white/70 sm:text-base">
           Designed for conversion: lead with the two fastest paths to an edge, then
-          confirm with wallets, whales, and research.
+          confirm with whales and research.
         </p>
       </div>
 
@@ -114,7 +104,7 @@ export function InsiderToolArsenal() {
             whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-50px' }}
             transition={{ duration: 0.5 }}
-            className="lg:col-span-4"
+            className={secondary.length === 2 ? 'lg:col-span-6' : 'lg:col-span-4'}
           >
             <ToolCard tool={t} size="small" />
           </motion.div>

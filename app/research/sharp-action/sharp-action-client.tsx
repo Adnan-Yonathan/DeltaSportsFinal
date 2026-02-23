@@ -11,6 +11,12 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { SharpSignal } from '@/lib/services/edge-detection'
+import MatchupIntelPanel, {
+  buildMatchupIntelKey,
+  type MatchupIntelPanelStatus,
+  type MatchupIntelResponse,
+  type MatchupPanelContext,
+} from '@/components/intel/matchup-intel-panel'
 import {
   formatSharpSignalStrengthPlain,
   formatSharpSignalSummaryLine,
@@ -332,6 +338,11 @@ export default function SharpActionClient({
   const [activeDate, setActiveDate] = useState(getEasternDateString())
   const [activeSport, setActiveSport] = useState<'all' | string>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [panelContext, setPanelContext] = useState<MatchupPanelContext | null>(null)
+  const [intelByKey, setIntelByKey] = useState<Record<string, MatchupIntelResponse>>({})
+  const [intelLoadingByKey, setIntelLoadingByKey] = useState<Record<string, boolean>>({})
+  const [intelErrorByKey, setIntelErrorByKey] = useState<Record<string, string>>({})
 
   const fetchSharpAction = useCallback(async () => {
     setLoading(true)
@@ -500,6 +511,147 @@ export default function SharpActionClient({
     ]
   }, [sections, previewMode, activeSport, searchQuery])
 
+  const visibleIntelRequests = useMemo(
+    () =>
+      visibleSections.flatMap((section) =>
+        section.games.map((game) => ({
+          sportKey: section.key,
+          awayTeam: game.awayTeam,
+          homeTeam: game.homeTeam,
+          commenceTime: game.gameTime,
+        }))
+      ),
+    [visibleSections]
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    const requests = visibleIntelRequests
+      .map((item) => ({
+        item,
+        key: buildMatchupIntelKey(item),
+      }))
+      .filter(({ key }) => !intelByKey[key] && !intelLoadingByKey[key])
+
+    if (requests.length === 0) return
+
+    const run = async () => {
+      const chunkSize = 8
+
+      for (let i = 0; i < requests.length; i += chunkSize) {
+        if (cancelled) return
+        const chunk = requests.slice(i, i + chunkSize)
+
+        setIntelLoadingByKey((prev) => {
+          const next = { ...prev }
+          chunk.forEach(({ key }) => {
+            next[key] = true
+          })
+          return next
+        })
+
+        await Promise.all(
+          chunk.map(async ({ item, key }) => {
+            try {
+              const params = new URLSearchParams({
+                sportKey: item.sportKey,
+                awayTeam: item.awayTeam,
+                homeTeam: item.homeTeam,
+              })
+              if (item.commenceTime) params.set('commenceTime', item.commenceTime)
+
+              const res = await fetch(`/api/intel/matchup?${params.toString()}`, {
+                cache: 'no-store',
+              })
+              const body = await res.json().catch(() => ({}))
+              if (!res.ok) {
+                throw new Error(body?.error || 'Failed to preload matchup intel.')
+              }
+              if (cancelled) return
+
+              setIntelByKey((prev) => ({ ...prev, [key]: body as MatchupIntelResponse }))
+              setIntelErrorByKey((prev) => {
+                if (!prev[key]) return prev
+                const next = { ...prev }
+                delete next[key]
+                return next
+              })
+            } catch (error: any) {
+              if (cancelled) return
+              setIntelErrorByKey((prev) => ({
+                ...prev,
+                [key]: error?.message || 'Failed to preload matchup intel.',
+              }))
+            } finally {
+              if (cancelled) return
+              setIntelLoadingByKey((prev) => {
+                if (!prev[key]) return prev
+                const next = { ...prev }
+                delete next[key]
+                return next
+              })
+            }
+          })
+        )
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [visibleIntelRequests, intelByKey, intelLoadingByKey])
+
+  const openMatchupPanel = (sportKey: string, game: GameSharpAction) => {
+    const market = game.sharpMarket !== 'none' ? game.sharpMarket : 'No market lean'
+    const lineValue =
+      game.sharpMarket === 'spread'
+        ? game.fallbackLines?.spread
+        : game.sharpMarket === 'total'
+          ? game.fallbackLines?.total
+          : game.sharpMarket === 'moneyline'
+            ? game.fallbackLines?.moneyline
+            : null
+
+    setPanelContext({
+      id: `research-${sportKey}-${game.gameId}`,
+      source: 'research-mode',
+      sportKey,
+      awayTeam: game.awayTeam,
+      homeTeam: game.homeTeam,
+      commenceTime: game.gameTime || null,
+      summary: {
+        betLabel: game.sharpSide,
+        market,
+        line: lineValue == null || !Number.isFinite(lineValue) ? 'n/a' : String(lineValue),
+        lineMovement: game.narrative,
+        narrative: game.narrative,
+        sharpSignals: game.sharpSignals
+          .slice(0, 4)
+          .map((signal) => formatSharpSignalSummaryLine(signal)),
+      },
+    })
+    setPanelOpen(true)
+  }
+
+  const activeIntelKey = panelContext
+    ? buildMatchupIntelKey({
+        sportKey: panelContext.sportKey,
+        awayTeam: panelContext.awayTeam,
+        homeTeam: panelContext.homeTeam,
+        commenceTime: panelContext.commenceTime,
+      })
+    : null
+  const activeIntel = activeIntelKey ? intelByKey[activeIntelKey] ?? null : null
+  const activeIntelError = activeIntelKey ? intelErrorByKey[activeIntelKey] ?? null : null
+  const activeIntelLoading = activeIntelKey ? Boolean(intelLoadingByKey[activeIntelKey]) : false
+  const activeIntelStatus: MatchupIntelPanelStatus =
+    activeIntelLoading || (!activeIntel && !activeIntelError)
+      ? 'loading'
+      : activeIntelError
+        ? 'error'
+        : 'ready'
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
@@ -603,9 +755,18 @@ export default function SharpActionClient({
           ) : (
             <div className="space-y-4">
               {section.games.map((game) => (
-                <div
+                <article
                   key={game.gameId}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-5"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openMatchupPanel(section.key, game)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      openMatchupPanel(section.key, game)
+                    }
+                  }}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07] hover:shadow-[0_16px_48px_rgba(0,0,0,0.35)] focus:outline-none focus:ring-1 focus:ring-amber-300/40"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -621,9 +782,9 @@ export default function SharpActionClient({
                           </span>
                         )}
                       </div>
-                      <h3 className="mt-2 text-lg font-semibold text-white">
+                      <div className="mt-2 text-left text-lg font-semibold text-white">
                         {game.awayTeam} @ {game.homeTeam}
-                      </h3>
+                      </div>
                     </div>
                     <div className="text-right">
                       <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
@@ -700,7 +861,7 @@ export default function SharpActionClient({
                       </div>
                     )}
                   </div>
-                </div>
+                </article>
               ))}
             </div>
           )}
@@ -743,6 +904,15 @@ export default function SharpActionClient({
         <strong className="text-white/70">Sharp Action</strong> now tracks every game
         on today&apos;s slate, with line movement charts and sharp signal strength per market.
       </div>
+
+      <MatchupIntelPanel
+        open={panelOpen}
+        onOpenChange={setPanelOpen}
+        context={panelContext}
+        intel={activeIntel}
+        status={activeIntelStatus}
+        errorMessage={activeIntelError}
+      />
     </div>
   )
 }

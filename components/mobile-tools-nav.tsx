@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { LucideIcon } from 'lucide-react'
-import { FlaskConical, House, Percent, Radar, Waves, Zap } from 'lucide-react'
+import { FlaskConical, House, Percent, Radar, Waves } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type MobileToolNavItem = {
@@ -35,15 +35,8 @@ const MOBILE_TOOL_NAV_ITEMS: MobileToolNavItem[] = [
     key: 'sharp-props',
     label: 'Sharp Props',
     shortLabel: 'Props',
-    href: '/crossed-ev',
+    href: '/sharp-props',
     icon: Percent,
-  },
-  {
-    key: 'sharp-traders',
-    label: 'Sharp Traders',
-    shortLabel: 'Traders',
-    href: '/sharp-traders',
-    icon: Zap,
   },
   {
     key: 'whale-feed',
@@ -68,7 +61,7 @@ export default function MobileToolsNav() {
   return (
     <div className="fixed inset-x-0 bottom-0 z-[45] border-t border-white/10 bg-black/95 backdrop-blur-xl md:hidden">
       <nav
-        className="grid grid-cols-6 gap-0.5 px-1 pt-1"
+        className="grid grid-cols-5 gap-0.5 px-1 pt-1"
         style={{ paddingBottom: 'calc(0.35rem + env(safe-area-inset-bottom))' }}
       >
         {MOBILE_TOOL_NAV_ITEMS.map((item) => {

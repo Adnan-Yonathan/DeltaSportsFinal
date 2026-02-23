@@ -1,11 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { motion } from "framer-motion"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ElectricCard } from "@/components/ui/electric-card"
-import { cn } from "@/lib/utils"
 import ShareProjectionButton from "@/components/ShareProjectionButton"
+import MatchupIntelPanel, {
+  buildMatchupIntelKey,
+  type MatchupIntelPanelStatus,
+  type MatchupIntelResponse,
+  type MatchupPanelContext,
+} from "@/components/intel/matchup-intel-panel"
 import { formatSharpSignalSummaryLine } from "@/lib/utils/sharp-signal-language"
 
 type EdgeFilter = "spread" | "moneyline" | "total"
@@ -37,6 +40,10 @@ type EdgeGame = {
     bestHomeOdds?: number
     bestAwayBook?: string
     bestAwayOdds?: number
+    fanduel?: {
+      homeOdds?: number
+      awayOdds?: number
+    }
     favoredTeam?: string
     prediction?: { line: number; book: string; odds: number }
   }
@@ -46,6 +53,10 @@ type EdgeGame = {
     bestBook?: string
     bestOdds?: number
     bestUnderOdds?: number
+    fanduel?: {
+      overOdds?: number
+      underOdds?: number
+    }
     prediction?: { line: number; book: string; overOdds: number; underOdds: number }
   }
   moneyline?: {
@@ -54,6 +65,10 @@ type EdgeGame = {
       homeBook?: string
       awayOdds?: number
       awayBook?: string
+    }
+    fanduel?: {
+      homeOdds?: number
+      awayOdds?: number
     }
     model?: {
       homeOdds?: number
@@ -98,28 +113,6 @@ type EdgeGame = {
   }
 }
 
-type WhaleTier = "small" | "blue" | "mega"
-
-const AnimatedValue = ({
-  text,
-  pulseKey,
-  className,
-}: {
-  text: string
-  pulseKey: number
-  className?: string
-}) => (
-  <motion.span
-    key={`${pulseKey}-${text}`}
-    initial={{ opacity: 0, y: -6 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ type: "spring", stiffness: 260, damping: 18 }}
-    className={cn("inline-flex", className)}
-  >
-    {text}
-  </motion.span>
-)
-
 const coerceNumber = (value?: number | string | null) => {
   if (value == null) return null
   if (typeof value === "number") {
@@ -162,6 +155,18 @@ const formatCurrency = (value?: number | string | null) => {
   return `$${Math.round(numeric).toLocaleString("en-US")}`
 }
 
+const formatShortDateTime = (value?: string | null) => {
+  if (!value) return "n/a"
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
 const formatProbability = (value?: number | string | null) => {
   const numeric = coerceNumber(value)
   if (numeric == null) return "n/a"
@@ -185,37 +190,12 @@ const isUpcomingGame = (commenceTime?: string) => {
   if (!commenceTime) return true
   const time = Date.parse(commenceTime)
   if (!Number.isFinite(time)) return true
-  return time > Date.now()
+  // Keep live/recent games visible so today's slate does not disappear mid-day.
+  const lookbackMs = 3 * 60 * 60 * 1000
+  return time >= Date.now() - lookbackMs
 }
 
-const resolveWhaleTier = (notional: number): WhaleTier => {
-  if (notional >= 10000) return "mega"
-  if (notional >= 5000) return "blue"
-  return "small"
-}
-
-type WhaleAlert = NonNullable<EdgeGame["whaleAlerts"]>[number]
-
-const isTotalWhale = (alert: WhaleAlert) => {
-  const text = `${alert.marketTitle} ${alert.outcome}`.toLowerCase()
-  return text.includes("over") || text.includes("under") || text.includes("total")
-}
-
-const summarizeWhales = (game: EdgeGame, filter: EdgeFilter) => {
-  const alerts = game.whaleAlerts ?? []
-  if (!alerts.length) {
-    return { small: 0, blue: 0, mega: 0 }
-  }
-  const scoped = alerts.filter((alert) =>
-    filter === "total" ? isTotalWhale(alert) : !isTotalWhale(alert)
-  )
-  const counts = { small: 0, blue: 0, mega: 0 }
-  for (const alert of scoped) {
-    const tier = resolveWhaleTier(alert.notional)
-    counts[tier] += 1
-  }
-  return counts
-}
+type DateWindowFilter = "all" | "today" | "24h" | "3d"
 
 const resolveLineFromMovements = (
   game: EdgeGame,
@@ -249,6 +229,36 @@ const resolveMoveSummary = (game: EdgeGame, filter: EdgeFilter) => {
     .slice(0, 2)
     .map(formatLineMovement)
     .join(" | ")
+}
+
+const matchesDateWindow = (commenceTime: string, window: DateWindowFilter) => {
+  if (window === "all") return true
+  const time = Date.parse(commenceTime)
+  if (!Number.isFinite(time)) return false
+
+  const now = Date.now()
+  if (window === "24h") return time >= now && time <= now + 24 * 60 * 60 * 1000
+  if (window === "3d") return time >= now && time <= now + 72 * 60 * 60 * 1000
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const tomorrow = new Date(today)
+  tomorrow.setDate(today.getDate() + 1)
+  return time >= today.getTime() && time < tomorrow.getTime()
+}
+
+const resolveLineCellValue = (game: EdgeGame, filter: EdgeFilter) => {
+  if (filter === "spread") {
+    const line = resolveMarketSpreadLine(game)
+    if (line == null) return "--"
+    return line === 0 ? "PK" : formatSigned(line)
+  }
+  if (filter === "total") {
+    const line =
+      coerceNumber(game.total?.marketLine) ?? resolveLineFromMovements(game, "total")
+    return line == null ? "--" : line.toFixed(1)
+  }
+  return "--"
 }
 
 const summarizeSharpSignalsPlain = (
@@ -337,27 +347,6 @@ const resolveProjection = (game: EdgeGame, filter: EdgeFilter) => {
   return normalizeProjection(game, filter, raw)
 }
 
-const resolveSpreadOddsDisplay = (game: EdgeGame, pick: EdgePick) => {
-  const spread = game.spread
-  if (!spread) return { book: undefined, odds: undefined }
-  const sideLabel = pick.projection?.side ?? pick.label ?? ""
-  const isHome = sideLabel.includes(game.homeTeam)
-  const isAway = sideLabel.includes(game.awayTeam)
-  if (isHome) {
-    return {
-      book: spread.bestHomeBook ?? spread.bestBook,
-      odds: spread.bestHomeOdds ?? spread.bestOdds,
-    }
-  }
-  if (isAway) {
-    return {
-      book: spread.bestAwayBook ?? spread.bestBook,
-      odds: spread.bestAwayOdds ?? spread.bestOdds,
-    }
-  }
-  return { book: spread.bestBook, odds: spread.bestOdds }
-}
-
 const resolveOppositeSide = (side: string, filter: EdgeFilter, game: EdgeGame) => {
   if (filter === "total") {
     const normalized = side.toLowerCase()
@@ -438,6 +427,124 @@ type EdgePick = {
   label: string | null
   edgePercent: number | null
   projection?: SharpProjectionMarket | null
+}
+
+const normalizeToken = (value?: string | null) =>
+  String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+
+const isFanDuelBook = (value?: string | null) =>
+  normalizeToken(value).includes("fanduel")
+
+const labelMatchesTeam = (label: string | null | undefined, team: string) => {
+  const normalizedLabel = normalizeToken(label)
+  const normalizedTeam = normalizeToken(team)
+  if (!normalizedLabel || !normalizedTeam) return false
+  return (
+    normalizedLabel.includes(normalizedTeam) ||
+    normalizedTeam.includes(normalizedLabel)
+  )
+}
+
+const resolveSharpLineOdds = (
+  game: EdgeGame,
+  filter: EdgeFilter,
+  pick: EdgePick
+) => {
+  const sideLabel = pick.projection?.side ?? pick.label ?? ""
+  const normalizedSide = normalizeToken(sideLabel)
+
+  if (filter === "spread") {
+    if (labelMatchesTeam(sideLabel, game.homeTeam)) {
+      return (
+        coerceNumber(game.spread?.fanduel?.homeOdds) ??
+        (isFanDuelBook(game.spread?.bestHomeBook)
+          ? coerceNumber(game.spread?.bestHomeOdds)
+          : null)
+      )
+    }
+    if (labelMatchesTeam(sideLabel, game.awayTeam)) {
+      return (
+        coerceNumber(game.spread?.fanduel?.awayOdds) ??
+        (isFanDuelBook(game.spread?.bestAwayBook)
+          ? coerceNumber(game.spread?.bestAwayOdds)
+          : null)
+      )
+    }
+    return (
+      coerceNumber(game.spread?.fanduel?.homeOdds) ??
+      coerceNumber(game.spread?.fanduel?.awayOdds) ??
+      (isFanDuelBook(game.spread?.bestHomeBook)
+        ? coerceNumber(game.spread?.bestHomeOdds)
+        : null) ??
+      (isFanDuelBook(game.spread?.bestAwayBook)
+        ? coerceNumber(game.spread?.bestAwayOdds)
+        : null)
+    )
+  }
+
+  if (filter === "total") {
+    if (normalizedSide.includes("over")) {
+      return (
+        coerceNumber(game.total?.fanduel?.overOdds) ??
+        (isFanDuelBook(game.total?.bestBook)
+          ? coerceNumber(game.total?.bestOdds)
+          : null)
+      )
+    }
+    if (normalizedSide.includes("under")) {
+      return (
+        coerceNumber(game.total?.fanduel?.underOdds) ??
+        (isFanDuelBook(game.total?.bestBook)
+          ? coerceNumber(game.total?.bestUnderOdds)
+          : null)
+      )
+    }
+    return (
+      coerceNumber(game.total?.fanduel?.overOdds) ??
+      coerceNumber(game.total?.fanduel?.underOdds) ??
+      (isFanDuelBook(game.total?.bestBook)
+        ? coerceNumber(game.total?.bestOdds)
+        : null)
+    )
+  }
+
+  if (labelMatchesTeam(sideLabel, game.homeTeam)) {
+    return (
+      coerceNumber(game.moneyline?.fanduel?.homeOdds) ??
+      (isFanDuelBook(game.moneyline?.sportsbook?.homeBook)
+        ? coerceNumber(game.moneyline?.sportsbook?.homeOdds)
+        : null)
+    )
+  }
+  if (labelMatchesTeam(sideLabel, game.awayTeam)) {
+    return (
+      coerceNumber(game.moneyline?.fanduel?.awayOdds) ??
+      (isFanDuelBook(game.moneyline?.sportsbook?.awayBook)
+        ? coerceNumber(game.moneyline?.sportsbook?.awayOdds)
+        : null)
+    )
+  }
+  return (
+    coerceNumber(game.moneyline?.fanduel?.homeOdds) ??
+    coerceNumber(game.moneyline?.fanduel?.awayOdds) ??
+    (isFanDuelBook(game.moneyline?.sportsbook?.homeBook)
+      ? coerceNumber(game.moneyline?.sportsbook?.homeOdds)
+      : null) ??
+    (isFanDuelBook(game.moneyline?.sportsbook?.awayBook)
+      ? coerceNumber(game.moneyline?.sportsbook?.awayOdds)
+      : null)
+  )
+}
+
+const resolveSharpLineDisplay = (
+  game: EdgeGame,
+  filter: EdgeFilter,
+  pick: EdgePick
+) => {
+  const odds = resolveSharpLineOdds(game, filter, pick)
+  return odds == null ? "FanDuel n/a" : `FanDuel ${formatOdds(odds)}`
 }
 
 const resolveSpreadComparison = (game: EdgeGame) => {
@@ -867,8 +974,8 @@ const resolveMoneylineEdgePick = (game: EdgeGame, sport?: string) => {
 
 const resolveFilterLabels = (filter: EdgeFilter) => {
   if (filter === "spread") return { projection: "Spread projection", odds: "Sharp line" }
-  if (filter === "moneyline") return { projection: "ML projection", odds: "ML odds" }
-  return { projection: "Total projection", odds: "Total odds" }
+  if (filter === "moneyline") return { projection: "ML projection", odds: "Sharp line" }
+  return { projection: "Total projection", odds: "Sharp line" }
 }
 
 const buildProjectionSharePayload = (
@@ -876,21 +983,10 @@ const buildProjectionSharePayload = (
   filter: EdgeFilter,
   sportKey: string | undefined,
   activePick: EdgePick,
-  edgePercent: number,
-  spreadOdds: { book?: string; odds?: number | null }
+  edgePercent: number
 ) => {
   const filterLabels = resolveFilterLabels(filter)
-  const total = game.total
-  const moneyline = game.moneyline
-
-  let oddsLabel = "n/a"
-  if (filter === "spread") {
-    oddsLabel = `${spreadOdds.book ?? "n/a"} ${formatOdds(spreadOdds.odds)}`
-  } else if (filter === "total") {
-    oddsLabel = `${total?.bestBook ?? "n/a"} O ${formatOdds(total?.bestOdds)} / U ${formatOdds(total?.bestUnderOdds)}`
-  } else {
-    oddsLabel = `${moneyline?.sportsbook?.homeBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.homeOdds)} / ${moneyline?.sportsbook?.awayBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.awayOdds)}`
-  }
+  const oddsLabel = resolveSharpLineDisplay(game, filter, activePick)
 
   const sharpSummary = summarizeSharpSignalsPlain(game.sharpSignals)
   const moveSummary = resolveMoveSummary(game, filter)
@@ -951,20 +1047,30 @@ export default function MarketProjectionsTable({
 }) {
   const accessConfig = useMemo(() => resolveAccessConfig(tier), [tier])
   const [filter, setFilter] = useState<EdgeFilter>(accessConfig.allowedFilters[0] ?? "spread")
-  const [pulseKey, setPulseKey] = useState(0)
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      setPulseKey((prev) => prev + 1)
-    }, 15000)
-    return () => clearInterval(intervalId)
-  }, [])
+  const [leagueFilter, setLeagueFilter] = useState<string>("all")
+  const [matchFilter, setMatchFilter] = useState<string>("all")
+  const [dateFilter, setDateFilter] = useState<DateWindowFilter>("all")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [panelContext, setPanelContext] = useState<MatchupPanelContext | null>(null)
+  const [intelByKey, setIntelByKey] = useState<Record<string, MatchupIntelResponse>>({})
+  const [intelLoadingByKey, setIntelLoadingByKey] = useState<Record<string, boolean>>({})
+  const [intelErrorByKey, setIntelErrorByKey] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (!accessConfig.allowedFilters.includes(filter)) {
       setFilter(accessConfig.allowedFilters[0] ?? "spread")
     }
   }, [accessConfig.allowedFilters, filter])
+
+  useEffect(() => {
+    setMatchFilter("all")
+    setLeagueFilter("all")
+    setSearchQuery("")
+    setIntelByKey({})
+    setIntelLoadingByKey({})
+    setIntelErrorByKey({})
+  }, [sport])
 
   const sortedEdges = useMemo(() => {
     const scoped = edges.filter(
@@ -980,39 +1086,265 @@ export default function MarketProjectionsTable({
     const maxRows = accessConfig.maxRows[filter]
     return Number.isFinite(maxRows) ? sorted.slice(0, maxRows) : sorted
   }, [edges, filter, sport, accessConfig.maxRows])
-  const visibleEdges = previewMode ? sortedEdges.slice(0, 1) : sortedEdges
+  const baseEdges = sortedEdges
+
+  const leagueOptions = useMemo(
+    () => [
+      "all",
+      ...Array.from(
+        new Set(
+          baseEdges.map(() => resolveSportLabel(sport))
+        )
+      ),
+    ],
+    [baseEdges, sport]
+  )
+
+  const matchOptions = useMemo(
+    () => ["all", ...Array.from(new Set(baseEdges.map((game) => `${game.awayTeam} vs ${game.homeTeam}`))).slice(0, 80)],
+    [baseEdges]
+  )
+
+  useEffect(() => {
+    if (matchFilter !== "all" && !matchOptions.includes(matchFilter)) {
+      setMatchFilter("all")
+    }
+  }, [matchFilter, matchOptions])
+
+  useEffect(() => {
+    if (leagueFilter !== "all" && !leagueOptions.includes(leagueFilter)) {
+      setLeagueFilter("all")
+    }
+  }, [leagueFilter, leagueOptions])
+
+  const filteredEdges = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    return baseEdges.filter((game) => {
+      const leagueLabel = resolveSportLabel(sport)
+      const matchupLabel = `${game.awayTeam} vs ${game.homeTeam}`
+
+      if (leagueFilter !== "all" && leagueLabel !== leagueFilter) return false
+      if (matchFilter !== "all" && matchupLabel !== matchFilter) return false
+      if (!matchesDateWindow(game.commenceTime, dateFilter)) return false
+      if (!query) return true
+      return (
+        matchupLabel.toLowerCase().includes(query) ||
+        summarizeSharpSignalsPlain(game.sharpSignals).toLowerCase().includes(query)
+      )
+    })
+  }, [baseEdges, sport, leagueFilter, matchFilter, dateFilter, searchQuery])
+
+  const visibleEdges = previewMode ? filteredEdges.slice(0, 1) : filteredEdges
 
   const filterLabels = resolveFilterLabels(filter)
-  const filterButtonLabels: Record<EdgeFilter, string> = {
-    spread: "Top Spread",
-    moneyline: "Top Moneyline",
-    total: "Top O/U",
+
+  const visibleIntelRequests = useMemo(
+    () =>
+      visibleEdges.map((game) => ({
+        sportKey: sport || "basketball_nba",
+        awayTeam: game.awayTeam,
+        homeTeam: game.homeTeam,
+        commenceTime: game.commenceTime,
+      })),
+    [visibleEdges, sport]
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    const requests = visibleIntelRequests
+      .map((item) => ({
+        item,
+        key: buildMatchupIntelKey(item),
+      }))
+      .filter(({ key }) => !intelByKey[key] && !intelLoadingByKey[key])
+
+    if (requests.length === 0) return
+
+    const run = async () => {
+      const chunkSize = 8
+
+      for (let i = 0; i < requests.length; i += chunkSize) {
+        if (cancelled) return
+        const chunk = requests.slice(i, i + chunkSize)
+
+        setIntelLoadingByKey((prev) => {
+          const next = { ...prev }
+          chunk.forEach(({ key }) => {
+            next[key] = true
+          })
+          return next
+        })
+
+        await Promise.all(
+          chunk.map(async ({ item, key }) => {
+            try {
+              const params = new URLSearchParams({
+                sportKey: item.sportKey,
+                awayTeam: item.awayTeam,
+                homeTeam: item.homeTeam,
+              })
+              if (item.commenceTime) params.set("commenceTime", item.commenceTime)
+
+              const res = await fetch(`/api/intel/matchup?${params.toString()}`, {
+                cache: "no-store",
+              })
+              const body = await res.json().catch(() => ({}))
+
+              if (!res.ok) {
+                throw new Error(body?.error || "Failed to preload matchup intel.")
+              }
+              if (cancelled) return
+
+              setIntelByKey((prev) => ({ ...prev, [key]: body as MatchupIntelResponse }))
+              setIntelErrorByKey((prev) => {
+                if (!prev[key]) return prev
+                const next = { ...prev }
+                delete next[key]
+                return next
+              })
+            } catch (error: any) {
+              if (cancelled) return
+              setIntelErrorByKey((prev) => ({
+                ...prev,
+                [key]: error?.message || "Failed to preload matchup intel.",
+              }))
+            } finally {
+              if (cancelled) return
+              setIntelLoadingByKey((prev) => {
+                if (!prev[key]) return prev
+                const next = { ...prev }
+                delete next[key]
+                return next
+              })
+            }
+          })
+        )
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [visibleIntelRequests, intelByKey, intelLoadingByKey])
+
+  const openMatchupPanel = (
+    game: EdgeGame,
+    activePick: EdgePick,
+    edgeMetrics: MarketEdge,
+    moveSummary: string,
+    sharpLine: string
+  ) => {
+    const marketLabel =
+      filter === "spread" ? "Spread" : filter === "moneyline" ? "Moneyline" : "Total"
+    const lineValue = resolveLineCellValue(game, filter)
+
+    setPanelContext({
+      id: `${game.matchup}-${game.commenceTime}-${filter}`,
+      source: "sharp-projections",
+      sportKey: sport || "basketball_nba",
+      awayTeam: game.awayTeam,
+      homeTeam: game.homeTeam,
+      commenceTime: game.commenceTime,
+      summary: {
+        edgePercent: edgeMetrics.edgePercent,
+        betLabel: activePick.label,
+        market: marketLabel,
+        line: lineValue,
+        hitRate: activePick.projection
+          ? formatProbability(activePick.projection.probability)
+          : "n/a",
+        lineMovement: moveSummary || "No line movement yet.",
+        sharpLine,
+        sharpSignals: game.sharpSignals
+          .slice(0, 4)
+          .map((signal) => formatSharpSignalSummaryLine(signal)),
+      },
+    })
+    setPanelOpen(true)
   }
-  const filterGridClass =
-    accessConfig.allowedFilters.length === 1
-      ? "grid-cols-1"
-      : accessConfig.allowedFilters.length === 2
-        ? "grid-cols-2"
-        : "grid-cols-3"
+
+  const activeIntelKey = panelContext
+    ? buildMatchupIntelKey({
+        sportKey: panelContext.sportKey,
+        awayTeam: panelContext.awayTeam,
+        homeTeam: panelContext.homeTeam,
+        commenceTime: panelContext.commenceTime,
+      })
+    : null
+  const activeIntel = activeIntelKey ? intelByKey[activeIntelKey] ?? null : null
+  const activeIntelError = activeIntelKey ? intelErrorByKey[activeIntelKey] ?? null : null
+  const activeIntelLoading = activeIntelKey ? Boolean(intelLoadingByKey[activeIntelKey]) : false
+  const activeIntelStatus: MatchupIntelPanelStatus =
+    activeIntelLoading || (!activeIntel && !activeIntelError) ? "loading" : activeIntelError ? "error" : "ready"
 
   return (
     <>
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-        <div className={`grid ${filterGridClass} gap-0 overflow-hidden rounded-md border border-white/10 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70`}>
-          {accessConfig.allowedFilters.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setFilter(item)}
-              className={`border border-white/10 px-3 py-2 text-center transition-colors ${
-                filter === item
-                  ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
-                  : "border-white/10 bg-black/40 hover:border-emerald-400/40 hover:text-white"
-              }`}
-            >
-              {filterButtonLabels[item]}
-            </button>
-          ))}
+      <div className="rounded-2xl border border-cyan-400/25 bg-[#060a10] p-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={leagueFilter}
+            onChange={(event) => setLeagueFilter(event.target.value)}
+            className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-cyan-300/60 focus:outline-none"
+          >
+            {leagueOptions.map((value) => (
+              <option key={value} value={value}>
+                {value === "all" ? "League: All" : `League: ${value}`}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filter}
+            onChange={(event) => setFilter(event.target.value as EdgeFilter)}
+            className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-cyan-300/60 focus:outline-none"
+          >
+            {accessConfig.allowedFilters.map((value) => (
+              <option key={value} value={value}>
+                {value === "spread"
+                  ? "Stat: Spread"
+                  : value === "moneyline"
+                    ? "Stat: Moneyline"
+                    : "Stat: Total"}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={matchFilter}
+            onChange={(event) => setMatchFilter(event.target.value)}
+            className="max-w-[220px] rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-cyan-300/60 focus:outline-none"
+          >
+            {matchOptions.map((value) => (
+              <option key={value} value={value}>
+                {value === "all" ? "Match: All" : value}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={dateFilter}
+            onChange={(event) => setDateFilter(event.target.value as DateWindowFilter)}
+            className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-cyan-300/60 focus:outline-none"
+          >
+            <option value="today">Date: Today</option>
+            <option value="24h">Date: 24h</option>
+            <option value="3d">Date: 3d</option>
+            <option value="all">Date: All</option>
+          </select>
+
+          <input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search teams..."
+            className="min-w-[180px] flex-1 rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white placeholder:text-white/35 focus:border-cyan-300/60 focus:outline-none"
+          />
+
+          <div className="ml-auto flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] text-white/50">
+            <span>live</span>
+            <span>|</span>
+            <span>{visibleEdges.length} rows</span>
+          </div>
         </div>
       </div>
 
@@ -1028,9 +1360,6 @@ export default function MarketProjectionsTable({
             <div className="divide-y divide-white/5 sm:hidden">
               {visibleEdges.map((game, index) => {
                 const edgeMetrics = marketEdge(game, filter, sport)
-                const spread = game.spread
-                const total = game.total
-                const moneyline = game.moneyline
                 const spreadPick = resolveSpreadEdgePick(game, sport)
                 const totalPick = resolveTotalEdgePick(game, sport)
                 const moneylinePick = resolveMoneylineEdgePick(game, sport)
@@ -1040,282 +1369,187 @@ export default function MarketProjectionsTable({
                     : filter === "moneyline"
                       ? moneylinePick
                       : totalPick
-                const projectionText = formatPick(activePick)
-                const electricPreset =
-                  filter !== "moneyline" ? resolveElectricPreset(edgeMetrics.edgePercent) : null
-                const spreadOdds = resolveSpreadOddsDisplay(game, activePick)
-                const sharpSummary = summarizeSharpSignalsPlain(game.sharpSignals)
-                  const moveSummary = resolveMoveSummary(game, filter)
-                  const sharePayload = buildProjectionSharePayload(
-                    game,
-                    filter,
-                    sport,
-                    activePick,
-                    edgeMetrics.edgePercent,
-                    spreadOdds
-                  )
-                    return (
-                      <details
-                        key={`${game.matchup}-${game.commenceTime}`}
-                        className="group px-3 py-3 text-[12px] text-white/70"
+                const moveSummary = resolveMoveSummary(game, filter)
+                const sharpLine = resolveSharpLineDisplay(game, filter, activePick)
+                const sharePayload = buildProjectionSharePayload(
+                  game,
+                  filter,
+                  sport,
+                  activePick,
+                  edgeMetrics.edgePercent
+                )
+
+                return (
+                  <article
+                    key={`${game.matchup}-${game.commenceTime}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() =>
+                      openMatchupPanel(game, activePick, edgeMetrics, moveSummary, sharpLine)
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault()
+                        openMatchupPanel(game, activePick, edgeMetrics, moveSummary, sharpLine)
+                      }
+                    }}
+                    className="space-y-3 px-3 py-3 text-xs text-white/70 transition-colors hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-cyan-300/40"
                   >
-                    <summary className="flex cursor-pointer items-center justify-between gap-3 list-none">
+                    <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-                          #{index + 1} - Edge {edgeLabel(edgeMetrics.edgePercent)}
+                        <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+                          #{index + 1} | {resolveSportLabel(sport)} | {formatShortDateTime(game.commenceTime)}
                         </div>
-                        <div className="text-sm font-semibold text-white">
-                          {game.awayTeam} @ {game.homeTeam}
-                        </div>
-                        <div className="mt-1 text-[11px] text-white/50">
-                          {filterLabels.projection}:{" "}
-                          <span className="whitespace-nowrap rounded bg-emerald-500/15 px-1 py-0.5 text-[10px] text-emerald-200">
-                            <AnimatedValue text={formatPick(activePick)} pulseKey={pulseKey} />
-                          </span>
+                        <div className="text-left text-sm font-semibold text-white">
+                          {game.awayTeam} vs {game.homeTeam}
                         </div>
                       </div>
-                      <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/50 group-open:border-emerald-400/40 group-open:text-emerald-200">
-                        View
+                      <span className="rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-200">
+                        +{edgeMetrics.edgePercent.toFixed(1)}%
                       </span>
-                    </summary>
-                    <div className="mt-3 space-y-3">
-                      <div className="space-y-2">
-                        {electricPreset ? (
-                          <div className="rounded-md border border-white/10 bg-black/30 p-2">
-                            <div className="max-w-[320px]">
-                              <ElectricCard
-                                variant="hue"
-                                size="compact"
-                                width="100%"
-                                aspectRatio="3.6 / 1.25"
-                                color={electricPreset.color}
-                                badge={electricPreset.badge}
-                                title={projectionText}
-                                description={`${edgeLabel(edgeMetrics.edgePercent)} edge`}
-                                className={cn("w-full", electricPreset.className)}
-                              />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-sm">
-                            {filterLabels.projection}:{" "}
-                            <span className="whitespace-nowrap rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                              <AnimatedValue text={projectionText} pulseKey={pulseKey} />
-                            </span>
-                          </div>
-                        )}
-                        {filter === "spread" ? (
-                          <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
-                            <SpreadComparison game={game} />
-                          </div>
-                        ) : null}
-                        {filter === "total" ? (
-                          <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
-                            <TotalComparison game={game} />
-                          </div>
-                        ) : null}
-                        {filter === "moneyline" ? (
-                          <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
-                            <MoneylineComparison game={game} pick={activePick} />
-                          </div>
-                        ) : null}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Bet</div>
+                        <div className="mt-1 text-white">{activePick.label ?? "n/a"}</div>
                       </div>
-                      <div className="space-y-2">
-                        <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
-                          {filterLabels.odds}:{" "}
-                          {filter === "spread" ? (
-                            <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-                              <AnimatedValue
-                                text={`${spreadOdds.book ?? "n/a"} ${formatOdds(spreadOdds.odds)}`}
-                                pulseKey={pulseKey}
-                              />
-                            </span>
-                          ) : null}
-                          {filter === "total" ? (
-                            <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-                              <AnimatedValue
-                                text={`${total?.bestBook ?? "n/a"} O ${formatOdds(total?.bestOdds)} / U ${formatOdds(total?.bestUnderOdds)}`}
-                                pulseKey={pulseKey}
-                              />
-                            </span>
-                          ) : null}
-                          {filter === "moneyline" ? (
-                            <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-                              <AnimatedValue
-                                text={`${moneyline?.sportsbook?.homeBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.homeOdds)} / ${moneyline?.sportsbook?.awayBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.awayOdds)}`}
-                                pulseKey={pulseKey}
-                              />
-                            </span>
-                          ) : null}
+                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Line</div>
+                        <div className="mt-1 text-white">{resolveLineCellValue(game, filter)}</div>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">% To Hit</div>
+                        <div className="mt-1 text-white">
+                          {activePick.projection
+                            ? formatProbability(activePick.projection.probability)
+                            : "n/a"}
                         </div>
                       </div>
-                      <div className="space-y-2 text-[11px] text-white/60">
-                        <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
-                          {sharpSummary || "No sharp signals yet."}
-                        </div>
-                        <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
-                          {moveSummary || "No line movement yet."}
-                        </div>
-                        <div className="flex justify-end">
-                          <ShareProjectionButton projection={sharePayload} />
+                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Market</div>
+                        <div className="mt-1 text-white">
+                          {filter === "spread" ? "Spread" : filter === "moneyline" ? "Moneyline" : "Total"}
                         </div>
                       </div>
                     </div>
-                  </details>
+
+                    <div className="space-y-2">
+                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Line Movement</div>
+                        <div className="mt-1 text-white/75">{moveSummary || "No line movement yet."}</div>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Sharp Line</div>
+                        <div className="mt-1 text-white/75">{sharpLine}</div>
+                      </div>
+                    </div>
+
+                    <div
+                      className="flex justify-end"
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      <ShareProjectionButton projection={sharePayload} />
+                    </div>
+                  </article>
                 )
               })}
             </div>
             <div className="hidden sm:block">
-              <Table className="text-[13px] text-white/70">
-                <TableHeader className="bg-black/70">
-                  <TableRow className="text-[10px] uppercase tracking-[0.2em] text-white/50">
-                    <TableHead className="w-[200px]">Matchup</TableHead>
-                    <TableHead>{filterLabels.projection}</TableHead>
-                    <TableHead>{filterLabels.odds}</TableHead>
-                    <TableHead>Why Pros Lean</TableHead>
-                    <TableHead>Line Movement</TableHead>
-                    <TableHead className="text-right">Share</TableHead>
-                    
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-white/5">
-                  {visibleEdges.map((game, index) => {
-                    const edgeMetrics = marketEdge(game, filter, sport)
-                    const spread = game.spread
-                    const total = game.total
-                    const moneyline = game.moneyline
-                    const spreadPick = resolveSpreadEdgePick(game, sport)
-                    const totalPick = resolveTotalEdgePick(game, sport)
-                    const moneylinePick = resolveMoneylineEdgePick(game, sport)
-                const activePick =
-                  filter === "spread"
-                    ? spreadPick
-                    : filter === "moneyline"
-                      ? moneylinePick
-                      : totalPick
-                const projectionText = formatPick(activePick)
-                const electricPreset =
-                  filter !== "moneyline" ? resolveElectricPreset(edgeMetrics.edgePercent) : null
-                const spreadOdds = resolveSpreadOddsDisplay(game, activePick)
-                const sharpSummary = summarizeSharpSignalsPlain(game.sharpSignals)
-                    const moveSummary = resolveMoveSummary(game, filter)
-                    const sharePayload = buildProjectionSharePayload(
-                      game,
-                      filter,
-                      sport,
-                      activePick,
-                      edgeMetrics.edgePercent,
-                      spreadOdds
-                    )
-                    return (
-                      <TableRow
-                        key={`${game.matchup}-${game.commenceTime}`}
-                        className="border-white/5"
-                      >
-                        <TableCell className="align-top">
-                          <div className="space-y-2">
-                            <div className="text-xs uppercase tracking-[0.2em] text-white/40">
-                              #{index + 1} - Edge {edgeLabel(edgeMetrics.edgePercent)}
+              <div className="overflow-x-auto">
+                <Table className="min-w-[1320px] text-[13px] text-white/75">
+                  <TableHeader className="bg-black/70">
+                    <TableRow className="text-[10px] uppercase tracking-[0.18em] text-white/45">
+                      <TableHead className="w-[85px]">Edge</TableHead>
+                      <TableHead className="w-[240px]">Game</TableHead>
+                      <TableHead className="w-[190px]">Bet</TableHead>
+                      <TableHead className="w-[80px]">Line</TableHead>
+                      <TableHead className="w-[100px]">Market</TableHead>
+                      <TableHead className="w-[90px]">% To Hit</TableHead>
+                      <TableHead className="w-[230px]">Line Movement</TableHead>
+                      <TableHead className="w-[170px]">Sharp Line</TableHead>
+                      <TableHead className="w-[90px] text-right">Share</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-white/5">
+                    {visibleEdges.map((game, index) => {
+                      const edgeMetrics = marketEdge(game, filter, sport)
+                      const spreadPick = resolveSpreadEdgePick(game, sport)
+                      const totalPick = resolveTotalEdgePick(game, sport)
+                      const moneylinePick = resolveMoneylineEdgePick(game, sport)
+                      const activePick =
+                        filter === "spread"
+                          ? spreadPick
+                          : filter === "moneyline"
+                            ? moneylinePick
+                            : totalPick
+                      const moveSummary = resolveMoveSummary(game, filter)
+                      const sharpLine = resolveSharpLineDisplay(game, filter, activePick)
+                      const sharePayload = buildProjectionSharePayload(
+                        game,
+                        filter,
+                        sport,
+                        activePick,
+                        edgeMetrics.edgePercent
+                      )
+
+                      return (
+                        <TableRow
+                          key={`${game.matchup}-${game.commenceTime}`}
+                          onClick={() =>
+                            openMatchupPanel(game, activePick, edgeMetrics, moveSummary, sharpLine)
+                          }
+                          className="cursor-pointer border-white/5 transition-colors hover:bg-white/[0.03]"
+                        >
+                          <TableCell className="align-top">
+                            <span className="rounded-md border border-emerald-400/45 bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-200">
+                              +{edgeMetrics.edgePercent.toFixed(1)}%
+                            </span>
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <div className="text-left text-sm font-semibold text-white">
+                              {game.awayTeam} vs {game.homeTeam}
                             </div>
-                            <div className="text-sm font-semibold text-white">
-                              {game.awayTeam} @ {game.homeTeam}
+                            <div className="mt-1 text-[11px] uppercase tracking-[0.15em] text-white/40">
+                              #{index + 1} | {resolveSportLabel(sport)} | {formatShortDateTime(game.commenceTime)}
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="space-y-2 text-xs text-white/70">
-                            {electricPreset ? (
-                              <div className="rounded-md border border-white/10 bg-black/30 p-2">
-                                <div className="max-w-[320px]">
-                                  <ElectricCard
-                                    variant="hue"
-                                    size="compact"
-                                    width="100%"
-                                    aspectRatio="3.6 / 1.25"
-                                    color={electricPreset.color}
-                                    badge={electricPreset.badge}
-                                    title={projectionText}
-                                    description={`${edgeLabel(edgeMetrics.edgePercent)} edge`}
-                                    className={cn("w-full", electricPreset.className)}
-                                  />
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-sm">
-                                {filterLabels.projection}:{" "}
-                                <span className="whitespace-nowrap rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200">
-                                  <AnimatedValue text={projectionText} pulseKey={pulseKey} />
-                                </span>
-                              </div>
-                            )}
-                            {filter === "spread" ? (
-                              <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
-                                <SpreadComparison game={game} />
-                              </div>
-                            ) : null}
-                            {filter === "total" ? (
-                              <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
-                                <TotalComparison game={game} />
-                              </div>
-                            ) : null}
-                            {filter === "moneyline" ? (
-                              <div className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
-                                <MoneylineComparison game={game} pick={activePick} />
-                              </div>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="space-y-2 text-xs text-white/70">
-                            <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
-                              {filterLabels.odds}:{" "}
-                              {filter === "spread" ? (
-                                <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-                                  <AnimatedValue
-                                    text={`${spreadOdds.book ?? "n/a"} ${formatOdds(spreadOdds.odds)}`}
-                                    pulseKey={pulseKey}
-                                  />
-                                </span>
-                              ) : null}
-                              {filter === "total" ? (
-                                <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-                                  <AnimatedValue
-                                    text={`${total?.bestBook ?? "n/a"} O ${formatOdds(total?.bestOdds)} / U ${formatOdds(total?.bestUnderOdds)}`}
-                                    pulseKey={pulseKey}
-                                  />
-                                </span>
-                              ) : null}
-                              {filter === "moneyline" ? (
-                                <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
-                                  <AnimatedValue
-                                    text={`${moneyline?.sportsbook?.homeBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.homeOdds)} / ${moneyline?.sportsbook?.awayBook ?? "n/a"} ${formatOdds(moneyline?.sportsbook?.awayOdds)}`}
-                                    pulseKey={pulseKey}
-                                  />
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top text-xs text-white/70">
-                          <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
-                            {sharpSummary || "No sharp signals yet."}
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top text-xs text-white/70">
-                          <div className="rounded-md border border-white/10 bg-black/30 px-2 py-1.5">
+                          </TableCell>
+                          <TableCell className="align-top text-white/85">
+                            {activePick.label ?? "n/a"}
+                          </TableCell>
+                          <TableCell className="align-top">
+                            {resolveLineCellValue(game, filter)}
+                          </TableCell>
+                          <TableCell className="align-top">
+                            {filter === "spread" ? "Spread" : filter === "moneyline" ? "Moneyline" : "Total"}
+                          </TableCell>
+                          <TableCell className="align-top">
+                            {activePick.projection
+                              ? formatProbability(activePick.projection.probability)
+                              : "n/a"}
+                          </TableCell>
+                          <TableCell className="align-top text-white/70">
                             {moveSummary || "No line movement yet."}
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex justify-end">
-                            <ShareProjectionButton projection={sharePayload} />
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+                          </TableCell>
+                          <TableCell className="align-top text-white/70">
+                            {sharpLine}
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <div
+                              className="flex justify-end"
+                              onClick={(event) => event.stopPropagation()}
+                              onKeyDown={(event) => event.stopPropagation()}
+                            >
+                              <ShareProjectionButton projection={sharePayload} />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           </>
         )}
@@ -1349,6 +1583,14 @@ export default function MarketProjectionsTable({
           </div>
         </div>
       )}
+      <MatchupIntelPanel
+        open={panelOpen}
+        onOpenChange={setPanelOpen}
+        context={panelContext}
+        intel={activeIntel}
+        status={activeIntelStatus}
+        errorMessage={activeIntelError}
+      />
     </>
   )
 }

@@ -82,6 +82,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const sport = searchParams.get('sport') || 'all'
     const forceRefresh = searchParams.get('refresh') === '1'
+    const requestedModeParam = searchParams.get('mode')
     const limit = Number(searchParams.get('limit') || 60)
     const depth = Number(searchParams.get('depth') || 8)
     const minSharpNotional = Number(searchParams.get('minSharpNotional') || 100)
@@ -98,6 +99,11 @@ export async function GET(req: NextRequest) {
     const normalizedMinSharpNotional = Number.isFinite(minSharpNotional)
       ? Math.max(minSharpNotional, 0)
       : 100
+    const requestedMode =
+      requestedModeParam === 'fast' || requestedModeParam === 'full'
+        ? requestedModeParam
+        : null
+    const mode = requestedMode ?? (forceRefresh ? 'full' : 'fast')
 
     const canUsePersistentCache =
       normalizedDepth === DEFAULT_DEPTH &&
@@ -134,10 +140,9 @@ export async function GET(req: NextRequest) {
     }
 
     const computeLimit =
-      forceRefresh && canUsePersistentCache
+      forceRefresh && canUsePersistentCache && mode === 'full'
         ? Math.max(normalizedLimit, PERSISTED_CACHE_LIMIT)
         : normalizedLimit
-    const mode = forceRefresh ? 'full' : 'fast'
 
     const snapshot = await fetchPropOrderbooksSnapshot({
       sportKey: sport,
@@ -169,8 +174,12 @@ export async function GET(req: NextRequest) {
         forcedRefresh: forceRefresh,
         source: forceRefresh
           ? canUsePersistentCache
-            ? 'live_computed_persisted_full'
-            : 'live_computed_full'
+            ? mode === 'full'
+              ? 'live_computed_persisted_full'
+              : 'live_computed_persisted_fast_refresh'
+            : mode === 'full'
+              ? 'live_computed_full'
+              : 'live_computed_fast_refresh'
           : canUsePersistentCache
             ? 'live_computed_persisted_fast'
             : 'live_computed_fast',

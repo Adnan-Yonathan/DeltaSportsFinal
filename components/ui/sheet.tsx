@@ -40,7 +40,7 @@ function SheetOverlay({ className, ...props }: React.ComponentProps<typeof Sheet
 }
 
 interface SheetContentProps extends React.ComponentProps<typeof SheetPrimitive.Content> {
-  side?: "top" | "right" | "bottom" | "left"
+  side?: "top" | "right" | "bottom" | "left" | "center"
   showClose?: boolean
 }
 
@@ -68,6 +68,8 @@ function SheetContent({
             "inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
           side === "bottom" &&
             "inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+          side === "center" &&
+            "left-1/2 top-1/2 h-auto max-h-[94vh] w-[min(96vw,1280px)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border data-[state=closed]:zoom-out-95 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0",
           className,
         )}
         {...props}

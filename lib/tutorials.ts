@@ -94,71 +94,59 @@ Our projections hit at **~55%** (2.62% edge). Here's what that means:
   "sharp-props": {
     id: "sharp-props",
     title: "Sharp Props",
-    subtitle: "Follow the whales to profitable prop bets",
+    subtitle: "Use live prop order books to time sharper entries",
     sections: [
       {
-        title: "When to Bet Props",
-        content: `**Only bet props where sharps have taken a position.**
+        title: "What to Bet",
+        content: `**Focus on props with real resting liquidity.**
 
--  **Sharp Score 70+**: These are your profitable plays. Sharps are aligned.
--  **Sharp Score 85+**: High conviction. Multiple whales on the same side.
--  **Sharp Score below 60**: Skip it. Not enough sharp consensus.
+-  **Big wall size**: Start with markets showing the largest notional walls.
+-  **Clear side pressure**: Prefer books where one side has a dominant wall.
+-  **Playable odds**: Compare sharp lean odds to your sportsbook line before entry.
 
-**Timing for profit:**
--  Props move FAST once sharps bet. Act within minutes.
--  Best value is 2-4 hours before game time
--  If the line has already moved to match sharp sentiment, the edge is gone
--  Late-breaking injury news creates new opportunities`,
+**Timing framework:**
+-  Check markets as liquidity builds pregame.
+-  Re-check right before placing the bet to avoid stale reads.
+-  If the wall disappears, treat that signal as gone.`,
       },
       {
-        title: "How to Make Money with Props",
-        content: `**The profitable prop betting system:**
+        title: "How to Use The Orderbook",
+        content: `**Use this workflow every slate:**
 
-1. **Filter by Sharp Score 70+** - Ignore everything below
-2. **Check the edge %** - Look for 4%+ edge on props (higher than sides)
-3. **Verify line availability** - Props get pulled or moved quickly
-4. **Bet the sharp side** - Over or Under, match their direction exactly
-5. **Spread your action** - 3-5 props is better than 1 big bet
+1. **Sort by wall size** to find markets with real conviction.
+2. **Read the lean** (Over/Under) from the strongest displayed wall.
+3. **Check your book's price** against the sharp lean odds.
+4. **Confirm context** (injuries, minutes limits, weather, lineup updates).
+5. **Place only when all signals agree** (orderbook + price + context).
 
-**Why this is profitable:**
-Sharps spend millions on player data and models. When multiple whales bet the same prop, they know something. Our composite score tracks this consensus.
-
-**Volume matters:** Props have higher variance. You need 50+ prop bets before the edge stabilizes.`,
+**Why this works:**
+Orderbook walls show where real size is waiting to trade. That gives you a live read on direction and price sensitivity before sportsbooks fully react.`,
       },
       {
-        title: "Bet Sizing for Props",
-        content: `**Props are higher variance--size conservatively:**
+        title: "Bet Sizing",
+        content: `**Keep sizing conservative even with strong orderbook signals.**
 
-| Sharp Score | Bet Size | Why |
-|-------------|----------|-----|
-| 70-79 | 0.5% of bankroll | Moderate confidence |
-| 80-89 | 0.75% of bankroll | Strong sharp alignment |
-| 90-100 | 1% of bankroll | Max conviction |
+| Setup quality | Bet size |
+|---------------|----------|
+| Moderate wall + fair price | 0.5% bankroll |
+| Strong wall + clear lean edge | 0.75% bankroll |
+| Very strong wall + best price | 1.0% bankroll |
 
-**Never exceed 1% on any single prop.**
-
-**Profitable approach:**
--  Bet 3-5 props per day at 0.5-1% each
--  Total daily prop exposure: 2-4% of bankroll max
--  This diversification smooths out variance`,
+**Rules:**
+-  Cap single-prop exposure at **1% bankroll**.
+-  Spread action across multiple independent props.
+-  Skip marginal spots instead of forcing volume.`,
       },
       {
-        title: "Expected Profit from Props",
-        content: `**Here's the math on prop profitability:**
+        title: "Execution Rules",
+        content: `**Treat Sharp Props as an execution layer, not a blind pick feed.**
 
-Props at -110 with sharp consensus hit at **~57%** (better than sides).
+-  Use orderbook lean to choose direction.
+-  Use sportsbook price to decide if the bet is worth taking.
+-  Track closing value on every play to measure signal quality.
+-  Review which wall profiles hold up best by sport and market type.
 
-**Per 100 prop bets at $50/bet:**
--  Win 57 -> +$2,591
--  Lose 43 -> -$2,365
--  **Net profit: +$226 per 100 bets**
-
-**Monthly projection (5 props/day):**
--  150 props/month
--  ~$340/month profit per $50 unit
--  With $10k bankroll: **~$680/month from props alone**
-
-**Combine with sides for maximum profit.** Props + Sharp Projections = diversified edge across all markets.`,
+The edge comes from combining **live liquidity reads + disciplined price selection** over a large sample.`,
       },
     ],
   },
@@ -195,36 +183,6 @@ Props at -110 with sharp consensus hit at **~57%** (better than sides).
       },
     ],
   },
-
-    "sharp-traders": {
-    id: "sharp-traders",
-    title: "Sharp Traders",
-    subtitle: "Track top profit Polymarket wallets and open sports trades",
-    sections: [
-      {
-        title: "What You Are Seeing",
-          content: `**This page tracks profitable wallets and their open sports trades.**
-
-  - Each wallet shows all-time P&L and recent performance.
-  - Open trades show what positions are still held today.
-  - Use it to spot sharp conviction before lines move.`,
-        },
-        {
-          title: "How to Use It",
-          content: `**A simple workflow:**
-
-  1. Filter by sport (today + next 7 days).
-  2. Scan for wallets holding similar positions.
-  3. Track repeat trades across the sharp cohort.`,
-        },
-        {
-          title: "Why It Matters",
-          content: `**Open positions are live signals.**
-
-  You see what winning wallets are still holding right now, not just what they closed.`,
-        },
-      ],
-    },
 
   "live-projections": {
     id: "live-projections",
@@ -435,7 +393,7 @@ Never exceed 2u on a single bet.`,
       },
       {
         title: "Scale with EV",
-          content: `Use **Parlay Pro** and **Sharp Traders** for higher-conviction spots.
+          content: `Use **Parlay Pro** for higher-conviction spots.
 
 -  Use EV as the final filter
 -  Keep a simple bankroll rule

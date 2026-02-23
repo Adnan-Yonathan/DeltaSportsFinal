@@ -34,12 +34,6 @@ const PAGE_METADATA: Record<string, Omit<PageCardData, 'key' | 'recommended'>> =
     href: '/live-scores',
     icon: <Radio className="w-4 h-4" />,
   },
-  'sharp-traders': {
-    label: 'Sharp Traders',
-    description: 'Top profit Polymarket wallets and their open sports trades',
-    href: '/sharp-traders',
-    icon: <Radio className="w-4 h-4" />,
-  },
   'parlay-predictor': {
     label: 'Parlay Pro',
     description: 'Sportsbook EV parlays plus a correlation-aware parlay builder',
@@ -48,8 +42,14 @@ const PAGE_METADATA: Record<string, Omit<PageCardData, 'key' | 'recommended'>> =
   },
   'player-projections': {
     label: 'Sharp Props',
-    description: 'Player prop projections based on recent form and matchup context',
-    href: '/player-projections',
+    description: 'Live prop orderbook walls and sharp over/under lean signals',
+    href: '/sharp-props',
+    icon: <Users className="w-4 h-4" />,
+  },
+  'sharp-props': {
+    label: 'Sharp Props',
+    description: 'Live prop orderbook walls and sharp over/under lean signals',
+    href: '/sharp-props',
     icon: <Users className="w-4 h-4" />,
   },
   'market-projections': {

@@ -27,7 +27,6 @@ interface ChatIntroProps {
 type ToolCardId =
   | 'sharp-projections'
   | 'sharp-props'
-  | 'sharp-traders'
   | 'whale-feed'
   | 'research'
 
@@ -50,14 +49,8 @@ const TOOL_CARDS: ToolCard[] = [
   {
     id: 'sharp-props',
     title: 'Sharp Props',
-    href: '/crossed-ev',
-    subtitle: 'Crossed EV and orderbook-based sharp lines',
-  },
-  {
-    id: 'sharp-traders',
-    title: 'Sharp Traders',
-    href: '/sharp-traders',
-    subtitle: 'Most profitable wallets and open positions',
+    href: '/sharp-props',
+    subtitle: 'Live orderbook walls and sharp lean direction',
   },
   {
     id: 'whale-feed',
@@ -80,14 +73,9 @@ const FALLBACK_PREVIEWS: Record<ToolCardId, string[]> = {
     'Scanning top total edges...',
   ],
   'sharp-props': [
-    'Scanning top crossed EV props...',
-    'Scanning sharp line deltas...',
-    'Scanning best orderbook signals...',
-  ],
-  'sharp-traders': [
-    'Loading top wallet performance...',
-    'Loading latest open trades...',
-    'Loading strongest recent pnl...',
+    'Scanning largest prop orderbook walls...',
+    'Scanning sharp over/under lean...',
+    'Scanning best orderbook prices...',
   ],
   'whale-feed': [
     'Loading latest whale tickets...',
@@ -130,12 +118,6 @@ export default function ChatIntro({
     return cleaned.replace(/\b\w/g, (char) => char.toUpperCase())
   }
 
-  const formatWallet = (value?: string | null) => {
-    const wallet = String(value ?? '')
-    if (wallet.length <= 12) return wallet || 'Wallet'
-    return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`
-  }
-
   useEffect(() => {
     if (isGuest || typeof window === 'undefined') return
     try {
@@ -175,19 +157,13 @@ export default function ChatIntro({
 
     const loadPreviews = async () => {
       try {
-        const [marketRes, propsRes, tradersRes, whalesRes] = await Promise.all([
+        const [marketRes, propsRes, whalesRes] = await Promise.all([
           fetch('/api/market-projections?sport=basketball_nba&include=1&limit=120', {
             cache: 'no-store',
           }),
-          fetch('/api/crossed-ev?sport=basketball_nba', {
+          fetch('/api/prop-orderbooks?sport=basketball_nba&limit=40&depth=8&minSharpNotional=100', {
             cache: 'no-store',
           }),
-          fetch(
-            '/api/polymarket/wallets/top-profit?top=6&tradeLimit=120&tradePages=2&openTradeLimit=1',
-            {
-              cache: 'no-store',
-            }
-          ),
           fetch('/api/whale-trades-daily?limit=12&minNotional=2000', {
             cache: 'no-store',
           }),
@@ -260,43 +236,26 @@ export default function ChatIntro({
 
         if (propsRes.ok) {
           const payload = await propsRes.json()
-          const rows = Array.isArray(payload?.rows)
-            ? (payload.rows as Array<Record<string, any>>)
+          const rows = Array.isArray(payload?.items)
+            ? (payload.items as Array<Record<string, any>>)
             : []
           const propLines = pickTopThree(
             rows.map((row) => {
-              const side = String(row?.recommendedSide ?? '').toUpperCase()
-              const evPct = formatSignedNumber(row?.evPercent, 1)
-              return `${row?.player ?? 'Player'} - ${formatMarket(row?.market)} ${row?.bookPoint ?? 'n/a'} ${side} (${evPct}%)`
+              const leanSide = String(row?.sharpLeanSide ?? '').toUpperCase() || 'LEAN'
+              const oddsValue =
+                row?.pinnacleLeanOdds ??
+                row?.sharpLeanBestOdds ??
+                row?.sharpLeanAmericanOdds ??
+                row?.sharpOrderAmericanOdds
+              const leanOdds = formatOdds(oddsValue)
+              const player = row?.playerName ?? 'Player'
+              const propType = formatMarket(row?.propType)
+              const line = row?.propLine != null ? ` ${row.propLine}` : ''
+              return `${player} - ${propType}${line} ${leanSide} (${leanOdds})`
             })
           )
           if (propLines.length) {
             nextPreviews['sharp-props'] = propLines
-          }
-        }
-
-        if (tradersRes.ok) {
-          const payload = await tradersRes.json()
-          const wallets = Array.isArray(payload?.wallets)
-            ? (payload.wallets as Array<Record<string, any>>)
-            : []
-          const traderLines = pickTopThree(
-            wallets.map((wallet) => {
-              const topSport = wallet?.top_sports?.[0]?.sport
-              const openTrade = Array.isArray(wallet?.open_trades)
-                ? wallet.open_trades[0]
-                : null
-              if (openTrade?.outcome) {
-                return `${formatWallet(wallet?.wallet)} - ${openTrade.outcome}`
-              }
-              if (topSport) {
-                return `${formatWallet(wallet?.wallet)} - ${String(topSport).toUpperCase()} focus`
-              }
-              return `${formatWallet(wallet?.wallet)} - ${formatSignedNumber(wallet?.total_pnl, 0)} pnl`
-            })
-          )
-          if (traderLines.length) {
-            nextPreviews['sharp-traders'] = traderLines
           }
         }
 
@@ -464,25 +423,6 @@ export default function ChatIntro({
               imageSrc="/Screenshot 2026-01-11 170628.png"
               imageAlt="Sharp projections overview"
             />
-            <SectionWithMockup
-              title={
-                <>
-                  Sharp Traders
-                  <br />
-                  reveals the wallets moving markets.
-                </>
-              }
-              description={
-                <>
-                  Follow the most profitable Polymarket wallets and see the open sports trades
-                  they still hold. Track conviction in real time and spot the positions sharps
-                  are leaning into before the public catches up.
-                </>
-              }
-              primaryImageSrc="/Screenshot 2026-01-31 094051.png"
-              secondaryImageSrc="/sharp-traders-blur.png"
-              reverseLayout
-            />
             <FeaturesSix
               title="Research mode for sharper decisions"
               description="Understand why lines move, summarize sharp action, and build a stronger read before you bet."
@@ -564,9 +504,6 @@ export default function ChatIntro({
     )
   }
 
-  const topCards = orderedCards.slice(0, 2)
-  const bottomCards = orderedCards.slice(2, 5)
-
   return (
     <div className="h-full w-full bg-black">
       <motion.div
@@ -574,13 +511,8 @@ export default function ChatIntro({
         animate={{ opacity: 1, y: 0 }}
         className="relative h-full w-full p-2 sm:p-3"
       >
-        <div className="grid h-full grid-cols-1 gap-3 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-3 md:h-full md:min-h-0">
-            {topCards.map((card) => renderToolCard(card))}
-          </div>
-          <div className="grid grid-cols-3 gap-3 md:h-full md:min-h-0">
-            {bottomCards.map((card) => renderToolCard(card))}
-          </div>
+        <div className="grid h-full grid-cols-2 gap-3 overflow-y-auto">
+          {orderedCards.slice(0, 4).map((card) => renderToolCard(card))}
         </div>
       </motion.div>
     </div>

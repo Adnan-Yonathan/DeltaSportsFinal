@@ -34,26 +34,13 @@ const featureCards: Array<CardData & { id: string }> = [
     id: "sharp-props",
     front: {
       title: "Sharp Props",
-      description: "Crossed numbers and EV-ranked prop opportunities.",
+      description: "Live prop orderbook walls and sharp lean signals.",
       icon: <WaterfallIcon />,
     },
     back: {
       description:
-        "Scan prop EV and lock the best number across books in one view. No spreadsheet grind.",
+        "Scan resting liquidity, read over/under pressure, and compare sharp lean odds before you fire.",
       buttonText: "View Guide",
-    },
-  },
-  {
-    id: "sharp-traders",
-    front: {
-      title: "Sharp Traders",
-      description: "Follow the wallets that move markets before the public.",
-      icon: <MaskIcon />,
-    },
-    back: {
-      description:
-        "Track profitable Polymarket wallets, see their open positions, and monitor conviction before lines react.",
-      buttonText: "View Sharp Traders",
     },
   },
   {
@@ -146,7 +133,6 @@ function GenericCardBack({
   const hrefById: Record<string, string> = {
     "sharp-projections": "/tools/sharp-projections",
     "sharp-props": "/tools/sharp-props",
-    "sharp-traders": "/tools/sharp-traders",
     "whale-feed": "/tools/whale-feed",
     "research-mode": "/tools/research-mode",
   }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import Image from "next/image"
 import BoxLoader from "@/components/ui/box-loader"
 
 type OrderbookLevel = {
@@ -47,9 +48,71 @@ export type OrderbookItem = {
   sides: OrderbookSide[]
 }
 
-const formatCurrency = (value?: number | null) => {
+type OrderbooksInitialData = {
+  items: OrderbookItem[]
+  updatedAt: string
+  cache: {
+    source: "persistent" | "persistent_all_fallback"
+    fetchedAt: string | null
+  }
+} | null
+
+type OrderbooksApiResponse = {
+  ok?: boolean
+  updatedAt?: string
+  items?: OrderbookItem[]
+  cache?: {
+    source?: string
+    fetchedAt?: string | null
+  }
+  error?: string
+}
+
+type PlayerHeadshotResponse = {
+  ok?: boolean
+  headshots?: Record<string, string | null>
+}
+
+type PlayerIntel = {
+  playerName: string
+  team: string | null
+  position: string | null
+  season: string | null
+  headshotUrl: string | null
+  stats: Array<{ label: string; value: string }>
+  trend: {
+    metric: string
+    average: string
+    sampleSize: number
+    hitRateLabel: string | null
+  } | null
+  insights: string[]
+}
+
+type PlayerIntelResponse = {
+  ok?: boolean
+  players?: Record<string, PlayerIntel | null>
+}
+
+type LadderRow = {
+  id: string
+  side: "Over" | "Under" | null
+  odds: number | null
+  notional: number
+}
+
+type OddsPreset = "all" | "default" | "underdog200" | "plusMoney" | "evenish" | "favorites" | "custom"
+
+const COMPACT_USD = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 1,
+})
+
+const formatCompactCurrency = (value?: number | null) => {
   if (value == null || !Number.isFinite(value)) return "--"
-  return `$${Math.round(value).toLocaleString("en-US")}`
+  return COMPACT_USD.format(value)
 }
 
 const formatAmericanOdds = (value?: number | null) => {
@@ -64,6 +127,28 @@ const formatSourceLabel = (source: OrderbookItem["source"]) => {
   return "ProphetX"
 }
 
+const formatDateLabel = (value?: string | null) => {
+  if (!value) return "TBD"
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+const formatCacheLabel = (source?: string | null) => {
+  if (!source) return "live"
+  if (source === "persistent") return "cached"
+  if (source === "persistent_all_fallback") return "cached(all)"
+  if (source.includes("fast_refresh")) return "live fast"
+  if (source.includes("fast")) return "live"
+  if (source.includes("full")) return "live full"
+  return source.replace(/_/g, " ")
+}
+
 const resolveLargestWall = (item: OrderbookItem) =>
   [...item.sides]
     .filter((side) => (side.wallNotional ?? 0) > 0)
@@ -74,88 +159,278 @@ const resolveDisplayOrderSize = (item: OrderbookItem) => {
   return resolveLargestWall(item)?.wallNotional ?? null
 }
 
+const resolvePropText = (item: OrderbookItem) => {
+  const propType = item.propType?.replace(/_/g, " ") ?? "prop"
+  const line = item.propLine != null ? ` ${item.propLine}` : ""
+  return `${item.playerName ?? "Unknown"} ${propType}${line}`
+}
+
+const normalizePlayerToken = (value?: string | null) =>
+  String(value ?? "")
+    .toLowerCase()
+    .replace(/['.]/g, "")
+    .replace(/\s+(jr|sr|ii|iii|iv|v)$/i, "")
+    .replace(/[^a-z0-9]/g, "")
+    .trim()
+
+const buildPlayerHeadshotKey = (sportKey: string, playerName: string) =>
+  `${sportKey}:${normalizePlayerToken(playerName)}`
+
+const buildPlayerIntelKey = (item: Pick<OrderbookItem, "sportKey" | "playerName" | "propType" | "propLine">) =>
+  `${item.sportKey}:${normalizePlayerToken(item.playerName)}:${item.propType ?? ""}:${String(
+    item.propLine ?? ""
+  )}`
+
+const buildPlayerFaceRoute = (sportKey: string, playerName?: string | null) =>
+  playerName
+    ? `/api/intel/player-face?sportKey=${encodeURIComponent(sportKey)}&name=${encodeURIComponent(
+        playerName
+      )}`
+    : null
+
+const hasOwn = (obj: Record<string, unknown>, key: string) =>
+  Object.prototype.hasOwnProperty.call(obj, key)
+
+const resolvePlayerHeadshot = (
+  item: OrderbookItem,
+  headshotsByKey: Record<string, string | null>
+) => {
+  if (!item.playerName) return null
+  const key = buildPlayerHeadshotKey(item.sportKey, item.playerName)
+  if (!hasOwn(headshotsByKey, key)) return null
+  return headshotsByKey[key]
+}
+
+const resolvePlayerInitials = (name?: string | null) => {
+  if (!name) return "?"
+  const parts = name.split(" ").filter(Boolean)
+  if (!parts.length) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase()
+}
+
+const probabilityToAmericanOdds = (probability: number) => {
+  if (!Number.isFinite(probability) || probability <= 0 || probability >= 1) return null
+  if (probability >= 0.5) {
+    return -Math.round((probability / (1 - probability)) * 100)
+  }
+  return Math.round(((1 - probability) / probability) * 100)
+}
+
+const oddsToImpliedProbability = (odds: number) => {
+  if (!Number.isFinite(odds) || odds === 0) return null
+  if (odds > 0) return 100 / (odds + 100)
+  const absolute = Math.abs(odds)
+  return absolute / (absolute + 100)
+}
+
+const priceCentsToAmericanOdds = (priceCents: number | null) => {
+  if (priceCents == null) return null
+  const probability = priceCents / 100
+  return probabilityToAmericanOdds(probability)
+}
+
+const resolveMiniBarShares = (item: OrderbookItem) => {
+  const overNotional =
+    item.sides
+      .filter((side) => side.propSide === "Over")
+      .reduce((sum, side) => sum + (side.wallNotional ?? 0), 0) ?? 0
+  const underNotional =
+    item.sides
+      .filter((side) => side.propSide === "Under")
+      .reduce((sum, side) => sum + (side.wallNotional ?? 0), 0) ?? 0
+  const total = overNotional + underNotional
+  if (total <= 0) return { overPct: 0, underPct: 0 }
+  return {
+    overPct: Math.round((overNotional / total) * 100),
+    underPct: Math.round((underNotional / total) * 100),
+  }
+}
+
+const buildLadderRows = (item: OrderbookItem, limit: number) => {
+  const rows: LadderRow[] = []
+  for (const side of item.sides) {
+    if (side.levels.length) {
+      side.levels.forEach((level, index) => {
+        rows.push({
+          id: `${item.id}:${side.outcome}:${index}`,
+          side: side.propSide,
+          odds: priceCentsToAmericanOdds(level.priceCents),
+          notional: level.notional,
+        })
+      })
+      continue
+    }
+    if ((side.wallNotional ?? 0) > 0) {
+      rows.push({
+        id: `${item.id}:${side.outcome}:wall`,
+        side: side.propSide,
+        odds: side.wallAmericanOdds,
+        notional: side.wallNotional ?? 0,
+      })
+    }
+  }
+
+  return rows
+    .filter((row) => row.notional > 0)
+    .sort((a, b) => b.notional - a.notional)
+    .slice(0, limit)
+}
+
+const resolveWeightedAverageOdds = (rows: LadderRow[]) => {
+  let weightedProbability = 0
+  let totalNotional = 0
+  for (const row of rows) {
+    if (row.odds == null) continue
+    const implied = oddsToImpliedProbability(row.odds)
+    if (implied == null) continue
+    weightedProbability += implied * row.notional
+    totalNotional += row.notional
+  }
+  if (totalNotional <= 0) return null
+  return probabilityToAmericanOdds(weightedProbability / totalNotional)
+}
+
 export default function PropOrderbooksPanel({
   sport,
   limit = 80,
   depth = 8,
   minSharpNotional = 100,
+  initialData = null,
 }: {
   sport: string
   limit?: number
   depth?: number
   minSharpNotional?: number
+  initialData?: OrderbooksInitialData
 }) {
-  const [items, setItems] = useState<OrderbookItem[]>([])
+  const [items, setItems] = useState<OrderbookItem[]>(initialData?.items ?? [])
   const [search, setSearch] = useState("")
-  const [oddsPreset, setOddsPreset] = useState<
-    "all" | "default" | "underdog200" | "plusMoney" | "evenish" | "favorites" | "custom"
-  >("all")
+  const [oddsPreset, setOddsPreset] = useState<OddsPreset>("all")
   const [minOdds, setMinOdds] = useState<string>("-200")
   const [maxOdds, setMaxOdds] = useState<string>("")
-  const [loading, setLoading] = useState(false)
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(
+    initialData?.items?.[0]?.id ?? null
+  )
+  const [loading, setLoading] = useState((initialData?.items?.length ?? 0) === 0)
+  const [refreshing, setRefreshing] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({})
-  const loadedRef = useRef(false)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(
+    initialData?.updatedAt ?? null
+  )
+  const [cacheSource, setCacheSource] = useState<string | null>(
+    initialData?.cache?.source ?? null
+  )
+  const [cacheFetchedAt, setCacheFetchedAt] = useState<string | null>(
+    initialData?.cache?.fetchedAt ?? null
+  )
+  const [playerHeadshotsByKey, setPlayerHeadshotsByKey] = useState<Record<string, string | null>>({})
+  const [headshotLoadingByKey, setHeadshotLoadingByKey] = useState<Record<string, boolean>>({})
+  const [playerIntelByKey, setPlayerIntelByKey] = useState<Record<string, PlayerIntel | null>>({})
+  const [playerIntelLoadingByKey, setPlayerIntelLoadingByKey] = useState<Record<string, boolean>>({})
+
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const hasItemsRef = useRef((initialData?.items?.length ?? 0) > 0)
 
-  const load = useCallback(async () => {
-    if (loadedRef.current) return
-    const requestId = requestIdRef.current + 1
-    requestIdRef.current = requestId
-    abortControllerRef.current?.abort()
-    const controller = new AbortController()
-    abortControllerRef.current = controller
-    setLoading(true)
-    setErrorMessage(null)
+  const load = useCallback(
+    async ({
+      forceRefresh = false,
+      background = false,
+    }: {
+      forceRefresh?: boolean
+      background?: boolean
+    } = {}) => {
+      const requestId = requestIdRef.current + 1
+      requestIdRef.current = requestId
+      abortControllerRef.current?.abort()
+      const controller = new AbortController()
+      abortControllerRef.current = controller
 
-    try {
-      const params = new URLSearchParams({
-        sport,
-        limit: String(limit),
-        depth: String(depth),
-        minSharpNotional: String(minSharpNotional),
-      })
-
-      const res = await fetch(`/api/prop-orderbooks?${params.toString()}`, {
-        cache: "no-store",
-        signal: controller.signal,
-      })
-
-      if (!res.ok) {
-        const payload = await res.json().catch(() => ({}))
-        throw new Error(payload?.error || "Failed to load order books.")
+      if (background) {
+        setRefreshing(true)
+        if (!hasItemsRef.current) setLoading(true)
+      } else {
+        setLoading(true)
       }
 
-      const json = await res.json()
-      if (requestId !== requestIdRef.current) return
-      setItems(Array.isArray(json?.items) ? json.items : [])
-      loadedRef.current = true
-    } catch (err: any) {
-      if (controller.signal.aborted || requestId !== requestIdRef.current) return
-      setErrorMessage(err?.message ?? "Failed to load order books.")
-      setItems([])
-    } finally {
-      if (requestId !== requestIdRef.current) return
-      setLoading(false)
-    }
-  }, [sport, limit, depth, minSharpNotional])
+      try {
+        const params = new URLSearchParams({
+          sport,
+          limit: String(limit),
+          depth: String(depth),
+          minSharpNotional: String(minSharpNotional),
+        })
+        if (forceRefresh) {
+          params.set("refresh", "1")
+          params.set("mode", "fast")
+        }
+
+        const res = await fetch(`/api/prop-orderbooks?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        })
+
+        const payload = (await res.json().catch(() => ({}))) as OrderbooksApiResponse
+        if (!res.ok) {
+          throw new Error(payload?.error || "Failed to load order books.")
+        }
+        if (requestId !== requestIdRef.current) return
+
+        const nextItems = Array.isArray(payload?.items) ? payload.items : []
+        hasItemsRef.current = nextItems.length > 0
+        setItems(nextItems)
+        setSelectedItemId((prev) => {
+          if (!nextItems.length) return null
+          if (prev && nextItems.some((item) => item.id === prev)) return prev
+          return nextItems[0].id
+        })
+        setLastUpdatedAt(payload?.updatedAt ?? new Date().toISOString())
+        setCacheSource(payload?.cache?.source ?? null)
+        setCacheFetchedAt(payload?.cache?.fetchedAt ?? null)
+        setErrorMessage(null)
+      } catch (error: any) {
+        if (controller.signal.aborted || requestId !== requestIdRef.current) return
+        setErrorMessage(error?.message ?? "Failed to load order books.")
+      } finally {
+        if (requestId !== requestIdRef.current) return
+        setLoading(false)
+        setRefreshing(false)
+      }
+    },
+    [depth, limit, minSharpNotional, sport]
+  )
 
   useEffect(() => {
     requestIdRef.current += 1
     abortControllerRef.current?.abort()
-    loadedRef.current = false
-    setItems([])
+    const seededItems = initialData?.items ?? []
+    hasItemsRef.current = seededItems.length > 0
+    setItems(seededItems)
+    setSelectedItemId(seededItems[0]?.id ?? null)
+    setLoading(!seededItems.length)
+    setRefreshing(false)
     setErrorMessage(null)
+    setLastUpdatedAt(initialData?.updatedAt ?? null)
+    setCacheSource(initialData?.cache?.source ?? null)
+    setCacheFetchedAt(initialData?.cache?.fetchedAt ?? null)
+    setPlayerHeadshotsByKey({})
+    setHeadshotLoadingByKey({})
+    setPlayerIntelByKey({})
+    setPlayerIntelLoadingByKey({})
     setSearch("")
     setOddsPreset("all")
     setMinOdds("-200")
     setMaxOdds("")
-    setExpandedCards({})
-  }, [sport])
+
+    load({ background: seededItems.length > 0 })
+  }, [initialData, load, sport])
 
   useEffect(() => {
-    load()
+    const interval = window.setInterval(() => {
+      load({ forceRefresh: true, background: true })
+    }, 60_000)
+    return () => window.clearInterval(interval)
   }, [load])
 
   useEffect(() => {
@@ -164,9 +439,194 @@ export default function PropOrderbooksPanel({
     }
   }, [])
 
+  const pendingHeadshotGroups = useMemo(() => {
+    const groups = new Map<string, Array<{ playerName: string; key: string }>>()
+    const seen = new Set<string>()
+
+    for (const item of items) {
+      if (!item.playerName) continue
+      const playerName = item.playerName.trim()
+      if (!playerName) continue
+      const key = buildPlayerHeadshotKey(item.sportKey, playerName)
+      if (seen.has(key)) continue
+      seen.add(key)
+      if (hasOwn(playerHeadshotsByKey, key) || headshotLoadingByKey[key]) continue
+      const group = groups.get(item.sportKey) ?? []
+      group.push({ playerName, key })
+      groups.set(item.sportKey, group)
+    }
+
+    return Array.from(groups.entries()).map(([sportKey, players]) => ({ sportKey, players }))
+  }, [items, playerHeadshotsByKey, headshotLoadingByKey])
+
+  const pendingIntelGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      Array<{ name: string; propType: string | null; propLine: number | null; key: string }>
+    >()
+    const seen = new Set<string>()
+
+    for (const item of items) {
+      if (!item.playerName) continue
+      const name = item.playerName.trim()
+      if (!name) continue
+      const key = buildPlayerIntelKey(item)
+      if (seen.has(key)) continue
+      seen.add(key)
+      if (hasOwn(playerIntelByKey, key) || playerIntelLoadingByKey[key]) continue
+      const group = groups.get(item.sportKey) ?? []
+      group.push({
+        name,
+        propType: item.propType ?? null,
+        propLine: item.propLine ?? null,
+        key,
+      })
+      groups.set(item.sportKey, group)
+    }
+
+    return Array.from(groups.entries()).map(([sportKey, players]) => ({ sportKey, players }))
+  }, [items, playerIntelByKey, playerIntelLoadingByKey])
+
+  useEffect(() => {
+    let cancelled = false
+    if (pendingHeadshotGroups.length === 0) return
+
+    const run = async () => {
+      const chunkSize = 20
+      for (const group of pendingHeadshotGroups) {
+        for (let i = 0; i < group.players.length; i += chunkSize) {
+          if (cancelled) return
+          const chunk = group.players.slice(i, i + chunkSize)
+          const names = chunk.map((entry) => entry.playerName)
+
+          setHeadshotLoadingByKey((prev) => {
+            const next = { ...prev }
+            chunk.forEach((entry) => {
+              next[entry.key] = true
+            })
+            return next
+          })
+
+          try {
+            const res = await fetch("/api/intel/player-headshots", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              cache: "no-store",
+              body: JSON.stringify({
+                sportKey: group.sportKey,
+                players: names,
+              }),
+            })
+            const payload = (await res.json().catch(() => ({}))) as PlayerHeadshotResponse
+            if (!res.ok) {
+              throw new Error("Failed to preload player headshots.")
+            }
+            if (cancelled) return
+
+            setPlayerHeadshotsByKey((prev) => {
+              const next = { ...prev }
+              chunk.forEach((entry) => {
+                const value = payload?.headshots?.[entry.playerName]
+                next[entry.key] =
+                  typeof value === "string" && value.trim().length > 0 ? value : null
+              })
+              return next
+            })
+          } catch {
+            if (cancelled) return
+            // Keep keys unresolved on request failure so subsequent renders can retry.
+          } finally {
+            if (cancelled) return
+            setHeadshotLoadingByKey((prev) => {
+              const next = { ...prev }
+              chunk.forEach((entry) => {
+                delete next[entry.key]
+              })
+              return next
+            })
+          }
+        }
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [pendingHeadshotGroups])
+
+  useEffect(() => {
+    let cancelled = false
+    if (pendingIntelGroups.length === 0) return
+
+    const run = async () => {
+      const chunkSize = 12
+      for (const group of pendingIntelGroups) {
+        for (let i = 0; i < group.players.length; i += chunkSize) {
+          if (cancelled) return
+          const chunk = group.players.slice(i, i + chunkSize)
+
+          setPlayerIntelLoadingByKey((prev) => {
+            const next = { ...prev }
+            chunk.forEach((entry) => {
+              next[entry.key] = true
+            })
+            return next
+          })
+
+          try {
+            const res = await fetch("/api/intel/player-intel", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              cache: "no-store",
+              body: JSON.stringify({
+                sportKey: group.sportKey,
+                players: chunk.map((entry) => ({
+                  name: entry.name,
+                  propType: entry.propType,
+                  propLine: entry.propLine,
+                })),
+              }),
+            })
+            const payload = (await res.json().catch(() => ({}))) as PlayerIntelResponse
+            if (!res.ok) {
+              throw new Error("Failed to preload player intel.")
+            }
+            if (cancelled) return
+
+            setPlayerIntelByKey((prev) => {
+              const next = { ...prev }
+              chunk.forEach((entry) => {
+                const intel = payload?.players?.[entry.name] ?? null
+                next[entry.key] = intel
+              })
+              return next
+            })
+          } catch {
+            if (cancelled) return
+            // Keep keys unresolved on request failure so subsequent renders can retry.
+          } finally {
+            if (cancelled) return
+            setPlayerIntelLoadingByKey((prev) => {
+              const next = { ...prev }
+              chunk.forEach((entry) => {
+                delete next[entry.key]
+              })
+              return next
+            })
+          }
+        }
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [pendingIntelGroups])
+
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase()
-
     const resolvedRange = (() => {
       if (oddsPreset === "all") return { min: null as number | null, max: null as number | null }
       if (oddsPreset === "underdog200") return { min: 200, max: null as number | null }
@@ -181,74 +641,95 @@ export default function PropOrderbooksPanel({
           max: Number.isFinite(max as number) ? (max as number) : null,
         }
       }
-
       return { min: -200, max: null as number | null }
     })()
 
-    const matchesOddsRange = (
-      candidateOdds: number | null,
-      range: { min: number | null; max: number | null }
-    ) => {
+    const matchesOddsRange = (candidateOdds: number | null) => {
+      if (resolvedRange.min == null && resolvedRange.max == null) return true
       if (candidateOdds == null) return false
-      if (range.min != null && candidateOdds < range.min) return false
-      if (range.max != null && candidateOdds > range.max) return false
+      if (resolvedRange.min != null && candidateOdds < resolvedRange.min) return false
+      if (resolvedRange.max != null && candidateOdds > resolvedRange.max) return false
       return true
     }
 
-    const filtered = items.filter((item) => {
-      if (query) {
-        const haystack = `${item.playerName ?? ""} ${item.matchup ?? ""} ${item.marketTitle ?? ""}`
-          .toLowerCase()
-          .trim()
-        if (!haystack.includes(query)) return false
-      }
+    return items
+      .filter((item) => {
+        if (query) {
+          const haystack = `${item.playerName ?? ""} ${item.matchup ?? ""} ${item.marketTitle ?? ""}`
+            .toLowerCase()
+            .trim()
+          if (!haystack.includes(query)) return false
+        }
+        const displayLeanOdds = item.pinnacleLeanOdds ?? item.sharpLeanBestOdds ?? item.sharpLeanAmericanOdds
+        return matchesOddsRange(displayLeanOdds)
+      })
+      .sort((a, b) => {
+        const aSize = resolveDisplayOrderSize(a) ?? 0
+        const bSize = resolveDisplayOrderSize(b) ?? 0
+        if (bSize !== aSize) return bSize - aSize
+        return a.marketTitle.localeCompare(b.marketTitle)
+      })
+  }, [items, maxOdds, minOdds, oddsPreset, search])
 
-      const displayLeanOdds =
-        item.sharpLeanBestOdds ?? item.sharpLeanAmericanOdds ?? null
-      if (resolvedRange.min == null && resolvedRange.max == null) return true
+  useEffect(() => {
+    if (!filteredItems.length) {
+      setSelectedItemId(null)
+      return
+    }
+    if (!selectedItemId || !filteredItems.some((item) => item.id === selectedItemId)) {
+      setSelectedItemId(filteredItems[0].id)
+    }
+  }, [filteredItems, selectedItemId])
 
-      const hasSharpLeanOdds =
-        item.sharpLeanSide != null &&
-        displayLeanOdds != null &&
-        Number.isFinite(displayLeanOdds)
-      if (!hasSharpLeanOdds) return false
+  const selectedItem = useMemo(
+    () => filteredItems.find((item) => item.id === selectedItemId) ?? filteredItems[0] ?? null,
+    [filteredItems, selectedItemId]
+  )
+  const selectedIntelKey = selectedItem ? buildPlayerIntelKey(selectedItem) : null
+  const selectedIntel = selectedIntelKey ? playerIntelByKey[selectedIntelKey] ?? null : null
+  const selectedIntelLoading = selectedIntelKey ? Boolean(playerIntelLoadingByKey[selectedIntelKey]) : false
+  const selectedPlayerHeadshot = selectedItem
+    ? selectedIntel?.headshotUrl ?? resolvePlayerHeadshot(selectedItem, playerHeadshotsByKey)
+    : null
+  const selectedFaceSrc = selectedItem
+    ? selectedPlayerHeadshot
+      ? `/api/image-proxy?url=${encodeURIComponent(selectedPlayerHeadshot)}`
+      : buildPlayerFaceRoute(selectedItem.sportKey, selectedItem.playerName)
+    : null
 
-      return matchesOddsRange(displayLeanOdds, resolvedRange)
-    })
-
-    return filtered.sort((a, b) => {
-      const aDisplayLeanOdds = a.sharpLeanBestOdds ?? a.sharpLeanAmericanOdds ?? null
-      const bDisplayLeanOdds = b.sharpLeanBestOdds ?? b.sharpLeanAmericanOdds ?? null
-      const aHasSharpLean = aDisplayLeanOdds != null && Number.isFinite(aDisplayLeanOdds)
-      const bHasSharpLean = bDisplayLeanOdds != null && Number.isFinite(bDisplayLeanOdds)
-      if (aHasSharpLean !== bHasSharpLean) return aHasSharpLean ? -1 : 1
-
-      const aLiquidity = resolveDisplayOrderSize(a) ?? 0
-      const bLiquidity = resolveDisplayOrderSize(b) ?? 0
-      if (bLiquidity !== aLiquidity) return bLiquidity - aLiquidity
-      return a.marketTitle.localeCompare(b.marketTitle)
-    })
-  }, [items, search, oddsPreset, minOdds, maxOdds])
-
-  const totalCountLabel = useMemo(
-    () => `${filteredItems.length} order books`,
-    [filteredItems.length]
+  const ladderRows = useMemo(
+    () => (selectedItem ? buildLadderRows(selectedItem, 12) : []),
+    [selectedItem]
+  )
+  const maxLadderNotional = useMemo(
+    () => ladderRows.reduce((max, row) => Math.max(max, row.notional), 0),
+    [ladderRows]
+  )
+  const ladderVolume = useMemo(
+    () => ladderRows.reduce((sum, row) => sum + row.notional, 0),
+    [ladderRows]
+  )
+  const ladderAverageOdds = useMemo(
+    () => resolveWeightedAverageOdds(ladderRows),
+    [ladderRows]
   )
 
-  if (loading) {
+  const totalCountLabel = `${filteredItems.length} order books`
+  const updatedLabel = lastUpdatedAt ? formatDateLabel(lastUpdatedAt) : "--"
+  const fetchedLabel = cacheFetchedAt ? formatDateLabel(cacheFetchedAt) : null
+
+  if (loading && !items.length) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-6">
+      <div className="flex min-h-[360px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-6">
         <div className="flex flex-col items-center gap-4">
           <BoxLoader />
-          <span className="text-xs uppercase tracking-[0.3em] text-white/50">
-            Loading...
-          </span>
+          <span className="text-xs uppercase tracking-[0.3em] text-white/50">Loading orderbooks...</span>
         </div>
       </div>
     )
   }
 
-  if (errorMessage) {
+  if (!loading && !items.length && errorMessage) {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-red-200">
         {errorMessage}
@@ -256,35 +737,45 @@ export default function PropOrderbooksPanel({
     )
   }
 
-  if (!items.length) {
-    return (
-      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/60">
-        No order books available.
-      </div>
-    )
-  }
-
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 bg-black/50 px-4 py-3">
-        <div className="space-y-1">
-          <div className="text-[11px] uppercase tracking-[0.2em] text-white/40">
-            Largest resting liquidity wall | Min wall {formatCurrency(minSharpNotional)}
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#06090f]">
+      <div className="border-b border-white/10 bg-black/40 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">Sharp Prop Orderbook</div>
+            <div className="mt-1 text-xs text-white/55">
+              {totalCountLabel} | refreshes every 60s
+            </div>
           </div>
-          <div className="text-[10px] text-white/40">
-            Sharp lean uses complement pricing (100 - wall price).
-          </div>
-          <div className="text-[10px] text-white/40">
-            Showing all available books; odds filters require a resolved lean signal.
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/50">
+            <span>Updated {updatedLabel}</span>
+            {fetchedLabel && <span>Cache {fetchedLabel}</span>}
+            <span className="rounded-md border border-white/10 px-2 py-1 text-white/60">
+              {formatCacheLabel(cacheSource)}
+            </span>
+            <button
+              type="button"
+              onClick={() => load({ forceRefresh: true, background: true })}
+              className="rounded-md border border-white/15 px-2.5 py-1 text-white/75 transition-colors hover:border-emerald-400/50 hover:text-emerald-200"
+            >
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </button>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-3">
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search player or matchup"
+            className="h-9 w-[220px] rounded-xl border border-white/10 bg-black/50 px-3 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+          />
           <select
             value={oddsPreset}
-            onChange={(event) => setOddsPreset(event.target.value as any)}
-            className="h-9 rounded-xl border border-white/10 bg-black/40 px-3 text-xs text-white/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            onChange={(event) => setOddsPreset(event.target.value as OddsPreset)}
+            className="h-9 rounded-xl border border-white/10 bg-black/50 px-3 text-xs text-white/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
           >
-            <option value="all">Odds: Any (show all)</option>
+            <option value="all">Odds: Any</option>
             <option value="default">Odds: -200 or better</option>
             <option value="underdog200">Odds: +200 or worse</option>
             <option value="plusMoney">Odds: +100 or worse</option>
@@ -299,246 +790,319 @@ export default function PropOrderbooksPanel({
                 onChange={(e) => setMinOdds(e.target.value)}
                 placeholder="Min"
                 inputMode="numeric"
-                className="h-9 w-[92px] rounded-xl border border-white/10 bg-black/40 px-3 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                className="h-9 w-[88px] rounded-xl border border-white/10 bg-black/50 px-3 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
               />
-              <span className="text-xs text-white/40">to</span>
+              <span className="text-xs text-white/45">to</span>
               <input
                 value={maxOdds}
                 onChange={(e) => setMaxOdds(e.target.value)}
                 placeholder="Max"
                 inputMode="numeric"
-                className="h-9 w-[92px] rounded-xl border border-white/10 bg-black/40 px-3 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                className="h-9 w-[88px] rounded-xl border border-white/10 bg-black/50 px-3 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
               />
             </div>
           )}
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search player"
-            className="h-9 w-[180px] rounded-xl border border-white/10 bg-black/40 px-3 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          />
-          <div className="text-[10px] text-white/40">{totalCountLabel}</div>
+          {errorMessage && <span className="text-xs text-amber-200">{errorMessage}</span>}
         </div>
       </div>
 
-      <div className="divide-y divide-white/5">
-        {filteredItems.map((item) => {
-          const isExpanded = Boolean(expandedCards[item.id])
-          const largestWall = resolveLargestWall(item)
-          const orderSize = resolveDisplayOrderSize(item)
-          const liquiditySide = item.sharpLiquiditySide ?? largestWall?.propSide ?? null
-          const inferredLeanSide =
-            item.sharpLeanSide ??
-            (liquiditySide === "Over"
-              ? "Under"
-              : liquiditySide === "Under"
-                ? "Over"
-                : null)
-          const inferredLeanOdds =
-            item.sharpLeanAmericanOdds ?? largestWall?.sharpLineAmericanOdds ?? null
-          const orderTakenOdds =
-            item.sharpOrderAmericanOdds ?? largestWall?.wallAmericanOdds ?? null
-          const bestLeanOdds =
-            item.sharpLeanBestOdds ?? inferredLeanOdds ?? null
-          const bestLeanBook = item.sharpLeanBestBookTitle ?? null
-          const pinnacleLeanOdds = item.pinnacleLeanOdds ?? null
-          const pinnacleLeanBookTitle = item.pinnacleLeanBookTitle ?? null
-          const totalWallLiquidity = item.sides.reduce(
-            (sum, side) => sum + (side.wallNotional ?? 0),
-            0
-          )
-          const wallSharePercent =
-            orderSize != null && totalWallLiquidity > 0
-              ? Math.round((orderSize / totalWallLiquidity) * 100)
-              : null
-          const leanLabel = item.sharpLeanSide
-            ? `${item.sharpLeanSide} ${formatAmericanOdds(bestLeanOdds)}`
-            : "No clear sharp lean"
+      {filteredItems.length === 0 ? (
+        <div className="px-4 py-10 text-sm text-white/55">No order books match your filters.</div>
+      ) : (
+        <div className="grid min-h-[620px] grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <div className="max-h-[72vh] overflow-y-auto border-b border-white/10 bg-black/30 lg:border-b-0 lg:border-r">
+            <div className="space-y-2 p-3">
+              {filteredItems.map((item) => {
+                const isSelected = selectedItem?.id === item.id
+                const orderSize = resolveDisplayOrderSize(item)
+                const bestOdds = item.pinnacleLeanOdds ?? item.sharpLeanBestOdds ?? item.sharpLeanAmericanOdds
+                const miniShares = resolveMiniBarShares(item)
+                const playerIntel = playerIntelByKey[buildPlayerIntelKey(item)] ?? null
+                const playerHeadshot =
+                  playerIntel?.headshotUrl ?? resolvePlayerHeadshot(item, playerHeadshotsByKey)
+                const playerFaceSrc = playerHeadshot
+                  ? `/api/image-proxy?url=${encodeURIComponent(playerHeadshot)}`
+                  : buildPlayerFaceRoute(item.sportKey, item.playerName)
 
-          return (
-            <div key={item.id} className="px-4 py-4 transition-colors hover:bg-white/5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-white">
-                    {item.playerName ?? "Unknown"}{" "}
-                    <span className="font-normal text-white/50">
-                      {item.propType?.replace(/_/g, " ")}
-                      {item.propLine != null ? ` ${item.propLine}` : ""}
-                    </span>
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setSelectedItemId(item.id)}
+                    className={`w-full rounded-2xl border px-3 py-3 text-left transition-colors ${
+                      isSelected
+                        ? "border-emerald-400/60 bg-emerald-500/10"
+                        : "border-white/10 bg-black/40 hover:border-white/25 hover:bg-white/5"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-3xl font-bold leading-none text-lime-300">
+                        {formatCompactCurrency(orderSize)}
+                      </div>
+                      <div className="text-[10px] text-white/40">{item.eventDate ?? "TBD"}</div>
+                    </div>
+
+                    <div className="mt-2 line-clamp-1 text-sm font-semibold text-white">
+                      {item.matchup ?? item.marketTitle}
+                    </div>
+                    <div className="mt-1 text-[11px] text-white/45">
+                      {item.sportLabel} | {formatSourceLabel(item.source)}
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between rounded-lg border border-white/10 bg-black/45 px-2.5 py-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/5">
+                          {playerFaceSrc ? (
+                            <Image
+                              src={playerFaceSrc}
+                              alt={item.playerName ?? "Player"}
+                              width={28}
+                              height={28}
+                              className="h-full w-full object-cover"
+                              unoptimized
+                            />
+                          ) : (
+                            <span className="text-[10px] font-semibold text-white/65">
+                              {resolvePlayerInitials(item.playerName)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="line-clamp-1 text-xs text-white/80">{resolvePropText(item)}</div>
+                      </div>
+                      <div className="rounded-md bg-lime-500/20 px-2 py-0.5 text-[11px] font-semibold text-lime-300">
+                        {formatAmericanOdds(bestOdds)}
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-white/40">
+                        <span>Over</span>
+                        <span>Under</span>
+                      </div>
+                      <div className="mt-1 grid grid-cols-2 gap-2">
+                        <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-full rounded-full bg-lime-400"
+                            style={{ width: `${miniShares.overPct}%` }}
+                          />
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-full rounded-full bg-slate-300/60"
+                            style={{ width: `${miniShares.underPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="p-4">
+            {!selectedItem ? (
+              <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-6 text-sm text-white/60">
+                Select a market to inspect the live orderbook.
+              </div>
+            ) : (
+              <>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                  {selectedItem.sportLabel} | {formatSourceLabel(selectedItem.source)}
+                </div>
+                <h2 className="mt-1 text-2xl font-semibold text-white">
+                  {selectedItem.matchup ?? selectedItem.marketTitle}
+                </h2>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <div className="text-4xl font-bold leading-none text-lime-300">
+                    {formatCompactCurrency(resolveDisplayOrderSize(selectedItem))}
                   </div>
-                  <div className="mt-1 text-xs text-white/50">
-                    {item.sportLabel} | {formatSourceLabel(item.source)}
-                    {item.eventDate ? ` | ${item.eventDate}` : ""}
+                  <div className="text-sm text-white/55">Whale Volume</div>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-white/10 bg-black/45 p-3">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-lime-300">The Play</div>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/5">
+                          {selectedFaceSrc ? (
+                            <Image
+                              src={selectedFaceSrc}
+                              alt={selectedItem.playerName ?? "Player"}
+                              width={36}
+                              height={36}
+                              className="h-full w-full object-cover"
+                              unoptimized
+                            />
+                          ) : (
+                            <span className="text-xs font-semibold text-white/65">
+                              {resolvePlayerInitials(selectedItem.playerName)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 text-base font-semibold text-white">{resolvePropText(selectedItem)}</div>
+                      </div>
+                      <div className="mt-1 text-xs text-white/50">
+                        {selectedItem.sharpLeanBestBookTitle
+                          ? `${selectedItem.sharpLeanBestBookTitle} best price`
+                          : "Best available market price"}
+                      </div>
+                    </div>
+                    <div className="rounded-md bg-lime-500 px-2.5 py-1 text-sm font-semibold text-black">
+                      {formatAmericanOdds(
+                        selectedItem.pinnacleLeanOdds ??
+                          selectedItem.sharpLeanBestOdds ??
+                          selectedItem.sharpLeanAmericanOdds
+                      )}
+                    </div>
                   </div>
-                  {item.matchup && (
-                    <div className="mt-0.5 text-xs text-white/45">{item.matchup}</div>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-white/10 bg-black/40 p-3">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/45">Player Data</div>
+                  {selectedIntel ? (
+                    <div className="mt-2 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/5">
+                          {(selectedIntel.headshotUrl || selectedFaceSrc) ? (
+                            <Image
+                              src={
+                                selectedIntel.headshotUrl
+                                  ? `/api/image-proxy?url=${encodeURIComponent(selectedIntel.headshotUrl)}`
+                                  : (selectedFaceSrc as string)
+                              }
+                              alt={selectedIntel.playerName}
+                              width={44}
+                              height={44}
+                              className="h-full w-full object-cover"
+                              unoptimized
+                            />
+                          ) : (
+                            <span className="text-xs font-semibold text-white/65">
+                              {resolvePlayerInitials(selectedIntel.playerName)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-white">
+                            {selectedIntel.playerName}
+                          </div>
+                          <div className="text-xs text-white/55">
+                            {[selectedIntel.team, selectedIntel.position, selectedIntel.season]
+                              .filter(Boolean)
+                              .join(" | ") || "Season profile unavailable"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {selectedIntel.stats.length > 0 ? (
+                          selectedIntel.stats.slice(0, 6).map((stat) => (
+                            <div
+                              key={`${stat.label}-${stat.value}`}
+                              className="rounded-lg border border-white/10 bg-black/30 px-2.5 py-2"
+                            >
+                              <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">
+                                {stat.label}
+                              </div>
+                              <div className="mt-0.5 text-sm font-semibold text-white">{stat.value}</div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="col-span-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/55">
+                            No season stat cards available for this player.
+                          </div>
+                        )}
+                      </div>
+
+                      {selectedIntel.trend && (
+                        <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/75">
+                          <div>
+                            Recent {selectedIntel.trend.metric}: {selectedIntel.trend.average} avg ({selectedIntel.trend.sampleSize} games)
+                          </div>
+                          {selectedIntel.trend.hitRateLabel && (
+                            <div className="mt-1 text-lime-300">{selectedIntel.trend.hitRateLabel}</div>
+                          )}
+                        </div>
+                      )}
+
+                      {selectedIntel.insights.length > 0 && (
+                        <div className="space-y-1">
+                          {selectedIntel.insights.slice(0, 3).map((insight, index) => (
+                            <div
+                              key={`${insight}-${index}`}
+                              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/75"
+                            >
+                              {insight}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : selectedIntelLoading ? (
+                    <div className="mt-2 rounded-lg border border-white/10 bg-black/30 px-3 py-3 text-xs text-white/55">
+                      Preloading player profile...
+                    </div>
+                  ) : (
+                    <div className="mt-2 rounded-lg border border-white/10 bg-black/30 px-3 py-3 text-xs text-white/55">
+                      Player profile unavailable for this market.
+                    </div>
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setExpandedCards((prev) => ({
-                      ...prev,
-                      [item.id]: !prev[item.id],
-                    }))
-                  }
-                  className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70 transition-colors hover:border-emerald-400/40 hover:text-emerald-200"
-                  aria-expanded={isExpanded}
-                >
-                  {isExpanded ? "Show less" : "Show more"}
-                </button>
-              </div>
-
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2.5">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
-                    Order Size
-                  </div>
-                  <div className="mt-1 text-lg font-semibold text-emerald-200">
-                    {formatCurrency(orderSize)}
-                  </div>
-                  <div className="text-[11px] text-white/45">
-                    {liquiditySide ? `Largest wall on ${liquiditySide}` : "Largest visible liquidity wall"}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2.5">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
-                    Best Odds
-                  </div>
-                  <div className="mt-1 text-base font-semibold text-white">{leanLabel}</div>
-                  <div className="text-[11px] text-white/45">
-                    {item.sharpLiquiditySide && item.sharpLeanSide
-                      ? bestLeanBook
-                        ? `Best available at ${bestLeanBook}`
-                        : `Wall on ${item.sharpLiquiditySide} implies ${item.sharpLeanSide}`
-                      : "Waiting for a wall above the sharp threshold"}
-                  </div>
-                </div>
-              </div>
-
-              {isExpanded && (
-                <div className="mt-3 rounded-2xl border border-white/10 bg-black/25 p-3">
-                  <div className="text-xs text-white/55">{item.marketTitle}</div>
-                  <div className="mt-3 grid gap-3 lg:grid-cols-3">
-                    <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">
-                        We Detect
-                      </div>
-                      <p className="mt-2 text-[12px] leading-relaxed text-white/75">
-                        We scan both outcomes and locate the largest resting orderbook wall. Here that wall is{" "}
-                        <span className="font-semibold text-white">
-                          {liquiditySide ?? "the active side"} {formatAmericanOdds(largestWall?.wallAmericanOdds)}
-                        </span>{" "}
-                        with about{" "}
-                        <span className="font-semibold text-emerald-200">
-                          {formatCurrency(orderSize)}
-                        </span>{" "}
-                        in visible size, posted around{" "}
-                        <span className="font-semibold text-white">
-                          {formatAmericanOdds(orderTakenOdds)}
-                        </span>
-                        .
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300/90">
-                        We Analyze
-                      </div>
-                      <p className="mt-2 text-[12px] leading-relaxed text-white/75">
-                        The model uses complement pricing. If liquidity is stacked on one side at price{" "}
-                        <span className="font-semibold text-white">
-                          {formatAmericanOdds(largestWall?.wallAmericanOdds)}
-                        </span>
-                        , sharp intent is inferred on the opposite side around{" "}
-                        <span className="font-semibold text-white">
-                          {inferredLeanSide ?? "N/A"} {formatAmericanOdds(inferredLeanOdds)}
-                        </span>{" "}
-                        and the best available book price is{" "}
-                        <span className="font-semibold text-white">
-                          {inferredLeanSide ?? "N/A"} {formatAmericanOdds(bestLeanOdds)}
-                        </span>
-                        {bestLeanBook ? ` at ${bestLeanBook}` : ""}
-                        {pinnacleLeanOdds != null
-                          ? ` | Pinnacle ${inferredLeanSide ?? "N/A"} ${formatAmericanOdds(pinnacleLeanOdds)}${pinnacleLeanBookTitle ? ` (${pinnacleLeanBookTitle})` : ""}`
-                          : ""}
-                        . {wallSharePercent != null ? `That wall is ${wallSharePercent}% of visible wall liquidity.` : ""}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-300/90">
-                        How To Use
-                      </div>
-                      <p className="mt-2 text-[12px] leading-relaxed text-white/75">
-                        Treat this as a price-discovery signal, not an auto-bet. The card above shows the current best
-                        sportsbook price; this order was posted at{" "}
-                        <span className="font-semibold text-white">
-                          {formatAmericanOdds(orderTakenOdds)}
-                        </span>
-                        . Follow the inferred lean only if you can execute at{" "}
-                        <span className="font-semibold text-white">
-                          {formatAmericanOdds(bestLeanOdds)}
-                        </span>{" "}
-                        or better, and re-check before placing since orderbook walls can move quickly.
-                      </p>
+                <div className="mt-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-white/45">Whale Bets</div>
+                    <div className="text-xs text-white/50">
+                      {formatAmericanOdds(ladderAverageOdds)} avg | {formatCompactCurrency(ladderVolume)} vol
                     </div>
                   </div>
-                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                    {item.sides.map((side) => {
-                      const impliedLeanSide =
-                        side.propSide === "Over"
-                          ? "Under"
-                          : side.propSide === "Under"
-                            ? "Over"
-                            : null
 
+                  <div className="mt-2 space-y-2">
+                    {ladderRows.map((row) => {
+                      const isHotSide =
+                        row.side != null && row.side === selectedItem.sharpLiquiditySide
+                      const widthPct =
+                        maxLadderNotional > 0 ? Math.max((row.notional / maxLadderNotional) * 100, 3) : 0
                       return (
-                        <div
-                          key={`${item.id}-${side.outcome}`}
-                          className="rounded-2xl border border-white/10 bg-black/30 p-3"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="text-xs font-semibold text-white">
-                              {side.propSide ?? side.outcome}
-                            </div>
-                            <div className="text-[11px] text-white/50">
-                              Wall price {formatAmericanOdds(side.wallAmericanOdds)}
-                            </div>
+                        <div key={row.id} className="grid grid-cols-[74px_minmax(0,1fr)_84px] items-center gap-2">
+                          <div
+                            className={`text-sm font-semibold ${
+                              isHotSide ? "text-lime-300" : "text-slate-200/70"
+                            }`}
+                          >
+                            {formatAmericanOdds(row.odds)}
                           </div>
-
-                          <div className="mt-3 grid grid-cols-2 gap-3 text-[12px]">
-                            <div>
-                              <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
-                                Wall Size
-                              </div>
-                              <div className="mt-1 font-semibold text-white">
-                                {formatCurrency(side.wallNotional)}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
-                                Sharp Lean
-                              </div>
-                              <div className="mt-1 font-semibold text-white">
-                                {impliedLeanSide ? `${impliedLeanSide} ` : ""}
-                                {formatAmericanOdds(side.sharpLineAmericanOdds)}
-                              </div>
-                            </div>
+                          <div className="h-6 overflow-hidden rounded-md border border-white/10 bg-black/35">
+                            <div
+                              className={`h-full ${
+                                isHotSide
+                                  ? "bg-gradient-to-r from-lime-500/70 to-lime-400"
+                                  : "bg-slate-500/45"
+                              }`}
+                              style={{ width: `${widthPct}%` }}
+                            />
+                          </div>
+                          <div className="text-right text-xs text-white/70">
+                            {formatCompactCurrency(row.notional)}
                           </div>
                         </div>
                       )
                     })}
+
+                    {ladderRows.length === 0 && (
+                      <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-4 text-sm text-white/55">
+                        No actionable resting levels were found in the current snapshot.
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-

@@ -43,9 +43,9 @@ const buildRecommendations = (profile?: OnboardingProfile): RecommendedFeature[]
     {
       id: "sharp-props",
       title: "Sharp Props",
-      description: "Find player prop edges and crossed numbers across books.",
-      href: "/player-projections",
-      tags: ["Props", "EV"],
+      description: "Read prop orderbook walls and sharp lean before the market moves.",
+      href: "/sharp-props",
+      tags: ["Props", "Orderbook"],
     },
     {
       id: "whale-feed",

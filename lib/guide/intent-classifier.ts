@@ -14,7 +14,7 @@ export type GuideIntent =
   | { type: 'OFF_TOPIC' }
   | { type: 'CONVERSATION' }
 
-export type PageKey = 'live-scores' | 'sharp-traders' | 'parlay-predictor' | 'player-projections' | 'market-projections' | 'stats'
+export type PageKey = 'live-scores' | 'parlay-predictor' | 'player-projections' | 'market-projections' | 'stats'
 export type Sport = 'nba' | 'nfl' | 'mlb' | 'nhl' | 'ncaab' | 'ncaaf'
 
 // Patterns for each intent type
@@ -30,8 +30,8 @@ const PATTERNS = {
     /bets?\s*tonight/i,
   ],
 
-  // Route to Sharp Traders
-  sharpTraders: [
+  // Route to market projections for EV/value
+  evValue: [
     /\bev\s*bets?\b/i,
     /positive\s*ev/i,
     /\+ev/i,
@@ -277,12 +277,12 @@ export function classifyGuideIntent(query: string): GuideIntent {
     }
   }
 
-  // Check for Sharp Traders
-  if (matchesAny(q, PATTERNS.sharpTraders)) {
+  // Check for EV/value routing
+  if (matchesAny(q, PATTERNS.evValue)) {
     return {
       type: 'PAGE_ROUTE',
-      pages: ['sharp-traders'],
-      recommendedPage: 'sharp-traders',
+      pages: ['market-projections'],
+      recommendedPage: 'market-projections',
     }
   }
 

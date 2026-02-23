@@ -6,7 +6,6 @@ import {
   Activity,
   ArrowRight,
   Beaker,
-  Brain,
   Radar,
   Waves,
 } from 'lucide-react'
@@ -37,22 +36,13 @@ const STEPS: ToolStep[] = [
     label: 'TOOL 02',
     title: 'Sharp Props',
     description:
-      'Scan prop EV and lock the best number across books. No spreadsheet grind.',
+      'Read live prop orderbook walls and sharp lean direction before you bet.',
     href: '/tools/sharp-props',
     Icon: Activity,
   },
   {
-    id: 'sharp-traders',
-    label: 'TOOL 03',
-    title: 'Sharp Traders',
-    description:
-      'Track profitable wallets and open positions. See conviction before the crowd.',
-    href: '/tools/sharp-traders',
-    Icon: Brain,
-  },
-  {
     id: 'whale-feed',
-    label: 'TOOL 04',
+    label: 'TOOL 03',
     title: 'Whale Feed',
     description:
       'Big money alerts with context. Compare exchange action to sportsbook pricing.',
@@ -61,7 +51,7 @@ const STEPS: ToolStep[] = [
   },
   {
     id: 'research-mode',
-    label: 'TOOL 05',
+    label: 'TOOL 04',
     title: 'Research Mode',
     description:
       'Explain movement, validate a thesis, and study edges long-term with backtests.',
@@ -94,8 +84,8 @@ export function InsiderTransformation() {
             <span className="text-white/60">$</span>{' '}
             <Typewriter
               text={[
-                'scan projections -> confirm with props -> track wallets -> watch whales -> research closes',
-                'find gaps -> price shop -> follow conviction -> catch steam -> validate long-term',
+                'scan projections -> confirm with props -> watch whales -> research closes',
+                'find gaps -> price shop -> catch steam -> validate long-term',
               ]}
               speed={26}
               deleteSpeed={14}
@@ -113,7 +103,7 @@ export function InsiderTransformation() {
         className="pointer-events-none absolute left-0 right-0 top-[164px] hidden h-px bg-gradient-to-r from-transparent via-emerald-400/35 to-transparent sm:block"
       />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {STEPS.map((step, idx) => (
           <motion.div
             key={step.id}

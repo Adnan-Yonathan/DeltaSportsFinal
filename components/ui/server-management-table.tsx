@@ -91,7 +91,7 @@ const formatPercent = (value?: number | null) => {
 }
 
 export function ServerManagementTable({
-  title = "Sharp Traders",
+  title = "Dashboard",
   wallets: initialWallets = [],
   children,
   showList = true,

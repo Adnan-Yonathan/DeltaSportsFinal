@@ -12,7 +12,6 @@ import {
   TrendingUp,
   Twitter,
   Waves,
-  Zap,
 } from "lucide-react"
 
 import type { DropdownNavigationItem } from "@/components/ui/dorpdown-navigation"
@@ -33,15 +32,9 @@ export const DROPDOWN_NAV_ITEMS: DropdownNavigationItem[] = [
           },
           {
             label: "Sharp Props",
-            description: "Order books + crossed EV",
+            description: "Prediction market order books",
             icon: Percent,
-            href: "/crossed-ev",
-          },
-          {
-            label: "Sharp Traders",
-            description: "Track profitable wallets",
-            icon: Zap,
-            href: "/sharp-traders",
+            href: "/sharp-props",
           },
           {
             label: "Whale Feed",
@@ -91,15 +84,9 @@ export const DROPDOWN_NAV_ITEMS: DropdownNavigationItem[] = [
           },
           {
             label: "Sharp Props",
-            description: "Crossed EV + order books",
+            description: "Orderbook signals and liquidity walls",
             icon: Percent,
             href: "/tools/sharp-props",
-          },
-          {
-            label: "Sharp Traders",
-            description: "Track wallets and positions",
-            icon: Zap,
-            href: "/tools/sharp-traders",
           },
           {
             label: "Whale Feed",

@@ -1,7 +1,7 @@
 "use client"
 import React, { useEffect } from "react"
 import { motion } from "framer-motion"
-import { Search, LineChart, TrendingUp, Check } from "lucide-react"
+import { LineChart, TrendingUp, Check } from "lucide-react"
 import { GlareCard } from "@/components/ui/glare-card"
 
 interface StepFeaturesProps {
@@ -17,13 +17,6 @@ const GOALS = [
     name: "Sharp Projections",
     description: "Model-driven edges on spreads, totals, and moneylines.",
     icon: TrendingUp,
-    color: "from-emerald-500 to-emerald-500",
-  },
-  {
-    id: "sharp-traders",
-    name: "Track Sharp Traders",
-    description: "Follow the wallets that move markets before the public.",
-    icon: Search,
     color: "from-emerald-500 to-emerald-500",
   },
   {

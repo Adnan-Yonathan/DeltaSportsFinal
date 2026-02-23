@@ -1,7 +1,6 @@
 export type CoreToolKey =
   | 'sharp-projections'
   | 'sharp-props'
-  | 'sharp-traders'
   | 'whale-feed'
   | 'research-mode'
 
@@ -10,7 +9,7 @@ export type CoreTool = {
   label: string
   shortLabel: string
   summary: string
-  icon: 'radar' | 'percent' | 'zap' | 'waves' | 'beaker'
+  icon: 'radar' | 'percent' | 'waves' | 'beaker'
   guideRoute: string
   productRoute: string
   bullets: string[]
@@ -35,28 +34,14 @@ export const CORE_TOOLS: CoreTool[] = [
     key: 'sharp-props',
     label: 'Sharp Props',
     shortLabel: 'Props',
-    summary: 'Crossed numbers, EV-ranked props, and order-book liquidity.',
+    summary: 'Order-book liquidity and sharp leaning sides across prop markets.',
     icon: 'percent',
     guideRoute: '/tools/sharp-props',
-    productRoute: '/crossed-ev',
+    productRoute: '/sharp-props',
     bullets: [
       'See order-book liquidity to spot sharp prices and sides.',
-      'Find books that are off consensus before they snap back.',
-      'Use it to confirm edges and lock the best number.',
-    ],
-  },
-  {
-    key: 'sharp-traders',
-    label: 'Sharp Traders',
-    shortLabel: 'Traders',
-    summary: 'Track profitable wallets and their live open positions.',
-    icon: 'zap',
-    guideRoute: '/tools/sharp-traders',
-    productRoute: '/sharp-traders',
-    bullets: [
-      'See conviction: what sharps still hold right now.',
-      'Spot repeat positions across top wallets.',
-      'Use it to validate intent before the crowd.',
+      'Track the biggest resting walls and weighted market lean.',
+      'Use it to confirm direction before placing the bet.',
     ],
   },
   {

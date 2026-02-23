@@ -28,7 +28,7 @@ const ROWS: Row[] = [
     },
     delta: {
       headline: 'One toolchain',
-      detail: 'Projections, props, traders, whales, and research in a single pipeline.',
+      detail: 'Projections, props, whales, and research in a single pipeline.',
       tone: 'good',
     },
   },
@@ -41,7 +41,7 @@ const ROWS: Row[] = [
     },
     delta: {
       headline: 'Confirm with money',
-      detail: 'Cross-check edges against Sharp Traders and Whale Feed in the same workflow.',
+      detail: 'Cross-check edges against Whale Feed in the same workflow.',
       tone: 'good',
     },
   },
@@ -151,7 +151,7 @@ export function InsiderComparison() {
                 Delta
               </p>
               <p className="mt-1 text-xs text-emerald-200/70">
-                One workflow across the 5 tools
+                One workflow across the 4 tools
               </p>
             </div>
           </div>

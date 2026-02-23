@@ -307,8 +307,8 @@ export function PricingPageClient() {
                         <span className="block h-4 w-4 rounded-full bg-white/10" />
                       </div>
                       <div>
-                        <div className="text-xs font-semibold text-white">Day 7</div>
-                        <div className="text-xs text-white/60">Trial ends, reminder sent</div>
+                        <div className="text-xs font-semibold text-white">Day 4</div>
+                        <div className="text-xs text-white/60">Payment reminder sent (3 days before billing)</div>
                       </div>
                     </div>
 
@@ -317,7 +317,7 @@ export function PricingPageClient() {
                         <span className="block h-4 w-4 rounded-full bg-white/10" />
                       </div>
                       <div>
-                        <div className="text-xs font-semibold text-white">Day 8</div>
+                        <div className="text-xs font-semibold text-white">Day 7</div>
                         <div className="text-xs text-white/60">First billing (if not canceled)</div>
                       </div>
                     </div>

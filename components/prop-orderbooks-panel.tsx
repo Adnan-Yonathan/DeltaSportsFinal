@@ -159,10 +159,63 @@ const resolveDisplayOrderSize = (item: OrderbookItem) => {
   return resolveLargestWall(item)?.wallNotional ?? null
 }
 
-const resolvePropText = (item: OrderbookItem) => {
+const resolveOppositeSide = (side: "Over" | "Under" | null) => {
+  if (side === "Over") return "Under"
+  if (side === "Under") return "Over"
+  return null
+}
+
+const resolveSideLevelOdds = (side: OrderbookSide | null, mode: "direct" | "sharp" = "direct") => {
+  if (!side) return null
+  for (const level of side.levels) {
+    const priceCents =
+      mode === "direct"
+        ? level.priceCents
+        : Math.max(0, Math.min(100, 100 - level.priceCents))
+    const odds = priceCentsToAmericanOdds(priceCents)
+    if (odds != null) return odds
+  }
+  return null
+}
+
+const resolveDisplayLean = (item: OrderbookItem) => {
+  const overSide = item.sides.find((side) => side.propSide === "Over") ?? null
+  const underSide = item.sides.find((side) => side.propSide === "Under") ?? null
+  const largestWallSide = resolveLargestWall(item)?.propSide ?? null
+  const liquiditySide = item.sharpLiquiditySide ?? largestWallSide
+  const side = item.sharpLeanSide ?? resolveOppositeSide(liquiditySide)
+  const oddsFromSide =
+    side === "Over"
+      ? overSide?.wallAmericanOdds ??
+        resolveSideLevelOdds(overSide, "direct") ??
+        underSide?.sharpLineAmericanOdds ??
+        resolveSideLevelOdds(underSide, "sharp")
+      : side === "Under"
+        ? underSide?.wallAmericanOdds ??
+          resolveSideLevelOdds(underSide, "direct") ??
+          overSide?.sharpLineAmericanOdds ??
+          resolveSideLevelOdds(overSide, "sharp")
+        : null
+  const odds = item.pinnacleLeanOdds ?? item.sharpLeanBestOdds ?? item.sharpLeanAmericanOdds ?? oddsFromSide
+  const bestBookTitle =
+    item.pinnacleLeanOdds != null
+      ? item.pinnacleLeanBookTitle
+      : item.sharpLeanBestBookTitle
+
+  return {
+    side,
+    odds,
+    liquiditySide,
+    bestBookTitle,
+  }
+}
+
+const resolvePropText = (item: OrderbookItem, side?: "Over" | "Under" | null) => {
   const propType = item.propType?.replace(/_/g, " ") ?? "prop"
-  const line = item.propLine != null ? ` ${item.propLine}` : ""
-  return `${item.playerName ?? "Unknown"} ${propType}${line}`
+  const line = item.propLine != null ? `${item.propLine}` : ""
+  if (side && line) return `${item.playerName ?? "Unknown"} ${side} ${line} ${propType}`
+  if (side) return `${item.playerName ?? "Unknown"} ${side} ${propType}`
+  return `${item.playerName ?? "Unknown"} ${propType}${line ? ` ${line}` : ""}`
 }
 
 const normalizePlayerToken = (value?: string | null) =>
@@ -660,8 +713,8 @@ export default function PropOrderbooksPanel({
             .trim()
           if (!haystack.includes(query)) return false
         }
-        const displayLeanOdds = item.pinnacleLeanOdds ?? item.sharpLeanBestOdds ?? item.sharpLeanAmericanOdds
-        return matchesOddsRange(displayLeanOdds)
+        const displayLean = resolveDisplayLean(item)
+        return matchesOddsRange(displayLean.odds)
       })
       .sort((a, b) => {
         const aSize = resolveDisplayOrderSize(a) ?? 0
@@ -684,6 +737,10 @@ export default function PropOrderbooksPanel({
   const selectedItem = useMemo(
     () => filteredItems.find((item) => item.id === selectedItemId) ?? filteredItems[0] ?? null,
     [filteredItems, selectedItemId]
+  )
+  const selectedDisplayLean = useMemo(
+    () => (selectedItem ? resolveDisplayLean(selectedItem) : null),
+    [selectedItem]
   )
   const selectedIntelKey = selectedItem ? buildPlayerIntelKey(selectedItem) : null
   const selectedIntel = selectedIntelKey ? playerIntelByKey[selectedIntelKey] ?? null : null
@@ -815,7 +872,7 @@ export default function PropOrderbooksPanel({
               {filteredItems.map((item) => {
                 const isSelected = selectedItem?.id === item.id
                 const orderSize = resolveDisplayOrderSize(item)
-                const bestOdds = item.pinnacleLeanOdds ?? item.sharpLeanBestOdds ?? item.sharpLeanAmericanOdds
+                const displayLean = resolveDisplayLean(item)
                 const miniShares = resolveMiniBarShares(item)
                 const playerIntel = playerIntelByKey[buildPlayerIntelKey(item)] ?? null
                 const playerHeadshot =
@@ -867,10 +924,12 @@ export default function PropOrderbooksPanel({
                             </span>
                           )}
                         </div>
-                        <div className="line-clamp-1 text-xs text-white/80">{resolvePropText(item)}</div>
+                        <div className="line-clamp-1 text-xs text-white/80">
+                          {resolvePropText(item, displayLean.side)}
+                        </div>
                       </div>
                       <div className="rounded-md bg-lime-500/20 px-2 py-0.5 text-[11px] font-semibold text-lime-300">
-                        {formatAmericanOdds(bestOdds)}
+                        {formatAmericanOdds(displayLean.odds)}
                       </div>
                     </div>
 
@@ -941,20 +1000,18 @@ export default function PropOrderbooksPanel({
                             </span>
                           )}
                         </div>
-                        <div className="min-w-0 text-base font-semibold text-white">{resolvePropText(selectedItem)}</div>
+                        <div className="min-w-0 text-base font-semibold text-white">
+                          {resolvePropText(selectedItem, selectedDisplayLean?.side)}
+                        </div>
                       </div>
                       <div className="mt-1 text-xs text-white/50">
-                        {selectedItem.sharpLeanBestBookTitle
-                          ? `${selectedItem.sharpLeanBestBookTitle} best price`
+                        {selectedDisplayLean?.bestBookTitle
+                          ? `${selectedDisplayLean.bestBookTitle} best price`
                           : "Best available market price"}
                       </div>
                     </div>
                     <div className="rounded-md bg-lime-500 px-2.5 py-1 text-sm font-semibold text-black">
-                      {formatAmericanOdds(
-                        selectedItem.pinnacleLeanOdds ??
-                          selectedItem.sharpLeanBestOdds ??
-                          selectedItem.sharpLeanAmericanOdds
-                      )}
+                      {formatAmericanOdds(selectedDisplayLean?.odds ?? null)}
                     </div>
                   </div>
                 </div>
@@ -1062,7 +1119,7 @@ export default function PropOrderbooksPanel({
                   <div className="mt-2 space-y-2">
                     {ladderRows.map((row) => {
                       const isHotSide =
-                        row.side != null && row.side === selectedItem.sharpLiquiditySide
+                        row.side != null && row.side === selectedDisplayLean?.liquiditySide
                       const widthPct =
                         maxLadderNotional > 0 ? Math.max((row.notional / maxLadderNotional) * 100, 3) : 0
                       return (

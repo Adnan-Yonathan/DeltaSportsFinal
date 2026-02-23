@@ -989,6 +989,9 @@ const parseKalshiLevels = (levels: number[][]): PropOrderbookLevel[] => {
     const size = Number(level?.[1])
     if (!Number.isFinite(priceRaw) || !Number.isFinite(size)) continue
     const priceCents = normalizePriceCents(priceRaw)
+    // 0c/100c levels are effectively locked outcomes and not actionable quotes.
+    // Skip them so displayed side odds reflect tradable prices.
+    if (priceCents <= 0 || priceCents >= 100) continue
     const notional = (priceCents / 100) * size
     if (!Number.isFinite(notional) || notional <= 0) continue
     parsed.push({ priceCents, notional })
@@ -1040,11 +1043,11 @@ const resolveSharpLean = (
   sharpLeanSide: 'Over' | 'Under' | null
   sharpLeanAmericanOdds: number | null
 } => {
-  const eligible = sides
+  const byLiquidity = sides
     .filter((side) => side.propSide && (side.wallNotional ?? 0) > 0)
-    .filter((side) => (side.wallNotional ?? 0) >= minSharpNotional)
+  const eligible = byLiquidity.filter((side) => (side.wallNotional ?? 0) >= minSharpNotional)
 
-  if (!eligible.length) {
+  if (!byLiquidity.length) {
     return {
       sharpLiquiditySide: null,
       sharpLiquidityNotional: null,
@@ -1054,16 +1057,39 @@ const resolveSharpLean = (
     }
   }
 
-  const best = eligible.sort((a, b) => (b.wallNotional ?? 0) - (a.wallNotional ?? 0))[0]
+  const resolveSideLevelOdds = (
+    side: PropOrderbookSide | null,
+    mode: 'direct' | 'sharp'
+  ): number | null => {
+    if (!side) return null
+    for (const level of side.levels) {
+      const cents =
+        mode === 'direct'
+          ? level.priceCents
+          : Math.max(0, Math.min(100, 100 - level.priceCents))
+      const odds = priceCentsToAmericanOdds(cents)
+      if (odds != null) return odds
+    }
+    return null
+  }
+
+  const candidates = eligible.length ? eligible : byLiquidity
+  const best = [...candidates].sort((a, b) => (b.wallNotional ?? 0) - (a.wallNotional ?? 0))[0]
   const sharpLiquiditySide = best.propSide as 'Over' | 'Under'
   const sharpLiquidityNotional = best.wallNotional ?? null
-  const sharpOrderAmericanOdds = best.wallAmericanOdds ?? null
+  const sharpOrderAmericanOdds = best.wallAmericanOdds ?? resolveSideLevelOdds(best, 'direct')
 
   // OddsJam crossed-market logic: the side showing the wall liquidity is a "trap".
   // The sharp line is the opposite side at (100 - price).
   const sharpLeanSide: 'Over' | 'Under' =
     sharpLiquiditySide === 'Over' ? 'Under' : 'Over'
-  const sharpLeanAmericanOdds = best.sharpLineAmericanOdds ?? null
+  const oppositeSide =
+    sides.find((side) => side.propSide != null && side.propSide === sharpLeanSide) ?? null
+  const sharpLeanAmericanOdds =
+    best.sharpLineAmericanOdds ??
+    oppositeSide?.wallAmericanOdds ??
+    resolveSideLevelOdds(best, 'sharp') ??
+    resolveSideLevelOdds(oppositeSide, 'direct')
 
   return {
     sharpLiquiditySide,
@@ -1559,7 +1585,8 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           minSharpNotional,
           depth
         ),
-      ]
+      ].filter((side) => side.levels.length > 0 || (side.wallNotional ?? 0) > 0)
+      if (!sides.length) return null
 
       const sharpLean = resolveSharpLean(sides, minSharpNotional)
       if (
@@ -1716,7 +1743,8 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
             minSharpNotional,
             depth
           ),
-        ]
+        ].filter((side) => side.levels.length > 0 || (side.wallNotional ?? 0) > 0)
+        if (!sides.length) return null
 
         const sideWalls = sides
           .map((side) => side.wallPriceCents)

@@ -73,27 +73,6 @@ type PlayerHeadshotResponse = {
   headshots?: Record<string, string | null>
 }
 
-type PlayerIntel = {
-  playerName: string
-  team: string | null
-  position: string | null
-  season: string | null
-  headshotUrl: string | null
-  stats: Array<{ label: string; value: string }>
-  trend: {
-    metric: string
-    average: string
-    sampleSize: number
-    hitRateLabel: string | null
-  } | null
-  insights: string[]
-}
-
-type PlayerIntelResponse = {
-  ok?: boolean
-  players?: Record<string, PlayerIntel | null>
-}
-
 type LadderRow = {
   id: string
   side: "Over" | "Under" | null
@@ -228,11 +207,6 @@ const normalizePlayerToken = (value?: string | null) =>
 
 const buildPlayerHeadshotKey = (sportKey: string, playerName: string) =>
   `${sportKey}:${normalizePlayerToken(playerName)}`
-
-const buildPlayerIntelKey = (item: Pick<OrderbookItem, "sportKey" | "playerName" | "propType" | "propLine">) =>
-  `${item.sportKey}:${normalizePlayerToken(item.playerName)}:${item.propType ?? ""}:${String(
-    item.propLine ?? ""
-  )}`
 
 const buildPlayerFaceRoute = (sportKey: string, playerName?: string | null) =>
   playerName
@@ -379,8 +353,6 @@ export default function PropOrderbooksPanel({
   )
   const [playerHeadshotsByKey, setPlayerHeadshotsByKey] = useState<Record<string, string | null>>({})
   const [headshotLoadingByKey, setHeadshotLoadingByKey] = useState<Record<string, boolean>>({})
-  const [playerIntelByKey, setPlayerIntelByKey] = useState<Record<string, PlayerIntel | null>>({})
-  const [playerIntelLoadingByKey, setPlayerIntelLoadingByKey] = useState<Record<string, boolean>>({})
 
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -470,8 +442,6 @@ export default function PropOrderbooksPanel({
     setCacheFetchedAt(initialData?.cache?.fetchedAt ?? null)
     setPlayerHeadshotsByKey({})
     setHeadshotLoadingByKey({})
-    setPlayerIntelByKey({})
-    setPlayerIntelLoadingByKey({})
     setSearch("")
     setOddsPreset("all")
     setMinOdds("-200")
@@ -513,34 +483,6 @@ export default function PropOrderbooksPanel({
 
     return Array.from(groups.entries()).map(([sportKey, players]) => ({ sportKey, players }))
   }, [items, playerHeadshotsByKey, headshotLoadingByKey])
-
-  const pendingIntelGroups = useMemo(() => {
-    const groups = new Map<
-      string,
-      Array<{ name: string; propType: string | null; propLine: number | null; key: string }>
-    >()
-    const seen = new Set<string>()
-
-    for (const item of items) {
-      if (!item.playerName) continue
-      const name = item.playerName.trim()
-      if (!name) continue
-      const key = buildPlayerIntelKey(item)
-      if (seen.has(key)) continue
-      seen.add(key)
-      if (hasOwn(playerIntelByKey, key) || playerIntelLoadingByKey[key]) continue
-      const group = groups.get(item.sportKey) ?? []
-      group.push({
-        name,
-        propType: item.propType ?? null,
-        propLine: item.propLine ?? null,
-        key,
-      })
-      groups.set(item.sportKey, group)
-    }
-
-    return Array.from(groups.entries()).map(([sportKey, players]) => ({ sportKey, players }))
-  }, [items, playerIntelByKey, playerIntelLoadingByKey])
 
   useEffect(() => {
     let cancelled = false
@@ -613,79 +555,6 @@ export default function PropOrderbooksPanel({
     }
   }, [pendingHeadshotGroups])
 
-  useEffect(() => {
-    let cancelled = false
-    if (pendingIntelGroups.length === 0) return
-
-    const run = async () => {
-      const chunkSize = 12
-      for (const group of pendingIntelGroups) {
-        for (let i = 0; i < group.players.length; i += chunkSize) {
-          if (cancelled) return
-          const chunk = group.players.slice(i, i + chunkSize)
-
-          setPlayerIntelLoadingByKey((prev) => {
-            const next = { ...prev }
-            chunk.forEach((entry) => {
-              next[entry.key] = true
-            })
-            return next
-          })
-
-          try {
-            const res = await fetch("/api/intel/player-intel", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              cache: "no-store",
-              body: JSON.stringify({
-                sportKey: group.sportKey,
-                players: chunk.map((entry) => ({
-                  name: entry.name,
-                  propType: entry.propType,
-                  propLine: entry.propLine,
-                })),
-              }),
-            })
-            const payload = (await res.json().catch(() => ({}))) as PlayerIntelResponse
-            if (!res.ok) {
-              throw new Error("Failed to preload player intel.")
-            }
-            if (!payload?.ok || !payload?.players || typeof payload.players !== "object") {
-              throw new Error("Invalid player intel payload.")
-            }
-            if (cancelled) return
-
-            setPlayerIntelByKey((prev) => {
-              const next = { ...prev }
-              chunk.forEach((entry) => {
-                const intel = payload?.players?.[entry.name] ?? null
-                next[entry.key] = intel
-              })
-              return next
-            })
-          } catch {
-            if (cancelled) return
-            // Keep keys unresolved on request failure so subsequent renders can retry.
-          } finally {
-            if (!isMountedRef.current) return
-            setPlayerIntelLoadingByKey((prev) => {
-              const next = { ...prev }
-              chunk.forEach((entry) => {
-                delete next[entry.key]
-              })
-              return next
-            })
-          }
-        }
-      }
-    }
-
-    run()
-    return () => {
-      cancelled = true
-    }
-  }, [pendingIntelGroups])
-
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase()
     const resolvedRange = (() => {
@@ -750,11 +619,8 @@ export default function PropOrderbooksPanel({
     () => (selectedItem ? resolveDisplayLean(selectedItem) : null),
     [selectedItem]
   )
-  const selectedIntelKey = selectedItem ? buildPlayerIntelKey(selectedItem) : null
-  const selectedIntel = selectedIntelKey ? playerIntelByKey[selectedIntelKey] ?? null : null
-  const selectedIntelLoading = selectedIntelKey ? Boolean(playerIntelLoadingByKey[selectedIntelKey]) : false
   const selectedPlayerHeadshot = selectedItem
-    ? selectedIntel?.headshotUrl ?? resolvePlayerHeadshot(selectedItem, playerHeadshotsByKey)
+    ? resolvePlayerHeadshot(selectedItem, playerHeadshotsByKey)
     : null
   const selectedFaceSrc = selectedItem
     ? selectedPlayerHeadshot
@@ -882,9 +748,7 @@ export default function PropOrderbooksPanel({
                 const orderSize = resolveDisplayOrderSize(item)
                 const displayLean = resolveDisplayLean(item)
                 const miniShares = resolveMiniBarShares(item)
-                const playerIntel = playerIntelByKey[buildPlayerIntelKey(item)] ?? null
-                const playerHeadshot =
-                  playerIntel?.headshotUrl ?? resolvePlayerHeadshot(item, playerHeadshotsByKey)
+                const playerHeadshot = resolvePlayerHeadshot(item, playerHeadshotsByKey)
                 const playerFaceSrc = playerHeadshot
                   ? `/api/image-proxy?url=${encodeURIComponent(playerHeadshot)}`
                   : buildPlayerFaceRoute(item.sportKey, item.playerName)
@@ -1022,98 +886,6 @@ export default function PropOrderbooksPanel({
                       {formatAmericanOdds(selectedDisplayLean?.odds ?? null)}
                     </div>
                   </div>
-                </div>
-
-                <div className="mt-4 rounded-xl border border-white/10 bg-black/40 p-3">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/45">Player Data</div>
-                  {selectedIntel ? (
-                    <div className="mt-2 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/5">
-                          {(selectedIntel.headshotUrl || selectedFaceSrc) ? (
-                            <Image
-                              src={
-                                selectedIntel.headshotUrl
-                                  ? `/api/image-proxy?url=${encodeURIComponent(selectedIntel.headshotUrl)}`
-                                  : (selectedFaceSrc as string)
-                              }
-                              alt={selectedIntel.playerName}
-                              width={44}
-                              height={44}
-                              className="h-full w-full object-cover"
-                              unoptimized
-                            />
-                          ) : (
-                            <span className="text-xs font-semibold text-white/65">
-                              {resolvePlayerInitials(selectedIntel.playerName)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-white">
-                            {selectedIntel.playerName}
-                          </div>
-                          <div className="text-xs text-white/55">
-                            {[selectedIntel.team, selectedIntel.position, selectedIntel.season]
-                              .filter(Boolean)
-                              .join(" | ") || "Season profile unavailable"}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        {selectedIntel.stats.length > 0 ? (
-                          selectedIntel.stats.slice(0, 6).map((stat) => (
-                            <div
-                              key={`${stat.label}-${stat.value}`}
-                              className="rounded-lg border border-white/10 bg-black/30 px-2.5 py-2"
-                            >
-                              <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">
-                                {stat.label}
-                              </div>
-                              <div className="mt-0.5 text-sm font-semibold text-white">{stat.value}</div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="col-span-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/55">
-                            No season stat cards available for this player.
-                          </div>
-                        )}
-                      </div>
-
-                      {selectedIntel.trend && (
-                        <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/75">
-                          <div>
-                            Recent {selectedIntel.trend.metric}: {selectedIntel.trend.average} avg ({selectedIntel.trend.sampleSize} games)
-                          </div>
-                          {selectedIntel.trend.hitRateLabel && (
-                            <div className="mt-1 text-lime-300">{selectedIntel.trend.hitRateLabel}</div>
-                          )}
-                        </div>
-                      )}
-
-                      {selectedIntel.insights.length > 0 && (
-                        <div className="space-y-1">
-                          {selectedIntel.insights.slice(0, 3).map((insight, index) => (
-                            <div
-                              key={`${insight}-${index}`}
-                              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/75"
-                            >
-                              {insight}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : selectedIntelLoading ? (
-                    <div className="mt-2 rounded-lg border border-white/10 bg-black/30 px-3 py-3 text-xs text-white/55">
-                      Preloading player profile...
-                    </div>
-                  ) : (
-                    <div className="mt-2 rounded-lg border border-white/10 bg-black/30 px-3 py-3 text-xs text-white/55">
-                      Player profile unavailable for this market.
-                    </div>
-                  )}
                 </div>
 
                 <div className="mt-5">

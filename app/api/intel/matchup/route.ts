@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { fetchSbdOdds, fetchSbdTrends, resolveSbdLeague, type SbdLeague } from "@/lib/api/sbd"
+import { getTeamsBySport } from "@/lib/data/teams-registry"
+import type { CanonicalSportKey } from "@/lib/identity/sport"
+import {
+  fetchTeamList as fetchNbaTeamList,
+  fetchTeamStatistics as fetchNbaTeamStatistics,
+  seasonHelpers as nbaSeasonHelpers,
+  type EspnStatCategory,
+  type EspnTeamMeta,
+} from "@/lib/providers/espn-nba"
 import { getTeamStats, type TeamStats } from "@/lib/sports-stats-api"
+import type { TeamRecord } from "@/lib/types/teams"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -67,6 +77,9 @@ type MatchupIntelPayload = {
 
 const CACHE_TTL_MS = 90_000
 const responseCache = new Map<string, { expiresAt: number; payload: MatchupIntelPayload }>()
+const TEAM_STATS_CACHE_TTL_MS = 5 * 60 * 1000
+const teamStatsCache = new Map<string, { expiresAt: number; teams: TeamStats[] }>()
+const teamStatsInflight = new Map<string, Promise<TeamStats[]>>()
 
 const SUPPORTED_SPORTS = new Set([
   "basketball_nba",
@@ -129,11 +142,13 @@ const statValueByAliases = (stats: Record<string, unknown>, aliases: string[]) =
 const metricDefinitionBySport: Record<string, Array<{ label: string; aliases: string[] }>> = {
   basketball_nba: [
     { label: "PPG", aliases: ["pointsForPerGame", "points_for_per_game", "ppg", "avgPoints", "points"] },
-    { label: "Opp PPG", aliases: ["pointsAgainstPerGame", "points_against_per_game", "papg", "oppPpg"] },
-    { label: "Off Rating", aliases: ["offensiveRating", "offensive_rating", "offRtg"] },
-    { label: "Def Rating", aliases: ["defensiveRating", "defensive_rating", "defRtg"] },
-    { label: "Net Rating", aliases: ["netRating", "net_rating"] },
-    { label: "Pace", aliases: ["pace"] },
+    { label: "Opp PPG", aliases: ["pointsAgainstPerGame", "points_against_per_game", "papg", "oppPpg", "avgPointsAllowed"] },
+    { label: "Reb", aliases: ["reboundsPerGame", "rebounds_per_game", "avgRebounds", "rebounds"] },
+    { label: "Ast", aliases: ["assistsPerGame", "assists_per_game", "avgAssists", "assists"] },
+    { label: "FG%", aliases: ["fieldGoalPct", "field_goal_pct", "fgPct", "fg_percent", "FG_PERCENT"] },
+    { label: "3P%", aliases: ["threePointPct", "three_point_pct", "threePct", "3p_pct", "threePointFieldGoalPct", "THREE_PERCENT"] },
+    { label: "Pace", aliases: ["pace", "paceFactor"] },
+    { label: "Net Rating", aliases: ["netRating", "net_rating", "NBARating", "nbaRating"] },
   ],
   basketball_ncaab: [
     { label: "PPG", aliases: ["pointsForPerGame", "points_for_per_game", "pointsPerGame", "ppg"] },
@@ -204,6 +219,55 @@ const resolveLogoUrl = (sportKey: string, abbr?: string | null) => {
   if (sportKey === "baseball_mlb") return `https://a.espncdn.com/i/teamlogos/mlb/500/${cleanedAbbr}.png`
   if (sportKey === "icehockey_nhl") return `https://a.espncdn.com/i/teamlogos/nhl/500/${cleanedAbbr}.png`
   return `https://a.espncdn.com/i/teamlogos/ncaa/500/${cleanedAbbr}.png`
+}
+
+const resolveRegistryTeam = (
+  sportKey: string,
+  teamName: string,
+  teamAbbr?: string | null
+): TeamRecord | null => {
+  const teams = getTeamsBySport(sportKey as CanonicalSportKey)
+  if (!teams.length) return null
+
+  const abbrKey = normalizeKey(teamAbbr)
+  let best: TeamRecord | null = null
+  let bestScore = 0
+
+  for (const team of teams) {
+    let score = 0
+    const aliases = Array.isArray(team.aliases) ? team.aliases : []
+    const candidates = [team.name, team.shortName, team.abbreviation, ...aliases]
+
+    for (const candidate of candidates) {
+      const nextScore = scoreNameMatch(teamName, candidate)
+      if (nextScore > score) score = nextScore
+    }
+
+    if (abbrKey) {
+      if (normalizeKey(team.abbreviation) === abbrKey) score = Math.max(score, 1.2)
+      if (aliases.some((alias) => normalizeKey(alias) === abbrKey)) score = Math.max(score, 1)
+    }
+
+    if (score > bestScore) {
+      bestScore = score
+      best = team
+    }
+  }
+
+  if (!best || bestScore < 0.55) return null
+  return best
+}
+
+const resolveTeamBrand = (sportKey: string, teamName: string, teamAbbr?: string | null) => {
+  const registryMatch = resolveRegistryTeam(sportKey, teamName, teamAbbr)
+  const resolvedAbbr = teamAbbr ? String(teamAbbr).trim() : registryMatch?.abbreviation ?? null
+  return {
+    name: registryMatch?.name ?? teamName,
+    abbr: resolvedAbbr && resolvedAbbr.length > 0 ? resolvedAbbr : null,
+    logoUrl:
+      registryMatch?.logoUrl ??
+      resolveLogoUrl(sportKey, resolvedAbbr && resolvedAbbr.length > 0 ? resolvedAbbr : null),
+  }
 }
 
 const buildRecord = (team: TeamStats | null) => {
@@ -388,16 +452,16 @@ const buildInsights = (params: {
   const homeStats = (homeRaw?.stats as Record<string, unknown>) ?? {}
   const awayStats = (awayRaw?.stats as Record<string, unknown>) ?? {}
 
-  const homeNet = statValueByAliases(homeStats, ["netRating", "net_rating"])
-  const awayNet = statValueByAliases(awayStats, ["netRating", "net_rating"])
+  const homeNet = statValueByAliases(homeStats, ["netRating", "net_rating", "NBARating", "nbaRating"])
+  const awayNet = statValueByAliases(awayStats, ["netRating", "net_rating", "NBARating", "nbaRating"])
   const netDiff = safeDiff(homeNet, awayNet)
   if (netDiff != null && Math.abs(netDiff) >= 2) {
     const side = netDiff > 0 ? home.name : away.name
     insights.push(`${side} owns a ${Math.abs(netDiff).toFixed(1)} net-rating edge in season profile.`)
   }
 
-  const homePace = statValueByAliases(homeStats, ["pace"])
-  const awayPace = statValueByAliases(awayStats, ["pace"])
+  const homePace = statValueByAliases(homeStats, ["pace", "paceFactor"])
+  const awayPace = statValueByAliases(awayStats, ["pace", "paceFactor"])
   if (homePace != null && awayPace != null && homePace + awayPace >= 200) {
     insights.push("Combined pace profile is elevated, which can support higher-variance scoring environments.")
   }
@@ -446,6 +510,228 @@ const buildInsights = (params: {
 const buildCacheKey = (sportKey: string, homeTeam: string, awayTeam: string, commenceTime?: string | null) =>
   `${sportKey}:${normalizeKey(homeTeam)}:${normalizeKey(awayTeam)}:${String(commenceTime || "").slice(0, 16)}`
 
+const pickEspnCategoryStat = (
+  categories: EspnStatCategory[] | undefined,
+  names: string[],
+  opts: { perGame?: boolean } = {}
+) => {
+  if (!Array.isArray(categories) || categories.length === 0) return null
+  const targets = new Set(names.map((name) => normalizeKey(name)))
+  const preferPerGame = opts.perGame !== false
+
+  for (const category of categories) {
+    const stats = Array.isArray(category?.stats) ? category.stats : []
+    for (const stat of stats) {
+      const key = normalizeKey(stat?.name)
+      if (!targets.has(key)) continue
+      const perGameValue = parseNumber(stat?.perGameValue)
+      const rawValue = parseNumber(stat?.value)
+      if (preferPerGame && perGameValue != null) {
+        return perGameValue
+      }
+      if (rawValue != null) {
+        return rawValue
+      }
+      if (perGameValue != null) {
+        return perGameValue
+      }
+    }
+  }
+
+  return null
+}
+
+const toNbaEspnPct = (value: number | null) => {
+  if (value == null || !Number.isFinite(value)) return null
+  return Math.abs(value) <= 1 ? value * 100 : value
+}
+
+const loadNbaTeamStatsFromEspn = async (
+  registryTeam: TeamRecord | null,
+  requestedTeamName: string
+): Promise<TeamStats | null> => {
+  if (!registryTeam?.id) return null
+
+  const season = nbaSeasonHelpers.getCurrentSeason()
+  const [statsResult, metaResult] = await Promise.allSettled([
+    fetchNbaTeamStatistics(String(registryTeam.id), season, 2),
+    fetchNbaTeamList(),
+  ])
+
+  const categories =
+    statsResult.status === "fulfilled"
+      ? statsResult.value?.splits?.categories ?? []
+      : []
+  const teamMeta: EspnTeamMeta | undefined =
+    metaResult.status === "fulfilled"
+      ? metaResult.value.find((entry) => String(entry.id) === String(registryTeam.id))
+      : undefined
+
+  const wins = Number.isFinite(teamMeta?.wins) ? Number(teamMeta?.wins) : 0
+  const losses = Number.isFinite(teamMeta?.losses) ? Number(teamMeta?.losses) : 0
+  const winPct = wins + losses > 0 ? wins / (wins + losses) : 0
+
+  const pointsForPerGame = pickEspnCategoryStat(categories, ["avgPoints", "points"], { perGame: true })
+  const pointsAgainstPerGame = pickEspnCategoryStat(categories, ["avgPointsAllowed", "pointsAllowed"], {
+    perGame: true,
+  })
+  const reboundsPerGame = pickEspnCategoryStat(categories, ["avgRebounds", "rebounds"], { perGame: true })
+  const assistsPerGame = pickEspnCategoryStat(categories, ["avgAssists", "assists"], { perGame: true })
+  const paceFactor = pickEspnCategoryStat(categories, ["paceFactor"], { perGame: false })
+  const netRating = pickEspnCategoryStat(categories, ["NBARating", "nbaRating", "netRating"], {
+    perGame: false,
+  })
+  const fieldGoalPct = toNbaEspnPct(
+    pickEspnCategoryStat(categories, ["fieldGoalPct", "fieldGoals"], { perGame: false })
+  )
+  const threePointPct = toNbaEspnPct(
+    pickEspnCategoryStat(categories, ["threePointPct", "threePointFieldGoalPct"], { perGame: false })
+  )
+
+  const stats: Record<string, number | string | null> = {
+    pointsForPerGame,
+    pointsAgainstPerGame,
+    avgPointsAllowed: pointsAgainstPerGame,
+    reboundsPerGame,
+    assistsPerGame,
+    pace: paceFactor,
+    paceFactor,
+    netRating,
+    NBARating: netRating,
+    fieldGoalPct,
+    threePointPct,
+  }
+
+  return {
+    team: teamMeta?.displayName || registryTeam.name || requestedTeamName,
+    teamAbbr: teamMeta?.abbreviation || registryTeam.abbreviation || undefined,
+    wins,
+    losses,
+    winPct,
+    season: String(season),
+    sport: "basketball_nba",
+    stats,
+  }
+}
+
+const resolveTeamStatsEntry = (teams: TeamStats[], teamName: string): TeamStats | null => {
+  if (!Array.isArray(teams) || teams.length === 0) return null
+  const target = String(teamName || "").trim()
+  if (!target) return null
+
+  let best: TeamStats | null = null
+  let bestScore = 0
+
+  for (const entry of teams) {
+    const entryName = String(entry?.team || "").trim()
+    const entryAbbr = String((entry as any)?.teamAbbr || "").trim()
+    if (!entryName && !entryAbbr) continue
+
+    const score = Math.max(scoreNameMatch(target, entryName), scoreNameMatch(target, entryAbbr))
+    if (score > bestScore) {
+      bestScore = score
+      best = entry
+    }
+  }
+
+  if (!best) return null
+  return bestScore >= 0.55 ? best : null
+}
+
+const loadLeagueTeamStats = async (
+  sportKey: string,
+  timeoutMs: number
+): Promise<TeamStats[] | null> => {
+  const cacheKey = `league:${sportKey}`
+  const cached = teamStatsCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.teams
+  }
+
+  let inflight = teamStatsInflight.get(cacheKey)
+  if (!inflight) {
+    inflight = (async () => {
+      try {
+        const teams = await getTeamStats(sportKey)
+        const safeTeams = Array.isArray(teams) ? teams : []
+        teamStatsCache.set(cacheKey, {
+          teams: safeTeams,
+          expiresAt: Date.now() + TEAM_STATS_CACHE_TTL_MS,
+        })
+        return safeTeams
+      } catch (error) {
+        console.warn("[intel/matchup] league team stats load failed", {
+          sportKey,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        teamStatsCache.set(cacheKey, {
+          teams: [],
+          expiresAt: Date.now() + 30_000,
+        })
+        return []
+      } finally {
+        teamStatsInflight.delete(cacheKey)
+      }
+    })()
+    teamStatsInflight.set(cacheKey, inflight)
+  }
+
+  try {
+    const timedResult = await Promise.race<TeamStats[] | null>([
+      inflight,
+      new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), timeoutMs)
+      }),
+    ])
+    return timedResult
+  } catch {
+    return null
+  }
+}
+
+const buildFallbackPayload = (params: {
+  sportKey: string
+  homeTeam: string
+  awayTeam: string
+  commenceTime?: string | null
+}): MatchupIntelPayload => {
+  const homeBrand = resolveTeamBrand(params.sportKey, params.homeTeam)
+  const awayBrand = resolveTeamBrand(params.sportKey, params.awayTeam)
+  return {
+    updatedAt: new Date().toISOString(),
+    matchup: {
+      sportKey: params.sportKey,
+      commenceTime: params.commenceTime ?? null,
+      awayTeam: {
+        name: awayBrand.name || params.awayTeam,
+        abbr: awayBrand.abbr,
+        logoUrl: awayBrand.logoUrl,
+        record: null,
+        metrics: [],
+        trend: null,
+      },
+      homeTeam: {
+        name: homeBrand.name || params.homeTeam,
+        abbr: homeBrand.abbr,
+        logoUrl: homeBrand.logoUrl,
+        record: null,
+        metrics: [],
+        trend: null,
+      },
+    },
+    sbd: {
+      league: resolveSbdLeague(params.sportKey),
+      matched: false,
+      gameId: null,
+      status: null,
+      splits: null,
+    },
+    insights: [
+      "Live matchup signals are still forming. Check back closer to kickoff for stronger trend confirmation.",
+    ],
+  }
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
 
@@ -475,25 +761,46 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [homeCandidates, awayCandidates] = await Promise.all([
-      getTeamStats(sportKey, homeTeam),
-      getTeamStats(sportKey, awayTeam),
-    ])
+    const homeRegistry = resolveRegistryTeam(sportKey, homeTeam)
+    const awayRegistry = resolveRegistryTeam(sportKey, awayTeam)
 
-    const homeRaw = (homeCandidates?.[0] as TeamStats | undefined) ?? null
-    const awayRaw = (awayCandidates?.[0] as TeamStats | undefined) ?? null
+    let homeRaw: TeamStats | null = null
+    let awayRaw: TeamStats | null = null
+
+    if (sportKey === "basketball_nba") {
+      ;[homeRaw, awayRaw] = await Promise.all([
+        loadNbaTeamStatsFromEspn(homeRegistry, homeTeam),
+        loadNbaTeamStatsFromEspn(awayRegistry, awayTeam),
+      ])
+    } else {
+      const leagueStatsTimeoutMs = 4200
+      const leagueStats = await loadLeagueTeamStats(sportKey, leagueStatsTimeoutMs)
+      homeRaw = leagueStats ? resolveTeamStatsEntry(leagueStats, homeTeam) : null
+      awayRaw = leagueStats ? resolveTeamStatsEntry(leagueStats, awayTeam) : null
+    }
+
+    const homeBrand = resolveTeamBrand(
+      sportKey,
+      homeRaw?.team || homeTeam,
+      (homeRaw as any)?.teamAbbr ? String((homeRaw as any).teamAbbr) : null
+    )
+    const awayBrand = resolveTeamBrand(
+      sportKey,
+      awayRaw?.team || awayTeam,
+      (awayRaw as any)?.teamAbbr ? String((awayRaw as any).teamAbbr) : null
+    )
 
     const homeProfileBase = {
-      name: homeRaw?.team || homeTeam,
-      abbr: (homeRaw as any)?.teamAbbr ? String((homeRaw as any).teamAbbr) : null,
-      logoUrl: resolveLogoUrl(sportKey, (homeRaw as any)?.teamAbbr),
+      name: homeBrand.name || homeRaw?.team || homeTeam,
+      abbr: homeBrand.abbr,
+      logoUrl: homeBrand.logoUrl,
       record: buildRecord(homeRaw),
       metrics: buildMetrics(sportKey, (homeRaw?.stats as Record<string, unknown>) ?? null),
     }
     const awayProfileBase = {
-      name: awayRaw?.team || awayTeam,
-      abbr: (awayRaw as any)?.teamAbbr ? String((awayRaw as any).teamAbbr) : null,
-      logoUrl: resolveLogoUrl(sportKey, (awayRaw as any)?.teamAbbr),
+      name: awayBrand.name || awayRaw?.team || awayTeam,
+      abbr: awayBrand.abbr,
+      logoUrl: awayBrand.logoUrl,
       record: buildRecord(awayRaw),
       metrics: buildMetrics(sportKey, (awayRaw?.stats as Record<string, unknown>) ?? null),
     }
@@ -568,9 +875,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ...payload, cache: { hit: false } })
   } catch (error: any) {
     console.error("[intel/matchup] failed", error)
-    return NextResponse.json(
-      { error: error?.message || "Failed to load matchup intel." },
-      { status: 500 }
-    )
+    const payload = buildFallbackPayload({
+      sportKey,
+      homeTeam,
+      awayTeam,
+      commenceTime,
+    })
+
+    responseCache.set(cacheKey, {
+      payload,
+      expiresAt: Date.now() + CACHE_TTL_MS,
+    })
+
+    return NextResponse.json({
+      ...payload,
+      cache: { hit: false, fallback: true },
+    })
   }
 }

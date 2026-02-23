@@ -104,6 +104,17 @@ async function fetchNbaStats<T extends NbaStatsResponse>(
       cache.set(cacheKey, { ts: Date.now(), data })
       return data
     } catch (error) {
+      const isAbortError =
+        Boolean(error) &&
+        typeof error === 'object' &&
+        'name' in (error as any) &&
+        (error as any).name === 'AbortError'
+
+      // Timeout/abort is common against stats.nba.com. Do not spam logs or retry repeatedly.
+      if (isAbortError) {
+        return null
+      }
+
       if (attempt < NBA_STATS_RETRY_COUNT) {
         await new Promise((resolve) =>
           setTimeout(resolve, NBA_STATS_RETRY_DELAY_MS * (attempt + 1))

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TrendingUp, Zap, DollarSign, BarChart3, AlertTriangle } from 'lucide-react'
 import {
   LineChart,
@@ -64,6 +64,13 @@ type SportSection = {
   label: string
   updatedAt?: string
   games: GameSharpAction[]
+}
+
+type MatchupIntelRequest = {
+  sportKey: string
+  awayTeam: string
+  homeTeam: string
+  commenceTime?: string | null
 }
 
 const CORE_SPORTS = [
@@ -327,6 +334,17 @@ const buildSeriesFromMovements = (
   return points.length ? { points } : undefined
 }
 
+const isValidMatchupIntelPayload = (payload: unknown): payload is MatchupIntelResponse => {
+  if (!payload || typeof payload !== 'object') return false
+  const candidate = payload as MatchupIntelResponse
+  return Boolean(
+    candidate?.matchup &&
+      candidate?.sbd &&
+      Array.isArray(candidate?.insights) &&
+      candidate?.updatedAt
+  )
+}
+
 export default function SharpActionClient({
   previewMode = false,
 }: {
@@ -343,6 +361,34 @@ export default function SharpActionClient({
   const [intelByKey, setIntelByKey] = useState<Record<string, MatchupIntelResponse>>({})
   const [intelLoadingByKey, setIntelLoadingByKey] = useState<Record<string, boolean>>({})
   const [intelErrorByKey, setIntelErrorByKey] = useState<Record<string, string>>({})
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  const fetchMatchupIntel = useCallback(async (item: MatchupIntelRequest) => {
+    const params = new URLSearchParams({
+      sportKey: item.sportKey,
+      awayTeam: item.awayTeam,
+      homeTeam: item.homeTeam,
+    })
+    if (item.commenceTime) params.set('commenceTime', item.commenceTime)
+
+    const res = await fetch(`/api/intel/matchup?${params.toString()}`, {
+      cache: 'no-store',
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new Error(body?.error || 'Failed to preload matchup intel.')
+    }
+    if (!isValidMatchupIntelPayload(body)) {
+      throw new Error('Invalid matchup intel payload.')
+    }
+    return body
+  }, [])
 
   const fetchSharpAction = useCallback(async () => {
     setLoading(true)
@@ -525,13 +571,12 @@ export default function SharpActionClient({
   )
 
   useEffect(() => {
-    let cancelled = false
     const requests = visibleIntelRequests
       .map((item) => ({
         item,
         key: buildMatchupIntelKey(item),
       }))
-      .filter(({ key }) => !intelByKey[key] && !intelLoadingByKey[key])
+      .filter(({ key }) => !intelByKey[key] && !intelLoadingByKey[key] && !intelErrorByKey[key])
 
     if (requests.length === 0) return
 
@@ -539,9 +584,9 @@ export default function SharpActionClient({
       const chunkSize = 8
 
       for (let i = 0; i < requests.length; i += chunkSize) {
-        if (cancelled) return
         const chunk = requests.slice(i, i + chunkSize)
 
+        if (!isMountedRef.current) return
         setIntelLoadingByKey((prev) => {
           const next = { ...prev }
           chunk.forEach(({ key }) => {
@@ -553,23 +598,10 @@ export default function SharpActionClient({
         await Promise.all(
           chunk.map(async ({ item, key }) => {
             try {
-              const params = new URLSearchParams({
-                sportKey: item.sportKey,
-                awayTeam: item.awayTeam,
-                homeTeam: item.homeTeam,
-              })
-              if (item.commenceTime) params.set('commenceTime', item.commenceTime)
+              const body = await fetchMatchupIntel(item)
+              if (!isMountedRef.current) return
 
-              const res = await fetch(`/api/intel/matchup?${params.toString()}`, {
-                cache: 'no-store',
-              })
-              const body = await res.json().catch(() => ({}))
-              if (!res.ok) {
-                throw new Error(body?.error || 'Failed to preload matchup intel.')
-              }
-              if (cancelled) return
-
-              setIntelByKey((prev) => ({ ...prev, [key]: body as MatchupIntelResponse }))
+              setIntelByKey((prev) => ({ ...prev, [key]: body }))
               setIntelErrorByKey((prev) => {
                 if (!prev[key]) return prev
                 const next = { ...prev }
@@ -577,13 +609,13 @@ export default function SharpActionClient({
                 return next
               })
             } catch (error: any) {
-              if (cancelled) return
+              if (!isMountedRef.current) return
               setIntelErrorByKey((prev) => ({
                 ...prev,
                 [key]: error?.message || 'Failed to preload matchup intel.',
               }))
             } finally {
-              if (cancelled) return
+              if (!isMountedRef.current) return
               setIntelLoadingByKey((prev) => {
                 if (!prev[key]) return prev
                 const next = { ...prev }
@@ -596,11 +628,8 @@ export default function SharpActionClient({
       }
     }
 
-    run()
-    return () => {
-      cancelled = true
-    }
-  }, [visibleIntelRequests, intelByKey, intelLoadingByKey])
+    void run()
+  }, [visibleIntelRequests, intelByKey, intelLoadingByKey, intelErrorByKey, fetchMatchupIntel])
 
   const openMatchupPanel = (sportKey: string, game: GameSharpAction) => {
     const market = game.sharpMarket !== 'none' ? game.sharpMarket : 'No market lean'
@@ -612,6 +641,19 @@ export default function SharpActionClient({
           : game.sharpMarket === 'moneyline'
             ? game.fallbackLines?.moneyline
             : null
+    const intelKey = buildMatchupIntelKey({
+      sportKey,
+      awayTeam: game.awayTeam,
+      homeTeam: game.homeTeam,
+      commenceTime: game.gameTime || null,
+    })
+
+    setIntelErrorByKey((prev) => {
+      if (!prev[intelKey]) return prev
+      const next = { ...prev }
+      delete next[intelKey]
+      return next
+    })
 
     setPanelContext({
       id: `research-${sportKey}-${game.gameId}`,
@@ -651,6 +693,51 @@ export default function SharpActionClient({
       : activeIntelError
         ? 'error'
         : 'ready'
+
+  useEffect(() => {
+    if (!panelContext || !activeIntelKey) return
+    if (intelErrorByKey[activeIntelKey]) return
+    if (intelByKey[activeIntelKey] || intelLoadingByKey[activeIntelKey]) return
+
+    setIntelLoadingByKey((prev) => ({ ...prev, [activeIntelKey]: true }))
+
+    const request: MatchupIntelRequest = {
+      sportKey: panelContext.sportKey,
+      awayTeam: panelContext.awayTeam,
+      homeTeam: panelContext.homeTeam,
+      commenceTime: panelContext.commenceTime,
+    }
+
+    const run = async () => {
+      try {
+        const body = await fetchMatchupIntel(request)
+        if (!isMountedRef.current) return
+        setIntelByKey((prev) => ({ ...prev, [activeIntelKey]: body }))
+        setIntelErrorByKey((prev) => {
+          if (!prev[activeIntelKey]) return prev
+          const next = { ...prev }
+          delete next[activeIntelKey]
+          return next
+        })
+      } catch (error: any) {
+        if (!isMountedRef.current) return
+        setIntelErrorByKey((prev) => ({
+          ...prev,
+          [activeIntelKey]: error?.message || 'Failed to preload matchup intel.',
+        }))
+      } finally {
+        if (!isMountedRef.current) return
+        setIntelLoadingByKey((prev) => {
+          if (!prev[activeIntelKey]) return prev
+          const next = { ...prev }
+          delete next[activeIntelKey]
+          return next
+        })
+      }
+    }
+
+    void run()
+  }, [panelContext, activeIntelKey, intelByKey, intelLoadingByKey, intelErrorByKey, fetchMatchupIntel])
 
   return (
     <div className="space-y-6">

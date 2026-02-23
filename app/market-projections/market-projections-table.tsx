@@ -3,12 +3,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import ShareProjectionButton from "@/components/ShareProjectionButton"
-import MatchupIntelPanel, {
-  buildMatchupIntelKey,
-  type MatchupIntelPanelStatus,
-  type MatchupIntelResponse,
-  type MatchupPanelContext,
-} from "@/components/intel/matchup-intel-panel"
 import { formatSharpSignalSummaryLine } from "@/lib/utils/sharp-signal-language"
 
 type EdgeFilter = "spread" | "moneyline" | "total"
@@ -1051,11 +1045,6 @@ export default function MarketProjectionsTable({
   const [matchFilter, setMatchFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<DateWindowFilter>("all")
   const [searchQuery, setSearchQuery] = useState("")
-  const [panelOpen, setPanelOpen] = useState(false)
-  const [panelContext, setPanelContext] = useState<MatchupPanelContext | null>(null)
-  const [intelByKey, setIntelByKey] = useState<Record<string, MatchupIntelResponse>>({})
-  const [intelLoadingByKey, setIntelLoadingByKey] = useState<Record<string, boolean>>({})
-  const [intelErrorByKey, setIntelErrorByKey] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (!accessConfig.allowedFilters.includes(filter)) {
@@ -1067,9 +1056,6 @@ export default function MarketProjectionsTable({
     setMatchFilter("all")
     setLeagueFilter("all")
     setSearchQuery("")
-    setIntelByKey({})
-    setIntelLoadingByKey({})
-    setIntelErrorByKey({})
   }, [sport])
 
   const sortedEdges = useMemo(() => {
@@ -1137,146 +1123,6 @@ export default function MarketProjectionsTable({
   const visibleEdges = previewMode ? filteredEdges.slice(0, 1) : filteredEdges
 
   const filterLabels = resolveFilterLabels(filter)
-
-  const visibleIntelRequests = useMemo(
-    () =>
-      visibleEdges.map((game) => ({
-        sportKey: sport || "basketball_nba",
-        awayTeam: game.awayTeam,
-        homeTeam: game.homeTeam,
-        commenceTime: game.commenceTime,
-      })),
-    [visibleEdges, sport]
-  )
-
-  useEffect(() => {
-    let cancelled = false
-    const requests = visibleIntelRequests
-      .map((item) => ({
-        item,
-        key: buildMatchupIntelKey(item),
-      }))
-      .filter(({ key }) => !intelByKey[key] && !intelLoadingByKey[key])
-
-    if (requests.length === 0) return
-
-    const run = async () => {
-      const chunkSize = 8
-
-      for (let i = 0; i < requests.length; i += chunkSize) {
-        if (cancelled) return
-        const chunk = requests.slice(i, i + chunkSize)
-
-        setIntelLoadingByKey((prev) => {
-          const next = { ...prev }
-          chunk.forEach(({ key }) => {
-            next[key] = true
-          })
-          return next
-        })
-
-        await Promise.all(
-          chunk.map(async ({ item, key }) => {
-            try {
-              const params = new URLSearchParams({
-                sportKey: item.sportKey,
-                awayTeam: item.awayTeam,
-                homeTeam: item.homeTeam,
-              })
-              if (item.commenceTime) params.set("commenceTime", item.commenceTime)
-
-              const res = await fetch(`/api/intel/matchup?${params.toString()}`, {
-                cache: "no-store",
-              })
-              const body = await res.json().catch(() => ({}))
-
-              if (!res.ok) {
-                throw new Error(body?.error || "Failed to preload matchup intel.")
-              }
-              if (cancelled) return
-
-              setIntelByKey((prev) => ({ ...prev, [key]: body as MatchupIntelResponse }))
-              setIntelErrorByKey((prev) => {
-                if (!prev[key]) return prev
-                const next = { ...prev }
-                delete next[key]
-                return next
-              })
-            } catch (error: any) {
-              if (cancelled) return
-              setIntelErrorByKey((prev) => ({
-                ...prev,
-                [key]: error?.message || "Failed to preload matchup intel.",
-              }))
-            } finally {
-              if (cancelled) return
-              setIntelLoadingByKey((prev) => {
-                if (!prev[key]) return prev
-                const next = { ...prev }
-                delete next[key]
-                return next
-              })
-            }
-          })
-        )
-      }
-    }
-
-    run()
-    return () => {
-      cancelled = true
-    }
-  }, [visibleIntelRequests, intelByKey, intelLoadingByKey])
-
-  const openMatchupPanel = (
-    game: EdgeGame,
-    activePick: EdgePick,
-    edgeMetrics: MarketEdge,
-    moveSummary: string,
-    sharpLine: string
-  ) => {
-    const marketLabel =
-      filter === "spread" ? "Spread" : filter === "moneyline" ? "Moneyline" : "Total"
-    const lineValue = resolveLineCellValue(game, filter)
-
-    setPanelContext({
-      id: `${game.matchup}-${game.commenceTime}-${filter}`,
-      source: "sharp-projections",
-      sportKey: sport || "basketball_nba",
-      awayTeam: game.awayTeam,
-      homeTeam: game.homeTeam,
-      commenceTime: game.commenceTime,
-      summary: {
-        edgePercent: edgeMetrics.edgePercent,
-        betLabel: activePick.label,
-        market: marketLabel,
-        line: lineValue,
-        hitRate: activePick.projection
-          ? formatProbability(activePick.projection.probability)
-          : "n/a",
-        lineMovement: moveSummary || "No line movement yet.",
-        sharpLine,
-        sharpSignals: game.sharpSignals
-          .slice(0, 4)
-          .map((signal) => formatSharpSignalSummaryLine(signal)),
-      },
-    })
-    setPanelOpen(true)
-  }
-
-  const activeIntelKey = panelContext
-    ? buildMatchupIntelKey({
-        sportKey: panelContext.sportKey,
-        awayTeam: panelContext.awayTeam,
-        homeTeam: panelContext.homeTeam,
-        commenceTime: panelContext.commenceTime,
-      })
-    : null
-  const activeIntel = activeIntelKey ? intelByKey[activeIntelKey] ?? null : null
-  const activeIntelError = activeIntelKey ? intelErrorByKey[activeIntelKey] ?? null : null
-  const activeIntelLoading = activeIntelKey ? Boolean(intelLoadingByKey[activeIntelKey]) : false
-  const activeIntelStatus: MatchupIntelPanelStatus =
-    activeIntelLoading || (!activeIntel && !activeIntelError) ? "loading" : activeIntelError ? "error" : "ready"
 
   return (
     <>
@@ -1382,18 +1228,7 @@ export default function MarketProjectionsTable({
                 return (
                   <article
                     key={`${game.matchup}-${game.commenceTime}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() =>
-                      openMatchupPanel(game, activePick, edgeMetrics, moveSummary, sharpLine)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault()
-                        openMatchupPanel(game, activePick, edgeMetrics, moveSummary, sharpLine)
-                      }
-                    }}
-                    className="space-y-3 px-3 py-3 text-xs text-white/70 transition-colors hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-cyan-300/40"
+                    className="space-y-3 px-3 py-3 text-xs text-white/70 transition-colors hover:bg-white/[0.03]"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -1445,11 +1280,7 @@ export default function MarketProjectionsTable({
                       </div>
                     </div>
 
-                    <div
-                      className="flex justify-end"
-                      onClick={(event) => event.stopPropagation()}
-                      onKeyDown={(event) => event.stopPropagation()}
-                    >
+                    <div className="flex justify-end">
                       <ShareProjectionButton projection={sharePayload} />
                     </div>
                   </article>
@@ -1497,10 +1328,7 @@ export default function MarketProjectionsTable({
                       return (
                         <TableRow
                           key={`${game.matchup}-${game.commenceTime}`}
-                          onClick={() =>
-                            openMatchupPanel(game, activePick, edgeMetrics, moveSummary, sharpLine)
-                          }
-                          className="cursor-pointer border-white/5 transition-colors hover:bg-white/[0.03]"
+                          className="border-white/5 transition-colors hover:bg-white/[0.03]"
                         >
                           <TableCell className="align-top">
                             <span className="rounded-md border border-emerald-400/45 bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-200">
@@ -1536,11 +1364,7 @@ export default function MarketProjectionsTable({
                             {sharpLine}
                           </TableCell>
                           <TableCell className="align-top">
-                            <div
-                              className="flex justify-end"
-                              onClick={(event) => event.stopPropagation()}
-                              onKeyDown={(event) => event.stopPropagation()}
-                            >
+                            <div className="flex justify-end">
                               <ShareProjectionButton projection={sharePayload} />
                             </div>
                           </TableCell>
@@ -1583,14 +1407,6 @@ export default function MarketProjectionsTable({
           </div>
         </div>
       )}
-      <MatchupIntelPanel
-        open={panelOpen}
-        onOpenChange={setPanelOpen}
-        context={panelContext}
-        intel={activeIntel}
-        status={activeIntelStatus}
-        errorMessage={activeIntelError}
-      />
     </>
   )
 }

@@ -7,18 +7,8 @@ type SignUpPayload = {
 }
 
 export async function POST(request: Request) {
-  // Temporary testing path:
-  // allow creating email/password users without email verification.
-  const allowDirectSignup =
-    process.env.NODE_ENV !== 'production' ||
-    process.env.ALLOW_DIRECT_EMAIL_SIGNUP === 'true'
-
-  if (!allowDirectSignup) {
-    return NextResponse.json(
-      { error: 'Email sign-ups are disabled in production.' },
-      { status: 403 }
-    )
-  }
+  // Email/password signups are enabled in all environments.
+  // This route creates users directly with confirmed email for immediate access.
 
   let payload: SignUpPayload
   try {

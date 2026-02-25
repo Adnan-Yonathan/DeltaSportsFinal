@@ -45,7 +45,7 @@ const BOOKMAKER_LINKS: Record<string, string> = {
   crabsports: 'https://www.crabsports.com/',
   prophetx: 'https://www.prophetx.co/promotions',
   polymarket: 'https://polymarket.com/',
-  kalshi: 'https://kalshi.com/',
+  kalshi: 'https://kalshi.com/sign-up/?referral=4807d3a2-7c7c-40bb-986c-608115b5a2c5',
 }
 
 export function getBookmakerLink(slug: string): string | undefined {

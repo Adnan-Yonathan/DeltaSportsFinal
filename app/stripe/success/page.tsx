@@ -312,7 +312,7 @@ export default function StripeSuccessPage() {
           return
         }
         if (membership.status === 'trialing' && shouldStartToolsTutorial(user)) {
-          router.replace('/tools?tutorial=1')
+          router.replace('/onboarding')
           return
         }
         if (!profileLoaded) {
@@ -363,7 +363,7 @@ export default function StripeSuccessPage() {
               return
             }
             if (membership.status === 'trialing' && shouldStartToolsTutorial(user)) {
-              router.replace('/tools?tutorial=1')
+              router.replace('/onboarding')
               return
             }
             if (!profileLoaded) {

@@ -27,7 +27,7 @@ import { formatCurrency } from '@/lib/utils/odds'
 const EASTERN_TIMEZONE = 'America/New_York'
 const PROMO_DISMISS_KEY = 'promo_links_dismissed'
 const PROMO_CLICK_KEY = 'promo_links_click_source'
-const DISCORD_INVITE_URL = 'https://discord.gg/8jUcaKT9'
+const DISCORD_INVITE_URL = 'https://discord.gg/Fkze8Ras'
 const KALSHI_REFERRAL_URL = 'https://kalshi.com/sign-up/?referral=4807d3a2-7c7c-40bb-986c-608115b5a2c5'
 const DELTA_MODE_STORAGE_KEY = 'delta-mode'
 

@@ -173,7 +173,10 @@ export async function middleware(req: NextRequest) {
 
   const isOnboardingPath = pathname === '/onboarding' || pathname.startsWith('/onboarding/')
   if (isOnboardingPath) {
-    return NextResponse.redirect(new URL(isPaid ? '/chat' : '/pricing', req.url))
+    if (!isPaid) {
+      return NextResponse.redirect(new URL('/pricing', req.url))
+    }
+    return res
   }
 
   if (isPaid) {

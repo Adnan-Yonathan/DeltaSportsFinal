@@ -96,7 +96,7 @@
     },
     {
       "path": "/api/cron/refresh-sharp-props-orderbooks",
-      "schedule": "*/30 * * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/refresh-market-orderbooks",

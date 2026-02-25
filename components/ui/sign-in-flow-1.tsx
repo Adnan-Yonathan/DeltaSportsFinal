@@ -7,9 +7,6 @@ import { cn } from "@/lib/utils";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { getMembershipStatus } from '@/lib/utils/membership';
-import { ParticleButton } from "@/components/ui/particle-button";
-import { ONBOARDING_ENABLED } from "@/lib/config/onboarding";
 
 import * as THREE from "three";
 
@@ -550,9 +547,15 @@ export function MiniNavbar() {
 export const SignInPage = ({ className }: SignInPageProps) => {
   const OAUTH_RATE_LIMIT_KEY = "auth_rate_limit_until_oauth";
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const inFlightRef = useRef(false);
   const supabase = createClient();
+  const router = useRouter();
 
   const readRateLimitUntil = (key: string) => {
     if (typeof window === "undefined") return 0;
@@ -607,6 +610,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
   const handleGoogleSignIn = async () => {
     if (inFlightRef.current) return;
     setError("");
+    setSuccessMessage("");
     const remaining = getRemainingRateLimitMs(OAUTH_RATE_LIMIT_KEY);
     if (remaining > 0) {
       setError(formatRateLimitMessage(remaining));
@@ -649,7 +653,65 @@ export const SignInPage = ({ className }: SignInPageProps) => {
     }
   };
 
-  const isBusy = oauthLoading;
+  const handleEmailSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inFlightRef.current) return;
+    if (!email.trim() || !password) {
+      setError("Email and password are required.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    inFlightRef.current = true;
+    setEmailLoading(true);
+    setError("");
+    setSuccessMessage("");
+
+    try {
+      const response = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to create account");
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (signInError) {
+        throw signInError;
+      }
+
+      setSuccessMessage("Account created. Redirecting...");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+      router.push("/pricing");
+    } catch (err: any) {
+      setError(err?.message || "Failed to create account");
+    } finally {
+      setEmailLoading(false);
+      inFlightRef.current = false;
+    }
+  };
+
+  const isBusy = oauthLoading || emailLoading;
 
   return (
     <div className={cn("flex w-[100%] flex-col min-h-screen bg-black relative", className)}>
@@ -676,27 +738,6 @@ export const SignInPage = ({ className }: SignInPageProps) => {
         {/* Top navigation */}
         <MiniNavbar />
 
-        <div className="hidden lg:flex fixed right-6 top-1/2 -translate-y-1/2 z-30">
-          <div className="w-[260px] rounded-3xl border border-emerald-400/40 bg-black/70 p-4 shadow-2xl shadow-emerald-500/20 backdrop-blur">
-            <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
-              <span>Whale Detector</span>
-              <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-[9px] font-semibold text-emerald-200/80">
-                Members Only
-              </span>
-            </div>
-            <p className="mt-3 text-xs text-white/60">
-              $2k+ trade alerts with price in cents and American odds.
-            </p>
-            <ParticleButton
-              disabled
-              className="mt-4 w-full gap-2 rounded-full bg-emerald-400/20 text-emerald-200 hover:bg-emerald-400/30 disabled:opacity-60 disabled:cursor-not-allowed"
-              title="Membership required to access Whale Detector"
-            >
-              Whale Detector
-            </ParticleButton>
-          </div>
-        </div>
-
         {/* Main content container */}
         <div className="flex flex-1 flex-col lg:flex-row ">
           {/* Left side (form) */}
@@ -718,6 +759,11 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                     {error}
                   </div>
                 )}
+                {successMessage && (
+                  <div className="bg-emerald-500/15 border border-emerald-400/30 text-emerald-200 p-3 rounded-lg text-sm">
+                    {successMessage}
+                  </div>
+                )}
 
                 <div className="space-y-4">
                   <button
@@ -734,16 +780,54 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                     </span>
                   </button>
 
+                  <div className="flex items-center gap-4">
+                    <div className="h-px flex-1 bg-white/10" />
+                    <span className="text-xs uppercase tracking-[0.2em] text-white/45">
+                      or sign up with email
+                    </span>
+                    <div className="h-px flex-1 bg-white/10" />
+                  </div>
+
+                  <form onSubmit={handleEmailSignUp} className="space-y-3">
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="Email"
+                      className="w-full rounded-full border border-white/15 bg-zinc-900/80 py-3 px-4 text-sm text-white placeholder:text-white/45 focus:border-white/35 focus:outline-none"
+                      required
+                    />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="Password"
+                      className="w-full rounded-full border border-white/15 bg-zinc-900/80 py-3 px-4 text-sm text-white placeholder:text-white/45 focus:border-white/35 focus:outline-none"
+                      required
+                    />
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      placeholder="Confirm password"
+                      className="w-full rounded-full border border-white/15 bg-zinc-900/80 py-3 px-4 text-sm text-white placeholder:text-white/45 focus:border-white/35 focus:outline-none"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={isBusy}
+                      className="w-full rounded-full bg-white text-black py-3 text-sm font-semibold transition-all hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {emailLoading ? "Creating account..." : "Sign up with email"}
+                    </button>
+                  </form>
+
                   <div className="rounded-3xl border border-white/10 bg-zinc-900/60 p-4 text-sm text-white/70 backdrop-blur">
-                    <p className="text-white/80">
-                      New accounts are Google-only.
-                    </p>
                     <p className="mt-1">
-                      If you already have an account, you can{" "}
+                      Already have an account?{" "}
                       <Link href="/auth/login" className="underline text-white/70 hover:text-white transition-colors">
-                        sign in with email
-                      </Link>{" "}
-                      or Google.
+                        Sign in
+                      </Link>
                     </p>
                   </div>
                 </div>

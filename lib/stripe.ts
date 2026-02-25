@@ -15,14 +15,26 @@ export const stripe: Stripe = new Proxy({} as Stripe, {
   },
 })
 
-// Price IDs - set these in your environment variables after creating products in Stripe Dashboard
+const pickPriceId = (...values: Array<string | undefined>) =>
+  values.find((value) => typeof value === 'string' && value.length > 0)
+
+// Price IDs - supports both current keys and legacy `pro_*` env vars as fallbacks.
 export const PRICE_IDS = {
-  pro_weekly: process.env.STRIPE_PRICE_PRO_WEEKLY,
-  pro_monthly: process.env.STRIPE_PRICE_PRO_MONTHLY,
-  pro_annual: process.env.STRIPE_PRICE_PRO_ANNUAL,
-  sharp_weekly: process.env.STRIPE_PRICE_SHARP_WEEKLY,
-  sharp_monthly: process.env.STRIPE_PRICE_SHARP_MONTHLY,
-  sharp_annual: process.env.STRIPE_PRICE_SHARP_ANNUAL,
+  pro_weekly: pickPriceId(process.env.STRIPE_PRICE_PRO_WEEKLY),
+  pro_monthly: pickPriceId(process.env.STRIPE_PRICE_PRO_MONTHLY),
+  pro_annual: pickPriceId(process.env.STRIPE_PRICE_PRO_ANNUAL),
+  sharp_weekly: pickPriceId(
+    process.env.STRIPE_PRICE_SHARP_WEEKLY,
+    process.env.STRIPE_PRICE_PRO_WEEKLY
+  ),
+  sharp_monthly: pickPriceId(
+    process.env.STRIPE_PRICE_SHARP_MONTHLY,
+    process.env.STRIPE_PRICE_PRO_MONTHLY
+  ),
+  sharp_annual: pickPriceId(
+    process.env.STRIPE_PRICE_SHARP_ANNUAL,
+    process.env.STRIPE_PRICE_PRO_ANNUAL
+  ),
   syndicate_weekly: process.env.STRIPE_PRICE_SYNDICATE_WEEKLY,
   syndicate_monthly: process.env.STRIPE_PRICE_SYNDICATE_MONTHLY,
   syndicate_annual: process.env.STRIPE_PRICE_SYNDICATE_ANNUAL,

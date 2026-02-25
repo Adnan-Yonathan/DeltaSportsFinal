@@ -1,7 +1,6 @@
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { ONBOARDING_ENABLED } from '@/lib/config/onboarding'
 
 // Pages that don't require authentication or membership access
 const PUBLIC_PATHS = [
@@ -152,19 +151,13 @@ export async function middleware(req: NextRequest) {
   // will catch the updated subscription_tier as a fallback.
   const metadata = session.user?.user_metadata || {}
   let isPaid = checkMembershipPaid(metadata)
-  let onboardingCompleted = ONBOARDING_ENABLED
-    ? Boolean(metadata?.onboarding_completed)
-    : true
 
   try {
     const { data: userProfile } = await supabase
       .from('users')
-      .select('onboarding_completed,subscription_tier')
+      .select('subscription_tier')
       .eq('id', session.user.id)
       .single()
-    if (ONBOARDING_ENABLED && userProfile?.onboarding_completed) {
-      onboardingCompleted = true
-    }
     const hasAuthoritativeStatus =
       typeof metadata?.membership_status === 'string' &&
       metadata.membership_status.length > 0
@@ -180,13 +173,7 @@ export async function middleware(req: NextRequest) {
 
   const isOnboardingPath = pathname === '/onboarding' || pathname.startsWith('/onboarding/')
   if (isOnboardingPath) {
-    if (isPaid) {
-      return NextResponse.redirect(new URL('/chat', req.url))
-    }
-    if (onboardingCompleted) {
-      return NextResponse.redirect(new URL('/pricing', req.url))
-    }
-    return res
+    return NextResponse.redirect(new URL(isPaid ? '/chat' : '/pricing', req.url))
   }
 
   if (isPaid) {
@@ -196,17 +183,12 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
-  if (!onboardingCompleted) {
-    const onboardingUrl = new URL('/onboarding', req.url)
-    return NextResponse.redirect(onboardingUrl)
-  }
-
   // If they cancel checkout or choose not to continue, let them stay on the landing page.
   if (pathname === '/welcome') {
     return res
   }
 
-  // Onboarding complete but unpaid: allow pricing.
+  // Unpaid users can stay on pricing.
   if (!isPaid && pathname.startsWith('/pricing')) {
     return res
   }

@@ -10,7 +10,6 @@ import {
   MiniNavbar,
 } from "@/components/ui/sign-in-flow-1"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
-import { FORCE_ONBOARDING, ONBOARDING_ENABLED } from "@/lib/config/onboarding"
 
 export const LoginPage = () => {
   const PASSWORD_RATE_LIMIT_KEY = "auth_rate_limit_until_password"
@@ -157,44 +156,10 @@ export const LoginPage = () => {
       if (error) throw error
 
       if (data.user) {
-        if (FORCE_ONBOARDING) {
-          router.push("/onboarding")
-          return
-        }
-
-        // Check membership status first — paid users go straight to chat
+        // Paid/trial users go to chat, everyone else to pricing.
         const membership = getMembershipStatusFromMetadata(data.user.user_metadata)
         const isPaidNow = membership.hasPaidAccess
 
-        if (ONBOARDING_ENABLED) {
-          const metadataCompleted = Boolean(
-            (data.user.user_metadata as any)?.onboarding_completed
-          )
-
-          let onboardingCompleted = metadataCompleted
-          if (!onboardingCompleted) {
-            const { data: profile, error: profileError } = await supabase
-              .from("users")
-              .select("onboarding_completed")
-              .eq("id", data.user.id)
-              .single()
-
-            if (!profileError) {
-              onboardingCompleted = Boolean(profile?.onboarding_completed)
-            }
-          }
-
-          if (!onboardingCompleted) {
-            if (isPaidNow) {
-              router.push("/chat")
-              return
-            }
-            router.push("/onboarding")
-            return
-          }
-        }
-
-        // Onboarding done but not paid — go to pricing
         if (isPaidNow) {
           router.push("/chat")
           return
@@ -335,3 +300,4 @@ export const LoginPage = () => {
     </div>
   )
 }
+

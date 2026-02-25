@@ -285,47 +285,6 @@ export function PricingPageClient() {
               </p>
             </div>
 
-            {isEligibleForTrial && (
-              <div className="mt-6 rounded-3xl border border-emerald-300/20 bg-white/[0.03] p-5">
-                <div className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className="h-full w-1 rounded-full bg-gradient-to-b from-emerald-400/70 via-emerald-400/20 to-white/10" />
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 p-1.5 text-emerald-200">
-                        <CheckIcon className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-white">Today</div>
-                        <div className="text-xs text-white/60">Start free trial</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 rounded-full border border-white/10 bg-black/20 p-1.5">
-                        <span className="block h-4 w-4 rounded-full bg-white/10" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-white">Day 4</div>
-                        <div className="text-xs text-white/60">Payment reminder sent (3 days before billing)</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 rounded-full border border-white/10 bg-black/20 p-1.5">
-                        <span className="block h-4 w-4 rounded-full bg-white/10" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-white">Day 7</div>
-                        <div className="text-xs text-white/60">First billing (if not canceled)</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div className="mt-6 rounded-full border border-emerald-300/30 bg-emerald-500/10 p-1.5 backdrop-blur">
               {(
                 [
@@ -417,7 +376,7 @@ export function PricingPageClient() {
                         )}
                       </div>
 
-                      {billingPeriod !== "weekly" && savings.savedAmount > 0 && (
+                      {billingPeriod === "annual" && savings.savedAmount > 0 && (
                         <div className="mt-1 text-[11px] font-semibold text-emerald-200">
                           Save {formatUsd(savings.savedAmount)}/yr ({savingsPercent}% off)
                         </div>
@@ -431,6 +390,47 @@ export function PricingPageClient() {
             {membership?.hasUsedTrial && !membership?.isActive && (
               <div className="mt-4 text-center text-[11px] uppercase tracking-[0.28em] text-white/45">
                 Trial already used
+              </div>
+            )}
+
+            {isEligibleForTrial && (
+              <div className="mt-6 rounded-3xl border border-emerald-300/20 bg-white/[0.03] p-5">
+                <div className="flex gap-4">
+                  <div className="flex flex-col items-center">
+                    <div className="h-full w-1 rounded-full bg-gradient-to-b from-emerald-400/70 via-emerald-400/20 to-white/10" />
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 p-1.5 text-emerald-200">
+                        <CheckIcon className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white">Today</div>
+                        <div className="text-xs text-white/60">Start free trial</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 rounded-full border border-white/10 bg-black/20 p-1.5">
+                        <span className="block h-4 w-4 rounded-full bg-white/10" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white">Day 4</div>
+                        <div className="text-xs text-white/60">Payment reminder sent (3 days before billing)</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 rounded-full border border-white/10 bg-black/20 p-1.5">
+                        <span className="block h-4 w-4 rounded-full bg-white/10" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white">Day 7</div>
+                        <div className="text-xs text-white/60">First billing (if not canceled)</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 

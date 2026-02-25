@@ -9,7 +9,6 @@ import StatsSection from '@/components/ui/call-to-action'
 import { ROICalculator } from '@/components/ui/roi-calculator'
 import { FeaturesSix } from '@/components/ui/features-6'
 import SectionWithMockup from '@/components/ui/section-with-mockup'
-import { ONBOARDING_ENABLED } from '@/lib/config/onboarding'
 
 type DeltaMode = 'projections' | 'research'
 
@@ -458,7 +457,7 @@ export default function ChatIntro({
             <ROICalculator />
             <div className="mt-5 w-full max-w-2xl mx-auto flex justify-center">
               <Link
-                href={ONBOARDING_ENABLED ? '/onboarding' : '/pricing'}
+                href="/pricing"
                 className="inline-flex items-center gap-4 rounded-full bg-emerald-400 px-6 py-3 text-xs sm:text-sm font-semibold uppercase tracking-[0.3em] text-black shadow-[0_16px_40px_rgba(16,185,129,0.35)] hover:bg-emerald-300 transition-colors"
               >
                 <span>Start your free trial</span>

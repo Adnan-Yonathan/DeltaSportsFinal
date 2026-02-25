@@ -23,7 +23,6 @@ import { ROICalculator } from '@/components/ui/roi-calculator'
 import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
 import { countUserMessagesToday, PRO_DAILY_MESSAGE_LIMIT } from '@/lib/utils/message-count'
 import { formatCurrency } from '@/lib/utils/odds'
-import { FORCE_ONBOARDING, ONBOARDING_ENABLED } from '@/lib/config/onboarding'
 
 const EASTERN_TIMEZONE = 'America/New_York'
 const PROMO_DISMISS_KEY = 'promo_links_dismissed'
@@ -166,16 +165,9 @@ function ChatPageContent() {
         )
       )
 
-      if (FORCE_ONBOARDING) {
-        router.push('/onboarding')
-        setLoading(false)
-        return
-      }
-
       // Get membership status from user metadata
       const membershipInfo = getMembershipStatus(user.user_metadata)
       setMembership(membershipInfo)
-      const isPaidNow = membershipInfo.hasPaidAccess
 
       // Fetch message count for Free users
       if (membershipInfo.tier === 'free' && membershipInfo.isActive) {
@@ -185,26 +177,11 @@ function ChatPageContent() {
 
       const { data: profile, error: profileError } = await supabase
         .from('users')
-        .select('display_name, onboarding_completed')
+        .select('display_name')
         .eq('id', user.id)
         .single()
-
-      if (ONBOARDING_ENABLED && !isPaidNow) {
-        const metadataCompleted = Boolean(
-          (user.user_metadata as { onboarding_completed?: boolean })?.onboarding_completed
-        )
-        if (profileError) {
-          console.warn('Profile lookup failed:', profileError.message)
-          if (!metadataCompleted) {
-            router.push('/onboarding')
-            setLoading(false)
-            return
-          }
-        } else if (profile?.onboarding_completed === false && !metadataCompleted) {
-          router.push('/onboarding')
-          setLoading(false)
-          return
-        }
+      if (profileError) {
+        console.warn('Profile lookup failed:', profileError.message)
       }
 
       setProfileName(profile?.display_name || user.email || 'Guest')

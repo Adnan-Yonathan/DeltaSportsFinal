@@ -161,7 +161,7 @@ const ROICalculator = ({
             <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-emerald-200/70">
               ROI
             </p>
-            <h2 className="font-hero text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
+            <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
               Load your expected edge
             </h2>
             <p className="mx-auto max-w-3xl text-sm text-white/70 sm:text-base">
@@ -246,7 +246,7 @@ const ROICalculator = ({
                       <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-emerald-200/70">
                         Output
                       </p>
-                      <h3 className="mt-2 font-hero text-xl font-bold text-white sm:text-2xl">
+                      <h3 className="mt-2 text-xl font-bold text-white sm:text-2xl">
                         Monthly Profit (EV)
                       </h3>
                     </div>
@@ -259,7 +259,7 @@ const ROICalculator = ({
                     <div className="text-[10px] uppercase tracking-[0.35em] text-emerald-200/70">
                       Estimated Monthly Return
                     </div>
-                    <div className="mt-3 font-hero text-4xl font-bold text-emerald-200 sm:text-5xl">
+                    <div className="mt-3 text-4xl font-bold text-emerald-200 sm:text-5xl">
                       {formatCurrency(display)}
                     </div>
                     <div className="mt-3 text-xs text-white/55">

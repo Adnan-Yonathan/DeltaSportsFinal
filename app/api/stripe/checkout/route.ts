@@ -30,14 +30,15 @@ export async function POST(req: NextRequest) {
       cancelPath?: string
     }
 
-    if (!planKey || !PRICE_IDS[planKey]) {
+    if (!planKey || !(planKey in PRICE_IDS)) {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
     }
 
-    const priceId = PRICE_IDS[planKey]
+    const resolvedPlanKey = planKey as keyof typeof PRICE_IDS
+    const priceId = PRICE_IDS[resolvedPlanKey]
     if (!priceId) {
       return NextResponse.json(
-        { error: `Price ID not configured for ${planKey}. Set STRIPE_PRICE_${planKey.toUpperCase()} env var.` },
+        { error: `Price ID not configured for ${resolvedPlanKey}.` },
         { status: 500 }
       )
     }
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get plan config for trial days
-    const planConfig = PLAN_CONFIG[planKey]
+    const planConfig = PLAN_CONFIG[resolvedPlanKey]
     let hasUsedTrial = Boolean(user.user_metadata?.has_used_trial)
 
     if (!hasUsedTrial && customerId) {
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
     const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {
       metadata: {
         supabase_user_id: user.id,
-        plan_key: planKey,
+        plan_key: resolvedPlanKey,
         plan_version: '2',
       },
       ...(planConfig.trialDays && !hasUsedTrial
@@ -133,7 +134,7 @@ export async function POST(req: NextRequest) {
       cancel_url: resolvedCancelUrl,
       metadata: {
         supabase_user_id: user.id,
-        plan_key: planKey,
+        plan_key: resolvedPlanKey,
         plan_version: '2',
       },
     })

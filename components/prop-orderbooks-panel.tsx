@@ -82,6 +82,9 @@ type LadderRow = {
 
 type OddsPreset = "all" | "default" | "underdog200" | "plusMoney" | "evenish" | "favorites" | "custom"
 
+const AUTO_REFRESH_INTERVAL_MS = 15 * 60 * 1000
+const BACKGROUND_ITEM_RETENTION_MS = 15 * 60 * 1000
+
 const COMPACT_USD = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -126,6 +129,31 @@ const formatCacheLabel = (source?: string | null) => {
   if (source.includes("fast")) return "live"
   if (source.includes("full")) return "live full"
   return source.replace(/_/g, " ")
+}
+
+const parseTimestampMs = (value?: string | null) => {
+  if (!value) return 0
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+const mergeBackgroundItems = (
+  previousItems: OrderbookItem[],
+  incomingItems: OrderbookItem[],
+  limit: number
+) => {
+  if (!previousItems.length) return incomingItems.slice(0, limit)
+  if (!incomingItems.length) return previousItems.slice(0, limit)
+
+  const now = Date.now()
+  const cutoff = now - BACKGROUND_ITEM_RETENTION_MS
+  const incomingIds = new Set(incomingItems.map((item) => item.id))
+  const retained = previousItems.filter((item) => {
+    if (incomingIds.has(item.id)) return false
+    return parseTimestampMs(item.updatedAt) >= cutoff
+  })
+
+  return [...incomingItems, ...retained].slice(0, limit)
 }
 
 const resolveLargestWall = (item: OrderbookItem) =>
@@ -357,6 +385,7 @@ export default function PropOrderbooksPanel({
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
   const hasItemsRef = useRef((initialData?.items?.length ?? 0) > 0)
+  const itemsRef = useRef<OrderbookItem[]>(initialData?.items ?? [])
   const isMountedRef = useRef(true)
 
   const load = useCallback(
@@ -389,7 +418,7 @@ export default function PropOrderbooksPanel({
         })
         if (forceRefresh) {
           params.set("refresh", "1")
-          params.set("mode", "fast")
+          params.set("mode", "full")
         }
 
         const res = await fetch(`/api/prop-orderbooks?${params.toString()}`, {
@@ -404,12 +433,16 @@ export default function PropOrderbooksPanel({
         if (requestId !== requestIdRef.current) return
 
         const nextItems = Array.isArray(payload?.items) ? payload.items : []
-        hasItemsRef.current = nextItems.length > 0
-        setItems(nextItems)
+        const resolvedItems = background
+          ? mergeBackgroundItems(itemsRef.current, nextItems, limit)
+          : nextItems
+        hasItemsRef.current = resolvedItems.length > 0
+        itemsRef.current = resolvedItems
+        setItems(resolvedItems)
         setSelectedItemId((prev) => {
-          if (!nextItems.length) return null
-          if (prev && nextItems.some((item) => item.id === prev)) return prev
-          return nextItems[0].id
+          if (!resolvedItems.length) return null
+          if (prev && resolvedItems.some((item) => item.id === prev)) return prev
+          return resolvedItems[0].id
         })
         setLastUpdatedAt(payload?.updatedAt ?? new Date().toISOString())
         setCacheSource(payload?.cache?.source ?? null)
@@ -432,6 +465,7 @@ export default function PropOrderbooksPanel({
     abortControllerRef.current?.abort()
     const seededItems = initialData?.items ?? []
     hasItemsRef.current = seededItems.length > 0
+    itemsRef.current = seededItems
     setItems(seededItems)
     setSelectedItemId(seededItems[0]?.id ?? null)
     setLoading(!seededItems.length)
@@ -447,13 +481,15 @@ export default function PropOrderbooksPanel({
     setMinOdds("-200")
     setMaxOdds("")
 
-    load({ background: seededItems.length > 0 })
+    if (!seededItems.length) {
+      load()
+    }
   }, [initialData, load, sport])
 
   useEffect(() => {
     const interval = window.setInterval(() => {
       load({ forceRefresh: true, background: true })
-    }, 60_000)
+    }, AUTO_REFRESH_INTERVAL_MS)
     return () => window.clearInterval(interval)
   }, [load])
 
@@ -675,7 +711,7 @@ export default function PropOrderbooksPanel({
           <div>
             <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">Sharp Prop Orderbook</div>
             <div className="mt-1 text-xs text-white/55">
-              {totalCountLabel} | refreshes every 60s
+              {totalCountLabel} | refreshes every 15m
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/50">

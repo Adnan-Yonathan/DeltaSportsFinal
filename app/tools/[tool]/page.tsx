@@ -6,6 +6,7 @@ import { OddsMatrixSurface } from '@/components/ui/odds-matrix-surface'
 import { CORE_TOOLS, CORE_TOOLS_BY_KEY, type CoreToolKey } from '@/lib/core-tools'
 import { ArrowRight } from 'lucide-react'
 import { ToolVibePreview } from '@/components/tools/tool-vibe-preview'
+import { ToolTutorialOverlay } from '@/components/tools/tool-tutorial-overlay'
 
 export const dynamic = 'force-static'
 
@@ -125,6 +126,7 @@ export default function ToolDetailPage({ params }: PageProps) {
           </Link>
         </div>
       </main>
+      <ToolTutorialOverlay toolKey={tool.key} />
     </div>
   )
 }

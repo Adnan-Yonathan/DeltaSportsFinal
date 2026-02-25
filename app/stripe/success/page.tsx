@@ -7,6 +7,7 @@ import { motion } from 'framer-motion'
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
+import { TOOLS_TUTORIAL_METADATA_KEY } from '@/lib/tools-tutorial'
 
 type OnboardingProfile = {
   favorite_sports?: string[]
@@ -284,6 +285,9 @@ export default function StripeSuccessPage() {
     )
   }, [profile])
 
+  const shouldStartToolsTutorial = (user: { user_metadata?: Record<string, unknown> } | null) =>
+    !Boolean(user?.user_metadata?.[TOOLS_TUTORIAL_METADATA_KEY])
+
   useEffect(() => {
     const checkSubscription = async () => {
       const supabase = createClient()
@@ -305,6 +309,10 @@ export default function StripeSuccessPage() {
         const postCheckoutRedirect = getPostCheckoutRedirect()
         if (postCheckoutRedirect) {
           router.replace(postCheckoutRedirect)
+          return
+        }
+        if (membership.status === 'trialing' && shouldStartToolsTutorial(user)) {
+          router.replace('/tools?tutorial=1')
           return
         }
         if (!profileLoaded) {
@@ -352,6 +360,10 @@ export default function StripeSuccessPage() {
             const postCheckoutRedirect = getPostCheckoutRedirect()
             if (postCheckoutRedirect) {
               router.replace(postCheckoutRedirect)
+              return
+            }
+            if (membership.status === 'trialing' && shouldStartToolsTutorial(user)) {
+              router.replace('/tools?tutorial=1')
               return
             }
             if (!profileLoaded) {

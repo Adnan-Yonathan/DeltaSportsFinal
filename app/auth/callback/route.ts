@@ -4,7 +4,6 @@ import type { NextRequest } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/lib/supabase/types'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
-import { FORCE_ONBOARDING, ONBOARDING_ENABLED } from '@/lib/config/onboarding'
 
 export const dynamic = 'force-dynamic'
 const AFFILIATE_REF_COOKIE = 'affiliate_ref'
@@ -48,34 +47,6 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      if (FORCE_ONBOARDING) {
-        return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
-      }
-
-      // Resolve onboarding completion (metadata first, then public.users as a fallback).
-      let onboardingCompleted = true
-      if (ONBOARDING_ENABLED) {
-        const metadataCompleted = Boolean(
-          (user.user_metadata as { onboarding_completed?: boolean })?.onboarding_completed
-        )
-        onboardingCompleted = metadataCompleted
-
-        if (!onboardingCompleted) {
-          const { data: profile, error } = await supabase
-            .from('users')
-            .select('onboarding_completed')
-            .eq('id', user.id)
-            .single()
-
-          if (!error) {
-            onboardingCompleted = Boolean(profile?.onboarding_completed)
-            if (onboardingCompleted && !metadataCompleted) {
-              await supabase.auth.updateUser({ data: { onboarding_completed: true } })
-            }
-          }
-        }
-      }
-
       // Resolve paid access (auth metadata first, then public.users.subscription_tier as a fallback).
       let membership = getMembershipStatusFromMetadata(user.user_metadata)
       const isPaidNow = (info: typeof membership) =>
@@ -108,17 +79,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // If onboarding is not complete:
-      // - paid users should not be blocked from core access
-      // - unpaid users continue onboarding
-      if (ONBOARDING_ENABLED && !onboardingCompleted) {
-        if (isPaidNow(membership)) {
-          return NextResponse.redirect(new URL('/chat', requestUrl.origin))
-        }
-        return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
-      }
-
-      // Onboarding complete: route by paid access.
+      // Route only by paid access.
       if (!isPaidNow(membership)) {
         return NextResponse.redirect(new URL('/pricing', requestUrl.origin))
       }

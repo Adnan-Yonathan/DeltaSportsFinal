@@ -15,14 +15,15 @@ export async function POST(req: NextRequest) {
   try {
     const { planKey } = await req.json() as { planKey: PlanKey }
 
-    if (!planKey || !PRICE_IDS[planKey]) {
+    if (!planKey || !(planKey in PRICE_IDS)) {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
     }
 
-    const priceId = PRICE_IDS[planKey]
+    const resolvedPlanKey = planKey as keyof typeof PRICE_IDS
+    const priceId = PRICE_IDS[resolvedPlanKey]
     if (!priceId) {
       return NextResponse.json(
-        { error: `Price ID not configured for ${planKey}.` },
+        { error: `Price ID not configured for ${resolvedPlanKey}.` },
         { status: 500 }
       )
     }
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const targetTier = PLAN_CONFIG[planKey].tier
+    const targetTier = PLAN_CONFIG[resolvedPlanKey].tier
     if (tierRank[targetTier] <= tierRank[membership.tier]) {
       return NextResponse.json(
         { error: 'Requested plan is not an upgrade.' },

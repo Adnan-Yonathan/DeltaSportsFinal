@@ -82,7 +82,7 @@ type LadderRow = {
 
 type OddsPreset = "all" | "default" | "underdog200" | "plusMoney" | "evenish" | "favorites" | "custom"
 
-const AUTO_REFRESH_INTERVAL_MS = 15 * 60 * 1000
+const AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000
 const BACKGROUND_ITEM_RETENTION_MS = 15 * 60 * 1000
 
 const COMPACT_USD = new Intl.NumberFormat("en-US", {
@@ -483,7 +483,10 @@ export default function PropOrderbooksPanel({
 
     if (!seededItems.length) {
       load()
+      return
     }
+
+    load({ forceRefresh: true, background: true })
   }, [initialData, load, sport])
 
   useEffect(() => {

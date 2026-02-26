@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPropOrderbooksCache } from '@/lib/services/prop-orderbooks-cache'
+import { parseCacheAgeMs } from '@/lib/services/prop-orderbooks-cache-guard'
 
 export const dynamic = 'force-dynamic'
 
 const EASTERN_TIME_ZONE = 'America/New_York'
 const QUIET_WINDOW_START_HOUR = 1
 const QUIET_WINDOW_END_HOUR = 10
+const QUIET_WINDOW_MAX_CACHE_AGE_MS = 20 * 60 * 1000
+const DEFAULT_CACHE_KEY = 'sport:all:depth:8:min:100'
 
 const getEasternHour = (date: Date) => {
   try {
@@ -47,7 +51,12 @@ export async function GET(req: NextRequest) {
       easternHour >= QUIET_WINDOW_START_HOUR &&
       easternHour < QUIET_WINDOW_END_HOUR
 
-    if (isQuietHours) {
+    const cached = await getPropOrderbooksCache(DEFAULT_CACHE_KEY)
+    const cacheAgeMs = parseCacheAgeMs(cached?.fetched_at ?? null)
+    const hasFreshCache =
+      cacheAgeMs != null && cacheAgeMs <= QUIET_WINDOW_MAX_CACHE_AGE_MS
+
+    if (isQuietHours && hasFreshCache) {
       return NextResponse.json({
         ok: true,
         refreshed: false,
@@ -55,6 +64,7 @@ export async function GET(req: NextRequest) {
         reason: 'Quiet window active (1:00 AM-9:59 AM America/New_York).',
         timestamp: now.toISOString(),
         easternHour,
+        cacheAgeMs,
       })
     }
 
@@ -85,6 +95,7 @@ export async function GET(req: NextRequest) {
       skipped: false,
       timestamp: now.toISOString(),
       easternHour,
+      cacheAgeMs,
       sport: payload?.sport ?? 'all',
       count: typeof payload?.count === 'number' ? payload.count : null,
       updatedAt: payload?.updatedAt ?? null,

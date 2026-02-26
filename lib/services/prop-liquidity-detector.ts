@@ -3,6 +3,7 @@ import { fetchTheOddsApiPlayerProps } from '@/lib/api/the-odds-api'
 import { fetchSbdGamePropsList, resolveSbdLeague } from '@/lib/api/sbd'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import { TEAMS_REGISTRY } from '@/lib/data/teams-registry'
+import { buildFinalPropOrderbookItems } from '@/lib/services/prop-orderbooks-selection'
 import { oddsToImpliedProbability, probabilityToAmericanOdds } from '@/lib/utils/statistics'
 import { resolveOverUnderSide } from '@/lib/utils/props'
 import type { Bookmaker, OddsGame } from '@/lib/types/odds'
@@ -1512,25 +1513,6 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           limit: collectionLimit,
         })
 
-    const interleave = (groups: PropOrderbookItem[][], max: number) => {
-      const result: PropOrderbookItem[] = []
-      const indexes = groups.map(() => 0)
-      while (result.length < max) {
-        let appended = false
-        for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
-          const group = groups[groupIndex]
-          const itemIndex = indexes[groupIndex]
-          if (itemIndex >= group.length) continue
-          result.push(group[itemIndex])
-          indexes[groupIndex] += 1
-          appended = true
-          if (result.length >= max) break
-        }
-        if (!appended) break
-      }
-      return result
-    }
-
     const buildKalshiItem = async (
       series: (typeof KALSHI_PROP_SERIES)[number],
       market: KalshiMarket
@@ -1855,49 +1837,33 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
       }
     }
 
-    const combined = interleave(
-      [kalshiItems, polymarketItems, exchangeItems],
-      collectionLimit
-    )
+    const finalItems = buildFinalPropOrderbookItems({
+      sportFilter,
+      requestedLimit,
+      kalshiItems: kalshiItems.slice(0, collectionLimit),
+      polymarketItems: polymarketItems.slice(0, collectionLimit),
+      exchangeItems: exchangeItems.slice(0, collectionLimit),
+    })
 
-    const interleaveBySport = (items: PropOrderbookItem[], max: number) => {
-      const grouped = new Map<string, PropOrderbookItem[]>()
-      for (const item of items) {
-        const group = grouped.get(item.sportKey) ?? []
-        group.push(item)
-        grouped.set(item.sportKey, group)
-      }
+    if (process.env.SHARP_PROPS_DIAGNOSTICS === '1') {
+      const sourceCounts = finalItems.reduce<Record<string, number>>((acc, item) => {
+        acc[item.source] = (acc[item.source] || 0) + 1
+        return acc
+      }, {})
+      const highLiquidityCount = finalItems.filter(
+        (item) => (item.sharpLiquidityNotional ?? 0) >= 1000
+      ).length
 
-      const preferredSports = ['basketball_nba', 'basketball_ncaab', 'icehockey_nhl']
-      const orderedSports = [
-        ...preferredSports,
-        ...Array.from(grouped.keys()).filter((sportKey) => !preferredSports.includes(sportKey)),
-      ]
-      const indexes = new Map<string, number>()
-      const result: PropOrderbookItem[] = []
-
-      while (result.length < max) {
-        let appended = false
-        for (const sportKey of orderedSports) {
-          const group = grouped.get(sportKey)
-          if (!group || group.length === 0) continue
-          const index = indexes.get(sportKey) ?? 0
-          if (index >= group.length) continue
-          result.push(group[index])
-          indexes.set(sportKey, index + 1)
-          appended = true
-          if (result.length >= max) break
-        }
-        if (!appended) break
-      }
-
-      return result
+      console.info('[prop-orderbooks] snapshot composition', {
+        mode,
+        sportFilter,
+        requestedLimit,
+        collectionLimit,
+        total: finalItems.length,
+        sourceCounts,
+        highLiquidityCount,
+      })
     }
-
-    const finalItems =
-      sportFilter === 'all'
-        ? interleaveBySport(combined, requestedLimit)
-        : combined.slice(0, requestedLimit)
 
     orderbooksCache.set(cacheKey, {
       fetchedAt: Date.now(),

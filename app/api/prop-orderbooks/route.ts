@@ -8,11 +8,17 @@ import {
   getPropOrderbooksCache,
   setPropOrderbooksCache,
 } from '@/lib/services/prop-orderbooks-cache'
+import {
+  parseCacheAgeMs,
+  resolveSnapshotDiagnostics,
+  shouldPersistPropOrderbooksSnapshot,
+} from '@/lib/services/prop-orderbooks-cache-guard'
 
 export const dynamic = 'force-dynamic'
 const DEFAULT_DEPTH = 8
 const DEFAULT_MIN_SHARP_NOTIONAL = 100
 const PERSISTED_CACHE_LIMIT = 200
+const PERSISTED_CACHE_MAX_AGE_MS = 3 * 60 * 1000
 
 const SUPPORTED_SPORTS = new Set([
   'all',
@@ -55,13 +61,15 @@ const buildCachedResponse = (
   normalizedLimit: number,
   cachedPayload: PersistedPayload,
   cacheSource: 'persistent' | 'persistent_all_fallback',
-  fetchedAt: string | null
+  fetchedAt: string | null,
+  cacheAgeMs: number | null
 ) => {
   const items =
     sport === 'all'
       ? cachedPayload.items
       : cachedPayload.items.filter((item) => item.sportKey === sport)
   const sliced = items.slice(0, normalizedLimit)
+  const diagnostics = resolveSnapshotDiagnostics(sliced)
 
   return NextResponse.json({
     ok: true,
@@ -73,7 +81,9 @@ const buildCachedResponse = (
       forcedRefresh: false,
       source: cacheSource,
       fetchedAt,
+      cacheAgeMs,
     },
+    diagnostics,
   })
 }
 
@@ -113,13 +123,16 @@ export async function GET(req: NextRequest) {
       const exactCacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
       const cachedExact = await getPropOrderbooksCache(exactCacheKey)
       const exactPayload = parsePersistedPayload(cachedExact?.payload)
-      if (exactPayload) {
+      const exactAgeMs = parseCacheAgeMs(cachedExact?.fetched_at ?? null)
+      const exactCacheFresh = exactAgeMs != null && exactAgeMs <= PERSISTED_CACHE_MAX_AGE_MS
+      if (exactPayload && exactCacheFresh) {
         return buildCachedResponse(
           sport,
           normalizedLimit,
           exactPayload,
           'persistent',
-          cachedExact?.fetched_at ?? null
+          cachedExact?.fetched_at ?? null,
+          exactAgeMs
         )
       }
 
@@ -127,13 +140,16 @@ export async function GET(req: NextRequest) {
         const allCacheKey = buildCacheKey('all', normalizedDepth, normalizedMinSharpNotional)
         const cachedAll = await getPropOrderbooksCache(allCacheKey)
         const allPayload = parsePersistedPayload(cachedAll?.payload)
-        if (allPayload) {
+        const allAgeMs = parseCacheAgeMs(cachedAll?.fetched_at ?? null)
+        const allCacheFresh = allAgeMs != null && allAgeMs <= PERSISTED_CACHE_MAX_AGE_MS
+        if (allPayload && allCacheFresh) {
           return buildCachedResponse(
             sport,
             normalizedLimit,
             allPayload,
             'persistent_all_fallback',
-            cachedAll?.fetched_at ?? null
+            cachedAll?.fetched_at ?? null,
+            allAgeMs
           )
         }
       }
@@ -152,8 +168,16 @@ export async function GET(req: NextRequest) {
       mode,
     })
 
+    let persisted = false
+    let cacheWriteSkippedDegraded = false
     if (canUsePersistentCache) {
       const cacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
+      const existingCache = await getPropOrderbooksCache(cacheKey)
+      const existingPayload = parsePersistedPayload(existingCache?.payload)
+      const shouldPersist =
+        !existingPayload ||
+        shouldPersistPropOrderbooksSnapshot(existingPayload.items, snapshot.items)
+
       const payload: PersistedPayload = {
         sport,
         depth: normalizedDepth,
@@ -161,15 +185,22 @@ export async function GET(req: NextRequest) {
         updatedAt: snapshot.updatedAt,
         items: snapshot.items,
       }
-      await setPropOrderbooksCache(cacheKey, payload)
+      if (shouldPersist) {
+        persisted = await setPropOrderbooksCache(cacheKey, payload)
+      } else {
+        cacheWriteSkippedDegraded = true
+      }
     }
+
+    const responseItems = snapshot.items.slice(0, normalizedLimit)
+    const diagnostics = resolveSnapshotDiagnostics(responseItems)
 
     return NextResponse.json({
       ok: true,
       sport,
       updatedAt: snapshot.updatedAt,
-      count: snapshot.items.slice(0, normalizedLimit).length,
-      items: snapshot.items.slice(0, normalizedLimit),
+      count: responseItems.length,
+      items: responseItems,
       cache: {
         forcedRefresh: forceRefresh,
         source: forceRefresh
@@ -183,7 +214,10 @@ export async function GET(req: NextRequest) {
           : canUsePersistentCache
             ? 'live_computed_persisted_fast'
             : 'live_computed_fast',
+        persisted,
+        cacheWriteSkippedDegraded,
       },
+      diagnostics,
     })
   } catch (error: any) {
     console.error('[prop-orderbooks] error:', error)

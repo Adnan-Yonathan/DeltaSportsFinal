@@ -170,6 +170,11 @@ export async function GET(req: NextRequest) {
 
     let persisted = false
     let cacheWriteSkippedDegraded = false
+    let fallbackToPersistent = false
+    let fallbackFetchedAt: string | null = null
+    let fallbackCacheAgeMs: number | null = null
+    let responseSnapshotItems = snapshot.items
+    let responseUpdatedAt = snapshot.updatedAt
     if (canUsePersistentCache) {
       const cacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
       const existingCache = await getPropOrderbooksCache(cacheKey)
@@ -189,16 +194,23 @@ export async function GET(req: NextRequest) {
         persisted = await setPropOrderbooksCache(cacheKey, payload)
       } else {
         cacheWriteSkippedDegraded = true
+        if (existingPayload?.items?.length) {
+          fallbackToPersistent = true
+          fallbackFetchedAt = existingCache?.fetched_at ?? null
+          fallbackCacheAgeMs = parseCacheAgeMs(fallbackFetchedAt)
+          responseSnapshotItems = existingPayload.items
+          responseUpdatedAt = existingPayload.updatedAt
+        }
       }
     }
 
-    const responseItems = snapshot.items.slice(0, normalizedLimit)
+    const responseItems = responseSnapshotItems.slice(0, normalizedLimit)
     const diagnostics = resolveSnapshotDiagnostics(responseItems)
 
     return NextResponse.json({
       ok: true,
       sport,
-      updatedAt: snapshot.updatedAt,
+      updatedAt: responseUpdatedAt,
       count: responseItems.length,
       items: responseItems,
       cache: {
@@ -216,6 +228,9 @@ export async function GET(req: NextRequest) {
             : 'live_computed_fast',
         persisted,
         cacheWriteSkippedDegraded,
+        fallbackToPersistent,
+        fetchedAt: fallbackFetchedAt,
+        cacheAgeMs: fallbackCacheAgeMs,
       },
       diagnostics,
     })

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import BoxLoader from "@/components/ui/box-loader"
+import { shouldPersistPropOrderbooksSnapshot } from "@/lib/services/prop-orderbooks-cache-guard"
 
 type OrderbookLevel = {
   priceCents: number
@@ -64,6 +65,8 @@ type OrderbooksApiResponse = {
   cache?: {
     source?: string
     fetchedAt?: string | null
+    cacheWriteSkippedDegraded?: boolean
+    fallbackToPersistent?: boolean
   }
   error?: string
 }
@@ -433,8 +436,15 @@ export default function PropOrderbooksPanel({
         if (requestId !== requestIdRef.current) return
 
         const nextItems = Array.isArray(payload?.items) ? payload.items : []
+        const previousItems = itemsRef.current
+        const shouldAcceptBackground =
+          !background ||
+          shouldPersistPropOrderbooksSnapshot(previousItems, nextItems) ||
+          payload?.cache?.fallbackToPersistent === true
         const resolvedItems = background
-          ? mergeBackgroundItems(itemsRef.current, nextItems, limit)
+          ? shouldAcceptBackground
+            ? mergeBackgroundItems(previousItems, nextItems, limit)
+            : previousItems.slice(0, limit)
           : nextItems
         hasItemsRef.current = resolvedItems.length > 0
         itemsRef.current = resolvedItems
@@ -714,7 +724,7 @@ export default function PropOrderbooksPanel({
           <div>
             <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">Sharp Prop Orderbook</div>
             <div className="mt-1 text-xs text-white/55">
-              {totalCountLabel} | refreshes every 15m
+              {totalCountLabel} | refreshes every 5m
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/50">

@@ -1,20 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
-import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
 import BacktestingClient from './backtesting-client'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function BacktestingPage() {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasResearchAccess = membership.hasResearchAccess
-  const previewMode = !hasResearchAccess
-
   return (
     <div className="space-y-6 py-6">
       {/* Header */}
@@ -25,7 +14,7 @@ export default async function BacktestingPage() {
         </p>
       </div>
 
-      <BacktestingClient previewMode={previewMode} />
+      <BacktestingClient previewMode={false} />
     </div>
   )
 }

@@ -849,6 +849,14 @@ const resolveWeightedAverageOdds = (rows: LadderRow[]) => {
   return probabilityToAmericanOdds(weightedProbability / totalNotional)
 }
 
+const resolveRecommendedLiquidityForItem = (
+  item: DisplayOrderbookItem,
+  recommendedSide: "Over" | "Under" | null
+) => {
+  const rows = buildLadderRows(item, 12, recommendedSide)
+  return rows.reduce((sum, row) => sum + row.notional, 0)
+}
+
 export default function PropOrderbooksPanel({
   sport = "all",
   limit = 80,
@@ -1167,26 +1175,33 @@ export default function PropOrderbooksPanel({
     }
 
     return mergedItems
-      .filter((item) => {
+      .map((item) => {
         if (query) {
           const haystack = `${item.playerName ?? ""} ${item.matchup ?? ""} ${item.marketTitle ?? ""}`
             .toLowerCase()
             .trim()
-          if (!haystack.includes(query)) return false
+          if (!haystack.includes(query)) return null
         }
         const displayLean = resolveDisplayLeanForFilter(item, selectedBookFilter)
         if (selectedBookFilter !== "all") {
           const oddsByBook = resolveSharpBookOddsForItem(item, displayLean.side ?? null)
-          if (oddsByBook[selectedBookFilter] == null) return false
+          if (oddsByBook[selectedBookFilter] == null) return null
         }
-        return matchesOddsRange(displayLean.odds)
+        if (!matchesOddsRange(displayLean.odds)) return null
+        return {
+          item,
+          rankLiquidity: resolveRecommendedLiquidityForItem(item, displayLean.side ?? null),
+        }
       })
+      .filter((entry): entry is { item: DisplayOrderbookItem; rankLiquidity: number } => entry != null)
       .sort((a, b) => {
-        const aSize = resolveDisplayOrderSize(a) ?? 0
-        const bSize = resolveDisplayOrderSize(b) ?? 0
+        if (b.rankLiquidity !== a.rankLiquidity) return b.rankLiquidity - a.rankLiquidity
+        const aSize = resolveDisplayOrderSize(a.item) ?? 0
+        const bSize = resolveDisplayOrderSize(b.item) ?? 0
         if (bSize !== aSize) return bSize - aSize
-        return a.marketTitle.localeCompare(b.marketTitle)
+        return a.item.marketTitle.localeCompare(b.item.marketTitle)
       })
+      .map((entry) => entry.item)
   }, [maxOdds, mergedItems, minOdds, oddsPreset, search, selectedBookFilter])
 
   useEffect(() => {

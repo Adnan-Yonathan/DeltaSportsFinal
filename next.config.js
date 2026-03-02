@@ -1,8 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    // Avoid child_process spawn in constrained Windows environments during build.
-    workerThreads: true,
+    // Keep workerThreads only for local Windows builds.
+    // It causes incremental-cache IPC env issues on Linux/Vercel.
+    workerThreads: process.platform === 'win32' && process.env.VERCEL !== '1',
   },
   images: {
     unoptimized: true,

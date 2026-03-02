@@ -906,7 +906,6 @@ export default function PropOrderbooksPanel({
   const hasItemsRef = useRef((initialData?.items?.length ?? 0) > 0)
   const itemsRef = useRef<OrderbookItem[]>(initialData?.items ?? [])
   const isMountedRef = useRef(true)
-  const previousSelectedSportRef = useRef<string | null>(null)
 
   useEffect(() => {
     setSelectedSport(sport)
@@ -921,11 +920,9 @@ export default function PropOrderbooksPanel({
 
   const load = useCallback(
     async ({
-      sportKey,
       forceRefresh = false,
       background = false,
     }: {
-      sportKey: string
       forceRefresh?: boolean
       background?: boolean
     }) => {
@@ -946,7 +943,7 @@ export default function PropOrderbooksPanel({
         const shouldForceRefresh =
           forceRefresh && isWithinSharpRefreshWindow()
         const params = new URLSearchParams({
-          sport: sportKey,
+          sport: "all",
           limit: String(limit),
           depth: String(depth),
           minSharpNotional: String(minSharpNotional),
@@ -1023,29 +1020,25 @@ export default function PropOrderbooksPanel({
     setSelectedBookFilter("all")
     setMinOdds("-200")
     setMaxOdds("")
-    previousSelectedSportRef.current = null
   }, [initialData, sport])
 
   useEffect(() => {
-    const isFirstSelection = previousSelectedSportRef.current == null
-    previousSelectedSportRef.current = selectedSport
     const hasSeededItems = itemsRef.current.length > 0
-    const useBackgroundRefresh = isFirstSelection && hasSeededItems
+    const useBackgroundRefresh = hasSeededItems
 
     load({
-      sportKey: selectedSport,
       forceRefresh: useBackgroundRefresh,
       background: useBackgroundRefresh,
     })
-  }, [selectedSport, load])
+  }, [initialData, load, sport])
 
   useEffect(() => {
     const interval = window.setInterval(() => {
       if (!isWithinSharpRefreshWindow()) return
-      load({ sportKey: selectedSport, forceRefresh: true, background: true })
+      load({ forceRefresh: true, background: true })
     }, SHARP_REFRESH_INTERVAL_MS)
     return () => window.clearInterval(interval)
-  }, [load, selectedSport])
+  }, [load])
 
   useEffect(() => {
     return () => {
@@ -1176,6 +1169,9 @@ export default function PropOrderbooksPanel({
 
     return mergedItems
       .map((item) => {
+        if (selectedSport !== "all" && item.sportKey !== selectedSport) {
+          return null
+        }
         if (query) {
           const haystack = `${item.playerName ?? ""} ${item.matchup ?? ""} ${item.marketTitle ?? ""}`
             .toLowerCase()
@@ -1202,7 +1198,7 @@ export default function PropOrderbooksPanel({
         return a.item.marketTitle.localeCompare(b.item.marketTitle)
       })
       .map((entry) => entry.item)
-  }, [maxOdds, mergedItems, minOdds, oddsPreset, search, selectedBookFilter])
+  }, [maxOdds, mergedItems, minOdds, oddsPreset, search, selectedBookFilter, selectedSport])
 
   useEffect(() => {
     if (!filteredItems.length) {
@@ -1352,9 +1348,7 @@ export default function PropOrderbooksPanel({
             </span>
             <button
               type="button"
-              onClick={() =>
-                load({ sportKey: selectedSport, forceRefresh: true, background: true })
-              }
+              onClick={() => load({ forceRefresh: true, background: true })}
               disabled={refreshing || !refreshWindowOpen}
               className="rounded-md border border-white/15 px-2.5 py-1 text-white/75 transition-colors hover:border-emerald-400/50 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-45"
             >

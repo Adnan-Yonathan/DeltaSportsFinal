@@ -8,7 +8,7 @@ export const revalidate = 0
 
 const DEFAULT_ORDERBOOK_DEPTH = 8
 const DEFAULT_ORDERBOOK_MIN_SHARP_NOTIONAL = 100
-const DEFAULT_ORDERBOOK_LIMIT = 80
+const DEFAULT_ORDERBOOK_LIMIT = 200
 
 type PersistedOrderbooksPayload = {
   sport: string

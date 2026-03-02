@@ -859,7 +859,7 @@ const resolveRecommendedLiquidityForItem = (
 
 export default function PropOrderbooksPanel({
   sport = "all",
-  limit = 80,
+  limit = 200,
   depth = 8,
   minSharpNotional = 100,
   initialData = null,

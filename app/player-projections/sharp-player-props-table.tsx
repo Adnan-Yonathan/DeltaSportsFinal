@@ -707,7 +707,7 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
     try {
       const params = new URLSearchParams({
         sport,
-        limit: "80",
+        limit: "200",
         depth: "8",
         minSharpNotional: "100",
       })

@@ -1,9 +1,19 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Image from "next/image"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import RadialOrbitalTimeline, { type TimelineItem } from "@/components/ui/radial-orbital-timeline"
 import ShareProjectionButton from "@/components/ShareProjectionButton"
 import { formatSharpSignalSummaryLine } from "@/lib/utils/sharp-signal-language"
+import {
+  Activity,
+  CircleDollarSign,
+  Landmark,
+  ShieldCheck,
+  TrendingUp,
+  Waves,
+} from "lucide-react"
 
 type EdgeFilter = "spread" | "moneyline" | "total"
 type AccessTier = "free" | "sharp" | "syndicate" | null
@@ -21,6 +31,7 @@ type SharpProjectionMarket = {
 }
 
 type EdgeGame = {
+  sport?: string
   matchup: string
   homeTeam: string
   awayTeam: string
@@ -40,6 +51,7 @@ type EdgeGame = {
     }
     favoredTeam?: string
     prediction?: { line: number; book: string; odds: number }
+    bookQuotes?: Partial<Record<BookFilterKey, BookSpreadQuote>>
   }
   total?: {
     marketLine: number
@@ -52,6 +64,7 @@ type EdgeGame = {
       underOdds?: number
     }
     prediction?: { line: number; book: string; overOdds: number; underOdds: number }
+    bookQuotes?: Partial<Record<BookFilterKey, BookTotalQuote>>
   }
   moneyline?: {
     sportsbook?: {
@@ -75,6 +88,7 @@ type EdgeGame = {
       awayOdds?: number
       awayBook?: string
     }
+    bookQuotes?: Partial<Record<BookFilterKey, BookMoneylineQuote>>
   }
   sharpSignals: Array<{
     type: string
@@ -123,6 +137,69 @@ type AccessConfig = {
   allowedFilters: EdgeFilter[]
   maxRows: Partial<Record<EdgeFilter, number>>
 }
+
+type BookFilterKey =
+  | "fanduel"
+  | "kalshi"
+  | "pinnacle"
+  | "polymarket"
+  | "prophetx"
+  | "novig"
+
+type BookOption = {
+  key: BookFilterKey
+  label: string
+  logoSrc: string
+  icon: TimelineItem["icon"]
+}
+
+type BookOddsCandidate = {
+  book: BookFilterKey
+  odds: number
+}
+
+type BookSpreadQuote = {
+  homeLine?: number
+  homeOdds?: number
+  awayLine?: number
+  awayOdds?: number
+  source?: string
+  bookTitle?: string
+}
+
+type BookTotalQuote = {
+  line?: number
+  overOdds?: number
+  underOdds?: number
+  source?: string
+  bookTitle?: string
+}
+
+type BookMoneylineQuote = {
+  homeOdds?: number
+  awayOdds?: number
+  source?: string
+  bookTitle?: string
+}
+
+const BOOK_OPTIONS: BookOption[] = [
+  { key: "fanduel", label: "FanDuel", logoSrc: "/fanduel.jpeg", icon: CircleDollarSign },
+  { key: "kalshi", label: "Kalshi", logoSrc: "/kalshi.png", icon: Landmark },
+  { key: "pinnacle", label: "Pinnacle", logoSrc: "/pinnacle.jpg", icon: ShieldCheck },
+  { key: "polymarket", label: "Polymarket", logoSrc: "/polymarket.png", icon: TrendingUp },
+  { key: "prophetx", label: "ProphetX", logoSrc: "/ProphetX.png", icon: Activity },
+  { key: "novig", label: "NoVig", logoSrc: "/Novig.png", icon: Waves },
+]
+
+const BOOK_OPTIONS_BY_KEY: Record<BookFilterKey, BookOption> = BOOK_OPTIONS.reduce(
+  (acc, option) => {
+    acc[option.key] = option
+    return acc
+  },
+  {} as Record<BookFilterKey, BookOption>
+)
+
+const DEFAULT_BOOK_FILTER: BookFilterKey = "fanduel"
 
 const resolveAccessConfig = (tier?: AccessTier): AccessConfig => {
   if (tier === "sharp" || tier === "syndicate") {
@@ -173,12 +250,15 @@ const resolveSportLabel = (sportKey?: string) => {
     basketball_wnba: "WNBA",
     basketball_ncaab: "NCAAB",
     americanfootball_nfl: "NFL",
-    americanfootball_ncaaf: "NCAAF",
+    americanfootball_ncaaf: "CFB",
     icehockey_nhl: "NHL",
     baseball_mlb: "MLB",
   }
   return sportKey ? map[sportKey] ?? sportKey.toUpperCase() : "SPORTS"
 }
+
+const resolveGameSportKey = (game: EdgeGame, fallbackSport?: string) =>
+  game.sport ?? fallbackSport
 
 const isUpcomingGame = (commenceTime?: string) => {
   if (!commenceTime) return true
@@ -190,6 +270,7 @@ const isUpcomingGame = (commenceTime?: string) => {
 }
 
 type DateWindowFilter = "all" | "today" | "24h" | "3d"
+const DEFAULT_LEAGUE_FILTER_OPTIONS = ["NBA", "NCAAB", "CFB", "NFL", "NHL", "MLB"]
 
 const resolveLineFromMovements = (
   game: EdgeGame,
@@ -241,7 +322,18 @@ const matchesDateWindow = (commenceTime: string, window: DateWindowFilter) => {
   return time >= today.getTime() && time < tomorrow.getTime()
 }
 
-const resolveLineCellValue = (game: EdgeGame, filter: EdgeFilter) => {
+const resolveLineCellValue = (
+  game: EdgeGame,
+  filter: EdgeFilter,
+  pick: EdgePick,
+  selectedBook: BookFilterKey
+) => {
+  const quotedLine = resolveBookLineValue(game, filter, pick, selectedBook)
+  if (quotedLine != null) {
+    if (filter === "spread") return quotedLine === 0 ? "PK" : formatSigned(quotedLine)
+    if (filter === "total") return quotedLine.toFixed(1)
+  }
+
   if (filter === "spread") {
     const line = resolveMarketSpreadLine(game)
     if (line == null) return "--"
@@ -428,8 +520,35 @@ const normalizeToken = (value?: string | null) =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "")
 
-const isFanDuelBook = (value?: string | null) =>
-  normalizeToken(value).includes("fanduel")
+const resolveBookKey = (value?: string | null): BookFilterKey | null => {
+  const normalized = normalizeToken(value)
+  if (!normalized) return null
+  if (normalized.includes("fanduel")) return "fanduel"
+  if (normalized.includes("kalshi")) return "kalshi"
+  if (normalized.includes("pinnacle")) return "pinnacle"
+  if (normalized.includes("polymarket")) return "polymarket"
+  if (normalized.includes("prophetx") || normalized.includes("prophet")) return "prophetx"
+  if (normalized.includes("novig")) return "novig"
+  return null
+}
+
+const pushBookCandidate = (
+  candidates: BookOddsCandidate[],
+  bookLabel: string | undefined,
+  odds: number | null
+) => {
+  const numericOdds = coerceNumber(odds)
+  const key = resolveBookKey(bookLabel)
+  if (numericOdds == null || !key) return
+  candidates.push({ book: key, odds: numericOdds })
+}
+
+const pickBestBookOdds = (candidates: BookOddsCandidate[]) => {
+  if (!candidates.length) return null
+  return candidates.reduce((best, candidate) =>
+    candidate.odds > best.odds ? candidate : best
+  )
+}
 
 const labelMatchesTeam = (label: string | null | undefined, team: string) => {
   const normalizedLabel = normalizeToken(label)
@@ -441,104 +560,206 @@ const labelMatchesTeam = (label: string | null | undefined, team: string) => {
   )
 }
 
-const resolveSharpLineOdds = (
+const resolveQuoteSide = (game: EdgeGame, pick: EdgePick): "home" | "away" | "unknown" => {
+  const sideLabel = pick.projection?.side ?? pick.label ?? ""
+  if (labelMatchesTeam(sideLabel, game.homeTeam)) return "home"
+  if (labelMatchesTeam(sideLabel, game.awayTeam)) return "away"
+  return "unknown"
+}
+
+const resolveSpreadQuoteForBook = (game: EdgeGame, book: BookFilterKey) =>
+  game.spread?.bookQuotes?.[book]
+
+const resolveTotalQuoteForBook = (game: EdgeGame, book: BookFilterKey) =>
+  game.total?.bookQuotes?.[book]
+
+const resolveMoneylineQuoteForBook = (game: EdgeGame, book: BookFilterKey) =>
+  game.moneyline?.bookQuotes?.[book]
+
+const resolveBookLineValue = (
+  game: EdgeGame,
+  filter: EdgeFilter,
+  pick: EdgePick,
+  book: BookFilterKey
+) => {
+  if (filter === "spread") {
+    const quote = resolveSpreadQuoteForBook(game, book)
+    if (!quote) return null
+    const side = resolveQuoteSide(game, pick)
+    if (side === "home") return coerceNumber(quote.homeLine)
+    if (side === "away") return coerceNumber(quote.awayLine)
+    return coerceNumber(quote.homeLine ?? quote.awayLine ?? null)
+  }
+  if (filter === "total") {
+    return coerceNumber(resolveTotalQuoteForBook(game, book)?.line ?? null)
+  }
+  return null
+}
+
+const resolveBookOddsFromQuote = (
+  game: EdgeGame,
+  filter: EdgeFilter,
+  pick: EdgePick,
+  book: BookFilterKey
+) => {
+  if (filter === "spread") {
+    const quote = resolveSpreadQuoteForBook(game, book)
+    if (!quote) return null
+    const side = resolveQuoteSide(game, pick)
+    if (side === "home") return coerceNumber(quote.homeOdds)
+    if (side === "away") return coerceNumber(quote.awayOdds)
+    return coerceNumber(quote.homeOdds ?? quote.awayOdds ?? null)
+  }
+
+  if (filter === "total") {
+    const quote = resolveTotalQuoteForBook(game, book)
+    if (!quote) return null
+    const sideLabel = normalizeToken(pick.projection?.side ?? pick.label ?? "")
+    if (sideLabel.includes("over")) return coerceNumber(quote.overOdds)
+    if (sideLabel.includes("under")) return coerceNumber(quote.underOdds)
+    return coerceNumber(quote.overOdds ?? quote.underOdds ?? null)
+  }
+
+  const quote = resolveMoneylineQuoteForBook(game, book)
+  if (!quote) return null
+  const side = resolveQuoteSide(game, pick)
+  if (side === "home") return coerceNumber(quote.homeOdds)
+  if (side === "away") return coerceNumber(quote.awayOdds)
+  return coerceNumber(quote.homeOdds ?? quote.awayOdds ?? null)
+}
+
+const resolveSharpLineCandidates = (
   game: EdgeGame,
   filter: EdgeFilter,
   pick: EdgePick
 ) => {
+  const candidates: BookOddsCandidate[] = []
+  for (const bookOption of BOOK_OPTIONS) {
+    const quotedOdds = resolveBookOddsFromQuote(game, filter, pick, bookOption.key)
+    if (quotedOdds != null) {
+      candidates.push({ book: bookOption.key, odds: quotedOdds })
+    }
+  }
+  if (candidates.length > 0) return candidates
+
   const sideLabel = pick.projection?.side ?? pick.label ?? ""
   const normalizedSide = normalizeToken(sideLabel)
+  const homeSelected = labelMatchesTeam(sideLabel, game.homeTeam)
+  const awaySelected = labelMatchesTeam(sideLabel, game.awayTeam)
 
   if (filter === "spread") {
-    if (labelMatchesTeam(sideLabel, game.homeTeam)) {
-      return (
-        coerceNumber(game.spread?.fanduel?.homeOdds) ??
-        (isFanDuelBook(game.spread?.bestHomeBook)
-          ? coerceNumber(game.spread?.bestHomeOdds)
-          : null)
-      )
+    if (homeSelected) {
+      pushBookCandidate(candidates, "FanDuel", game.spread?.fanduel?.homeOdds ?? null)
+      pushBookCandidate(candidates, game.spread?.bestHomeBook, game.spread?.bestHomeOdds ?? null)
+    } else if (awaySelected) {
+      pushBookCandidate(candidates, "FanDuel", game.spread?.fanduel?.awayOdds ?? null)
+      pushBookCandidate(candidates, game.spread?.bestAwayBook, game.spread?.bestAwayOdds ?? null)
+    } else {
+      pushBookCandidate(candidates, "FanDuel", game.spread?.fanduel?.homeOdds ?? null)
+      pushBookCandidate(candidates, "FanDuel", game.spread?.fanduel?.awayOdds ?? null)
+      pushBookCandidate(candidates, game.spread?.bestHomeBook, game.spread?.bestHomeOdds ?? null)
+      pushBookCandidate(candidates, game.spread?.bestAwayBook, game.spread?.bestAwayOdds ?? null)
     }
-    if (labelMatchesTeam(sideLabel, game.awayTeam)) {
-      return (
-        coerceNumber(game.spread?.fanduel?.awayOdds) ??
-        (isFanDuelBook(game.spread?.bestAwayBook)
-          ? coerceNumber(game.spread?.bestAwayOdds)
-          : null)
-      )
-    }
-    return (
-      coerceNumber(game.spread?.fanduel?.homeOdds) ??
-      coerceNumber(game.spread?.fanduel?.awayOdds) ??
-      (isFanDuelBook(game.spread?.bestHomeBook)
-        ? coerceNumber(game.spread?.bestHomeOdds)
-        : null) ??
-      (isFanDuelBook(game.spread?.bestAwayBook)
-        ? coerceNumber(game.spread?.bestAwayOdds)
-        : null)
-    )
+    pushBookCandidate(candidates, game.spread?.bestBook, game.spread?.bestOdds ?? null)
+    pushBookCandidate(candidates, game.spread?.prediction?.book, game.spread?.prediction?.odds ?? null)
+    return candidates
   }
 
   if (filter === "total") {
     if (normalizedSide.includes("over")) {
-      return (
-        coerceNumber(game.total?.fanduel?.overOdds) ??
-        (isFanDuelBook(game.total?.bestBook)
-          ? coerceNumber(game.total?.bestOdds)
-          : null)
-      )
+      pushBookCandidate(candidates, "FanDuel", game.total?.fanduel?.overOdds ?? null)
+      pushBookCandidate(candidates, game.total?.bestBook, game.total?.bestOdds ?? null)
+      pushBookCandidate(candidates, game.total?.prediction?.book, game.total?.prediction?.overOdds ?? null)
+      return candidates
     }
     if (normalizedSide.includes("under")) {
-      return (
-        coerceNumber(game.total?.fanduel?.underOdds) ??
-        (isFanDuelBook(game.total?.bestBook)
-          ? coerceNumber(game.total?.bestUnderOdds)
-          : null)
-      )
+      pushBookCandidate(candidates, "FanDuel", game.total?.fanduel?.underOdds ?? null)
+      pushBookCandidate(candidates, game.total?.bestBook, game.total?.bestUnderOdds ?? null)
+      pushBookCandidate(candidates, game.total?.prediction?.book, game.total?.prediction?.underOdds ?? null)
+      return candidates
     }
-    return (
-      coerceNumber(game.total?.fanduel?.overOdds) ??
-      coerceNumber(game.total?.fanduel?.underOdds) ??
-      (isFanDuelBook(game.total?.bestBook)
-        ? coerceNumber(game.total?.bestOdds)
-        : null)
-    )
+    pushBookCandidate(candidates, "FanDuel", game.total?.fanduel?.overOdds ?? null)
+    pushBookCandidate(candidates, "FanDuel", game.total?.fanduel?.underOdds ?? null)
+    pushBookCandidate(candidates, game.total?.bestBook, game.total?.bestOdds ?? null)
+    pushBookCandidate(candidates, game.total?.bestBook, game.total?.bestUnderOdds ?? null)
+    pushBookCandidate(candidates, game.total?.prediction?.book, game.total?.prediction?.overOdds ?? null)
+    pushBookCandidate(candidates, game.total?.prediction?.book, game.total?.prediction?.underOdds ?? null)
+    return candidates
   }
 
-  if (labelMatchesTeam(sideLabel, game.homeTeam)) {
-    return (
-      coerceNumber(game.moneyline?.fanduel?.homeOdds) ??
-      (isFanDuelBook(game.moneyline?.sportsbook?.homeBook)
-        ? coerceNumber(game.moneyline?.sportsbook?.homeOdds)
-        : null)
+  if (homeSelected) {
+    pushBookCandidate(candidates, "FanDuel", game.moneyline?.fanduel?.homeOdds ?? null)
+    pushBookCandidate(
+      candidates,
+      game.moneyline?.sportsbook?.homeBook,
+      game.moneyline?.sportsbook?.homeOdds ?? null
     )
-  }
-  if (labelMatchesTeam(sideLabel, game.awayTeam)) {
-    return (
-      coerceNumber(game.moneyline?.fanduel?.awayOdds) ??
-      (isFanDuelBook(game.moneyline?.sportsbook?.awayBook)
-        ? coerceNumber(game.moneyline?.sportsbook?.awayOdds)
-        : null)
+    pushBookCandidate(
+      candidates,
+      game.moneyline?.prediction?.homeBook,
+      game.moneyline?.prediction?.homeOdds ?? null
     )
+    return candidates
   }
-  return (
-    coerceNumber(game.moneyline?.fanduel?.homeOdds) ??
-    coerceNumber(game.moneyline?.fanduel?.awayOdds) ??
-    (isFanDuelBook(game.moneyline?.sportsbook?.homeBook)
-      ? coerceNumber(game.moneyline?.sportsbook?.homeOdds)
-      : null) ??
-    (isFanDuelBook(game.moneyline?.sportsbook?.awayBook)
-      ? coerceNumber(game.moneyline?.sportsbook?.awayOdds)
-      : null)
+  if (awaySelected) {
+    pushBookCandidate(candidates, "FanDuel", game.moneyline?.fanduel?.awayOdds ?? null)
+    pushBookCandidate(
+      candidates,
+      game.moneyline?.sportsbook?.awayBook,
+      game.moneyline?.sportsbook?.awayOdds ?? null
+    )
+    pushBookCandidate(
+      candidates,
+      game.moneyline?.prediction?.awayBook,
+      game.moneyline?.prediction?.awayOdds ?? null
+    )
+    return candidates
+  }
+  pushBookCandidate(candidates, "FanDuel", game.moneyline?.fanduel?.homeOdds ?? null)
+  pushBookCandidate(candidates, "FanDuel", game.moneyline?.fanduel?.awayOdds ?? null)
+  pushBookCandidate(
+    candidates,
+    game.moneyline?.sportsbook?.homeBook,
+    game.moneyline?.sportsbook?.homeOdds ?? null
   )
+  pushBookCandidate(
+    candidates,
+    game.moneyline?.sportsbook?.awayBook,
+    game.moneyline?.sportsbook?.awayOdds ?? null
+  )
+  pushBookCandidate(
+    candidates,
+    game.moneyline?.prediction?.homeBook,
+    game.moneyline?.prediction?.homeOdds ?? null
+  )
+  pushBookCandidate(
+    candidates,
+    game.moneyline?.prediction?.awayBook,
+    game.moneyline?.prediction?.awayOdds ?? null
+  )
+  return candidates
+}
+
+const resolveBookLineForGame = (
+  game: EdgeGame,
+  filter: EdgeFilter,
+  pick: EdgePick,
+  selectedBook: BookFilterKey
+) => {
+  const candidates = resolveSharpLineCandidates(game, filter, pick).filter(
+    (candidate) => candidate.book === selectedBook
+  )
+  return pickBestBookOdds(candidates)
 }
 
 const resolveSharpLineDisplay = (
   game: EdgeGame,
   filter: EdgeFilter,
-  pick: EdgePick
+  pick: EdgePick,
+  selectedBook: BookFilterKey
 ) => {
-  const odds = resolveSharpLineOdds(game, filter, pick)
-  return odds == null ? "FanDuel n/a" : `FanDuel ${formatOdds(odds)}`
+  const line = resolveBookLineForGame(game, filter, pick, selectedBook)
+  return line == null ? "n/a" : formatOdds(line.odds)
 }
 
 const resolveSpreadComparison = (game: EdgeGame) => {
@@ -967,9 +1188,9 @@ const resolveMoneylineEdgePick = (game: EdgeGame, sport?: string) => {
 }
 
 const resolveFilterLabels = (filter: EdgeFilter) => {
-  if (filter === "spread") return { projection: "Spread projection", odds: "Sharp line" }
-  if (filter === "moneyline") return { projection: "ML projection", odds: "Sharp line" }
-  return { projection: "Total projection", odds: "Sharp line" }
+  if (filter === "spread") return { projection: "Spread projection", odds: "Book line" }
+  if (filter === "moneyline") return { projection: "ML projection", odds: "Book line" }
+  return { projection: "Total projection", odds: "Book line" }
 }
 
 const buildProjectionSharePayload = (
@@ -977,10 +1198,11 @@ const buildProjectionSharePayload = (
   filter: EdgeFilter,
   sportKey: string | undefined,
   activePick: EdgePick,
-  edgePercent: number
+  edgePercent: number,
+  selectedBook: BookFilterKey
 ) => {
   const filterLabels = resolveFilterLabels(filter)
-  const oddsLabel = resolveSharpLineDisplay(game, filter, activePick)
+  const oddsLabel = resolveSharpLineDisplay(game, filter, activePick, selectedBook)
 
   const sharpSummary = summarizeSharpSignalsPlain(game.sharpSignals)
   const moveSummary = resolveMoveSummary(game, filter)
@@ -1045,6 +1267,16 @@ export default function MarketProjectionsTable({
   const [matchFilter, setMatchFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<DateWindowFilter>("all")
   const [searchQuery, setSearchQuery] = useState("")
+  const [selectedBook, setSelectedBook] = useState<BookFilterKey>(DEFAULT_BOOK_FILTER)
+  const [selectedLineBook, setSelectedLineBook] = useState<BookFilterKey>(DEFAULT_BOOK_FILTER)
+  const [showBookPicker, setShowBookPicker] = useState(false)
+  const [bookPickerTarget, setBookPickerTarget] = useState<"odds" | "line">("odds")
+  const activeBookOption = BOOK_OPTIONS_BY_KEY[selectedBook]
+  const activeLineBookOption = BOOK_OPTIONS_BY_KEY[selectedLineBook]
+  const bookTimelineData = useMemo(
+    () => buildBookFilterTimeline(bookPickerTarget === "odds" ? selectedBook : selectedLineBook),
+    [bookPickerTarget, selectedBook, selectedLineBook]
+  )
 
   useEffect(() => {
     if (!accessConfig.allowedFilters.includes(filter)) {
@@ -1066,25 +1298,20 @@ export default function MarketProjectionsTable({
     )
     const sorted = [...scoped].sort(
       (a, b) =>
-        marketEdge(b, filter, sport).edgePercent -
-        marketEdge(a, filter, sport).edgePercent
+        marketEdge(b, filter, resolveGameSportKey(b, sport)).edgePercent -
+        marketEdge(a, filter, resolveGameSportKey(a, sport)).edgePercent
     )
     const maxRows = accessConfig.maxRows[filter]
     return Number.isFinite(maxRows) ? sorted.slice(0, maxRows) : sorted
   }, [edges, filter, sport, accessConfig.maxRows])
   const baseEdges = sortedEdges
 
-  const leagueOptions = useMemo(
-    () => [
-      "all",
-      ...Array.from(
-        new Set(
-          baseEdges.map(() => resolveSportLabel(sport))
-        )
-      ),
-    ],
-    [baseEdges, sport]
-  )
+  const leagueOptions = useMemo(() => {
+    const dynamicOptions = baseEdges.map((game) =>
+      resolveSportLabel(resolveGameSportKey(game, sport))
+    )
+    return ["all", ...Array.from(new Set([...DEFAULT_LEAGUE_FILTER_OPTIONS, ...dynamicOptions]))]
+  }, [baseEdges, sport])
 
   const matchOptions = useMemo(
     () => ["all", ...Array.from(new Set(baseEdges.map((game) => `${game.awayTeam} vs ${game.homeTeam}`))).slice(0, 80)],
@@ -1106,32 +1333,75 @@ export default function MarketProjectionsTable({
   const filteredEdges = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return baseEdges.filter((game) => {
-      const leagueLabel = resolveSportLabel(sport)
+      const leagueLabel = resolveSportLabel(resolveGameSportKey(game, sport))
       const matchupLabel = `${game.awayTeam} vs ${game.homeTeam}`
+      const activePick = resolveActivePickForFilter(
+        game,
+        filter,
+        resolveGameSportKey(game, sport)
+      )
+      const hasSelectedBookLine =
+        resolveBookLineForGame(game, filter, activePick, selectedBook) != null
 
       if (leagueFilter !== "all" && leagueLabel !== leagueFilter) return false
       if (matchFilter !== "all" && matchupLabel !== matchFilter) return false
       if (!matchesDateWindow(game.commenceTime, dateFilter)) return false
+      if (!hasSelectedBookLine) return false
       if (!query) return true
       return (
         matchupLabel.toLowerCase().includes(query) ||
         summarizeSharpSignalsPlain(game.sharpSignals).toLowerCase().includes(query)
       )
     })
-  }, [baseEdges, sport, leagueFilter, matchFilter, dateFilter, searchQuery])
+  }, [baseEdges, sport, leagueFilter, matchFilter, dateFilter, searchQuery, filter, selectedBook])
 
   const visibleEdges = previewMode ? filteredEdges.slice(0, 1) : filteredEdges
 
   const filterLabels = resolveFilterLabels(filter)
+  const handleBookSelect = (book: BookFilterKey) => {
+    if (bookPickerTarget === "odds") {
+      setSelectedBook(book)
+    } else {
+      setSelectedLineBook(book)
+    }
+    setShowBookPicker(false)
+  }
 
   return (
     <>
-      <div className="rounded-2xl border border-cyan-400/25 bg-[#060a10] p-2.5">
+      {showBookPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3">
+          <div className="relative h-[88vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-white/15 bg-black">
+            <button
+              type="button"
+              onClick={() => setShowBookPicker(false)}
+              className="absolute right-4 top-4 z-[60] rounded-md border border-white/20 bg-black/60 px-3 py-1.5 text-xs text-white/80 hover:border-white/40"
+            >
+              Close
+            </button>
+            <div className="absolute left-4 top-4 z-[60] rounded-md border border-white/15 bg-black/70 px-3 py-2 text-xs text-white/80">
+              {bookPickerTarget === "odds"
+                ? "Select sportsbook for odds"
+                : "Select sportsbook for line"}
+            </div>
+            <RadialOrbitalTimeline
+              timelineData={bookTimelineData}
+              onItemSelect={(id) => {
+                const option = BOOK_OPTIONS[id - 1]
+                if (!option) return
+                handleBookSelect(option.key)
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-white/10 bg-black/40 p-2.5">
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={leagueFilter}
             onChange={(event) => setLeagueFilter(event.target.value)}
-            className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-cyan-300/60 focus:outline-none"
+            className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
           >
             {leagueOptions.map((value) => (
               <option key={value} value={value}>
@@ -1143,7 +1413,7 @@ export default function MarketProjectionsTable({
           <select
             value={filter}
             onChange={(event) => setFilter(event.target.value as EdgeFilter)}
-            className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-cyan-300/60 focus:outline-none"
+            className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
           >
             {accessConfig.allowedFilters.map((value) => (
               <option key={value} value={value}>
@@ -1159,7 +1429,7 @@ export default function MarketProjectionsTable({
           <select
             value={matchFilter}
             onChange={(event) => setMatchFilter(event.target.value)}
-            className="max-w-[220px] rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-cyan-300/60 focus:outline-none"
+            className="max-w-[220px] rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
           >
             {matchOptions.map((value) => (
               <option key={value} value={value}>
@@ -1171,7 +1441,7 @@ export default function MarketProjectionsTable({
           <select
             value={dateFilter}
             onChange={(event) => setDateFilter(event.target.value as DateWindowFilter)}
-            className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-cyan-300/60 focus:outline-none"
+            className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
           >
             <option value="today">Date: Today</option>
             <option value="24h">Date: 24h</option>
@@ -1183,8 +1453,26 @@ export default function MarketProjectionsTable({
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search teams..."
-            className="min-w-[180px] flex-1 rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white placeholder:text-white/35 focus:border-cyan-300/60 focus:outline-none"
+            className="min-w-[180px] flex-1 rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white placeholder:text-white/35 focus:border-emerald-300/60 focus:outline-none"
           />
+
+          <button
+            type="button"
+            onClick={() => {
+              setBookPickerTarget("odds")
+              setShowBookPicker(true)
+            }}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-black/40 px-2 py-1.5 text-xs text-white/85 transition-colors hover:border-emerald-300/60"
+          >
+            <Image
+              src={activeBookOption.logoSrc}
+              alt={activeBookOption.label}
+              width={34}
+              height={34}
+              className="h-[34px] w-[34px] rounded-md object-contain"
+            />
+            <span>Book: {activeBookOption.label}</span>
+          </button>
 
           <div className="ml-auto flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] text-white/50">
             <span>live</span>
@@ -1205,10 +1493,11 @@ export default function MarketProjectionsTable({
           <>
             <div className="divide-y divide-white/5 sm:hidden">
               {visibleEdges.map((game, index) => {
-                const edgeMetrics = marketEdge(game, filter, sport)
-                const spreadPick = resolveSpreadEdgePick(game, sport)
-                const totalPick = resolveTotalEdgePick(game, sport)
-                const moneylinePick = resolveMoneylineEdgePick(game, sport)
+                const gameSport = resolveGameSportKey(game, sport)
+                const edgeMetrics = marketEdge(game, filter, gameSport)
+                const spreadPick = resolveSpreadEdgePick(game, gameSport)
+                const totalPick = resolveTotalEdgePick(game, gameSport)
+                const moneylinePick = resolveMoneylineEdgePick(game, gameSport)
                 const activePick =
                   filter === "spread"
                     ? spreadPick
@@ -1216,13 +1505,14 @@ export default function MarketProjectionsTable({
                       ? moneylinePick
                       : totalPick
                 const moveSummary = resolveMoveSummary(game, filter)
-                const sharpLine = resolveSharpLineDisplay(game, filter, activePick)
+                const sharpLine = resolveSharpLineDisplay(game, filter, activePick, selectedBook)
                 const sharePayload = buildProjectionSharePayload(
                   game,
                   filter,
-                  sport,
+                  gameSport,
                   activePick,
-                  edgeMetrics.edgePercent
+                  edgeMetrics.edgePercent,
+                  selectedBook
                 )
 
                 return (
@@ -1233,7 +1523,7 @@ export default function MarketProjectionsTable({
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
-                          #{index + 1} | {resolveSportLabel(sport)} | {formatShortDateTime(game.commenceTime)}
+                          #{index + 1} | {resolveSportLabel(gameSport)} | {formatShortDateTime(game.commenceTime)}
                         </div>
                         <div className="text-left text-sm font-semibold text-white">
                           {game.awayTeam} vs {game.homeTeam}
@@ -1250,8 +1540,28 @@ export default function MarketProjectionsTable({
                         <div className="mt-1 text-white">{activePick.label ?? "n/a"}</div>
                       </div>
                       <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Line</div>
-                        <div className="mt-1 text-white">{resolveLineCellValue(game, filter)}</div>
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBookPickerTarget("line")
+                              setShowBookPicker(true)
+                            }}
+                            className="inline-flex items-center gap-1 transition-opacity hover:opacity-80"
+                          >
+                            <Image
+                              src={activeLineBookOption.logoSrc}
+                              alt={activeLineBookOption.label}
+                              width={24}
+                              height={24}
+                              className="h-6 w-6 rounded-md object-contain"
+                            />
+                            <span className="sr-only">Line Book</span>
+                          </button>
+                        </div>
+                        <div className="mt-1 text-white">
+                          {resolveLineCellValue(game, filter, activePick, selectedLineBook)}
+                        </div>
                       </div>
                       <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
                         <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">% To Hit</div>
@@ -1275,7 +1585,25 @@ export default function MarketProjectionsTable({
                         <div className="mt-1 text-white/75">{moveSummary || "No line movement yet."}</div>
                       </div>
                       <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Sharp Line</div>
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBookPickerTarget("odds")
+                              setShowBookPicker(true)
+                            }}
+                            className="inline-flex items-center gap-1 transition-opacity hover:opacity-80"
+                          >
+                            <Image
+                              src={activeBookOption.logoSrc}
+                              alt={activeBookOption.label}
+                              width={24}
+                              height={24}
+                              className="h-6 w-6 rounded-md object-contain"
+                            />
+                            <span className="sr-only">{filterLabels.odds}</span>
+                          </button>
+                        </div>
                         <div className="mt-1 text-white/75">{sharpLine}</div>
                       </div>
                     </div>
@@ -1295,20 +1623,57 @@ export default function MarketProjectionsTable({
                       <TableHead className="w-[85px]">Edge</TableHead>
                       <TableHead className="w-[240px]">Game</TableHead>
                       <TableHead className="w-[190px]">Bet</TableHead>
-                      <TableHead className="w-[80px]">Line</TableHead>
+                      <TableHead className="w-[80px]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBookPickerTarget("line")
+                            setShowBookPicker(true)
+                          }}
+                          className="inline-flex items-center gap-2 transition-opacity hover:opacity-80"
+                        >
+                          <Image
+                            src={activeLineBookOption.logoSrc}
+                            alt={activeLineBookOption.label}
+                            width={24}
+                            height={24}
+                            className="h-6 w-6 rounded-md object-contain"
+                          />
+                          <span className="sr-only">Line Book</span>
+                        </button>
+                      </TableHead>
                       <TableHead className="w-[100px]">Market</TableHead>
                       <TableHead className="w-[90px]">% To Hit</TableHead>
                       <TableHead className="w-[230px]">Line Movement</TableHead>
-                      <TableHead className="w-[170px]">Sharp Line</TableHead>
+                      <TableHead className="w-[170px]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBookPickerTarget("odds")
+                            setShowBookPicker(true)
+                          }}
+                          className="inline-flex items-center gap-2 transition-opacity hover:opacity-80"
+                        >
+                          <Image
+                            src={activeBookOption.logoSrc}
+                            alt={activeBookOption.label}
+                            width={24}
+                            height={24}
+                            className="h-6 w-6 rounded-md object-contain"
+                          />
+                          <span className="sr-only">{filterLabels.odds}</span>
+                        </button>
+                      </TableHead>
                       <TableHead className="w-[90px] text-right">Share</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-white/5">
                     {visibleEdges.map((game, index) => {
-                      const edgeMetrics = marketEdge(game, filter, sport)
-                      const spreadPick = resolveSpreadEdgePick(game, sport)
-                      const totalPick = resolveTotalEdgePick(game, sport)
-                      const moneylinePick = resolveMoneylineEdgePick(game, sport)
+                      const gameSport = resolveGameSportKey(game, sport)
+                      const edgeMetrics = marketEdge(game, filter, gameSport)
+                      const spreadPick = resolveSpreadEdgePick(game, gameSport)
+                      const totalPick = resolveTotalEdgePick(game, gameSport)
+                      const moneylinePick = resolveMoneylineEdgePick(game, gameSport)
                       const activePick =
                         filter === "spread"
                           ? spreadPick
@@ -1316,13 +1681,14 @@ export default function MarketProjectionsTable({
                             ? moneylinePick
                             : totalPick
                       const moveSummary = resolveMoveSummary(game, filter)
-                      const sharpLine = resolveSharpLineDisplay(game, filter, activePick)
+                      const sharpLine = resolveSharpLineDisplay(game, filter, activePick, selectedBook)
                       const sharePayload = buildProjectionSharePayload(
                         game,
                         filter,
-                        sport,
+                        gameSport,
                         activePick,
-                        edgeMetrics.edgePercent
+                        edgeMetrics.edgePercent,
+                        selectedBook
                       )
 
                       return (
@@ -1340,14 +1706,14 @@ export default function MarketProjectionsTable({
                               {game.awayTeam} vs {game.homeTeam}
                             </div>
                             <div className="mt-1 text-[11px] uppercase tracking-[0.15em] text-white/40">
-                              #{index + 1} | {resolveSportLabel(sport)} | {formatShortDateTime(game.commenceTime)}
+                              #{index + 1} | {resolveSportLabel(gameSport)} | {formatShortDateTime(game.commenceTime)}
                             </div>
                           </TableCell>
                           <TableCell className="align-top text-white/85">
                             {activePick.label ?? "n/a"}
                           </TableCell>
                           <TableCell className="align-top">
-                            {resolveLineCellValue(game, filter)}
+                            {resolveLineCellValue(game, filter, activePick, selectedLineBook)}
                           </TableCell>
                           <TableCell className="align-top">
                             {filter === "spread" ? "Spread" : filter === "moneyline" ? "Moneyline" : "Total"}
@@ -1410,6 +1776,36 @@ export default function MarketProjectionsTable({
     </>
   )
 }
+
+const resolveActivePickForFilter = (game: EdgeGame, filter: EdgeFilter, sport?: string) => {
+  const spreadPick = resolveSpreadEdgePick(game, sport)
+  const totalPick = resolveTotalEdgePick(game, sport)
+  const moneylinePick = resolveMoneylineEdgePick(game, sport)
+  if (filter === "spread") return spreadPick
+  if (filter === "moneyline") return moneylinePick
+  return totalPick
+}
+
+const buildBookFilterTimeline = (selectedBook: BookFilterKey): TimelineItem[] =>
+  BOOK_OPTIONS.map((book, index) => {
+    const previous = index === 0 ? BOOK_OPTIONS[BOOK_OPTIONS.length - 1] : BOOK_OPTIONS[index - 1]
+    const next = index === BOOK_OPTIONS.length - 1 ? BOOK_OPTIONS[0] : BOOK_OPTIONS[index + 1]
+    return {
+      id: index + 1,
+      title: book.label,
+      date: "Live",
+      content: `Use ${book.label} as the active sportsbook source for Sharp Projections.`,
+      category: "Sportsbook",
+      icon: book.icon,
+      logoSrc: book.logoSrc,
+      relatedIds: [
+        BOOK_OPTIONS.findIndex((item) => item.key === previous.key) + 1,
+        BOOK_OPTIONS.findIndex((item) => item.key === next.key) + 1,
+      ],
+      status: book.key === selectedBook ? "in-progress" : "pending",
+      energy: book.key === selectedBook ? 100 : 62,
+    }
+  })
 
 
 

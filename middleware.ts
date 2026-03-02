@@ -14,7 +14,23 @@ const PUBLIC_PATHS = [
 // Public paths where paid users should be redirected to /chat
 const PAID_REDIRECT_PATHS = ['/welcome', '/pricing']
 
-const ALWAYS_PUBLIC_PREFIXES = ['/blog', '/tools', '/calculators', '/about']
+const ALWAYS_PUBLIC_PREFIXES = [
+  '/blog',
+  '/tools',
+  '/calculators',
+  '/about',
+  '/socials',
+  '/privacy-policy',
+  '/terms-of-service',
+  '/refund-policy',
+]
+
+const TOOL_ROUTE_TO_GUIDE: Array<{ toolPrefix: string; guidePath: string }> = [
+  { toolPrefix: '/market-projections', guidePath: '/tools/sharp-projections' },
+  { toolPrefix: '/sharp-props', guidePath: '/tools/sharp-props' },
+  { toolPrefix: '/sharp-detector', guidePath: '/tools/whale-feed' },
+  { toolPrefix: '/research', guidePath: '/tools/research-mode' },
+]
 
 const AFFILIATE_REF_COOKIE = 'affiliate_ref'
 const AFFILIATE_REF_TTL = 60 * 60 * 24 * 30
@@ -29,6 +45,13 @@ const isPublicPath = (pathname: string) => {
 
 const isAlwaysPublicPath = (pathname: string) =>
   ALWAYS_PUBLIC_PREFIXES.some(path => pathname === path || pathname.startsWith(path + '/'))
+
+const resolveGuidePathForToolRoute = (pathname: string) => {
+  const match = TOOL_ROUTE_TO_GUIDE.find(
+    ({ toolPrefix }) => pathname === toolPrefix || pathname.startsWith(`${toolPrefix}/`)
+  )
+  return match?.guidePath ?? null
+}
 
 // Check membership paid status from metadata (mirrors lib/utils/membership.ts logic)
 const parseDate = (value?: string | null) => {
@@ -89,6 +112,7 @@ const checkMembershipPaid = (metadata: Record<string, any>): boolean => {
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const pathname = req.nextUrl.pathname
+  const guidePathForToolRoute = resolveGuidePathForToolRoute(pathname)
   const isPrefetchRequest =
     req.headers.get('purpose') === 'prefetch' ||
     req.headers.has('next-router-prefetch')
@@ -133,6 +157,19 @@ export async function middleware(req: NextRequest) {
 
   // If no session, redirect to login
   if (!session) {
+    if (guidePathForToolRoute) {
+      const guideUrl = new URL(guidePathForToolRoute, req.url)
+      const redirect = NextResponse.redirect(guideUrl)
+      if (affiliateRef) {
+        redirect.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
+          maxAge: AFFILIATE_REF_TTL,
+          path: '/',
+          sameSite: 'lax',
+        })
+      }
+      return redirect
+    }
+
     const landingUrl = new URL('/welcome', req.url)
     landingUrl.searchParams.set('redirect', pathname)
     const redirect = NextResponse.redirect(landingUrl)
@@ -186,6 +223,10 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
+  if (guidePathForToolRoute) {
+    return NextResponse.redirect(new URL(guidePathForToolRoute, req.url))
+  }
+
   // If they cancel checkout or choose not to continue, let them stay on the landing page.
   if (pathname === '/welcome') {
     return res
@@ -212,6 +253,6 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     // Match all paths except static files
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|PNG|JPG|JPEG|GIF|SVG|ICO|WEBP)$).*)',
   ],
 }

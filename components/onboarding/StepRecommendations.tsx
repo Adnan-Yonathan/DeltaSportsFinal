@@ -69,10 +69,10 @@ const buildRecommendations = (profile?: OnboardingProfile): RecommendedFeature[]
       tags: ["Line shop"],
     },
     {
-      id: "chat",
-      title: "Delta Chat",
-      description: "Ask for matchup notes, prop breakdowns, and bet checks.",
-      href: "/chat",
+      id: "delta-home",
+      title: "Delta Home",
+      description: "Jump back into your last used tool instantly.",
+      href: "/",
       tags: ["Copilot"],
     },
   ]
@@ -87,7 +87,7 @@ const buildRecommendations = (profile?: OnboardingProfile): RecommendedFeature[]
   const boosts = boost[primaryIntent] ?? []
 
   const goalBoosts: string[] = []
-  if (goals.includes("learn-research")) goalBoosts.push("research-mode", "chat")
+  if (goals.includes("learn-research")) goalBoosts.push("research-mode", "delta-home")
   if (goals.includes("tail-sharp-action")) goalBoosts.push("whale-feed", "live-scores")
   if (goals.includes("become-profitable")) goalBoosts.push("sharp-projections", "research-mode")
   if (goals.includes("supercharge")) goalBoosts.push("live-scores", "whale-feed")

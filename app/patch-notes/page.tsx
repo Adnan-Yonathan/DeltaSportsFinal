@@ -68,11 +68,11 @@ export default function PatchNotesPage() {
             </p>
           </div>
           <Link
-            href="/chat"
+            href="/"
             className="inline-flex items-center gap-2 rounded-full border border-[#34d399] px-4 py-2 text-sm text-[#34d399] hover:bg-[#34d399] hover:text-[#0f1f15] transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Chat
+            Back to Tools
           </Link>
         </header>
 

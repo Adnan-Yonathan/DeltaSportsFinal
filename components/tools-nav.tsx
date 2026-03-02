@@ -34,7 +34,7 @@ export default function ToolsNav({
         return
       }
       const membership = getMembershipStatus(user.user_metadata)
-      setHomeHref(membership.hasPaidAccess ? "/chat" : "/welcome")
+      setHomeHref(membership.hasPaidAccess ? "/" : "/welcome")
     }
     load()
     return () => {

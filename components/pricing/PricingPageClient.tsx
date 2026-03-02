@@ -160,7 +160,7 @@ export function PricingPageClient() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          router.push("/auth/login?redirect=/pricing")
+          router.push("/auth/signup?redirect=/pricing")
           return
         }
         throw new Error(data.error || "Failed to create checkout session")

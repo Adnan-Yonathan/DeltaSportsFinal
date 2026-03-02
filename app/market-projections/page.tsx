@@ -1,13 +1,10 @@
 import MarketProjectionsClient from "./market-projections-client"
-import SportSelector from "./sport-selector"
-import ToolsNav from "@/components/tools-nav"
 import MobileToolsNav from "@/components/mobile-tools-nav"
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { buildSharpProjections } from "@/lib/services/sharp-projections"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
-import { cookies } from "next/headers"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -19,20 +16,18 @@ type SportOption = {
 }
 
 const SPORT_OPTIONS: SportOption[] = [
+  { key: "all", label: "All Leagues", locked: false },
   { key: "basketball_nba", label: "NBA", locked: false },
   { key: "basketball_ncaab", label: "NCAAB", locked: false },
   { key: "americanfootball_ncaaf", label: "CFB", locked: false },
   { key: "americanfootball_nfl", label: "NFL", locked: false },
   { key: "icehockey_nhl", label: "NHL", locked: false },
+  { key: "baseball_mlb", label: "MLB", locked: false },
 ]
-const SPORT_PREFERENCE_COOKIE = "market_projections_sport"
-const DEFAULT_SPORT_PRIORITY = [
-  "basketball_ncaab",
-  "icehockey_nhl",
-  "americanfootball_nfl",
-  "americanfootball_ncaaf",
-  "basketball_nba",
-]
+
+const ACTIVE_SPORT_KEYS = SPORT_OPTIONS.filter((option) => option.key !== "all").map(
+  (option) => option.key
+)
 const CURRENT_SLATE_LOOKBACK_MS = 1000 * 60 * 60 * 3
 const CURRENT_SLATE_LOOKAHEAD_MS = 1000 * 60 * 60 * 48
 
@@ -118,6 +113,45 @@ const hydrateMissingSharpProjections = (
   })
 }
 
+const loadCacheForSport = async (
+  serviceClient: ReturnType<typeof createServiceClient>,
+  sportKey: string
+) => {
+  const { data, error } = (await serviceClient
+    .from("market_projections_cache" as any)
+    .select("edges, updated_at")
+    .eq("sport", sportKey)
+    .single()) as unknown as {
+    data: { edges: any[]; updated_at: string } | null
+    error: any
+  }
+
+  if (error || !data) return null
+  const cachedEdges = Array.isArray(data.edges)
+    ? (data.edges as GameEdgeAnalysis[])
+    : []
+  return {
+    sport: sportKey,
+    edges: cachedEdges,
+    currentSlateEdgeCount: countCurrentSlateEdges(cachedEdges),
+    updatedAt: data.updated_at ?? null,
+  }
+}
+
+const attachSportToEdges = (edges: GameEdgeAnalysis[], sportKey: string) =>
+  edges.map((edge) => ({
+    ...edge,
+    sport: sportKey,
+  }))
+
+const resolveMostRecentTimestamp = (values: Array<string | null>) => {
+  const timestamps = values
+    .map((value) => (value ? Date.parse(value) : Number.NaN))
+    .filter((value) => Number.isFinite(value)) as number[]
+  if (!timestamps.length) return null
+  return new Date(Math.max(...timestamps)).toISOString()
+}
+
 
 export default async function MarketProjectionsPage({
   searchParams,
@@ -132,124 +166,87 @@ export default async function MarketProjectionsPage({
   const hasProjectionAccess = membership.hasProjectionAccess
   const previewMode = !hasProjectionAccess
   const tier = membership.isActive ? membership.tier : membership.tier ?? null
-  const cookieStore = cookies()
-  const cookieSport = cookieStore.get(SPORT_PREFERENCE_COOKIE)?.value
+
   const requestedSport = Array.isArray(searchParams?.sport)
     ? searchParams?.sport[0]
     : searchParams?.sport
 
-  const isUnlockedSport = (value: string | undefined) =>
+  const isValidSport = (value: string | undefined) =>
     Boolean(
       value &&
-        SPORT_OPTIONS.some((option) => option.key === value && !option.locked)
+        SPORT_OPTIONS.some((option) => option.key === value)
     )
 
-  const requestedSportKey = isUnlockedSport(requestedSport)
-    ? requestedSport!
-    : null
-  const cookieSportKey = isUnlockedSport(cookieSport) ? cookieSport! : null
-
-  let sport = requestedSportKey ?? cookieSportKey ?? "basketball_nba"
+  const sport = isValidSport(requestedSport) ? requestedSport! : "all"
   let edges: GameEdgeAnalysis[] = []
   let errorMessage: string | null = null
   let hasCache = true
   let lastUpdated: string | null = null
-  let selected = SPORT_OPTIONS.find((option) => option.key === sport) ?? SPORT_OPTIONS[0]
-  let isLocked = Boolean(selected.locked)
+  const isLocked = false
 
-  if (!isLocked) {
-    try {
-      const serviceClient = createServiceClient()
-      const loadCacheForSport = async (sportKey: string) => {
-        const { data, error } = (await serviceClient
-          .from("market_projections_cache" as any)
-          .select("edges, updated_at")
-          .eq("sport", sportKey)
-          .single()) as unknown as {
-          data: { edges: any[]; updated_at: string } | null
-          error: any
-        }
+  try {
+    const serviceClient = createServiceClient()
 
-        if (error || !data) return null
-        const cachedEdges = Array.isArray(data.edges)
-          ? (data.edges as GameEdgeAnalysis[])
-          : []
-        return {
-          edges: cachedEdges,
-          currentSlateEdgeCount: countCurrentSlateEdges(cachedEdges),
-          updatedAt: data.updated_at ?? null,
-        }
-      }
+    if (sport === "all") {
+      const cachedBySport = await Promise.all(
+        ACTIVE_SPORT_KEYS.map((sportKey) => loadCacheForSport(serviceClient, sportKey))
+      )
+      const availableCaches = cachedBySport.filter(Boolean) as Array<{
+        sport: string
+        edges: GameEdgeAnalysis[]
+        currentSlateEdgeCount: number
+        updatedAt: string | null
+      }>
 
-      let cached = await loadCacheForSport(sport)
+      if (!availableCaches.length) {
+        hasCache = false
+        errorMessage = "No projections cached yet."
+      } else {
+        const combinedEdges: GameEdgeAnalysis[] = []
+        let slateEdgeCount = 0
 
-      if (
-        !requestedSportKey &&
-        (!cached || cached.currentSlateEdgeCount === 0)
-      ) {
-        for (const candidateSport of DEFAULT_SPORT_PRIORITY) {
-          if (!isUnlockedSport(candidateSport) || candidateSport === sport) continue
-          const candidateCache = await loadCacheForSport(candidateSport)
-          if (candidateCache && candidateCache.currentSlateEdgeCount > 0) {
-            sport = candidateSport
-            selected =
-              SPORT_OPTIONS.find((option) => option.key === sport) ?? SPORT_OPTIONS[0]
-            isLocked = Boolean(selected.locked)
-            cached = candidateCache
-            break
-          }
+        availableCaches.forEach((cachedSport) => {
+          const hydratedEdges = hydrateMissingSharpProjections(
+            cachedSport.edges,
+            cachedSport.sport
+          )
+          combinedEdges.push(...attachSportToEdges(hydratedEdges, cachedSport.sport))
+          slateEdgeCount += cachedSport.currentSlateEdgeCount
+        })
+
+        if (slateEdgeCount === 0) {
+          hasCache = false
+          errorMessage = "No current projections yet."
+        } else {
+          edges = combinedEdges
+          lastUpdated = resolveMostRecentTimestamp(
+            availableCaches.map((cachedSport) => cachedSport.updatedAt)
+          )
         }
       }
-
+    } else {
+      const cached = await loadCacheForSport(serviceClient, sport)
       if (!cached || cached.currentSlateEdgeCount === 0) {
         hasCache = false
         errorMessage = "No current projections yet."
       } else {
-        edges = cached.edges
+        const hydratedEdges = hydrateMissingSharpProjections(cached.edges, sport)
+        edges = attachSportToEdges(hydratedEdges, sport)
         lastUpdated = cached.updatedAt
-
-        const shouldBackfill =
-          sport === "basketball_nba" ||
-          sport === "basketball_ncaab" ||
-          sport === "americanfootball_ncaaf" ||
-          sport === "americanfootball_nfl" ||
-          sport === "icehockey_nhl"
-        if (shouldBackfill) {
-          edges = hydrateMissingSharpProjections(edges, sport)
-        }
       }
-    } catch (error) {
-      hasCache = false
-      errorMessage = "Unable to load projections."
     }
-  } else {
+  } catch (error) {
     hasCache = false
-    errorMessage = "This sport is locked."
+    errorMessage = "Unable to load projections."
   }
+
   if (edges.length > 0) {
     edges = stripNonSharpBookOdds(edges)
   }
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-sm border-b border-white/5">
-        <div className="px-2 sm:px-4 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex w-full flex-wrap items-start justify-between gap-4 md:w-auto md:flex-1 md:items-center">
-              <div className="hidden md:block">
-                <ToolsNav />
-              </div>
-              <div className="ml-auto md:hidden">
-                <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
-              </div>
-            </div>
-            <div className="hidden md:block">
-              <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="pt-[120px] px-2 pb-[96px] sm:px-4 sm:pt-[140px] sm:pb-0">
+      <div className="px-2 pb-[96px] pt-4 sm:px-4 sm:pb-0 sm:pt-5">
         <div className="mx-auto w-full max-w-none">
           <MarketProjectionsClient
             key={sport}

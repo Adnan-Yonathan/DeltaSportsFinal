@@ -336,7 +336,7 @@ export default function LandingPage() {
                 text="Talk To Delta"
                 type="button"
                 className="w-[160px] bg-[#34d399] text-[#0f1f15] border-transparent"
-                onClick={() => router.push("/chat")}
+                onClick={() => router.push("/")}
               />
               <InteractiveHoverButton
                 text="Live Scores"

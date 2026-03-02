@@ -13,12 +13,13 @@ import {
   resolveSnapshotDiagnostics,
   shouldPersistPropOrderbooksSnapshot,
 } from '@/lib/services/prop-orderbooks-cache-guard'
+import { isWithinSharpRefreshWindow } from '@/lib/utils/sharp-refresh-window'
 
 export const dynamic = 'force-dynamic'
 const DEFAULT_DEPTH = 8
 const DEFAULT_MIN_SHARP_NOTIONAL = 100
 const PERSISTED_CACHE_LIMIT = 200
-const PERSISTED_CACHE_MAX_AGE_MS = 3 * 60 * 1000
+const PERSISTED_CACHE_MAX_AGE_MS = 30 * 60 * 1000
 
 const SUPPORTED_SPORTS = new Set([
   'all',
@@ -109,17 +110,71 @@ export async function GET(req: NextRequest) {
     const normalizedMinSharpNotional = Number.isFinite(minSharpNotional)
       ? Math.max(minSharpNotional, 0)
       : 100
+    const refreshWindowOpen = isWithinSharpRefreshWindow()
+    const effectiveForceRefresh = forceRefresh && refreshWindowOpen
     const requestedMode =
       requestedModeParam === 'fast' || requestedModeParam === 'full'
         ? requestedModeParam
         : null
-    const mode = requestedMode ?? (forceRefresh ? 'full' : 'fast')
+    const mode = requestedMode ?? (effectiveForceRefresh ? 'full' : 'fast')
 
     const canUsePersistentCache =
       normalizedDepth === DEFAULT_DEPTH &&
       normalizedMinSharpNotional === DEFAULT_MIN_SHARP_NOTIONAL
 
-    if (canUsePersistentCache && !forceRefresh) {
+    if (!refreshWindowOpen) {
+      if (canUsePersistentCache) {
+        const exactCacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
+        const cachedExact = await getPropOrderbooksCache(exactCacheKey)
+        const exactPayload = parsePersistedPayload(cachedExact?.payload)
+        const exactAgeMs = parseCacheAgeMs(cachedExact?.fetched_at ?? null)
+        if (exactPayload) {
+          return buildCachedResponse(
+            sport,
+            normalizedLimit,
+            exactPayload,
+            'persistent',
+            cachedExact?.fetched_at ?? null,
+            exactAgeMs
+          )
+        }
+
+        if (sport !== 'all') {
+          const allCacheKey = buildCacheKey('all', normalizedDepth, normalizedMinSharpNotional)
+          const cachedAll = await getPropOrderbooksCache(allCacheKey)
+          const allPayload = parsePersistedPayload(cachedAll?.payload)
+          const allAgeMs = parseCacheAgeMs(cachedAll?.fetched_at ?? null)
+          if (allPayload) {
+            return buildCachedResponse(
+              sport,
+              normalizedLimit,
+              allPayload,
+              'persistent_all_fallback',
+              cachedAll?.fetched_at ?? null,
+              allAgeMs
+            )
+          }
+        }
+      }
+
+      return NextResponse.json({
+        ok: true,
+        sport,
+        updatedAt: null,
+        count: 0,
+        items: [],
+        refreshBlocked: true,
+        cache: {
+          forcedRefresh: false,
+          source: 'refresh_window_closed',
+          fetchedAt: null,
+          cacheAgeMs: null,
+        },
+        diagnostics: resolveSnapshotDiagnostics([]),
+      })
+    }
+
+    if (canUsePersistentCache && !effectiveForceRefresh) {
       const exactCacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
       const cachedExact = await getPropOrderbooksCache(exactCacheKey)
       const exactPayload = parsePersistedPayload(cachedExact?.payload)
@@ -156,7 +211,7 @@ export async function GET(req: NextRequest) {
     }
 
     const computeLimit =
-      forceRefresh && canUsePersistentCache && mode === 'full'
+      effectiveForceRefresh && canUsePersistentCache && mode === 'full'
         ? Math.max(normalizedLimit, PERSISTED_CACHE_LIMIT)
         : normalizedLimit
 
@@ -214,8 +269,8 @@ export async function GET(req: NextRequest) {
       count: responseItems.length,
       items: responseItems,
       cache: {
-        forcedRefresh: forceRefresh,
-        source: forceRefresh
+        forcedRefresh: effectiveForceRefresh,
+        source: effectiveForceRefresh
           ? canUsePersistentCache
             ? mode === 'full'
               ? 'live_computed_persisted_full'

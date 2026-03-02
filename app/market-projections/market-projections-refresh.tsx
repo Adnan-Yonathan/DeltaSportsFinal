@@ -1,6 +1,10 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
+import {
+  isWithinSharpRefreshWindow,
+  SHARP_REFRESH_INTERVAL_MS,
+} from "@/lib/utils/sharp-refresh-window"
 
 export default function MarketProjectionsRefresh({
   hasCache,
@@ -45,7 +49,8 @@ export default function MarketProjectionsRefresh({
   }
 
   const refresh = async () => {
-    if (isLocked) return
+    if (isLocked || sport === "all") return
+    if (!isWithinSharpRefreshWindow()) return
     if (status === "loading") return
     setStatus("loading")
     abortRef.current?.abort()
@@ -133,7 +138,8 @@ export default function MarketProjectionsRefresh({
 
   useEffect(() => {
     const needsBootstrapRefresh = !hasCache || Boolean(errorMessage)
-    if (status !== "idle" || isLocked || !needsBootstrapRefresh) return
+    if (status !== "idle" || isLocked || sport === "all" || !needsBootstrapRefresh) return
+    if (!isWithinSharpRefreshWindow()) return
     refreshRef.current()
   }, [status, isLocked, sport, hasCache, errorMessage])
 
@@ -147,14 +153,15 @@ export default function MarketProjectionsRefresh({
     setStatus("idle")
   }, [sport])
 
-  // Auto-refresh interval - created once, fires every 15 minutes
+  // Auto-refresh interval - created once, fires every 30 minutes during refresh window
   useEffect(() => {
-    if (isLocked) return
+    if (isLocked || sport === "all") return
     const interval = window.setInterval(() => {
+      if (!isWithinSharpRefreshWindow()) return
       refreshRef.current()
-    }, 30 * 60 * 1000)
+    }, SHARP_REFRESH_INTERVAL_MS)
     return () => window.clearInterval(interval)
-  }, [isLocked])
+  }, [isLocked, sport])
 
   return null
 }

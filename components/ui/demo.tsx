@@ -1,34 +1,70 @@
 "use client"
 
-import { ServerManagementTable, type SharpTraderRow } from "@/components/ui/server-management-table"
+import { Calendar, Clock, Code, FileText, User } from "lucide-react"
+import RadialOrbitalTimeline from "@/components/ui/radial-orbital-timeline"
 
-const rows: SharpTraderRow[] = [
+const timelineData = [
   {
-    id: "wallet-a",
-    rank: 1,
-    wallet: "0x8fe3a9b27c9a1d0f2b4a12c7f98a3b9d8f20a9c1",
-    walletShort: "0x8fe3...a9c1",
-    totalPnl: 187420,
-    pnl30d: 38210,
-    topSports: [
-      { sport: "nba", pnl: 8420, trades: 12 },
-      { sport: "nfl", pnl: 3210, trades: 5 },
-    ],
-    arbScore7d: 82,
-    arbLabel7d: "likely_arb",
-    arbReasons7d: ["High trade count (7d)", "Very high win rate", "Low P/L volatility"],
-    tradeCount7d: 32,
-    winRate7d: 0.91,
-    avgPnl7d: 18.4,
-    pnlStddev7d: 28.7,
-    openTrades: [],
+    id: 1,
+    title: "Planning",
+    date: "Jan 2024",
+    content: "Project planning and requirements gathering phase.",
+    category: "Planning",
+    icon: Calendar,
+    relatedIds: [2],
+    status: "completed" as const,
+    energy: 100,
+  },
+  {
+    id: 2,
+    title: "Design",
+    date: "Feb 2024",
+    content: "UI/UX design and system architecture.",
+    category: "Design",
+    icon: FileText,
+    relatedIds: [1, 3],
+    status: "completed" as const,
+    energy: 90,
+  },
+  {
+    id: 3,
+    title: "Development",
+    date: "Mar 2024",
+    content: "Core features implementation and testing.",
+    category: "Development",
+    icon: Code,
+    relatedIds: [2, 4],
+    status: "in-progress" as const,
+    energy: 60,
+  },
+  {
+    id: 4,
+    title: "Testing",
+    date: "Apr 2024",
+    content: "User testing and bug fixes.",
+    category: "Testing",
+    icon: User,
+    relatedIds: [3, 5],
+    status: "pending" as const,
+    energy: 30,
+  },
+  {
+    id: 5,
+    title: "Release",
+    date: "May 2024",
+    content: "Final deployment and release.",
+    category: "Release",
+    icon: Clock,
+    relatedIds: [4],
+    status: "pending" as const,
+    energy: 10,
   },
 ]
 
-export default function DemoOne() {
-  return (
-    <div className="min-h-screen bg-black p-8">
-      <ServerManagementTable wallets={rows} />
-    </div>
-  )
+export function RadialOrbitalTimelineDemo() {
+  return <RadialOrbitalTimeline timelineData={timelineData} />
+}
+
+export default function Demo() {
+  return <RadialOrbitalTimelineDemo />
 }

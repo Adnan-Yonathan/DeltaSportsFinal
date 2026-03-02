@@ -2,12 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { TrendingUp, BookOpen, FlaskConical } from 'lucide-react'
+import { TrendingUp } from 'lucide-react'
 
 const RESEARCH_NAV_ITEMS = [
   { href: '/research/sharp-action', label: 'Sharp Action', icon: TrendingUp },
-  { href: '/research/betting-trends', label: 'Betting Trends', icon: BookOpen },
-  { href: '/research/backtesting', label: 'Backtesting', icon: FlaskConical },
 ]
 
 export default function ResearchNav() {

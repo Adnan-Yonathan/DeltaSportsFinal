@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(new URL('/pricing', requestUrl.origin))
       }
 
-      return NextResponse.redirect(new URL('/chat', requestUrl.origin))
+      return NextResponse.redirect(new URL('/', requestUrl.origin))
     }
   }
 

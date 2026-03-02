@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import { recordMarketProjectionPicks } from "@/lib/services/market-projection-clv"
+import {
+  isWithinSharpRefreshWindow,
+  SHARP_REFRESH_WINDOW_LABEL,
+} from "@/lib/utils/sharp-refresh-window"
 
 export const dynamic = "force-dynamic"
 const CURRENT_SLATE_LOOKBACK_MS = 1000 * 60 * 60 * 3
@@ -46,6 +50,16 @@ export async function GET(req: NextRequest) {
     const authHeader = req.headers.get("authorization")
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    if (!isWithinSharpRefreshWindow()) {
+      return NextResponse.json({
+        ok: true,
+        refreshed: false,
+        skipped: true,
+        reason: `Refresh window closed. Active window: ${SHARP_REFRESH_WINDOW_LABEL}.`,
+        timestamp: new Date().toISOString(),
+      })
     }
 
     const sports = [

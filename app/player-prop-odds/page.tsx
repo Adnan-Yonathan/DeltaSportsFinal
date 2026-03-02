@@ -1,4 +1,3 @@
-import ToolsNav from "@/components/tools-nav"
 import SportSelector from "../market-projections/sport-selector"
 import { createClient } from "@/lib/supabase/server"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
@@ -43,15 +42,10 @@ export default async function PlayerPropOddsPage({
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/95 backdrop-blur-sm">
-        <div className="px-2 py-4 sm:px-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <ToolsNav />
-            <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
-          </div>
+      <div className="px-2 pt-4 sm:px-4 sm:pt-5">
+        <div className="mx-auto mb-4 flex w-full max-w-none justify-end">
+          <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
         </div>
-      </div>
-      <div className="pt-[120px] sm:pt-[140px] px-2 sm:px-4">
         <div className="mx-auto w-full max-w-none space-y-5 py-6">
           <PropOddsClient sport={sport} previewMode={previewMode} />
         </div>

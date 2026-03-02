@@ -189,7 +189,7 @@ export function OnboardingFlow() {
 
   const handleNext = async () => {
     if (isLastStep) {
-      await completeTutorial("/chat")
+      await completeTutorial("/")
       return
     }
 
@@ -202,7 +202,7 @@ export function OnboardingFlow() {
   }
 
   const handleSkip = async () => {
-    await completeTutorial("/chat")
+    await completeTutorial("/")
   }
 
   const backgroundNodes = useMemo(

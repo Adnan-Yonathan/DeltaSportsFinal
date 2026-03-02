@@ -11,6 +11,8 @@
 
 import { fetchOdds } from '@/lib/api/odds-api'
 import { fetchSbdOdds, mapSbdOddsToOddsGames, resolveBookIds } from '@/lib/api/sbd'
+import { fetchPolymarketOdds } from '@/lib/api/polymarket'
+import { fetchKalshiOdds } from '@/lib/api/kalshi'
 import { getNBATeamStats } from '@/lib/sports-stats-api'
 import { getGameRecommendations, type GameRecommendation } from './recommendation-engine'
 import { analyzeMatchup, type MatchupAnalysis } from './matchup-analyzer'
@@ -72,6 +74,40 @@ export type WhaleAlert = {
   status: WhaleTradeStatus
 }
 
+type ProjectionBookKey =
+  | 'fanduel'
+  | 'pinnacle'
+  | 'novig'
+  | 'prophetx'
+  | 'polymarket'
+  | 'kalshi'
+
+type ProjectionQuoteSource = 'sbd' | 'odds_api' | 'polymarket_api' | 'kalshi_api'
+
+type SpreadBookQuote = {
+  homeLine?: number
+  homeOdds?: number
+  awayLine?: number
+  awayOdds?: number
+  source: ProjectionQuoteSource
+  bookTitle?: string
+}
+
+type TotalBookQuote = {
+  line?: number
+  overOdds?: number
+  underOdds?: number
+  source: ProjectionQuoteSource
+  bookTitle?: string
+}
+
+type MoneylineBookQuote = {
+  homeOdds?: number
+  awayOdds?: number
+  source: ProjectionQuoteSource
+  bookTitle?: string
+}
+
 export interface GameEdgeAnalysis {
   matchup: string
   oddsApiId?: string
@@ -102,6 +138,7 @@ export interface GameEdgeAnalysis {
       awayOdds?: number
       awayBook?: string
     }
+    bookQuotes?: Partial<Record<ProjectionBookKey, MoneylineBookQuote>>
   }
   spread?: {
     marketLine: number
@@ -118,6 +155,7 @@ export interface GameEdgeAnalysis {
       awayOdds?: number
     }
     prediction?: { line: number; book: string; odds: number }
+    bookQuotes?: Partial<Record<ProjectionBookKey, SpreadBookQuote>>
     favoredTeam: string // Which team the model favors
     sharpConfirmed?: boolean // Sharp signals agree with model
   }
@@ -133,6 +171,7 @@ export interface GameEdgeAnalysis {
       underOdds?: number
     }
     prediction?: { line: number; book: string; overOdds: number; underOdds: number }
+    bookQuotes?: Partial<Record<ProjectionBookKey, TotalBookQuote>>
     sharpConfirmed?: boolean // Sharp signals agree with model
   }
   confidence: 'low' | 'medium' | 'high'
@@ -1451,6 +1490,194 @@ function getBestTotalByType(
   return best
 }
 
+const PROJECTION_BOOK_KEYS: ProjectionBookKey[] = [
+  'fanduel',
+  'pinnacle',
+  'novig',
+  'prophetx',
+  'polymarket',
+  'kalshi',
+]
+
+const buildOddsGameIndex = (games: OddsGame[]) => {
+  const index = new Map<string, OddsGame>()
+  for (const game of games) {
+    const forward = buildMatchupKey(game.home_team, game.away_team)
+    const reverse = buildMatchupKey(game.away_team, game.home_team)
+    if (forward && !index.has(forward)) index.set(forward, game)
+    if (reverse && !index.has(reverse)) index.set(reverse, game)
+  }
+  return index
+}
+
+const findIndexedGame = (
+  index: Map<string, OddsGame>,
+  homeTeam: string,
+  awayTeam: string
+) => {
+  const forward = buildMatchupKey(homeTeam, awayTeam)
+  if (forward && index.has(forward)) return index.get(forward) ?? null
+  const reverse = buildMatchupKey(awayTeam, homeTeam)
+  if (reverse && index.has(reverse)) return index.get(reverse) ?? null
+  return null
+}
+
+const findBookInGame = (game: OddsGame | null, token: string) => {
+  if (!game?.bookmakers?.length) return null
+  return game.bookmakers.find((book) => matchesBookToken(book, token)) ?? null
+}
+
+const resolveSpreadQuoteForBook = (
+  sourceGame: OddsGame | null,
+  baseGame: OddsGame,
+  bookToken: string,
+  source: ProjectionQuoteSource
+): SpreadBookQuote | null => {
+  const book = findBookInGame(sourceGame, bookToken)
+  if (!book) return null
+  const market = book.markets?.find((entry) => entry.key === MARKETS.SPREADS)
+  if (!market) return null
+  const homeOutcome = market.outcomes?.find((entry) =>
+    teamNameMatches(baseGame.home_team, entry.name)
+  )
+  const awayOutcome = market.outcomes?.find((entry) =>
+    teamNameMatches(baseGame.away_team, entry.name)
+  )
+  if (!homeOutcome && !awayOutcome) return null
+  return {
+    homeLine: homeOutcome?.point,
+    homeOdds: homeOutcome?.price,
+    awayLine: awayOutcome?.point,
+    awayOdds: awayOutcome?.price,
+    source,
+    bookTitle: book.title,
+  }
+}
+
+const resolveTotalQuoteForBook = (
+  sourceGame: OddsGame | null,
+  bookToken: string,
+  source: ProjectionQuoteSource
+): TotalBookQuote | null => {
+  const book = findBookInGame(sourceGame, bookToken)
+  if (!book) return null
+  const market = book.markets?.find((entry) => entry.key === MARKETS.TOTALS)
+  if (!market) return null
+  const over = market.outcomes?.find((entry) => entry.name.toLowerCase() === 'over')
+  const under = market.outcomes?.find((entry) => entry.name.toLowerCase() === 'under')
+  if (!over && !under) return null
+  return {
+    line: over?.point ?? under?.point,
+    overOdds: over?.price,
+    underOdds: under?.price,
+    source,
+    bookTitle: book.title,
+  }
+}
+
+const resolveMoneylineQuoteForBook = (
+  sourceGame: OddsGame | null,
+  baseGame: OddsGame,
+  bookToken: string,
+  source: ProjectionQuoteSource
+): MoneylineBookQuote | null => {
+  const book = findBookInGame(sourceGame, bookToken)
+  if (!book) return null
+  const market = book.markets?.find((entry) => entry.key === MARKETS.H2H)
+  if (!market) return null
+  const home = market.outcomes?.find((entry) =>
+    teamNameMatches(baseGame.home_team, entry.name)
+  )
+  const away = market.outcomes?.find((entry) =>
+    teamNameMatches(baseGame.away_team, entry.name)
+  )
+  if (!home && !away) return null
+  return {
+    homeOdds: home?.price,
+    awayOdds: away?.price,
+    source,
+    bookTitle: book.title,
+  }
+}
+
+const hasSpreadBookQuote = (quote: SpreadBookQuote | null) =>
+  Boolean(
+    quote &&
+      (quote.homeLine != null ||
+        quote.awayLine != null ||
+        quote.homeOdds != null ||
+        quote.awayOdds != null)
+  )
+
+const hasTotalBookQuote = (quote: TotalBookQuote | null) =>
+  Boolean(quote && (quote.line != null || quote.overOdds != null || quote.underOdds != null))
+
+const hasMoneylineBookQuote = (quote: MoneylineBookQuote | null) =>
+  Boolean(quote && (quote.homeOdds != null || quote.awayOdds != null))
+
+const buildProjectionBookQuotes = (
+  game: OddsGame,
+  sourceGames: {
+    oddsApi: OddsGame | null
+    polymarket: OddsGame | null
+    kalshi: OddsGame | null
+  }
+) => {
+  const spreadQuotes: Partial<Record<ProjectionBookKey, SpreadBookQuote>> = {}
+  const totalQuotes: Partial<Record<ProjectionBookKey, TotalBookQuote>> = {}
+  const moneylineQuotes: Partial<Record<ProjectionBookKey, MoneylineBookQuote>> = {}
+
+  const sourceByBook: Record<
+    ProjectionBookKey,
+    { game: OddsGame | null; source: ProjectionQuoteSource; token: string }
+  > = {
+    fanduel: { game, source: 'sbd', token: 'fanduel' },
+    pinnacle: { game: sourceGames.oddsApi, source: 'odds_api', token: 'pinnacle' },
+    novig: { game: sourceGames.oddsApi, source: 'odds_api', token: 'novig' },
+    prophetx: { game: sourceGames.oddsApi, source: 'odds_api', token: 'prophetx' },
+    polymarket: { game: sourceGames.polymarket, source: 'polymarket_api', token: 'polymarket' },
+    kalshi: { game: sourceGames.kalshi, source: 'kalshi_api', token: 'kalshi' },
+  }
+
+  for (const bookKey of PROJECTION_BOOK_KEYS) {
+    const sourceConfig = sourceByBook[bookKey]
+    const spreadQuote = resolveSpreadQuoteForBook(
+      sourceConfig.game,
+      game,
+      sourceConfig.token,
+      sourceConfig.source
+    )
+    if (hasSpreadBookQuote(spreadQuote)) {
+      spreadQuotes[bookKey] = spreadQuote as SpreadBookQuote
+    }
+
+    const totalQuote = resolveTotalQuoteForBook(
+      sourceConfig.game,
+      sourceConfig.token,
+      sourceConfig.source
+    )
+    if (hasTotalBookQuote(totalQuote)) {
+      totalQuotes[bookKey] = totalQuote as TotalBookQuote
+    }
+
+    const moneylineQuote = resolveMoneylineQuoteForBook(
+      sourceConfig.game,
+      game,
+      sourceConfig.token,
+      sourceConfig.source
+    )
+    if (hasMoneylineBookQuote(moneylineQuote)) {
+      moneylineQuotes[bookKey] = moneylineQuote as MoneylineBookQuote
+    }
+  }
+
+  return {
+    spreadQuotes: Object.keys(spreadQuotes).length ? spreadQuotes : undefined,
+    totalQuotes: Object.keys(totalQuotes).length ? totalQuotes : undefined,
+    moneylineQuotes: Object.keys(moneylineQuotes).length ? moneylineQuotes : undefined,
+  }
+}
+
 /**
  * Analyze all games for a sport on a given date
  */
@@ -1651,6 +1878,53 @@ export async function analyzeSlateEdges(
     }
   }
 
+  const projectionTeamFilter = Array.from(
+    new Set(
+      upcomingGames.flatMap((game) => [game.home_team, game.away_team]).filter(Boolean)
+    )
+  )
+  const projectionMarkets = [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS]
+  const [oddsApiBooksResult, polymarketResult, kalshiResult] = await Promise.allSettled([
+    fetchOdds(sportKey, projectionMarkets, {
+      revalidateSeconds: 1800,
+      forceProvider: 'odds-api-io',
+      bookmakers: ['pinnacle', 'novig', 'prophetx'],
+      teamFilter: projectionTeamFilter,
+    }),
+    fetchPolymarketOdds(sportKey, projectionMarkets, {
+      revalidateSeconds: 1800,
+      teamFilter: projectionTeamFilter,
+    }),
+    fetchKalshiOdds(sportKey, projectionMarkets, {
+      revalidateSeconds: 1800,
+      teamFilter: projectionTeamFilter,
+    }),
+  ])
+
+  const oddsApiBookGames = oddsApiBooksResult.status === 'fulfilled' ? oddsApiBooksResult.value : []
+  const polymarketGames = polymarketResult.status === 'fulfilled' ? polymarketResult.value : []
+  const kalshiGames = kalshiResult.status === 'fulfilled' ? kalshiResult.value : []
+
+  if (oddsApiBooksResult.status === 'rejected') {
+    console.warn('[SLATE EDGE] Odds API sportsbook feed unavailable:', oddsApiBooksResult.reason)
+  }
+  if (polymarketResult.status === 'rejected') {
+    console.warn('[SLATE EDGE] Polymarket feed unavailable:', polymarketResult.reason)
+  }
+  if (kalshiResult.status === 'rejected') {
+    console.warn('[SLATE EDGE] Kalshi feed unavailable:', kalshiResult.reason)
+  }
+
+  const oddsApiBookIndex = buildOddsGameIndex(oddsApiBookGames)
+  const polymarketIndex = buildOddsGameIndex(polymarketGames)
+  const kalshiIndex = buildOddsGameIndex(kalshiGames)
+
+  const resolveProjectionSourceGames = (game: OddsGame) => ({
+    oddsApi: findIndexedGame(oddsApiBookIndex, game.home_team, game.away_team),
+    polymarket: findIndexedGame(polymarketIndex, game.home_team, game.away_team),
+    kalshi: findIndexedGame(kalshiIndex, game.home_team, game.away_team),
+  })
+
   if (isFootball) {
     let sharpResults: SharpEdgeResult[] = []
     const sbdLeague = ODDS_API_TO_SBD[sportKey]
@@ -1691,6 +1965,11 @@ export async function analyzeSlateEdges(
           teamNameMatches(r.awayTeam, game.away_team)
         return homeMatch && awayMatch
       })
+      const projectionSourceGames = resolveProjectionSourceGames(game)
+      const projectionBookQuotes = buildProjectionBookQuotes(
+        game,
+        projectionSourceGames
+      )
 
       const sportsbookSpreadHome = getBestSpreadByType(game, 'home', 'sportsbook', oddsPreference)
       const sportsbookSpreadAway = getBestSpreadByType(game, 'away', 'sportsbook', oddsPreference)
@@ -1866,6 +2145,7 @@ export async function analyzeSlateEdges(
                   awayOdds: predictionMoneylineAway?.odds,
                   awayBook: predictionMoneylineAway?.book,
                 },
+                bookQuotes: projectionBookQuotes.moneylineQuotes,
               }
             : undefined,
         confidence: 'low',
@@ -1901,6 +2181,7 @@ export async function analyzeSlateEdges(
                 }
               : undefined,
           prediction: predictionSpreadHome || undefined,
+          bookQuotes: projectionBookQuotes.spreadQuotes,
           favoredTeam: marketSpread.line < 0 ? game.home_team : game.away_team,
           sharpConfirmed: false,
         }
@@ -1921,6 +2202,7 @@ export async function analyzeSlateEdges(
               }
             : undefined,
           prediction: predictionTotal || undefined,
+          bookQuotes: projectionBookQuotes.totalQuotes,
           sharpConfirmed: false,
         }
       }
@@ -2099,6 +2381,11 @@ export async function analyzeSlateEdges(
           teamNameMatches(r.awayTeam, game.away_team)
         return homeMatch && awayMatch
       })
+      const projectionSourceGames = resolveProjectionSourceGames(game)
+      const projectionBookQuotes = buildProjectionBookQuotes(
+        game,
+        projectionSourceGames
+      )
 
       // Get market lines (needed for NCAAB market anchoring)
       const sportsbookSpreadHome = getBestSpreadByType(game, 'home', 'sportsbook', oddsPreference)
@@ -2459,6 +2746,7 @@ export async function analyzeSlateEdges(
                   awayOdds: predictionMoneylineAway?.odds,
                   awayBook: predictionMoneylineAway?.book,
                 },
+                bookQuotes: projectionBookQuotes.moneylineQuotes,
               }
             : undefined,
         confidence: adjustedConfidence,
@@ -2532,6 +2820,7 @@ export async function analyzeSlateEdges(
                 }
               : undefined,
           prediction: predictionSpreadHome || undefined,
+          bookQuotes: projectionBookQuotes.spreadQuotes,
           favoredTeam: modelFavoredTeam,
           sharpConfirmed: spreadConfirmation.agrees,
         }
@@ -2552,6 +2841,7 @@ export async function analyzeSlateEdges(
               }
             : undefined,
           prediction: predictionTotal || undefined,
+          bookQuotes: projectionBookQuotes.totalQuotes,
           sharpConfirmed: totalConfirmation.agrees,
         }
       }
@@ -2585,6 +2875,7 @@ export async function analyzeSlateEdges(
                 }
               : undefined,
           prediction: predictionSpreadHome || undefined,
+          bookQuotes: projectionBookQuotes.spreadQuotes,
           favoredTeam: marketSpread.line < 0 ? game.home_team : game.away_team,
           sharpConfirmed: false,
         }
@@ -2611,6 +2902,7 @@ export async function analyzeSlateEdges(
               }
             : undefined,
           prediction: predictionTotal || undefined,
+          bookQuotes: projectionBookQuotes.totalQuotes,
           sharpConfirmed: false,
         }
       }

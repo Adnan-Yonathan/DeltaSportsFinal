@@ -15,9 +15,8 @@ export function Header() {
   const scrolled = useScroll(10)
 
   const links = [
-    { label: 'Features', href: '#features' },
-    { label: 'Tools', href: '/tools' },
-    { label: 'Pricing', href: '/pricing' },
+    { label: 'Features', href: '/welcome#features' },
+    { label: 'Pricing', href: '/welcome#pricing' },
   ]
 
   React.useEffect(() => {
@@ -36,7 +35,7 @@ export function Header() {
       <nav className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
         <a href="/welcome" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-white/90 hover:bg-white/5">
           <Image src="/delta-logo.png" alt="Delta Sports logo" width={18} height={18} className="rounded-sm" />
-          <span className="text-sm font-semibold tracking-[0.18em]" style={{ color: ACCENT }}>DELTA SPORTS</span>
+          <span className="text-sm font-semibold tracking-[0.18em]" style={{ color: '#ffffff' }}>DELTA SPORTS</span>
         </a>
 
         <div className="hidden items-center gap-2 md:flex">
@@ -45,12 +44,12 @@ export function Header() {
               key={link.label}
               className={buttonVariants({ variant: 'ghost' })}
               href={link.href}
-              style={{ color: ACCENT }}
+              style={{ color: '#ffffff' }}
             >
               {link.label}
             </a>
           ))}
-          <Button asChild variant="outline" className="border-white/20 bg-transparent" style={{ color: ACCENT, borderColor: ACCENT }}>
+          <Button asChild variant="outline" className="border-white/20 bg-transparent" style={{ color: '#ffffff', borderColor: ACCENT }}>
             <a href="/auth/login">Sign In</a>
           </Button>
           <Button asChild className="text-black" style={{ backgroundColor: ACCENT }}>
@@ -81,14 +80,14 @@ export function Header() {
                 className: 'justify-start',
               })}
               href={link.href}
-              style={{ color: ACCENT }}
+              style={{ color: '#ffffff' }}
             >
               {link.label}
             </a>
           ))}
         </div>
         <div className="flex flex-col gap-2">
-          <Button asChild variant="outline" className="w-full bg-transparent" style={{ color: ACCENT, borderColor: ACCENT }}>
+          <Button asChild variant="outline" className="w-full bg-transparent" style={{ color: '#ffffff', borderColor: ACCENT }}>
             <a href="/auth/login">Sign In</a>
           </Button>
           <Button asChild className="w-full text-black" style={{ backgroundColor: ACCENT }}>

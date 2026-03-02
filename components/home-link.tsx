@@ -13,7 +13,7 @@ type HomeLinkProps = {
 const resolveHomeHref = (user: { user_metadata?: Record<string, any> } | null) => {
   if (!user) return "/welcome"
   const membership = getMembershipStatus(user.user_metadata)
-  return membership.hasPaidAccess ? "/chat" : "/welcome"
+  return membership.hasPaidAccess ? "/" : "/welcome"
 }
 
 export default function HomeLink({ className, label = "Home" }: HomeLinkProps) {

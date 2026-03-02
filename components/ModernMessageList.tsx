@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { User, Sparkles } from 'lucide-react'
 import AnimatedMessage from './AnimatedMessage'
 import ChatIntro from './ChatIntro'
+import ChatHomeDashboard from './chat-home-dashboard'
 import { type DeltaMode } from './ModeToggle'
 import { ShiningText } from '@/components/ui/shining-text'
 import { getOperationMessage } from '@/lib/chat/operation-messages'
@@ -26,6 +27,8 @@ interface MessageListProps {
   prefillMessage?: string
   mode?: DeltaMode
   onModeChange?: (mode: DeltaMode) => void
+  showIntroWhenEmpty?: boolean
+  welcomeName?: string | null
 }
 
 export default function ModernMessageList({
@@ -35,6 +38,8 @@ export default function ModernMessageList({
   prefillMessage,
   mode = 'projections',
   onModeChange,
+  showIntroWhenEmpty = true,
+  welcomeName,
 }: MessageListProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
@@ -190,16 +195,19 @@ export default function ModernMessageList({
   }
 
   if (messages.length === 0) {
-      return (
-        <ChatIntro
-          conversationId={conversationId}
-          userId={userId}
-          onMessageSent={loadMessages}
-          prefillMessage={prefillMessage}
-          mode={mode}
-          onModeChange={onModeChange}
-        />
-      )
+    if (!showIntroWhenEmpty) {
+      return <ChatHomeDashboard welcomeName={welcomeName} />
+    }
+    return (
+      <ChatIntro
+        conversationId={conversationId}
+        userId={userId}
+        onMessageSent={loadMessages}
+        prefillMessage={prefillMessage}
+        mode={mode}
+        onModeChange={onModeChange}
+      />
+    )
   }
 
   return (

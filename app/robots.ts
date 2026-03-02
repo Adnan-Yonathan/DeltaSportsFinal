@@ -12,6 +12,7 @@ export default function robots(): MetadataRoute.Robots {
         '/onboarding/',
       ],
     },
+    host: 'https://deltasports.app',
     sitemap: 'https://deltasports.app/sitemap.xml',
   }
 }

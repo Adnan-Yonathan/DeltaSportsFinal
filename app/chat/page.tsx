@@ -16,7 +16,7 @@ import { OddsMatrixSurface } from '@/components/ui/odds-matrix-surface'
 import SharpDetectorPanel from '@/components/SharpDetectorPanel'
 import MobileToolsNav from '@/components/mobile-tools-nav'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, Target, Check, ArrowUpRight, Twitter } from 'lucide-react'
+import { LogOut, Menu, X, Sparkles, Image as ImageIcon, Radio, ChevronLeft, ChevronRight, Crown, CreditCard, Check, ArrowUpRight, Twitter } from 'lucide-react'
 import ChatIntro from '@/components/ChatIntro'
 import { type DeltaMode } from '@/components/ModeToggle'
 import { ROICalculator } from '@/components/ui/roi-calculator'
@@ -27,7 +27,7 @@ import { formatCurrency } from '@/lib/utils/odds'
 const EASTERN_TIMEZONE = 'America/New_York'
 const PROMO_DISMISS_KEY = 'promo_links_dismissed'
 const PROMO_CLICK_KEY = 'promo_links_click_source'
-const DISCORD_INVITE_URL = 'https://discord.gg/Fkze8Ras'
+const DISCORD_INVITE_URL = 'https://discord.gg/NgCgk47N'
 const KALSHI_REFERRAL_URL = 'https://kalshi.com/sign-up/?referral=4807d3a2-7c7c-40bb-986c-608115b5a2c5'
 const DELTA_MODE_STORAGE_KEY = 'delta-mode'
 
@@ -140,6 +140,13 @@ function ChatPageContent() {
 
   useEffect(() => {
     setPromoMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.location.hash !== '#pricing') return
+    const nextUrl = `${window.location.pathname}${window.location.search}`
+    window.history.replaceState(null, '', nextUrl)
   }, [])
 
   useEffect(() => {
@@ -586,15 +593,7 @@ function ChatPageContent() {
                   <button
                     onClick={async () => {
                       setProfileMenuOpen(false)
-                      try {
-                        const res = await fetch('/api/stripe/portal', { method: 'POST' })
-                        const data = await res.json()
-                        if (data.url) {
-                          window.location.href = data.url
-                        }
-                      } catch (err) {
-                        console.error('Failed to open billing portal:', err)
-                      }
+                      await handleManageSubscriptionClick()
                     }}
                     className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/5 transition-colors"
                   >
@@ -652,6 +651,26 @@ function ChatPageContent() {
     )
   }
 
+  const openBillingPortal = async () => {
+    try {
+      const res = await fetch('/api/stripe/portal', { method: 'POST' })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      }
+    } catch (err) {
+      console.error('Failed to open billing portal:', err)
+    }
+  }
+
+  const handleManageSubscriptionClick = async () => {
+    if (membership?.isActive) {
+      await openBillingPortal()
+      return
+    }
+    router.push('/pricing')
+  }
+
   return (
     <div className="relative flex min-h-screen flex-col bg-black text-white overflow-hidden">
       <OddsMatrixSurface
@@ -660,7 +679,7 @@ function ChatPageContent() {
         tone={isResearch ? 'amber' : 'emerald'}
       />
       <SimpleHeader
-        widthClass="max-w-6xl"
+        widthClass="max-w-none px-2 sm:px-4"
         rightSlot={headerActions}
         onLogoClick={() => handleNewConversation()}
       />
@@ -724,8 +743,8 @@ function ChatPageContent() {
               <div
                 className={`flex-1 overflow-hidden min-h-0 ${
                   user && !hasMessages
-                    ? 'pt-[56px] sm:pt-[72px] pb-0 sm:pb-0'
-                    : `pt-[112px] sm:pt-[144px] ${
+                    ? 'pt-0 pb-0'
+                    : `pt-4 sm:pt-6 ${
                         hasMessages
                           ? 'pb-[224px] sm:pb-[160px]'
                           : 'pb-[108px] sm:pb-[160px]'
@@ -756,6 +775,8 @@ function ChatPageContent() {
                             prefillMessage={prefillMessage}
                             mode={deltaMode}
                             onModeChange={setDeltaMode}
+                            showIntroWhenEmpty={false}
+                            welcomeName={fallbackName}
                           />
                         </div>
                       </div>

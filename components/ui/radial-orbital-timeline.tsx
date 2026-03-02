@@ -1,17 +1,19 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { ArrowRight, Link, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-interface TimelineItem {
+export interface TimelineItem {
   id: number;
   title: string;
   date: string;
   content: string;
   category: string;
   icon: React.ElementType;
+  logoSrc?: string;
   relatedIds: number[];
   status: "completed" | "in-progress" | "pending";
   energy: number;
@@ -19,10 +21,12 @@ interface TimelineItem {
 
 interface RadialOrbitalTimelineProps {
   timelineData: TimelineItem[];
+  onItemSelect?: (itemId: number) => void;
 }
 
 export default function RadialOrbitalTimeline({
   timelineData,
+  onItemSelect,
 }: RadialOrbitalTimelineProps) {
   const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>(
     {}
@@ -63,6 +67,7 @@ export default function RadialOrbitalTimeline({
       if (!prev[id]) {
         setActiveNodeId(id);
         setAutoRotate(false);
+        onItemSelect?.(id);
 
         const relatedItems = getRelatedItems(id);
         const newPulseEffect: Record<number, boolean> = {};
@@ -184,6 +189,7 @@ export default function RadialOrbitalTimeline({
             const isRelated = isRelatedToActive(item.id);
             const isPulsing = pulseEffect[item.id];
             const Icon = item.icon;
+            const hasLogo = Boolean(item.logoSrc);
 
             const nodeStyle = {
               transform: `translate(${position.x}px, ${position.y}px)`,
@@ -217,7 +223,7 @@ export default function RadialOrbitalTimeline({
 
                 <div
                   className={`
-                  w-10 h-10 rounded-full flex items-center justify-center
+                  w-14 h-14 overflow-hidden rounded-full flex items-center justify-center
                   ${
                     isExpanded
                       ? "bg-white text-black"
@@ -237,7 +243,17 @@ export default function RadialOrbitalTimeline({
                   ${isExpanded ? "scale-150" : ""}
                 `}
                 >
-                  <Icon size={16} />
+                  {hasLogo ? (
+                    <Image
+                      src={item.logoSrc as string}
+                      alt={item.title}
+                      width={56}
+                      height={56}
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    <Icon size={22} />
+                  )}
                 </div>
 
                 <div

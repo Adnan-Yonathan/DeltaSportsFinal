@@ -46,7 +46,7 @@ export function ToolTutorialOverlay({ toolKey }: ToolTutorialOverlayProps) {
         <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <TutorialActionButton
             label="Skip tutorial"
-            redirectTo="/chat"
+            redirectTo="/"
             className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/80 hover:border-white/35 hover:text-white"
           />
 
@@ -69,7 +69,7 @@ export function ToolTutorialOverlay({ toolKey }: ToolTutorialOverlayProps) {
             ) : (
               <TutorialActionButton
                 label="Finish tutorial"
-                redirectTo="/chat"
+                redirectTo="/"
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-400 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-black hover:bg-emerald-300"
               />
             )}
@@ -79,4 +79,3 @@ export function ToolTutorialOverlay({ toolKey }: ToolTutorialOverlayProps) {
     </>
   )
 }
-

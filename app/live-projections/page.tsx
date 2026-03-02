@@ -1,6 +1,5 @@
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
-import ToolsNav from "@/components/tools-nav"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import LiveProjectionsClient from "./live-projections-client"
 
@@ -16,9 +15,6 @@ export default async function LiveProjectionsPage() {
 
   return (
     <div className="relative min-h-screen bg-black text-white px-4 py-6">
-      <div className="mb-6">
-        <ToolsNav />
-      </div>
       {!hasAccess ? (
         <div className="relative mt-6 max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-white/5">
           <div className="pointer-events-none blur-sm">

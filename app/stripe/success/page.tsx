@@ -52,7 +52,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     id: 'props',
     title: 'Player Prop Analyzer',
     description: 'Use the copilot to compare prop lines and recent form.',
-    href: '/chat',
+    href: '/',
     goals: ['prop-edges'],
     markets: ['player-props'],
     risk: ['moderate', 'aggressive'],
@@ -61,7 +61,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     id: 'matchups',
     title: 'Matchup Research',
     description: 'Get matchup notes, edges, and market context in chat.',
-    href: '/chat',
+    href: '/',
     goals: ['matchup-research'],
     markets: ['spreads', 'totals', 'moneyline'],
   },
@@ -512,10 +512,10 @@ export default function StripeSuccessPage() {
 
               <div className="flex flex-col sm:flex-row gap-3">
                 <Link
-                  href="/chat"
+                  href="/"
                   className="flex-1 text-center py-3 px-4 rounded-lg bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition-colors"
                 >
-                  Go to Chat
+                  Open Tools
                 </Link>
                 <Link
                   href="/live-scores"
@@ -549,10 +549,10 @@ export default function StripeSuccessPage() {
                 Check Again
               </button>
               <button
-                onClick={() => router.push('/chat')}
+                onClick={() => router.push('/')}
                 className="w-full py-3 px-4 rounded-lg bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors"
               >
-                Go to Chat Anyway
+                Open Tools Anyway
               </button>
             </div>
             <p className="text-white/40 text-sm mt-4">

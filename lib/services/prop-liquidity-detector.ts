@@ -16,7 +16,7 @@ const POLYMARKET_GAMES_TAG_ID = '100639'
 const PROP_ORDER_NOTIONAL_MIN = 500
 const TEAM_ORDER_NOTIONAL_MIN = 2000
 const TEAM_MARKET_LIQUIDITY_MAX = 14000
-const CACHE_TTL_MS = 60 * 1000
+const CACHE_TTL_MS = 30 * 60 * 1000
 const MAX_KALSHI_PAGES = 5
 const MAX_POLYMARKET_MARKETS = 250
 const MAX_POLYMARKET_ORDERBOOKS = 80
@@ -217,6 +217,8 @@ export type PropOrderbookItem = {
   sharpLeanBestBookTitle: string | null
   pinnacleLeanOdds: number | null
   pinnacleLeanBookTitle: string | null
+  fanduelLeanOdds: number | null
+  fanduelLeanBookTitle: string | null
   updatedAt: string
 }
 
@@ -251,6 +253,10 @@ type SportsbookPropLine = {
   pinnacleUnderOdds: number | null
   pinnacleOverBookTitle: string | null
   pinnacleUnderBookTitle: string | null
+  fanduelOverOdds: number | null
+  fanduelUnderOdds: number | null
+  fanduelOverBookTitle: string | null
+  fanduelUnderBookTitle: string | null
   noVigOverProbs: number[]
   noVigUnderProbs: number[]
 }
@@ -1179,6 +1185,13 @@ const isPinnacleBook = (book: any) => {
   return normalized.includes('pinnacle')
 }
 
+const isFanDuelBook = (book: any) => {
+  const normalized = `${book?.key ?? ''} ${book?.name ?? ''} ${book?.title ?? ''}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+  return normalized.includes('fanduel')
+}
+
 const resolveEventDate = (commenceTime: string | null | undefined) => {
   const raw = String(commenceTime ?? '').trim()
   if (!raw) return null
@@ -1404,6 +1417,8 @@ const fetchExchangePropOrderbookItems = async (opts: {
             sharpLeanBestBookTitle: safeSourceLabel,
             pinnacleLeanOdds: null,
             pinnacleLeanBookTitle: null,
+            fanduelLeanOdds: null,
+            fanduelLeanBookTitle: null,
             updatedAt,
           })
         }
@@ -1586,12 +1601,14 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
               propLine,
               sharpLean.sharpLeanSide
             )
-          : {
+            : {
               bestOdds: null,
               noVigProb: null,
               bestBookTitle: null,
               pinnacleOdds: null,
               pinnacleBookTitle: null,
+              fanduelOdds: null,
+              fanduelBookTitle: null,
             }
 
       return {
@@ -1613,6 +1630,8 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           leanSportsbookQuote.pinnacleBookTitle ?? leanSportsbookQuote.bestBookTitle ?? null,
         pinnacleLeanOdds: leanSportsbookQuote.pinnacleOdds ?? null,
         pinnacleLeanBookTitle: leanSportsbookQuote.pinnacleBookTitle ?? null,
+        fanduelLeanOdds: leanSportsbookQuote.fanduelOdds ?? null,
+        fanduelLeanBookTitle: leanSportsbookQuote.fanduelBookTitle ?? null,
         updatedAt,
       }
     }
@@ -1759,6 +1778,8 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
                 bestBookTitle: null,
                 pinnacleOdds: null,
                 pinnacleBookTitle: null,
+                fanduelOdds: null,
+                fanduelBookTitle: null,
               }
 
         return {
@@ -1780,6 +1801,8 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
             leanSportsbookQuote.pinnacleBookTitle ?? leanSportsbookQuote.bestBookTitle ?? null,
           pinnacleLeanOdds: leanSportsbookQuote.pinnacleOdds ?? null,
           pinnacleLeanBookTitle: leanSportsbookQuote.pinnacleBookTitle ?? null,
+          fanduelLeanOdds: leanSportsbookQuote.fanduelOdds ?? null,
+          fanduelLeanBookTitle: leanSportsbookQuote.fanduelBookTitle ?? null,
           updatedAt,
         }
       }
@@ -2220,6 +2243,10 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
             pinnacleUnderOdds: null,
             pinnacleOverBookTitle: null,
             pinnacleUnderBookTitle: null,
+            fanduelOverOdds: null,
+            fanduelUnderOdds: null,
+            fanduelOverBookTitle: null,
+            fanduelUnderBookTitle: null,
             noVigOverProbs: [],
             noVigUnderProbs: [],
           }
@@ -2240,6 +2267,10 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
             bucket.pinnacleOverOdds = overOdds
             bucket.pinnacleOverBookTitle = bookTitle
           }
+          if (isFanDuelBook(book)) {
+            bucket.fanduelOverOdds = overOdds
+            bucket.fanduelOverBookTitle = bookTitle
+          }
           if (bucket.bestOverOdds == null || overOdds > bucket.bestOverOdds) {
             bucket.bestOverOdds = overOdds
             bucket.bestOverBookTitle = bookTitle
@@ -2249,6 +2280,10 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
           if (isPinnacleBook(book)) {
             bucket.pinnacleUnderOdds = underOdds
             bucket.pinnacleUnderBookTitle = bookTitle
+          }
+          if (isFanDuelBook(book)) {
+            bucket.fanduelUnderOdds = underOdds
+            bucket.fanduelUnderBookTitle = bookTitle
           }
           if (bucket.bestUnderOdds == null || underOdds > bucket.bestUnderOdds) {
             bucket.bestUnderOdds = underOdds
@@ -2286,7 +2321,15 @@ const resolveSportsbookPropPrices = async (
   propType: string,
   propLine: number | null,
   propSide: 'Over' | 'Under' | null
-) => {
+): Promise<{
+  bestOdds: number | null
+  noVigProb: number | null
+  bestBookTitle: string | null
+  pinnacleOdds: number | null
+  pinnacleBookTitle: string | null
+  fanduelOdds: number | null
+  fanduelBookTitle: string | null
+}> => {
   if (!propSide) {
     return {
       bestOdds: null,
@@ -2294,6 +2337,8 @@ const resolveSportsbookPropPrices = async (
       bestBookTitle: null,
       pinnacleOdds: null,
       pinnacleBookTitle: null,
+      fanduelOdds: null,
+      fanduelBookTitle: null,
     }
   }
   const index = await fetchSportsbookPropIndex(sportKey)
@@ -2310,6 +2355,8 @@ const resolveSportsbookPropPrices = async (
       bestBookTitle: null,
       pinnacleOdds: null,
       pinnacleBookTitle: null,
+      fanduelOdds: null,
+      fanduelBookTitle: null,
     }
   }
 
@@ -2325,6 +2372,8 @@ const resolveSportsbookPropPrices = async (
       bestBookTitle: null,
       pinnacleOdds: null,
       pinnacleBookTitle: null,
+      fanduelOdds: null,
+      fanduelBookTitle: null,
     }
   }
 
@@ -2335,6 +2384,10 @@ const resolveSportsbookPropPrices = async (
     propSide === 'Under' ? best.pinnacleUnderOdds : best.pinnacleOverOdds
   const pinnacleBookTitle =
     propSide === 'Under' ? best.pinnacleUnderBookTitle : best.pinnacleOverBookTitle
+  const fanduelOdds =
+    propSide === 'Under' ? best.fanduelUnderOdds : best.fanduelOverOdds
+  const fanduelBookTitle =
+    propSide === 'Under' ? best.fanduelUnderBookTitle : best.fanduelOverBookTitle
   const noVigPool = propSide === 'Under' ? best.noVigUnderProbs : best.noVigOverProbs
   const noVigProb = noVigPool.length
     ? noVigPool.reduce((sum, value) => sum + value, 0) / noVigPool.length
@@ -2345,6 +2398,8 @@ const resolveSportsbookPropPrices = async (
     bestBookTitle: bestBookTitle ?? null,
     pinnacleOdds: pinnacleOdds ?? null,
     pinnacleBookTitle: pinnacleBookTitle ?? null,
+    fanduelOdds: fanduelOdds ?? null,
+    fanduelBookTitle: fanduelBookTitle ?? null,
   }
 }
 

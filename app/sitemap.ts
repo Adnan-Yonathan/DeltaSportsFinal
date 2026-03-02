@@ -3,37 +3,32 @@ import { createServiceClient } from '@/lib/supabase/service'
 import type { GameEdgeAnalysis } from '@/lib/services/slate-edge-detector'
 import {
   buildBlogPath,
-  buildSlatePath,
   formatEdgeDate,
 } from '@/lib/blog/market-projections'
+import { CORE_TOOLS } from '@/lib/core-tools'
+import { SEO_BLOG_TOPICS } from '@/lib/blog/seo-topics'
 
 const BASE_URL = 'https://deltasports.app'
 
-const ROUTES = [
+const PUBLIC_ROUTES = [
   '/',
   '/about',
   '/blog',
-  '/sharp-betting-tools',
   '/pricing',
+  '/welcome',
   '/tools',
-  '/live-scores',
-  '/market-projections',
-  '/sharp-props',
-  '/player-prop-odds',
-  '/player-projections',
-  '/parlay-predictor',
-  '/live-projections',
-  '/sharp-detector',
-  '/stats',
-  '/promos',
-  '/patch-notes',
-  '/models',
-  '/affiliate',
+  '/calculators',
+  '/socials',
+  '/privacy-policy',
+  '/terms-of-service',
+  '/refund-policy',
 ]
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const lastModified = new Date()
-  const entries: MetadataRoute.Sitemap = ROUTES.map((route) => ({
+  const guideRoutes = CORE_TOOLS.map((tool) => tool.guideRoute)
+  const insightRoutes = SEO_BLOG_TOPICS.map((topic) => `/blog/insights/${topic.slug}`)
+  const entries: MetadataRoute.Sitemap = [...PUBLIC_ROUTES, ...guideRoutes, ...insightRoutes].map((route) => ({
     url: `${BASE_URL}${route}`,
     lastModified,
   }))
@@ -46,7 +41,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       data: Array<{ sport: string; edges: GameEdgeAnalysis[]; updated_at: string }> | null
     }
 
-    const slateKeys = new Set<string>()
     for (const row of data ?? []) {
       for (const edge of row.edges ?? []) {
         if (!edge?.homeTeam || !edge?.awayTeam) continue
@@ -57,14 +51,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           url: `${BASE_URL}${blogPath}`,
           lastModified: row.updated_at ? new Date(row.updated_at) : lastModified,
         })
-        const slateKey = `${row.sport}|${date}`
-        if (!slateKeys.has(slateKey)) {
-          slateKeys.add(slateKey)
-          entries.push({
-            url: `${BASE_URL}${buildSlatePath(row.sport, date)}`,
-            lastModified: row.updated_at ? new Date(row.updated_at) : lastModified,
-          })
-        }
       }
     }
   } catch {

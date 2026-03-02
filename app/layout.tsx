@@ -1,13 +1,13 @@
-﻿import type { Metadata } from 'next'
+import type { Metadata } from 'next'
 import './globals.css'
 import { SupabaseAuthListener } from '@/components/SupabaseAuthListener'
-import { AppFooter } from '@/components/AppFooter'
 import AffiliateTracker from '@/components/AffiliateTracker'
 import SharpMoneyAlertHub from '@/components/SharpMoneyAlertHub'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import Script from 'next/script'
+import AppShell from '@/components/app-shell'
 
 const GA_MEASUREMENT_ID = 'G-Y78D13G4NJ'
 
@@ -78,8 +78,7 @@ gtag('config', '${GA_MEASUREMENT_ID}');
           <SupabaseAuthListener />
           <AffiliateTracker />
           <SharpMoneyAlertHub />
-          <main className="flex-1">{children}</main>
-          <AppFooter />
+          <AppShell>{children}</AppShell>
           <Analytics />
           <SpeedInsights />
           <Script
@@ -93,4 +92,3 @@ gtag('config', '${GA_MEASUREMENT_ID}');
     </html>
   )
 }
-

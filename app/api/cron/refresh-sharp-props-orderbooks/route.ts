@@ -1,29 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPropOrderbooksCache } from '@/lib/services/prop-orderbooks-cache'
-import { parseCacheAgeMs } from '@/lib/services/prop-orderbooks-cache-guard'
+import {
+  isWithinSharpRefreshWindow,
+  SHARP_REFRESH_WINDOW_LABEL,
+} from '@/lib/utils/sharp-refresh-window'
 
 export const dynamic = 'force-dynamic'
-
-const EASTERN_TIME_ZONE = 'America/New_York'
-const QUIET_WINDOW_START_HOUR = 1
-const QUIET_WINDOW_END_HOUR = 10
-const QUIET_WINDOW_MAX_CACHE_AGE_MS = 20 * 60 * 1000
-const DEFAULT_CACHE_KEY = 'sport:all:depth:8:min:100'
-
-const getEasternHour = (date: Date) => {
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: EASTERN_TIME_ZONE,
-      hour: '2-digit',
-      hour12: false,
-    }).formatToParts(date)
-    const hourPart = parts.find((part) => part.type === 'hour')?.value
-    const parsedHour = Number(hourPart)
-    return Number.isFinite(parsedHour) ? parsedHour : null
-  } catch {
-    return null
-  }
-}
 
 /**
  * GET /api/cron/refresh-sharp-props-orderbooks
@@ -44,27 +25,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const now = new Date()
-    const easternHour = getEasternHour(now)
-    const isQuietHours =
-      easternHour != null &&
-      easternHour >= QUIET_WINDOW_START_HOUR &&
-      easternHour < QUIET_WINDOW_END_HOUR
-
-    const cached = await getPropOrderbooksCache(DEFAULT_CACHE_KEY)
-    const cacheAgeMs = parseCacheAgeMs(cached?.fetched_at ?? null)
-    const hasFreshCache =
-      cacheAgeMs != null && cacheAgeMs <= QUIET_WINDOW_MAX_CACHE_AGE_MS
-
-    if (isQuietHours && hasFreshCache) {
+    if (!isWithinSharpRefreshWindow()) {
       return NextResponse.json({
         ok: true,
         refreshed: false,
         skipped: true,
-        reason: 'Quiet window active (1:00 AM-9:59 AM America/New_York).',
-        timestamp: now.toISOString(),
-        easternHour,
-        cacheAgeMs,
+        reason: `Refresh window closed. Active window: ${SHARP_REFRESH_WINDOW_LABEL}.`,
+        timestamp: new Date().toISOString(),
       })
     }
 
@@ -93,9 +60,7 @@ export async function GET(req: NextRequest) {
       ok: true,
       refreshed: true,
       skipped: false,
-      timestamp: now.toISOString(),
-      easternHour,
-      cacheAgeMs,
+      timestamp: new Date().toISOString(),
       sport: payload?.sport ?? 'all',
       count: typeof payload?.count === 'number' ? payload.count : null,
       updatedAt: payload?.updatedAt ?? null,

@@ -175,9 +175,9 @@ export function PricingSection({
       const data = await response.json()
 
       if (!response.ok) {
-        // If unauthorized, redirect to login
+        // If unauthorized, route to signup before checkout.
         if (response.status === 401) {
-          router.push('/auth/login?redirect=/pricing')
+          router.push('/auth/signup?redirect=/pricing')
           return
         }
         throw new Error(data.error || 'Failed to create checkout session')

@@ -156,12 +156,12 @@ export const LoginPage = () => {
       if (error) throw error
 
       if (data.user) {
-        // Paid/trial users go to chat, everyone else to pricing.
+        // Paid/trial users go to app home, everyone else to pricing.
         const membership = getMembershipStatusFromMetadata(data.user.user_metadata)
         const isPaidNow = membership.hasPaidAccess
 
         if (isPaidNow) {
-          router.push("/chat")
+          router.push("/")
           return
         }
 

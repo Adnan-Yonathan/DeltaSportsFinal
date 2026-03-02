@@ -20,9 +20,9 @@ const MOBILE_TOOL_NAV_ITEMS: MobileToolNavItem[] = [
     key: 'home',
     label: 'Home',
     shortLabel: 'Home',
-    href: '/chat',
+    href: '/',
     icon: House,
-    match: (pathname) => pathname === '/chat' || pathname.startsWith('/chat/'),
+    match: (pathname) => pathname === '/' || pathname === '/chat' || pathname.startsWith('/chat/'),
   },
   {
     key: 'sharp-projections',

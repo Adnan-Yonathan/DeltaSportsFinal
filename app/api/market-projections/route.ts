@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service"
 import { analyzeSlateEdges } from "@/lib/services/slate-edge-detector"
 import { recordMarketProjectionPicks } from "@/lib/services/market-projection-clv"
 import { buildSharpProjections } from "@/lib/services/sharp-projections"
+import { isWithinSharpRefreshWindow } from "@/lib/utils/sharp-refresh-window"
 
 const CACHE_TTL_MS = 1000 * 60 * 30
 const CURRENT_SLATE_LOOKBACK_MS = 1000 * 60 * 60 * 3
@@ -306,9 +307,28 @@ export async function GET(request: Request) {
   const date = searchParams.get("date") || undefined
   const limitParam = Number(searchParams.get("limit") ?? "")
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 200
+  const refreshWindowOpen = isWithinSharpRefreshWindow()
+
+  const buildBlockedResponse = (cachedPayload?: {
+    updatedAt?: string | null
+    edges?: any[]
+  } | null) =>
+    NextResponse.json({
+      ok: true,
+      updatedAt: cachedPayload?.updatedAt ?? null,
+      sport,
+      edgeCount: cachedPayload?.edges?.length ?? 0,
+      ...(includeEdges ? { edges: cachedPayload?.edges ?? [] } : {}),
+      fromCache: Boolean(cachedPayload),
+      refreshBlocked: true,
+    })
 
   try {
     if (noCache) {
+      if (!refreshWindowOpen) {
+        const cachedNoCache = await readCache(sport)
+        return buildBlockedResponse(cachedNoCache)
+      }
       const { result, usedFallback } = await analyzeWithSharpFallback({
         sport,
         limit,
@@ -332,6 +352,9 @@ export async function GET(request: Request) {
     const hasCurrentSlateCache = cachedCurrentSlateEdgeCount > 0
 
     if (forceRefresh) {
+      if (!refreshWindowOpen) {
+        return buildBlockedResponse(cached)
+      }
       if (cached && !forceBypass && hasCurrentSlateCache) {
         const updatedAtMs = Date.parse(cached.updatedAt ?? "")
         if (
@@ -414,6 +437,10 @@ export async function GET(request: Request) {
     }
 
     if (cached && hasCurrentSlateCache) {
+      if (!refreshWindowOpen) {
+        return buildBlockedResponse(cached)
+      }
+
       void analyzeWithSharpFallback({ sport, limit, date })
         .then(async ({ result }) => {
           const mergedEdges = mergeSharpContextFromCache(
@@ -450,6 +477,10 @@ export async function GET(request: Request) {
         refreshing: true,
         fromCache: true,
       })
+    }
+
+    if (!refreshWindowOpen) {
+      return buildBlockedResponse(cached)
     }
 
     const { result, usedFallback } = await analyzeWithSharpFallback({

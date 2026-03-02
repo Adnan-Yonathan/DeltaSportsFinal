@@ -11,6 +11,7 @@ import { SimpleHeader } from '@/components/ui/simple-header'
 import { OddsMatrixSurface } from '@/components/ui/odds-matrix-surface'
 import { CardSpotlight } from '@/components/ui/card-spotlight'
 import { ArrowRight } from 'lucide-react'
+import { SEO_BLOG_TOPICS } from '@/lib/blog/seo-topics'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -110,7 +111,7 @@ export default async function BlogIndexPage({
           <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-emerald-200/70">
             Delta Blog
           </p>
-          <h1 className="mt-3 font-hero text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <h1 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Market projection breakdowns
           </h1>
           <p className="mt-3 max-w-2xl text-sm text-white/70 sm:text-base">
@@ -118,6 +119,34 @@ export default async function BlogIndexPage({
             the post calls it out explicitly.
           </p>
         </header>
+
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold">Featured betting guides</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {SEO_BLOG_TOPICS.map((topic) => (
+              <Link key={topic.slug} href={`/blog/insights/${topic.slug}`}>
+                <CardSpotlight
+                  className="relative rounded-3xl border border-white/10 bg-black/55 p-5 backdrop-blur transition-colors hover:border-emerald-400/35"
+                  color="rgba(16,185,129,0.10)"
+                  radius={360}
+                >
+                  <div aria-hidden className="pointer-events-none absolute inset-0 insider-grid opacity-15" />
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">
+                      SEO Guide
+                    </p>
+                    <p className="mt-2 text-xl font-semibold text-white">{topic.title}</p>
+                    <p className="mt-3 text-sm text-white/60">{topic.metaDescription}</p>
+                    <div className="mt-4 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-200/90">
+                      <span>Read guide</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </div>
+                  </div>
+                </CardSpotlight>
+              </Link>
+            ))}
+          </div>
+        </section>
 
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">Filter by sport</h2>

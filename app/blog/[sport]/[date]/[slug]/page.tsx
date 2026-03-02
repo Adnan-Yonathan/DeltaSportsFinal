@@ -12,6 +12,8 @@ import {
   getSportLabel,
   resolveSportParam,
 } from '@/lib/blog/market-projections'
+import { generateSeoBlogPost } from '@/lib/blog/seo-generator'
+import { DEFAULT_GAME_PRIMARY_KEYWORD } from '@/lib/blog/seo-topics'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -247,6 +249,52 @@ const buildLineMovementSummary = (lines: any[]) => {
   return summaries
 }
 
+const buildGamePostContext = (
+  sportLabel: string,
+  date: string,
+  edge: GameEdgeAnalysis,
+  bestLines: MarketLineSummary,
+  lineMovements: string[],
+  splits: any[]
+) => {
+  const spread = bestLines.spread
+    ? `Spread ${formatLine(bestLines.spread.line)} (${formatOdds(bestLines.spread.homeOdds)} / ${formatOdds(bestLines.spread.awayOdds)})`
+    : 'Spread missing'
+  const total = bestLines.total
+    ? `Total ${formatLine(bestLines.total.line)} (Over ${formatOdds(bestLines.total.overOdds)} / Under ${formatOdds(bestLines.total.underOdds)})`
+    : 'Total missing'
+  const moneyline = bestLines.moneyline
+    ? `Moneyline away/home ${formatOdds(bestLines.moneyline.awayOdds)} / ${formatOdds(bestLines.moneyline.homeOdds)}`
+    : 'Moneyline missing'
+  const splitSummary = splits.length
+    ? splits
+        .slice(0, 3)
+        .map((row) => {
+          const market = row?.market_type || 'market'
+          return `${market}: bets away/home ${formatPct(row?.away_bets_pct)} / ${formatPct(
+            row?.home_bets_pct
+          )}, money away/home ${formatPct(row?.away_money_pct)} / ${formatPct(row?.home_money_pct)}`
+        })
+        .join('\n')
+    : 'Betting splits missing for this game.'
+
+  return `
+Sport: ${sportLabel}
+Date: ${date}
+Matchup: ${edge.awayTeam} at ${edge.homeTeam}
+Game time (ET): ${formatTime(edge.commenceTime)}
+Best lines snapshot:
+- ${spread}
+- ${total}
+- ${moneyline}
+Line movement notes:
+${lineMovements.length ? lineMovements.map((line) => `- ${line}`).join('\n') : '- Line movement missing'}
+Sharp signals: ${edge.sharpSignals?.length ? edge.sharpSignals.join(', ') : 'No confirmed sharp signals'}
+Betting splits:
+${splitSummary}
+`
+}
+
 async function loadEdgeData(params: PageParams) {
   const sport = resolveSportParam(params.sport)
   const supabase = createServiceClient()
@@ -325,11 +373,20 @@ export default async function BlogGamePage({
     return acc
   }, {})
   const moneylineFavorite = getMoneylineFavorite(edge, bestLines)
+  const generatedPost = await generateSeoBlogPost({
+    cacheKey: `game:${params.sport}:${params.date}:${params.slug}`,
+    mode: 'game-specific',
+    primaryKeyword: DEFAULT_GAME_PRIMARY_KEYWORD,
+    topic: `Break down ${edge.awayTeam} vs ${edge.homeTeam} using sharp signals, reverse line movement betting context, and sharp money tracker workflow.`,
+    titleHint: `${edge.awayTeam} vs ${edge.homeTeam}: sharp money sports betting breakdown`,
+    context: buildGamePostContext(sportLabel, params.date, edge, bestLines, lineMovements, splits),
+  })
 
-  const jsonLd = {
+  const articleJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Article',
-    headline: `${edge.awayTeam} vs ${edge.homeTeam} betting breakdown`,
+    headline: generatedPost.h1,
+    description: generatedPost.metaDescription,
     datePublished: updatedAt ?? new Date().toISOString(),
     dateModified: updatedAt ?? new Date().toISOString(),
     author: {
@@ -347,6 +404,18 @@ export default async function BlogGamePage({
       sport: sportLabel,
     },
   }
+  const faqJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: generatedPost.faq.map((entry) => ({
+      '@type': 'Question',
+      name: entry.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: entry.answer,
+      },
+    })),
+  }
 
   return (
     <div className="relative min-h-screen bg-black text-white">
@@ -357,12 +426,13 @@ export default async function BlogGamePage({
           <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-emerald-200/70">
             {sportLabel} Breakdown
           </p>
-          <h1 className="mt-3 font-hero text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <h1 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
             {edge.awayTeam} vs {edge.homeTeam}
           </h1>
           <p className="mt-3 text-sm text-white/70 sm:text-base">
             Game time: {formatTime(commenceTime)} - Updated {formatTime(updatedAt)}
           </p>
+          <p className="mt-3 max-w-3xl text-sm text-white/75">{generatedPost.introHook}</p>
           <div className="mt-4 flex flex-wrap gap-3 text-xs text-white/70">
             <BlogNavButtons />
             <Link className="text-white/70 hover:text-emerald-200" href="/blog">
@@ -479,6 +549,47 @@ export default async function BlogGamePage({
           )}
         </section>
 
+        <section className="rounded-3xl border border-emerald-400/20 bg-emerald-500/5 p-6">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-emerald-200/80">
+            Key Takeaways
+          </p>
+          <ul className="mt-4 space-y-3 text-sm text-white/80">
+            {generatedPost.keyTakeaways.map((takeaway, index) => (
+              <li key={`${takeaway}-${index}`}>{takeaway}</li>
+            ))}
+          </ul>
+        </section>
+
+        <article className="space-y-6">
+          {generatedPost.sections.map((section, sectionIndex) => (
+            <section
+              key={`${section.h2}-${sectionIndex}`}
+              className="rounded-3xl border border-white/10 bg-black/55 p-6"
+            >
+              <h2 className="text-2xl font-semibold">{section.h2}</h2>
+              <div className="mt-3 space-y-4 text-sm leading-7 text-white/80">
+                {section.paragraphs.map((paragraph, paragraphIndex) => (
+                  <p key={`${section.h2}-p-${paragraphIndex}`}>{paragraph}</p>
+                ))}
+              </div>
+              {section.h3Blocks?.length ? (
+                <div className="mt-6 space-y-4">
+                  {section.h3Blocks.map((block, blockIndex) => (
+                    <div key={`${block.h3}-${blockIndex}`} className="space-y-2">
+                      <h3 className="text-lg font-semibold text-white">{block.h3}</h3>
+                      <div className="space-y-3 text-sm leading-7 text-white/80">
+                        {block.paragraphs.map((paragraph, blockParagraphIndex) => (
+                          <p key={`${block.h3}-p-${blockParagraphIndex}`}>{paragraph}</p>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          ))}
+        </article>
+
         <section className="space-y-4">
           <h2 className="text-xl font-semibold">Matchup snapshot</h2>
           <p className="text-sm text-white/70">
@@ -514,27 +625,25 @@ export default async function BlogGamePage({
           )}
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold">FAQs</h2>
-          <div className="space-y-3 text-sm text-white/70">
-            <p>
-              <span className="font-semibold">What time does this game start?</span>{' '}
-              {formatTime(commenceTime)}.
-            </p>
-            <p>
-              <span className="font-semibold">Where are the best lines?</span>{' '}
-              {bestLines.spread?.book || bestLines.total?.book || bestLines.moneyline?.book || 'Line data missing.'}
-            </p>
-            <p>
-              <span className="font-semibold">Are betting splits available?</span>{' '}
-              {splits.length ? 'Yes, see the betting splits section.' : 'Splits missing for this game.'}
-            </p>
+        <section className="space-y-4 rounded-3xl border border-white/10 bg-black/55 p-6">
+          <h2 className="text-xl font-semibold">FAQ</h2>
+          <div className="space-y-4 text-sm text-white/75">
+            {generatedPost.faq.map((entry, index) => (
+              <div key={`${entry.question}-${index}`} className="space-y-1">
+                <h3 className="font-semibold text-white">{entry.question}</h3>
+                <p>{entry.answer}</p>
+              </div>
+            ))}
           </div>
         </section>
       </div>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
     </div>
   )

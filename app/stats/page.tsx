@@ -1,5 +1,4 @@
 import Link from "next/link"
-import ToolsNav from "@/components/tools-nav"
 import StatsCenterClient from "./stats-client"
 import { createClient } from "@/lib/supabase/server"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
@@ -17,14 +16,7 @@ export default async function StatsCenterPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-sm border-b border-white/5">
-        <div className="px-2 sm:px-4 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <ToolsNav />
-          </div>
-        </div>
-      </div>
-      <div className="pt-[72px] px-2 sm:px-4">
+      <div className="px-2 pt-4 sm:px-4 sm:pt-5">
         <div className="mx-auto w-full max-w-none space-y-6 py-6">
           <header className="space-y-3">
             <p className="text-xs uppercase tracking-[0.3em] text-white/50">

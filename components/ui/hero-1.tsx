@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ArrowRightIcon, RocketIcon } from 'lucide-react'
+import { motion, useReducedMotion } from 'framer-motion'
 
 const ACCENT = '#3CCB97'
 
@@ -9,6 +10,14 @@ type HeroSectionProps = {
 }
 
 export function HeroSection({ className }: HeroSectionProps) {
+  const reduceMotion = useReducedMotion()
+
+  const fadeUp = {
+    initial: reduceMotion ? undefined : { opacity: 0, y: 14 },
+    animate: reduceMotion ? undefined : { opacity: 1, y: 0 },
+    transition: { duration: 0.5, ease: 'easeOut' as const },
+  }
+
   return (
     <section
       className={cn(
@@ -21,14 +30,21 @@ export function HeroSection({ className }: HeroSectionProps) {
       <div className="pointer-events-none absolute inset-y-0 left-8 hidden w-px bg-white/15 lg:block" />
       <div className="pointer-events-none absolute inset-y-0 right-8 hidden w-px bg-white/15 lg:block" />
 
-      <div className="pointer-events-none absolute -right-28 bottom-[-250px] w-[min(980px,96vw)] rotate-[-17deg] opacity-70 blur-[2px]">
+      <motion.div
+        initial={reduceMotion ? undefined : { opacity: 0, scale: 0.98, rotate: -17 }}
+        animate={reduceMotion ? undefined : { opacity: 0.7, scale: 1, rotate: -17 }}
+        transition={{ duration: 0.7, ease: 'easeOut' }}
+        className="pointer-events-none absolute -right-28 bottom-[-320px] w-[min(980px,96vw)] opacity-70 blur-[2px]"
+      >
         <DashboardBackdrop />
-      </div>
+      </motion.div>
       <div className="pointer-events-none absolute inset-0 bg-black/30 backdrop-blur-[1px]" />
 
       <div className="relative z-10 mx-auto flex w-full flex-col items-center justify-center px-6 pb-56 pt-24 text-center sm:pt-28 lg:px-10 lg:pb-64">
-        <a
-          href="/tools"
+        <motion.a
+          {...fadeUp}
+          transition={{ ...fadeUp.transition, delay: 0.05 }}
+          href="#betproof-showcase"
           className="group inline-flex items-center gap-3 rounded-full border px-3 py-1 text-xs shadow"
           style={{
             borderColor: 'rgba(60,203,151,0.35)',
@@ -40,23 +56,34 @@ export function HeroSection({ className }: HeroSectionProps) {
           <span>trusted by 1000+ bettors</span>
           <span className="h-5 border-l" style={{ borderColor: 'rgba(60,203,151,0.35)' }} />
           <ArrowRightIcon className="size-3 duration-150 ease-out group-hover:translate-x-1" />
-        </a>
+        </motion.a>
 
-        <h1
+        <motion.h1
+          {...fadeUp}
+          transition={{ ...fadeUp.transition, delay: 0.12 }}
           className={cn(
             'mt-6 max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl',
             '[text-shadow:0_0_50px_rgba(60,203,151,0.28)]'
           )}
-          style={{ color: ACCENT }}
+          style={{ color: '#ffffff' }}
         >
           Turn Data Into Profit
-        </h1>
+        </motion.h1>
 
-        <p className="mt-6 max-w-2xl text-balance text-base tracking-wide sm:text-lg md:text-xl" style={{ color: ACCENT }}>
+        <motion.p
+          {...fadeUp}
+          transition={{ ...fadeUp.transition, delay: 0.2 }}
+          className="mt-6 max-w-2xl text-balance text-base tracking-wide sm:text-lg md:text-xl"
+          style={{ color: '#ffffff' }}
+        >
           Track sharp bettors in real time, and turn insights into long term winning.
-        </p>
+        </motion.p>
 
-        <div className="mt-8 flex items-center justify-center">
+        <motion.div
+          {...fadeUp}
+          transition={{ ...fadeUp.transition, delay: 0.28 }}
+          className="mt-8 flex items-center justify-center"
+        >
           <Button
             asChild
             size="lg"
@@ -68,7 +95,7 @@ export function HeroSection({ className }: HeroSectionProps) {
               <ArrowRightIcon className="ml-2 size-4" />
             </a>
           </Button>
-        </div>
+        </motion.div>
       </div>
     </section>
   )

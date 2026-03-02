@@ -1,27 +1,10 @@
-import ToolsNav from "@/components/tools-nav"
 import MobileToolsNav from "@/components/mobile-tools-nav"
-import SportSelector from "../market-projections/sport-selector"
 import PropOrderbooksPanel from "@/components/prop-orderbooks-panel"
 import { getPropOrderbooksCache } from "@/lib/services/prop-orderbooks-cache"
 import type { PropOrderbookItem } from "@/lib/services/prop-liquidity-detector"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
-
-type SportOption = {
-  key: string
-  label: string
-  locked?: boolean
-}
-
-const SPORT_OPTIONS: SportOption[] = [
-  { key: "all", label: "All Sports", locked: false },
-  { key: "basketball_nba", label: "NBA", locked: false },
-  { key: "basketball_ncaab", label: "NCAAB", locked: false },
-  { key: "americanfootball_nfl", label: "NFL", locked: false },
-  { key: "icehockey_nhl", label: "NHL", locked: false },
-  { key: "baseball_mlb", label: "MLB", locked: false },
-]
 
 const DEFAULT_ORDERBOOK_DEPTH = 8
 const DEFAULT_ORDERBOOK_MIN_SHARP_NOTIONAL = 100
@@ -115,35 +98,14 @@ const resolveInitialOrderbooks = async (
   }
 }
 
-export default async function SharpPropsPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>
-}) {
-  const requestedSport = Array.isArray(searchParams?.sport)
-    ? searchParams?.sport[0]
-    : searchParams?.sport
-
-  const sport =
-    SPORT_OPTIONS.find((option) => option.key === requestedSport)?.key ?? "all"
+export default async function SharpPropsPage() {
+  const sport = "all"
 
   const initialOrderbooks = await resolveInitialOrderbooks(sport, DEFAULT_ORDERBOOK_LIMIT)
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="sticky top-0 z-50 border-b border-white/5 bg-black/95 backdrop-blur-sm">
-        <div className="px-2 py-3 sm:px-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="hidden shrink-0 md:block">
-              <ToolsNav />
-            </div>
-            <div className="ml-auto shrink-0">
-              <SportSelector options={SPORT_OPTIONS} currentSport={sport} />
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="px-2 pb-[96px] sm:px-4 sm:pb-0">
+      <div className="px-2 pb-[96px] pt-4 sm:px-4 sm:pb-0 sm:pt-5">
         <div className="mx-auto w-full max-w-none">
           <PropOrderbooksPanel sport={sport} initialData={initialOrderbooks} />
         </div>

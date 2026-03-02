@@ -1522,6 +1522,37 @@ const findIndexedGame = (
   return null
 }
 
+const findMatchingGame = (
+  games: OddsGame[],
+  homeTeam: string,
+  awayTeam: string
+) => {
+  return (
+    games.find(
+      (candidate) =>
+        teamNameMatches(homeTeam, candidate.home_team) &&
+        teamNameMatches(awayTeam, candidate.away_team)
+    ) ??
+    games.find(
+      (candidate) =>
+        teamNameMatches(homeTeam, candidate.away_team) &&
+        teamNameMatches(awayTeam, candidate.home_team)
+    ) ??
+    null
+  )
+}
+
+const findProjectionSourceGame = (
+  index: Map<string, OddsGame>,
+  games: OddsGame[],
+  homeTeam: string,
+  awayTeam: string
+) => {
+  const indexed = findIndexedGame(index, homeTeam, awayTeam)
+  if (indexed) return indexed
+  return findMatchingGame(games, homeTeam, awayTeam)
+}
+
 const findBookInGame = (game: OddsGame | null, token: string) => {
   if (!game?.bookmakers?.length) return null
   return game.bookmakers.find((book) => matchesBookToken(book, token)) ?? null
@@ -1920,9 +1951,24 @@ export async function analyzeSlateEdges(
   const kalshiIndex = buildOddsGameIndex(kalshiGames)
 
   const resolveProjectionSourceGames = (game: OddsGame) => ({
-    oddsApi: findIndexedGame(oddsApiBookIndex, game.home_team, game.away_team),
-    polymarket: findIndexedGame(polymarketIndex, game.home_team, game.away_team),
-    kalshi: findIndexedGame(kalshiIndex, game.home_team, game.away_team),
+    oddsApi: findProjectionSourceGame(
+      oddsApiBookIndex,
+      oddsApiBookGames,
+      game.home_team,
+      game.away_team
+    ),
+    polymarket: findProjectionSourceGame(
+      polymarketIndex,
+      polymarketGames,
+      game.home_team,
+      game.away_team
+    ),
+    kalshi: findProjectionSourceGame(
+      kalshiIndex,
+      kalshiGames,
+      game.home_team,
+      game.away_team
+    ),
   })
 
   if (isFootball) {

@@ -1405,12 +1405,21 @@ async function fetchOddsIO(
   const ids: string[] = Array.from(eventLookup.keys())
   if (ids.length === 0) return []
 
-  const envBookmakers = opts.bookmakers ? normalizeBookmakerList(opts.bookmakers) : pickBookmakersParam()
+  const hasExplicitBookmakers = Array.isArray(opts.bookmakers)
+    ? opts.bookmakers.some((entry) => String(entry).trim().length > 0)
+    : opts.bookmakers != null
+      ? String(opts.bookmakers)
+          .split(',')
+          .some((entry) => entry.trim().length > 0)
+      : false
+  const envBookmakers = hasExplicitBookmakers
+    ? normalizeBookmakerList(opts.bookmakers)
+    : pickBookmakersParam()
 
   // Apply bookmaker selection; if the provided list fails, fall back to a safe default set
   let appliedBookmakers: string | null | undefined = envBookmakers
   let bookmakerSelectionApplied = await ensureBookmakersSelection(appliedBookmakers ?? null)
-  if (!bookmakerSelectionApplied) {
+  if (!bookmakerSelectionApplied && !hasExplicitBookmakers) {
     const fallbackBookmakers = getDefaultBookmakers()
     if (fallbackBookmakers && fallbackBookmakers !== appliedBookmakers) {
       appliedBookmakers = fallbackBookmakers
@@ -1467,6 +1476,7 @@ async function fetchOddsIO(
     const message = String(error?.message || '')
     if (
       defaultBookmakersFilter &&
+      !hasExplicitBookmakers &&
       (error instanceof OddsAPIError || message.includes('bookmaker')) &&
       message.toLowerCase().includes('not a valid bookmaker')
     ) {
@@ -1481,7 +1491,7 @@ async function fetchOddsIO(
     }
   }
 
-  if (!games.length && defaultBookmakersFilter) {
+  if (!games.length && defaultBookmakersFilter && !hasExplicitBookmakers) {
     console.warn(
       '[ODDS] No bookmakers returned for ' + sportKey + ' with filter "' + defaultBookmakersFilter + '", retrying without filter'
     )

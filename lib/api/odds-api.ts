@@ -1699,6 +1699,7 @@ export interface FetchOddsOptions {
   teamFilter?: string[] // Filter events to only these team names (case-insensitive partial match)
   bookmakers?: string | string[] | null // Optional override of bookmaker filter
   forceProvider?: 'the-odds-api' | 'odds-api-io' | 'sportsbettingdime'
+  includePredictionMarkets?: boolean
 }
 
 const resolveOddsProvider = () => {
@@ -1896,6 +1897,7 @@ export async function fetchOdds(
         teamFilter: options.teamFilter ?? null,
         bookmakers: options.bookmakers ?? null,
         forceProvider: options.forceProvider ?? null,
+        includePredictionMarkets: options.includePredictionMarkets ?? true,
       })
     : null
 
@@ -1948,6 +1950,13 @@ export async function fetchOdds(
     return value
   }
 
+  const maybeAttachPredictionMarkets = async (games: OddsGame[]) => {
+    if (options.includePredictionMarkets === false) {
+      return games
+    }
+    return attachPredictionMarketOdds(games, sport, markets, options)
+  }
+
   const resolvedProvider = resolveOddsProvider()
   let provider = options.forceProvider ?? resolvedProvider
   const hasTheOddsApiKey = Boolean(process.env.THE_ODDS_API_KEY || process.env.ODDS_API_KEY)
@@ -1960,7 +1969,7 @@ export async function fetchOdds(
     if (provider === 'the-odds-api') {
       const games = await fetchOddsTheOddsApi(sport, markets, options)
       if (games.length) {
-        const result = await attachPredictionMarketOdds(games, sport, markets, options)
+        const result = await maybeAttachPredictionMarkets(games)
         return await cacheResult(result)
       }
       // Fallback to odds-api-io if The Odds API returns no data
@@ -1968,7 +1977,7 @@ export async function fetchOdds(
       try {
         const fallback = await fetchOddsIO(sport, markets, options)
         if (fallback.length) {
-          const result = await attachPredictionMarketOdds(fallback, sport, markets, options)
+          const result = await maybeAttachPredictionMarkets(fallback)
           return await cacheResult(result)
         }
       } catch (error) {
@@ -1976,14 +1985,14 @@ export async function fetchOdds(
       }
       // Final fallback to SBD
       const sbdFallback = await fetchOddsSbd(sport, markets, options)
-      const result = await attachPredictionMarketOdds(sbdFallback, sport, markets, options)
+      const result = await maybeAttachPredictionMarkets(sbdFallback)
       return await cacheResult(result)
     }
 
   // Legacy: odds-api-io provider
     if (provider === 'odds-api-io') {
       const games = await fetchOddsIO(sport, markets, options)
-      const result = await attachPredictionMarketOdds(games, sport, markets, options)
+      const result = await maybeAttachPredictionMarkets(games)
       return await cacheResult(result)
     }
 
@@ -1994,14 +2003,14 @@ export async function fetchOdds(
         try {
           const fallback = await fetchOddsIO(sport, markets, options)
           if (fallback.length) {
-            const result = await attachPredictionMarketOdds(fallback, sport, markets, options)
+            const result = await maybeAttachPredictionMarkets(fallback)
             return await cacheResult(result)
           }
         } catch (error) {
           console.warn('[ODDS] SBD fallback to odds-api-io failed:', error)
         }
       }
-      const result = await attachPredictionMarketOdds(games, sport, markets, options)
+      const result = await maybeAttachPredictionMarkets(games)
       return await cacheResult(result)
     }
 
@@ -2010,7 +2019,7 @@ export async function fetchOdds(
       try {
         const games = await fetchOddsTheOddsApi(sport, markets, options)
         if (games.length) {
-          const result = await attachPredictionMarketOdds(games, sport, markets, options)
+          const result = await maybeAttachPredictionMarkets(games)
           return await cacheResult(result)
         }
       } catch (error) {
@@ -2020,7 +2029,7 @@ export async function fetchOdds(
       try {
         const games = await fetchOddsIO(sport, markets, options)
         if (games.length) {
-          const result = await attachPredictionMarketOdds(games, sport, markets, options)
+          const result = await maybeAttachPredictionMarkets(games)
           return await cacheResult(result)
         }
       } catch (error) {
@@ -2029,7 +2038,7 @@ export async function fetchOdds(
     }
 
     const fallback = await fetchOddsSbd(sport, markets, options)
-    const result = await attachPredictionMarketOdds(fallback, sport, markets, options)
+    const result = await maybeAttachPredictionMarkets(fallback)
     return await cacheResult(result)
   }
 

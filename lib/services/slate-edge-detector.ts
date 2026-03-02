@@ -11,6 +11,7 @@
 
 import { fetchOdds } from '@/lib/api/odds-api'
 import { fetchSbdOdds, mapSbdOddsToOddsGames, resolveBookIds } from '@/lib/api/sbd'
+import { fetchTheOddsApiOdds } from '@/lib/api/the-odds-api'
 import { fetchPolymarketOdds } from '@/lib/api/polymarket'
 import { fetchKalshiOdds } from '@/lib/api/kalshi'
 import { getNBATeamStats } from '@/lib/sports-stats-api'
@@ -287,6 +288,15 @@ const normalizeBookToken = (value?: string | null) =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '')
 
+const BOOK_TOKEN_ALIASES: Record<string, string[]> = {
+  fanduel: ['fanduel', 'fd'],
+  pinnacle: ['pinnacle', 'pinnaclesports'],
+  novig: ['novig', 'novigus'],
+  prophetx: ['prophetx', 'prophet', 'prophetexchange'],
+  polymarket: ['polymarket', 'poly'],
+  kalshi: ['kalshi'],
+}
+
 const matchesBookToken = (
   book: { key?: string; title?: string },
   token?: string
@@ -294,13 +304,17 @@ const matchesBookToken = (
   if (!token) return true
   const normalized = normalizeBookToken(token)
   if (!normalized) return true
+  const aliasTokens = BOOK_TOKEN_ALIASES[normalized] ?? [normalized]
   const keyToken = normalizeBookToken(book.key)
   const titleToken = normalizeBookToken(book.title)
-  return (
-    keyToken === normalized ||
-    titleToken === normalized ||
-    keyToken.includes(normalized) ||
-    titleToken.includes(normalized)
+  return aliasTokens.some(
+    (alias) =>
+      keyToken === alias ||
+      titleToken === alias ||
+      keyToken.includes(alias) ||
+      titleToken.includes(alias) ||
+      (keyToken ? alias.includes(keyToken) : false) ||
+      (titleToken ? alias.includes(titleToken) : false)
   )
 }
 
@@ -319,8 +333,8 @@ const matchesAllowedBook = (
       titleToken === allowed ||
       keyToken.includes(allowed) ||
       titleToken.includes(allowed) ||
-      allowed.includes(keyToken) ||
-      allowed.includes(titleToken)
+      (keyToken ? allowed.includes(keyToken) : false) ||
+      (titleToken ? allowed.includes(titleToken) : false)
     )
   })
 }
@@ -1499,6 +1513,68 @@ const PROJECTION_BOOK_KEYS: ProjectionBookKey[] = [
   'kalshi',
 ]
 
+const PROJECTION_SHARP_SPORTSBOOKS = ['pinnacle', 'novig', 'prophetx'] as const
+
+const filterOddsGamesForTeamAndBook = (
+  games: OddsGame[],
+  teamFilter: string[],
+  allowedBooks: readonly string[]
+) => {
+  const allowedTokens = allowedBooks.map((book) => normalizeBookToken(book))
+  const teamTokens = teamFilter.map((team) => team.toLowerCase())
+
+  return games
+    .filter((game) => {
+      if (!teamTokens.length) return true
+      const home = game.home_team.toLowerCase()
+      const away = game.away_team.toLowerCase()
+      return teamTokens.some((team) => home.includes(team) || away.includes(team))
+    })
+    .map((game) => ({
+      ...game,
+      bookmakers: (game.bookmakers ?? []).filter((book) =>
+        matchesAllowedBook(book, allowedTokens)
+      ),
+    }))
+    .filter((game) => (game.bookmakers?.length ?? 0) > 0)
+}
+
+const fetchProjectionSharpSportsbookOdds = async (
+  sportKey: string,
+  projectionMarkets: string[],
+  projectionTeamFilter: string[]
+) => {
+  try {
+    const directGames = await fetchTheOddsApiOdds(sportKey, {
+      markets: 'h2h,spreads,totals',
+      regions: 'us,us2,eu',
+      bookmakers: [...PROJECTION_SHARP_SPORTSBOOKS],
+    })
+    return filterOddsGamesForTeamAndBook(
+      directGames,
+      projectionTeamFilter,
+      PROJECTION_SHARP_SPORTSBOOKS
+    )
+  } catch (directError) {
+    console.warn(
+      '[SLATE EDGE] Direct sharp sportsbook fetch failed; using odds-api-io fallback:',
+      directError
+    )
+    const fallbackGames = await fetchOdds(sportKey, projectionMarkets, {
+      revalidateSeconds: 1800,
+      forceProvider: 'odds-api-io',
+      bookmakers: [...PROJECTION_SHARP_SPORTSBOOKS],
+      teamFilter: projectionTeamFilter,
+      includePredictionMarkets: false,
+    })
+    return filterOddsGamesForTeamAndBook(
+      fallbackGames,
+      projectionTeamFilter,
+      PROJECTION_SHARP_SPORTSBOOKS
+    )
+  }
+}
+
 const buildOddsGameIndex = (games: OddsGame[]) => {
   const index = new Map<string, OddsGame>()
   for (const game of games) {
@@ -1916,12 +1992,11 @@ export async function analyzeSlateEdges(
   )
   const projectionMarkets = [MARKETS.H2H, MARKETS.SPREADS, MARKETS.TOTALS]
   const [oddsApiBooksResult, polymarketResult, kalshiResult] = await Promise.allSettled([
-    fetchOdds(sportKey, projectionMarkets, {
-      revalidateSeconds: 1800,
-      forceProvider: 'odds-api-io',
-      bookmakers: ['pinnacle', 'novig', 'prophetx'],
-      teamFilter: projectionTeamFilter,
-    }),
+    fetchProjectionSharpSportsbookOdds(
+      sportKey,
+      projectionMarkets,
+      projectionTeamFilter
+    ),
     fetchPolymarketOdds(sportKey, projectionMarkets, {
       revalidateSeconds: 1800,
       teamFilter: projectionTeamFilter,

@@ -8,6 +8,19 @@ import { isWithinSharpRefreshWindow } from "@/lib/utils/sharp-refresh-window"
 const CACHE_TTL_MS = 1000 * 60 * 30
 const CURRENT_SLATE_LOOKBACK_MS = 1000 * 60 * 60 * 3
 const CURRENT_SLATE_LOOKAHEAD_MS = 1000 * 60 * 60 * 48
+const REFRESH_LOCK_TTL_MS = 1000 * 60 * 8
+
+type RefreshComputationResult = {
+  updatedAt: string
+  edges: any[]
+  usedFallback: boolean
+  currentSlateEdgeCount: number
+}
+
+const inFlightRefreshes = new Map<
+  string,
+  { startedAt: number; promise: Promise<RefreshComputationResult> }
+>()
 
 const normalizeKey = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]/g, "")
@@ -297,6 +310,80 @@ const analyzeWithSharpFallback = async ({
   return { result, usedFallback: false as const }
 }
 
+const computeAndPersistRefresh = async ({
+  sport,
+  limit,
+  date,
+  cachedEdges,
+  hasCurrentSlateCache,
+}: {
+  sport: string
+  limit: number
+  date?: string
+  cachedEdges?: any[]
+  hasCurrentSlateCache: boolean
+}): Promise<RefreshComputationResult> => {
+  const { result, usedFallback } = await analyzeWithSharpFallback({
+    sport,
+    limit,
+    date,
+  })
+  const mergedEdges = mergeSharpContextFromCache(
+    mergeWhaleAlerts(result.edges ?? [], cachedEdges),
+    cachedEdges
+  )
+  const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
+  const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
+  const currentSlateEdgeCount = countCurrentSlateEdges(sanitizedEdges)
+
+  if (!(currentSlateEdgeCount === 0 && hasCurrentSlateCache)) {
+    const updatedAt = new Date().toISOString()
+    await recordMarketProjectionPicks({
+      sport,
+      edges: sanitizedEdges as any,
+      pickedAt: updatedAt,
+    })
+    await writeCache(sport, sanitizedEdges)
+    return {
+      updatedAt,
+      edges: sanitizedEdges,
+      usedFallback,
+      currentSlateEdgeCount,
+    }
+  }
+
+  return {
+    updatedAt: new Date().toISOString(),
+    edges: sanitizedEdges,
+    usedFallback,
+    currentSlateEdgeCount,
+  }
+}
+
+const runRefreshWithLock = (params: {
+  sport: string
+  limit: number
+  date?: string
+  cachedEdges?: any[]
+  hasCurrentSlateCache: boolean
+}) => {
+  const key = `${params.sport}|${params.date ?? "latest"}|${params.limit}`
+  const now = Date.now()
+  const active = inFlightRefreshes.get(key)
+  if (active && now - active.startedAt < REFRESH_LOCK_TTL_MS) {
+    return active.promise
+  }
+
+  const promise = computeAndPersistRefresh(params).finally(() => {
+    const current = inFlightRefreshes.get(key)
+    if (current?.promise === promise) {
+      inFlightRefreshes.delete(key)
+    }
+  })
+  inFlightRefreshes.set(key, { startedAt: now, promise })
+  return promise
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const sport = searchParams.get("sport") || "basketball_nba"
@@ -372,20 +459,15 @@ export async function GET(request: Request) {
         }
       }
 
-      const { result, usedFallback } = await analyzeWithSharpFallback({
+      const refreshResult = await runRefreshWithLock({
         sport,
         limit,
         date,
+        cachedEdges: cached?.edges,
+        hasCurrentSlateCache,
       })
-      const mergedEdges = mergeSharpContextFromCache(
-        mergeWhaleAlerts(result.edges ?? [], cached?.edges),
-        cached?.edges
-      )
-      const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
-      const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
 
-      const nextCurrentSlateEdgeCount = countCurrentSlateEdges(sanitizedEdges)
-      if (nextCurrentSlateEdgeCount === 0 && hasCurrentSlateCache) {
+      if (refreshResult.currentSlateEdgeCount === 0 && hasCurrentSlateCache) {
         return NextResponse.json({
           ok: true,
           updatedAt: cached.updatedAt,
@@ -393,29 +475,18 @@ export async function GET(request: Request) {
           edgeCount: cached.edges?.length ?? 0,
           ...(includeEdges ? { edges: cached.edges ?? [] } : {}),
           fromCache: true,
-          usedFallback,
+          usedFallback: refreshResult.usedFallback,
         })
       }
 
-      const payload = {
-        updatedAt: new Date().toISOString(),
-        sport,
-        edges: sanitizedEdges,
-      }
-      await recordMarketProjectionPicks({
-        sport,
-        edges: sanitizedEdges as any,
-        pickedAt: payload.updatedAt,
-      })
-      await writeCache(sport, sanitizedEdges)
       return NextResponse.json({
         ok: true,
-        updatedAt: payload.updatedAt,
+        updatedAt: refreshResult.updatedAt,
         sport,
-        edgeCount: payload.edges.length,
-        ...(includeEdges ? { edges: payload.edges } : {}),
+        edgeCount: refreshResult.edges.length,
+        ...(includeEdges ? { edges: refreshResult.edges } : {}),
         fromCache: false,
-        usedFallback,
+        usedFallback: refreshResult.usedFallback,
       })
     }
 
@@ -441,29 +512,13 @@ export async function GET(request: Request) {
         return buildBlockedResponse(cached)
       }
 
-      void analyzeWithSharpFallback({ sport, limit, date })
-        .then(async ({ result }) => {
-          const mergedEdges = mergeSharpContextFromCache(
-            mergeWhaleAlerts(result.edges ?? [], cached?.edges),
-            cached?.edges
-          )
-          const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
-          const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
-          if (countCurrentSlateEdges(sanitizedEdges) === 0 && hasCurrentSlateCache) {
-            return null
-          }
-          const payload = {
-            updatedAt: new Date().toISOString(),
-            sport,
-            edges: sanitizedEdges,
-          }
-          await recordMarketProjectionPicks({
-            sport,
-            edges: sanitizedEdges as any,
-            pickedAt: payload.updatedAt,
-          })
-          return writeCache(sport, sanitizedEdges)
-        })
+      void runRefreshWithLock({
+        sport,
+        limit,
+        date,
+        cachedEdges: cached?.edges,
+        hasCurrentSlateCache,
+      })
         .catch((error) =>
           console.error("[market-projections] refresh failed", error)
         )
@@ -483,36 +538,21 @@ export async function GET(request: Request) {
       return buildBlockedResponse(cached)
     }
 
-    const { result, usedFallback } = await analyzeWithSharpFallback({
+    const refreshResult = await runRefreshWithLock({
       sport,
       limit,
       date,
+      cachedEdges: cached?.edges,
+      hasCurrentSlateCache,
     })
-    const mergedEdges = mergeSharpContextFromCache(
-      mergeWhaleAlerts((result as any)?.edges ?? [], cached?.edges),
-      cached?.edges
-    )
-    const hydratedEdges = hydrateMissingSharpProjections(mergedEdges, sport)
-    const sanitizedEdges = stripNonSharpBookOdds(hydratedEdges)
-    const payload = {
-      updatedAt: new Date().toISOString(),
-      sport,
-      edges: sanitizedEdges,
-    }
-    await recordMarketProjectionPicks({
-      sport,
-      edges: sanitizedEdges as any,
-      pickedAt: payload.updatedAt,
-    })
-    await writeCache(sport, sanitizedEdges)
     return NextResponse.json({
       ok: true,
-      updatedAt: payload.updatedAt,
+      updatedAt: refreshResult.updatedAt,
       sport,
-      edgeCount: payload.edges.length,
-      ...(includeEdges ? { edges: payload.edges } : {}),
+      edgeCount: refreshResult.edges.length,
+      ...(includeEdges ? { edges: refreshResult.edges } : {}),
       fromCache: false,
-      usedFallback,
+      usedFallback: refreshResult.usedFallback,
     })
   } catch (error) {
     const message =

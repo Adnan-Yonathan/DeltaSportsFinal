@@ -63,6 +63,25 @@ const hasSharpProjectionData = (sharpProjections: any) => {
   )
 }
 
+const SHARP_QUOTE_BOOK_KEYS = ["pinnacle", "novig", "prophetx"] as const
+
+const hasSharpSportsbookQuotes = (edges?: any[]) => {
+  if (!Array.isArray(edges) || edges.length === 0) return false
+  return edges.some((edge) => {
+    const bookQuotes = [
+      edge?.spread?.bookQuotes,
+      edge?.total?.bookQuotes,
+      edge?.moneyline?.bookQuotes,
+    ].filter(Boolean)
+    return bookQuotes.some((quotes) =>
+      SHARP_QUOTE_BOOK_KEYS.some((bookKey) => {
+        const quote = quotes?.[bookKey]
+        return Boolean(quote && typeof quote === "object")
+      })
+    )
+  })
+}
+
 const mergeSharpContextFromCache = (
   nextEdges: any[],
   cachedEdges?: any[]
@@ -437,12 +456,13 @@ export async function GET(request: Request) {
     const cached = (await readCache(sport)) as any
     const cachedCurrentSlateEdgeCount = countCurrentSlateEdges(cached?.edges)
     const hasCurrentSlateCache = cachedCurrentSlateEdgeCount > 0
+    const hasSharpQuotesInCache = hasSharpSportsbookQuotes(cached?.edges)
 
     if (forceRefresh) {
       if (!refreshWindowOpen) {
         return buildBlockedResponse(cached)
       }
-      if (cached && !forceBypass && hasCurrentSlateCache) {
+      if (cached && !forceBypass && hasCurrentSlateCache && hasSharpQuotesInCache) {
         const updatedAtMs = Date.parse(cached.updatedAt ?? "")
         if (
           Number.isFinite(updatedAtMs) &&
@@ -490,7 +510,7 @@ export async function GET(request: Request) {
       })
     }
 
-    if (cached && hasCurrentSlateCache) {
+    if (cached && hasCurrentSlateCache && hasSharpQuotesInCache) {
       const updatedAtMs = Date.parse(cached.updatedAt ?? "")
       if (
         Number.isFinite(updatedAtMs) &&
@@ -510,6 +530,25 @@ export async function GET(request: Request) {
     if (cached && hasCurrentSlateCache) {
       if (!refreshWindowOpen) {
         return buildBlockedResponse(cached)
+      }
+
+      if (!hasSharpQuotesInCache) {
+        const refreshResult = await runRefreshWithLock({
+          sport,
+          limit,
+          date,
+          cachedEdges: cached?.edges,
+          hasCurrentSlateCache,
+        })
+        return NextResponse.json({
+          ok: true,
+          updatedAt: refreshResult.updatedAt,
+          sport,
+          edgeCount: refreshResult.edges.length,
+          ...(includeEdges ? { edges: refreshResult.edges } : {}),
+          fromCache: false,
+          usedFallback: refreshResult.usedFallback,
+        })
       }
 
       void runRefreshWithLock({

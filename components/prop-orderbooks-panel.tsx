@@ -30,6 +30,7 @@ type OrderbookSide = {
 
 type SourceKey = "kalshi" | "polymarket" | "novig" | "prophetx"
 type SharpBookKey = SourceKey | "fanduel" | "pinnacle"
+type SharpBookFilter = "all" | SharpBookKey
 
 export type OrderbookItem = {
   id: string
@@ -287,6 +288,50 @@ const pickBestAvailableOdds = (values: Array<number | null | undefined>) => {
   const valid = values.filter((value): value is number => value != null && Number.isFinite(value))
   if (!valid.length) return null
   return valid.reduce((best, current) => (current > best ? current : best), valid[0])
+}
+
+const resolveSharpBookOddsForItem = (
+  item: DisplayOrderbookItem,
+  recommendedSide: "Over" | "Under" | null
+): Record<SharpBookKey, number | null> => {
+  const sourceOdds: Record<SourceKey, number | null> = {
+    kalshi: null,
+    polymarket: null,
+    novig: null,
+    prophetx: null,
+  }
+
+  for (const source of SOURCE_ORDER) {
+    const candidates = item.sourceItems
+      .filter((entry) => entry.source === source)
+      .map((entry) => resolveRecommendedSideOddsForItem(entry, recommendedSide))
+    sourceOdds[source] = pickBestAvailableOdds(candidates)
+  }
+
+  return {
+    prophetx: sourceOdds.prophetx,
+    novig: sourceOdds.novig,
+    polymarket: sourceOdds.polymarket,
+    kalshi: sourceOdds.kalshi,
+    fanduel: item.fanduelLeanOdds ?? null,
+    pinnacle: item.pinnacleLeanOdds ?? null,
+  }
+}
+
+const resolveDisplayLeanForFilter = (
+  item: DisplayOrderbookItem,
+  bookFilter: SharpBookFilter
+) => {
+  const baseLean = resolveDisplayLean(item)
+  if (bookFilter === "all") return baseLean
+  const oddsByBook = resolveSharpBookOddsForItem(item, baseLean.side ?? null)
+  const preferredOdds = oddsByBook[bookFilter]
+  if (preferredOdds == null) return baseLean
+  return {
+    ...baseLean,
+    odds: preferredOdds,
+    bestBookTitle: SHARP_BOOK_LOGOS[bookFilter].label,
+  }
 }
 
 const resolveDisplayLean = (item: OrderbookItem) => {
@@ -702,6 +747,7 @@ export default function PropOrderbooksPanel({
   const [items, setItems] = useState<OrderbookItem[]>(initialData?.items ?? [])
   const [search, setSearch] = useState("")
   const [oddsPreset, setOddsPreset] = useState<OddsPreset>("all")
+  const [selectedBookFilter, setSelectedBookFilter] = useState<SharpBookFilter>("all")
   const [minOdds, setMinOdds] = useState<string>("-200")
   const [maxOdds, setMaxOdds] = useState<string>("")
   const [selectedItemId, setSelectedItemId] = useState<string | null>(
@@ -844,6 +890,7 @@ export default function PropOrderbooksPanel({
     setHeadshotLoadingByKey({})
     setSearch("")
     setOddsPreset("all")
+    setSelectedBookFilter("all")
     setMinOdds("-200")
     setMaxOdds("")
     previousSelectedSportRef.current = null
@@ -1005,7 +1052,11 @@ export default function PropOrderbooksPanel({
             .trim()
           if (!haystack.includes(query)) return false
         }
-        const displayLean = resolveDisplayLean(item)
+        const displayLean = resolveDisplayLeanForFilter(item, selectedBookFilter)
+        if (selectedBookFilter !== "all") {
+          const oddsByBook = resolveSharpBookOddsForItem(item, displayLean.side ?? null)
+          if (oddsByBook[selectedBookFilter] == null) return false
+        }
         return matchesOddsRange(displayLean.odds)
       })
       .sort((a, b) => {
@@ -1014,7 +1065,7 @@ export default function PropOrderbooksPanel({
         if (bSize !== aSize) return bSize - aSize
         return a.marketTitle.localeCompare(b.marketTitle)
       })
-  }, [maxOdds, mergedItems, minOdds, oddsPreset, search])
+  }, [maxOdds, mergedItems, minOdds, oddsPreset, search, selectedBookFilter])
 
   useEffect(() => {
     if (!filteredItems.length) {
@@ -1031,34 +1082,13 @@ export default function PropOrderbooksPanel({
     [filteredItems, selectedItemId]
   )
   const selectedDisplayLean = useMemo(
-    () => (selectedItem ? resolveDisplayLean(selectedItem) : null),
-    [selectedItem]
+    () => (selectedItem ? resolveDisplayLeanForFilter(selectedItem, selectedBookFilter) : null),
+    [selectedBookFilter, selectedItem]
   )
   const selectedSharpBookOdds = useMemo(() => {
     if (!selectedItem) return [] as Array<{ key: SharpBookKey; odds: number | null }>
     const recommendedSide = selectedDisplayLean?.side ?? null
-    const sourceOdds: Record<SourceKey, number | null> = {
-      kalshi: null,
-      polymarket: null,
-      novig: null,
-      prophetx: null,
-    }
-
-    for (const source of SOURCE_ORDER) {
-      const candidates = selectedItem.sourceItems
-        .filter((entry) => entry.source === source)
-        .map((entry) => resolveRecommendedSideOddsForItem(entry, recommendedSide))
-      sourceOdds[source] = pickBestAvailableOdds(candidates)
-    }
-
-    const oddsByBook: Record<SharpBookKey, number | null> = {
-      prophetx: sourceOdds.prophetx,
-      novig: sourceOdds.novig,
-      polymarket: sourceOdds.polymarket,
-      kalshi: sourceOdds.kalshi,
-      fanduel: selectedItem.fanduelLeanOdds ?? null,
-      pinnacle: selectedItem.pinnacleLeanOdds ?? null,
-    }
+    const oddsByBook = resolveSharpBookOddsForItem(selectedItem, recommendedSide)
 
     return SHARP_BOOK_ORDER.map((key) => ({
       key,
@@ -1182,6 +1212,18 @@ export default function PropOrderbooksPanel({
             <option value="favorites">Odds: -200 to -101</option>
             <option value="custom">Custom range</option>
           </select>
+          <select
+            value={selectedBookFilter}
+            onChange={(event) => setSelectedBookFilter(event.target.value as SharpBookFilter)}
+            className="h-9 rounded-xl border border-white/10 bg-black/50 px-3 text-xs text-white/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+          >
+            <option value="all">Book: All</option>
+            {SHARP_BOOK_ORDER.map((key) => (
+              <option key={key} value={key}>
+                Book: {SHARP_BOOK_LOGOS[key].label}
+              </option>
+            ))}
+          </select>
           {oddsPreset === "custom" && (
             <div className="flex items-center gap-2">
               <input
@@ -1214,7 +1256,7 @@ export default function PropOrderbooksPanel({
               {filteredItems.map((item) => {
                 const isSelected = selectedItem?.id === item.id
                 const orderSize = resolveDisplayOrderSize(item)
-                const displayLean = resolveDisplayLean(item)
+                const displayLean = resolveDisplayLeanForFilter(item, selectedBookFilter)
                 const miniShares = resolveMiniBarShares(item)
                 const directRecommendedSharePct =
                   displayLean.side === "Over"

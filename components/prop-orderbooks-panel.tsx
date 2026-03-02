@@ -375,6 +375,16 @@ const resolveDisplayLean = (item: OrderbookItem) => {
   const largestWallSide = resolveLargestWall(item)?.propSide ?? null
   const liquiditySide = item.sharpLiquiditySide ?? largestWallSide
   const side = item.sharpLeanSide ?? resolveOppositeSide(liquiditySide)
+  const liquidityEntry =
+    (liquiditySide ? item.sides.find((entry) => entry.propSide === liquiditySide) : null) ??
+    resolveLargestWall(item)
+  const inverseOddsFromLiquidity =
+    liquidityEntry?.sharpLineAmericanOdds ??
+    (liquidityEntry?.wallPriceCents != null
+      ? priceCentsToAmericanOdds(
+          Math.max(0, Math.min(100, 100 - liquidityEntry.wallPriceCents))
+        )
+      : null)
   const oddsFromSide =
     side === "Over"
       ? overSide?.wallAmericanOdds ??
@@ -387,11 +397,18 @@ const resolveDisplayLean = (item: OrderbookItem) => {
           overSide?.sharpLineAmericanOdds ??
           resolveSideLevelOdds(overSide, "sharp")
         : null
-  const odds = item.pinnacleLeanOdds ?? item.sharpLeanBestOdds ?? item.sharpLeanAmericanOdds ?? oddsFromSide
+  const odds =
+    inverseOddsFromLiquidity ??
+    item.sharpLeanAmericanOdds ??
+    oddsFromSide ??
+    item.pinnacleLeanOdds ??
+    item.sharpLeanBestOdds
   const bestBookTitle =
-    item.pinnacleLeanOdds != null
-      ? item.pinnacleLeanBookTitle
-      : item.sharpLeanBestBookTitle
+    inverseOddsFromLiquidity != null
+      ? null
+      : item.pinnacleLeanOdds != null
+        ? item.pinnacleLeanBookTitle
+        : item.sharpLeanBestBookTitle
 
   return {
     side,
@@ -1629,7 +1646,7 @@ export default function PropOrderbooksPanel({
                       <div className="mt-1 text-xs text-white/50">
                         {selectedDisplayLean?.bestBookTitle
                           ? `${selectedDisplayLean.bestBookTitle} best price`
-                          : "Best available market price"}
+                          : "Direct inverse from sharp resting liquidity"}
                       </div>
                     </div>
                     <div className="rounded-md bg-lime-500 px-2.5 py-1 text-sm font-semibold text-black">

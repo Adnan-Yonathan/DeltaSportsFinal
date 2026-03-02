@@ -29,7 +29,7 @@ type OrderbookSide = {
 }
 
 type SourceKey = "kalshi" | "polymarket" | "novig" | "prophetx"
-type SharpBookKey = SourceKey | "fanduel" | "pinnacle"
+type SharpBookKey = SourceKey | "pinnacle"
 type SharpBookFilter = "all" | SharpBookKey
 
 export type OrderbookItem = {
@@ -92,6 +92,17 @@ type PlayerHeadshotResponse = {
   headshots?: Record<string, string | null>
 }
 
+type PlayerPropOddsRow = {
+  player?: string | null
+  market?: string | null
+  point?: number | null
+  odds?: Record<string, { over?: number; under?: number }>
+}
+
+type PlayerPropOddsResponse = {
+  props?: PlayerPropOddsRow[]
+}
+
 type LadderRow = {
   id: string
   side: "Over" | "Under" | null
@@ -126,7 +137,6 @@ const SHARP_BOOK_ORDER: SharpBookKey[] = [
   "novig",
   "polymarket",
   "kalshi",
-  "fanduel",
   "pinnacle",
 ]
 
@@ -135,8 +145,34 @@ const SHARP_BOOK_LOGOS: Record<SharpBookKey, { label: string; src: string }> = {
   novig: { label: "NoVig", src: "/Novig.png" },
   polymarket: { label: "Polymarket", src: "/polymarket.png" },
   kalshi: { label: "Kalshi", src: "/kalshi.png" },
-  fanduel: { label: "FanDuel", src: "/fanduel.jpeg" },
   pinnacle: { label: "Pinnacle", src: "/pinnacle.jpg" },
+}
+
+const ODDS_API_BOOK_KEYS = ["novig", "prophetx", "pinnacle"] as const
+
+const ODDS_API_MARKETS_BY_PROP_TYPE: Record<string, string[]> = {
+  points: ["player_points"],
+  rebounds: ["player_rebounds"],
+  assists: ["player_assists"],
+  threes: ["player_threes"],
+  points_rebounds_assists: ["player_points_rebounds_assists"],
+  points_rebounds: ["player_points_rebounds"],
+  points_assists: ["player_points_assists"],
+  rebounds_assists: ["player_rebounds_assists"],
+  blocks: ["player_blocks"],
+  steals: ["player_steals"],
+  turnovers: ["player_turnovers"],
+  goals: ["player_goals"],
+  shots: ["player_shots_on_goal"],
+  blocked_shots: ["player_blocked_shots"],
+  saves: ["player_saves", "player_total_saves"],
+  hits: ["player_hits"],
+  total_bases: ["player_total_bases"],
+  home_runs: ["player_home_runs"],
+  rbis: ["player_rbis"],
+  runs: ["player_runs_scored"],
+  strikeouts: ["player_strikeouts"],
+  walks: ["player_walks"],
 }
 
 const COMPACT_USD = new Intl.NumberFormat("en-US", {
@@ -313,7 +349,6 @@ const resolveSharpBookOddsForItem = (
     novig: sourceOdds.novig,
     polymarket: sourceOdds.polymarket,
     kalshi: sourceOdds.kalshi,
-    fanduel: item.fanduelLeanOdds ?? null,
     pinnacle: item.pinnacleLeanOdds ?? null,
   }
 }
@@ -381,6 +416,73 @@ const normalizePlayerToken = (value?: string | null) =>
     .replace(/\s+(jr|sr|ii|iii|iv|v)$/i, "")
     .replace(/[^a-z0-9]/g, "")
     .trim()
+
+const parseFiniteNumber = (value: unknown) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+const resolveOddsApiBookOddsForItem = (
+  item: DisplayOrderbookItem,
+  recommendedSide: "Over" | "Under" | null,
+  oddsFeed: PlayerPropOddsResponse | null | undefined
+) => {
+  const emptyResult: Partial<Record<(typeof ODDS_API_BOOK_KEYS)[number], number | null>> = {}
+  if (!recommendedSide || !item.playerName) return emptyResult
+  const rows = Array.isArray(oddsFeed?.props) ? oddsFeed.props : []
+  if (!rows.length) return emptyResult
+
+  const propTypeKey = String(item.propType ?? "").toLowerCase().trim()
+  const marketAllowlist = ODDS_API_MARKETS_BY_PROP_TYPE[propTypeKey] ?? []
+  if (!marketAllowlist.length) return emptyResult
+  const marketAllowlistSet = new Set(marketAllowlist)
+  const sideKey = recommendedSide.toLowerCase() as "over" | "under"
+  const playerKey = normalizePlayerToken(item.playerName)
+  if (!playerKey) return emptyResult
+
+  let bestRow: PlayerPropOddsRow | null = null
+  let bestScore = Number.NEGATIVE_INFINITY
+
+  for (const row of rows) {
+    const rowPlayer = normalizePlayerToken(row?.player)
+    if (!rowPlayer || rowPlayer !== playerKey) continue
+
+    const marketKey = String(row?.market ?? "").toLowerCase().trim()
+    if (!marketAllowlistSet.has(marketKey)) continue
+
+    const rowLine = parseFiniteNumber(row?.point)
+    const targetLine = item.propLine
+    const lineDiff =
+      rowLine != null && targetLine != null ? Math.abs(rowLine - targetLine) : null
+    if (lineDiff != null && lineDiff > 0.15) continue
+
+    const hasSideOdds = ODDS_API_BOOK_KEYS.some((bookKey) => {
+      const candidate = parseFiniteNumber(row?.odds?.[bookKey]?.[sideKey])
+      return candidate != null
+    })
+    if (!hasSideOdds) continue
+
+    const score =
+      (lineDiff == null ? 0 : 100 - lineDiff * 100) +
+      (targetLine != null && rowLine != null && lineDiff != null && lineDiff < 0.01 ? 50 : 0)
+    if (score > bestScore) {
+      bestScore = score
+      bestRow = row
+    }
+  }
+
+  if (!bestRow) return emptyResult
+
+  const result: Partial<Record<(typeof ODDS_API_BOOK_KEYS)[number], number | null>> = {}
+  for (const bookKey of ODDS_API_BOOK_KEYS) {
+    result[bookKey] = parseFiniteNumber(bestRow.odds?.[bookKey]?.[sideKey])
+  }
+  return result
+}
 
 const buildPlayerHeadshotKey = (sportKey: string, playerName: string) =>
   `${sportKey}:${normalizePlayerToken(playerName)}`
@@ -765,6 +867,9 @@ export default function PropOrderbooksPanel({
   const [cacheFetchedAt, setCacheFetchedAt] = useState<string | null>(
     initialData?.cache?.fetchedAt ?? null
   )
+  const [oddsFeedBySport, setOddsFeedBySport] = useState<
+    Record<string, PlayerPropOddsResponse | null | undefined>
+  >({})
   const [playerHeadshotsByKey, setPlayerHeadshotsByKey] = useState<Record<string, string | null>>({})
   const [headshotLoadingByKey, setHeadshotLoadingByKey] = useState<Record<string, boolean>>({})
   const [refreshWindowOpen, setRefreshWindowOpen] = useState<boolean>(() =>
@@ -1081,6 +1186,45 @@ export default function PropOrderbooksPanel({
     () => filteredItems.find((item) => item.id === selectedItemId) ?? filteredItems[0] ?? null,
     [filteredItems, selectedItemId]
   )
+  const selectedSportForOdds = selectedItem?.sportKey ?? null
+  const selectedOddsFeed =
+    selectedSportForOdds != null ? oddsFeedBySport[selectedSportForOdds] : undefined
+
+  useEffect(() => {
+    if (!selectedSportForOdds) return
+    if (selectedOddsFeed !== undefined) return
+
+    let cancelled = false
+    const run = async () => {
+      try {
+        const res = await fetch(
+          `/api/player-prop-odds?sport=${encodeURIComponent(selectedSportForOdds)}`,
+          { cache: "no-store" }
+        )
+        const payload = (await res.json().catch(() => ({}))) as PlayerPropOddsResponse
+        if (!res.ok) {
+          throw new Error("Failed to load player prop odds feed.")
+        }
+        if (cancelled || !isMountedRef.current) return
+        setOddsFeedBySport((prev) => {
+          if (prev[selectedSportForOdds] !== undefined) return prev
+          return { ...prev, [selectedSportForOdds]: payload }
+        })
+      } catch {
+        if (cancelled || !isMountedRef.current) return
+        setOddsFeedBySport((prev) => {
+          if (prev[selectedSportForOdds] !== undefined) return prev
+          return { ...prev, [selectedSportForOdds]: null }
+        })
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedOddsFeed, selectedSportForOdds])
+
   const selectedDisplayLean = useMemo(
     () => (selectedItem ? resolveDisplayLeanForFilter(selectedItem, selectedBookFilter) : null),
     [selectedBookFilter, selectedItem]
@@ -1089,12 +1233,23 @@ export default function PropOrderbooksPanel({
     if (!selectedItem) return [] as Array<{ key: SharpBookKey; odds: number | null }>
     const recommendedSide = selectedDisplayLean?.side ?? null
     const oddsByBook = resolveSharpBookOddsForItem(selectedItem, recommendedSide)
+    const oddsApiOverrides = resolveOddsApiBookOddsForItem(
+      selectedItem,
+      recommendedSide,
+      selectedOddsFeed
+    )
+    for (const bookKey of ODDS_API_BOOK_KEYS) {
+      const override = oddsApiOverrides[bookKey]
+      if (override != null) {
+        oddsByBook[bookKey] = override
+      }
+    }
 
     return SHARP_BOOK_ORDER.map((key) => ({
       key,
       odds: oddsByBook[key] ?? null,
     }))
-  }, [selectedDisplayLean?.side, selectedItem])
+  }, [selectedDisplayLean?.side, selectedItem, selectedOddsFeed])
   const selectedPlayerHeadshot = selectedItem
     ? resolvePlayerHeadshot(selectedItem, playerHeadshotsByKey)
     : null
@@ -1419,7 +1574,7 @@ export default function PropOrderbooksPanel({
                   <div className="text-[10px] uppercase tracking-[0.2em] text-white/45">
                     Sharp Books Live Odds
                   </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                     {selectedSharpBookOdds.map((book) => {
                       const logo = SHARP_BOOK_LOGOS[book.key]
                       return (

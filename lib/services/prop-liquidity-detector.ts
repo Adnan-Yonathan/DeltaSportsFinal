@@ -907,12 +907,20 @@ const fetchPolymarketEventDetail = async (id: string) => {
 
 const isPlayerPropQuestion = (question: string) => {
   const trimmed = question.trim()
-  if (!trimmed.includes(':')) return false
+  if (!trimmed) return false
   if (/^(spread|total|moneyline|1h\s+spread|1h\s+o\/?u|o\/?u)\s*:/i.test(trimmed)) {
     return false
   }
-  // Likely "Player Name: Stat Over X".
-  return /^[A-Za-z][A-Za-z'.-]+(?:\s+[A-Za-z][A-Za-z'.-]+){0,2}\s*:\s*/.test(trimmed)
+  // Common "Player Name: Stat Over X" shape.
+  if (/^[A-Za-z][A-Za-z'.-]+(?:\s+[A-Za-z][A-Za-z'.-]+){0,2}\s*:\s*/.test(trimmed)) {
+    return true
+  }
+  // Fallback for "Player Name over 15.5 points" style prompts.
+  return (
+    /\b[A-Z][A-Za-z'.-]+(?:\s+[A-Z][A-Za-z'.-]+){1,2}\b/.test(trimmed) &&
+    /\b(over|under)\b/i.test(trimmed) &&
+    /\d+(?:\.\d+)?/.test(trimmed)
+  )
 }
 
 const resolveSportMetaFromSeriesSlug = (seriesSlug: string | null) => {
@@ -1127,6 +1135,53 @@ const resolveOverUnderFromOutcomeName = (value: string): 'Over' | 'Under' | null
   return null
 }
 
+const resolveOverUnderFromOutcome = (
+  outcome: Record<string, unknown>
+): 'Over' | 'Under' | null => {
+  const name = String(outcome?.name ?? '')
+  const description = String(outcome?.description ?? '')
+  return (
+    resolveOverUnderFromOutcomeName(name) ??
+    resolveOverUnderFromOutcomeName(description) ??
+    null
+  )
+}
+
+const resolveExchangeOutcomePlayerName = (
+  outcome: Record<string, unknown>,
+  side: 'Over' | 'Under' | null
+) => {
+  const rawName = String(outcome?.name ?? '').trim()
+  const rawDescription = String(outcome?.description ?? '').trim()
+
+  const nameSide = resolveOverUnderFromOutcomeName(rawName)
+  const descriptionSide = resolveOverUnderFromOutcomeName(rawDescription)
+
+  if (nameSide && !descriptionSide && rawDescription) return rawDescription
+  if (descriptionSide && !nameSide && rawName) return rawName
+
+  return (
+    rawDescription ||
+    extractPlayerNameFromText(rawName) ||
+    extractPlayerNameFromText(rawDescription) ||
+    (side ? extractPlayerNameFromText(`${rawName} ${rawDescription}`) : null)
+  )
+}
+
+const resolveExchangeOutcomeLine = (outcome: Record<string, unknown>) => {
+  const direct = parseOptionalNumber(outcome?.point)
+  if (direct != null) return direct
+
+  const combined = `${String(outcome?.name ?? '')} ${String(outcome?.description ?? '')}`.toLowerCase()
+  const overUnderMatch = combined.match(/\b(?:over|under)\s+(-?\d+(?:\.\d+)?)/)
+  if (overUnderMatch?.[1]) {
+    const parsed = Number(overUnderMatch[1])
+    if (Number.isFinite(parsed)) return parsed
+  }
+
+  return null
+}
+
 const parseOptionalNumber = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string') {
@@ -1297,20 +1352,21 @@ const fetchExchangePropOrderbookItems = async (opts: {
           if (!propType) continue
 
           for (const outcome of market.outcomes ?? []) {
-            const side = resolveOverUnderFromOutcomeName(String(outcome?.name ?? ''))
+            const normalizedOutcome = (outcome as Record<string, unknown>) ?? {}
+            const side = resolveOverUnderFromOutcome(normalizedOutcome)
             if (!side) continue
 
-            const line = parseOptionalNumber(outcome?.point)
+            const line = resolveExchangeOutcomeLine(normalizedOutcome)
             if (line == null) continue
 
-            const odds = parseOptionalNumber(outcome?.price)
+            const odds = parseOptionalNumber(normalizedOutcome?.price)
             if (odds == null) continue
 
             const priceCents = oddsToPriceCents(odds)
             if (priceCents == null) continue
 
             const notional = resolveExchangeOutcomeNotional(
-              outcome,
+              normalizedOutcome,
               (market as Record<string, unknown>) ?? {},
               (bookmaker as Record<string, unknown>) ?? {}
             )
@@ -1318,11 +1374,7 @@ const fetchExchangePropOrderbookItems = async (opts: {
               ? notional
               : minSharpNotional
 
-            const describedPlayer = String(outcome?.description ?? '').trim()
-            const playerName =
-              describedPlayer ||
-              extractPlayerNameFromText(String(outcome?.name ?? '')) ||
-              null
+            const playerName = resolveExchangeOutcomePlayerName(normalizedOutcome, side) ?? null
             if (!playerName) continue
 
             const key = `${normalizePlayerName(playerName)}:${propType}:${formatLineKey(line)}`

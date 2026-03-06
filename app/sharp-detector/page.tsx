@@ -1,19 +1,25 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { formatAmericanOdds, formatCurrency } from '@/lib/utils/odds'
-import { cn } from '@/lib/utils'
-import { getWalletAlias } from '@/lib/utils/wallet-alias'
-import { SimpleHeader } from '@/components/ui/simple-header'
-import { motion } from 'framer-motion'
-import { Target, Zap, DollarSign } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { getMembershipStatus, type MembershipInfo } from '@/lib/utils/membership'
-import Link from 'next/link'
+import { useCallback, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { SimpleHeader } from "@/components/ui/simple-header"
+import MobileToolsNav from "@/components/mobile-tools-nav"
+import { createClient } from "@/lib/supabase/client"
+import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
+import { formatAmericanOdds, formatCurrency } from "@/lib/utils/odds"
+import { cn } from "@/lib/utils"
 
-type SharpTrade = {
+type WhaleTrade = {
   id: string
-  source: 'kalshi' | 'polymarket'
+  source: "kalshi" | "polymarket"
   marketTitle: string
   outcome: string
   proxyWallet?: string
@@ -33,94 +39,41 @@ type SharpTrade = {
   sharpStrength?: number
 }
 
-type SharpTradeStatus = 'pending' | 'respected' | 'faded'
+type DateWindowFilter = "all" | "today" | "24h" | "3d"
+type FeedMode = "all" | "hot"
+type SourceFilter = "all" | "kalshi" | "polymarket"
 
-type SharpTradeWithStatus = SharpTrade & {
-  status?: SharpTradeStatus
-  checkedAt?: string
-  result?: 'win' | 'loss' | 'push'
-  resolvedAt?: string
-  pnl?: number
-  roi?: number
-}
-
-type WalletSummary = {
-  wallet: string
-  total_realized_pnl: number
-  total_wins: number
-  total_losses: number
-  total_pushes: number
-  last_computed_at: string
-}
-
-type SharpTier = 'small' | 'blue' | 'mega' | 'nuke'
-
-type GameCluster = {
-  gameKey: string
-  marketTitle: string
-  sport: string
-  eventDate?: string
-  trades: SharpTradeWithStatus[]
-  totalNotional: number
-  tradeCount: number
-}
-
-const MIN_NOTIONAL = 2000
 const POLL_INTERVAL_MS = 30000
-const STORAGE_KEY = 'sharp-detector-trades'
-const CACHE_VERSION_KEY = 'sharp-detector-cache-version'
-const CACHE_VERSION = '3'
-const WALLET_STORAGE_KEY = 'sharp-detector-wallets'
-const MAX_RESOLVED_TRADES = 300
+const MIN_NOTIONAL_OPTIONS = [2000, 5000, 10000, 25000, 50000]
+const DEFAULT_LEAGUE_FILTER_OPTIONS = [
+  "NBA",
+  "NCAAB",
+  "CFB",
+  "NFL",
+  "NHL",
+  "MLB",
+  "SOCCER",
+  "TENNIS",
+  "UFC",
+]
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 
-const ensureSharpCacheVersion = () => {
-  if (typeof window === 'undefined') return
-  try {
-    const current = window.localStorage.getItem(CACHE_VERSION_KEY)
-    if (current !== CACHE_VERSION) {
-      window.localStorage.removeItem(STORAGE_KEY)
-      window.localStorage.setItem(CACHE_VERSION_KEY, CACHE_VERSION)
-    }
-  } catch (error) {
-    console.warn('Failed to validate sharp detector cache version:', error)
-  }
+const normalizeSportLabel = (value?: string | null) => {
+  if (!value) return ""
+  return value.trim().toUpperCase()
 }
 
-const formatOddsLabel = (priceCents: number, americanOdds: number | null) => {
-  const centsLabel = `${priceCents}c`
-  if (americanOdds == null) return centsLabel
-  return `${centsLabel} (${formatAmericanOdds(americanOdds)})`
-}
-
-const resolveOddsLabel = (trade: SharpTrade) => {
-  const priceCents = trade.currentPriceCents ?? trade.priceCents
-  const odds = trade.currentAmericanOdds ?? trade.americanOdds
-  const label = formatOddsLabel(priceCents, odds)
-  if (trade.currentPriceCents != null && trade.currentPriceCents !== trade.priceCents) {
-    return `${label} now`
-  }
-  return label
-}
-
-const formatTimestamp = (value: string) => {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+const formatShortDateTime = (value?: string | null) => {
+  if (!value) return "n/a"
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   })
 }
-
-const normalizeWallet = (value?: string | null) => {
-  if (!value) return null
-  const trimmed = value.trim().toLowerCase()
-  return trimmed ? trimmed : null
-}
-
-const formatWalletAlias = (value?: string | null) => getWalletAlias(value)
 
 const parseEventTime = (value?: string | null) => {
   if (!value) return null
@@ -138,585 +91,234 @@ const parseEventTime = (value?: string | null) => {
   return Number.isFinite(time) ? time : null
 }
 
-const resolvePhase = (trade: SharpTrade) => {
-  if (!trade.eventDate) return 'Pregame'
+const resolvePhase = (trade: WhaleTrade) => {
+  if (!trade.eventDate) return "Pregame"
   const eventTime = parseEventTime(trade.eventDate)
-  if (eventTime == null || !Number.isFinite(eventTime)) return 'Pregame'
-  const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0)
-  return eventTime < todayStart.getTime() ? 'Live' : 'Pregame'
+  if (eventTime == null || !Number.isFinite(eventTime)) return "Pregame"
+  return eventTime < Date.now() ? "Live" : "Pregame"
 }
 
-const resolveSharpTier = (notional: number): SharpTier => {
-  if (notional > 100000) return 'nuke'
-  if (notional > 50000) return 'mega'
-  if (notional > 25000) return 'blue'
-  return 'small'
-}
-
-const EASTERN_TIMEZONE = 'America/New_York'
-
-const getEasternDateKey = (value: Date | string | number) => {
-  const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: EASTERN_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date)
-  const year = parts.find((part) => part.type === 'year')?.value
-  const month = parts.find((part) => part.type === 'month')?.value
-  const day = parts.find((part) => part.type === 'day')?.value
-  if (!year || !month || !day) return null
-  return `${year}-${month}-${day}`
-}
-
-const sharpTierLabel: Record<SharpTier, string> = {
-  small: 'Swordfish',
-  blue: 'Megalodon',
-  mega: 'Blue whale',
-  nuke: 'Nuke',
-}
-
-const sharpTierClass: Record<SharpTier, string> = {
-  small: 'border-emerald-500/30 text-emerald-200',
-  blue: 'border-sky-400/40 text-sky-200',
-  mega: 'border-blue-400/40 text-blue-200',
-  nuke: 'border-rose-400/40 text-rose-200',
-}
-
-// Extract game key from market title for clustering
-const extractGameKey = (marketTitle: string, sport: string): string => {
-  // Normalize and create a key based on teams/event
-  const normalized = marketTitle.toLowerCase().trim()
-  // Remove common suffixes like "spread", "moneyline", "total", etc.
-  const cleaned = normalized
-    .replace(/\s*(spread|moneyline|total|over|under|points|yards|touchdowns?|winner|to win).*$/i, '')
-    .replace(/[^a-z0-9\s]/g, '')
-    .trim()
-  return `${sport}:${cleaned}`
+const resolveOddsLabel = (trade: WhaleTrade) => {
+  const currentOdds =
+    typeof trade.currentAmericanOdds === "number" && Number.isFinite(trade.currentAmericanOdds)
+      ? trade.currentAmericanOdds
+      : null
+  const baseOdds =
+    typeof trade.americanOdds === "number" && Number.isFinite(trade.americanOdds)
+      ? trade.americanOdds
+      : null
+  const chosen = currentOdds ?? baseOdds
+  if (chosen == null) return "n/a"
+  return formatAmericanOdds(chosen)
 }
 
 const resolveGameLabel = (marketTitle: string) =>
   marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()
 
-const resolveStrengthClass = (value?: number | null) => {
-  const strength = Number.isFinite(value) ? Number(value) : 0
-  if (strength <= 35) return 'text-rose-300'
-  if (strength <= 55) return 'text-amber-300'
-  return 'text-emerald-300'
+const extractGameKey = (trade: WhaleTrade) => {
+  const normalized = trade.marketTitle
+    .toLowerCase()
+    .replace(/\s*(spread|moneyline|total|over|under|points|yards|touchdowns?|winner|to win).*$/i, "")
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim()
+  return `${normalizeSportLabel(trade.sport)}:${normalized}`
 }
 
-const normalizeSportLabel = (value?: string | null) => {
-  if (!value) return ''
-  return value.trim().toUpperCase()
+const matchesDateWindow = (timestamp: string, window: DateWindowFilter) => {
+  if (window === "all") return true
+  const time = Date.parse(timestamp)
+  if (!Number.isFinite(time)) return false
+  const now = Date.now()
+
+  if (window === "24h") return time >= now - 24 * 60 * 60 * 1000
+  if (window === "3d") return time >= now - 72 * 60 * 60 * 1000
+
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  return time >= start.getTime()
 }
 
 export default function SharpDetectorPage() {
+  const supabase = useMemo(() => createClient(), [])
+
   const [authLoading, setAuthLoading] = useState(true)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
-  const supabase = useMemo(() => createClient(), [])
-  const [trades, setTrades] = useState<SharpTradeWithStatus[]>(() => {
-    if (typeof window === 'undefined') return []
-    try {
-      ensureSharpCacheVersion()
-      const cached = window.localStorage.getItem(STORAGE_KEY)
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        return Array.isArray(parsed) ? parsed : []
-      }
-    } catch (error) {
-      console.warn('Failed to load sharp detector cache:', error)
-    }
-    return []
-  })
-  const [hydrated, setHydrated] = useState(typeof window !== 'undefined')
-  const [debugEnabled, setDebugEnabled] = useState(false)
-  const [lastFetchAt, setLastFetchAt] = useState<string | null>(null)
-  const [lastFetchCount, setLastFetchCount] = useState<number | null>(null)
-  const [lastFetchError, setLastFetchError] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'all' | 'games'>('all')
-  const [sportFilter, setSportFilter] = useState<string>('all')
-  const [gameFilter, setGameFilter] = useState<string>('all')
-  const [sortFilter, setSortFilter] = useState<'newest' | 'strength'>('newest')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'blue' | 'mega' | 'nuke'>('all')
-  const [walletFilter, setWalletFilter] = useState<string>('all')
-  const [trackedWallets, setTrackedWallets] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return []
-    try {
-      const cached = window.localStorage.getItem(WALLET_STORAGE_KEY)
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        return Array.isArray(parsed) ? parsed : []
-      }
-    } catch (error) {
-      console.warn('Failed to load tracked wallets:', error)
-    }
-    return []
-  })
-  const [showTrackedWallets, setShowTrackedWallets] = useState(false)
-  const [walletSummary, setWalletSummary] = useState<WalletSummary[]>([])
-  const [walletSummaryError, setWalletSummaryError] = useState<string | null>(null)
-  const [trackedWalletSummary, setTrackedWalletSummary] = useState<WalletSummary[]>([])
-  const seenIdsRef = useRef<Set<string>>(new Set())
-  const hasInitializedRef = useRef(false)
-  const hasAccess = Boolean(membership?.isActive)
+  const [user, setUser] = useState<any>(null)
 
-  const sportButtons = useMemo(() => {
-    const detected = Array.from(
-      new Set(
-        trades
-          .map((trade) => normalizeSportLabel(trade.sport))
-          .filter(Boolean)
+  const [trades, setTrades] = useState<WhaleTrade[]>([])
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
+
+  const [feedMode, setFeedMode] = useState<FeedMode>("all")
+  const [leagueFilter, setLeagueFilter] = useState<string>("all")
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all")
+  const [matchFilter, setMatchFilter] = useState<string>("all")
+  const [dateFilter, setDateFilter] = useState<DateWindowFilter>("24h")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [minNotional, setMinNotional] = useState<number>(2000)
+
+  const isSignedIn = Boolean(user)
+  const hasAccess = Boolean(user && membership?.isActive)
+
+  const fetchTrades = useCallback(async () => {
+    if (!hasAccess) return
+    setIsRefreshing(true)
+    try {
+      const response = await fetch(
+        `/api/whale-detector?minNotional=${minNotional}&limit=300`,
+        { cache: "no-store" }
       )
-    )
-    const preferredOrder = [
-      'NBA',
-      'NCAAB',
-      'NCAAF',
-      'NFL',
-      'NHL',
-      'MLB',
-      'WNBA',
-      'SOCCER',
-      'TENNIS',
-      'UFC',
-      'MMA',
-      'BOXING',
-      'GOLF',
-      'CRICKET',
-      'F1',
-      'ESPORTS',
-    ]
-    const prioritized = preferredOrder.filter((sport) => detected.includes(sport))
-    const extras = detected
-      .filter((sport) => !preferredOrder.includes(sport))
-      .sort((a, b) => a.localeCompare(b))
-    const merged = [...prioritized, ...extras]
-    const fallback = preferredOrder.slice(0, 11)
-    return ['all', ...(merged.length ? merged : fallback)]
-  }, [trades])
-
-  const baseTrades = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    const walletKey = walletFilter === 'all' ? null : normalizeWallet(walletFilter)
-    return trades.filter(trade => {
-      const normalizedSport = normalizeSportLabel(trade.sport)
-      if (sportFilter !== 'all' && normalizedSport !== sportFilter) return false
-      if (sizeFilter !== 'all' && resolveSharpTier(trade.notional) !== sizeFilter) return false
-      if (walletKey) {
-        if (trade.source !== 'polymarket') return false
-        const tradeWallet = normalizeWallet(trade.proxyWallet)
-        if (!tradeWallet || tradeWallet !== walletKey) return false
+      if (!response.ok) {
+        throw new Error(`Whale feed request failed (${response.status})`)
       }
-      if (query) {
-        const haystack = `${trade.marketTitle} ${trade.outcome} ${trade.sport}`.toLowerCase()
-        if (!haystack.includes(query)) return false
-      }
-      return true
-    })
-  }, [trades, sportFilter, sizeFilter, searchQuery, walletFilter])
-
-  const gameOptions = useMemo(() => {
-    const map = new Map<string, string>()
-    baseTrades.forEach((trade) => {
-      const key = extractGameKey(trade.marketTitle, trade.sport)
-      if (!map.has(key)) {
-        map.set(key, resolveGameLabel(trade.marketTitle))
-      }
-    })
-    return Array.from(map.entries())
-      .map(([key, label]) => ({ key, label }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-  }, [baseTrades])
-
-  useEffect(() => {
-    if (gameFilter === 'all') return
-    if (!gameOptions.some((option) => option.key === gameFilter)) {
-      setGameFilter('all')
-    }
-  }, [gameFilter, gameOptions])
-
-  // Filter trades
-  const filteredTrades = useMemo(() => {
-    return baseTrades.filter((trade) => {
-      if (gameFilter === 'all') return true
-      return extractGameKey(trade.marketTitle, trade.sport) === gameFilter
-    })
-  }, [baseTrades, gameFilter])
-
-  // Cluster trades by game
-  const gameClusters = useMemo(() => {
-    const clusters = new Map<string, GameCluster>()
-
-    filteredTrades.forEach(trade => {
-      const gameKey = extractGameKey(trade.marketTitle, trade.sport)
-
-      if (!clusters.has(gameKey)) {
-        clusters.set(gameKey, {
-          gameKey,
-          marketTitle: trade.marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim(),
-          sport: trade.sport,
-          eventDate: trade.eventDate,
-          trades: [],
-          totalNotional: 0,
-          tradeCount: 0,
-        })
-      }
-
-      const cluster = clusters.get(gameKey)!
-      cluster.trades.push(trade)
-      cluster.totalNotional += trade.notional
-      cluster.tradeCount += 1
-    })
-
-    // Sort by total notional (highest first), then filter to games with 2+ trades
-    return Array.from(clusters.values())
-      .filter(c => c.tradeCount >= 2)
-      .sort((a, b) => b.totalNotional - a.totalNotional)
-  }, [filteredTrades])
-
-  const sortedTrades = useMemo(() => {
-    return [...filteredTrades].sort((a, b) => {
-      if (sortFilter === 'strength') {
-        const strengthA = a.sharpStrength ?? 0
-        const strengthB = b.sharpStrength ?? 0
-        if (strengthA !== strengthB) return strengthB - strengthA
-      }
-      const timeA = new Date(a.timestamp).getTime()
-      const timeB = new Date(b.timestamp).getTime()
-      return timeB - timeA
-    })
-  }, [filteredTrades, sortFilter])
-
-  const trackedWalletSet = useMemo(
-    () => new Set(trackedWallets.map((wallet) => normalizeWallet(wallet)).filter(Boolean) as string[]),
-    [trackedWallets]
-  )
-
-  const trackedWalletSummaryMap = useMemo(() => {
-    return new Map(
-      trackedWalletSummary.map((summary) => [
-        normalizeWallet(summary.wallet) ?? summary.wallet,
-        summary,
-      ])
-    )
-  }, [trackedWalletSummary])
-
-  const trackedWalletTradePreview = useMemo(() => {
-    return trades
-      .filter((trade) => {
-        if (trade.source !== 'polymarket') return false
-        const wallet = normalizeWallet(trade.proxyWallet)
-        return wallet ? trackedWalletSet.has(wallet) : false
-      })
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 3)
-  }, [trades, trackedWalletSet])
-
-  const winningWallets = useMemo(() => {
-    const stats = new Map<string, { wallet: string; wins: number; pnl: number }>()
-    trades.forEach((trade) => {
-      if (trade.source !== 'polymarket') return
-      const wallet = normalizeWallet(trade.proxyWallet)
-      if (!wallet || !trackedWalletSet.has(wallet)) return
-      const hasWin = trade.result === 'win'
-      const pnl = Number.isFinite(trade.pnl) ? Number(trade.pnl) : 0
-      const roi = Number.isFinite(trade.roi) ? Number(trade.roi) : 0
-      if (!hasWin && pnl <= 0 && roi <= 0) return
-      const entry = stats.get(wallet) ?? { wallet, wins: 0, pnl: 0 }
-      if (hasWin) entry.wins += 1
-      if (pnl > 0) entry.pnl += pnl
-      stats.set(wallet, entry)
-    })
-    return Array.from(stats.values()).sort((a, b) => {
-      if (a.pnl !== b.pnl) return b.pnl - a.pnl
-      return b.wins - a.wins
-    })
-  }, [trades, trackedWalletSet])
-
-  const winningWalletTradePreview = useMemo(() => {
-    if (!winningWallets.length) return []
-    const winners = new Set(winningWallets.map((entry) => entry.wallet))
-    return trades
-      .filter((trade) => {
-        if (trade.source !== 'polymarket') return false
-        const wallet = normalizeWallet(trade.proxyWallet)
-        return wallet ? winners.has(wallet) : false
-      })
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 3)
-  }, [trades, winningWallets])
-
-  const walletStats = useMemo(() => {
-    const stats = new Map<
-      string,
-      { wallet: string; count: number; wins: number; losses: number; pushes: number; lastSeen?: string }
-    >()
-    trades.forEach((trade) => {
-      if (trade.source !== 'polymarket') return
-      const walletKey = normalizeWallet(trade.proxyWallet)
-      if (!walletKey) return
-      const entry = stats.get(walletKey) ?? {
-        wallet: walletKey,
-        count: 0,
-        wins: 0,
-        losses: 0,
-        pushes: 0,
-      }
-      entry.count += 1
-      if (!entry.lastSeen || trade.timestamp > entry.lastSeen) {
-        entry.lastSeen = trade.timestamp
-      }
-      if (trade.result === 'win') entry.wins += 1
-      if (trade.result === 'loss') entry.losses += 1
-      if (trade.result === 'push') entry.pushes += 1
-      stats.set(walletKey, entry)
-    })
-
-    const rows = trackedWallets.map((wallet) => {
-      const walletKey = normalizeWallet(wallet) ?? wallet
-      const entry = stats.get(walletKey)
-      return {
-        wallet: walletKey,
-        count: entry?.count ?? 0,
-        lastSeen: entry?.lastSeen ?? null,
-        wins: entry?.wins ?? 0,
-        losses: entry?.losses ?? 0,
-        pushes: entry?.pushes ?? 0,
-      }
-    })
-
-    return rows.sort((a, b) => {
-      const timeA = a.lastSeen ? new Date(a.lastSeen).getTime() : 0
-      const timeB = b.lastSeen ? new Date(b.lastSeen).getTime() : 0
-      if (timeA !== timeB) return timeB - timeA
-      return b.count - a.count
-    })
-  }, [trades, trackedWallets])
-
-  // Stats
-  const stats = useMemo(() => {
-    const totalNotional = trades.reduce((sum, t) => sum + t.notional, 0)
-    const todayKey = getEasternDateKey(new Date())
-    const todayTrades = trades.filter(
-      (trade) => getEasternDateKey(trade.timestamp) === todayKey
-    ).length
-    return { totalNotional, todayTrades }
-  }, [trades])
-
-  const fetchTrades = async () => {
-    try {
-      const res = await fetch(
-        `/api/whale-detector?minNotional=${MIN_NOTIONAL}&limit=200`,
-        { cache: 'no-store' }
+      const payload = (await response.json()) as { trades?: WhaleTrade[] }
+      const nextTrades = Array.isArray(payload.trades) ? payload.trades : []
+      const sorted = [...nextTrades].sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       )
-      if (!res.ok) return
-      const data = await res.json()
-      const incoming: SharpTrade[] = Array.isArray(data?.trades)
-        ? data.trades
-        : []
-      setLastFetchAt(new Date().toISOString())
-      setLastFetchCount(incoming.length)
-      setLastFetchError(null)
-
-      setTrades((prev) => {
-        const existing = new Map(prev.map((trade) => [trade.id, trade]))
-        incoming.forEach((trade) => {
-          const current = existing.get(trade.id)
-          existing.set(trade.id, current ? { ...current, ...trade } : trade)
-          if (!seenIdsRef.current.has(trade.id)) {
-            seenIdsRef.current.add(trade.id)
-          }
-        })
-        if (!hasInitializedRef.current) {
-          hasInitializedRef.current = true
-        }
-        const next = Array.from(existing.values())
-        const pending = next
-          .filter((trade) => !trade.status || trade.status === 'pending')
-          .sort(
-            (a, b) =>
-              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-          )
-        const resolved = next
-          .filter((trade) => trade.status && trade.status !== 'pending')
-          .sort(
-            (a, b) =>
-              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-          )
-          .slice(0, MAX_RESOLVED_TRADES)
-        return [...pending, ...resolved]
-      })
-    } catch (error) {
-      console.warn('Sharp detector fetch failed:', error)
-      setLastFetchAt(new Date().toISOString())
-      setLastFetchError(error instanceof Error ? error.message : 'Unknown error')
+      setTrades(sorted)
+      setError(null)
+      setLastUpdatedAt(new Date().toISOString())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load whale feed.")
+    } finally {
+      setIsRefreshing(false)
     }
-  }
+  }, [hasAccess, minNotional])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    setHydrated(true)
-  }, [])
-
-  useEffect(() => {
-    let isMounted = true
-    const loadUser = async () => {
+    let mounted = true
+    const loadAuth = async () => {
       try {
         const {
-          data: { user },
+          data: { user: authUser },
         } = await supabase.auth.getUser()
-        if (!isMounted) return
-        if (!user) {
-          setMembership(null)
-          setAuthLoading(false)
-          return
-        }
-        const membershipInfo = getMembershipStatus(user.user_metadata)
-        setMembership(membershipInfo)
-        setAuthLoading(false)
-      } catch (err) {
-        if (!isMounted) return
-        console.error('[sharp-detector] auth check failed', err)
+        if (!mounted) return
+        setUser(authUser ?? null)
+        setMembership(authUser ? getMembershipStatus(authUser.user_metadata) : null)
+      } catch {
+        if (!mounted) return
+        setUser(null)
         setMembership(null)
-        setAuthLoading(false)
+      } finally {
+        if (mounted) setAuthLoading(false)
       }
     }
-    loadUser()
+    loadAuth()
     return () => {
-      isMounted = false
+      mounted = false
     }
   }, [supabase])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      const params = new URLSearchParams(window.location.search)
-      setDebugEnabled(params.has('sharpDebug'))
-    } catch {
-      setDebugEnabled(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!hydrated) return
-    trades.forEach((trade) => seenIdsRef.current.add(trade.id))
-  }, [hydrated, trades])
-
-  useEffect(() => {
-    if (!hydrated) return
-    setTrackedWallets((prev) => {
-      const next = new Set(prev)
-      trades.forEach((trade) => {
-        if (trade.source !== 'polymarket') return
-        const wallet = normalizeWallet(trade.proxyWallet)
-        if (wallet) next.add(wallet)
-      })
-      if (next.size === prev.length) return prev
-      return Array.from(next)
-    })
-  }, [hydrated, trades])
-
-  useEffect(() => {
-    if (!hydrated || !hasAccess) return
-    const wallets = Array.from(
-      new Set(
-        trackedWallets.map((wallet) => normalizeWallet(wallet)).filter(Boolean) as string[]
-      )
-    )
-    if (!wallets.length) {
-      setTrackedWalletSummary([])
-      return
-    }
-    const controller = new AbortController()
-    const fetchTrackedSummary = async () => {
-      try {
-        const params = new URLSearchParams()
-        const limitedWallets = wallets.slice(0, 200)
-        params.set('wallets', limitedWallets.join(','))
-        params.set('limit', String(limitedWallets.length))
-        const res = await fetch(`/api/polymarket/wallets/summary?${params.toString()}`, {
-          cache: 'no-store',
-          signal: controller.signal,
-        })
-        if (!res.ok) {
-          throw new Error(`Tracked summary fetch failed (${res.status})`)
-        }
-        const data = await res.json()
-        setTrackedWalletSummary(Array.isArray(data?.wallets) ? data.wallets : [])
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-        console.warn(
-          'Failed to load tracked wallet summary:',
-          error instanceof Error ? error.message : error
-        )
-      }
-    }
-    fetchTrackedSummary()
-    return () => controller.abort()
-  }, [hydrated, trackedWallets])
 
   useEffect(() => {
     if (!hasAccess) return
     fetchTrades()
     const interval = setInterval(fetchTrades, POLL_INTERVAL_MS)
     return () => clearInterval(interval)
-  }, [hasAccess])
+  }, [hasAccess, fetchTrades])
+
+  const leagueOptions = useMemo(() => {
+    const detected = Array.from(
+      new Set(trades.map((trade) => normalizeSportLabel(trade.sport)).filter(Boolean))
+    )
+    const merged = Array.from(new Set([...DEFAULT_LEAGUE_FILTER_OPTIONS, ...detected])).sort(
+      (a, b) => a.localeCompare(b)
+    )
+    return ["all", ...merged]
+  }, [trades])
+
+  const preFilteredTrades = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    return trades.filter((trade) => {
+      const sport = normalizeSportLabel(trade.sport)
+      if (leagueFilter !== "all" && sport !== leagueFilter) return false
+      if (sourceFilter !== "all" && trade.source !== sourceFilter) return false
+      if (!matchesDateWindow(trade.timestamp, dateFilter)) return false
+      if (!query) return true
+      const haystack = `${trade.marketTitle} ${trade.outcome} ${sport}`.toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [trades, leagueFilter, sourceFilter, dateFilter, searchQuery])
+
+  const matchOptions = useMemo(() => {
+    const labels = Array.from(new Set(preFilteredTrades.map((trade) => resolveGameLabel(trade.marketTitle))))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b))
+    return ["all", ...labels.slice(0, 120)]
+  }, [preFilteredTrades])
 
   useEffect(() => {
-    if (!hasAccess) return
-    const fetchSummary = async () => {
-      try {
-        const res = await fetch('/api/polymarket/wallets/summary?limit=5', {
-          cache: 'no-store',
-        })
-        if (!res.ok) {
-          throw new Error(`Summary fetch failed (${res.status})`)
-        }
-        const data = await res.json()
-        setWalletSummary(Array.isArray(data?.wallets) ? data.wallets : [])
-        setWalletSummaryError(null)
-      } catch (error) {
-        setWalletSummaryError(
-          error instanceof Error ? error.message : 'Failed to load wallet summary.'
-        )
-      }
+    if (matchFilter !== "all" && !matchOptions.includes(matchFilter)) {
+      setMatchFilter("all")
     }
-    fetchSummary()
-  }, [hasAccess])
+  }, [matchFilter, matchOptions])
 
-  useEffect(() => {
-    if (!hydrated || typeof window === 'undefined') return
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trades))
-    } catch (error) {
-      console.warn('Failed to persist sharp detector cache:', error)
-    }
-  }, [hydrated, trades])
+  const withMatchFilter = useMemo(() => {
+    if (matchFilter === "all") return preFilteredTrades
+    return preFilteredTrades.filter((trade) => resolveGameLabel(trade.marketTitle) === matchFilter)
+  }, [preFilteredTrades, matchFilter])
 
-  useEffect(() => {
-    if (!hydrated || typeof window === 'undefined') return
-    try {
-      window.localStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify(trackedWallets))
-    } catch (error) {
-      console.warn('Failed to persist tracked wallets:', error)
-    }
-  }, [hydrated, trackedWallets])
+  const hotCountByGame = useMemo(() => {
+    const map = new Map<string, number>()
+    withMatchFilter.forEach((trade) => {
+      const key = extractGameKey(trade)
+      map.set(key, (map.get(key) ?? 0) + 1)
+    })
+    return map
+  }, [withMatchFilter])
 
-  const now = Date.now()
+  const hotGameCount = useMemo(
+    () => Array.from(hotCountByGame.values()).filter((count) => count >= 2).length,
+    [hotCountByGame]
+  )
+
+  const visibleTrades = useMemo(() => {
+    if (feedMode === "all") return withMatchFilter
+    return withMatchFilter.filter((trade) => (hotCountByGame.get(extractGameKey(trade)) ?? 0) >= 2)
+  }, [withMatchFilter, feedMode, hotCountByGame])
 
   if (authLoading) {
     return (
       <div className="min-h-screen bg-black text-white">
         <SimpleHeader />
-        <div className="max-w-6xl mx-auto px-4 py-8 pt-20">
+        <div className="mx-auto max-w-6xl px-4 pb-[108px] pt-20 sm:pb-8">
           <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-8 text-sm text-white/60">
             Checking access...
           </div>
         </div>
+        <MobileToolsNav />
+      </div>
+    )
+  }
+
+  if (!isSignedIn) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <SimpleHeader />
+        <div className="mx-auto max-w-4xl px-4 pb-[108px] pt-20 sm:pb-8">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
+            <h2 className="text-2xl font-semibold text-white">Sign in to access Whale Feed</h2>
+            <p className="mt-2 text-sm text-white/60">
+              Live whale trade tape is available to active members.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <Link
+                href="/auth/login"
+                className="rounded-full border border-white/30 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white hover:border-white/60"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/pricing"
+                className="rounded-full border border-emerald-400/60 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white"
+              >
+                View plans
+              </Link>
+            </div>
+          </div>
+        </div>
+        <MobileToolsNav />
       </div>
     )
   }
@@ -725,43 +327,22 @@ export default function SharpDetectorPage() {
     return (
       <div className="min-h-screen bg-black text-white">
         <SimpleHeader />
-        <div className="max-w-6xl mx-auto px-4 py-8 pt-20">
-          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-            <div className="pointer-events-none blur-sm">
-              <div className="space-y-4 p-6">
-                <div className="h-6 w-56 rounded bg-white/10" />
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="h-20 rounded-2xl border border-white/10 bg-white/5" />
-                  <div className="h-20 rounded-2xl border border-white/10 bg-white/5" />
-                </div>
-                <div className="space-y-3">
-                  {[1, 2, 3, 4].map((row) => (
-                    <div key={row} className="h-14 rounded-2xl border border-white/10 bg-white/5" />
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center p-6">
-              <div className="rounded-2xl border border-white/20 bg-black/80 px-6 py-5 text-center">
-                <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-                  Upgrade required
-                </p>
-                <h2 className="mt-3 text-xl font-semibold text-white">
-                  Sharp Detector is for members.
-                </h2>
-                <p className="mt-2 text-sm text-white/60">
-                  Upgrade to unlock sharp trade alerts and tracking.
-                </p>
-                <Link
-                  href="/pricing"
-                  className="mt-5 inline-flex items-center rounded-full border border-emerald-400/60 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
-                >
-                  View plans
-                </Link>
-              </div>
-            </div>
+        <div className="mx-auto max-w-4xl px-4 pb-[108px] pt-20 sm:pb-8">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
+            <p className="text-xs uppercase tracking-[0.3em] text-white/50">Upgrade required</p>
+            <h2 className="mt-3 text-2xl font-semibold text-white">Whale Feed is for members.</h2>
+            <p className="mt-2 text-sm text-white/60">
+              Upgrade to unlock live whale tape, all-sport filters, and hot game clustering.
+            </p>
+            <Link
+              href="/pricing"
+              className="mt-5 inline-flex rounded-full border border-emerald-400/60 px-6 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white"
+            >
+              Upgrade
+            </Link>
           </div>
         </div>
+        <MobileToolsNav />
       </div>
     )
   }
@@ -770,518 +351,243 @@ export default function SharpDetectorPage() {
     <div className="min-h-screen bg-black text-white">
       <SimpleHeader />
 
-      <div className="max-w-6xl mx-auto px-4 py-8 pt-20">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-xl bg-emerald-500/20">
-              <Target className="w-6 h-6 text-emerald-400" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Sharp Detector</h1>
-          </div>
-          <p className="text-white/60 text-sm">
-            Track $2k+ prediction market trades and see if the market respects or fades them
+      <div className="mx-auto w-full max-w-6xl px-3 pb-[108px] pt-20 sm:px-4 sm:pb-8">
+        <div className="mb-4 rounded-2xl border border-white/10 bg-black/40 p-4">
+          <p className="text-[11px] uppercase tracking-[0.28em] text-white/50">Whale Feed</p>
+          <h1 className="mt-2 text-2xl font-semibold text-white">Live Sharp Trade Tape</h1>
+          <p className="mt-1 text-sm text-white/65">
+            Streaming bets over {formatCurrency(minNotional)} from Kalshi and Polymarket.
+          </p>
+          <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-white/45">
+            Last refresh: {formatShortDateTime(lastUpdatedAt)}
           </p>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 mb-6">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center gap-2 text-white/50 text-xs mb-1">
-              <DollarSign className="w-3.5 h-3.5" />
-              Total Volume
-            </div>
-            <p className="text-lg font-bold text-white">{formatCurrency(stats.totalNotional)}</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center gap-2 text-white/50 text-xs mb-1">
-              <Target className="w-3.5 h-3.5" />
-              Sharps detected
-            </div>
-            <p className="text-lg font-bold text-white">{stats.todayTrades}</p>
-          </div>
-        </div>
-
-        {debugEnabled && (
-          <div className="mb-6 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-xs text-amber-100">
-            <div className="flex flex-wrap items-center gap-3">
-              <span>Last fetch: {lastFetchAt ?? 'N/A'}</span>
-              <span>API trades: {lastFetchCount ?? 'N/A'}</span>
-              <span>Visible trades: {sortedTrades.length}</span>
-              <span>Min notional: {formatCurrency(MIN_NOTIONAL)}</span>
-              {lastFetchError && <span>Error: {lastFetchError}</span>}
-            </div>
-          </div>
-        )}
-
-        {/* Sport Filters */}
-        <div className="mb-4 overflow-x-auto">
-          <div className="flex items-center gap-2 min-w-max">
-            {sportButtons.map((sport) => (
-              <button
-                key={sport}
-                type="button"
-                onClick={() => setSportFilter(sport)}
-                className={cn(
-                  'px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.2em] transition',
-                  sportFilter === sport
-                    ? 'border-emerald-400 text-emerald-200 bg-emerald-400/10'
-                    : 'border-white/10 text-white/50 hover:border-white/30 hover:text-white/80'
-                )}
-              >
-                {sport === 'all' ? 'All' : sport}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3 mb-6">
-          <div className="flex-1 min-w-[220px]">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search bets, teams, or markets..."
-              className="w-full px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 placeholder:text-white/40 focus:outline-none focus:border-emerald-500/50"
-            />
-          </div>
-          {/* View Mode Toggle */}
-          <div className="flex rounded-xl border border-white/10 overflow-hidden">
-            <button
-              onClick={() => setViewMode('all')}
-              className={cn(
-                "px-4 py-2 text-sm font-medium transition",
-                viewMode === 'all'
-                  ? "bg-emerald-500/20 text-emerald-300"
-                  : "text-white/60 hover:bg-white/5"
-              )}
+        <div className="rounded-2xl border border-white/10 bg-black/40 p-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={leagueFilter}
+              onChange={(event) => setLeagueFilter(event.target.value)}
+              className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
             >
-              All Trades
-            </button>
-            <button
-              onClick={() => setViewMode('games')}
-              className={cn(
-                "px-4 py-2 text-sm font-medium transition flex items-center gap-2",
-                viewMode === 'games'
-                  ? "bg-emerald-500/20 text-emerald-300"
-                  : "text-white/60 hover:bg-white/5"
-              )}
-            >
-              <Zap className="w-4 h-4" />
-              Hot Games
-              {gameClusters.length > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/30 text-[10px] font-bold">
-                  {gameClusters.length}
-                </span>
-              )}
-            </button>
-          </div>
-
-          {/* Matchup Filter */}
-          <select
-            value={gameFilter}
-            onChange={(e) => setGameFilter(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 focus:outline-none focus:border-emerald-500/50"
-          >
-            <option value="all">All Games</option>
-            {gameOptions.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Sort Filter */}
-          <select
-            value={sortFilter}
-            onChange={(e) =>
-              setSortFilter(e.target.value as 'newest' | 'strength')
-            }
-            className="px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 focus:outline-none focus:border-emerald-500/50"
-          >
-            <option value="newest">Newest</option>
-            <option value="strength">Highest %</option>
-          </select>
-
-          {/* Bet Size Filter */}
-          <select
-            value={sizeFilter}
-            onChange={(e) =>
-              setSizeFilter(e.target.value as 'all' | 'small' | 'blue' | 'mega' | 'nuke')
-            }
-            className="px-3 py-2 rounded-xl border border-white/10 bg-black text-sm text-white/80 focus:outline-none focus:border-emerald-500/50"
-          >
-            <option value="all">All Sizes</option>
-            <option value="small">Swordfish</option>
-            <option value="blue">Megalodon</option>
-            <option value="mega">Blue whale</option>
-            <option value="nuke">Nuke</option>
-          </select>
-
-          {walletFilter !== 'all' && (
-            <button
-              type="button"
-              onClick={() => setWalletFilter('all')}
-              className="px-3 py-2 rounded-xl border border-emerald-400/40 text-xs uppercase tracking-[0.2em] text-emerald-200"
-            >
-              Wallet {formatWalletAlias(walletFilter)} x
-            </button>
-          )}
-
-          <span className="text-xs text-white/40">
-            {filteredTrades.length} trades
-          </span>
-        </div>
-
-        <div className="mb-6 rounded-2xl border border-white/10 bg-black/40 p-4">
-          <div className="flex items-center justify-between text-[11px] text-white/60">
-            <span className="uppercase tracking-[0.3em]">Tracked wallets</span>
-            <button
-              type="button"
-              onClick={() => setShowTrackedWallets((prev) => !prev)}
-              className={cn(
-                'rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] transition',
-                showTrackedWallets
-                  ? 'border-emerald-400/60 text-emerald-200 bg-emerald-400/10'
-                  : 'border-white/10 text-white/50 hover:border-white/30 hover:text-white/80'
-              )}
-            >
-              {showTrackedWallets ? 'Hide' : 'View'} ({trackedWallets.length})
-            </button>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-              <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-                Recent tracked bets
-              </div>
-              {trackedWalletTradePreview.length === 0 ? (
-                <div className="mt-2 text-xs text-white/50">
-                  No tracked Polymarket bets yet.
-                </div>
-              ) : (
-                <div className="mt-3 space-y-2">
-                  {trackedWalletTradePreview.map((trade) => (
-                    <div key={trade.id} className="text-xs text-white/70">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-white/80">
-                          {formatWalletAlias(trade.proxyWallet)}
-                        </span>
-                        <span className="text-white/50">
-                          {trade.outcome} - {formatCurrency(trade.notional)}
-                        </span>
-                      </div>
-                      <div className="mt-1 text-white/40">{trade.marketTitle}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-              <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-                Winning wallet bets
-              </div>
-              {winningWalletTradePreview.length === 0 ? (
-                <div className="mt-2 text-xs text-white/50">
-                  No winning wallets yet.
-                </div>
-              ) : (
-                <div className="mt-3 space-y-2">
-                  {winningWalletTradePreview.map((trade) => (
-                    <div key={trade.id} className="text-xs text-white/70">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-emerald-200">
-                          {formatWalletAlias(trade.proxyWallet)}
-                        </span>
-                        <span className="text-white/50">
-                          {trade.outcome} - {formatCurrency(trade.notional)}
-                        </span>
-                      </div>
-                      <div className="mt-1 text-white/40">{trade.marketTitle}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          {walletStats.length === 0 ? (
-            <div className="mt-2 text-xs text-white/50">
-              No Polymarket wallets tracked yet.
-            </div>
-          ) : showTrackedWallets ? (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {walletStats.map((wallet) => {
-                const walletKey = normalizeWallet(wallet.wallet) ?? wallet.wallet
-                const summary = trackedWalletSummaryMap.get(walletKey)
-                const wins = Number(summary?.total_wins ?? 0)
-                const losses = Number(summary?.total_losses ?? 0)
-                const pushes = Number(summary?.total_pushes ?? 0)
-                const pnlValue = Number(summary?.total_realized_pnl ?? 0)
-                const pnlLabel = Number.isFinite(pnlValue) ? formatCurrency(pnlValue) : '--'
-                return (
-                  <button
-                    type="button"
-                    key={wallet.wallet}
-                    onClick={() => setWalletFilter(wallet.wallet)}
-                    className={cn(
-                      'flex items-center justify-between rounded-xl border px-3 py-2 text-xs text-white/70 transition',
-                      walletFilter !== 'all' &&
-                        normalizeWallet(wallet.wallet) === normalizeWallet(walletFilter)
-                        ? 'border-emerald-400/50 bg-emerald-500/10'
-                        : 'border-white/10 bg-black/30 hover:border-white/30'
-                    )}
-                  >
-                    <span className="font-semibold text-white/80">
-                      {formatWalletAlias(wallet.wallet)}
-                      <span className="ml-2 text-[10px] font-normal text-white/40">
-                        {wins}W - {losses}L - {pushes}P
-                      </span>
-                      <span className="ml-2 text-[10px] font-normal text-emerald-200">
-                        P/L {pnlLabel}
-                      </span>
-                    </span>
-                    <span className="text-white/50">
-                      {wallet.count} trades
-                      {wallet.lastSeen ? ` - last ${formatTimestamp(wallet.lastSeen)}` : ''}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="mt-2 text-xs text-white/50">
-              Click to view tracked wallets.
-            </div>
-          )}
-        </div>
-
-        <div className="mb-6 rounded-2xl border border-white/10 bg-black/40 p-4">
-          <div className="flex items-center justify-between text-[11px] text-white/60">
-            <span className="uppercase tracking-[0.3em]">Top winning wallets</span>
-            <span className="text-[10px] text-white/40">realized P/L</span>
-          </div>
-          {walletSummaryError && (
-            <div className="mt-2 text-xs text-rose-200">{walletSummaryError}</div>
-          )}
-          {!walletSummaryError && walletSummary.length === 0 ? (
-            <div className="mt-2 text-xs text-white/50">
-              No winning wallets yet.
-            </div>
-          ) : (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {walletSummary.map((wallet) => (
-                <div
-                  key={wallet.wallet}
-                  className="flex items-center justify-between rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/70"
-                >
-                  <div>
-                    <div className="font-semibold text-emerald-200">
-                      {formatWalletAlias(wallet.wallet)}
-                    </div>
-                    <div className="text-white/50">
-                      {wallet.total_wins}W - {wallet.total_losses}L - {wallet.total_pushes}P
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-emerald-200">
-                      {formatCurrency(wallet.total_realized_pnl)}
-                    </div>
-                    <div className="text-white/40">lifetime</div>
-                  </div>
-                </div>
+              {leagueOptions.map((value) => (
+                <option key={value} value={value}>
+                  {value === "all" ? "League: All" : `League: ${value}`}
+                </option>
               ))}
+            </select>
+
+            <select
+              value={feedMode}
+              onChange={(event) => setFeedMode(event.target.value as FeedMode)}
+              className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
+            >
+              <option value="all">Feed: All Prints</option>
+              <option value="hot">Feed: Hot Games</option>
+            </select>
+
+            <select
+              value={sourceFilter}
+              onChange={(event) => setSourceFilter(event.target.value as SourceFilter)}
+              className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
+            >
+              <option value="all">Source: All</option>
+              <option value="kalshi">Source: Kalshi</option>
+              <option value="polymarket">Source: Polymarket</option>
+            </select>
+
+            <select
+              value={matchFilter}
+              onChange={(event) => setMatchFilter(event.target.value)}
+              className="max-w-[220px] rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
+            >
+              {matchOptions.map((value) => (
+                <option key={value} value={value}>
+                  {value === "all" ? "Match: All" : value}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={dateFilter}
+              onChange={(event) => setDateFilter(event.target.value as DateWindowFilter)}
+              className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
+            >
+              <option value="today">Date: Today</option>
+              <option value="24h">Date: 24h</option>
+              <option value="3d">Date: 3d</option>
+              <option value="all">Date: All</option>
+            </select>
+
+            <select
+              value={String(minNotional)}
+              onChange={(event) => setMinNotional(Number(event.target.value))}
+              className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
+            >
+              {MIN_NOTIONAL_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  Min: {formatCurrency(value)}
+                </option>
+              ))}
+            </select>
+
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search teams or markets..."
+              className="min-w-[180px] flex-1 rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white placeholder:text-white/35 focus:border-emerald-300/60 focus:outline-none"
+            />
+
+            <button
+              type="button"
+              onClick={fetchTrades}
+              className="rounded-lg border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-white/80 transition-colors hover:border-emerald-300/60"
+            >
+              Refresh
+            </button>
+
+            <div className="ml-auto flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] text-white/50">
+              <span className={cn("h-2 w-2 rounded-full", isRefreshing ? "bg-amber-300" : "bg-emerald-300")} />
+              <span>live</span>
+              <span>|</span>
+              <span>{visibleTrades.length} rows</span>
+              <span>|</span>
+              <span>{hotGameCount} hot</span>
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Game Clusters View */}
-        {viewMode === 'games' && (
-          <div className="space-y-4 mb-8">
-            {gameClusters.length === 0 ? (
-              <div className="rounded-2xl border border-white/10 bg-black/40 p-6 text-center">
-                <Zap className="w-8 h-8 text-white/30 mx-auto mb-3" />
-                <p className="text-white/60 text-sm">
-                  No games with multiple sharp bets yet.
-                </p>
-                <p className="text-white/40 text-xs mt-1">
-                  Games appear here when 2+ big bets are placed on the same event.
-                </p>
-              </div>
-            ) : (
-              gameClusters.map((cluster) => {
-                return (
-                  <motion.div
-                    key={cluster.gameKey}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-transparent p-5"
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <Zap className="w-4 h-4 text-emerald-400" />
-                          <span className="text-xs uppercase tracking-wider text-emerald-300/70">
-                            Hot Game - {cluster.tradeCount} sharp bets
-                          </span>
-                        </div>
-                        <h3 className="text-lg font-semibold text-white">{cluster.marketTitle}</h3>
-                        <div className="flex items-center gap-2 mt-1 text-xs text-white/50">
-                          <span className="px-2 py-0.5 rounded-full border border-white/10">
-                            {cluster.sport}
-                          </span>
-                          {cluster.eventDate && (
-                            <span className="px-2 py-0.5 rounded-full border border-white/10">
-                              {cluster.eventDate}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-emerald-300">
-                          {formatCurrency(cluster.totalNotional)}
-                        </p>
-                        <p className="text-xs text-white/50">total volume</p>
-                      </div>
-                    </div>
-
-                  {/* Trades in this cluster */}
-                  <div className="space-y-2 border-t border-white/10 pt-4">
-                    {cluster.trades.map((trade) => {
-                      const tier = resolveSharpTier(trade.notional)
-                      const walletKey = normalizeWallet(trade.proxyWallet)
-                      const isTrackedWallet =
-                        trade.source === 'polymarket' && walletKey && trackedWalletSet.has(walletKey)
-                      return (
-                        <div
-                          key={trade.id}
-                          className="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/5"
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className={cn(
-                              "px-2 py-0.5 rounded-full border text-[10px] font-semibold uppercase",
-                              sharpTierClass[tier]
-                            )}>
-                              {formatCurrency(trade.notional)}
-                            </span>
-                            <span className="text-sm text-white/80">{trade.outcome}</span>
-                            <span className="text-xs text-white/40">
-                              {resolveOddsLabel(trade)}
-                            </span>
-                            {isTrackedWallet && (
-                              <span className="px-2 py-0.5 rounded-full border border-emerald-400/40 text-[10px] text-emerald-200">
-                                Tracked {formatWalletAlias(trade.proxyWallet)}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                      {Number.isFinite(trade.sharpStrength) && (
-                        <span className={cn('text-[10px] uppercase font-semibold', resolveStrengthClass(trade.sharpStrength))}>
-                          {trade.sharpStrength}% strength
-                        </span>
-                      )}
-                            <span className="text-xs text-white/40">
-                              {formatTimestamp(trade.timestamp)}
-                            </span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  </motion.div>
-                )
-              })
-            )}
-          </div>
-        )}
-
-        {/* All Trades View */}
-        {viewMode === 'all' && (
-          <div className="space-y-3">
-            {sortedTrades.length === 0 && (
-              <div className="rounded-2xl border border-white/10 bg-black/40 p-6 text-center">
-                <Target className="w-8 h-8 text-white/30 mx-auto mb-3" />
-                <p className="text-white/60 text-sm">
-                  No sharp bets detected yet.
-                </p>
-                <p className="text-white/40 text-xs mt-1">
-                  Trades &gt;= {formatCurrency(MIN_NOTIONAL)} will appear here.
-                </p>
-              </div>
-            )}
-            {sortedTrades.map((trade) => {
-              const isFresh = now - new Date(trade.timestamp).getTime() < 2 * 60 * 1000
-              const sharpTier = resolveSharpTier(trade.notional)
-              const walletKey = normalizeWallet(trade.proxyWallet)
-              const isTrackedWallet =
-                trade.source === 'polymarket' && walletKey && trackedWalletSet.has(walletKey)
-              return (
-                <motion.div
-                  key={trade.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={cn(
-                    'rounded-2xl border border-white/10 bg-black/40 p-4 transition',
-                    isFresh &&
-                      'border-emerald-400/50 shadow-[0_0_25px_rgba(16,185,129,0.25)]'
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-                      {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {Number.isFinite(trade.sharpStrength) && (
-                        <span className={cn('text-[10px] uppercase tracking-[0.3em] font-semibold', resolveStrengthClass(trade.sharpStrength))}>
-                          {trade.sharpStrength}% strength
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <p className="mt-2 text-sm font-semibold text-white">
-                    Someone put {formatCurrency(trade.notional)} on {trade.outcome} in{' '}
-                    {trade.marketTitle}
-                  </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-white/60">
-                    <span
-                      className={cn(
-                        'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]',
-                        sharpTierClass[sharpTier]
-                      )}
+        <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+          {error ? (
+            <div className="px-4 py-6 text-sm text-rose-200">{error}</div>
+          ) : visibleTrades.length === 0 ? (
+            <div className="px-4 py-6 text-sm text-white/60">
+              No whale prints match the current filters.
+            </div>
+          ) : (
+            <>
+              <div className="divide-y divide-white/5 sm:hidden">
+                {visibleTrades.map((trade) => {
+                  const hotCount = hotCountByGame.get(extractGameKey(trade)) ?? 0
+                  return (
+                    <article
+                      key={trade.id}
+                      className="space-y-3 px-3 py-3 text-xs text-white/70 transition-colors hover:bg-white/[0.03]"
                     >
-                      {sharpTierLabel[sharpTier]}
-                    </span>
-                    <span className="rounded-full border border-white/10 px-2 py-0.5">
-                      {trade.outcome}
-                    </span>
-                    <span className="rounded-full border border-white/10 px-2 py-0.5">
-                      {resolvePhase(trade)}
-                    </span>
-                    <span className="rounded-full border border-white/10 px-2 py-0.5">
-                      {trade.sport}
-                    </span>
-                    {trade.eventDate && (
-                      <span className="rounded-full border border-white/10 px-2 py-0.5">
-                        {trade.eventDate}
-                      </span>
-                    )}
-                    <span className="rounded-full border border-white/10 px-2 py-0.5">
-                      {resolveOddsLabel(trade)}
-                    </span>
-                    {isTrackedWallet && (
-                      <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-emerald-200">
-                        Tracked {formatWalletAlias(trade.proxyWallet)}
-                      </span>
-                    )}
-                    <span className="rounded-full border border-white/10 px-2 py-0.5">
-                      Detected {formatTimestamp(trade.timestamp)}
-                    </span>
-                  </div>
-                </motion.div>
-              )
-            })}
-          </div>
-        )}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+                            {trade.source === "kalshi" ? "Kalshi" : "Polymarket"} |{" "}
+                            {formatShortDateTime(trade.timestamp)}
+                          </div>
+                          <div className="text-left text-sm font-semibold text-white">
+                            {resolveGameLabel(trade.marketTitle)}
+                          </div>
+                        </div>
+                        <span className="rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-200">
+                          {formatCurrency(trade.notional)}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+                          <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Bet</div>
+                          <div className="mt-1 text-white">{trade.outcome || "n/a"}</div>
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+                          <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Odds</div>
+                          <div className="mt-1 text-white">{resolveOddsLabel(trade)}</div>
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+                          <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Sport</div>
+                          <div className="mt-1 text-white">{normalizeSportLabel(trade.sport) || "SPORTS"}</div>
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+                          <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Hot</div>
+                          <div className="mt-1 text-white">{hotCount >= 2 ? `${hotCount} bets` : "--"}</div>
+                        </div>
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+
+              <div className="hidden sm:block">
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[1180px] text-[13px] text-white/75">
+                    <TableHeader className="bg-black/70">
+                      <TableRow className="text-[10px] uppercase tracking-[0.18em] text-white/45">
+                        <TableHead className="w-[120px]">Size</TableHead>
+                        <TableHead className="w-[240px]">Game</TableHead>
+                        <TableHead className="w-[220px]">Bet</TableHead>
+                        <TableHead className="w-[110px]">Source</TableHead>
+                        <TableHead className="w-[90px]">Sport</TableHead>
+                        <TableHead className="w-[90px]">Phase</TableHead>
+                        <TableHead className="w-[90px]">Odds</TableHead>
+                        <TableHead className="w-[170px]">Detected</TableHead>
+                        <TableHead className="w-[110px]">Hot Game</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody className="divide-y divide-white/5">
+                      {visibleTrades.map((trade) => {
+                        const hotCount = hotCountByGame.get(extractGameKey(trade)) ?? 0
+                        return (
+                          <TableRow key={trade.id} className="border-white/5 transition-colors hover:bg-white/[0.03]">
+                            <TableCell className="align-top">
+                              <div className="font-semibold text-emerald-200">
+                                {formatCurrency(trade.notional)}
+                              </div>
+                              {Number.isFinite(trade.sharpStrength) && (
+                                <div className="mt-1 text-[11px] text-white/45">
+                                  {Math.round(Number(trade.sharpStrength))}% strength
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="align-top">
+                              <div className="text-sm font-semibold text-white">
+                                {resolveGameLabel(trade.marketTitle)}
+                              </div>
+                              <div className="mt-1 text-[11px] text-white/45">{trade.marketTitle}</div>
+                            </TableCell>
+                            <TableCell className="align-top text-white/85">{trade.outcome || "n/a"}</TableCell>
+                            <TableCell className="align-top">
+                              <span
+                                className={cn(
+                                  "rounded-md border px-2 py-1 text-xs font-semibold",
+                                  trade.source === "kalshi"
+                                    ? "border-cyan-400/40 bg-cyan-500/10 text-cyan-200"
+                                    : "border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200"
+                                )}
+                              >
+                                {trade.source === "kalshi" ? "Kalshi" : "Polymarket"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="align-top">{normalizeSportLabel(trade.sport) || "SPORTS"}</TableCell>
+                            <TableCell className="align-top">{resolvePhase(trade)}</TableCell>
+                            <TableCell className="align-top">{resolveOddsLabel(trade)}</TableCell>
+                            <TableCell className="align-top">{formatShortDateTime(trade.timestamp)}</TableCell>
+                            <TableCell className="align-top">
+                              {hotCount >= 2 ? (
+                                <span className="rounded-md border border-emerald-400/40 bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-200">
+                                  {hotCount} bets
+                                </span>
+                              ) : (
+                                <span className="text-white/35">--</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
+
+      <MobileToolsNav />
     </div>
   )
 }

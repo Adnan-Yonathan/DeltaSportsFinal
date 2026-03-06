@@ -41,10 +41,43 @@ type WhaleTrade = {
 
 type DateWindowFilter = "all" | "today" | "24h" | "3d"
 type FeedMode = "all" | "hot"
+type FeedActivity = "active" | "resting"
 type SourceFilter = "all" | "kalshi" | "polymarket"
 
+type RestingOrderbookSide = {
+  propSide: "Over" | "Under" | null
+  wallPriceCents: number | null
+  wallNotional: number | null
+  wallAmericanOdds: number | null
+}
+
+type RestingOrderbookItem = {
+  id: string
+  source: "kalshi" | "polymarket" | "novig" | "prophetx"
+  sportLabel: string
+  matchup?: string
+  marketTitle: string
+  propLine: number | null
+  eventDate?: string
+  ticker?: string
+  slug?: string
+  sharpLiquiditySide: "Over" | "Under" | null
+  sharpLiquidityNotional: number | null
+  sharpOrderAmericanOdds: number | null
+  sharpLeanSide: "Over" | "Under" | null
+  sharpLeanAmericanOdds: number | null
+  updatedAt: string
+  sides: RestingOrderbookSide[]
+}
+
 const POLL_INTERVAL_MS = 30000
-const MIN_NOTIONAL_OPTIONS = [2000, 5000, 10000, 25000, 50000]
+const FEED_MIN_NOTIONAL = 2000
+const FETCH_LIMIT = 2000
+const DAILY_FETCH_LIMIT = 5000
+const RESTING_LIMIT = 240
+const RESTING_DEPTH = 8
+const RESTING_MIN_NOTIONAL = 2000
+const DAY_CACHE_STORAGE_KEY = "whale-feed-day-cache-v1"
 const DEFAULT_LEAGUE_FILTER_OPTIONS = [
   "NBA",
   "NCAAB",
@@ -73,6 +106,69 @@ const formatShortDateTime = (value?: string | null) => {
     hour: "2-digit",
     minute: "2-digit",
   })
+}
+
+const getEasternDateKey = (value: Date | string | number) => {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date)
+  const year = parts.find((part) => part.type === "year")?.value
+  const month = parts.find((part) => part.type === "month")?.value
+  const day = parts.find((part) => part.type === "day")?.value
+  if (!year || !month || !day) return null
+  return `${year}-${month}-${day}`
+}
+
+const loadCachedDayTrades = (dayKey: string) => {
+  if (typeof window === "undefined") return []
+  try {
+    const raw = window.localStorage.getItem(DAY_CACHE_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as { dayKey?: string; trades?: WhaleTrade[] }
+    if (parsed?.dayKey !== dayKey) return []
+    return Array.isArray(parsed?.trades) ? parsed.trades : []
+  } catch {
+    return []
+  }
+}
+
+const storeCachedDayTrades = (dayKey: string, trades: WhaleTrade[]) => {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(
+      DAY_CACHE_STORAGE_KEY,
+      JSON.stringify({ dayKey, trades })
+    )
+  } catch {
+    // ignore cache write failures
+  }
+}
+
+const isTradeForDay = (trade: WhaleTrade, dayKey: string) => {
+  const key = getEasternDateKey(trade.timestamp)
+  return key === dayKey
+}
+
+const getTradeKey = (trade: WhaleTrade) => `${trade.source}:${trade.id}`
+
+const mergeTradesForDay = (dayKey: string, tradeSets: WhaleTrade[][]) => {
+  const merged = new Map<string, WhaleTrade>()
+  for (const trades of tradeSets) {
+    for (const trade of trades) {
+      if (!isTradeForDay(trade, dayKey)) continue
+      const key = getTradeKey(trade)
+      const existing = merged.get(key)
+      merged.set(key, existing ? { ...existing, ...trade } : trade)
+    }
+  }
+  return Array.from(merged.values()).sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  )
 }
 
 const parseEventTime = (value?: string | null) => {
@@ -124,18 +220,77 @@ const extractGameKey = (trade: WhaleTrade) => {
   return `${normalizeSportLabel(trade.sport)}:${normalized}`
 }
 
+const mapRestingOrderbookToTrade = (item: RestingOrderbookItem): WhaleTrade | null => {
+  if (item.source !== "kalshi" && item.source !== "polymarket") return null
+
+  const rankedSides = [...(item.sides ?? [])].sort(
+    (a, b) => (b.wallNotional ?? 0) - (a.wallNotional ?? 0)
+  )
+  const liquiditySide =
+    item.sharpLiquiditySide ??
+    rankedSides.find((side) => side.propSide === item.sharpLeanSide)?.propSide ??
+    rankedSides[0]?.propSide ??
+    null
+  const selectedSide =
+    rankedSides.find((side) => side.propSide === liquiditySide) ?? rankedSides[0] ?? null
+
+  const notionalRaw = item.sharpLiquidityNotional ?? selectedSide?.wallNotional ?? 0
+  const notional = Number(notionalRaw)
+  if (!Number.isFinite(notional) || notional < RESTING_MIN_NOTIONAL) return null
+
+  const priceCentsRaw = selectedSide?.wallPriceCents
+  const priceCents =
+    typeof priceCentsRaw === "number" && Number.isFinite(priceCentsRaw) ? priceCentsRaw : 50
+  const americanOdds =
+    typeof item.sharpOrderAmericanOdds === "number" && Number.isFinite(item.sharpOrderAmericanOdds)
+      ? item.sharpOrderAmericanOdds
+      : typeof selectedSide?.wallAmericanOdds === "number" &&
+          Number.isFinite(selectedSide.wallAmericanOdds)
+        ? selectedSide.wallAmericanOdds
+        : typeof item.sharpLeanAmericanOdds === "number" &&
+            Number.isFinite(item.sharpLeanAmericanOdds)
+          ? item.sharpLeanAmericanOdds
+          : null
+  const outcomeSide = liquiditySide ?? item.sharpLeanSide ?? "Resting"
+  const outcome =
+    item.propLine != null && Number.isFinite(item.propLine)
+      ? `${outcomeSide} ${item.propLine}`
+      : outcomeSide
+  const timestamp = item.updatedAt || new Date().toISOString()
+  const marketTitle = item.matchup
+    ? `${item.matchup} | ${item.marketTitle}`
+    : item.marketTitle
+
+  return {
+    id: `resting:${item.id}`,
+    source: item.source,
+    marketTitle,
+    outcome,
+    priceCents,
+    americanOdds,
+    notional,
+    contracts: priceCents > 0 ? Math.round(notional / (priceCents / 100)) : Math.round(notional),
+    timestamp,
+    sport: item.sportLabel,
+    eventDate: item.eventDate,
+    ticker: item.ticker,
+    slug: item.slug,
+  }
+}
+
 const matchesDateWindow = (timestamp: string, window: DateWindowFilter) => {
   if (window === "all") return true
+  if (window === "today") {
+    const todayKey = getEasternDateKey(new Date())
+    const tradeDayKey = getEasternDateKey(timestamp)
+    return Boolean(todayKey && tradeDayKey && todayKey === tradeDayKey)
+  }
+
   const time = Date.parse(timestamp)
   if (!Number.isFinite(time)) return false
   const now = Date.now()
-
   if (window === "24h") return time >= now - 24 * 60 * 60 * 1000
-  if (window === "3d") return time >= now - 72 * 60 * 60 * 1000
-
-  const start = new Date()
-  start.setHours(0, 0, 0, 0)
-  return time >= start.getTime()
+  return time >= now - 72 * 60 * 60 * 1000
 }
 
 export default function SharpDetectorPage() {
@@ -145,47 +300,122 @@ export default function SharpDetectorPage() {
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
   const [user, setUser] = useState<any>(null)
 
+  const [feedActivity, setFeedActivity] = useState<FeedActivity>("active")
   const [trades, setTrades] = useState<WhaleTrade[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
+  const [restingTrades, setRestingTrades] = useState<WhaleTrade[]>([])
+  const [isRestingRefreshing, setIsRestingRefreshing] = useState(false)
+  const [restingError, setRestingError] = useState<string | null>(null)
+  const [restingUpdatedAt, setRestingUpdatedAt] = useState<string | null>(null)
 
   const [feedMode, setFeedMode] = useState<FeedMode>("all")
   const [leagueFilter, setLeagueFilter] = useState<string>("all")
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all")
   const [matchFilter, setMatchFilter] = useState<string>("all")
-  const [dateFilter, setDateFilter] = useState<DateWindowFilter>("24h")
+  const [dateFilter, setDateFilter] = useState<DateWindowFilter>("today")
   const [searchQuery, setSearchQuery] = useState("")
-  const [minNotional, setMinNotional] = useState<number>(2000)
 
   const isSignedIn = Boolean(user)
   const hasAccess = Boolean(user && membership?.isActive)
 
   const fetchTrades = useCallback(async () => {
     if (!hasAccess) return
+    const todayKey = getEasternDateKey(new Date())
+    if (!todayKey) return
     setIsRefreshing(true)
     try {
-      const response = await fetch(
-        `/api/whale-detector?minNotional=${minNotional}&limit=300`,
-        { cache: "no-store" }
-      )
-      if (!response.ok) {
-        throw new Error(`Whale feed request failed (${response.status})`)
+      const [liveResult, dailyResult] = await Promise.allSettled([
+        fetch(
+          `/api/whale-detector?minNotional=${FEED_MIN_NOTIONAL}&limit=${FETCH_LIMIT}`,
+          { cache: "no-store" }
+        ),
+        fetch(
+          `/api/whale-trades-daily?date=${todayKey}&minNotional=${FEED_MIN_NOTIONAL}&limit=${DAILY_FETCH_LIMIT}`,
+          { cache: "no-store" }
+        ),
+      ])
+
+      const errors: string[] = []
+      let liveTrades: WhaleTrade[] = []
+      let dailyTrades: WhaleTrade[] = []
+
+      if (liveResult.status === "fulfilled") {
+        if (!liveResult.value.ok) {
+          errors.push(`live feed (${liveResult.value.status})`)
+        } else {
+          const payload = (await liveResult.value.json()) as { trades?: WhaleTrade[] }
+          liveTrades = Array.isArray(payload.trades) ? payload.trades : []
+        }
+      } else {
+        errors.push("live feed unavailable")
       }
-      const payload = (await response.json()) as { trades?: WhaleTrade[] }
-      const nextTrades = Array.isArray(payload.trades) ? payload.trades : []
-      const sorted = [...nextTrades].sort(
-        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      )
-      setTrades(sorted)
-      setError(null)
+
+      if (dailyResult.status === "fulfilled") {
+        if (!dailyResult.value.ok) {
+          errors.push(`daily store (${dailyResult.value.status})`)
+        } else {
+          const payload = (await dailyResult.value.json()) as { trades?: WhaleTrade[] }
+          dailyTrades = Array.isArray(payload.trades) ? payload.trades : []
+        }
+      } else {
+        errors.push("daily store unavailable")
+      }
+
+      setTrades((prev) => {
+        const merged = mergeTradesForDay(todayKey, [prev, dailyTrades, liveTrades])
+        storeCachedDayTrades(todayKey, merged)
+        return merged
+      })
+
+      setError(errors.length === 2 ? `Whale feed sync issue: ${errors.join(" | ")}` : null)
       setLastUpdatedAt(new Date().toISOString())
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load whale feed.")
     } finally {
       setIsRefreshing(false)
     }
-  }, [hasAccess, minNotional])
+  }, [hasAccess])
+
+  const fetchRestingTrades = useCallback(async () => {
+    if (!hasAccess) return
+    setIsRestingRefreshing(true)
+    try {
+      const params = new URLSearchParams({
+        sport: "all",
+        limit: String(RESTING_LIMIT),
+        depth: String(RESTING_DEPTH),
+        minSharpNotional: String(RESTING_MIN_NOTIONAL),
+        refresh: "1",
+        mode: "full",
+      })
+      const response = await fetch(`/api/prop-orderbooks?${params.toString()}`, {
+        cache: "no-store",
+      })
+      if (!response.ok) {
+        throw new Error(`Resting feed request failed (${response.status})`)
+      }
+
+      const payload = (await response.json()) as { items?: RestingOrderbookItem[] }
+      const nextItems = Array.isArray(payload.items) ? payload.items : []
+      const mapped = nextItems
+        .map(mapRestingOrderbookToTrade)
+        .filter((trade): trade is WhaleTrade => Boolean(trade))
+        .sort((a, b) => {
+          const timeDiff = new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          if (timeDiff !== 0) return timeDiff
+          return b.notional - a.notional
+        })
+      setRestingTrades(mapped)
+      setRestingError(null)
+      setRestingUpdatedAt(new Date().toISOString())
+    } catch (err) {
+      setRestingError(err instanceof Error ? err.message : "Failed to load resting feed.")
+    } finally {
+      setIsRestingRefreshing(false)
+    }
+  }, [hasAccess])
 
   useEffect(() => {
     let mounted = true
@@ -212,25 +442,48 @@ export default function SharpDetectorPage() {
   }, [supabase])
 
   useEffect(() => {
-    if (!hasAccess) return
+    if (!hasAccess || feedActivity !== "active") return
+    const todayKey = getEasternDateKey(new Date())
+    if (todayKey) {
+      const cached = loadCachedDayTrades(todayKey)
+      if (cached.length) {
+        setTrades(cached)
+      }
+    }
     fetchTrades()
     const interval = setInterval(fetchTrades, POLL_INTERVAL_MS)
     return () => clearInterval(interval)
-  }, [hasAccess, fetchTrades])
+  }, [hasAccess, feedActivity, fetchTrades])
+
+  useEffect(() => {
+    if (!hasAccess || feedActivity !== "resting") return
+    fetchRestingTrades()
+    const interval = setInterval(fetchRestingTrades, POLL_INTERVAL_MS)
+    return () => clearInterval(interval)
+  }, [hasAccess, feedActivity, fetchRestingTrades])
+
+  const feedRows = useMemo(
+    () => (feedActivity === "active" ? trades : restingTrades),
+    [feedActivity, trades, restingTrades]
+  )
+
+  const activeErrorMessage = feedActivity === "active" ? error : restingError
+  const activeRefreshingState = feedActivity === "active" ? isRefreshing : isRestingRefreshing
+  const activeUpdatedAt = feedActivity === "active" ? lastUpdatedAt : restingUpdatedAt
 
   const leagueOptions = useMemo(() => {
     const detected = Array.from(
-      new Set(trades.map((trade) => normalizeSportLabel(trade.sport)).filter(Boolean))
+      new Set(feedRows.map((trade) => normalizeSportLabel(trade.sport)).filter(Boolean))
     )
     const merged = Array.from(new Set([...DEFAULT_LEAGUE_FILTER_OPTIONS, ...detected])).sort(
       (a, b) => a.localeCompare(b)
     )
     return ["all", ...merged]
-  }, [trades])
+  }, [feedRows])
 
   const preFilteredTrades = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    return trades.filter((trade) => {
+    return feedRows.filter((trade) => {
       const sport = normalizeSportLabel(trade.sport)
       if (leagueFilter !== "all" && sport !== leagueFilter) return false
       if (sourceFilter !== "all" && trade.source !== sourceFilter) return false
@@ -239,13 +492,13 @@ export default function SharpDetectorPage() {
       const haystack = `${trade.marketTitle} ${trade.outcome} ${sport}`.toLowerCase()
       return haystack.includes(query)
     })
-  }, [trades, leagueFilter, sourceFilter, dateFilter, searchQuery])
+  }, [feedRows, leagueFilter, sourceFilter, dateFilter, searchQuery])
 
   const matchOptions = useMemo(() => {
     const labels = Array.from(new Set(preFilteredTrades.map((trade) => resolveGameLabel(trade.marketTitle))))
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b))
-    return ["all", ...labels.slice(0, 120)]
+    return ["all", ...labels]
   }, [preFilteredTrades])
 
   useEffect(() => {
@@ -352,19 +605,62 @@ export default function SharpDetectorPage() {
       <SimpleHeader />
 
       <div className="mx-auto w-full max-w-6xl px-3 pb-[108px] pt-20 sm:px-4 sm:pb-8">
-        <div className="mb-4 rounded-2xl border border-white/10 bg-black/40 p-4">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-white/50">Whale Feed</p>
-          <h1 className="mt-2 text-2xl font-semibold text-white">Live Sharp Trade Tape</h1>
-          <p className="mt-1 text-sm text-white/65">
-            Streaming bets over {formatCurrency(minNotional)} from Kalshi and Polymarket.
-          </p>
-          <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-white/45">
-            Last refresh: {formatShortDateTime(lastUpdatedAt)}
-          </p>
-        </div>
-
         <div className="rounded-2xl border border-white/10 bg-black/40 p-2.5">
           <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex overflow-hidden rounded-lg border border-white/15 bg-black/40">
+              <button
+                type="button"
+                onClick={() => setFeedActivity("active")}
+                className={cn(
+                  "px-3 py-1.5 text-xs transition-colors",
+                  feedActivity === "active"
+                    ? "bg-emerald-500/20 text-emerald-200"
+                    : "text-white/75 hover:bg-white/5"
+                )}
+              >
+                Active Feed
+              </button>
+              <button
+                type="button"
+                onClick={() => setFeedActivity("resting")}
+                className={cn(
+                  "border-l border-white/10 px-3 py-1.5 text-xs transition-colors",
+                  feedActivity === "resting"
+                    ? "bg-emerald-500/20 text-emerald-200"
+                    : "text-white/75 hover:bg-white/5"
+                )}
+              >
+                Resting Feed
+              </button>
+            </div>
+
+            <div className="inline-flex overflow-hidden rounded-lg border border-white/15 bg-black/40">
+              <button
+                type="button"
+                onClick={() => setFeedMode("all")}
+                className={cn(
+                  "px-3 py-1.5 text-xs transition-colors",
+                  feedMode === "all"
+                    ? "bg-emerald-500/20 text-emerald-200"
+                    : "text-white/75 hover:bg-white/5"
+                )}
+              >
+                Regular Feed
+              </button>
+              <button
+                type="button"
+                onClick={() => setFeedMode("hot")}
+                className={cn(
+                  "border-l border-white/10 px-3 py-1.5 text-xs transition-colors",
+                  feedMode === "hot"
+                    ? "bg-emerald-500/20 text-emerald-200"
+                    : "text-white/75 hover:bg-white/5"
+                )}
+              >
+                Hot Games
+              </button>
+            </div>
+
             <select
               value={leagueFilter}
               onChange={(event) => setLeagueFilter(event.target.value)}
@@ -375,15 +671,6 @@ export default function SharpDetectorPage() {
                   {value === "all" ? "League: All" : `League: ${value}`}
                 </option>
               ))}
-            </select>
-
-            <select
-              value={feedMode}
-              onChange={(event) => setFeedMode(event.target.value as FeedMode)}
-              className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
-            >
-              <option value="all">Feed: All Prints</option>
-              <option value="hot">Feed: Hot Games</option>
             </select>
 
             <select
@@ -419,18 +706,6 @@ export default function SharpDetectorPage() {
               <option value="all">Date: All</option>
             </select>
 
-            <select
-              value={String(minNotional)}
-              onChange={(event) => setMinNotional(Number(event.target.value))}
-              className="rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-xs text-white/75 focus:border-emerald-300/60 focus:outline-none"
-            >
-              {MIN_NOTIONAL_OPTIONS.map((value) => (
-                <option key={value} value={value}>
-                  Min: {formatCurrency(value)}
-                </option>
-              ))}
-            </select>
-
             <input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
@@ -440,33 +715,52 @@ export default function SharpDetectorPage() {
 
             <button
               type="button"
-              onClick={fetchTrades}
+              onClick={() => {
+                if (feedActivity === "active") {
+                  void fetchTrades()
+                } else {
+                  void fetchRestingTrades()
+                }
+              }}
               className="rounded-lg border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-white/80 transition-colors hover:border-emerald-300/60"
             >
               Refresh
             </button>
 
             <div className="ml-auto flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] text-white/50">
-              <span className={cn("h-2 w-2 rounded-full", isRefreshing ? "bg-amber-300" : "bg-emerald-300")} />
+              <span
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  activeRefreshingState ? "bg-amber-300" : "bg-emerald-300"
+                )}
+              />
               <span>live</span>
               <span>|</span>
               <span>{visibleTrades.length} rows</span>
               <span>|</span>
               <span>{hotGameCount} hot</span>
+              {activeUpdatedAt && (
+                <>
+                  <span>|</span>
+                  <span>{formatShortDateTime(activeUpdatedAt)}</span>
+                </>
+              )}
             </div>
           </div>
         </div>
 
         <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-          {error ? (
-            <div className="px-4 py-6 text-sm text-rose-200">{error}</div>
+          {activeErrorMessage ? (
+            <div className="px-4 py-6 text-sm text-rose-200">{activeErrorMessage}</div>
           ) : visibleTrades.length === 0 ? (
             <div className="px-4 py-6 text-sm text-white/60">
-              No whale prints match the current filters.
+              {feedActivity === "active"
+                ? "No whale prints match the current filters."
+                : "No resting orders match the current filters."}
             </div>
           ) : (
             <>
-              <div className="divide-y divide-white/5 sm:hidden">
+              <div className="max-h-[68vh] divide-y divide-white/5 overflow-y-auto sm:hidden">
                 {visibleTrades.map((trade) => {
                   const hotCount = hotCountByGame.get(extractGameKey(trade)) ?? 0
                   return (
@@ -513,7 +807,7 @@ export default function SharpDetectorPage() {
               </div>
 
               <div className="hidden sm:block">
-                <div className="overflow-x-auto">
+                <div className="max-h-[72vh] overflow-auto">
                   <Table className="min-w-[1180px] text-[13px] text-white/75">
                     <TableHeader className="bg-black/70">
                       <TableRow className="text-[10px] uppercase tracking-[0.18em] text-white/45">

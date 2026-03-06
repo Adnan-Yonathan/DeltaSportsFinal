@@ -3,7 +3,7 @@
 import { forwardRef } from 'react'
 
 const FONT_STACK =
-  'ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace'
+  'var(--font-sans, "Saira Condensed", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif)'
 
 type SourceKey = 'kalshi' | 'polymarket' | 'novig' | 'prophetx'
 type SharpBookKey = SourceKey | 'pinnacle'
@@ -83,15 +83,15 @@ const ShareableSharpPropsToolCard = forwardRef<
           border: '1px solid rgba(255, 255, 255, 0.07)',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '22px 26px 14px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '82px 26px 14px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span
               style={{
                 borderRadius: 999,
@@ -135,9 +135,7 @@ const ShareableSharpPropsToolCard = forwardRef<
               })}
             </div>
           </div>
-          <div style={{ fontSize: 13, letterSpacing: 2, color: 'rgba(255, 255, 255, 0.48)' }}>
-            SHARP PROPS
-          </div>
+          <div />
         </div>
 
         <div style={{ padding: '0 26px', fontSize: 46, fontWeight: 700, lineHeight: 1.1 }}>
@@ -409,21 +407,21 @@ const ShareableSharpPropsToolCard = forwardRef<
           style={{
             position: 'absolute',
             right: 22,
-            bottom: 14,
+            top: 16,
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
+            gap: 12,
             borderRadius: 999,
-            border: '1px solid rgba(255, 255, 255, 0.17)',
-            backgroundColor: 'rgba(0, 0, 0, 0.56)',
-            padding: '7px 12px',
+            border: '1px solid rgba(255, 255, 255, 0.24)',
+            backgroundColor: 'rgba(0, 0, 0, 0.66)',
+            padding: '10px 16px',
           }}
         >
           <div
             style={{
-              width: 20,
-              height: 20,
-              borderRadius: 5,
+              width: 30,
+              height: 30,
+              borderRadius: 8,
               border: '1px solid rgba(255, 255, 255, 0.25)',
               overflow: 'hidden',
               backgroundColor: '#000',
@@ -432,11 +430,11 @@ const ShareableSharpPropsToolCard = forwardRef<
               justifyContent: 'center',
             }}
           >
-            <img src="/delta-logo.png" alt="Delta Sports" style={{ width: 15, height: 15, objectFit: 'contain' }} />
+            <img src="/delta-logo.png" alt="Delta Sports" style={{ width: 22, height: 22, objectFit: 'contain' }} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-            <span style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.95)' }}>deltasports.app</span>
-            <span style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.62)' }}>follow the money</span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: 'rgba(255, 255, 255, 0.98)' }}>deltasports.app</span>
+            <span style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.72)' }}>follow the money</span>
           </div>
         </div>
       </div>

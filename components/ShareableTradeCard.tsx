@@ -3,7 +3,7 @@
 import { forwardRef } from 'react'
 
 const FONT_STACK =
-  'ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace'
+  'var(--font-sans, "Saira Condensed", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif)'
 
 const SHARP_TIER_LABELS: Record<string, string> = {
   dolphin: 'SWORDFISH',
@@ -132,7 +132,7 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
               'radial-gradient(circle at 15% 8%, rgba(16, 185, 129, 0.2), transparent 42%), radial-gradient(circle at 95% 95%, rgba(34, 211, 238, 0.13), transparent 48%), #02050c',
           }}
         >
-          <div style={{ padding: '20px 28px 0', display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ padding: '92px 28px 0', display: 'flex', justifyContent: 'space-between', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span
                 style={{
@@ -289,21 +289,21 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
             style={{
               position: 'absolute',
               right: 22,
-              bottom: 16,
+              top: 16,
               display: 'flex',
               alignItems: 'center',
-              gap: 10,
+              gap: 12,
               borderRadius: 999,
-              border: '1px solid rgba(255, 255, 255, 0.17)',
-              backgroundColor: 'rgba(0, 0, 0, 0.56)',
-              padding: '7px 12px',
+              border: '1px solid rgba(255, 255, 255, 0.24)',
+              backgroundColor: 'rgba(0, 0, 0, 0.66)',
+              padding: '10px 16px',
             }}
           >
             <div
               style={{
-                width: 20,
-                height: 20,
-                borderRadius: 5,
+                width: 30,
+                height: 30,
+                borderRadius: 8,
                 border: '1px solid rgba(255, 255, 255, 0.25)',
                 overflow: 'hidden',
                 backgroundColor: '#000',
@@ -312,11 +312,11 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
                 justifyContent: 'center',
               }}
             >
-              <img src="/delta-logo.png" alt="Delta Sports" style={{ width: 15, height: 15, objectFit: 'contain' }} />
+              <img src="/delta-logo.png" alt="Delta Sports" style={{ width: 22, height: 22, objectFit: 'contain' }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-              <span style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.95)' }}>deltasports.app</span>
-              <span style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.62)' }}>follow the money</span>
+              <span style={{ fontSize: 18, fontWeight: 700, color: 'rgba(255, 255, 255, 0.98)' }}>deltasports.app</span>
+              <span style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.72)' }}>follow the money</span>
             </div>
           </div>
         </div>

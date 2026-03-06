@@ -26,8 +26,14 @@ const KALSHI_SPORT_PREFIXES = [
   'KXMLB',
   'KXWNBA',
   'KXSOCCER',
+  'KXTENNIS',
   'KXGOLF',
   'KXUFC',
+  'KXMMA',
+  'KXBOXING',
+  'KXCRICKET',
+  'KXF1',
+  'KXESPORTS',
 ]
 
 const POLYMARKET_SPORT_PREFIXES = [
@@ -41,6 +47,18 @@ const POLYMARKET_SPORT_PREFIXES = [
   'nhl-',
   'mlb-',
   'soccer-',
+  'tennis-',
+  'mma-',
+  'boxing-',
+  'cricket-',
+  'esports-',
+  'racing-',
+  'formula1-',
+  'f1-',
+  'nascar-',
+  'olympics-',
+  'chess-',
+  'poker-',
   'golf-',
   'ufc-',
 ]
@@ -80,8 +98,14 @@ const KALSHI_SPORT_LABELS: Record<string, string> = {
   KXMLB: 'MLB',
   KXWNBA: 'WNBA',
   KXSOCCER: 'SOCCER',
+  KXTENNIS: 'TENNIS',
   KXGOLF: 'GOLF',
   KXUFC: 'UFC',
+  KXMMA: 'MMA',
+  KXBOXING: 'BOXING',
+  KXCRICKET: 'CRICKET',
+  KXF1: 'F1',
+  KXESPORTS: 'ESPORTS',
 }
 
 const POLYMARKET_SPORT_LABELS: Record<string, string> = {
@@ -95,6 +119,18 @@ const POLYMARKET_SPORT_LABELS: Record<string, string> = {
   nhl: 'NHL',
   mlb: 'MLB',
   soccer: 'SOCCER',
+  tennis: 'TENNIS',
+  mma: 'MMA',
+  boxing: 'BOXING',
+  cricket: 'CRICKET',
+  esports: 'ESPORTS',
+  racing: 'RACING',
+  f1: 'F1',
+  formula1: 'F1',
+  nascar: 'RACING',
+  olympics: 'OLYMPICS',
+  chess: 'CHESS',
+  poker: 'POKER',
   golf: 'GOLF',
   ufc: 'UFC',
 }
@@ -344,12 +380,16 @@ const resolveKalshiPriceCents = (trade: KalshiTrade) => {
 
 const isKalshiSportTicker = (ticker?: string) => {
   if (!ticker) return false
-  return KALSHI_SPORT_PREFIXES.some((prefix) => ticker.startsWith(prefix))
+  const normalized = ticker.toUpperCase()
+  if (KALSHI_SPORT_PREFIXES.some((prefix) => normalized.startsWith(prefix))) return true
+  // Keep broad coverage for newly-added Kalshi sports tickers.
+  return normalized.startsWith('KX')
 }
 
 const isPolymarketSportSlug = (slug?: string) => {
   if (!slug) return false
-  return POLYMARKET_SPORT_PREFIXES.some((prefix) => slug.startsWith(prefix))
+  const normalized = slug.toLowerCase()
+  return POLYMARKET_SPORT_PREFIXES.some((prefix) => normalized.startsWith(prefix))
 }
 
 const parseKalshiDate = (ticker: string) => {
@@ -370,7 +410,7 @@ const resolveKalshiSport = (ticker: string) => {
 
 const parsePolymarketSport = (slug?: string) => {
   if (!slug) return 'Sports'
-  const [prefix] = slug.split('-')
+  const [prefix] = slug.toLowerCase().split('-')
   return POLYMARKET_SPORT_LABELS[prefix] ?? 'Sports'
 }
 

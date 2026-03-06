@@ -685,8 +685,8 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                 className="space-y-6 text-center"
               >
                 <div className="space-y-1">
-                  <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">Welcome to Delta Sports</h1>
-                  <p className="text-[1.8rem] text-white/70 font-light">Create your account</p>
+                  <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">See where the sharp money is betting</h1>
+                  <p className="text-[1.8rem] text-white/70 font-light">Start your 7-day free trial</p>
                 </div>
 
                 {error && (
@@ -709,6 +709,17 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                       {oauthLoading ? "Connecting..." : "Continue with Google"}
                     </span>
                   </button>
+
+                  <div className="space-y-2 text-sm text-white/50">
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-emerald-400">✓</span>
+                      <span>7-day free trial — no charge today</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-emerald-400">✓</span>
+                      <span>Cancel anytime in 2 clicks</span>
+                    </div>
+                  </div>
 
                   <div className="rounded-3xl border border-white/10 bg-zinc-900/60 p-4 text-sm text-white/70 backdrop-blur">
                     <p className="mt-1">

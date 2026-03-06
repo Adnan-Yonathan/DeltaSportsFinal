@@ -165,7 +165,7 @@ export const LoginPage = () => {
           return
         }
 
-        router.push("/pricing")
+        router.push("/checkout")
       }
     } catch (err: any) {
       const message = err?.message || "Failed to sign in"

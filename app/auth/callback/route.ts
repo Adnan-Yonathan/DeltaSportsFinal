@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
 
       // Route only by paid access.
       if (!isPaidNow(membership)) {
-        return NextResponse.redirect(new URL('/pricing', requestUrl.origin))
+        return NextResponse.redirect(new URL('/checkout', requestUrl.origin))
       }
 
       return NextResponse.redirect(new URL('/', requestUrl.origin))

@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   '/auth/signup',
   '/auth/callback',
   '/stripe/success',
+  '/checkout',
 ]
 
 // Public paths where paid users should be redirected to /chat
@@ -211,7 +212,7 @@ export async function middleware(req: NextRequest) {
   const isOnboardingPath = pathname === '/onboarding' || pathname.startsWith('/onboarding/')
   if (isOnboardingPath) {
     if (!isPaid) {
-      return NextResponse.redirect(new URL('/pricing', req.url))
+      return NextResponse.redirect(new URL('/checkout', req.url))
     }
     return res
   }
@@ -232,8 +233,8 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
-  // Unpaid users can stay on pricing.
-  if (!isPaid && pathname.startsWith('/pricing')) {
+  // Unpaid users can stay on pricing or checkout.
+  if (!isPaid && (pathname.startsWith('/pricing') || pathname.startsWith('/checkout'))) {
     return res
   }
 

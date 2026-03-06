@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import BoxLoader from "@/components/ui/box-loader"
+import ShareSharpPropsToolButton from "@/components/ShareSharpPropsToolButton"
 import { shouldPersistPropOrderbooksSnapshot } from "@/lib/services/prop-orderbooks-cache-guard"
+import { filterUpcomingEventItems } from "@/lib/utils/upcoming-event-filter"
 import {
   isWithinSharpRefreshWindow,
   SHARP_REFRESH_INTERVAL_MS,
@@ -870,17 +872,18 @@ export default function PropOrderbooksPanel({
   minSharpNotional?: number
   initialData?: OrderbooksInitialData
 }) {
+  const initialUpcomingItems = filterUpcomingEventItems(initialData?.items ?? [])
   const [selectedSport, setSelectedSport] = useState<string>(sport)
-  const [items, setItems] = useState<OrderbookItem[]>(initialData?.items ?? [])
+  const [items, setItems] = useState<OrderbookItem[]>(initialUpcomingItems)
   const [search, setSearch] = useState("")
   const [oddsPreset, setOddsPreset] = useState<OddsPreset>("all")
   const [selectedBookFilter, setSelectedBookFilter] = useState<SharpBookFilter>("all")
   const [minOdds, setMinOdds] = useState<string>("-200")
   const [maxOdds, setMaxOdds] = useState<string>("")
   const [selectedItemId, setSelectedItemId] = useState<string | null>(
-    initialData?.items?.[0]?.id ?? null
+    initialUpcomingItems[0]?.id ?? null
   )
-  const [loading, setLoading] = useState((initialData?.items?.length ?? 0) === 0)
+  const [loading, setLoading] = useState(initialUpcomingItems.length === 0)
   const [refreshing, setRefreshing] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(
@@ -903,8 +906,8 @@ export default function PropOrderbooksPanel({
 
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
-  const hasItemsRef = useRef((initialData?.items?.length ?? 0) > 0)
-  const itemsRef = useRef<OrderbookItem[]>(initialData?.items ?? [])
+  const hasItemsRef = useRef(initialUpcomingItems.length > 0)
+  const itemsRef = useRef<OrderbookItem[]>(initialUpcomingItems)
   const isMountedRef = useRef(true)
 
   useEffect(() => {
@@ -964,8 +967,8 @@ export default function PropOrderbooksPanel({
         }
         if (requestId !== requestIdRef.current) return
 
-        const nextItems = Array.isArray(payload?.items) ? payload.items : []
-        const previousItems = itemsRef.current
+        const nextItems = filterUpcomingEventItems(Array.isArray(payload?.items) ? payload.items : [])
+        const previousItems = filterUpcomingEventItems(itemsRef.current)
         const shouldAcceptBackground =
           !background ||
           shouldPersistPropOrderbooksSnapshot(previousItems, nextItems) ||
@@ -1002,7 +1005,7 @@ export default function PropOrderbooksPanel({
   useEffect(() => {
     requestIdRef.current += 1
     abortControllerRef.current?.abort()
-    const seededItems = initialData?.items ?? []
+    const seededItems = filterUpcomingEventItems(initialData?.items ?? [])
     hasItemsRef.current = seededItems.length > 0
     itemsRef.current = seededItems
     setItems(seededItems)
@@ -1306,6 +1309,54 @@ export default function PropOrderbooksPanel({
     () => resolveWeightedAverageOdds(ladderRows),
     [ladderRows]
   )
+  const sharpPropsSharePayload = useMemo(() => {
+    if (!selectedItem || !selectedDisplayLean) return null
+
+    const topRows = ladderRows.slice(0, 5)
+    const topMaxNotional = topRows.reduce((max, row) => Math.max(max, row.notional), 0)
+    const playSubtext = selectedDisplayLean.bestBookTitle
+      ? `${selectedDisplayLean.bestBookTitle} best price`
+      : "Direct inverse from sharp resting liquidity"
+
+    return {
+      id: selectedItem.id,
+      sportLabel: selectedItem.sportLabel,
+      matchup: selectedItem.matchup ?? selectedItem.marketTitle,
+      sourceKeys: selectedItem.sources,
+      whaleVolumeLabel: formatCompactCurrency(resolveDisplayOrderSize(selectedItem)),
+      playLabel: resolvePropText(selectedItem, selectedDisplayLean.side),
+      playOddsLabel: formatAmericanOdds(selectedDisplayLean.odds ?? null),
+      playSubtext,
+      playerImageUrl: selectedFaceSrc,
+      playerInitials: resolvePlayerInitials(selectedItem.playerName),
+      sharpBookOdds: selectedSharpBookOdds.map((book) => ({
+        key: book.key,
+        oddsLabel: formatAmericanOdds(book.odds),
+      })),
+      ladderSummaryLabel: `${formatAmericanOdds(ladderAverageOdds)} avg | ${formatCompactCurrency(
+        ladderVolume
+      )} vol`,
+      ladderRows: topRows.map((row) => ({
+        id: row.id,
+        sideLabel: row.side ?? "Side",
+        oddsLabel: formatAmericanOdds(row.odds),
+        volumeLabel: formatCompactCurrency(row.notional),
+        widthPct:
+          topMaxNotional > 0
+            ? Math.max((row.notional / topMaxNotional) * 100, 3)
+            : 0,
+        sourceKeys: row.sources,
+      })),
+    }
+  }, [
+    ladderAverageOdds,
+    ladderRows,
+    ladderVolume,
+    selectedDisplayLean,
+    selectedFaceSrc,
+    selectedItem,
+    selectedSharpBookOdds,
+  ])
 
   const totalCountLabel = `${filteredItems.length} props`
   const updatedLabel = lastUpdatedAt ? formatDateLabel(lastUpdatedAt) : "--"
@@ -1594,6 +1645,11 @@ export default function PropOrderbooksPanel({
                     {formatCompactCurrency(resolveDisplayOrderSize(selectedItem))}
                   </div>
                   <div className="text-sm text-white/55">Whale Volume</div>
+                  <div className="ml-auto">
+                    {sharpPropsSharePayload && (
+                      <ShareSharpPropsToolButton payload={sharpPropsSharePayload} />
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-4 rounded-xl border border-white/10 bg-black/45 p-3">

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table"
 import { SimpleHeader } from "@/components/ui/simple-header"
 import MobileToolsNav from "@/components/mobile-tools-nav"
+import ShareTradeButton from "@/components/ShareTradeButton"
 import { createClient } from "@/lib/supabase/client"
 import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
 import { formatAmericanOdds, formatCurrency } from "@/lib/utils/odds"
@@ -801,6 +802,24 @@ export default function SharpDetectorPage() {
                           <div className="mt-1 text-white">{hotCount >= 2 ? `${hotCount} bets` : "--"}</div>
                         </div>
                       </div>
+
+                      <div className="flex justify-end">
+                        <ShareTradeButton
+                          trade={{
+                            id: trade.id,
+                            marketTitle: trade.marketTitle,
+                            outcome: trade.outcome,
+                            notional: trade.notional,
+                            source: trade.source,
+                            sport: trade.sport,
+                            eventDate: trade.eventDate,
+                            timestamp: trade.timestamp,
+                            priceCents: trade.priceCents,
+                            americanOdds: trade.americanOdds,
+                          }}
+                          matchupLabel={resolveGameLabel(trade.marketTitle)}
+                        />
+                      </div>
                     </article>
                   )
                 })}
@@ -808,7 +827,7 @@ export default function SharpDetectorPage() {
 
               <div className="hidden sm:block">
                 <div className="max-h-[72vh] overflow-auto">
-                  <Table className="min-w-[1180px] text-[13px] text-white/75">
+                  <Table className="min-w-[1280px] text-[13px] text-white/75">
                     <TableHeader className="bg-black/70">
                       <TableRow className="text-[10px] uppercase tracking-[0.18em] text-white/45">
                         <TableHead className="w-[120px]">Size</TableHead>
@@ -820,6 +839,7 @@ export default function SharpDetectorPage() {
                         <TableHead className="w-[90px]">Odds</TableHead>
                         <TableHead className="w-[170px]">Detected</TableHead>
                         <TableHead className="w-[110px]">Hot Game</TableHead>
+                        <TableHead className="w-[120px] text-right">Share</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody className="divide-y divide-white/5">
@@ -868,6 +888,23 @@ export default function SharpDetectorPage() {
                               ) : (
                                 <span className="text-white/35">--</span>
                               )}
+                            </TableCell>
+                            <TableCell className="align-top text-right">
+                              <ShareTradeButton
+                                trade={{
+                                  id: trade.id,
+                                  marketTitle: trade.marketTitle,
+                                  outcome: trade.outcome,
+                                  notional: trade.notional,
+                                  source: trade.source,
+                                  sport: trade.sport,
+                                  eventDate: trade.eventDate,
+                                  timestamp: trade.timestamp,
+                                  priceCents: trade.priceCents,
+                                  americanOdds: trade.americanOdds,
+                                }}
+                                matchupLabel={resolveGameLabel(trade.marketTitle)}
+                              />
                             </TableCell>
                           </TableRow>
                         )

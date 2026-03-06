@@ -5,7 +5,6 @@ import Image from "next/image"
 import BoxLoader from "@/components/ui/box-loader"
 import ShareSharpPropsToolButton from "@/components/ShareSharpPropsToolButton"
 import { shouldPersistPropOrderbooksSnapshot } from "@/lib/services/prop-orderbooks-cache-guard"
-import { filterUpcomingEventItems } from "@/lib/utils/upcoming-event-filter"
 import {
   isWithinSharpRefreshWindow,
   SHARP_REFRESH_INTERVAL_MS,
@@ -872,18 +871,17 @@ export default function PropOrderbooksPanel({
   minSharpNotional?: number
   initialData?: OrderbooksInitialData
 }) {
-  const initialUpcomingItems = filterUpcomingEventItems(initialData?.items ?? [])
   const [selectedSport, setSelectedSport] = useState<string>(sport)
-  const [items, setItems] = useState<OrderbookItem[]>(initialUpcomingItems)
+  const [items, setItems] = useState<OrderbookItem[]>(initialData?.items ?? [])
   const [search, setSearch] = useState("")
   const [oddsPreset, setOddsPreset] = useState<OddsPreset>("all")
   const [selectedBookFilter, setSelectedBookFilter] = useState<SharpBookFilter>("all")
   const [minOdds, setMinOdds] = useState<string>("-200")
   const [maxOdds, setMaxOdds] = useState<string>("")
   const [selectedItemId, setSelectedItemId] = useState<string | null>(
-    initialUpcomingItems[0]?.id ?? null
+    initialData?.items?.[0]?.id ?? null
   )
-  const [loading, setLoading] = useState(initialUpcomingItems.length === 0)
+  const [loading, setLoading] = useState((initialData?.items?.length ?? 0) === 0)
   const [refreshing, setRefreshing] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(
@@ -906,8 +904,8 @@ export default function PropOrderbooksPanel({
 
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
-  const hasItemsRef = useRef(initialUpcomingItems.length > 0)
-  const itemsRef = useRef<OrderbookItem[]>(initialUpcomingItems)
+  const hasItemsRef = useRef((initialData?.items?.length ?? 0) > 0)
+  const itemsRef = useRef<OrderbookItem[]>(initialData?.items ?? [])
   const isMountedRef = useRef(true)
 
   useEffect(() => {
@@ -967,8 +965,8 @@ export default function PropOrderbooksPanel({
         }
         if (requestId !== requestIdRef.current) return
 
-        const nextItems = filterUpcomingEventItems(Array.isArray(payload?.items) ? payload.items : [])
-        const previousItems = filterUpcomingEventItems(itemsRef.current)
+        const nextItems = Array.isArray(payload?.items) ? payload.items : []
+        const previousItems = itemsRef.current
         const shouldAcceptBackground =
           !background ||
           shouldPersistPropOrderbooksSnapshot(previousItems, nextItems) ||
@@ -1005,7 +1003,7 @@ export default function PropOrderbooksPanel({
   useEffect(() => {
     requestIdRef.current += 1
     abortControllerRef.current?.abort()
-    const seededItems = filterUpcomingEventItems(initialData?.items ?? [])
+    const seededItems = initialData?.items ?? []
     hasItemsRef.current = seededItems.length > 0
     itemsRef.current = seededItems
     setItems(seededItems)

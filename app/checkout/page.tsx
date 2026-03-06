@@ -191,11 +191,6 @@ export default function CheckoutPage() {
                         </span>
                       )}
                       <span className="capitalize">{period}</span>
-                      {plan && (
-                        <span className="ml-1 text-xs opacity-70">
-                          ${plan.price}
-                        </span>
-                      )}
                     </button>
                   )
                 })}
@@ -207,12 +202,12 @@ export default function CheckoutPage() {
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
                 <div className="flex items-baseline justify-between">
                   <div>
-                    <span className="text-3xl font-bold">${selectedPlan.price}</span>
-                    <span className="text-white/50">/{selectedPlan.period}</span>
+                    <span className="text-3xl font-bold">${selectedPlan.daily.toFixed(2)}</span>
+                    <span className="text-white/50">/day</span>
                   </div>
                   <div className="text-right">
                     <div className="text-sm text-white/50">
-                      ~${selectedPlan.daily.toFixed(2)}/day
+                      ${selectedPlan.price}/{selectedPlan.period}
                     </div>
                     {selectedPlan.savings && (
                       <div className="text-sm font-medium text-emerald-400">

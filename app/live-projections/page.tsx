@@ -43,7 +43,7 @@ export default async function LiveProjectionsPage() {
                 Upgrade to unlock real-time projections during games.
               </p>
               <Link
-                href="/pricing"
+                href="/checkout"
                 className="mt-5 inline-flex items-center rounded-full border border-emerald-400/60 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
               >
                 Start your free trial

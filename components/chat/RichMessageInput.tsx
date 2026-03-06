@@ -343,7 +343,7 @@ export default function RichMessageInput({ conversationId, userId }: RichMessage
       alert(errorMessage)
 
       if (shouldRedirectToPricing) {
-        window.location.href = '/pricing'
+        window.location.href = '/checkout'
       }
 
       if (error.name === 'AbortError') {

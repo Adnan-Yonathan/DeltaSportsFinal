@@ -42,7 +42,7 @@ export function AppFooter() {
               in real time.
             </p>
             <Link
-              href="/pricing"
+              href="/auth/signup"
               className="mt-5 inline-flex items-center rounded-full bg-[#3CCB97] px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-[#52d8a8]"
             >
               Start free trial

@@ -79,7 +79,7 @@ export function WelcomeFaqAndFinalCta() {
           Get instant access to Sharp Projections, Sharp Props, Whale Feed, and Research Mode.
         </p>
         <Link
-          href="/pricing"
+          href="/auth/signup"
           className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#3CCB97] px-6 py-3 text-sm font-semibold text-black transition-colors hover:bg-[#52d8a8]"
         >
           Get started now

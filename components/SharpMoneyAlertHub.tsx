@@ -273,7 +273,7 @@ export default function SharpMoneyAlertHub() {
                   Syndicate preview
                 </div>
                 <Link
-                  href="/pricing"
+                  href="/checkout"
                   className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300 sm:text-[11px]"
                 >
                   Start your free trial

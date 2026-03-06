@@ -194,7 +194,7 @@ export default function MobileToolsNav() {
   const handleOpenSubscription = useCallback(async () => {
     dismissMoreMenu()
     if (!user || !membership?.isActive) {
-      router.push('/pricing')
+      router.push('/checkout')
       return
     }
     try {
@@ -207,7 +207,7 @@ export default function MobileToolsNav() {
     } catch (error) {
       console.error('Failed to open billing portal:', error)
     }
-    router.push('/pricing')
+    router.push('/checkout')
   }, [dismissMoreMenu, membership?.isActive, router, user])
 
   return (

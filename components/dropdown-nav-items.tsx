@@ -90,7 +90,7 @@ export const DROPDOWN_NAV_ITEMS: DropdownNavigationItem[] = [
             label: "Pricing",
             description: "Start your free trial",
             icon: DollarSign,
-            href: "/pricing",
+            href: "/auth/signup",
           },
         ],
       },

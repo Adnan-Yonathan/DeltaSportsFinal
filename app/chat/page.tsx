@@ -581,7 +581,7 @@ function ChatPageContent() {
                   <button
                     onClick={() => {
                       setProfileMenuOpen(false)
-                      router.push('/pricing')
+                      router.push('/checkout')
                     }}
                     className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-emerald-400 hover:bg-white/5 transition-colors"
                   >
@@ -668,7 +668,7 @@ function ChatPageContent() {
       await openBillingPortal()
       return
     }
-    router.push('/pricing')
+    router.push('/checkout')
   }
 
   return (

@@ -149,7 +149,7 @@ export default function GlobalLeftNav() {
 
   const openSubscription = async () => {
     if (!user || !membership?.isActive) {
-      router.push("/pricing")
+      router.push("/checkout")
       return
     }
     try {

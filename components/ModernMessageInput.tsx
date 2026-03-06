@@ -146,7 +146,7 @@ export default function ModernMessageInput({ conversationId, userId }: MessageIn
       alert(errorMessage)
 
       if (shouldRedirectToPricing) {
-        window.location.href = '/pricing'
+        window.location.href = '/checkout'
       }
 
       // Restore message if send failed

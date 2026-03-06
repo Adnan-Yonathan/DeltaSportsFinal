@@ -163,36 +163,9 @@ export function PricingSection({
     }
   }
 
-  const handleCheckout = async (planKey: string) => {
-    setLoadingPlan(planKey)
-    try {
-      const response = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planKey, ...checkoutRedirects }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        // If unauthorized, route to signup before checkout.
-        if (response.status === 401) {
-          router.push('/auth/signup?redirect=/pricing')
-          return
-        }
-        throw new Error(data.error || 'Failed to create checkout session')
-      }
-
-      // Redirect to Stripe checkout
-      if (data.url) {
-        window.location.href = data.url
-      }
-    } catch (error) {
-      console.error('Checkout error:', error)
-      alert(error instanceof Error ? error.message : 'Failed to start checkout')
-    } finally {
-      setLoadingPlan(null)
-    }
+  const handleCheckout = async (_planKey: string) => {
+    // Route to the new embedded checkout page
+    router.push('/checkout')
   }
 
   const handleUpgrade = async (planKey: string) => {

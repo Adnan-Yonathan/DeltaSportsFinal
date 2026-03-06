@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatAmericanOdds, formatCurrency } from '@/lib/utils/odds'
 import { cn } from '@/lib/utils'
 import { normalizeTeamKey } from '@/lib/identity/sport'
@@ -52,13 +52,47 @@ type SharpTradeWithStatus = SharpTrade & {
   roi?: number
 }
 
-type WalletSummary = {
+type BettorLeaderboardRow = {
+  rank: number
   wallet: string
+  display_name: string | null
+  risk_adjusted_score: number
   total_realized_pnl: number
-  total_wins: number
-  total_losses: number
-  total_pushes: number
-  last_computed_at: string
+  roi_lifetime: number
+  settled_markets: number
+}
+
+type BettorFeedTrade = {
+  id: string
+  wallet: string
+  display_name: string | null
+  side: 'BUY' | 'SELL'
+  size: number | null
+  price: number | null
+  entry_american_odds: number | null
+  stake_usd: number | null
+  trade_time: string
+  sport: string
+  slug: string
+  title: string | null
+  outcome: string | null
+  outcome_index: number | null
+  risk_adjusted_score: number
+  total_realized_pnl: number
+  roi_lifetime: number
+}
+
+type BettorPosition = {
+  wallet: string
+  slug: string
+  sport: string | null
+  title: string | null
+  outcome: string | null
+  net_shares: number
+  avg_entry_american_odds: number | null
+  stake_usd: number
+  potential_payout_usd: number
+  last_trade_time: string | null
 }
 
 type SharpTier = 'small' | 'blue' | 'mega' | 'nuke'
@@ -74,9 +108,6 @@ type SharpAlert = {
 
 const MIN_NOTIONAL = 2000
 const MIN_PROP_NOTIONAL = 1000
-const MIN_GAME_NOTIONAL = 2000
-const NUKE_NOTIONAL = 100000
-const SHARP_MONEY_STRENGTH_THRESHOLD = 60
 const POLL_INTERVAL_BET_FEED = 30000
 const POLL_INTERVAL_SHARP_FEED = 15000
 const WALLET_STORAGE_KEY = 'sharp-detector-wallets'
@@ -132,15 +163,6 @@ const parseEventTime = (value?: string | null) => {
   const parsed = new Date(value)
   const time = parsed.getTime()
   return Number.isFinite(time) ? time : null
-}
-
-const isTradeLive = (trade: SharpTrade) => {
-  if (!trade.eventDate) return false
-  const eventTime = parseEventTime(trade.eventDate)
-  if (!eventTime) return false
-  const now = Date.now()
-  const fourHoursMs = 4 * 60 * 60 * 1000
-  return eventTime <= now && eventTime > now - fourHoursMs
 }
 
 const isPastEvent = (trade: SharpTrade) => {
@@ -229,9 +251,6 @@ const cleanTeamLabel = (value: string) => {
   return normalizedDashes
 }
 
-const normalizeMarketKey = (value: string) =>
-  value.toLowerCase().replace(/[^a-z0-9]/g, "")
-
 const parseTeamsFromTitle = (marketTitle: string) => {
   const match = marketTitle.split(/\s+(?:vs\.?|v\.?|@|at)\s+/i)
   if (match.length !== 2) return null
@@ -285,29 +304,6 @@ const resolveGameLabel = (marketTitle: string) => {
   const teams = parseTeamsFromTitle(marketTitle)
   if (teams) return `${teams.away} vs ${teams.home}`
   return marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()
-}
-
-const resolveMarketType = (trade: SharpTrade) => {
-  const combined = `${trade.outcome} ${trade.marketTitle}`.toLowerCase()
-  if (combined.includes("over") || combined.includes("under") || combined.includes("total")) {
-    return "total"
-  }
-  if (combined.includes("spread") || /[+-]\d/.test(combined)) {
-    return "spread"
-  }
-  return "moneyline"
-}
-
-const resolveMarketGroupKey = (trade: SharpTrade) => {
-  const marketType = resolveMarketType(trade)
-  const teams = parseTeamsFromTitle(trade.marketTitle)
-  if (teams) {
-    const gameKey = buildTeamGameKey(trade.sport, teams.away, teams.home)
-    if (gameKey) {
-      return `${gameKey}:${marketType}`
-    }
-  }
-  return `${trade.sport}:${normalizeMarketKey(trade.marketTitle)}:${marketType}`
 }
 
 const resolveTradeDateKey = (trade: SharpTrade) => {
@@ -419,8 +415,13 @@ export default function SharpDetectorPanel({
     }
     return []
   })
-  const [showTrackedWallets, setShowTrackedWallets] = useState(false)
-  const [trackedWalletSummary, setTrackedWalletSummary] = useState<WalletSummary[]>([])
+  const [bettorLeaderboard, setBettorLeaderboard] = useState<BettorLeaderboardRow[]>([])
+  const [bettorFeedRows, setBettorFeedRows] = useState<BettorFeedTrade[]>([])
+  const [bettorWalletFilter, setBettorWalletFilter] = useState<string>('all')
+  const [selectedBettorWallet, setSelectedBettorWallet] = useState<string | null>(null)
+  const [selectedBettorPositions, setSelectedBettorPositions] = useState<BettorPosition[]>([])
+  const [selectedBettorLabel, setSelectedBettorLabel] = useState<string | null>(null)
+  const [bettorLoading, setBettorLoading] = useState(false)
   const seenIdsRef = useRef<Set<string>>(new Set())
   const hasInitializedRef = useRef(false)
 
@@ -619,108 +620,6 @@ export default function SharpDetectorPanel({
     [trackedWallets]
   )
 
-  const trackedWalletSummaryMap = useMemo(() => {
-    return new Map(
-      trackedWalletSummary.map((summary) => [
-        normalizeWallet(summary.wallet) ?? summary.wallet,
-        summary,
-      ])
-    )
-  }, [trackedWalletSummary])
-
-  const trackedWalletTradePreview = useMemo(() => {
-    const preview = betFeedTrades
-      .filter((trade) => {
-        if (trade.source !== 'polymarket') return false
-        const wallet = normalizeWallet(trade.proxyWallet)
-        return wallet ? trackedWalletSet.has(wallet) : false
-      })
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 3)
-    return preview
-  }, [betFeedTrades, trackedWalletSet])
-
-  const winningWallets = useMemo(() => {
-    const stats = new Map<string, { wallet: string; wins: number; pnl: number }>()
-    betFeedTrades.forEach((trade) => {
-      if (trade.source !== 'polymarket') return
-      const wallet = normalizeWallet(trade.proxyWallet)
-      if (!wallet || !trackedWalletSet.has(wallet)) return
-      const hasWin = trade.result === 'win'
-      const pnl = Number.isFinite(trade.pnl) ? Number(trade.pnl) : 0
-      const roi = Number.isFinite(trade.roi) ? Number(trade.roi) : 0
-      if (!hasWin && pnl <= 0 && roi <= 0) return
-      const entry = stats.get(wallet) ?? { wallet, wins: 0, pnl: 0 }
-      if (hasWin) entry.wins += 1
-      if (pnl > 0) entry.pnl += pnl
-      stats.set(wallet, entry)
-    })
-    return Array.from(stats.values()).sort((a, b) => {
-      if (a.pnl !== b.pnl) return b.pnl - a.pnl
-      return b.wins - a.wins
-    })
-  }, [betFeedTrades, trackedWalletSet])
-
-  const winningWalletTradePreview = useMemo(() => {
-    if (!winningWallets.length) return []
-    const winners = new Set(winningWallets.map((entry) => entry.wallet))
-    return betFeedTrades
-      .filter((trade) => {
-        if (trade.source !== 'polymarket') return false
-        const wallet = normalizeWallet(trade.proxyWallet)
-        return wallet ? winners.has(wallet) : false
-      })
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 3)
-  }, [betFeedTrades, winningWallets])
-
-  const walletStats = useMemo(() => {
-    const stats = new Map<
-      string,
-      { wallet: string; count: number; wins: number; losses: number; pushes: number; lastSeen?: string }
-    >()
-    betFeedTrades.forEach((trade) => {
-      if (trade.source !== 'polymarket') return
-      const walletKey = normalizeWallet(trade.proxyWallet)
-      if (!walletKey) return
-      const entry = stats.get(walletKey) ?? {
-        wallet: walletKey,
-        count: 0,
-        wins: 0,
-        losses: 0,
-        pushes: 0,
-      }
-      entry.count += 1
-      if (!entry.lastSeen || trade.timestamp > entry.lastSeen) {
-        entry.lastSeen = trade.timestamp
-      }
-      if (trade.result === 'win') entry.wins += 1
-      if (trade.result === 'loss') entry.losses += 1
-      if (trade.result === 'push') entry.pushes += 1
-      stats.set(walletKey, entry)
-    })
-
-    const rows = trackedWallets.map((wallet) => {
-      const walletKey = normalizeWallet(wallet) ?? wallet
-      const entry = stats.get(walletKey)
-      return {
-        wallet: walletKey,
-        count: entry?.count ?? 0,
-        lastSeen: entry?.lastSeen ?? null,
-        wins: entry?.wins ?? 0,
-        losses: entry?.losses ?? 0,
-        pushes: entry?.pushes ?? 0,
-      }
-    })
-
-    return rows.sort((a, b) => {
-      const timeA = a.lastSeen ? new Date(a.lastSeen).getTime() : 0
-      const timeB = b.lastSeen ? new Date(b.lastSeen).getTime() : 0
-      if (timeA !== timeB) return timeB - timeA
-      return b.count - a.count
-    })
-  }, [betFeedTrades, trackedWallets])
-
   const sortedTrades = useMemo(() => {
     const weight = (status?: SharpTradeStatus) => {
       if (status === 'respected') return 0
@@ -744,52 +643,46 @@ export default function SharpDetectorPanel({
     })
   }, [filteredTrades, sortFilter])
 
+  const sharpMoneySourceTrades = useMemo(() => {
+    const rows = bettorFeedRows.filter((row) => {
+      if (bettorWalletFilter !== 'all' && row.wallet !== bettorWalletFilter) return false
+      return true
+    })
+
+    return rows.map<SharpTradeWithStatus>((row) => ({
+      id: row.id,
+      source: 'polymarket',
+      marketTitle: row.title ?? row.slug,
+      outcome: row.outcome ?? 'Market',
+      proxyWallet: row.wallet,
+      priceCents: Number.isFinite(row.price) ? Math.round((row.price ?? 0) * 100) : 0,
+      americanOdds: row.entry_american_odds,
+      notional: row.stake_usd ?? 0,
+      contracts: row.size ?? 0,
+      timestamp: row.trade_time,
+      sport: row.sport || 'SPORTS',
+      slug: row.slug,
+      outcomeIndex: row.outcome_index ?? undefined,
+      side: row.side,
+      sharpStrength: Math.round(row.risk_adjusted_score ?? 0),
+    }))
+  }, [bettorFeedRows, bettorWalletFilter])
+
   const sharpMoneyTrades = useMemo(() => {
-    const phaseFiltered = filterByPhase(trades, phaseFilter).filter(
+    const phaseFiltered = filterByPhase(sharpMoneySourceTrades, phaseFilter).filter(
       (trade) => !isPastEvent(trade)
     )
-    const scored = phaseFiltered
-      .map((trade) => {
-        const isGameMarket = Boolean(parseTeamsFromTitle(trade.marketTitle))
-        const minNotional = isGameMarket ? MIN_GAME_NOTIONAL : MIN_PROP_NOTIONAL
-        if (trade.notional < minNotional) return null
-        const strengthHit =
-          (trade.sharpStrength ?? 0) >= SHARP_MONEY_STRENGTH_THRESHOLD
-        if (!strengthHit) return null
-
-        return {
-          trade,
-          minNotional,
-        }
+    return phaseFiltered
+      .map((trade) => ({
+        trade,
+        minNotional: 0,
+      }))
+      .sort((a, b) => {
+        const timeA = new Date(a.trade.timestamp).getTime()
+        const timeB = new Date(b.trade.timestamp).getTime()
+        return timeB - timeA
       })
-      .filter(Boolean) as Array<{
-        trade: SharpTradeWithStatus
-        minNotional: number
-      }>
-
-    return scored.sort((a, b) => {
-      const strengthA = a.trade.sharpStrength ?? 0
-      const strengthB = b.trade.sharpStrength ?? 0
-      if (strengthA !== strengthB) return strengthB - strengthA
-      if (a.trade.notional !== b.trade.notional) return b.trade.notional - a.trade.notional
-      return new Date(b.trade.timestamp).getTime() - new Date(a.trade.timestamp).getTime()
-    }).reduce<{
-      seen: Set<string>
-      rows: Array<{
-        trade: SharpTradeWithStatus
-        minNotional: number
-      }>
-    }>(
-      (state, entry) => {
-        const key = resolveMarketGroupKey(entry.trade)
-        if (state.seen.has(key)) return state
-        state.seen.add(key)
-        state.rows.push(entry)
-        return state
-      },
-      { seen: new Set<string>(), rows: [] }
-    ).rows
-  }, [trades, phaseFilter])
+  }, [sharpMoneySourceTrades, phaseFilter])
 
   const activeSportsWithSharpMoney = useMemo(() => {
     const sports = new Map<string, number>()
@@ -801,7 +694,7 @@ export default function SharpDetectorPanel({
       .map(([sport, count]) => ({ sport, count }))
   }, [sharpMoneyTrades])
 
-  const fetchTrades = async () => {
+  const fetchTrades = useCallback(async () => {
     try {
       const params = new URLSearchParams()
       params.set('minNotional', String(MIN_PROP_NOTIONAL))
@@ -861,7 +754,44 @@ export default function SharpDetectorPanel({
       setLastFetchAt(new Date().toISOString())
       setLastFetchError(error instanceof Error ? error.message : 'Unknown error')
     }
-  }
+  }, [dateFilter, onNewSharp])
+
+  const fetchBettorData = useCallback(async () => {
+    try {
+      setBettorLoading(true)
+      const leaderboardRes = await fetch('/api/polymarket/bettors/leaderboard?limit=12', {
+        cache: 'no-store',
+      })
+      const leaderboardPayload = leaderboardRes.ok ? await leaderboardRes.json() : { bettors: [] }
+      const leaderboardRows: BettorLeaderboardRow[] = Array.isArray(leaderboardPayload?.bettors)
+        ? leaderboardPayload.bettors
+        : []
+      setBettorLeaderboard(leaderboardRows)
+
+      const params = new URLSearchParams()
+      params.set('limit', '120')
+      if (bettorWalletFilter !== 'all') {
+        params.set('wallet', bettorWalletFilter)
+      }
+      const feedRes = await fetch(`/api/polymarket/bettors/feed?${params.toString()}`, {
+        cache: 'no-store',
+      })
+      const feedPayload = feedRes.ok ? await feedRes.json() : { trades: [] }
+      const feedRows: BettorFeedTrade[] = Array.isArray(feedPayload?.trades)
+        ? feedPayload.trades
+        : []
+      setBettorFeedRows(feedRows)
+      setLastFetchAt(new Date().toISOString())
+      setLastFetchCount(feedRows.length)
+      setLastFetchError(null)
+    } catch (error) {
+      console.warn('Bettor feed fetch failed:', error)
+      setLastFetchAt(new Date().toISOString())
+      setLastFetchError(error instanceof Error ? error.message : 'Unknown error')
+    } finally {
+      setBettorLoading(false)
+    }
+  }, [bettorWalletFilter])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -897,52 +827,49 @@ export default function SharpDetectorPanel({
     })
   }, [hydrated, betFeedTrades])
 
+  // Dynamic polling based on active tab
   useEffect(() => {
-    if (!hydrated) return
-    const wallets = Array.from(
-      new Set(
-        trackedWallets.map((wallet) => normalizeWallet(wallet)).filter(Boolean) as string[]
-      )
-    )
-    if (!wallets.length) {
-      setTrackedWalletSummary([])
+    if (activeTab === 'sharp-money' && isSyndicate) {
+      fetchBettorData()
+      const interval = setInterval(fetchBettorData, POLL_INTERVAL_SHARP_FEED)
+      return () => clearInterval(interval)
+    }
+
+    fetchTrades()
+    const interval = setInterval(fetchTrades, POLL_INTERVAL_BET_FEED)
+    return () => clearInterval(interval)
+  }, [activeTab, isSyndicate, fetchBettorData, fetchTrades])
+
+  useEffect(() => {
+    if (!selectedBettorWallet || activeTab !== 'sharp-money' || !isSyndicate) {
+      setSelectedBettorPositions([])
       return
     }
     const controller = new AbortController()
-    const fetchTrackedSummary = async () => {
+    const load = async () => {
       try {
-        const params = new URLSearchParams()
-        const limitedWallets = wallets.slice(0, 200)
-        params.set('wallets', limitedWallets.join(','))
-        params.set('limit', String(limitedWallets.length))
-        const res = await fetch(`/api/polymarket/wallets/summary?${params.toString()}`, {
-          cache: 'no-store',
-          signal: controller.signal,
-        })
-        if (!res.ok) {
-          throw new Error(`Tracked summary fetch failed (${res.status})`)
-        }
-        const data = await res.json()
-        setTrackedWalletSummary(Array.isArray(data?.wallets) ? data.wallets : [])
+        const res = await fetch(
+          `/api/polymarket/bettors/${encodeURIComponent(selectedBettorWallet)}/positions?limit=50`,
+          {
+            cache: 'no-store',
+            signal: controller.signal,
+          }
+        )
+        if (!res.ok) return
+        const payload = await res.json()
+        setSelectedBettorPositions(
+          Array.isArray(payload?.positions) ? payload.positions : []
+        )
+        const name = payload?.display_name
+        setSelectedBettorLabel(typeof name === 'string' && name.length > 0 ? name : selectedBettorWallet)
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
-        console.warn(
-          'Failed to load tracked wallet summary:',
-          error instanceof Error ? error.message : error
-        )
+        console.warn('Bettor positions fetch failed:', error)
       }
     }
-    fetchTrackedSummary()
+    load()
     return () => controller.abort()
-  }, [hydrated, trackedWallets])
-
-  // Dynamic polling based on active tab
-  useEffect(() => {
-    fetchTrades()
-    const pollInterval = activeTab === 'sharp-money' ? POLL_INTERVAL_SHARP_FEED : POLL_INTERVAL_BET_FEED
-    const interval = setInterval(fetchTrades, pollInterval)
-    return () => clearInterval(interval)
-  }, [activeTab])
+  }, [selectedBettorWallet, activeTab, isSyndicate])
 
   // Alert detection for new sharp money trades
   useEffect(() => {
@@ -964,7 +891,7 @@ export default function SharpDetectorPanel({
       // Add to seen set
       newSharpMoney.forEach((trade) => sharpMoneySeenIds.current.add(trade.id))
     }
-  }, [sharpMoneyTrades, alertsEnabled, activeTab])
+  }, [sharpMoneyTrades, alertsEnabled, activeTab, showLocalAlerts])
 
   // Auto-dismiss alerts after 30 seconds
   useEffect(() => {
@@ -973,7 +900,7 @@ export default function SharpDetectorPanel({
       setAlerts((prev) => prev.slice(1))
     }, 30000)
     return () => clearTimeout(timer)
-  }, [alerts])
+  }, [alerts, showLocalAlerts])
 
   // Dismiss alert handler
   const dismissAlert = (alertId: string) => {
@@ -1277,12 +1204,12 @@ export default function SharpDetectorPanel({
       {activeTab === 'sharp-money' && !isSyndicate && (
         <div className="p-6 text-center">
           <Lock className="w-8 h-8 mx-auto text-white/30 mb-3" />
-          <h3 className="text-lg font-medium text-white">Sharp Money Feed</h3>
+          <h3 className="text-lg font-medium text-white">Pro Bettor Feed</h3>
           <p className="text-sm text-white/60 mt-1">
-            Under construction and gated while we finish updates. Back up on 1/21.
+            Track qualified profitable Polymarket sports bettors, their fills, and live position exposure.
           </p>
           <Link
-            href="/pricing"
+            href="/checkout"
             className="mt-4 inline-flex items-center rounded-full border border-emerald-400/60 px-5 py-2 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300 hover:text-white transition-colors"
           >
             Start your free trial
@@ -1311,7 +1238,7 @@ export default function SharpDetectorPanel({
             <div className="flex items-center gap-3">
               <h3 className="text-sm font-medium text-white/80 flex items-center gap-2">
                 <Zap className="w-4 h-4 text-emerald-400" />
-                Sharp Money Signals
+                Profitable Bettor Tape
               </h3>
               {activeSportsWithSharpMoney.length > 0 && (
                 <div className="flex items-center gap-1.5">
@@ -1337,6 +1264,18 @@ export default function SharpDetectorPanel({
                 <option value="pregame">Pre-game Only</option>
                 <option value="live">Live Only</option>
               </select>
+              <select
+                value={bettorWalletFilter}
+                onChange={(e) => setBettorWalletFilter(e.target.value)}
+                className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-black text-[11px] text-white/80 focus:outline-none focus:border-emerald-500/50"
+              >
+                <option value="all">All Bettors</option>
+                {bettorLeaderboard.map((bettor) => (
+                  <option key={bettor.wallet} value={bettor.wallet}>
+                    {(bettor.display_name ?? formatWalletAlias(bettor.wallet))} ({Math.round(bettor.risk_adjusted_score)})
+                  </option>
+                ))}
+              </select>
               {showLocalAlerts && (
                 <label className="flex items-center gap-2 text-[10px] text-white/50 cursor-pointer">
                   <input
@@ -1351,24 +1290,64 @@ export default function SharpDetectorPanel({
             </div>
           </div>
 
+          {bettorLeaderboard.length > 0 && (
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+              <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-white/50">
+                Leaderboard (Risk-Adjusted)
+              </p>
+              <div className="grid gap-2 md:grid-cols-3">
+                {bettorLeaderboard.slice(0, 6).map((bettor) => (
+                  <button
+                    key={bettor.wallet}
+                    type="button"
+                    onClick={() => {
+                      setSelectedBettorWallet(bettor.wallet)
+                      setSelectedBettorLabel(bettor.display_name ?? formatWalletAlias(bettor.wallet))
+                      setBettorWalletFilter(bettor.wallet)
+                    }}
+                    className="rounded-xl border border-white/10 bg-black/40 p-2 text-left hover:border-emerald-400/40 transition"
+                  >
+                    <p className="text-[11px] text-white/70">
+                      #{bettor.rank} {bettor.display_name ?? formatWalletAlias(bettor.wallet)}
+                    </p>
+                    <p className="text-xs font-semibold text-emerald-300">
+                      {formatCurrency(bettor.total_realized_pnl)}
+                    </p>
+                    <p className="text-[10px] text-white/45">
+                      Score {Math.round(bettor.risk_adjusted_score)} | ROI {(bettor.roi_lifetime * 100).toFixed(1)}%
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Empty State */}
-          {sharpMoneyTrades.length === 0 && (
+          {!bettorLoading && sharpMoneyTrades.length === 0 && (
           <div className="rounded-2xl border border-white/10 bg-black/40 p-8 text-center">
             <Zap className="w-10 h-10 text-white/20 mx-auto mb-3" />
             <p className="text-white/60 text-sm">
-              No sharp money signals detected right now.
+              No qualified bettor prints detected right now.
             </p>
             <p className="text-white/40 text-[11px] mt-1">
-              Signals trigger when sharp strength hits {SHARP_MONEY_STRENGTH_THRESHOLD}%.
+              This stream only includes qualified profitable Polymarket sports bettors.
             </p>
           </div>
         )}
+
+          {bettorLoading && (
+            <div className="rounded-2xl border border-white/10 bg-black/40 p-8 text-center text-sm text-white/60">
+              Loading bettor feed...
+            </div>
+          )}
 
           {/* Sharp Money Trade Cards */}
           {sharpMoneyTrades.map((entry) => {
             const { trade } = entry
             const isFresh = now - new Date(trade.timestamp).getTime() < 2 * 60 * 1000
             const sharpTier = resolveSharpTier(trade.notional)
+            const walletKey = normalizeWallet(trade.proxyWallet) ?? ''
+            const bettor = bettorLeaderboard.find((row) => row.wallet === walletKey)
             const matchupLabel = resolveGameLabel(trade.marketTitle)
 
             return (
@@ -1399,9 +1378,12 @@ export default function SharpDetectorPanel({
                     <h4 className="text-base font-semibold text-white">
                       {trade.marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()}
                     </h4>
+                    <p className="text-[11px] text-white/50">
+                      Bettor: {bettor?.display_name ?? formatWalletAlias(trade.proxyWallet)}
+                    </p>
                   </div>
                   <div className="text-right">
-                    <div className="text-[10px] uppercase text-white/40">Sharp strength</div>
+                    <div className="text-[10px] uppercase text-white/40">Risk score</div>
                     <div className="text-lg font-bold text-emerald-300">
                       {trade.sharpStrength != null ? `${trade.sharpStrength}%` : 'n/a'}
                     </div>
@@ -1419,11 +1401,14 @@ export default function SharpDetectorPanel({
                     >
                       {formatCurrency(trade.notional)}
                     </span>
+                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
+                      {trade.side === 'SELL' ? 'Sell' : 'Buy'}
+                    </span>
                     <span className="text-sm text-white/80">{trade.outcome}</span>
                   </div>
                   <span className="text-sm text-white/50">{resolveOddsLabel(trade)}</span>
                   <span className="text-[11px] text-white/40">
-                    {trade.eventDate ?? 'TBD'} • {resolvePhase(trade)}
+                    {trade.eventDate ?? 'TBD'} | {resolvePhase(trade)}
                   </span>
                 </div>
 
@@ -1448,8 +1433,19 @@ export default function SharpDetectorPanel({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-[10px] uppercase tracking-wider text-white/30">
-                      {trade.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
+                      Polymarket
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!walletKey) return
+                        setSelectedBettorWallet(walletKey)
+                        setSelectedBettorLabel(bettor?.display_name ?? formatWalletAlias(walletKey))
+                      }}
+                      className="rounded-full border border-white/20 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-white/70 hover:border-emerald-300 hover:text-emerald-200"
+                    >
+                      Positions
+                    </button>
                     <ShareTradeButton
                       trade={{
                         id: trade.id,
@@ -1470,6 +1466,53 @@ export default function SharpDetectorPanel({
               </motion.div>
             )
           })}
+
+          {selectedBettorWallet && (
+            <div className="rounded-2xl border border-emerald-500/30 bg-black/50 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-200">
+                  {selectedBettorLabel ?? formatWalletAlias(selectedBettorWallet)} Positions
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedBettorWallet(null)
+                    setSelectedBettorPositions([])
+                  }}
+                  className="rounded-full border border-white/20 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-white/60 hover:text-white"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="space-y-2">
+                {selectedBettorPositions.length === 0 && (
+                  <p className="text-xs text-white/55">No open sports positions.</p>
+                )}
+                {selectedBettorPositions.map((position) => (
+                  <div
+                    key={`${position.slug}:${position.outcome}`}
+                    className="rounded-xl border border-white/10 bg-black/30 p-3"
+                  >
+                    <p className="text-sm font-medium text-white">{position.title ?? position.slug}</p>
+                    <p className="text-[11px] text-white/60">
+                      {position.sport ?? 'SPORTS'} | {position.outcome ?? 'Outcome'}
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-white/70">
+                      <span>Shares: {position.net_shares.toFixed(2)}</span>
+                      <span>Stake: {formatCurrency(position.stake_usd)}</span>
+                      <span>Payout: {formatCurrency(position.potential_payout_usd)}</span>
+                      <span>
+                        Entry:{' '}
+                        {position.avg_entry_american_odds != null
+                          ? formatAmericanOdds(position.avg_entry_american_odds)
+                          : 'n/a'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

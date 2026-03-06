@@ -2217,146 +2217,153 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
   }
 
   const loadPromise = (async () => {
-    const league = resolveSbdLeague(sportKey)
-    if (!league) return new Map<string, SportsbookPropLine[]>()
+    try {
+      const league = resolveSbdLeague(sportKey)
+      if (!league) return new Map<string, SportsbookPropLine[]>()
 
-    const data = await fetchSbdGamePropsList(league)
-    const result = new Map<string, SportsbookPropLine[]>()
+      const data = await fetchSbdGamePropsList(league)
+      const result = new Map<string, SportsbookPropLine[]>()
 
-    if (!Array.isArray(data)) {
-      return result
-    }
-
-    for (const entry of data) {
-      const playerName = entry?.player_name || entry?.player?.name
-      if (!playerName || typeof playerName !== 'string') continue
-      const normalizedPlayer = normalizePlayerName(
-        playerName.includes(',')
-          ? playerName.split(',').reverse().map((part: string) => part.trim()).join(' ')
-          : playerName
-      )
-
-      const marketName = entry?.name
-      if (typeof marketName !== 'string') continue
-      const normalizedMarketName = marketName.toLowerCase()
-
-      let propType: string | null = null
-      const mappings = PROP_KEYWORDS[sportKey] ?? []
-      const hit = mappings.find((mapping) =>
-        mapping.patterns.some((pattern) => normalizedMarketName.includes(pattern))
-      )
-      if (hit) {
-        propType = hit.key
+      if (!Array.isArray(data)) {
+        return result
       }
-      if (!propType) continue
 
-      const sportsbooks = entry?.sportsbooks
-      if (!Array.isArray(sportsbooks)) continue
-
-      for (const book of sportsbooks) {
-        const odds = book?.odds
-        if (!odds) continue
-
-        const overOddsStr = odds.over_american
-        const underOddsStr = odds.under_american
-        const overPointsStr = odds.over_points
-        const underPointsStr = odds.under_points
-
-        const overOdds = typeof overOddsStr === 'string' ? parseFloat(overOddsStr) :
-          typeof overOddsStr === 'number' ? overOddsStr : null
-        const underOdds = typeof underOddsStr === 'string' ? parseFloat(underOddsStr) :
-          typeof underOddsStr === 'number' ? underOddsStr : null
-        const overPoints = typeof overPointsStr === 'string' ? parseFloat(overPointsStr) :
-          typeof overPointsStr === 'number' ? overPointsStr : null
-        const underPoints = typeof underPointsStr === 'string' ? parseFloat(underPointsStr) :
-          typeof underPointsStr === 'number' ? underPointsStr : null
-
-        const line = overPoints ?? underPoints
-        if (line == null || Number.isNaN(line)) continue
-
-        if (!result.has(normalizedPlayer)) {
-          result.set(normalizedPlayer, [])
-        }
-
-        let bucket = result.get(normalizedPlayer)!.find(
-          (item) => item.propType === propType && item.line === line
+      for (const entry of data) {
+        const playerName = entry?.player_name || entry?.player?.name
+        if (!playerName || typeof playerName !== 'string') continue
+        const normalizedPlayer = normalizePlayerName(
+          playerName.includes(',')
+            ? playerName.split(',').reverse().map((part: string) => part.trim()).join(' ')
+            : playerName
         )
 
-        if (!bucket) {
-          bucket = {
-            playerName: normalizedPlayer,
-            propType,
-            line,
-            bestOverOdds: null,
-            bestUnderOdds: null,
-            bestOverBookTitle: null,
-            bestUnderBookTitle: null,
-            pinnacleOverOdds: null,
-            pinnacleUnderOdds: null,
-            pinnacleOverBookTitle: null,
-            pinnacleUnderBookTitle: null,
-            fanduelOverOdds: null,
-            fanduelUnderOdds: null,
-            fanduelOverBookTitle: null,
-            fanduelUnderBookTitle: null,
-            noVigOverProbs: [],
-            noVigUnderProbs: [],
-          }
-          result.get(normalizedPlayer)!.push(bucket)
-        }
+        const marketName = entry?.name
+        if (typeof marketName !== 'string') continue
+        const normalizedMarketName = marketName.toLowerCase()
 
-        const bookTitle =
-          typeof book?.name === 'string'
-            ? book.name
-            : typeof book?.title === 'string'
-              ? book.title
-              : book?.key
-                ? String(book.key)
-                : null
-
-        if (overOdds != null && !Number.isNaN(overOdds)) {
-          if (isPinnacleBook(book)) {
-            bucket.pinnacleOverOdds = overOdds
-            bucket.pinnacleOverBookTitle = bookTitle
-          }
-          if (isFanDuelBook(book)) {
-            bucket.fanduelOverOdds = overOdds
-            bucket.fanduelOverBookTitle = bookTitle
-          }
-          if (bucket.bestOverOdds == null || overOdds > bucket.bestOverOdds) {
-            bucket.bestOverOdds = overOdds
-            bucket.bestOverBookTitle = bookTitle
-          }
+        let propType: string | null = null
+        const mappings = PROP_KEYWORDS[sportKey] ?? []
+        const hit = mappings.find((mapping) =>
+          mapping.patterns.some((pattern) => normalizedMarketName.includes(pattern))
+        )
+        if (hit) {
+          propType = hit.key
         }
-        if (underOdds != null && !Number.isNaN(underOdds)) {
-          if (isPinnacleBook(book)) {
-            bucket.pinnacleUnderOdds = underOdds
-            bucket.pinnacleUnderBookTitle = bookTitle
-          }
-          if (isFanDuelBook(book)) {
-            bucket.fanduelUnderOdds = underOdds
-            bucket.fanduelUnderBookTitle = bookTitle
-          }
-          if (bucket.bestUnderOdds == null || underOdds > bucket.bestUnderOdds) {
-            bucket.bestUnderOdds = underOdds
-            bucket.bestUnderBookTitle = bookTitle
-          }
-        }
+        if (!propType) continue
 
-        if (overOdds != null && underOdds != null) {
-          const overProb = oddsToImpliedProbability(overOdds)
-          const underProb = oddsToImpliedProbability(underOdds)
-          const total = overProb + underProb
-          if (Number.isFinite(total) && total > 0) {
-            bucket.noVigOverProbs.push(overProb / total)
-            bucket.noVigUnderProbs.push(underProb / total)
+        const sportsbooks = entry?.sportsbooks
+        if (!Array.isArray(sportsbooks)) continue
+
+        for (const book of sportsbooks) {
+          const odds = book?.odds
+          if (!odds) continue
+
+          const overOddsStr = odds.over_american
+          const underOddsStr = odds.under_american
+          const overPointsStr = odds.over_points
+          const underPointsStr = odds.under_points
+
+          const overOdds = typeof overOddsStr === 'string' ? parseFloat(overOddsStr) :
+            typeof overOddsStr === 'number' ? overOddsStr : null
+          const underOdds = typeof underOddsStr === 'string' ? parseFloat(underOddsStr) :
+            typeof underOddsStr === 'number' ? underOddsStr : null
+          const overPoints = typeof overPointsStr === 'string' ? parseFloat(overPointsStr) :
+            typeof overPointsStr === 'number' ? overPointsStr : null
+          const underPoints = typeof underPointsStr === 'string' ? parseFloat(underPointsStr) :
+            typeof underPointsStr === 'number' ? underPointsStr : null
+
+          const line = overPoints ?? underPoints
+          if (line == null || Number.isNaN(line)) continue
+
+          if (!result.has(normalizedPlayer)) {
+            result.set(normalizedPlayer, [])
+          }
+
+          let bucket = result.get(normalizedPlayer)!.find(
+            (item) => item.propType === propType && item.line === line
+          )
+
+          if (!bucket) {
+            bucket = {
+              playerName: normalizedPlayer,
+              propType,
+              line,
+              bestOverOdds: null,
+              bestUnderOdds: null,
+              bestOverBookTitle: null,
+              bestUnderBookTitle: null,
+              pinnacleOverOdds: null,
+              pinnacleUnderOdds: null,
+              pinnacleOverBookTitle: null,
+              pinnacleUnderBookTitle: null,
+              fanduelOverOdds: null,
+              fanduelUnderOdds: null,
+              fanduelOverBookTitle: null,
+              fanduelUnderBookTitle: null,
+              noVigOverProbs: [],
+              noVigUnderProbs: [],
+            }
+            result.get(normalizedPlayer)!.push(bucket)
+          }
+
+          const bookTitle =
+            typeof book?.name === 'string'
+              ? book.name
+              : typeof book?.title === 'string'
+                ? book.title
+                : book?.key
+                  ? String(book.key)
+                  : null
+
+          if (overOdds != null && !Number.isNaN(overOdds)) {
+            if (isPinnacleBook(book)) {
+              bucket.pinnacleOverOdds = overOdds
+              bucket.pinnacleOverBookTitle = bookTitle
+            }
+            if (isFanDuelBook(book)) {
+              bucket.fanduelOverOdds = overOdds
+              bucket.fanduelOverBookTitle = bookTitle
+            }
+            if (bucket.bestOverOdds == null || overOdds > bucket.bestOverOdds) {
+              bucket.bestOverOdds = overOdds
+              bucket.bestOverBookTitle = bookTitle
+            }
+          }
+          if (underOdds != null && !Number.isNaN(underOdds)) {
+            if (isPinnacleBook(book)) {
+              bucket.pinnacleUnderOdds = underOdds
+              bucket.pinnacleUnderBookTitle = bookTitle
+            }
+            if (isFanDuelBook(book)) {
+              bucket.fanduelUnderOdds = underOdds
+              bucket.fanduelUnderBookTitle = bookTitle
+            }
+            if (bucket.bestUnderOdds == null || underOdds > bucket.bestUnderOdds) {
+              bucket.bestUnderOdds = underOdds
+              bucket.bestUnderBookTitle = bookTitle
+            }
+          }
+
+          if (overOdds != null && underOdds != null) {
+            const overProb = oddsToImpliedProbability(overOdds)
+            const underProb = oddsToImpliedProbability(underOdds)
+            const total = overProb + underProb
+            if (Number.isFinite(total) && total > 0) {
+              bucket.noVigOverProbs.push(overProb / total)
+              bucket.noVigUnderProbs.push(underProb / total)
+            }
           }
         }
       }
-    }
 
-    sportsbookCache.set(sportKey, { fetchedAt: now, data: result })
-    return result
+      sportsbookCache.set(sportKey, { fetchedAt: now, data: result })
+      return result
+    } catch (error) {
+      console.warn('[prop-liquidity-detector] Failed to fetch sportsbook prop index:', error)
+      const empty = new Map<string, SportsbookPropLine[]>()
+      sportsbookCache.set(sportKey, { fetchedAt: now, data: empty })
+      return empty
+    }
   })()
 
   sportsbookInFlight.set(sportKey, loadPromise)

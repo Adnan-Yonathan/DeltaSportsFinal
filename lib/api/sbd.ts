@@ -670,9 +670,13 @@ export async function fetchSbdGamePropsList(
   league: SbdLeague,
   opts: { limit?: number; props?: string[]; matchups?: string[]; books?: string[]; init?: RequestInit } = {}
 ): Promise<any> {
-  // Note: SBD fuel API doesn't support limit/props/matchups params - they cause 500 errors
-  // Fetch all and filter client-side
-  const url = `${SBD_FUEL_BASE}/gameprops/${league}/list`
+  // Note: SBD fuel API doesn't support limit/props/matchups params (they can cause 500s).
+  // We fetch all and filter client-side. Explicitly passing supported books avoids
+  // intermittent upstream 500s such as "'under_points'" from the unfiltered NBA feed.
+  const books = opts.books && opts.books.length ? opts.books : getDefaultBookIds()
+  const params = new URLSearchParams()
+  if (books.length) params.set('books', books.join(','))
+  const url = `${SBD_FUEL_BASE}/gameprops/${league}/list${params.toString() ? `?${params.toString()}` : ''}`
   const res = await fetch(url, opts.init)
   if (!res.ok) {
     const bodyText = await res.text().catch(() => '')

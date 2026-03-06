@@ -135,6 +135,25 @@ const POLYMARKET_SPORT_LABELS: Record<string, string> = {
   ufc: 'UFC',
 }
 
+const POLYMARKET_TAG_SPORT_LABELS: Record<string, string> = {
+  atp: 'TENNIS',
+  bundesliga: 'SOCCER',
+  cs2: 'ESPORTS',
+  epl: 'SOCCER',
+  laliga: 'SOCCER',
+  'la-liga': 'SOCCER',
+  lig1: 'SOCCER',
+  'ligue-1': 'SOCCER',
+  mls: 'SOCCER',
+  sea: 'SOCCER',
+  seriea: 'SOCCER',
+  'serie-a': 'SOCCER',
+  spl: 'SOCCER',
+  ucl: 'SOCCER',
+  uel: 'SOCCER',
+  wta: 'TENNIS',
+}
+
 const MONTHS: Record<string, string> = {
   JAN: '01',
   FEB: '02',
@@ -207,6 +226,20 @@ type PolymarketTrade = {
   outcome: string
   outcomeIndex?: number
   side?: string
+}
+
+type PolymarketEventTag = {
+  slug?: string
+  label?: string
+}
+
+type PolymarketEventRecord = {
+  category?: string
+  seriesSlug?: string
+  title?: string
+  series?: Array<{ slug?: string; title?: string }>
+  tags?: PolymarketEventTag[]
+  markets?: Array<{ sportsMarketType?: string }>
 }
 
 export type WhaleTrade = {
@@ -420,6 +453,30 @@ const parsePolymarketDate = (slug?: string) => {
   return match ? match[1] : undefined
 }
 
+const normalizePolymarketTagToken = (value?: string | null) =>
+  String(value ?? '')
+    .toLowerCase()
+    .trim()
+
+const resolvePolymarketSportFromTags = (tags: PolymarketEventTag[] = []) => {
+  for (const tag of tags) {
+    const slug = normalizePolymarketTagToken(tag.slug)
+    if (slug && POLYMARKET_SPORT_LABELS[slug]) return POLYMARKET_SPORT_LABELS[slug]
+    if (slug && POLYMARKET_TAG_SPORT_LABELS[slug]) return POLYMARKET_TAG_SPORT_LABELS[slug]
+
+    const compact = slug.replace(/[^a-z0-9]/g, '')
+    if (compact && POLYMARKET_TAG_SPORT_LABELS[compact]) {
+      return POLYMARKET_TAG_SPORT_LABELS[compact]
+    }
+
+    const label = normalizePolymarketTagToken(tag.label)
+    if (label === 'sports') return 'Sports'
+    if (label && POLYMARKET_SPORT_LABELS[label]) return POLYMARKET_SPORT_LABELS[label]
+    if (label && POLYMARKET_TAG_SPORT_LABELS[label]) return POLYMARKET_TAG_SPORT_LABELS[label]
+  }
+  return undefined
+}
+
 const polymarketEventCache = new Map<string, { isSports: boolean; sportLabel?: string }>()
 
 const fetchPolymarketEvent = async (slug: string) => {
@@ -432,18 +489,59 @@ const fetchPolymarketEvent = async (slug: string) => {
       polymarketEventCache.set(slug, { isSports: false })
       return null
     }
-    const event = await res.json()
-    const category = String(event?.category ?? '').toLowerCase()
-    const seriesSlug = String(event?.seriesSlug ?? event?.series?.[0]?.slug ?? '').toLowerCase()
-    const title = String(event?.title ?? '').toLowerCase()
+    const raw = await res.json()
+    const events = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.value)
+        ? raw.value
+        : raw
+          ? [raw]
+          : []
+    const event = (events[0] ?? null) as PolymarketEventRecord | null
+    if (!event) {
+      polymarketEventCache.set(slug, { isSports: false })
+      return null
+    }
+    const category = String(event.category ?? '').toLowerCase()
+    const seriesSlugs = [
+      String(event.seriesSlug ?? '').toLowerCase(),
+      ...(Array.isArray(event.series)
+        ? event.series
+            .map((entry) => String(entry?.slug ?? '').toLowerCase())
+            .filter(Boolean)
+        : []),
+    ].filter(Boolean)
+    const title = String(event.title ?? '').toLowerCase()
+    const tags = Array.isArray(event.tags) ? event.tags : []
+    const hasSportsTag = tags.some((tag) => {
+      const slugToken = normalizePolymarketTagToken(tag.slug)
+      const labelToken = normalizePolymarketTagToken(tag.label)
+      return (
+        slugToken === 'sports' ||
+        labelToken === 'sports' ||
+        Boolean(POLYMARKET_SPORT_LABELS[slugToken]) ||
+        Boolean(POLYMARKET_TAG_SPORT_LABELS[slugToken]) ||
+        Boolean(POLYMARKET_SPORT_LABELS[labelToken]) ||
+        Boolean(POLYMARKET_TAG_SPORT_LABELS[labelToken])
+      )
+    })
+    const hasSportsMarketType = Array.isArray(event.markets)
+      ? event.markets.some((market) => Boolean(market?.sportsMarketType))
+      : false
     const isSports =
       category === 'sports' ||
-      POLYMARKET_SPORT_SERIES.has(seriesSlug) ||
+      hasSportsTag ||
+      hasSportsMarketType ||
+      seriesSlugs.some((seriesSlug) => {
+        const token = seriesSlug.split('-')[0] ?? ''
+        return POLYMARKET_SPORT_SERIES.has(seriesSlug) || POLYMARKET_SPORT_SERIES.has(token)
+      }) ||
       POLYMARKET_SPORT_PREFIXES.some((prefix) => title.startsWith(prefix.replace('-', '')))
 
     const sportLabel =
-      (event?.series?.[0]?.title as string | undefined) ||
-      (seriesSlug ? seriesSlug.toUpperCase() : undefined)
+      resolvePolymarketSportFromTags(tags) ||
+      (event.series?.[0]?.title as string | undefined) ||
+      (seriesSlugs[0] ? seriesSlugs[0].toUpperCase() : undefined)
 
     const payload = { isSports, sportLabel }
     polymarketEventCache.set(slug, payload)

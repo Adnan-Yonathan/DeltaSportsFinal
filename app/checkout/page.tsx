@@ -134,7 +134,7 @@ export default function CheckoutPage() {
 
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
           {/* Left Column: Plan Selection */}
-          <div className="space-y-6">
+          <div className="order-2 lg:order-1 space-y-6">
             {/* Tier Selection */}
             <div>
               <label className="text-sm font-medium text-white/70 mb-3 block">
@@ -252,7 +252,7 @@ export default function CheckoutPage() {
           </div>
 
           {/* Right Column: Stripe Checkout */}
-          <div>
+          <div className="order-1 lg:order-2">
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-1 overflow-hidden">
               {error && (
                 <div className="p-6 text-center">

@@ -906,6 +906,7 @@ export default function PropOrderbooksPanel({
   const abortControllerRef = useRef<AbortController | null>(null)
   const hasItemsRef = useRef((initialData?.items?.length ?? 0) > 0)
   const itemsRef = useRef<OrderbookItem[]>(initialData?.items ?? [])
+  const lastUpdatedAtRef = useRef<string | null>(initialData?.updatedAt ?? null)
   const isMountedRef = useRef(true)
 
   useEffect(() => {
@@ -967,8 +968,15 @@ export default function PropOrderbooksPanel({
 
         const nextItems = Array.isArray(payload?.items) ? payload.items : []
         const previousItems = itemsRef.current
+        const previousUpdatedAtMs = parseTimestampMs(lastUpdatedAtRef.current)
+        const nextUpdatedAtMs = parseTimestampMs(payload?.updatedAt ?? null)
+        const hasNewerSnapshot = nextUpdatedAtMs > previousUpdatedAtMs
+        const sourceLabel = String(payload?.cache?.source ?? "")
+        const isOvernightSnapshot = sourceLabel.includes("overnight")
         const shouldAcceptBackground =
           !background ||
+          hasNewerSnapshot ||
+          isOvernightSnapshot ||
           shouldPersistPropOrderbooksSnapshot(previousItems, nextItems) ||
           payload?.cache?.fallbackToPersistent === true
         const resolvedItems = background
@@ -984,7 +992,9 @@ export default function PropOrderbooksPanel({
           if (prev && resolvedItems.some((item) => item.id === prev)) return prev
           return resolvedItems[0].id
         })
-        setLastUpdatedAt(payload?.updatedAt ?? new Date().toISOString())
+        const resolvedUpdatedAt = payload?.updatedAt ?? new Date().toISOString()
+        lastUpdatedAtRef.current = resolvedUpdatedAt
+        setLastUpdatedAt(resolvedUpdatedAt)
         setCacheSource(payload?.cache?.source ?? null)
         setCacheFetchedAt(payload?.cache?.fetchedAt ?? null)
         setErrorMessage(null)
@@ -1011,6 +1021,7 @@ export default function PropOrderbooksPanel({
     setLoading(!seededItems.length)
     setRefreshing(false)
     setErrorMessage(null)
+    lastUpdatedAtRef.current = initialData?.updatedAt ?? null
     setLastUpdatedAt(initialData?.updatedAt ?? null)
     setCacheSource(initialData?.cache?.source ?? null)
     setCacheFetchedAt(initialData?.cache?.fetchedAt ?? null)

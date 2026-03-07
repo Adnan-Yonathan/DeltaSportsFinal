@@ -20,6 +20,9 @@ const DEFAULT_DEPTH = 8
 const DEFAULT_MIN_SHARP_NOTIONAL = 100
 const PERSISTED_CACHE_LIMIT = 200
 const PERSISTED_CACHE_MAX_AGE_MS = 30 * 60 * 1000
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate',
+} as const
 
 const SUPPORTED_SPORTS = new Set([
   'all',
@@ -85,7 +88,7 @@ const buildCachedResponse = (
       cacheAgeMs,
     },
     diagnostics,
-  })
+  }, { headers: NO_STORE_HEADERS })
 }
 
 export async function GET(req: NextRequest) {
@@ -101,7 +104,7 @@ export async function GET(req: NextRequest) {
     if (!SUPPORTED_SPORTS.has(sport)) {
       return NextResponse.json(
         { ok: false, error: 'Unsupported sport' },
-        { status: 400 }
+        { status: 400, headers: NO_STORE_HEADERS }
       )
     }
 
@@ -244,12 +247,12 @@ export async function GET(req: NextRequest) {
         cacheAgeMs: fallbackCacheAgeMs,
       },
       diagnostics,
-    })
+    }, { headers: NO_STORE_HEADERS })
   } catch (error: any) {
     console.error('[prop-orderbooks] error:', error)
     return NextResponse.json(
       { ok: false, error: error.message || 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: NO_STORE_HEADERS }
     )
   }
 }

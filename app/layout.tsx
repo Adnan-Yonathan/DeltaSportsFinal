@@ -44,9 +44,9 @@ export const metadata: Metadata = {
     images: ['/newimage.png'],
   },
   icons: {
-    icon: '/newimage.png',
-    shortcut: '/newimage.png',
-    apple: '/newimage.png',
+    icon: '/delta-logo.png',
+    shortcut: '/delta-logo.png',
+    apple: '/delta-logo.png',
   },
 }
 

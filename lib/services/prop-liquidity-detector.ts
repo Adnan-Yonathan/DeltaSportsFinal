@@ -1492,7 +1492,7 @@ type PropOrderbooksSnapshot = {
   updatedAt: string
   items: PropOrderbookItem[]
 }
-type SnapshotMode = 'fast' | 'full'
+type SnapshotMode = 'fast' | 'full' | 'overnight'
 const orderbooksInFlight = new Map<string, Promise<PropOrderbooksSnapshot>>()
 
 const mapWithConcurrency = async <T, R>(
@@ -1533,9 +1533,12 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
   const minSharpNotional = opts?.minSharpNotional ?? 100
   const mode = opts?.mode ?? 'full'
   const isFastMode = mode === 'fast'
+  const isOvernightMode = mode === 'overnight'
+  const useLightCollection = isFastMode || isOvernightMode
+  const skipOddsApis = isOvernightMode
   const collectionLimit =
     sportFilter === 'all'
-      ? isFastMode
+      ? useLightCollection
         ? Math.min(Math.max(requestedLimit + 20, requestedLimit), 110)
         : Math.min(Math.max(requestedLimit * 3, requestedLimit), 360)
       : requestedLimit
@@ -1557,19 +1560,19 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
   const computePromise = (async (): Promise<PropOrderbooksSnapshot> => {
     const today = getUsMarketDayKey()
     const updatedAt = new Date().toISOString()
-    const polymarketOrderbookLimit = isFastMode
+    const polymarketOrderbookLimit = useLightCollection
       ? Math.min(MAX_POLYMARKET_ORDERBOOKS, 16)
       : MAX_POLYMARKET_ORDERBOOKS
-    const kalshiPageLimit = isFastMode ? 1 : MAX_KALSHI_PAGES
-    const kalshiMarketBudget = isFastMode
+    const kalshiPageLimit = useLightCollection ? 1 : MAX_KALSHI_PAGES
+    const kalshiMarketBudget = useLightCollection
       ? Math.min(Math.max(requestedLimit + 20, 60), 120)
       : Number.POSITIVE_INFINITY
-    const kalshiConcurrency = isFastMode ? 10 : 5
-    const polymarketConcurrency = isFastMode ? 8 : 4
+    const kalshiConcurrency = useLightCollection ? 10 : 5
+    const polymarketConcurrency = useLightCollection ? 8 : 4
 
     const kalshiItems: PropOrderbookItem[] = []
     const polymarketItems: PropOrderbookItem[] = []
-    const exchangeItems = isFastMode
+    const exchangeItems = useLightCollection
       ? []
       : await fetchExchangePropOrderbookItems({
           sportFilter,
@@ -1595,7 +1598,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
 
       let rawYesLabel = market.yes_sub_title || 'Yes'
       let rawNoLabel = market.no_sub_title || 'No'
-      if (!isFastMode && (!market.yes_sub_title || !market.no_sub_title)) {
+      if (!useLightCollection && (!market.yes_sub_title || !market.no_sub_title)) {
         const marketDetails = await fetchKalshiMarketDetails(market.ticker)
         rawYesLabel = marketDetails?.yes_sub_title || rawYesLabel
         rawNoLabel = marketDetails?.no_sub_title || rawNoLabel
@@ -1645,7 +1648,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         return null
       }
       const leanSportsbookQuote =
-        sharpLean.sharpLeanSide != null
+        !skipOddsApis && sharpLean.sharpLeanSide != null
           ? await resolveSportsbookPropPrices(
               series.sportKey,
               playerName,
@@ -1653,7 +1656,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
               propLine,
               sharpLean.sharpLeanSide
             )
-            : {
+          : {
               bestOdds: null,
               noVigProb: null,
               bestBookTitle: null,
@@ -1662,6 +1665,14 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
               fanduelOdds: null,
               fanduelBookTitle: null,
             }
+      const leanBestOdds =
+        leanSportsbookQuote.pinnacleOdds ??
+        leanSportsbookQuote.bestOdds ??
+        (skipOddsApis ? sharpLean.sharpLeanAmericanOdds : null)
+      const leanBestBookTitle =
+        leanSportsbookQuote.pinnacleBookTitle ??
+        leanSportsbookQuote.bestBookTitle ??
+        (skipOddsApis ? 'Kalshi' : null)
 
       return {
         id: `kalshi:${market.ticker}`,
@@ -1677,9 +1688,8 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         ticker: market.ticker,
         sides,
         ...sharpLean,
-        sharpLeanBestOdds: leanSportsbookQuote.pinnacleOdds ?? leanSportsbookQuote.bestOdds ?? null,
-        sharpLeanBestBookTitle:
-          leanSportsbookQuote.pinnacleBookTitle ?? leanSportsbookQuote.bestBookTitle ?? null,
+        sharpLeanBestOdds: leanBestOdds,
+        sharpLeanBestBookTitle: leanBestBookTitle,
         pinnacleLeanOdds: leanSportsbookQuote.pinnacleOdds ?? null,
         pinnacleLeanBookTitle: leanSportsbookQuote.pinnacleBookTitle ?? null,
         fanduelLeanOdds: leanSportsbookQuote.fanduelOdds ?? null,
@@ -1703,7 +1713,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
       if (remaining <= 0) break
       const remainingBudget = kalshiMarketBudget - kalshiMarketFetches
       if (remainingBudget <= 0) break
-      const seriesCap = isFastMode
+      const seriesCap = useLightCollection
         ? Math.min(upcoming.length, Math.max(remaining, 12), remainingBudget, 12)
         : Math.min(upcoming.length, Math.max(remaining * 2, remaining), 80)
       const candidates = upcoming.slice(0, seriesCap)
@@ -1816,7 +1826,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           return null
         }
         const leanSportsbookQuote =
-          sharpLean.sharpLeanSide != null
+          !skipOddsApis && sharpLean.sharpLeanSide != null
             ? await resolveSportsbookPropPrices(
                 sportMeta.sportKey,
                 playerName,
@@ -1833,6 +1843,14 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
                 fanduelOdds: null,
                 fanduelBookTitle: null,
               }
+        const leanBestOdds =
+          leanSportsbookQuote.pinnacleOdds ??
+          leanSportsbookQuote.bestOdds ??
+          (skipOddsApis ? sharpLean.sharpLeanAmericanOdds : null)
+        const leanBestBookTitle =
+          leanSportsbookQuote.pinnacleBookTitle ??
+          leanSportsbookQuote.bestBookTitle ??
+          (skipOddsApis ? 'Polymarket' : null)
 
         return {
           id: `polymarket:${market.id}`,
@@ -1848,9 +1866,8 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           slug: market.slug ?? market.id,
           sides,
           ...sharpLean,
-          sharpLeanBestOdds: leanSportsbookQuote.pinnacleOdds ?? leanSportsbookQuote.bestOdds ?? null,
-          sharpLeanBestBookTitle:
-            leanSportsbookQuote.pinnacleBookTitle ?? leanSportsbookQuote.bestBookTitle ?? null,
+          sharpLeanBestOdds: leanBestOdds,
+          sharpLeanBestBookTitle: leanBestBookTitle,
           pinnacleLeanOdds: leanSportsbookQuote.pinnacleOdds ?? null,
           pinnacleLeanBookTitle: leanSportsbookQuote.pinnacleBookTitle ?? null,
           fanduelLeanOdds: leanSportsbookQuote.fanduelOdds ?? null,

@@ -47,9 +47,9 @@ export type ShareableSharpPropsToolPayload = {
 }
 
 const sideBarColor = (side: 'Over' | 'Under' | 'Neutral') => {
-  if (side === 'Over') return 'linear-gradient(180deg, #34d399 0%, #10b981 100%)'
-  if (side === 'Under') return 'linear-gradient(180deg, #fb7185 0%, #e11d48 100%)'
-  return 'linear-gradient(180deg, #38bdf8 0%, #0ea5e9 100%)'
+  if (side === 'Over') return 'linear-gradient(90deg, #34d399 0%, #10b981 100%)'
+  if (side === 'Under') return 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)'
+  return 'linear-gradient(90deg, #6ee7b7 0%, #10b981 100%)'
 }
 
 const levelHeight = (value: number) => Math.max(16, Math.min(100, Math.round(value)))
@@ -62,7 +62,7 @@ const ShareableSharpPropsToolCard = forwardRef<
   return (
     <ShareCaptureRoot>
       <div ref={ref}>
-        <ShareCardFrame accent="cyan">
+        <ShareCardFrame accent="emerald">
           <div
             style={{
               marginTop: 92,
@@ -186,7 +186,7 @@ const ShareableSharpPropsToolCard = forwardRef<
                 marginTop: 14,
                 borderRadius: 22,
                 border: '1px solid rgba(255,255,255,0.12)',
-                background: 'linear-gradient(180deg, rgba(15,23,42,0.72) 0%, rgba(2,6,23,0.6) 100%)',
+                background: 'linear-gradient(180deg, rgba(6, 18, 14, 0.78) 0%, rgba(2, 8, 7, 0.62) 100%)',
                 padding: '14px 14px 12px',
               }}
             >
@@ -199,30 +199,51 @@ const ShareableSharpPropsToolCard = forwardRef<
                 ) : null}
               </div>
 
-              <div
-                style={{
-                  marginTop: 10,
-                  height: 262,
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(${Math.max(levels.length, 1)}, minmax(0, 1fr))`,
-                  gap: 8,
-                  alignItems: 'end',
-                }}
-              >
-                {(levels.length ? levels : [{ id: 'empty', priceLabel: '--', notionalLabel: '--', side: 'Neutral' as const, normalizedHeight: 20 }]).map((level) => (
-                  <div key={level.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                    <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.84)', fontWeight: 700 }}>{level.notionalLabel}</div>
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {(levels.length
+                  ? levels
+                  : [{ id: 'empty', priceLabel: '--', notionalLabel: '--', side: 'Neutral' as const, normalizedHeight: 20 }]
+                ).map((level) => (
+                  <div
+                    key={level.id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '120px minmax(0,1fr) 120px',
+                      gap: 10,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.88)', fontWeight: 700 }}>
+                      {level.priceLabel}
+                    </div>
                     <div
                       style={{
-                        width: '100%',
-                        height: levelHeight(level.normalizedHeight) * 2,
-                        borderRadius: 10,
+                        height: 20,
+                        borderRadius: 8,
                         border: '1px solid rgba(255,255,255,0.12)',
-                        background: sideBarColor(level.side),
+                        background: 'rgba(15, 23, 42, 0.65)',
+                        overflow: 'hidden',
                       }}
-                    />
-                    <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.9)' }}>{level.priceLabel}</div>
-                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>{level.side}</div>
+                    >
+                      <div
+                        style={{
+                          width: `${Math.max(8, Math.min(100, levelHeight(level.normalizedHeight)))}%`,
+                          height: '100%',
+                          borderRadius: 8,
+                          background: sideBarColor(level.side),
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 15,
+                        color: 'rgba(255,255,255,0.84)',
+                        fontWeight: 700,
+                        textAlign: 'right',
+                      }}
+                    >
+                      {level.notionalLabel}
+                    </div>
                   </div>
                 ))}
               </div>

@@ -16,13 +16,8 @@ type ShareCardFrameProps = {
 export function ShareCardFrame({ children, accent = 'emerald' }: ShareCardFrameProps) {
   const accentGlow =
     accent === 'cyan'
-      ? 'radial-gradient(circle at 12% 8%, rgba(34, 211, 238, 0.26), transparent 42%)'
-      : 'radial-gradient(circle at 12% 8%, rgba(16, 185, 129, 0.26), transparent 42%)'
-
-  const accentShapeColor =
-    accent === 'cyan'
-      ? 'linear-gradient(135deg, rgba(34, 211, 238, 0.9), rgba(59, 130, 246, 0.5))'
-      : 'linear-gradient(135deg, rgba(16, 185, 129, 0.85), rgba(132, 204, 22, 0.45))'
+      ? 'radial-gradient(circle at 12% 8%, rgba(16, 185, 129, 0.22), transparent 42%)'
+      : 'radial-gradient(circle at 12% 8%, rgba(16, 185, 129, 0.28), transparent 42%)'
 
   return (
     <div
@@ -34,7 +29,7 @@ export function ShareCardFrame({ children, accent = 'emerald' }: ShareCardFrameP
         color: '#ffffff',
         fontFamily: FONT_STACK,
         border: '1px solid rgba(255, 255, 255, 0.08)',
-        background: `${accentGlow}, radial-gradient(circle at 88% 85%, rgba(129, 140, 248, 0.2), transparent 38%), #05070f`,
+        background: `${accentGlow}, radial-gradient(circle at 84% 86%, rgba(16, 185, 129, 0.11), transparent 36%), #03060b`,
       }}
     >
       <div
@@ -54,9 +49,9 @@ export function ShareCardFrame({ children, accent = 'emerald' }: ShareCardFrameP
           width: 360,
           height: 360,
           borderRadius: 220,
-          background: accentShapeColor,
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.55), rgba(132, 204, 22, 0.3))',
           filter: 'blur(8px)',
-          opacity: 0.85,
+          opacity: 0.62,
         }}
       />
       <div
@@ -67,9 +62,9 @@ export function ShareCardFrame({ children, accent = 'emerald' }: ShareCardFrameP
           width: 420,
           height: 420,
           borderRadius: 260,
-          background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.55), rgba(167, 139, 250, 0.4))',
-          filter: 'blur(10px)',
-          opacity: 0.8,
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.45), rgba(5, 150, 105, 0.24))',
+          filter: 'blur(12px)',
+          opacity: 0.58,
         }}
       />
 

@@ -67,8 +67,8 @@ const clampedHeight = (value: number) => Math.max(14, Math.min(100, Math.round(v
 
 const directionColor = (direction: FlowDirection) => {
   if (direction === 'up') return 'linear-gradient(180deg, #34d399 0%, #10b981 100%)'
-  if (direction === 'down') return 'linear-gradient(180deg, #f97316 0%, #ea580c 100%)'
-  return 'linear-gradient(180deg, #38bdf8 0%, #0ea5e9 100%)'
+  if (direction === 'down') return 'linear-gradient(180deg, #22c55e 0%, #16a34a 100%)'
+  return 'linear-gradient(180deg, #6ee7b7 0%, #10b981 100%)'
 }
 
 const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(

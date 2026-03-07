@@ -113,66 +113,18 @@ export async function GET(req: NextRequest) {
     const refreshWindowOpen = isWithinSharpRefreshWindow()
     const effectiveForceRefresh = forceRefresh && refreshWindowOpen
     const requestedMode =
-      requestedModeParam === 'fast' || requestedModeParam === 'full'
+      requestedModeParam === 'fast' ||
+      requestedModeParam === 'full' ||
+      requestedModeParam === 'overnight'
         ? requestedModeParam
         : null
-    const mode = requestedMode ?? (effectiveForceRefresh ? 'full' : 'fast')
+    const mode = refreshWindowOpen
+      ? requestedMode ?? (effectiveForceRefresh ? 'full' : 'fast')
+      : 'overnight'
 
     const canUsePersistentCache =
       normalizedDepth === DEFAULT_DEPTH &&
       normalizedMinSharpNotional === DEFAULT_MIN_SHARP_NOTIONAL
-
-    if (!refreshWindowOpen) {
-      if (canUsePersistentCache) {
-        const exactCacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
-        const cachedExact = await getPropOrderbooksCache(exactCacheKey)
-        const exactPayload = parsePersistedPayload(cachedExact?.payload)
-        const exactAgeMs = parseCacheAgeMs(cachedExact?.fetched_at ?? null)
-        if (exactPayload) {
-          return buildCachedResponse(
-            sport,
-            normalizedLimit,
-            exactPayload,
-            'persistent',
-            cachedExact?.fetched_at ?? null,
-            exactAgeMs
-          )
-        }
-
-        if (sport !== 'all') {
-          const allCacheKey = buildCacheKey('all', normalizedDepth, normalizedMinSharpNotional)
-          const cachedAll = await getPropOrderbooksCache(allCacheKey)
-          const allPayload = parsePersistedPayload(cachedAll?.payload)
-          const allAgeMs = parseCacheAgeMs(cachedAll?.fetched_at ?? null)
-          if (allPayload) {
-            return buildCachedResponse(
-              sport,
-              normalizedLimit,
-              allPayload,
-              'persistent_all_fallback',
-              cachedAll?.fetched_at ?? null,
-              allAgeMs
-            )
-          }
-        }
-      }
-
-      return NextResponse.json({
-        ok: true,
-        sport,
-        updatedAt: null,
-        count: 0,
-        items: [],
-        refreshBlocked: true,
-        cache: {
-          forcedRefresh: false,
-          source: 'refresh_window_closed',
-          fetchedAt: null,
-          cacheAgeMs: null,
-        },
-        diagnostics: resolveSnapshotDiagnostics([]),
-      })
-    }
 
     if (canUsePersistentCache && !effectiveForceRefresh) {
       const exactCacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
@@ -279,8 +231,12 @@ export async function GET(req: NextRequest) {
               ? 'live_computed_full'
               : 'live_computed_fast_refresh'
           : canUsePersistentCache
-            ? 'live_computed_persisted_fast'
-            : 'live_computed_fast',
+            ? mode === 'overnight'
+              ? 'live_computed_persisted_overnight'
+              : 'live_computed_persisted_fast'
+            : mode === 'overnight'
+              ? 'live_computed_overnight'
+              : 'live_computed_fast',
         persisted,
         cacheWriteSkippedDegraded,
         fallbackToPersistent,

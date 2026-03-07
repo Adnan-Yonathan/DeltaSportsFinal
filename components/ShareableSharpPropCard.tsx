@@ -1,6 +1,7 @@
-﻿'use client'
+'use client'
 
 import { forwardRef } from 'react'
+import { ShareCaptureRoot, ShareCardFrame } from '@/components/share/ShareCardFrame'
 
 export type ShareableSharpProp = {
   id: string
@@ -13,169 +14,150 @@ export type ShareableSharpProp = {
   bookOddsLabel: string
   volumeLabel: string
   sourcesLabel: string
+  metricBars?: Array<{
+    id: string
+    label: string
+    valueLabel: string
+    normalizedHeight: number
+  }>
 }
+
+const barHeight = (value: number) => Math.max(18, Math.min(100, Math.round(value)))
 
 const ShareableSharpPropCard = forwardRef<
   HTMLDivElement,
   { prop: ShareableSharpProp }
 >(({ prop }, ref) => {
+  const bars =
+    prop.metricBars && prop.metricBars.length > 0
+      ? prop.metricBars.slice(0, 5)
+      : [
+          { id: 'pred', label: 'Pred', valueLabel: prop.predOddsLabel, normalizedHeight: 72 },
+          { id: 'books', label: 'Books', valueLabel: prop.bookOddsLabel, normalizedHeight: 60 },
+          { id: 'edge', label: 'Edge', valueLabel: prop.edgeLabel, normalizedHeight: 84 },
+          { id: 'score', label: 'Score', valueLabel: prop.scoreLabel, normalizedHeight: 76 },
+        ]
+
   return (
-    <div
-      style={{
-        position: 'fixed',
-        left: 0,
-        top: 0,
-        zIndex: -9999,
-        pointerEvents: 'none',
-        overflow: 'hidden',
-        opacity: 0,
-      }}
-      aria-hidden="true"
-    >
-      <div
-        ref={ref}
-        style={{
-          width: 1200,
-          height: 628,
-          background: '#0a0a0a',
-          color: '#ffffff',
-          fontFamily:
-            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          opacity: 1,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '24px 48px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-            backgroundColor: '#0a0a0a',
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: 0.5 }}>
-              deltasports.app
-            </span>
-            <span style={{ fontSize: 16, fontWeight: 600, color: '#34d399' }}>
-              Sharp Props
-            </span>
-          </div>
-          <span
-            style={{
-              fontSize: 16,
-              fontWeight: 600,
-              color: '#34d399',
-              border: '1px solid rgba(52, 211, 153, 0.4)',
-              borderRadius: 9999,
-              padding: '6px 14px',
-              textTransform: 'uppercase',
-              letterSpacing: 1,
-            }}
-          >
-            {prop.sportLabel}
-          </span>
-        </div>
-
-        <div style={{ padding: '32px 48px', flex: 1 }}>
-          <div style={{ fontSize: 36, fontWeight: 700, marginBottom: 10 }}>
-            {prop.playerName}
-          </div>
+    <ShareCaptureRoot>
+      <div ref={ref}>
+        <ShareCardFrame accent="emerald">
           <div
             style={{
-              fontSize: 22,
-              color: 'rgba(255, 255, 255, 0.7)',
-              marginBottom: 24,
+              marginTop: 92,
+              borderRadius: 38,
+              border: '1px solid rgba(255,255,255,0.14)',
+              background: 'rgba(2, 6, 23, 0.84)',
+              padding: '24px 24px 22px',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
             }}
           >
-            {prop.propLabel}
-          </div>
-
-          <div
-            style={{
-              borderRadius: 24,
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              padding: 32,
-              display: 'grid',
-              gridTemplateColumns: '1.2fr 1fr',
-              gap: 24,
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 18,
-                  color: 'rgba(255, 255, 255, 0.6)',
-                  marginBottom: 6,
-                }}
-              >
-                Odds
-              </div>
-              <div style={{ fontSize: 26, fontWeight: 700 }}>
-                Pred {prop.predOddsLabel}
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 600, marginTop: 10 }}>
-                Books {prop.bookOddsLabel}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ fontSize: 20, letterSpacing: 2.1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>
+                Sharp Props
               </div>
               <div
                 style={{
-                  marginTop: 18,
-                  fontSize: 14,
-                  color: 'rgba(255, 255, 255, 0.55)',
+                  borderRadius: 999,
+                  border: '1px solid rgba(52, 211, 153, 0.45)',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  color: '#86efac',
+                  padding: '8px 12px',
+                  fontSize: 19,
+                  fontWeight: 700,
                 }}
               >
-                Sources: {prop.sourcesLabel}
+                {prop.sportLabel}
               </div>
             </div>
 
-            <div>
-              <div
-                style={{
-                  fontSize: 18,
-                  color: 'rgba(255, 255, 255, 0.6)',
-                  marginBottom: 6,
-                }}
-              >
-                Edge
+            <div style={{ marginTop: 10, fontSize: 46, fontWeight: 700, lineHeight: 1.06 }}>{prop.playerName}</div>
+            <div style={{ marginTop: 7, fontSize: 28, color: 'rgba(255,255,255,0.68)' }}>{prop.propLabel}</div>
+
+            <div
+              style={{
+                marginTop: 16,
+                borderRadius: 22,
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(0,0,0,0.44)',
+                padding: '14px 14px 13px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: 10,
+              }}
+            >
+              <div style={{ borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(2,8,20,0.78)', padding: '10px 11px' }}>
+                <div style={{ fontSize: 15, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' }}>Pred Odds</div>
+                <div style={{ marginTop: 5, fontSize: 36, fontWeight: 700, color: '#f8fafc' }}>{prop.predOddsLabel}</div>
               </div>
-              <div style={{ fontSize: 36, fontWeight: 700, color: '#34d399' }}>
-                {prop.edgeLabel}
-              </div>
-              <div style={{ marginTop: 12, fontSize: 18, color: '#ffffff' }}>
-                Score {prop.scoreLabel}
-              </div>
-              <div
-                style={{
-                  marginTop: 14,
-                  fontSize: 14,
-                  color: 'rgba(255, 255, 255, 0.55)',
-                }}
-              >
-                Volume {prop.volumeLabel}
+              <div style={{ borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(2,8,20,0.78)', padding: '10px 11px' }}>
+                <div style={{ fontSize: 15, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' }}>Book Odds</div>
+                <div style={{ marginTop: 5, fontSize: 36, fontWeight: 700, color: '#f8fafc' }}>{prop.bookOddsLabel}</div>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div
-          style={{
-            padding: '20px 48px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-            backgroundColor: '#0a0a0a',
-            textAlign: 'center',
-          }}
-        >
-          <span style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.4)' }}>
-            Follow sharp prop bettors with verified market signals.
-          </span>
-        </div>
+            <div
+              style={{
+                marginTop: 14,
+                borderRadius: 22,
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'linear-gradient(180deg, rgba(15,23,42,0.72) 0%, rgba(2,6,23,0.6) 100%)',
+                padding: '14px 14px 12px',
+              }}
+            >
+              <div style={{ fontSize: 17, letterSpacing: 1.3, textTransform: 'uppercase', color: 'rgba(255,255,255,0.62)' }}>
+                Signal Structure
+              </div>
+              <div
+                style={{
+                  marginTop: 12,
+                  height: 250,
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${bars.length}, minmax(0, 1fr))`,
+                  gap: 10,
+                  alignItems: 'end',
+                }}
+              >
+                {bars.map((bar) => (
+                  <div key={bar.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                    <div style={{ fontSize: 17, color: 'rgba(255,255,255,0.84)', fontWeight: 700 }}>{bar.valueLabel}</div>
+                    <div
+                      style={{
+                        width: '100%',
+                        height: barHeight(bar.normalizedHeight) * 2,
+                        borderRadius: 10,
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        background: 'linear-gradient(180deg, #34d399 0%, #10b981 100%)',
+                      }}
+                    />
+                    <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.62)', textTransform: 'uppercase' }}>{bar.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+              <div style={{ borderRadius: 14, border: '1px solid rgba(132,204,22,0.45)', background: 'rgba(132,204,22,0.14)', padding: '12px 11px' }}>
+                <div style={{ fontSize: 15, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.56)' }}>Edge</div>
+                <div style={{ marginTop: 5, fontSize: 30, fontWeight: 700, color: '#bef264' }}>{prop.edgeLabel}</div>
+              </div>
+              <div style={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(0,0,0,0.35)', padding: '12px 11px' }}>
+                <div style={{ fontSize: 15, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.56)' }}>Score</div>
+                <div style={{ marginTop: 5, fontSize: 30, fontWeight: 700, color: '#f1f5f9' }}>{prop.scoreLabel}</div>
+              </div>
+              <div style={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(0,0,0,0.35)', padding: '12px 11px' }}>
+                <div style={{ fontSize: 15, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.56)' }}>Volume</div>
+                <div style={{ marginTop: 5, fontSize: 24, fontWeight: 700, color: '#f1f5f9' }}>{prop.volumeLabel}</div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 10, fontSize: 18, color: 'rgba(255,255,255,0.5)' }}>
+              Sources: {prop.sourcesLabel}
+            </div>
+          </div>
+        </ShareCardFrame>
       </div>
-    </div>
+    </ShareCaptureRoot>
   )
 })
 

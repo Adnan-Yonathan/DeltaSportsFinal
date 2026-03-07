@@ -29,7 +29,9 @@ export default function ShareSharpPropsToolButton({ payload }: ShareSharpPropsTo
       return
     }
 
-    const result = await shareImage(cardRef.current, `delta-sharp-props-${payload.id}.png`)
+    const result = await shareImage(cardRef.current, `delta-sharp-props-${payload.id}.png`, {
+      profile: 'mobile-portrait',
+    })
     setShowCard(false)
 
     if (result.ok) {

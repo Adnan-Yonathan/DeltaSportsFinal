@@ -1331,25 +1331,31 @@ export default function PropOrderbooksPanel({
         key: book.key,
         oddsLabel: formatAmericanOdds(book.odds),
       })),
-      ladderSummaryLabel: `${formatAmericanOdds(ladderAverageOdds)} avg | ${formatCompactCurrency(
-        ladderVolume
-      )} vol`,
-      ladderRows: topRows.map((row) => ({
-        id: row.id,
-        sideLabel: row.side ?? "Side",
-        oddsLabel: formatAmericanOdds(row.odds),
-        volumeLabel: formatCompactCurrency(row.notional),
-        widthPct:
-          topMaxNotional > 0
-            ? Math.max((row.notional / topMaxNotional) * 100, 3)
-            : 0,
-        sourceKeys: row.sources,
-      })),
+      lineMarker:
+        selectedItem.propLine != null && Number.isFinite(selectedItem.propLine)
+          ? `${selectedItem.propLine}`
+          : null,
+      liquidityLevels: topRows.map((row) => {
+        const side: "Over" | "Under" | "Neutral" =
+          row.side === "Over"
+            ? "Over"
+            : row.side === "Under"
+              ? "Under"
+              : "Neutral"
+        return {
+          id: row.id,
+          priceLabel: formatAmericanOdds(row.odds),
+          notionalLabel: formatCompactCurrency(row.notional),
+          side,
+          normalizedHeight:
+            topMaxNotional > 0
+              ? Math.max((row.notional / topMaxNotional) * 100, 12)
+              : 12,
+        }
+      }),
     }
   }, [
-    ladderAverageOdds,
     ladderRows,
-    ladderVolume,
     selectedDisplayLean,
     selectedFaceSrc,
     selectedItem,

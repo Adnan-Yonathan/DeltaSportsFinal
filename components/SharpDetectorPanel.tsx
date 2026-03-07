@@ -141,6 +141,79 @@ const formatTimestamp = (value: string) => {
   })
 }
 
+const FLOW_USD = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
+
+const formatFlowNotional = (value: number) => {
+  if (!Number.isFinite(value)) return '$0'
+  return FLOW_USD.format(value)
+}
+
+const formatFlowTime = (value: string) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+const resolveTradeOddsNumber = (trade: SharpTrade) => {
+  const value = trade.currentAmericanOdds ?? trade.americanOdds
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+const resolveTradeOddsShortLabel = (trade: SharpTrade) => {
+  const odds = resolveTradeOddsNumber(trade)
+  return odds != null ? formatAmericanOdds(odds) : `${Math.round(trade.priceCents)}c`
+}
+
+const buildRecentFlowBars = (
+  referenceTrade: SharpTrade,
+  pool: SharpTradeWithStatus[],
+  limit = 8
+): Array<{
+  timestampLabel: string
+  notional: string
+  oddsLabel: string
+  direction: 'up' | 'down' | 'neutral'
+  normalizedHeight: number
+}> => {
+  const referenceKey = extractGameKey(referenceTrade.marketTitle, referenceTrade.sport)
+  const matched = pool
+    .filter(
+      (trade) =>
+        trade.sport === referenceTrade.sport &&
+        extractGameKey(trade.marketTitle, trade.sport) === referenceKey
+    )
+    .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp))
+    .slice(-limit)
+
+  if (!matched.length) return []
+
+  const maxNotional = matched.reduce((max, trade) => Math.max(max, trade.notional), 0)
+  return matched.map((trade, index) => {
+    const currentOdds = resolveTradeOddsNumber(trade)
+    const prevOdds = index > 0 ? resolveTradeOddsNumber(matched[index - 1]) : null
+    const direction: 'up' | 'down' | 'neutral' =
+      currentOdds == null || prevOdds == null
+        ? 'neutral'
+        : currentOdds > prevOdds
+          ? 'up'
+          : currentOdds < prevOdds
+            ? 'down'
+            : 'neutral'
+    return {
+      timestampLabel: formatFlowTime(trade.timestamp),
+      notional: formatFlowNotional(trade.notional),
+      oddsLabel: resolveTradeOddsShortLabel(trade),
+      direction,
+      normalizedHeight: maxNotional > 0 ? Math.max((trade.notional / maxNotional) * 100, 14) : 14,
+    }
+  })
+}
+
 const normalizeWallet = (value?: string | null) => {
   if (!value) return null
   const trimmed = value.trim().toLowerCase()
@@ -1189,6 +1262,7 @@ export default function SharpDetectorPanel({
                     timestamp: trade.timestamp,
                     priceCents: trade.priceCents,
                     americanOdds: trade.americanOdds,
+                    recentFlowBars: buildRecentFlowBars(trade, sortedTrades),
                   }}
                   matchupLabel={matchupLabel}
                 />
@@ -1458,6 +1532,10 @@ export default function SharpDetectorPanel({
                         timestamp: trade.timestamp,
                         priceCents: trade.priceCents,
                         americanOdds: trade.americanOdds,
+                        recentFlowBars: buildRecentFlowBars(
+                          trade,
+                          sharpMoneyTrades.map((entry) => entry.trade)
+                        ),
                       }}
                       matchupLabel={matchupLabel}
                     />

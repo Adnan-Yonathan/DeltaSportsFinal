@@ -29,7 +29,9 @@ export default function SharePropButton({ prop }: SharePropButtonProps) {
       return
     }
 
-    const result = await shareImage(cardRef.current, `delta-prop-${prop.id}.png`)
+    const result = await shareImage(cardRef.current, `delta-prop-${prop.id}.png`, {
+      profile: 'mobile-portrait',
+    })
     setShowCard(false)
 
     if (result.ok) {

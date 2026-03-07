@@ -277,6 +277,19 @@ const buildSharePropPayload = (prop: AggregatedPlayerPropBet) => {
   const bookOddsLabel = formatOdds(prop.sportsbookAvgOdds)
   const volumeLabel = `${formatCurrency(prop.totalNotional)} (${prop.betCount})`
   const sourcesLabel = prop.sources.join(", ").toUpperCase()
+  const predMagnitude = Math.max(
+    20,
+    Math.min(100, Math.abs(Math.round(prop.predMarketOdds ?? 0)) / 5)
+  )
+  const booksMagnitude = Math.max(
+    20,
+    Math.min(100, Math.abs(Math.round(prop.sportsbookAvgOdds ?? 0)) / 5)
+  )
+  const edgeMagnitude = Math.max(20, Math.min(100, Math.abs(prop.edgePercent) * 6))
+  const scoreMagnitude = Math.max(
+    20,
+    Math.min(100, Number.isFinite(prop.compositeScore) ? prop.compositeScore : 20)
+  )
   return {
     id: prop.id,
     sportLabel,
@@ -288,6 +301,12 @@ const buildSharePropPayload = (prop: AggregatedPlayerPropBet) => {
     bookOddsLabel,
     volumeLabel,
     sourcesLabel,
+    metricBars: [
+      { id: "pred", label: "Pred", valueLabel: predOddsLabel, normalizedHeight: predMagnitude },
+      { id: "books", label: "Books", valueLabel: bookOddsLabel, normalizedHeight: booksMagnitude },
+      { id: "edge", label: "Edge", valueLabel: edgeLabel, normalizedHeight: edgeMagnitude },
+      { id: "score", label: "Score", valueLabel: scoreLabel, normalizedHeight: scoreMagnitude },
+    ],
   }
 }
 

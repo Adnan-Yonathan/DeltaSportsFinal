@@ -4,12 +4,31 @@ type ShareResult =
   | { ok: true; message?: string }
   | { ok: false; message: string }
 
+export type ShareProfile = 'mobile-portrait' | 'legacy-og'
+
+type ShareImageOptions = {
+  profile?: ShareProfile
+  pixelRatio?: number
+}
+
 const supportsClipboardImage = !!(typeof navigator !== 'undefined' && (navigator as any).clipboard?.write)
 
 const wait = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
 export const useShareImage = () => {
-  const shareImage = async (element: HTMLElement, filename = 'delta-card.png'): Promise<ShareResult> => {
+  const shareImage = async (
+    element: HTMLElement,
+    filename = 'delta-card.png',
+    options: ShareImageOptions = {}
+  ): Promise<ShareResult> => {
+    const profile = options.profile ?? 'legacy-og'
+    const pixelRatio =
+      typeof options.pixelRatio === 'number' && Number.isFinite(options.pixelRatio)
+        ? options.pixelRatio
+        : profile === 'mobile-portrait'
+          ? 2.5
+          : 2
+
     const buildImage = async () => {
       // Use multiple attempts for reliability
       let lastError: Error | null = null
@@ -22,7 +41,7 @@ export const useShareImage = () => {
           }
 
           const dataUrl = await toPng(element, {
-            pixelRatio: 2,
+            pixelRatio,
             cacheBust: true,
             skipAutoScale: true,
             backgroundColor: '#0a0a0a',

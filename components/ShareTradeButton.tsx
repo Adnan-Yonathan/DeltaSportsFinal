@@ -30,7 +30,9 @@ export default function ShareTradeButton({ trade, matchupLabel }: ShareTradeButt
       return
     }
 
-    const result = await shareImage(cardRef.current, `delta-trade-${trade.id}.png`)
+    const result = await shareImage(cardRef.current, `delta-trade-${trade.id}.png`, {
+      profile: 'mobile-portrait',
+    })
     setShowCard(false)
 
     if (result.ok) {

@@ -1,7 +1,18 @@
+import type { Metadata } from 'next'
 import MobileToolsNav from "@/components/mobile-tools-nav"
 import PropOrderbooksPanel from "@/components/prop-orderbooks-panel"
 import { getPropOrderbooksCache } from "@/lib/services/prop-orderbooks-cache"
 import type { PropOrderbookItem } from "@/lib/services/prop-liquidity-detector"
+import { filterUpcomingEventItems } from "@/lib/utils/upcoming-event-filter"
+
+export const metadata: Metadata = {
+  title: 'Sharp Props | Exchange Orderbook Prop Tracker | Delta Sports',
+  description:
+    'See where sharp money is positioned in prop markets. Exchange orderbook liquidity, sharp side pressure, and best available prices in one view — before lines move.',
+  alternates: {
+    canonical: 'https://deltasports.app/sharp-props',
+  },
+}
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -63,10 +74,11 @@ const resolveInitialOrderbooks = async (
   const exactPayload = parsePersistedOrderbooksPayload(exactCache?.payload)
 
   if (exactPayload) {
+    const upcomingItems = filterUpcomingEventItems(exactPayload.items)
     const items =
       sport === "all"
-        ? exactPayload.items
-        : exactPayload.items.filter((item) => item.sportKey === sport)
+        ? upcomingItems
+        : upcomingItems.filter((item) => item.sportKey === sport)
     return {
       items: items.slice(0, limit),
       updatedAt: exactPayload.updatedAt,
@@ -87,9 +99,10 @@ const resolveInitialOrderbooks = async (
   const allCache = await getPropOrderbooksCache(allKey)
   const allPayload = parsePersistedOrderbooksPayload(allCache?.payload)
   if (!allPayload) return null
+  const upcomingItems = filterUpcomingEventItems(allPayload.items)
 
   return {
-    items: allPayload.items.filter((item) => item.sportKey === sport).slice(0, limit),
+    items: upcomingItems.filter((item) => item.sportKey === sport).slice(0, limit),
     updatedAt: allPayload.updatedAt,
     cache: {
       source: "persistent_all_fallback",

@@ -1,6 +1,16 @@
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
 import LineShoppingClient from './line-shopping-client'
+
+export const metadata: Metadata = {
+  title: 'Line Shopping | Compare Sportsbook Odds | Delta Sports',
+  description:
+    'Compare spreads, moneylines, and totals across FanDuel, DraftKings, BetMGM, Caesars, and more in seconds. Find the best available number before you bet.',
+  alternates: {
+    canonical: 'https://deltasports.app/line-shopping',
+  },
+}
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0

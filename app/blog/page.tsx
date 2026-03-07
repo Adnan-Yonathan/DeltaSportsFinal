@@ -41,9 +41,12 @@ const getLatestDate = (edges: GameEdgeAnalysis[]) => {
 }
 
 export const metadata: Metadata = {
-  title: 'Delta Sports Blog',
+  title: 'Sharp Betting Blog | Market Projections & Line Analysis | Delta Sports',
   description:
-    'Daily betting breakdowns powered by market projections, including line movement and splits.',
+    'Daily sharp money breakdowns: market projections, line movement analysis, reverse line movement, and betting edges across NBA, NFL, NHL, and MLB.',
+  alternates: {
+    canonical: 'https://deltasports.app/blog',
+  },
 }
 
 export default async function BlogIndexPage({

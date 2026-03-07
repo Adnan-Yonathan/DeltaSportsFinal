@@ -1,10 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { ArrowRight } from 'lucide-react'
 import { OddsMatrixSurface } from '@/components/ui/odds-matrix-surface'
 import { SimpleHeader } from '@/components/ui/simple-header'
 import { generateSeoBlogPost } from '@/lib/blog/seo-generator'
 import { getSeoBlogTopicBySlug, SEO_BLOG_TOPICS } from '@/lib/blog/seo-topics'
+import { CORE_TOOLS_BY_KEY } from '@/lib/core-tools'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -164,6 +166,41 @@ export default async function BlogInsightPage({
             ))}
           </div>
         </section>
+
+        {topic.relatedToolKeys && topic.relatedToolKeys.length > 0 && (
+          <section className="rounded-3xl border border-white/10 bg-black/45 p-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-white/50">
+              Use these tools
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-white">Put this into practice</h2>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {topic.relatedToolKeys.map((key) => {
+                const tool = CORE_TOOLS_BY_KEY[key]
+                if (!tool) return null
+                return (
+                  <Link key={key} href={tool.productRoute} className="group block rounded-2xl border border-white/10 bg-black/40 p-4 transition-colors hover:border-emerald-400/35">
+                    <p className="text-sm font-semibold text-white group-hover:text-emerald-200">
+                      {tool.label}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-white/55">{tool.summary}</p>
+                    <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/70 group-hover:text-emerald-200">
+                      <span>Open tool</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+            <div className="mt-4">
+              <Link
+                href="/tools"
+                className="text-xs text-white/40 hover:text-white/60 transition-colors"
+              >
+                See all tools →
+              </Link>
+            </div>
+          </section>
+        )}
 
         <section className="rounded-3xl border border-emerald-400/20 bg-emerald-500/5 p-6">
           <h2 className="text-xl font-semibold">Conclusion</h2>

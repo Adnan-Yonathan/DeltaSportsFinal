@@ -1,7 +1,17 @@
+import type { Metadata } from 'next'
 import SportSelector from "../market-projections/sport-selector"
 import { createClient } from "@/lib/supabase/server"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
 import PropOddsClient from "./prop-odds-client"
+
+export const metadata: Metadata = {
+  title: 'Player Prop Odds | Best Lines Across All Books | Delta Sports',
+  description:
+    'Compare player prop odds across every major sportsbook. Find the best over/under prices for points, rebounds, assists, passing yards, and more.',
+  alternates: {
+    canonical: 'https://deltasports.app/player-prop-odds',
+  },
+}
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0

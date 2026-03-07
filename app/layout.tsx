@@ -12,40 +12,41 @@ import AppShell from '@/components/app-shell'
 const GA_MEASUREMENT_ID = 'G-Y78D13G4NJ'
 
 export const metadata: Metadata = {
-  title: 'Delta Sports - The Sharp Money Tool for Sports',
+  title: 'Delta Sports | Sharp Money Tracking & Betting Analytics',
   description:
-    'Delta Sports AI is an AI sports betting assistant for sharp betting, sharp action research, sharp money tracking, live odds, and betting analytics.',
+    'Delta Sports tracks sharp money in real time — exchange orderbooks, whale bets, line movement, and AI market projections. The sharp betting tool serious bettors use.',
   metadataBase: new URL('https://deltasports.app'),
   applicationName: 'Delta Sports',
   keywords: [
     'Delta Sports',
-    'Delta Sports AI',
-    'AI sports betting assistant',
-    'sharp betting',
+    'sharp money tracking',
     'sharp betting tools',
     'sharp sports betting',
-    'sharp money',
-    'betting software',
-    'sports betting analytics',
-    'live odds',
-    'matchup insights',
+    'exchange orderbook betting',
+    'betting analytics',
+    'sports betting edge',
     'line shopping',
+    'reverse line movement',
+    'positive EV betting',
   ],
   openGraph: {
-    title: 'Delta Sports - The Sharp Money Tool for Sports',
+    title: 'Delta Sports | Sharp Money Tracking & Betting Analytics',
     description:
-      'Delta Sports AI is an AI sports betting assistant for sharp betting, sharp action research, sharp money tracking, live odds, and betting analytics.',
+      'Delta Sports tracks sharp money in real time — exchange orderbooks, whale bets, line movement, and AI market projections. The sharp betting tool serious bettors use.',
     siteName: 'Delta Sports',
+    images: [{ url: '/newimage.png', width: 1200, height: 630 }],
   },
   twitter: {
-    title: 'Delta Sports - The Sharp Money Tool for Sports',
+    card: 'summary_large_image',
+    title: 'Delta Sports | Sharp Money Tracking & Betting Analytics',
     description:
-      'Delta Sports AI is an AI sports betting assistant for sharp betting, sharp action research, sharp money tracking, live odds, and betting analytics.',
+      'Delta Sports tracks sharp money in real time — exchange orderbooks, whale bets, line movement, and AI market projections. The sharp betting tool serious bettors use.',
+    images: ['/newimage.png'],
   },
   icons: {
-    icon: '/delta-logo.png',
-    shortcut: '/delta-logo.png',
-    apple: '/delta-logo.png',
+    icon: '/newimage.png',
+    shortcut: '/newimage.png',
+    apple: '/newimage.png',
   },
 }
 

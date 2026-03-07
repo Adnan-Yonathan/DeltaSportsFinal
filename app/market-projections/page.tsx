@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import MarketProjectionsClient from "./market-projections-client"
 import MobileToolsNav from "@/components/mobile-tools-nav"
 import { createClient } from "@/lib/supabase/server"
@@ -5,6 +6,15 @@ import { createServiceClient } from "@/lib/supabase/service"
 import { buildSharpProjections } from "@/lib/services/sharp-projections"
 import type { GameEdgeAnalysis } from "@/lib/services/slate-edge-detector"
 import { getMembershipStatusFromMetadata } from "@/lib/utils/membership"
+
+export const metadata: Metadata = {
+  title: 'Sharp Projections | AI Market Edge Finder | Delta Sports',
+  description:
+    'AI-driven market projections that surface edges between fair value and live lines. Sort by confidence, spot mispriced numbers, and act before the market corrects.',
+  alternates: {
+    canonical: 'https://deltasports.app/market-projections',
+  },
+}
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0

@@ -7,18 +7,26 @@ import {
 } from '@/lib/blog/market-projections'
 import { CORE_TOOLS } from '@/lib/core-tools'
 import { SEO_BLOG_TOPICS } from '@/lib/blog/seo-topics'
+import { COMPETITORS } from '@/lib/blog/competitor-data'
 
 const BASE_URL = 'https://deltasports.app'
 
 const PUBLIC_ROUTES = [
   '/',
-  '/about',
   '/blog',
   '/pricing',
-  '/welcome',
   '/tools',
   '/calculators',
   '/socials',
+  '/sharp-betting-tools',
+  '/vs',
+  '/oddsjam-alternative',
+  '/market-projections',
+  '/sharp-props',
+  '/sharp-detector',
+  '/line-shopping',
+  '/player-prop-odds',
+  '/live-scores',
   '/privacy-policy',
   '/terms-of-service',
   '/refund-policy',
@@ -28,7 +36,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const lastModified = new Date()
   const guideRoutes = CORE_TOOLS.map((tool) => tool.guideRoute)
   const insightRoutes = SEO_BLOG_TOPICS.map((topic) => `/blog/insights/${topic.slug}`)
-  const entries: MetadataRoute.Sitemap = [...PUBLIC_ROUTES, ...guideRoutes, ...insightRoutes].map((route) => ({
+  const competitorRoutes = COMPETITORS.map((c) => `/vs/${c.slug}`)
+  const entries: MetadataRoute.Sitemap = [...PUBLIC_ROUTES, ...guideRoutes, ...insightRoutes, ...competitorRoutes].map((route) => ({
     url: `${BASE_URL}${route}`,
     lastModified,
   }))

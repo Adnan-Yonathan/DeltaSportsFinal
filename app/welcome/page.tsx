@@ -1,12 +1,5 @@
-import { Suspense } from 'react'
-import WelcomeClient from './welcome-client'
-
-export const dynamic = 'force-dynamic'
+import { redirect } from 'next/navigation'
 
 export default function WelcomePage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-black text-white" />}>
-      <WelcomeClient />
-    </Suspense>
-  )
+  redirect('/')
 }

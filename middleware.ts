@@ -253,7 +253,7 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Match all paths except static files
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|PNG|JPG|JPEG|GIF|SVG|ICO|WEBP)$).*)',
+    // Match all paths except static files and public SEO resources
+    '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|PNG|JPG|JPEG|GIF|SVG|ICO|WEBP)$).*)',
   ],
 }

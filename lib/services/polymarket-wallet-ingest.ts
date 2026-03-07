@@ -78,6 +78,10 @@ type PolymarketTradeApi = {
   eventSlug?: string
   outcome?: string
   outcomeIndex?: number
+  name?: string
+  pseudonym?: string
+  bio?: string
+  profileImage?: string
   transactionHash: string
 }
 
@@ -99,6 +103,7 @@ type WalletRow = {
   last_trade_ts: number | null
   backfill_completed: boolean | null
   display_name?: string | null
+  tracking_state?: 'auto' | 'manual_include' | 'manual_exclude' | null
 }
 
 type IngestWalletResult = {
@@ -118,6 +123,25 @@ type IngestSummary = {
   tradesSkipped: number
   marketsUpdated: number
   results: IngestWalletResult[]
+}
+
+type DiscoveredWalletMeta = {
+  wallet: string
+  source: string
+  display_name: string
+  last_seen_at: string
+  last_discovered_at: string
+  profile_name: string | null
+  pseudonym: string | null
+  bio: string | null
+  profile_image_url: string | null
+}
+
+type DiscoverSummary = {
+  scannedTrades: number
+  discoveredSportsTrades: number
+  walletsUpserted: number
+  wallets: string[]
 }
 
 const normalizeWallet = (value?: string | null) => {
@@ -146,7 +170,15 @@ const parseJsonArray = <T,>(value?: string | null): T[] => {
   }
 }
 
-const eventCache = new Map<string, { isSports: boolean; sportLabel?: string }>()
+const eventCache = new Map<
+  string,
+  {
+    isSports: boolean
+    sportLabel?: string
+    source: 'slug_prefix' | 'event_category' | 'event_series' | 'event_title' | 'unknown'
+    confidence: number
+  }
+>()
 
 const fetchPolymarketEvent = async (slug: string) => {
   if (eventCache.has(slug)) return eventCache.get(slug) ?? null
@@ -155,27 +187,49 @@ const fetchPolymarketEvent = async (slug: string) => {
     url.searchParams.set('slug', slug)
     const res = await fetch(url.toString(), { cache: 'no-store' })
     if (!res.ok) {
-      eventCache.set(slug, { isSports: false })
+      eventCache.set(slug, { isSports: false, source: 'unknown', confidence: 0 })
       return null
     }
-    const event = await res.json()
+    const eventResponse = await res.json()
+    const event =
+      Array.isArray(eventResponse) && eventResponse.length > 0
+        ? eventResponse[0]
+        : eventResponse
     const category = String(event?.category ?? '').toLowerCase()
     const seriesSlug = String(event?.seriesSlug ?? event?.series?.[0]?.slug ?? '').toLowerCase()
     const title = String(event?.title ?? '').toLowerCase()
-    const isSports =
-      category === 'sports' ||
-      POLYMARKET_SPORT_SERIES.has(seriesSlug) ||
-      POLYMARKET_SPORT_PREFIXES.some((prefix) => title.startsWith(prefix.replace('-', '')))
+    const titleMatch = POLYMARKET_SPORT_PREFIXES.some((prefix) =>
+      title.startsWith(prefix.replace('-', ''))
+    )
+
+    const categoryMatch = category === 'sports'
+    const seriesMatch = POLYMARKET_SPORT_SERIES.has(seriesSlug)
+    const isSports = categoryMatch || seriesMatch || titleMatch
+    const source: 'event_category' | 'event_series' | 'event_title' | 'unknown' = categoryMatch
+      ? 'event_category'
+      : seriesMatch
+        ? 'event_series'
+        : titleMatch
+          ? 'event_title'
+          : 'unknown'
+    const confidence =
+      source === 'event_category'
+        ? 0.95
+        : source === 'event_series'
+          ? 0.9
+          : source === 'event_title'
+            ? 0.8
+            : 0
 
     const sportLabel =
       (event?.series?.[0]?.title as string | undefined) ||
       (seriesSlug ? seriesSlug.toUpperCase() : undefined)
 
-    const payload = { isSports, sportLabel }
+    const payload = { isSports, sportLabel, source, confidence }
     eventCache.set(slug, payload)
     return payload
   } catch {
-    eventCache.set(slug, { isSports: false })
+    eventCache.set(slug, { isSports: false, source: 'unknown', confidence: 0 })
     return null
   }
 }
@@ -187,18 +241,34 @@ const resolveSportLabelFromSlug = (slug?: string | null) => {
 }
 
 const resolvePolymarketSportsMeta = async (slug?: string | null) => {
-  if (!slug) return { isSports: false as const }
+  if (!slug) {
+    return {
+      isSports: false as const,
+      classificationSource: 'unknown' as const,
+      classificationConfidence: 0,
+    }
+  }
   if (isPolymarketSportSlug(slug)) {
     return {
       isSports: true as const,
       sportLabel: resolveSportLabelFromSlug(slug) ?? undefined,
+      classificationSource: 'slug_prefix' as const,
+      classificationConfidence: 0.99,
     }
   }
   const event = await fetchPolymarketEvent(slug)
-  if (!event) return { isSports: false as const }
+  if (!event) {
+    return {
+      isSports: false as const,
+      classificationSource: 'unknown' as const,
+      classificationConfidence: 0,
+    }
+  }
   return {
     isSports: event.isSports,
     sportLabel: event.sportLabel ?? resolveSportLabelFromSlug(slug) ?? undefined,
+    classificationSource: event.source,
+    classificationConfidence: event.confidence,
   }
 }
 
@@ -221,6 +291,151 @@ const fetchWalletTradesPage = async ({
   if (Array.isArray(data)) return data
   if (Array.isArray(data?.value)) return data.value
   return []
+}
+
+const fetchGlobalTradesPage = async ({
+  limit,
+  offset,
+}: {
+  limit: number
+  offset: number
+}) => {
+  const url = new URL(POLYMARKET_TRADES)
+  url.searchParams.set('limit', String(limit))
+  url.searchParams.set('offset', String(offset))
+  const res = await fetch(url.toString(), { cache: 'no-store' })
+  if (!res.ok) return [] as PolymarketTradeApi[]
+  const data = (await res.json()) as PolymarketTradeApi[] | { value?: PolymarketTradeApi[] }
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.value)) return data.value
+  return []
+}
+
+export const discoverPolymarketSportsBettors = async ({
+  limit = 500,
+  maxPages = 5,
+}: {
+  limit?: number
+  maxPages?: number
+} = {}): Promise<DiscoverSummary> => {
+  const safeLimit = Number.isFinite(limit) ? Math.max(50, Math.min(limit, 1000)) : 500
+  const safePages = Number.isFinite(maxPages) ? Math.max(1, Math.min(maxPages, 20)) : 5
+  const nowIso = new Date().toISOString()
+  let scannedTrades = 0
+  let discoveredSportsTrades = 0
+
+  const wallets = new Map<
+    string,
+    {
+      timestamp: number
+      profile_name: string | null
+      pseudonym: string | null
+      bio: string | null
+      profile_image_url: string | null
+    }
+  >()
+
+  for (let page = 0; page < safePages; page += 1) {
+    const offset = page * safeLimit
+    const pageTrades = await fetchGlobalTradesPage({ limit: safeLimit, offset })
+    if (!pageTrades.length) break
+    scannedTrades += pageTrades.length
+
+    for (const trade of pageTrades) {
+      const wallet = normalizeWallet(trade.proxyWallet)
+      if (!wallet) continue
+      const slug = trade.eventSlug || trade.slug
+      const sportsMeta = await resolvePolymarketSportsMeta(slug)
+      if (!sportsMeta.isSports) continue
+      discoveredSportsTrades += 1
+
+      const tradeTs = parseNumber(trade.timestamp) ?? 0
+      const prev = wallets.get(wallet)
+      if (prev && prev.timestamp > tradeTs) continue
+
+      wallets.set(wallet, {
+        timestamp: tradeTs,
+        profile_name:
+          typeof trade.name === 'string' && trade.name.trim().length > 0
+            ? trade.name.trim()
+            : null,
+        pseudonym:
+          typeof trade.pseudonym === 'string' && trade.pseudonym.trim().length > 0
+            ? trade.pseudonym.trim()
+            : null,
+        bio:
+          typeof trade.bio === 'string' && trade.bio.trim().length > 0
+            ? trade.bio.trim()
+            : null,
+        profile_image_url:
+          typeof trade.profileImage === 'string' && trade.profileImage.trim().length > 0
+            ? trade.profileImage.trim()
+            : null,
+      })
+    }
+
+    if (pageTrades.length < safeLimit) break
+  }
+
+  const walletList = Array.from(wallets.keys())
+  if (!walletList.length) {
+    return {
+      scannedTrades,
+      discoveredSportsTrades,
+      walletsUpserted: 0,
+      wallets: [],
+    }
+  }
+
+  const supabase = createServiceClient()
+  const { data: existingRows } = (await supabase
+    .from('polymarket_wallets' as any)
+    .select('wallet, source')
+    .in('wallet', walletList.slice(0, 1000))) as unknown as {
+    data: Array<{ wallet: string; source?: string | null }> | null
+  }
+  const existingByWallet = new Map<string, string>()
+  for (const row of existingRows ?? []) {
+    if (!row.wallet) continue
+    existingByWallet.set(row.wallet, row.source ?? 'manual')
+  }
+
+  const payload: DiscoveredWalletMeta[] = walletList.map((wallet) => {
+    const meta = wallets.get(wallet)
+    return {
+      wallet,
+      source: existingByWallet.get(wallet) ?? 'discovery',
+      display_name: getWalletAlias(wallet),
+      last_seen_at: nowIso,
+      last_discovered_at: nowIso,
+      profile_name: meta?.profile_name ?? null,
+      pseudonym: meta?.pseudonym ?? null,
+      bio: meta?.bio ?? null,
+      profile_image_url: meta?.profile_image_url ?? null,
+    }
+  })
+
+  const { data, error } = await supabase
+    .from('polymarket_wallets' as any)
+    .upsert(payload as any, { onConflict: 'wallet' } as any)
+    .select('wallet')
+
+  if (error) {
+    console.warn('[Polymarket Wallets] Discovery upsert failed:', error)
+    return {
+      scannedTrades,
+      discoveredSportsTrades,
+      walletsUpserted: 0,
+      wallets: [],
+    }
+  }
+
+  return {
+    scannedTrades,
+    discoveredSportsTrades,
+    walletsUpserted: data?.length ?? 0,
+    wallets: walletList,
+  }
 }
 
 const fetchMarketOutcome = async (slug: string) => {
@@ -269,6 +484,7 @@ const buildTradeRows = async ({
 }) => {
   const rows: Array<Record<string, unknown>> = []
   const slugs = new Set<string>()
+  const walletMeta = new Map<string, Partial<DiscoveredWalletMeta>>()
 
   for (const trade of trades) {
     const slug = trade.slug
@@ -278,7 +494,12 @@ const buildTradeRows = async ({
     if (!wallet) continue
     const timestamp = parseNumber(trade.timestamp)
     if (timestamp == null) continue
-    const { isSports, sportLabel } = await resolvePolymarketSportsMeta(eventSlug)
+    const {
+      isSports,
+      sportLabel,
+      classificationSource,
+      classificationConfidence,
+    } = await resolvePolymarketSportsMeta(eventSlug)
     if (sportsOnly && !isSports) continue
 
     const size = parseNumber(trade.size)
@@ -306,11 +527,33 @@ const buildTradeRows = async ({
       proxy_wallet: trade.proxyWallet ?? null,
       is_sports: isSports,
       sport_label: sportLabel ?? null,
+      sports_classification_source: classificationSource,
+      sports_classification_confidence: classificationConfidence,
+    })
+    const meta = walletMeta.get(wallet) ?? {}
+    walletMeta.set(wallet, {
+      ...meta,
+      profile_name:
+        typeof trade.name === 'string' && trade.name.trim().length > 0
+          ? trade.name.trim()
+          : (meta.profile_name ?? null),
+      pseudonym:
+        typeof trade.pseudonym === 'string' && trade.pseudonym.trim().length > 0
+          ? trade.pseudonym.trim()
+          : (meta.pseudonym ?? null),
+      bio:
+        typeof trade.bio === 'string' && trade.bio.trim().length > 0
+          ? trade.bio.trim()
+          : (meta.bio ?? null),
+      profile_image_url:
+        typeof trade.profileImage === 'string' && trade.profileImage.trim().length > 0
+          ? trade.profileImage.trim()
+          : (meta.profile_image_url ?? null),
     })
     slugs.add(slug)
   }
 
-  return { rows, slugs: Array.from(slugs) }
+  return { rows, slugs: Array.from(slugs), walletMeta }
 }
 
 const upsertMarketOutcomes = async (slugs: string[]) => {
@@ -402,7 +645,7 @@ const ingestWalletTrades = async ({
     }
   }
 
-  const { rows, slugs } = await buildTradeRows({ trades: fetched, sportsOnly })
+  const { rows, slugs, walletMeta } = await buildTradeRows({ trades: fetched, sportsOnly })
   if (!rows.length) {
     return {
       wallet,
@@ -439,6 +682,19 @@ const ingestWalletTrades = async ({
   }, null as number | null)
 
   const marketsUpdated = await upsertMarketOutcomes(slugs)
+  const profile = walletMeta.get(wallet)
+  if (profile) {
+    const profilePatch: Record<string, unknown> = {}
+    if (profile.profile_name) profilePatch.profile_name = profile.profile_name
+    if (profile.pseudonym) profilePatch.pseudonym = profile.pseudonym
+    if (profile.bio) profilePatch.bio = profile.bio
+    if (profile.profile_image_url) profilePatch.profile_image_url = profile.profile_image_url
+    if (Object.keys(profilePatch).length > 0) {
+      await (supabase.from('polymarket_wallets' as any) as any)
+        .update(profilePatch)
+        .eq('wallet', wallet)
+    }
+  }
 
   return {
     wallet,
@@ -521,7 +777,7 @@ export const ingestPolymarketWalletTradesForTrackedWallets = async ({
 
   const query = supabase
     .from('polymarket_wallets' as any)
-    .select('wallet, last_trade_ts, backfill_completed, display_name')
+    .select('wallet, last_trade_ts, backfill_completed, display_name, tracking_state')
   const normalizedWallets = wallets
     ? Array.from(
         new Set(wallets.map((value) => normalizeWallet(value)).filter(Boolean) as string[])
@@ -530,8 +786,10 @@ export const ingestPolymarketWalletTradesForTrackedWallets = async ({
   const { data, error } = wallet
     ? await query.eq('wallet', normalizeWallet(wallet) ?? wallet)
     : normalizedWallets.length
-      ? await query.in('wallet', normalizedWallets.slice(0, 200))
-      : await query
+      ? await query
+          .in('wallet', normalizedWallets.slice(0, 200))
+          .not('tracking_state', 'eq', 'manual_exclude')
+      : await query.not('tracking_state', 'eq', 'manual_exclude')
 
   if (error || !data) {
     console.warn('[Polymarket Wallets] Failed to load tracked wallets:', error)

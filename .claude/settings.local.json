@@ -28,7 +28,8 @@
       "WebFetch(domain:docs.stripe.com)",
       "Bash(git push:*)",
       "WebFetch(domain:www.sportsbettingdime.com)",
-      "WebFetch(domain:cdn-sde.sbdfuel.com)"
+      "WebFetch(domain:cdn-sde.sbdfuel.com)",
+      "WebFetch(domain:x.com)"
     ],
     "deny": [],
     "ask": []

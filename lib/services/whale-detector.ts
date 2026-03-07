@@ -16,6 +16,12 @@ const SHARP_SCORE_WINDOW_MS = 30 * 1000
 const SHARP_SCORE_SHORT_WINDOW_MS = 10 * 1000
 const MIN_PROP_NOTIONAL = 500
 const MIN_GAME_NOTIONAL = 2000
+const POLYMARKET_MAX_LIMIT = 1000
+const POLYMARKET_PAGE_LIMIT = 500
+const POLYMARKET_MAX_PAGES = 4
+const POLYMARKET_MIN_NOTIONAL_SCALE = 0.125
+const POLYMARKET_MIN_NOTIONAL_FLOOR = 100
+const SOURCE_BALANCE_RATIO = 0.2
 
 const KALSHI_SPORT_PREFIXES = [
   'KXNBA',
@@ -724,59 +730,127 @@ const fetchPolymarketTrades = async (
   limit: number,
   minNotional: number
 ) => {
-  const url = new URL(POLYMARKET_TRADES)
-  url.searchParams.set('limit', String(Math.min(Math.max(limit, 50), 300)))
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : DEFAULT_LIMIT
+  const targetMatches = Math.min(Math.max(safeLimit, 50), POLYMARKET_MAX_LIMIT)
+  const pageLimit = Math.max(100, Math.min(POLYMARKET_PAGE_LIMIT, targetMatches * 4))
+  const rawScanTarget = Math.max(pageLimit, Math.min(2000, targetMatches * 4))
+  const maxPages = Math.min(POLYMARKET_MAX_PAGES, Math.ceil(rawScanTarget / pageLimit))
+  const deduped = new Map<string, WhaleTrade>()
 
-  const res = await fetch(url.toString(), { cache: 'no-store' })
-  if (!res.ok) return [] as WhaleTrade[]
-  const data = (await res.json()) as { value?: PolymarketTrade[] } | PolymarketTrade[]
-  const trades = Array.isArray(data)
-    ? data
-    : Array.isArray((data as { value?: PolymarketTrade[] }).value)
-      ? (data as { value?: PolymarketTrade[] }).value ?? []
-      : []
+  for (let page = 0; page < maxPages && deduped.size < targetMatches; page += 1) {
+    const url = new URL(POLYMARKET_TRADES)
+    url.searchParams.set('limit', String(pageLimit))
+    url.searchParams.set('offset', String(page * pageLimit))
 
-  const results = await Promise.all(
-    trades.map(async (trade) => {
-      const eventSlug = trade.eventSlug || trade.slug
-      if (!eventSlug) return null
-      const isSportsSlug = isPolymarketSportSlug(eventSlug)
-      if (!isSportsSlug) {
-        const event = await fetchPolymarketEvent(eventSlug)
-        if (!event?.isSports) return null
-      }
-      const normalized = normalizePolymarketTrade(trade)
-      const notional = Number(trade.size) * Number(normalized.price)
-      if (!Number.isFinite(notional) || notional < minNotional) return null
-      const priceCents = Math.round(Number(normalized.price) * 100)
-      const probability = Number(normalized.price)
-      const americanOdds = probabilityToAmerican(probability)
-      if (americanOdds !== null && americanOdds <= -300) return null
-      const sportLabel = await resolvePolymarketSportLabel(
-        eventSlug,
-        parsePolymarketSport(eventSlug)
-      )
-      return {
-        id: `polymarket:${trade.transactionHash}`,
-        source: 'polymarket' as const,
-        marketTitle: trade.title,
-        outcome: normalized.outcome,
-        proxyWallet: trade.proxyWallet,
-        priceCents,
-        americanOdds,
-        notional,
-        contracts: Number(trade.size),
-        timestamp: new Date(trade.timestamp * 1000).toISOString(),
-        sport: sportLabel,
-        eventDate: parsePolymarketDate(eventSlug),
-        slug: trade.slug,
-        outcomeIndex: normalized.outcomeIndex ?? undefined,
-        side: trade.side,
-      }
-    })
+    const res = await fetch(url.toString(), { cache: 'no-store' })
+    if (!res.ok) break
+    const data = (await res.json()) as { value?: PolymarketTrade[] } | PolymarketTrade[]
+    const trades = Array.isArray(data)
+      ? data
+      : Array.isArray((data as { value?: PolymarketTrade[] }).value)
+        ? (data as { value?: PolymarketTrade[] }).value ?? []
+        : []
+    if (!trades.length) break
+
+    const results = await Promise.all(
+      trades.map(async (trade) => {
+        const eventSlug = trade.eventSlug || trade.slug
+        if (!eventSlug) return null
+        const isSportsSlug = isPolymarketSportSlug(eventSlug)
+        if (!isSportsSlug) {
+          const event = await fetchPolymarketEvent(eventSlug)
+          if (!event?.isSports) return null
+        }
+        const normalized = normalizePolymarketTrade(trade)
+        const notional = Number(trade.size) * Number(normalized.price)
+        if (!Number.isFinite(notional) || notional < minNotional) return null
+        const priceCents = Math.round(Number(normalized.price) * 100)
+        const probability = Number(normalized.price)
+        const americanOdds = probabilityToAmerican(probability)
+        if (americanOdds !== null && americanOdds <= -300) return null
+        const sportLabel = await resolvePolymarketSportLabel(
+          eventSlug,
+          parsePolymarketSport(eventSlug)
+        )
+        return {
+          id: `polymarket:${trade.transactionHash}`,
+          source: 'polymarket' as const,
+          marketTitle: trade.title,
+          outcome: normalized.outcome,
+          proxyWallet: trade.proxyWallet,
+          priceCents,
+          americanOdds,
+          notional,
+          contracts: Number(trade.size),
+          timestamp: new Date(trade.timestamp * 1000).toISOString(),
+          sport: sportLabel,
+          eventDate: parsePolymarketDate(eventSlug),
+          slug: trade.slug,
+          outcomeIndex: normalized.outcomeIndex ?? undefined,
+          side: trade.side,
+        }
+      })
+    )
+
+    for (const item of results) {
+      if (!item) continue
+      deduped.set(item.id, item)
+    }
+
+    if (trades.length < pageLimit) break
+  }
+
+  return Array.from(deduped.values())
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, targetMatches)
+}
+
+const resolvePolymarketMinNotional = (requestedMinNotional: number) => {
+  if (!Number.isFinite(requestedMinNotional) || requestedMinNotional <= 0) {
+    return POLYMARKET_MIN_NOTIONAL_FLOOR
+  }
+  return Math.max(
+    POLYMARKET_MIN_NOTIONAL_FLOOR,
+    Math.round(requestedMinNotional * POLYMARKET_MIN_NOTIONAL_SCALE)
   )
+}
 
-  return results.filter(Boolean) as WhaleTrade[]
+const mergeTradesWithSourceBalance = (
+  kalshi: WhaleTrade[],
+  polymarket: WhaleTrade[],
+  limit: number
+) => {
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : DEFAULT_LIMIT
+  const minPerSource = Math.max(1, Math.floor(safeLimit * SOURCE_BALANCE_RATIO))
+  const byTimeDesc = (a: WhaleTrade, b: WhaleTrade) =>
+    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+
+  const kalshiSorted = [...kalshi].sort(byTimeDesc)
+  const polymarketSorted = [...polymarket].sort(byTimeDesc)
+  const selected = new Map<string, WhaleTrade>()
+
+  const takeFrom = (rows: WhaleTrade[], count: number) => {
+    if (count <= 0) return
+    let taken = 0
+    for (const row of rows) {
+      if (selected.size >= safeLimit || taken >= count) break
+      if (selected.has(row.id)) continue
+      selected.set(row.id, row)
+      taken += 1
+    }
+  }
+
+  takeFrom(kalshiSorted, Math.min(minPerSource, kalshiSorted.length))
+  takeFrom(polymarketSorted, Math.min(minPerSource, polymarketSorted.length))
+
+  const combined = [...kalshiSorted, ...polymarketSorted].sort(byTimeDesc)
+  for (const row of combined) {
+    if (selected.size >= safeLimit) break
+    if (selected.has(row.id)) continue
+    selected.set(row.id, row)
+  }
+
+  return Array.from(selected.values()).sort(byTimeDesc)
 }
 
 export const fetchWhaleTrades = async (options: {
@@ -788,19 +862,14 @@ export const fetchWhaleTrades = async (options: {
   const minNotional = Number.isFinite(options.minNotional)
     ? Number(options.minNotional)
     : DEFAULT_MIN_NOTIONAL
+  const polymarketMinNotional = resolvePolymarketMinNotional(minNotional)
 
   const [kalshi, polymarket] = await Promise.all([
     fetchKalshiTrades(limit, minNotional, options.since),
-    fetchPolymarketTrades(limit, minNotional),
+    fetchPolymarketTrades(limit, polymarketMinNotional),
   ])
 
-  const combined = [...kalshi, ...polymarket].sort((a, b) => {
-    const timeA = new Date(a.timestamp).getTime()
-    const timeB = new Date(b.timestamp).getTime()
-    return timeB - timeA
-  })
-
-  const sliced = combined.slice(0, limit)
+  const sliced = mergeTradesWithSourceBalance(kalshi, polymarket, limit)
   try {
     return await enrichWhaleTradesWithStrength(sliced)
   } catch (error) {

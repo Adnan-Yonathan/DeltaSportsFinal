@@ -14,6 +14,10 @@ import {
   shouldPersistPropOrderbooksSnapshot,
 } from '@/lib/services/prop-orderbooks-cache-guard'
 import { isWithinSharpRefreshWindow } from '@/lib/utils/sharp-refresh-window'
+import {
+  filterUpcomingEventItems,
+  getUsMarketDayKey,
+} from '@/lib/utils/upcoming-event-filter'
 
 export const dynamic = 'force-dynamic'
 const DEFAULT_DEPTH = 8
@@ -66,12 +70,14 @@ const buildCachedResponse = (
   cachedPayload: PersistedPayload,
   cacheSource: 'persistent' | 'persistent_all_fallback',
   fetchedAt: string | null,
-  cacheAgeMs: number | null
+  cacheAgeMs: number | null,
+  todayKey: string
 ) => {
+  const upcomingItems = filterUpcomingEventItems(cachedPayload.items, todayKey)
   const items =
     sport === 'all'
-      ? cachedPayload.items
-      : cachedPayload.items.filter((item) => item.sportKey === sport)
+      ? upcomingItems
+      : upcomingItems.filter((item) => item.sportKey === sport)
   const sliced = items.slice(0, normalizedLimit)
   const diagnostics = resolveSnapshotDiagnostics(sliced)
 
@@ -121,13 +127,68 @@ export async function GET(req: NextRequest) {
       requestedModeParam === 'overnight'
         ? requestedModeParam
         : null
-    const mode = refreshWindowOpen
-      ? requestedMode ?? (effectiveForceRefresh ? 'full' : 'fast')
-      : 'overnight'
+    const mode = requestedMode ?? (effectiveForceRefresh ? 'full' : 'fast')
+    const todayKey = getUsMarketDayKey()
 
     const canUsePersistentCache =
       normalizedDepth === DEFAULT_DEPTH &&
       normalizedMinSharpNotional === DEFAULT_MIN_SHARP_NOTIONAL
+
+
+    if (!refreshWindowOpen) {
+      if (canUsePersistentCache) {
+        const exactCacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
+        const cachedExact = await getPropOrderbooksCache(exactCacheKey)
+        const exactPayload = parsePersistedPayload(cachedExact?.payload)
+        const exactAgeMs = parseCacheAgeMs(cachedExact?.fetched_at ?? null)
+        if (exactPayload) {
+          return buildCachedResponse(
+            sport,
+            normalizedLimit,
+            exactPayload,
+            'persistent',
+            cachedExact?.fetched_at ?? null,
+            exactAgeMs,
+            todayKey
+          )
+        }
+
+        if (sport !== 'all') {
+          const allCacheKey = buildCacheKey('all', normalizedDepth, normalizedMinSharpNotional)
+          const cachedAll = await getPropOrderbooksCache(allCacheKey)
+          const allPayload = parsePersistedPayload(cachedAll?.payload)
+          const allAgeMs = parseCacheAgeMs(cachedAll?.fetched_at ?? null)
+          if (allPayload) {
+            return buildCachedResponse(
+              sport,
+              normalizedLimit,
+              allPayload,
+              'persistent_all_fallback',
+              cachedAll?.fetched_at ?? null,
+              allAgeMs,
+              todayKey
+            )
+          }
+        }
+      }
+
+      return NextResponse.json({
+        ok: true,
+        sport,
+        updatedAt: null,
+        count: 0,
+        items: [],
+        refreshBlocked: true,
+        cache: {
+          forcedRefresh: false,
+          source: 'refresh_window_closed',
+          fetchedAt: null,
+          cacheAgeMs: null,
+        },
+        diagnostics: resolveSnapshotDiagnostics([]),
+      })
+    }
+
 
     if (canUsePersistentCache && !effectiveForceRefresh) {
       const exactCacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
@@ -142,7 +203,8 @@ export async function GET(req: NextRequest) {
           exactPayload,
           'persistent',
           cachedExact?.fetched_at ?? null,
-          exactAgeMs
+          exactAgeMs,
+          todayKey
         )
       }
 
@@ -159,7 +221,8 @@ export async function GET(req: NextRequest) {
             allPayload,
             'persistent_all_fallback',
             cachedAll?.fetched_at ?? null,
-            allAgeMs
+            allAgeMs,
+            todayKey
           )
         }
       }
@@ -177,39 +240,43 @@ export async function GET(req: NextRequest) {
       minSharpNotional: normalizedMinSharpNotional,
       mode,
     })
+    const snapshotItems = filterUpcomingEventItems(snapshot.items, todayKey)
 
     let persisted = false
     let cacheWriteSkippedDegraded = false
     let fallbackToPersistent = false
     let fallbackFetchedAt: string | null = null
     let fallbackCacheAgeMs: number | null = null
-    let responseSnapshotItems = snapshot.items
+    let responseSnapshotItems = snapshotItems
     let responseUpdatedAt = snapshot.updatedAt
     if (canUsePersistentCache) {
       const cacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
       const existingCache = await getPropOrderbooksCache(cacheKey)
       const existingPayload = parsePersistedPayload(existingCache?.payload)
+      const existingItems = existingPayload
+        ? filterUpcomingEventItems(existingPayload.items, todayKey)
+        : []
       const shouldPersist =
         !existingPayload ||
-        shouldPersistPropOrderbooksSnapshot(existingPayload.items, snapshot.items)
+        shouldPersistPropOrderbooksSnapshot(existingItems, snapshotItems)
 
       const payload: PersistedPayload = {
         sport,
         depth: normalizedDepth,
         minSharpNotional: normalizedMinSharpNotional,
         updatedAt: snapshot.updatedAt,
-        items: snapshot.items,
+        items: snapshotItems,
       }
       if (shouldPersist) {
         persisted = await setPropOrderbooksCache(cacheKey, payload)
       } else {
         cacheWriteSkippedDegraded = true
-        if (existingPayload?.items?.length) {
+        if (existingItems.length) {
           fallbackToPersistent = true
           fallbackFetchedAt = existingCache?.fetched_at ?? null
           fallbackCacheAgeMs = parseCacheAgeMs(fallbackFetchedAt)
-          responseSnapshotItems = existingPayload.items
-          responseUpdatedAt = existingPayload.updatedAt
+          responseSnapshotItems = existingItems
+          responseUpdatedAt = existingPayload?.updatedAt ?? responseUpdatedAt
         }
       }
     }

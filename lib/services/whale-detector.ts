@@ -17,10 +17,8 @@ const SHARP_SCORE_SHORT_WINDOW_MS = 10 * 1000
 const MIN_PROP_NOTIONAL = 500
 const MIN_GAME_NOTIONAL = 2000
 const POLYMARKET_MAX_LIMIT = 1000
-const POLYMARKET_PAGE_LIMIT = 500
+const POLYMARKET_PAGE_LIMIT = 1000
 const POLYMARKET_MAX_PAGES = 8
-const POLYMARKET_MIN_NOTIONAL_SCALE = 0.05
-const POLYMARKET_MIN_NOTIONAL_FLOOR = 50
 const SOURCE_BALANCE_RATIO = 0.2
 
 const KALSHI_SPORT_PREFIXES = [
@@ -731,6 +729,7 @@ const fetchPolymarketTrades = async (
   minNotional: number
 ) => {
   const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : DEFAULT_LIMIT
+  const requiredNotional = Number.isFinite(minNotional) ? Math.max(0, minNotional) : 0
   const targetMatches = Math.min(Math.max(safeLimit, 50), POLYMARKET_MAX_LIMIT)
   const pageLimit = Math.max(100, Math.min(POLYMARKET_PAGE_LIMIT, targetMatches * 4))
   const rawScanTarget = Math.max(pageLimit, Math.min(4000, targetMatches * 8))
@@ -763,7 +762,7 @@ const fetchPolymarketTrades = async (
         }
         const normalized = normalizePolymarketTrade(trade)
         const notional = Number(trade.size) * Number(normalized.price)
-        if (!Number.isFinite(notional) || notional < minNotional) return null
+        if (!Number.isFinite(notional) || notional < requiredNotional) return null
         const priceCents = Math.round(Number(normalized.price) * 100)
         const probability = Number(normalized.price)
         const americanOdds = probabilityToAmerican(probability)
@@ -803,16 +802,6 @@ const fetchPolymarketTrades = async (
   return Array.from(deduped.values())
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     .slice(0, targetMatches)
-}
-
-const resolvePolymarketMinNotional = (requestedMinNotional: number) => {
-  if (!Number.isFinite(requestedMinNotional) || requestedMinNotional <= 0) {
-    return POLYMARKET_MIN_NOTIONAL_FLOOR
-  }
-  return Math.max(
-    POLYMARKET_MIN_NOTIONAL_FLOOR,
-    Math.round(requestedMinNotional * POLYMARKET_MIN_NOTIONAL_SCALE)
-  )
 }
 
 const mergeTradesWithSourceBalance = (
@@ -862,14 +851,15 @@ export const fetchWhaleTrades = async (options: {
   const minNotional = Number.isFinite(options.minNotional)
     ? Number(options.minNotional)
     : DEFAULT_MIN_NOTIONAL
-  const polymarketMinNotional = resolvePolymarketMinNotional(minNotional)
 
   const [kalshi, polymarket] = await Promise.all([
     fetchKalshiTrades(limit, minNotional, options.since),
-    fetchPolymarketTrades(limit, polymarketMinNotional),
+    fetchPolymarketTrades(limit, minNotional),
   ])
 
-  const sliced = mergeTradesWithSourceBalance(kalshi, polymarket, limit)
+  const sliced = mergeTradesWithSourceBalance(kalshi, polymarket, limit).filter(
+    (trade) => !Number.isFinite(minNotional) || trade.notional >= minNotional
+  )
   try {
     return await enrichWhaleTradesWithStrength(sliced)
   } catch (error) {

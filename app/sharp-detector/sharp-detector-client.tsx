@@ -45,6 +45,13 @@ type FeedMode = "all" | "hot"
 type FeedActivity = "active" | "resting"
 type SourceFilter = "all" | "kalshi" | "polymarket"
 type TradeSort = "detected" | "size_desc"
+type RecentFlowBar = {
+  timestampLabel: string
+  notional: string
+  oddsLabel: string
+  direction: "up" | "down" | "neutral"
+  normalizedHeight: number
+}
 
 type RestingOrderbookSide = {
   propSide: "Over" | "Under" | null
@@ -74,11 +81,14 @@ type RestingOrderbookItem = {
 
 const POLL_INTERVAL_MS = 30000
 const FEED_MIN_NOTIONAL = 2000
-const FETCH_LIMIT = 2000
-const DAILY_FETCH_LIMIT = 5000
+const FETCH_LIMIT = 600
+const DAILY_FETCH_LIMIT = 1200
 const RESTING_LIMIT = 240
 const RESTING_DEPTH = 8
 const RESTING_MIN_NOTIONAL = 2000
+const MAX_DAY_CACHE_TRADES = 1500
+const INITIAL_RENDER_LIMIT = 200
+const RENDER_PAGE_SIZE = 200
 const DAY_CACHE_STORAGE_KEY = "whale-feed-day-cache-v1"
 const DEFAULT_LEAGUE_FILTER_OPTIONS = [
   "NBA",
@@ -145,19 +155,10 @@ const resolveTradeOddsShortLabel = (trade: WhaleTrade) => {
 }
 
 const buildRecentFlowBars = (
-  referenceTrade: WhaleTrade,
   trades: WhaleTrade[],
   limit = 8
-): Array<{
-  timestampLabel: string
-  notional: string
-  oddsLabel: string
-  direction: "up" | "down" | "neutral"
-  normalizedHeight: number
-}> => {
-  const referenceKey = extractGameKey(referenceTrade)
-  const matched = trades
-    .filter((trade) => extractGameKey(trade) === referenceKey)
+): RecentFlowBar[] => {
+  const matched = [...trades]
     .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp))
     .slice(-limit)
 
@@ -243,9 +244,9 @@ const mergeTradesForDay = (dayKey: string, tradeSets: WhaleTrade[][]) => {
       merged.set(key, existing ? { ...existing, ...trade } : trade)
     }
   }
-  return Array.from(merged.values()).sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  )
+  return Array.from(merged.values())
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, MAX_DAY_CACHE_TRADES)
 }
 
 const parseEventTime = (value?: string | null) => {
@@ -394,6 +395,7 @@ export default function SharpDetectorClient() {
   const [matchFilter, setMatchFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<DateWindowFilter>("today")
   const [searchQuery, setSearchQuery] = useState("")
+  const [renderLimit, setRenderLimit] = useState(INITIAL_RENDER_LIMIT)
 
   const isSignedIn = Boolean(user)
   const hasAccess = Boolean(user && membership?.isActive)
@@ -561,7 +563,10 @@ export default function SharpDetectorClient() {
 
   const preFilteredTrades = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
+    const minDisplayNotional =
+      feedActivity === "active" ? FEED_MIN_NOTIONAL : RESTING_MIN_NOTIONAL
     return feedRows.filter((trade) => {
+      if (!Number.isFinite(trade.notional) || trade.notional < minDisplayNotional) return false
       const sport = normalizeSportLabel(trade.sport)
       if (leagueFilter !== "all" && sport !== leagueFilter) return false
       if (sourceFilter !== "all" && trade.source !== sourceFilter) return false
@@ -570,7 +575,7 @@ export default function SharpDetectorClient() {
       const haystack = `${trade.marketTitle} ${trade.outcome} ${sport}`.toLowerCase()
       return haystack.includes(query)
     })
-  }, [feedRows, leagueFilter, sourceFilter, dateFilter, searchQuery])
+  }, [feedRows, feedActivity, leagueFilter, sourceFilter, dateFilter, searchQuery])
 
   const matchOptions = useMemo(() => {
     const labels = Array.from(new Set(preFilteredTrades.map((trade) => resolveGameLabel(trade.marketTitle))))
@@ -617,6 +622,34 @@ export default function SharpDetectorClient() {
       return Date.parse(b.timestamp) - Date.parse(a.timestamp)
     })
   }, [baseVisibleTrades, tradeSort])
+
+  const recentFlowBarsByGame = useMemo(() => {
+    const byGame = new Map<string, WhaleTrade[]>()
+    for (const trade of visibleTrades) {
+      const key = extractGameKey(trade)
+      const group = byGame.get(key)
+      if (group) {
+        group.push(trade)
+      } else {
+        byGame.set(key, [trade])
+      }
+    }
+    const barsByGame = new Map<string, RecentFlowBar[]>()
+    byGame.forEach((group, key) => {
+      barsByGame.set(key, buildRecentFlowBars(group))
+    })
+    return barsByGame
+  }, [visibleTrades])
+
+  useEffect(() => {
+    setRenderLimit(INITIAL_RENDER_LIMIT)
+  }, [feedActivity, feedMode, leagueFilter, sourceFilter, matchFilter, dateFilter, searchQuery, tradeSort])
+
+  const displayedTrades = useMemo(
+    () => visibleTrades.slice(0, renderLimit),
+    [visibleTrades, renderLimit]
+  )
+  const hasMoreTrades = displayedTrades.length < visibleTrades.length
 
   if (authLoading) {
     return (
@@ -823,7 +856,10 @@ export default function SharpDetectorClient() {
               />
               <span>live</span>
               <span>|</span>
-              <span>{visibleTrades.length} rows</span>
+              <span>
+                {displayedTrades.length}
+                {hasMoreTrades ? `/${visibleTrades.length}` : ""} rows
+              </span>
               <span>|</span>
               <span>{hotGameCount} hot</span>
               {activeUpdatedAt && (
@@ -848,7 +884,7 @@ export default function SharpDetectorClient() {
           ) : (
             <>
               <div className="max-h-[68vh] divide-y divide-white/5 overflow-y-auto sm:hidden">
-                {visibleTrades.map((trade) => {
+                {displayedTrades.map((trade) => {
                   const hotCount = hotCountByGame.get(extractGameKey(trade)) ?? 0
                   return (
                     <article
@@ -902,7 +938,7 @@ export default function SharpDetectorClient() {
                             timestamp: trade.timestamp,
                             priceCents: trade.priceCents,
                             americanOdds: trade.americanOdds,
-                            recentFlowBars: buildRecentFlowBars(trade, visibleTrades),
+                            recentFlowBars: recentFlowBarsByGame.get(extractGameKey(trade)) ?? [],
                           }}
                           matchupLabel={resolveGameLabel(trade.marketTitle)}
                         />
@@ -935,7 +971,7 @@ export default function SharpDetectorClient() {
                           >
                             <span>Size</span>
                             <span className="text-[11px]">
-                              {tradeSort === "size_desc" ? "▼" : ""}
+                              {tradeSort === "size_desc" ? "v" : ""}
                             </span>
                           </button>
                         </TableHead>
@@ -951,7 +987,7 @@ export default function SharpDetectorClient() {
                       </TableRow>
                     </TableHeader>
                     <TableBody className="divide-y divide-white/5">
-                      {visibleTrades.map((trade) => {
+                      {displayedTrades.map((trade) => {
                         const hotCount = hotCountByGame.get(extractGameKey(trade)) ?? 0
                         return (
                           <TableRow key={trade.id} className="border-white/5 transition-colors hover:bg-white/[0.03]">
@@ -1010,7 +1046,7 @@ export default function SharpDetectorClient() {
                                   timestamp: trade.timestamp,
                                   priceCents: trade.priceCents,
                                   americanOdds: trade.americanOdds,
-                                  recentFlowBars: buildRecentFlowBars(trade, visibleTrades),
+                                  recentFlowBars: recentFlowBarsByGame.get(extractGameKey(trade)) ?? [],
                                 }}
                                 matchupLabel={resolveGameLabel(trade.marketTitle)}
                               />
@@ -1022,6 +1058,18 @@ export default function SharpDetectorClient() {
                   </Table>
                 </div>
               </div>
+
+              {hasMoreTrades && (
+                <div className="border-t border-white/10 px-3 py-3 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setRenderLimit((prev) => prev + RENDER_PAGE_SIZE)}
+                    className="rounded-lg border border-white/20 px-4 py-1.5 text-xs text-white/80 transition-colors hover:border-emerald-300/60"
+                  >
+                    Show more ({visibleTrades.length - displayedTrades.length} remaining)
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>

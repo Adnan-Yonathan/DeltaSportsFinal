@@ -44,6 +44,7 @@ type DateWindowFilter = "all" | "today" | "24h" | "3d"
 type FeedMode = "all" | "hot"
 type FeedActivity = "active" | "resting"
 type SourceFilter = "all" | "kalshi" | "polymarket"
+type TradeSort = "detected" | "size_desc"
 
 type RestingOrderbookSide = {
   propSide: "Over" | "Under" | null
@@ -389,6 +390,7 @@ export default function SharpDetectorClient() {
   const [feedMode, setFeedMode] = useState<FeedMode>("all")
   const [leagueFilter, setLeagueFilter] = useState<string>("all")
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all")
+  const [tradeSort, setTradeSort] = useState<TradeSort>("detected")
   const [matchFilter, setMatchFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<DateWindowFilter>("today")
   const [searchQuery, setSearchQuery] = useState("")
@@ -602,10 +604,19 @@ export default function SharpDetectorClient() {
     [hotCountByGame]
   )
 
-  const visibleTrades = useMemo(() => {
+  const baseVisibleTrades = useMemo(() => {
     if (feedMode === "all") return withMatchFilter
     return withMatchFilter.filter((trade) => (hotCountByGame.get(extractGameKey(trade)) ?? 0) >= 2)
   }, [withMatchFilter, feedMode, hotCountByGame])
+
+  const visibleTrades = useMemo(() => {
+    if (tradeSort === "detected") return baseVisibleTrades
+    return [...baseVisibleTrades].sort((a, b) => {
+      const sizeDiff = b.notional - a.notional
+      if (sizeDiff !== 0) return sizeDiff
+      return Date.parse(b.timestamp) - Date.parse(a.timestamp)
+    })
+  }, [baseVisibleTrades, tradeSort])
 
   if (authLoading) {
     return (
@@ -906,7 +917,28 @@ export default function SharpDetectorClient() {
                   <Table className="min-w-[1280px] text-[13px] text-white/75">
                     <TableHeader className="bg-black/70">
                       <TableRow className="text-[10px] uppercase tracking-[0.18em] text-white/45">
-                        <TableHead className="w-[120px]">Size</TableHead>
+                        <TableHead className="w-[120px]">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTradeSort((prev) =>
+                                prev === "size_desc" ? "detected" : "size_desc"
+                              )
+                            }
+                            className="inline-flex items-center gap-1 text-left hover:text-white"
+                            aria-label="Toggle size sort"
+                            title={
+                              tradeSort === "size_desc"
+                                ? "Sorted by size (largest first). Click to return to detected order."
+                                : "Sort by size (largest first)"
+                            }
+                          >
+                            <span>Size</span>
+                            <span className="text-[11px]">
+                              {tradeSort === "size_desc" ? "▼" : ""}
+                            </span>
+                          </button>
+                        </TableHead>
                         <TableHead className="w-[240px]">Game</TableHead>
                         <TableHead className="w-[220px]">Bet</TableHead>
                         <TableHead className="w-[110px]">Source</TableHead>

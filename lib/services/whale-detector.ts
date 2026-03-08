@@ -18,9 +18,9 @@ const MIN_PROP_NOTIONAL = 500
 const MIN_GAME_NOTIONAL = 2000
 const POLYMARKET_MAX_LIMIT = 1000
 const POLYMARKET_PAGE_LIMIT = 500
-const POLYMARKET_MAX_PAGES = 4
-const POLYMARKET_MIN_NOTIONAL_SCALE = 0.125
-const POLYMARKET_MIN_NOTIONAL_FLOOR = 100
+const POLYMARKET_MAX_PAGES = 8
+const POLYMARKET_MIN_NOTIONAL_SCALE = 0.05
+const POLYMARKET_MIN_NOTIONAL_FLOOR = 50
 const SOURCE_BALANCE_RATIO = 0.2
 
 const KALSHI_SPORT_PREFIXES = [
@@ -733,7 +733,7 @@ const fetchPolymarketTrades = async (
   const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : DEFAULT_LIMIT
   const targetMatches = Math.min(Math.max(safeLimit, 50), POLYMARKET_MAX_LIMIT)
   const pageLimit = Math.max(100, Math.min(POLYMARKET_PAGE_LIMIT, targetMatches * 4))
-  const rawScanTarget = Math.max(pageLimit, Math.min(2000, targetMatches * 4))
+  const rawScanTarget = Math.max(pageLimit, Math.min(4000, targetMatches * 8))
   const maxPages = Math.min(POLYMARKET_MAX_PAGES, Math.ceil(rawScanTarget / pageLimit))
   const deduped = new Map<string, WhaleTrade>()
 

@@ -20,6 +20,7 @@ const POLYMARKET_MAX_LIMIT = 1000
 const POLYMARKET_PAGE_LIMIT = 1000
 const POLYMARKET_MAX_PAGES = 8
 const SOURCE_BALANCE_RATIO = 0.2
+const ENABLE_WHALE_STRENGTH_ENRICHMENT = false
 
 const KALSHI_SPORT_PREFIXES = [
   'KXNBA',
@@ -860,6 +861,9 @@ export const fetchWhaleTrades = async (options: {
   const sliced = mergeTradesWithSourceBalance(kalshi, polymarket, limit).filter(
     (trade) => !Number.isFinite(minNotional) || trade.notional >= minNotional
   )
+  if (!ENABLE_WHALE_STRENGTH_ENRICHMENT) {
+    return sliced
+  }
   try {
     return await enrichWhaleTradesWithStrength(sliced)
   } catch (error) {

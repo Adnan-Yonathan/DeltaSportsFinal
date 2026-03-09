@@ -220,7 +220,6 @@ export async function storeWhaleTrades(trades: WhaleTrade[]): Promise<void> {
       price_cents: trade.priceCents,
       american_odds: trade.americanOdds ?? null,
       proxy_wallet: trade.proxyWallet ?? null,
-      sharp_strength: trade.sharpStrength ?? null,
       is_live: liveStatus.isLive,
       game_status: liveStatus.status,
     }
@@ -292,7 +291,6 @@ export async function fetchDailyWhaleTrades(
     slug: row.slug ?? undefined,
     outcomeIndex: row.outcome_index ?? undefined,
     side: row.side ?? undefined,
-    sharpStrength: row.sharp_strength ?? undefined,
     is_live: row.is_live ?? false,
     game_status: (row.game_status as GameStatus) ?? 'pregame',
   }))

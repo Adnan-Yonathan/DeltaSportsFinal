@@ -37,7 +37,6 @@ type WhaleTrade = {
   slug?: string
   outcomeIndex?: number
   side?: string
-  sharpStrength?: number
 }
 
 type DateWindowFilter = "all" | "today" | "24h" | "3d"
@@ -995,11 +994,6 @@ export default function SharpDetectorClient() {
                               <div className="font-semibold text-emerald-200">
                                 {formatCurrency(trade.notional)}
                               </div>
-                              {Number.isFinite(trade.sharpStrength) && (
-                                <div className="mt-1 text-[11px] text-white/45">
-                                  {Math.round(Number(trade.sharpStrength))}% strength
-                                </div>
-                              )}
                             </TableCell>
                             <TableCell className="align-top">
                               <div className="text-sm font-semibold text-white">

@@ -29,7 +29,7 @@ export default function VsIndexPage() {
             Delta Sports vs Other Sharp Betting Tools
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70">
-            See how Delta's exchange orderbook reading, whale detection, and sharp money tracking
+            See how Delta&apos;s exchange orderbook reading, whale detection, and sharp money tracking
             compare to the other tools in the market.
           </p>
         </header>

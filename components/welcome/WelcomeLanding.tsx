@@ -13,7 +13,7 @@ import { ImageAutoSlider } from '@/components/ui/image-auto-slider'
 export default function WelcomeLanding() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-black text-white">
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-10 pt-4 sm:pt-6">
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-10 pt-1 sm:pt-2">
         <ScrollFadeIn>
           <HeroSection />
         </ScrollFadeIn>
@@ -22,7 +22,7 @@ export default function WelcomeLanding() {
           <ScrollFadeIn className="mt-10 sm:mt-14">
             <div className="mb-4 text-center sm:mb-6">
               <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                February&apos;s greatest hits
+                Public, Verified Results
               </h2>
             </div>
             <ImageAutoSlider />
@@ -42,9 +42,11 @@ export default function WelcomeLanding() {
         </ScrollFadeIn>
 
         {/* ROI */}
-        <ScrollFadeIn className="mt-10 sm:mt-16">
-          <ROICalculator variant="welcome" />
-        </ScrollFadeIn>
+        <div id="calculate-your-edge" className="scroll-mt-24">
+          <ScrollFadeIn className="mt-10 sm:mt-16">
+            <ROICalculator variant="welcome" />
+          </ScrollFadeIn>
+        </div>
 
         {/* Pricing */}
         <ScrollFadeIn className="mt-10 sm:mt-16">

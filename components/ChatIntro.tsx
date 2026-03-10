@@ -53,9 +53,9 @@ const TOOL_CARDS: ToolCard[] = [
   },
   {
     id: 'whale-feed',
-    title: 'Whale Feed',
+    title: 'Whale Detector',
     href: '/sharp-detector',
-    subtitle: 'Big-money trades with timing and price context',
+    subtitle: 'Large-ticket flow with timing and cluster context',
   },
   {
     id: 'research',
@@ -431,7 +431,7 @@ export default function ChatIntro({
             <SectionWithMockup
               title={
                 <>
-                  Whale Feed
+                  Sharp Money Feed
                   <br />
                   built on real money.
                 </>

@@ -8,8 +8,13 @@ import { getWalletAlias } from '@/lib/utils/wallet-alias'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, X, Lock, Clock } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
 import ShareTradeButton from './ShareTradeButton'
 import TutorialPopup from './TutorialPopup'
+import {
+  ALL_SPORTS_FILTER,
+  ALLOWED_POLYMARKET_SPORT_LABELS,
+} from '@/lib/services/polymarket-sports'
 
 type SharpTrade = {
   id: string
@@ -60,6 +65,11 @@ type BettorLeaderboardRow = {
   total_realized_pnl: number
   roi_lifetime: number
   settled_markets: number
+  sport_label?: string | null
+  sport_risk_adjusted_score?: number
+  sport_total_realized_pnl?: number
+  sport_roi_lifetime?: number
+  sport_settled_markets?: number
 }
 
 type BettorFeedTrade = {
@@ -80,6 +90,9 @@ type BettorFeedTrade = {
   risk_adjusted_score: number
   total_realized_pnl: number
   roi_lifetime: number
+  sport_risk_adjusted_score?: number
+  sport_total_realized_pnl?: number
+  sport_roi_lifetime?: number
 }
 
 type BettorPosition = {
@@ -113,6 +126,7 @@ const POLL_INTERVAL_SHARP_FEED = 15000
 const WALLET_STORAGE_KEY = 'sharp-detector-wallets'
 const MAX_RESOLVED_TRADES = 300
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+const SHARP_MONEY_SPORT_OPTIONS = [ALL_SPORTS_FILTER, ...ALLOWED_POLYMARKET_SPORT_LABELS]
 
 const formatOddsLabel = (priceCents: number, americanOdds: number | null) => {  
   const centsLabel = `${priceCents}c`
@@ -379,6 +393,11 @@ const resolveGameLabel = (marketTitle: string) => {
   return marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()
 }
 
+const resolvePolymarketEventUrl = (slug?: string | null) => {
+  if (!slug) return 'https://polymarket.com/'
+  return `https://polymarket.com/event/${encodeURIComponent(slug)}`
+}
+
 const resolveTradeDateKey = (trade: SharpTrade) => {
   if (trade.eventDate) {
     const match = trade.eventDate.match(DATE_ONLY_PATTERN)
@@ -449,14 +468,20 @@ export default function SharpDetectorPanel({
   onCountChange,
   isSyndicate = false,
   showLocalAlerts = true,
+  defaultTab = 'bet-feed',
+  lockedTab,
+  panelTitle = 'Sharp Money Feed',
 }: {
   className?: string
   onNewSharp?: (count: number) => void
   onCountChange?: (count: number) => void
   isSyndicate?: boolean
   showLocalAlerts?: boolean
+  defaultTab?: ActiveTab
+  lockedTab?: ActiveTab
+  panelTitle?: string
 }) {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('bet-feed')
+  const [activeTab, setActiveTab] = useState<ActiveTab>(lockedTab ?? defaultTab)
   const [phaseFilter, setPhaseFilter] = useState<GamePhase>('all')
   const [alerts, setAlerts] = useState<SharpAlert[]>([])
   const [alertsEnabled, setAlertsEnabled] = useState(true)
@@ -490,6 +515,7 @@ export default function SharpDetectorPanel({
   })
   const [bettorLeaderboard, setBettorLeaderboard] = useState<BettorLeaderboardRow[]>([])
   const [bettorFeedRows, setBettorFeedRows] = useState<BettorFeedTrade[]>([])
+  const [bettorSportFilter, setBettorSportFilter] = useState<string>(ALL_SPORTS_FILTER)
   const [bettorWalletFilter, setBettorWalletFilter] = useState<string>('all')
   const [selectedBettorWallet, setSelectedBettorWallet] = useState<string | null>(null)
   const [selectedBettorPositions, setSelectedBettorPositions] = useState<BettorPosition[]>([])
@@ -667,6 +693,13 @@ export default function SharpDetectorPanel({
     }
   }, [gameFilter, gameOptions])
 
+  useEffect(() => {
+    if (bettorWalletFilter === 'all') return
+    if (!bettorLeaderboard.some((bettor) => bettor.wallet === bettorWalletFilter)) {
+      setBettorWalletFilter('all')
+    }
+  }, [bettorWalletFilter, bettorLeaderboard])
+
   const filteredTrades = useMemo(() => {
     return baseTrades.filter((trade) => {
       if (gameFilter === 'all') return true
@@ -733,11 +766,13 @@ export default function SharpDetectorPanel({
       notional: row.stake_usd ?? 0,
       contracts: row.size ?? 0,
       timestamp: row.trade_time,
-      sport: row.sport || 'SPORTS',
+      sport: (row.sport || 'SPORTS').toUpperCase(),
       slug: row.slug,
       outcomeIndex: row.outcome_index ?? undefined,
       side: row.side,
-      sharpStrength: Math.round(row.risk_adjusted_score ?? 0),
+      sharpStrength: Math.round(
+        row.sport_risk_adjusted_score ?? row.risk_adjusted_score ?? 0
+      ),
     }))
   }, [bettorFeedRows, bettorWalletFilter])
 
@@ -832,9 +867,15 @@ export default function SharpDetectorPanel({
   const fetchBettorData = useCallback(async () => {
     try {
       setBettorLoading(true)
-      const leaderboardRes = await fetch('/api/polymarket/bettors/leaderboard?limit=12', {
-        cache: 'no-store',
-      })
+      const leaderboardParams = new URLSearchParams()
+      leaderboardParams.set('limit', '12')
+      leaderboardParams.set('sport', bettorSportFilter)
+      const leaderboardRes = await fetch(
+        `/api/polymarket/bettors/leaderboard?${leaderboardParams.toString()}`,
+        {
+          cache: 'no-store',
+        }
+      )
       const leaderboardPayload = leaderboardRes.ok ? await leaderboardRes.json() : { bettors: [] }
       const leaderboardRows: BettorLeaderboardRow[] = Array.isArray(leaderboardPayload?.bettors)
         ? leaderboardPayload.bettors
@@ -843,6 +884,7 @@ export default function SharpDetectorPanel({
 
       const params = new URLSearchParams()
       params.set('limit', '120')
+      params.set('sport', bettorSportFilter)
       if (bettorWalletFilter !== 'all') {
         params.set('wallet', bettorWalletFilter)
       }
@@ -864,12 +906,17 @@ export default function SharpDetectorPanel({
     } finally {
       setBettorLoading(false)
     }
-  }, [bettorWalletFilter])
+  }, [bettorSportFilter, bettorWalletFilter])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     setHydrated(true)
   }, [])
+
+  useEffect(() => {
+    if (!lockedTab) return
+    setActiveTab(lockedTab)
+  }, [lockedTab])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -921,8 +968,13 @@ export default function SharpDetectorPanel({
     const controller = new AbortController()
     const load = async () => {
       try {
+        const params = new URLSearchParams()
+        params.set('limit', '50')
+        if (bettorSportFilter !== ALL_SPORTS_FILTER) {
+          params.set('sport', bettorSportFilter)
+        }
         const res = await fetch(
-          `/api/polymarket/bettors/${encodeURIComponent(selectedBettorWallet)}/positions?limit=50`,
+          `/api/polymarket/bettors/${encodeURIComponent(selectedBettorWallet)}/positions?${params.toString()}`,
           {
             cache: 'no-store',
             signal: controller.signal,
@@ -942,7 +994,7 @@ export default function SharpDetectorPanel({
     }
     load()
     return () => controller.abort()
-  }, [selectedBettorWallet, activeTab, isSyndicate])
+  }, [selectedBettorWallet, activeTab, isSyndicate, bettorSportFilter])
 
   // Alert detection for new sharp money trades
   useEffect(() => {
@@ -1082,48 +1134,56 @@ export default function SharpDetectorPanel({
 
       {/* Header with Title and Tabs */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-white">Whale Feed</h2>
+        <h2 className="text-lg font-semibold text-white">{panelTitle}</h2>
 
-        {/* Tab Buttons - Centered */}
-        <div className="flex items-center gap-2 bg-white/5 rounded-2xl p-1.5">
-          <button
-            onClick={() => setActiveTab('bet-feed')}
-            className={cn(
-              'px-8 py-3 text-base font-semibold rounded-xl transition-all min-w-[140px]',
-              activeTab === 'bet-feed'
-                ? 'bg-emerald-500/20 text-emerald-400 shadow-sm'
-                : 'text-white/50 hover:text-white/70 hover:bg-white/5'
-            )}
-          >
-            Bet Feed
-          </button>
-          <button
-            onClick={() => isSyndicate && setActiveTab('sharp-money')}
-            className={cn(
-              'px-8 py-3 text-base font-semibold rounded-xl transition-all flex items-center justify-center gap-2 min-w-[180px]',
-              activeTab === 'sharp-money'
-                ? 'bg-emerald-500/20 text-emerald-400 shadow-sm'
-                : 'text-white/50 hover:text-white/70 hover:bg-white/5',
-              !isSyndicate && 'opacity-50 cursor-not-allowed'
-            )}
-          >
-            <Zap className="w-4 h-4" />
-            Sharp Money
-            {!isSyndicate && (
-              <span className="ml-1 px-2 py-1 text-[10px] bg-amber-500/20 text-amber-300 rounded uppercase tracking-wider">
-                Syndicate
-              </span>
-            )}
-            {isSyndicate && sharpMoneyTrades.length > 0 && (
-              <span className="ml-1 px-2 py-1 text-[10px] bg-emerald-500/30 text-emerald-300 rounded-full font-bold">
-                {sharpMoneyTrades.length}
-              </span>
-            )}
-          </button>
-        </div>
+        {!lockedTab ? (
+          <>
+            {/* Tab Buttons - Centered */}
+            <div className="flex items-center gap-2 bg-white/5 rounded-2xl p-1.5">
+              <button
+                onClick={() => setActiveTab('bet-feed')}
+                className={cn(
+                  'px-8 py-3 text-base font-semibold rounded-xl transition-all min-w-[140px]',
+                  activeTab === 'bet-feed'
+                    ? 'bg-emerald-500/20 text-emerald-400 shadow-sm'
+                    : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+                )}
+              >
+                Bet Feed
+              </button>
+              <button
+                onClick={() => isSyndicate && setActiveTab('sharp-money')}
+                className={cn(
+                  'px-8 py-3 text-base font-semibold rounded-xl transition-all flex items-center justify-center gap-2 min-w-[180px]',
+                  activeTab === 'sharp-money'
+                    ? 'bg-emerald-500/20 text-emerald-400 shadow-sm'
+                    : 'text-white/50 hover:text-white/70 hover:bg-white/5',
+                  !isSyndicate && 'opacity-50 cursor-not-allowed'
+                )}
+              >
+                <Zap className="w-4 h-4" />
+                Sharp Money
+                {!isSyndicate && (
+                  <span className="ml-1 px-2 py-1 text-[10px] bg-amber-500/20 text-amber-300 rounded uppercase tracking-wider">
+                    Syndicate
+                  </span>
+                )}
+                {isSyndicate && sharpMoneyTrades.length > 0 && (
+                  <span className="ml-1 px-2 py-1 text-[10px] bg-emerald-500/30 text-emerald-300 rounded-full font-bold">
+                    {sharpMoneyTrades.length}
+                  </span>
+                )}
+              </button>
+            </div>
 
-        {/* Spacer to balance the layout */}
-        <div className="w-[120px]" />
+            {/* Spacer to balance the layout */}
+            <div className="w-[120px]" />
+          </>
+        ) : (
+          <div className="text-xs uppercase tracking-[0.18em] text-emerald-300/80">
+            {lockedTab === 'sharp-money' ? 'Syndicate' : ''}
+          </div>
+        )}
       </div>
 
         {/* Bet Feed Tab Content */}
@@ -1339,6 +1399,17 @@ export default function SharpDetectorPanel({
                 <option value="live">Live Only</option>
               </select>
               <select
+                value={bettorSportFilter}
+                onChange={(e) => setBettorSportFilter(e.target.value)}
+                className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-black text-[11px] text-white/80 focus:outline-none focus:border-emerald-500/50"
+              >
+                {SHARP_MONEY_SPORT_OPTIONS.map((sport) => (
+                  <option key={sport} value={sport}>
+                    {sport === ALL_SPORTS_FILTER ? 'All Sports' : sport}
+                  </option>
+                ))}
+              </select>
+              <select
                 value={bettorWalletFilter}
                 onChange={(e) => setBettorWalletFilter(e.target.value)}
                 className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-black text-[11px] text-white/80 focus:outline-none focus:border-emerald-500/50"
@@ -1385,10 +1456,20 @@ export default function SharpDetectorPanel({
                       #{bettor.rank} {bettor.display_name ?? formatWalletAlias(bettor.wallet)}
                     </p>
                     <p className="text-xs font-semibold text-emerald-300">
-                      {formatCurrency(bettor.total_realized_pnl)}
+                      {formatCurrency(
+                        bettor.sport_total_realized_pnl ?? bettor.total_realized_pnl
+                      )}
                     </p>
                     <p className="text-[10px] text-white/45">
-                      Score {Math.round(bettor.risk_adjusted_score)} | ROI {(bettor.roi_lifetime * 100).toFixed(1)}%
+                      Score{' '}
+                      {Math.round(
+                        bettor.sport_risk_adjusted_score ?? bettor.risk_adjusted_score
+                      )}{' '}
+                      | ROI{' '}
+                      {(
+                        (bettor.sport_roi_lifetime ?? bettor.roi_lifetime ?? 0) * 100
+                      ).toFixed(1)}
+                      %
                     </p>
                   </button>
                 ))}
@@ -1461,6 +1542,13 @@ export default function SharpDetectorPanel({
                     <div className="text-lg font-bold text-emerald-300">
                       {trade.sharpStrength != null ? `${trade.sharpStrength}%` : 'n/a'}
                     </div>
+                    <div className="text-[11px] text-white/50">
+                      ROI{' '}
+                      {(
+                        ((bettor?.sport_roi_lifetime ?? bettor?.roi_lifetime) ?? 0) * 100
+                      ).toFixed(1)}
+                      %
+                    </div>
                   </div>
                 </div>
 
@@ -1506,9 +1594,22 @@ export default function SharpDetectorPanel({
                     Detected {formatTimestamp(trade.timestamp)}
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-[10px] uppercase tracking-wider text-white/30">
-                      Polymarket
-                    </span>
+                    <a
+                      href={resolvePolymarketEventUrl(trade.slug)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center rounded-lg border border-white/10 bg-black/30 px-2 py-1 hover:border-emerald-300/50"
+                      aria-label="Open market on Polymarket"
+                      title="Open market on Polymarket"
+                    >
+                      <Image
+                        src="/polymarket.png"
+                        alt="Polymarket"
+                        width={78}
+                        height={16}
+                        className="h-4 w-auto object-contain"
+                      />
+                    </a>
                     <button
                       type="button"
                       onClick={() => {

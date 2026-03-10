@@ -45,7 +45,7 @@ export const PRICING_TIERS: PricingTier[] = [
       monthly: 79,
       yearly: 299,
     },
-    description: "Whale feed, research mode.",
+    description: "Sharp Money Feed, research mode.",
     highlight: true,
     badge: "Most Popular",
     planKeyWeekly: "syndicate_weekly",
@@ -69,7 +69,7 @@ export const PRICING_TIERS: PricingTier[] = [
         included: true,
       },
       {
-        name: "Whale Feed",
+        name: "Sharp Money Feed",
         description: "Sharp money feed + alerts.",
         included: true,
       },

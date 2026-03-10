@@ -1,5 +1,12 @@
 # Plan: Bankroll & Expected Profit Onboarding Steps
 
+## Active Kan Item: Sharp Money Feed
+
+- Status: In progress
+- Scope: Canonical `/sharp-money-feed` tool + `/tools/sharp-money-feed` guide, with legacy redirects.
+- Data: Polymarket only, strict sports + esports allowlist, sport-specific ROI/risk scoring.
+- UX: Left-nav safe label, Polymarket logo deep link per trade card, Syndicate-gated sharp money view.
+
 ## Overview
 
 Add two new onboarding steps to show users their expected monthly profit based on their bankroll before presenting pricing. This creates value perception by showing potential returns.

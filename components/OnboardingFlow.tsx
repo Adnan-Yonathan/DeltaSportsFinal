@@ -68,8 +68,8 @@ const FEATURE_STEPS: FeatureStep[] = [
   },
   {
     id: "whale-feed",
-    title: "Whale Feed",
-    description: "Track large-ticket behavior and validate real conviction.",
+    title: "Whale Detector",
+    description: "Track large-ticket flow and validate real conviction.",
     howToUse:
       "Scan recent whale activity, prioritize repeated action clusters, and compare timing to sportsbook line movement to confirm whether money is informed or reactive.",
     whyItValuable:

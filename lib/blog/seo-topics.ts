@@ -19,7 +19,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Explain how sharp money works, how to identify it in real time, and how bettors can build a repeatable process around it.',
     metaDescription:
       'Sharp money sports betting explained with real examples, market signals, and a step-by-step process serious bettors can use.',
-    relatedToolKeys: ['whale-feed', 'sharp-projections'],
+    relatedToolKeys: ['sharp-money-feed', 'sharp-projections'],
   },
   {
     slug: 'reverse-line-movement-betting',
@@ -39,7 +39,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Show bettors how to use a sharp money tracker, rank signals by quality, and turn signals into disciplined long-term decisions.',
     metaDescription:
       'Sharp money tracker strategy for long-term bettors: signal scoring, practical workflows, and examples with real betting scenarios.',
-    relatedToolKeys: ['whale-feed', 'sharp-projections'],
+    relatedToolKeys: ['sharp-money-feed', 'sharp-projections'],
   },
 
   // --- Cluster 2: Glossary (definitional) ---
@@ -61,7 +61,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Define what a sharp bettor is, contrast sharps with recreational bettors, explain how sharps approach line shopping, CLV, bankroll management, and market reading — and show what separates a genuine sharp process from casual betting.',
     metaDescription:
       'What is a sharp bettor? Learn how sharps actually win long-term — their process, mindset, and tools — and what separates them from recreational bettors.',
-    relatedToolKeys: ['whale-feed', 'sharp-projections'],
+    relatedToolKeys: ['sharp-money-feed', 'sharp-projections'],
   },
   {
     slug: 'what-is-a-steam-move',
@@ -71,7 +71,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Explain what a steam move is, how coordinated sharp action triggers rapid line movement across books, how to distinguish real steam from public overreaction, and what to do when you spot one.',
     metaDescription:
       'Steam move betting explained: what happens when sharps hit a line, how books respond, and how to identify genuine steam vs. public noise.',
-    relatedToolKeys: ['whale-feed', 'research-mode'],
+    relatedToolKeys: ['sharp-money-feed', 'research-mode'],
   },
   {
     slug: 'what-is-line-shopping',
@@ -91,7 +91,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Explain what a betting exchange is, how it differs from a sportsbook, why exchanges matter for sharp bettors (true market prices, orderbook transparency, no limits), and give a practical overview of Kalshi, Novig, ProphetX, and Polymarket.',
     metaDescription:
       'Betting exchanges explained: what they are, how they differ from books, and why sharp bettors use Kalshi, Novig, ProphetX, and Polymarket to find real market prices.',
-    relatedToolKeys: ['sharp-props', 'whale-feed'],
+    relatedToolKeys: ['sharp-props', 'sharp-money-feed'],
   },
   {
     slug: 'positive-ev-betting',
@@ -111,7 +111,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Explain the difference between sharp (professional) and square (recreational) money, how sportsbooks price and move lines differently in response to each, what signals indicate sharp vs square action, and how bettors can use this to filter noise from real market information.',
     metaDescription:
       'Sharp money vs square money: how to tell the difference, why it matters for line movement, and how to use betting market signals to find real edge.',
-    relatedToolKeys: ['whale-feed', 'research-mode'],
+    relatedToolKeys: ['sharp-money-feed', 'research-mode'],
   },
   {
     slug: 'expected-value-sports-betting',
@@ -133,7 +133,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Give a concrete, actionable workflow for following sharp money: where to find signals (exchanges, line movement, bet splits), how to rank signal quality, when to follow vs fade, and how to build this into a repeatable daily process.',
     metaDescription:
       'How to follow sharp money in sports betting: a step-by-step system using exchange data, line movement, and bet splits to find and act on real sharp signals.',
-    relatedToolKeys: ['whale-feed', 'sharp-projections'],
+    relatedToolKeys: ['sharp-money-feed', 'sharp-projections'],
   },
   {
     slug: 'how-to-read-line-movement',
@@ -163,7 +163,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Give a clear daily workflow for finding sharp bets: scanning exchange orderbooks, monitoring line movement, checking reverse line movement signals, using bet splits to filter public noise, and prioritizing the highest-quality spots.',
     metaDescription:
       'How to find sharp bets: a daily process using exchange orderbooks, line movement, and bet splits to surface high-quality spots before the market corrects.',
-    relatedToolKeys: ['sharp-projections', 'whale-feed'],
+    relatedToolKeys: ['sharp-projections', 'sharp-money-feed'],
   },
   {
     slug: 'sports-betting-bankroll-management',
@@ -183,7 +183,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Walk through how to use betting exchanges as a sharp bettor — reading orderbooks, understanding bid/ask spreads, identifying where large money is resting, using exchange prices as a market signal, and the key differences between US exchanges like Kalshi and Novig.',
     metaDescription:
       'How to use betting exchanges: read orderbooks, find where sharp money is resting, and use Kalshi, Novig, and ProphetX as a market signal for better betting decisions.',
-    relatedToolKeys: ['sharp-props', 'whale-feed'],
+    relatedToolKeys: ['sharp-props', 'sharp-money-feed'],
   },
   {
     slug: 'how-to-bet-player-props',
@@ -193,7 +193,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Explain a sharp approach to player props — why props are beatable, how to use exchange liquidity to identify where sharp money sits, how to line shop props across books, what role injury news and lineup data plays, and how to build a repeatable prop betting process.',
     metaDescription:
       'How to bet player props the sharp way: use exchange liquidity, line shop across books, and build a process that finds profitable props before lines adjust.',
-    relatedToolKeys: ['sharp-props', 'whale-feed'],
+    relatedToolKeys: ['sharp-props', 'sharp-money-feed'],
   },
 
   // --- Cluster 4: Sport-specific ---
@@ -205,7 +205,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Explain how sharp money moves in NBA markets specifically — pace of line movement, how exchange orderbooks behave in NBA props, the role of injury news, back-to-back scheduling, rest edges, and what a sharp NBA betting process looks like day-to-day.',
     metaDescription:
       'Sharp money NBA betting: how sharps approach the NBA, where edge comes from, and how to use exchange data and line movement to find profitable spots in basketball markets.',
-    relatedToolKeys: ['whale-feed', 'sharp-props'],
+    relatedToolKeys: ['sharp-money-feed', 'sharp-props'],
   },
   {
     slug: 'sharp-money-nfl-betting',
@@ -215,7 +215,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Explain how sharp money behaves in NFL markets — the weekly line release cycle, how books react to sharp action on totals vs spreads, the importance of line shopping in NFL, how exchange data applies to football betting, and what the best NFL bettors look for.',
     metaDescription:
       'Sharp money NFL betting guide: how lines move with sharp action in football, where to find edge in NFL markets, and how to use exchange data and line movement week to week.',
-    relatedToolKeys: ['whale-feed', 'sharp-projections'],
+    relatedToolKeys: ['sharp-money-feed', 'sharp-projections'],
   },
   {
     slug: 'sharp-props-nba',
@@ -225,7 +225,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Walk through a sharp approach to NBA player props specifically — how exchange orderbooks reveal where sharp money is positioned on points/rebounds/assists/threes, how to read liquidity walls, how injury and lineup news interacts with prop pricing, and a repeatable workflow for sharp NBA prop betting.',
     metaDescription:
       'Sharp props NBA guide: use exchange orderbook liquidity, sharp side pressure, and best available prices to find profitable NBA player props before lines move.',
-    relatedToolKeys: ['sharp-props', 'whale-feed'],
+    relatedToolKeys: ['sharp-props', 'sharp-money-feed'],
   },
 ]
 

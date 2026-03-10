@@ -1,0 +1,71 @@
+name: Polymarket Bettor Pipeline
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  polymarket-bettor-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Discover Bettors
+        run: |
+          echo "[1/3] Discovering sports bettors at $(date)"
+
+          response=$(curl -s -w "\n%{http_code}" \
+            "${{ secrets.VERCEL_DOMAIN }}/api/cron/discover-polymarket-bettors?limit=500&maxPages=5" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: discovery failed with status $http_code"
+            exit 1
+          fi
+
+      - name: Ingest Wallet Trades
+        run: |
+          echo "[2/3] Ingesting tracked wallet trades at $(date)"
+
+          response=$(curl -s -w "\n%{http_code}" \
+            "${{ secrets.VERCEL_DOMAIN }}/api/cron/ingest-polymarket-wallets?seed=false&mode=incremental&limit=1000&maxPages=10" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: ingest failed with status $http_code"
+            exit 1
+          fi
+
+      - name: Compute Rollups
+        run: |
+          echo "[3/3] Computing wallet rollups at $(date)"
+
+          response=$(curl -s -w "\n%{http_code}" \
+            "${{ secrets.VERCEL_DOMAIN }}/api/cron/compute-polymarket-wallet-rollups" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: rollups failed with status $http_code"
+            exit 1
+          fi
+
+      - name: Log Results
+        if: always()
+        run: echo "Pipeline completed at $(date)"

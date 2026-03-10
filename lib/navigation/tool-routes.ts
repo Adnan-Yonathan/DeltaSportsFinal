@@ -6,6 +6,7 @@ export const DEFAULT_TOOL_ROUTE = '/market-projections'
 export const TOOL_ROUTE_PREFIXES = [
   '/market-projections',
   '/sharp-props',
+  '/sharp-money-feed',
   '/sharp-detector',
   '/research',
   '/calculators',
@@ -38,4 +39,3 @@ export const sanitizeToolRoute = (pathname?: string | null) => {
   const normalized = normalizePathname(pathname)
   return isToolRoute(normalized) ? normalized : DEFAULT_TOOL_ROUTE
 }
-

@@ -1,4 +1,4 @@
-﻿// Tutorial content for each tool
+// Tutorial content for each tool
 
 export type TutorialSection = {
   title: string
@@ -350,7 +350,7 @@ Never exceed 2u on a single bet.`,
 
 -  **Projections mode** = edges, line shopping, EV, and parlays
 -  **Research mode** = sharp action, trends, and backtesting
--  The Whale Feed is Syndicate-only and lives in the chat tools`,
+-  The Sharp Money Feed is Syndicate-only and lives in the chat tools`,
       },
       {
         title: "Start here",

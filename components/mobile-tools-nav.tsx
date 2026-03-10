@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
+  Activity,
   Calculator,
   ChevronDown,
   ExternalLink,
@@ -52,10 +53,17 @@ const MOBILE_TOOL_NAV_ITEMS: MobileToolNavItem[] = [
     icon: Percent,
   },
   {
-    key: 'whale-feed',
-    label: 'Whale Feed',
+    key: 'whale-detector',
+    label: 'Whale Detector',
     shortLabel: 'Whales',
     href: '/sharp-detector',
+    icon: Activity,
+  },
+  {
+    key: 'sharp-money-feed',
+    label: 'Sharp Money Feed',
+    shortLabel: 'Sharp $',
+    href: '/sharp-money-feed',
     icon: Waves,
   },
   {
@@ -82,7 +90,8 @@ const MORE_SOCIAL_LINKS: MoreLink[] = [
 const MORE_GUIDE_LINKS: MoreLink[] = [
   { key: 'guide-sharp-projections', label: 'Sharp Projections', href: '/tools/sharp-projections' },
   { key: 'guide-sharp-props', label: 'Sharp Props', href: '/tools/sharp-props' },
-  { key: 'guide-whale-feed', label: 'Whale Feed', href: '/tools/whale-feed' },
+  { key: 'guide-whale-feed', label: 'Whale Detector', href: '/tools/whale-feed' },
+  { key: 'guide-sharp-money-feed', label: 'Sharp Money Feed', href: '/tools/sharp-money-feed' },
   { key: 'guide-research-mode', label: 'Research Mode', href: '/tools/research-mode' },
 ]
 

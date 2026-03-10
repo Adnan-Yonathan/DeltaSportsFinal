@@ -7,6 +7,7 @@ export const TOOLS_TUTORIAL_ORDER: CoreToolKey[] = [
   'sharp-projections',
   'sharp-props',
   'whale-feed',
+  'sharp-money-feed',
   'research-mode',
 ]
 
@@ -35,16 +36,22 @@ export const TOOLS_TUTORIAL_COPY: Record<
   'whale-feed': {
     step: 3,
     howToUse:
-      'Monitor large tickets and timing clusters, then compare that money flow against sportsbook movement to validate conviction.',
+      'Use Whale Detector to monitor active whale tickets, then switch to resting liquidity mode to confirm where larger orders are still sitting.',
     whyItValuable:
-      'You can separate noise from meaningful steam and prioritize bets where size and timing imply informed action.',
+      'It separates one-off prints from repeated pressure, helping you filter noise and prioritize stronger market signals.',
+  },
+  'sharp-money-feed': {
+    step: 4,
+    howToUse:
+      'Track qualified profitable bettors by sport, follow high-conviction fills, and review open position exposure before entering.',
+    whyItValuable:
+      'Sport-specific ROI and risk scoring lets you focus on the bettors and markets with repeatable edge, not generic volume spikes.',
   },
   'research-mode': {
-    step: 4,
+    step: 5,
     howToUse:
       'Review line movement, closing value, and trend behavior after entries to understand what happened and why.',
     whyItValuable:
       'This closes the feedback loop and improves long-term decision quality by turning each bet into measurable process data.',
   },
 }
-

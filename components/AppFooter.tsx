@@ -12,7 +12,6 @@ const productLinks = [
 
 const companyLinks = [
   { href: "/about", label: "About" },
-  { href: "/affiliate", label: "Affiliate" },
   { href: "/auth/login", label: "Sign in" },
   { href: "/auth/signup", label: "Start free trial" },
 ]
@@ -20,8 +19,9 @@ const companyLinks = [
 const resourceLinks = [
   { href: "/docs", label: "Docs" },
   { href: "/patch-notes", label: "Patch notes" },
+  { href: "/tools/whale-feed", label: "Whale Detector" },
   { href: "/tools/sharp-props", label: "Sharp Props" },
-  { href: "/tools/whale-feed", label: "Whale Feed" },
+  { href: "/tools/sharp-money-feed", label: "Sharp Money Feed" },
 ]
 
 const legalLinks = [

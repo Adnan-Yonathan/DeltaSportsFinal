@@ -1,5 +1,9 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { probabilityToAmericanOdds } from '@/lib/utils/statistics'
+import {
+  type AllowedPolymarketSportLabel,
+  isAllowedPolymarketSportLabel,
+} from '@/lib/services/polymarket-sports'
 
 type TradeRow = {
   wallet: string
@@ -86,6 +90,13 @@ type WalletRollupComputation = {
 
 type WalletComputationContext = {
   wallet: string
+  trackingState: WalletTrackingState
+  computation: WalletRollupComputation
+}
+
+type WalletSportComputationContext = {
+  wallet: string
+  sportLabel: AllowedPolymarketSportLabel
   trackingState: WalletTrackingState
   computation: WalletRollupComputation
 }
@@ -251,6 +262,75 @@ const percentileByWallet = (
     map.set(scored[i].wallet, i / (n - 1))
   }
   return map
+}
+
+const filterStrictSportsTrades = (trades: TradeRow[]) =>
+  trades.filter((trade) =>
+    isAllowedPolymarketSportLabel(trade.sport_label ?? null)
+  )
+
+export const computeRiskAdjustedScoreByWallet = (
+  contexts: WalletComputationContext[]
+) => {
+  const pnlPct = percentileByWallet(contexts, (ctx) => ctx.computation.totalRealizedPnl)
+  const roiPct = percentileByWallet(contexts, (ctx) => ctx.computation.roiLifetime)
+  const consistencyPct = percentileByWallet(contexts, (ctx) => ctx.computation.consistency90d)
+  const samplePct = percentileByWallet(contexts, (ctx) => ctx.computation.sampleQuality)
+  const profitFactorPct = percentileByWallet(contexts, (ctx) =>
+    Math.min(ctx.computation.profitFactor, PROFIT_FACTOR_CAP)
+  )
+  const drawdownPct = percentileByWallet(contexts, (ctx) => ctx.computation.maxDrawdown)
+
+  const scores = new Map<string, number>()
+  for (const ctx of contexts) {
+    const pnlScore = pnlPct.get(ctx.wallet) ?? 0
+    const roiScore = roiPct.get(ctx.wallet) ?? 0
+    const consistencyScore = consistencyPct.get(ctx.wallet) ?? 0
+    const sampleScore = samplePct.get(ctx.wallet) ?? 0
+    const profitFactorScore = profitFactorPct.get(ctx.wallet) ?? 0
+    const drawdownPenalty = drawdownPct.get(ctx.wallet) ?? 0
+
+    const riskAdjustedScore = round(
+      100 *
+        (
+          pnlScore * 0.3 +
+          roiScore * 0.2 +
+          consistencyScore * 0.15 +
+          sampleScore * 0.15 +
+          profitFactorScore * 0.1 +
+          (1 - drawdownPenalty) * 0.1
+        ),
+      RISK_SCORE_DECIMALS
+    )
+
+    scores.set(ctx.wallet, riskAdjustedScore)
+  }
+
+  return scores
+}
+
+export const computeSportRollupMapFromTrades = (
+  trades: TradeRow[],
+  outcomesBySlug: Map<string, MarketOutcomeRow>
+) => {
+  const strictSportsTrades = filterStrictSportsTrades(trades)
+  const strictTradesBySport = new Map<AllowedPolymarketSportLabel, TradeRow[]>()
+
+  for (const trade of strictSportsTrades) {
+    const sportLabel = (trade.sport_label ?? '').toUpperCase()
+    if (!isAllowedPolymarketSportLabel(sportLabel)) continue
+    if (!strictTradesBySport.has(sportLabel)) {
+      strictTradesBySport.set(sportLabel, [])
+    }
+    strictTradesBySport.get(sportLabel)?.push(trade)
+  }
+
+  const sportRollups = new Map<AllowedPolymarketSportLabel, WalletRollupComputation>()
+  strictTradesBySport.forEach((sportTrades, sportLabel) => {
+    sportRollups.set(sportLabel, computeWalletRollupFromTrades(sportTrades, outcomesBySlug))
+  })
+
+  return sportRollups
 }
 
 const resolveQualification = ({
@@ -513,6 +593,7 @@ export const computePolymarketWalletRollups = async ({
   }
 
   const contexts: WalletComputationContext[] = []
+  const sportContexts: WalletSportComputationContext[] = []
 
   for (const walletRow of wallets as Array<{ wallet: string; tracking_state?: WalletTrackingState | null }>) {
     const trackingState = (walletRow.tracking_state ?? 'auto') as WalletTrackingState
@@ -550,6 +631,7 @@ export const computePolymarketWalletRollups = async ({
     }
 
     const computation = computeWalletRollupFromTrades(trades, outcomesBySlug)
+    const sportRollups = computeSportRollupMapFromTrades(trades, outcomesBySlug)
 
     await supabase
       .from('polymarket_wallet_market_results' as any)
@@ -610,38 +692,24 @@ export const computePolymarketWalletRollups = async ({
       trackingState,
       computation,
     })
+
+    sportRollups.forEach((sportComputation, sportLabel) => {
+      sportContexts.push({
+        wallet: walletRow.wallet,
+        sportLabel,
+        trackingState,
+        computation: sportComputation,
+      })
+    })
   }
 
-  const pnlPct = percentileByWallet(contexts, (ctx) => ctx.computation.totalRealizedPnl)
-  const roiPct = percentileByWallet(contexts, (ctx) => ctx.computation.roiLifetime)
-  const consistencyPct = percentileByWallet(contexts, (ctx) => ctx.computation.consistency90d)
-  const samplePct = percentileByWallet(contexts, (ctx) => ctx.computation.sampleQuality)
-  const profitFactorPct = percentileByWallet(contexts, (ctx) => Math.min(ctx.computation.profitFactor, PROFIT_FACTOR_CAP))
-  const drawdownPct = percentileByWallet(contexts, (ctx) => ctx.computation.maxDrawdown)
+  const globalRiskScores = computeRiskAdjustedScoreByWallet(contexts)
 
   const summaryRows: Array<Record<string, unknown>> = []
   const results: WalletRollupResult[] = []
 
   for (const ctx of contexts) {
-    const pnlScore = pnlPct.get(ctx.wallet) ?? 0
-    const roiScore = roiPct.get(ctx.wallet) ?? 0
-    const consistencyScore = consistencyPct.get(ctx.wallet) ?? 0
-    const sampleScore = samplePct.get(ctx.wallet) ?? 0
-    const profitFactorScore = profitFactorPct.get(ctx.wallet) ?? 0
-    const drawdownPenalty = drawdownPct.get(ctx.wallet) ?? 0
-
-    const riskAdjustedScore = round(
-      100 *
-        (
-          pnlScore * 0.3 +
-          roiScore * 0.2 +
-          consistencyScore * 0.15 +
-          sampleScore * 0.15 +
-          profitFactorScore * 0.1 +
-          (1 - drawdownPenalty) * 0.1
-        ),
-      RISK_SCORE_DECIMALS
-    )
+    const riskAdjustedScore = globalRiskScores.get(ctx.wallet) ?? 0
 
     const qualification = resolveQualification({
       trackingState: ctx.trackingState,
@@ -696,6 +764,77 @@ export const computePolymarketWalletRollups = async ({
 
     if (summaryError) {
       console.warn('[Polymarket Rollups] Failed to upsert summary:', summaryError)
+    }
+  }
+
+  const processedWallets = Array.from(new Set(contexts.map((ctx) => ctx.wallet)))
+  if (processedWallets.length > 0) {
+    const chunkSize = 200
+    for (let i = 0; i < processedWallets.length; i += chunkSize) {
+      const chunk = processedWallets.slice(i, i + chunkSize)
+      await supabase
+        .from('polymarket_wallet_sport_summary' as any)
+        .delete()
+        .in('wallet', chunk)
+    }
+  }
+
+  const sportSummaryRows: Array<Record<string, unknown>> = []
+  const sportGroups = new Map<AllowedPolymarketSportLabel, WalletSportComputationContext[]>()
+  for (const ctx of sportContexts) {
+    if (!sportGroups.has(ctx.sportLabel)) {
+      sportGroups.set(ctx.sportLabel, [])
+    }
+    sportGroups.get(ctx.sportLabel)?.push(ctx)
+  }
+
+  for (const [sportLabel, groupContexts] of sportGroups.entries()) {
+    const sportRiskScores = computeRiskAdjustedScoreByWallet(groupContexts)
+
+    for (const ctx of groupContexts) {
+      const riskAdjustedScore = sportRiskScores.get(ctx.wallet) ?? 0
+
+      const qualification = resolveQualification({
+        trackingState: ctx.trackingState,
+        settledMarkets: ctx.computation.marketsResolved,
+        totalRealizedPnl: ctx.computation.totalRealizedPnl,
+      })
+
+      sportSummaryRows.push({
+        wallet: ctx.wallet,
+        sport_label: sportLabel,
+        total_realized_pnl: ctx.computation.totalRealizedPnl,
+        total_wins: ctx.computation.totalWins,
+        total_losses: ctx.computation.totalLosses,
+        total_pushes: ctx.computation.totalPushes,
+        settled_markets: ctx.computation.marketsResolved,
+        settled_trades: ctx.computation.settledTrades,
+        gross_profit: ctx.computation.grossProfit,
+        gross_loss: ctx.computation.grossLoss,
+        roi_lifetime: ctx.computation.roiLifetime,
+        win_rate: ctx.computation.winRate,
+        profit_factor: ctx.computation.profitFactor,
+        max_drawdown: ctx.computation.maxDrawdown,
+        consistency_90d: ctx.computation.consistency90d,
+        sample_quality: ctx.computation.sampleQuality,
+        risk_adjusted_score: riskAdjustedScore,
+        qualification_status: qualification.status,
+        qualification_reason: qualification.reason,
+        open_positions_count: ctx.computation.openPositionsCount,
+        open_notional: ctx.computation.openNotional,
+        last_trade_time: ctx.computation.lastTradeTime,
+        last_computed_at: new Date().toISOString(),
+      })
+    }
+  }
+
+  if (sportSummaryRows.length > 0) {
+    const { error: sportSummaryError } = await supabase
+      .from('polymarket_wallet_sport_summary' as any)
+      .upsert(sportSummaryRows as any, { onConflict: 'wallet,sport_label' } as any)
+
+    if (sportSummaryError) {
+      console.warn('[Polymarket Rollups] Failed to upsert sport summary:', sportSummaryError)
     }
   }
 

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import type { LucideIcon } from "lucide-react"
 import {
+  Activity,
   BookOpen,
   Calculator,
   ChevronDown,
@@ -43,7 +44,8 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { key: "sharp-projections", label: "Sharp Projections", href: "/market-projections", icon: Radar },
   { key: "sharp-props", label: "Sharp Props", href: "/sharp-props", icon: Percent },
-  { key: "whale-detector", label: "Whale Detector", href: "/sharp-detector", icon: Waves },
+  { key: "whale-detector", label: "Whale Detector", href: "/sharp-detector", icon: Activity },
+  { key: "sharp-money-feed", label: "Sharp Money Feed", href: "/sharp-money-feed", icon: Waves },
   { key: "research", label: "Research", href: "/research/sharp-action", icon: FlaskConical },
   { key: "calculators", label: "Calculators", href: "/calculators", icon: Calculator },
   {
@@ -53,7 +55,8 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { key: "guide-sharp-projections", label: "Sharp Projections", href: "/tools/sharp-projections" },
       { key: "guide-sharp-props", label: "Sharp Props", href: "/tools/sharp-props" },
-      { key: "guide-whale-feed", label: "Whale Feed", href: "/tools/whale-feed" },
+      { key: "guide-whale-feed", label: "Whale Detector", href: "/tools/whale-feed" },
+      { key: "guide-sharp-money-feed", label: "Sharp Money Feed", href: "/tools/sharp-money-feed" },
       { key: "guide-research-mode", label: "Research Mode", href: "/tools/research-mode" },
     ],
   },
@@ -224,7 +227,7 @@ export default function GlobalLeftNav() {
                   }`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
-                  <span>{item.label}</span>
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 </Link>
                 {item.key === "blog" ? (
                   <Link
@@ -262,7 +265,7 @@ export default function GlobalLeftNav() {
                 aria-controls={`nav-group-${item.key}`}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                <span className="flex-1 text-left">{item.label}</span>
+                <span className="flex-1 truncate text-left">{item.label}</span>
                 <ChevronDown
                   className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
                 />
@@ -273,7 +276,7 @@ export default function GlobalLeftNav() {
                   {item.children?.map((child) => {
                     const isChildActive =
                       pathname === child.href || pathname.startsWith(`${child.href}/`)
-                    const childClass = `flex items-center rounded-lg border px-3 py-2 text-sm transition-colors ${
+                    const childClass = `flex items-center truncate rounded-lg border px-3 py-2 text-sm transition-colors ${
                       isChildActive
                         ? "border-emerald-400/45 bg-emerald-500/15 text-emerald-200"
                         : "border-transparent text-white/70 hover:border-white/20 hover:bg-white/5 hover:text-white"

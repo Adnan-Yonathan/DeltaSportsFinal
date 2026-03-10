@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { Button } from "@/components/ui/button"
 import { FlippingCard } from "@/components/ui/flipping-card"
@@ -46,14 +46,14 @@ const featureCards: Array<CardData & { id: string }> = [
   {
     id: "whale-feed",
     front: {
-      title: "Whale Feed",
-      description: "Big bets surfaced the moment they hit the market.",
+      title: "Whale Detector",
+      description: "Large-ticket market flow surfaced in real time.",
       icon: <WhaleIcon />,
     },
     back: {
       description:
-        "We monitor large peer-to-peer bets and compare them to sportsbook lines so you can see if the money is sharp.",
-      buttonText: "See Whale Bets",
+        "Track high-notional tickets, check repeated game clusters, and validate moves before you execute.",
+      buttonText: "View Whale Detector",
     },
   },
   {

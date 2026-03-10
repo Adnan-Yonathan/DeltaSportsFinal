@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  Activity,
   Beaker,
   DollarSign,
   FileText,
@@ -36,10 +37,16 @@ export const DROPDOWN_NAV_ITEMS: DropdownNavigationItem[] = [
             href: "/sharp-props",
           },
           {
-            label: "Whale Feed",
-            description: "Big money alerts + clustering",
-            icon: Waves,
+            label: "Whale Detector",
+            description: "Large-ticket flow and clustering",
+            icon: Activity,
             href: "/sharp-detector",
+          },
+          {
+            label: "Sharp Money Feed",
+            description: "Profitable bettor flow + sport ROI",
+            icon: Waves,
+            href: "/sharp-money-feed",
           },
         ],
       },
@@ -76,10 +83,16 @@ export const DROPDOWN_NAV_ITEMS: DropdownNavigationItem[] = [
             href: "/tools/sharp-props",
           },
           {
-            label: "Whale Feed",
-            description: "Big money alerts",
-            icon: Waves,
+            label: "Whale Detector",
+            description: "How to use live whale tape and clustering",
+            icon: Activity,
             href: "/tools/whale-feed",
+          },
+          {
+            label: "Sharp Money Feed",
+            description: "Profitable bettors by sport and esports",
+            icon: Waves,
+            href: "/tools/sharp-money-feed",
           },
         ],
       },

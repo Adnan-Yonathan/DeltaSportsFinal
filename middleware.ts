@@ -29,12 +29,11 @@ const ALWAYS_PUBLIC_PREFIXES = [
 const TOOL_ROUTE_TO_GUIDE: Array<{ toolPrefix: string; guidePath: string }> = [
   { toolPrefix: '/market-projections', guidePath: '/tools/sharp-projections' },
   { toolPrefix: '/sharp-props', guidePath: '/tools/sharp-props' },
+  { toolPrefix: '/sharp-money-feed', guidePath: '/tools/sharp-money-feed' },
   { toolPrefix: '/sharp-detector', guidePath: '/tools/whale-feed' },
   { toolPrefix: '/research', guidePath: '/tools/research-mode' },
 ]
 
-const AFFILIATE_REF_COOKIE = 'affiliate_ref'
-const AFFILIATE_REF_TTL = 60 * 60 * 24 * 30
 const PAST_DUE_GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000
 
 // Check if path starts with any public path
@@ -117,14 +116,6 @@ export async function middleware(req: NextRequest) {
   const isPrefetchRequest =
     req.headers.get('purpose') === 'prefetch' ||
     req.headers.has('next-router-prefetch')
-  const affiliateRef = req.nextUrl.searchParams.get('ref')
-  if (affiliateRef) {
-    res.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
-      maxAge: AFFILIATE_REF_TTL,
-      path: '/',
-      sameSite: 'lax',
-    })
-  }
 
   // Avoid caching auth redirects from speculative prefetch requests.
   // Actual navigations still go through the full auth/membership checks below.
@@ -160,28 +151,12 @@ export async function middleware(req: NextRequest) {
   if (!session) {
     if (guidePathForToolRoute) {
       const guideUrl = new URL(guidePathForToolRoute, req.url)
-      const redirect = NextResponse.redirect(guideUrl)
-      if (affiliateRef) {
-        redirect.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
-          maxAge: AFFILIATE_REF_TTL,
-          path: '/',
-          sameSite: 'lax',
-        })
-      }
-      return redirect
+      return NextResponse.redirect(guideUrl)
     }
 
     const landingUrl = new URL('/welcome', req.url)
     landingUrl.searchParams.set('redirect', pathname)
-    const redirect = NextResponse.redirect(landingUrl)
-    if (affiliateRef) {
-      redirect.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
-        maxAge: AFFILIATE_REF_TTL,
-        path: '/',
-        sameSite: 'lax',
-      })
-    }
-    return redirect
+    return NextResponse.redirect(landingUrl)
   }
 
   // Use session metadata from the JWT cookie (no API call).
@@ -240,15 +215,7 @@ export async function middleware(req: NextRequest) {
 
   // If not an active member, redirect to pricing
   const pricingUrl = new URL('/pricing', req.url)
-  const redirect = NextResponse.redirect(pricingUrl)
-  if (affiliateRef) {
-    redirect.cookies.set(AFFILIATE_REF_COOKIE, affiliateRef, {
-      maxAge: AFFILIATE_REF_TTL,
-      path: '/',
-      sameSite: 'lax',
-    })
-  }
-  return redirect
+  return NextResponse.redirect(pricingUrl)
 }
 
 export const config = {

@@ -248,7 +248,7 @@ export default function ChatHomeDashboard({ welcomeName }: HomeDashboardProps) {
           </h1>
           <p className="mt-3 max-w-3xl text-sm text-white/70 sm:text-base">
             Sharp boards are live. Track profitable wallets, grouped hot games, edge
-            opportunities, and whale tape from one screen.
+            opportunities, and sharp money tape from one screen.
           </p>
           <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">
@@ -264,7 +264,7 @@ export default function ChatHomeDashboard({ welcomeName }: HomeDashboardProps) {
               <p className="mt-1 text-lg font-semibold text-white">{evRows.length || 0}</p>
             </div>
             <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">Whale Hits</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">Sharp Hits</p>
               <p className="mt-1 text-lg font-semibold text-white">{whales.length || 0}</p>
             </div>
           </div>
@@ -279,7 +279,7 @@ export default function ChatHomeDashboard({ welcomeName }: HomeDashboardProps) {
                   Sharp Wallet P/L
                 </h2>
               </div>
-              <Link href="/sharp-detector" className="text-emerald-200/80 hover:text-emerald-100">
+              <Link href="/sharp-money-feed" className="text-emerald-200/80 hover:text-emerald-100">
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
             </div>
@@ -347,7 +347,7 @@ export default function ChatHomeDashboard({ welcomeName }: HomeDashboardProps) {
                   Best EV Right Now
                 </h2>
               </div>
-              <Link href="/ev-bets" className="text-emerald-200/80 hover:text-emerald-100">
+              <Link href="/market-projections" className="text-emerald-200/80 hover:text-emerald-100">
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
             </div>
@@ -376,10 +376,10 @@ export default function ChatHomeDashboard({ welcomeName }: HomeDashboardProps) {
               <div className="flex items-center gap-2">
                 <Waves className="h-4 w-4 text-sky-300" />
                 <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-100">
-                  Whale Tape
+                  Sharp Money Tape
                 </h2>
               </div>
-              <Link href="/sharp-detector" className="text-sky-200/80 hover:text-sky-100">
+              <Link href="/sharp-money-feed" className="text-sky-200/80 hover:text-sky-100">
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
             </div>
@@ -399,7 +399,7 @@ export default function ChatHomeDashboard({ welcomeName }: HomeDashboardProps) {
               ))}
               {!loading && whales.length === 0 && (
                 <p className="rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-xs text-white/65">
-                  No whale prints in the current feed.
+                  No sharp money prints in the current feed.
                 </p>
               )}
             </div>

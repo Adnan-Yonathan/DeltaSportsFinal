@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { SupabaseAuthListener } from '@/components/SupabaseAuthListener'
-import AffiliateTracker from '@/components/AffiliateTracker'
 import SharpMoneyAlertHub from '@/components/SharpMoneyAlertHub'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
@@ -77,7 +76,6 @@ gtag('config', '${GA_MEASUREMENT_ID}');
       >
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <SupabaseAuthListener />
-          <AffiliateTracker />
           <SharpMoneyAlertHub />
           <AppShell>{children}</AppShell>
           <Analytics />

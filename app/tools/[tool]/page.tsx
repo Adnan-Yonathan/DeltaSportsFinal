@@ -145,52 +145,100 @@ const TOOL_GUIDE_CONFIGS: Partial<Record<CoreToolKey, ToolGuideConfig>> = {
     ctaPrimaryLabel: 'Open Sharp Projections',
   },
   'whale-feed': {
-    guideLabel: 'Whale Feed Guide',
-    heroTitle: 'Track respected money as it hits the tape.',
+    guideLabel: 'Whale Detector Guide',
+    heroTitle: 'Track large bets, clustering, and orderbook walls in one tape.',
     heroDescription:
-      'See large bets, clustering, and market context in one feed so you can identify where sharp pressure is building in real time.',
-    screenshotTitle: 'Track where the biggest money is moving now',
+      'Whale Detector streams active whale tickets and resting liquidity across supported markets so you can spot pressure before books fully reprice.',
+    screenshotTitle: 'Read whale flow with timing and size context',
     screenshotSrc: '/whalefeed.png',
-    screenshotAlt: 'Whale Feed showing large bets, filters, and grouped market activity.',
+    screenshotAlt: 'Whale Detector feed showing high-notional trades and market context.',
     callouts: [
       {
-        title: 'Volume Snapshot',
-        body: 'Top metrics show total volume, detected sharps, and live bet activity at a glance.',
+        title: 'Active Tape',
+        body: 'Follow large notional fills as they print with timestamp, side, and odds context.',
       },
       {
-        title: 'Hot Games Grouping',
-        body: 'Cluster mode groups pressure by game so you can see where money is concentrated.',
+        title: 'Resting Walls',
+        body: 'Switch to resting flow to see where larger liquidity is still posted in the orderbook.',
       },
       {
-        title: 'Trade Details',
-        body: 'Each card includes market, timestamp, and stake context for faster decision making.',
+        title: 'Hot Game Clusters',
+        body: 'Identify repeated flow on the same matchup to separate signal from isolated noise.',
       },
     ],
-    longTermTitle: 'How to use Whale Feed for long-term profit',
+    longTermTitle: 'How to use Whale Detector for long-term profit',
     longTermIntro:
-      'Whale Feed is best used as a confirmation and timing engine. Long-term gains come from reading pressure early, then being selective.',
+      'Whale Detector is strongest as a confirmation layer. Use it to validate timing and market pressure, not as an auto-bet trigger.',
     longTermSteps: [
       {
-        title: '1. Focus on repeated pressure, not single prints',
-        body: 'One large trade can be noise. Multiple aligned prints in the same market are stronger evidence of informed positioning.',
+        title: '1. Start with active tape for fresh prints',
+        body: 'Prioritize newer whale fills with meaningful notional and avoid stale prints that already propagated into market price.',
       },
       {
-        title: '2. Use Hot Games to find concentrated action',
-        body: 'When activity clusters in one game, treat it as a priority research candidate rather than blindly tailing every trade.',
+        title: '2. Confirm with resting liquidity',
+        body: 'Use resting mode to verify whether pressure remains in the book instead of relying on one completed trade.',
       },
       {
-        title: '3. Check price drift after whale activity',
-        body: 'If the market moves in the same direction after large trades, signal quality is stronger. If not, reduce confidence and size.',
+        title: '3. Focus on clustered action',
+        body: 'Repeated tickets on the same market often carry better signal quality than a single large order.',
       },
       {
-        title: '4. Pair with projections or research before entry',
-        body: 'Use Whale Feed for direction and urgency, then validate with another tool for value and context to reduce false positives.',
+        title: '4. Review outcomes and CLV by setup',
+        body: 'Track which cluster types and markets generate consistent close value, then scale only those setups.',
       },
     ],
-    ctaTitle: 'Ready to follow real-time whale pressure?',
+    ctaTitle: 'Ready to track whale flow in real time?',
     ctaDescription:
-      'Open Whale Feed and track where respected capital is flowing before the broader market reacts.',
-    ctaPrimaryLabel: 'Open Whale Feed',
+      'Open Whale Detector and filter into the highest-conviction flow before you execute.',
+    ctaPrimaryLabel: 'Open Whale Detector',
+  },
+  'sharp-money-feed': {
+    guideLabel: 'Sharp Money Feed Guide',
+    heroTitle: 'Track profitable bettors by sport before the market catches up.',
+    heroDescription:
+      'Follow qualified Polymarket sports and esports bettors, compare sport-specific ROI, and monitor live fills and positions in one flow.',
+    screenshotTitle: 'Read profitable bettor flow in real time',
+    screenshotSrc: '/sharp-money-feed-guide-placeholder.png',
+    screenshotAlt: 'Sharp Money Feed showing bettor leaderboard, sport filter, and live trade cards.',
+    callouts: [
+      {
+        title: 'Sport ROI Scope',
+        body: 'Leaderboard metrics switch to the selected sport so rankings stay context-specific.',
+      },
+      {
+        title: 'Profitable Bettor Tape',
+        body: 'Each print is sourced from qualified bettor activity with wallet-level score context.',
+      },
+      {
+        title: 'Polymarket Deep Link',
+        body: 'Open the exact event directly from each card using the Polymarket logo action.',
+      },
+    ],
+    longTermTitle: 'How to use Sharp Money Feed for long-term profit',
+    longTermIntro:
+      'Sharp Money Feed works best as a filtered execution queue: focus on profitable bettors, narrow by sport, and stay disciplined on entry timing.',
+    longTermSteps: [
+      {
+        title: '1. Pick one sport context first',
+        body: 'Use sport filters to avoid mixing profiles with very different edge characteristics and liquidity behavior.',
+      },
+      {
+        title: '2. Prioritize bettors with persistent score + ROI',
+        body: 'Use risk-adjusted score and sport ROI together to identify repeatable signal quality over one-off spikes.',
+      },
+      {
+        title: '3. Verify fills against current market price',
+        body: 'Open the linked Polymarket event and confirm current execution quality before following a fill.',
+      },
+      {
+        title: '4. Track outcomes by sport-specific process',
+        body: 'Review your follow decisions by sport to keep only the bettor cohorts and setups with sustained edge.',
+      },
+    ],
+    ctaTitle: 'Ready to follow profitable bettor flow?',
+    ctaDescription:
+      'Open Sharp Money Feed and filter directly into sport-specific profitable bettor signals.',
+    ctaPrimaryLabel: 'Open Sharp Money Feed',
   },
   'research-mode': {
     guideLabel: 'Research Mode Guide',

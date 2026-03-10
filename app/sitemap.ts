@@ -24,6 +24,7 @@ const PUBLIC_ROUTES = [
   '/market-projections',
   '/sharp-props',
   '/sharp-detector',
+  '/sharp-money-feed',
   '/line-shopping',
   '/player-prop-odds',
   '/live-scores',

@@ -49,8 +49,8 @@ const buildRecommendations = (profile?: OnboardingProfile): RecommendedFeature[]
     },
     {
       id: "whale-feed",
-      title: "Whale Feed",
-      description: "See big-money activity and timing windows in real time.",
+      title: "Whale Detector",
+      description: "Track large-ticket flow and clustering in real time.",
       href: "/sharp-detector",
       tags: ["Whales", "Alerts"],
     },

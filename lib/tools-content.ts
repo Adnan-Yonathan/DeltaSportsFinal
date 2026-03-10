@@ -13,17 +13,17 @@ export type ToolContent = {
 export const TOOLS_CONTENT: ToolContent[] = [
   {
     id: "sharp-detector",
-    label: "Whale Feed",
+    label: "Whale Detector",
     route: "/sharp-detector",
     icon: "eye",
     summary:
-      "Live feed of sharp money, market-moving bets, and clustered sharp action.",
+      "Live feed of large-ticket whale flow, clustering, and resting liquidity.",
     description:
-      "Whale Feed tracks high-notional bets across prediction markets and groups them by game so you can see where sharp money is concentrating. It pairs bet size with timing and wallet context to surface true sharp action.",
+      "Whale Detector tracks high-notional tape, recurring market clusters, and resting orderbook pressure so you can distinguish real momentum from isolated prints.",
     howToUse:
-      "Filter by sport, size, or wallet, then focus on games with multiple large bets. Use the wallet tags and strength signals to validate whether a sharp money move is worth following.",
+      "Filter by league and source, monitor repeated action on the same game, then compare timing against market movement before entering.",
     unique:
-      "It combines bet size, wallet history, and clustering so you see real pressure, not just isolated bets.",
+      "It combines ticket size, timing, and cluster behavior so you can prioritize stronger market pressure.",
     useCases: [
       "Tracking sharp steam before lines move.",
       "Monitoring trusted wallets on game day.",

@@ -2,9 +2,9 @@ import type { Metadata } from 'next'
 import SharpDetectorClient from './sharp-detector-client'
 
 export const metadata: Metadata = {
-  title: 'Whale Feed | Live Sharp Money Detector | Delta Sports',
+  title: 'Whale Detector | Live Whale Trade Tape | Delta Sports',
   description:
-    'Track large bets hitting the tape in real time. Filter by sport, source, and game to spot sharp clustering and whale activity before lines move.',
+    'Track live whale tickets, resting liquidity walls, and hot-game clustering across supported sports markets.',
   alternates: {
     canonical: 'https://deltasports.app/sharp-detector',
   },

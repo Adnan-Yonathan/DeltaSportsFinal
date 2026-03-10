@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {
   buildBettorFeedTradePayload,
+  compareFeedTradeCandidates,
   filterAndRankProfitableSummaries,
   isProfitableSummaryEligible,
   isUpcomingPolymarketEventDate,
@@ -76,6 +77,72 @@ const run = async () => {
     ranked.map((row) => row.wallet),
     ['wallet-c', 'wallet-b', 'wallet-a'],
     'expected profitable summaries to rank by ROI, then P/L'
+  )
+
+  const prioritizedTrades = [
+    {
+      row: {
+        wallet: 'wallet-a',
+        transaction_hash: '0x1',
+        trade_time: isoDaysAgo(3),
+        trade_ts: Math.floor((now - 3 * 24 * 60 * 60_000) / 1000),
+        side: 'BUY' as const,
+        size: 200,
+        price: 0.6,
+        notional: 120,
+        slug: 'nba-later',
+        event_slug: 'nba-later',
+        title: 'Later game',
+        outcome: 'Later',
+        outcome_index: 0,
+        sport_label: 'NBA',
+      },
+      eventDate: '2026-03-14T23:00:00.000Z',
+    },
+    {
+      row: {
+        wallet: 'wallet-b',
+        transaction_hash: '0x2',
+        trade_time: isoDaysAgo(5),
+        trade_ts: Math.floor((now - 5 * 24 * 60 * 60_000) / 1000),
+        side: 'BUY' as const,
+        size: 500,
+        price: 0.5,
+        notional: 250,
+        slug: 'nba-soon-big',
+        event_slug: 'nba-soon-big',
+        title: 'Sooner bigger game',
+        outcome: 'Soon Big',
+        outcome_index: 0,
+        sport_label: 'NBA',
+      },
+      eventDate: '2026-03-11T23:00:00.000Z',
+    },
+    {
+      row: {
+        wallet: 'wallet-c',
+        transaction_hash: '0x3',
+        trade_time: isoDaysAgo(1),
+        trade_ts: Math.floor((now - 1 * 24 * 60 * 60_000) / 1000),
+        side: 'BUY' as const,
+        size: 300,
+        price: 0.5,
+        notional: 150,
+        slug: 'nba-soon-small',
+        event_slug: 'nba-soon-small',
+        title: 'Sooner smaller game',
+        outcome: 'Soon Small',
+        outcome_index: 0,
+        sport_label: 'NBA',
+      },
+      eventDate: '2026-03-11T23:00:00.000Z',
+    },
+  ].sort(compareFeedTradeCandidates)
+
+  assert.deepEqual(
+    prioritizedTrades.map((entry) => entry.row.wallet),
+    ['wallet-b', 'wallet-c', 'wallet-a'],
+    'expected feed candidates to rank by nearest event, then biggest bet'
   )
 
   const payload = buildBettorFeedTradePayload({

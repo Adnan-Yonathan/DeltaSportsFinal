@@ -10,6 +10,9 @@ import {
 const MAX_LIMIT = 200
 const DEFAULT_FEED_LIMIT = 50
 const DEFAULT_LEADERBOARD_LIMIT = 25
+const FEED_SCAN_MULTIPLIER = 5
+const FEED_SCAN_FLOOR = 500
+const FEED_SCAN_CEILING = 2000
 const FALLBACK_MIN_SETTLED_MARKETS = 5
 const DEFAULT_BETTOR_ELIGIBILITY = 'profitable'
 const PROFITABLE_MIN_BUY_TRADES = 20
@@ -120,6 +123,11 @@ type PolymarketEventMetadata = {
   eventDate: string | null
 }
 
+type FeedTradeCandidate = {
+  row: WalletTradeRow
+  eventDate: string | null
+}
+
 const normalizeWallet = (value?: string | null) => {
   if (!value) return null
   const trimmed = value.trim().toLowerCase()
@@ -177,6 +185,45 @@ export const isUpcomingPolymarketEventDate = (
   const eventTime = new Date(eventDate).getTime()
   if (!Number.isFinite(eventTime)) return false
   return eventTime > now.getTime()
+}
+
+const parseEventStartTime = (eventDate?: string | null) => {
+  if (!eventDate) return Number.POSITIVE_INFINITY
+  const match = eventDate.match(DATE_ONLY_PATTERN)
+  if (match) {
+    const year = Number(match[1])
+    const month = Number(match[2])
+    const day = Number(match[3])
+    const fallback = new Date(year, month - 1, day, 23, 59, 59, 999).getTime()
+    return Number.isFinite(fallback) ? fallback : Number.POSITIVE_INFINITY
+  }
+  const parsed = new Date(eventDate).getTime()
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY
+}
+
+const resolveTradeNotional = <
+  T extends Pick<WalletTradeRow, 'notional' | 'size' | 'price'>,
+>(
+  row: T
+) => {
+  if (Number.isFinite(row.notional)) return Number(row.notional)
+  if (Number.isFinite(row.size) && Number.isFinite(row.price)) {
+    return Number(row.size) * Number(row.price)
+  }
+  return 0
+}
+
+export const compareFeedTradeCandidates = <T extends FeedTradeCandidate>(
+  left: T,
+  right: T
+) => {
+  const startDiff = parseEventStartTime(left.eventDate) - parseEventStartTime(right.eventDate)
+  if (startDiff !== 0) return startDiff
+
+  const notionalDiff = resolveTradeNotional(right.row) - resolveTradeNotional(left.row)
+  if (notionalDiff !== 0) return notionalDiff
+
+  return Number(right.row.trade_ts ?? 0) - Number(left.row.trade_ts ?? 0)
 }
 
 const toAmericanOdds = (probability: number | null | undefined) => {
@@ -1105,12 +1152,17 @@ export const getPolymarketBettorFeed = async ({
     sport: scope.sportFilter === ALL_SPORTS_FILTER ? undefined : scope.sportFilter,
   })
 
-  const collected: WalletTradeRow[] = []
+  const collected: FeedTradeCandidate[] = []
   let pageCursor = Number.isFinite(cursor) ? Number(cursor) : null
   let exhausted = false
   const pageSize = Math.min(MAX_LIMIT, Math.max(take * 3, 75))
+  const scanTarget = Math.min(
+    FEED_SCAN_CEILING,
+    Math.max(FEED_SCAN_FLOOR, take * FEED_SCAN_MULTIPLIER)
+  )
+  let scannedRows = 0
 
-  while (collected.length < take + 1 && !exhausted) {
+  while (scannedRows < scanTarget && !exhausted) {
     let query = supabase
       .from('polymarket_wallet_trades' as any)
       .select(
@@ -1147,17 +1199,19 @@ export const getPolymarketBettorFeed = async ({
     }
 
     const pageRows = data ?? []
+    scannedRows += pageRows.length
     if (!pageRows.length) {
       exhausted = true
       break
     }
 
     const eventMetadataMap = await loadEventMetadataForTrades(pageRows)
-    const upcomingRows = pageRows.filter((row) => {
+    const upcomingRows = pageRows.flatMap((row) => {
       const eventSlug = row.event_slug ?? row.slug
       const eventDate =
         eventMetadataMap.get(eventSlug)?.eventDate ?? parsePolymarketDateFromSlug(eventSlug)
-      return isUpcomingPolymarketEventDate(eventDate)
+      if (!isUpcomingPolymarketEventDate(eventDate)) return []
+      return [{ row, eventDate }]
     })
 
     collected.push(...upcomingRows)
@@ -1170,15 +1224,15 @@ export const getPolymarketBettorFeed = async ({
     pageCursor = pageRows[pageRows.length - 1]?.trade_ts ?? null
   }
 
-  const hasMore = collected.length > take
-  const sliced = hasMore ? collected.slice(0, take) : collected
-  const nextCursor = hasMore ? sliced[sliced.length - 1]?.trade_ts ?? null : null
-
-  const currentPriceMap = await loadCurrentPricesForTrades(sliced)
-  const eventMetadataMap = await loadEventMetadataForTrades(sliced)
+  const rankedCandidates = [...collected].sort(compareFeedTradeCandidates)
+  const hasMore = !exhausted || rankedCandidates.length > take
+  const slicedCandidates = rankedCandidates.slice(0, take)
+  const slicedRows = slicedCandidates.map((candidate) => candidate.row)
+  const nextCursor = !exhausted ? pageCursor : null
+  const currentPriceMap = await loadCurrentPricesForTrades(slicedRows)
 
   return {
-    trades: sliced.map((row) => {
+    trades: slicedCandidates.map(({ row, eventDate }) => {
       const profile = profiles.get(row.wallet)
       const normalizedSport = String(row.sport_label ?? '').toUpperCase()
       const activeSummary = activeSummaryMap.get(row.wallet)
@@ -1187,9 +1241,6 @@ export const getPolymarketBettorFeed = async ({
       const globalSummary = scope.globalMap.get(row.wallet) ?? activeSummary
       const currentPriceCents =
         currentPriceMap.get(`${row.slug}:${row.outcome_index ?? 'unknown'}`) ?? null
-      const eventSlug = row.event_slug ?? row.slug
-      const eventDate =
-        eventMetadataMap.get(eventSlug)?.eventDate ?? parsePolymarketDateFromSlug(eventSlug)
 
       return buildBettorFeedTradePayload({
         row,

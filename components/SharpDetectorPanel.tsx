@@ -276,6 +276,28 @@ const parseEventTime = (value?: string | null) => {
   return Number.isFinite(time) ? time : null
 }
 
+const resolveSharpMoneyPriorityTime = (trade: SharpTrade) => {
+  const eventTime = parseEventTime(trade.eventDate)
+  if (eventTime != null && eventTime > Date.now()) return eventTime
+  return Number.POSITIVE_INFINITY
+}
+
+const compareSharpMoneyPriority = (
+  left: SharpTradeWithStatus,
+  right: SharpTradeWithStatus
+) => {
+  const leftStart = resolveSharpMoneyPriorityTime(left)
+  const rightStart = resolveSharpMoneyPriorityTime(right)
+  if (leftStart !== rightStart) return leftStart - rightStart
+
+  const notionalDiff = (right.notional ?? 0) - (left.notional ?? 0)
+  if (notionalDiff !== 0) return notionalDiff
+
+  const leftDetected = new Date(left.timestamp).getTime()
+  const rightDetected = new Date(right.timestamp).getTime()
+  return rightDetected - leftDetected
+}
+
 const isPastEvent = (trade: SharpTrade) => {
   if (!trade.eventDate) return false
   const todayKey = getEasternDateKey(new Date())
@@ -834,9 +856,7 @@ export default function SharpDetectorPanel({
         minNotional: 0,
       }))
       .sort((a, b) => {
-        const timeA = new Date(a.trade.timestamp).getTime()
-        const timeB = new Date(b.trade.timestamp).getTime()
-        return timeB - timeA
+        return compareSharpMoneyPriority(a.trade, b.trade)
       })
   }, [sharpMoneySourceTrades, phaseFilter])
 
@@ -935,7 +955,7 @@ export default function SharpDetectorPanel({
       setBettorLeaderboard(leaderboardRows)
 
       const params = new URLSearchParams()
-      params.set('limit', '120')
+      params.set('limit', '200')
       params.set('sport', bettorSportFilter)
       params.set('eligibility', 'profitable')
       if (bettorWalletFilter !== 'all') {

@@ -15,9 +15,27 @@ export function Header() {
   const scrolled = useScroll(10)
 
   const links = [
-    { label: 'Features', href: '/welcome#features' },
-    { label: 'Pricing', href: '/welcome#pricing' },
+    { label: 'Features', href: '#features', targetId: 'features' },
+    { label: 'Pricing', href: '#pricing', targetId: 'pricing' },
   ]
+
+  const handleSectionClick = (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    targetId: string
+  ) => {
+    event.preventDefault()
+    setOpen(false)
+
+    // Wait one frame so mobile menu/body overflow state is released before scroll.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const target = document.getElementById(targetId)
+        if (!target) return
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        window.history.replaceState(null, '', `#${targetId}`)
+      })
+    })
+  }
 
   React.useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : ''
@@ -33,7 +51,7 @@ export function Header() {
       })}
     >
       <nav className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
-        <a href="/welcome" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-white/90 hover:bg-white/5">
+        <a href="/" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-white/90 hover:bg-white/5">
           <Image src="/delta-logo.png" alt="Delta Sports logo" width={18} height={18} className="rounded-sm" />
           <span className="text-sm font-semibold tracking-[0.18em]" style={{ color: '#ffffff' }}>DELTA SPORTS</span>
         </a>
@@ -44,6 +62,7 @@ export function Header() {
               key={link.label}
               className={buttonVariants({ variant: 'ghost' })}
               href={link.href}
+              onClick={(event) => handleSectionClick(event, link.targetId)}
               style={{ color: '#ffffff' }}
             >
               {link.label}
@@ -80,6 +99,7 @@ export function Header() {
                 className: 'justify-start',
               })}
               href={link.href}
+              onClick={(event) => handleSectionClick(event, link.targetId)}
               style={{ color: '#ffffff' }}
             >
               {link.label}

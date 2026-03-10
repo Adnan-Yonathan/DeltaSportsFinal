@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import {
   getPolymarketBettorLeaderboard,
+  isInvalidPolymarketBettorEligibilityError,
   isInvalidPolymarketSportFilterError,
 } from '@/lib/services/polymarket-bettor-feed'
 
@@ -8,11 +9,13 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const limitParam = Number(searchParams.get('limit') ?? 25)
   const sportParam = searchParams.get('sport') ?? undefined
+  const eligibilityParam = searchParams.get('eligibility') ?? undefined
 
   try {
     const leaderboard = await getPolymarketBettorLeaderboard({
       limit: Number.isFinite(limitParam) ? limitParam : 25,
       sport: sportParam,
+      eligibility: eligibilityParam,
     })
 
     return NextResponse.json(
@@ -28,6 +31,9 @@ export async function GET(request: Request) {
   } catch (error) {
     if (isInvalidPolymarketSportFilterError(error)) {
       return NextResponse.json({ error: 'Invalid sport filter' }, { status: 400 })
+    }
+    if (isInvalidPolymarketBettorEligibilityError(error)) {
+      return NextResponse.json({ error: 'Invalid eligibility filter' }, { status: 400 })
     }
     console.error('[polymarket/bettors/leaderboard] error:', error)
     return NextResponse.json({ error: 'Failed to load leaderboard' }, { status: 500 })

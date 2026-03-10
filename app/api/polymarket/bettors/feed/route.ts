@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import {
   getPolymarketBettorFeed,
+  isInvalidPolymarketBettorEligibilityError,
   isInvalidPolymarketSportFilterError,
 } from '@/lib/services/polymarket-bettor-feed'
 
@@ -10,6 +11,7 @@ export async function GET(request: Request) {
   const cursorParam = Number(searchParams.get('cursor') ?? NaN)
   const sportParam = searchParams.get('sport') ?? undefined
   const walletParam = searchParams.get('wallet') ?? undefined
+  const eligibilityParam = searchParams.get('eligibility') ?? undefined
 
   try {
     const payload = await getPolymarketBettorFeed({
@@ -17,6 +19,7 @@ export async function GET(request: Request) {
       cursor: Number.isFinite(cursorParam) ? cursorParam : undefined,
       sport: sportParam,
       wallet: walletParam,
+      eligibility: eligibilityParam,
     })
 
     return NextResponse.json(payload, {
@@ -27,6 +30,9 @@ export async function GET(request: Request) {
   } catch (error) {
     if (isInvalidPolymarketSportFilterError(error)) {
       return NextResponse.json({ error: 'Invalid sport filter' }, { status: 400 })
+    }
+    if (isInvalidPolymarketBettorEligibilityError(error)) {
+      return NextResponse.json({ error: 'Invalid eligibility filter' }, { status: 400 })
     }
     console.error('[polymarket/bettors/feed] error:', error)
     return NextResponse.json({ error: 'Failed to load bettor feed' }, { status: 500 })

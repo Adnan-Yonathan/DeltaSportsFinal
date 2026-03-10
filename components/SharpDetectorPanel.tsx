@@ -44,6 +44,11 @@ type SharpTrade = {
   evTargetPriceCents?: number | null
   evTargetAmericanOdds?: number | null
   crossMarketEvPercent?: number | null
+  sportRoi?: number | null
+  totalRoi?: number | null
+  tradeCount?: number | null
+  buyTradeCount?: number | null
+  priceMoveCents?: number | null
 }
 
 type SharpTradeStatus = 'pending' | 'respected' | 'faded'
@@ -70,6 +75,13 @@ type BettorLeaderboardRow = {
   sport_total_realized_pnl?: number
   sport_roi_lifetime?: number
   sport_settled_markets?: number
+  trade_count?: number
+  buy_trade_count?: number
+  sport_trade_count?: number
+  sport_buy_trade_count?: number
+  global_trade_count?: number
+  global_buy_trade_count?: number
+  global_roi_lifetime?: number
 }
 
 type BettorFeedTrade = {
@@ -87,12 +99,23 @@ type BettorFeedTrade = {
   title: string | null
   outcome: string | null
   outcome_index: number | null
+  current_price_cents?: number | null
+  current_american_odds?: number | null
+  price_move_cents?: number | null
   risk_adjusted_score: number
   total_realized_pnl: number
   roi_lifetime: number
+  trade_count?: number
+  buy_trade_count?: number
   sport_risk_adjusted_score?: number
   sport_total_realized_pnl?: number
   sport_roi_lifetime?: number
+  sport_trade_count?: number
+  sport_buy_trade_count?: number
+  global_total_realized_pnl?: number
+  global_roi_lifetime?: number
+  global_trade_count?: number
+  global_buy_trade_count?: number
 }
 
 type BettorPosition = {
@@ -392,6 +415,22 @@ const resolveGameLabel = (marketTitle: string) => {
   if (teams) return `${teams.away} vs ${teams.home}`
   return marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim()
 }
+
+const formatSignedCents = (value: number | null | undefined) => {
+  if (!Number.isFinite(value)) return 'n/a'
+  const rounded = Math.round(Number(value))
+  return `${rounded > 0 ? '+' : ''}${rounded}c`
+}
+
+const formatCompactCount = (value: number | null | undefined, decimals = 0) => {
+  if (!Number.isFinite(value)) return '0'
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: decimals,
+  }).format(Number(value))
+}
+
+const formatRoiPercent = (value: number | null | undefined) =>
+  `${((value ?? 0) * 100).toFixed(1)}%`
 
 const resolvePolymarketEventUrl = (slug?: string | null) => {
   if (!slug) return 'https://polymarket.com/'
@@ -763,6 +802,8 @@ export default function SharpDetectorPanel({
       proxyWallet: row.wallet,
       priceCents: Number.isFinite(row.price) ? Math.round((row.price ?? 0) * 100) : 0,
       americanOdds: row.entry_american_odds,
+      currentPriceCents: row.current_price_cents ?? null,
+      currentAmericanOdds: row.current_american_odds ?? null,
       notional: row.stake_usd ?? 0,
       contracts: row.size ?? 0,
       timestamp: row.trade_time,
@@ -773,6 +814,11 @@ export default function SharpDetectorPanel({
       sharpStrength: Math.round(
         row.sport_risk_adjusted_score ?? row.risk_adjusted_score ?? 0
       ),
+      sportRoi: row.sport_roi_lifetime ?? row.roi_lifetime ?? 0,
+      totalRoi: row.global_roi_lifetime ?? row.roi_lifetime ?? 0,
+      tradeCount: row.global_trade_count ?? row.trade_count ?? 0,
+      buyTradeCount: row.global_buy_trade_count ?? row.buy_trade_count ?? 0,
+      priceMoveCents: row.price_move_cents ?? null,
     }))
   }, [bettorFeedRows, bettorWalletFilter])
 
@@ -870,6 +916,7 @@ export default function SharpDetectorPanel({
       const leaderboardParams = new URLSearchParams()
       leaderboardParams.set('limit', '12')
       leaderboardParams.set('sport', bettorSportFilter)
+      leaderboardParams.set('eligibility', 'profitable')
       const leaderboardRes = await fetch(
         `/api/polymarket/bettors/leaderboard?${leaderboardParams.toString()}`,
         {
@@ -888,6 +935,7 @@ export default function SharpDetectorPanel({
       const params = new URLSearchParams()
       params.set('limit', '120')
       params.set('sport', bettorSportFilter)
+      params.set('eligibility', 'profitable')
       if (bettorWalletFilter !== 'all') {
         params.set('wallet', bettorWalletFilter)
       }
@@ -1444,7 +1492,7 @@ export default function SharpDetectorPanel({
           {bettorLeaderboard.length > 0 && (
             <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
               <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-white/50">
-                Leaderboard (Risk-Adjusted)
+                Leaderboard (Profitable ROI)
               </p>
               <div className="grid gap-2 md:grid-cols-3">
                 {bettorLeaderboard.slice(0, 6).map((bettor) => (
@@ -1467,15 +1515,10 @@ export default function SharpDetectorPanel({
                       )}
                     </p>
                     <p className="text-[10px] text-white/45">
-                      Score{' '}
-                      {Math.round(
-                        bettor.sport_risk_adjusted_score ?? bettor.risk_adjusted_score
-                      )}{' '}
-                      | ROI{' '}
-                      {(
-                        (bettor.sport_roi_lifetime ?? bettor.roi_lifetime ?? 0) * 100
-                      ).toFixed(1)}
-                      %
+                      ROI {formatRoiPercent(bettor.sport_roi_lifetime ?? bettor.roi_lifetime)} | Trades{' '}
+                      {formatCompactCount(
+                        bettor.global_trade_count ?? bettor.trade_count ?? 0
+                      )}
                     </p>
                   </button>
                 ))}
@@ -1488,10 +1531,10 @@ export default function SharpDetectorPanel({
           <div className="rounded-2xl border border-white/10 bg-black/40 p-8 text-center">
             <Zap className="w-10 h-10 text-white/20 mx-auto mb-3" />
             <p className="text-white/60 text-sm">
-              No qualified bettor prints detected right now.
+              No profitable bettor prints detected right now.
             </p>
             <p className="text-white/40 text-[11px] mt-1">
-              This stream only includes qualified profitable Polymarket sports bettors.
+              This stream only includes profitable Polymarket sports bettors with positive ROI and enough sample.
             </p>
           </div>
         )}
@@ -1548,13 +1591,7 @@ export default function SharpDetectorPanel({
                     <div className="text-lg font-bold text-emerald-300">
                       {trade.sharpStrength != null ? `${trade.sharpStrength}%` : 'n/a'}
                     </div>
-                    <div className="text-[11px] text-white/50">
-                      ROI{' '}
-                      {(
-                        ((bettor?.sport_roi_lifetime ?? bettor?.roi_lifetime) ?? 0) * 100
-                      ).toFixed(1)}
-                      %
-                    </div>
+                    <div className="text-[11px] text-white/50">Trades {formatCompactCount(trade.tradeCount)}</div>
                   </div>
                 </div>
 
@@ -1574,10 +1611,42 @@ export default function SharpDetectorPanel({
                     </span>
                     <span className="text-sm text-white/80">{trade.outcome}</span>
                   </div>
-                  <span className="text-sm text-white/50">{resolveOddsLabel(trade)}</span>
+                  <span className="text-sm text-white/50">
+                    Entry {formatOddsLabel(trade.priceCents, trade.americanOdds)}
+                  </span>
+                  <span className="text-sm text-white/50">
+                    Current{' '}
+                    {trade.currentPriceCents != null
+                      ? formatOddsLabel(trade.currentPriceCents, trade.currentAmericanOdds ?? null)
+                      : 'n/a'}
+                  </span>
+                  <span className="text-sm text-white/50">
+                    Move {formatSignedCents(trade.priceMoveCents)}
+                  </span>
                   <span className="text-[11px] text-white/40">
                     {trade.eventDate ?? 'TBD'} | {resolvePhase(trade)}
                   </span>
+                </div>
+
+                <div className="grid gap-2 rounded-xl border border-white/10 bg-black/30 p-3 text-[11px] text-white/70 sm:grid-cols-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Bet Size</div>
+                    <div className="mt-1 text-sm text-white">
+                      {formatCurrency(trade.notional)} · {formatCompactCount(trade.contracts, 2)} shares
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">ROI</div>
+                    <div className="mt-1 text-sm text-white">
+                      Sport {formatRoiPercent(trade.sportRoi)} | Total {formatRoiPercent(trade.totalRoi)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Activity</div>
+                    <div className="mt-1 text-sm text-white">
+                      {formatCompactCount(trade.tradeCount)} trades · {formatCompactCount(trade.buyTradeCount)} buys
+                    </div>
+                  </div>
                 </div>
 
                 {trade.sportsbookBestOdds != null && (

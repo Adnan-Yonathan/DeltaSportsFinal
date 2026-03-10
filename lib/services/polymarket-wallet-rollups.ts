@@ -85,6 +85,9 @@ type WalletRollupComputation = {
   openNotional: number
   openPositionsCount: number
   totalBuyNotional: number
+  tradeCount: number
+  buyTradeCount: number
+  sellTradeCount: number
   lastTradeTime: string | null
 }
 
@@ -104,6 +107,7 @@ type WalletSportComputationContext = {
 const EASTERN_TIMEZONE = 'America/New_York'
 const RISK_SCORE_DECIMALS = 6
 const PROFIT_FACTOR_CAP = 10
+const MATERIAL_REALIZED_PNL_DIAGNOSTIC_USD = 1000
 const warnedMissingRollupTables = new Set<string>()
 
 const isMissingTableError = (error: { code?: string; message?: string } | null | undefined) =>
@@ -409,7 +413,17 @@ export const computeWalletRollupFromTrades = (
   let grossLoss = 0
   let openNotional = 0
   let totalBuyNotional = 0
+  let tradeCount = 0
+  let buyTradeCount = 0
+  let sellTradeCount = 0
   let lastTradeTime: string | null = null
+
+  for (const trade of trades) {
+    const side = String(trade.side ?? '').toUpperCase()
+    tradeCount += 1
+    if (side === 'BUY') buyTradeCount += 1
+    else if (side === 'SELL') sellTradeCount += 1
+  }
 
   const applyRealizedEntries = (entries: RealizedPnlEntry[]) => {
     entries.forEach((entry) => {
@@ -589,6 +603,9 @@ export const computeWalletRollupFromTrades = (
     openNotional: round(openNotional),
     openPositionsCount: openPositionRows.length,
     totalBuyNotional: round(totalBuyNotional),
+    tradeCount,
+    buyTradeCount,
+    sellTradeCount,
     lastTradeTime,
   }
 }
@@ -763,6 +780,15 @@ export const computePolymarketWalletRollups = async ({
       totalRealizedPnl: ctx.computation.totalRealizedPnl,
     })
 
+    if (
+      Math.abs(ctx.computation.totalRealizedPnl) >= MATERIAL_REALIZED_PNL_DIAGNOSTIC_USD &&
+      ctx.computation.marketsResolved === 0
+    ) {
+      console.warn(
+        `[Polymarket Rollups] Wallet ${ctx.wallet} has material realized P/L (${ctx.computation.totalRealizedPnl}) with zero settled markets. Check market outcome coverage.`
+      )
+    }
+
     summaryRows.push({
       wallet: ctx.wallet,
       total_realized_pnl: ctx.computation.totalRealizedPnl,
@@ -784,6 +810,9 @@ export const computePolymarketWalletRollups = async ({
       qualification_reason: qualification.reason,
       open_positions_count: ctx.computation.openPositionsCount,
       open_notional: ctx.computation.openNotional,
+      trade_count: ctx.computation.tradeCount,
+      buy_trade_count: ctx.computation.buyTradeCount,
+      sell_trade_count: ctx.computation.sellTradeCount,
       last_trade_time: ctx.computation.lastTradeTime,
       last_computed_at: new Date().toISOString(),
     })
@@ -846,6 +875,15 @@ export const computePolymarketWalletRollups = async ({
         totalRealizedPnl: ctx.computation.totalRealizedPnl,
       })
 
+      if (
+        Math.abs(ctx.computation.totalRealizedPnl) >= MATERIAL_REALIZED_PNL_DIAGNOSTIC_USD &&
+        ctx.computation.marketsResolved === 0
+      ) {
+        console.warn(
+          `[Polymarket Rollups] Wallet ${ctx.wallet} ${sportLabel} rollup has material realized P/L (${ctx.computation.totalRealizedPnl}) with zero settled markets. Check market outcome coverage.`
+        )
+      }
+
       sportSummaryRows.push({
         wallet: ctx.wallet,
         sport_label: sportLabel,
@@ -868,6 +906,9 @@ export const computePolymarketWalletRollups = async ({
         qualification_reason: qualification.reason,
         open_positions_count: ctx.computation.openPositionsCount,
         open_notional: ctx.computation.openNotional,
+        trade_count: ctx.computation.tradeCount,
+        buy_trade_count: ctx.computation.buyTradeCount,
+        sell_trade_count: ctx.computation.sellTradeCount,
         last_trade_time: ctx.computation.lastTradeTime,
         last_computed_at: new Date().toISOString(),
       })

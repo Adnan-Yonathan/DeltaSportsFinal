@@ -104,6 +104,26 @@ type WalletSportComputationContext = {
 const EASTERN_TIMEZONE = 'America/New_York'
 const RISK_SCORE_DECIMALS = 6
 const PROFIT_FACTOR_CAP = 10
+const warnedMissingRollupTables = new Set<string>()
+
+const isMissingTableError = (error: { code?: string; message?: string } | null | undefined) =>
+  Boolean(
+    error &&
+      (error.code === 'PGRST205' ||
+        /could not find the table/i.test(String(error.message ?? '')))
+  )
+
+const warnMissingTableOnce = (
+  tableName: string,
+  error: { code?: string; message?: string } | null | undefined
+) => {
+  if (warnedMissingRollupTables.has(tableName)) return
+  warnedMissingRollupTables.add(tableName)
+  console.warn(
+    `[Polymarket Rollups] Table "${tableName}" missing in Supabase schema; skipping writes until migrations are applied.`,
+    error
+  )
+}
 
 const round = (value: number, decimals = 6) => {
   if (!Number.isFinite(value)) return 0
@@ -579,6 +599,26 @@ export const computePolymarketWalletRollups = async ({
   wallet?: string
 }): Promise<RollupSummary> => {
   const supabase = createServiceClient()
+  const verifyWritableTable = async (tableName: string) => {
+    const { error } = (await (supabase
+      .from(tableName as any)
+      .select('*', { head: true, count: 'exact' })
+      .limit(1) as any)) as {
+      error: { code?: string; message?: string } | null
+    }
+    if (!error) return true
+    if (isMissingTableError(error)) {
+      warnMissingTableOnce(tableName, error)
+      return false
+    }
+    console.warn(`[Polymarket Rollups] Failed to verify table "${tableName}":`, error)
+    return false
+  }
+
+  const canWriteMarketResults = await verifyWritableTable('polymarket_wallet_market_results')
+  const canWriteDailyPnl = await verifyWritableTable('polymarket_wallet_daily_pnl')
+  const canWriteOpenPositions = await verifyWritableTable('polymarket_wallet_open_positions')
+
   const walletQuery = supabase
     .from('polymarket_wallets' as any)
     .select('wallet, tracking_state')
@@ -633,57 +673,63 @@ export const computePolymarketWalletRollups = async ({
     const computation = computeWalletRollupFromTrades(trades, outcomesBySlug)
     const sportRollups = computeSportRollupMapFromTrades(trades, outcomesBySlug)
 
-    await supabase
-      .from('polymarket_wallet_market_results' as any)
-      .delete()
-      .eq('wallet', walletRow.wallet)
-
-    if (computation.marketRows.length > 0) {
-      const { error: marketError } = await supabase
+    if (canWriteMarketResults) {
+      await supabase
         .from('polymarket_wallet_market_results' as any)
-        .upsert(computation.marketRows as any, { onConflict: 'wallet,slug' } as any)
-      if (marketError) {
-        console.warn('[Polymarket Rollups] Failed to upsert market results:', marketError)
+        .delete()
+        .eq('wallet', walletRow.wallet)
+
+      if (computation.marketRows.length > 0) {
+        const { error: marketError } = await supabase
+          .from('polymarket_wallet_market_results' as any)
+          .upsert(computation.marketRows as any, { onConflict: 'wallet,slug' } as any)
+        if (marketError) {
+          console.warn('[Polymarket Rollups] Failed to upsert market results:', marketError)
+        }
       }
     }
 
-    await supabase
-      .from('polymarket_wallet_daily_pnl' as any)
-      .delete()
-      .eq('wallet', walletRow.wallet)
-
-    const dailyRows = Array.from(computation.daily.entries()).map(([dateKey, entry]) => ({
-      wallet: walletRow.wallet,
-      pnl_date: dateKey,
-      realized_pnl: round(entry.pnl),
-      wins: entry.wins,
-      losses: entry.losses,
-      pushes: entry.pushes,
-      updated_at: new Date().toISOString(),
-    }))
-
-    if (dailyRows.length > 0) {
-      const { error: dailyError } = await supabase
+    if (canWriteDailyPnl) {
+      await supabase
         .from('polymarket_wallet_daily_pnl' as any)
-        .upsert(dailyRows as any, { onConflict: 'wallet,pnl_date' } as any)
-      if (dailyError) {
-        console.warn('[Polymarket Rollups] Failed to upsert daily pnl:', dailyError)
+        .delete()
+        .eq('wallet', walletRow.wallet)
+
+      const dailyRows = Array.from(computation.daily.entries()).map(([dateKey, entry]) => ({
+        wallet: walletRow.wallet,
+        pnl_date: dateKey,
+        realized_pnl: round(entry.pnl),
+        wins: entry.wins,
+        losses: entry.losses,
+        pushes: entry.pushes,
+        updated_at: new Date().toISOString(),
+      }))
+
+      if (dailyRows.length > 0) {
+        const { error: dailyError } = await supabase
+          .from('polymarket_wallet_daily_pnl' as any)
+          .upsert(dailyRows as any, { onConflict: 'wallet,pnl_date' } as any)
+        if (dailyError) {
+          console.warn('[Polymarket Rollups] Failed to upsert daily pnl:', dailyError)
+        }
       }
     }
 
-    await supabase
-      .from('polymarket_wallet_open_positions' as any)
-      .delete()
-      .eq('wallet', walletRow.wallet)
-
-    if (computation.openPositionRows.length > 0) {
-      const { error: openError } = await supabase
+    if (canWriteOpenPositions) {
+      await supabase
         .from('polymarket_wallet_open_positions' as any)
-        .upsert(computation.openPositionRows as any, {
-          onConflict: 'wallet,slug,outcome_index',
-        } as any)
-      if (openError) {
-        console.warn('[Polymarket Rollups] Failed to upsert open positions:', openError)
+        .delete()
+        .eq('wallet', walletRow.wallet)
+
+      if (computation.openPositionRows.length > 0) {
+        const { error: openError } = await supabase
+          .from('polymarket_wallet_open_positions' as any)
+          .upsert(computation.openPositionRows as any, {
+            onConflict: 'wallet,slug,outcome_index',
+          } as any)
+        if (openError) {
+          console.warn('[Polymarket Rollups] Failed to upsert open positions:', openError)
+        }
       }
     }
 

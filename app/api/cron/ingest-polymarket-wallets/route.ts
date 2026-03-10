@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
+  discoverPolymarketSportsBettors,
   ingestPolymarketWalletTradesForTrackedWallets,
   seedTrackedPolymarketWallets,
 } from '@/lib/services/polymarket-wallet-ingest'
@@ -23,7 +24,23 @@ export async function GET(req: NextRequest) {
     const limit = Number(searchParams.get('limit') ?? 1000)
     const maxPages = Number(searchParams.get('maxPages') ?? 10)
     const seed = searchParams.get('seed') !== 'false'
+    const discover = searchParams.get('discover') !== 'false'
+    const discoverLimit = Number(searchParams.get('discoverLimit') ?? 500)
+    const discoverMaxPages = Number(searchParams.get('discoverMaxPages') ?? 5)
     const fullBackfill = mode === 'backfill'
+
+    let discoverResult: {
+      scannedTrades: number
+      discoveredSportsTrades: number
+      walletsUpserted: number
+      wallets: string[]
+    } | null = null
+    if (discover) {
+      discoverResult = await discoverPolymarketSportsBettors({
+        limit: Number.isFinite(discoverLimit) ? discoverLimit : 500,
+        maxPages: Number.isFinite(discoverMaxPages) ? discoverMaxPages : 5,
+      })
+    }
 
     let seedResult = { inserted: 0, wallets: [] as string[] }
     if (seed) {
@@ -42,6 +59,7 @@ export async function GET(req: NextRequest) {
       ok: true,
       timestamp: new Date().toISOString(),
       mode,
+      discover: discoverResult,
       seed: seedResult,
       result,
     })

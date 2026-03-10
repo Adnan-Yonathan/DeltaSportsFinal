@@ -508,7 +508,7 @@ export default function SharpDetectorPanel({
   panelTitle?: string
 }) {
   const [activeTab, setActiveTab] = useState<ActiveTab>(lockedTab ?? defaultTab)
-  const [sharpDateWindow, setSharpDateWindow] = useState<SharpDateWindow>('all')
+  const [sharpDateWindow, setSharpDateWindow] = useState<SharpDateWindow>('today')
   const [alerts, setAlerts] = useState<SharpAlert[]>([])
   const [alertsEnabled, setAlertsEnabled] = useState(true)
   const sharpMoneySeenIds = useRef<Set<string>>(new Set())
@@ -900,7 +900,7 @@ export default function SharpDetectorPanel({
     try {
       setBettorLoading(true)
       const leaderboardParams = new URLSearchParams()
-      leaderboardParams.set('limit', '12')
+      leaderboardParams.set('limit', '24')
       leaderboardParams.set('sport', bettorSportFilter)
       leaderboardParams.set('eligibility', 'profitable')
       const leaderboardRes = await fetch(
@@ -1483,7 +1483,7 @@ export default function SharpDetectorPanel({
                 Leaderboard (Profitable ROI)
               </p>
               <div className="grid gap-2 md:grid-cols-3">
-                {bettorLeaderboard.slice(0, 6).map((bettor) => (
+                {bettorLeaderboard.slice(0, 12).map((bettor) => (
                   <button
                     key={bettor.wallet}
                     type="button"

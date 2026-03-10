@@ -109,6 +109,11 @@ const RISK_SCORE_DECIMALS = 6
 const PROFIT_FACTOR_CAP = 10
 const MATERIAL_REALIZED_PNL_DIAGNOSTIC_USD = 1000
 const warnedMissingRollupTables = new Set<string>()
+const ACTIVITY_COUNT_COLUMNS = [
+  'trade_count',
+  'buy_trade_count',
+  'sell_trade_count',
+] as const
 
 const isMissingTableError = (error: { code?: string; message?: string } | null | undefined) =>
   Boolean(
@@ -128,6 +133,29 @@ const warnMissingTableOnce = (
     error
   )
 }
+
+const isMissingActivityCountColumnError = (
+  error: { code?: string; message?: string } | null | undefined
+) => {
+  if (!error) return false
+  const message = String(error.message ?? '').toLowerCase()
+  return (
+    error.code === 'PGRST204' ||
+    error.code === '42703' ||
+    ACTIVITY_COUNT_COLUMNS.some((column) => message.includes(column))
+  )
+}
+
+const stripActivityCountColumns = (
+  rows: Array<Record<string, unknown>>
+): Array<Record<string, unknown>> =>
+  rows.map((row) => {
+    const next = { ...row }
+    for (const column of ACTIVITY_COUNT_COLUMNS) {
+      delete next[column]
+    }
+    return next
+  })
 
 const round = (value: number, decimals = 6) => {
   if (!Number.isFinite(value)) return 0
@@ -838,7 +866,21 @@ export const computePolymarketWalletRollups = async ({
       .upsert(summaryRows as any, { onConflict: 'wallet' } as any)
 
     if (summaryError) {
-      console.warn('[Polymarket Rollups] Failed to upsert summary:', summaryError)
+      if (isMissingActivityCountColumnError(summaryError)) {
+        const fallbackRows = stripActivityCountColumns(summaryRows)
+        const { error: fallbackSummaryError } = await supabase
+          .from('polymarket_wallet_summary' as any)
+          .upsert(fallbackRows as any, { onConflict: 'wallet' } as any)
+        if (fallbackSummaryError) {
+          console.warn('[Polymarket Rollups] Failed to upsert summary fallback:', fallbackSummaryError)
+        } else {
+          console.warn(
+            '[Polymarket Rollups] Upserted summary without activity count columns because schema is missing trade_count/buy_trade_count/sell_trade_count.'
+          )
+        }
+      } else {
+        console.warn('[Polymarket Rollups] Failed to upsert summary:', summaryError)
+      }
     }
   }
 
@@ -921,7 +963,24 @@ export const computePolymarketWalletRollups = async ({
       .upsert(sportSummaryRows as any, { onConflict: 'wallet,sport_label' } as any)
 
     if (sportSummaryError) {
-      console.warn('[Polymarket Rollups] Failed to upsert sport summary:', sportSummaryError)
+      if (isMissingActivityCountColumnError(sportSummaryError)) {
+        const fallbackSportRows = stripActivityCountColumns(sportSummaryRows)
+        const { error: fallbackSportSummaryError } = await supabase
+          .from('polymarket_wallet_sport_summary' as any)
+          .upsert(fallbackSportRows as any, { onConflict: 'wallet,sport_label' } as any)
+        if (fallbackSportSummaryError) {
+          console.warn(
+            '[Polymarket Rollups] Failed to upsert sport summary fallback:',
+            fallbackSportSummaryError
+          )
+        } else {
+          console.warn(
+            '[Polymarket Rollups] Upserted sport summary without activity count columns because schema is missing trade_count/buy_trade_count/sell_trade_count.'
+          )
+        }
+      } else {
+        console.warn('[Polymarket Rollups] Failed to upsert sport summary:', sportSummaryError)
+      }
     }
   }
 

@@ -13,6 +13,7 @@ const DEFAULT_LEADERBOARD_LIMIT = 25
 const FEED_SCAN_MULTIPLIER = 5
 const FEED_SCAN_FLOOR = 500
 const FEED_SCAN_CEILING = 2000
+const POSITION_SCAN_PAGE_SIZE = 250
 const FALLBACK_MIN_SETTLED_MARKETS = 5
 const DEFAULT_BETTOR_ELIGIBILITY = 'profitable'
 const PROFITABLE_MIN_BUY_TRADES = 20
@@ -317,10 +318,10 @@ export const isInvalidPolymarketBettorFeedSourceError = (error: unknown) =>
 const normalizePolymarketBettorDateWindow = (
   dateWindow?: string | null
 ): BettorDateWindow => {
-  if (!dateWindow) return 'all'
+  if (!dateWindow) return 'today'
   const normalized = dateWindow.trim().toLowerCase()
-  if (!normalized || normalized === 'all') return 'all'
-  if (normalized === 'today') return 'today'
+  if (!normalized || normalized === 'today') return 'today'
+  if (normalized === 'all') return 'all'
   if (normalized === 'tomorrow') return 'tomorrow'
   if (normalized === 'future') return 'future'
   throw new Error(`INVALID_BETTOR_DATE_WINDOW:${normalized}`)
@@ -508,15 +509,23 @@ const fetchEventMetadataForSlug = async (slug: string) => {
   return metadata
 }
 
-const loadEventMetadataForTrades = async (rows: WalletTradeRow[]) => {
-  const uniqueEventSlugs = Array.from(
-    new Set(rows.map((row) => row.event_slug ?? row.slug).filter(Boolean))
-  )
+const loadEventMetadataForSlugs = async (slugs: string[]) => {
+  const uniqueEventSlugs = Array.from(new Set(slugs.filter(Boolean)))
   const entries = await Promise.all(
     uniqueEventSlugs.map(async (slug) => [slug, await fetchEventMetadataForSlug(slug)] as const)
   )
   return new Map(entries)
 }
+
+const loadEventMetadataForTrades = async (rows: WalletTradeRow[]) =>
+  loadEventMetadataForSlugs(
+    rows.map((row) => row.event_slug ?? row.slug).filter(Boolean) as string[]
+  )
+
+const loadEventMetadataForPositions = async (rows: OpenPositionRow[]) =>
+  loadEventMetadataForSlugs(
+    rows.map((row) => row.event_slug ?? row.slug).filter(Boolean) as string[]
+  )
 
 export const buildBettorFeedTradePayload = ({
   row,
@@ -1225,66 +1234,99 @@ export const getPolymarketBettorFeed = async ({
   })
 
   if (normalizedSource === 'positions') {
-    let query = supabase
-      .from('polymarket_wallet_open_positions' as any)
-      .select(
-        'wallet, slug, event_slug, sport_label, title, outcome, outcome_index, net_shares, avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, last_trade_time, updated_at'
-      )
-      .in('wallet', walletList)
-      .in('sport_label', [...ALLOWED_POLYMARKET_SPORT_LABELS])
-
-    if (scope.sportFilter !== ALL_SPORTS_FILTER) {
-      query = query.eq('sport_label', scope.sportFilter)
-    }
-
     const positionScanLimit = Math.min(
       FEED_SCAN_CEILING,
       Math.max(FEED_SCAN_FLOOR, take * FEED_SCAN_MULTIPLIER)
     )
-    const { data: positionRows, error: positionError } = (await query
-      .order('stake_usd', { ascending: false })
-      .order('updated_at', { ascending: false })
-      .limit(positionScanLimit)) as unknown as {
-      data: OpenPositionRow[] | null
-      error: { message?: string } | null
-    }
-
-    if (positionError) {
-      console.warn('[Polymarket Bettor Feed] Failed to load open positions:', positionError)
-      return {
-        trades: [],
-        next_cursor: null,
-        has_more: false,
-        wallets_considered: walletSet.size,
-      }
-    }
-
     const now = new Date()
-    const feedRows = (positionRows ?? []).flatMap((row) => {
-      const eventDate = resolveEventDateFromPosition(row)
-      if (!matchesDateWindow(eventDate, normalizedDateWindow, now)) return []
-      const tradeTime = row.last_trade_time ?? row.updated_at
-      const tradeTsMs = new Date(tradeTime).getTime()
-      const syntheticRow: WalletTradeRow = {
-        wallet: row.wallet,
-        transaction_hash: `position:${row.wallet}:${row.slug}:${row.outcome_index}`,
-        trade_time: tradeTime,
-        trade_ts: Number.isFinite(tradeTsMs) ? Math.floor(tradeTsMs / 1000) : 0,
-        side: 'BUY',
-        size: Number(row.net_shares ?? 0),
-        price: row.avg_entry_price == null ? null : Number(row.avg_entry_price),
-        notional: Number(row.stake_usd ?? 0),
-        slug: row.slug,
-        event_slug: row.event_slug,
-        title: row.title,
-        outcome: row.outcome,
-        outcome_index: row.outcome_index,
-        sport_label: row.sport_label,
-      }
-      return [{ row: syntheticRow, eventDate }]
-    })
+    const collected: FeedTradeCandidate[] = []
+    let scannedRows = 0
+    let offset = 0
+    let exhausted = false
 
-    const rankedCandidates = [...feedRows].sort((left, right) => {
+    while (scannedRows < positionScanLimit && !exhausted) {
+      const pageSize = Math.min(
+        POSITION_SCAN_PAGE_SIZE,
+        positionScanLimit - scannedRows
+      )
+      const to = offset + pageSize - 1
+
+      let query = supabase
+        .from('polymarket_wallet_open_positions' as any)
+        .select(
+          'wallet, slug, event_slug, sport_label, title, outcome, outcome_index, net_shares, avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, last_trade_time, updated_at'
+        )
+        .in('wallet', walletList)
+        .in('sport_label', [...ALLOWED_POLYMARKET_SPORT_LABELS])
+
+      if (scope.sportFilter !== ALL_SPORTS_FILTER) {
+        query = query.eq('sport_label', scope.sportFilter)
+      }
+
+      const { data: positionRows, error: positionError } = (await query
+        .order('stake_usd', { ascending: false })
+        .order('updated_at', { ascending: false })
+        .range(offset, to)) as unknown as {
+        data: OpenPositionRow[] | null
+        error: { message?: string } | null
+      }
+
+      if (positionError) {
+        console.warn('[Polymarket Bettor Feed] Failed to load open positions:', positionError)
+        return {
+          trades: [],
+          next_cursor: null,
+          has_more: false,
+          wallets_considered: walletSet.size,
+        }
+      }
+
+      const rows = positionRows ?? []
+      if (!rows.length) {
+        exhausted = true
+        break
+      }
+
+      scannedRows += rows.length
+      offset += rows.length
+      if (rows.length < pageSize) exhausted = true
+
+      const eventMetadataMap = await loadEventMetadataForPositions(rows)
+      const positionCandidates = rows.flatMap((row) => {
+        const eventSlug = row.event_slug ?? row.slug
+        const eventDate =
+          eventMetadataMap.get(eventSlug)?.eventDate ??
+          resolveEventDateFromPosition(row)
+        if (!matchesDateWindow(eventDate, normalizedDateWindow, now)) return []
+        const tradeTime = row.last_trade_time ?? row.updated_at
+        const tradeTsMs = new Date(tradeTime).getTime()
+        const syntheticRow: WalletTradeRow = {
+          wallet: row.wallet,
+          transaction_hash: `position:${row.wallet}:${row.slug}:${row.outcome_index}`,
+          trade_time: tradeTime,
+          trade_ts: Number.isFinite(tradeTsMs) ? Math.floor(tradeTsMs / 1000) : 0,
+          side: 'BUY',
+          size: Number(row.net_shares ?? 0),
+          price: row.avg_entry_price == null ? null : Number(row.avg_entry_price),
+          notional: Number(row.stake_usd ?? 0),
+          slug: row.slug,
+          event_slug: row.event_slug,
+          title: row.title,
+          outcome: row.outcome,
+          outcome_index: row.outcome_index,
+          sport_label: row.sport_label,
+        }
+        return [{ row: syntheticRow, eventDate }]
+      })
+
+      collected.push(...positionCandidates)
+
+      if (collected.length >= take * FEED_SCAN_MULTIPLIER) {
+        break
+      }
+    }
+
+    const rankedCandidates = [...collected].sort((left, right) => {
       const notionalDiff = resolveTradeNotional(right.row) - resolveTradeNotional(left.row)
       if (notionalDiff !== 0) return notionalDiff
       return Number(right.row.trade_ts ?? 0) - Number(left.row.trade_ts ?? 0)

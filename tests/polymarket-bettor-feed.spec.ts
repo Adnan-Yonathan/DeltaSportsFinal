@@ -3,6 +3,7 @@ import {
   buildBettorFeedTradePayload,
   filterAndRankProfitableSummaries,
   isProfitableSummaryEligible,
+  isUpcomingPolymarketEventDate,
   normalizePolymarketBettorEligibility,
 } from '../lib/services/polymarket-bettor-feed'
 
@@ -59,6 +60,10 @@ const run = async () => {
     isProfitableSummaryEligible(buildSummary({ last_trade_time: isoDaysAgo(45) })),
     false
   )
+  assert.equal(isUpcomingPolymarketEventDate('2999-12-31T20:00:00.000Z'), true)
+  assert.equal(isUpcomingPolymarketEventDate('2000-01-01T20:00:00.000Z'), false)
+  assert.equal(isUpcomingPolymarketEventDate('2999-12-31'), true)
+  assert.equal(isUpcomingPolymarketEventDate(undefined), false)
 
   const ranked = filterAndRankProfitableSummaries([
     buildSummary({ wallet: 'wallet-a', roi_lifetime: 0.08, total_realized_pnl: 5000 }),
@@ -112,6 +117,7 @@ const run = async () => {
       sell_trade_count: 70,
     }),
     currentPriceCents: null,
+    eventDate: '2026-03-10T23:00:00.000Z',
   })
 
   assert.equal(payload.display_name, 'Wallet C')
@@ -120,6 +126,7 @@ const run = async () => {
   assert.equal(payload.current_price_cents, null)
   assert.equal(payload.current_american_odds, null)
   assert.equal(payload.price_move_cents, null)
+  assert.equal(payload.eventDate, '2026-03-10T23:00:00.000Z')
   assert.equal(payload.trade_count, 120)
   assert.equal(payload.buy_trade_count, 85)
   assert.equal(payload.global_trade_count, 180)

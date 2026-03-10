@@ -95,6 +95,7 @@ type BettorFeedTrade = {
   stake_usd: number | null
   trade_time: string
   sport: string
+  eventDate?: string | null
   slug: string
   title: string | null
   outcome: string | null
@@ -808,6 +809,7 @@ export default function SharpDetectorPanel({
       contracts: row.size ?? 0,
       timestamp: row.trade_time,
       sport: (row.sport || 'SPORTS').toUpperCase(),
+      eventDate: row.eventDate ?? undefined,
       slug: row.slug,
       outcomeIndex: row.outcome_index ?? undefined,
       side: row.side,

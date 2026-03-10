@@ -101,6 +101,8 @@ type OpenPositionRow = {
 
 type LeaderboardScope = typeof ALL_SPORTS_FILTER | string
 type BettorEligibility = 'profitable' | 'qualified'
+type BettorFeedSource = 'trades' | 'positions'
+type BettorDateWindow = 'all' | 'today' | 'tomorrow' | 'future'
 type WalletActivityCounts = {
   trade_count: number
   buy_trade_count: number
@@ -170,6 +172,37 @@ const parsePolymarketDateFromSlug = (slug?: string | null) => {
   if (!slug) return null
   const match = String(slug).match(/(\d{4}-\d{2}-\d{2})/)
   return match?.[1] ?? null
+}
+
+const addEasternDays = (dayKey: string, days: number) => {
+  const [yearRaw, monthRaw, dayRaw] = dayKey.split('-')
+  const year = Number(yearRaw)
+  const month = Number(monthRaw)
+  const day = Number(dayRaw)
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null
+  const utc = new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0))
+  if (!Number.isFinite(utc.getTime())) return null
+  return getEasternDayKey(utc)
+}
+
+const matchesDateWindow = (
+  eventDate: string | null | undefined,
+  window: BettorDateWindow,
+  now = new Date()
+) => {
+  if (window === 'all') return true
+  const eventDay =
+    eventDate && DATE_ONLY_PATTERN.test(eventDate)
+      ? eventDate
+      : eventDate
+        ? getEasternDayKey(eventDate)
+        : null
+  const todayKey = getEasternDayKey(now)
+  const tomorrowKey = todayKey ? addEasternDays(todayKey, 1) : null
+  if (!eventDay || !todayKey || !tomorrowKey) return false
+  if (window === 'today') return eventDay === todayKey
+  if (window === 'tomorrow') return eventDay === tomorrowKey
+  return eventDay > tomorrowKey
 }
 
 export const isUpcomingPolymarketEventDate = (
@@ -266,6 +299,36 @@ export const normalizePolymarketBettorEligibility = (
 export const isInvalidPolymarketBettorEligibilityError = (error: unknown) =>
   error instanceof Error &&
   error.message.startsWith('INVALID_BETTOR_ELIGIBILITY:')
+
+const normalizePolymarketBettorFeedSource = (
+  source?: string | null
+): BettorFeedSource => {
+  if (!source) return 'trades'
+  const normalized = source.trim().toLowerCase()
+  if (!normalized || normalized === 'trades') return 'trades'
+  if (normalized === 'positions') return 'positions'
+  throw new Error(`INVALID_BETTOR_FEED_SOURCE:${normalized}`)
+}
+
+export const isInvalidPolymarketBettorFeedSourceError = (error: unknown) =>
+  error instanceof Error &&
+  error.message.startsWith('INVALID_BETTOR_FEED_SOURCE:')
+
+const normalizePolymarketBettorDateWindow = (
+  dateWindow?: string | null
+): BettorDateWindow => {
+  if (!dateWindow) return 'all'
+  const normalized = dateWindow.trim().toLowerCase()
+  if (!normalized || normalized === 'all') return 'all'
+  if (normalized === 'today') return 'today'
+  if (normalized === 'tomorrow') return 'tomorrow'
+  if (normalized === 'future') return 'future'
+  throw new Error(`INVALID_BETTOR_DATE_WINDOW:${normalized}`)
+}
+
+export const isInvalidPolymarketBettorDateWindowError = (error: unknown) =>
+  error instanceof Error &&
+  error.message.startsWith('INVALID_BETTOR_DATE_WINDOW:')
 
 const profitableCutoffIso = () => {
   const cutoff = new Date()
@@ -402,6 +465,9 @@ const normalizeEventDate = (value: unknown) => {
   if (Number.isFinite(parsed.getTime())) return parsed.toISOString()
   return DATE_ONLY_PATTERN.test(trimmed) ? trimmed : null
 }
+
+const resolveEventDateFromPosition = (row: Pick<OpenPositionRow, 'event_slug' | 'slug'>) =>
+  parsePolymarketDateFromSlug(row.event_slug ?? row.slug)
 
 const fetchEventMetadataForSlug = async (slug: string) => {
   const cached = eventMetadataCache.get(slug)
@@ -1117,14 +1183,20 @@ export const getPolymarketBettorFeed = async ({
   sport,
   wallet,
   eligibility,
+  source,
+  dateWindow,
 }: {
   limit?: number
   cursor?: number
   sport?: string
   wallet?: string
   eligibility?: string
+  source?: string
+  dateWindow?: string
 } = {}) => {
   const normalizedWallet = normalizeWallet(wallet)
+  const normalizedSource = normalizePolymarketBettorFeedSource(source)
+  const normalizedDateWindow = normalizePolymarketBettorDateWindow(dateWindow)
   const scope = await loadLeaderboardScope({
     limit: normalizedWallet ? 1 : MAX_LIMIT,
     wallet: normalizedWallet ?? undefined,
@@ -1151,6 +1223,102 @@ export const getPolymarketBettorFeed = async ({
     wallets: Array.from(walletSet),
     sport: scope.sportFilter === ALL_SPORTS_FILTER ? undefined : scope.sportFilter,
   })
+
+  if (normalizedSource === 'positions') {
+    let query = supabase
+      .from('polymarket_wallet_open_positions' as any)
+      .select(
+        'wallet, slug, event_slug, sport_label, title, outcome, outcome_index, net_shares, avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, last_trade_time, updated_at'
+      )
+      .in('wallet', walletList)
+      .in('sport_label', [...ALLOWED_POLYMARKET_SPORT_LABELS])
+
+    if (scope.sportFilter !== ALL_SPORTS_FILTER) {
+      query = query.eq('sport_label', scope.sportFilter)
+    }
+
+    const positionScanLimit = Math.min(
+      FEED_SCAN_CEILING,
+      Math.max(FEED_SCAN_FLOOR, take * FEED_SCAN_MULTIPLIER)
+    )
+    const { data: positionRows, error: positionError } = (await query
+      .order('stake_usd', { ascending: false })
+      .order('updated_at', { ascending: false })
+      .limit(positionScanLimit)) as unknown as {
+      data: OpenPositionRow[] | null
+      error: { message?: string } | null
+    }
+
+    if (positionError) {
+      console.warn('[Polymarket Bettor Feed] Failed to load open positions:', positionError)
+      return {
+        trades: [],
+        next_cursor: null,
+        has_more: false,
+        wallets_considered: walletSet.size,
+      }
+    }
+
+    const now = new Date()
+    const feedRows = (positionRows ?? []).flatMap((row) => {
+      const eventDate = resolveEventDateFromPosition(row)
+      if (!matchesDateWindow(eventDate, normalizedDateWindow, now)) return []
+      const tradeTime = row.last_trade_time ?? row.updated_at
+      const tradeTsMs = new Date(tradeTime).getTime()
+      const syntheticRow: WalletTradeRow = {
+        wallet: row.wallet,
+        transaction_hash: `position:${row.wallet}:${row.slug}:${row.outcome_index}`,
+        trade_time: tradeTime,
+        trade_ts: Number.isFinite(tradeTsMs) ? Math.floor(tradeTsMs / 1000) : 0,
+        side: 'BUY',
+        size: Number(row.net_shares ?? 0),
+        price: row.avg_entry_price == null ? null : Number(row.avg_entry_price),
+        notional: Number(row.stake_usd ?? 0),
+        slug: row.slug,
+        event_slug: row.event_slug,
+        title: row.title,
+        outcome: row.outcome,
+        outcome_index: row.outcome_index,
+        sport_label: row.sport_label,
+      }
+      return [{ row: syntheticRow, eventDate }]
+    })
+
+    const rankedCandidates = [...feedRows].sort((left, right) => {
+      const notionalDiff = resolveTradeNotional(right.row) - resolveTradeNotional(left.row)
+      if (notionalDiff !== 0) return notionalDiff
+      return Number(right.row.trade_ts ?? 0) - Number(left.row.trade_ts ?? 0)
+    })
+    const hasMore = rankedCandidates.length > take
+    const slicedCandidates = rankedCandidates.slice(0, take)
+    const slicedRows = slicedCandidates.map((candidate) => candidate.row)
+    const currentPriceMap = await loadCurrentPricesForTrades(slicedRows)
+
+    return {
+      trades: slicedCandidates.map(({ row, eventDate }) => {
+        const profile = profiles.get(row.wallet)
+        const normalizedSport = String(row.sport_label ?? '').toUpperCase()
+        const activeSummary = activeSummaryMap.get(row.wallet)
+        const sportSummary =
+          sportSummaryMap.get(toSportSummaryKey(row.wallet, normalizedSport)) ?? activeSummary
+        const globalSummary = scope.globalMap.get(row.wallet) ?? activeSummary
+        const currentPriceCents =
+          currentPriceMap.get(`${row.slug}:${row.outcome_index ?? 'unknown'}`) ?? null
+
+        return buildBettorFeedTradePayload({
+          row,
+          profile,
+          sportSummary,
+          globalSummary,
+          currentPriceCents,
+          eventDate,
+        })
+      }),
+      next_cursor: null,
+      has_more: hasMore,
+      wallets_considered: walletSet.size,
+    }
+  }
 
   const collected: FeedTradeCandidate[] = []
   let pageCursor = Number.isFinite(cursor) ? Number(cursor) : null
@@ -1211,6 +1379,7 @@ export const getPolymarketBettorFeed = async ({
       const eventDate =
         eventMetadataMap.get(eventSlug)?.eventDate ?? parsePolymarketDateFromSlug(eventSlug)
       if (!isUpcomingPolymarketEventDate(eventDate)) return []
+      if (!matchesDateWindow(eventDate, normalizedDateWindow)) return []
       return [{ row, eventDate }]
     })
 

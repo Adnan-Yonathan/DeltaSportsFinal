@@ -133,7 +133,7 @@ type BettorPosition = {
 }
 
 type SharpTier = 'small' | 'blue' | 'mega' | 'nuke'
-type GamePhase = 'all' | 'live' | 'pregame'
+type SharpDateWindow = 'all' | 'today' | 'tomorrow' | 'future'
 type ActiveTab = 'bet-feed' | 'sharp-money'
 
 type SharpAlert = {
@@ -260,36 +260,10 @@ const normalizeWallet = (value?: string | null) => {
 
 const formatWalletAlias = (value?: string | null) => getWalletAlias(value)
 
-const parseEventTime = (value?: string | null) => {
-  if (!value) return null
-  const match = value.match(DATE_ONLY_PATTERN)
-  if (match) {
-    const year = Number(match[1])
-    const month = Number(match[2])
-    const day = Number(match[3])
-    const date = new Date(year, month - 1, day, 23, 59, 59, 999)
-    const time = date.getTime()
-    return Number.isFinite(time) ? time : null
-  }
-  const parsed = new Date(value)
-  const time = parsed.getTime()
-  return Number.isFinite(time) ? time : null
-}
-
-const resolveSharpMoneyPriorityTime = (trade: SharpTrade) => {
-  const eventTime = parseEventTime(trade.eventDate)
-  if (eventTime != null && eventTime > Date.now()) return eventTime
-  return Number.POSITIVE_INFINITY
-}
-
 const compareSharpMoneyPriority = (
   left: SharpTradeWithStatus,
   right: SharpTradeWithStatus
 ) => {
-  const leftStart = resolveSharpMoneyPriorityTime(left)
-  const rightStart = resolveSharpMoneyPriorityTime(right)
-  if (leftStart !== rightStart) return leftStart - rightStart
-
   const notionalDiff = (right.notional ?? 0) - (left.notional ?? 0)
   if (notionalDiff !== 0) return notionalDiff
 
@@ -298,23 +272,32 @@ const compareSharpMoneyPriority = (
   return rightDetected - leftDetected
 }
 
-const isPastEvent = (trade: SharpTrade) => {
-  if (!trade.eventDate) return false
+const matchesSharpDateWindow = (
+  trade: SharpTrade,
+  dateWindow: SharpDateWindow
+) => {
+  if (dateWindow === 'all') return true
+  const eventKey = resolveTradeDateKey(trade)
   const todayKey = getEasternDateKey(new Date())
-  const eventKey = trade.eventDate.match(DATE_ONLY_PATTERN)
-    ? trade.eventDate
-    : getEasternDateKey(trade.eventDate)
-  if (!todayKey || !eventKey) return false
-  return eventKey < todayKey
+  if (!eventKey || !todayKey) return false
+
+  const todayDate = new Date(`${todayKey}T12:00:00Z`)
+  if (!Number.isFinite(todayDate.getTime())) return false
+  const tomorrowDate = new Date(todayDate.getTime())
+  tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1)
+  const tomorrowKey = getEasternDateKey(tomorrowDate)
+  if (!tomorrowKey) return false
+
+  if (dateWindow === 'today') return eventKey === todayKey
+  if (dateWindow === 'tomorrow') return eventKey === tomorrowKey
+  return eventKey > tomorrowKey
 }
 
 const resolvePhase = (trade: SharpTrade) => {
-  if (!trade.eventDate) return 'Pregame'
-  const eventTime = parseEventTime(trade.eventDate)
-  if (eventTime == null || !Number.isFinite(eventTime)) return 'Pregame'
-  const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0)
-  return eventTime < todayStart.getTime() ? 'Live' : 'Pregame'
+  const eventKey = resolveTradeDateKey(trade)
+  const todayKey = getEasternDateKey(new Date())
+  if (!eventKey || !todayKey) return 'Pregame'
+  return eventKey < todayKey ? 'Live' : 'Pregame'
 }
 
 const resolveSharpTier = (notional: number): SharpTier => {
@@ -472,25 +455,6 @@ const resolveTradeDateKey = (trade: SharpTrade) => {
 
 const isLiquidityTrade = (trade: SharpTrade) => trade.id?.startsWith('liquidity:')
 
-// Phase filter helper
-const filterByPhase = (trades: SharpTradeWithStatus[], phase: GamePhase): SharpTradeWithStatus[] => {
-  if (phase === 'all') return trades
-
-  return trades.filter(trade => {
-    const eventDate = trade.eventDate
-    if (!eventDate) return phase === 'pregame' // Unknown = treat as pregame
-
-    const eventTime = parseEventTime(eventDate)
-    if (!eventTime) return phase === 'pregame'
-
-    const now = Date.now()
-    const fourHoursMs = 4 * 60 * 60 * 1000
-    const isLive = eventTime <= now && eventTime > now - fourHoursMs
-
-    return phase === 'live' ? isLive : !isLive
-  })
-}
-
 // Alert Banner Component
 const SharpAlertBanner = ({
   alert,
@@ -544,7 +508,7 @@ export default function SharpDetectorPanel({
   panelTitle?: string
 }) {
   const [activeTab, setActiveTab] = useState<ActiveTab>(lockedTab ?? defaultTab)
-  const [phaseFilter, setPhaseFilter] = useState<GamePhase>('all')
+  const [sharpDateWindow, setSharpDateWindow] = useState<SharpDateWindow>('all')
   const [alerts, setAlerts] = useState<SharpAlert[]>([])
   const [alertsEnabled, setAlertsEnabled] = useState(true)
   const sharpMoneySeenIds = useRef<Set<string>>(new Set())
@@ -847,10 +811,10 @@ export default function SharpDetectorPanel({
   }, [bettorFeedRows, bettorWalletFilter])
 
   const sharpMoneyTrades = useMemo(() => {
-    const phaseFiltered = filterByPhase(sharpMoneySourceTrades, phaseFilter).filter(
-      (trade) => !isPastEvent(trade)
+    const dateFiltered = sharpMoneySourceTrades.filter((trade) =>
+      matchesSharpDateWindow(trade, sharpDateWindow)
     )
-    return phaseFiltered
+    return dateFiltered
       .map((trade) => ({
         trade,
         minNotional: 0,
@@ -858,7 +822,7 @@ export default function SharpDetectorPanel({
       .sort((a, b) => {
         return compareSharpMoneyPriority(a.trade, b.trade)
       })
-  }, [sharpMoneySourceTrades, phaseFilter])
+  }, [sharpMoneySourceTrades, sharpDateWindow])
 
   const activeSportsWithSharpMoney = useMemo(() => {
     const sports = new Map<string, number>()
@@ -958,6 +922,8 @@ export default function SharpDetectorPanel({
       params.set('limit', '200')
       params.set('sport', bettorSportFilter)
       params.set('eligibility', 'profitable')
+      params.set('source', 'positions')
+      params.set('dateWindow', sharpDateWindow)
       if (bettorWalletFilter !== 'all') {
         params.set('wallet', bettorWalletFilter)
       }
@@ -982,7 +948,7 @@ export default function SharpDetectorPanel({
     } finally {
       setBettorLoading(false)
     }
-  }, [bettorSportFilter, bettorWalletFilter])
+  }, [bettorSportFilter, bettorWalletFilter, sharpDateWindow])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1448,7 +1414,7 @@ export default function SharpDetectorPanel({
             <div className="flex items-center gap-3">
               <h3 className="text-sm font-medium text-white/80 flex items-center gap-2">
                 <Zap className="w-4 h-4 text-emerald-400" />
-                Profitable Bettor Tape
+                Open Positions Feed
               </h3>
               {activeSportsWithSharpMoney.length > 0 && (
                 <div className="flex items-center gap-1.5">
@@ -1464,15 +1430,15 @@ export default function SharpDetectorPanel({
               )}
             </div>
             <div className="flex items-center gap-3">
-              {/* Phase Filter */}
               <select
-                value={phaseFilter}
-                onChange={(e) => setPhaseFilter(e.target.value as GamePhase)}
+                value={sharpDateWindow}
+                onChange={(e) => setSharpDateWindow(e.target.value as SharpDateWindow)}
                 className="px-2.5 py-1.5 rounded-lg border border-white/10 bg-black text-[11px] text-white/80 focus:outline-none focus:border-emerald-500/50"
               >
-                <option value="all">All Games</option>
-                <option value="pregame">Pre-game Only</option>
-                <option value="live">Live Only</option>
+                <option value="all">All Dates</option>
+                <option value="today">Today</option>
+                <option value="tomorrow">Tomorrow</option>
+                <option value="future">Future</option>
               </select>
               <select
                 value={bettorSportFilter}
@@ -1553,10 +1519,10 @@ export default function SharpDetectorPanel({
           <div className="rounded-2xl border border-white/10 bg-black/40 p-8 text-center">
             <Zap className="w-10 h-10 text-white/20 mx-auto mb-3" />
             <p className="text-white/60 text-sm">
-              No profitable bettor prints detected right now.
+              No open positions match the current filters.
             </p>
             <p className="text-white/40 text-[11px] mt-1">
-              This stream only includes profitable Polymarket sports bettors with positive ROI and enough sample.
+              Try switching sport/date filters or selecting all bettors.
             </p>
           </div>
         )}

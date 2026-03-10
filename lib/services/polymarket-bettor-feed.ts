@@ -10,6 +10,7 @@ import {
 const MAX_LIMIT = 200
 const DEFAULT_FEED_LIMIT = 50
 const DEFAULT_LEADERBOARD_LIMIT = 25
+const FALLBACK_MIN_SETTLED_MARKETS = 5
 
 type WalletProfileRow = {
   wallet: string
@@ -166,6 +167,40 @@ const loadGlobalQualifiedSummaries = async ({
   return (data ?? []) as WalletSummaryRow[]
 }
 
+const loadGlobalFallbackSummaries = async ({
+  limit,
+  wallet,
+}: {
+  limit?: number
+  wallet?: string
+}) => {
+  const supabase = createServiceClient()
+  const take = safeLimit(limit, DEFAULT_LEADERBOARD_LIMIT)
+  let query = supabase
+    .from('polymarket_wallet_summary' as any)
+    .select('*')
+    .eq('qualification_status', 'watchlist')
+    .gte('settled_markets', FALLBACK_MIN_SETTLED_MARKETS)
+    .not('last_trade_time', 'is', null)
+
+  if (wallet) {
+    query = query.eq('wallet', wallet)
+  }
+
+  const { data, error } = await query
+    .order('risk_adjusted_score', { ascending: false })
+    .order('settled_markets', { ascending: false })
+    .order('total_realized_pnl', { ascending: false })
+    .limit(take)
+
+  if (error) {
+    console.warn('[Polymarket Bettor Feed] Failed to load fallback global summaries:', error)
+    return [] as WalletSummaryRow[]
+  }
+
+  return (data ?? []) as WalletSummaryRow[]
+}
+
 const loadSportQualifiedSummaries = async ({
   limit,
   wallet,
@@ -194,6 +229,43 @@ const loadSportQualifiedSummaries = async ({
 
   if (error) {
     console.warn('[Polymarket Bettor Feed] Failed to load qualified sport summaries:', error)
+    return [] as WalletSportSummaryRow[]
+  }
+
+  return (data ?? []) as WalletSportSummaryRow[]
+}
+
+const loadSportFallbackSummaries = async ({
+  limit,
+  wallet,
+  sport,
+}: {
+  limit?: number
+  wallet?: string
+  sport: string
+}) => {
+  const supabase = createServiceClient()
+  const take = safeLimit(limit, DEFAULT_LEADERBOARD_LIMIT)
+  let query = supabase
+    .from('polymarket_wallet_sport_summary' as any)
+    .select('*')
+    .eq('qualification_status', 'watchlist')
+    .eq('sport_label', sport)
+    .gte('settled_markets', FALLBACK_MIN_SETTLED_MARKETS)
+    .not('last_trade_time', 'is', null)
+
+  if (wallet) {
+    query = query.eq('wallet', wallet)
+  }
+
+  const { data, error } = await query
+    .order('risk_adjusted_score', { ascending: false })
+    .order('settled_markets', { ascending: false })
+    .order('total_realized_pnl', { ascending: false })
+    .limit(take)
+
+  if (error) {
+    console.warn('[Polymarket Bettor Feed] Failed to load fallback sport summaries:', error)
     return [] as WalletSportSummaryRow[]
   }
 
@@ -256,6 +328,25 @@ const loadQualifiedSportWalletSet = async (wallets: string[]) => {
   return new Set((data ?? []).map((row) => row.wallet))
 }
 
+const loadGlobalSummariesForWallets = async (wallets: string[]) => {
+  if (!wallets.length) return new Map<string, WalletSummaryRow>()
+  const supabase = createServiceClient()
+  const { data, error } = (await supabase
+    .from('polymarket_wallet_summary' as any)
+    .select('*')
+    .in('wallet', wallets.slice(0, 500))) as unknown as {
+    data: WalletSummaryRow[] | null
+    error: { message?: string } | null
+  }
+
+  if (error) {
+    console.warn('[Polymarket Bettor Feed] Failed to load global summaries by wallet:', error)
+    return new Map<string, WalletSummaryRow>()
+  }
+
+  return new Map((data ?? []).map((row) => [row.wallet, row]))
+}
+
 const loadLeaderboardScope = async ({
   limit,
   wallet,
@@ -270,15 +361,26 @@ const loadLeaderboardScope = async ({
     limit: sportFilter === ALL_SPORTS_FILTER ? limit : MAX_LIMIT,
     wallet,
   })
-  const globalMap = new Map(globalRows.map((row) => [row.wallet, row]))
+  let globalMap = new Map(globalRows.map((row) => [row.wallet, row]))
 
   if (sportFilter === ALL_SPORTS_FILTER) {
     const allowedWalletSet = await loadQualifiedSportWalletSet(
       globalRows.map((row) => row.wallet)
     )
-    const filteredGlobalRows = globalRows.filter((row) =>
+    let filteredGlobalRows = globalRows.filter((row) =>
       allowedWalletSet.has(row.wallet)
     )
+
+    if (!filteredGlobalRows.length) {
+      filteredGlobalRows = await loadGlobalFallbackSummaries({ limit, wallet })
+      globalMap = new Map(filteredGlobalRows.map((row) => [row.wallet, row]))
+      if (filteredGlobalRows.length) {
+        console.warn(
+          `[Polymarket Bettor Feed] No qualified wallets available; using ${filteredGlobalRows.length} watchlist wallets as fallback.`
+        )
+      }
+    }
+
     return {
       sportFilter,
       activeRows: filteredGlobalRows.map((row) => ({
@@ -295,9 +397,31 @@ const loadLeaderboardScope = async ({
     sport: sportFilter,
   })
 
+  if (sportRows.length) {
+    return {
+      sportFilter,
+      activeRows: sportRows,
+      globalMap,
+    }
+  }
+
+  const fallbackSportRows = await loadSportFallbackSummaries({
+    limit,
+    wallet,
+    sport: sportFilter,
+  })
+  if (fallbackSportRows.length) {
+    globalMap = await loadGlobalSummariesForWallets(
+      fallbackSportRows.map((row) => row.wallet)
+    )
+    console.warn(
+      `[Polymarket Bettor Feed] No qualified ${sportFilter} wallets available; using ${fallbackSportRows.length} watchlist wallets as fallback.`
+    )
+  }
+
   return {
     sportFilter,
-    activeRows: sportRows,
+    activeRows: fallbackSportRows,
     globalMap,
   }
 }

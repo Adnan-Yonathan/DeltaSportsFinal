@@ -88,14 +88,17 @@ type PolymarketTradeApi = {
 type PolymarketMarketApi = {
   id?: string
   slug?: string
-  resolved?: boolean
+  resolved?: boolean | null
+  closed?: boolean | null
   resolvedTime?: string | null
   resolvedAt?: string | null
   resolutionTime?: string | null
   closedTime?: string | null
   winningOutcome?: string | null
   winningOutcomeIndex?: number | null
-  outcomes?: string
+  outcomes?: string | string[] | null
+  outcomePrices?: string | Array<string | number> | null
+  umaResolutionStatus?: string | null
 }
 
 type WalletRow = {
@@ -168,6 +171,35 @@ const parseJsonArray = <T,>(value?: string | null): T[] => {
   } catch {
     return []
   }
+}
+
+const parseStringOrArray = <T,>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[]
+  if (typeof value === 'string') return parseJsonArray<T>(value)
+  return []
+}
+
+const parseOutcomePriceArray = (value: unknown) => {
+  const raw = parseStringOrArray<unknown>(value)
+  return raw.map((entry) => {
+    const numeric = Number(entry)
+    return Number.isFinite(numeric) ? numeric : null
+  })
+}
+
+const resolveWinningOutcomeIndexFromPrices = (prices: Array<number | null>) => {
+  const finite = prices
+    .map((value, index) => ({ value, index }))
+    .filter((entry) => entry.value != null) as Array<{ value: number; index: number }>
+  if (!finite.length) return null
+
+  const sorted = [...finite].sort((a, b) => b.value - a.value)
+  const best = sorted[0]
+  const secondBest = sorted[1]?.value ?? 0
+
+  // Resolved markets publish binary prices; require a clear winner to avoid false positives.
+  if (best.value < 0.98 || secondBest > 0.02) return null
+  return best.index
 }
 
 const eventCache = new Map<
@@ -451,7 +483,35 @@ const fetchMarketOutcome = async (slug: string) => {
       : []
   const market = (markets[0] ?? null) as PolymarketMarketApi | null
   if (!market?.slug) return null
-  const outcomes = parseJsonArray<string>(market.outcomes)
+  const outcomes = parseStringOrArray<string>(market.outcomes).map((value) => String(value))
+  const outcomePrices = parseOutcomePriceArray(market.outcomePrices)
+  const explicitWinningOutcomeIndex =
+    market.winningOutcomeIndex != null && Number.isFinite(Number(market.winningOutcomeIndex))
+      ? Number(market.winningOutcomeIndex)
+      : null
+  const winningOutcomeFromName =
+    market.winningOutcome && outcomes.length
+      ? outcomes.findIndex(
+          (candidate) =>
+            candidate.trim().toLowerCase() === String(market.winningOutcome).trim().toLowerCase()
+        )
+      : -1
+  const inferredWinningOutcomeIndex = resolveWinningOutcomeIndexFromPrices(outcomePrices)
+  const winningOutcomeIndex =
+    explicitWinningOutcomeIndex ??
+    (winningOutcomeFromName >= 0 ? winningOutcomeFromName : null) ??
+    inferredWinningOutcomeIndex
+  const status = String(market.umaResolutionStatus ?? '').trim().toLowerCase()
+  const resolvedByStatus =
+    status === 'resolved' || status === 'settled' || status === 'finalized'
+  const resolved =
+    typeof market.resolved === 'boolean'
+      ? market.resolved
+      : resolvedByStatus || (market.closed === true && winningOutcomeIndex != null)
+  const winningOutcome =
+    winningOutcomeIndex != null && winningOutcomeIndex >= 0 && winningOutcomeIndex < outcomes.length
+      ? outcomes[winningOutcomeIndex]
+      : market.winningOutcome ?? null
   const resolvedAtRaw =
     market.resolvedTime ??
     market.resolvedAt ??
@@ -466,10 +526,9 @@ const fetchMarketOutcome = async (slug: string) => {
   return {
     slug: market.slug,
     marketId: market.id ?? null,
-    resolved: Boolean(market.resolved),
-    winningOutcomeIndex:
-      market.winningOutcomeIndex != null ? Number(market.winningOutcomeIndex) : null,
-    winningOutcome: market.winningOutcome ?? null,
+    resolved,
+    winningOutcomeIndex,
+    winningOutcome,
     outcomes,
     resolvedAt: resolvedAtIso,
   }

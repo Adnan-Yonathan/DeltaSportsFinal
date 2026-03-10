@@ -876,7 +876,10 @@ export default function SharpDetectorPanel({
           cache: 'no-store',
         }
       )
-      const leaderboardPayload = leaderboardRes.ok ? await leaderboardRes.json() : { bettors: [] }
+      if (!leaderboardRes.ok) {
+        throw new Error(`Bettor leaderboard request failed (${leaderboardRes.status})`)
+      }
+      const leaderboardPayload = await leaderboardRes.json()
       const leaderboardRows: BettorLeaderboardRow[] = Array.isArray(leaderboardPayload?.bettors)
         ? leaderboardPayload.bettors
         : []
@@ -891,7 +894,10 @@ export default function SharpDetectorPanel({
       const feedRes = await fetch(`/api/polymarket/bettors/feed?${params.toString()}`, {
         cache: 'no-store',
       })
-      const feedPayload = feedRes.ok ? await feedRes.json() : { trades: [] }
+      if (!feedRes.ok) {
+        throw new Error(`Bettor feed request failed (${feedRes.status})`)
+      }
+      const feedPayload = await feedRes.json()
       const feedRows: BettorFeedTrade[] = Array.isArray(feedPayload?.trades)
         ? feedPayload.trades
         : []

@@ -1324,7 +1324,7 @@ const fetchExchangePropOrderbookItems = async (opts: {
       if (reachedSportLimit()) break
       if (items.length >= limit) break
       const eventDate = resolveEventDate(event?.commence_time)
-      if (!eventDate || eventDate < today) continue
+      if (!eventDate || eventDate !== today) continue
       const gameLabel = `${event?.away_team ?? 'Away'} @ ${event?.home_team ?? 'Home'}`
 
       for (const bookmaker of event.bookmakers ?? []) {
@@ -1707,7 +1707,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
       const markets = await fetchKalshiPropMarkets(series.ticker, kalshiPageLimit)
       const upcoming = markets.filter((market) => {
         const eventDate = parseKalshiDate(market.ticker)
-        return Boolean(eventDate && eventDate >= today)
+        return Boolean(eventDate && eventDate === today)
       })
       const remaining = collectionLimit - kalshiItems.length
       if (remaining <= 0) break
@@ -1902,7 +1902,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           if (!sportMeta) continue
           if (sportFilter !== 'all' && sportMeta.sportKey !== sportFilter) continue
           const eventDate = resolvePolymarketEventDate(market)
-          if (!eventDate || eventDate < today) continue
+          if (!eventDate || eventDate !== today) continue
           const question = market.question || market.title
           if (!question) continue
           if (!isPlayerPropQuestion(question.trim())) continue
@@ -2965,7 +2965,7 @@ export const mapLiquiditySignalsToPlayerPropTrades = (signals: PropLiquiditySign
     americanOdds: signal.americanOdds,
     priceCents: signal.priceCents,
     tradeTime: signal.timestamp,
-    eventTime: signal.eventDate ? `${signal.eventDate}T20:00:00Z` : signal.timestamp,
+    eventTime: signal.eventDate ? `${signal.eventDate}T20:00:00Z` : '',
     marketTitle: signal.marketTitle,
     outcome: signal.outcome,
   }))

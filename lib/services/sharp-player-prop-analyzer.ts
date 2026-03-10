@@ -8,6 +8,7 @@ import {
 } from './prop-liquidity-detector'
 import { fetchSbdGamePropsList, resolveSbdLeague, type SbdLeague } from '@/lib/api/sbd'
 import { oddsToImpliedProbability, probabilityToAmericanOdds } from '@/lib/utils/statistics'
+import { getUsMarketDayKey, resolveEventDayKey } from '@/lib/utils/upcoming-event-filter'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -509,9 +510,14 @@ export const analyzeSharpPlayerProps = async (
 
   const liquidityTrades = mapLiquiditySignalsToPlayerPropTrades(liquiditySignals)
   const combinedTrades = [...trades, ...liquidityTrades]
+  const todayKey = getUsMarketDayKey()
+  const sameDayTrades = combinedTrades.filter((trade) => {
+    const eventDay = resolveEventDayKey(trade.eventTime)
+    return eventDay != null && eventDay === todayKey
+  })
 
   // Aggregate trades by player/prop/line/side
-  const grouped = aggregateTradesByProp(combinedTrades, minNotional)
+  const grouped = aggregateTradesByProp(sameDayTrades, minNotional)
 
   // Build aggregated prop bets
   const props: AggregatedPlayerPropBet[] = []
@@ -650,6 +656,6 @@ export const analyzeSharpPlayerProps = async (
     props: limitedProps,
     topPicks,
     clusterAlerts,
-    totalTrades: combinedTrades.length,
+    totalTrades: sameDayTrades.length,
   }
 }

@@ -17,6 +17,7 @@ import { isWithinSharpRefreshWindow } from '@/lib/utils/sharp-refresh-window'
 import {
   filterUpcomingEventItems,
   getUsMarketDayKey,
+  resolveEventDayKey,
 } from '@/lib/utils/upcoming-event-filter'
 
 export const dynamic = 'force-dynamic'
@@ -46,6 +47,8 @@ type PersistedPayload = {
   items: PropOrderbookItem[]
 }
 
+type DateWindow = 'today' | 'upcoming'
+
 const buildCacheKey = (sport: string, depth: number, minSharpNotional: number) =>
   `sport:${sport}:depth:${depth}:min:${minSharpNotional}`
 
@@ -64,6 +67,18 @@ const parsePersistedPayload = (value: unknown): PersistedPayload | null => {
   return payload as PersistedPayload
 }
 
+const filterItemsByDateWindow = (
+  items: PropOrderbookItem[],
+  todayKey: string,
+  dateWindow: DateWindow
+) => {
+  if (dateWindow === 'upcoming') {
+    return filterUpcomingEventItems(items, todayKey)
+  }
+
+  return items.filter((item) => resolveEventDayKey(item.eventDate) === todayKey)
+}
+
 const buildCachedResponse = (
   sport: string,
   normalizedLimit: number,
@@ -71,9 +86,10 @@ const buildCachedResponse = (
   cacheSource: 'persistent' | 'persistent_all_fallback',
   fetchedAt: string | null,
   cacheAgeMs: number | null,
-  todayKey: string
+  todayKey: string,
+  dateWindow: DateWindow
 ) => {
-  const upcomingItems = filterUpcomingEventItems(cachedPayload.items, todayKey)
+  const upcomingItems = filterItemsByDateWindow(cachedPayload.items, todayKey, dateWindow)
   const items =
     sport === 'all'
       ? upcomingItems
@@ -103,6 +119,7 @@ export async function GET(req: NextRequest) {
     const sport = searchParams.get('sport') || 'all'
     const forceRefresh = searchParams.get('refresh') === '1'
     const requestedModeParam = searchParams.get('mode')
+    const dateWindowParam = searchParams.get('dateWindow')
     const limit = Number(searchParams.get('limit') || 60)
     const depth = Number(searchParams.get('depth') || 8)
     const minSharpNotional = Number(searchParams.get('minSharpNotional') || 100)
@@ -128,6 +145,7 @@ export async function GET(req: NextRequest) {
         ? requestedModeParam
         : null
     const mode = requestedMode ?? (effectiveForceRefresh ? 'full' : 'fast')
+    const dateWindow: DateWindow = dateWindowParam === 'upcoming' ? 'upcoming' : 'today'
     const todayKey = getUsMarketDayKey()
 
     const canUsePersistentCache =
@@ -149,7 +167,8 @@ export async function GET(req: NextRequest) {
             'persistent',
             cachedExact?.fetched_at ?? null,
             exactAgeMs,
-            todayKey
+            todayKey,
+            dateWindow
           )
         }
 
@@ -166,7 +185,8 @@ export async function GET(req: NextRequest) {
               'persistent_all_fallback',
               cachedAll?.fetched_at ?? null,
               allAgeMs,
-              todayKey
+              todayKey,
+              dateWindow
             )
           }
         }
@@ -204,7 +224,8 @@ export async function GET(req: NextRequest) {
           'persistent',
           cachedExact?.fetched_at ?? null,
           exactAgeMs,
-          todayKey
+          todayKey,
+          dateWindow
         )
       }
 
@@ -222,7 +243,8 @@ export async function GET(req: NextRequest) {
             'persistent_all_fallback',
             cachedAll?.fetched_at ?? null,
             allAgeMs,
-            todayKey
+            todayKey,
+            dateWindow
           )
         }
       }
@@ -240,7 +262,7 @@ export async function GET(req: NextRequest) {
       minSharpNotional: normalizedMinSharpNotional,
       mode,
     })
-    const snapshotItems = filterUpcomingEventItems(snapshot.items, todayKey)
+    const snapshotItems = filterItemsByDateWindow(snapshot.items, todayKey, dateWindow)
 
     let persisted = false
     let cacheWriteSkippedDegraded = false
@@ -254,7 +276,7 @@ export async function GET(req: NextRequest) {
       const existingCache = await getPropOrderbooksCache(cacheKey)
       const existingPayload = parsePersistedPayload(existingCache?.payload)
       const existingItems = existingPayload
-        ? filterUpcomingEventItems(existingPayload.items, todayKey)
+        ? filterItemsByDateWindow(existingPayload.items, todayKey, dateWindow)
         : []
       const shouldPersist =
         !existingPayload ||

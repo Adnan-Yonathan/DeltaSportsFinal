@@ -905,7 +905,7 @@ export const fetchPlayerPropWhaleTrades = async ({
     .eq('market_type', 'player_prop')
     .gte('trade_time', tradeWindowStart.toISOString())
     // event_time can be midnight UTC for date-only events; use event_date to keep today's slate
-    .gte('event_date', todayLabel)
+    .eq('event_date', todayLabel)
     .order('trade_time', { ascending: false })
     .limit(limit)
 

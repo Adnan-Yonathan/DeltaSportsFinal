@@ -84,7 +84,7 @@ const MORE_SOCIAL_LINKS: MoreLink[] = [
     href: 'https://www.instagram.com/deltasportsai?igsh=dXcweHRiNGt5eXQ2',
     external: true,
   },
-  { key: 'social-discord', label: 'Discord', href: 'https://discord.gg/NgCgk47N', external: true },
+  { key: 'social-discord', label: 'Discord', href: 'https://discord.gg/SBB4QAQQ', external: true },
 ]
 
 const MORE_GUIDE_LINKS: MoreLink[] = [

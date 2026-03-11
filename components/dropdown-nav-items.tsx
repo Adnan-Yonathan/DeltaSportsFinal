@@ -127,7 +127,7 @@ export const DROPDOWN_NAV_ITEMS: DropdownNavigationItem[] = [
             label: "Discord",
             description: "Join the community",
             icon: MessageSquare,
-            href: "https://discord.gg/NgCgk47N",
+            href: "https://discord.gg/SBB4QAQQ",
             external: true,
           },
           {

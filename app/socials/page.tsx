@@ -11,7 +11,7 @@ const SOCIAL_LINKS = [
   },
   {
     label: 'Discord',
-    href: 'https://discord.gg/NgCgk47N',
+    href: 'https://discord.gg/SBB4QAQQ',
     description: 'Community discussion, alerts, and member chat.',
   },
   {

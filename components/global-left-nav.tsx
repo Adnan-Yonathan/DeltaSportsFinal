@@ -72,7 +72,7 @@ const NAV_ITEMS: NavItem[] = [
         href: "https://www.instagram.com/deltasportsai?igsh=dXcweHRiNGt5eXQ2",
         external: true,
       },
-      { key: "social-discord", label: "Discord", href: "https://discord.gg/NgCgk47N", external: true },
+      { key: "social-discord", label: "Discord", href: "https://discord.gg/SBB4QAQQ", external: true },
     ],
   },
   { key: "blog", label: "Blog", href: "/blog", icon: Newspaper },

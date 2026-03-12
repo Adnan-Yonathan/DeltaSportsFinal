@@ -1510,6 +1510,32 @@ export const getPolymarketBettorFeed = async ({
     wallets: Array.from(walletSet),
     sport: scope.sportFilter === ALL_SPORTS_FILTER ? undefined : scope.sportFilter,
   })
+  const resolveCandidateRelativeRatio = (candidate: FeedTradeCandidate) => {
+    const normalizedSport = String(candidate.row.sport_label ?? '').toUpperCase()
+    const activeSummary = activeSummaryMap.get(candidate.row.wallet)
+    const sportSummary =
+      sportSummaryMap.get(toSportSummaryKey(candidate.row.wallet, normalizedSport)) ?? activeSummary
+    const globalSummary = scope.globalMap.get(candidate.row.wallet) ?? activeSummary
+    const avgBetSize = resolvePreferredPositiveMetric(
+      sportSummary?.avg_bet_size,
+      globalSummary?.avg_bet_size
+    )
+    const notional = resolveTradeNotional(candidate.row)
+    if (!Number.isFinite(notional) || notional <= 0 || avgBetSize <= 0) {
+      return Number.NEGATIVE_INFINITY
+    }
+    return notional / avgBetSize
+  }
+  const compareCandidatesByRelativeBet = (
+    left: FeedTradeCandidate,
+    right: FeedTradeCandidate
+  ) => {
+    const ratioDiff = resolveCandidateRelativeRatio(right) - resolveCandidateRelativeRatio(left)
+    if (ratioDiff !== 0) return ratioDiff
+    const timeDiff = Number(right.row.trade_ts ?? 0) - Number(left.row.trade_ts ?? 0)
+    if (timeDiff !== 0) return timeDiff
+    return resolveTradeNotional(right.row) - resolveTradeNotional(left.row)
+  }
 
   if (normalizedSource === 'positions') {
     const positionScanLimit = Math.min(
@@ -1609,13 +1635,9 @@ export const getPolymarketBettorFeed = async ({
       }
     }
 
-    const rankedCandidates = [...collected].sort((left, right) => {
-      const notionalDiff = resolveTradeNotional(right.row) - resolveTradeNotional(left.row)
-      if (notionalDiff !== 0) return notionalDiff
-      return Number(right.row.trade_ts ?? 0) - Number(left.row.trade_ts ?? 0)
-    })
+    const rankedCandidates = [...collected].sort(compareCandidatesByRelativeBet)
     const hasMore = rankedCandidates.length > take
-    const slicedCandidates = diversifyFeedTradeCandidates(rankedCandidates, take)
+    const slicedCandidates = rankedCandidates.slice(0, take)
     const slicedRows = slicedCandidates.map((candidate) => candidate.row)
     const currentPriceMap = await loadCurrentPricesForTrades(slicedRows)
 
@@ -1728,9 +1750,9 @@ export const getPolymarketBettorFeed = async ({
     }
   }
 
-  const rankedCandidates = [...collected].sort(compareFeedTradeCandidates)
+  const rankedCandidates = [...collected].sort(compareCandidatesByRelativeBet)
   const hasMore = !exhausted || rankedCandidates.length > take
-  const slicedCandidates = diversifyFeedTradeCandidates(rankedCandidates, take)
+  const slicedCandidates = rankedCandidates.slice(0, take)
   const slicedRows = slicedCandidates.map((candidate) => candidate.row)
   const nextCursor = !exhausted ? pageCursor : null
   const currentPriceMap = await loadCurrentPricesForTrades(slicedRows)

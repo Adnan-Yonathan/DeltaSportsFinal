@@ -449,13 +449,13 @@ export default function SharpMoneyFeedClient() {
                     <TableHeader className="bg-black/70">
                       <TableRow className="text-[10px] uppercase tracking-[0.18em] text-white/45">
                         <TableHead className="w-[120px]">Size</TableHead>
+                        <TableHead className="w-[120px]">Relative</TableHead>
                         <TableHead className="w-[260px]">Game</TableHead>
                         <TableHead className="w-[220px]">Bet</TableHead>
                         <TableHead className="w-[90px]">Sport</TableHead>
                         <TableHead className="w-[130px]">Total Profit</TableHead>
                         <TableHead className="w-[90px]">ROI</TableHead>
                         <TableHead className="w-[120px]">Avg Bet</TableHead>
-                        <TableHead className="w-[120px]">Relative</TableHead>
                         <TableHead className="w-[90px]">Entry</TableHead>
                         <TableHead className="w-[90px]">Current</TableHead>
                         <TableHead className="w-[90px]">Move</TableHead>
@@ -474,19 +474,6 @@ export default function SharpMoneyFeedClient() {
                             </div>
                           </TableCell>
                           <TableCell className="align-top">
-                            <div className="text-sm font-semibold text-white">
-                              {resolveGameLabel(trade.title)}
-                            </div>
-                            <div className="mt-1 text-[11px] text-white/45">{trade.title ?? "Unknown market"}</div>
-                          </TableCell>
-                          <TableCell className="align-top text-white/85">{trade.outcome ?? "n/a"}</TableCell>
-                          <TableCell className="align-top">{trade.sport || "SPORTS"}</TableCell>
-                          <TableCell className="align-top text-emerald-200">
-                            {formatCurrency(trade.total_realized_pnl)}
-                          </TableCell>
-                          <TableCell className="align-top text-white">{formatPercent(trade.roi_lifetime)}</TableCell>
-                          <TableCell className="align-top">{formatCurrency(trade.avg_bet_size)}</TableCell>
-                          <TableCell className="align-top">
                             <span
                               className={cn(
                                 trade.bet_size_vs_avg_label === "above_average"
@@ -499,6 +486,19 @@ export default function SharpMoneyFeedClient() {
                               {formatRelativeBetLabel(trade)}
                             </span>
                           </TableCell>
+                          <TableCell className="align-top">
+                            <div className="text-sm font-semibold text-white">
+                              {resolveGameLabel(trade.title)}
+                            </div>
+                            <div className="mt-1 text-[11px] text-white/45">{trade.title ?? "Unknown market"}</div>
+                          </TableCell>
+                          <TableCell className="align-top text-white/85">{trade.outcome ?? "n/a"}</TableCell>
+                          <TableCell className="align-top">{trade.sport || "SPORTS"}</TableCell>
+                          <TableCell className="align-top text-emerald-200">
+                            {formatCurrency(trade.total_realized_pnl)}
+                          </TableCell>
+                          <TableCell className="align-top text-white">{formatPercent(trade.roi_lifetime)}</TableCell>
+                          <TableCell className="align-top">{formatCurrency(trade.avg_bet_size)}</TableCell>
                           <TableCell className="align-top">
                             {formatAmericanOdds(trade.entry_american_odds)}
                           </TableCell>
@@ -522,7 +522,7 @@ export default function SharpMoneyFeedClient() {
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-[72px] z-40 px-3 sm:bottom-4 sm:px-4">
+      <div className="fixed inset-x-0 bottom-[72px] z-40 px-3 sm:bottom-4 sm:px-4 md:left-72">
         <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-2xl border border-white/10 bg-black/95 shadow-[0_-16px_60px_rgba(0,0,0,0.45)] backdrop-blur">
           <button
             type="button"
@@ -545,8 +545,8 @@ export default function SharpMoneyFeedClient() {
 
           {walletPanelOpen && (
             <div className="border-t border-white/10">
-              <div className="grid max-h-[58vh] grid-cols-1 overflow-hidden sm:grid-cols-[320px_minmax(0,1fr)]">
-                <div className="border-b border-white/10 sm:border-b-0 sm:border-r">
+              <div className="grid max-h-[58vh] min-h-0 grid-cols-1 overflow-hidden sm:grid-cols-[320px_minmax(0,1fr)]">
+                <div className="min-h-0 border-b border-white/10 sm:border-b-0 sm:border-r">
                   {walletsError ? (
                     <div className="px-4 py-4 text-sm text-rose-200">{walletsError}</div>
                   ) : walletsLoading ? (
@@ -556,7 +556,7 @@ export default function SharpMoneyFeedClient() {
                       No sport-profitable wallets for this filter.
                     </div>
                   ) : (
-                    <div className="max-h-[240px] overflow-y-auto sm:max-h-[58vh]">
+                    <div className="max-h-[240px] overflow-y-auto overscroll-contain sm:max-h-[58vh]">
                       {wallets.map((wallet) => {
                         const profit =
                           sport === "ALL"
@@ -611,7 +611,7 @@ export default function SharpMoneyFeedClient() {
                   )}
                 </div>
 
-                <div className="min-h-[240px] overflow-y-auto">
+                <div className="min-h-[240px] min-w-0 overflow-y-auto overscroll-contain">
                   {walletPositionsError ? (
                     <div className="px-4 py-4 text-sm text-rose-200">{walletPositionsError}</div>
                   ) : !selectedWallet ? (

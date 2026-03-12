@@ -1451,11 +1451,15 @@ export const getPolymarketBettorLeaderboard = async ({
       sport_settled_markets: Number(summary.settled_markets ?? 0),
       sport_trade_count: parseCount(summary.trade_count),
       sport_buy_trade_count: parseCount(summary.buy_trade_count),
+      sport_open_positions_count: Number(summary.open_positions_count ?? 0),
+      sport_open_notional: Number(summary.open_notional ?? 0),
       sport_avg_bet_size: resolvePreferredPositiveMetric(summary.avg_bet_size),
       global_total_realized_pnl: Number(global?.total_realized_pnl ?? summary.total_realized_pnl ?? 0),
       global_roi_lifetime: Number(global?.roi_lifetime ?? summary.roi_lifetime ?? 0),
       global_trade_count: parseCount(global?.trade_count),
       global_buy_trade_count: parseCount(global?.buy_trade_count),
+      global_open_positions_count: Number(global?.open_positions_count ?? summary.open_positions_count ?? 0),
+      global_open_notional: Number(global?.open_notional ?? summary.open_notional ?? 0),
       global_avg_bet_size: resolvePreferredPositiveMetric(
         global?.avg_bet_size,
         summary.avg_bet_size
@@ -1848,6 +1852,13 @@ export const getPolymarketBettorPositions = async ({
 
   const profiles = await loadProfiles([normalizedWallet])
   const profile = profiles.get(normalizedWallet)
+  const eventMetadataMap = await loadEventMetadataForPositions(positions ?? [])
+  const upcomingPositions = (positions ?? []).filter((row) => {
+    const eventSlug = row.event_slug ?? row.slug
+    const eventDate =
+      eventMetadataMap.get(eventSlug)?.eventDate ?? resolveEventDateFromPosition(row)
+    return isUpcomingPolymarketEventDate(eventDate)
+  })
 
   return {
     wallet: normalizedWallet,
@@ -1857,7 +1868,7 @@ export const getPolymarketBettorPositions = async ({
     profile_image_url: profile?.profile_image_url ?? null,
     summary,
     sport_summary: sportSummary,
-    positions: (positions ?? []).map((row) => ({
+    positions: upcomingPositions.map((row) => ({
       wallet: row.wallet,
       slug: row.slug,
       event_slug: row.event_slug,

@@ -43,10 +43,12 @@ type WalletListItem = {
   roi_lifetime: number
   avg_bet_size: number
   open_positions_count: number
+  global_open_positions_count?: number
   sport_label: string
   sport_total_realized_pnl: number
   sport_roi_lifetime: number
   sport_avg_bet_size: number
+  sport_open_positions_count?: number
 }
 
 type WalletPosition = {
@@ -203,10 +205,11 @@ export default function SharpMoneyFeedClient() {
 
     try {
       const params = new URLSearchParams({
-        limit: "250",
+        limit: "200",
         eligibility: "profitable",
         sport,
         dateWindow,
+        source: "positions",
       })
       const response = await fetch(`/api/polymarket/bettors/feed?${params.toString()}`, {
         cache: "no-store",
@@ -566,6 +569,10 @@ export default function SharpMoneyFeedClient() {
                           sport === "ALL" ? wallet.roi_lifetime : wallet.sport_roi_lifetime
                         const avgBet =
                           sport === "ALL" ? wallet.avg_bet_size : wallet.sport_avg_bet_size
+                        const openCount =
+                          sport === "ALL"
+                            ? wallet.global_open_positions_count ?? wallet.open_positions_count
+                            : wallet.sport_open_positions_count ?? wallet.open_positions_count
 
                         return (
                           <button
@@ -587,7 +594,7 @@ export default function SharpMoneyFeedClient() {
                                 </div>
                               </div>
                               <div className="rounded-md border border-white/10 px-2 py-1 text-[11px] text-white/65">
-                                {wallet.open_positions_count} open
+                                {openCount} upcoming
                               </div>
                             </div>
                             <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-white/65">

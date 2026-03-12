@@ -1229,6 +1229,30 @@ const loadQualifiedSportWalletSet = async (wallets: string[]) => {
   return new Set((data ?? []).map((row) => row.wallet))
 }
 
+const loadProfitableSportWalletSet = async (wallets: string[]) => {
+  if (!wallets.length) return new Set<string>()
+  const supabase = createServiceClient()
+  const { data, error } = (await supabase
+    .from('polymarket_wallet_sport_summary' as any)
+    .select('wallet')
+    .gt('total_realized_pnl', 0)
+    .gt('roi_lifetime', 0)
+    .not('last_trade_time', 'is', null)
+    .gte('last_trade_time', profitableCutoffIso())
+    .in('wallet', wallets.slice(0, 500))
+    .in('sport_label', [...ALLOWED_POLYMARKET_SPORT_LABELS])) as unknown as {
+    data: Array<{ wallet: string }> | null
+    error: { message?: string } | null
+  }
+
+  if (error) {
+    console.warn('[Polymarket Bettor Feed] Failed to load profitable sport wallet set:', error)
+    return new Set<string>()
+  }
+
+  return new Set((data ?? []).map((row) => row.wallet))
+}
+
 const loadGlobalSummariesForWallets = async (wallets: string[]) => {
   if (!wallets.length) return new Map<string, WalletSummaryWithActivity>()
   const supabase = createServiceClient()
@@ -1269,14 +1293,20 @@ const loadLeaderboardScope = async ({
   if (normalizedEligibility === 'profitable') {
     if (sportFilter === ALL_SPORTS_FILTER) {
       const globalRows = await loadGlobalProfitableSummaries({ limit, wallet })
+      const allowedWalletSet = await loadProfitableSportWalletSet(
+        globalRows.map((row) => row.wallet)
+      )
+      const filteredGlobalRows = globalRows.filter((row) =>
+        allowedWalletSet.has(row.wallet)
+      )
       return {
         sportFilter,
         eligibility: normalizedEligibility,
-        activeRows: globalRows.map((row) => ({
+        activeRows: filteredGlobalRows.map((row) => ({
           ...row,
           sport_label: ALL_SPORTS_FILTER,
         })) as WalletSportSummaryWithActivity[],
-        globalMap: new Map(globalRows.map((row) => [row.wallet, row])),
+        globalMap: new Map(filteredGlobalRows.map((row) => [row.wallet, row])),
       }
     }
 

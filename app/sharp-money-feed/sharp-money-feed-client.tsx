@@ -37,6 +37,50 @@ type FeedTrade = {
   bet_size_vs_avg_label: "above_average" | "near_average" | "below_average" | null
 }
 
+type WalletListItem = {
+  wallet: string
+  total_realized_pnl: number
+  roi_lifetime: number
+  avg_bet_size: number
+  open_positions_count: number
+  sport_label: string
+  sport_total_realized_pnl: number
+  sport_roi_lifetime: number
+  sport_avg_bet_size: number
+}
+
+type WalletPosition = {
+  wallet: string
+  slug: string
+  event_slug: string | null
+  sport: string | null
+  title: string | null
+  outcome: string | null
+  outcome_index: number | null
+  net_shares: number
+  avg_entry_price: number | null
+  avg_entry_american_odds: number | null
+  stake_usd: number
+  potential_payout_usd: number
+  last_trade_time: string | null
+  updated_at: string
+}
+
+type WalletPositionsPayload = {
+  wallet: string
+  summary: {
+    total_realized_pnl?: number | null
+    roi_lifetime?: number | null
+    avg_bet_size?: number | null
+  } | null
+  sport_summary: {
+    total_realized_pnl?: number | null
+    roi_lifetime?: number | null
+    avg_bet_size?: number | null
+  } | null
+  positions: WalletPosition[]
+}
+
 const SPORT_OPTIONS: Array<{ value: SportFilter; label: string }> = [
   { value: "ALL", label: "League: All" },
   { value: "NBA", label: "League: NBA" },
@@ -97,6 +141,11 @@ const formatAmericanOdds = (value?: number | null) => {
   return rounded > 0 ? `+${rounded}` : `${rounded}`
 }
 
+const formatPrice = (value?: number | null) => {
+  if (!Number.isFinite(value)) return "n/a"
+  return `${Math.round(Number(value) * 100)}c`
+}
+
 const resolveGameLabel = (marketTitle?: string | null) =>
   (marketTitle ?? "Unknown market").split(/\s*(spread|moneyline|total)/i)[0].trim()
 
@@ -120,6 +169,12 @@ const sortTrades = (trades: FeedTrade[]) => {
   })
 }
 
+const shortenWallet = (wallet?: string | null) => {
+  if (!wallet) return "Unknown wallet"
+  if (wallet.length <= 12) return wallet
+  return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`
+}
+
 export default function SharpMoneyFeedClient() {
   const [sport, setSport] = useState<SportFilter>("ALL")
   const [dateWindow, setDateWindow] = useState<DateWindow>("all")
@@ -129,6 +184,17 @@ export default function SharpMoneyFeedClient() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
+
+  const [walletPanelOpen, setWalletPanelOpen] = useState(false)
+  const [wallets, setWallets] = useState<WalletListItem[]>([])
+  const [walletsLoading, setWalletsLoading] = useState(false)
+  const [walletsError, setWalletsError] = useState<string | null>(null)
+  const [selectedWallet, setSelectedWallet] = useState<string | null>(null)
+  const [walletPositionsByWallet, setWalletPositionsByWallet] = useState<
+    Record<string, WalletPositionsPayload>
+  >({})
+  const [walletPositionsLoading, setWalletPositionsLoading] = useState(false)
+  const [walletPositionsError, setWalletPositionsError] = useState<string | null>(null)
 
   const fetchTrades = async (manual = false) => {
     if (manual) setRefreshing(true)
@@ -160,9 +226,87 @@ export default function SharpMoneyFeedClient() {
     }
   }
 
+  const fetchWallets = async () => {
+    setWalletsLoading(true)
+    setWalletsError(null)
+
+    try {
+      const params = new URLSearchParams({
+        limit: "80",
+        eligibility: "profitable",
+      })
+      if (sport !== "ALL") {
+        params.set("sport", sport)
+      }
+
+      const response = await fetch(`/api/polymarket/bettors/leaderboard?${params.toString()}`, {
+        cache: "no-store",
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? "Failed to load profitable wallets.")
+      }
+
+      const payload = await response.json()
+      const nextWallets = Array.isArray(payload.bettors) ? payload.bettors : []
+      setWallets(nextWallets)
+      setSelectedWallet((current) => {
+        if (current && nextWallets.some((row: WalletListItem) => row.wallet === current)) {
+          return current
+        }
+        return nextWallets[0]?.wallet ?? null
+      })
+    } catch (err) {
+      setWalletsError(err instanceof Error ? err.message : "Failed to load profitable wallets.")
+      setWallets([])
+      setSelectedWallet(null)
+    } finally {
+      setWalletsLoading(false)
+    }
+  }
+
+  const fetchWalletPositions = async (wallet: string) => {
+    if (!wallet) return
+    setWalletPositionsLoading(true)
+    setWalletPositionsError(null)
+
+    try {
+      const params = new URLSearchParams({ limit: "100" })
+      if (sport !== "ALL") {
+        params.set("sport", sport)
+      }
+
+      const response = await fetch(
+        `/api/polymarket/bettors/${wallet}/positions?${params.toString()}`,
+        { cache: "no-store" }
+      )
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? "Failed to load wallet positions.")
+      }
+
+      const payload = (await response.json()) as WalletPositionsPayload
+      setWalletPositionsByWallet((current) => ({
+        ...current,
+        [wallet]: payload,
+      }))
+    } catch (err) {
+      setWalletPositionsError(err instanceof Error ? err.message : "Failed to load wallet positions.")
+    } finally {
+      setWalletPositionsLoading(false)
+    }
+  }
+
   useEffect(() => {
     void fetchTrades()
+    void fetchWallets()
+    setWalletPositionsByWallet({})
   }, [sport, dateWindow])
+
+  useEffect(() => {
+    if (!walletPanelOpen || !selectedWallet || walletPositionsByWallet[selectedWallet]) return
+    void fetchWalletPositions(selectedWallet)
+  }, [walletPanelOpen, selectedWallet, walletPositionsByWallet, sport])
 
   const filteredTrades = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -175,11 +319,17 @@ export default function SharpMoneyFeedClient() {
     return sortTrades(searched)
   }, [searchQuery, trades])
 
+  const selectedWalletPayload = selectedWallet ? walletPositionsByWallet[selectedWallet] : null
+  const selectedWalletMetrics = useMemo(() => {
+    if (!selectedWallet) return null
+    return wallets.find((wallet) => wallet.wallet === selectedWallet) ?? null
+  }, [selectedWallet, wallets])
+
   return (
     <div className="min-h-screen bg-black text-white">
       <SimpleHeader />
 
-      <div className="mx-auto w-full max-w-6xl px-3 pb-[108px] pt-20 sm:px-4 sm:pb-8">
+      <div className="mx-auto w-full max-w-6xl px-3 pb-[172px] pt-20 sm:px-4 sm:pb-[180px]">
         <div className="rounded-2xl border border-white/10 bg-black/40 p-2.5">
           <div className="flex flex-wrap items-center gap-2">
             <div className="rounded-lg border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-white/75">
@@ -219,7 +369,10 @@ export default function SharpMoneyFeedClient() {
 
             <button
               type="button"
-              onClick={() => void fetchTrades(true)}
+              onClick={() => {
+                void fetchTrades(true)
+                void fetchWallets()
+              }}
               className="rounded-lg border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-white/80 transition-colors hover:border-emerald-300/60"
             >
               Refresh
@@ -369,12 +522,217 @@ export default function SharpMoneyFeedClient() {
         </div>
       </div>
 
+      <div className="fixed inset-x-0 bottom-[72px] z-40 px-3 sm:bottom-4 sm:px-4">
+        <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-2xl border border-white/10 bg-black/95 shadow-[0_-16px_60px_rgba(0,0,0,0.45)] backdrop-blur">
+          <button
+            type="button"
+            onClick={() => setWalletPanelOpen((current) => !current)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.03]"
+          >
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-white/45">Wallets</div>
+              <div className="mt-1 text-sm font-semibold text-white">Sport-profitable wallets</div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right text-[11px] text-white/55">
+                {walletsLoading ? "Loading..." : `${wallets.length} wallets`}
+              </div>
+              <span className="rounded-md border border-white/10 px-2 py-1 text-xs text-white/70">
+                {walletPanelOpen ? "Hide" : "Show"}
+              </span>
+            </div>
+          </button>
+
+          {walletPanelOpen && (
+            <div className="border-t border-white/10">
+              <div className="grid max-h-[58vh] grid-cols-1 overflow-hidden sm:grid-cols-[320px_minmax(0,1fr)]">
+                <div className="border-b border-white/10 sm:border-b-0 sm:border-r">
+                  {walletsError ? (
+                    <div className="px-4 py-4 text-sm text-rose-200">{walletsError}</div>
+                  ) : walletsLoading ? (
+                    <div className="px-4 py-4 text-sm text-white/60">Loading wallets...</div>
+                  ) : wallets.length === 0 ? (
+                    <div className="px-4 py-4 text-sm text-white/60">
+                      No sport-profitable wallets for this filter.
+                    </div>
+                  ) : (
+                    <div className="max-h-[240px] overflow-y-auto sm:max-h-[58vh]">
+                      {wallets.map((wallet) => {
+                        const profit =
+                          sport === "ALL"
+                            ? wallet.total_realized_pnl
+                            : wallet.sport_total_realized_pnl
+                        const roi =
+                          sport === "ALL" ? wallet.roi_lifetime : wallet.sport_roi_lifetime
+                        const avgBet =
+                          sport === "ALL" ? wallet.avg_bet_size : wallet.sport_avg_bet_size
+
+                        return (
+                          <button
+                            key={wallet.wallet}
+                            type="button"
+                            onClick={() => setSelectedWallet(wallet.wallet)}
+                            className={cn(
+                              "block w-full border-b border-white/5 px-4 py-3 text-left transition-colors hover:bg-white/[0.03]",
+                              selectedWallet === wallet.wallet && "bg-emerald-500/10"
+                            )}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="text-sm font-semibold text-white">
+                                  {shortenWallet(wallet.wallet)}
+                                </div>
+                                <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/40">
+                                  {sport === "ALL" ? wallet.sport_label || "SPORTS" : sport}
+                                </div>
+                              </div>
+                              <div className="rounded-md border border-white/10 px-2 py-1 text-[11px] text-white/65">
+                                {wallet.open_positions_count} open
+                              </div>
+                            </div>
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-white/65">
+                              <div>
+                                <div className="text-white/35">Profit</div>
+                                <div className="mt-1 text-emerald-200">{formatCompactCurrency(profit)}</div>
+                              </div>
+                              <div>
+                                <div className="text-white/35">ROI</div>
+                                <div className="mt-1 text-white">{formatPercent(roi)}</div>
+                              </div>
+                              <div>
+                                <div className="text-white/35">Avg bet</div>
+                                <div className="mt-1 text-white">{formatCompactCurrency(avgBet)}</div>
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-h-[240px] overflow-y-auto">
+                  {walletPositionsError ? (
+                    <div className="px-4 py-4 text-sm text-rose-200">{walletPositionsError}</div>
+                  ) : !selectedWallet ? (
+                    <div className="px-4 py-4 text-sm text-white/60">Select a wallet to view open trades.</div>
+                  ) : walletPositionsLoading && !selectedWalletPayload ? (
+                    <div className="px-4 py-4 text-sm text-white/60">Loading open trades...</div>
+                  ) : (
+                    <div className="px-4 py-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.2em] text-white/45">Selected wallet</div>
+                          <div className="mt-1 text-lg font-semibold text-white">
+                            {shortenWallet(selectedWallet)}
+                          </div>
+                        </div>
+                        {selectedWalletMetrics && (
+                          <div className="grid grid-cols-3 gap-2 text-[11px] text-white/65">
+                            <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
+                              <div className="text-white/35">Profit</div>
+                              <div className="mt-1 text-emerald-200">
+                                {formatCurrency(
+                                  sport === "ALL"
+                                    ? selectedWalletMetrics.total_realized_pnl
+                                    : selectedWalletMetrics.sport_total_realized_pnl
+                                )}
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
+                              <div className="text-white/35">ROI</div>
+                              <div className="mt-1 text-white">
+                                {formatPercent(
+                                  sport === "ALL"
+                                    ? selectedWalletMetrics.roi_lifetime
+                                    : selectedWalletMetrics.sport_roi_lifetime
+                                )}
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
+                              <div className="text-white/35">Avg bet</div>
+                              <div className="mt-1 text-white">
+                                {formatCurrency(
+                                  sport === "ALL"
+                                    ? selectedWalletMetrics.avg_bet_size
+                                    : selectedWalletMetrics.sport_avg_bet_size
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        {selectedWalletPayload?.positions?.length ? (
+                          selectedWalletPayload.positions.map((position) => (
+                            <div
+                              key={`${position.slug}:${position.outcome_index ?? "na"}`}
+                              className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-3"
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-sm font-semibold text-white">
+                                    {resolveGameLabel(position.title)}
+                                  </div>
+                                  <div className="mt-1 text-xs text-white/55">
+                                    {position.title ?? "Unknown market"}
+                                  </div>
+                                  <div className="mt-2 text-sm text-white/85">
+                                    {position.outcome ?? "n/a"}
+                                  </div>
+                                </div>
+                                <div className="rounded-md border border-white/10 px-2 py-1 text-[11px] text-white/65">
+                                  {position.sport ?? "SPORTS"}
+                                </div>
+                              </div>
+
+                              <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-white/65 sm:grid-cols-5">
+                                <WalletMetric label="Stake" value={formatCurrency(position.stake_usd)} />
+                                <WalletMetric
+                                  label="Entry"
+                                  value={formatAmericanOdds(position.avg_entry_american_odds)}
+                                />
+                                <WalletMetric label="Entry px" value={formatPrice(position.avg_entry_price)} />
+                                <WalletMetric
+                                  label="Net shares"
+                                  value={Number(position.net_shares).toFixed(2)}
+                                />
+                                <WalletMetric
+                                  label="Updated"
+                                  value={formatShortDateTime(position.updated_at)}
+                                />
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-sm text-white/60">No open sports trades for this wallet.</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       <MobileToolsNav />
     </div>
   )
 }
 
 function MobileMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+      <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">{label}</div>
+      <div className="mt-1 text-white">{value}</div>
+    </div>
+  )
+}
+
+function WalletMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
       <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">{label}</div>

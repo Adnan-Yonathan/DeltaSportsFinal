@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { fetchAllLiveScores, type LiveScoreGame } from '@/lib/live-scores'
 import type { WhaleTrade } from './whale-detector'
+import { hydrateWhaleTradesWithWalletMetrics } from './whale-wallet-metrics'
 
 export type GameStatus = 'pregame' | 'live' | 'final'
 
@@ -274,7 +275,7 @@ export async function fetchDailyWhaleTrades(
   }
 
   // Transform database records back to DailyWhaleTrade format
-  return (data ?? []).map((row: any) => ({
+  const mappedTrades = (data ?? []).map((row: any) => ({
     id: row.trade_id,
     source: row.source as 'kalshi' | 'polymarket',
     marketTitle: row.market_title,
@@ -294,6 +295,8 @@ export async function fetchDailyWhaleTrades(
     is_live: row.is_live ?? false,
     game_status: (row.game_status as GameStatus) ?? 'pregame',
   }))
+
+  return hydrateWhaleTradesWithWalletMetrics(mappedTrades)
 }
 
 /**

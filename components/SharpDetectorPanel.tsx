@@ -496,7 +496,7 @@ export default function SharpDetectorPanel({
   showLocalAlerts = true,
   defaultTab = 'bet-feed',
   lockedTab,
-  panelTitle = 'Sharp Money Feed',
+  panelTitle = 'Whale Detector',
 }: {
   className?: string
   onNewSharp?: (count: number) => void
@@ -1364,6 +1364,7 @@ export default function SharpDetectorPanel({
                     timestamp: trade.timestamp,
                     priceCents: trade.priceCents,
                     americanOdds: trade.americanOdds,
+                    roiLifetime: trade.totalRoi ?? trade.roi ?? null,
                     recentFlowBars: buildRecentFlowBars(trade, sortedTrades),
                   }}
                   matchupLabel={matchupLabel}
@@ -1376,7 +1377,7 @@ export default function SharpDetectorPanel({
       </>
       )}
 
-      {/* Sharp Money Feed Tab Content */}
+      {/* Pro Bettor Feed Tab Content */}
       {activeTab === 'sharp-money' && !isSyndicate && (
         <div className="p-6 text-center">
           <Lock className="w-8 h-8 mx-auto text-white/30 mb-3" />
@@ -1696,6 +1697,7 @@ export default function SharpDetectorPanel({
                         timestamp: trade.timestamp,
                         priceCents: trade.priceCents,
                         americanOdds: trade.americanOdds,
+                        roiLifetime: trade.totalRoi ?? trade.roi ?? null,
                         recentFlowBars: buildRecentFlowBars(
                           trade,
                           sharpMoneyTrades.map((entry) => entry.trade)

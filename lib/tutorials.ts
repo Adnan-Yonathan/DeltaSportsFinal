@@ -350,7 +350,7 @@ Never exceed 2u on a single bet.`,
 
 -  **Projections mode** = edges, line shopping, EV, and parlays
 -  **Research mode** = sharp action, trends, and backtesting
--  The Sharp Money Feed is Syndicate-only and lives in the chat tools`,
+-  Whale Detector and Bet Feed live in the main tool navigation`,
       },
       {
         title: "Start here",

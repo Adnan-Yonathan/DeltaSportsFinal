@@ -279,7 +279,7 @@ export default function ChatHomeDashboard({ welcomeName }: HomeDashboardProps) {
                   Sharp Wallet P/L
                 </h2>
               </div>
-              <Link href="/sharp-money-feed" className="text-emerald-200/80 hover:text-emerald-100">
+              <Link href="/sharp-detector" className="text-emerald-200/80 hover:text-emerald-100">
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
             </div>
@@ -376,10 +376,10 @@ export default function ChatHomeDashboard({ welcomeName }: HomeDashboardProps) {
               <div className="flex items-center gap-2">
                 <Waves className="h-4 w-4 text-sky-300" />
                 <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-100">
-                  Sharp Money Tape
+                  Whale Tape
                 </h2>
               </div>
-              <Link href="/sharp-money-feed" className="text-sky-200/80 hover:text-sky-100">
+              <Link href="/sharp-detector" className="text-sky-200/80 hover:text-sky-100">
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
             </div>

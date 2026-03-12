@@ -7,7 +7,6 @@ export const TOOLS_TUTORIAL_ORDER: CoreToolKey[] = [
   'sharp-projections',
   'sharp-props',
   'whale-feed',
-  'sharp-money-feed',
   'research-mode',
 ]
 
@@ -40,15 +39,8 @@ export const TOOLS_TUTORIAL_COPY: Record<
     whyItValuable:
       'It separates one-off prints from repeated pressure, helping you filter noise and prioritize stronger market signals.',
   },
-  'sharp-money-feed': {
-    step: 4,
-    howToUse:
-      'Track qualified profitable bettors by sport, follow high-conviction fills, and review open position exposure before entering.',
-    whyItValuable:
-      'Sport-specific ROI and risk scoring lets you focus on the bettors and markets with repeatable edge, not generic volume spikes.',
-  },
   'research-mode': {
-    step: 5,
+    step: 4,
     howToUse:
       'Review line movement, closing value, and trend behavior after entries to understand what happened and why.',
     whyItValuable:

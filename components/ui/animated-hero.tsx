@@ -119,7 +119,7 @@ function AnimatedHero({
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300/80">
-                Sharp Money Feed Guide
+                Whale Detector Guide
               </p>
               <h3 className="mt-2 text-lg font-semibold text-white">
                 {guideTerm ?? "This matchup"}

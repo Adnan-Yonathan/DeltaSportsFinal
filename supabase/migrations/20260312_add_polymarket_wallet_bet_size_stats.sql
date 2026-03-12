@@ -1,6 +1,6 @@
 -- Migration: Add Polymarket wallet bet size stats
 -- Created: 2026-03-12
--- Description: Persists average and median bet size for sharp money feed context.
+-- Description: Persists average and median bet size for profitable wallet context.
 
 ALTER TABLE polymarket_wallet_summary
   ADD COLUMN IF NOT EXISTS avg_bet_size NUMERIC(18,6) NOT NULL DEFAULT 0,

@@ -24,6 +24,7 @@ type WhaleTrade = {
   marketTitle: string
   outcome: string
   proxyWallet?: string
+  walletRoiLifetime?: number | null
   priceCents: number
   americanOdds: number | null
   currentPriceCents?: number | null
@@ -43,7 +44,7 @@ type DateWindowFilter = "all" | "today" | "24h" | "3d"
 type FeedMode = "all" | "hot"
 type FeedActivity = "active" | "resting"
 type SourceFilter = "all" | "kalshi" | "polymarket"
-type TradeSort = "detected" | "size_desc"
+type TradeSort = "detected" | "size_desc" | "roi_desc"
 type RecentFlowBar = {
   timestampLabel: string
   notional: string
@@ -135,6 +136,11 @@ const formatFlowTime = (value: string) => {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
   return parsed.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+}
+
+const formatRoiPercent = (value?: number | null) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "0.0%"
+  return `${(value * 100).toFixed(1)}%`
 }
 
 const resolveTradeOddsNumber = (trade: WhaleTrade) => {
@@ -615,7 +621,24 @@ export default function SharpDetectorClient() {
 
   const visibleTrades = useMemo(() => {
     if (tradeSort === "detected") return baseVisibleTrades
+    if (tradeSort === "size_desc") {
+      return [...baseVisibleTrades].sort((a, b) => {
+        const sizeDiff = b.notional - a.notional
+        if (sizeDiff !== 0) return sizeDiff
+        return Date.parse(b.timestamp) - Date.parse(a.timestamp)
+      })
+    }
     return [...baseVisibleTrades].sort((a, b) => {
+      const roiA =
+        typeof a.walletRoiLifetime === "number" && Number.isFinite(a.walletRoiLifetime)
+          ? a.walletRoiLifetime
+          : 0
+      const roiB =
+        typeof b.walletRoiLifetime === "number" && Number.isFinite(b.walletRoiLifetime)
+          ? b.walletRoiLifetime
+          : 0
+      const roiDiff = roiB - roiA
+      if (roiDiff !== 0) return roiDiff
       const sizeDiff = b.notional - a.notional
       if (sizeDiff !== 0) return sizeDiff
       return Date.parse(b.timestamp) - Date.parse(a.timestamp)
@@ -915,6 +938,12 @@ export default function SharpDetectorClient() {
                           <div className="mt-1 text-white">{resolveOddsLabel(trade)}</div>
                         </div>
                         <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
+                          <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">ROI %</div>
+                          <div className="mt-1 text-white">
+                            {formatRoiPercent(trade.walletRoiLifetime)}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
                           <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Sport</div>
                           <div className="mt-1 text-white">{normalizeSportLabel(trade.sport) || "SPORTS"}</div>
                         </div>
@@ -937,6 +966,7 @@ export default function SharpDetectorClient() {
                             timestamp: trade.timestamp,
                             priceCents: trade.priceCents,
                             americanOdds: trade.americanOdds,
+                            roiLifetime: trade.walletRoiLifetime,
                             recentFlowBars: recentFlowBarsByGame.get(extractGameKey(trade)) ?? [],
                           }}
                           matchupLabel={resolveGameLabel(trade.marketTitle)}
@@ -949,7 +979,7 @@ export default function SharpDetectorClient() {
 
               <div className="hidden sm:block">
                 <div className="max-h-[72vh] overflow-auto">
-                  <Table className="min-w-[1280px] text-[13px] text-white/75">
+                  <Table className="min-w-[1320px] text-[13px] text-white/75">
                     <TableHeader className="bg-black/70">
                       <TableRow className="text-[10px] uppercase tracking-[0.18em] text-white/45">
                         <TableHead className="w-[120px]">
@@ -974,6 +1004,28 @@ export default function SharpDetectorClient() {
                             </span>
                           </button>
                         </TableHead>
+                        <TableHead className="w-[90px]">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTradeSort((prev) =>
+                                prev === "roi_desc" ? "detected" : "roi_desc"
+                              )
+                            }
+                            className="inline-flex items-center gap-1 text-left hover:text-white"
+                            aria-label="Toggle ROI sort"
+                            title={
+                              tradeSort === "roi_desc"
+                                ? "Sorted by ROI (highest first). Click to return to detected order."
+                                : "Sort by ROI (highest first)"
+                            }
+                          >
+                            <span>ROI %</span>
+                            <span className="text-[11px]">
+                              {tradeSort === "roi_desc" ? "v" : ""}
+                            </span>
+                          </button>
+                        </TableHead>
                         <TableHead className="w-[240px]">Game</TableHead>
                         <TableHead className="w-[220px]">Bet</TableHead>
                         <TableHead className="w-[110px]">Source</TableHead>
@@ -993,6 +1045,18 @@ export default function SharpDetectorClient() {
                             <TableCell className="align-top">
                               <div className="font-semibold text-emerald-200">
                                 {formatCurrency(trade.notional)}
+                              </div>
+                            </TableCell>
+                            <TableCell className="align-top">
+                              <div
+                                className={cn(
+                                  "font-semibold",
+                                  Number.isFinite(trade.walletRoiLifetime)
+                                    ? "text-emerald-200"
+                                    : "text-white/35"
+                                )}
+                              >
+                                {formatRoiPercent(trade.walletRoiLifetime)}
                               </div>
                             </TableCell>
                             <TableCell className="align-top">
@@ -1040,6 +1104,7 @@ export default function SharpDetectorClient() {
                                   timestamp: trade.timestamp,
                                   priceCents: trade.priceCents,
                                   americanOdds: trade.americanOdds,
+                                  roiLifetime: trade.walletRoiLifetime,
                                   recentFlowBars: recentFlowBarsByGame.get(extractGameKey(trade)) ?? [],
                                 }}
                                 matchupLabel={resolveGameLabel(trade.marketTitle)}

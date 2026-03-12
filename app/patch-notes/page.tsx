@@ -10,7 +10,7 @@ const PATCH_NOTES = [
     points: [
       "New Free tier with top-result previews and blurred full access.",
       "Sharp = full projections tools, Syndicate = full research tools.",
-      "Sharp Money Feed remains Syndicate-only; Bet Feed is available to Free.",
+      "Bet Feed remains available to Free users.",
     ],
   },
   {
@@ -35,13 +35,6 @@ const PATCH_NOTES = [
       "Sharp Action now includes deeper analysis and a point graph.",
       "Betting Trends rebuilt from 30-day line history with sport filtering.",
       "Backtesting and Research pages respect the new access gates.",
-    ],
-  },
-  {
-    title: "Sharp Money Feed Scoring",
-    points: [
-      "Sharp Money feed now triggers on 60%+ strength only.",
-      "Bet Feed continues to show all qualifying market trades.",
     ],
   },
   {

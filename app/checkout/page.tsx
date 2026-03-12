@@ -44,7 +44,6 @@ const TIER_FEATURES = {
   ],
   syndicate: [
     'Everything in Sharp',
-    'Sharp Money Feed (profitable bettor flow)',
     'Research Mode (backtesting, trends)',
   ],
 }

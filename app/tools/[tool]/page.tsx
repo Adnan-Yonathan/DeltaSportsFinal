@@ -192,54 +192,6 @@ const TOOL_GUIDE_CONFIGS: Partial<Record<CoreToolKey, ToolGuideConfig>> = {
       'Open Whale Detector and filter into the highest-conviction flow before you execute.',
     ctaPrimaryLabel: 'Open Whale Detector',
   },
-  'sharp-money-feed': {
-    guideLabel: 'Sharp Money Feed Guide',
-    heroTitle: 'Track profitable bettors by sport before the market catches up.',
-    heroDescription:
-      'Follow qualified Polymarket sports and esports bettors, compare sport-specific ROI, and monitor live fills and positions in one flow.',
-    screenshotTitle: 'Read profitable bettor flow in real time',
-    screenshotSrc: '/sharp-money-feed-guide-placeholder.png',
-    screenshotAlt: 'Sharp Money Feed showing bettor leaderboard, sport filter, and live trade cards.',
-    callouts: [
-      {
-        title: 'Sport ROI Scope',
-        body: 'Leaderboard metrics switch to the selected sport so rankings stay context-specific.',
-      },
-      {
-        title: 'Profitable Bettor Tape',
-        body: 'Each print is sourced from qualified bettor activity with wallet-level score context.',
-      },
-      {
-        title: 'Polymarket Deep Link',
-        body: 'Open the exact event directly from each card using the Polymarket logo action.',
-      },
-    ],
-    longTermTitle: 'How to use Sharp Money Feed for long-term profit',
-    longTermIntro:
-      'Sharp Money Feed works best as a filtered execution queue: focus on profitable bettors, narrow by sport, and stay disciplined on entry timing.',
-    longTermSteps: [
-      {
-        title: '1. Pick one sport context first',
-        body: 'Use sport filters to avoid mixing profiles with very different edge characteristics and liquidity behavior.',
-      },
-      {
-        title: '2. Prioritize bettors with persistent score + ROI',
-        body: 'Use risk-adjusted score and sport ROI together to identify repeatable signal quality over one-off spikes.',
-      },
-      {
-        title: '3. Verify fills against current market price',
-        body: 'Open the linked Polymarket event and confirm current execution quality before following a fill.',
-      },
-      {
-        title: '4. Track outcomes by sport-specific process',
-        body: 'Review your follow decisions by sport to keep only the bettor cohorts and setups with sustained edge.',
-      },
-    ],
-    ctaTitle: 'Ready to follow profitable bettor flow?',
-    ctaDescription:
-      'Open Sharp Money Feed and filter directly into sport-specific profitable bettor signals.',
-    ctaPrimaryLabel: 'Open Sharp Money Feed',
-  },
   'research-mode': {
     guideLabel: 'Research Mode Guide',
     heroTitle: 'Understand why the market moved, not just where it moved.',

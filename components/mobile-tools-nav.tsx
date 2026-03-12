@@ -13,7 +13,6 @@ import {
   MoreHorizontal,
   Percent,
   Radar,
-  Waves,
   X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -60,13 +59,6 @@ const MOBILE_TOOL_NAV_ITEMS: MobileToolNavItem[] = [
     icon: Activity,
   },
   {
-    key: 'sharp-money-feed',
-    label: 'Sharp Money Feed',
-    shortLabel: 'Sharp $',
-    href: '/sharp-money-feed',
-    icon: Waves,
-  },
-  {
     key: 'research-mode',
     label: 'Research Mode',
     shortLabel: 'Research',
@@ -91,7 +83,6 @@ const MORE_GUIDE_LINKS: MoreLink[] = [
   { key: 'guide-sharp-projections', label: 'Sharp Projections', href: '/tools/sharp-projections' },
   { key: 'guide-sharp-props', label: 'Sharp Props', href: '/tools/sharp-props' },
   { key: 'guide-whale-feed', label: 'Whale Detector', href: '/tools/whale-feed' },
-  { key: 'guide-sharp-money-feed', label: 'Sharp Money Feed', href: '/tools/sharp-money-feed' },
   { key: 'guide-research-mode', label: 'Research Mode', href: '/tools/research-mode' },
 ]
 

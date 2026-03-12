@@ -25,6 +25,7 @@ export interface ShareableTradeCardProps {
     timestamp: string
     priceCents: number
     americanOdds: number | null
+    roiLifetime?: number | null
     recentFlowBars?: ShareableFlowBar[]
   }
   matchupLabel?: string
@@ -60,6 +61,11 @@ const formatTimestamp = (value: string): string => {
   })
 }
 
+const formatRoiPercent = (value?: number | null): string => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '0.0%'
+  return `${(value * 100).toFixed(1)}%`
+}
+
 const resolveGameLabel = (marketTitle: string) =>
   marketTitle.split(/\s*(spread|moneyline|total)/i)[0].trim() || marketTitle
 
@@ -77,6 +83,7 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
     const eventLabel = trade.eventDate || 'TBD'
     const detectedLabel = formatTimestamp(trade.timestamp)
     const oddsLabel = formatOdds(trade.priceCents, trade.americanOdds)
+    const roiLabel = formatRoiPercent(trade.roiLifetime)
     const sourceLabel = trade.source === 'kalshi' ? 'KALSHI' : 'POLYMARKET'
     const flowBars =
       trade.recentFlowBars && trade.recentFlowBars.length > 0
@@ -245,7 +252,7 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
                 </div>
               </div>
 
-              <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+              <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
                 <div style={{ borderRadius: 14, border: '1px solid rgba(132,204,22,0.45)', background: 'rgba(132,204,22,0.14)', padding: '12px 12px' }}>
                   <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>
                     Notional
@@ -259,6 +266,12 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
                     Sport
                   </div>
                   <div style={{ marginTop: 6, fontSize: 32, fontWeight: 700, color: '#f1f5f9' }}>{trade.sport}</div>
+                </div>
+                <div style={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(0,0,0,0.35)', padding: '12px 12px' }}>
+                  <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>
+                    ROI %
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 30, fontWeight: 700, color: '#86efac' }}>{roiLabel}</div>
                 </div>
                 <div style={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(0,0,0,0.35)', padding: '12px 12px' }}>
                   <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>

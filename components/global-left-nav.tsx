@@ -16,7 +16,6 @@ import {
   Percent,
   Radar,
   Share2,
-  Waves,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { getMembershipStatus, type MembershipInfo } from "@/lib/utils/membership"
@@ -45,7 +44,6 @@ const NAV_ITEMS: NavItem[] = [
   { key: "sharp-projections", label: "Sharp Projections", href: "/market-projections", icon: Radar },
   { key: "sharp-props", label: "Sharp Props", href: "/sharp-props", icon: Percent },
   { key: "whale-detector", label: "Whale Detector", href: "/sharp-detector", icon: Activity },
-  { key: "sharp-money-feed", label: "Sharp Money Feed", href: "/sharp-money-feed", icon: Waves },
   { key: "research", label: "Research", href: "/research/sharp-action", icon: FlaskConical },
   { key: "calculators", label: "Calculators", href: "/calculators", icon: Calculator },
   {
@@ -56,7 +54,6 @@ const NAV_ITEMS: NavItem[] = [
       { key: "guide-sharp-projections", label: "Sharp Projections", href: "/tools/sharp-projections" },
       { key: "guide-sharp-props", label: "Sharp Props", href: "/tools/sharp-props" },
       { key: "guide-whale-feed", label: "Whale Detector", href: "/tools/whale-feed" },
-      { key: "guide-sharp-money-feed", label: "Sharp Money Feed", href: "/tools/sharp-money-feed" },
       { key: "guide-research-mode", label: "Research Mode", href: "/tools/research-mode" },
     ],
   },

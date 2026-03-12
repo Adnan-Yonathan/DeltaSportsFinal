@@ -431,7 +431,7 @@ export default function ChatIntro({
             <SectionWithMockup
               title={
                 <>
-                  Sharp Money Feed
+                  Whale Detector
                   <br />
                   built on real money.
                 </>

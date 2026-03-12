@@ -253,6 +253,7 @@ export type WhaleTrade = {
   marketTitle: string
   outcome: string
   proxyWallet?: string
+  walletRoiLifetime?: number | null
   priceCents: number
   americanOdds: number | null
   sportsbookBestOdds?: number | null

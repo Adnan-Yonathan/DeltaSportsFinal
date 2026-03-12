@@ -2,7 +2,6 @@ export type CoreToolKey =
   | 'sharp-projections'
   | 'sharp-props'
   | 'whale-feed'
-  | 'sharp-money-feed'
   | 'research-mode'
 
 export type CoreTool = {
@@ -57,20 +56,6 @@ export const CORE_TOOLS: CoreTool[] = [
       'Track large tickets and clustered action in one feed.',
       'Toggle between active fills and resting liquidity walls.',
       'Use it to confirm market pressure before executing.',
-    ],
-  },
-  {
-    key: 'sharp-money-feed',
-    label: 'Sharp Money Feed',
-    shortLabel: 'Sharp Money',
-    summary: 'Profitable bettor flow with sport-specific ROI and ranking context.',
-    icon: 'waves',
-    guideRoute: '/tools/sharp-money-feed',
-    productRoute: '/sharp-money-feed',
-    bullets: [
-      'Follow qualified profitable bettors by sport and esports.',
-      'Rank by sport-specific risk score, ROI, and realized P/L.',
-      'Use it to track fills and open positions before entering.',
     ],
   },
   {

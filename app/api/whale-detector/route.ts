@@ -10,6 +10,7 @@ import {
 } from '@/lib/services/prop-liquidity-detector'
 import { createServiceClient } from '@/lib/supabase/service'
 import { storeWhaleTrades } from '@/lib/services/whale-trades-daily'
+import { hydrateWhaleTradesWithWalletMetrics } from '@/lib/services/whale-wallet-metrics'
 
 const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> => {
   let timer: ReturnType<typeof setTimeout> | null = null
@@ -115,9 +116,13 @@ export async function GET(request: Request) {
     }
   }
 
+  const tradesWithWalletMetrics = await hydrateWhaleTradesWithWalletMetrics(enrichedTrades)
+
   return NextResponse.json(
     {
-      trades: includeLiquidity ? [...enrichedTrades, ...liquidityTrades] : enrichedTrades,
+      trades: includeLiquidity
+        ? [...tradesWithWalletMetrics, ...liquidityTrades]
+        : tradesWithWalletMetrics,
     },
     {
       headers: includeLiquidity

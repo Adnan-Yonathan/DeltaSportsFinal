@@ -29,7 +29,6 @@ const ALWAYS_PUBLIC_PREFIXES = [
 const TOOL_ROUTE_TO_GUIDE: Array<{ toolPrefix: string; guidePath: string }> = [
   { toolPrefix: '/market-projections', guidePath: '/tools/sharp-projections' },
   { toolPrefix: '/sharp-props', guidePath: '/tools/sharp-props' },
-  { toolPrefix: '/sharp-money-feed', guidePath: '/tools/sharp-money-feed' },
   { toolPrefix: '/sharp-detector', guidePath: '/tools/whale-feed' },
   { toolPrefix: '/research', guidePath: '/tools/research-mode' },
 ]

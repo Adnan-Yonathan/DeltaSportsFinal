@@ -165,7 +165,7 @@ function PropsPreview() {
 
 function WhalePreview() {
   return (
-    <Panel title="Sharp Money Feed" tone="emerald">
+    <Panel title="Whale Detector" tone="emerald">
       <div className="rounded-xl border border-white/10 bg-black/70 p-3">
         <MonoLine left="[tape] $42,000  SF ML" right="cluster: 3" good />
         <MonoLine left="[tape] $18,500  KC -2.5" right="books lagging" good />
@@ -256,7 +256,7 @@ export function ToolVibePreview({
           <ProjectionsPreview />
         ) : toolKey === 'sharp-props' ? (
           <PropsPreview />
-        ) : toolKey === 'sharp-money-feed' || toolKey === 'whale-feed' ? (
+        ) : toolKey === 'whale-feed' ? (
           <WhalePreview />
         ) : (
           <ResearchPreview />

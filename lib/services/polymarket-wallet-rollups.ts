@@ -16,6 +16,7 @@ type TradeRow = {
   side: string | null
   size: number | null
   price: number | null
+  notional?: number | null
   trade_time: string
   trade_ts: number
 }
@@ -88,6 +89,8 @@ type WalletRollupComputation = {
   tradeCount: number
   buyTradeCount: number
   sellTradeCount: number
+  avgBetSize: number
+  medianBetSize: number
   lastTradeTime: string | null
 }
 
@@ -109,10 +112,12 @@ const RISK_SCORE_DECIMALS = 6
 const PROFIT_FACTOR_CAP = 10
 const MATERIAL_REALIZED_PNL_DIAGNOSTIC_USD = 1000
 const warnedMissingRollupTables = new Set<string>()
-const ACTIVITY_COUNT_COLUMNS = [
+const OPTIONAL_SUMMARY_COLUMNS = [
   'trade_count',
   'buy_trade_count',
   'sell_trade_count',
+  'avg_bet_size',
+  'median_bet_size',
 ] as const
 
 const isMissingTableError = (error: { code?: string; message?: string } | null | undefined) =>
@@ -142,16 +147,16 @@ const isMissingActivityCountColumnError = (
   return (
     error.code === 'PGRST204' ||
     error.code === '42703' ||
-    ACTIVITY_COUNT_COLUMNS.some((column) => message.includes(column))
+    OPTIONAL_SUMMARY_COLUMNS.some((column) => message.includes(column))
   )
 }
 
-const stripActivityCountColumns = (
+const stripOptionalSummaryColumns = (
   rows: Array<Record<string, unknown>>
 ): Array<Record<string, unknown>> =>
   rows.map((row) => {
     const next = { ...row }
-    for (const column of ACTIVITY_COUNT_COLUMNS) {
+    for (const column of OPTIONAL_SUMMARY_COLUMNS) {
       delete next[column]
     }
     return next
@@ -181,6 +186,25 @@ const getEasternDateKey = (value: Date | string | number) => {
 const parseNumber = (value: unknown) => {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+const resolveTradeNotional = (trade: Pick<TradeRow, 'notional' | 'size' | 'price'>) => {
+  const explicit = parseNumber(trade.notional)
+  if (explicit != null && explicit > 0) return explicit
+  const size = parseNumber(trade.size)
+  const price = parseNumber(trade.price)
+  if (size == null || price == null || size <= 0 || price <= 0) return 0
+  return size * price
+}
+
+const computeMedian = (values: number[]) => {
+  if (!values.length) return 0
+  const sorted = [...values].sort((left, right) => left - right)
+  const middle = Math.floor(sorted.length / 2)
+  if (sorted.length % 2 === 0) {
+    return (sorted[middle - 1] + sorted[middle]) / 2
+  }
+  return sorted[middle]
 }
 
 const resolveResult = (netWinning: number, netLosing: number) => {
@@ -444,12 +468,17 @@ export const computeWalletRollupFromTrades = (
   let tradeCount = 0
   let buyTradeCount = 0
   let sellTradeCount = 0
+  const buyBetSizes: number[] = []
   let lastTradeTime: string | null = null
 
   for (const trade of trades) {
     const side = String(trade.side ?? '').toUpperCase()
     tradeCount += 1
-    if (side === 'BUY') buyTradeCount += 1
+    if (side === 'BUY') {
+      buyTradeCount += 1
+      const notional = resolveTradeNotional(trade)
+      if (notional > 0) buyBetSizes.push(notional)
+    }
     else if (side === 'SELL') sellTradeCount += 1
   }
 
@@ -609,6 +638,11 @@ export const computeWalletRollupFromTrades = (
   const consistency90d = computeConsistency90d(daily)
   const sampleQuality = Math.min(1, Math.sqrt(marketsResolved / 300))
   const maxDrawdown = computeMaxDrawdown(daily)
+  const avgBetSize =
+    buyBetSizes.length > 0
+      ? buyBetSizes.reduce((sum, value) => sum + value, 0) / buyBetSizes.length
+      : 0
+  const medianBetSize = computeMedian(buyBetSizes)
 
   return {
     marketRows,
@@ -634,6 +668,8 @@ export const computeWalletRollupFromTrades = (
     tradeCount,
     buyTradeCount,
     sellTradeCount,
+    avgBetSize: round(avgBetSize),
+    medianBetSize: round(medianBetSize),
     lastTradeTime,
   }
 }
@@ -685,7 +721,7 @@ export const computePolymarketWalletRollups = async ({
     const { data: trades, error: tradeError } = (await supabase
       .from('polymarket_wallet_trades' as any)
       .select(
-        'wallet, slug, event_slug, sport_label, title, outcome, outcome_index, side, size, price, trade_time, trade_ts'
+        'wallet, slug, event_slug, sport_label, title, outcome, outcome_index, side, size, price, notional, trade_time, trade_ts'
       )
       .eq('wallet', walletRow.wallet)
       .eq('is_sports', true)
@@ -841,6 +877,8 @@ export const computePolymarketWalletRollups = async ({
       trade_count: ctx.computation.tradeCount,
       buy_trade_count: ctx.computation.buyTradeCount,
       sell_trade_count: ctx.computation.sellTradeCount,
+      avg_bet_size: ctx.computation.avgBetSize,
+      median_bet_size: ctx.computation.medianBetSize,
       last_trade_time: ctx.computation.lastTradeTime,
       last_computed_at: new Date().toISOString(),
     })
@@ -867,7 +905,7 @@ export const computePolymarketWalletRollups = async ({
 
     if (summaryError) {
       if (isMissingActivityCountColumnError(summaryError)) {
-        const fallbackRows = stripActivityCountColumns(summaryRows)
+        const fallbackRows = stripOptionalSummaryColumns(summaryRows)
         const { error: fallbackSummaryError } = await supabase
           .from('polymarket_wallet_summary' as any)
           .upsert(fallbackRows as any, { onConflict: 'wallet' } as any)
@@ -951,6 +989,8 @@ export const computePolymarketWalletRollups = async ({
         trade_count: ctx.computation.tradeCount,
         buy_trade_count: ctx.computation.buyTradeCount,
         sell_trade_count: ctx.computation.sellTradeCount,
+        avg_bet_size: ctx.computation.avgBetSize,
+        median_bet_size: ctx.computation.medianBetSize,
         last_trade_time: ctx.computation.lastTradeTime,
         last_computed_at: new Date().toISOString(),
       })
@@ -964,7 +1004,7 @@ export const computePolymarketWalletRollups = async ({
 
     if (sportSummaryError) {
       if (isMissingActivityCountColumnError(sportSummaryError)) {
-        const fallbackSportRows = stripActivityCountColumns(sportSummaryRows)
+        const fallbackSportRows = stripOptionalSummaryColumns(sportSummaryRows)
         const { error: fallbackSportSummaryError } = await supabase
           .from('polymarket_wallet_sport_summary' as any)
           .upsert(fallbackSportRows as any, { onConflict: 'wallet,sport_label' } as any)

@@ -90,6 +90,8 @@ assert.equal(result.openPositionsCount, 1)
 assert.equal(result.tradeCount, 4)
 assert.equal(result.buyTradeCount, 3)
 assert.equal(result.sellTradeCount, 1)
+assert.ok(Math.abs(result.avgBetSize - 2.566667) < 1e-4, `expected avgBetSize ~2.5667, got ${result.avgBetSize}`)
+assert.ok(Math.abs(result.medianBetSize - 2.2) < 1e-6, `expected medianBetSize ~2.2, got ${result.medianBetSize}`)
 
 assert.ok(Math.abs(result.totalRealizedPnl - 3.7) < 1e-6, `expected totalRealizedPnl ~3.7, got ${result.totalRealizedPnl}`)
 assert.ok(Math.abs(result.grossProfit - 5.2) < 1e-6, `expected grossProfit ~5.2, got ${result.grossProfit}`)
@@ -161,6 +163,8 @@ const scoreMap = computeRiskAdjustedScoreByWallet([
       sampleQuality: 0.82,
       profitFactor: 2.4,
       maxDrawdown: 220,
+      avgBetSize: 120,
+      medianBetSize: 110,
     },
   },
   {
@@ -174,6 +178,8 @@ const scoreMap = computeRiskAdjustedScoreByWallet([
       sampleQuality: 0.63,
       profitFactor: 1.2,
       maxDrawdown: 900,
+      avgBetSize: 55,
+      medianBetSize: 45,
     },
   },
 ])

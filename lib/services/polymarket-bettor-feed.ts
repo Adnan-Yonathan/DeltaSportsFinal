@@ -58,6 +58,8 @@ type WalletSummaryRow = {
   trade_count?: number | null
   buy_trade_count?: number | null
   sell_trade_count?: number | null
+  avg_bet_size?: number | null
+  median_bet_size?: number | null
   last_trade_time: string | null
   last_computed_at: string
 }
@@ -109,6 +111,10 @@ type WalletActivityCounts = {
   buy_trade_count: number
   sell_trade_count: number
 }
+type WalletBetSizing = {
+  avg_bet_size: number
+  median_bet_size: number
+}
 type WalletSummaryWithActivity = WalletSummaryRow & WalletActivityCounts
 type WalletSportSummaryWithActivity = WalletSportSummaryRow & WalletActivityCounts
 type WalletSummaryMetrics = Partial<
@@ -120,6 +126,8 @@ type WalletSummaryMetrics = Partial<
     | 'trade_count'
     | 'buy_trade_count'
     | 'sell_trade_count'
+    | 'avg_bet_size'
+    | 'median_bet_size'
   >
 >
 type PolymarketEventMetadata = {
@@ -145,6 +153,19 @@ const safeLimit = (value: number | undefined, fallback: number) => {
 const parseCount = (value: unknown) => {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+const parseMetric = (value: unknown) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+const resolvePreferredPositiveMetric = (...values: unknown[]) => {
+  for (const value of values) {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed) && parsed > 0) return parsed
+  }
+  return 0
 }
 
 const parseTimestamp = (value?: string | null) => {
@@ -260,6 +281,38 @@ export const compareFeedTradeCandidates = <T extends FeedTradeCandidate>(
   return Number(right.row.trade_ts ?? 0) - Number(left.row.trade_ts ?? 0)
 }
 
+export const diversifyFeedTradeCandidates = <T extends FeedTradeCandidate>(
+  candidates: T[],
+  limit: number
+) => {
+  const grouped = new Map<string, T[]>()
+  const walletOrder: string[] = []
+
+  for (const candidate of candidates) {
+    const wallet = candidate.row.wallet
+    if (!grouped.has(wallet)) {
+      grouped.set(wallet, [])
+      walletOrder.push(wallet)
+    }
+    grouped.get(wallet)?.push(candidate)
+  }
+
+  const selected: T[] = []
+  while (selected.length < limit) {
+    let appendedInRound = false
+    for (const wallet of walletOrder) {
+      const queue = grouped.get(wallet)
+      if (!queue?.length) continue
+      selected.push(queue.shift() as T)
+      appendedInRound = true
+      if (selected.length >= limit) break
+    }
+    if (!appendedInRound) break
+  }
+
+  return selected
+}
+
 const toAmericanOdds = (probability: number | null | undefined) => {
   if (!Number.isFinite(probability)) return null
   const p = Number(probability)
@@ -354,7 +407,7 @@ export const isProfitableSummaryEligible = <
 export const compareProfitableSummaryRows = <
   T extends Pick<
     WalletSummaryRow,
-    'total_realized_pnl' | 'roi_lifetime' | 'risk_adjusted_score' | 'last_trade_time'
+    'total_realized_pnl' | 'roi_lifetime' | 'last_trade_time'
   >,
 >(
   left: T,
@@ -365,9 +418,6 @@ export const compareProfitableSummaryRows = <
   const pnlDiff =
     Number(right.total_realized_pnl ?? 0) - Number(left.total_realized_pnl ?? 0)
   if (pnlDiff !== 0) return pnlDiff
-  const scoreDiff =
-    Number(right.risk_adjusted_score ?? 0) - Number(left.risk_adjusted_score ?? 0)
-  if (scoreDiff !== 0) return scoreDiff
   return parseTimestamp(right.last_trade_time) - parseTimestamp(left.last_trade_time)
 }
 
@@ -396,6 +446,61 @@ const parseOutcomePrices = (value: unknown) => {
   }
 
   return [] as Array<number | null>
+}
+
+const computeMedian = (values: number[]) => {
+  if (!values.length) return 0
+  const sorted = [...values].sort((left, right) => left - right)
+  const middle = Math.floor(sorted.length / 2)
+  if (sorted.length % 2 === 0) {
+    return (sorted[middle - 1] + sorted[middle]) / 2
+  }
+  return sorted[middle]
+}
+
+const summarizeBetSizes = (values: number[]): WalletBetSizing => {
+  if (!values.length) {
+    return {
+      avg_bet_size: 0,
+      median_bet_size: 0,
+    }
+  }
+
+  return {
+    avg_bet_size: values.reduce((sum, value) => sum + value, 0) / values.length,
+    median_bet_size: computeMedian(values),
+  }
+}
+
+const resolveBetSizeVsAverageLabel = (ratio: number | null) => {
+  if (!Number.isFinite(ratio)) return null
+  const normalizedRatio = Number(ratio)
+  if (normalizedRatio >= 1.1) return 'above_average' as const
+  if (normalizedRatio <= 0.9) return 'below_average' as const
+  return 'near_average' as const
+}
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value))
+
+const computeBetStrengthScore = ({
+  stakeUsd,
+  avgBetSize,
+  roiLifetime,
+}: {
+  stakeUsd: number | null
+  avgBetSize: number
+  roiLifetime: number
+}) => {
+  if (!Number.isFinite(stakeUsd) || !Number.isFinite(avgBetSize) || avgBetSize <= 0) return 0
+  const stake = Number(stakeUsd)
+  const avg = Number(avgBetSize)
+  if (stake <= 0) return 0
+
+  const ratio = stake / avg
+  const relativeScore = clamp((ratio - 0.75) / 1.75, 0, 1)
+  const roiScore = clamp(Number(roiLifetime) / 0.2, 0, 1)
+  return Math.round((relativeScore * 0.75 + roiScore * 0.25) * 100)
 }
 
 const currentPriceCache = new Map<
@@ -555,6 +660,23 @@ export const buildBettorFeedTradePayload = ({
     currentPriceCents != null && entryPriceCents != null
       ? currentPriceCents - entryPriceCents
       : null
+  const avgBetSize = resolvePreferredPositiveMetric(
+    sportSummary?.avg_bet_size,
+    globalSummary?.avg_bet_size
+  )
+  const medianBetSize = resolvePreferredPositiveMetric(
+    sportSummary?.median_bet_size,
+    globalSummary?.median_bet_size,
+    avgBetSize
+  )
+  const betSizeVsAvgRatio =
+    stakeUsd != null && avgBetSize > 0 ? Number((stakeUsd / avgBetSize).toFixed(4)) : null
+  const betSizeVsAvgLabel = resolveBetSizeVsAverageLabel(betSizeVsAvgRatio)
+  const betStrengthScore = computeBetStrengthScore({
+    stakeUsd,
+    avgBetSize,
+    roiLifetime: Number(sportSummary?.roi_lifetime ?? globalSummary?.roi_lifetime ?? 0),
+  })
 
   return {
     id: row.transaction_hash,
@@ -582,16 +704,20 @@ export const buildBettorFeedTradePayload = ({
     current_price_cents: currentPriceCents ?? null,
     current_american_odds: toCurrentPriceOdds(currentPriceCents),
     price_move_cents: priceMoveCents,
-    risk_adjusted_score: Number(sportSummary?.risk_adjusted_score ?? 0),
     total_realized_pnl: Number(sportSummary?.total_realized_pnl ?? 0),
     roi_lifetime: Number(sportSummary?.roi_lifetime ?? 0),
     trade_count: parseCount(sportSummary?.trade_count),
     buy_trade_count: parseCount(sportSummary?.buy_trade_count),
-    sport_risk_adjusted_score: Number(sportSummary?.risk_adjusted_score ?? 0),
+    avg_bet_size: avgBetSize,
+    median_bet_size: medianBetSize,
+    bet_size_vs_avg_ratio: betSizeVsAvgRatio,
+    bet_size_vs_avg_label: betSizeVsAvgLabel,
+    bet_strength_score: betStrengthScore,
     sport_total_realized_pnl: Number(sportSummary?.total_realized_pnl ?? 0),
     sport_roi_lifetime: Number(sportSummary?.roi_lifetime ?? 0),
     sport_trade_count: parseCount(sportSummary?.trade_count),
     sport_buy_trade_count: parseCount(sportSummary?.buy_trade_count),
+    sport_avg_bet_size: resolvePreferredPositiveMetric(sportSummary?.avg_bet_size, avgBetSize),
     global_total_realized_pnl: Number(
       globalSummary?.total_realized_pnl ?? sportSummary?.total_realized_pnl ?? 0
     ),
@@ -600,6 +726,7 @@ export const buildBettorFeedTradePayload = ({
     ),
     global_trade_count: parseCount(globalSummary?.trade_count),
     global_buy_trade_count: parseCount(globalSummary?.buy_trade_count),
+    global_avg_bet_size: resolvePreferredPositiveMetric(globalSummary?.avg_bet_size, avgBetSize),
   }
 }
 
@@ -711,6 +838,122 @@ const enrichSummariesWithActivityCounts = async <
   })
 }
 
+const loadBetSizingForWallets = async ({
+  wallets,
+  sport,
+}: {
+  wallets: string[]
+  sport?: string
+}) => {
+  if (!wallets.length) return new Map<string, WalletBetSizing>()
+
+  const supabase = createServiceClient()
+  const entries: Array<readonly [string, WalletBetSizing]> = []
+  const normalizedWallets = wallets.slice(0, 500)
+  const chunkSize = 12
+
+  for (let i = 0; i < normalizedWallets.length; i += chunkSize) {
+    const chunk = normalizedWallets.slice(i, i + chunkSize)
+    const chunkEntries = await Promise.all(
+      chunk.map(async (wallet) => {
+      let query = supabase
+        .from('polymarket_wallet_trades' as any)
+        .select('wallet, notional, size, price')
+        .eq('wallet', wallet)
+        .eq('is_sports', true)
+        .eq('side', 'BUY')
+        .order('trade_ts', { ascending: false })
+        .limit(500)
+
+      if (sport) {
+        query = query.eq('sport_label', sport)
+      } else {
+        query = query.in('sport_label', [...ALLOWED_POLYMARKET_SPORT_LABELS])
+      }
+
+      const { data, error } = (await query) as unknown as {
+        data: Array<Pick<WalletTradeRow, 'wallet' | 'notional' | 'size' | 'price'>> | null
+        error: { message?: string } | null
+      }
+
+      if (error) {
+        console.warn(
+          `[Polymarket Bettor Feed] Failed to load bet sizing fallback for ${wallet}:`,
+          error
+        )
+        return [wallet, summarizeBetSizes([])] as const
+      }
+
+      const sizes = (data ?? [])
+        .map((row) => resolveTradeNotional(row))
+        .filter((value) => Number.isFinite(value) && value > 0)
+
+      return [wallet, summarizeBetSizes(sizes)] as const
+      })
+    )
+    entries.push(...chunkEntries)
+  }
+
+  return new Map(entries)
+}
+
+const enrichSummariesWithBetSizing = async <
+  T extends WalletSummaryWithActivity | WalletSportSummaryWithActivity,
+>({
+  rows,
+  sport,
+}: {
+  rows: T[]
+  sport?: string
+}) => {
+  if (!rows.length) return [] as T[]
+  const missingWallets = rows
+    .filter(
+      (row) =>
+        !Number.isFinite(Number(row.avg_bet_size)) ||
+        !Number.isFinite(Number(row.median_bet_size)) ||
+        Number(row.avg_bet_size) <= 0 ||
+        Number(row.median_bet_size) <= 0
+    )
+    .map((row) => row.wallet)
+
+  const sizingFallback =
+    missingWallets.length > 0
+      ? await loadBetSizingForWallets({ wallets: missingWallets, sport })
+      : new Map<string, WalletBetSizing>()
+
+  return rows.map((row) => {
+    const fallback = sizingFallback.get(row.wallet)
+    return {
+      ...row,
+      avg_bet_size:
+        Number.isFinite(Number(row.avg_bet_size)) && Number(row.avg_bet_size) > 0
+          ? Number(row.avg_bet_size)
+          : parseMetric(fallback?.avg_bet_size),
+      median_bet_size:
+        Number.isFinite(Number(row.median_bet_size)) && Number(row.median_bet_size) > 0
+          ? Number(row.median_bet_size)
+          : parseMetric(fallback?.median_bet_size),
+    }
+  })
+}
+
+const enrichWalletSummaries = async <
+  T extends WalletSummaryRow | WalletSportSummaryRow,
+>({
+  rows,
+  sport,
+}: {
+  rows: T[]
+  sport?: string
+}) => {
+  const withCounts = await enrichSummariesWithActivityCounts({ rows, sport })
+  return enrichSummariesWithBetSizing({
+    rows: withCounts as Array<WalletSummaryWithActivity | WalletSportSummaryWithActivity>,
+    sport,
+  }) as Promise<Array<T & WalletActivityCounts & WalletBetSizing>>
+}
+
 const loadGlobalQualifiedSummaries = async ({
   limit,
   wallet,
@@ -774,7 +1017,7 @@ const loadGlobalProfitableSummaries = async ({
   }
 
   return filterAndRankProfitableSummaries(
-    await enrichSummariesWithActivityCounts({ rows: (data ?? []) as WalletSummaryRow[] })
+    await enrichWalletSummaries({ rows: (data ?? []) as WalletSummaryRow[] })
   ).slice(0, safeLimit(limit, DEFAULT_LEADERBOARD_LIMIT))
 }
 
@@ -881,7 +1124,7 @@ const loadSportProfitableSummaries = async ({
   }
 
   return filterAndRankProfitableSummaries(
-    await enrichSummariesWithActivityCounts({
+    await enrichWalletSummaries({
       rows: (data ?? []) as WalletSportSummaryRow[],
       sport,
     })
@@ -955,7 +1198,7 @@ const loadSportSummariesForWallets = async ({
     return new Map<string, WalletSportSummaryWithActivity>()
   }
 
-  const rows = await enrichSummariesWithActivityCounts({
+  const rows = await enrichWalletSummaries({
     rows: (data ?? []) as WalletSportSummaryRow[],
     sport,
   })
@@ -1002,7 +1245,7 @@ const loadGlobalSummariesForWallets = async (wallets: string[]) => {
     return new Map<string, WalletSummaryWithActivity>()
   }
 
-  const rows = await enrichSummariesWithActivityCounts({
+  const rows = await enrichWalletSummaries({
     rows: (data ?? []) as WalletSummaryRow[],
   })
 
@@ -1151,7 +1394,6 @@ export const getPolymarketBettorLeaderboard = async ({
       pseudonym: profile?.pseudonym ?? null,
       profile_image_url: profile?.profile_image_url ?? null,
       bio: profile?.bio ?? null,
-      risk_adjusted_score: Number(summary.risk_adjusted_score ?? 0),
       total_realized_pnl: Number(summary.total_realized_pnl ?? 0),
       roi_lifetime: Number(summary.roi_lifetime ?? 0),
       settled_markets: Number(summary.settled_markets ?? 0),
@@ -1163,25 +1405,31 @@ export const getPolymarketBettorLeaderboard = async ({
       sample_quality: Number(summary.sample_quality ?? 0),
       open_positions_count: Number(summary.open_positions_count ?? 0),
       open_notional: Number(summary.open_notional ?? 0),
+      avg_bet_size: resolvePreferredPositiveMetric(summary.avg_bet_size),
+      median_bet_size: resolvePreferredPositiveMetric(
+        summary.median_bet_size,
+        summary.avg_bet_size
+      ),
       last_trade_time: summary.last_trade_time,
       last_computed_at: summary.last_computed_at,
-      qualification_status: summary.qualification_status,
-      qualification_reason: summary.qualification_reason,
       trade_count: parseCount(summary.trade_count),
       buy_trade_count: parseCount(summary.buy_trade_count),
       sell_trade_count: parseCount(summary.sell_trade_count),
       sport_label: summary.sport_label ?? scope.sportFilter,
-      sport_risk_adjusted_score: Number(summary.risk_adjusted_score ?? 0),
       sport_total_realized_pnl: Number(summary.total_realized_pnl ?? 0),
       sport_roi_lifetime: Number(summary.roi_lifetime ?? 0),
       sport_settled_markets: Number(summary.settled_markets ?? 0),
       sport_trade_count: parseCount(summary.trade_count),
       sport_buy_trade_count: parseCount(summary.buy_trade_count),
-      global_risk_adjusted_score: Number(global?.risk_adjusted_score ?? summary.risk_adjusted_score ?? 0),
+      sport_avg_bet_size: resolvePreferredPositiveMetric(summary.avg_bet_size),
       global_total_realized_pnl: Number(global?.total_realized_pnl ?? summary.total_realized_pnl ?? 0),
       global_roi_lifetime: Number(global?.roi_lifetime ?? summary.roi_lifetime ?? 0),
       global_trade_count: parseCount(global?.trade_count),
       global_buy_trade_count: parseCount(global?.buy_trade_count),
+      global_avg_bet_size: resolvePreferredPositiveMetric(
+        global?.avg_bet_size,
+        summary.avg_bet_size
+      ),
     }
   })
 }
@@ -1236,13 +1484,14 @@ export const getPolymarketBettorFeed = async ({
   if (normalizedSource === 'positions') {
     const positionScanLimit = Math.min(
       FEED_SCAN_CEILING,
-      Math.max(FEED_SCAN_FLOOR, take * FEED_SCAN_MULTIPLIER)
+      Math.max(FEED_SCAN_FLOOR, take * FEED_SCAN_MULTIPLIER, take * 100)
     )
     const now = new Date()
     const collected: FeedTradeCandidate[] = []
     let scannedRows = 0
     let offset = 0
     let exhausted = false
+    const targetUniqueWallets = Math.min(take, walletSet.size)
 
     while (scannedRows < positionScanLimit && !exhausted) {
       const pageSize = Math.min(
@@ -1321,7 +1570,11 @@ export const getPolymarketBettorFeed = async ({
 
       collected.push(...positionCandidates)
 
-      if (collected.length >= take * FEED_SCAN_MULTIPLIER) {
+      const uniqueWalletCount = new Set(collected.map((candidate) => candidate.row.wallet)).size
+      if (
+        collected.length >= take * FEED_SCAN_MULTIPLIER &&
+        uniqueWalletCount >= targetUniqueWallets
+      ) {
         break
       }
     }
@@ -1332,7 +1585,7 @@ export const getPolymarketBettorFeed = async ({
       return Number(right.row.trade_ts ?? 0) - Number(left.row.trade_ts ?? 0)
     })
     const hasMore = rankedCandidates.length > take
-    const slicedCandidates = rankedCandidates.slice(0, take)
+    const slicedCandidates = diversifyFeedTradeCandidates(rankedCandidates, take)
     const slicedRows = slicedCandidates.map((candidate) => candidate.row)
     const currentPriceMap = await loadCurrentPricesForTrades(slicedRows)
 
@@ -1368,9 +1621,10 @@ export const getPolymarketBettorFeed = async ({
   const pageSize = Math.min(MAX_LIMIT, Math.max(take * 3, 75))
   const scanTarget = Math.min(
     FEED_SCAN_CEILING,
-    Math.max(FEED_SCAN_FLOOR, take * FEED_SCAN_MULTIPLIER)
+    Math.max(FEED_SCAN_FLOOR, take * FEED_SCAN_MULTIPLIER, take * 100)
   )
   let scannedRows = 0
+  const targetUniqueWallets = Math.min(take, walletSet.size)
 
   while (scannedRows < scanTarget && !exhausted) {
     let query = supabase
@@ -1427,17 +1681,26 @@ export const getPolymarketBettorFeed = async ({
 
     collected.push(...upcomingRows)
 
+    const uniqueWalletCount = new Set(collected.map((candidate) => candidate.row.wallet)).size
+
     if (pageRows.length < pageSize) {
       exhausted = true
       break
     }
 
     pageCursor = pageRows[pageRows.length - 1]?.trade_ts ?? null
+
+    if (
+      collected.length >= take * FEED_SCAN_MULTIPLIER &&
+      uniqueWalletCount >= targetUniqueWallets
+    ) {
+      break
+    }
   }
 
   const rankedCandidates = [...collected].sort(compareFeedTradeCandidates)
   const hasMore = !exhausted || rankedCandidates.length > take
-  const slicedCandidates = rankedCandidates.slice(0, take)
+  const slicedCandidates = diversifyFeedTradeCandidates(rankedCandidates, take)
   const slicedRows = slicedCandidates.map((candidate) => candidate.row)
   const nextCursor = !exhausted ? pageCursor : null
   const currentPriceMap = await loadCurrentPricesForTrades(slicedRows)
@@ -1489,23 +1752,19 @@ export const getPolymarketBettorPositions = async ({
 
   const sportFilter = normalizePolymarketSportFilter(sport)
   const supabase = createServiceClient()
-  const { data: summary } = (await supabase
-    .from('polymarket_wallet_summary' as any)
-    .select('*')
-    .eq('wallet', normalizedWallet)
-    .maybeSingle()) as unknown as {
-    data: WalletSummaryRow | null
-  }
-
-  const { data: sportSummary } =
+  const summaryMap = await loadGlobalSummariesForWallets([normalizedWallet])
+  const summary = summaryMap.get(normalizedWallet) ?? null
+  const sportSummaryMap =
     sportFilter === ALL_SPORTS_FILTER
-      ? ({ data: null } as { data: WalletSportSummaryRow | null })
-      : ((await supabase
-          .from('polymarket_wallet_sport_summary' as any)
-          .select('*')
-          .eq('wallet', normalizedWallet)
-          .eq('sport_label', sportFilter)
-          .maybeSingle()) as unknown as { data: WalletSportSummaryRow | null })
+      ? new Map<string, WalletSportSummaryWithActivity>()
+      : await loadSportSummariesForWallets({
+          wallets: [normalizedWallet],
+          sport: sportFilter,
+        })
+  const sportSummary =
+    sportFilter === ALL_SPORTS_FILTER
+      ? null
+      : sportSummaryMap.get(toSportSummaryKey(normalizedWallet, sportFilter)) ?? null
 
   const take = safeLimit(limit, 100)
   let query = supabase

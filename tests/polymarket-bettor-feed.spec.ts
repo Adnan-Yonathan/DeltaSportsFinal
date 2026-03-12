@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {
   buildBettorFeedTradePayload,
   compareFeedTradeCandidates,
+  diversifyFeedTradeCandidates,
   filterAndRankProfitableSummaries,
   isProfitableSummaryEligible,
   isUpcomingPolymarketEventDate,
@@ -35,6 +36,8 @@ const buildSummary = (overrides: Record<string, unknown> = {}) => ({
   trade_count: 42,
   buy_trade_count: 24,
   sell_trade_count: 18,
+  avg_bet_size: 180,
+  median_bet_size: 140,
   last_trade_time: isoDaysAgo(7),
   last_computed_at: isoDaysAgo(1),
   ...overrides,
@@ -198,6 +201,80 @@ const run = async () => {
   assert.equal(payload.buy_trade_count, 85)
   assert.equal(payload.global_trade_count, 180)
   assert.equal(payload.global_roi_lifetime, 0.18)
+  assert.equal(payload.avg_bet_size, 180)
+  assert.equal(payload.median_bet_size, 140)
+  assert.equal(payload.bet_size_vs_avg_label, 'below_average')
+  assert.equal(payload.sport_avg_bet_size, 180)
+  assert.equal(payload.global_avg_bet_size, 180)
+  assert.equal(payload.bet_strength_score, 25)
+
+  const diversified = diversifyFeedTradeCandidates(
+    [
+      {
+        row: {
+          wallet: 'wallet-a',
+          transaction_hash: 'a-1',
+          trade_time: isoDaysAgo(1),
+          trade_ts: Math.floor((now - 1 * 24 * 60 * 60_000) / 1000),
+          side: 'BUY' as const,
+          size: 20,
+          price: 0.5,
+          notional: 10,
+          slug: 'slug-a-1',
+          event_slug: 'slug-a-1',
+          title: 'A one',
+          outcome: 'A',
+          outcome_index: 0,
+          sport_label: 'NBA',
+        },
+        eventDate: '2026-03-13T23:00:00.000Z',
+      },
+      {
+        row: {
+          wallet: 'wallet-a',
+          transaction_hash: 'a-2',
+          trade_time: isoDaysAgo(2),
+          trade_ts: Math.floor((now - 2 * 24 * 60 * 60_000) / 1000),
+          side: 'BUY' as const,
+          size: 20,
+          price: 0.5,
+          notional: 10,
+          slug: 'slug-a-2',
+          event_slug: 'slug-a-2',
+          title: 'A two',
+          outcome: 'A',
+          outcome_index: 0,
+          sport_label: 'NBA',
+        },
+        eventDate: '2026-03-13T23:00:00.000Z',
+      },
+      {
+        row: {
+          wallet: 'wallet-b',
+          transaction_hash: 'b-1',
+          trade_time: isoDaysAgo(1),
+          trade_ts: Math.floor((now - 1 * 24 * 60 * 60_000) / 1000),
+          side: 'BUY' as const,
+          size: 20,
+          price: 0.5,
+          notional: 10,
+          slug: 'slug-b-1',
+          event_slug: 'slug-b-1',
+          title: 'B one',
+          outcome: 'B',
+          outcome_index: 0,
+          sport_label: 'NBA',
+        },
+        eventDate: '2026-03-13T23:00:00.000Z',
+      },
+    ],
+    3
+  )
+
+  assert.deepEqual(
+    diversified.map((entry) => entry.row.transaction_hash),
+    ['a-1', 'b-1', 'a-2']
+  )
 
   console.log('polymarket-bettor-feed tests passed')
 }

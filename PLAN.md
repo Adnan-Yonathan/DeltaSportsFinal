@@ -4,8 +4,8 @@
 
 - Status: In progress
 - Scope: Canonical `/sharp-money-feed` tool + `/tools/sharp-money-feed` guide, with legacy redirects.
-- Data: Polymarket only, strict sports + esports allowlist, sport-specific ROI/risk scoring.
-- UX: Left-nav safe label, Polymarket logo deep link per trade card, Syndicate-gated sharp money view.
+- Data: Polymarket only, strict sports + esports allowlist, profitable-bettor-only feed with trade-level execution context.
+- UX: Left-nav safe label, Polymarket logo deep link per trade card, Syndicate-gated sharp money view, no synthetic sharp score in product.
 
 ## Overview
 

@@ -436,7 +436,7 @@ const formatCompactCount = (value: number | null | undefined, decimals = 0) => {
 }
 
 const formatRoiPercent = (value: number | null | undefined) =>
-  `${((value ?? 0) * 100).toFixed(1)}%`
+  typeof value === 'number' && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : 'N/A'
 
 const resolvePolymarketEventUrl = (slug?: string | null) => {
   if (!slug) return 'https://polymarket.com/'

@@ -62,7 +62,7 @@ const formatTimestamp = (value: string): string => {
 }
 
 const formatRoiPercent = (value?: number | null): string => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '0.0%'
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'N/A'
   return `${(value * 100).toFixed(1)}%`
 }
 

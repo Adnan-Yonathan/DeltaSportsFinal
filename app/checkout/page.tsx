@@ -10,13 +10,13 @@ import {
 import {
   CheckoutProvider,
   ExpressCheckoutElement,
-  PaymentElement,
   useCheckout,
 } from '@stripe/react-stripe-js/checkout'
 import { createClient } from '@/lib/supabase/client'
+import type { PlanKey } from '@/lib/stripe'
 import { trackTrialFlowEvent } from '@/lib/trial-flow'
 import { cn } from '@/lib/utils'
-import { AlertCircle, CheckIcon, Loader2, Wallet } from 'lucide-react'
+import { AlertCircle, ArrowRight, CheckIcon, Loader2, Wallet } from 'lucide-react'
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
 const CHECKOUT_VARIANT =
@@ -90,18 +90,17 @@ export default function CheckoutPage() {
     checkAuth()
   }, [router])
 
-  const fallbackToEmbedded = useCallback((reason: string) => {
-    setActiveVariant((current) => {
-      if (current === 'embedded') return current
-      trackTrialFlowEvent('checkout_variant_fallback', {
-        from_variant: current,
-        to_variant: 'embedded',
-        reason,
-      })
-      return 'embedded'
+  const handleCustomCheckoutUnavailable = useCallback((reason: string, message?: string) => {
+    trackTrialFlowEvent('checkout_variant_fallback', {
+      from_variant: 'custom',
+      to_variant: 'hosted',
+      reason,
     })
     setError(null)
     setClientSecret(null)
+    if (message) {
+      setError(message)
+    }
   }, [])
 
   const fetchClientSecret = useCallback(async () => {
@@ -139,7 +138,7 @@ export default function CheckoutPage() {
       const message = err instanceof Error ? err.message : 'Failed to initialize checkout'
 
       if (activeVariant === 'custom') {
-        fallbackToEmbedded('bootstrap_failed')
+        handleCustomCheckoutUnavailable('bootstrap_failed', message)
         return
       }
 
@@ -147,7 +146,7 @@ export default function CheckoutPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [activeVariant, fallbackToEmbedded, isAuthenticated, selectedPlan])
+  }, [activeVariant, handleCustomCheckoutUnavailable, isAuthenticated, selectedPlan])
 
   useEffect(() => {
     if (CHECKOUT_VARIANT !== 'custom' && activeVariant !== CHECKOUT_VARIANT) {
@@ -292,7 +291,15 @@ export default function CheckoutPage() {
           <div className="order-1 lg:order-2">
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-1">
               {error ? (
-                <CheckoutErrorState error={error} onRetry={fetchClientSecret} />
+                activeVariant === 'custom' && selectedPlan ? (
+                  <HostedCheckoutFallbackState
+                    error={error}
+                    planKey={selectedPlan.planKey as PlanKey}
+                    onRetry={fetchClientSecret}
+                  />
+                ) : (
+                  <CheckoutErrorState error={error} onRetry={fetchClientSecret} />
+                )
               ) : null}
 
               {isLoading ? (
@@ -304,7 +311,8 @@ export default function CheckoutPage() {
                   <CustomCheckoutShell
                     key={`${activeVariant}-${selectedPlan?.planKey}`}
                     clientSecret={clientSecret}
-                    onFallback={() => fallbackToEmbedded('custom_checkout_runtime_error')}
+                    planKey={selectedPlan?.planKey as PlanKey}
+                    onFallback={(reason, message) => handleCustomCheckoutUnavailable(reason, message)}
                   />
                 ) : (
                   <EmbeddedCheckoutProvider
@@ -330,10 +338,12 @@ export default function CheckoutPage() {
 
 function CustomCheckoutShell({
   clientSecret,
+  planKey,
   onFallback,
 }: {
   clientSecret: string
-  onFallback: () => void
+  planKey: PlanKey
+  onFallback: (reason: string, message?: string) => void
 }) {
   return (
     <CheckoutProvider
@@ -354,12 +364,18 @@ function CustomCheckoutShell({
         },
       }}
     >
-      <CustomCheckoutForm onFallback={onFallback} />
+      <CustomCheckoutForm planKey={planKey} onFallback={onFallback} />
     </CheckoutProvider>
   )
 }
 
-function CustomCheckoutForm({ onFallback }: { onFallback: () => void }) {
+function CustomCheckoutForm({
+  planKey,
+  onFallback,
+}: {
+  planKey: PlanKey
+  onFallback: (reason: string, message?: string) => void
+}) {
   const checkoutState = useCheckout()
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -385,7 +401,7 @@ function CustomCheckoutForm({ onFallback }: { onFallback: () => void }) {
 
   useEffect(() => {
     if (checkoutState.type === 'error') {
-      onFallback()
+      onFallback('custom_checkout_runtime_error', 'Wallet checkout is unavailable right now.')
     }
   }, [checkoutState, onFallback])
 
@@ -397,23 +413,6 @@ function CustomCheckoutForm({ onFallback }: { onFallback: () => void }) {
 
     window.location.assign(`/stripe/success?session_id=${encodeURIComponent(result.session.id)}`)
   }, [])
-
-  const submitCardPayment = useCallback(async () => {
-    if (checkoutState.type !== 'success') return
-
-    setIsSubmitting(true)
-    setSubmitError(null)
-    trackTrialFlowEvent('payment_element_submitted', {
-      checkout_surface: 'payment_element',
-    })
-
-    try {
-      const result = await checkoutState.checkout.confirm()
-      await handleResult(result)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }, [checkoutState, handleResult])
 
   if (checkoutState.type === 'loading') {
     return <CheckoutLoadingState />
@@ -442,8 +441,8 @@ function CustomCheckoutForm({ onFallback }: { onFallback: () => void }) {
         },
         paymentMethodOrder: ['apple_pay', 'google_pay'],
         paymentMethods: {
-          applePay: 'auto' as const,
-          googlePay: 'auto' as const,
+          applePay: 'always' as const,
+          googlePay: 'always' as const,
           link: 'never' as const,
           paypal: 'never' as const,
           amazonPay: 'never' as const,
@@ -488,7 +487,9 @@ function CustomCheckoutForm({ onFallback }: { onFallback: () => void }) {
           <div>
             <div className="text-sm font-semibold text-white">Faster checkout</div>
             <div className="mt-1 text-sm text-white/60">
-              Use Apple Pay, Google Pay, Link, or another saved wallet if available.
+              {isMobileQuickPayOnly
+                ? 'Use Apple Pay or Google Pay if this browser and device support them.'
+                : 'Use Apple Pay, Google Pay, Link, or another saved wallet if available.'}
             </div>
           </div>
         </div>
@@ -528,46 +529,137 @@ function CustomCheckoutForm({ onFallback }: { onFallback: () => void }) {
           }}
         />
         {!hasExpressMethods ? (
-          <div className="text-xs text-white/45">
-            Saved wallets are not available on this device or browser. Use the secure card form below.
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-xs text-white/55">
+            {isMobileQuickPayOnly
+              ? 'Wallet checkout is not available in this browser. On iPhone, Apple Pay requires a supported browser with Wallet enabled, registered Stripe domains, and better support outside in-app browsers.'
+              : 'Quick-pay wallets are not available in this browser right now. You can still complete checkout on Stripe.'}
           </div>
         ) : null}
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="h-px flex-1 bg-white/10" />
-        <span className="text-xs uppercase tracking-[0.3em] text-white/35">Or pay with card</span>
-        <div className="h-px flex-1 bg-white/10" />
+      {submitError ? (
+        <div className="flex items-start gap-2 rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{submitError}</span>
+        </div>
+      ) : null}
+
+      <HostedCheckoutButton
+        planKey={planKey}
+        label={hasExpressMethods ? 'Prefer card? Checkout on Stripe' : 'Continue to secure Stripe checkout'}
+        helperText="Card entry happens on Stripe-hosted Checkout."
+      />
+    </div>
+  )
+}
+
+function HostedCheckoutButton({
+  planKey,
+  label,
+  helperText,
+}: {
+  planKey: PlanKey
+  label: string
+  helperText?: string
+}) {
+  const [isRedirecting, setIsRedirecting] = useState(false)
+  const [redirectError, setRedirectError] = useState<string | null>(null)
+
+  const redirectToHostedCheckout = useCallback(async () => {
+    setIsRedirecting(true)
+    setRedirectError(null)
+
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          planKey,
+          successPath: '/stripe/success',
+          cancelPath: '/checkout',
+        }),
+      })
+
+      const data = (await res.json().catch(() => null)) as { url?: string; error?: string } | null
+
+      if (!res.ok || !data?.url) {
+        throw new Error(data?.error || 'Failed to open Stripe Checkout')
+      }
+
+      window.location.assign(data.url)
+    } catch (error) {
+      setRedirectError(error instanceof Error ? error.message : 'Failed to open Stripe Checkout')
+    } finally {
+      setIsRedirecting(false)
+    }
+  }, [planKey])
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-white/10 bg-black/30 p-4">
+      <button
+        type="button"
+        onClick={redirectToHostedCheckout}
+        disabled={isRedirecting}
+        className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white px-4 py-3 text-base font-semibold text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isRedirecting ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <>
+            <span>{label}</span>
+            <ArrowRight className="h-4 w-4" />
+          </>
+        )}
+      </button>
+
+      {helperText ? (
+        <div className="text-center text-xs text-white/45">{helperText}</div>
+      ) : null}
+
+      {redirectError ? (
+        <div className="flex items-start gap-2 rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{redirectError}</span>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function HostedCheckoutFallbackState({
+  error,
+  planKey,
+  onRetry,
+}: {
+  error: string
+  planKey: PlanKey
+  onRetry: () => void
+}) {
+  return (
+    <div className="space-y-4 p-6 text-center">
+      <div className="flex justify-center">
+        <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 p-3 text-emerald-300">
+          <Wallet className="h-5 w-5" />
+        </div>
       </div>
-
-      <div className="space-y-4 rounded-2xl border border-white/10 bg-black/30 p-4">
-        <PaymentElement
-          options={{
-            layout: 'tabs',
-          }}
-          onChange={(event) => {
-            if (event.complete) {
-              setSubmitError(null)
-            }
-          }}
-        />
-
-        {submitError ? (
-          <div className="flex items-start gap-2 rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{submitError}</span>
-          </div>
-        ) : null}
-
-        <button
-          type="button"
-          onClick={submitCardPayment}
-          disabled={isSubmitting || !checkout.canConfirm}
-          className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-4 py-3 text-base font-semibold text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Start trial with card'}
-        </button>
+      <div>
+        <div className="text-lg font-semibold text-white">Quick checkout unavailable</div>
+        <div className="mt-2 text-sm text-white/55">{error}</div>
       </div>
+      <HostedCheckoutButton
+        planKey={planKey}
+        label="Continue to secure Stripe checkout"
+        helperText="Card entry happens on Stripe-hosted Checkout."
+      />
+      <button
+        type="button"
+        onClick={onRetry}
+        className="text-sm text-emerald-400 transition hover:text-emerald-300"
+      >
+        Retry wallet checkout
+      </button>
     </div>
   )
 }

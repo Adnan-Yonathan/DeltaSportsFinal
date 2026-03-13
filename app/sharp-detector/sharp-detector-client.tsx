@@ -105,7 +105,9 @@ const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 
 const normalizeSportLabel = (value?: string | null) => {
   if (!value) return ""
-  return value.trim().toUpperCase()
+  const normalized = value.trim().toUpperCase()
+  if (normalized === "NCAAF") return "CFB"
+  return normalized
 }
 
 const formatShortDateTime = (value?: string | null) => {
@@ -289,6 +291,17 @@ const resolveOddsLabel = (trade: WhaleTrade) => {
   const chosen = currentOdds ?? baseOdds
   if (chosen == null) return "n/a"
   return formatAmericanOdds(chosen)
+}
+
+const resolveTradeSortLabel = (value: TradeSort) => {
+  switch (value) {
+    case "size_desc":
+      return "Biggest Bets"
+    case "roi_desc":
+      return "Top ROI"
+    default:
+      return "Newest"
+  }
 }
 
 const resolveGameLabel = (marketTitle: string) =>
@@ -803,6 +816,28 @@ export default function SharpDetectorClient() {
               </button>
             </div>
 
+            <div className="flex w-full gap-2 sm:hidden">
+              {([
+                { key: "detected", label: "Newest" },
+                { key: "size_desc", label: "Biggest Bets" },
+                { key: "roi_desc", label: "Top ROI" },
+              ] as const).map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setTradeSort(option.key)}
+                  className={cn(
+                    "flex-1 rounded-lg border px-3 py-2 text-[11px] font-medium transition-colors",
+                    tradeSort === option.key
+                      ? "border-emerald-300/60 bg-emerald-500/15 text-emerald-100"
+                      : "border-white/10 bg-black/30 text-white/70 hover:border-white/20"
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
             <select
               value={leagueFilter}
               onChange={(event) => setLeagueFilter(event.target.value)}
@@ -877,6 +912,8 @@ export default function SharpDetectorClient() {
                 )}
               />
               <span>live</span>
+              <span className="hidden sm:inline">|</span>
+              <span className="hidden sm:inline">{resolveTradeSortLabel(tradeSort)}</span>
               <span>|</span>
               <span>
                 {displayedTrades.length}
@@ -897,6 +934,12 @@ export default function SharpDetectorClient() {
         <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
           {activeErrorMessage ? (
             <div className="px-4 py-6 text-sm text-rose-200">{activeErrorMessage}</div>
+          ) : visibleTrades.length === 0 && activeRefreshingState ? (
+            <div className="px-4 py-6 text-sm text-white/60">
+              {feedActivity === "active"
+                ? "Loading whale feed..."
+                : "Loading resting feed..."}
+            </div>
           ) : visibleTrades.length === 0 ? (
             <div className="px-4 py-6 text-sm text-white/60">
               {feedActivity === "active"
@@ -911,45 +954,49 @@ export default function SharpDetectorClient() {
                   return (
                     <article
                       key={trade.id}
-                      className="space-y-3 px-3 py-3 text-xs text-white/70 transition-colors hover:bg-white/[0.03]"
+                      className="space-y-2 px-3 py-2.5 text-[11px] text-white/70 transition-colors hover:bg-white/[0.03]"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[9px] uppercase tracking-[0.16em] text-white/38">
                             {trade.source === "kalshi" ? "Kalshi" : "Polymarket"} |{" "}
                             {formatShortDateTime(trade.timestamp)}
                           </div>
-                          <div className="text-left text-sm font-semibold text-white">
+                          <div className="truncate text-left text-[13px] font-semibold leading-tight text-white">
                             {resolveGameLabel(trade.marketTitle)}
                           </div>
                         </div>
-                        <span className="rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-200">
+                        <span className="shrink-0 rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-1 text-[10px] font-semibold text-emerald-200">
                           {formatCurrency(trade.notional)}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                          <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Bet</div>
-                          <div className="mt-1 text-white">{trade.outcome || "n/a"}</div>
+                      <div className="truncate text-[12px] font-medium text-white/88">
+                        {trade.outcome || "n/a"}
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-1.5">
+                        <div className="rounded-lg border border-white/8 bg-black/25 px-2 py-1.5">
+                          <div className="text-[9px] uppercase tracking-[0.14em] text-white/38">Odds</div>
+                          <div className="mt-0.5 text-[11px] font-medium text-white">{resolveOddsLabel(trade)}</div>
                         </div>
-                        <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                          <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Odds</div>
-                          <div className="mt-1 text-white">{resolveOddsLabel(trade)}</div>
-                        </div>
-                        <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                          <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">ROI %</div>
-                          <div className="mt-1 text-white">
+                        <div className="rounded-lg border border-white/8 bg-black/25 px-2 py-1.5">
+                          <div className="text-[9px] uppercase tracking-[0.14em] text-white/38">ROI</div>
+                          <div className="mt-0.5 text-[11px] font-medium text-white">
                             {formatRoiPercent(trade.walletRoiLifetime)}
                           </div>
                         </div>
-                        <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                          <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Sport</div>
-                          <div className="mt-1 text-white">{normalizeSportLabel(trade.sport) || "SPORTS"}</div>
+                        <div className="rounded-lg border border-white/8 bg-black/25 px-2 py-1.5">
+                          <div className="text-[9px] uppercase tracking-[0.14em] text-white/38">Sport</div>
+                          <div className="mt-0.5 truncate text-[11px] font-medium text-white">
+                            {normalizeSportLabel(trade.sport) || "SPORTS"}
+                          </div>
                         </div>
-                        <div className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5">
-                          <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">Hot</div>
-                          <div className="mt-1 text-white">{hotCount >= 2 ? `${hotCount} bets` : "--"}</div>
+                        <div className="rounded-lg border border-white/8 bg-black/25 px-2 py-1.5">
+                          <div className="text-[9px] uppercase tracking-[0.14em] text-white/38">Hot</div>
+                          <div className="mt-0.5 text-[11px] font-medium text-white">
+                            {hotCount >= 2 ? `${hotCount} bets` : "--"}
+                          </div>
                         </div>
                       </div>
 

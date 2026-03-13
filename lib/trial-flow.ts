@@ -1,6 +1,7 @@
 import type { MembershipInfo } from '@/lib/utils/membership'
 
 export const PRECHECKOUT_ONBOARDING_COOKIE = 'delta_precheckout_onboarding'
+export const PRECHECKOUT_ONBOARDING_COOKIE_COMPLETED = 'completed'
 export const DEFAULT_RECOMMENDED_PLAN = 'syndicate_monthly'
 
 export type TrialPrimaryIntent =
@@ -281,7 +282,8 @@ export const canAccessPrecheckoutOnboarding = (
   metadata: Record<string, unknown> | null | undefined
 ) => {
   if (membership.hasPaidAccess) return false
-  return !membership.hasUsedTrial || !Boolean(metadata?.precheckout_onboarding_completed)
+  if (membership.hasUsedTrial) return false
+  return !Boolean(metadata?.precheckout_onboarding_completed)
 }
 
 export const trackTrialFlowEvent = (

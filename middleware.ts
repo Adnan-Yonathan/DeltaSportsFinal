@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import {
   canAccessPrecheckoutOnboarding,
+  PRECHECKOUT_ONBOARDING_COOKIE,
+  PRECHECKOUT_ONBOARDING_COOKIE_COMPLETED,
   shouldStartPrecheckoutOnboarding,
 } from '@/lib/trial-flow'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
@@ -167,7 +169,12 @@ export async function middleware(req: NextRequest) {
   // If the JWT is stale (e.g. after Stripe webhook), the DB lookup below
   // will catch the updated subscription_tier as a fallback.
   const metadata = session.user?.user_metadata || {}
-  let isPaid = checkMembershipPaid(metadata)
+  const hasCompletedOnboardingCookie =
+    req.cookies.get(PRECHECKOUT_ONBOARDING_COOKIE)?.value === PRECHECKOUT_ONBOARDING_COOKIE_COMPLETED
+  const effectiveMetadata = hasCompletedOnboardingCookie
+    ? { ...metadata, precheckout_onboarding_completed: true }
+    : metadata
+  let isPaid = checkMembershipPaid(effectiveMetadata)
 
   try {
     const { data: userProfile } = await supabase
@@ -176,8 +183,8 @@ export async function middleware(req: NextRequest) {
       .eq('id', session.user.id)
       .single()
     const hasAuthoritativeStatus =
-      typeof metadata?.membership_status === 'string' &&
-      metadata.membership_status.length > 0
+      typeof effectiveMetadata?.membership_status === 'string' &&
+      effectiveMetadata.membership_status.length > 0
     if (!isPaid && !hasAuthoritativeStatus) {
       const tier = userProfile?.subscription_tier
       if (tier === 'pro' || tier === 'unlimited' || tier === 'sharp' || tier === 'syndicate') {
@@ -189,7 +196,7 @@ export async function middleware(req: NextRequest) {
   }
 
   const membership = {
-    ...getMembershipStatusFromMetadata(metadata),
+    ...getMembershipStatusFromMetadata(effectiveMetadata),
     hasPaidAccess: isPaid,
   }
 
@@ -199,13 +206,13 @@ export async function middleware(req: NextRequest) {
     if (isPaid) {
       return NextResponse.redirect(new URL('/', req.url))
     }
-    if (canAccessPrecheckoutOnboarding(membership, metadata)) {
+    if (canAccessPrecheckoutOnboarding(membership, effectiveMetadata)) {
       return res
     }
     return NextResponse.redirect(new URL('/checkout', req.url))
   }
 
-  if (shouldStartPrecheckoutOnboarding(membership, metadata)) {
+  if (shouldStartPrecheckoutOnboarding(membership, effectiveMetadata)) {
     return NextResponse.redirect(new URL('/trial-onboarding', req.url))
   }
 

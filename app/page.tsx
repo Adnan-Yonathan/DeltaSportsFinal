@@ -6,6 +6,8 @@ import { cookies } from 'next/headers'
 import { LAST_TOOL_COOKIE, sanitizeToolRoute } from '@/lib/navigation/tool-routes'
 import TrialActivationHome from '@/components/trial-activation/trial-activation-home'
 import {
+  PRECHECKOUT_ONBOARDING_COOKIE,
+  PRECHECKOUT_ONBOARDING_COOKIE_COMPLETED,
   RECOMMENDED_TOOL_DETAILS,
   getTrialActivationState,
   needsTrialActivationHome,
@@ -35,29 +37,37 @@ export default async function Home() {
 
   if (user) {
     const cookieStore = cookies()
-    const membership = getMembershipStatusFromMetadata(user.user_metadata)
-    if (shouldStartPrecheckoutOnboarding(membership, user.user_metadata)) {
+    const hasCompletedOnboardingCookie =
+      cookieStore.get(PRECHECKOUT_ONBOARDING_COOKIE)?.value === PRECHECKOUT_ONBOARDING_COOKIE_COMPLETED
+    const effectiveMetadata = hasCompletedOnboardingCookie
+      ? {
+          ...(user.user_metadata ?? {}),
+          precheckout_onboarding_completed: true,
+        }
+      : user.user_metadata
+    const membership = getMembershipStatusFromMetadata(effectiveMetadata)
+    if (shouldStartPrecheckoutOnboarding(membership, effectiveMetadata)) {
       redirect('/trial-onboarding')
     }
 
-    if (needsTrialActivationHome(membership, user.user_metadata)) {
+    if (needsTrialActivationHome(membership, effectiveMetadata)) {
       const onboardingProfile =
-        user.user_metadata?.onboarding_profile &&
-        typeof user.user_metadata.onboarding_profile === 'object'
-          ? (user.user_metadata.onboarding_profile as TrialOnboardingProfile)
+        effectiveMetadata?.onboarding_profile &&
+        typeof effectiveMetadata.onboarding_profile === 'object'
+          ? (effectiveMetadata.onboarding_profile as TrialOnboardingProfile)
           : null
       const recommendedTool =
-        typeof user.user_metadata?.recommended_tool === 'string' &&
-        user.user_metadata.recommended_tool in RECOMMENDED_TOOL_DETAILS
-          ? (user.user_metadata.recommended_tool as keyof typeof RECOMMENDED_TOOL_DETAILS)
+        typeof effectiveMetadata?.recommended_tool === 'string' &&
+        effectiveMetadata.recommended_tool in RECOMMENDED_TOOL_DETAILS
+          ? (effectiveMetadata.recommended_tool as keyof typeof RECOMMENDED_TOOL_DETAILS)
           : resolveRecommendedTool(onboardingProfile)
       const displayName =
-        typeof user.user_metadata?.full_name === 'string'
-          ? user.user_metadata.full_name
-          : typeof user.user_metadata?.name === 'string'
-            ? user.user_metadata.name
-            : typeof user.user_metadata?.display_name === 'string'
-              ? user.user_metadata.display_name
+        typeof effectiveMetadata?.full_name === 'string'
+          ? effectiveMetadata.full_name
+          : typeof effectiveMetadata?.name === 'string'
+            ? effectiveMetadata.name
+            : typeof effectiveMetadata?.display_name === 'string'
+              ? effectiveMetadata.display_name
               : user.email ?? null
 
       return (
@@ -65,7 +75,7 @@ export default async function Home() {
           displayName={displayName}
           profile={onboardingProfile}
           recommendedTool={recommendedTool}
-          initialState={getTrialActivationState(user.user_metadata)}
+          initialState={getTrialActivationState(effectiveMetadata)}
         />
       )
     }

@@ -5,6 +5,7 @@ import type { Database } from '@/lib/supabase/types'
 import {
   DEFAULT_RECOMMENDED_PLAN,
   PRECHECKOUT_ONBOARDING_COOKIE,
+  PRECHECKOUT_ONBOARDING_COOKIE_COMPLETED,
   buildTrialOnboardingProfile,
   getEmptyTrialActivationState,
   isTrialBetFocus,
@@ -81,11 +82,11 @@ export async function POST(request: Request) {
       recommendedPlan: DEFAULT_RECOMMENDED_PLAN,
     },
   })
-  response.cookies.set(PRECHECKOUT_ONBOARDING_COOKIE, '', {
+  response.cookies.set(PRECHECKOUT_ONBOARDING_COOKIE, PRECHECKOUT_ONBOARDING_COOKIE_COMPLETED, {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
-    maxAge: 0,
+    maxAge: 60 * 60 * 24 * 30,
   })
   return response
 }

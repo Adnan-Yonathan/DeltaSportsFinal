@@ -286,9 +286,9 @@ export default function TrialOnboardingFlow() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#020706] text-white">
+    <div className="relative h-[100dvh] min-h-[100dvh] overflow-hidden bg-[#020706] text-white">
       <BackgroundChrome />
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 pb-4 pt-4 sm:px-5 sm:pb-5 sm:pt-5 lg:px-8 lg:pb-6">
+      <div className="relative z-10 mx-auto flex h-[100dvh] w-full max-w-5xl flex-col px-3 pb-3 pt-3 sm:px-5 sm:pb-5 sm:pt-5 lg:px-8 lg:pb-6">
         <TopBar
           currentStep={currentStep}
           stepIndex={stepIndex}
@@ -298,7 +298,7 @@ export default function TrialOnboardingFlow() {
           disableBack={isSubmitting}
         />
 
-        <div className="flex flex-1 items-start justify-center py-4 sm:py-5 lg:items-center lg:py-6">
+        <div className="flex min-h-0 flex-1 items-stretch justify-center py-3 sm:py-5 lg:items-center lg:py-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -306,7 +306,7 @@ export default function TrialOnboardingFlow() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -18 }}
               transition={{ duration: 0.28, ease: 'easeOut' }}
-              className="w-full"
+              className="h-full w-full"
             >
               {currentStep === 'welcome' && <WelcomeStep />}
               {currentStep === 'primary-intent' && (
@@ -360,7 +360,7 @@ export default function TrialOnboardingFlow() {
           </AnimatePresence>
         </div>
 
-        <div className="sticky bottom-0 z-20 pt-3 sm:pt-4">
+        <div className="z-20 pt-2 sm:pt-4">
           <BottomAction
             currentStep={currentStep}
             canContinue={canContinue}
@@ -468,12 +468,12 @@ function BottomAction({
           : 'Continue'
 
   return (
-    <div className="space-y-3 rounded-[1.5rem] border border-white/10 bg-[rgba(3,11,9,0.88)] p-3 shadow-[0_20px_50px_rgba(0,0,0,0.34)] backdrop-blur sm:p-4">
+    <div className="space-y-2 rounded-[1.2rem] border border-white/10 bg-[rgba(3,11,9,0.88)] p-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.34)] backdrop-blur sm:space-y-3 sm:rounded-[1.5rem] sm:p-4">
       <button
         type="button"
         onClick={onNext}
         disabled={!canContinue || isSubmitting}
-        className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[1.35rem] bg-gradient-to-r from-emerald-300 via-emerald-400 to-emerald-500 px-5 py-3.5 text-base font-semibold text-[#04120d] shadow-[0_18px_50px_rgba(16,185,129,0.22)] transition hover:brightness-105 sm:text-lg disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex min-h-[50px] w-full items-center justify-center gap-2.5 rounded-[1rem] bg-gradient-to-r from-emerald-300 via-emerald-400 to-emerald-500 px-4 py-3 text-sm font-semibold text-[#04120d] shadow-[0_18px_50px_rgba(16,185,129,0.22)] transition hover:brightness-105 sm:min-h-[56px] sm:gap-3 sm:rounded-[1.35rem] sm:px-5 sm:py-3.5 sm:text-lg disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : label}
         {!isSubmitting && <ArrowRight className="h-5 w-5" />}
@@ -487,29 +487,47 @@ function BottomAction({
 
 function WelcomeStep() {
   return (
-    <div className="grid items-center gap-6 lg:grid-cols-[1fr_0.96fr] lg:gap-7">
-      <div className="space-y-5">
+    <div className="grid h-full items-center gap-4 lg:grid-cols-[1fr_0.96fr] lg:gap-7">
+      <div className="space-y-4">
         <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-emerald-200/85">
           <Sparkles className="h-3.5 w-3.5" />
           Built to create fast conviction
         </div>
-        <div className="space-y-4">
-          <h1 className="max-w-3xl text-[2.65rem] font-semibold leading-[0.94] text-white sm:text-5xl lg:text-[3.65rem]">
+        <div className="space-y-3">
+          <h1 className="max-w-3xl text-[2.2rem] font-semibold leading-[0.96] text-white sm:text-5xl lg:text-[3.65rem]">
             Build a Delta setup that gets you to value faster.
           </h1>
-          <p className="max-w-2xl text-lg leading-relaxed text-white/72 sm:text-[1.1rem]">
+          <p className="max-w-2xl text-[0.95rem] leading-relaxed text-white/72 sm:text-[1.1rem]">
             Answer a few short questions, then Delta will route your first week toward the signals most likely to make you stay.
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <AuthorityChip label="First-week focus" value="Edges, props, flow" />
           <AuthorityChip label="Setup time" value="Under 60 seconds" />
           <AuthorityChip label="Trial path" value="Direct to checkout" />
         </div>
+
+        <div className="lg:hidden">
+          <div className="rounded-[1.3rem] border border-white/10 bg-white/[0.05] p-3">
+            <div className="font-hero text-[10px] uppercase tracking-[0.32em] text-white/42">What Delta will lead with</div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {TOOL_ORDER.slice(0, 4).map((tool) => (
+                <div
+                  key={tool}
+                  className="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2.5 text-sm font-semibold text-white/88"
+                >
+                  {TOOL_SNAPSHOTS[tool].title}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
-      <ToolAuthorityBoard recommendedTool="sharp-projections" />
+      <div className="hidden lg:block">
+        <ToolAuthorityBoard recommendedTool="sharp-projections" />
+      </div>
     </div>
   )
 }
@@ -530,15 +548,15 @@ function QuestionStep<T extends string>({
   onSelect: (value: T) => void
 }) {
   return (
-    <div className="mx-auto max-w-3xl">
-      <div className="mb-8 text-center sm:mb-9">
-        <h2 className="text-[2.35rem] font-semibold leading-tight text-white sm:text-4xl lg:text-[3.1rem]">{title}</h2>
-        <p className="mx-auto mt-3 max-w-2xl text-base text-white/68 sm:mt-4 sm:text-lg">{description}</p>
+    <div className="mx-auto flex h-full max-w-3xl flex-col justify-between">
+      <div className="mb-5 text-center sm:mb-8">
+        <h2 className="text-[2rem] font-semibold leading-tight text-white sm:text-4xl lg:text-[3.1rem]">{title}</h2>
+        <p className="mx-auto mt-2 max-w-2xl text-sm text-white/68 sm:mt-4 sm:text-lg">{description}</p>
       </div>
 
-      <div className="space-y-4">
-        <div className="font-hero text-[11px] uppercase tracking-[0.42em] text-white/45">{label}</div>
-        <div className="space-y-4">
+      <div className="space-y-3">
+        <div className="font-hero text-[10px] uppercase tracking-[0.38em] text-white/45 sm:text-[11px]">{label}</div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-1 md:gap-4">
           {options.map((option, index) => (
             <OptionCard
               key={option.value}
@@ -548,6 +566,7 @@ function QuestionStep<T extends string>({
               selected={value === option.value}
               onClick={() => onSelect(option.value)}
               index={index}
+              spanFull={options.length % 2 === 1 && index === options.length - 1}
             />
           ))}
         </div>
@@ -558,9 +577,9 @@ function QuestionStep<T extends string>({
 
 function AuthorityChip({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[1.15rem] border border-white/10 bg-white/6 px-3.5 py-3.5 backdrop-blur sm:px-4 sm:py-4">
+    <div className="rounded-[0.95rem] border border-white/10 bg-white/6 px-2.5 py-2.5 backdrop-blur sm:rounded-[1.15rem] sm:px-4 sm:py-4">
       <div className="font-hero text-[10px] uppercase tracking-[0.32em] text-white/40">{label}</div>
-      <div className="mt-2 text-base font-semibold text-white sm:text-lg">{value}</div>
+      <div className="mt-1.5 text-[12px] font-semibold leading-snug text-white sm:mt-2 sm:text-lg">{value}</div>
     </div>
   )
 }
@@ -572,6 +591,7 @@ function OptionCard({
   selected,
   onClick,
   index,
+  spanFull,
 }: {
   title: string
   description: string
@@ -579,6 +599,7 @@ function OptionCard({
   selected: boolean
   onClick: () => void
   index: number
+  spanFull: boolean
 }) {
   return (
     <motion.button
@@ -588,7 +609,8 @@ function OptionCard({
       transition={{ delay: index * 0.05, duration: 0.24 }}
       onClick={onClick}
       className={cn(
-        'group relative flex w-full items-start justify-between gap-4 rounded-[1.45rem] border px-4 py-4 text-left transition sm:px-5 sm:py-5',
+        'group relative flex w-full items-start justify-between gap-3 rounded-[1.15rem] border px-3.5 py-3.5 text-left transition sm:rounded-[1.45rem] sm:px-5 sm:py-5',
+        spanFull && 'col-span-2 md:col-span-1',
         selected
           ? 'border-emerald-300/45 bg-gradient-to-r from-emerald-300/18 via-emerald-300/8 to-white/[0.05] shadow-[0_18px_40px_rgba(16,185,129,0.16)]'
           : 'border-white/10 bg-white/[0.04] hover:border-white/18 hover:bg-white/[0.07]'
@@ -596,8 +618,8 @@ function OptionCard({
     >
       <div className="space-y-2">
         {eyebrow ? <div className="font-hero text-[10px] uppercase tracking-[0.34em] text-emerald-200/75">{eyebrow}</div> : null}
-        <div className="text-[1.4rem] font-semibold leading-tight text-white sm:text-[1.8rem]">{title}</div>
-        <div className="max-w-2xl text-sm leading-relaxed text-white/66 sm:text-base">{description}</div>
+        <div className="text-[1.08rem] font-semibold leading-tight text-white sm:text-[1.8rem]">{title}</div>
+        <div className="max-w-2xl text-[12px] leading-relaxed text-white/66 sm:text-base">{description}</div>
       </div>
       <div
         className={cn(
@@ -627,22 +649,22 @@ function SummaryStep({
   const recommendedSnapshot = TOOL_SNAPSHOTS[recommendedTool]
 
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[1fr_0.98fr]">
-      <div className="space-y-5">
+    <div className="grid h-full items-start gap-4 lg:grid-cols-[1fr_0.98fr] lg:gap-5">
+      <div className="space-y-4">
         <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-emerald-200/85">
           <Activity className="h-3.5 w-3.5" />
           Your first-week setup
         </div>
         <div>
-          <h2 className="text-[2.35rem] font-semibold leading-tight text-white sm:text-4xl lg:text-[3.1rem]">
+          <h2 className="text-[1.95rem] font-semibold leading-tight text-white sm:text-4xl lg:text-[3.1rem]">
             {getSummaryHeadline(recommendedTool, experience)}
           </h2>
-          <p className="mt-3 max-w-2xl text-base text-white/68 sm:mt-4 sm:text-lg">
+          <p className="mt-2 max-w-2xl text-sm text-white/68 sm:mt-4 sm:text-lg">
             Delta will lead with <span className="font-semibold text-white">{recommendedSnapshot.title}</span> based on how you bet and what you want out of the trial.
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <AuthorityChip
             label="Lead signal"
             value={primaryIntent === 'tail-sharp-action' ? 'Sharp action' : primaryIntent === 'improve-clv' ? 'Validation' : primaryIntent === 'player-props' ? 'Prop pressure' : 'Board value'}
@@ -657,7 +679,23 @@ function SummaryStep({
           />
         </div>
 
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-4 sm:p-5">
+        <div className="grid grid-cols-2 gap-2 lg:hidden">
+          {orderedTools.map((tool) => (
+            <div
+              key={tool}
+              className={cn(
+                'rounded-[1rem] border px-3 py-2 text-sm font-semibold',
+                tool === recommendedTool
+                  ? 'border-emerald-300/35 bg-emerald-300/12 text-white'
+                  : 'border-white/10 bg-black/20 text-white/72'
+              )}
+            >
+              {TOOL_SNAPSHOTS[tool].title}
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden rounded-[2rem] border border-white/10 bg-white/[0.05] p-4 sm:p-5 lg:block">
           <div className="font-hero text-[10px] uppercase tracking-[0.34em] text-white/42">Included in your Delta stack</div>
           <div className="mt-4 space-y-3">
             {orderedTools.map((tool, index) => (
@@ -667,7 +705,7 @@ function SummaryStep({
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="min-h-0 space-y-3">
         <ToolSnapshotCard tool={recommendedTool} featured />
       </div>
     </div>
@@ -686,20 +724,44 @@ function PreviewStep({
   onSelectPreview: (index: number) => void
 }) {
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[0.92fr_1.08fr]">
-      <div className="space-y-4">
+    <div className="grid h-full items-start gap-4 lg:grid-cols-[0.92fr_1.08fr] lg:gap-5">
+      <div className="space-y-3">
         <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-cyan-100/85">
           <Waves className="h-3.5 w-3.5" />
           Tool snapshots
         </div>
         <div>
-          <h2 className="text-[2.35rem] font-semibold leading-tight text-white sm:text-4xl lg:text-[3.1rem]">See how Delta will feel on day one.</h2>
-          <p className="mt-3 max-w-xl text-base text-white/68 sm:mt-4 sm:text-lg">
+          <h2 className="text-[1.95rem] font-semibold leading-tight text-white sm:text-4xl lg:text-[3.1rem]">See how Delta will feel on day one.</h2>
+          <p className="mt-2 max-w-xl text-sm text-white/68 sm:mt-4 sm:text-lg">
             These are visual depictions of the workflows you unlock during the trial. Pick through them before you head into checkout.
           </p>
         </div>
 
-        <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2 lg:hidden">
+          {orderedTools.map((tool, index) => {
+            const snapshot = TOOL_SNAPSHOTS[tool]
+            const active = previewIndex === index
+
+            return (
+              <button
+                key={tool}
+                type="button"
+                onClick={() => onSelectPreview(index)}
+                className={cn(
+                  'rounded-[1rem] border px-3 py-2 text-left transition',
+                  active
+                    ? 'border-emerald-300/45 bg-emerald-300/12'
+                    : 'border-white/10 bg-white/[0.04]'
+                )}
+              >
+                <div className="text-sm font-semibold text-white">{snapshot.title}</div>
+                <div className="mt-1 text-[11px] text-white/48">{snapshot.eyebrow}</div>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="hidden space-y-3 lg:block">
           {orderedTools.map((tool, index) => {
             const snapshot = TOOL_SNAPSHOTS[tool]
             const active = previewIndex === index
@@ -779,28 +841,28 @@ function ToolSnapshotCard({ tool, featured = false }: { tool: RecommendedToolKey
   const Icon = snapshot.Icon
 
   return (
-    <div className="overflow-hidden rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur sm:rounded-[2rem] sm:p-4">
+    <div className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur sm:rounded-[2rem] sm:p-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="font-hero text-[10px] uppercase tracking-[0.34em] text-emerald-200/75">{snapshot.eyebrow}</div>
-          <div className="mt-2 text-2xl font-semibold text-white sm:text-3xl">{snapshot.title}</div>
-          <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/64 sm:text-base">{snapshot.summary}</p>
+          <div className="mt-1.5 text-xl font-semibold text-white sm:mt-2 sm:text-3xl">{snapshot.title}</div>
+          <p className="mt-2 max-w-xl text-[12px] leading-relaxed text-white/64 sm:mt-3 sm:text-base">{snapshot.summary}</p>
         </div>
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/8 text-emerald-200 sm:h-12 sm:w-12">
           <Icon className="h-6 w-6" />
         </div>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-3 sm:mt-5">
         <ToolVisual tool={tool} />
       </div>
 
-      <div className={cn('mt-5 grid gap-3', featured ? 'sm:grid-cols-[0.9fr_1.1fr]' : 'sm:grid-cols-2')}>
+      <div className={cn('mt-3 grid gap-2 sm:mt-5 sm:gap-3', featured ? 'sm:grid-cols-[0.9fr_1.1fr]' : 'sm:grid-cols-2')}>
         <div className="rounded-[1.4rem] border border-white/8 bg-black/20 p-4">
           <div className="font-hero text-[10px] uppercase tracking-[0.32em] text-white/42">{snapshot.signalLabel}</div>
           <div className="mt-2 text-xl font-semibold text-white">{snapshot.signalValue}</div>
         </div>
-        <div className="rounded-[1.4rem] border border-white/8 bg-black/20 p-4">
+        <div className="hidden rounded-[1.4rem] border border-white/8 bg-black/20 p-4 sm:block">
           <div className="font-hero text-[10px] uppercase tracking-[0.32em] text-white/42">Why this converts</div>
           <div className="mt-2 space-y-2">
             {snapshot.authorityPoints.map((point) => (
@@ -830,7 +892,7 @@ function ToolAuthorityBoard({ recommendedTool }: { recommendedTool: RecommendedT
 function ToolVisual({ tool }: { tool: RecommendedToolKey }) {
   if (tool === 'sharp-props') {
     return (
-      <div className="relative overflow-hidden rounded-[1.6rem] border border-white/10 bg-[#051310] p-4">
+      <div className="relative overflow-hidden rounded-[1.2rem] border border-white/10 bg-[#051310] p-2.5 sm:rounded-[1.6rem] sm:p-4">
         <OverlayChrome />
         <div className="relative space-y-3">
           {[
@@ -843,9 +905,9 @@ function ToolVisual({ tool }: { tool: RecommendedToolKey }) {
               initial={{ opacity: 0, x: -12 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.08 + 0.1, duration: 0.28 }}
-              className="rounded-[1.2rem] border border-white/10 bg-black/25 p-3"
+              className="rounded-[1rem] border border-white/10 bg-black/25 p-2.5 sm:rounded-[1.2rem] sm:p-3"
             >
-              <div className="flex items-center justify-between gap-3 text-sm">
+              <div className="flex items-center justify-between gap-3 text-[12px] sm:text-sm">
                 <div className="font-medium text-white">{label}</div>
                 <div className="text-emerald-200">{leaning}</div>
               </div>
@@ -859,7 +921,7 @@ function ToolVisual({ tool }: { tool: RecommendedToolKey }) {
 
   if (tool === 'whale-detector') {
     return (
-      <div className="relative overflow-hidden rounded-[1.6rem] border border-white/10 bg-[#07100f] p-4">
+      <div className="relative overflow-hidden rounded-[1.2rem] border border-white/10 bg-[#07100f] p-2.5 sm:rounded-[1.6rem] sm:p-4">
         <OverlayChrome />
         <div className="relative space-y-3">
           {[
@@ -872,10 +934,10 @@ function ToolVisual({ tool }: { tool: RecommendedToolKey }) {
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.07 + 0.08, duration: 0.26 }}
-              className="rounded-[1.2rem] border border-white/10 bg-black/25 p-3"
+              className="rounded-[1rem] border border-white/10 bg-black/25 p-2.5 sm:rounded-[1.2rem] sm:p-3"
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-medium text-white">{market}</div>
+                <div className="text-[12px] font-medium text-white sm:text-sm">{market}</div>
                 <div className="rounded-full bg-emerald-300/14 px-2 py-1 text-xs uppercase tracking-[0.24em] text-emerald-100">
                   {size}
                 </div>
@@ -890,11 +952,11 @@ function ToolVisual({ tool }: { tool: RecommendedToolKey }) {
 
   if (tool === 'research-mode') {
     return (
-      <div className="relative overflow-hidden rounded-[1.6rem] border border-white/10 bg-[#061110] p-4">
+      <div className="relative overflow-hidden rounded-[1.2rem] border border-white/10 bg-[#061110] p-2.5 sm:rounded-[1.6rem] sm:p-4">
         <OverlayChrome />
-        <div className="relative grid gap-4 sm:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-[1.2rem] border border-white/10 bg-black/25 p-3">
-            <svg viewBox="0 0 280 150" className="h-40 w-full">
+        <div className="relative grid gap-2 sm:grid-cols-[1.15fr_0.85fr] sm:gap-4">
+          <div className="rounded-[1rem] border border-white/10 bg-black/25 p-2 sm:rounded-[1.2rem] sm:p-3">
+            <svg viewBox="0 0 280 150" className="h-28 w-full sm:h-40">
               <defs>
                 <linearGradient id="delta-clv" x1="0%" x2="100%" y1="0%" y2="0%">
                   <stop offset="0%" stopColor="rgba(125,211,252,0.95)" />
@@ -915,7 +977,7 @@ function ToolVisual({ tool }: { tool: RecommendedToolKey }) {
               ))}
             </svg>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             <MetricChip label="CLV trend" value="+4.8%" />
             <MetricChip label="Validation score" value="87 / 100" />
             <MetricChip label="Closing reads" value="14 tracked" />
@@ -926,7 +988,7 @@ function ToolVisual({ tool }: { tool: RecommendedToolKey }) {
   }
 
   return (
-    <div className="relative overflow-hidden rounded-[1.6rem] border border-white/10 bg-[#051310] p-4">
+    <div className="relative overflow-hidden rounded-[1.2rem] border border-white/10 bg-[#051310] p-2.5 sm:rounded-[1.6rem] sm:p-4">
       <OverlayChrome />
       <div className="relative space-y-3">
         {[
@@ -939,10 +1001,10 @@ function ToolVisual({ tool }: { tool: RecommendedToolKey }) {
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.07 + 0.08, duration: 0.26 }}
-            className="rounded-[1.2rem] border border-white/10 bg-black/25 p-3"
+            className="rounded-[1rem] border border-white/10 bg-black/25 p-2.5 sm:rounded-[1.2rem] sm:p-3"
           >
             <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-medium text-white">{market}</div>
+              <div className="text-[12px] font-medium text-white sm:text-sm">{market}</div>
               <div className="rounded-full bg-cyan-300/14 px-2 py-1 text-xs uppercase tracking-[0.24em] text-cyan-100">
                 {edge}
               </div>
@@ -959,8 +1021,8 @@ function OverlayChrome() {
   return (
     <>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.14),transparent_35%)]" />
-      <div className="absolute left-4 top-4 h-9 w-20 rounded-full border border-white/10 bg-white/6" />
-      <div className="absolute right-4 top-4 flex items-center gap-1">
+      <div className="absolute left-3 top-3 h-7 w-16 rounded-full border border-white/10 bg-white/6 sm:left-4 sm:top-4 sm:h-9 sm:w-20" />
+      <div className="absolute right-3 top-3 flex items-center gap-1 sm:right-4 sm:top-4">
         <span className="h-2 w-2 rounded-full bg-emerald-300/80" />
         <span className="h-2 w-2 rounded-full bg-white/35" />
         <span className="h-2 w-2 rounded-full bg-white/18" />
@@ -972,8 +1034,8 @@ function OverlayChrome() {
 
 function PressureRow({ value, accent }: { value: number; accent: string }) {
   return (
-    <div className="mt-3 space-y-2">
-      <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.28em] text-white/42">
+    <div className="mt-2 space-y-1.5 sm:mt-3 sm:space-y-2">
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.24em] text-white/42 sm:text-[11px] sm:tracking-[0.28em]">
         <span>Pressure</span>
         <span>{value}%</span>
       </div>
@@ -991,9 +1053,9 @@ function PressureRow({ value, accent }: { value: number; accent: string }) {
 
 function MetricChip({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[1.2rem] border border-white/10 bg-black/25 p-3">
+    <div className="rounded-[1rem] border border-white/10 bg-black/25 p-2.5 sm:rounded-[1.2rem] sm:p-3">
       <div className="font-hero text-[10px] uppercase tracking-[0.32em] text-white/42">{label}</div>
-      <div className="mt-2 text-lg font-semibold text-white">{value}</div>
+      <div className="mt-1.5 text-sm font-semibold text-white sm:mt-2 sm:text-lg">{value}</div>
     </div>
   )
 }

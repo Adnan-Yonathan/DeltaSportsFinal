@@ -288,38 +288,6 @@ function MobileCheckoutLayout({
                 <div className="text-center text-sm font-medium text-white/82">
                   {membershipSummary}
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  {MOBILE_MEMBERSHIP_TOOLS.map((tool) => {
-                    const isEnabled =
-                      selectedTier === 'syndicate' ||
-                      tool.key === 'projections' ||
-                      tool.key === 'props'
-
-                    return (
-                      <div
-                        key={tool.key}
-                        className={cn(
-                          'flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-medium transition',
-                          isEnabled
-                            ? 'border-emerald-400/30 bg-emerald-500/10 text-white'
-                            : 'border-white/8 bg-white/[0.02] text-white/36'
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            'flex h-4.5 w-4.5 items-center justify-center rounded-full border',
-                            isEnabled
-                              ? 'border-emerald-300 bg-emerald-300 text-black'
-                              : 'border-white/18 bg-transparent text-transparent'
-                          )}
-                        >
-                          <CheckIcon className="h-3 w-3" />
-                        </span>
-                        <span>{tool.label}</span>
-                      </div>
-                    )
-                  })}
-                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
@@ -360,6 +328,41 @@ function MobileCheckoutLayout({
                     </button>
                   )
                 })}
+              </div>
+
+              <div className="rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-4">
+                <div className="grid grid-cols-2 gap-2">
+                  {MOBILE_MEMBERSHIP_TOOLS.map((tool) => {
+                    const isEnabled =
+                      selectedTier === 'syndicate' ||
+                      tool.key === 'projections' ||
+                      tool.key === 'props'
+
+                    return (
+                      <div
+                        key={tool.key}
+                        className={cn(
+                          'flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-medium transition',
+                          isEnabled
+                            ? 'border-emerald-400/30 bg-emerald-500/10 text-white'
+                            : 'border-white/8 bg-white/[0.02] text-white/36'
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'flex h-4.5 w-4.5 items-center justify-center rounded-full border',
+                            isEnabled
+                              ? 'border-emerald-300 bg-emerald-300 text-black'
+                              : 'border-white/18 bg-transparent text-transparent'
+                          )}
+                        >
+                          <CheckIcon className="h-3 w-3" />
+                        </span>
+                        <span>{tool.label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             </section>
           </div>

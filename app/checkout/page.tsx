@@ -20,7 +20,7 @@ import { AlertCircle, CheckIcon, Loader2, Wallet } from 'lucide-react'
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
 const CHECKOUT_VARIANT =
-  process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_VARIANT === 'custom' ? 'custom' : 'embedded'
+  process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_VARIANT === 'embedded' ? 'embedded' : 'custom'
 
 type BillingPeriod = 'weekly' | 'monthly' | 'annual'
 type TierKey = 'sharp' | 'syndicate'

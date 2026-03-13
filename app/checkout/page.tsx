@@ -16,7 +16,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { PlanKey } from '@/lib/stripe'
 import { trackTrialFlowEvent } from '@/lib/trial-flow'
 import { cn } from '@/lib/utils'
-import { AlertCircle, ArrowRight, CheckIcon, Loader2, Wallet } from 'lucide-react'
+import { AlertCircle, ArrowRight, CheckIcon, Loader2, TrendingUp, Wallet } from 'lucide-react'
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
 const CHECKOUT_VARIANT =
@@ -39,10 +39,10 @@ interface PlanOption {
 const PLANS: PlanOption[] = [
   { tier: 'syndicate', billing: 'weekly', planKey: 'syndicate_weekly', price: 24.99, period: 'week', daily: 3.57 },
   { tier: 'syndicate', billing: 'monthly', planKey: 'syndicate_monthly', price: 79, period: 'month', daily: 2.63, savings: 20 },
-  { tier: 'syndicate', billing: 'annual', planKey: 'syndicate_annual', price: 299, period: 'year', daily: 0.82, savings: 45 },
+  { tier: 'syndicate', billing: 'annual', planKey: 'syndicate_annual', price: 299, period: 'year', daily: 0.82, savings: 70 },
   { tier: 'sharp', billing: 'weekly', planKey: 'sharp_weekly', price: 19.99, period: 'week', daily: 2.86 },
   { tier: 'sharp', billing: 'monthly', planKey: 'sharp_monthly', price: 59, period: 'month', daily: 1.97, savings: 15 },
-  { tier: 'sharp', billing: 'annual', planKey: 'sharp_annual', price: 249, period: 'year', daily: 0.68, savings: 40 },
+  { tier: 'sharp', billing: 'annual', planKey: 'sharp_annual', price: 249, period: 'year', daily: 0.68, savings: 70 },
 ]
 
 const TIER_FEATURES = {
@@ -51,7 +51,9 @@ const TIER_FEATURES = {
     'Sharp Props (player prop edges)',
   ],
   syndicate: [
-    'Everything in Sharp',
+    'Sharp Projections (spreads, totals, moneylines)',
+    'Sharp Props (player prop edges)',
+    'Whale Detector (follow market-moving action)',
     'Research Mode (backtesting, trends)',
   ],
 }
@@ -172,7 +174,230 @@ export default function CheckoutPage() {
 
   return (
     <main className="min-h-screen bg-black text-white">
-      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+      <MobileCheckoutLayout
+        activeVariant={activeVariant}
+        clientSecret={clientSecret}
+        error={error}
+        fetchClientSecret={fetchClientSecret}
+        isLoading={isLoading}
+        onFallback={handleCustomCheckoutUnavailable}
+        selectedBilling={selectedBilling}
+        selectedPlan={selectedPlan}
+        selectedTier={selectedTier}
+        setSelectedBilling={setSelectedBilling}
+        setSelectedTier={setSelectedTier}
+      />
+
+      <DesktopCheckoutLayout
+        activeVariant={activeVariant}
+        clientSecret={clientSecret}
+        error={error}
+        fetchClientSecret={fetchClientSecret}
+        isLoading={isLoading}
+        onFallback={handleCustomCheckoutUnavailable}
+        selectedBilling={selectedBilling}
+        selectedPlan={selectedPlan}
+        selectedTier={selectedTier}
+        setSelectedBilling={setSelectedBilling}
+        setSelectedTier={setSelectedTier}
+      />
+    </main>
+  )
+}
+
+function MobileCheckoutLayout({
+  activeVariant,
+  clientSecret,
+  error,
+  fetchClientSecret,
+  isLoading,
+  onFallback,
+  selectedBilling,
+  selectedPlan,
+  selectedTier,
+  setSelectedBilling,
+  setSelectedTier,
+}: {
+  activeVariant: CheckoutVariant
+  clientSecret: string | null
+  error: string | null
+  fetchClientSecret: () => void
+  isLoading: boolean
+  onFallback: (reason: string, message?: string) => void
+  selectedBilling: BillingPeriod
+  selectedPlan?: PlanOption
+  selectedTier: TierKey
+  setSelectedBilling: (billing: BillingPeriod) => void
+  setSelectedTier: (tier: TierKey) => void
+}) {
+  return (
+    <div className="lg:hidden">
+      <div className="mx-auto max-w-md px-4 pb-10 pt-6">
+        <div className="overflow-hidden rounded-[32px] border border-emerald-400/15 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.18),_rgba(0,0,0,0.96)_50%)] shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
+          <div className="border-b border-white/8 px-5 pb-5 pt-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-emerald-300">
+              <TrendingUp className="h-3.5 w-3.5" />
+              Sharp Access
+            </div>
+            <h1 className="mt-4 text-[2rem] font-semibold leading-none tracking-[-0.04em] text-white">
+              Get access to the sharp money
+            </h1>
+            <p className="mt-3 text-lg font-medium text-white/82">
+              Become an insider for 7 days free.
+            </p>
+            {selectedPlan ? (
+              <p className="mt-1 text-sm text-white/55">
+                Then just ${selectedPlan.price}/{selectedPlan.period}.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-6 px-5 py-5">
+            <MarketPulseGraphic />
+
+            <section className="rounded-3xl border border-white/8 bg-white/[0.03] p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-300">
+                {selectedTier === 'syndicate' ? 'Syndicate tools' : 'Sharp tools'}
+              </div>
+              <ul className="mt-4 space-y-3">
+                {TIER_FEATURES[selectedTier].map((feature) => (
+                  <li key={feature} className="flex items-start gap-3 text-sm text-white/84">
+                    <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="rounded-3xl border border-white/8 bg-white/[0.03] p-4">
+              <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/45">
+                Instant checkout
+              </div>
+              <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/30 p-2">
+                {error ? (
+                  activeVariant === 'custom' && selectedPlan ? (
+                    <MobileWalletUnavailableState error={error} onRetry={fetchClientSecret} />
+                  ) : (
+                    <CheckoutErrorState error={error} onRetry={fetchClientSecret} />
+                  )
+                ) : null}
+
+                {isLoading ? <CheckoutLoadingState /> : null}
+
+                {clientSecret && !isLoading && !error ? (
+                  activeVariant === 'custom' ? (
+                    <CustomCheckoutShell
+                      key={`mobile-${activeVariant}-${selectedPlan?.planKey}`}
+                      clientSecret={clientSecret}
+                      planKey={selectedPlan?.planKey as PlanKey}
+                      onFallback={onFallback}
+                      surface="mobile"
+                    />
+                  ) : (
+                    <MobileWalletUnavailableState
+                      error="Wallet checkout is unavailable right now. Please retry in Safari."
+                      onRetry={fetchClientSecret}
+                    />
+                  )
+                ) : null}
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1">
+                {(['syndicate', 'sharp'] as const).map((tier) => (
+                  <button
+                    key={tier}
+                    type="button"
+                    onClick={() => setSelectedTier(tier)}
+                    className={cn(
+                      'rounded-full px-4 py-2 text-sm font-medium transition',
+                      selectedTier === tier
+                        ? 'bg-white text-black'
+                        : 'text-white/60 hover:text-white'
+                    )}
+                  >
+                    {tier === 'syndicate' ? 'Syndicate' : 'Sharp'}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {PLANS.filter((plan) => plan.tier === selectedTier).map((plan) => {
+                  const isSelected = selectedBilling === plan.billing
+                  const isAnnual = plan.billing === 'annual'
+                  return (
+                    <button
+                      key={plan.planKey}
+                      type="button"
+                      onClick={() => setSelectedBilling(plan.billing)}
+                      className={cn(
+                        'relative rounded-3xl border px-3 py-4 text-left transition',
+                        isSelected
+                          ? 'border-emerald-300 bg-emerald-500/14 shadow-[0_0_0_1px_rgba(52,211,153,0.22)]'
+                          : 'border-white/8 bg-white/[0.03]'
+                      )}
+                    >
+                      {isAnnual ? (
+                        <div className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-emerald-300 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.18em] text-black">
+                          Best Value
+                        </div>
+                      ) : null}
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">
+                        {plan.billing}
+                      </div>
+                      <div className="mt-3 text-xl font-semibold tracking-[-0.04em] text-white">
+                        ${plan.daily.toFixed(2)}
+                      </div>
+                      <div className="text-[11px] text-white/45">per day</div>
+                      <div className="mt-2 text-xs text-white/62">
+                        ${plan.price}/{plan.period}
+                      </div>
+                      {isAnnual ? (
+                        <div className="mt-2 text-[11px] font-semibold text-emerald-300">
+                          70% off
+                        </div>
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DesktopCheckoutLayout({
+  activeVariant,
+  clientSecret,
+  error,
+  fetchClientSecret,
+  isLoading,
+  onFallback,
+  selectedBilling,
+  selectedPlan,
+  selectedTier,
+  setSelectedBilling,
+  setSelectedTier,
+}: {
+  activeVariant: CheckoutVariant
+  clientSecret: string | null
+  error: string | null
+  fetchClientSecret: () => void
+  isLoading: boolean
+  onFallback: (reason: string, message?: string) => void
+  selectedBilling: BillingPeriod
+  selectedPlan?: PlanOption
+  selectedTier: TierKey
+  setSelectedBilling: (billing: BillingPeriod) => void
+  setSelectedTier: (tier: TierKey) => void
+}) {
+  return (
+    <div className="hidden lg:block">
+      <div className="mx-auto max-w-6xl px-6 py-12">
         <div className="mb-10 text-center">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Start your 7-day free trial</h1>
           <p className="mt-3 text-lg text-white/60">
@@ -181,7 +406,7 @@ export default function CheckoutPage() {
         </div>
 
         <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
-          <div className="order-2 space-y-6 lg:order-1">
+          <div className="space-y-6">
             <div>
               <label className="mb-3 block text-sm font-medium text-white/70">
                 Choose your plan
@@ -288,7 +513,7 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          <div className="order-1 lg:order-2">
+          <div>
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-1">
               {error ? (
                 activeVariant === 'custom' && selectedPlan ? (
@@ -302,17 +527,16 @@ export default function CheckoutPage() {
                 )
               ) : null}
 
-              {isLoading ? (
-                <CheckoutLoadingState />
-              ) : null}
+              {isLoading ? <CheckoutLoadingState /> : null}
 
               {clientSecret && !isLoading && !error ? (
                 activeVariant === 'custom' ? (
                   <CustomCheckoutShell
-                    key={`${activeVariant}-${selectedPlan?.planKey}`}
+                    key={`desktop-${activeVariant}-${selectedPlan?.planKey}`}
                     clientSecret={clientSecret}
                     planKey={selectedPlan?.planKey as PlanKey}
-                    onFallback={(reason, message) => handleCustomCheckoutUnavailable(reason, message)}
+                    onFallback={onFallback}
+                    surface="desktop"
                   />
                 ) : (
                   <EmbeddedCheckoutProvider
@@ -325,14 +549,68 @@ export default function CheckoutPage() {
                 )
               ) : null}
             </div>
-
-            <div className="mt-4 text-center text-xs text-white/40 lg:hidden">
-              Secure payment powered by Stripe
-            </div>
           </div>
         </div>
       </div>
-    </main>
+    </div>
+  )
+}
+
+function MarketPulseGraphic() {
+  const bars = [38, 54, 46, 68, 56, 72, 60, 48, 63, 51, 70, 44, 58, 66, 47, 62, 52, 74, 57, 41]
+
+  return (
+    <div className="rounded-3xl border border-emerald-400/15 bg-[linear-gradient(180deg,rgba(16,185,129,0.12),rgba(255,255,255,0.02))] p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-300">
+            Live market pulse
+          </div>
+          <div className="mt-1 text-sm text-white/72">Track sharp movement before the public reacts.</div>
+        </div>
+        <div className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/55">
+          Live
+        </div>
+      </div>
+
+      <div className="mt-5 flex h-28 items-end gap-1 overflow-hidden rounded-2xl border border-white/8 bg-black/25 px-3 pb-3 pt-5">
+        {bars.map((height, index) => (
+          <span
+            key={`${height}-${index}`}
+            className="market-pulse-bar block w-full rounded-full bg-[linear-gradient(180deg,rgba(110,231,183,0.98),rgba(16,185,129,0.25))]"
+            style={{
+              height: `${height}%`,
+              animationDelay: `${index * 0.08}s`,
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between text-[11px] uppercase tracking-[0.2em] text-white/38">
+        <span>Market open</span>
+        <span>Sharp steam</span>
+        <span>Closing line</span>
+      </div>
+
+      <style jsx>{`
+        .market-pulse-bar {
+          animation: marketPulse 1.8s ease-in-out infinite;
+          transform-origin: bottom;
+          opacity: 0.92;
+        }
+
+        @keyframes marketPulse {
+          0%, 100% {
+            transform: scaleY(0.72);
+            opacity: 0.6;
+          }
+          50% {
+            transform: scaleY(1.16);
+            opacity: 1;
+          }
+        }
+      `}</style>
+    </div>
   )
 }
 
@@ -340,10 +618,12 @@ function CustomCheckoutShell({
   clientSecret,
   planKey,
   onFallback,
+  surface,
 }: {
   clientSecret: string
   planKey: PlanKey
   onFallback: (reason: string, message?: string) => void
+  surface: 'mobile' | 'desktop'
 }) {
   return (
     <CheckoutProvider
@@ -364,7 +644,7 @@ function CustomCheckoutShell({
         },
       }}
     >
-      <CustomCheckoutForm planKey={planKey} onFallback={onFallback} />
+      <CustomCheckoutForm planKey={planKey} onFallback={onFallback} surface={surface} />
     </CheckoutProvider>
   )
 }
@@ -372,9 +652,11 @@ function CustomCheckoutShell({
 function CustomCheckoutForm({
   planKey,
   onFallback,
+  surface,
 }: {
   planKey: PlanKey
   onFallback: (reason: string, message?: string) => void
+  surface: 'mobile' | 'desktop'
 }) {
   const checkoutState = useCheckout()
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -423,9 +705,10 @@ function CustomCheckoutForm({
   }
 
   const { checkout } = checkoutState
+  const isMobileSurface = surface === 'mobile'
   const expressCheckoutOptions = isMobileQuickPayOnly
     ? {
-        buttonHeight: 48,
+        buttonHeight: isMobileSurface ? 54 : 48,
         buttonTheme: {
           applePay: 'white-outline' as const,
           googlePay: 'black' as const,
@@ -478,25 +761,30 @@ function CustomCheckoutForm({
       }
 
   return (
-    <div className="space-y-5 p-4 sm:p-6">
-      <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/5 p-4">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 rounded-full bg-emerald-400/15 p-2 text-emerald-300">
-            <Wallet className="h-4 w-4" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-white">Faster checkout</div>
-            <div className="mt-1 text-sm text-white/60">
-              {isMobileQuickPayOnly
-                ? 'Use Apple Pay or Google Pay if this browser and device support them.'
-                : 'Use Apple Pay, Google Pay, Link, or another saved wallet if available.'}
+    <div className={cn('space-y-5 p-4 sm:p-6', isMobileSurface && 'space-y-4 p-3')}>
+      {!isMobileSurface ? (
+        <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/5 p-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-full bg-emerald-400/15 p-2 text-emerald-300">
+              <Wallet className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-white">Faster checkout</div>
+              <div className="mt-1 text-sm text-white/60">
+                Use Apple Pay, Google Pay, Link, or another saved wallet if available.
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
-      <div className="space-y-4 rounded-2xl border border-white/10 bg-black/30 p-4">
-        <div className="text-sm font-medium text-white/70">1-click checkout</div>
+      <div className={cn(
+        'space-y-4 rounded-2xl border border-white/10 bg-black/30 p-4',
+        isMobileSurface && 'space-y-3 border-white/8 bg-black/20 p-3'
+      )}>
+        <div className={cn('text-sm font-medium text-white/70', isMobileSurface && 'text-xs uppercase tracking-[0.24em] text-white/45')}>
+          {isMobileSurface ? 'Apple Pay / Google Pay' : '1-click checkout'}
+        </div>
         <ExpressCheckoutElement
           options={expressCheckoutOptions}
           onReady={(event) => {
@@ -544,11 +832,13 @@ function CustomCheckoutForm({
         </div>
       ) : null}
 
-      <HostedCheckoutButton
-        planKey={planKey}
-        label={hasExpressMethods ? 'Prefer card? Checkout on Stripe' : 'Continue to secure Stripe checkout'}
-        helperText="Card entry happens on Stripe-hosted Checkout."
-      />
+      {!isMobileSurface ? (
+        <HostedCheckoutButton
+          planKey={planKey}
+          label={hasExpressMethods ? 'Prefer card? Checkout on Stripe' : 'Continue to secure Stripe checkout'}
+          helperText="Card entry happens on Stripe-hosted Checkout."
+        />
+      ) : null}
     </div>
   )
 }
@@ -660,6 +950,36 @@ function HostedCheckoutFallbackState({
       >
         Retry wallet checkout
       </button>
+    </div>
+  )
+}
+
+function MobileWalletUnavailableState({
+  error,
+  onRetry,
+}: {
+  error: string
+  onRetry: () => void
+}) {
+  return (
+    <div className="space-y-4 px-4 py-5 text-center">
+      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-emerald-300">
+        <Wallet className="h-5 w-5" />
+      </div>
+      <div>
+        <div className="text-base font-semibold text-white">Apple Pay or Google Pay unavailable</div>
+        <div className="mt-2 text-sm text-white/58">{error}</div>
+      </div>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl border border-white/12 bg-white/[0.05] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+      >
+        Retry wallet checkout
+      </button>
+      <div className="text-xs text-white/40">
+        For iPhone testing, Safari gives the most reliable wallet support.
+      </div>
     </div>
   )
 }

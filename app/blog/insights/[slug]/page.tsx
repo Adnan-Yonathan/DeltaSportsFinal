@@ -9,7 +9,6 @@ import { getSeoBlogTopicBySlug, SEO_BLOG_TOPICS } from '@/lib/blog/seo-topics'
 import { CORE_TOOLS_BY_KEY } from '@/lib/core-tools'
 
 export const dynamic = 'force-dynamic'
-export const revalidate = 0
 
 type PageParams = {
   slug: string
@@ -35,6 +34,9 @@ export async function generateMetadata({
   return {
     title: topic.title,
     description: topic.metaDescription,
+    alternates: {
+      canonical: `https://deltasports.app/blog/insights/${topic.slug}`,
+    },
     openGraph: {
       title: topic.title,
       description: topic.metaDescription,
@@ -76,6 +78,12 @@ export default async function BlogInsightPage({
     })),
   }
 
+  // Derive a stable publish date from the topic's position in the array so
+  // Google always sees the same datePublished regardless of when it crawls.
+  const topicIndex = SEO_BLOG_TOPICS.findIndex((t) => t.slug === params.slug)
+  const publishDate = new Date('2025-12-01')
+  publishDate.setDate(publishDate.getDate() + topicIndex)
+
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -89,8 +97,8 @@ export default async function BlogInsightPage({
       '@type': 'Organization',
       name: 'Delta Sports',
     },
-    datePublished: new Date().toISOString(),
-    dateModified: new Date().toISOString(),
+    datePublished: publishDate.toISOString(),
+    dateModified: publishDate.toISOString(),
     mainEntityOfPage: {
       '@type': 'WebPage',
       '@id': `https://deltasports.app/blog/insights/${params.slug}`,
@@ -201,6 +209,35 @@ export default async function BlogInsightPage({
             </div>
           </section>
         )}
+
+        {(() => {
+          const relatedGuides = SEO_BLOG_TOPICS.filter((t) => t.slug !== params.slug).slice(0, 3)
+          return relatedGuides.length > 0 ? (
+            <section className="rounded-3xl border border-white/10 bg-black/45 p-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-white/50">
+                Keep reading
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-white">Related guides</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {relatedGuides.map((guide) => (
+                  <Link
+                    key={guide.slug}
+                    href={`/blog/insights/${guide.slug}`}
+                    className="group block rounded-2xl border border-white/10 bg-black/40 p-4 transition-colors hover:border-emerald-400/35"
+                  >
+                    <p className="text-sm font-semibold text-white group-hover:text-emerald-200 leading-snug">
+                      {guide.title}
+                    </p>
+                    <div className="mt-3 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/60 group-hover:text-emerald-200">
+                      <span>Read guide</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null
+        })()}
 
         <section className="rounded-3xl border border-emerald-400/20 bg-emerald-500/5 p-6">
           <h2 className="text-xl font-semibold">Conclusion</h2>

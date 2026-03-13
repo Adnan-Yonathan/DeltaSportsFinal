@@ -12,7 +12,7 @@ import {
   getSportLabel,
   resolveSportParam,
 } from '@/lib/blog/market-projections'
-import { generateSeoBlogPost } from '@/lib/blog/seo-generator'
+import { generateSeoBlogPost, type GeneratedSeoBlogPost } from '@/lib/blog/seo-generator'
 import { DEFAULT_GAME_PRIMARY_KEYWORD } from '@/lib/blog/seo-topics'
 
 export const dynamic = 'force-dynamic'
@@ -295,6 +295,30 @@ ${splitSummary}
 `
 }
 
+type SavedGamePost = {
+  away_team: string
+  home_team: string
+  generated_post: GeneratedSeoBlogPost
+  edge_snapshot: GameEdgeAnalysis | null
+  best_lines: MarketLineSummary | null
+  line_movements: string[]
+  splits: any[]
+  created_at: string
+}
+
+async function loadSavedPost(params: PageParams): Promise<SavedGamePost | null> {
+  const sport = resolveSportParam(params.sport)
+  const supabase = createServiceClient()
+  const { data } = await (supabase as any)
+    .from('blog_game_posts')
+    .select('away_team, home_team, generated_post, edge_snapshot, best_lines, line_movements, splits, created_at')
+    .eq('sport', sport)
+    .eq('date', params.date)
+    .eq('slug', params.slug)
+    .single()
+  return data ?? null
+}
+
 async function loadEdgeData(params: PageParams) {
   const sport = resolveSportParam(params.sport)
   const supabase = createServiceClient()
@@ -309,30 +333,72 @@ async function loadEdgeData(params: PageParams) {
   return { edge, updatedAt: data.updated_at }
 }
 
+async function saveGamePost(
+  params: PageParams,
+  sport: string,
+  awayTeam: string,
+  homeTeam: string,
+  generatedPost: GeneratedSeoBlogPost,
+  edge: GameEdgeAnalysis,
+  bestLines: MarketLineSummary,
+  lineMovements: string[],
+  splits: any[],
+) {
+  try {
+    const supabase = createServiceClient()
+    await (supabase as any).from('blog_game_posts').upsert({
+      sport,
+      date: params.date,
+      slug: params.slug,
+      away_team: awayTeam,
+      home_team: homeTeam,
+      generated_post: generatedPost,
+      edge_snapshot: edge,
+      best_lines: bestLines,
+      line_movements: lineMovements,
+      splits,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'sport,date,slug' })
+  } catch {
+    // Non-fatal — page still renders even if save fails
+  }
+}
+
 export async function generateMetadata(
   { params }: { params: PageParams }
 ): Promise<Metadata> {
-  const { edge } = await loadEdgeData(params)
   const sportLabel = getSportLabel(params.sport)
   const fallback = parseSlugTeams(params.slug)
-  const away = edge?.awayTeam || fallback.away || 'Away'
-  const home = edge?.homeTeam || fallback.home || 'Home'
-  const dateLabel = params.date
-  const title = `${away} vs ${home} betting breakdown (sharp money, best lines) - ${dateLabel}`
-  const description = `Full betting breakdown for ${away} vs ${home}. Lines, movement, splits, and sharp/public signals for the ${sportLabel} slate on ${dateLabel}.`
 
+  // Try saved post first — fast, no cache needed
+  const saved = await loadSavedPost(params)
+  const away = saved?.away_team || fallback.away || 'Away'
+  const home = saved?.home_team || fallback.home || 'Home'
+
+  // If not saved, try the live cache
+  if (!saved) {
+    const { edge } = await loadEdgeData(params)
+    const liveAway = edge?.awayTeam || fallback.away || 'Away'
+    const liveHome = edge?.homeTeam || fallback.home || 'Home'
+    const title = `${liveAway} vs ${liveHome} betting breakdown (sharp money, best lines) - ${params.date}`
+    const description = `Full betting breakdown for ${liveAway} vs ${liveHome}. Lines, movement, splits, and sharp/public signals for the ${sportLabel} slate on ${params.date}.`
+    return {
+      title,
+      description,
+      alternates: { canonical: `https://deltasports.app/blog/${params.sport}/${params.date}/${params.slug}` },
+      openGraph: { title, description, type: 'article' },
+      twitter: { title, description },
+    }
+  }
+
+  const title = `${away} vs ${home} betting breakdown (sharp money, best lines) - ${params.date}`
+  const description = `Full betting breakdown for ${away} vs ${home}. Lines, movement, splits, and sharp/public signals for the ${sportLabel} slate on ${params.date}.`
   return {
     title,
     description,
-    openGraph: {
-      title,
-      description,
-      type: 'article',
-    },
-    twitter: {
-      title,
-      description,
-    },
+    alternates: { canonical: `https://deltasports.app/blog/${params.sport}/${params.date}/${params.slug}` },
+    openGraph: { title, description, type: 'article' },
+    twitter: { title, description },
   }
 }
 
@@ -341,46 +407,77 @@ export default async function BlogGamePage({
 }: {
   params: PageParams
 }) {
-  const { edge, updatedAt } = await loadEdgeData(params)
-  if (!edge) notFound()
-
   const sportLabel = getSportLabel(params.sport)
-  const commenceTime = edge.commenceTime
-  const oddsApiId = edge.oddsApiId
-  const supabase = createServiceClient()
+  const sport = resolveSportParam(params.sport)
 
-  const lines = oddsApiId
-    ? (await supabase
-        .from('lines')
-        .select('*')
-        .eq('odds_api_id', oddsApiId)
-        .eq('line_type', 'current')
-        .order('recorded_at', { ascending: false })
-        .limit(200)).data || []
-    : []
+  // --- Try saved post first (no LLM, no cache needed) ---
+  const saved = await loadSavedPost(params)
 
-  const splits = oddsApiId
-    ? (await supabase
-        .from('latest_betting_splits')
-        .select('*')
-        .eq('game_id', oddsApiId)).data || []
-    : []
+  let edge: GameEdgeAnalysis
+  let commenceTime: string | undefined
+  let bestLines: MarketLineSummary
+  let lineMovements: string[]
+  let splits: any[]
+  let generatedPost: GeneratedSeoBlogPost
+  let updatedAt: string | null = null
 
-  const bestLines = buildBestLines(edge, lines)
-  const lineMovements = buildLineMovementSummary(lines)
-  const splitByMarket = splits.reduce((acc: Record<string, any>, row: any) => {
+  if (saved) {
+    edge = saved.edge_snapshot ?? { awayTeam: saved.away_team, homeTeam: saved.home_team } as GameEdgeAnalysis
+    commenceTime = (saved.edge_snapshot as any)?.commenceTime
+    bestLines = saved.best_lines ?? {}
+    lineMovements = saved.line_movements ?? []
+    splits = saved.splits ?? []
+    generatedPost = saved.generated_post
+    updatedAt = saved.created_at
+  } else {
+    // --- Fall back to live cache + generate ---
+    const liveData = await loadEdgeData(params)
+    if (!liveData.edge) notFound()
+
+    edge = liveData.edge
+    updatedAt = liveData.updatedAt
+    commenceTime = edge.commenceTime
+    const oddsApiId = edge.oddsApiId
+    const supabase = createServiceClient()
+
+    const lines = oddsApiId
+      ? (await supabase
+          .from('lines')
+          .select('*')
+          .eq('odds_api_id', oddsApiId)
+          .eq('line_type', 'current')
+          .order('recorded_at', { ascending: false })
+          .limit(200)).data || []
+      : []
+
+    splits = oddsApiId
+      ? (await supabase
+          .from('latest_betting_splits')
+          .select('*')
+          .eq('game_id', oddsApiId)).data || []
+      : []
+
+    bestLines = buildBestLines(edge, lines)
+    lineMovements = buildLineMovementSummary(lines)
+
+    generatedPost = await generateSeoBlogPost({
+      cacheKey: `game:${params.sport}:${params.date}:${params.slug}`,
+      mode: 'game-specific',
+      primaryKeyword: DEFAULT_GAME_PRIMARY_KEYWORD,
+      topic: `Break down ${edge.awayTeam} vs ${edge.homeTeam} using sharp signals, reverse line movement betting context, and sharp money tracker workflow.`,
+      titleHint: `${edge.awayTeam} vs ${edge.homeTeam}: sharp money sports betting breakdown`,
+      context: buildGamePostContext(sportLabel, params.date, edge, bestLines, lineMovements, splits),
+    })
+
+    // Persist so the URL never dies
+    await saveGamePost(params, sport, edge.awayTeam, edge.homeTeam, generatedPost, edge, bestLines, lineMovements, splits)
+  }
+
+  const splitByMarket = (splits as any[]).reduce((acc: Record<string, any>, row: any) => {
     acc[row.market_type] = row
     return acc
   }, {})
   const moneylineFavorite = getMoneylineFavorite(edge, bestLines)
-  const generatedPost = await generateSeoBlogPost({
-    cacheKey: `game:${params.sport}:${params.date}:${params.slug}`,
-    mode: 'game-specific',
-    primaryKeyword: DEFAULT_GAME_PRIMARY_KEYWORD,
-    topic: `Break down ${edge.awayTeam} vs ${edge.homeTeam} using sharp signals, reverse line movement betting context, and sharp money tracker workflow.`,
-    titleHint: `${edge.awayTeam} vs ${edge.homeTeam}: sharp money sports betting breakdown`,
-    context: buildGamePostContext(sportLabel, params.date, edge, bestLines, lineMovements, splits),
-  })
 
   const articleJsonLd = {
     '@context': 'https://schema.org',
@@ -417,167 +514,338 @@ export default async function BlogGamePage({
     })),
   }
 
+  const hasSharpSignals = (edge.sharpSignals?.length ?? 0) > 0
+  const spreadRow = splitByMarket['spread']
+  const totalRow = splitByMarket['total']
+  const moneylineRow = splitByMarket['moneyline']
+
+  // Detect line movement direction from summary strings
+  const parseMoveDirection = (text: string): 'up' | 'down' | 'flat' => {
+    const m = text.match(/from ([\-\d.+]+) to ([\-\d.+]+)/)
+    if (!m) return 'flat'
+    const from = parseFloat(m[1])
+    const to = parseFloat(m[2])
+    if (to > from) return 'up'
+    if (to < from) return 'down'
+    return 'flat'
+  }
+
   return (
     <div className="relative min-h-screen bg-black text-white">
       <OddsMatrixSurface intensity={0.30} className="opacity-90" />
       <SimpleHeader widthClass="max-w-6xl" />
-      <div className="relative z-10 mx-auto max-w-5xl space-y-10 px-4 pb-10 pt-20 sm:px-6 sm:pt-24 lg:px-10">
-        <header className="rounded-3xl border border-white/10 bg-black/55 p-6 backdrop-blur sm:p-10">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-emerald-200/70">
-            {sportLabel} Breakdown
-          </p>
-          <h1 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+
+      <div className="relative z-10 mx-auto max-w-5xl px-4 pb-16 pt-20 sm:px-6 sm:pt-24 lg:px-10">
+
+        {/* ── HERO ── */}
+        <header className="rounded-3xl border border-white/10 bg-black/60 p-6 backdrop-blur sm:p-10">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-emerald-300">
+              {sportLabel}
+            </span>
+            {hasSharpSignals && (
+              <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-300">
+                ⚡ {edge.sharpSignals!.length} Sharp Signal{edge.sharpSignals!.length > 1 ? 's' : ''} Detected
+              </span>
+            )}
+            <span className="text-[11px] text-white/40">{formatTime(commenceTime)} ET</span>
+          </div>
+
+          <h1 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
             {edge.awayTeam} vs {edge.homeTeam}
           </h1>
-          <p className="mt-3 text-sm text-white/70 sm:text-base">
-            Game time: {formatTime(commenceTime)} - Updated {formatTime(updatedAt)}
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-white/70 sm:text-base">
+            {generatedPost.introHook}
           </p>
-          <p className="mt-3 max-w-3xl text-sm text-white/75">{generatedPost.introHook}</p>
-          <div className="mt-4 flex flex-wrap gap-3 text-xs text-white/70">
-            <BlogNavButtons />
-            <Link className="text-white/70 hover:text-emerald-200" href="/blog">
-              Back to blog
-            </Link>
-            <Link className="text-white/70 hover:text-emerald-200" href="/">
-              Home
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/auth/signup"
+              className="inline-flex rounded-full bg-emerald-500/20 border border-emerald-400/60 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200 transition hover:border-emerald-300 hover:text-white"
+            >
+              Follow this live on Delta — free
             </Link>
             <Link
-              className="text-emerald-300 hover:text-emerald-200"
               href={buildSlatePath(params.sport, params.date)}
+              className="inline-flex rounded-full border border-white/15 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-white/60 transition hover:border-white/30 hover:text-white"
             >
-              View full {sportLabel} slate
+              Full {sportLabel} slate →
             </Link>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-4 text-xs text-white/40">
+            <BlogNavButtons />
+            <Link className="hover:text-white/60" href="/blog">Blog</Link>
           </div>
         </header>
 
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold">Best lines right now</h2>
-          <div className="grid gap-5 sm:grid-cols-3">
-            <div className="rounded-3xl border border-white/10 bg-black/55 p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">Spread</p>
+        {/* ── SHARP SIGNAL SUMMARY ── */}
+        {hasSharpSignals && (
+          <section className="mt-6 rounded-3xl border border-amber-400/25 bg-amber-400/5 p-6">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-amber-300/80">
+              Delta Sharp Signals
+            </p>
+            <h2 className="mt-2 text-lg font-semibold text-white">
+              {edge.sharpSignals!.length} sharp signal{edge.sharpSignals!.length > 1 ? 's' : ''} flagged for this game
+            </h2>
+            <ul className="mt-4 space-y-2">
+              {edge.sharpSignals!.map((signal, i) => (
+                <li key={i} className="flex items-start gap-3 text-sm text-white/80">
+                  <span className="mt-0.5 shrink-0 text-amber-400">⚡</span>
+                  <span>{signal.description ?? `${signal.type} ${signal.market} ${signal.side} (${signal.strength}/5)`}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-xs text-white/45">
+              Sharp signals are sourced from Delta&apos;s market projection feed — exchange orderbook pressure, line movement, and bet split divergence.
+            </p>
+          </section>
+        )}
+
+        {/* ── BEST LINES ── */}
+        <section className="mt-6 space-y-3">
+          <h2 className="text-lg font-semibold text-white">Best available lines</h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {/* Spread */}
+            <div className="rounded-2xl border border-white/10 bg-black/55 p-5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/45">Spread</p>
               {bestLines.spread ? (
-                <>
-                  <p className="text-lg font-semibold">
-                    {formatLine(bestLines.spread.line)} ({formatOdds(bestLines.spread.homeOdds)})
+                <div className="mt-2">
+                  <p className="text-2xl font-bold text-white">
+                    {formatLine(bestLines.spread.line)}
                   </p>
-                  <p className="text-xs text-white/60">
-                    Favorite: {edge.spread?.favoredTeam || '--'}
+                  <p className="mt-1 text-sm text-white/60">
+                    {formatOdds(bestLines.spread.homeOdds)} / {formatOdds(bestLines.spread.awayOdds)}
                   </p>
-                  <p className="text-xs text-white/60">Best at {bestLines.spread.book || '--'}</p>
-                </>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {edge.spread?.favoredTeam && (
+                      <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/50">
+                        Fav: {edge.spread.favoredTeam}
+                      </span>
+                    )}
+                    {bestLines.spread.book && (
+                      <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] text-emerald-300/70">
+                        Best: {bestLines.spread.book}
+                      </span>
+                    )}
+                  </div>
+                </div>
               ) : (
-                <p className="text-sm text-white/60">Spread line missing.</p>
+                <p className="mt-2 text-sm text-white/40">Line unavailable</p>
               )}
             </div>
-            <div className="rounded-3xl border border-white/10 bg-black/55 p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">Total</p>
+
+            {/* Total */}
+            <div className="rounded-2xl border border-white/10 bg-black/55 p-5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/45">Total (O/U)</p>
               {bestLines.total ? (
-                <>
-                  <p className="text-lg font-semibold">
-                    {formatLine(bestLines.total.line)} (O {formatOdds(bestLines.total.overOdds)} / U {formatOdds(bestLines.total.underOdds)})
+                <div className="mt-2">
+                  <p className="text-2xl font-bold text-white">
+                    {formatLine(bestLines.total.line)}
                   </p>
-                  <p className="text-xs text-white/60">Best at {bestLines.total.book || '--'}</p>
-                </>
+                  <p className="mt-1 text-sm text-white/60">
+                    O {formatOdds(bestLines.total.overOdds)} / U {formatOdds(bestLines.total.underOdds)}
+                  </p>
+                  {bestLines.total.book && (
+                    <div className="mt-3">
+                      <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] text-emerald-300/70">
+                        Best: {bestLines.total.book}
+                      </span>
+                    </div>
+                  )}
+                </div>
               ) : (
-                <p className="text-sm text-white/60">Total line missing.</p>
+                <p className="mt-2 text-sm text-white/40">Line unavailable</p>
               )}
             </div>
-            <div className="rounded-3xl border border-white/10 bg-black/55 p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">Moneyline</p>
+
+            {/* Moneyline */}
+            <div className="rounded-2xl border border-white/10 bg-black/55 p-5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/45">Moneyline</p>
               {bestLines.moneyline ? (
-                <>
-                  <p className="text-lg font-semibold">
-                    {formatOdds(bestLines.moneyline.awayOdds)} / {formatOdds(bestLines.moneyline.homeOdds)}
-                  </p>
-                  <p className="text-xs text-white/60">
-                    Favorite: {moneylineFavorite || '--'}
-                  </p>
-                  <p className="text-xs text-white/60">Best at {bestLines.moneyline.book || '--'}</p>
-                </>
+                <div className="mt-2">
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-xl font-bold text-white">{formatOdds(bestLines.moneyline.awayOdds)}</p>
+                    <span className="text-xs text-white/35">away</span>
+                  </div>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <p className="text-xl font-bold text-white">{formatOdds(bestLines.moneyline.homeOdds)}</p>
+                    <span className="text-xs text-white/35">home</span>
+                  </div>
+                  {moneylineFavorite && (
+                    <div className="mt-3">
+                      <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/50">
+                        Fav: {moneylineFavorite}
+                      </span>
+                    </div>
+                  )}
+                </div>
               ) : (
-                <p className="text-sm text-white/60">Moneyline data missing.</p>
+                <p className="mt-2 text-sm text-white/40">Line unavailable</p>
               )}
             </div>
           </div>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold">Betting splits</h2>
-          {splits.length ? (
-            <div className="grid gap-5 sm:grid-cols-3">
+        {/* ── LINE MOVEMENT ── */}
+        {lineMovements.length > 0 && (
+          <section className="mt-6 rounded-2xl border border-white/10 bg-black/55 p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.25em] text-white/50">Line Movement</h2>
+            <ul className="mt-3 space-y-2">
+              {lineMovements.map((move, i) => {
+                const dir = parseMoveDirection(move)
+                return (
+                  <li key={i} className="flex items-center gap-3 text-sm">
+                    <span className={
+                      dir === 'up' ? 'text-rose-400' :
+                      dir === 'down' ? 'text-emerald-400' :
+                      'text-white/30'
+                    }>
+                      {dir === 'up' ? '↑' : dir === 'down' ? '↓' : '→'}
+                    </span>
+                    <span className="text-white/75">{move}</span>
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="mt-3 text-xs text-white/35">
+              Sharp-driven movement typically shows reverse line action — line moves opposite to public ticket %
+            </p>
+          </section>
+        )}
+
+        {/* ── BETTING SPLITS ── */}
+        {(splits as any[]).length > 0 && (
+          <section className="mt-6 space-y-3">
+            <h2 className="text-lg font-semibold text-white">Betting splits</h2>
+            <div className="grid gap-3 sm:grid-cols-3">
               {(['spread', 'total', 'moneyline'] as const).map((market) => {
                 const row = splitByMarket[market]
-                if (!row) {
-                  return (
-                    <div key={market} className="rounded-3xl border border-white/10 bg-black/55 p-5">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">{market}</p>
-                      <p className="text-sm text-white/60">Splits missing.</p>
-                    </div>
-                  )
-                }
+                if (!row) return null
+                const awayBets = parseFloat(row.away_bets_pct) || 0
+                const homeBets = parseFloat(row.home_bets_pct) || 0
+                const awayMoney = parseFloat(row.away_money_pct) || 0
+                const homeMoney = parseFloat(row.home_money_pct) || 0
+                const isSharp = row.sharp_indicator && row.sharp_indicator !== 'missing' && row.sharp_indicator !== 'none'
                 return (
-                  <div key={market} className="rounded-3xl border border-white/10 bg-black/55 p-5 space-y-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">{market}</p>
-                    <p className="text-sm text-white/70">
-                      Bets: Away {formatPct(row.away_bets_pct)} / Home {formatPct(row.home_bets_pct)}
-                    </p>
-                    <p className="text-sm text-white/70">
-                      Money: Away {formatPct(row.away_money_pct)} / Home {formatPct(row.home_money_pct)}
-                    </p>
-                    <p className="text-xs text-white/50">
-                      Sharp indicator: {row.sharp_indicator || 'missing'}
-                    </p>
+                  <div key={market} className={`rounded-2xl border p-5 ${isSharp ? 'border-amber-400/25 bg-amber-400/5' : 'border-white/10 bg-black/55'}`}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/45 capitalize">{market}</p>
+                      {isSharp && (
+                        <span className="text-[10px] font-semibold text-amber-300">⚡ Sharp</span>
+                      )}
+                    </div>
+
+                    {/* Bet tickets */}
+                    <div className="mt-4">
+                      <div className="flex justify-between text-[10px] text-white/40 mb-1">
+                        <span>{edge.awayTeam}</span>
+                        <span>Tickets</span>
+                        <span>{edge.homeTeam}</span>
+                      </div>
+                      <div className="flex h-2 overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-l-full bg-sky-500/70 transition-all"
+                          style={{ width: `${awayBets}%` }}
+                        />
+                        <div
+                          className="h-full rounded-r-full bg-rose-500/70 transition-all"
+                          style={{ width: `${homeBets}%` }}
+                        />
+                      </div>
+                      <div className="mt-1 flex justify-between text-xs text-white/60">
+                        <span>{formatPct(row.away_bets_pct)}</span>
+                        <span>{formatPct(row.home_bets_pct)}</span>
+                      </div>
+                    </div>
+
+                    {/* Money */}
+                    <div className="mt-3">
+                      <div className="flex justify-between text-[10px] text-white/40 mb-1">
+                        <span>{edge.awayTeam}</span>
+                        <span>Money</span>
+                        <span>{edge.homeTeam}</span>
+                      </div>
+                      <div className="flex h-2 overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-l-full bg-emerald-500/80 transition-all"
+                          style={{ width: `${awayMoney}%` }}
+                        />
+                        <div
+                          className="h-full rounded-r-full bg-white/25 transition-all"
+                          style={{ width: `${homeMoney}%` }}
+                        />
+                      </div>
+                      <div className="mt-1 flex justify-between text-xs text-white/60">
+                        <span>{formatPct(row.away_money_pct)}</span>
+                        <span>{formatPct(row.home_money_pct)}</span>
+                      </div>
+                    </div>
+
+                    {isSharp && (
+                      <p className="mt-3 text-[10px] leading-4 text-amber-300/70">
+                        {row.sharp_indicator}
+                      </p>
+                    )}
                   </div>
                 )
               })}
             </div>
-          ) : (
-            <p className="text-sm text-white/60">Betting splits missing for this game.</p>
-          )}
-        </section>
+          </section>
+        )}
 
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold">Line movement</h2>
-          {lineMovements.length ? (
-            <ul className="space-y-2 text-sm text-white/70">
-              {lineMovements.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-white/60">Line movement history missing.</p>
-          )}
-        </section>
+        {/* ── TEAM STATS ── */}
+        {(edge.homeStats || edge.awayStats) && (
+          <section className="mt-6 space-y-3">
+            <h2 className="text-lg font-semibold text-white">Team efficiency</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-black/55 p-5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/45">{edge.awayTeam} · Away</p>
+                <p className="mt-2 text-sm text-white/70 leading-6">{buildTeamStatsLine(edge.awayStats)}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/55 p-5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/45">{edge.homeTeam} · Home</p>
+                <p className="mt-2 text-sm text-white/70 leading-6">{buildTeamStatsLine(edge.homeStats)}</p>
+              </div>
+            </div>
+          </section>
+        )}
 
-        <section className="rounded-3xl border border-emerald-400/20 bg-emerald-500/5 p-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-emerald-200/80">
-            Key Takeaways
+        {/* ── KEY TAKEAWAYS ── */}
+        <section className="mt-6 rounded-3xl border border-emerald-400/20 bg-emerald-500/5 p-6">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-emerald-200/70">
+            Delta&apos;s Read
           </p>
-          <ul className="mt-4 space-y-3 text-sm text-white/80">
+          <h2 className="mt-2 text-lg font-semibold text-white">Key takeaways</h2>
+          <ul className="mt-4 space-y-3">
             {generatedPost.keyTakeaways.map((takeaway, index) => (
-              <li key={`${takeaway}-${index}`}>{takeaway}</li>
+              <li key={`${takeaway}-${index}`} className="flex items-start gap-3 text-sm text-white/80">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                <span>{takeaway}</span>
+              </li>
             ))}
           </ul>
         </section>
 
-        <article className="space-y-6">
+        {/* ── ANALYSIS SECTIONS ── */}
+        <article className="mt-6 space-y-5">
           {generatedPost.sections.map((section, sectionIndex) => (
             <section
               key={`${section.h2}-${sectionIndex}`}
               className="rounded-3xl border border-white/10 bg-black/55 p-6"
             >
-              <h2 className="text-2xl font-semibold">{section.h2}</h2>
-              <div className="mt-3 space-y-4 text-sm leading-7 text-white/80">
+              <h2 className="text-xl font-semibold text-white">{section.h2}</h2>
+              <div className="mt-3 space-y-4 text-sm leading-7 text-white/75">
                 {section.paragraphs.map((paragraph, paragraphIndex) => (
                   <p key={`${section.h2}-p-${paragraphIndex}`}>{paragraph}</p>
                 ))}
               </div>
               {section.h3Blocks?.length ? (
-                <div className="mt-6 space-y-4">
+                <div className="mt-6 space-y-5">
                   {section.h3Blocks.map((block, blockIndex) => (
-                    <div key={`${block.h3}-${blockIndex}`} className="space-y-2">
-                      <h3 className="text-lg font-semibold text-white">{block.h3}</h3>
-                      <div className="space-y-3 text-sm leading-7 text-white/80">
+                    <div key={`${block.h3}-${blockIndex}`}>
+                      <h3 className="text-base font-semibold text-white">{block.h3}</h3>
+                      <div className="mt-2 space-y-3 text-sm leading-7 text-white/75">
                         {block.paragraphs.map((paragraph, blockParagraphIndex) => (
                           <p key={`${block.h3}-p-${blockParagraphIndex}`}>{paragraph}</p>
                         ))}
@@ -590,52 +858,100 @@ export default async function BlogGamePage({
           ))}
         </article>
 
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold">Matchup snapshot</h2>
-          <p className="text-sm text-white/70">
-            This matchup brings together {edge.awayTeam} and {edge.homeTeam} with a market snapshot
-            based on current lines, movement, and projection inputs. We&apos;re pulling pace/efficiency
-            context, travel/rest factors, and any sharp/public signals to explain why the market is
-            priced the way it is. This section is descriptive only and doesn&apos;t suggest a winner.
+        {/* ── MID-PAGE CTA ── */}
+        <section className="mt-6 rounded-3xl border border-white/10 bg-black/60 p-6 sm:p-8">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 rounded-3xl"
+            style={{ background: 'radial-gradient(ellipse at 60% 0%, rgba(16,185,129,0.08), transparent 70%)' }}
+          />
+          <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-emerald-200/60">
+            You&apos;re seeing the snapshot
           </p>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="rounded-3xl border border-white/10 bg-black/55 p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">{edge.awayTeam}</p>
-              <p className="text-sm text-white/70">{buildTeamStatsLine(edge.awayStats)}</p>
-            </div>
-            <div className="rounded-3xl border border-white/10 bg-black/55 p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/55">{edge.homeTeam}</p>
-              <p className="text-sm text-white/70">{buildTeamStatsLine(edge.homeStats)}</p>
-            </div>
+          <h2 className="mt-2 text-xl font-bold text-white sm:text-2xl">
+            Delta shows you this market live.
+          </h2>
+          <p className="mt-3 max-w-xl text-sm leading-7 text-white/65">
+            This breakdown is a point-in-time read. Inside Delta, you get the live feed — exchange orderbook depth on Kalshi and Polymarket, whale bets as they hit the tape, and real-time sharp pressure before books have a chance to adjust.
+          </p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {[
+              { label: 'Exchange orderbook depth', desc: 'See where sharp money is resting on Kalshi, Novig, ProphetX' },
+              { label: 'Whale bet feed', desc: 'Large individual bets tracked in real time across exchanges' },
+              { label: 'Live line alerts', desc: 'Get notified when lines move on games you\'re watching' },
+              { label: 'Sharp props scanner', desc: 'Player prop orderbook depth — find edges before books adjust' },
+            ].map((item) => (
+              <div key={item.label} className="flex gap-3 rounded-xl border border-white/8 bg-white/3 p-4">
+                <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                <div>
+                  <p className="text-sm font-semibold text-white">{item.label}</p>
+                  <p className="mt-0.5 text-xs text-white/50">{item.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/auth/signup"
+              className="inline-flex rounded-full bg-emerald-500/20 border border-emerald-400/60 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200 transition hover:border-emerald-300 hover:text-white"
+            >
+              Start free 7-day trial
+            </Link>
+            <Link
+              href="/pricing"
+              className="inline-flex rounded-full border border-white/15 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-white/55 transition hover:border-white/30 hover:text-white"
+            >
+              See pricing
+            </Link>
+          </div>
+          <p className="mt-3 text-xs text-white/30">Plans from $24.99/week · No credit card to start</p>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold">Sharp vs public read</h2>
-          {edge.sharpSignals?.length ? (
-            <p className="text-sm text-white/70">
-              {edge.sharpSignals.length} sharp signals detected in the projection feed.
-            </p>
-          ) : splits.length ? (
-            <p className="text-sm text-white/70">
-              Sharp signals not confirmed. Use splits divergence above to gauge public vs sharp pressure.
-            </p>
-          ) : (
-            <p className="text-sm text-white/60">Sharp/public signals missing.</p>
-          )}
-        </section>
-
-        <section className="space-y-4 rounded-3xl border border-white/10 bg-black/55 p-6">
-          <h2 className="text-xl font-semibold">FAQ</h2>
-          <div className="space-y-4 text-sm text-white/75">
+        {/* ── FAQ ── */}
+        <section className="mt-6 rounded-3xl border border-white/10 bg-black/55 p-6">
+          <h2 className="text-xl font-semibold text-white">Frequently asked</h2>
+          <div className="mt-5 space-y-5">
             {generatedPost.faq.map((entry, index) => (
-              <div key={`${entry.question}-${index}`} className="space-y-1">
-                <h3 className="font-semibold text-white">{entry.question}</h3>
-                <p>{entry.answer}</p>
+              <div key={`${entry.question}-${index}`} className="border-t border-white/8 pt-5 first:border-0 first:pt-0">
+                <h3 className="text-sm font-semibold text-white">{entry.question}</h3>
+                <p className="mt-2 text-sm leading-6 text-white/65">{entry.answer}</p>
               </div>
             ))}
           </div>
         </section>
+
+        {/* ── BOTTOM CTA ── */}
+        <section className="mt-6 rounded-3xl border border-emerald-400/20 bg-emerald-500/5 p-8 text-center sm:p-10">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-emerald-200/60">
+            Follow sharp money for every game
+          </p>
+          <h2 className="mt-3 text-2xl font-bold text-white sm:text-3xl">
+            Try Delta free for 7 days.
+          </h2>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-white/60">
+            Exchange orderbooks, whale bet detection, sharp props, and AI market projections across NBA, NFL, NHL, and MLB. No credit card required.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/auth/signup"
+              className="inline-flex rounded-full bg-emerald-500/20 border border-emerald-400/60 px-7 py-3 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200 transition hover:border-emerald-300 hover:text-white"
+            >
+              Start free trial
+            </Link>
+            <Link
+              href="/sharp-betting-tools"
+              className="inline-flex rounded-full border border-white/15 px-7 py-3 text-xs font-semibold uppercase tracking-[0.22em] text-white/55 transition hover:border-white/30 hover:text-white"
+            >
+              See all tools
+            </Link>
+          </div>
+          <div className="mx-auto mt-6 flex flex-wrap justify-center gap-x-6 gap-y-1 text-[11px] text-white/30">
+            <span>$24.99/week · $79/month · $299/year</span>
+            <span>7-day free trial</span>
+            <span>No credit card to start</span>
+          </div>
+        </section>
+
       </div>
       <script
         type="application/ld+json"

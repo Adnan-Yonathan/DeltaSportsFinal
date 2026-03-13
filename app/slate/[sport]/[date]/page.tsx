@@ -52,9 +52,12 @@ export async function generateMetadata({
   const sportLabel = getSportLabel(params.sport)
   const title = `${sportLabel} slate breakdown – ${params.date}`
   const description = `All ${sportLabel} games on ${params.date} with betting breakdowns, line movement, and splits.`
+  const today = new Date().toISOString().slice(0, 10)
+  const isPast = params.date < today
   return {
     title,
     description,
+    ...(isPast && { robots: { index: false, follow: false } }),
     openGraph: { title, description, type: 'website' },
   }
 }

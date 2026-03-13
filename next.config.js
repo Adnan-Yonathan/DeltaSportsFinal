@@ -1,9 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    // Keep workerThreads only for local Windows builds.
-    // It causes incremental-cache IPC env issues on Linux/Vercel.
-    workerThreads: process.platform === 'win32' && process.env.VERCEL !== '1',
+    // Disable worker threads until Next's incremental-cache IPC env is stable on local builds.
+    workerThreads: false,
   },
   images: {
     unoptimized: true,

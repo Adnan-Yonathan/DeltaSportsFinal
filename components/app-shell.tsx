@@ -8,6 +8,7 @@ import ConditionalAppFooter from '@/components/conditional-app-footer'
 function shouldHideLeftNav(pathname: string) {
   return (
     pathname === '/' ||
+    pathname.startsWith('/trial-onboarding') ||
     pathname.startsWith('/welcome') ||
     pathname.startsWith('/auth/')
   )

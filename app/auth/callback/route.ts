@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/lib/supabase/types'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
+import { shouldStartPrecheckoutOnboarding } from '@/lib/trial-flow'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,6 +66,10 @@ export async function GET(request: NextRequest) {
             has_paid: true,
           })
         }
+      }
+
+      if (shouldStartPrecheckoutOnboarding(membership, user.user_metadata)) {
+        return NextResponse.redirect(new URL('/trial-onboarding', requestUrl.origin))
       }
 
       // Route only by paid access.

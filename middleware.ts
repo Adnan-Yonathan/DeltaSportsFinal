@@ -1,6 +1,11 @@
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import {
+  canAccessPrecheckoutOnboarding,
+  shouldStartPrecheckoutOnboarding,
+} from '@/lib/trial-flow'
+import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
 
 // Pages that don't require authentication or membership access
 const PUBLIC_PATHS = [
@@ -12,8 +17,8 @@ const PUBLIC_PATHS = [
   '/checkout',
 ]
 
-// Public paths where paid users should be redirected to /chat
-const PAID_REDIRECT_PATHS = ['/welcome', '/pricing']
+// Public paths where we still need to inspect the session when one exists.
+const SESSION_AWARE_PUBLIC_PATHS = ['/welcome', '/pricing', '/checkout']
 
 const ALWAYS_PUBLIC_PREFIXES = [
   '/blog',
@@ -126,12 +131,12 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
-  const isPaidRedirectPath = PAID_REDIRECT_PATHS.some(
+  const isSessionAwarePublicPath = SESSION_AWARE_PUBLIC_PATHS.some(
     path => pathname === path || pathname.startsWith(path + '/')
   )
 
-  // Allow public paths (but not paid-redirect paths, which need the paid check below)
-  if (isPublicPath(pathname) && !isPaidRedirectPath) {
+  // Allow public paths (but not session-aware public paths, which need the auth check below)
+  if (isPublicPath(pathname) && !isSessionAwarePublicPath) {
     return res
   }
 
@@ -140,9 +145,9 @@ export async function middleware(req: NextRequest) {
   // Get session
   const { data: { session } } = await supabase.auth.getSession()
 
-  // For paid-redirect paths (/welcome, /pricing), allow access if no session
-  // but continue to the paid check if there IS a session
-  if (isPaidRedirectPath && !session) {
+  // For session-aware public paths (/welcome, /pricing, /checkout), allow access if no session
+  // but continue to the auth and membership checks if there IS a session.
+  if (isSessionAwarePublicPath && !session) {
     return res
   }
 
@@ -181,6 +186,27 @@ export async function middleware(req: NextRequest) {
     }
   } catch {
     // Ignore lookup failures and fall back to redirects below.
+  }
+
+  const membership = {
+    ...getMembershipStatusFromMetadata(metadata),
+    hasPaidAccess: isPaid,
+  }
+
+  const isTrialOnboardingPath =
+    pathname === '/trial-onboarding' || pathname.startsWith('/trial-onboarding/')
+  if (isTrialOnboardingPath) {
+    if (isPaid) {
+      return NextResponse.redirect(new URL('/', req.url))
+    }
+    if (canAccessPrecheckoutOnboarding(membership, metadata)) {
+      return res
+    }
+    return NextResponse.redirect(new URL('/checkout', req.url))
+  }
+
+  if (shouldStartPrecheckoutOnboarding(membership, metadata)) {
+    return NextResponse.redirect(new URL('/trial-onboarding', req.url))
   }
 
   const isOnboardingPath = pathname === '/onboarding' || pathname.startsWith('/onboarding/')

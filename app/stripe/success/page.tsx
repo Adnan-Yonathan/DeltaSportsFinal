@@ -7,7 +7,7 @@ import { motion } from 'framer-motion'
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getMembershipStatusFromMetadata } from '@/lib/utils/membership'
-import { TOOLS_TUTORIAL_METADATA_KEY } from '@/lib/tools-tutorial'
+import { trackTrialFlowEvent } from '@/lib/trial-flow'
 
 type OnboardingProfile = {
   favorite_sports?: string[]
@@ -285,9 +285,6 @@ export default function StripeSuccessPage() {
     )
   }, [profile])
 
-  const shouldStartToolsTutorial = (user: { user_metadata?: Record<string, unknown> } | null) =>
-    !Boolean(user?.user_metadata?.[TOOLS_TUTORIAL_METADATA_KEY])
-
   useEffect(() => {
     const checkSubscription = async () => {
       const supabase = createClient()
@@ -306,30 +303,13 @@ export default function StripeSuccessPage() {
 
       if (membership.isActive) {
         setStatus('success')
+        if (membership.status === 'trialing') {
+          trackTrialFlowEvent('trial_started', {
+            source: 'stripe_success',
+          })
+        }
         const postCheckoutRedirect = getPostCheckoutRedirect()
-        if (postCheckoutRedirect) {
-          router.replace(postCheckoutRedirect)
-          return
-        }
-        if (membership.status === 'trialing' && shouldStartToolsTutorial(user)) {
-          router.replace('/onboarding')
-          return
-        }
-        if (!profileLoaded) {
-          const metadataProfile = user.user_metadata?.onboarding_profile
-          if (metadataProfile && typeof metadataProfile === 'object') {
-            setProfile(metadataProfile)
-            setProfileLoaded(true)
-          } else {
-            const { data } = await supabase
-              .from('users')
-              .select('favorite_sports, preferred_markets, experience_level, risk_tolerance, signup_reasons')
-              .eq('id', user.id)
-              .single()
-            setProfile(data ?? null)
-            setProfileLoaded(true)
-          }
-        }
+        router.replace(postCheckoutRedirect || '/')
         return
       }
 
@@ -357,30 +337,13 @@ export default function StripeSuccessPage() {
 
           if (membership.isActive) {
             setStatus('success')
+            if (membership.status === 'trialing') {
+              trackTrialFlowEvent('trial_started', {
+                source: 'stripe_success_poll',
+              })
+            }
             const postCheckoutRedirect = getPostCheckoutRedirect()
-            if (postCheckoutRedirect) {
-              router.replace(postCheckoutRedirect)
-              return
-            }
-            if (membership.status === 'trialing' && shouldStartToolsTutorial(user)) {
-              router.replace('/onboarding')
-              return
-            }
-            if (!profileLoaded) {
-              const metadataProfile = user.user_metadata?.onboarding_profile
-              if (metadataProfile && typeof metadataProfile === 'object') {
-                setProfile(metadataProfile)
-                setProfileLoaded(true)
-              } else {
-                const { data } = await supabase
-                  .from('users')
-                  .select('favorite_sports, preferred_markets, experience_level, risk_tolerance, signup_reasons')
-                  .eq('id', user.id)
-                  .single()
-                setProfile(data ?? null)
-                setProfileLoaded(true)
-              }
-            }
+            router.replace(postCheckoutRedirect || '/')
             return
           }
         }

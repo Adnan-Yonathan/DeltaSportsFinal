@@ -4,7 +4,7 @@ import { Suspense } from 'react'
 
 export const metadata: Metadata = {
   title: 'Onboarding | Delta Sports',
-  description: 'Feature walkthrough for Sharp Projections, Sharp Props, Whale Detector, and Research Mode.',
+  description: 'Welcome to Delta. Follow the socials, grab the Kalshi bonus, and head into the app.',
 }
 
 export default function OnboardingPage() {

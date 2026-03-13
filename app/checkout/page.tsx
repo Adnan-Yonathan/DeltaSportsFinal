@@ -16,7 +16,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { PlanKey } from '@/lib/stripe'
 import { trackTrialFlowEvent } from '@/lib/trial-flow'
 import { cn } from '@/lib/utils'
-import { AlertCircle, ArrowRight, CheckIcon, Loader2, TrendingUp, Wallet } from 'lucide-react'
+import { AlertCircle, ArrowRight, CheckIcon, Loader2, Wallet } from 'lucide-react'
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
 const CHECKOUT_VARIANT =
@@ -232,14 +232,10 @@ function MobileCheckoutLayout({
 }) {
   return (
     <div className="lg:hidden">
-      <div className="mx-auto max-w-md px-4 pb-10 pt-6">
+      <div className="mx-auto max-w-md px-4 pb-40 pt-6">
         <div className="overflow-hidden rounded-[32px] border border-emerald-400/15 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.18),_rgba(0,0,0,0.96)_50%)] shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
           <div className="border-b border-white/8 px-5 pb-5 pt-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-emerald-300">
-              <TrendingUp className="h-3.5 w-3.5" />
-              Sharp Access
-            </div>
-            <h1 className="mt-4 text-[2rem] font-semibold leading-none tracking-[-0.04em] text-white">
+            <h1 className="text-[2rem] font-semibold leading-none tracking-[-0.04em] text-white">
               Get access to the sharp money
             </h1>
             <p className="mt-3 text-lg font-medium text-white/82">
@@ -255,71 +251,25 @@ function MobileCheckoutLayout({
           <div className="space-y-6 px-5 py-5">
             <MarketPulseGraphic />
 
-            <section className="rounded-3xl border border-white/8 bg-white/[0.03] p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-300">
-                {selectedTier === 'syndicate' ? 'Syndicate tools' : 'Sharp tools'}
-              </div>
-              <ul className="mt-4 space-y-3">
-                {TIER_FEATURES[selectedTier].map((feature) => (
-                  <li key={feature} className="flex items-start gap-3 text-sm text-white/84">
-                    <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <section className="rounded-3xl border border-white/8 bg-white/[0.03] p-4">
-              <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/45">
-                Instant checkout
-              </div>
-              <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/30 p-2">
-                {error ? (
-                  activeVariant === 'custom' && selectedPlan ? (
-                    <MobileWalletUnavailableState error={error} onRetry={fetchClientSecret} />
-                  ) : (
-                    <CheckoutErrorState error={error} onRetry={fetchClientSecret} />
-                  )
-                ) : null}
-
-                {isLoading ? <CheckoutLoadingState /> : null}
-
-                {clientSecret && !isLoading && !error ? (
-                  activeVariant === 'custom' ? (
-                    <CustomCheckoutShell
-                      key={`mobile-${activeVariant}-${selectedPlan?.planKey}`}
-                      clientSecret={clientSecret}
-                      planKey={selectedPlan?.planKey as PlanKey}
-                      onFallback={onFallback}
-                      surface="mobile"
-                    />
-                  ) : (
-                    <MobileWalletUnavailableState
-                      error="Wallet checkout is unavailable right now. Please retry in Safari."
-                      onRetry={fetchClientSecret}
-                    />
-                  )
-                ) : null}
-              </div>
-            </section>
-
             <section className="space-y-3">
-              <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1">
+              <div className="flex justify-center">
+                <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 {(['syndicate', 'sharp'] as const).map((tier) => (
                   <button
                     key={tier}
                     type="button"
                     onClick={() => setSelectedTier(tier)}
                     className={cn(
-                      'rounded-full px-4 py-2 text-sm font-medium transition',
+                      'min-w-[120px] rounded-full px-5 py-2.5 text-sm font-semibold tracking-[-0.01em] transition',
                       selectedTier === tier
-                        ? 'bg-white text-black'
-                        : 'text-white/60 hover:text-white'
+                        ? 'bg-gradient-to-b from-white to-white/90 text-black shadow-[0_10px_30px_rgba(255,255,255,0.14)]'
+                        : 'text-white/58 hover:text-white'
                     )}
                   >
                     {tier === 'syndicate' ? 'Syndicate' : 'Sharp'}
                   </button>
                 ))}
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
@@ -332,10 +282,10 @@ function MobileCheckoutLayout({
                       type="button"
                       onClick={() => setSelectedBilling(plan.billing)}
                       className={cn(
-                        'relative rounded-3xl border px-3 py-4 text-left transition',
+                        'relative overflow-hidden rounded-[28px] border px-3 py-4 text-left transition',
                         isSelected
-                          ? 'border-emerald-300 bg-emerald-500/14 shadow-[0_0_0_1px_rgba(52,211,153,0.22)]'
-                          : 'border-white/8 bg-white/[0.03]'
+                          ? 'border-emerald-300 bg-[linear-gradient(180deg,rgba(16,185,129,0.22),rgba(255,255,255,0.03))] shadow-[0_0_0_1px_rgba(52,211,153,0.22),0_22px_50px_rgba(16,185,129,0.12)]'
+                          : 'border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))]'
                       )}
                     >
                       {isAnnual ? (
@@ -349,9 +299,8 @@ function MobileCheckoutLayout({
                       <div className="mt-3 text-xl font-semibold tracking-[-0.04em] text-white">
                         ${plan.daily.toFixed(2)}
                       </div>
-                      <div className="text-[11px] text-white/45">per day</div>
-                      <div className="mt-2 text-xs text-white/62">
-                        ${plan.price}/{plan.period}
+                      <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-300">
+                        Per Day
                       </div>
                       {isAnnual ? (
                         <div className="mt-2 text-[11px] font-semibold text-emerald-300">
@@ -364,6 +313,37 @@ function MobileCheckoutLayout({
               </div>
             </section>
           </div>
+        </div>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[rgba(4,4,4,0.88)] backdrop-blur-xl">
+        <div className="mx-auto max-w-md px-4 py-3">
+          {error ? (
+            activeVariant === 'custom' && selectedPlan ? (
+              <MobileWalletUnavailableState error={error} onRetry={fetchClientSecret} />
+            ) : (
+              <CheckoutErrorState error={error} onRetry={fetchClientSecret} />
+            )
+          ) : null}
+
+          {isLoading ? <CheckoutLoadingState compact /> : null}
+
+          {clientSecret && !isLoading && !error ? (
+            activeVariant === 'custom' ? (
+              <CustomCheckoutShell
+                key={`mobile-${activeVariant}-${selectedPlan?.planKey}`}
+                clientSecret={clientSecret}
+                planKey={selectedPlan?.planKey as PlanKey}
+                onFallback={onFallback}
+                surface="mobile"
+              />
+            ) : (
+              <MobileWalletUnavailableState
+                error="Wallet checkout is unavailable right now. Please retry in Safari."
+                onRetry={fetchClientSecret}
+              />
+            )
+          ) : null}
         </div>
       </div>
     </div>
@@ -562,12 +542,7 @@ function MarketPulseGraphic() {
   return (
     <div className="rounded-3xl border border-emerald-400/15 bg-[linear-gradient(180deg,rgba(16,185,129,0.12),rgba(255,255,255,0.02))] p-4">
       <div className="flex items-center justify-between">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-300">
-            Live market pulse
-          </div>
-          <div className="mt-1 text-sm text-white/72">Track sharp movement before the public reacts.</div>
-        </div>
+        <div className="text-sm text-white/72">Track sharp movement before the public reacts.</div>
         <div className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/55">
           Live
         </div>
@@ -780,11 +755,11 @@ function CustomCheckoutForm({
 
       <div className={cn(
         'space-y-4 rounded-2xl border border-white/10 bg-black/30 p-4',
-        isMobileSurface && 'space-y-3 border-white/8 bg-black/20 p-3'
+        isMobileSurface && 'space-y-2 border-0 bg-transparent p-0'
       )}>
-        <div className={cn('text-sm font-medium text-white/70', isMobileSurface && 'text-xs uppercase tracking-[0.24em] text-white/45')}>
-          {isMobileSurface ? 'Apple Pay / Google Pay' : '1-click checkout'}
-        </div>
+        {!isMobileSurface ? (
+          <div className="text-sm font-medium text-white/70">1-click checkout</div>
+        ) : null}
         <ExpressCheckoutElement
           options={expressCheckoutOptions}
           onReady={(event) => {
@@ -817,7 +792,10 @@ function CustomCheckoutForm({
           }}
         />
         {!hasExpressMethods ? (
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-xs text-white/55">
+          <div className={cn(
+            'rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-xs text-white/55',
+            isMobileSurface && 'rounded-2xl border-white/8 bg-white/[0.04] text-center'
+          )}>
             {isMobileQuickPayOnly
               ? 'Wallet checkout is not available in this browser. On iPhone, Apple Pay requires a supported browser with Wallet enabled, registered Stripe domains, and better support outside in-app browsers.'
               : 'Quick-pay wallets are not available in this browser right now. You can still complete checkout on Stripe.'}
@@ -984,11 +962,14 @@ function MobileWalletUnavailableState({
   )
 }
 
-function CheckoutLoadingState() {
+function CheckoutLoadingState({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="flex flex-col items-center justify-center p-12">
-      <Loader2 className="mb-4 h-8 w-8 animate-spin text-white/50" />
-      <div className="text-sm text-white/50">Loading checkout...</div>
+    <div className={cn(
+      'flex flex-col items-center justify-center p-12',
+      compact && 'p-4'
+    )}>
+      <Loader2 className={cn('mb-4 h-8 w-8 animate-spin text-white/50', compact && 'mb-2 h-6 w-6')} />
+      <div className={cn('text-sm text-white/50', compact && 'text-xs')}>Loading checkout...</div>
     </div>
   )
 }

@@ -58,6 +58,13 @@ const TIER_FEATURES = {
   ],
 }
 
+const MOBILE_MEMBERSHIP_TOOLS = [
+  { key: 'projections', label: 'Sharp Projections' },
+  { key: 'props', label: 'Sharp Props' },
+  { key: 'whale', label: 'Whale Feed' },
+  { key: 'research', label: 'Research Mode' },
+] as const
+
 export default function CheckoutPage() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
@@ -230,6 +237,11 @@ function MobileCheckoutLayout({
   setSelectedBilling: (billing: BillingPeriod) => void
   setSelectedTier: (tier: TierKey) => void
 }) {
+  const membershipSummary =
+    selectedTier === 'syndicate'
+      ? 'Syndicate gets access to Whale Feed and Research.'
+      : 'Sharp gets access to Projections and Props.'
+
   return (
     <div className="lg:hidden">
       <div className="mx-auto max-w-md px-4 pb-40 pt-6">
@@ -254,21 +266,59 @@ function MobileCheckoutLayout({
             <section className="space-y-3">
               <div className="flex justify-center">
                 <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                {(['syndicate', 'sharp'] as const).map((tier) => (
-                  <button
-                    key={tier}
-                    type="button"
-                    onClick={() => setSelectedTier(tier)}
-                    className={cn(
-                      'min-w-[120px] rounded-full px-5 py-2.5 text-sm font-semibold tracking-[-0.01em] transition',
-                      selectedTier === tier
-                        ? 'bg-gradient-to-b from-white to-white/90 text-black shadow-[0_10px_30px_rgba(255,255,255,0.14)]'
-                        : 'text-white/58 hover:text-white'
-                    )}
-                  >
-                    {tier === 'syndicate' ? 'Syndicate' : 'Sharp'}
-                  </button>
-                ))}
+                  {(['syndicate', 'sharp'] as const).map((tier) => (
+                    <button
+                      key={tier}
+                      type="button"
+                      onClick={() => setSelectedTier(tier)}
+                      className={cn(
+                        'min-w-[120px] rounded-full px-5 py-2.5 text-sm font-semibold tracking-[-0.01em] transition',
+                        selectedTier === tier
+                          ? 'bg-gradient-to-b from-white to-white/90 text-black shadow-[0_10px_30px_rgba(255,255,255,0.14)]'
+                          : 'text-white/58 hover:text-white'
+                      )}
+                    >
+                      {tier === 'syndicate' ? 'Syndicate' : 'Sharp'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-4">
+                <div className="text-center text-sm font-medium text-white/82">
+                  {membershipSummary}
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {MOBILE_MEMBERSHIP_TOOLS.map((tool) => {
+                    const isEnabled =
+                      selectedTier === 'syndicate' ||
+                      tool.key === 'projections' ||
+                      tool.key === 'props'
+
+                    return (
+                      <div
+                        key={tool.key}
+                        className={cn(
+                          'flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-medium transition',
+                          isEnabled
+                            ? 'border-emerald-400/30 bg-emerald-500/10 text-white'
+                            : 'border-white/8 bg-white/[0.02] text-white/36'
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'flex h-4.5 w-4.5 items-center justify-center rounded-full border',
+                            isEnabled
+                              ? 'border-emerald-300 bg-emerald-300 text-black'
+                              : 'border-white/18 bg-transparent text-transparent'
+                          )}
+                        >
+                          <CheckIcon className="h-3 w-3" />
+                        </span>
+                        <span>{tool.label}</span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -289,7 +339,7 @@ function MobileCheckoutLayout({
                       )}
                     >
                       {isAnnual ? (
-                        <div className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-emerald-300 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.18em] text-black">
+                        <div className="mb-3 inline-flex rounded-full border border-emerald-300/45 bg-emerald-500/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-200">
                           Best Value
                         </div>
                       ) : null}
@@ -303,7 +353,7 @@ function MobileCheckoutLayout({
                         Per Day
                       </div>
                       {isAnnual ? (
-                        <div className="mt-2 text-[11px] font-semibold text-emerald-300">
+                        <div className="mt-2 inline-flex rounded-full bg-emerald-300 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-black">
                           70% off
                         </div>
                       ) : null}

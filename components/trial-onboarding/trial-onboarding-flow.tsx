@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import type { LucideIcon } from 'lucide-react'
 import {
   Activity,
@@ -184,6 +184,35 @@ const buildToolOrder = (recommendedTool: RecommendedToolKey) => [
   ...TOOL_ORDER.filter((tool) => tool !== recommendedTool),
 ]
 
+const useMobilePerformanceMode = () => {
+  const [performanceMode, setPerformanceMode] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const mobileQuery = window.matchMedia('(max-width: 820px)')
+    const coarsePointerQuery = window.matchMedia('(pointer: coarse)')
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+
+    const update = () => {
+      setPerformanceMode(
+        mobileQuery.matches || coarsePointerQuery.matches || reducedMotionQuery.matches
+      )
+    }
+
+    update()
+
+    const queries = [mobileQuery, coarsePointerQuery, reducedMotionQuery]
+    queries.forEach((query) => query.addEventListener('change', update))
+
+    return () => {
+      queries.forEach((query) => query.removeEventListener('change', update))
+    }
+  }, [])
+
+  return performanceMode
+}
+
 export default function TrialOnboardingFlow() {
   const [stepIndex, setStepIndex] = useState(0)
   const [previewIndex, setPreviewIndex] = useState(0)
@@ -192,8 +221,10 @@ export default function TrialOnboardingFlow() {
   const [experience, setExperience] = useState<TrialExperience | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const performanceMode = useMobilePerformanceMode()
 
   const currentStep = STEP_ORDER[stepIndex]
+  const featureStep = currentStep === 'summary' || currentStep === 'preview'
   const progress = ((stepIndex + 1) / STEP_ORDER.length) * 100
 
   const recommendedTool = useMemo<RecommendedToolKey>(() => {
@@ -286,95 +317,118 @@ export default function TrialOnboardingFlow() {
   }
 
   return (
-    <div className="relative h-[100dvh] min-h-[100dvh] overflow-hidden bg-[#020706] text-white">
-      <BackgroundChrome />
-      <div className="relative z-10 mx-auto flex h-[100dvh] w-full max-w-5xl flex-col px-3 pb-3 pt-3 sm:px-5 sm:pb-5 sm:pt-5 lg:px-8 lg:pb-6">
-        <TopBar
-          currentStep={currentStep}
-          stepIndex={stepIndex}
-          totalSteps={STEP_ORDER.length}
-          progress={progress}
-          onBack={stepIndex > 0 ? goBack : undefined}
-          disableBack={isSubmitting}
-        />
-
-        <div className="flex min-h-0 flex-1 items-stretch justify-center py-3 sm:py-5 lg:items-center lg:py-6">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentStep}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -18 }}
-              transition={{ duration: 0.28, ease: 'easeOut' }}
-              className="h-full w-full"
-            >
-              {currentStep === 'welcome' && <WelcomeStep />}
-              {currentStep === 'primary-intent' && (
-                <QuestionStep
-                  title="What are you looking for?"
-                  description="We use this to decide which Delta workflow should lead your first week."
-                  label="Your main goal"
-                  options={PRIMARY_INTENT_OPTIONS}
-                  value={primaryIntent}
-                  onSelect={setPrimaryIntent}
-                />
-              )}
-              {currentStep === 'bet-focus' && (
-                <QuestionStep
-                  title="What markets do you bet most?"
-                  description="This changes whether Delta leans game lines, props, or both in your first session."
-                  label="Your main market"
-                  options={BET_FOCUS_OPTIONS}
-                  value={betFocus}
-                  onSelect={setBetFocus}
-                />
-              )}
-              {currentStep === 'experience' && (
-                <QuestionStep
-                  title="How experienced are you?"
-                  description="We tune the level of guidance so Delta feels decisive instead of noisy."
-                  label="Your level"
-                  options={EXPERIENCE_OPTIONS}
-                  value={experience}
-                  onSelect={setExperience}
-                />
-              )}
-              {currentStep === 'summary' && (
-                <SummaryStep
-                  recommendedTool={recommendedTool}
-                  primaryIntent={primaryIntent}
-                  betFocus={betFocus}
-                  experience={experience}
-                  orderedTools={orderedTools}
-                />
-              )}
-              {currentStep === 'preview' && (
-                <PreviewStep
-                  orderedTools={orderedTools}
-                  activeTool={activePreviewTool}
-                  previewIndex={previewIndex}
-                  onSelectPreview={setPreviewIndex}
-                />
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        <div className="z-20 pt-2 sm:pt-4">
-          <BottomAction
+    <MotionConfig reducedMotion={performanceMode ? 'always' : 'user'}>
+      <div className="relative h-[100dvh] min-h-[100dvh] overflow-hidden bg-[#020706] text-white">
+        <BackgroundChrome performanceMode={performanceMode} />
+        <div className="relative z-10 mx-auto flex h-[100dvh] w-full max-w-5xl flex-col px-3 pb-3 pt-3 sm:px-5 sm:pb-5 sm:pt-5 lg:px-8 lg:pb-6">
+          <TopBar
             currentStep={currentStep}
-            canContinue={canContinue}
-            isSubmitting={isSubmitting}
-            onNext={goNext}
-            submitError={submitError}
+            stepIndex={stepIndex}
+            totalSteps={STEP_ORDER.length}
+            progress={progress}
+            onBack={stepIndex > 0 ? goBack : undefined}
+            disableBack={isSubmitting}
+            performanceMode={performanceMode}
           />
+
+          <div
+            className={cn(
+              'flex min-h-0 flex-1 items-stretch justify-center py-3 sm:py-5 lg:items-center lg:py-6',
+              featureStep ? 'overflow-y-auto overscroll-contain pr-1' : 'overflow-hidden'
+            )}
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentStep}
+                initial={performanceMode ? false : { opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={performanceMode ? { opacity: 0.96 } : { opacity: 0, y: -18 }}
+                transition={{ duration: performanceMode ? 0.12 : 0.28, ease: 'easeOut' }}
+                className={cn('w-full', featureStep ? 'min-h-full pb-2' : 'h-full')}
+              >
+                {currentStep === 'welcome' && <WelcomeStep />}
+                {currentStep === 'primary-intent' && (
+                  <QuestionStep
+                    title="What are you looking for?"
+                    description="We use this to decide which Delta workflow should lead your first week."
+                    label="Your main goal"
+                    options={PRIMARY_INTENT_OPTIONS}
+                    value={primaryIntent}
+                    onSelect={setPrimaryIntent}
+                    performanceMode={performanceMode}
+                  />
+                )}
+                {currentStep === 'bet-focus' && (
+                  <QuestionStep
+                    title="What markets do you bet most?"
+                    description="This changes whether Delta leans game lines, props, or both in your first session."
+                    label="Your main market"
+                    options={BET_FOCUS_OPTIONS}
+                    value={betFocus}
+                    onSelect={setBetFocus}
+                    performanceMode={performanceMode}
+                  />
+                )}
+                {currentStep === 'experience' && (
+                  <QuestionStep
+                    title="How experienced are you?"
+                    description="We tune the level of guidance so Delta feels decisive instead of noisy."
+                    label="Your level"
+                    options={EXPERIENCE_OPTIONS}
+                    value={experience}
+                    onSelect={setExperience}
+                    performanceMode={performanceMode}
+                  />
+                )}
+                {currentStep === 'summary' && (
+                  <SummaryStep
+                    recommendedTool={recommendedTool}
+                    primaryIntent={primaryIntent}
+                    betFocus={betFocus}
+                    experience={experience}
+                    orderedTools={orderedTools}
+                    performanceMode={performanceMode}
+                  />
+                )}
+                {currentStep === 'preview' && (
+                  <PreviewStep
+                    orderedTools={orderedTools}
+                    activeTool={activePreviewTool}
+                    previewIndex={previewIndex}
+                    onSelectPreview={setPreviewIndex}
+                    performanceMode={performanceMode}
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          <div className="sticky bottom-0 z-20 pt-2 sm:pt-4">
+            <BottomAction
+              currentStep={currentStep}
+              canContinue={canContinue}
+              isSubmitting={isSubmitting}
+              onNext={goNext}
+              submitError={submitError}
+              performanceMode={performanceMode}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </MotionConfig>
   )
 }
 
-function BackgroundChrome() {
+function BackgroundChrome({ performanceMode }: { performanceMode: boolean }) {
+  if (performanceMode) {
+    return (
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.1),transparent_30%),linear-gradient(180deg,#04110d_0%,#020706_58%,#020706_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0,rgba(0,0,0,0.18)_45%,rgba(0,0,0,0.58)_100%)]" />
+      </div>
+    )
+  }
+
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),transparent_34%),radial-gradient(circle_at_80%_18%,rgba(56,189,248,0.12),transparent_22%),linear-gradient(180deg,#04110d_0%,#020706_62%,#020706_100%)]" />
@@ -401,6 +455,7 @@ function TopBar({
   progress,
   onBack,
   disableBack,
+  performanceMode,
 }: {
   currentStep: StepId
   stepIndex: number
@@ -408,6 +463,7 @@ function TopBar({
   progress: number
   onBack?: () => void
   disableBack: boolean
+  performanceMode: boolean
 }) {
   return (
     <div className="space-y-2.5">
@@ -438,7 +494,7 @@ function TopBar({
         <motion.div
           className="h-full rounded-full bg-gradient-to-r from-emerald-300 via-emerald-400 to-cyan-300"
           animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
+          transition={{ duration: performanceMode ? 0.12 : 0.35, ease: 'easeOut' }}
         />
       </div>
     </div>
@@ -451,12 +507,14 @@ function BottomAction({
   isSubmitting,
   onNext,
   submitError,
+  performanceMode,
 }: {
   currentStep: StepId
   canContinue: boolean
   isSubmitting: boolean
   onNext: () => void
   submitError: string | null
+  performanceMode: boolean
 }) {
   const label =
     currentStep === 'welcome'
@@ -468,7 +526,12 @@ function BottomAction({
           : 'Continue'
 
   return (
-    <div className="space-y-2 rounded-[1.2rem] border border-white/10 bg-[rgba(3,11,9,0.88)] p-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.34)] backdrop-blur sm:space-y-3 sm:rounded-[1.5rem] sm:p-4">
+    <div
+      className={cn(
+        'space-y-2 rounded-[1.2rem] border border-white/10 bg-[rgba(3,11,9,0.92)] p-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.34)] sm:space-y-3 sm:rounded-[1.5rem] sm:p-4',
+        performanceMode ? 'backdrop-blur-0' : 'backdrop-blur'
+      )}
+    >
       <button
         type="button"
         onClick={onNext}
@@ -539,6 +602,7 @@ function QuestionStep<T extends string>({
   options,
   value,
   onSelect,
+  performanceMode,
 }: {
   title: string
   description: string
@@ -546,6 +610,7 @@ function QuestionStep<T extends string>({
   options: QuestionOption<T>[]
   value: T | null
   onSelect: (value: T) => void
+  performanceMode: boolean
 }) {
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col justify-between">
@@ -567,6 +632,7 @@ function QuestionStep<T extends string>({
               onClick={() => onSelect(option.value)}
               index={index}
               spanFull={options.length % 2 === 1 && index === options.length - 1}
+              performanceMode={performanceMode}
             />
           ))}
         </div>
@@ -592,6 +658,7 @@ function OptionCard({
   onClick,
   index,
   spanFull,
+  performanceMode,
 }: {
   title: string
   description: string
@@ -600,13 +667,14 @@ function OptionCard({
   onClick: () => void
   index: number
   spanFull: boolean
+  performanceMode: boolean
 }) {
   return (
     <motion.button
       type="button"
-      initial={{ opacity: 0, y: 18 }}
+      initial={performanceMode ? false : { opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.24 }}
+      transition={{ delay: performanceMode ? 0 : index * 0.05, duration: performanceMode ? 0.12 : 0.24 }}
       onClick={onClick}
       className={cn(
         'group relative flex w-full items-start justify-between gap-3 rounded-[1.15rem] border px-3.5 py-3.5 text-left transition sm:rounded-[1.45rem] sm:px-5 sm:py-5',
@@ -639,12 +707,14 @@ function SummaryStep({
   betFocus,
   experience,
   orderedTools,
+  performanceMode,
 }: {
   recommendedTool: RecommendedToolKey
   primaryIntent: TrialPrimaryIntent | null
   betFocus: TrialBetFocus | null
   experience: TrialExperience | null
   orderedTools: RecommendedToolKey[]
+  performanceMode: boolean
 }) {
   const recommendedSnapshot = TOOL_SNAPSHOTS[recommendedTool]
 
@@ -699,14 +769,20 @@ function SummaryStep({
           <div className="font-hero text-[10px] uppercase tracking-[0.34em] text-white/42">Included in your Delta stack</div>
           <div className="mt-4 space-y-3">
             {orderedTools.map((tool, index) => (
-              <ToolMiniPanel key={tool} tool={tool} highlighted={tool === recommendedTool} index={index} />
+              <ToolMiniPanel
+                key={tool}
+                tool={tool}
+                highlighted={tool === recommendedTool}
+                index={index}
+                performanceMode={performanceMode}
+              />
             ))}
           </div>
         </div>
       </div>
 
       <div className="min-h-0 space-y-3">
-        <ToolSnapshotCard tool={recommendedTool} featured />
+        <ToolSnapshotCard tool={recommendedTool} featured performanceMode={performanceMode} />
       </div>
     </div>
   )
@@ -717,11 +793,13 @@ function PreviewStep({
   activeTool,
   previewIndex,
   onSelectPreview,
+  performanceMode,
 }: {
   orderedTools: RecommendedToolKey[]
   activeTool: RecommendedToolKey
   previewIndex: number
   onSelectPreview: (index: number) => void
+  performanceMode: boolean
 }) {
   return (
     <div className="grid h-full items-start gap-4 lg:grid-cols-[0.92fr_1.08fr] lg:gap-5">
@@ -789,7 +867,7 @@ function PreviewStep({
         </div>
       </div>
 
-      <ToolSnapshotCard tool={activeTool} featured />
+      <ToolSnapshotCard tool={activeTool} featured performanceMode={performanceMode} />
     </div>
   )
 }
@@ -798,19 +876,21 @@ function ToolMiniPanel({
   tool,
   highlighted,
   index,
+  performanceMode,
 }: {
   tool: RecommendedToolKey
   highlighted: boolean
   index: number
+  performanceMode: boolean
 }) {
   const snapshot = TOOL_SNAPSHOTS[tool]
   const Icon = snapshot.Icon
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14 }}
+      initial={performanceMode ? false : { opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.06, duration: 0.24 }}
+      transition={{ delay: performanceMode ? 0 : index * 0.06, duration: performanceMode ? 0.12 : 0.24 }}
       className={cn(
         'rounded-[1.4rem] border px-4 py-4',
         highlighted ? 'border-emerald-300/35 bg-emerald-300/10' : 'border-white/8 bg-black/20'
@@ -836,12 +916,25 @@ function ToolMiniPanel({
   )
 }
 
-function ToolSnapshotCard({ tool, featured = false }: { tool: RecommendedToolKey; featured?: boolean }) {
+function ToolSnapshotCard({
+  tool,
+  featured = false,
+  performanceMode,
+}: {
+  tool: RecommendedToolKey
+  featured?: boolean
+  performanceMode: boolean
+}) {
   const snapshot = TOOL_SNAPSHOTS[tool]
   const Icon = snapshot.Icon
 
   return (
-    <div className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur sm:rounded-[2rem] sm:p-4">
+    <div
+      className={cn(
+        'overflow-hidden rounded-[1.25rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[2rem] sm:p-4',
+        performanceMode ? 'backdrop-blur-0' : 'backdrop-blur'
+      )}
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="font-hero text-[10px] uppercase tracking-[0.34em] text-emerald-200/75">{snapshot.eyebrow}</div>
@@ -854,7 +947,7 @@ function ToolSnapshotCard({ tool, featured = false }: { tool: RecommendedToolKey
       </div>
 
       <div className="mt-3 sm:mt-5">
-        <ToolVisual tool={tool} />
+        <ToolVisual tool={tool} performanceMode={performanceMode} />
       </div>
 
       <div className={cn('mt-3 grid gap-2 sm:mt-5 sm:gap-3', featured ? 'sm:grid-cols-[0.9fr_1.1fr]' : 'sm:grid-cols-2')}>
@@ -883,35 +976,42 @@ function ToolAuthorityBoard({ recommendedTool }: { recommendedTool: RecommendedT
     <div className="relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-black/25 p-4 shadow-[0_30px_90px_rgba(0,0,0,0.35)] backdrop-blur sm:p-5">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.14),transparent_36%)]" />
       <div className="relative space-y-4">
-        <ToolSnapshotCard tool={recommendedTool} featured />
+        <ToolSnapshotCard tool={recommendedTool} featured performanceMode={false} />
       </div>
     </div>
   )
 }
 
-function ToolVisual({ tool }: { tool: RecommendedToolKey }) {
+function ToolVisual({ tool, performanceMode }: { tool: RecommendedToolKey; performanceMode: boolean }) {
   if (tool === 'sharp-props') {
+    const rows = performanceMode
+      ? [
+          ['J. Brunson PTS', 'Over 27.5', 86],
+          ['S. Curry 3PM', 'Over 4.5', 74],
+        ]
+      : [
+          ['J. Brunson PTS', 'Over 27.5', 86],
+          ['S. Curry 3PM', 'Over 4.5', 74],
+          ['A. Davis REB', 'Under 11.5', 68],
+        ]
+
     return (
       <div className="relative overflow-hidden rounded-[1.2rem] border border-white/10 bg-[#051310] p-2.5 sm:rounded-[1.6rem] sm:p-4">
         <OverlayChrome />
         <div className="relative space-y-3">
-          {[
-            ['J. Brunson PTS', 'Over 27.5', 86],
-            ['S. Curry 3PM', 'Over 4.5', 74],
-            ['A. Davis REB', 'Under 11.5', 68],
-          ].map(([label, leaning, value], index) => (
+          {rows.map(([label, leaning, value], index) => (
             <motion.div
               key={label}
-              initial={{ opacity: 0, x: -12 }}
+              initial={performanceMode ? false : { opacity: 0, x: -12 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.08 + 0.1, duration: 0.28 }}
+              transition={{ delay: performanceMode ? 0 : index * 0.08 + 0.1, duration: performanceMode ? 0.12 : 0.28 }}
               className="rounded-[1rem] border border-white/10 bg-black/25 p-2.5 sm:rounded-[1.2rem] sm:p-3"
             >
               <div className="flex items-center justify-between gap-3 text-[12px] sm:text-sm">
                 <div className="font-medium text-white">{label}</div>
                 <div className="text-emerald-200">{leaning}</div>
               </div>
-              <PressureRow value={Number(value)} accent="from-cyan-300 to-emerald-300" />
+              <PressureRow value={Number(value)} accent="from-cyan-300 to-emerald-300" performanceMode={performanceMode} />
             </motion.div>
           ))}
         </div>
@@ -920,20 +1020,27 @@ function ToolVisual({ tool }: { tool: RecommendedToolKey }) {
   }
 
   if (tool === 'whale-detector') {
+    const rows = performanceMode
+      ? [
+          ['BOS -4.5', '$78.2k', 91],
+          ['LAL/GSW Over 238.5', '$51.1k', 74],
+        ]
+      : [
+          ['BOS -4.5', '$78.2k', 91],
+          ['LAL/GSW Over 238.5', '$51.1k', 74],
+          ['SGP Cluster', '$33.8k', 58],
+        ]
+
     return (
       <div className="relative overflow-hidden rounded-[1.2rem] border border-white/10 bg-[#07100f] p-2.5 sm:rounded-[1.6rem] sm:p-4">
         <OverlayChrome />
         <div className="relative space-y-3">
-          {[
-            ['BOS -4.5', '$78.2k', 91],
-            ['LAL/GSW Over 238.5', '$51.1k', 74],
-            ['SGP Cluster', '$33.8k', 58],
-          ].map(([market, size, confidence], index) => (
+          {rows.map(([market, size, confidence], index) => (
             <motion.div
               key={market}
-              initial={{ opacity: 0, y: 14 }}
+              initial={performanceMode ? false : { opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.07 + 0.08, duration: 0.26 }}
+              transition={{ delay: performanceMode ? 0 : index * 0.07 + 0.08, duration: performanceMode ? 0.12 : 0.26 }}
               className="rounded-[1rem] border border-white/10 bg-black/25 p-2.5 sm:rounded-[1.2rem] sm:p-3"
             >
               <div className="flex items-center justify-between gap-3">
@@ -942,7 +1049,7 @@ function ToolVisual({ tool }: { tool: RecommendedToolKey }) {
                   {size}
                 </div>
               </div>
-              <PressureRow value={Number(confidence)} accent="from-emerald-300 to-lime-200" />
+              <PressureRow value={Number(confidence)} accent="from-emerald-300 to-lime-200" performanceMode={performanceMode} />
             </motion.div>
           ))}
         </div>
@@ -991,16 +1098,21 @@ function ToolVisual({ tool }: { tool: RecommendedToolKey }) {
     <div className="relative overflow-hidden rounded-[1.2rem] border border-white/10 bg-[#051310] p-2.5 sm:rounded-[1.6rem] sm:p-4">
       <OverlayChrome />
       <div className="relative space-y-3">
-        {[
-          ['NYK -4.5', 'Edge +3.2%', 84],
-          ['MIL/CHI Over 229.5', 'Edge +2.7%', 71],
-          ['DEN ML', 'Edge +2.1%', 63],
-        ].map(([market, edge, score], index) => (
+        {(performanceMode
+          ? [
+              ['NYK -4.5', 'Edge +3.2%', 84],
+              ['MIL/CHI Over 229.5', 'Edge +2.7%', 71],
+            ]
+          : [
+              ['NYK -4.5', 'Edge +3.2%', 84],
+              ['MIL/CHI Over 229.5', 'Edge +2.7%', 71],
+              ['DEN ML', 'Edge +2.1%', 63],
+            ]).map(([market, edge, score], index) => (
           <motion.div
             key={market}
-            initial={{ opacity: 0, x: -12 }}
+            initial={performanceMode ? false : { opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.07 + 0.08, duration: 0.26 }}
+            transition={{ delay: performanceMode ? 0 : index * 0.07 + 0.08, duration: performanceMode ? 0.12 : 0.26 }}
             className="rounded-[1rem] border border-white/10 bg-black/25 p-2.5 sm:rounded-[1.2rem] sm:p-3"
           >
             <div className="flex items-center justify-between gap-3">
@@ -1009,7 +1121,7 @@ function ToolVisual({ tool }: { tool: RecommendedToolKey }) {
                 {edge}
               </div>
             </div>
-            <PressureRow value={Number(score)} accent="from-emerald-300 to-cyan-300" />
+            <PressureRow value={Number(score)} accent="from-emerald-300 to-cyan-300" performanceMode={performanceMode} />
           </motion.div>
         ))}
       </div>
@@ -1032,7 +1144,15 @@ function OverlayChrome() {
   )
 }
 
-function PressureRow({ value, accent }: { value: number; accent: string }) {
+function PressureRow({
+  value,
+  accent,
+  performanceMode,
+}: {
+  value: number
+  accent: string
+  performanceMode: boolean
+}) {
   return (
     <div className="mt-2 space-y-1.5 sm:mt-3 sm:space-y-2">
       <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.24em] text-white/42 sm:text-[11px] sm:tracking-[0.28em]">
@@ -1041,9 +1161,9 @@ function PressureRow({ value, accent }: { value: number; accent: string }) {
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-white/8">
         <motion.div
-          initial={{ width: 0 }}
+          initial={performanceMode ? false : { width: 0 }}
           animate={{ width: `${value}%` }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
+          transition={{ duration: performanceMode ? 0.12 : 0.6, ease: 'easeOut' }}
           className={cn('h-full rounded-full bg-gradient-to-r', accent)}
         />
       </div>

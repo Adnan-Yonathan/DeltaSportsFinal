@@ -237,11 +237,6 @@ function MobileCheckoutLayout({
   setSelectedBilling: (billing: BillingPeriod) => void
   setSelectedTier: (tier: TierKey) => void
 }) {
-  const membershipSummary =
-    selectedTier === 'syndicate'
-      ? 'Syndicate gets access to Whale Feed and Research.'
-      : 'Sharp gets access to Projections and Props.'
-
   return (
     <div className="lg:hidden">
       <div className="mx-auto max-w-md px-4 pb-40 pt-6">
@@ -281,12 +276,6 @@ function MobileCheckoutLayout({
                       {tier === 'syndicate' ? 'Syndicate' : 'Sharp'}
                     </button>
                   ))}
-                </div>
-              </div>
-
-              <div className="rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-4">
-                <div className="text-center text-sm font-medium text-white/82">
-                  {membershipSummary}
                 </div>
               </div>
 

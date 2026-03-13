@@ -30,6 +30,11 @@ export type TrialFlowEventName =
   | 'onboarding_step_completed'
   | 'onboarding_completed'
   | 'checkout_started_from_onboarding'
+  | 'checkout_variant_loaded'
+  | 'checkout_variant_fallback'
+  | 'express_checkout_ready'
+  | 'express_checkout_confirmed'
+  | 'payment_element_submitted'
   | 'trial_started'
   | 'checklist_step_completed'
 

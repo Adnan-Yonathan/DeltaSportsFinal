@@ -148,19 +148,11 @@ export default function GlobalLeftNav() {
     .toUpperCase() || "D"
 
   const openSubscription = async () => {
-    if (!user || !membership?.isActive) {
+    if (!user) {
       router.push("/checkout")
       return
     }
-    try {
-      const res = await fetch("/api/stripe/portal", { method: "POST" })
-      const data = await res.json()
-      if (data?.url) {
-        window.location.href = data.url
-      }
-    } catch (err) {
-      console.error("Failed to open billing portal:", err)
-    }
+    router.push("/billing")
   }
 
   const signOut = async () => {

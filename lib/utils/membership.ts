@@ -23,7 +23,9 @@ export interface MembershipInfo {
   status: MembershipStatus | null
   isActive: boolean
   isTrial: boolean
+  isPayingCustomer: boolean
   hasUsedTrial: boolean
+  hasSuccessfulPayment: boolean
   hasPaidAccess: boolean
   hasProjectionAccess: boolean
   hasResearchAccess: boolean
@@ -58,13 +60,16 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
   const stripeCustomerId = metadata?.stripe_customer_id || null
   const stripeSubscriptionId = metadata?.stripe_subscription_id || null
   const planVersionRaw = metadata?.membership_plan_version
+  const hasSuccessfulPaymentFlag = parseBoolean(metadata?.has_successful_payment)
   const hasUsedTrial = Boolean(metadata?.has_used_trial)
   const planVersion = Number.isFinite(Number(planVersionRaw))
     ? Number(planVersionRaw)
     : 1
   const legacyExpiresAt = parseDate(metadata?.membership_expires_at)
   const hasLegacyPaid = Boolean(legacyExpiresAt) && legacyExpiresAt!.getTime() > Date.now()
-  const hasEverPaid = parseBoolean(metadata?.has_paid)
+  const hasEverPaid =
+    hasSuccessfulPaymentFlag ||
+    (status !== 'trialing' && parseBoolean(metadata?.has_paid))
   const paymentFailedAt = parseDate(metadata?.payment_failed_at)
   const periodEnd = parseDate(metadata?.stripe_current_period_end)
   const pastDueAnchor = paymentFailedAt || periodEnd
@@ -116,7 +121,9 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
       status: legacyActive ? 'active' : 'canceled',
       isActive: legacyActive,
       isTrial: false,
+      isPayingCustomer: legacyHasPaid,
       hasUsedTrial,
+      hasSuccessfulPayment: legacyHasPaid,
       hasPaidAccess: legacyHasPaid,
       hasProjectionAccess: legacyHasPaid,
       hasResearchAccess: legacyHasPaid && tier === 'syndicate',
@@ -134,7 +141,9 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     status,
     isActive,
     isTrial: status === 'trialing',
+    isPayingCustomer: hasEverPaid,
     hasUsedTrial,
+    hasSuccessfulPayment: hasEverPaid,
     hasPaidAccess,
     hasProjectionAccess,
     hasResearchAccess,
@@ -157,7 +166,9 @@ export const getMembershipStatus = (metadata: any): MembershipInfo => {
       status: 'active',
       isActive: true,
       isTrial: false,
+      isPayingCustomer: true,
       hasUsedTrial: false,
+      hasSuccessfulPayment: true,
       hasPaidAccess: true,
       hasProjectionAccess: true,
       hasResearchAccess: true,

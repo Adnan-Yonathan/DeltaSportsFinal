@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
               membership_tier: normalizedTier,
               membership_status: 'active',
               has_paid: true,
+              has_successful_payment: true,
             },
           })
           membership = getMembershipStatusFromMetadata({
@@ -64,6 +65,7 @@ export async function GET(request: NextRequest) {
             membership_tier: normalizedTier,
             membership_status: 'active',
             has_paid: true,
+            has_successful_payment: true,
           })
         }
       }

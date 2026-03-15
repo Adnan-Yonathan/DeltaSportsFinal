@@ -149,18 +149,7 @@ export function PricingSection({
   }, [])
 
   const handleManageSubscription = async () => {
-    setLoadingPlan('manage')
-    try {
-      const res = await fetch('/api/stripe/portal', { method: 'POST' })
-      const data = await res.json()
-      if (data.url) {
-        window.location.href = data.url
-      }
-    } catch (err) {
-      console.error('Failed to open billing portal:', err)
-    } finally {
-      setLoadingPlan(null)
-    }
+    router.push('/billing')
   }
 
   const handleCheckout = async (_planKey: string) => {

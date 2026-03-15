@@ -193,22 +193,12 @@ export default function MobileToolsNav() {
 
   const handleOpenSubscription = useCallback(async () => {
     dismissMoreMenu()
-    if (!user || !membership?.isActive) {
+    if (!user) {
       router.push('/checkout')
       return
     }
-    try {
-      const res = await fetch('/api/stripe/portal', { method: 'POST' })
-      const data = await res.json()
-      if (data?.url) {
-        window.location.href = data.url
-        return
-      }
-    } catch (error) {
-      console.error('Failed to open billing portal:', error)
-    }
-    router.push('/checkout')
-  }, [dismissMoreMenu, membership?.isActive, router, user])
+    router.push('/billing')
+  }, [dismissMoreMenu, router, user])
 
   return (
     <>
@@ -349,7 +339,7 @@ export default function MobileToolsNav() {
               >
                 <span>Manage Subscription</span>
                 <span className="text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">
-                  {membership?.isActive ? 'Portal' : 'Pricing'}
+                  {membership?.isActive ? 'Billing' : 'Pricing'}
                 </span>
               </button>
             </div>

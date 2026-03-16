@@ -85,6 +85,7 @@ const FETCH_LIMIT = 600
 const DAILY_FETCH_LIMIT = 1200
 const RESTING_LIMIT = 240
 const RESTING_DEPTH = 8
+const RESTING_FETCH_MIN_NOTIONAL = 100
 const RESTING_MIN_NOTIONAL = 2000
 const MAX_DAY_CACHE_TRADES = 1500
 const INITIAL_RENDER_LIMIT = 200
@@ -484,7 +485,7 @@ export default function SharpDetectorClient() {
         sport: "all",
         limit: String(RESTING_LIMIT),
         depth: String(RESTING_DEPTH),
-        minSharpNotional: String(RESTING_MIN_NOTIONAL),
+        minSharpNotional: String(RESTING_FETCH_MIN_NOTIONAL),
         refresh: "1",
         mode: "full",
       })

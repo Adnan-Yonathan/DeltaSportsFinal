@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import { getWalletAlias } from '@/lib/utils/wallet-alias'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Zap, X, Lock, Clock } from 'lucide-react'
+import { Zap, X, Lock, Clock, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import ShareTradeButton from './ShareTradeButton'
@@ -130,6 +130,82 @@ type BettorPosition = {
   stake_usd: number
   potential_payout_usd: number
   last_trade_time: string | null
+}
+
+type BettorStatsSummary = {
+  total_realized_pnl?: number
+  roi_lifetime?: number
+  win_rate?: number
+  settled_markets?: number
+  settled_trades?: number
+  profit_factor?: number
+  max_drawdown?: number
+  consistency_90d?: number
+  sample_quality?: number
+  risk_adjusted_score?: number
+  open_positions_count?: number
+  open_notional?: number
+  trade_count?: number
+  buy_trade_count?: number
+  avg_bet_size?: number
+  median_bet_size?: number
+  qualification_status?: string
+  qualification_reason?: string | null
+  last_trade_time?: string | null
+}
+
+type BettorPositionsPayload = {
+  wallet: string
+  display_name?: string | null
+  summary?: BettorStatsSummary | null
+  sport_summary?: BettorStatsSummary | null
+  positions?: BettorPosition[]
+}
+
+type MarketOrderLevel = {
+  price_cents: number
+  size: number
+  notional: number
+}
+
+type MarketOutcomeOrderbook = {
+  outcome_index: number
+  label: string
+  token_id: string | null
+  price_cents: number | null
+  american_odds: number | null
+  orderbook: {
+    bids: MarketOrderLevel[]
+    asks: MarketOrderLevel[]
+    total_bid_notional?: number
+    total_ask_notional?: number
+  }
+}
+
+type MarketLineHistoryPoint = {
+  timestamp: string | null
+  trade_ts: number | null
+  side: string
+  price_cents: number
+  american_odds: number | null
+  size: number | null
+  notional: number | null
+  source: 'tracked_trade'
+}
+
+type PolymarketMarketDetailsPayload = {
+  slug: string
+  title: string
+  selected_outcome_index: number
+  selected_outcome_label: string | null
+  outcomes: MarketOutcomeOrderbook[]
+  line_movement_history: MarketLineHistoryPoint[]
+  line_movement_summary?: {
+    points: number
+    first_price_cents: number | null
+    last_price_cents: number | null
+    move_cents: number | null
+  } | null
 }
 
 type SharpTier = 'small' | 'blue' | 'mega' | 'nuke'
@@ -438,6 +514,42 @@ const formatCompactCount = (value: number | null | undefined, decimals = 0) => {
 const formatRoiPercent = (value: number | null | undefined) =>
   typeof value === 'number' && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : 'N/A'
 
+const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value))
+
+const computeBetGrade = ({
+  trade,
+  sportSummary,
+}: {
+  trade: SharpTrade
+  sportSummary?: BettorStatsSummary | null
+}) => {
+  const riskScore = clamp((trade.sharpStrength ?? 0) / 100)
+  const roiScore = clamp(((trade.sportRoi ?? 0) + 0.05) / 0.3)
+  const sampleScore = clamp((trade.tradeCount ?? 0) / 250)
+  const sideMove =
+    trade.priceMoveCents == null
+      ? 0.5
+      : clamp((((trade.side === 'SELL' ? -trade.priceMoveCents : trade.priceMoveCents) ?? 0) + 18) / 36)
+  const profitFactor = sportSummary?.profit_factor
+  const profitFactorScore =
+    typeof profitFactor === 'number' && Number.isFinite(profitFactor)
+      ? clamp(profitFactor / 2)
+      : 0.5
+
+  const score =
+    riskScore * 0.35 +
+    roiScore * 0.25 +
+    sideMove * 0.2 +
+    sampleScore * 0.1 +
+    profitFactorScore * 0.1
+
+  if (score >= 0.9) return { letter: 'A', score }
+  if (score >= 0.78) return { letter: 'B', score }
+  if (score >= 0.64) return { letter: 'C', score }
+  if (score >= 0.5) return { letter: 'D', score }
+  return { letter: 'F', score }
+}
+
 const resolvePolymarketEventUrl = (slug?: string | null) => {
   if (!slug) return 'https://polymarket.com/'
   return `https://polymarket.com/event/${encodeURIComponent(slug)}`
@@ -543,6 +655,27 @@ export default function SharpDetectorPanel({
   const [bettorFeedRows, setBettorFeedRows] = useState<BettorFeedTrade[]>([])
   const [bettorSportFilter, setBettorSportFilter] = useState<string>(ALL_SPORTS_FILTER)
   const [bettorWalletFilter, setBettorWalletFilter] = useState<string>('all')
+  const [expandedTradeIds, setExpandedTradeIds] = useState<string[]>([])
+  const [expandedBettorByWallet, setExpandedBettorByWallet] = useState<
+    Record<
+      string,
+      {
+        loading: boolean
+        error: string | null
+        payload: BettorPositionsPayload | null
+      }
+    >
+  >({})
+  const [expandedMarketByTrade, setExpandedMarketByTrade] = useState<
+    Record<
+      string,
+      {
+        loading: boolean
+        error: string | null
+        payload: PolymarketMarketDetailsPayload | null
+      }
+    >
+  >({})
   const [selectedBettorWallet, setSelectedBettorWallet] = useState<string | null>(null)
   const [selectedBettorPositions, setSelectedBettorPositions] = useState<BettorPosition[]>([])
   const [selectedBettorLabel, setSelectedBettorLabel] = useState<string | null>(null)
@@ -949,6 +1082,126 @@ export default function SharpDetectorPanel({
       setBettorLoading(false)
     }
   }, [bettorSportFilter, bettorWalletFilter, sharpDateWindow])
+
+  const loadExpandedBettor = useCallback(
+    async (wallet: string, sport: string) => {
+      if (!wallet) return
+      setExpandedBettorByWallet((prev) => ({
+        ...prev,
+        [wallet]: {
+          loading: true,
+          error: null,
+          payload: prev[wallet]?.payload ?? null,
+        },
+      }))
+
+      try {
+        const params = new URLSearchParams()
+        params.set('limit', '120')
+        if (sport && sport !== ALL_SPORTS_FILTER && sport !== 'SPORTS') {
+          params.set('sport', sport)
+        }
+        const res = await fetch(
+          `/api/polymarket/bettors/${encodeURIComponent(wallet)}/positions?${params.toString()}`,
+          { cache: 'no-store' }
+        )
+        if (!res.ok) {
+          throw new Error(`Bettor details request failed (${res.status})`)
+        }
+        const payload = (await res.json()) as BettorPositionsPayload
+        setExpandedBettorByWallet((prev) => ({
+          ...prev,
+          [wallet]: {
+            loading: false,
+            error: null,
+            payload,
+          },
+        }))
+      } catch (error) {
+        setExpandedBettorByWallet((prev) => ({
+          ...prev,
+          [wallet]: {
+            loading: false,
+            error: error instanceof Error ? error.message : 'Failed to load bettor details',
+            payload: prev[wallet]?.payload ?? null,
+          },
+        }))
+      }
+    },
+    []
+  )
+
+  const loadExpandedMarket = useCallback(
+    async (tradeId: string, slug: string, outcomeIndex: number | undefined) => {
+      if (!tradeId || !slug) return
+      setExpandedMarketByTrade((prev) => ({
+        ...prev,
+        [tradeId]: {
+          loading: true,
+          error: null,
+          payload: prev[tradeId]?.payload ?? null,
+        },
+      }))
+
+      try {
+        const params = new URLSearchParams()
+        params.set('outcomeIndex', String(Number.isFinite(outcomeIndex) ? outcomeIndex : 0))
+        const res = await fetch(
+          `/api/polymarket/markets/${encodeURIComponent(slug)}/details?${params.toString()}`,
+          { cache: 'no-store' }
+        )
+        if (!res.ok) {
+          throw new Error(`Market details request failed (${res.status})`)
+        }
+        const payload = (await res.json()) as PolymarketMarketDetailsPayload
+        setExpandedMarketByTrade((prev) => ({
+          ...prev,
+          [tradeId]: {
+            loading: false,
+            error: null,
+            payload,
+          },
+        }))
+      } catch (error) {
+        setExpandedMarketByTrade((prev) => ({
+          ...prev,
+          [tradeId]: {
+            loading: false,
+            error: error instanceof Error ? error.message : 'Failed to load market details',
+            payload: prev[tradeId]?.payload ?? null,
+          },
+        }))
+      }
+    },
+    []
+  )
+
+  const toggleExpandedTrade = useCallback(
+    (trade: SharpTradeWithStatus) => {
+      const wallet = normalizeWallet(trade.proxyWallet)
+      const tradeId = trade.id
+      const isExpanded = expandedTradeIds.includes(tradeId)
+      if (isExpanded) {
+        setExpandedTradeIds((prev) => prev.filter((id) => id !== tradeId))
+        return
+      }
+
+      setExpandedTradeIds((prev) => [...prev, tradeId])
+      if (wallet && !expandedBettorByWallet[wallet]) {
+        void loadExpandedBettor(wallet, trade.sport)
+      }
+      if (trade.source === 'polymarket' && trade.slug && !expandedMarketByTrade[tradeId]) {
+        void loadExpandedMarket(tradeId, trade.slug, trade.outcomeIndex)
+      }
+    },
+    [
+      expandedBettorByWallet,
+      expandedMarketByTrade,
+      expandedTradeIds,
+      loadExpandedBettor,
+      loadExpandedMarket,
+    ]
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1676,6 +1929,23 @@ export default function SharpDetectorPanel({
                     </a>
                     <button
                       type="button"
+                      onClick={() => toggleExpandedTrade(trade)}
+                      className="rounded-full border border-emerald-500/30 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300"
+                    >
+                      {expandedTradeIds.includes(trade.id) ? (
+                        <span className="inline-flex items-center gap-1">
+                          <ChevronUp className="h-3 w-3" />
+                          Less
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          <ChevronDown className="h-3 w-3" />
+                          Expand
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => {
                         if (!walletKey) return
                         setSelectedBettorWallet(walletKey)
@@ -1707,6 +1977,217 @@ export default function SharpDetectorPanel({
                     />
                   </div>
                 </div>
+
+                {expandedTradeIds.includes(trade.id) && (
+                  <div className="mt-3 space-y-3 rounded-xl border border-emerald-500/25 bg-black/35 p-3">
+                    {(() => {
+                      const bettorDetails = walletKey ? expandedBettorByWallet[walletKey] : null
+                      const marketDetails = expandedMarketByTrade[trade.id]
+                      const sportSummary = bettorDetails?.payload?.sport_summary ?? null
+                      const grade = computeBetGrade({ trade, sportSummary })
+                      const selectedOutcome =
+                        marketDetails?.payload?.outcomes?.find(
+                          (row) => row.outcome_index === (trade.outcomeIndex ?? 0)
+                        ) ?? null
+                      const recentHistory =
+                        marketDetails?.payload?.line_movement_history?.slice(-14) ?? []
+
+                      return (
+                        <>
+                          <div className="grid gap-2 md:grid-cols-4">
+                            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2">
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-200/80">
+                                Bet Grade
+                              </div>
+                              <div className="mt-1 text-2xl font-bold text-emerald-200">{grade.letter}</div>
+                              <div className="text-[10px] text-emerald-100/60">
+                                Composite {Math.round(grade.score * 100)} / 100
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-white/10 bg-black/35 p-2">
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-white/45">
+                                Total P/L
+                              </div>
+                              <div className="mt-1 text-sm text-white">
+                                {formatCurrency(sportSummary?.total_realized_pnl ?? 0)}
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-white/10 bg-black/35 p-2">
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-white/45">ROI</div>
+                              <div className="mt-1 text-sm text-white">
+                                {formatRoiPercent(sportSummary?.roi_lifetime ?? trade.sportRoi)}
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-white/10 bg-black/35 p-2">
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-white/45">
+                                Win Rate
+                              </div>
+                              <div className="mt-1 text-sm text-white">
+                                {formatRoiPercent(sportSummary?.win_rate)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid gap-3 lg:grid-cols-2">
+                            <div className="rounded-lg border border-white/10 bg-black/40 p-3">
+                              <div className="mb-2 flex items-center justify-between">
+                                <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                                  Bettor All-Time Stats
+                                </p>
+                                {bettorDetails?.loading && (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-300" />
+                                )}
+                              </div>
+                              {bettorDetails?.error && (
+                                <p className="text-xs text-rose-300/80">{bettorDetails.error}</p>
+                              )}
+                              {!bettorDetails?.loading && !bettorDetails?.error && (
+                                <div className="grid gap-1.5 text-[11px] text-white/70">
+                                  <div className="flex items-center justify-between">
+                                    <span>Settled Markets</span>
+                                    <span>{formatCompactCount(sportSummary?.settled_markets ?? 0)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span>Profit Factor</span>
+                                    <span>{formatCompactCount(sportSummary?.profit_factor ?? 0, 2)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span>Max Drawdown</span>
+                                    <span>{formatCurrency(sportSummary?.max_drawdown ?? 0)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span>Risk Score</span>
+                                    <span>{formatCompactCount(sportSummary?.risk_adjusted_score ?? trade.sharpStrength ?? 0)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span>Avg Bet Size</span>
+                                    <span>{formatCurrency(sportSummary?.avg_bet_size ?? 0)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span>Median Bet Size</span>
+                                    <span>{formatCurrency(sportSummary?.median_bet_size ?? 0)}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="rounded-lg border border-white/10 bg-black/40 p-3">
+                              <div className="mb-2 flex items-center justify-between">
+                                <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                                  Line Movement History
+                                </p>
+                                {marketDetails?.loading && (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-300" />
+                                )}
+                              </div>
+                              {marketDetails?.error && (
+                                <p className="text-xs text-rose-300/80">{marketDetails.error}</p>
+                              )}
+                              {!marketDetails?.loading && !marketDetails?.error && (
+                                <div className="space-y-1.5">
+                                  <p className="text-[11px] text-white/55">
+                                    {marketDetails?.payload?.line_movement_summary?.points ?? 0} tracked prints
+                                    {' '}| Move {formatSignedCents(marketDetails?.payload?.line_movement_summary?.move_cents)}
+                                  </p>
+                                  <div className="max-h-40 overflow-auto rounded-md border border-white/10 bg-black/35">
+                                    {recentHistory.length === 0 && (
+                                      <p className="p-2 text-xs text-white/45">No tracked trade history yet.</p>
+                                    )}
+                                    {recentHistory.map((point) => (
+                                      <div
+                                        key={`${point.trade_ts ?? point.timestamp ?? ''}:${point.price_cents}`}
+                                        className="flex items-center justify-between border-b border-white/5 px-2 py-1 text-[11px] text-white/70 last:border-b-0"
+                                      >
+                                        <span>{point.timestamp ? formatTimestamp(point.timestamp) : 'n/a'}</span>
+                                        <span>{point.price_cents}c</span>
+                                        <span>
+                                          {point.american_odds != null
+                                            ? formatAmericanOdds(point.american_odds)
+                                            : 'n/a'}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg border border-white/10 bg-black/40 p-3">
+                            <div className="mb-2 flex items-center justify-between">
+                              <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">Full Orderbook</p>
+                              {selectedOutcome?.price_cents != null && (
+                                <p className="text-[11px] text-white/55">
+                                  Current {selectedOutcome.price_cents}c
+                                  {' '}
+                                  {selectedOutcome.american_odds != null
+                                    ? `(${formatAmericanOdds(selectedOutcome.american_odds)})`
+                                    : ''}
+                                </p>
+                              )}
+                            </div>
+                            {marketDetails?.error && <p className="text-xs text-rose-300/80">{marketDetails.error}</p>}
+                            {marketDetails?.loading && (
+                              <p className="inline-flex items-center gap-2 text-xs text-white/60">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-300" />
+                                Loading orderbook...
+                              </p>
+                            )}
+                            {!marketDetails?.loading && !marketDetails?.error && (
+                              <div className="grid gap-2 lg:grid-cols-2">
+                                {(marketDetails?.payload?.outcomes ?? []).map((outcome) => (
+                                  <div
+                                    key={`${outcome.outcome_index}:${outcome.label}`}
+                                    className={cn(
+                                      'rounded-md border p-2',
+                                      outcome.outcome_index === (trade.outcomeIndex ?? 0)
+                                        ? 'border-emerald-500/40 bg-emerald-500/10'
+                                        : 'border-white/10 bg-black/30'
+                                    )}
+                                  >
+                                    <p className="mb-1 text-[11px] font-semibold text-white">
+                                      {outcome.label}
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-2 text-[10px] text-white/60">
+                                      <div>
+                                        <p className="mb-1 uppercase tracking-[0.18em] text-emerald-200/70">Bids</p>
+                                        <div className="max-h-28 overflow-auto rounded border border-white/10 bg-black/25">
+                                          {outcome.orderbook.bids.length === 0 && (
+                                            <p className="p-1.5 text-white/40">None</p>
+                                          )}
+                                          {outcome.orderbook.bids.map((level, idx) => (
+                                            <div key={idx} className="flex items-center justify-between border-b border-white/5 px-1.5 py-1 last:border-b-0">
+                                              <span>{level.price_cents}c</span>
+                                              <span>{formatCurrency(level.notional)}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <p className="mb-1 uppercase tracking-[0.18em] text-rose-200/70">Asks</p>
+                                        <div className="max-h-28 overflow-auto rounded border border-white/10 bg-black/25">
+                                          {outcome.orderbook.asks.length === 0 && (
+                                            <p className="p-1.5 text-white/40">None</p>
+                                          )}
+                                          {outcome.orderbook.asks.map((level, idx) => (
+                                            <div key={idx} className="flex items-center justify-between border-b border-white/5 px-1.5 py-1 last:border-b-0">
+                                              <span>{level.price_cents}c</span>
+                                              <span>{formatCurrency(level.notional)}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )
+                    })()}
+                  </div>
+                )}
               </motion.div>
             )
           })}

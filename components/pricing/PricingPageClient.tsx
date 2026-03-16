@@ -361,11 +361,17 @@ export function PricingPageClient() {
 
                     <div className="mt-4">
                       <div className="text-xl font-semibold text-white">
-                        {formatUsd(dailyPrice)}
-                        <span className="ml-1 text-xs font-semibold text-white/60">/day</span>
+                        {formatUsd(periodPrice)}
+                        <span className="ml-1 text-xs font-semibold text-white/60">
+                          /{billingPeriod === "annual" ? "yr" : billingPeriod === "monthly" ? "mo" : "wk"}
+                        </span>
                       </div>
+
                       <div className="mt-1 text-[11px] text-white/60">
-                        billed {formatUsd(periodPrice)}/{billingPeriod === "annual" ? "yr" : billingPeriod === "monthly" ? "mo" : "wk"}
+                        ~ {formatUsd(dailyPrice)}/day
+                        {weeklyEquivalent != null ? (
+                          <span> | {formatUsd(weeklyEquivalent)}/week</span>
+                        ) : null}
                       </div>
 
                       {billingPeriod === "annual" && savings.savedAmount > 0 ? (

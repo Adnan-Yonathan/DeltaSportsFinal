@@ -161,25 +161,20 @@ const GOAL_TOOL_WEIGHTS: Record<TrialGoalKey, Array<[RecommendedToolKey, number]
 
 const EXPERIENCE_TOOL_WEIGHTS: Record<TrialExperience, Array<[RecommendedToolKey, number]>> = {
   'casual-fan': [
-    ['sharp-projections', 4],
-    ['research-mode', 2],
-    ['sharp-props', 1],
+    ['sharp-projections', 1],
+    ['research-mode', 0.5],
   ],
   recreational: [
-    ['sharp-projections', 4],
-    ['sharp-props', 2],
-    ['whale-detector', 2],
+    ['sharp-projections', 1],
+    ['sharp-props', 0.5],
   ],
   'serious-bettor': [
-    ['sharp-projections', 5],
-    ['research-mode', 3],
-    ['whale-detector', 2],
+    ['sharp-projections', 1],
+    ['research-mode', 0.5],
   ],
   'sharp-pro': [
-    ['research-mode', 5],
-    ['sharp-projections', 4],
-    ['whale-detector', 2],
-    ['sharp-props', 1],
+    ['research-mode', 1],
+    ['sharp-projections', 0.5],
   ],
 }
 
@@ -277,7 +272,7 @@ export const calculateRoiSnapshot = (
 }
 
 export const createDefaultTrialOnboardingDraft = (): TrialOnboardingDraft => {
-  const roi = calculateRoiSnapshot(200, 2)
+  const roi = calculateRoiSnapshot(100, 1)
   return {
     name: '',
     experienceLevel: null,

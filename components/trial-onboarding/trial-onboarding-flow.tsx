@@ -69,10 +69,6 @@ const SCREENS: Array<{ id: ScreenId; label: string; progress: number; cta: strin
   { id: 'final',       label: 'Step 10 of 10', progress: 100, cta: 'Start my free trial →' },
 ]
 
-// ─── Sportsbook options ───────────────────────────────────────────────────────
-
-const SPORTSBOOKS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Other']
-
 // ─── Sync draft to sessionStorage ────────────────────────────────────────────
 
 function syncDraft(draft: TrialOnboardingDraft) {
@@ -112,14 +108,9 @@ function AnimatedCounter({
 
 // ─── Primitive: pill badge ────────────────────────────────────────────────────
 
-function Pill({ children, color = 'emerald' }: { children: ReactNode; color?: 'emerald' | 'cyan' | 'violet' }) {
-  const cls = {
-    emerald: 'border-emerald-300/20 bg-emerald-400/8 text-emerald-300',
-    cyan: 'border-cyan-300/20 bg-cyan-400/8 text-cyan-300',
-    violet: 'border-violet-300/20 bg-violet-400/8 text-violet-300',
-  }
+function Pill({ children }: { children: ReactNode }) {
   return (
-    <span className={cn('rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]', cls[color])}>
+    <span className="rounded-full border border-emerald-300/20 bg-emerald-400/8 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300">
       {children}
     </span>
   )
@@ -127,14 +118,9 @@ function Pill({ children, color = 'emerald' }: { children: ReactNode; color?: 'e
 
 // ─── Primitive: info callout ──────────────────────────────────────────────────
 
-function InfoCallout({ children, color = 'emerald' }: { children: ReactNode; color?: 'emerald' | 'cyan' | 'violet' }) {
-  const cls = {
-    emerald: 'border-emerald-400/20 bg-emerald-400/6 text-emerald-200/80',
-    cyan: 'border-cyan-400/20 bg-cyan-400/6 text-cyan-200/80',
-    violet: 'border-violet-400/20 bg-violet-400/6 text-violet-200/80',
-  }
+function InfoCallout({ children }: { children: ReactNode }) {
   return (
-    <div className={cn('rounded-2xl border p-4 text-sm leading-relaxed', cls[color])}>
+    <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/6 p-4 text-sm leading-relaxed text-emerald-200/80">
       {children}
     </div>
   )
@@ -167,7 +153,7 @@ function ScreenWelcome({ rm }: { rm: boolean }) {
       >
         <h1 className="text-3xl font-black leading-[1.08] tracking-[-0.03em] text-white">
           Stop guessing.{' '}
-          <span className="bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">
+          <span className="text-emerald-300">
             Bet with the sharps.
           </span>
         </h1>
@@ -221,21 +207,17 @@ function ScreenWelcome({ rm }: { rm: boolean }) {
 function ScreenName({
   draft,
   onName,
-  sportsbook,
-  onSportsbook,
   rm,
 }: {
   draft: TrialOnboardingDraft
   onName: (v: string) => void
-  sportsbook: string
-  onSportsbook: (v: string) => void
   rm: boolean
 }) {
   return (
     <div className="flex flex-col gap-5">
       <div>
         <h2 className="text-2xl font-black tracking-tight text-white">What should we call you?</h2>
-        <p className="mt-1.5 text-sm text-white/50">Used to personalize your tool setup and signals.</p>
+        <p className="mt-1.5 text-sm text-white/50">Used to personalize your setup and signals throughout.</p>
       </div>
 
       {/* Name input */}
@@ -258,27 +240,6 @@ function ScreenName({
             <Check className="h-3 w-3 text-black" />
           </motion.div>
         )}
-      </div>
-
-      {/* Sportsbook */}
-      <div>
-        <p className="mb-2.5 text-sm font-semibold text-white/70">What sportsbook do you mainly use?</p>
-        <div className="flex flex-wrap gap-2">
-          {SPORTSBOOKS.map((sb) => (
-            <button
-              key={sb}
-              onClick={() => onSportsbook(sb === sportsbook ? '' : sb)}
-              className={cn(
-                'rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all',
-                sportsbook === sb
-                  ? 'border-emerald-400/40 bg-emerald-400/12 text-emerald-300'
-                  : 'border-white/10 bg-white/[0.03] text-white/50 hover:border-white/20'
-              )}
-            >
-              {sb}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="flex items-center gap-2 text-xs text-white/28">
@@ -386,7 +347,7 @@ function ScreenExperience({
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.25 }}
           >
-            <InfoCallout color="emerald">
+            <InfoCallout>
               <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300/70">
                 Delta configures for you:
               </div>
@@ -555,25 +516,18 @@ function ScreenGoals({
 
 function MockupShell({
   badge,
-  badgeColor = 'emerald',
   liveDot,
   children,
 }: {
   badge: string
-  badgeColor?: 'emerald' | 'cyan' | 'violet'
   liveDot?: boolean
   children: ReactNode
 }) {
-  const cls = {
-    emerald: 'border-emerald-300/22 bg-emerald-400/9 text-emerald-300',
-    cyan: 'border-cyan-300/22 bg-cyan-400/9 text-cyan-300',
-    violet: 'border-violet-300/22 bg-violet-400/9 text-violet-300',
-  }
   return (
     <div className="rounded-2xl border border-white/10 bg-[#030c0a] p-4 shadow-[0_16px_60px_rgba(0,0,0,0.5)]">
       <div className="mb-3 flex items-center justify-between">
         <span className="text-[9px] uppercase tracking-[0.35em] text-white/25">Live tool preview</span>
-        <div className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.18em]', cls[badgeColor])}>
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/22 bg-emerald-400/9 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-300">
           {liveDot && <span className="ob-live-dot" style={{ width: 6, height: 6, minWidth: 6 }} />}
           {badge}
         </div>
@@ -598,20 +552,29 @@ function ScreenProjections({ draft, rm }: { draft: TrialOnboardingDraft; rm: boo
   const [expanded, setExpanded] = useState<string | null>(null)
   const isSharp = draft.experienceLevel === 'sharp-pro' || draft.experienceLevel === 'serious-bettor'
 
+  const primaryGoal = draft.goals[0]
+  const goalContext: Record<string, string> = {
+    'beat-the-book': 'This is your primary tool — surface mispricings before the market corrects.',
+    'find-sharp-lines': 'Scan this board first. Sharp line moves start here.',
+    'track-whale-activity': 'Use this to confirm whale bets are backed by model edge.',
+    'validate-picks': 'Cross-reference your picks here before placing.',
+  }
+  const contextLine = primaryGoal ? goalContext[primaryGoal] : null
+
   return (
     <div className="flex flex-col gap-4">
       <div>
         <div className="mb-1.5 flex items-center gap-2">
-          <Pill color="emerald">Step 4 of 10</Pill>
+          <Pill>Step 4 of 10</Pill>
           <ChartNoAxesCombined className="h-4 w-4 text-emerald-300" />
         </div>
         <h2 className="text-2xl font-black tracking-tight text-white">Sharp Projections</h2>
         <p className="mt-1.5 text-sm text-white/50">
-          Edge-ranked board refreshing every 15 min. Tap a row to see the edge breakdown.
+          {contextLine ?? 'Edge-ranked board refreshing every 15 min. Tap a row to see the edge breakdown.'}
         </p>
       </div>
 
-      <MockupShell badge="LIVE" badgeColor="emerald" liveDot>
+      <MockupShell badge="LIVE"  liveDot>
         <div className="space-y-2">
           {PROJ_ROWS.map((row, i) => (
             <motion.div
@@ -662,7 +625,7 @@ function ScreenProjections({ draft, rm }: { draft: TrialOnboardingDraft; rm: boo
         </div>
       </MockupShell>
 
-      <InfoCallout color="emerald">
+      <InfoCallout>
         {isSharp
           ? 'Edge value = delta between Delta model price and live market. Positive = market hasn\'t corrected yet. Negative edge rows are hidden by default.'
           : 'Green edge badges mean Delta\'s model disagrees with the current line. The higher the number, the bigger the gap — those surface first.'}
@@ -700,20 +663,29 @@ function ScreenProps({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolean }
   const betSize = draft.betSize || 100
   const projProfit = ((betSize * (100 / 110)) * 3 * 0.78).toFixed(0)
 
+  const primaryGoal = draft.goals[0]
+  const propsContext: Record<string, string> = {
+    'beat-the-book': 'Props market moves faster — orderbook pressure shows mispricing before spread adjustments.',
+    'find-sharp-lines': 'Sharp prop action often precedes game-line moves. Watch the lean scores.',
+    'track-whale-activity': 'Large-ticket activity hits props first. This feed shows exactly who is leaning and why.',
+    'validate-picks': 'Run your prop picks against orderbook lean to validate before placing.',
+  }
+  const contextLine = primaryGoal ? propsContext[primaryGoal] : null
+
   return (
     <div className="flex flex-col gap-4">
       <div>
         <div className="mb-1.5 flex items-center gap-2">
-          <Pill color="cyan">Step 5 of 10</Pill>
-          <Activity className="h-4 w-4 text-cyan-300" />
+          <Pill>Step 5 of 10</Pill>
+          <Activity className="h-4 w-4 text-emerald-400/60" />
         </div>
         <h2 className="text-2xl font-black tracking-tight text-white">Sharp Props</h2>
         <p className="mt-1.5 text-sm text-white/50">
-          Orderbook lean before books adjust. Tap a row to see the reasoning.
+          {contextLine ?? 'Orderbook lean before books adjust. Tap a row to see the reasoning.'}
         </p>
       </div>
 
-      <MockupShell badge="SHARP" badgeColor="cyan">
+      <MockupShell badge="SHARP">
         <div className="space-y-2.5">
           {PROP_ROWS.map((row, i) => (
             <motion.div
@@ -742,7 +714,7 @@ function ScreenProps({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolean }
                     initial={{ width: 0 }}
                     animate={{ width: `${row.pct}%` }}
                     transition={rm ? {} : { duration: 0.8, ease: 'easeOut', delay: 0.2 + i * 0.1 }}
-                    className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-emerald-300"
+                    className="h-full rounded-full bg-emerald-400"
                     style={{ boxShadow: '0 0 4px rgba(52,211,153,0.4)' }}
                   />
                 </div>
@@ -766,8 +738,8 @@ function ScreenProps({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolean }
         </div>
       </MockupShell>
 
-      <InfoCallout color="cyan">
-        <span className="font-semibold text-cyan-200">If you had tailed the top 3 props last week</span>
+      <InfoCallout>
+        <span className="font-semibold text-emerald-200">If you had tailed the top 3 props last week</span>
         {' '}at ${betSize}/bet: estimated <span className="font-bold text-emerald-300">+${projProfit}</span> profit.
         {' '}Delta surfaces these before the line adjusts.
       </InfoCallout>
@@ -785,7 +757,7 @@ const INITIAL_WHALE_ROWS = [
 ]
 const ARRIVING_ROW = { amount: '$63,500', game: 'Warriors vs Thunder · Spread', line: 'GSW +4.5', time: 'just now', moved: null }
 
-function ScreenWhale({ rm }: { rm: boolean }) {
+function ScreenWhale({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolean }) {
   const [rows, setRows] = useState(INITIAL_WHALE_ROWS)
   const [newRow, setNewRow] = useState(false)
 
@@ -797,20 +769,29 @@ function ScreenWhale({ rm }: { rm: boolean }) {
     return () => clearTimeout(t)
   }, [])
 
+  const primaryGoal = draft.goals[0]
+  const whaleContext: Record<string, string> = {
+    'beat-the-book': 'Whale money often precedes line corrections. Catch it here first.',
+    'find-sharp-lines': 'This is your signal. When a $50K+ ticket hits, the line moves within minutes.',
+    'track-whale-activity': 'This is your #1 tool — large-ticket alerts live as they happen.',
+    'validate-picks': 'Cross-check whale direction against your picks for confirmation.',
+  }
+  const contextLine = primaryGoal ? whaleContext[primaryGoal] : null
+
   return (
     <div className="flex flex-col gap-4">
       <div>
         <div className="mb-1.5 flex items-center gap-2">
-          <Pill color="emerald">Step 6 of 10</Pill>
+          <Pill>Step 6 of 10</Pill>
           <Waves className="h-4 w-4 text-emerald-300" />
         </div>
         <h2 className="text-2xl font-black tracking-tight text-white">Whale Feed</h2>
         <p className="mt-1.5 text-sm text-white/50">
-          $50K+ tickets live as they hit. You see the move before the line adjusts.
+          {contextLine ?? '$50K+ tickets live as they hit. You see the move before the line adjusts.'}
         </p>
       </div>
 
-      <MockupShell badge="LIVE" badgeColor="emerald" liveDot>
+      <MockupShell badge="LIVE"  liveDot>
         <div className="space-y-2">
           <AnimatePresence>
             {rows.map((row, i) => (
@@ -828,7 +809,7 @@ function ScreenWhale({ rm }: { rm: boolean }) {
                     <div className="mt-0.5 truncate text-xs text-white/50">{row.game}</div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <span className="rounded-full bg-cyan-400/12 px-2 py-0.5 text-[10px] font-bold text-cyan-200">{row.line}</span>
+                    <span className="rounded-full bg-emerald-400/12 px-2 py-0.5 text-[10px] font-bold text-emerald-200">{row.line}</span>
                     <div className="mt-0.5 text-[9px] uppercase tracking-[0.14em] text-white/28">{row.time} ago</div>
                   </div>
                 </div>
@@ -841,7 +822,7 @@ function ScreenWhale({ rm }: { rm: boolean }) {
         </div>
       </MockupShell>
 
-      <InfoCallout color="emerald">
+      <InfoCallout>
         Delta compares the whale ticket timing against exchange and sportsbook pricing — so you can distinguish real steam from noise.
       </InfoCallout>
     </div>
@@ -875,20 +856,29 @@ function ScreenResearch({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolea
   const bars = showAfter ? AFTER_BARS : BEFORE_BARS
   const expProj = draft.experienceLevel ? EXP_PROJECTIONS[draft.experienceLevel] : EXP_PROJECTIONS['recreational']
 
+  const primaryGoal = draft.goals[0]
+  const researchContext: Record<string, string> = {
+    'beat-the-book': 'Backtest which edges have held over time. Confirms your process before you size up.',
+    'find-sharp-lines': 'Historical CLV tracking shows which line types move most consistently.',
+    'track-whale-activity': 'Research Mode validates: do whale bets actually beat closing line?',
+    'validate-picks': 'This is your #1 tool — CLV history and backtesting built for your workflow.',
+  }
+  const contextLine = primaryGoal ? researchContext[primaryGoal] : null
+
   return (
     <div className="flex flex-col gap-4">
       <div>
         <div className="mb-1.5 flex items-center gap-2">
-          <Pill color="violet">Step 7 of 10</Pill>
-          <FlaskConical className="h-4 w-4 text-violet-300" />
+          <Pill>Step 7 of 10</Pill>
+          <FlaskConical className="h-4 w-4 text-emerald-400/60" />
         </div>
         <h2 className="text-2xl font-black tracking-tight text-white">Research Mode</h2>
         <p className="mt-1.5 text-sm text-white/50">
-          Track CLV, backtest your process, and see what a disciplined system looks like.
+          {contextLine ?? 'Track CLV, backtest your process, and see what a disciplined system looks like.'}
         </p>
       </div>
 
-      <MockupShell badge="SYNDICATE" badgeColor="violet">
+      <MockupShell badge="SYNDICATE">
         {/* Before / After toggle */}
         <div className="mb-3 flex items-center justify-between">
           <span className="text-[9px] uppercase tracking-[0.2em] text-white/28">Your last 30 days</span>
@@ -926,7 +916,7 @@ function ScreenResearch({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolea
                   initial={{ width: 0 }}
                   animate={{ width: `${bar.pct}%` }}
                   transition={rm ? {} : { duration: 0.85, ease: 'easeOut', delay: i * 0.1 }}
-                  className={cn('h-full rounded-full', bar.warn ? 'bg-gradient-to-r from-amber-300 to-orange-300' : 'bg-gradient-to-r from-emerald-300 to-cyan-300')}
+                  className={cn('h-full rounded-full', bar.warn ? 'bg-amber-400' : 'bg-emerald-400')}
                   style={{ boxShadow: bar.warn ? '0 0 4px rgba(251,191,36,0.35)' : '0 0 4px rgba(52,211,153,0.3)' }}
                 />
               </div>
@@ -934,14 +924,14 @@ function ScreenResearch({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolea
           ))}
         </div>
 
-        <div className="mt-3 rounded-xl border border-violet-400/18 bg-violet-500/7 px-3 py-2 text-xs text-white/45">
+        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/45">
           <Lock className="mb-0.5 mr-1.5 inline h-3 w-3" />
-          Full history unlocks with <span className="font-semibold text-violet-300">Syndicate</span>
+          Full history unlocks with <span className="font-semibold text-emerald-300">Syndicate</span>
         </div>
       </MockupShell>
 
-      <InfoCallout color="violet">
-        <span className="font-semibold text-violet-200">{draft.name ? draft.name.split(' ')[0] + ': ' : ''}</span>
+      <InfoCallout>
+        <span className="font-semibold text-emerald-200">{draft.name ? draft.name.split(' ')[0] + ': ' : ''}</span>
         {expProj}
       </InfoCallout>
     </div>
@@ -977,7 +967,7 @@ function ScreenRoi({
     <div className="flex flex-col gap-5">
       <div>
         <div className="mb-1.5">
-          <Pill color="emerald">Step 8 of 10</Pill>
+          <Pill>Step 8 of 10</Pill>
         </div>
         <h2 className="text-2xl font-black tracking-tight text-white">
           {draft.name ? `${draft.name.split(' ')[0]}, how much do you bet?` : 'How much do you bet?'}
@@ -1067,7 +1057,7 @@ const TESTIMONIALS = [
   {
     name: 'Ryan T.',
     plan: 'Syndicate · 6 months',
-    color: 'violet',
+    color: 'emerald',
     quote: 'Research Mode took my CLV from +1.1% to +4.3% in 30 days. I finally have a process that works.',
   },
 ]
@@ -1151,7 +1141,7 @@ function ScreenFinal({
             <div className="mb-2 flex items-center gap-2.5">
               <div className={cn(
                 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-black',
-                t.color === 'emerald' ? 'bg-emerald-400' : 'bg-violet-400'
+                'bg-emerald-400'
               )}>
                 {t.name[0]}
               </div>
@@ -1229,7 +1219,6 @@ export default function TrialOnboardingFlow() {
   const [screenIndex, setScreenIndex] = useState(0)
   const [direction, setDirection] = useState<1 | -1>(1)
   const [draft, setDraft] = useState<TrialOnboardingDraft>(createDefaultTrialOnboardingDraft)
-  const [sportsbook, setSportsbook] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const screen = SCREENS[screenIndex]!
@@ -1392,12 +1381,12 @@ export default function TrialOnboardingFlow() {
               transition={{ duration: 0.28, ease: 'easeInOut' }}
             >
               {screen.id === 'welcome'     && <ScreenWelcome rm={rm} />}
-              {screen.id === 'name'        && <ScreenName draft={draft} onName={handleName} sportsbook={sportsbook} onSportsbook={setSportsbook} rm={rm} />}
+              {screen.id === 'name'        && <ScreenName draft={draft} onName={handleName} rm={rm} />}
               {screen.id === 'experience'  && <ScreenExperience draft={draft} onSelect={handleExperience} rm={rm} />}
               {screen.id === 'goals'       && <ScreenGoals draft={draft} onToggle={handleGoalToggle} rm={rm} />}
               {screen.id === 'projections' && <ScreenProjections draft={draft} rm={rm} />}
               {screen.id === 'props'       && <ScreenProps draft={draft} rm={rm} />}
-              {screen.id === 'whale'       && <ScreenWhale rm={rm} />}
+              {screen.id === 'whale'       && <ScreenWhale draft={draft} rm={rm} />}
               {screen.id === 'research'    && <ScreenResearch draft={draft} rm={rm} />}
               {screen.id === 'roi'         && <ScreenRoi draft={draft} onBetSize={handleBetSize} onBetsPerDay={handleBetsPerDay} rm={rm} />}
               {screen.id === 'final'       && <ScreenFinal draft={draft} isSubmitting={isSubmitting} onSubmit={handleSubmit} rm={rm} />}

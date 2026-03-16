@@ -103,6 +103,17 @@ type KalshiMarketResponse = {
   }
 }
 
+type KalshiOrderbookResponse = {
+  orderbook?: {
+    yes?: unknown[]
+    no?: unknown[]
+  }
+  orderbook_fp?: {
+    yes_dollars?: unknown[]
+    no_dollars?: unknown[]
+  }
+}
+
 type PolymarketMarket = {
   id: string
   question?: string
@@ -742,12 +753,11 @@ const fetchKalshiOrderbookSummary = async (
 ): Promise<KalshiOrderbookSummary | null> => {
   const url = new URL(`${KALSHI_BASE}/markets/${ticker}/orderbook`)
   url.searchParams.set('depth', '5')
-  const data = await fetchKalshiJson<{ orderbook?: { yes?: number[][]; no?: number[][] } }>(
+  const data = await fetchKalshiJson<KalshiOrderbookResponse>(
     url.toString()
   )
   if (!data) return null
-  const yes = Array.isArray(data.orderbook?.yes) ? data.orderbook?.yes ?? [] : []
-  const no = Array.isArray(data.orderbook?.no) ? data.orderbook?.no ?? [] : []
+  const { yes, no } = extractKalshiOrderbookLevels(data)
   return {
     yes: parseKalshiOrders(yes),
     no: parseKalshiOrders(no),
@@ -1027,6 +1037,32 @@ const parseKalshiLevels = (levels: number[][]): PropOrderbookLevel[] => {
     parsed.push({ priceCents, notional })
   }
   return parsed
+}
+
+const parseKalshiLevelRows = (rows: unknown): number[][] => {
+  if (!Array.isArray(rows)) return []
+  const parsed: number[][] = []
+  for (const row of rows) {
+    if (!Array.isArray(row) || row.length < 2) continue
+    const price = Number(row[0])
+    const size = Number(row[1])
+    if (!Number.isFinite(price) || !Number.isFinite(size)) continue
+    parsed.push([price, size])
+  }
+  return parsed
+}
+
+const extractKalshiOrderbookLevels = (payload: KalshiOrderbookResponse) => {
+  const yesLegacy = parseKalshiLevelRows(payload.orderbook?.yes)
+  const noLegacy = parseKalshiLevelRows(payload.orderbook?.no)
+  if (yesLegacy.length || noLegacy.length) {
+    return { yes: yesLegacy, no: noLegacy }
+  }
+
+  return {
+    yes: parseKalshiLevelRows(payload.orderbook_fp?.yes_dollars),
+    no: parseKalshiLevelRows(payload.orderbook_fp?.no_dollars),
+  }
 }
 
 const summarizeSide = (
@@ -1604,12 +1640,11 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
     ): Promise<PropOrderbookItem | null> => {
       const url = new URL(`${KALSHI_BASE}/markets/${market.ticker}/orderbook`)
       url.searchParams.set('depth', String(Math.max(depth, 8)))
-      const data = await fetchKalshiJson<{ orderbook?: { yes?: number[][]; no?: number[][] } }>(
+      const data = await fetchKalshiJson<KalshiOrderbookResponse>(
         url.toString()
       )
       if (!data) return null
-      const yesRaw = Array.isArray(data.orderbook?.yes) ? data.orderbook?.yes ?? [] : []
-      const noRaw = Array.isArray(data.orderbook?.no) ? data.orderbook?.no ?? [] : []
+      const { yes: yesRaw, no: noRaw } = extractKalshiOrderbookLevels(data)
 
       let rawYesLabel = market.yes_sub_title || 'Yes'
       let rawNoLabel = market.no_sub_title || 'No'

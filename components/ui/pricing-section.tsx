@@ -131,9 +131,10 @@ export function PricingSection({
   showTrialTimeline = true,
 }: PricingSectionProps) {
   const router = useRouter()
-  const [billingPeriod, setBillingPeriod] = useState<'weekly' | 'monthly' | 'annual'>('monthly')
+  const [billingPeriod, setBillingPeriod] = useState<'weekly' | 'monthly' | 'annual'>('annual')
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
+  const hasAnnualTrial = !membership?.isActive && !membership?.hasUsedTrial && billingPeriod === 'annual'
 
   useEffect(() => {
     const fetchMembership = async () => {
@@ -198,7 +199,7 @@ export function PricingSection({
         <div className="flex flex-col items-center gap-1.5 mb-2 text-center md:mb-4">
           {showTrialHeading && (
             <h2 className="text-xl font-bold text-white md:text-2xl">
-              Try Delta Sports free for 7 days.
+              {hasAnnualTrial ? "Try Delta Sports free for 3 days." : "Choose the plan that fits your workflow."}
             </h2>
           )}
           <div className="inline-flex items-center p-0.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 backdrop-blur">
@@ -206,7 +207,7 @@ export function PricingSection({
               [
                 { label: "Weekly", value: "weekly" as const, badge: null },
                 { label: "Monthly", value: "monthly" as const, badge: null },
-                { label: "Annually", value: "annual" as const, badge: "Best Value" },
+                { label: "Annually", value: "annual" as const, badge: "Free Trial" },
               ] as const
             ).map((period) => (
               <button
@@ -228,9 +229,11 @@ export function PricingSection({
               </button>
             ))}
           </div>
-          {showTrialDisclaimer && !membership?.isActive && !membership?.hasUsedTrial && (
+          {showTrialDisclaimer && !membership?.isActive && (
             <p className="mt-2 text-xs text-white/60">
-              No payment due now &bull; Cancel anytime &bull; We&apos;ll remind you before your trial ends
+              {hasAnnualTrial
+                ? "No payment due now • Cancel anytime • We’ll remind you before your trial ends"
+                : "Billed today • Cancel anytime from billing"}
             </p>
           )}
         </div>
@@ -347,7 +350,7 @@ export function PricingSection({
                     </>
                   ) : (
                     <>
-                      Start your free trial
+                      {hasAnnualTrial ? "Start your free trial" : "Start subscription"}
                       <ArrowRightIcon className="w-4 h-4" />
                     </>
                   )}
@@ -441,9 +444,9 @@ export function PricingSection({
                               <p className="mt-1.5 text-xs text-slate-200/70">
                                 {tier.description}
                               </p>
-                      {!membership?.isActive && !membership?.hasUsedTrial && tier.highlight && (
+                      {hasAnnualTrial && tier.highlight && (
                         <div className="mt-2 inline-flex">
-                          <Badge className={cn(badgeStyles, "bg-emerald-400")}>7-Day Free Trial</Badge>
+                          <Badge className={cn(badgeStyles, "bg-emerald-400")}>3-Day Free Trial</Badge>
                         </div>
                       )}
                             </>
@@ -482,9 +485,9 @@ export function PricingSection({
 
                 <div className="p-3 sm:p-3.5 md:p-4 pt-0 mt-auto">
                   {actionButton}
-                  {!membership?.isActive && !membership?.hasUsedTrial && (
+                  {!membership?.isActive && (
                     <div className="mt-2 text-center text-xs text-white/60">
-                      No payment due now &bull; Cancel anytime
+                      {hasAnnualTrial ? "No payment due now • Cancel anytime" : "Billed today • Cancel anytime"}
                     </div>
                   )}
                   {!membership?.isActive && membership?.hasUsedTrial && (
@@ -498,7 +501,7 @@ export function PricingSection({
           })}
         </div>
 
-        {showTrialTimeline && !membership?.isActive && !membership?.hasUsedTrial && (
+        {showTrialTimeline && hasAnnualTrial && (
           <div className="mx-auto mt-4 w-full max-w-md rounded-3xl border border-emerald-300/20 bg-white/[0.03] p-4 text-left">
             <div className="flex gap-4">
               <div className="flex flex-col items-center">
@@ -519,8 +522,8 @@ export function PricingSection({
                     <span className="block h-4 w-4 rounded-full bg-white/10" />
                   </div>
                   <div>
-                    <div className="text-xs font-semibold text-white">Day 4</div>
-                    <div className="text-xs text-white/60">Payment reminder sent (3 days before billing)</div>
+                    <div className="text-xs font-semibold text-white">Day 2</div>
+                    <div className="text-xs text-white/60">Payment reminder sent before billing</div>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -528,7 +531,7 @@ export function PricingSection({
                     <span className="block h-4 w-4 rounded-full bg-white/10" />
                   </div>
                   <div>
-                    <div className="text-xs font-semibold text-white">Day 7</div>
+                    <div className="text-xs font-semibold text-white">Day 3</div>
                     <div className="text-xs text-white/60">First billing (if not canceled)</div>
                   </div>
                 </div>

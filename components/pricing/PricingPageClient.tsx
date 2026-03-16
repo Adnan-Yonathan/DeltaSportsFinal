@@ -87,7 +87,7 @@ const isSafeInternalPath = (value: string | null): value is string => {
 export function PricingPageClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly")
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("annual")
   const [selectedTierKey, setSelectedTierKey] = useState<TierKey>("syndicate")
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
@@ -120,7 +120,7 @@ export function PricingPageClient() {
   }
 
   const buildCheckoutRedirects = () => {
-    const next = searchParams.get('next')
+    const next = searchParams.get("next")
     const source = searchParams.get("source")
 
     if (isSafeInternalPath(next)) {
@@ -235,7 +235,12 @@ export function PricingPageClient() {
     }
 
     return {
-      label: isLoading ? "Processing..." : "Start your free trial",
+      label:
+        isLoading
+          ? "Processing..."
+          : billingPeriod === "annual" && !membership?.hasUsedTrial
+            ? "Start your free trial"
+            : "Start subscription",
       disabled: isLoading,
       onClick: () => handleCheckout(selectedPlanKey),
     }
@@ -243,6 +248,7 @@ export function PricingPageClient() {
 
   const mobileAction = buildMobileAction()
   const isEligibleForTrial = !membership?.isActive && !membership?.hasUsedTrial
+  const hasAnnualTrial = isEligibleForTrial && billingPeriod === "annual"
 
   return (
     <main className="relative min-h-screen bg-black text-white">
@@ -264,15 +270,16 @@ export function PricingPageClient() {
       <div className="relative z-10">
         <SimpleHeader widthClass="max-w-6xl" />
 
-        {/* Mobile */}
         <div className="sm:hidden">
           <div className="mx-auto w-full max-w-md px-5 pb-40 pt-20">
-            <div className="text-center space-y-2">
+            <div className="space-y-2 text-center">
               <h1 className="text-3xl font-semibold tracking-tight text-white">
-                Try Delta Sports Free for 7 Days.
+                {hasAnnualTrial ? "Start with annual and get 3 days free." : "Choose the plan that fits your workflow."}
               </h1>
               <p className="text-sm text-white/65">
-                Test the edge this week. Cancel anytime.
+                {hasAnnualTrial
+                  ? "Annual subscriptions start with a free trial. Weekly and monthly plans bill immediately."
+                  : "Weekly and monthly plans bill today. Cancel anytime from billing."}
               </p>
             </div>
 
@@ -281,7 +288,7 @@ export function PricingPageClient() {
                 [
                   { label: "Weekly", value: "weekly" as const, badge: null },
                   { label: "Monthly", value: "monthly" as const, badge: null },
-                  { label: "Annually", value: "annual" as const, badge: "Best Value" },
+                  { label: "Annually", value: "annual" as const, badge: "Free Trial" },
                 ] as const
               ).map((period) => {
                 const isSelected = billingPeriod === period.value
@@ -330,11 +337,11 @@ export function PricingPageClient() {
                         : "border-white/10"
                     )}
                   >
-                    {isEligibleForTrial && isSelected && (
+                    {hasAnnualTrial && isSelected ? (
                       <span className="absolute -top-3 right-4 rounded-full bg-emerald-400 px-3 py-1 text-[10px] font-bold text-slate-900 shadow">
-                        7-Day Free Trial
+                        3-Day Free Trial
                       </span>
-                    )}
+                    ) : null}
 
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -362,29 +369,29 @@ export function PricingPageClient() {
 
                       <div className="mt-1 text-[11px] text-white/60">
                         ~ {formatUsd(dailyPrice)}/day
-                        {weeklyEquivalent != null && (
+                        {weeklyEquivalent != null ? (
                           <span> | {formatUsd(weeklyEquivalent)}/week</span>
-                        )}
+                        ) : null}
                       </div>
 
-                      {billingPeriod === "annual" && savings.savedAmount > 0 && (
+                      {billingPeriod === "annual" && savings.savedAmount > 0 ? (
                         <div className="mt-1 text-[11px] font-semibold text-emerald-200">
                           Save {formatUsd(savings.savedAmount)}/yr ({savingsPercent}% off)
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </button>
                 )
               })}
             </div>
 
-            {membership?.hasUsedTrial && !membership?.isActive && (
+            {membership?.hasUsedTrial && !membership?.isActive ? (
               <div className="mt-4 text-center text-[11px] uppercase tracking-[0.28em] text-white/45">
                 Trial already used
               </div>
-            )}
+            ) : null}
 
-            {isEligibleForTrial && (
+            {hasAnnualTrial ? (
               <div className="mt-6 rounded-3xl border border-emerald-300/20 bg-white/[0.03] p-5">
                 <div className="flex gap-4">
                   <div className="flex flex-col items-center">
@@ -406,8 +413,8 @@ export function PricingPageClient() {
                         <span className="block h-4 w-4 rounded-full bg-white/10" />
                       </div>
                       <div>
-                        <div className="text-xs font-semibold text-white">Day 4</div>
-                        <div className="text-xs text-white/60">Payment reminder sent (3 days before billing)</div>
+                        <div className="text-xs font-semibold text-white">Day 2</div>
+                        <div className="text-xs text-white/60">Payment reminder sent before billing</div>
                       </div>
                     </div>
 
@@ -416,15 +423,14 @@ export function PricingPageClient() {
                         <span className="block h-4 w-4 rounded-full bg-white/10" />
                       </div>
                       <div>
-                        <div className="text-xs font-semibold text-white">Day 7</div>
+                        <div className="text-xs font-semibold text-white">Day 3</div>
                         <div className="text-xs text-white/60">First billing (if not canceled)</div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            )}
-
+            ) : null}
           </div>
 
           <div className="fixed inset-x-0 bottom-0 z-50">
@@ -443,7 +449,7 @@ export function PricingPageClient() {
                     "w-full rounded-full px-6 py-4 text-sm font-semibold",
                     "bg-gradient-to-r from-emerald-400 to-emerald-500 text-black",
                     "shadow-[0_10px_30px_rgba(16,185,129,0.28)]",
-                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                    "disabled:cursor-not-allowed disabled:opacity-50"
                   )}
                 >
                   <span className="flex items-center justify-center gap-2">
@@ -461,17 +467,18 @@ export function PricingPageClient() {
                   </span>
                 </button>
 
-                {!membership?.isActive && (
+                {!membership?.isActive ? (
                   <div className="mt-3 text-center text-xs text-white/60">
-                    No payment due now • Cancel anytime • We&apos;ll remind you before your trial ends
+                    {hasAnnualTrial
+                      ? "No payment due now • Cancel anytime • We’ll remind you before your trial ends"
+                      : "Billed today • Cancel anytime from billing"}
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Desktop */}
         <div className="hidden sm:block pt-20 sm:pt-24">
           <PricingSection
             tiers={PRICING_TIERS}

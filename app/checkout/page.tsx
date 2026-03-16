@@ -69,7 +69,7 @@ export default function CheckoutPage() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [selectedTier, setSelectedTier] = useState<TierKey>('syndicate')
-  const [selectedBilling, setSelectedBilling] = useState<BillingPeriod>('monthly')
+  const [selectedBilling, setSelectedBilling] = useState<BillingPeriod>('annual')
   const [activeVariant, setActiveVariant] = useState<CheckoutVariant>(CHECKOUT_VARIANT)
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -246,11 +246,13 @@ function MobileCheckoutLayout({
               Get access to the sharp money
             </h1>
             <p className="mt-3 text-lg font-medium text-white/82">
-              Become an insider for 7 days free.
+              {selectedBilling === 'annual' ? 'Annual plans start with 3 days free.' : 'Weekly and monthly plans start immediately.'}
             </p>
             {selectedPlan ? (
               <p className="mt-1 text-sm text-white/55">
-                Then just ${selectedPlan.price}/{selectedPlan.period}.
+                {selectedBilling === 'annual'
+                  ? `Then just $${selectedPlan.price}/${selectedPlan.period}.`
+                  : `You will be billed $${selectedPlan.price}/${selectedPlan.period} today.`}
               </p>
             ) : null}
           </div>
@@ -297,7 +299,7 @@ function MobileCheckoutLayout({
                     >
                       {isAnnual ? (
                         <div className="mb-3 inline-flex rounded-full border border-emerald-300/45 bg-emerald-500/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-200">
-                          Best Value
+                          Free Trial
                         </div>
                       ) : null}
                       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">
@@ -421,9 +423,13 @@ function DesktopCheckoutLayout({
     <div className="hidden lg:block">
       <div className="mx-auto max-w-6xl px-6 py-12">
         <div className="mb-10 text-center">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Start your 7-day free trial</h1>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            {selectedBilling === 'annual' ? 'Start your 3-day free trial' : 'Start your subscription'}
+          </h1>
           <p className="mt-3 text-lg text-white/60">
-            See where the sharp money is betting. Cancel anytime.
+            {selectedBilling === 'annual'
+              ? 'Annual plans start free for 3 days. Weekly and monthly plans bill immediately.'
+              : 'See where the sharp money is betting. This plan bills immediately.'}
           </p>
         </div>
 
@@ -477,7 +483,7 @@ function DesktopCheckoutLayout({
                   >
                     {period === 'annual' ? (
                       <span className="absolute -top-2 right-2 rounded-full bg-emerald-400 px-2 py-0.5 text-[9px] font-bold text-black">
-                        Best Value
+                        Free Trial
                       </span>
                     ) : null}
                     <span className="capitalize">{period}</span>
@@ -522,16 +528,18 @@ function DesktopCheckoutLayout({
             <div className="space-y-3 text-sm text-white/50">
               <div className="flex items-center gap-2">
                 <CheckIcon className="h-4 w-4 text-emerald-400" />
-                <span>7-day free trial, no charge today</span>
+                <span>{selectedBilling === 'annual' ? '3-day free trial, no charge today' : 'Billed immediately at checkout'}</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckIcon className="h-4 w-4 text-emerald-400" />
                 <span>Cancel anytime in 2 clicks</span>
               </div>
-              <div className="flex items-center gap-2">
-                <CheckIcon className="h-4 w-4 text-emerald-400" />
-                <span>We&apos;ll remind you before billing</span>
-              </div>
+              {selectedBilling === 'annual' ? (
+                <div className="flex items-center gap-2">
+                  <CheckIcon className="h-4 w-4 text-emerald-400" />
+                  <span>We&apos;ll remind you before billing</span>
+                </div>
+              ) : null}
             </div>
           </div>
 

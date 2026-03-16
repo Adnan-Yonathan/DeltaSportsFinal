@@ -71,7 +71,7 @@ export default function CheckoutPage() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [selectedTier, setSelectedTier] = useState<TierKey>('syndicate')
-  const [selectedBilling, setSelectedBilling] = useState<BillingPeriod>('monthly')
+  const [selectedBilling, setSelectedBilling] = useState<BillingPeriod>('annual')
   const [activeVariant, setActiveVariant] = useState<CheckoutVariant>(CHECKOUT_VARIANT)
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)

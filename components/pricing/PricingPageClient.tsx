@@ -361,17 +361,11 @@ export function PricingPageClient() {
 
                     <div className="mt-4">
                       <div className="text-xl font-semibold text-white">
-                        {formatUsd(periodPrice)}
-                        <span className="ml-1 text-xs font-semibold text-white/60">
-                          /{billingPeriod === "annual" ? "yr" : billingPeriod === "monthly" ? "mo" : "wk"}
-                        </span>
+                        {formatUsd(dailyPrice)}
+                        <span className="ml-1 text-xs font-semibold text-white/60">/day</span>
                       </div>
-
                       <div className="mt-1 text-[11px] text-white/60">
-                        ~ {formatUsd(dailyPrice)}/day
-                        {weeklyEquivalent != null ? (
-                          <span> | {formatUsd(weeklyEquivalent)}/week</span>
-                        ) : null}
+                        billed {formatUsd(periodPrice)}/{billingPeriod === "annual" ? "yr" : billingPeriod === "monthly" ? "mo" : "wk"}
                       </div>
 
                       {billingPeriod === "annual" && savings.savedAmount > 0 ? (
@@ -479,12 +473,227 @@ export function PricingPageClient() {
           </div>
         </div>
 
-        <div className="hidden sm:block pt-20 sm:pt-24">
-          <PricingSection
-            tiers={PRICING_TIERS}
-            className="bg-transparent"
-            checkoutRedirects={buildCheckoutRedirects()}
-          />
+        {/* ── Desktop pricing ── */}
+        <div className="hidden sm:block px-6 pb-28 pt-20 sm:pt-24">
+          <div className="mx-auto max-w-4xl">
+            {/* Header */}
+            <div className="space-y-2 text-center">
+              <h1 className="text-4xl font-semibold tracking-tight text-white">
+                {isEligibleForTrial ? "3 days free, then choose your plan." : "Choose the plan that fits your workflow."}
+              </h1>
+              <p className="text-sm text-white/55">
+                {isEligibleForTrial
+                  ? "Annual subscriptions start with a free trial. Weekly and monthly plans bill immediately."
+                  : "Weekly and monthly plans bill today. Cancel anytime from billing."}
+              </p>
+            </div>
+
+            {/* Billing toggle */}
+            <div className="mt-8 flex justify-center">
+              <div className="inline-flex rounded-full border border-emerald-300/25 bg-emerald-500/[0.07] p-1.5 backdrop-blur">
+                {(
+                  [
+                    { label: "Weekly", value: "weekly" as const, badge: null },
+                    { label: "Monthly", value: "monthly" as const, badge: null },
+                    { label: "Annually", value: "annual" as const, badge: "Free Trial" },
+                  ] as const
+                ).map((period) => {
+                  const isSelected = billingPeriod === period.value
+                  return (
+                    <button
+                      key={period.value}
+                      type="button"
+                      onClick={() => setBillingPeriod(period.value)}
+                      className={cn(
+                        "relative rounded-full px-6 py-2.5 text-sm font-semibold transition-colors",
+                        isSelected ? "bg-white text-black shadow" : "text-white/65 hover:text-white"
+                      )}
+                    >
+                      {period.badge ? (
+                        <span className="absolute -top-2.5 right-2 rounded-full bg-emerald-400 px-2 py-0.5 text-[9px] font-bold text-slate-900 shadow">
+                          {period.badge}
+                        </span>
+                      ) : null}
+                      {period.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Tier cards */}
+            <div className="mt-8 grid grid-cols-2 gap-4">
+              {PRICING_TIERS.map((tier) => {
+                const periodPrice = getPeriodPrice(tier, billingPeriod)
+                const dailyPrice = periodPrice > 0 ? periodPrice / getDaysInPeriod(billingPeriod) : 0
+                const savings = getSavingsVsWeekly(tier, billingPeriod)
+                const savingsPercent = formatSavingsPercent(savings.savedPercent)
+                const planKey = getPlanKey(tier, billingPeriod)
+                const isHighlight = !!tier.highlight
+                const isLoading = loadingPlan === planKey || loadingPlan === "manage"
+
+                const isCurrentPlan = membership?.isActive && membership.tier === tier.tierKey
+                const isUpgrade =
+                  membership?.isActive &&
+                  membership.tier &&
+                  tierRank[tier.tierKey as TierKey] > tierRank[membership.tier as "free" | TierKey]
+
+                let btnLabel = billingPeriod === "annual" && isEligibleForTrial
+                  ? "Start 3-day free trial"
+                  : "Start subscription"
+                let btnAction = () => planKey && handleCheckout(planKey)
+
+                if (isCurrentPlan) {
+                  btnLabel = "Manage subscription"
+                  btnAction = handleManageSubscription
+                } else if (isUpgrade) {
+                  btnLabel = `Upgrade to ${tier.name}`
+                  btnAction = () => planKey && handleUpgrade(planKey)
+                } else if (membership?.isActive) {
+                  btnLabel = "Manage subscription"
+                  btnAction = handleManageSubscription
+                }
+
+                return (
+                  <div
+                    key={tier.tierKey}
+                    className={cn(
+                      "relative flex flex-col rounded-3xl border p-8 transition-colors",
+                      isHighlight
+                        ? "border-emerald-400/40 bg-[radial-gradient(circle_at_top_left,rgba(52,211,153,0.1),rgba(0,0,0,0.6)_60%)]"
+                        : "border-white/10 bg-white/[0.025]"
+                    )}
+                  >
+                    {/* Badge */}
+                    {tier.badge ? (
+                      <span className="absolute -top-3 left-8 rounded-full bg-emerald-400 px-4 py-1 text-[11px] font-bold text-slate-900 shadow">
+                        {tier.badge}
+                      </span>
+                    ) : null}
+                    {hasAnnualTrial && isHighlight ? (
+                      <span className="absolute -top-3 right-8 rounded-full bg-white/10 border border-white/20 px-4 py-1 text-[11px] font-semibold text-white/80">
+                        3-Day Free Trial
+                      </span>
+                    ) : null}
+
+                    {/* Name + description */}
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "flex h-10 w-10 items-center justify-center rounded-2xl",
+                        isHighlight ? "bg-emerald-500/20 border border-emerald-400/30" : "bg-white/5 border border-white/10"
+                      )}>
+                        {tier.icon}
+                      </div>
+                      <div>
+                        <div className="text-lg font-semibold text-white">{tier.name}</div>
+                        <div className="text-xs text-white/50">{tier.description}</div>
+                      </div>
+                    </div>
+
+                    {/* Price */}
+                    <div className="mt-8">
+                      <div className="flex items-end gap-1">
+                        <span className="text-5xl font-bold tracking-tight text-white">
+                          {formatUsd(dailyPrice)}
+                        </span>
+                        <span className="mb-1.5 text-sm text-white/50">/day</span>
+                      </div>
+                      <div className="mt-1 text-sm text-white/45">
+                        billed {formatUsd(periodPrice)}/{billingPeriod === "annual" ? "yr" : billingPeriod === "monthly" ? "mo" : "wk"}
+                      </div>
+                      {billingPeriod === "annual" && savingsPercent > 0 ? (
+                        <div className="mt-1.5 inline-flex rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
+                          Save {savingsPercent}% vs weekly
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* CTA */}
+                    <button
+                      type="button"
+                      disabled={isLoading || isLoadingMembership || !planKey}
+                      onClick={btnAction}
+                      className={cn(
+                        "mt-6 w-full rounded-full py-3.5 text-sm font-semibold transition",
+                        "disabled:cursor-not-allowed disabled:opacity-50",
+                        isHighlight
+                          ? "bg-gradient-to-r from-emerald-400 to-emerald-500 text-black shadow-[0_8px_24px_rgba(16,185,129,0.3)] hover:from-emerald-300 hover:to-emerald-400"
+                          : "border border-white/15 bg-white/5 text-white hover:bg-white/10"
+                      )}
+                    >
+                      {isLoading ? (
+                        <span className="inline-flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Processing...
+                        </span>
+                      ) : (
+                        btnLabel
+                      )}
+                    </button>
+
+                    {/* Features */}
+                    <ul className="mt-6 space-y-3">
+                      {tier.features.map((f) => (
+                        <li key={f.name} className="flex items-start gap-3">
+                          <span
+                            className={cn(
+                              "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
+                              f.included
+                                ? "bg-emerald-500/20 text-emerald-400"
+                                : "bg-white/5 text-white/20"
+                            )}
+                          >
+                            <CheckIcon className="h-3 w-3" />
+                          </span>
+                          <div>
+                            <div className={cn("text-sm font-medium", f.included ? "text-white" : "text-white/30 line-through")}>
+                              {f.name}
+                            </div>
+                            {f.description ? (
+                              <div className="text-xs text-white/40">{f.description}</div>
+                            ) : null}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Trial timeline */}
+            {hasAnnualTrial ? (
+              <div className="mt-8 rounded-3xl border border-emerald-300/15 bg-white/[0.02] p-6">
+                <div className="text-xs font-semibold uppercase tracking-widest text-white/35 mb-4">Trial timeline</div>
+                <div className="flex items-start gap-8">
+                  {[
+                    { day: "Today", label: "Start free trial", active: true },
+                    { day: "Day 2", label: "Reminder before billing", active: false },
+                    { day: "Day 3", label: "First billing (if not canceled)", active: false },
+                  ].map((step, i) => (
+                    <div key={i} className="flex flex-1 items-start gap-3">
+                      <div className={cn(
+                        "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
+                        step.active ? "border-emerald-400/50 bg-emerald-500/20 text-emerald-300" : "border-white/10 bg-white/5 text-white/30"
+                      )}>
+                        {i + 1}
+                      </div>
+                      <div>
+                        <div className={cn("text-sm font-semibold", step.active ? "text-white" : "text-white/50")}>{step.day}</div>
+                        <div className="text-xs text-white/40">{step.label}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {!membership?.isActive ? (
+              <div className="mt-5 text-center text-xs text-white/35">
+                No payment due on free trial • Cancel anytime before Day 3 • Secure checkout via Stripe
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 

@@ -1,16 +1,11 @@
 import type { Metadata } from 'next'
-import { OnboardingFlow } from '@/components/OnboardingFlow'
-import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 
 export const metadata: Metadata = {
   title: 'Onboarding | Delta Sports',
-  description: 'Welcome to Delta. Follow the socials, grab the Kalshi bonus, and head into the app.',
+  description: 'Legacy onboarding route for Delta Sports.',
 }
 
 export default function OnboardingPage() {
-  return (
-    <Suspense fallback={null}>
-      <OnboardingFlow />
-    </Suspense>
-  )
+  redirect('/')
 }

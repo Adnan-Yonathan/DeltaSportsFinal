@@ -1,1181 +1,1433 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
-import type { LucideIcon } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   Activity,
   ArrowLeft,
-  ArrowRight,
   BarChart3,
   Check,
+  ChartNoAxesCombined,
+  DollarSign,
   FlaskConical,
   Loader2,
-  Radar,
-  Sparkles,
+  Lock,
+  Search,
+  Shield,
   Target,
+  TrendingUp,
   Waves,
+  Zap,
 } from 'lucide-react'
+import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
 import {
-  DEFAULT_RECOMMENDED_PLAN,
-  type RecommendedToolKey,
-  type TrialBetFocus,
-  type TrialExperience,
-  type TrialPrimaryIntent,
-  resolveRecommendedTool,
+  EXPERIENCE_DISPLAY_NAMES,
+  GOAL_DISPLAY_NAMES,
+  ROI_PLAN_COST,
+  TOOL_DISPLAY_NAMES,
+  TRIAL_ONBOARDING_STORAGE_KEY,
+  calculateRoiSnapshot,
+  createDefaultTrialOnboardingDraft,
+  getExperienceResponse,
+  isTrialExperience,
+  isTrialGoalKey,
+  prioritizeTools,
   trackTrialFlowEvent,
+  type RecommendedToolKey,
+  type TrialExperience,
+  type TrialGoalKey,
+  type TrialOnboardingDraft,
 } from '@/lib/trial-flow'
 
-type StepId = 'welcome' | 'primary-intent' | 'bet-focus' | 'experience' | 'summary' | 'preview'
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type QuestionOption<T extends string> = {
-  value: T
-  title: string
-  description: string
-  eyebrow?: string
-}
+type ScreenId =
+  | 'welcome'
+  | 'name'
+  | 'experience'
+  | 'goals'
+  | 'projections'
+  | 'props'
+  | 'whale'
+  | 'research'
+  | 'roi'
+  | 'final'
 
-type ToolSnapshot = {
-  title: string
-  eyebrow: string
-  summary: string
-  signalLabel: string
-  signalValue: string
-  authorityPoints: string[]
-  Icon: LucideIcon
-}
+// ─── Screen registry ──────────────────────────────────────────────────────────
 
-const STEP_ORDER: StepId[] = ['welcome', 'primary-intent', 'bet-focus', 'experience', 'summary', 'preview']
-
-const PRIMARY_INTENT_OPTIONS: QuestionOption<TrialPrimaryIntent>[] = [
-  {
-    value: 'best-edges',
-    title: 'Find the best edges faster',
-    description: 'Start with the cleanest price gaps and highest-confidence opportunities on the board.',
-    eyebrow: 'Fastest path to value',
-  },
-  {
-    value: 'tail-sharp-action',
-    title: 'Track where sharp money is landing',
-    description: 'Follow size, timing, and market response when respected action hits.',
-    eyebrow: 'Live market pressure',
-  },
-  {
-    value: 'player-props',
-    title: 'Attack player props earlier',
-    description: 'See prop pressure and movement before books fully rebalance.',
-    eyebrow: 'Props-first workflow',
-  },
-  {
-    value: 'improve-clv',
-    title: 'Improve my long-term CLV',
-    description: 'Use research, validation, and repeatable routines instead of one-off guesses.',
-    eyebrow: 'Process over impulse',
-  },
+const SCREENS: Array<{ id: ScreenId; label: string; progress: number; cta: string }> = [
+  { id: 'welcome',     label: 'Welcome',      progress: 0,   cta: "Let's get started →" },
+  { id: 'name',        label: 'Step 1 of 10', progress: 10,  cta: 'Continue →' },
+  { id: 'experience',  label: 'Step 2 of 10', progress: 20,  cta: 'Continue →' },
+  { id: 'goals',       label: 'Step 3 of 10', progress: 30,  cta: 'Continue →' },
+  { id: 'projections', label: 'Step 4 of 10', progress: 40,  cta: 'Next tool →' },
+  { id: 'props',       label: 'Step 5 of 10', progress: 50,  cta: 'Next tool →' },
+  { id: 'whale',       label: 'Step 6 of 10', progress: 60,  cta: 'Next tool →' },
+  { id: 'research',    label: 'Step 7 of 10', progress: 70,  cta: 'Calculate my edge →' },
+  { id: 'roi',         label: 'Step 8 of 10', progress: 80,  cta: 'See what I get →' },
+  { id: 'final',       label: 'Step 10 of 10', progress: 100, cta: 'Start my free trial →' },
 ]
 
-const BET_FOCUS_OPTIONS: QuestionOption<TrialBetFocus>[] = [
-  {
-    value: 'game-lines',
-    title: 'Game lines',
-    description: 'Spreads, totals, and moneylines should lead my first Delta session.',
-    eyebrow: 'Core board focus',
-  },
-  {
-    value: 'player-props',
-    title: 'Player props',
-    description: 'Surface prop-specific pressure, movement, and outs first.',
-    eyebrow: 'Player market focus',
-  },
-  {
-    value: 'both',
-    title: 'Both',
-    description: 'Blend game lines and props so I can shop the best opportunity each day.',
-    eyebrow: 'Full board coverage',
-  },
-]
+// ─── Sportsbook options ───────────────────────────────────────────────────────
 
-const EXPERIENCE_OPTIONS: QuestionOption<TrialExperience>[] = [
-  {
-    value: 'new',
-    title: 'New to this',
-    description: 'Give me the cleanest starting workflow and reduce noise.',
-    eyebrow: 'Guided setup',
-  },
-  {
-    value: 'some',
-    title: 'I have some experience',
-    description: 'Show me the strongest tools quickly, but keep context visible.',
-    eyebrow: 'Balanced depth',
-  },
-  {
-    value: 'advanced',
-    title: 'Advanced bettor',
-    description: 'Prioritize speed, confirmation, and data depth over hand-holding.',
-    eyebrow: 'High-speed workflow',
-  },
-]
+const SPORTSBOOKS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'Other']
 
-const TOOL_SNAPSHOTS: Record<RecommendedToolKey, ToolSnapshot> = {
-  'sharp-projections': {
-    title: 'Sharp Projections',
-    eyebrow: 'Model-ranked edge board',
-    summary: 'Ranks the cleanest gaps between Delta pricing and live market numbers so you know where to start.',
-    signalLabel: 'Board cadence',
-    signalValue: '15 min refresh',
-    authorityPoints: ['Ranks edges by confidence', 'Flags the board before books settle', 'Best starting point for most users'],
-    Icon: BarChart3,
-  },
-  'sharp-props': {
-    title: 'Sharp Props',
-    eyebrow: 'Player prop pressure map',
-    summary: 'Shows where prop markets are leaning so you can move before the last wave of price adjustment.',
-    signalLabel: 'Signal type',
-    signalValue: 'Orderflow pressure',
-    authorityPoints: ['Early read on prop movement', 'Built for player market specialists', 'Pairs with live confirmation'],
-    Icon: Target,
-  },
-  'whale-detector': {
-    title: 'Whale Detector',
-    eyebrow: 'Large-ticket activity feed',
-    summary: 'Tracks size hitting the market and helps you separate real conviction from noise.',
-    signalLabel: 'Feed status',
-    signalValue: 'Live activity',
-    authorityPoints: ['Monitors timing and size', 'Useful when sharp action clusters', 'Strong confirmation layer'],
-    Icon: Radar,
-  },
-  'research-mode': {
-    title: 'Research Mode',
-    eyebrow: 'Validation and CLV lens',
-    summary: 'Connects movement, close, and repeatability so you can build a process that compounds.',
-    signalLabel: 'Research lens',
-    signalValue: '30-day context',
-    authorityPoints: ['Reinforces disciplined entries', 'Useful for CLV-focused workflows', 'Best for repeatable decision making'],
-    Icon: FlaskConical,
-  },
+// ─── Sync draft to sessionStorage ────────────────────────────────────────────
+
+function syncDraft(draft: TrialOnboardingDraft) {
+  try {
+    sessionStorage.setItem(TRIAL_ONBOARDING_STORAGE_KEY, JSON.stringify(draft))
+  } catch {}
 }
 
-const TOOL_ORDER: RecommendedToolKey[] = ['sharp-projections', 'sharp-props', 'whale-detector', 'research-mode']
+// ─── Primitive: animated counter ─────────────────────────────────────────────
 
-const getStepLabel = (step: StepId) => {
-  switch (step) {
-    case 'primary-intent':
-      return 'What are you looking for?'
-    case 'bet-focus':
-      return 'What markets do you bet most?'
-    case 'experience':
-      return 'How experienced are you?'
-    default:
-      return 'Delta setup'
-  }
-}
-
-const getSummaryHeadline = (recommendedTool: RecommendedToolKey, experience: TrialExperience | null) => {
-  if (recommendedTool === 'whale-detector') return 'Start with live sharp confirmation'
-  if (recommendedTool === 'research-mode') return 'Start with a tighter process'
-  if (recommendedTool === 'sharp-props') return 'Start where props move fastest'
-  if (experience === 'advanced') return 'Start with the strongest edge board'
-  return 'Start with the clearest value on the board'
-}
-
-const buildToolOrder = (recommendedTool: RecommendedToolKey) => [
-  recommendedTool,
-  ...TOOL_ORDER.filter((tool) => tool !== recommendedTool),
-]
-
-const useMobilePerformanceMode = () => {
-  const [performanceMode, setPerformanceMode] = useState(false)
-
+function AnimatedCounter({
+  to,
+  decimals = 0,
+  prefix = '',
+  suffix = '',
+  duration = 1200,
+}: {
+  to: number
+  decimals?: number
+  prefix?: string
+  suffix?: string
+  duration?: number
+}) {
+  const [val, setVal] = useState(0)
   useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    const mobileQuery = window.matchMedia('(max-width: 820px)')
-    const coarsePointerQuery = window.matchMedia('(pointer: coarse)')
-    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-
-    const update = () => {
-      setPerformanceMode(
-        mobileQuery.matches || coarsePointerQuery.matches || reducedMotionQuery.matches
-      )
-    }
-
-    update()
-
-    const queries = [mobileQuery, coarsePointerQuery, reducedMotionQuery]
-    queries.forEach((query) => query.addEventListener('change', update))
-
-    return () => {
-      queries.forEach((query) => query.removeEventListener('change', update))
-    }
-  }, [])
-
-  return performanceMode
+    const steps = Math.ceil(duration / 16)
+    let i = 0
+    const timer = setInterval(() => {
+      i++
+      setVal(parseFloat(((to * i) / steps).toFixed(decimals)))
+      if (i >= steps) clearInterval(timer)
+    }, 16)
+    return () => clearInterval(timer)
+  }, [to, duration, decimals])
+  return <>{prefix}{decimals > 0 ? val.toFixed(decimals) : val.toLocaleString()}{suffix}</>
 }
 
-export default function TrialOnboardingFlow() {
-  const [stepIndex, setStepIndex] = useState(0)
-  const [previewIndex, setPreviewIndex] = useState(0)
-  const [primaryIntent, setPrimaryIntent] = useState<TrialPrimaryIntent | null>(null)
-  const [betFocus, setBetFocus] = useState<TrialBetFocus | null>(null)
-  const [experience, setExperience] = useState<TrialExperience | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const performanceMode = useMobilePerformanceMode()
+// ─── Primitive: pill badge ────────────────────────────────────────────────────
 
-  const currentStep = STEP_ORDER[stepIndex]
-  const featureStep = currentStep === 'summary' || currentStep === 'preview'
-  const progress = ((stepIndex + 1) / STEP_ORDER.length) * 100
-
-  const recommendedTool = useMemo<RecommendedToolKey>(() => {
-    if (!primaryIntent || !betFocus) return 'sharp-projections'
-    return resolveRecommendedTool({
-      primary_intent: primaryIntent,
-      bet_focus: betFocus,
-      experience_level: experience ?? 'some',
-      preferred_markets: [],
-      signup_reasons: [],
-    })
-  }, [betFocus, experience, primaryIntent])
-
-  const orderedTools = useMemo(() => buildToolOrder(recommendedTool), [recommendedTool])
-  const activePreviewTool = orderedTools[previewIndex] ?? orderedTools[0]
-
-  useEffect(() => {
-    trackTrialFlowEvent('onboarding_started', { source: 'trial-onboarding' })
-  }, [])
-
-  const canContinue =
-    currentStep === 'welcome' ||
-    currentStep === 'summary' ||
-    currentStep === 'preview' ||
-    (currentStep === 'primary-intent' && Boolean(primaryIntent)) ||
-    (currentStep === 'bet-focus' && Boolean(betFocus)) ||
-    (currentStep === 'experience' && Boolean(experience))
-
-  const goBack = () => {
-    if (isSubmitting) return
-    setSubmitError(null)
-    setStepIndex((value) => Math.max(0, value - 1))
+function Pill({ children, color = 'emerald' }: { children: ReactNode; color?: 'emerald' | 'cyan' | 'violet' }) {
+  const cls = {
+    emerald: 'border-emerald-300/20 bg-emerald-400/8 text-emerald-300',
+    cyan: 'border-cyan-300/20 bg-cyan-400/8 text-cyan-300',
+    violet: 'border-violet-300/20 bg-violet-400/8 text-violet-300',
   }
-
-  const goNext = async () => {
-    if (!canContinue || isSubmitting) return
-    setSubmitError(null)
-
-    if (currentStep === 'preview') {
-      if (!primaryIntent || !betFocus || !experience) return
-      setIsSubmitting(true)
-      trackTrialFlowEvent('onboarding_completed', { recommended_tool: recommendedTool })
-
-      try {
-        const response = await fetch('/api/trial-onboarding', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            primaryIntent,
-            betFocus,
-            experience,
-          }),
-        })
-
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null
-        if (!response.ok) {
-          throw new Error(payload?.error || 'Unable to save onboarding')
-        }
-
-        trackTrialFlowEvent('checkout_started_from_onboarding', {
-          recommended_tool: recommendedTool,
-          recommended_plan: DEFAULT_RECOMMENDED_PLAN,
-        })
-        window.location.assign('/checkout?source=trial-onboarding')
-        return
-      } catch (error) {
-        setSubmitError(error instanceof Error ? error.message : 'Unable to continue')
-      } finally {
-        setIsSubmitting(false)
-      }
-    }
-
-    if (currentStep !== 'welcome' && currentStep !== 'summary') {
-      const value =
-        currentStep === 'primary-intent'
-          ? primaryIntent
-          : currentStep === 'bet-focus'
-            ? betFocus
-            : currentStep === 'experience'
-              ? experience
-              : activePreviewTool
-      trackTrialFlowEvent('onboarding_step_completed', {
-        step: currentStep,
-        value: value ?? 'unknown',
-      })
-    }
-
-    setStepIndex((value) => Math.min(STEP_ORDER.length - 1, value + 1))
-    if (currentStep === 'summary') setPreviewIndex(0)
-  }
-
   return (
-    <MotionConfig reducedMotion={performanceMode ? 'always' : 'user'}>
-      <div className="relative h-[100dvh] min-h-[100dvh] overflow-hidden bg-[#020706] text-white">
-        <BackgroundChrome performanceMode={performanceMode} />
-        <div className="relative z-10 mx-auto flex h-[100dvh] w-full max-w-5xl flex-col px-3 pb-3 pt-3 sm:px-5 sm:pb-5 sm:pt-5 lg:px-8 lg:pb-6">
-          <TopBar
-            currentStep={currentStep}
-            stepIndex={stepIndex}
-            totalSteps={STEP_ORDER.length}
-            progress={progress}
-            onBack={stepIndex > 0 ? goBack : undefined}
-            disableBack={isSubmitting}
-            performanceMode={performanceMode}
-          />
-
-          <div
-            className={cn(
-              'flex min-h-0 flex-1 items-stretch justify-center py-3 sm:py-5 lg:items-center lg:py-6',
-              featureStep ? 'overflow-y-auto overscroll-contain pr-1' : 'overflow-hidden'
-            )}
-          >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentStep}
-                initial={performanceMode ? false : { opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={performanceMode ? { opacity: 0.96 } : { opacity: 0, y: -18 }}
-                transition={{ duration: performanceMode ? 0.12 : 0.28, ease: 'easeOut' }}
-                className={cn('w-full', featureStep ? 'min-h-full pb-2' : 'h-full')}
-              >
-                {currentStep === 'welcome' && <WelcomeStep />}
-                {currentStep === 'primary-intent' && (
-                  <QuestionStep
-                    title="What are you looking for?"
-                    description="We use this to decide which Delta workflow should lead your first week."
-                    label="Your main goal"
-                    options={PRIMARY_INTENT_OPTIONS}
-                    value={primaryIntent}
-                    onSelect={setPrimaryIntent}
-                    performanceMode={performanceMode}
-                  />
-                )}
-                {currentStep === 'bet-focus' && (
-                  <QuestionStep
-                    title="What markets do you bet most?"
-                    description="This changes whether Delta leans game lines, props, or both in your first session."
-                    label="Your main market"
-                    options={BET_FOCUS_OPTIONS}
-                    value={betFocus}
-                    onSelect={setBetFocus}
-                    performanceMode={performanceMode}
-                  />
-                )}
-                {currentStep === 'experience' && (
-                  <QuestionStep
-                    title="How experienced are you?"
-                    description="We tune the level of guidance so Delta feels decisive instead of noisy."
-                    label="Your level"
-                    options={EXPERIENCE_OPTIONS}
-                    value={experience}
-                    onSelect={setExperience}
-                    performanceMode={performanceMode}
-                  />
-                )}
-                {currentStep === 'summary' && (
-                  <SummaryStep
-                    recommendedTool={recommendedTool}
-                    primaryIntent={primaryIntent}
-                    betFocus={betFocus}
-                    experience={experience}
-                    orderedTools={orderedTools}
-                    performanceMode={performanceMode}
-                  />
-                )}
-                {currentStep === 'preview' && (
-                  <PreviewStep
-                    orderedTools={orderedTools}
-                    activeTool={activePreviewTool}
-                    previewIndex={previewIndex}
-                    onSelectPreview={setPreviewIndex}
-                    performanceMode={performanceMode}
-                  />
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-
-          <div className="sticky bottom-0 z-20 pt-2 sm:pt-4">
-            <BottomAction
-              currentStep={currentStep}
-              canContinue={canContinue}
-              isSubmitting={isSubmitting}
-              onNext={goNext}
-              submitError={submitError}
-              performanceMode={performanceMode}
-            />
-          </div>
-        </div>
-      </div>
-    </MotionConfig>
+    <span className={cn('rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]', cls[color])}>
+      {children}
+    </span>
   )
 }
 
-function BackgroundChrome({ performanceMode }: { performanceMode: boolean }) {
-  if (performanceMode) {
-    return (
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.1),transparent_30%),linear-gradient(180deg,#04110d_0%,#020706_58%,#020706_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0,rgba(0,0,0,0.18)_45%,rgba(0,0,0,0.58)_100%)]" />
-      </div>
-    )
-  }
+// ─── Primitive: info callout ──────────────────────────────────────────────────
 
+function InfoCallout({ children, color = 'emerald' }: { children: ReactNode; color?: 'emerald' | 'cyan' | 'violet' }) {
+  const cls = {
+    emerald: 'border-emerald-400/20 bg-emerald-400/6 text-emerald-200/80',
+    cyan: 'border-cyan-400/20 bg-cyan-400/6 text-cyan-200/80',
+    violet: 'border-violet-400/20 bg-violet-400/6 text-violet-200/80',
+  }
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),transparent_34%),radial-gradient(circle_at_80%_18%,rgba(56,189,248,0.12),transparent_22%),linear-gradient(180deg,#04110d_0%,#020706_62%,#020706_100%)]" />
-      <div className="insider-scanlines absolute inset-0 opacity-40" />
-      <motion.div
-        animate={{ x: [0, 24, 0], y: [0, -18, 0] }}
-        transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -left-24 top-16 h-72 w-72 rounded-full bg-emerald-400/16 blur-3xl"
-      />
-      <motion.div
-        animate={{ x: [0, -22, 0], y: [0, 20, 0] }}
-        transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl"
-      />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0,rgba(0,0,0,0.1)_45%,rgba(0,0,0,0.55)_100%)]" />
+    <div className={cn('rounded-2xl border p-4 text-sm leading-relaxed', cls[color])}>
+      {children}
     </div>
   )
 }
 
-function TopBar({
-  currentStep,
-  stepIndex,
-  totalSteps,
-  progress,
-  onBack,
-  disableBack,
-  performanceMode,
-}: {
-  currentStep: StepId
-  stepIndex: number
-  totalSteps: number
-  progress: number
-  onBack?: () => void
-  disableBack: boolean
-  performanceMode: boolean
-}) {
+// ─── Screen: Welcome ──────────────────────────────────────────────────────────
+
+function ScreenWelcome({ rm }: { rm: boolean }) {
   return (
-    <div className="space-y-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="font-hero text-[11px] uppercase tracking-[0.45em] text-emerald-300/80">Delta setup</div>
-          <div className="mt-1 text-xs text-white/72 sm:text-sm">
-            Step {stepIndex + 1} of {totalSteps}
-            <span className="ml-2 text-white/40">{getStepLabel(currentStep)}</span>
-          </div>
-        </div>
-        {onBack ? (
-          <button
-            type="button"
-            onClick={onBack}
-            disabled={disableBack}
-            className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-3.5 py-2 text-xs text-white/90 transition hover:border-emerald-300/35 hover:bg-white/10 sm:text-sm disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </button>
-        ) : (
-          <div className="h-10" />
-        )}
-      </div>
-
-      <div className="h-2 overflow-hidden rounded-full bg-white/8">
-        <motion.div
-          className="h-full rounded-full bg-gradient-to-r from-emerald-300 via-emerald-400 to-cyan-300"
-          animate={{ width: `${progress}%` }}
-          transition={{ duration: performanceMode ? 0.12 : 0.35, ease: 'easeOut' }}
-        />
-      </div>
-    </div>
-  )
-}
-
-function BottomAction({
-  currentStep,
-  canContinue,
-  isSubmitting,
-  onNext,
-  submitError,
-  performanceMode,
-}: {
-  currentStep: StepId
-  canContinue: boolean
-  isSubmitting: boolean
-  onNext: () => void
-  submitError: string | null
-  performanceMode: boolean
-}) {
-  const label =
-    currentStep === 'welcome'
-      ? 'Personalize Delta'
-      : currentStep === 'summary'
-        ? 'Preview your tools'
-        : currentStep === 'preview'
-          ? 'Start your 7-day trial'
-          : 'Continue'
-
-  return (
-    <div
-      className={cn(
-        'space-y-2 rounded-[1.2rem] border border-white/10 bg-[rgba(3,11,9,0.92)] p-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.34)] sm:space-y-3 sm:rounded-[1.5rem] sm:p-4',
-        performanceMode ? 'backdrop-blur-0' : 'backdrop-blur'
-      )}
-    >
-      <button
-        type="button"
-        onClick={onNext}
-        disabled={!canContinue || isSubmitting}
-        className="inline-flex min-h-[50px] w-full items-center justify-center gap-2.5 rounded-[1rem] bg-gradient-to-r from-emerald-300 via-emerald-400 to-emerald-500 px-4 py-3 text-sm font-semibold text-[#04120d] shadow-[0_18px_50px_rgba(16,185,129,0.22)] transition hover:brightness-105 sm:min-h-[56px] sm:gap-3 sm:rounded-[1.35rem] sm:px-5 sm:py-3.5 sm:text-lg disabled:cursor-not-allowed disabled:opacity-50"
+    <div className="flex flex-col gap-6">
+      {/* Live alert row */}
+      <motion.div
+        initial={rm ? {} : { opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="flex items-center gap-2.5 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3"
       >
-        {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : label}
-        {!isSubmitting && <ArrowRight className="h-5 w-5" />}
-      </button>
-      <div className="min-h-[1.25rem] text-center text-xs text-white/58 sm:text-sm">
-        {submitError ?? 'We only use this to personalize your first week inside Delta.'}
-      </div>
-    </div>
-  )
-}
+        <span className="ob-live-dot" />
+        <span className="text-xs text-white/55">
+          <span className="font-semibold text-emerald-300">$74,000</span>
+          {' '}just hit the Lakers over · 3 min ago
+        </span>
+      </motion.div>
 
-function WelcomeStep() {
-  return (
-    <div className="grid h-full items-center gap-4 lg:grid-cols-[1fr_0.96fr] lg:gap-7">
-      <div className="space-y-4">
-        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-emerald-200/85">
-          <Sparkles className="h-3.5 w-3.5" />
-          Built to create fast conviction
-        </div>
-        <div className="space-y-3">
-          <h1 className="max-w-3xl text-[2.2rem] font-semibold leading-[0.96] text-white sm:text-5xl lg:text-[3.65rem]">
-            Build a Delta setup that gets you to value faster.
-          </h1>
-          <p className="max-w-2xl text-[0.95rem] leading-relaxed text-white/72 sm:text-[1.1rem]">
-            Answer a few short questions, then Delta will route your first week toward the signals most likely to make you stay.
-          </p>
-        </div>
+      {/* Headline */}
+      <motion.div
+        initial={rm ? {} : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+      >
+        <h1 className="text-3xl font-black leading-[1.08] tracking-[-0.03em] text-white">
+          Stop guessing.{' '}
+          <span className="bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">
+            Bet with the sharps.
+          </span>
+        </h1>
+        <p className="mt-3 text-sm leading-relaxed text-white/55">
+          2 minutes from signals that move lines — before the public sees them.
+        </p>
+      </motion.div>
 
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <AuthorityChip label="First-week focus" value="Edges, props, flow" />
-          <AuthorityChip label="Setup time" value="Under 60 seconds" />
-          <AuthorityChip label="Trial path" value="Direct to checkout" />
-        </div>
-
-        <div className="lg:hidden">
-          <div className="rounded-[1.3rem] border border-white/10 bg-white/[0.05] p-3">
-            <div className="font-hero text-[10px] uppercase tracking-[0.32em] text-white/42">What Delta will lead with</div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {TOOL_ORDER.slice(0, 4).map((tool) => (
-                <div
-                  key={tool}
-                  className="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2.5 text-sm font-semibold text-white/88"
-                >
-                  {TOOL_SNAPSHOTS[tool].title}
-                </div>
-              ))}
+      {/* Stat cards */}
+      <motion.div
+        initial={rm ? {} : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.22 }}
+        className="grid grid-cols-3 gap-2"
+      >
+        {[
+          { value: 9.8, decimals: 1, prefix: '+', suffix: '%', label: 'Avg CLV' },
+          { value: 1240, decimals: 0, suffix: '', label: 'Verified picks' },
+          { value: 1000, decimals: 0, suffix: '+', label: 'Active members' },
+        ].map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            initial={rm ? {} : { opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.28 + i * 0.07 }}
+            className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3 text-center"
+          >
+            <div className="text-lg font-black text-emerald-300">
+              <AnimatedCounter to={stat.value} decimals={stat.decimals} prefix={stat.prefix} suffix={stat.suffix} />
             </div>
-          </div>
-        </div>
-      </div>
+            <div className="mt-0.5 text-[9px] uppercase tracking-[0.15em] text-white/35">{stat.label}</div>
+          </motion.div>
+        ))}
+      </motion.div>
 
-      <div className="hidden lg:block">
-        <ToolAuthorityBoard recommendedTool="sharp-projections" />
-      </div>
-    </div>
-  )
-}
-
-function QuestionStep<T extends string>({
-  title,
-  description,
-  label,
-  options,
-  value,
-  onSelect,
-  performanceMode,
-}: {
-  title: string
-  description: string
-  label: string
-  options: QuestionOption<T>[]
-  value: T | null
-  onSelect: (value: T) => void
-  performanceMode: boolean
-}) {
-  return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col justify-between">
-      <div className="mb-5 text-center sm:mb-8">
-        <h2 className="text-[2rem] font-semibold leading-tight text-white sm:text-4xl lg:text-[3.1rem]">{title}</h2>
-        <p className="mx-auto mt-2 max-w-2xl text-sm text-white/68 sm:mt-4 sm:text-lg">{description}</p>
-      </div>
-
-      <div className="space-y-3">
-        <div className="font-hero text-[10px] uppercase tracking-[0.38em] text-white/45 sm:text-[11px]">{label}</div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-1 md:gap-4">
-          {options.map((option, index) => (
-            <OptionCard
-              key={option.value}
-              title={option.title}
-              description={option.description}
-              eyebrow={option.eyebrow}
-              selected={value === option.value}
-              onClick={() => onSelect(option.value)}
-              index={index}
-              spanFull={options.length % 2 === 1 && index === options.length - 1}
-              performanceMode={performanceMode}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function AuthorityChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[0.95rem] border border-white/10 bg-white/6 px-2.5 py-2.5 backdrop-blur sm:rounded-[1.15rem] sm:px-4 sm:py-4">
-      <div className="font-hero text-[10px] uppercase tracking-[0.32em] text-white/40">{label}</div>
-      <div className="mt-1.5 text-[12px] font-semibold leading-snug text-white sm:mt-2 sm:text-lg">{value}</div>
-    </div>
-  )
-}
-
-function OptionCard({
-  title,
-  description,
-  eyebrow,
-  selected,
-  onClick,
-  index,
-  spanFull,
-  performanceMode,
-}: {
-  title: string
-  description: string
-  eyebrow?: string
-  selected: boolean
-  onClick: () => void
-  index: number
-  spanFull: boolean
-  performanceMode: boolean
-}) {
-  return (
-    <motion.button
-      type="button"
-      initial={performanceMode ? false : { opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: performanceMode ? 0 : index * 0.05, duration: performanceMode ? 0.12 : 0.24 }}
-      onClick={onClick}
-      className={cn(
-        'group relative flex w-full items-start justify-between gap-3 rounded-[1.15rem] border px-3.5 py-3.5 text-left transition sm:rounded-[1.45rem] sm:px-5 sm:py-5',
-        spanFull && 'col-span-2 md:col-span-1',
-        selected
-          ? 'border-emerald-300/45 bg-gradient-to-r from-emerald-300/18 via-emerald-300/8 to-white/[0.05] shadow-[0_18px_40px_rgba(16,185,129,0.16)]'
-          : 'border-white/10 bg-white/[0.04] hover:border-white/18 hover:bg-white/[0.07]'
-      )}
-    >
-      <div className="space-y-2">
-        {eyebrow ? <div className="font-hero text-[10px] uppercase tracking-[0.34em] text-emerald-200/75">{eyebrow}</div> : null}
-        <div className="text-[1.08rem] font-semibold leading-tight text-white sm:text-[1.8rem]">{title}</div>
-        <div className="max-w-2xl text-[12px] leading-relaxed text-white/66 sm:text-base">{description}</div>
-      </div>
-      <div
-        className={cn(
-          'mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition',
-          selected ? 'border-emerald-200 bg-emerald-300 text-[#03110b]' : 'border-white/16 text-white/35'
-        )}
+      {/* Trust line */}
+      <motion.p
+        initial={rm ? {} : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5 }}
+        className="text-center text-xs text-white/30"
       >
-        <Check className={cn('h-4 w-4 transition', selected ? 'opacity-100' : 'opacity-0')} />
-      </div>
-    </motion.button>
+        2 min setup · no card required yet
+      </motion.p>
+    </div>
   )
 }
 
-function SummaryStep({
-  recommendedTool,
-  primaryIntent,
-  betFocus,
-  experience,
-  orderedTools,
-  performanceMode,
+// ─── Screen: Name ─────────────────────────────────────────────────────────────
+
+function ScreenName({
+  draft,
+  onName,
+  sportsbook,
+  onSportsbook,
+  rm,
 }: {
-  recommendedTool: RecommendedToolKey
-  primaryIntent: TrialPrimaryIntent | null
-  betFocus: TrialBetFocus | null
-  experience: TrialExperience | null
-  orderedTools: RecommendedToolKey[]
-  performanceMode: boolean
+  draft: TrialOnboardingDraft
+  onName: (v: string) => void
+  sportsbook: string
+  onSportsbook: (v: string) => void
+  rm: boolean
 }) {
-  const recommendedSnapshot = TOOL_SNAPSHOTS[recommendedTool]
-
   return (
-    <div className="grid h-full items-start gap-4 lg:grid-cols-[1fr_0.98fr] lg:gap-5">
-      <div className="space-y-4">
-        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-emerald-200/85">
-          <Activity className="h-3.5 w-3.5" />
-          Your first-week setup
-        </div>
-        <div>
-          <h2 className="text-[1.95rem] font-semibold leading-tight text-white sm:text-4xl lg:text-[3.1rem]">
-            {getSummaryHeadline(recommendedTool, experience)}
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm text-white/68 sm:mt-4 sm:text-lg">
-            Delta will lead with <span className="font-semibold text-white">{recommendedSnapshot.title}</span> based on how you bet and what you want out of the trial.
-          </p>
-        </div>
+    <div className="flex flex-col gap-5">
+      <div>
+        <h2 className="text-2xl font-black tracking-tight text-white">What should we call you?</h2>
+        <p className="mt-1.5 text-sm text-white/50">Used to personalize your tool setup and signals.</p>
+      </div>
 
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <AuthorityChip
-            label="Lead signal"
-            value={primaryIntent === 'tail-sharp-action' ? 'Sharp action' : primaryIntent === 'improve-clv' ? 'Validation' : primaryIntent === 'player-props' ? 'Prop pressure' : 'Board value'}
-          />
-          <AuthorityChip
-            label="Market bias"
-            value={betFocus === 'player-props' ? 'Props first' : betFocus === 'both' ? 'Hybrid board' : 'Game lines'}
-          />
-          <AuthorityChip
-            label="Guidance level"
-            value={experience === 'advanced' ? 'Fast + data-heavy' : experience === 'new' ? 'More guided' : 'Balanced'}
-          />
-        </div>
+      {/* Name input */}
+      <div className="relative">
+        <input
+          autoFocus
+          enterKeyHint="next"
+          type="text"
+          value={draft.name}
+          onChange={(e) => onName(e.target.value)}
+          placeholder="Your first name"
+          className="w-full rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3.5 text-base text-white placeholder:text-white/25 focus:border-emerald-400/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/20 transition-all"
+        />
+        {draft.name.trim().length > 0 && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400"
+          >
+            <Check className="h-3 w-3 text-black" />
+          </motion.div>
+        )}
+      </div>
 
-        <div className="grid grid-cols-2 gap-2 lg:hidden">
-          {orderedTools.map((tool) => (
-            <div
-              key={tool}
+      {/* Sportsbook */}
+      <div>
+        <p className="mb-2.5 text-sm font-semibold text-white/70">What sportsbook do you mainly use?</p>
+        <div className="flex flex-wrap gap-2">
+          {SPORTSBOOKS.map((sb) => (
+            <button
+              key={sb}
+              onClick={() => onSportsbook(sb === sportsbook ? '' : sb)}
               className={cn(
-                'rounded-[1rem] border px-3 py-2 text-sm font-semibold',
-                tool === recommendedTool
-                  ? 'border-emerald-300/35 bg-emerald-300/12 text-white'
-                  : 'border-white/10 bg-black/20 text-white/72'
+                'rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all',
+                sportsbook === sb
+                  ? 'border-emerald-400/40 bg-emerald-400/12 text-emerald-300'
+                  : 'border-white/10 bg-white/[0.03] text-white/50 hover:border-white/20'
               )}
             >
-              {TOOL_SNAPSHOTS[tool].title}
-            </div>
+              {sb}
+            </button>
           ))}
         </div>
-
-        <div className="hidden rounded-[2rem] border border-white/10 bg-white/[0.05] p-4 sm:p-5 lg:block">
-          <div className="font-hero text-[10px] uppercase tracking-[0.34em] text-white/42">Included in your Delta stack</div>
-          <div className="mt-4 space-y-3">
-            {orderedTools.map((tool, index) => (
-              <ToolMiniPanel
-                key={tool}
-                tool={tool}
-                highlighted={tool === recommendedTool}
-                index={index}
-                performanceMode={performanceMode}
-              />
-            ))}
-          </div>
-        </div>
       </div>
 
-      <div className="min-h-0 space-y-3">
-        <ToolSnapshotCard tool={recommendedTool} featured performanceMode={performanceMode} />
+      <div className="flex items-center gap-2 text-xs text-white/28">
+        <Shield className="h-3.5 w-3.5 shrink-0" />
+        Your data is never sold or shared
       </div>
     </div>
   )
 }
 
-function PreviewStep({
-  orderedTools,
-  activeTool,
-  previewIndex,
-  onSelectPreview,
-  performanceMode,
+// ─── Screen: Experience ───────────────────────────────────────────────────────
+
+const EXP_OPTIONS: Array<{
+  id: TrialExperience
+  emoji: string
+  label: string
+  desc: string
+  config: string[]
+}> = [
+  {
+    id: 'casual-fan',
+    emoji: '🎲',
+    label: 'Just getting started',
+    desc: 'Casual fan looking to find an edge',
+    config: ['Guided projections with plain-English context', 'Simplified signal view', 'Step-by-step workflow tips'],
+  },
+  {
+    id: 'recreational',
+    emoji: '⚡',
+    label: 'Play for fun, want an edge',
+    desc: 'Recreational bettor building habits',
+    config: ['Ranked board view surfaced first', 'Key signals without data overload', 'Prop lean scoring enabled'],
+  },
+  {
+    id: 'serious-bettor',
+    emoji: '🎯',
+    label: 'Process-driven, track results',
+    desc: 'Serious bettor with a system',
+    config: ['Edge-ranked projections as default', 'Sharper board context shown', 'CLV tracking on by default'],
+  },
+  {
+    id: 'sharp-pro',
+    emoji: '🔬',
+    label: 'Data-first, CLV focused',
+    desc: 'Sharp/pro bettor, model-driven',
+    config: ['Raw model data surfaced first', 'Exchange pricing prioritized', 'Full backtest history unlocked'],
+  },
+]
+
+function ScreenExperience({
+  draft,
+  onSelect,
+  rm,
 }: {
-  orderedTools: RecommendedToolKey[]
-  activeTool: RecommendedToolKey
-  previewIndex: number
-  onSelectPreview: (index: number) => void
-  performanceMode: boolean
+  draft: TrialOnboardingDraft
+  onSelect: (v: TrialExperience) => void
+  rm: boolean
 }) {
-  return (
-    <div className="grid h-full items-start gap-4 lg:grid-cols-[0.92fr_1.08fr] lg:gap-5">
-      <div className="space-y-3">
-        <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-cyan-100/85">
-          <Waves className="h-3.5 w-3.5" />
-          Tool snapshots
-        </div>
-        <div>
-          <h2 className="text-[1.95rem] font-semibold leading-tight text-white sm:text-4xl lg:text-[3.1rem]">See how Delta will feel on day one.</h2>
-          <p className="mt-2 max-w-xl text-sm text-white/68 sm:mt-4 sm:text-lg">
-            These are visual depictions of the workflows you unlock during the trial. Pick through them before you head into checkout.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 lg:hidden">
-          {orderedTools.map((tool, index) => {
-            const snapshot = TOOL_SNAPSHOTS[tool]
-            const active = previewIndex === index
-
-            return (
-              <button
-                key={tool}
-                type="button"
-                onClick={() => onSelectPreview(index)}
-                className={cn(
-                  'rounded-[1rem] border px-3 py-2 text-left transition',
-                  active
-                    ? 'border-emerald-300/45 bg-emerald-300/12'
-                    : 'border-white/10 bg-white/[0.04]'
-                )}
-              >
-                <div className="text-sm font-semibold text-white">{snapshot.title}</div>
-                <div className="mt-1 text-[11px] text-white/48">{snapshot.eyebrow}</div>
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="hidden space-y-3 lg:block">
-          {orderedTools.map((tool, index) => {
-            const snapshot = TOOL_SNAPSHOTS[tool]
-            const active = previewIndex === index
-
-            return (
-              <button
-                key={tool}
-                type="button"
-                onClick={() => onSelectPreview(index)}
-                className={cn(
-                  'flex w-full items-center justify-between gap-4 rounded-[1.4rem] border px-4 py-4 text-left transition',
-                  active
-                    ? 'border-emerald-300/45 bg-emerald-300/12'
-                    : 'border-white/10 bg-white/[0.04] hover:border-white/18 hover:bg-white/[0.07]'
-                )}
-              >
-                <div>
-                  <div className="font-hero text-[10px] uppercase tracking-[0.32em] text-white/42">{snapshot.eyebrow}</div>
-                  <div className="mt-1 text-xl font-semibold text-white">{snapshot.title}</div>
-                </div>
-                <ArrowRight className={cn('h-5 w-5 transition', active ? 'text-emerald-200' : 'text-white/35')} />
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      <ToolSnapshotCard tool={activeTool} featured performanceMode={performanceMode} />
-    </div>
-  )
-}
-
-function ToolMiniPanel({
-  tool,
-  highlighted,
-  index,
-  performanceMode,
-}: {
-  tool: RecommendedToolKey
-  highlighted: boolean
-  index: number
-  performanceMode: boolean
-}) {
-  const snapshot = TOOL_SNAPSHOTS[tool]
-  const Icon = snapshot.Icon
+  const selected = EXP_OPTIONS.find((o) => o.id === draft.experienceLevel)
 
   return (
-    <motion.div
-      initial={performanceMode ? false : { opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: performanceMode ? 0 : index * 0.06, duration: performanceMode ? 0.12 : 0.24 }}
-      className={cn(
-        'rounded-[1.4rem] border px-4 py-4',
-        highlighted ? 'border-emerald-300/35 bg-emerald-300/10' : 'border-white/8 bg-black/20'
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/8 text-emerald-200">
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <div className="text-lg font-semibold text-white">{snapshot.title}</div>
-            {highlighted ? (
-              <span className="rounded-full bg-emerald-300/18 px-2 py-0.5 text-[11px] uppercase tracking-[0.25em] text-emerald-100">
-                Recommended first
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-1 text-sm leading-relaxed text-white/60">{snapshot.summary}</p>
-        </div>
-      </div>
-    </motion.div>
-  )
-}
-
-function ToolSnapshotCard({
-  tool,
-  featured = false,
-  performanceMode,
-}: {
-  tool: RecommendedToolKey
-  featured?: boolean
-  performanceMode: boolean
-}) {
-  const snapshot = TOOL_SNAPSHOTS[tool]
-  const Icon = snapshot.Icon
-
-  return (
-    <div
-      className={cn(
-        'overflow-hidden rounded-[1.25rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[2rem] sm:p-4',
-        performanceMode ? 'backdrop-blur-0' : 'backdrop-blur'
-      )}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="font-hero text-[10px] uppercase tracking-[0.34em] text-emerald-200/75">{snapshot.eyebrow}</div>
-          <div className="mt-1.5 text-xl font-semibold text-white sm:mt-2 sm:text-3xl">{snapshot.title}</div>
-          <p className="mt-2 max-w-xl text-[12px] leading-relaxed text-white/64 sm:mt-3 sm:text-base">{snapshot.summary}</p>
-        </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/8 text-emerald-200 sm:h-12 sm:w-12">
-          <Icon className="h-6 w-6" />
-        </div>
+    <div className="flex flex-col gap-4">
+      <div>
+        <h2 className="text-2xl font-black tracking-tight text-white">
+          {draft.name ? `${draft.name.split(' ')[0]}, how do you bet?` : 'How do you bet?'}
+        </h2>
+        <p className="mt-1.5 text-sm text-white/50">Delta configures your setup based on your level.</p>
       </div>
 
-      <div className="mt-3 sm:mt-5">
-        <ToolVisual tool={tool} performanceMode={performanceMode} />
-      </div>
-
-      <div className={cn('mt-3 grid gap-2 sm:mt-5 sm:gap-3', featured ? 'sm:grid-cols-[0.9fr_1.1fr]' : 'sm:grid-cols-2')}>
-        <div className="rounded-[1.4rem] border border-white/8 bg-black/20 p-4">
-          <div className="font-hero text-[10px] uppercase tracking-[0.32em] text-white/42">{snapshot.signalLabel}</div>
-          <div className="mt-2 text-xl font-semibold text-white">{snapshot.signalValue}</div>
-        </div>
-        <div className="hidden rounded-[1.4rem] border border-white/8 bg-black/20 p-4 sm:block">
-          <div className="font-hero text-[10px] uppercase tracking-[0.32em] text-white/42">Why this converts</div>
-          <div className="mt-2 space-y-2">
-            {snapshot.authorityPoints.map((point) => (
-              <div key={point} className="flex items-start gap-2 text-sm text-white/68">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-200" />
-                <span>{point}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ToolAuthorityBoard({ recommendedTool }: { recommendedTool: RecommendedToolKey }) {
-  return (
-    <div className="relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-black/25 p-4 shadow-[0_30px_90px_rgba(0,0,0,0.35)] backdrop-blur sm:p-5">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.14),transparent_36%)]" />
-      <div className="relative space-y-4">
-        <ToolSnapshotCard tool={recommendedTool} featured performanceMode={false} />
-      </div>
-    </div>
-  )
-}
-
-function ToolVisual({ tool, performanceMode }: { tool: RecommendedToolKey; performanceMode: boolean }) {
-  if (tool === 'sharp-props') {
-    const rows = performanceMode
-      ? [
-          ['J. Brunson PTS', 'Over 27.5', 86],
-          ['S. Curry 3PM', 'Over 4.5', 74],
-        ]
-      : [
-          ['J. Brunson PTS', 'Over 27.5', 86],
-          ['S. Curry 3PM', 'Over 4.5', 74],
-          ['A. Davis REB', 'Under 11.5', 68],
-        ]
-
-    return (
-      <div className="relative overflow-hidden rounded-[1.2rem] border border-white/10 bg-[#051310] p-2.5 sm:rounded-[1.6rem] sm:p-4">
-        <OverlayChrome />
-        <div className="relative space-y-3">
-          {rows.map(([label, leaning, value], index) => (
-            <motion.div
-              key={label}
-              initial={performanceMode ? false : { opacity: 0, x: -12 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: performanceMode ? 0 : index * 0.08 + 0.1, duration: performanceMode ? 0.12 : 0.28 }}
-              className="rounded-[1rem] border border-white/10 bg-black/25 p-2.5 sm:rounded-[1.2rem] sm:p-3"
+      <div className="grid grid-cols-2 gap-2">
+        {EXP_OPTIONS.map((opt) => {
+          const isSelected = draft.experienceLevel === opt.id
+          return (
+            <button
+              key={opt.id}
+              onClick={() => onSelect(opt.id)}
+              className={cn(
+                'relative rounded-2xl border p-3.5 text-left transition-all',
+                isSelected
+                  ? 'border-emerald-400/40 bg-emerald-400/8'
+                  : 'border-white/10 bg-white/[0.03] hover:border-white/18'
+              )}
             >
-              <div className="flex items-center justify-between gap-3 text-[12px] sm:text-sm">
-                <div className="font-medium text-white">{label}</div>
-                <div className="text-emerald-200">{leaning}</div>
-              </div>
-              <PressureRow value={Number(value)} accent="from-cyan-300 to-emerald-300" performanceMode={performanceMode} />
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  if (tool === 'whale-detector') {
-    const rows = performanceMode
-      ? [
-          ['BOS -4.5', '$78.2k', 91],
-          ['LAL/GSW Over 238.5', '$51.1k', 74],
-        ]
-      : [
-          ['BOS -4.5', '$78.2k', 91],
-          ['LAL/GSW Over 238.5', '$51.1k', 74],
-          ['SGP Cluster', '$33.8k', 58],
-        ]
-
-    return (
-      <div className="relative overflow-hidden rounded-[1.2rem] border border-white/10 bg-[#07100f] p-2.5 sm:rounded-[1.6rem] sm:p-4">
-        <OverlayChrome />
-        <div className="relative space-y-3">
-          {rows.map(([market, size, confidence], index) => (
-            <motion.div
-              key={market}
-              initial={performanceMode ? false : { opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: performanceMode ? 0 : index * 0.07 + 0.08, duration: performanceMode ? 0.12 : 0.26 }}
-              className="rounded-[1rem] border border-white/10 bg-black/25 p-2.5 sm:rounded-[1.2rem] sm:p-3"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-[12px] font-medium text-white sm:text-sm">{market}</div>
-                <div className="rounded-full bg-emerald-300/14 px-2 py-1 text-xs uppercase tracking-[0.24em] text-emerald-100">
-                  {size}
+              {isSelected && (
+                <div className="absolute right-2.5 top-2.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400">
+                  <Check className="h-2.5 w-2.5 text-black" />
                 </div>
+              )}
+              <div className="text-xl">{opt.emoji}</div>
+              <div className={cn('mt-2 text-sm font-bold leading-tight', isSelected ? 'text-white' : 'text-white/75')}>
+                {opt.label}
               </div>
-              <PressureRow value={Number(confidence)} accent="from-emerald-300 to-lime-200" performanceMode={performanceMode} />
-            </motion.div>
-          ))}
-        </div>
+              <div className="mt-0.5 text-[10px] text-white/38">{opt.desc}</div>
+            </button>
+          )
+        })}
       </div>
-    )
-  }
 
-  if (tool === 'research-mode') {
-    return (
-      <div className="relative overflow-hidden rounded-[1.2rem] border border-white/10 bg-[#061110] p-2.5 sm:rounded-[1.6rem] sm:p-4">
-        <OverlayChrome />
-        <div className="relative grid gap-2 sm:grid-cols-[1.15fr_0.85fr] sm:gap-4">
-          <div className="rounded-[1rem] border border-white/10 bg-black/25 p-2 sm:rounded-[1.2rem] sm:p-3">
-            <svg viewBox="0 0 280 150" className="h-28 w-full sm:h-40">
-              <defs>
-                <linearGradient id="delta-clv" x1="0%" x2="100%" y1="0%" y2="0%">
-                  <stop offset="0%" stopColor="rgba(125,211,252,0.95)" />
-                  <stop offset="100%" stopColor="rgba(52,211,153,0.95)" />
-                </linearGradient>
-              </defs>
-              <path d="M20 124 L80 108 L125 92 L180 74 L230 52 L260 38" fill="none" stroke="url(#delta-clv)" strokeWidth="4" strokeLinecap="round" />
-              <path d="M20 124 L80 108 L125 92 L180 74 L230 52 L260 38" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="12" strokeLinecap="round" opacity="0.2" />
-              {[
-                [20, 124],
-                [80, 108],
-                [125, 92],
-                [180, 74],
-                [230, 52],
-                [260, 38],
-              ].map(([x, y]) => (
-                <circle key={`${x}-${y}`} cx={x} cy={y} r="4.5" fill="rgba(52,211,153,1)" />
-              ))}
-            </svg>
-          </div>
-          <div className="space-y-2 sm:space-y-3">
-            <MetricChip label="CLV trend" value="+4.8%" />
-            <MetricChip label="Validation score" value="87 / 100" />
-            <MetricChip label="Closing reads" value="14 tracked" />
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="relative overflow-hidden rounded-[1.2rem] border border-white/10 bg-[#051310] p-2.5 sm:rounded-[1.6rem] sm:p-4">
-      <OverlayChrome />
-      <div className="relative space-y-3">
-        {(performanceMode
-          ? [
-              ['NYK -4.5', 'Edge +3.2%', 84],
-              ['MIL/CHI Over 229.5', 'Edge +2.7%', 71],
-            ]
-          : [
-              ['NYK -4.5', 'Edge +3.2%', 84],
-              ['MIL/CHI Over 229.5', 'Edge +2.7%', 71],
-              ['DEN ML', 'Edge +2.1%', 63],
-            ]).map(([market, edge, score], index) => (
+      <AnimatePresence>
+        {selected && (
           <motion.div
-            key={market}
-            initial={performanceMode ? false : { opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: performanceMode ? 0 : index * 0.07 + 0.08, duration: performanceMode ? 0.12 : 0.26 }}
-            className="rounded-[1rem] border border-white/10 bg-black/25 p-2.5 sm:rounded-[1.2rem] sm:p-3"
+            key={selected.id}
+            initial={rm ? {} : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.25 }}
           >
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-[12px] font-medium text-white sm:text-sm">{market}</div>
-              <div className="rounded-full bg-cyan-300/14 px-2 py-1 text-xs uppercase tracking-[0.24em] text-cyan-100">
-                {edge}
+            <InfoCallout color="emerald">
+              <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300/70">
+                Delta configures for you:
               </div>
-            </div>
-            <PressureRow value={Number(score)} accent="from-emerald-300 to-cyan-300" performanceMode={performanceMode} />
+              <ul className="space-y-1.5">
+                {selected.config.map((item) => (
+                  <li key={item} className="flex items-start gap-2">
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                    <span className="text-xs text-white/65">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </InfoCallout>
           </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ─── Screen: Goals ────────────────────────────────────────────────────────────
+
+const GOAL_OPTIONS: Array<{ id: TrialGoalKey; icon: ReactNode; label: string }> = [
+  { id: 'beat-the-book',       icon: <Target className="h-4 w-4" />,    label: 'Beat the book' },
+  { id: 'find-sharp-lines',    icon: <TrendingUp className="h-4 w-4" />, label: 'Find sharp lines before they move' },
+  { id: 'track-whale-activity',icon: <DollarSign className="h-4 w-4" />, label: 'Track big money / whale activity' },
+  { id: 'validate-picks',      icon: <BarChart3 className="h-4 w-4" />,  label: 'Validate picks with CLV' },
+]
+
+const TOOL_ICONS: Record<RecommendedToolKey, ReactNode> = {
+  'sharp-projections': <ChartNoAxesCombined className="h-3.5 w-3.5" />,
+  'sharp-props': <Activity className="h-3.5 w-3.5" />,
+  'whale-detector': <Waves className="h-3.5 w-3.5" />,
+  'research-mode': <FlaskConical className="h-3.5 w-3.5" />,
+}
+
+const WORKFLOW_STEPS: Record<TrialGoalKey, Array<{ step: string; tool: string }>> = {
+  'beat-the-book': [
+    { step: 'Find market mispricing', tool: 'Sharp Projections' },
+    { step: 'Confirm edge strength', tool: 'Research Mode' },
+    { step: 'Bet before adjustment', tool: 'Live boards' },
+  ],
+  'find-sharp-lines': [
+    { step: 'Scan edge-ranked board', tool: 'Sharp Projections' },
+    { step: 'Track steam moves', tool: 'Whale Feed' },
+    { step: 'Lock in before move', tool: 'Line shopping' },
+  ],
+  'track-whale-activity': [
+    { step: 'Watch $50K+ tickets', tool: 'Whale Feed' },
+    { step: 'Read prop pressure', tool: 'Sharp Props' },
+    { step: 'Confirm with projections', tool: 'Sharp Projections' },
+  ],
+  'validate-picks': [
+    { step: 'Check CLV history', tool: 'Research Mode' },
+    { step: 'Confirm edge exists', tool: 'Sharp Projections' },
+    { step: 'Size based on confidence', tool: 'All tools' },
+  ],
+}
+
+function ScreenGoals({
+  draft,
+  onToggle,
+  rm,
+}: {
+  draft: TrialOnboardingDraft
+  onToggle: (v: TrialGoalKey) => void
+  rm: boolean
+}) {
+  const primaryGoal = draft.goals[0] ?? null
+  const workflow = primaryGoal ? WORKFLOW_STEPS[primaryGoal] : null
+  const tools = draft.prioritizedTools
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h2 className="text-2xl font-black tracking-tight text-white">What are you here for?</h2>
+        <p className="mt-1.5 text-sm text-white/50">Select all that apply. We'll build your workflow around this.</p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {GOAL_OPTIONS.map((opt, i) => {
+          const isSelected = draft.goals.includes(opt.id)
+          return (
+            <motion.button
+              key={opt.id}
+              initial={rm ? {} : { opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.06 }}
+              onClick={() => onToggle(opt.id)}
+              className={cn(
+                'flex items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all',
+                isSelected
+                  ? 'border-emerald-400/40 bg-emerald-400/8'
+                  : 'border-white/10 bg-white/[0.03] hover:border-white/18'
+              )}
+            >
+              <div className={cn('shrink-0', isSelected ? 'text-emerald-300' : 'text-white/35')}>
+                {opt.icon}
+              </div>
+              <span className={cn('flex-1 text-sm font-semibold', isSelected ? 'text-white' : 'text-white/60')}>
+                {opt.label}
+              </span>
+              <div className={cn(
+                'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all',
+                isSelected ? 'border-emerald-400 bg-emerald-400' : 'border-white/15 bg-transparent'
+              )}>
+                {isSelected && <Check className="h-3 w-3 text-black" />}
+              </div>
+            </motion.button>
+          )
+        })}
+      </div>
+
+      <AnimatePresence>
+        {draft.goals.length > 0 && workflow && (
+          <motion.div
+            key={primaryGoal}
+            initial={rm ? {} : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"
+          >
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-white/35">
+              Your recommended workflow
+            </p>
+            <div className="flex items-start gap-0">
+              {workflow.map((item, i) => (
+                <div key={item.step} className="flex flex-1 flex-col items-center text-center">
+                  <div className="flex w-full items-center">
+                    <div className={cn('h-px flex-1', i === 0 ? 'bg-transparent' : 'bg-emerald-400/25')} />
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-emerald-400/35 bg-emerald-400/12 text-xs font-bold text-emerald-300">
+                      {i + 1}
+                    </div>
+                    <div className={cn('h-px flex-1', i === workflow.length - 1 ? 'bg-transparent' : 'bg-emerald-400/25')} />
+                  </div>
+                  <p className="mt-1.5 text-[10px] font-semibold leading-tight text-white/75">{item.step}</p>
+                  <p className="mt-0.5 text-[9px] text-emerald-300/60">{item.tool}</p>
+                </div>
+              ))}
+            </div>
+
+            {tools.length > 0 && (
+              <div className="mt-3 border-t border-white/6 pt-3">
+                <p className="mb-2 text-[9px] uppercase tracking-[0.2em] text-white/28">Tool priority</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {tools.map((tool, i) => (
+                    <div key={tool} className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1">
+                      <span className={cn('text-[11px]', i === 0 ? 'text-emerald-300' : 'text-white/35')}>
+                        {TOOL_ICONS[tool]}
+                      </span>
+                      <span className={cn('text-[10px] font-medium', i === 0 ? 'text-white/80' : 'text-white/35')}>
+                        {i === 0 && '★ '}{TOOL_DISPLAY_NAMES[tool]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ─── Shared mockup card ────────────────────────────────────────────────────────
+
+function MockupShell({
+  badge,
+  badgeColor = 'emerald',
+  liveDot,
+  children,
+}: {
+  badge: string
+  badgeColor?: 'emerald' | 'cyan' | 'violet'
+  liveDot?: boolean
+  children: ReactNode
+}) {
+  const cls = {
+    emerald: 'border-emerald-300/22 bg-emerald-400/9 text-emerald-300',
+    cyan: 'border-cyan-300/22 bg-cyan-400/9 text-cyan-300',
+    violet: 'border-violet-300/22 bg-violet-400/9 text-violet-300',
+  }
+  return (
+    <div className="rounded-2xl border border-white/10 bg-[#030c0a] p-4 shadow-[0_16px_60px_rgba(0,0,0,0.5)]">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-[9px] uppercase tracking-[0.35em] text-white/25">Live tool preview</span>
+        <div className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.18em]', cls[badgeColor])}>
+          {liveDot && <span className="ob-live-dot" style={{ width: 6, height: 6, minWidth: 6 }} />}
+          {badge}
+        </div>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+// ─── Screen: Sharp Projections ────────────────────────────────────────────────
+
+const PROJ_ROWS = [
+  { game: 'Knicks vs Heat', market: 'Spread', edge: '+5.2', line: 'NYK -6.5', hot: true,
+    expand: 'Delta model: NYK -4.1 · Market: -6.5 · Gap: 2.4 pts — model says Knicks are undervalued.' },
+  { game: 'Lakers vs Celtics', market: 'Total', edge: '+3.8', line: 'Over 224.5', hot: false,
+    expand: 'Combined pace model: 228.1 implied · Market: 224.5 · 3.6pt misprice on totals.' },
+  { game: 'Bills vs Chiefs', market: 'Moneyline', edge: '+2.7', line: 'KC -148', hot: false,
+    expand: 'Win probability model: KC 58.2% · Implied by -148: 59.7% · Slight overvalue on Chiefs.' },
+]
+
+function ScreenProjections({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolean }) {
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const isSharp = draft.experienceLevel === 'sharp-pro' || draft.experienceLevel === 'serious-bettor'
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <div className="mb-1.5 flex items-center gap-2">
+          <Pill color="emerald">Step 4 of 10</Pill>
+          <ChartNoAxesCombined className="h-4 w-4 text-emerald-300" />
+        </div>
+        <h2 className="text-2xl font-black tracking-tight text-white">Sharp Projections</h2>
+        <p className="mt-1.5 text-sm text-white/50">
+          Edge-ranked board refreshing every 15 min. Tap a row to see the edge breakdown.
+        </p>
+      </div>
+
+      <MockupShell badge="LIVE" badgeColor="emerald" liveDot>
+        <div className="space-y-2">
+          {PROJ_ROWS.map((row, i) => (
+            <motion.div
+              key={row.game}
+              initial={rm ? {} : { opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.06 + i * 0.09 }}
+            >
+              <button
+                onClick={() => setExpanded(expanded === row.game ? null : row.game)}
+                className={cn(
+                  'w-full rounded-xl border px-3 py-2.5 text-left transition-all',
+                  row.hot ? 'border-emerald-300/22 bg-emerald-400/7' : 'border-white/7 bg-black/20'
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold text-white">{row.game}</div>
+                    <div className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-white/35">{row.market}</div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-xs font-bold text-emerald-300">{row.edge}</span>
+                    <div className="mt-0.5 text-[10px] text-white/38">{row.line}</div>
+                  </div>
+                </div>
+                <AnimatePresence>
+                  {expanded === row.game && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-2 border-t border-white/8 pt-2 text-[11px] leading-relaxed text-white/50">
+                        {row.expand}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </button>
+            </motion.div>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {['Spread gap', 'Total misprice', 'Model consensus'].map((p) => (
+            <span key={p} className="rounded-full border border-emerald-300/15 bg-emerald-400/7 px-2 py-0.5 text-[10px] text-emerald-200/65">{p}</span>
+          ))}
+        </div>
+      </MockupShell>
+
+      <InfoCallout color="emerald">
+        {isSharp
+          ? 'Edge value = delta between Delta model price and live market. Positive = market hasn\'t corrected yet. Negative edge rows are hidden by default.'
+          : 'Green edge badges mean Delta\'s model disagrees with the current line. The higher the number, the bigger the gap — those surface first.'}
+      </InfoCallout>
+
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {[
+          { v: '+9.8%', l: 'Avg CLV' },
+          { v: '15 min', l: 'Refresh' },
+          { v: '3', l: 'Core markets' },
+        ].map((s) => (
+          <div key={s.l} className="rounded-xl border border-white/8 bg-white/[0.02] py-2.5">
+            <div className="text-sm font-black text-emerald-300">{s.v}</div>
+            <div className="mt-0.5 text-[9px] uppercase tracking-[0.14em] text-white/32">{s.l}</div>
+          </div>
         ))}
       </div>
     </div>
   )
 }
 
-function OverlayChrome() {
-  return (
-    <>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.14),transparent_35%)]" />
-      <div className="absolute left-3 top-3 h-7 w-16 rounded-full border border-white/10 bg-white/6 sm:left-4 sm:top-4 sm:h-9 sm:w-20" />
-      <div className="absolute right-3 top-3 flex items-center gap-1 sm:right-4 sm:top-4">
-        <span className="h-2 w-2 rounded-full bg-emerald-300/80" />
-        <span className="h-2 w-2 rounded-full bg-white/35" />
-        <span className="h-2 w-2 rounded-full bg-white/18" />
-      </div>
-      <div className="absolute bottom-3 left-3 right-3 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-    </>
-  )
-}
+// ─── Screen: Sharp Props ──────────────────────────────────────────────────────
 
-function PressureRow({
-  value,
-  accent,
-  performanceMode,
-}: {
-  value: number
-  accent: string
-  performanceMode: boolean
-}) {
+const PROP_ROWS = [
+  { player: 'N. Jokić',    line: 'O 26.5 pts', pct: 81, edge: '+3.4', side: 'Over',
+    expand: 'Exchange depth heavy on Over side since 9:40 AM. Wall concentration at 26.5 across FanDuel + DK.' },
+  { player: 'S. Curry',    line: 'O 28.5 pts', pct: 78, edge: '+2.9', side: 'Over',
+    expand: 'Orderbook showing 78% lean on Over. Books slow to adjust from opening number.' },
+  { player: 'L. James',    line: 'O 24.5 pts', pct: 62, edge: '+1.6', side: 'Over',
+    expand: 'Moderate lean. Matchup-adjusted projection: 26.2 pts. Line opened at 23.5 — already moved once.' },
+]
+
+function ScreenProps({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolean }) {
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const betSize = draft.betSize || 100
+  const projProfit = ((betSize * (100 / 110)) * 3 * 0.78).toFixed(0)
+
   return (
-    <div className="mt-2 space-y-1.5 sm:mt-3 sm:space-y-2">
-      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.24em] text-white/42 sm:text-[11px] sm:tracking-[0.28em]">
-        <span>Pressure</span>
-        <span>{value}%</span>
+    <div className="flex flex-col gap-4">
+      <div>
+        <div className="mb-1.5 flex items-center gap-2">
+          <Pill color="cyan">Step 5 of 10</Pill>
+          <Activity className="h-4 w-4 text-cyan-300" />
+        </div>
+        <h2 className="text-2xl font-black tracking-tight text-white">Sharp Props</h2>
+        <p className="mt-1.5 text-sm text-white/50">
+          Orderbook lean before books adjust. Tap a row to see the reasoning.
+        </p>
       </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-white/8">
-        <motion.div
-          initial={performanceMode ? false : { width: 0 }}
-          animate={{ width: `${value}%` }}
-          transition={{ duration: performanceMode ? 0.12 : 0.6, ease: 'easeOut' }}
-          className={cn('h-full rounded-full bg-gradient-to-r', accent)}
-        />
-      </div>
+
+      <MockupShell badge="SHARP" badgeColor="cyan">
+        <div className="space-y-2.5">
+          {PROP_ROWS.map((row, i) => (
+            <motion.div
+              key={row.player}
+              initial={rm ? {} : { opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.06 + i * 0.1 }}
+            >
+              <button
+                onClick={() => setExpanded(expanded === row.player ? null : row.player)}
+                className="w-full rounded-xl border border-white/7 bg-black/20 p-3 text-left"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-bold text-white">{row.player}</div>
+                    <div className="mt-0.5 text-xs text-white/45">{row.line}</div>
+                  </div>
+                  <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-xs font-bold text-emerald-300">{row.edge}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-white/32">
+                  <span>{row.side} lean</span>
+                  <span className="font-semibold text-white/60">{row.pct}%</span>
+                </div>
+                <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-white/8">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${row.pct}%` }}
+                    transition={rm ? {} : { duration: 0.8, ease: 'easeOut', delay: 0.2 + i * 0.1 }}
+                    className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-emerald-300"
+                    style={{ boxShadow: '0 0 4px rgba(52,211,153,0.4)' }}
+                  />
+                </div>
+                <AnimatePresence>
+                  {expanded === row.player && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-2 border-t border-white/8 pt-2 text-[11px] leading-relaxed text-white/50">
+                        {row.expand}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </button>
+            </motion.div>
+          ))}
+        </div>
+      </MockupShell>
+
+      <InfoCallout color="cyan">
+        <span className="font-semibold text-cyan-200">If you had tailed the top 3 props last week</span>
+        {' '}at ${betSize}/bet: estimated <span className="font-bold text-emerald-300">+${projProfit}</span> profit.
+        {' '}Delta surfaces these before the line adjusts.
+      </InfoCallout>
     </div>
   )
 }
 
-function MetricChip({ label, value }: { label: string; value: string }) {
+// ─── Screen: Whale Feed ───────────────────────────────────────────────────────
+
+const INITIAL_WHALE_ROWS = [
+  { amount: '$74,000', game: 'Lakers vs Nuggets · Total', line: 'OVER 226.5', time: '3m',
+    moved: 'Line moved from 224 to 226.5 within 18 min of this ticket.' },
+  { amount: '$58,000', game: 'Rangers vs Bruins · Puck Line', line: 'NYR -1.5', time: '11m', moved: null },
+  { amount: '$91,000', game: 'Knicks vs Bucks · ML', line: 'NYK +140', time: '33m', moved: null },
+]
+const ARRIVING_ROW = { amount: '$63,500', game: 'Warriors vs Thunder · Spread', line: 'GSW +4.5', time: 'just now', moved: null }
+
+function ScreenWhale({ rm }: { rm: boolean }) {
+  const [rows, setRows] = useState(INITIAL_WHALE_ROWS)
+  const [newRow, setNewRow] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setNewRow(true)
+      setRows((prev) => [ARRIVING_ROW, ...prev])
+    }, 2500)
+    return () => clearTimeout(t)
+  }, [])
+
   return (
-    <div className="rounded-[1rem] border border-white/10 bg-black/25 p-2.5 sm:rounded-[1.2rem] sm:p-3">
-      <div className="font-hero text-[10px] uppercase tracking-[0.32em] text-white/42">{label}</div>
-      <div className="mt-1.5 text-sm font-semibold text-white sm:mt-2 sm:text-lg">{value}</div>
+    <div className="flex flex-col gap-4">
+      <div>
+        <div className="mb-1.5 flex items-center gap-2">
+          <Pill color="emerald">Step 6 of 10</Pill>
+          <Waves className="h-4 w-4 text-emerald-300" />
+        </div>
+        <h2 className="text-2xl font-black tracking-tight text-white">Whale Feed</h2>
+        <p className="mt-1.5 text-sm text-white/50">
+          $50K+ tickets live as they hit. You see the move before the line adjusts.
+        </p>
+      </div>
+
+      <MockupShell badge="LIVE" badgeColor="emerald" liveDot>
+        <div className="space-y-2">
+          <AnimatePresence>
+            {rows.map((row, i) => (
+              <motion.div
+                key={row.amount + row.time}
+                initial={rm ? {} : { opacity: 0, y: i === 0 && newRow ? -10 : 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35 }}
+                className="rounded-xl border border-white/7 bg-black/20 px-3 py-2.5"
+                style={{ borderLeft: '2px solid rgba(52,211,153,0.22)' }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-emerald-300">{row.amount}</div>
+                    <div className="mt-0.5 truncate text-xs text-white/50">{row.game}</div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className="rounded-full bg-cyan-400/12 px-2 py-0.5 text-[10px] font-bold text-cyan-200">{row.line}</span>
+                    <div className="mt-0.5 text-[9px] uppercase tracking-[0.14em] text-white/28">{row.time} ago</div>
+                  </div>
+                </div>
+                {row.moved && (
+                  <div className="mt-1.5 text-[10px] text-amber-300/70">↑ {row.moved}</div>
+                )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      </MockupShell>
+
+      <InfoCallout color="emerald">
+        Delta compares the whale ticket timing against exchange and sportsbook pricing — so you can distinguish real steam from noise.
+      </InfoCallout>
+    </div>
+  )
+}
+
+// ─── Screen: Research Mode ────────────────────────────────────────────────────
+
+const BEFORE_BARS = [
+  { label: 'Closing line value', value: '+1.1%', pct: 14, warn: false },
+  { label: 'Market movement accuracy', value: '54%', pct: 54, warn: true },
+  { label: 'Sharp-aligned bets', value: '41%', pct: 41, warn: true },
+  { label: 'Win rate on sharp picks', value: '48%', pct: 48, warn: true },
+]
+const AFTER_BARS = [
+  { label: 'Closing line value', value: '+4.3%', pct: 57, warn: false },
+  { label: 'Market movement accuracy', value: '71%', pct: 71, warn: false },
+  { label: 'Sharp-aligned bets', value: '68%', pct: 68, warn: false },
+  { label: 'Win rate on sharp picks', value: '57%', pct: 57, warn: true },
+]
+
+const EXP_PROJECTIONS: Record<TrialExperience, string> = {
+  'casual-fan': 'Members at your level average +1.8% CLV improvement in their first 30 days.',
+  'recreational': 'Members at your level average +2.3% CLV improvement in their first 30 days.',
+  'serious-bettor': 'Members at your level average +3.1% CLV improvement in their first 30 days.',
+  'sharp-pro': 'At your level, CLV improvement is more incremental — members average +1.4%, but signal quality compounds over 90+ days.',
+}
+
+function ScreenResearch({ draft, rm }: { draft: TrialOnboardingDraft; rm: boolean }) {
+  const [showAfter, setShowAfter] = useState(false)
+  const bars = showAfter ? AFTER_BARS : BEFORE_BARS
+  const expProj = draft.experienceLevel ? EXP_PROJECTIONS[draft.experienceLevel] : EXP_PROJECTIONS['recreational']
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <div className="mb-1.5 flex items-center gap-2">
+          <Pill color="violet">Step 7 of 10</Pill>
+          <FlaskConical className="h-4 w-4 text-violet-300" />
+        </div>
+        <h2 className="text-2xl font-black tracking-tight text-white">Research Mode</h2>
+        <p className="mt-1.5 text-sm text-white/50">
+          Track CLV, backtest your process, and see what a disciplined system looks like.
+        </p>
+      </div>
+
+      <MockupShell badge="SYNDICATE" badgeColor="violet">
+        {/* Before / After toggle */}
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-[9px] uppercase tracking-[0.2em] text-white/28">Your last 30 days</span>
+          <div className="flex rounded-full border border-white/10 bg-black/30 p-0.5">
+            {['Before', 'After'].map((label) => {
+              const active = label === 'After' ? showAfter : !showAfter
+              return (
+                <button
+                  key={label}
+                  onClick={() => setShowAfter(label === 'After')}
+                  className={cn(
+                    'rounded-full px-3 py-1 text-[10px] font-semibold transition-all',
+                    active ? 'bg-emerald-400/20 text-emerald-300' : 'text-white/35'
+                  )}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {bars.map((bar, i) => (
+            <div key={bar.label}>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-white/50">{bar.label}</span>
+                <span className={cn('font-bold', bar.warn ? 'text-amber-300' : 'text-emerald-300')}>
+                  {bar.value}
+                </span>
+              </div>
+              <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-white/7">
+                <motion.div
+                  key={`${showAfter}-${bar.label}`}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${bar.pct}%` }}
+                  transition={rm ? {} : { duration: 0.85, ease: 'easeOut', delay: i * 0.1 }}
+                  className={cn('h-full rounded-full', bar.warn ? 'bg-gradient-to-r from-amber-300 to-orange-300' : 'bg-gradient-to-r from-emerald-300 to-cyan-300')}
+                  style={{ boxShadow: bar.warn ? '0 0 4px rgba(251,191,36,0.35)' : '0 0 4px rgba(52,211,153,0.3)' }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 rounded-xl border border-violet-400/18 bg-violet-500/7 px-3 py-2 text-xs text-white/45">
+          <Lock className="mb-0.5 mr-1.5 inline h-3 w-3" />
+          Full history unlocks with <span className="font-semibold text-violet-300">Syndicate</span>
+        </div>
+      </MockupShell>
+
+      <InfoCallout color="violet">
+        <span className="font-semibold text-violet-200">{draft.name ? draft.name.split(' ')[0] + ': ' : ''}</span>
+        {expProj}
+      </InfoCallout>
+    </div>
+  )
+}
+
+// ─── Screen: ROI ──────────────────────────────────────────────────────────────
+
+function calcWinsNeeded(betSize: number, planCost = ROI_PLAN_COST): number {
+  const profitPerWin = betSize * (100 / 110)
+  return Math.ceil(planCost / profitPerWin)
+}
+
+function ScreenRoi({
+  draft,
+  onBetSize,
+  onBetsPerDay,
+  rm,
+}: {
+  draft: TrialOnboardingDraft
+  onBetSize: (v: number) => void
+  onBetsPerDay: (v: number) => void
+  rm: boolean
+}) {
+  const betSize = draft.betSize
+  const betsPerDay = draft.betsPerDay
+  const betsPerMonth = betsPerDay * 30
+  const winsNeeded = calcWinsNeeded(betSize)
+  const profitPerWin = (betSize * (100 / 110)).toFixed(0)
+  const isOne = winsNeeded === 1
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div>
+        <div className="mb-1.5">
+          <Pill color="emerald">Step 8 of 10</Pill>
+        </div>
+        <h2 className="text-2xl font-black tracking-tight text-white">
+          {draft.name ? `${draft.name.split(' ')[0]}, how much do you bet?` : 'How much do you bet?'}
+        </h2>
+        <p className="mt-1.5 text-sm text-white/50">
+          We'll show you exactly what Delta needs to pay for itself.
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+        {/* Bet size slider */}
+        <div className="mb-5">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-semibold text-white/70">Avg bet size</span>
+            <span className="text-base font-black text-white">${betSize}</span>
+          </div>
+          <Slider
+            min={25} max={500} step={25}
+            value={[betSize]}
+            onValueChange={([v]) => onBetSize(v!)}
+            className="w-full"
+          />
+          <div className="mt-1 flex justify-between text-[10px] text-white/28">
+            <span>$25</span><span>$500</span>
+          </div>
+        </div>
+
+        {/* Bets per day slider */}
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-semibold text-white/70">Bets per day</span>
+            <span className="text-base font-black text-white">{betsPerDay}</span>
+          </div>
+          <Slider
+            min={1} max={10} step={1}
+            value={[betsPerDay]}
+            onValueChange={([v]) => onBetsPerDay(v!)}
+            className="w-full"
+          />
+          <div className="mt-1 flex justify-between text-[10px] text-white/28">
+            <span>1/day</span><span>10/day</span>
+          </div>
+        </div>
+      </div>
+
+      {/* The payoff answer */}
+      <motion.div
+        key={winsNeeded}
+        initial={rm ? {} : { scale: 0.97, opacity: 0.7 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="relative overflow-hidden rounded-2xl border border-emerald-400/25 bg-black p-6 text-center"
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_100%,rgba(52,211,153,0.14),transparent_70%)]" />
+        <div className="relative">
+          <div className="text-6xl font-black text-emerald-300" style={{ textShadow: '0 0 40px rgba(52,211,153,0.5)' }}>
+            {winsNeeded}
+          </div>
+          <div className="mt-1 text-lg font-bold text-white">
+            extra {isOne ? 'win' : 'wins'} per month
+          </div>
+          <div className="mt-2 text-sm text-white/45">
+            That's all Delta needs to pay for itself.
+          </div>
+          <div className="mt-3 text-xs text-white/30">
+            At ${betSize}/bet (−110 odds), {isOne ? '1 win' : `${winsNeeded} wins`} = ${isOne ? profitPerWin : (Number(profitPerWin) * winsNeeded).toFixed(0)} profit · Delta costs $79/mo
+          </div>
+        </div>
+      </motion.div>
+
+      <p className="text-center text-xs text-white/35">
+        You're placing ~{betsPerMonth} bets/month.{' '}
+        <span className="text-white/55">Delta only needs {winsNeeded} of them.</span>
+      </p>
+    </div>
+  )
+}
+
+// ─── Screen: Final ────────────────────────────────────────────────────────────
+
+const TESTIMONIALS = [
+  {
+    name: 'Marcus K.',
+    plan: 'Syndicate · 4 months',
+    color: 'emerald',
+    quote: 'Saw an $82K whale alert on the Lakers over. Line moved 2.5 points within 20 minutes. I was already in.',
+  },
+  {
+    name: 'Ryan T.',
+    plan: 'Syndicate · 6 months',
+    color: 'violet',
+    quote: 'Research Mode took my CLV from +1.1% to +4.3% in 30 days. I finally have a process that works.',
+  },
+]
+
+const TOOLS_LIST: Array<{ icon: ReactNode; title: string; desc: string }> = [
+  { icon: <ChartNoAxesCombined className="h-4 w-4" />, title: 'Sharp Projections', desc: 'Edge-ranked spreads, totals, moneylines' },
+  { icon: <Activity className="h-4 w-4" />,            title: 'Sharp Props',       desc: 'Orderbook pressure and lean scoring' },
+  { icon: <Waves className="h-4 w-4" />,               title: 'Whale Feed',        desc: 'Large-ticket alerts, live' },
+  { icon: <FlaskConical className="h-4 w-4" />,        title: 'Research Mode',     desc: 'CLV tracking and backtesting' },
+]
+
+function ScreenFinal({
+  draft,
+  isSubmitting,
+  onSubmit,
+  rm,
+}: {
+  draft: TrialOnboardingDraft
+  isSubmitting: boolean
+  onSubmit: () => void
+  rm: boolean
+}) {
+  const firstName = draft.name ? draft.name.split(' ')[0] : null
+  const topTool = draft.prioritizedTools[0] ? TOOL_DISPLAY_NAMES[draft.prioritizedTools[0]] : 'Sharp Projections'
+  const winsNeeded = calcWinsNeeded(draft.betSize)
+
+  return (
+    <div className="flex flex-col gap-5">
+      <motion.div
+        initial={rm ? {} : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <h2 className="text-2xl font-black tracking-tight text-white">
+          {firstName ? `You're almost in, ${firstName}.` : "You're almost in."}
+        </h2>
+        <p className="mt-1.5 text-sm text-white/50">
+          Your setup is ready. Here's what you're getting access to.
+        </p>
+      </motion.div>
+
+      {/* Personal summary */}
+      <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4">
+        <p className="mb-2.5 text-[9px] font-bold uppercase tracking-[0.22em] text-emerald-300/60">Your delta profile</p>
+        <div className="space-y-1.5 text-sm">
+          <div className="flex justify-between">
+            <span className="text-white/45">Starting tool</span>
+            <span className="font-semibold text-white">{topTool}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-white/45">Bet size</span>
+            <span className="font-semibold text-white">${draft.betSize}/bet</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-white/45">Wins to break even</span>
+            <span className="font-semibold text-emerald-300">{winsNeeded}/month</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 4 tools */}
+      <div className="grid grid-cols-2 gap-2">
+        {TOOLS_LIST.map((t, i) => (
+          <motion.div
+            key={t.title}
+            initial={rm ? {} : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 + i * 0.07 }}
+            className="rounded-xl border border-white/8 bg-white/[0.025] p-3"
+          >
+            <div className="mb-1.5 text-emerald-300">{t.icon}</div>
+            <div className="text-xs font-bold text-white">{t.title}</div>
+            <div className="mt-0.5 text-[10px] text-white/38">{t.desc}</div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Testimonials */}
+      <div className="space-y-2">
+        {TESTIMONIALS.map((t) => (
+          <div key={t.name} className="rounded-xl border border-white/8 bg-white/[0.025] p-3.5">
+            <div className="mb-2 flex items-center gap-2.5">
+              <div className={cn(
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-black',
+                t.color === 'emerald' ? 'bg-emerald-400' : 'bg-violet-400'
+              )}>
+                {t.name[0]}
+              </div>
+              <div>
+                <div className="text-xs font-bold text-white">{t.name}</div>
+                <div className="text-[10px] text-white/35">{t.plan}</div>
+              </div>
+              <span className="ml-auto text-[10px] text-amber-300">★★★★★</span>
+            </div>
+            <p className="text-xs leading-relaxed text-white/60">"{t.quote}"</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Guarantee */}
+      <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/6 p-4">
+        <div className="flex items-start gap-3">
+          <Shield className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+          <div>
+            <div className="text-sm font-bold text-emerald-200">3-Day Free Trial Guarantee</div>
+            <div className="mt-1 text-xs leading-relaxed text-white/55">
+              Cancel before day 3 and you pay nothing — one click, no forms, no calls.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* What happens next */}
+      <div className="rounded-2xl border border-white/8 bg-white/[0.025] p-4">
+        <p className="mb-3 text-[9px] font-bold uppercase tracking-[0.22em] text-white/30">What happens next</p>
+        <div className="relative space-y-3 pl-6">
+          <div className="absolute left-[11px] top-2 bottom-2 w-px bg-emerald-400/15" />
+          {[
+            'Secure checkout via Stripe',
+            'Instant access — all 4 tools live',
+            'Cancel anytime, one click',
+          ].map((step, i) => (
+            <div key={step} className="relative flex items-start gap-3">
+              <div className="absolute -left-6 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-emerald-400/35 bg-black text-[9px] font-bold text-emerald-300">
+                {i + 1}
+              </div>
+              <span className="text-xs text-white/60">{step}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* CTA button (inline, since this screen manages its own submit) */}
+      <button
+        onClick={onSubmit}
+        disabled={isSubmitting}
+        className="ob-cta-shimmer w-full rounded-full bg-[linear-gradient(90deg,#3CCB97,#22d3ee,#3CCB97)] py-4 text-sm font-bold text-black transition-opacity disabled:opacity-60"
+      >
+        {isSubmitting ? (
+          <span className="flex items-center justify-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" /> Setting up your account…
+          </span>
+        ) : (
+          firstName ? `Start ${firstName}'s free trial →` : 'Start my free trial →'
+        )}
+      </button>
+
+      <p className="text-center text-[11px] text-white/28">
+        <Shield className="mr-1 inline h-3 w-3" />
+        Stripe secure · Cancel anytime · Instant access
+      </p>
+    </div>
+  )
+}
+
+// ─── Main orchestrator ────────────────────────────────────────────────────────
+
+export default function TrialOnboardingFlow() {
+  const rm = useReducedMotion() ?? false
+  const [screenIndex, setScreenIndex] = useState(0)
+  const [direction, setDirection] = useState<1 | -1>(1)
+  const [draft, setDraft] = useState<TrialOnboardingDraft>(createDefaultTrialOnboardingDraft)
+  const [sportsbook, setSportsbook] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const screen = SCREENS[screenIndex]!
+
+  // Restore from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(TRIAL_ONBOARDING_STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<TrialOnboardingDraft>
+        setDraft((prev) => ({ ...prev, ...parsed }))
+      }
+    } catch {}
+    trackTrialFlowEvent('onboarding_started', { screen: 'welcome' })
+  }, [])
+
+  function updateDraft(patch: Partial<TrialOnboardingDraft>) {
+    setDraft((prev) => {
+      const next = { ...prev, ...patch }
+      syncDraft(next)
+      return next
+    })
+  }
+
+  function goNext() {
+    if (screenIndex >= SCREENS.length - 1) return
+    trackTrialFlowEvent('onboarding_step_completed', {
+      step: screen.id,
+      step_index: screenIndex,
+    })
+    setDirection(1)
+    setScreenIndex((i) => i + 1)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function goBack() {
+    if (screenIndex === 0) return
+    setDirection(-1)
+    setScreenIndex((i) => i - 1)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function handleName(v: string) {
+    updateDraft({ name: v })
+  }
+
+  function handleExperience(v: TrialExperience) {
+    const tools = prioritizeTools(draft.goals, v)
+    updateDraft({ experienceLevel: v, prioritizedTools: tools })
+  }
+
+  function handleGoalToggle(key: TrialGoalKey) {
+    const next = draft.goals.includes(key)
+      ? draft.goals.filter((g) => g !== key)
+      : [...draft.goals, key]
+    const tools = prioritizeTools(next, draft.experienceLevel)
+    updateDraft({ goals: next, prioritizedTools: tools })
+  }
+
+  function handleBetSize(v: number) {
+    const roi = calculateRoiSnapshot(v, draft.betsPerDay)
+    updateDraft({ betSize: v, monthlyEv: roi.monthly_ev, yearlyEv: roi.yearly_ev, roiVsPlanCost: roi.roi_vs_plan_cost })
+  }
+
+  function handleBetsPerDay(v: number) {
+    const roi = calculateRoiSnapshot(draft.betSize, v)
+    updateDraft({ betsPerDay: v, monthlyEv: roi.monthly_ev, yearlyEv: roi.yearly_ev, roiVsPlanCost: roi.roi_vs_plan_cost })
+  }
+
+  async function handleSubmit() {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    trackTrialFlowEvent('onboarding_completed', {
+      experience_level: draft.experienceLevel ?? '',
+      primary_goal: draft.goals[0] ?? '',
+      bet_size: draft.betSize,
+      bets_per_day: draft.betsPerDay,
+    })
+    try {
+      await fetch('/api/trial-onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: draft.name,
+          experienceLevel: draft.experienceLevel,
+          goals: draft.goals,
+          betSize: draft.betSize,
+          betsPerDay: draft.betsPerDay,
+        }),
+      })
+      trackTrialFlowEvent('checkout_started_from_onboarding', { source: 'final_screen' })
+      window.location.href = '/checkout?source=trial-onboarding-v2'
+    } catch {
+      setIsSubmitting(false)
+    }
+  }
+
+  // CTA disabled logic
+  const ctaDisabled = (() => {
+    if (screen.id === 'name') return draft.name.trim().length === 0
+    if (screen.id === 'experience') return !draft.experienceLevel
+    if (screen.id === 'goals') return draft.goals.length === 0
+    return false
+  })()
+
+  const showProgress = screen.id !== 'welcome'
+  const showBack = screenIndex > 0
+  const isFinal = screen.id === 'final'
+
+  const variants = {
+    enter: (dir: number) => ({ x: dir * 48, opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (dir: number) => ({ x: dir * -48, opacity: 0 }),
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col bg-black text-white">
+      {/* ── Top bar ── */}
+      <div className="fixed left-0 right-0 top-0 z-30 bg-black/95 backdrop-blur">
+        {/* Progress bar */}
+        {showProgress && (
+          <div className="h-0.5 bg-white/8">
+            <motion.div
+              className="h-full bg-emerald-400"
+              initial={{ width: 0 }}
+              animate={{ width: `${screen.progress}%` }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+            />
+          </div>
+        )}
+        <div className="flex items-center gap-3 px-4 py-3">
+          {showBack ? (
+            <button
+              onClick={goBack}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 text-white/50 transition hover:border-white/25 hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          ) : (
+            <div className="h-8 w-8 shrink-0" />
+          )}
+          <div className="flex-1 text-center text-xs font-medium text-white/40">
+            {screen.label}
+          </div>
+          <div className="h-8 w-8 shrink-0" />
+        </div>
+      </div>
+
+      {/* ── Scrollable content ── */}
+      <div className="flex-1 overflow-y-auto px-5 pb-32 pt-20">
+        <div className="mx-auto w-full max-w-lg">
+          <AnimatePresence custom={direction} mode="wait">
+            <motion.div
+              key={screen.id}
+              custom={direction}
+              variants={variants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.28, ease: 'easeInOut' }}
+            >
+              {screen.id === 'welcome'     && <ScreenWelcome rm={rm} />}
+              {screen.id === 'name'        && <ScreenName draft={draft} onName={handleName} sportsbook={sportsbook} onSportsbook={setSportsbook} rm={rm} />}
+              {screen.id === 'experience'  && <ScreenExperience draft={draft} onSelect={handleExperience} rm={rm} />}
+              {screen.id === 'goals'       && <ScreenGoals draft={draft} onToggle={handleGoalToggle} rm={rm} />}
+              {screen.id === 'projections' && <ScreenProjections draft={draft} rm={rm} />}
+              {screen.id === 'props'       && <ScreenProps draft={draft} rm={rm} />}
+              {screen.id === 'whale'       && <ScreenWhale rm={rm} />}
+              {screen.id === 'research'    && <ScreenResearch draft={draft} rm={rm} />}
+              {screen.id === 'roi'         && <ScreenRoi draft={draft} onBetSize={handleBetSize} onBetsPerDay={handleBetsPerDay} rm={rm} />}
+              {screen.id === 'final'       && <ScreenFinal draft={draft} isSubmitting={isSubmitting} onSubmit={handleSubmit} rm={rm} />}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* ── Fixed bottom CTA (hidden on final — it has its own inline button) ── */}
+      {!isFinal && (
+        <div
+          className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/8 bg-black/95 px-5 py-4 backdrop-blur"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
+          <div className="mx-auto w-full max-w-lg">
+            <button
+              onClick={goNext}
+              disabled={ctaDisabled}
+              className={cn(
+                'w-full rounded-full py-3.5 text-sm font-bold transition-all',
+                ctaDisabled
+                  ? 'bg-white/8 text-white/25 cursor-not-allowed'
+                  : 'ob-cta-shimmer bg-[linear-gradient(90deg,#3CCB97,#22d3ee,#3CCB97)] text-black'
+              )}
+            >
+              {screen.cta}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

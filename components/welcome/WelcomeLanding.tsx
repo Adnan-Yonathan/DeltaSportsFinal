@@ -7,15 +7,21 @@ import { PRICING_TIERS } from '@/components/pricing/pricing-tiers'
 import { FeatureShowcaseHub } from '@/components/welcome/feature-showcase-hub'
 import { WelcomeFaqAndFinalCta } from '@/components/welcome/faq-and-final-cta'
 import { InsiderComparison } from '@/components/welcome/insider-comparison'
+import { LiveTicker } from '@/components/welcome/live-ticker'
 import { ScrollFadeIn } from '@/components/ui/scroll-fade-in'
 import { ImageAutoSlider } from '@/components/ui/image-auto-slider'
 
 export default function WelcomeLanding() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-black text-white">
+    <div className="relative min-h-screen overflow-x-clip bg-black text-white">
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-10 pt-1 sm:pt-2">
         <ScrollFadeIn>
           <HeroSection />
+        </ScrollFadeIn>
+
+        {/* Live ticker — directly under hero image */}
+        <ScrollFadeIn className="mt-4 sm:mt-6">
+          <LiveTicker />
         </ScrollFadeIn>
 
         <div id="betproof-showcase" className="scroll-mt-24">
@@ -30,13 +36,11 @@ export default function WelcomeLanding() {
         </div>
 
         {/* Features */}
-        <div id="features" className="scroll-mt-24">
-          <ScrollFadeIn className="mt-14 sm:mt-24">
-            <FeatureShowcaseHub />
-          </ScrollFadeIn>
+        <div id="features" className="scroll-mt-24 mt-14 sm:mt-24">
+          <FeatureShowcaseHub />
         </div>
 
-        {/* Comparison */}
+        {/* Before / After */}
         <ScrollFadeIn className="mt-14 sm:mt-24">
           <InsiderComparison />
         </ScrollFadeIn>
@@ -53,10 +57,10 @@ export default function WelcomeLanding() {
           <div id="pricing" className="rounded-3xl border border-white/10 bg-black/50">
             <div className="border-b border-white/10 px-5 py-5 sm:px-7 sm:py-6">
               <p className="text-center text-[11px] font-semibold uppercase tracking-[0.35em] text-emerald-200/75">
-                Pricing
+                Start free
               </p>
               <h2 className="mt-2 text-center text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                Pick the plan that fits your workflow
+                Less than a coffee a day. More edge than you&apos;re getting now.
               </h2>
             </div>
             <PricingSection

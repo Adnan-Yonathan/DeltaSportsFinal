@@ -238,14 +238,9 @@ export default function StripeSuccessPage() {
     if (typeof window === 'undefined') return null
     const params = new URLSearchParams(window.location.search)
     const next = params.get('next')
-    const step = params.get('step')
 
-    if (isSafeInternalPath(next) && next !== '/onboarding') {
+    if (isSafeInternalPath(next) && next !== '/onboarding' && next !== '/trial-onboarding') {
       return next
-    }
-
-    if (next === '/onboarding' && step) {
-      return `/onboarding?step=${encodeURIComponent(step)}`
     }
 
     return null

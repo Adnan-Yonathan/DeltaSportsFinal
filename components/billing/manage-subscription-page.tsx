@@ -166,8 +166,8 @@ export default function ManageSubscriptionPage({
   }
 
   return (
-    <main className="min-h-screen bg-[#050505] px-4 py-8 text-white sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-6xl space-y-8">
+    <main className="min-h-screen bg-[#050505] px-4 py-8 text-white sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-3xl space-y-5">
         <SubscriptionSummary
           billing={billing}
           onUpdatePaymentMethod={handlePaymentMethod}
@@ -177,15 +177,15 @@ export default function ManageSubscriptionPage({
         />
 
         {!billing.subscriptionId ? (
-          <section className="rounded-[30px] border border-white/10 bg-white/[0.03] p-6">
-            <h2 className="text-xl font-semibold text-white">No active subscription</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/60">
-              There is no active subscription attached to this account right now. You can start from checkout when you are ready.
+          <section className="rounded-[24px] border border-white/10 bg-white/[0.025] p-6">
+            <h2 className="text-base font-semibold text-white">No active subscription</h2>
+            <p className="mt-1.5 text-sm text-white/55">
+              Start a subscription to get access to sharp projections, props, and whale alerts.
             </p>
-            <div className="mt-5">
+            <div className="mt-4">
               <Link
                 href="/checkout"
-                className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[#3f6c4f] bg-[#bce0c9] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#ccead5]"
+                className="inline-flex h-10 items-center justify-center rounded-full bg-emerald-400 px-5 text-sm font-semibold text-black transition hover:bg-emerald-300"
               >
                 Go to checkout
               </Link>
@@ -199,46 +199,30 @@ export default function ManageSubscriptionPage({
               onChangePlan={handlePlanChange}
             />
 
-            <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-              <BillingHistory invoices={billing.invoices} />
+            <BillingHistory invoices={billing.invoices} />
 
-              <section className="rounded-[30px] border border-red-300/10 bg-[linear-gradient(180deg,rgba(38,9,9,0.24),rgba(10,10,10,0.72))] p-6">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-red-100/45">
-                  Cancellation
-                </div>
-                <h2 className="mt-3 text-2xl font-semibold text-white">Cancel with a clear record of what happens next</h2>
-                <p className="mt-2 text-sm leading-6 text-white/58">
-                  Review the timeline before you continue. Payment method updates, plan changes, and the retention offer remain available above if you want to keep the account active.
-                </p>
-
-                <div className="mt-6 rounded-[24px] border border-white/10 bg-black/25 p-5">
-                  <div className="text-sm font-semibold text-white">
-                    {billing.membership.isTrial
-                      ? 'Trial cancellation'
-                      : billing.canResume
-                        ? 'Cancellation already scheduled'
-                        : 'Before canceling'}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-white/58">
-                    {billing.membership.isTrial
-                      ? 'The cancellation flow warns trial users that access will be revoked if they continue. Review the retention offer before you make that choice.'
-                      : billing.canResume
-                        ? `Your subscription is set to end on ${formatDate(billing.cancelAt) ?? 'the scheduled date'}. You can reactivate it any time before then.`
-                        : `Cancellation is scheduled for the end of the current billing period. You will keep access through ${formatDate(billing.currentPeriodEnd) ?? 'the current period end'}.`}
-                  </div>
-                  {!billing.canResume ? (
-                    <button
-                      type="button"
-                      onClick={() => setCancelStep('confirm')}
-                      disabled={!billing.canCancel || busyAction === 'cancel'}
-                      className="mt-5 inline-flex min-h-[46px] w-full items-center justify-center rounded-full border border-red-300/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-100 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-                    >
-                      {busyAction === 'cancel' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Open cancellation flow'}
-                    </button>
-                  ) : null}
-                </div>
-              </section>
-            </div>
+            {/* Cancel */}
+            <section className="rounded-[24px] border border-red-300/10 bg-red-950/10 p-6">
+              <h2 className="text-base font-semibold text-white">Cancel subscription</h2>
+              <p className="mt-1.5 text-sm text-white/50">
+                {billing.canResume
+                  ? `Cancellation is already scheduled — your access continues through ${formatDate(billing.cancelAt) ?? 'the end of your period'}.`
+                  : billing.membership.isTrial
+                    ? 'Canceling during trial will revoke access immediately. Consider the 60% offer above first.'
+                    : `You will keep full access through ${formatDate(billing.currentPeriodEnd) ?? 'the end of your billing period'}.`}
+              </p>
+              {!billing.canResume ? (
+                <button
+                  type="button"
+                  onClick={() => setCancelStep('confirm')}
+                  disabled={!billing.canCancel || busyAction === 'cancel'}
+                  className="mt-4 inline-flex h-10 items-center gap-2 rounded-full border border-red-300/20 bg-red-500/10 px-4 text-sm font-semibold text-red-200 transition hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {busyAction === 'cancel' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                  Cancel subscription
+                </button>
+              ) : null}
+            </section>
           </>
         )}
       </div>

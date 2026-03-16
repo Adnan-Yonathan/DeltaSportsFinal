@@ -72,19 +72,43 @@ export function WelcomeFaqAndFinalCta() {
         </Accordion>
       </div>
 
-      <div className="rounded-3xl border border-emerald-400/30 bg-gradient-to-r from-emerald-500/15 to-black p-7 text-center sm:p-10">
-        <p className="text-[11px] uppercase tracking-[0.35em] text-emerald-200/80">Final Step</p>
-        <h3 className="mt-3 text-2xl font-bold text-white sm:text-3xl">Start your 7-day free trial</h3>
-        <p className="mx-auto mt-3 max-w-2xl text-sm text-white/70 sm:text-base">
-          Get instant access to Sharp Projections, Sharp Props, Whale Feed, and Research Mode.
-        </p>
-        <Link
-          href="/auth/signup"
-          className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#3CCB97] px-6 py-3 text-sm font-semibold text-black transition-colors hover:bg-[#52d8a8]"
-        >
-          Get started now
-          <ArrowRight className="h-4 w-4" />
-        </Link>
+      <div className="relative overflow-hidden rounded-3xl border border-emerald-400/20 bg-black p-8 text-center sm:p-12">
+        {/* Glow blast from bottom */}
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_90%_55%_at_50%_110%,rgba(52,211,153,0.22),transparent_65%)]" />
+        <div className="insider-scanlines pointer-events-none absolute inset-0 opacity-[0.15]" />
+
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/45">
+            <span className="ob-live-dot" />
+            1,000+ members active right now
+          </div>
+
+          <h3 className="mt-5 text-3xl font-black tracking-tight text-white sm:text-4xl">
+            Right now, bettors on Delta are
+            <br className="hidden sm:block" />
+            {' '}watching lines the public hasn&apos;t seen yet.
+          </h3>
+
+          <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-white/58 sm:text-base">
+            Join them in 60 seconds. 3-day free trial on annual — cancel before day 3 and you pay nothing.
+          </p>
+
+          <Link
+            href="/auth/signup"
+            className="mt-7 inline-flex items-center gap-2 rounded-full bg-[#3CCB97] px-7 py-3.5 text-sm font-bold text-black transition-all hover:bg-[#52d8a8] hover:shadow-[0_0_40px_rgba(52,211,153,0.45)]"
+          >
+            Join 1,000+ members — start free
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-white/30">
+            <span>Stripe secure</span>
+            <span className="text-white/15">·</span>
+            <span>Cancel before day 3, pay nothing</span>
+            <span className="text-white/15">·</span>
+            <span>Instant access to all 4 tools</span>
+          </div>
+        </div>
       </div>
     </section>
   )

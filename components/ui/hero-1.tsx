@@ -32,7 +32,7 @@ export function HeroSection({ className }: HeroSectionProps) {
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(72%_80%_at_50%_0%,rgba(60,203,151,0.1),rgba(0,0,0,0.88)_55%,rgba(0,0,0,1)_100%)]" />
 
-      <div className="relative z-10 mx-auto flex w-full flex-col items-center px-6 pb-3 pt-2 text-center sm:pt-3 lg:px-10">
+      <div className="relative z-10 mx-auto flex w-full flex-col items-center px-6 pb-2 pt-2 text-center lg:px-10">
         <motion.a
           {...fadeUp}
           transition={{ ...fadeUp.transition, delay: 0.04 }}
@@ -54,35 +54,35 @@ export function HeroSection({ className }: HeroSectionProps) {
           {...fadeUp}
           transition={{ ...fadeUp.transition, delay: 0.1 }}
           className={cn(
-            "mt-2 max-w-3xl text-balance text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl",
+            "mt-2 max-w-3xl text-balance text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl",
             "[text-shadow:0_0_42px_rgba(60,203,151,0.22)]"
           )}
           style={{ color: "#ffffff" }}
         >
           <SpecialText speed={18} delay={0.05} className="h-auto leading-[1.06] !font-sans !font-semibold">
-            Follow The Money
+            See sharp money before the line moves.
           </SpecialText>
         </motion.h1>
 
         <motion.p
           {...fadeUp}
           transition={{ ...fadeUp.transition, delay: 0.18 }}
-          className="mt-2 max-w-2xl text-balance text-sm tracking-wide text-white/90 sm:text-base md:text-lg"
+          className="mt-1.5 max-w-2xl text-balance text-sm tracking-wide text-white/90"
         >
           <SpecialText speed={12} delay={0.4} className="h-auto leading-relaxed !font-sans !font-normal text-white">
-            Track sharp bettors in real time, and turn insights into long term winning.
+            Live whale alerts, edge-ranked projections, and orderbook pressure: before books adjust.
           </SpecialText>
         </motion.p>
 
         <motion.div
           {...fadeUp}
           transition={{ ...fadeUp.transition, delay: 0.24 }}
-          className="mt-4 flex flex-wrap items-center justify-center gap-3"
+          className="mt-3 flex flex-wrap items-center justify-center gap-3"
         >
           <Button asChild size="lg" className="rounded-full px-7 text-black" style={{ backgroundColor: ACCENT }}>
             <a href="/auth/signup">
               <ShimmerText className="font-semibold text-black" duration={1.2} delay={0.3}>
-                Try 7 days free
+                Try 3 days free
               </ShimmerText>
               <ArrowRightIcon className="ml-2 size-4" />
             </a>
@@ -107,7 +107,7 @@ export function HeroSection({ className }: HeroSectionProps) {
           className="relative mt-2 w-full max-w-5xl overflow-hidden"
         >
           <div className="rounded-t-[18px] border border-white/15 bg-[#020810] p-2 shadow-[0_28px_70px_rgba(0,0,0,0.55)]">
-            <div className="relative aspect-[1860/680] overflow-hidden rounded-[10px] border border-white/10 bg-black">
+            <div className="relative aspect-[1860/520] overflow-hidden rounded-[10px] border border-white/10 bg-black">
               <Image
                 src="/landingpagestuff.png"
                 alt="Delta laptop screen preview"

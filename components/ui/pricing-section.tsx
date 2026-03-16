@@ -417,23 +417,17 @@ export function PricingSection({
                           const savingsPercent = formatSavingsPercent(savings.savedPercent)
                           return (
                             <>
-                              <div className="flex items-baseline gap-2">
+                              <div className="flex items-baseline gap-1.5">
                                 <span className="text-base sm:text-2xl md:text-3xl font-bold">
-                                  {isFree ? "Free" : formatUsd(periodPrice)}
+                                  {isFree ? "Free" : formatUsd(dailyPrice)}
                                 </span>
                                 {!isFree && (
-                                  <span className="text-xs text-slate-200/70">/{billingLabel}</span>
+                                  <span className="text-xs text-slate-200/70">/day</span>
                                 )}
                               </div>
                               {!isFree && (
-                                <div className="mt-1 text-[11px] text-slate-200/70">
-                                  ~ {formatUsd(dailyPrice)}/day
-                                  {weeklyEquivalent != null && (
-                                    <span>
-                                      {" "}
-                                      | {formatUsd(weeklyEquivalent)}/week
-                                    </span>
-                                  )}
+                                <div className="mt-1 text-[11px] text-slate-200/60">
+                                  billed {formatUsd(periodPrice)}/{billingLabel}
                                 </div>
                               )}
                               {!isFree && billingPeriod === "annual" && savings.savedAmount > 0 && (

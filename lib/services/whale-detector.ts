@@ -138,6 +138,13 @@ const POLYMARKET_SPORT_LABELS: Record<string, string> = {
   poker: 'POKER',
   golf: 'GOLF',
   ufc: 'UFC',
+  epl: 'SOCCER',
+  ucl: 'SOCCER',
+  uel: 'SOCCER',
+  lig1: 'SOCCER',
+  laliga: 'SOCCER',
+  seriea: 'SOCCER',
+  bra: 'SOCCER',
 }
 
 const POLYMARKET_TAG_SPORT_LABELS: Record<string, string> = {
@@ -157,6 +164,11 @@ const POLYMARKET_TAG_SPORT_LABELS: Record<string, string> = {
   ucl: 'SOCCER',
   uel: 'SOCCER',
   wta: 'TENNIS',
+  ncaa: 'NCAAB',
+  ncaabasketball: 'NCAAB',
+  collegebasketball: 'NCAAB',
+  collegefootball: 'NCAAF',
+  ncaafootball: 'NCAAF',
 }
 
 const MONTHS: Record<string, string> = {
@@ -464,10 +476,36 @@ const normalizePolymarketTagToken = (value?: string | null) =>
     .toLowerCase()
     .trim()
 
+const resolvePolymarketSportFromSeriesSlugs = (seriesSlugs: string[] = []) => {
+  for (const seriesSlug of seriesSlugs) {
+    const normalized = normalizePolymarketTagToken(seriesSlug)
+    if (!normalized) continue
+
+    if (POLYMARKET_SPORT_LABELS[normalized]) return POLYMARKET_SPORT_LABELS[normalized]
+    if (POLYMARKET_TAG_SPORT_LABELS[normalized]) return POLYMARKET_TAG_SPORT_LABELS[normalized]
+
+    const compact = normalized.replace(/[^a-z0-9]/g, '')
+    if (compact && POLYMARKET_TAG_SPORT_LABELS[compact]) {
+      return POLYMARKET_TAG_SPORT_LABELS[compact]
+    }
+
+    const tokens = normalized.split(/[^a-z0-9]+/g).filter(Boolean)
+    for (const token of tokens) {
+      if (POLYMARKET_SPORT_LABELS[token]) return POLYMARKET_SPORT_LABELS[token]
+      if (POLYMARKET_TAG_SPORT_LABELS[token]) return POLYMARKET_TAG_SPORT_LABELS[token]
+    }
+  }
+  return undefined
+}
+
 const resolvePolymarketSportFromTags = (tags: PolymarketEventTag[] = []) => {
+  let genericSportsTagSeen = false
   for (const tag of tags) {
     const slug = normalizePolymarketTagToken(tag.slug)
-    if (slug && POLYMARKET_SPORT_LABELS[slug]) return POLYMARKET_SPORT_LABELS[slug]
+    if (slug === 'sports') genericSportsTagSeen = true
+    if (slug && POLYMARKET_SPORT_LABELS[slug] && POLYMARKET_SPORT_LABELS[slug] !== 'Sports') {
+      return POLYMARKET_SPORT_LABELS[slug]
+    }
     if (slug && POLYMARKET_TAG_SPORT_LABELS[slug]) return POLYMARKET_TAG_SPORT_LABELS[slug]
 
     const compact = slug.replace(/[^a-z0-9]/g, '')
@@ -476,11 +514,18 @@ const resolvePolymarketSportFromTags = (tags: PolymarketEventTag[] = []) => {
     }
 
     const label = normalizePolymarketTagToken(tag.label)
-    if (label === 'sports') return 'Sports'
-    if (label && POLYMARKET_SPORT_LABELS[label]) return POLYMARKET_SPORT_LABELS[label]
+    if (label === 'sports') genericSportsTagSeen = true
+    if (label && POLYMARKET_SPORT_LABELS[label] && POLYMARKET_SPORT_LABELS[label] !== 'Sports') {
+      return POLYMARKET_SPORT_LABELS[label]
+    }
     if (label && POLYMARKET_TAG_SPORT_LABELS[label]) return POLYMARKET_TAG_SPORT_LABELS[label]
+
+    const labelCompact = label.replace(/[^a-z0-9]/g, '')
+    if (labelCompact && POLYMARKET_TAG_SPORT_LABELS[labelCompact]) {
+      return POLYMARKET_TAG_SPORT_LABELS[labelCompact]
+    }
   }
-  return undefined
+  return genericSportsTagSeen ? 'Sports' : undefined
 }
 
 const polymarketEventCache = new Map<string, { isSports: boolean; sportLabel?: string }>()
@@ -546,8 +591,8 @@ const fetchPolymarketEvent = async (slug: string) => {
 
     const sportLabel =
       resolvePolymarketSportFromTags(tags) ||
-      (event.series?.[0]?.title as string | undefined) ||
-      (seriesSlugs[0] ? seriesSlugs[0].toUpperCase() : undefined)
+      resolvePolymarketSportFromSeriesSlugs(seriesSlugs) ||
+      parsePolymarketSport(slug)
 
     const payload = { isSports, sportLabel }
     polymarketEventCache.set(slug, payload)

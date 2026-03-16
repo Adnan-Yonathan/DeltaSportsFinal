@@ -1,8 +1,7 @@
 "use client"
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { ChevronDown, ChevronUp, Loader2 } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -39,74 +38,6 @@ type WhaleTrade = {
   slug?: string
   outcomeIndex?: number
   side?: string
-}
-
-type BettorStatsSummary = {
-  total_realized_pnl?: number
-  roi_lifetime?: number
-  win_rate?: number
-  settled_markets?: number
-  settled_trades?: number
-  profit_factor?: number
-  max_drawdown?: number
-  risk_adjusted_score?: number
-  avg_bet_size?: number
-  median_bet_size?: number
-  trade_count?: number
-  buy_trade_count?: number
-}
-
-type BettorPosition = {
-  wallet: string
-  slug: string
-  sport: string | null
-  title: string | null
-  outcome: string | null
-  net_shares: number
-  avg_entry_american_odds: number | null
-  stake_usd: number
-  potential_payout_usd: number
-  last_trade_time: string | null
-}
-
-type BettorPositionsPayload = {
-  wallet: string
-  display_name?: string | null
-  summary?: BettorStatsSummary | null
-  sport_summary?: BettorStatsSummary | null
-  positions?: BettorPosition[]
-}
-
-type MarketOrderLevel = {
-  price_cents: number
-  size: number
-  notional: number
-}
-
-type MarketOutcomeOrderbook = {
-  outcome_index: number
-  label: string
-  price_cents: number | null
-  american_odds: number | null
-  orderbook: {
-    bids: MarketOrderLevel[]
-    asks: MarketOrderLevel[]
-  }
-}
-
-type MarketLineHistoryPoint = {
-  timestamp: string | null
-  price_cents: number
-  american_odds: number | null
-}
-
-type PolymarketMarketDetailsPayload = {
-  outcomes: MarketOutcomeOrderbook[]
-  line_movement_history: MarketLineHistoryPoint[]
-  line_movement_summary?: {
-    points: number
-    move_cents: number | null
-  } | null
 }
 
 type DateWindowFilter = "all" | "today" | "24h" | "3d"
@@ -212,42 +143,6 @@ const formatFlowTime = (value: string) => {
 const formatRoiPercent = (value?: number | null) => {
   if (typeof value !== "number" || !Number.isFinite(value)) return "N/A"
   return `${(value * 100).toFixed(1)}%`
-}
-
-const formatSignedCents = (value: number | null | undefined) => {
-  if (!Number.isFinite(value)) return "n/a"
-  const rounded = Math.round(Number(value))
-  return `${rounded > 0 ? "+" : ""}${rounded}c`
-}
-
-const normalizeWallet = (value?: string | null) => {
-  if (!value) return null
-  const trimmed = value.trim().toLowerCase()
-  return trimmed || null
-}
-
-const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value))
-
-const computeBetGrade = ({
-  trade,
-  sportSummary,
-  movementCents,
-}: {
-  trade: WhaleTrade
-  sportSummary?: BettorStatsSummary | null
-  movementCents?: number | null
-}) => {
-  const notionalScore = clamp(trade.notional / 100000)
-  const roiScore = clamp(((sportSummary?.roi_lifetime ?? trade.walletRoiLifetime ?? 0) + 0.05) / 0.3)
-  const sampleScore = clamp((sportSummary?.trade_count ?? 0) / 250)
-  const moveScore = clamp(((movementCents ?? 0) + 18) / 36)
-  const score = notionalScore * 0.35 + roiScore * 0.35 + sampleScore * 0.1 + moveScore * 0.2
-
-  if (score >= 0.9) return "A"
-  if (score >= 0.78) return "B"
-  if (score >= 0.64) return "C"
-  if (score >= 0.5) return "D"
-  return "F"
 }
 
 const resolveTradeOddsNumber = (trade: WhaleTrade) => {
@@ -519,27 +414,6 @@ export default function SharpDetectorClient() {
   const [dateFilter, setDateFilter] = useState<DateWindowFilter>("today")
   const [searchQuery, setSearchQuery] = useState("")
   const [renderLimit, setRenderLimit] = useState(INITIAL_RENDER_LIMIT)
-  const [expandedTradeKeys, setExpandedTradeKeys] = useState<string[]>([])
-  const [expandedBettorByWallet, setExpandedBettorByWallet] = useState<
-    Record<
-      string,
-      {
-        loading: boolean
-        error: string | null
-        payload: BettorPositionsPayload | null
-      }
-    >
-  >({})
-  const [expandedMarketByTrade, setExpandedMarketByTrade] = useState<
-    Record<
-      string,
-      {
-        loading: boolean
-        error: string | null
-        payload: PolymarketMarketDetailsPayload | null
-      }
-    >
-  >({})
 
   const isSignedIn = Boolean(user)
   const hasAccess = Boolean(user && membership?.isActive)
@@ -640,119 +514,6 @@ export default function SharpDetectorClient() {
       setIsRestingRefreshing(false)
     }
   }, [hasAccess])
-
-  const loadExpandedBettor = useCallback(async (wallet: string) => {
-    if (!wallet) return
-    setExpandedBettorByWallet((prev) => ({
-      ...prev,
-      [wallet]: {
-        loading: true,
-        error: null,
-        payload: prev[wallet]?.payload ?? null,
-      },
-    }))
-
-    try {
-      const res = await fetch(
-        `/api/polymarket/bettors/${encodeURIComponent(wallet)}/positions?limit=120`,
-        { cache: "no-store" }
-      )
-      if (!res.ok) {
-        throw new Error(`Bettor details request failed (${res.status})`)
-      }
-      const payload = (await res.json()) as BettorPositionsPayload
-      setExpandedBettorByWallet((prev) => ({
-        ...prev,
-        [wallet]: {
-          loading: false,
-          error: null,
-          payload,
-        },
-      }))
-    } catch (error) {
-      setExpandedBettorByWallet((prev) => ({
-        ...prev,
-        [wallet]: {
-          loading: false,
-          error: error instanceof Error ? error.message : "Failed to load bettor details",
-          payload: prev[wallet]?.payload ?? null,
-        },
-      }))
-    }
-  }, [])
-
-  const loadExpandedMarket = useCallback(
-    async (tradeKey: string, slug: string, outcomeIndex: number | undefined) => {
-      if (!tradeKey || !slug) return
-      setExpandedMarketByTrade((prev) => ({
-        ...prev,
-        [tradeKey]: {
-          loading: true,
-          error: null,
-          payload: prev[tradeKey]?.payload ?? null,
-        },
-      }))
-
-      try {
-        const params = new URLSearchParams()
-        params.set("outcomeIndex", String(Number.isFinite(outcomeIndex) ? outcomeIndex : 0))
-        const res = await fetch(
-          `/api/polymarket/markets/${encodeURIComponent(slug)}/details?${params.toString()}`,
-          { cache: "no-store" }
-        )
-        if (!res.ok) {
-          throw new Error(`Market details request failed (${res.status})`)
-        }
-        const payload = (await res.json()) as PolymarketMarketDetailsPayload
-        setExpandedMarketByTrade((prev) => ({
-          ...prev,
-          [tradeKey]: {
-            loading: false,
-            error: null,
-            payload,
-          },
-        }))
-      } catch (error) {
-        setExpandedMarketByTrade((prev) => ({
-          ...prev,
-          [tradeKey]: {
-            loading: false,
-            error: error instanceof Error ? error.message : "Failed to load market details",
-            payload: prev[tradeKey]?.payload ?? null,
-          },
-        }))
-      }
-    },
-    []
-  )
-
-  const toggleExpandedTrade = useCallback(
-    (trade: WhaleTrade) => {
-      const tradeKey = getTradeKey(trade)
-      const isExpanded = expandedTradeKeys.includes(tradeKey)
-      if (isExpanded) {
-        setExpandedTradeKeys((prev) => prev.filter((key) => key !== tradeKey))
-        return
-      }
-      setExpandedTradeKeys((prev) => [...prev, tradeKey])
-
-      if (trade.source !== "polymarket") return
-      const wallet = normalizeWallet(trade.proxyWallet)
-      if (wallet && !expandedBettorByWallet[wallet]) {
-        void loadExpandedBettor(wallet)
-      }
-      if (trade.slug && !expandedMarketByTrade[tradeKey]) {
-        void loadExpandedMarket(tradeKey, trade.slug, trade.outcomeIndex)
-      }
-    },
-    [
-      expandedBettorByWallet,
-      expandedMarketByTrade,
-      expandedTradeKeys,
-      loadExpandedBettor,
-      loadExpandedMarket,
-    ]
-  )
 
   useEffect(() => {
     let mounted = true
@@ -1190,19 +951,6 @@ export default function SharpDetectorClient() {
               <div className="max-h-[68vh] divide-y divide-white/5 overflow-y-auto sm:hidden">
                 {displayedTrades.map((trade) => {
                   const hotCount = hotCountByGame.get(extractGameKey(trade)) ?? 0
-                  const tradeKey = getTradeKey(trade)
-                  const isExpanded = expandedTradeKeys.includes(tradeKey)
-                  const wallet = normalizeWallet(trade.proxyWallet)
-                  const bettorDetails = wallet ? expandedBettorByWallet[wallet] : null
-                  const marketDetails = expandedMarketByTrade[tradeKey]
-                  const sportSummary = bettorDetails?.payload?.sport_summary ?? null
-                  const movementCents = marketDetails?.payload?.line_movement_summary?.move_cents ?? null
-                  const grade = computeBetGrade({ trade, sportSummary, movementCents })
-                  const selectedOutcome =
-                    marketDetails?.payload?.outcomes?.find(
-                      (row) => row.outcome_index === (trade.outcomeIndex ?? 0)
-                    ) ?? null
-                  const recentHistory = marketDetails?.payload?.line_movement_history?.slice(-12) ?? []
                   return (
                     <article
                       key={trade.id}
@@ -1271,80 +1019,6 @@ export default function SharpDetectorClient() {
                           matchupLabel={resolveGameLabel(trade.marketTitle)}
                         />
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => toggleExpandedTrade(trade)}
-                        className={cn(
-                          "inline-flex w-full items-center justify-center gap-2 rounded-md border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em]",
-                          isExpanded
-                            ? "border-emerald-400/70 bg-emerald-500/15 text-emerald-100"
-                            : "border-emerald-500/40 bg-black/30 text-emerald-200"
-                        )}
-                      >
-                        {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                        {isExpanded ? "Hide Details" : "Expand Details"}
-                      </button>
-
-                      {isExpanded && (
-                        <div className="space-y-2 rounded-lg border border-emerald-500/25 bg-black/35 p-2">
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <div className="rounded border border-emerald-500/30 bg-emerald-500/10 p-1.5">
-                              <div className="text-[9px] uppercase tracking-[0.14em] text-emerald-200/80">Grade</div>
-                              <div className="mt-0.5 text-sm font-semibold text-emerald-100">{grade}</div>
-                            </div>
-                            <div className="rounded border border-white/10 bg-black/35 p-1.5">
-                              <div className="text-[9px] uppercase tracking-[0.14em] text-white/45">Move</div>
-                              <div className="mt-0.5 text-sm text-white">{formatSignedCents(movementCents)}</div>
-                            </div>
-                          </div>
-
-                          <div className="rounded border border-white/10 bg-black/30 p-1.5 text-[10px] text-white/70">
-                            {trade.source !== "polymarket" ? (
-                              <span>Detailed bettor/orderbook history currently available for Polymarket trades.</span>
-                            ) : bettorDetails?.loading || marketDetails?.loading ? (
-                              <span className="inline-flex items-center gap-1.5">
-                                <Loader2 className="h-3 w-3 animate-spin text-emerald-300" />
-                                Loading details...
-                              </span>
-                            ) : (
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <span>All-time ROI</span>
-                                  <span>{formatRoiPercent(sportSummary?.roi_lifetime ?? trade.walletRoiLifetime)}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span>Profit Factor</span>
-                                  <span>{typeof sportSummary?.profit_factor === "number" ? sportSummary.profit_factor.toFixed(2) : "n/a"}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span>Tracked points</span>
-                                  <span>{marketDetails?.payload?.line_movement_summary?.points ?? 0}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span>Orderbook (selected)</span>
-                                  <span>
-                                    B {selectedOutcome?.orderbook?.bids?.length ?? 0} / A {selectedOutcome?.orderbook?.asks?.length ?? 0}
-                                  </span>
-                                </div>
-                                {recentHistory.length > 0 && (
-                                  <div className="rounded border border-white/10 bg-black/35 p-1">
-                                    <div className="mb-1 text-[9px] uppercase tracking-[0.14em] text-white/45">
-                                      Line History
-                                    </div>
-                                    {recentHistory.slice(-4).map((point, idx) => (
-                                      <div key={`${point.timestamp ?? idx}:${point.price_cents}`} className="flex items-center justify-between text-[10px] text-white/65">
-                                        <span>{point.timestamp ? formatShortDateTime(point.timestamp) : "n/a"}</span>
-                                        <span>{point.price_cents}c</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
                     </article>
                   )
                 })}
@@ -1352,7 +1026,7 @@ export default function SharpDetectorClient() {
 
               <div className="hidden sm:block">
                 <div className="max-h-[72vh] overflow-auto">
-                  <Table className="min-w-[1400px] text-[13px] text-white/75">
+                  <Table className="min-w-[1320px] text-[13px] text-white/75">
                     <TableHeader className="bg-black/70">
                       <TableRow className="text-[10px] uppercase tracking-[0.18em] text-white/45">
                         <TableHead className="w-[120px]">
@@ -1408,226 +1082,82 @@ export default function SharpDetectorClient() {
                         <TableHead className="w-[170px]">Detected</TableHead>
                         <TableHead className="w-[110px]">Hot Game</TableHead>
                         <TableHead className="w-[120px] text-right">Share</TableHead>
-                        <TableHead className="w-[140px] text-right">Details</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody className="divide-y divide-white/5">
                       {displayedTrades.map((trade) => {
                         const hotCount = hotCountByGame.get(extractGameKey(trade)) ?? 0
-                        const tradeKey = getTradeKey(trade)
-                        const isExpanded = expandedTradeKeys.includes(tradeKey)
-                        const wallet = normalizeWallet(trade.proxyWallet)
-                        const bettorDetails = wallet ? expandedBettorByWallet[wallet] : null
-                        const marketDetails = expandedMarketByTrade[tradeKey]
-                        const sportSummary = bettorDetails?.payload?.sport_summary ?? null
-                        const movementCents = marketDetails?.payload?.line_movement_summary?.move_cents ?? null
-                        const grade = computeBetGrade({ trade, sportSummary, movementCents })
-                        const selectedOutcome =
-                          marketDetails?.payload?.outcomes?.find(
-                            (row) => row.outcome_index === (trade.outcomeIndex ?? 0)
-                          ) ?? null
-                        const recentHistory = marketDetails?.payload?.line_movement_history?.slice(-8) ?? []
                         return (
-                          <Fragment key={trade.id}>
-                            <TableRow className="border-white/5 transition-colors hover:bg-white/[0.03]">
-                              <TableCell className="align-top">
-                                <div className="font-semibold text-emerald-200">
-                                  {formatCurrency(trade.notional)}
-                                </div>
-                              </TableCell>
-                              <TableCell className="align-top">
-                                <div
-                                  className={cn(
-                                    "font-semibold",
-                                    Number.isFinite(trade.walletRoiLifetime)
-                                      ? "text-emerald-200"
-                                      : "text-white/35"
-                                  )}
-                                >
-                                  {formatRoiPercent(trade.walletRoiLifetime)}
-                                </div>
-                              </TableCell>
-                              <TableCell className="align-top">
-                                <div className="text-sm font-semibold text-white">
-                                  {resolveGameLabel(trade.marketTitle)}
-                                </div>
-                                <div className="mt-1 text-[11px] text-white/45">{trade.marketTitle}</div>
-                              </TableCell>
-                              <TableCell className="align-top text-white/85">{trade.outcome || "n/a"}</TableCell>
-                              <TableCell className="align-top">
-                                <span
-                                  className={cn(
-                                    "rounded-md border px-2 py-1 text-xs font-semibold",
-                                    trade.source === "kalshi"
-                                      ? "border-cyan-400/40 bg-cyan-500/10 text-cyan-200"
-                                      : "border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200"
-                                  )}
-                                >
-                                  {trade.source === "kalshi" ? "Kalshi" : "Polymarket"}
-                                </span>
-                              </TableCell>
-                              <TableCell className="align-top">{normalizeSportLabel(trade.sport) || "SPORTS"}</TableCell>
-                              <TableCell className="align-top">{resolvePhase(trade)}</TableCell>
-                              <TableCell className="align-top">{resolveOddsLabel(trade)}</TableCell>
-                              <TableCell className="align-top">{formatShortDateTime(trade.timestamp)}</TableCell>
-                              <TableCell className="align-top">
-                                {hotCount >= 2 ? (
-                                  <span className="rounded-md border border-emerald-400/40 bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-200">
-                                    {hotCount} bets
-                                  </span>
-                                ) : (
-                                  <span className="text-white/35">--</span>
+                          <TableRow key={trade.id} className="border-white/5 transition-colors hover:bg-white/[0.03]">
+                            <TableCell className="align-top">
+                              <div className="font-semibold text-emerald-200">
+                                {formatCurrency(trade.notional)}
+                              </div>
+                            </TableCell>
+                            <TableCell className="align-top">
+                              <div
+                                className={cn(
+                                  "font-semibold",
+                                  Number.isFinite(trade.walletRoiLifetime)
+                                    ? "text-emerald-200"
+                                    : "text-white/35"
                                 )}
-                              </TableCell>
-                              <TableCell className="align-top text-right">
-                                <ShareTradeButton
-                                  trade={{
-                                    id: trade.id,
-                                    marketTitle: trade.marketTitle,
-                                    outcome: trade.outcome,
-                                    notional: trade.notional,
-                                    source: trade.source,
-                                    sport: trade.sport,
-                                    eventDate: trade.eventDate,
-                                    timestamp: trade.timestamp,
-                                    priceCents: trade.priceCents,
-                                    americanOdds: trade.americanOdds,
-                                    roiLifetime: trade.walletRoiLifetime,
-                                    recentFlowBars: recentFlowBarsByGame.get(extractGameKey(trade)) ?? [],
-                                  }}
-                                  matchupLabel={resolveGameLabel(trade.marketTitle)}
-                                />
-                              </TableCell>
-                              <TableCell className="align-top text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleExpandedTrade(trade)}
-                                  className={cn(
-                                    "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]",
-                                    isExpanded
-                                      ? "border-emerald-400/70 bg-emerald-500/15 text-emerald-100"
-                                      : "border-emerald-500/40 bg-black/30 text-emerald-200"
-                                  )}
-                                >
-                                  {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                                  {isExpanded ? "Hide" : "Expand"}
-                                </button>
-                              </TableCell>
-                            </TableRow>
-                            {isExpanded && (
-                              <TableRow className="border-white/5 bg-black/35">
-                                <TableCell colSpan={12} className="py-3">
-                                  <div className="grid gap-3 lg:grid-cols-3">
-                                    <div className="rounded-lg border border-emerald-500/25 bg-black/35 p-3 text-xs text-white/75">
-                                      <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-200/80">Bet Grade</p>
-                                      <p className="mt-1 text-2xl font-semibold text-emerald-100">{grade}</p>
-                                      <p className="mt-2 text-white/60">
-                                        Move {formatSignedCents(movementCents)} | ROI{" "}
-                                        {formatRoiPercent(sportSummary?.roi_lifetime ?? trade.walletRoiLifetime)}
-                                      </p>
-                                    </div>
-                                    <div className="rounded-lg border border-white/10 bg-black/35 p-3 text-xs text-white/75">
-                                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">Bettor All-Time</p>
-                                      {trade.source !== "polymarket" ? (
-                                        <p className="mt-2 text-white/55">
-                                          Detailed bettor stats are available for Polymarket trades.
-                                        </p>
-                                      ) : bettorDetails?.loading ? (
-                                        <p className="mt-2 inline-flex items-center gap-2 text-white/60">
-                                          <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-300" />
-                                          Loading bettor stats...
-                                        </p>
-                                      ) : (
-                                        <div className="mt-2 space-y-1.5">
-                                          <div className="flex items-center justify-between">
-                                            <span>P/L</span>
-                                            <span>{formatCurrency(sportSummary?.total_realized_pnl ?? 0)}</span>
-                                          </div>
-                                          <div className="flex items-center justify-between">
-                                            <span>Win Rate</span>
-                                            <span>{formatRoiPercent(sportSummary?.win_rate)}</span>
-                                          </div>
-                                          <div className="flex items-center justify-between">
-                                            <span>Profit Factor</span>
-                                            <span>
-                                              {typeof sportSummary?.profit_factor === "number"
-                                                ? sportSummary.profit_factor.toFixed(2)
-                                                : "n/a"}
-                                            </span>
-                                          </div>
-                                          <div className="flex items-center justify-between">
-                                            <span>Trades</span>
-                                            <span>{sportSummary?.trade_count ?? "n/a"}</span>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="rounded-lg border border-white/10 bg-black/35 p-3 text-xs text-white/75">
-                                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">Orderbook + Line History</p>
-                                      {trade.source !== "polymarket" ? (
-                                        <p className="mt-2 text-white/55">
-                                          Full orderbook/line history is available for Polymarket markets.
-                                        </p>
-                                      ) : marketDetails?.loading ? (
-                                        <p className="mt-2 inline-flex items-center gap-2 text-white/60">
-                                          <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-300" />
-                                          Loading market details...
-                                        </p>
-                                      ) : (
-                                        <div className="mt-2 space-y-1.5">
-                                          <div className="flex items-center justify-between">
-                                            <span>History Points</span>
-                                            <span>{marketDetails?.payload?.line_movement_summary?.points ?? 0}</span>
-                                          </div>
-                                          <div className="rounded border border-white/10 bg-black/40 p-1.5">
-                                            <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-white/45">
-                                              <span>Orderbook</span>
-                                              <span>
-                                                B {selectedOutcome?.orderbook?.bids?.length ?? 0} / A {selectedOutcome?.orderbook?.asks?.length ?? 0}
-                                              </span>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-2 text-[11px]">
-                                              <div className="max-h-24 overflow-auto rounded border border-white/10 bg-black/35 p-1">
-                                                {(selectedOutcome?.orderbook?.bids ?? []).length === 0 && (
-                                                  <div className="text-white/45">No bids</div>
-                                                )}
-                                                {(selectedOutcome?.orderbook?.bids ?? []).map((level, idx) => (
-                                                  <div key={`bid:${idx}:${level.price_cents}`} className="flex items-center justify-between text-white/70">
-                                                    <span>{level.price_cents}c</span>
-                                                    <span>{formatCurrency(level.notional)}</span>
-                                                  </div>
-                                                ))}
-                                              </div>
-                                              <div className="max-h-24 overflow-auto rounded border border-white/10 bg-black/35 p-1">
-                                                {(selectedOutcome?.orderbook?.asks ?? []).length === 0 && (
-                                                  <div className="text-white/45">No asks</div>
-                                                )}
-                                                {(selectedOutcome?.orderbook?.asks ?? []).map((level, idx) => (
-                                                  <div key={`ask:${idx}:${level.price_cents}`} className="flex items-center justify-between text-white/70">
-                                                    <span>{level.price_cents}c</span>
-                                                    <span>{formatCurrency(level.notional)}</span>
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          </div>
-                                          {recentHistory.slice(-4).map((point, idx) => (
-                                            <div
-                                              key={`${point.timestamp ?? idx}:${point.price_cents}`}
-                                              className="flex items-center justify-between text-white/65"
-                                            >
-                                              <span>{point.timestamp ? formatShortDateTime(point.timestamp) : "n/a"}</span>
-                                              <span>{point.price_cents}c</span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </Fragment>
+                              >
+                                {formatRoiPercent(trade.walletRoiLifetime)}
+                              </div>
+                            </TableCell>
+                            <TableCell className="align-top">
+                              <div className="text-sm font-semibold text-white">
+                                {resolveGameLabel(trade.marketTitle)}
+                              </div>
+                              <div className="mt-1 text-[11px] text-white/45">{trade.marketTitle}</div>
+                            </TableCell>
+                            <TableCell className="align-top text-white/85">{trade.outcome || "n/a"}</TableCell>
+                            <TableCell className="align-top">
+                              <span
+                                className={cn(
+                                  "rounded-md border px-2 py-1 text-xs font-semibold",
+                                  trade.source === "kalshi"
+                                    ? "border-cyan-400/40 bg-cyan-500/10 text-cyan-200"
+                                    : "border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200"
+                                )}
+                              >
+                                {trade.source === "kalshi" ? "Kalshi" : "Polymarket"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="align-top">{normalizeSportLabel(trade.sport) || "SPORTS"}</TableCell>
+                            <TableCell className="align-top">{resolvePhase(trade)}</TableCell>
+                            <TableCell className="align-top">{resolveOddsLabel(trade)}</TableCell>
+                            <TableCell className="align-top">{formatShortDateTime(trade.timestamp)}</TableCell>
+                            <TableCell className="align-top">
+                              {hotCount >= 2 ? (
+                                <span className="rounded-md border border-emerald-400/40 bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-200">
+                                  {hotCount} bets
+                                </span>
+                              ) : (
+                                <span className="text-white/35">--</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="align-top text-right">
+                              <ShareTradeButton
+                                trade={{
+                                  id: trade.id,
+                                  marketTitle: trade.marketTitle,
+                                  outcome: trade.outcome,
+                                  notional: trade.notional,
+                                  source: trade.source,
+                                  sport: trade.sport,
+                                  eventDate: trade.eventDate,
+                                  timestamp: trade.timestamp,
+                                  priceCents: trade.priceCents,
+                                  americanOdds: trade.americanOdds,
+                                  roiLifetime: trade.walletRoiLifetime,
+                                  recentFlowBars: recentFlowBarsByGame.get(extractGameKey(trade)) ?? [],
+                                }}
+                                matchupLabel={resolveGameLabel(trade.marketTitle)}
+                              />
+                            </TableCell>
+                          </TableRow>
                         )
                       })}
                     </TableBody>

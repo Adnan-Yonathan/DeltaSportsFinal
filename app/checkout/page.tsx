@@ -65,6 +65,8 @@ const MOBILE_MEMBERSHIP_TOOLS = [
   { key: 'research', label: 'Research Mode' },
 ] as const
 
+const formatDailyPrice = (value: number) => `$${value.toFixed(2)}/day`
+
 export default function CheckoutPage() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
@@ -246,11 +248,15 @@ function MobileCheckoutLayout({
               Get access to the sharp money
             </h1>
             <p className="mt-3 text-lg font-medium text-white/82">
-              Become an insider for 7 days free.
+              {selectedPlan?.billing === 'annual'
+                ? 'Become an insider with a 3-day free trial.'
+                : 'Become an insider today.'}
             </p>
             {selectedPlan ? (
               <p className="mt-1 text-sm text-white/55">
-                Then just ${selectedPlan.price}/{selectedPlan.period}.
+                {selectedPlan.billing === 'annual'
+                  ? `Then just ${formatDailyPrice(selectedPlan.daily)}, billed annually.`
+                  : `Just ${formatDailyPrice(selectedPlan.daily)}.`}
               </p>
             ) : null}
           </div>
@@ -421,9 +427,13 @@ function DesktopCheckoutLayout({
     <div className="hidden lg:block">
       <div className="mx-auto max-w-6xl px-6 py-12">
         <div className="mb-10 text-center">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Start your 7-day free trial</h1>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Get access to the sharp money</h1>
           <p className="mt-3 text-lg text-white/60">
-            See where the sharp money is betting. Cancel anytime.
+            {selectedPlan
+              ? selectedPlan.billing === 'annual'
+                ? `Annual plans include a 3-day free trial, then ${formatDailyPrice(selectedPlan.daily)} billed annually.`
+                : `Plans start immediately at ${formatDailyPrice(selectedPlan.daily)}.`
+              : 'Annual plans include a 3-day free trial.'}
           </p>
         </div>
 
@@ -522,15 +532,15 @@ function DesktopCheckoutLayout({
             <div className="space-y-3 text-sm text-white/50">
               <div className="flex items-center gap-2">
                 <CheckIcon className="h-4 w-4 text-emerald-400" />
-                <span>7-day free trial, no charge today</span>
+                <span>3-day free trial on annual plans only</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckIcon className="h-4 w-4 text-emerald-400" />
+                <span>Weekly and monthly plans start immediately</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckIcon className="h-4 w-4 text-emerald-400" />
                 <span>Cancel anytime in 2 clicks</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckIcon className="h-4 w-4 text-emerald-400" />
-                <span>We&apos;ll remind you before billing</span>
               </div>
             </div>
           </div>

@@ -1870,6 +1870,29 @@ export default function SharpDetectorPanel({
                   </span>
                 </div>
 
+                <button
+                  type="button"
+                  onClick={() => toggleExpandedTrade(trade)}
+                  className={cn(
+                    'mb-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] transition',
+                    expandedTradeIds.includes(trade.id)
+                      ? 'border-emerald-400/70 bg-emerald-500/15 text-emerald-100'
+                      : 'border-emerald-500/40 bg-black/30 text-emerald-200 hover:border-emerald-300'
+                  )}
+                >
+                  {expandedTradeIds.includes(trade.id) ? (
+                    <>
+                      <ChevronUp className="h-3.5 w-3.5" />
+                      Hide Details
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-3.5 w-3.5" />
+                      Expand Details
+                    </>
+                  )}
+                </button>
+
                 <div className="grid gap-2 rounded-xl border border-white/10 bg-black/30 p-3 text-[11px] text-white/70 sm:grid-cols-3">
                   <div>
                     <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Bet Size</div>
@@ -1927,23 +1950,6 @@ export default function SharpDetectorPanel({
                         className="h-4 w-auto object-contain"
                       />
                     </a>
-                    <button
-                      type="button"
-                      onClick={() => toggleExpandedTrade(trade)}
-                      className="rounded-full border border-emerald-500/30 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-200 hover:border-emerald-300"
-                    >
-                      {expandedTradeIds.includes(trade.id) ? (
-                        <span className="inline-flex items-center gap-1">
-                          <ChevronUp className="h-3 w-3" />
-                          Less
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1">
-                          <ChevronDown className="h-3 w-3" />
-                          Expand
-                        </span>
-                      )}
-                    </button>
                     <button
                       type="button"
                       onClick={() => {

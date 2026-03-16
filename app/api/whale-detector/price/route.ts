@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server'
+import { KALSHI_BASE_CANDIDATES, withKalshiBase } from '@/lib/api/kalshi-base'
 
-const KALSHI_BASE = 'https://api.elections.kalshi.com/trade-api/v2'
 const POLYMARKET_GAMMA = 'https://gamma-api.polymarket.com'
 
 type KalshiMarketResponse = {
   market?: {
     yes_bid?: number
     yes_ask?: number
+    yes_bid_dollars?: string
+    yes_ask_dollars?: string
     no_bid?: number
     no_ask?: number
+    no_bid_dollars?: string
+    no_ask_dollars?: string
     last_price?: number
+    last_price_dollars?: string
   }
 }
 
@@ -25,17 +30,42 @@ const resolveKalshiSidePrice = (
 ) => {
   if (!market) return null
   const isYes = side === 'yes'
-  const bid = isYes ? market.yes_bid : market.no_bid
-  const ask = isYes ? market.yes_ask : market.no_ask
-  if (Number.isFinite(bid) && Number.isFinite(ask)) {
-    return Math.round(((bid as number) + (ask as number)) / 2)
+  const bid = parseNumber(isYes ? market.yes_bid : market.no_bid)
+  const ask = parseNumber(isYes ? market.yes_ask : market.no_ask)
+  const bidDollars = parseNumber(isYes ? market.yes_bid_dollars : market.no_bid_dollars)
+  const askDollars = parseNumber(isYes ? market.yes_ask_dollars : market.no_ask_dollars)
+  if (bid != null && ask != null) {
+    return Math.round((bid + ask) / 2)
   }
-  if (Number.isFinite(bid)) return Math.round(bid as number)
-  if (Number.isFinite(ask)) return Math.round(ask as number)
-  const last = parseNumber(market.last_price)
+  if (bid != null) return Math.round(bid)
+  if (ask != null) return Math.round(ask)
+  if (bidDollars != null && askDollars != null) {
+    return Math.round((bidDollars + askDollars) * 50)
+  }
+  if (bidDollars != null) return Math.round(bidDollars * 100)
+  if (askDollars != null) return Math.round(askDollars * 100)
+  const last = parseNumber(market.last_price_dollars ?? market.last_price)
   if (last == null) return null
+  if (last <= 1) {
+    const yesPrice = Math.round(last * 100)
+    return isYes ? yesPrice : 100 - yesPrice
+  }
   if (isYes) return Math.round(last)
   return Math.round(100 - last)
+}
+
+const fetchKalshiMarket = async (ticker: string) => {
+  for (const base of KALSHI_BASE_CANDIDATES) {
+    try {
+      const res = await fetch(withKalshiBase(base, `/markets/${ticker}`), {
+        cache: 'no-store',
+      })
+      if (res.ok) {
+        return (await res.json()) as KalshiMarketResponse
+      }
+    } catch {}
+  }
+  return null
 }
 
 const resolvePolymarketOutcomePrice = async (
@@ -74,13 +104,10 @@ export async function GET(request: Request) {
     if (!ticker) {
       return NextResponse.json({ error: 'Missing ticker' }, { status: 400 })
     }
-    const res = await fetch(`${KALSHI_BASE}/markets/${ticker}`, {
-      cache: 'no-store',
-    })
-    if (!res.ok) {
+    const data = await fetchKalshiMarket(ticker)
+    if (!data) {
       return NextResponse.json({ error: 'Market fetch failed' }, { status: 502 })
     }
-    const data = (await res.json()) as KalshiMarketResponse
     const priceCents = resolveKalshiSidePrice(data.market, side)
     return NextResponse.json({ priceCents })
   }

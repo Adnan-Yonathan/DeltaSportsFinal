@@ -4,11 +4,12 @@ import { fetchSbdGamePropsList, resolveSbdLeague } from '@/lib/api/sbd'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import { TEAMS_REGISTRY } from '@/lib/data/teams-registry'
 import { buildFinalPropOrderbookItems } from '@/lib/services/prop-orderbooks-selection'
+import { KALSHI_BASE_CANDIDATES, withKalshiBase } from '@/lib/api/kalshi-base'
 import { oddsToImpliedProbability, probabilityToAmericanOdds } from '@/lib/utils/statistics'
 import { resolveOverUnderSide } from '@/lib/utils/props'
 import type { Bookmaker, OddsGame } from '@/lib/types/odds'
 
-const KALSHI_BASE = 'https://api.elections.kalshi.com/trade-api/v2'
+const KALSHI_BASE = KALSHI_BASE_CANDIDATES[0] ?? 'https://api.elections.kalshi.com/trade-api/v2'
 const POLYMARKET_BASE = 'https://gamma-api.polymarket.com'
 const POLYMARKET_CLOB = 'https://clob.polymarket.com'
 const POLYMARKET_GAMES_TAG_ID = '100639'
@@ -446,21 +447,35 @@ const sleep = (ms: number) =>
   })
 
 const fetchKalshiJson = async <T,>(url: string): Promise<T | null> => {
-  for (let attempt = 0; attempt <= KALSHI_RETRY_ATTEMPTS; attempt += 1) {
-    const res = await fetch(url, { cache: 'no-store' })
-    if (res.ok) {
-      try {
-        return (await res.json()) as T
-      } catch {
-        return null
-      }
-    }
+  const candidateUrls = KALSHI_BASE_CANDIDATES.map((base) => withKalshiBase(base, url))
 
-    const canRetry =
-      (res.status === 429 || res.status >= 500) && attempt < KALSHI_RETRY_ATTEMPTS
-    if (!canRetry) return null
-    const waitMs = KALSHI_RETRY_BASE_DELAY_MS * (attempt + 1)
-    await sleep(waitMs)
+  for (const candidateUrl of candidateUrls) {
+    for (let attempt = 0; attempt <= KALSHI_RETRY_ATTEMPTS; attempt += 1) {
+      let res: Response
+      try {
+        res = await fetch(candidateUrl, { cache: 'no-store' })
+      } catch {
+        if (attempt < KALSHI_RETRY_ATTEMPTS) {
+          await sleep(KALSHI_RETRY_BASE_DELAY_MS * (attempt + 1))
+          continue
+        }
+        break
+      }
+
+      if (res.ok) {
+        try {
+          return (await res.json()) as T
+        } catch {
+          return null
+        }
+      }
+
+      const canRetry =
+        (res.status === 429 || res.status >= 500) && attempt < KALSHI_RETRY_ATTEMPTS
+      if (!canRetry) break
+      const waitMs = KALSHI_RETRY_BASE_DELAY_MS * (attempt + 1)
+      await sleep(waitMs)
+    }
   }
   return null
 }

@@ -1,10 +1,11 @@
 import { decimalToAmerican } from '@/lib/utils/odds'
 import { oddsToImpliedProbability, probabilityToAmericanOdds } from '@/lib/utils/statistics'
 import { fetchOdds } from '@/lib/api/odds-api'
+import { KALSHI_BASE_CANDIDATES, withKalshiBase } from '@/lib/api/kalshi-base'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import type { Bookmaker, OddsGame, OddsOutcome } from '@/lib/types/odds'
 
-const KALSHI_BASE = 'https://api.elections.kalshi.com/trade-api/v2'
+const KALSHI_BASE = KALSHI_BASE_CANDIDATES[0] ?? 'https://api.elections.kalshi.com/trade-api/v2'
 const POLYMARKET_TRADES = 'https://data-api.polymarket.com/trades'
 
 export const DEFAULT_LIMIT = 50
@@ -392,6 +393,19 @@ const parseNumber = (value: unknown) => {
   return parsed
 }
 
+const fetchKalshiWithFallback = async (pathOrUrl: string, init?: RequestInit) => {
+  for (const base of KALSHI_BASE_CANDIDATES) {
+    const target = withKalshiBase(base, pathOrUrl)
+    try {
+      const res = await fetch(target, init)
+      if (res.ok) return res
+    } catch (error) {
+      console.warn(`[whale-detector] Kalshi request failed via ${base}:`, error)
+    }
+  }
+  return null
+}
+
 const normalizePriceCents = (value: number) => {
   if (!Number.isFinite(value)) return null
   if (value <= 1) return Math.round(value * 100)
@@ -617,10 +631,10 @@ const fetchKalshiMarketDetails = async (
   const cached = cache.get(ticker)
   if (cached) return cached
 
-  const res = await fetch(`${KALSHI_BASE}/markets/${ticker}`, {
+  const res = await fetchKalshiWithFallback(`/markets/${ticker}`, {
     cache: 'no-store',
   })
-  if (!res.ok) {
+  if (!res || !res.ok) {
     return { title: ticker, yes: 'Yes', no: 'No' }
   }
   const data = (await res.json()) as KalshiMarketResponse
@@ -667,10 +681,10 @@ const resolveKalshiSidePrice = (
 }
 
 const fetchKalshiPriceCents = async (ticker: string, side: string) => {
-  const res = await fetch(`${KALSHI_BASE}/markets/${ticker}`, {
+  const res = await fetchKalshiWithFallback(`/markets/${ticker}`, {
     cache: 'no-store',
   })
-  if (!res.ok) return null
+  if (!res || !res.ok) return null
   const data = (await res.json()) as KalshiMarketResponse
   return resolveKalshiSidePrice(data.market, side)
 }
@@ -727,8 +741,8 @@ const fetchKalshiTrades = async (
     url.searchParams.set('min_ts', since)
   }
 
-  const res = await fetch(url.toString(), { cache: 'no-store' })
-  if (!res.ok) return [] as WhaleTrade[]
+  const res = await fetchKalshiWithFallback(url.toString(), { cache: 'no-store' })
+  if (!res || !res.ok) return [] as WhaleTrade[]
   const data = (await res.json()) as KalshiTradesResponse
   const trades = Array.isArray(data.trades) ? data.trades : []
   const marketCache = new Map<string, { title: string; yes: string; no: string }>()
@@ -1379,8 +1393,8 @@ const resolveEnhancedRlmScore = (opts: {
 const fetchKalshiMarketSnapshot = async (
   ticker: string
 ): Promise<KalshiMarketSnapshot | null> => {
-  const res = await fetch(`${KALSHI_BASE}/markets/${ticker}`, { cache: 'no-store' })
-  if (!res.ok) return null
+  const res = await fetchKalshiWithFallback(`/markets/${ticker}`, { cache: 'no-store' })
+  if (!res || !res.ok) return null
   const data = (await res.json()) as KalshiMarketResponse
   const market = data.market
   if (!market) return null
@@ -1418,8 +1432,8 @@ const fetchKalshiMarketSnapshot = async (
 const fetchKalshiOrderbook = async (ticker: string): Promise<KalshiOrderbookSnapshot | null> => {
   const url = new URL(`${KALSHI_BASE}/markets/${ticker}/orderbook`)
   url.searchParams.set('depth', '5')
-  const res = await fetch(url.toString(), { cache: 'no-store' })
-  if (!res.ok) return null
+  const res = await fetchKalshiWithFallback(url.toString(), { cache: 'no-store' })
+  if (!res || !res.ok) return null
   const data = (await res.json()) as { orderbook?: { yes?: number[][]; no?: number[][] } }
   const yes = Array.isArray(data.orderbook?.yes) ? data.orderbook?.yes ?? [] : []
   const no = Array.isArray(data.orderbook?.no) ? data.orderbook?.no ?? [] : []
@@ -1453,8 +1467,8 @@ const fetchKalshiRecentTrades = async (ticker: string, sinceTs: number) => {
   url.searchParams.set('ticker', ticker)
   url.searchParams.set('limit', '200')
   url.searchParams.set('min_ts', String(Math.floor(sinceTs / 1000)))
-  const res = await fetch(url.toString(), { cache: 'no-store' })
-  if (!res.ok) return [] as KalshiTrade[]
+  const res = await fetchKalshiWithFallback(url.toString(), { cache: 'no-store' })
+  if (!res || !res.ok) return [] as KalshiTrade[]
   const data = (await res.json()) as KalshiTradesResponse
   return Array.isArray(data.trades) ? data.trades : []
 }

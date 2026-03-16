@@ -1,5 +1,6 @@
 import { TEAMS_REGISTRY } from "@/lib/data/teams-registry"
 import { normalizeTeamKey } from "@/lib/identity/sport"
+import { KALSHI_BASE_CANDIDATES, withKalshiBase } from "@/lib/api/kalshi-base"
 import { probabilityToAmericanOdds } from "@/lib/utils/statistics"
 import type {
   TeamMarketKey,
@@ -9,7 +10,8 @@ import type {
   TeamMarketOrderbooksSnapshot,
 } from "@/lib/types/market-orderbooks"
 
-const KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2"
+const KALSHI_BASE =
+  KALSHI_BASE_CANDIDATES[0] ?? "https://api.elections.kalshi.com/trade-api/v2"
 const CACHE_TTL_MS = 60 * 1000
 const MAX_KALSHI_PAGES = 5
 const KALSHI_RETRY_ATTEMPTS = 2
@@ -290,18 +292,30 @@ const resolveOutcomeLabels = (opts: {
 }
 
 const fetchKalshiJson = async <T,>(url: string): Promise<T | null> => {
-  for (let attempt = 0; attempt <= KALSHI_RETRY_ATTEMPTS; attempt += 1) {
-    const res = await fetch(url, { cache: "no-store" })
-    if (res.ok) {
+  const candidateUrls = KALSHI_BASE_CANDIDATES.map((base) => withKalshiBase(base, url))
+  for (const candidateUrl of candidateUrls) {
+    for (let attempt = 0; attempt <= KALSHI_RETRY_ATTEMPTS; attempt += 1) {
+      let res: Response
       try {
-        return (await res.json()) as T
+        res = await fetch(candidateUrl, { cache: "no-store" })
       } catch {
-        return null
+        if (attempt < KALSHI_RETRY_ATTEMPTS) {
+          await sleep(KALSHI_RETRY_BASE_DELAY_MS * Math.pow(2, attempt))
+          continue
+        }
+        break
       }
-    }
-    if (res.status !== 429 && res.status < 500) return null
-    if (attempt < KALSHI_RETRY_ATTEMPTS) {
-      await sleep(KALSHI_RETRY_BASE_DELAY_MS * Math.pow(2, attempt))
+      if (res.ok) {
+        try {
+          return (await res.json()) as T
+        } catch {
+          return null
+        }
+      }
+      if (res.status !== 429 && res.status < 500) break
+      if (attempt < KALSHI_RETRY_ATTEMPTS) {
+        await sleep(KALSHI_RETRY_BASE_DELAY_MS * Math.pow(2, attempt))
+      }
     }
   }
   return null
@@ -587,4 +601,3 @@ export const fetchTeamMarketOrderbooksSnapshot = async (opts?: {
     inFlight.delete(cacheKey)
   }
 }
-

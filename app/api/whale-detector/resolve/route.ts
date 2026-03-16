@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
+import { KALSHI_BASE_CANDIDATES, withKalshiBase } from '@/lib/api/kalshi-base'
 
-const KALSHI_BASE = 'https://api.elections.kalshi.com/trade-api/v2'
 const POLYMARKET_GAMMA = 'https://gamma-api.polymarket.com'
 
 type KalshiMarketResponse = {
@@ -37,6 +37,20 @@ const resolvePolymarketOutcome = (market: any) => {
   return null
 }
 
+const fetchKalshiMarket = async (ticker: string) => {
+  for (const base of KALSHI_BASE_CANDIDATES) {
+    try {
+      const res = await fetch(withKalshiBase(base, `/markets/${ticker}`), {
+        cache: 'no-store',
+      })
+      if (res.ok) {
+        return (await res.json()) as KalshiMarketResponse
+      }
+    } catch {}
+  }
+  return null
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const source = searchParams.get('source')
@@ -46,13 +60,10 @@ export async function GET(request: Request) {
     if (!ticker) {
       return NextResponse.json({ error: 'Missing ticker' }, { status: 400 })
     }
-    const res = await fetch(`${KALSHI_BASE}/markets/${ticker}`, {
-      cache: 'no-store',
-    })
-    if (!res.ok) {
+    const data = await fetchKalshiMarket(ticker)
+    if (!data) {
       return NextResponse.json({ error: 'Market fetch failed' }, { status: 502 })
     }
-    const data = (await res.json()) as KalshiMarketResponse
     const outcome = resolveKalshiOutcome(data.market)
     const resolved =
       data.market?.status?.toLowerCase() === 'settled' || outcome != null

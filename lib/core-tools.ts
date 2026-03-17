@@ -3,13 +3,14 @@ export type CoreToolKey =
   | 'sharp-props'
   | 'whale-feed'
   | 'research-mode'
+  | 'insider-feed'
 
 export type CoreTool = {
   key: CoreToolKey
   label: string
   shortLabel: string
   summary: string
-  icon: 'radar' | 'percent' | 'waves' | 'beaker'
+  icon: 'radar' | 'percent' | 'waves' | 'beaker' | 'eye'
   guideRoute: string
   productRoute: string
   bullets: string[]
@@ -70,6 +71,20 @@ export const CORE_TOOLS: CoreTool[] = [
       'Understand why the market is moving.',
       'Backtest and review what closes actually did.',
       'Use it to build a repeatable process.',
+    ],
+  },
+  {
+    key: 'insider-feed',
+    label: 'Insider Feed',
+    shortLabel: 'Insider',
+    summary: 'Track verified profitable wallets and their open sports positions on Polymarket.',
+    icon: 'eye',
+    guideRoute: '/tools/insider-feed',
+    productRoute: '/polymarket-insider',
+    bullets: [
+      'See open positions from top-ROI Polymarket wallets.',
+      'Insider scores rank each bet by authority and conviction.',
+      'Use it to spot where proven winners are allocating capital.',
     ],
   },
 ]

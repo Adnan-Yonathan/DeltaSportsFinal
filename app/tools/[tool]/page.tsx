@@ -192,6 +192,54 @@ const TOOL_GUIDE_CONFIGS: Partial<Record<CoreToolKey, ToolGuideConfig>> = {
       'Open Whale Detector and filter into the highest-conviction flow before you execute.',
     ctaPrimaryLabel: 'Open Whale Detector',
   },
+  'insider-feed': {
+    guideLabel: 'Insider Feed Guide',
+    heroTitle: 'Follow proven winners, not hunches.',
+    heroDescription:
+      'Insider Feed tracks the open sports positions of Polymarket\'s highest-ROI wallets, scores each bet by authority and conviction, and surfaces only the ones worth watching.',
+    screenshotTitle: 'See where the sharpest wallets are positioned',
+    screenshotSrc: '/insiderfeed.png',
+    screenshotAlt: 'Insider Feed interface showing scored insider bets from top Polymarket wallets.',
+    callouts: [
+      {
+        title: 'Insider Score',
+        body: 'Each bet is scored 60–99 based on wallet ROI, trade history, and position sizing so you can rank conviction instantly.',
+      },
+      {
+        title: 'Wallet Track Record',
+        body: 'See lifetime ROI, total trades, and profit factor for every wallet behind a position.',
+      },
+      {
+        title: 'Position Detail',
+        body: 'Entry price, stake, potential payout, and American odds for each open sports bet in one row.',
+      },
+    ],
+    longTermTitle: 'How to use Insider Feed for long-term profit',
+    longTermIntro:
+      'Insider Feed is a conviction filter, not an auto-follow system. Use it to validate your own thesis with capital-backed evidence from proven wallets.',
+    longTermSteps: [
+      {
+        title: '1. Focus on Elite and Sharp-tier scores first',
+        body: 'Higher insider scores combine strong wallet ROI with meaningful position sizing. Start with 80+ scores and work down only when liquidity supports it.',
+      },
+      {
+        title: '2. Cross-reference with your own analysis',
+        body: 'An insider position that aligns with your independent edge is stronger than either signal alone. Use Insider Feed to confirm, not replace, your process.',
+      },
+      {
+        title: '3. Watch for cluster agreement',
+        body: 'Multiple high-score wallets positioned on the same outcome is a stronger signal than one large position. Look for convergence across wallets.',
+      },
+      {
+        title: '4. Track which wallet tiers deliver CLV',
+        body: 'Log whether Elite vs Sharp vs Notable positions consistently beat closing prices. Over time, reallocate attention to the tiers that generate real edge.',
+      },
+    ],
+    ctaTitle: 'Ready to see where the smart money is sitting?',
+    ctaDescription:
+      'Open Insider Feed and filter by score, sport, and wallet quality to find the highest-conviction positions.',
+    ctaPrimaryLabel: 'Open Insider Feed',
+  },
   'research-mode': {
     guideLabel: 'Research Mode Guide',
     heroTitle: 'Understand why the market moved, not just where it moved.',

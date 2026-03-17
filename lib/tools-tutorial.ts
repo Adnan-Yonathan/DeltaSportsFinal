@@ -46,4 +46,11 @@ export const TOOLS_TUTORIAL_COPY: Record<
     whyItValuable:
       'This closes the feedback loop and improves long-term decision quality by turning each bet into measurable process data.',
   },
+  'insider-feed': {
+    step: 5,
+    howToUse:
+      'Browse top-ROI Polymarket wallets and their open sports positions, scored by authority and conviction.',
+    whyItValuable:
+      'It shows where proven profitable bettors are putting capital, giving you a conviction filter backed by real track records.',
+  },
 }

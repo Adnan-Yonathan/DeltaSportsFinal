@@ -2,6 +2,7 @@
 
 import { forwardRef } from 'react'
 import { ShareCaptureRoot, ShareCardFrame } from '@/components/share/ShareCardFrame'
+import { extractTeamLogos } from '@/lib/utils/team-logos'
 
 export interface ShareableInsiderBet {
   id: string
@@ -65,6 +66,7 @@ const scoreTier = (score: number) => {
 
 const ShareableInsiderBetCard = forwardRef<HTMLDivElement, { bet: ShareableInsiderBet }>(
   ({ bet }, ref) => {
+    const logos = extractTeamLogos(bet.title, bet.sportLabel)
     const tier = scoreTier(bet.insiderScore)
     const oddsLabel = formatOdds(bet.avgEntryPrice, bet.americanOdds)
     const roiLabel = formatPct(bet.walletRoiPct)
@@ -107,9 +109,31 @@ const ShareableInsiderBetCard = forwardRef<HTMLDivElement, { bet: ShareableInsid
                 )}
               </div>
 
-              {/* Market title */}
-              <div style={{ marginTop: 14, fontSize: 40, fontWeight: 700, lineHeight: 1.06, color: '#f8fafc' }}>
-                {bet.title}
+              {/* Team logos + Market title */}
+              <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 14 }}>
+                {logos.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    {logos.map((logo, i) => (
+                      <img
+                        key={logo.abbreviation}
+                        src={logo.logoUrl}
+                        alt={logo.name}
+                        style={{
+                          width: 52,
+                          height: 52,
+                          borderRadius: 999,
+                          objectFit: 'contain',
+                          border: '2px solid rgba(255,255,255,0.15)',
+                          background: 'rgba(0,0,0,0.5)',
+                          marginLeft: i > 0 ? -12 : 0,
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+                <div style={{ fontSize: 40, fontWeight: 700, lineHeight: 1.06, color: '#f8fafc', minWidth: 0 }}>
+                  {bet.title}
+                </div>
               </div>
 
               {/* Score badge + outcome + odds */}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowUpRight, CheckCircle2, Database, RefreshCw, TrendingUp, Zap } from 'lucide-react'
 import type { InsiderBet } from '@/lib/services/polymarket-insider'
 import ShareInsiderBetButton from '@/components/ShareInsiderBetButton'
+import { extractTeamLogos } from '@/lib/utils/team-logos'
 
 // ── Sport filter tabs ─────────────────────────────────────────────────────────
 
@@ -164,16 +165,33 @@ function DetailPanel({ bet }: { bet: InsiderBet | null }) {
       </div>
 
       {/* Outcome + odds */}
-      <div className="mt-4 rounded-xl border border-white/10 bg-black/45 p-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/35 mb-2">The Position</p>
-        <div className="flex items-center gap-3">
-          <span className="text-xl font-bold text-emerald-300">{bet.outcome}</span>
-          <span className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-sm font-semibold text-emerald-200">
-            {formatOdds(bet.avg_entry_american_odds, bet.avg_entry_price)}
-          </span>
-          <span className="text-sm text-white/40">{(bet.avg_entry_price * 100).toFixed(0)}¢ avg entry</span>
-        </div>
-      </div>
+      {(() => {
+        const logos = extractTeamLogos(bet.title, bet.sport_label)
+        return (
+          <div className="mt-4 rounded-xl border border-white/10 bg-black/45 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/35 mb-2">The Position</p>
+            <div className="flex items-center gap-3">
+              {logos.length > 0 && (
+                <div className="flex items-center -space-x-2">
+                  {logos.map((logo) => (
+                    <img
+                      key={logo.abbreviation}
+                      src={logo.logoUrl}
+                      alt={logo.name}
+                      className="h-8 w-8 rounded-full border border-white/15 bg-black/60 object-contain"
+                    />
+                  ))}
+                </div>
+              )}
+              <span className="text-xl font-bold text-emerald-300">{bet.outcome}</span>
+              <span className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-sm font-semibold text-emerald-200">
+                {formatOdds(bet.avg_entry_american_odds, bet.avg_entry_price)}
+              </span>
+              <span className="text-sm text-white/40">{(bet.avg_entry_price * 100).toFixed(0)}¢ avg entry</span>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Stake stats */}
       <div className="mt-3 grid grid-cols-3 gap-2">

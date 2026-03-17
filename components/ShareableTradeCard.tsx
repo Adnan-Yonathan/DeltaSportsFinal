@@ -2,6 +2,7 @@
 
 import { forwardRef } from 'react'
 import { ShareCaptureRoot, ShareCardFrame } from '@/components/share/ShareCardFrame'
+import { extractTeamLogos } from '@/lib/utils/team-logos'
 
 type FlowDirection = 'up' | 'down' | 'neutral'
 
@@ -79,6 +80,7 @@ const directionColor = (direction: FlowDirection) => {
 
 const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
   ({ trade, matchupLabel }, ref) => {
+    const logos = extractTeamLogos(trade.marketTitle, trade.sport)
     const displayMatchup = matchupLabel || resolveGameLabel(trade.marketTitle)
     const eventLabel = trade.eventDate || 'TBD'
     const detectedLabel = formatTimestamp(trade.timestamp)
@@ -120,8 +122,30 @@ const ShareableTradeCard = forwardRef<HTMLDivElement, ShareableTradeCardProps>(
                   gap: 10,
                 }}
               >
-                <div style={{ fontSize: 38, fontWeight: 700, lineHeight: 1.05, color: '#f8fafc' }}>
-                  {displayMatchup}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                  {logos.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                      {logos.map((logo, i) => (
+                        <img
+                          key={logo.abbreviation}
+                          src={logo.logoUrl}
+                          alt={logo.name}
+                          style={{
+                            width: 52,
+                            height: 52,
+                            borderRadius: 999,
+                            objectFit: 'contain',
+                            border: '2px solid rgba(255,255,255,0.15)',
+                            background: 'rgba(0,0,0,0.5)',
+                            marginLeft: i > 0 ? -12 : 0,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 38, fontWeight: 700, lineHeight: 1.05, color: '#f8fafc' }}>
+                    {displayMatchup}
+                  </div>
                 </div>
                 <div
                   style={{

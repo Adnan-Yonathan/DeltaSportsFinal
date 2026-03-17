@@ -8,37 +8,30 @@ const DATA_API        = 'https://data-api.polymarket.com'
 const LEADERBOARD_URL = `${DATA_API}/v1/leaderboard`
 const TRADES_URL      = `${DATA_API}/trades`
 
-// Leaderboard: multiple queries with different strategies to discover diverse wallets.
-// Each strategy returns up to LEADERBOARD_PAGE_SIZE wallets; results are merged/deduped.
 const LEADERBOARD_PAGE_SIZE = 60
 
 // Discovery strategies: [timePeriod, orderBy, offset]
-// Vary time windows, sort orders, and pagination to avoid always seeing the same whales.
+// ALL/VOLUME removed — API does not support orderBy=VOLUME
 const LEADERBOARD_STRATEGIES: Array<[string, string, number]> = [
-  ['ALL',   'PNL',    0],    // all-time top earners (page 1)
-  ['ALL',   'PNL',    60],   // all-time top earners (page 2)
-  ['ALL',   'VOLUME', 0],    // all-time highest volume
-  ['WEEK',  'PNL',    0],    // this week's winners
-  ['MONTH', 'PNL',    0],    // this month's winners
-  ['DAY',   'PNL',    0],    // today's movers
+  ['ALL',   'PNL',  0],    // all-time top earners (page 1)
+  ['ALL',   'PNL',  60],   // all-time top earners (page 2)
+  ['WEEK',  'PNL',  0],    // this week's winners
+  ['MONTH', 'PNL',  0],    // this month's winners
+  ['DAY',   'PNL',  0],    // today's movers
 ]
-const LEADERBOARD_CONCURRENCY = 3  // strategies fetched in parallel
+const LEADERBOARD_CONCURRENCY = 3
 
-// Global trades: fetch recent trades in small parallel batches.
-// Smaller pages = faster individual responses, less likely to hang.
-// More pages = broader historical coverage to catch all open positions.
-// 400 trades/page × 20 pages = 8,000 trades, fetched 5 at a time (~4 rounds).
-const TRADES_PAGE_SIZE      = 400
-const TRADES_PAGES          = 20
-const TRADES_PAGE_CONCURRENCY = 5  // pages fetched in parallel per round
+// Per-wallet trade fetching
+const TOP_WALLETS_TO_FETCH = 40   // fetch trades for top N wallets by ROI
+const TRADES_PER_WALLET    = 200  // trades to fetch per wallet
+const WALLET_FETCH_CONCURRENCY = 5
 
-const MIN_VOLUME         = 2_000  // $2k minimum lifetime volume
-const MIN_ROI            = 0      // no ROI floor — we show whatever the leaderboard has
+const MIN_VOLUME         = 2_000
+const MIN_ROI            = 0
 const MIN_NET_SHARES     = 1
 const MIN_STAKE_USD      = 10
-const FETCH_TIMEOUT_MS   = 12_000 // per-request timeout
+const FETCH_TIMEOUT_MS   = 12_000
 
-// Same sport slug prefixes as whale-detector + wallet-ingest
 const SPORT_PREFIXES = [
   'nba-', 'wnba-', 'nfl-', 'cfb-', 'cbb-', 'ncaab-', 'ncaaf-',
   'nhl-', 'mlb-', 'soccer-', 'tennis-', 'mma-', 'boxing-', 'ufc-',
@@ -56,12 +49,11 @@ const SPORT_LABEL_MAP: Record<string, string> = {
 // ── API types ─────────────────────────────────────────────────────────────────
 
 type LeaderboardEntry = {
-  proxyWallet?:  string
-  pseudonym?:    string
-  profileImage?: string
-  pnl?:          number | string
-  vol?:          number | string
-  numTrades?:    number | string
+  proxyWallet?:    string
+  userName?:       string
+  profileImage?:   string
+  pnl?:            number | string
+  vol?:            number | string
 }
 
 type TradeEntry = {
@@ -73,8 +65,6 @@ type TradeEntry = {
   title?:        string
   slug?:         string
   outcome?:      string
-  pseudonym?:    string
-  profileImage?: string
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -93,7 +83,6 @@ const sportLabel = (slug: string): string | null => {
   return SPORT_LABEL_MAP[key] ?? null
 }
 
-// Promise.race timeout — more reliable than AbortController on Vercel
 async function fetchJson(url: string): Promise<unknown> {
   const timeout = new Promise<null>(resolve =>
     setTimeout(() => resolve(null), FETCH_TIMEOUT_MS)
@@ -118,6 +107,7 @@ type PositionState = {
   outcome:       string
   slug:          string
   lastTradeTime: string | null
+  buyCount:      number
 }
 
 function applyTrade(positions: Map<string, PositionState>, trade: TradeEntry) {
@@ -133,13 +123,14 @@ function applyTrade(positions: Map<string, PositionState>, trade: TradeEntry) {
 
   let pos = positions.get(key)
   if (!pos) {
-    pos = { shares: 0, costBasis: 0, title: trade.title ?? slug, outcome, slug, lastTradeTime: null }
+    pos = { shares: 0, costBasis: 0, title: trade.title ?? slug, outcome, slug, lastTradeTime: null, buyCount: 0 }
     positions.set(key, pos)
   }
 
   if (trade.side === 'BUY') {
     pos.shares    += size
     pos.costBasis += size * price
+    pos.buyCount  += 1
   } else if (trade.side === 'SELL') {
     const sellFrac = Math.min(size / Math.max(pos.shares, 0.0001), 1)
     pos.shares     = Math.max(0, pos.shares - size)
@@ -164,15 +155,12 @@ export type InsiderFeedRefreshResult = {
 
 export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResult> {
   // ── Step 1: Multi-strategy leaderboard discovery ────────────────────────────
-  // Fetch multiple leaderboard views in parallel to discover diverse wallets.
-  // Different time periods + sort orders surface different profitable traders.
 
   type WalletMeta = {
-    roi: number; vol: number; tradeCount: number | null
+    roi: number; vol: number
     pseudonym: string | null; profileImageUrl: string | null
   }
   const qualifiedWallets = new Map<string, WalletMeta>()
-  let loggedSample = false
 
   const processLeaderboardPage = (rows: LeaderboardEntry[]) => {
     for (const row of rows) {
@@ -184,22 +172,18 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       const roi = pnl / vol
       if (!Number.isFinite(roi) || roi <= MIN_ROI) continue
 
-      // Keep the entry with the best ROI if we see the same wallet from multiple strategies
       const existing = qualifiedWallets.get(wallet)
       if (existing && existing.roi >= roi) continue
 
-      const tradeCount = parseNum(row.numTrades)
       qualifiedWallets.set(wallet, {
         roi,
         vol,
-        tradeCount,
-        pseudonym:       typeof row.pseudonym    === 'string' ? row.pseudonym    : null,
+        pseudonym:       typeof row.userName     === 'string' ? row.userName     : null,
         profileImageUrl: typeof row.profileImage === 'string' ? row.profileImage : null,
       })
     }
   }
 
-  // Fetch strategies in parallel batches
   for (let i = 0; i < LEADERBOARD_STRATEGIES.length; i += LEADERBOARD_CONCURRENCY) {
     const batch = LEADERBOARD_STRATEGIES.slice(i, i + LEADERBOARD_CONCURRENCY)
 
@@ -218,112 +202,83 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       const raw = results[j]
       const [tp, ob, off] = batch[j]
       if (!Array.isArray(raw)) {
-        console.warn(`[InsiderFeed] Leaderboard strategy ${tp}/${ob}/+${off} failed`)
+        console.warn(`[InsiderFeed] Strategy ${tp}/${ob}/+${off} failed`)
         continue
       }
-
-      // Log the first successful response to see field names
-      if (!loggedSample && raw.length > 0) {
-        loggedSample = true
-        console.log('[InsiderFeed] Leaderboard sample keys:', Object.keys(raw[0] as object))
-        console.log('[InsiderFeed] Leaderboard sample:', JSON.stringify(raw[0]).slice(0, 500))
-      }
-
       console.log(`[InsiderFeed] Strategy ${tp}/${ob}/+${off}: ${raw.length} entries`)
       processLeaderboardPage(raw as LeaderboardEntry[])
     }
   }
 
   console.log(`[InsiderFeed] Total unique qualified wallets: ${qualifiedWallets.size}`)
-  const roiSample = [...qualifiedWallets.values()].slice(0, 5).map(w =>
-    `roi=${(w.roi * 100).toFixed(1)}% vol=$${Math.round(w.vol)} trades=${w.tradeCount ?? 'N/A'}`
-  )
-  console.log('[InsiderFeed] Sample wallet stats:', roiSample.join(' | '))
 
   if (qualifiedWallets.size === 0) {
     console.error('[InsiderFeed] No qualified wallets from any leaderboard strategy')
     return { walletsScanned: 0, walletsWithBets: 0, positionsFound: 0, betsCached: 0 }
   }
 
-  // ── Step 2: Fetch recent global trades ────────────────────────────────────────
-  // Group all trades by wallet (for qualified wallets only)
-  const walletTrades = new Map<string, TradeEntry[]>()
-  // Also track profile data from trade payloads (enriches leaderboard data)
-  const tradeProfiles = new Map<string, { pseudonym: string | null; profileImageUrl: string | null }>()
-  // Track buy-side stats for avg bet size scoring
-  const walletBuyStats = new Map<string, { totalNotional: number; count: number }>()
+  // ── Step 2: Per-wallet trade fetching ───────────────────────────────────────
+  // Sort wallets by ROI descending, take top N, fetch each wallet's trades directly.
 
-  // Fetch pages in parallel rounds (TRADES_PAGE_CONCURRENCY pages at a time)
-  let exhausted = false
-  for (let round = 0; round < TRADES_PAGES && !exhausted; round += TRADES_PAGE_CONCURRENCY) {
-    const pageNums = Array.from(
-      { length: Math.min(TRADES_PAGE_CONCURRENCY, TRADES_PAGES - round) },
-      (_, i) => round + i,
-    )
+  const sortedWallets = [...qualifiedWallets.entries()]
+    .sort((a, b) => b[1].roi - a[1].roi)
+    .slice(0, TOP_WALLETS_TO_FETCH)
 
-    const pages = await Promise.all(
-      pageNums.map(page => {
-        const url = new URL(TRADES_URL)
-        url.searchParams.set('limit', String(TRADES_PAGE_SIZE))
-        url.searchParams.set('offset', String(page * TRADES_PAGE_SIZE))
-        return fetchJson(url.toString())
-      })
-    )
+  console.log(`[InsiderFeed] Fetching trades for top ${sortedWallets.length} wallets by ROI`)
 
-    for (const raw of pages) {
-      if (!Array.isArray(raw) || raw.length === 0) { exhausted = true; break }
+  type WalletTradeResult = {
+    wallet: string
+    trades: TradeEntry[]
+    totalBuys: number
+    totalBuyNotional: number
+  }
 
-      for (const trade of raw as TradeEntry[]) {
-        const wallet = String(trade.proxyWallet ?? '').trim().toLowerCase()
-        if (!wallet || !qualifiedWallets.has(wallet)) continue
+  async function fetchWalletTrades(wallet: string): Promise<WalletTradeResult> {
+    const url = new URL(TRADES_URL)
+    url.searchParams.set('user', wallet)
+    url.searchParams.set('limit', String(TRADES_PER_WALLET))
 
-        // Store trade
-        let list = walletTrades.get(wallet)
-        if (!list) { list = []; walletTrades.set(wallet, list) }
-        list.push(trade)
+    const raw = await fetchJson(url.toString())
+    const trades = Array.isArray(raw) ? (raw as TradeEntry[]) : []
 
-        // Capture profile info from trade payload
-        if (!tradeProfiles.has(wallet)) {
-          tradeProfiles.set(wallet, {
-            pseudonym:       typeof trade.pseudonym    === 'string' ? trade.pseudonym    : null,
-            profileImageUrl: typeof trade.profileImage === 'string' ? trade.profileImage : null,
-          })
-        }
-
-        // Track buy-side stats for avg bet size scoring
-        if (trade.side === 'BUY') {
-          const size  = parseNum(trade.size)
-          const price = parseNum(trade.price)
-          if (size && price && size > 0 && price > 0) {
-            const existing = walletBuyStats.get(wallet) ?? { totalNotional: 0, count: 0 }
-            existing.totalNotional += size * price
-            existing.count         += 1
-            walletBuyStats.set(wallet, existing)
-          }
+    let totalBuys = 0
+    let totalBuyNotional = 0
+    for (const t of trades) {
+      if (t.side === 'BUY') {
+        const size = parseNum(t.size)
+        const price = parseNum(t.price)
+        if (size && price && size > 0 && price > 0) {
+          totalBuys++
+          totalBuyNotional += size * price
         }
       }
-
-      // Short page = API has no more data
-      if ((raw as unknown[]).length < TRADES_PAGE_SIZE) { exhausted = true; break }
     }
+
+    return { wallet, trades, totalBuys, totalBuyNotional }
   }
 
-  console.log(`[InsiderFeed] Wallets seen in global trades: ${walletTrades.size}`)
-  // Log per-wallet buy counts to see if they're realistic
-  for (const [wallet, stat] of walletBuyStats) {
-    const meta = qualifiedWallets.get(wallet)
-    console.log(`[InsiderFeed] wallet=${wallet.slice(0, 8)}... buys=${stat.count} avgSize=$${(stat.totalNotional / stat.count).toFixed(0)} lbRoi=${meta ? (meta.roi * 100).toFixed(1) : '?'}% lbTrades=${meta?.tradeCount ?? 'N/A'}`)
+  const walletResults: WalletTradeResult[] = []
+  for (let i = 0; i < sortedWallets.length; i += WALLET_FETCH_CONCURRENCY) {
+    const batch = sortedWallets.slice(i, i + WALLET_FETCH_CONCURRENCY)
+    const results = await Promise.all(
+      batch.map(([wallet]) => fetchWalletTrades(wallet))
+    )
+    walletResults.push(...results)
   }
+
+  const walletsWithTrades = walletResults.filter(r => r.trades.length > 0)
+  console.log(`[InsiderFeed] Wallets with trades: ${walletsWithTrades.length}/${sortedWallets.length}`)
 
   // ── Step 3: Compute open sports positions per wallet ──────────────────────────
   type RawPosition = {
     wallet: string; slug: string; title: string; outcome: string;
     sportLabel: string | null; avgEntryPrice: number; shares: number;
     stakeUsd: number; potentialPayoutUsd: number; lastTradeTime: string | null;
+    buyCount: number;
   }
   const allPositions: RawPosition[] = []
 
-  for (const [wallet, trades] of walletTrades) {
+  for (const { wallet, trades } of walletsWithTrades) {
     const positions = new Map<string, PositionState>()
     for (const t of trades) applyTrade(positions, t)
 
@@ -345,19 +300,30 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
         stakeUsd,
         potentialPayoutUsd: pos.shares,
         lastTradeTime:      pos.lastTradeTime,
+        buyCount:           pos.buyCount,
       })
     }
   }
+
+  console.log(`[InsiderFeed] Open sport positions found: ${allPositions.length}`)
 
   // ── Step 4: Score positions ────────────────────────────────────────────────
   const runTs  = new Date().toISOString()
   const scored: Record<string, unknown>[] = []
 
+  // Build per-wallet buy stats from fetched trades
+  const walletBuyStatsMap = new Map<string, { totalNotional: number; count: number }>()
+  for (const r of walletResults) {
+    if (r.totalBuys > 0) {
+      walletBuyStatsMap.set(r.wallet, { totalNotional: r.totalBuyNotional, count: r.totalBuys })
+    }
+  }
+
   for (const pos of allPositions) {
-    const meta     = qualifiedWallets.get(pos.wallet)
+    const meta = qualifiedWallets.get(pos.wallet)
     if (!meta) continue
 
-    const buyStat  = walletBuyStats.get(pos.wallet)
+    const buyStat = walletBuyStatsMap.get(pos.wallet)
     const avgBetSize = buyStat && buyStat.count > 0
       ? buyStat.totalNotional / buyStat.count
       : 0
@@ -375,13 +341,12 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     )
     if (score < MIN_INSIDER_SCORE) continue
 
-    const profile = tradeProfiles.get(pos.wallet)
     const americanOdds = probabilityToAmericanOdds(pos.avgEntryPrice)
 
     scored.push({
       wallet:                  pos.wallet,
-      pseudonym:               profile?.pseudonym       ?? meta.pseudonym,
-      profile_image_url:       profile?.profileImageUrl ?? meta.profileImageUrl,
+      pseudonym:               meta.pseudonym,
+      profile_image_url:       meta.profileImageUrl,
       title:                   pos.title,
       outcome:                 pos.outcome,
       sport_label:             pos.sportLabel,
@@ -400,8 +365,16 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     })
   }
 
+  console.log(`[InsiderFeed] Scored positions passing threshold: ${scored.length}`)
+
   // ── Step 5: Write to cache ─────────────────────────────────────────────────
   const supabase = createServiceClient()
+
+  // Clear entire cache first to remove stale/broken entries
+  await (supabase as any)
+    .from('insider_feed_cache')
+    .delete()
+    .neq('id', 0)  // delete all rows
 
   if (scored.length > 0) {
     const { error } = await (supabase as any)
@@ -410,16 +383,9 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     if (error) console.error('[InsiderFeed] Cache upsert failed:', error)
   }
 
-  // Clean up stale rows (> 2 hours old)
-  const staleTs = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-  await (supabase as any)
-    .from('insider_feed_cache')
-    .delete()
-    .lt('refreshed_at', staleTs)
-
   return {
     walletsScanned:  qualifiedWallets.size,
-    walletsWithBets: walletTrades.size,
+    walletsWithBets: walletsWithTrades.length,
     positionsFound:  allPositions.length,
     betsCached:      scored.length,
   }

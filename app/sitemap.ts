@@ -1,10 +1,5 @@
 import type { MetadataRoute } from 'next'
 import { createServiceClient } from '@/lib/supabase/service'
-import type { GameEdgeAnalysis } from '@/lib/services/slate-edge-detector'
-import {
-  buildBlogPath,
-  formatEdgeDate,
-} from '@/lib/blog/market-projections'
 import { CORE_TOOLS } from '@/lib/core-tools'
 import { SEO_BLOG_TOPICS } from '@/lib/blog/seo-topics'
 import { COMPETITORS } from '@/lib/blog/competitor-data'
@@ -45,29 +40,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const supabase = createServiceClient()
 
-    // Current + upcoming games from live cache
-    const { data: cacheData } = (await supabase
-      .from('market_projections_cache' as any)
-      .select('sport, edges, updated_at')) as unknown as {
-      data: Array<{ sport: string; edges: GameEdgeAnalysis[]; updated_at: string }> | null
-    }
-
-    const today = new Date().toISOString().slice(0, 10)
-
-    for (const row of cacheData ?? []) {
-      for (const edge of row.edges ?? []) {
-        if (!edge?.homeTeam || !edge?.awayTeam) continue
-        const date = formatEdgeDate(edge)
-        if (!date || date < today) continue
-        const blogPath = buildBlogPath(row.sport, date, edge.awayTeam, edge.homeTeam)
-        entries.push({
-          url: `${BASE_URL}${blogPath}`,
-          lastModified: row.updated_at ? new Date(row.updated_at) : lastModified,
-        })
-      }
-    }
-
-    // Historical persisted game posts — these live forever in the DB
+    // Only include game blog posts that have been generated and persisted.
+    // Do NOT include upcoming games from the live cache — those URLs don't exist
+    // until a page render saves them, and Google crawling them before that
+    // (which can take days) produces 404s that pollute the index.
     const { data: savedPosts } = await (supabase as any)
       .from('blog_game_posts')
       .select('sport, date, slug, updated_at')

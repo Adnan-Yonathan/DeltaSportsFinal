@@ -3,7 +3,7 @@ import { Suspense } from 'react'
 import InsiderClient from './insider-client'
 
 export const metadata: Metadata = {
-  title: 'Prediction Market Insider | Delta Sports',
+  title: 'Insider Feed | Delta Sports',
   description:
     'Track the sharpest prediction market bets. We surface open positions from the most profitable long-term Polymarket wallets, scored by conviction and ROI.',
   alternates: { canonical: 'https://deltasports.app/polymarket-insider' },

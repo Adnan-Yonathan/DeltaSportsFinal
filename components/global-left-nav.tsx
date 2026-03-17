@@ -45,7 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "sharp-projections", label: "Sharp Projections", href: "/market-projections", icon: Radar },
   { key: "sharp-props", label: "Sharp Props", href: "/sharp-props", icon: Percent },
   { key: "whale-detector", label: "Whale Detector", href: "/sharp-detector", icon: Activity },
-  { key: "polymarket-insider", label: "PM Insider", href: "/polymarket-insider", icon: Eye },
+  { key: "polymarket-insider", label: "Insider Feed", href: "/polymarket-insider", icon: Eye },
   { key: "research", label: "Research", href: "/research/sharp-action", icon: FlaskConical },
   { key: "calculators", label: "Calculators", href: "/calculators", icon: Calculator },
   {

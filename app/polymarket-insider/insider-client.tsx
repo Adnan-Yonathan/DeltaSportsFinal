@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Eye, RefreshCw, TrendingUp, Zap } from 'lucide-react'
+import { ArrowUpRight, RefreshCw, TrendingUp, Zap } from 'lucide-react'
 import type { InsiderBet } from '@/lib/services/polymarket-insider'
 
-// ── Sport filter tabs — all sports Polymarket tracks ─────────────────────────
+// ── Sport filter tabs ─────────────────────────────────────────────────────────
 
 const SPORT_TABS = [
   { label: 'All',      value: 'ALL' },
@@ -58,140 +58,199 @@ function timeAgo(iso: string | null): string {
 
 // ── Score badge ───────────────────────────────────────────────────────────────
 
-function ScoreBadge({ score }: { score: number }) {
+function ScoreBadge({ score, size = 'md' }: { score: number; size?: 'sm' | 'md' | 'lg' }) {
+  const dim = size === 'lg' ? 'h-16 w-16' : size === 'sm' ? 'h-9 w-9' : 'h-12 w-12'
+  const numCls = size === 'lg' ? 'text-base' : size === 'sm' ? 'text-[11px]' : 'text-xs'
+  const lblCls = size === 'lg' ? 'text-[9px]' : 'text-[8px]'
+
   if (score >= 90) {
     return (
-      <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl border border-white/40 bg-white/10 shadow-[0_0_12px_rgba(255,255,255,0.18)]">
-        <span className="text-xs font-bold leading-none text-white">{score}</span>
-        <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.18em] text-white/60">Elite</span>
+      <div className={`flex ${dim} shrink-0 flex-col items-center justify-center rounded-xl border border-white/40 bg-white/10 shadow-[0_0_12px_rgba(255,255,255,0.18)]`}>
+        <span className={`${numCls} font-bold leading-none text-white`}>{score}</span>
+        <span className={`mt-0.5 ${lblCls} font-semibold uppercase tracking-[0.18em] text-white/60`}>Elite</span>
       </div>
     )
   }
   if (score >= 80) {
     return (
-      <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl border border-emerald-400/50 bg-emerald-500/15">
-        <span className="text-xs font-bold leading-none text-emerald-200">{score}</span>
-        <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.18em] text-emerald-300/60">Sharp</span>
+      <div className={`flex ${dim} shrink-0 flex-col items-center justify-center rounded-xl border border-emerald-400/50 bg-emerald-500/15`}>
+        <span className={`${numCls} font-bold leading-none text-emerald-200`}>{score}</span>
+        <span className={`mt-0.5 ${lblCls} font-semibold uppercase tracking-[0.18em] text-emerald-300/60`}>Sharp</span>
       </div>
     )
   }
   return (
-    <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl border border-amber-400/40 bg-amber-500/10">
-      <span className="text-xs font-bold leading-none text-amber-200">{score}</span>
-      <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.18em] text-amber-300/60">Notable</span>
+    <div className={`flex ${dim} shrink-0 flex-col items-center justify-center rounded-xl border border-amber-400/40 bg-amber-500/10`}>
+      <span className={`${numCls} font-bold leading-none text-amber-200`}>{score}</span>
+      <span className={`mt-0.5 ${lblCls} font-semibold uppercase tracking-[0.18em] text-amber-300/60`}>Notable</span>
     </div>
   )
 }
 
-// ── Bet card ──────────────────────────────────────────────────────────────────
+// ── Left panel list card ──────────────────────────────────────────────────────
 
-function InsiderBetCard({ bet }: { bet: InsiderBet }) {
-  const polymarketUrl = `https://polymarket.com/event/${bet.slug}`
-  const walletShort   = `${bet.wallet.slice(0, 6)}…${bet.wallet.slice(-4)}`
-  const displayName   = bet.pseudonym ?? walletShort
-
+function ListCard({ bet, selected, onClick }: { bet: InsiderBet; selected: boolean; onClick: () => void }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/55 p-5 transition-colors hover:border-white/20">
-      <div className="flex items-start gap-4">
-        <ScoreBadge score={bet.insider_score} />
-
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-2xl border px-3 py-3 text-left transition-colors ${
+        selected
+          ? 'border-emerald-400/60 bg-emerald-500/10'
+          : 'border-white/10 bg-black/40 hover:border-white/25 hover:bg-white/5'
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <ScoreBadge score={bet.insider_score} size="sm" />
         <div className="min-w-0 flex-1">
-          {/* Tags */}
-          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <div className="flex items-center gap-1.5 mb-1">
             {bet.sport_label && (
-              <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.25em] text-white/55">
+              <span className="rounded-full border border-white/15 bg-white/5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45">
                 {bet.sport_label}
               </span>
             )}
             {bet.size_ratio >= 2 && (
-              <span className="flex items-center gap-1 rounded-full border border-amber-400/35 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
-                <Zap className="h-2.5 w-2.5" />
-                {bet.size_ratio}× normal size
+              <span className="flex items-center gap-0.5 rounded-full border border-amber-400/30 bg-amber-400/8 px-1.5 py-0.5 text-[9px] font-semibold text-amber-300/80">
+                <Zap className="h-2 w-2" />
+                {bet.size_ratio}×
               </span>
             )}
           </div>
-
-          {/* Title */}
-          <a
-            href={polymarketUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="block text-sm font-semibold leading-snug text-white hover:text-emerald-200 transition-colors line-clamp-2"
-          >
-            {bet.title}
-          </a>
-
-          {/* Outcome + odds */}
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+          <p className="line-clamp-2 text-xs font-semibold leading-snug text-white">{bet.title}</p>
+          <div className="mt-1.5 flex items-center gap-2 text-[11px]">
             <span className="font-semibold text-emerald-300">{bet.outcome}</span>
-            <span className="text-white/50">·</span>
-            <span className="text-white/70">{formatOdds(bet.avg_entry_american_odds, bet.avg_entry_price)}</span>
-            <span className="text-white/50">·</span>
-            <span className="text-white/55">{(bet.avg_entry_price * 100).toFixed(0)}¢ entry</span>
+            <span className="text-white/35">·</span>
+            <span className="text-white/55">{formatOdds(bet.avg_entry_american_odds, bet.avg_entry_price)}</span>
+            <span className="ml-auto text-white/35">{formatUsd(bet.stake_usd)}</span>
           </div>
+        </div>
+      </div>
+    </button>
+  )
+}
 
-          {/* Stake */}
-          <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
-            <div>
-              <span className="text-white/40">Stake </span>
-              <span className="font-semibold text-white">{formatUsd(bet.stake_usd)}</span>
-            </div>
-            <div>
-              <span className="text-white/40">To win </span>
-              <span className="font-semibold text-emerald-300">{formatUsd(bet.potential_payout_usd)}</span>
-            </div>
-            {bet.last_trade_time && (
-              <span className="text-white/30">{timeAgo(bet.last_trade_time)}</span>
-            )}
+// ── Right panel detail view ───────────────────────────────────────────────────
+
+function DetailPanel({ bet }: { bet: InsiderBet | null }) {
+  if (!bet) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="rounded-2xl border border-white/10 bg-black/30 px-6 py-8 text-center">
+          <TrendingUp className="mx-auto h-7 w-7 text-white/20" />
+          <p className="mt-3 text-sm text-white/40">Select a bet to see details</p>
+        </div>
+      </div>
+    )
+  }
+
+  const walletShort = `${bet.wallet.slice(0, 6)}…${bet.wallet.slice(-4)}`
+  const displayName = bet.pseudonym ?? walletShort
+  const polymarketUrl = `https://polymarket.com/event/${bet.slug}`
+
+  return (
+    <div className="p-4">
+      {/* Score + title */}
+      <div className="flex items-start gap-4">
+        <ScoreBadge score={bet.insider_score} size="lg" />
+        <div className="min-w-0 flex-1">
+          {bet.sport_label && (
+            <span className="mb-1.5 inline-block rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.25em] text-white/50">
+              {bet.sport_label}
+            </span>
+          )}
+          <h2 className="text-lg font-bold leading-snug text-white">{bet.title}</h2>
+        </div>
+      </div>
+
+      {/* Outcome + odds */}
+      <div className="mt-4 rounded-xl border border-white/10 bg-black/45 p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/35 mb-2">The Position</p>
+        <div className="flex items-center gap-3">
+          <span className="text-xl font-bold text-emerald-300">{bet.outcome}</span>
+          <span className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-sm font-semibold text-emerald-200">
+            {formatOdds(bet.avg_entry_american_odds, bet.avg_entry_price)}
+          </span>
+          <span className="text-sm text-white/40">{(bet.avg_entry_price * 100).toFixed(0)}¢ avg entry</span>
+        </div>
+      </div>
+
+      {/* Stake stats */}
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="rounded-xl border border-white/10 bg-black/45 px-3 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">Stake</p>
+          <p className="mt-1 text-lg font-bold text-white">{formatUsd(bet.stake_usd)}</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-black/45 px-3 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">To Win</p>
+          <p className="mt-1 text-lg font-bold text-emerald-300">{formatUsd(bet.potential_payout_usd)}</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-black/45 px-3 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">Size Ratio</p>
+          <div className="mt-1 flex items-center gap-1">
+            <p className="text-lg font-bold text-white">{bet.size_ratio}×</p>
+            {bet.size_ratio >= 2 && <Zap className="h-3.5 w-3.5 text-amber-400" />}
           </div>
         </div>
       </div>
 
-      {/* Wallet row */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-3">
-        <div className="flex items-center gap-2">
+      {/* Wallet */}
+      <div className="mt-3 rounded-xl border border-white/10 bg-black/45 p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/35 mb-3">Wallet</p>
+        <div className="flex items-center gap-3 mb-3">
           {bet.profile_image_url ? (
-            <img
-              src={bet.profile_image_url}
-              alt={displayName}
-              className="h-6 w-6 rounded-full object-cover"
-            />
+            <img src={bet.profile_image_url} alt={displayName} className="h-8 w-8 rounded-full object-cover" />
           ) : (
-            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/60">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-[10px] font-bold text-white/60">
               {displayName.slice(0, 2).toUpperCase()}
             </div>
           )}
-          <span className="text-xs font-medium text-white/70">{displayName}</span>
-        </div>
-
-        <div className="flex items-center gap-4 text-xs">
           <div>
-            <span className="text-white/35">ROI </span>
-            <span className={`font-semibold ${bet.wallet_roi_pct >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+            <p className="text-sm font-semibold text-white">{displayName}</p>
+            {bet.last_trade_time && (
+              <p className="text-[11px] text-white/35">Last traded {timeAgo(bet.last_trade_time)}</p>
+            )}
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-3 border-t border-white/8 pt-3">
+          <div>
+            <p className="text-[10px] text-white/35 mb-0.5">ROI</p>
+            <p className={`text-sm font-bold ${bet.wallet_roi_pct >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
               {formatPct(bet.wallet_roi_pct)}
-            </span>
+            </p>
           </div>
           <div>
-            <span className="text-white/35">Trades </span>
-            <span className="font-semibold text-white/70">{bet.wallet_trade_count.toLocaleString()}</span>
+            <p className="text-[10px] text-white/35 mb-0.5">Trades</p>
+            <p className="text-sm font-bold text-white">{bet.wallet_trade_count.toLocaleString()}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-white/35 mb-0.5">Prof. Factor</p>
+            <p className="text-sm font-bold text-white">{bet.wallet_profit_factor.toFixed(2)}</p>
           </div>
         </div>
       </div>
+
+      {/* Polymarket link */}
+      <a
+        href={polymarketUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium text-white/70 transition hover:border-white/30 hover:text-white"
+      >
+        View on Polymarket
+        <ArrowUpRight className="h-4 w-4" />
+      </a>
     </div>
   )
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────────
+// ── Empty left panel ──────────────────────────────────────────────────────────
 
 function EmptyState({ sport }: { sport: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/40 px-8 py-16 text-center">
-      <Eye className="mx-auto h-8 w-8 text-white/20" />
-      <p className="mt-4 text-sm font-medium text-white/50">No insider bets found</p>
-      <p className="mt-1.5 text-xs text-white/30">
-        {sport !== 'ALL'
-          ? `No qualifying ${sport} positions right now. Try All sports.`
-          : 'No qualifying positions right now.'}
+    <div className="p-4 text-center">
+      <p className="text-sm font-medium text-white/40">No bets found</p>
+      <p className="mt-1 text-xs text-white/25">
+        {sport !== 'ALL' ? `Try All sports.` : 'Check back later.'}
       </p>
     </div>
   )
@@ -200,9 +259,10 @@ function EmptyState({ sport }: { sport: string }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function InsiderClient() {
-  const [bets, setBets]       = useState<InsiderBet[]>([])
-  const [sport, setSport]     = useState('ALL')
-  const [loading, setLoading] = useState(true)
+  const [bets, setBets]           = useState<InsiderBet[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [sport, setSport]         = useState('ALL')
+  const [loading, setLoading]     = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -219,8 +279,13 @@ export default function InsiderClient() {
       const json = await res.json()
 
       if (res.ok) {
-        setBets(json.bets ?? [])
+        const incoming: InsiderBet[] = json.bets ?? []
+        setBets(incoming)
         setLastUpdated(new Date())
+        // Auto-select first bet on initial load
+        if (!isRefresh && incoming.length > 0) {
+          setSelectedId(`${incoming[0].wallet}-${incoming[0].slug}`)
+        }
       }
     } catch (err) {
       console.error('[InsiderClient] fetch failed', err)
@@ -232,127 +297,91 @@ export default function InsiderClient() {
 
   useEffect(() => { fetchBets() }, [fetchBets])
 
-  // Auto-refresh every 5 minutes
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
     intervalRef.current = setInterval(() => fetchBets(true), 5 * 60 * 1000)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [fetchBets])
 
-  const elite = bets.filter(b => b.insider_score >= 90).length
-  const sharp = bets.filter(b => b.insider_score >= 80 && b.insider_score < 90).length
+  const selectedBet = bets.find(b => `${b.wallet}-${b.slug}` === selectedId) ?? null
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="mx-auto max-w-4xl px-4 pb-20 pt-8 sm:px-6 lg:px-8">
+      <div className="px-2 pb-[96px] pt-4 sm:px-4 sm:pb-0 sm:pt-5">
+        <div className="mx-auto w-full max-w-none">
 
-        {/* ── Header ── */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between gap-4">
-            <button
-              type="button"
-              onClick={() => fetchBets(true)}
-              disabled={refreshing || loading}
-              className="ml-auto shrink-0 flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/60 transition hover:border-white/25 hover:text-white disabled:opacity-40"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-          </div>
-
-          {/* Stats row */}
-          {!loading && bets.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-3">
-              <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/40">Shown</p>
-                <p className="mt-0.5 text-lg font-bold text-white">{bets.length}</p>
-              </div>
-              {bets[0] && (
-                <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/40">Top score</p>
-                  <p className="mt-0.5 text-lg font-bold text-white">{bets[0].insider_score}</p>
-                </div>
-              )}
-              {elite > 0 && (
-                <div className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/40">Elite 90+</p>
-                  <p className="mt-0.5 text-lg font-bold text-white">{elite}</p>
-                </div>
-              )}
-              {sharp > 0 && (
-                <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 px-4 py-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-emerald-300/60">Sharp 80–89</p>
-                  <p className="mt-0.5 text-lg font-bold text-emerald-200">{sharp}</p>
-                </div>
-              )}
+          {/* ── Top bar: sport filters + refresh ── */}
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex flex-1 gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {SPORT_TABS.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setSport(tab.value)}
+                  className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    sport === tab.value
+                      ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200'
+                      : 'border-white/15 text-white/55 hover:border-white/25 hover:text-white'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
               {lastUpdated && (
-                <div className="ml-auto flex items-end pb-0.5">
-                  <span className="text-[11px] text-white/25">Updated {timeAgo(lastUpdated.toISOString())}</span>
-                </div>
+                <span className="hidden text-[11px] text-white/25 sm:block">
+                  {timeAgo(lastUpdated.toISOString())}
+                </span>
               )}
+              <button
+                type="button"
+                onClick={() => fetchBets(true)}
+                disabled={refreshing || loading}
+                className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/60 transition hover:border-white/25 hover:text-white disabled:opacity-40"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
             </div>
-          )}
-        </div>
-
-        {/* ── Sport filter — horizontally scrollable ── */}
-        <div className="mb-6 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {SPORT_TABS.map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              onClick={() => setSport(tab.value)}
-              className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-                sport === tab.value
-                  ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200'
-                  : 'border-white/15 text-white/55 hover:border-white/25 hover:text-white'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Feed ── */}
-        {loading ? (
-          <div className="space-y-3">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-36 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
-            ))}
           </div>
-        ) : bets.length === 0 ? (
-          <EmptyState sport={sport} />
-        ) : (
-          <div className="space-y-3">
-            {bets.map((bet, idx) => (
-              <InsiderBetCard key={`${bet.wallet}-${bet.slug}-${idx}`} bet={bet} />
-            ))}
-          </div>
-        )}
 
-        {/* ── Scoring explanation ── */}
-        {!loading && bets.length > 0 && (
-          <div className="mt-10 rounded-2xl border border-white/8 bg-white/3 p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp className="h-4 w-4 text-white/30" />
-              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/30">
-                How scores are calculated
-              </p>
-            </div>
-            <div className="grid gap-3 text-xs text-white/45 sm:grid-cols-2">
-              <div>
-                <p className="font-semibold text-white/60 mb-1">Wallet Authority (60%)</p>
-                <p>Trade count, lifetime ROI, profit factor, and win rate — weighted toward wallets with the deepest track record.</p>
-              </div>
-              <div>
-                <p className="font-semibold text-white/60 mb-1">Bet Conviction (40%)</p>
-                <p>How large this specific bet is relative to that wallet's average. A 3× bet from a long-term winner is a different signal than a routine position.</p>
+          {/* ── Two-panel grid ── */}
+          <div className="grid min-h-[620px] grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
+
+            {/* Left: scrollable list */}
+            <div className="max-h-[72vh] overflow-y-auto border-b border-white/10 bg-black/30 lg:border-b-0 lg:border-r lg:border-white/10">
+              <div className="space-y-2 p-3">
+                {loading ? (
+                  [...Array(8)].map((_, i) => (
+                    <div key={i} className="h-20 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+                  ))
+                ) : bets.length === 0 ? (
+                  <EmptyState sport={sport} />
+                ) : (
+                  bets.map((bet, idx) => {
+                    const id = `${bet.wallet}-${bet.slug}`
+                    return (
+                      <ListCard
+                        key={`${id}-${idx}`}
+                        bet={bet}
+                        selected={selectedId === id}
+                        onClick={() => setSelectedId(id)}
+                      />
+                    )
+                  })
+                )}
               </div>
             </div>
-            <p className="mt-3 text-[11px] text-white/25">
-              Min 500 trades · Positive ROI · Profit factor ≥ 1.1 · Entry price 4¢–92¢
-            </p>
+
+            {/* Right: detail panel */}
+            <div className="overflow-y-auto bg-black/20 lg:max-h-[72vh]">
+              <DetailPanel bet={selectedBet} />
+            </div>
+
           </div>
-        )}
+
+        </div>
       </div>
     </div>
   )

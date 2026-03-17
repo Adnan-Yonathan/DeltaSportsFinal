@@ -8,8 +8,21 @@ const DATA_API        = 'https://data-api.polymarket.com'
 const LEADERBOARD_URL = `${DATA_API}/v1/leaderboard`
 const TRADES_URL      = `${DATA_API}/trades`
 
-// Leaderboard: fetch top N wallets by all-time PNL
-const LEADERBOARD_LIMIT  = 100
+// Leaderboard: multiple queries with different strategies to discover diverse wallets.
+// Each strategy returns up to LEADERBOARD_PAGE_SIZE wallets; results are merged/deduped.
+const LEADERBOARD_PAGE_SIZE = 60
+
+// Discovery strategies: [timePeriod, orderBy, offset]
+// Vary time windows, sort orders, and pagination to avoid always seeing the same whales.
+const LEADERBOARD_STRATEGIES: Array<[string, string, number]> = [
+  ['ALL',   'PNL',    0],    // all-time top earners (page 1)
+  ['ALL',   'PNL',    60],   // all-time top earners (page 2)
+  ['ALL',   'VOLUME', 0],    // all-time highest volume
+  ['WEEK',  'PNL',    0],    // this week's winners
+  ['MONTH', 'PNL',    0],    // this month's winners
+  ['DAY',   'PNL',    0],    // today's movers
+]
+const LEADERBOARD_CONCURRENCY = 3  // strategies fetched in parallel
 
 // Global trades: fetch recent trades in small parallel batches.
 // Smaller pages = faster individual responses, less likely to hang.
@@ -150,60 +163,85 @@ export type InsiderFeedRefreshResult = {
 }
 
 export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResult> {
-  // ── Step 1: Leaderboard — who are the top profitable traders? ────────────────
-  const lbUrl = new URL(LEADERBOARD_URL)
-  lbUrl.searchParams.set('timePeriod', 'ALL')
-  lbUrl.searchParams.set('orderBy', 'PNL')
-  lbUrl.searchParams.set('limit', String(LEADERBOARD_LIMIT))
+  // ── Step 1: Multi-strategy leaderboard discovery ────────────────────────────
+  // Fetch multiple leaderboard views in parallel to discover diverse wallets.
+  // Different time periods + sort orders surface different profitable traders.
 
-  const lbRaw = await fetchJson(lbUrl.toString())
-  if (!Array.isArray(lbRaw) || lbRaw.length === 0) {
-    console.error('[InsiderFeed] Leaderboard fetch failed or empty')
-    return { walletsScanned: 0, walletsWithBets: 0, positionsFound: 0, betsCached: 0 }
-  }
-
-  // Log the shape of the first entry so we can see all available fields
-  if (lbRaw.length > 0) {
-    console.log('[InsiderFeed] Leaderboard sample entry keys:', Object.keys(lbRaw[0] as object))
-    console.log('[InsiderFeed] Leaderboard sample entry:', JSON.stringify(lbRaw[0]).slice(0, 500))
-  }
-
-  // Build a qualified wallet set with their stats
   type WalletMeta = {
     roi: number; vol: number; tradeCount: number | null
     pseudonym: string | null; profileImageUrl: string | null
   }
   const qualifiedWallets = new Map<string, WalletMeta>()
+  let loggedSample = false
 
-  for (const row of lbRaw as LeaderboardEntry[]) {
-    const wallet = String(row.proxyWallet ?? '').trim().toLowerCase()
-    if (!wallet) continue
-    const pnl = parseNum(row.pnl)
-    const vol = parseNum(row.vol)
-    if (!pnl || !vol || pnl <= 0 || vol < MIN_VOLUME) continue
-    const roi = pnl / vol
-    if (!Number.isFinite(roi) || roi <= MIN_ROI) continue
+  const processLeaderboardPage = (rows: LeaderboardEntry[]) => {
+    for (const row of rows) {
+      const wallet = String(row.proxyWallet ?? '').trim().toLowerCase()
+      if (!wallet) continue
+      const pnl = parseNum(row.pnl)
+      const vol = parseNum(row.vol)
+      if (!pnl || !vol || pnl <= 0 || vol < MIN_VOLUME) continue
+      const roi = pnl / vol
+      if (!Number.isFinite(roi) || roi <= MIN_ROI) continue
 
-    const tradeCount = parseNum(row.numTrades)
+      // Keep the entry with the best ROI if we see the same wallet from multiple strategies
+      const existing = qualifiedWallets.get(wallet)
+      if (existing && existing.roi >= roi) continue
 
-    qualifiedWallets.set(wallet, {
-      roi,
-      vol,
-      tradeCount,   // null if leaderboard doesn't return this field
-      pseudonym:       typeof row.pseudonym    === 'string' ? row.pseudonym    : null,
-      profileImageUrl: typeof row.profileImage === 'string' ? row.profileImage : null,
-    })
+      const tradeCount = parseNum(row.numTrades)
+      qualifiedWallets.set(wallet, {
+        roi,
+        vol,
+        tradeCount,
+        pseudonym:       typeof row.pseudonym    === 'string' ? row.pseudonym    : null,
+        profileImageUrl: typeof row.profileImage === 'string' ? row.profileImage : null,
+      })
+    }
   }
 
-  console.log(`[InsiderFeed] Qualified wallets: ${qualifiedWallets.size}`)
-  // Log ROI distribution to check if values look real
+  // Fetch strategies in parallel batches
+  for (let i = 0; i < LEADERBOARD_STRATEGIES.length; i += LEADERBOARD_CONCURRENCY) {
+    const batch = LEADERBOARD_STRATEGIES.slice(i, i + LEADERBOARD_CONCURRENCY)
+
+    const results = await Promise.all(
+      batch.map(([timePeriod, orderBy, offset]) => {
+        const url = new URL(LEADERBOARD_URL)
+        url.searchParams.set('timePeriod', timePeriod)
+        url.searchParams.set('orderBy', orderBy)
+        url.searchParams.set('limit', String(LEADERBOARD_PAGE_SIZE))
+        if (offset > 0) url.searchParams.set('offset', String(offset))
+        return fetchJson(url.toString())
+      })
+    )
+
+    for (let j = 0; j < results.length; j++) {
+      const raw = results[j]
+      const [tp, ob, off] = batch[j]
+      if (!Array.isArray(raw)) {
+        console.warn(`[InsiderFeed] Leaderboard strategy ${tp}/${ob}/+${off} failed`)
+        continue
+      }
+
+      // Log the first successful response to see field names
+      if (!loggedSample && raw.length > 0) {
+        loggedSample = true
+        console.log('[InsiderFeed] Leaderboard sample keys:', Object.keys(raw[0] as object))
+        console.log('[InsiderFeed] Leaderboard sample:', JSON.stringify(raw[0]).slice(0, 500))
+      }
+
+      console.log(`[InsiderFeed] Strategy ${tp}/${ob}/+${off}: ${raw.length} entries`)
+      processLeaderboardPage(raw as LeaderboardEntry[])
+    }
+  }
+
+  console.log(`[InsiderFeed] Total unique qualified wallets: ${qualifiedWallets.size}`)
   const roiSample = [...qualifiedWallets.values()].slice(0, 5).map(w =>
     `roi=${(w.roi * 100).toFixed(1)}% vol=$${Math.round(w.vol)} trades=${w.tradeCount ?? 'N/A'}`
   )
-  console.log('[InsiderFeed] Top 5 wallet stats:', roiSample.join(' | '))
+  console.log('[InsiderFeed] Sample wallet stats:', roiSample.join(' | '))
 
   if (qualifiedWallets.size === 0) {
-    console.error('[InsiderFeed] No qualified wallets from leaderboard')
+    console.error('[InsiderFeed] No qualified wallets from any leaderboard strategy')
     return { walletsScanned: 0, walletsWithBets: 0, positionsFound: 0, betsCached: 0 }
   }
 

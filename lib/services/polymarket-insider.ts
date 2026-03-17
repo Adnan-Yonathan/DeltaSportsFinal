@@ -59,14 +59,14 @@ export function computeInsiderScore(
   stakeUsd: number,
 ): { score: number; sizeRatio: number } {
   // ── Authority: how trustworthy is this wallet long-term? ──────────────────
-  // Scales smoothly — 1 000 trades ≈ 0.33, 3 000+ = max
-  const tradeDepth   = clamp(buyTradeCount / 3000, 0, 1)
-  // 200 % ROI lifetime = full credit
-  const roiComp      = clamp(roiLifetime, 0, 2.0) / 2.0
-  // profit factor 5+ = max
-  const pfComp       = clamp(profitFactor, 0, 5.0) / 5.0
-  // win rate meaningful between 40 % and 75 %
-  const winComp      = clamp((clamp(winRate, 0.40, 0.75) - 0.40) / 0.35, 0, 1)
+  // 1 000 trades = 0.33, 3 000+ = 1.0 (full credit)
+  const tradeDepth = clamp(buyTradeCount / 3000, 0, 1)
+  // 200 % lifetime ROI = full credit
+  const roiComp    = clamp(roiLifetime, 0, 2.0) / 2.0
+  // Profit factor 5+ = full credit
+  const pfComp     = clamp(profitFactor, 0, 5.0) / 5.0
+  // Win rate meaningful between 40 % and 75 %
+  const winComp    = clamp((clamp(winRate, 0.40, 0.75) - 0.40) / 0.35, 0, 1)
 
   const authority = (
     tradeDepth * 0.35 +
@@ -75,18 +75,56 @@ export function computeInsiderScore(
     winComp    * 0.10
   ) * 100
 
-  // ── Conviction: how big is THIS bet relative to their norm? ───────────────
-  // 0.75× their avg → 0,  1× → ~6,  2× → ~29,  3× → ~53,  5× → 100
+  // ── Conviction: how large is THIS bet relative to their norm? ─────────────
+  // 0.75× avg → 0,  1× → ~6,  2× → ~29,  3× → ~53,  5× → 100
   const sizeRatio = avgBetSize > 0 ? stakeUsd / avgBetSize : 1
   const conviction = clamp((sizeRatio - 0.75) / 4.25, 0, 1) * 100
 
-  // ── Combined + bias curve ─────────────────────────────────────────────────
+  // ── Combined score ────────────────────────────────────────────────────────
+  // Raw 0–100, then linearly mapped to display range 60–99.
+  // NO sqrt: that was compressing every qualifying bet to ~91.
+  // Linear preserves natural differentiation between wallets.
+  //   raw = 0  → 60 (hidden, below threshold)
+  //   raw = 30 → 71.7 (Notable)
+  //   raw = 50 → 79.5 (Notable)
+  //   raw = 67 → 86 (Sharp)
+  //   raw = 85 → 93 (Elite)
+  //   raw = 100 → 99 (Elite)
   const raw    = authority * 0.60 + conviction * 0.40
-  // sqrt bias squishes qualifying bets toward 80–99
-  const biased = 60 + Math.sqrt(raw / 100) * 39
+  const biased = 60 + (raw / 100) * 39
   const score  = Math.floor(clamp(biased, 0, 99))
 
   return { score, sizeRatio: Math.round(sizeRatio * 10) / 10 }
+}
+
+// ── Date helpers ──────────────────────────────────────────────────────────────
+
+/**
+ * Returns the UTC ISO timestamp for midnight Eastern time on (today - daysBack).
+ * Handles both EST (UTC-5) and EDT (UTC-4) via the Intl API.
+ */
+function getEasternWindowStart(daysBack: number): string {
+  // Determine today's date in Eastern time
+  const etDateStr = new Date().toLocaleDateString('en-CA', {
+    timeZone: 'America/New_York',
+  }) // "YYYY-MM-DD"
+
+  const [y, m, d] = etDateStr.split('-').map(Number)
+
+  // Detect current UTC offset for Eastern by comparing noon UTC with noon ET
+  const noonUTC = new Date(Date.UTC(y, m - 1, d, 12, 0, 0))
+  const noonETHour = +new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    hour12: false,
+  }).format(noonUTC)
+  const utcOffsetHours = 12 - noonETHour // 4 = EDT, 5 = EST
+
+  // Midnight Eastern on (today - daysBack) expressed as UTC
+  const windowStart = new Date(
+    Date.UTC(y, m - 1, d - daysBack, utcOffsetHours, 0, 0),
+  )
+  return windowStart.toISOString()
 }
 
 // ── Main feed query ───────────────────────────────────────────────────────────
@@ -96,12 +134,15 @@ export async function getInsiderFeed(opts: {
   limit?: number
   offset?: number
   minScore?: number
+  /** How many calendar days back (Eastern) to include. 0 = today only, 3 = last 3 days, -1 = all time */
+  daysBack?: number
 } = {}): Promise<InsiderBet[]> {
   const {
     sport,
-    limit  = 100,
-    offset = 0,
+    limit    = 100,
+    offset   = 0,
     minScore = MIN_INSIDER_SCORE,
+    daysBack = 3,
   } = opts
 
   const supabase = createServiceClient()
@@ -138,6 +179,13 @@ export async function getInsiderFeed(opts: {
     .lte('avg_entry_price', MAX_ENTRY_PRICE)
     .not('avg_entry_price', 'is', null)
     .limit(2000)
+
+  // Date window: filter by when the bet was last traded, anchored to Eastern time.
+  // daysBack = 0 → today only, 3 → last 3 days, -1 → no date filter (all time)
+  if (daysBack >= 0) {
+    const windowStart = getEasternWindowStart(daysBack)
+    posQuery = posQuery.gte('last_trade_time', windowStart)
+  }
 
   if (sport && sport !== 'ALL') {
     posQuery = posQuery.eq('sport_label', sport)

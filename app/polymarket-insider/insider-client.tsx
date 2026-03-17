@@ -4,18 +4,36 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Eye, RefreshCw, TrendingUp, Zap } from 'lucide-react'
 import type { InsiderBet } from '@/lib/services/polymarket-insider'
 
-// ── Sport filter tabs ─────────────────────────────────────────────────────────
+// ── Sport filter tabs — all sports Polymarket tracks ─────────────────────────
 
 const SPORT_TABS = [
-  { label: 'All',    value: 'ALL' },
-  { label: 'NBA',    value: 'NBA' },
-  { label: 'NFL',    value: 'NFL' },
-  { label: 'NHL',    value: 'NHL' },
-  { label: 'MLB',    value: 'MLB' },
-  { label: 'NCAAB',  value: 'NCAAB' },
-  { label: 'NCAAF',  value: 'NCAAF' },
-  { label: 'Soccer', value: 'SOCCER' },
-  { label: 'UFC',    value: 'UFC' },
+  { label: 'All',      value: 'ALL' },
+  { label: 'NBA',      value: 'NBA' },
+  { label: 'NFL',      value: 'NFL' },
+  { label: 'NHL',      value: 'NHL' },
+  { label: 'MLB',      value: 'MLB' },
+  { label: 'NCAAB',    value: 'NCAAB' },
+  { label: 'NCAAF',    value: 'NCAAF' },
+  { label: 'Soccer',   value: 'SOCCER' },
+  { label: 'MLS',      value: 'MLS' },
+  { label: 'UFC',      value: 'UFC' },
+  { label: 'MMA',      value: 'MMA' },
+  { label: 'Boxing',   value: 'BOXING' },
+  { label: 'Tennis',   value: 'TENNIS' },
+  { label: 'Golf',     value: 'GOLF' },
+  { label: 'Esports',  value: 'ESPORTS' },
+  { label: 'Racing',   value: 'RACING' },
+  { label: 'Cricket',  value: 'CRICKET' },
+  { label: 'WNBA',     value: 'WNBA' },
+  { label: 'Olympics', value: 'OLYMPICS' },
+]
+
+// ── Date window tabs ──────────────────────────────────────────────────────────
+
+const DATE_TABS = [
+  { label: 'Today',      daysBack: 0 },
+  { label: 'Last 3 Days', daysBack: 3 },
+  { label: 'All Time',   daysBack: -1 },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -24,10 +42,7 @@ function formatOdds(american: number | null, price: number): string {
   if (american !== null && Number.isFinite(american)) {
     return american > 0 ? `+${american}` : `${american}`
   }
-  // derive from price
-  if (price >= 0.5) {
-    return `-${Math.round((price / (1 - price)) * 100)}`
-  }
+  if (price >= 0.5) return `-${Math.round((price / (1 - price)) * 100)}`
   return `+${Math.round(((1 - price) / price) * 100)}`
 }
 
@@ -89,7 +104,7 @@ function InsiderBetCard({ bet }: { bet: InsiderBet }) {
         <ScoreBadge score={bet.insider_score} />
 
         <div className="min-w-0 flex-1">
-          {/* Sport + conviction tags */}
+          {/* Tags */}
           <div className="mb-2 flex flex-wrap items-center gap-1.5">
             {bet.sport_label && (
               <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.25em] text-white/55">
@@ -104,7 +119,7 @@ function InsiderBetCard({ bet }: { bet: InsiderBet }) {
             )}
           </div>
 
-          {/* Market title */}
+          {/* Title */}
           <a
             href={polymarketUrl}
             target="_blank"
@@ -120,12 +135,10 @@ function InsiderBetCard({ bet }: { bet: InsiderBet }) {
             <span className="text-white/50">·</span>
             <span className="text-white/70">{formatOdds(bet.avg_entry_american_odds, bet.avg_entry_price)}</span>
             <span className="text-white/50">·</span>
-            <span className="text-white/55">
-              {(bet.avg_entry_price * 100).toFixed(0)}¢ entry
-            </span>
+            <span className="text-white/55">{(bet.avg_entry_price * 100).toFixed(0)}¢ entry</span>
           </div>
 
-          {/* Stake row */}
+          {/* Stake */}
           <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
             <div>
               <span className="text-white/40">Stake </span>
@@ -184,15 +197,16 @@ function InsiderBetCard({ bet }: { bet: InsiderBet }) {
 
 // ── Empty state ───────────────────────────────────────────────────────────────
 
-function EmptyState({ sport }: { sport: string }) {
+function EmptyState({ sport, daysBack }: { sport: string; daysBack: number }) {
+  const dateLabel = daysBack === 0 ? 'today' : daysBack < 0 ? 'all time' : `the last ${daysBack} days`
   return (
     <div className="rounded-2xl border border-white/10 bg-black/40 px-8 py-16 text-center">
       <Eye className="mx-auto h-8 w-8 text-white/20" />
       <p className="mt-4 text-sm font-medium text-white/50">No insider bets found</p>
       <p className="mt-1.5 text-xs text-white/30">
         {sport !== 'ALL'
-          ? `No qualifying ${sport} positions right now. Try All or another sport.`
-          : 'No qualifying positions meet the score threshold right now. Check back soon.'}
+          ? `No qualifying ${sport} positions for ${dateLabel}. Try a wider date range or All sports.`
+          : `No qualifying positions for ${dateLabel}. Try "Last 3 Days" or "All Time".`}
       </p>
     </div>
   )
@@ -201,9 +215,10 @@ function EmptyState({ sport }: { sport: string }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function InsiderClient() {
-  const [bets, setBets]         = useState<InsiderBet[]>([])
-  const [sport, setSport]       = useState('ALL')
-  const [loading, setLoading]   = useState(true)
+  const [bets, setBets]       = useState<InsiderBet[]>([])
+  const [sport, setSport]     = useState('ALL')
+  const [daysBack, setDaysBack] = useState(3)
+  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -213,7 +228,7 @@ export default function InsiderClient() {
     else setLoading(true)
 
     try {
-      const params = new URLSearchParams({ limit: '100' })
+      const params = new URLSearchParams({ limit: '100', daysBack: String(daysBack) })
       if (sport !== 'ALL') params.set('sport', sport)
 
       const res  = await fetch(`/api/polymarket/insider?${params}`)
@@ -229,25 +244,19 @@ export default function InsiderClient() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [sport])
+  }, [sport, daysBack])
 
-  // Fetch on mount and sport change
-  useEffect(() => {
-    fetchBets()
-  }, [fetchBets])
+  useEffect(() => { fetchBets() }, [fetchBets])
 
   // Auto-refresh every 5 minutes
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
     intervalRef.current = setInterval(() => fetchBets(true), 5 * 60 * 1000)
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [fetchBets])
 
-  const topScore = bets[0]?.insider_score ?? null
-  const elite    = bets.filter(b => b.insider_score >= 90).length
-  const sharp    = bets.filter(b => b.insider_score >= 80 && b.insider_score < 90).length
+  const elite = bets.filter(b => b.insider_score >= 90).length
+  const sharp = bets.filter(b => b.insider_score >= 80 && b.insider_score < 90).length
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -277,7 +286,6 @@ export default function InsiderClient() {
               onClick={() => fetchBets(true)}
               disabled={refreshing || loading}
               className="shrink-0 flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/60 transition hover:border-white/25 hover:text-white disabled:opacity-40"
-              aria-label="Refresh feed"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
@@ -286,48 +294,64 @@ export default function InsiderClient() {
 
           {/* Stats row */}
           {!loading && bets.length > 0 && (
-            <div className="mt-5 flex flex-wrap gap-4">
+            <div className="mt-5 flex flex-wrap gap-3">
               <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/40">Bets shown</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/40">Shown</p>
                 <p className="mt-0.5 text-lg font-bold text-white">{bets.length}</p>
               </div>
-              {topScore !== null && (
+              {bets[0] && (
                 <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/40">Top score</p>
-                  <p className="mt-0.5 text-lg font-bold text-white">{topScore}</p>
+                  <p className="mt-0.5 text-lg font-bold text-white">{bets[0].insider_score}</p>
                 </div>
               )}
               {elite > 0 && (
-                <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/40">Elite (90+)</p>
+                <div className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/40">Elite 90+</p>
                   <p className="mt-0.5 text-lg font-bold text-white">{elite}</p>
                 </div>
               )}
               {sharp > 0 && (
                 <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 px-4 py-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-emerald-300/60">Sharp (80–89)</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-emerald-300/60">Sharp 80–89</p>
                   <p className="mt-0.5 text-lg font-bold text-emerald-200">{sharp}</p>
                 </div>
               )}
               {lastUpdated && (
                 <div className="ml-auto flex items-end pb-0.5">
-                  <span className="text-[11px] text-white/25">
-                    Updated {timeAgo(lastUpdated.toISOString())}
-                  </span>
+                  <span className="text-[11px] text-white/25">Updated {timeAgo(lastUpdated.toISOString())}</span>
                 </div>
               )}
             </div>
           )}
         </div>
 
-        {/* ── Sport filters ── */}
-        <div className="mb-6 flex flex-wrap gap-2">
+        {/* ── Date filter ── */}
+        <div className="mb-4 flex gap-2">
+          {DATE_TABS.map((tab) => (
+            <button
+              key={tab.daysBack}
+              type="button"
+              onClick={() => setDaysBack(tab.daysBack)}
+              className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                daysBack === tab.daysBack
+                  ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200'
+                  : 'border-white/15 text-white/55 hover:border-white/25 hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Sport filter — horizontally scrollable ── */}
+        <div className="mb-6 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           {SPORT_TABS.map((tab) => (
             <button
               key={tab.value}
               type="button"
               onClick={() => setSport(tab.value)}
-              className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+              className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
                 sport === tab.value
                   ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200'
                   : 'border-white/15 text-white/55 hover:border-white/25 hover:text-white'
@@ -342,14 +366,11 @@ export default function InsiderClient() {
         {loading ? (
           <div className="space-y-3">
             {[...Array(6)].map((_, i) => (
-              <div
-                key={i}
-                className="h-36 animate-pulse rounded-2xl border border-white/10 bg-white/5"
-              />
+              <div key={i} className="h-36 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
             ))}
           </div>
         ) : bets.length === 0 ? (
-          <EmptyState sport={sport} />
+          <EmptyState sport={sport} daysBack={daysBack} />
         ) : (
           <div className="space-y-3">
             {bets.map((bet, idx) => (
@@ -378,7 +399,7 @@ export default function InsiderClient() {
               </div>
             </div>
             <p className="mt-3 text-[11px] text-white/25">
-              Minimum 1 000 buy trades · Positive ROI · Profit factor ≥ 1.1 · Entry price 4¢–92¢
+              Min 1 000 buy trades · Positive ROI · Profit factor ≥ 1.1 · Entry price 4¢–92¢
             </p>
           </div>
         )}

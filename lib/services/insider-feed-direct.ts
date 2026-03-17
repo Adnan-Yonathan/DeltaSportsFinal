@@ -20,6 +20,7 @@ const TRADES_PAGES          = 20
 const TRADES_PAGE_CONCURRENCY = 5  // pages fetched in parallel per round
 
 const MIN_VOLUME         = 2_000  // $2k minimum lifetime volume
+const MIN_ROI            = 0      // no ROI floor — we show whatever the leaderboard has
 const MIN_NET_SHARES     = 1
 const MIN_STAKE_USD      = 10
 const FETCH_TIMEOUT_MS   = 12_000 // per-request timeout
@@ -161,9 +162,15 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     return { walletsScanned: 0, walletsWithBets: 0, positionsFound: 0, betsCached: 0 }
   }
 
+  // Log the shape of the first entry so we can see all available fields
+  if (lbRaw.length > 0) {
+    console.log('[InsiderFeed] Leaderboard sample entry keys:', Object.keys(lbRaw[0] as object))
+    console.log('[InsiderFeed] Leaderboard sample entry:', JSON.stringify(lbRaw[0]).slice(0, 500))
+  }
+
   // Build a qualified wallet set with their stats
   type WalletMeta = {
-    roi: number; vol: number
+    roi: number; vol: number; tradeCount: number | null
     pseudonym: string | null; profileImageUrl: string | null
   }
   const qualifiedWallets = new Map<string, WalletMeta>()
@@ -175,15 +182,25 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     const vol = parseNum(row.vol)
     if (!pnl || !vol || pnl <= 0 || vol < MIN_VOLUME) continue
     const roi = pnl / vol
-    if (!Number.isFinite(roi) || roi <= 0) continue
+    if (!Number.isFinite(roi) || roi <= MIN_ROI) continue
+
+    const tradeCount = parseNum(row.numTrades)
 
     qualifiedWallets.set(wallet, {
       roi,
       vol,
+      tradeCount,   // null if leaderboard doesn't return this field
       pseudonym:       typeof row.pseudonym    === 'string' ? row.pseudonym    : null,
       profileImageUrl: typeof row.profileImage === 'string' ? row.profileImage : null,
     })
   }
+
+  console.log(`[InsiderFeed] Qualified wallets: ${qualifiedWallets.size}`)
+  // Log ROI distribution to check if values look real
+  const roiSample = [...qualifiedWallets.values()].slice(0, 5).map(w =>
+    `roi=${(w.roi * 100).toFixed(1)}% vol=$${Math.round(w.vol)} trades=${w.tradeCount ?? 'N/A'}`
+  )
+  console.log('[InsiderFeed] Top 5 wallet stats:', roiSample.join(' | '))
 
   if (qualifiedWallets.size === 0) {
     console.error('[InsiderFeed] No qualified wallets from leaderboard')
@@ -251,6 +268,13 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       // Short page = API has no more data
       if ((raw as unknown[]).length < TRADES_PAGE_SIZE) { exhausted = true; break }
     }
+  }
+
+  console.log(`[InsiderFeed] Wallets seen in global trades: ${walletTrades.size}`)
+  // Log per-wallet buy counts to see if they're realistic
+  for (const [wallet, stat] of walletBuyStats) {
+    const meta = qualifiedWallets.get(wallet)
+    console.log(`[InsiderFeed] wallet=${wallet.slice(0, 8)}... buys=${stat.count} avgSize=$${(stat.totalNotional / stat.count).toFixed(0)} lbRoi=${meta ? (meta.roi * 100).toFixed(1) : '?'}% lbTrades=${meta?.tradeCount ?? 'N/A'}`)
   }
 
   // ── Step 3: Compute open sports positions per wallet ──────────────────────────

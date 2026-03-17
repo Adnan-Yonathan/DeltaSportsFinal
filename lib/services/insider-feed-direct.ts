@@ -11,11 +11,13 @@ const TRADES_URL      = `${DATA_API}/trades`
 // Leaderboard: fetch top N wallets by all-time PNL
 const LEADERBOARD_LIMIT  = 100
 
-// Global trades: fetch this many pages of recent trades to find open positions.
-// 1000 trades/page × 6 pages = 6,000 most-recent trades across all markets.
-// Sports markets are short-lived (days), so recent global trades capture open positions.
-const TRADES_PAGE_SIZE   = 1000
-const TRADES_PAGES       = 6
+// Global trades: fetch recent trades in small parallel batches.
+// Smaller pages = faster individual responses, less likely to hang.
+// More pages = broader historical coverage to catch all open positions.
+// 400 trades/page × 20 pages = 8,000 trades, fetched 5 at a time (~4 rounds).
+const TRADES_PAGE_SIZE      = 400
+const TRADES_PAGES          = 20
+const TRADES_PAGE_CONCURRENCY = 5  // pages fetched in parallel per round
 
 const MIN_VOLUME         = 2_000  // $2k minimum lifetime volume
 const MIN_NET_SHARES     = 1
@@ -196,46 +198,59 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
   // Track buy-side stats for avg bet size scoring
   const walletBuyStats = new Map<string, { totalNotional: number; count: number }>()
 
-  for (let page = 0; page < TRADES_PAGES; page++) {
-    const url = new URL(TRADES_URL)
-    url.searchParams.set('limit', String(TRADES_PAGE_SIZE))
-    url.searchParams.set('offset', String(page * TRADES_PAGE_SIZE))
+  // Fetch pages in parallel rounds (TRADES_PAGE_CONCURRENCY pages at a time)
+  let exhausted = false
+  for (let round = 0; round < TRADES_PAGES && !exhausted; round += TRADES_PAGE_CONCURRENCY) {
+    const pageNums = Array.from(
+      { length: Math.min(TRADES_PAGE_CONCURRENCY, TRADES_PAGES - round) },
+      (_, i) => round + i,
+    )
 
-    const raw = await fetchJson(url.toString())
-    if (!Array.isArray(raw) || raw.length === 0) break
+    const pages = await Promise.all(
+      pageNums.map(page => {
+        const url = new URL(TRADES_URL)
+        url.searchParams.set('limit', String(TRADES_PAGE_SIZE))
+        url.searchParams.set('offset', String(page * TRADES_PAGE_SIZE))
+        return fetchJson(url.toString())
+      })
+    )
 
-    for (const trade of raw as TradeEntry[]) {
-      const wallet = String(trade.proxyWallet ?? '').trim().toLowerCase()
-      if (!wallet || !qualifiedWallets.has(wallet)) continue
+    for (const raw of pages) {
+      if (!Array.isArray(raw) || raw.length === 0) { exhausted = true; break }
 
-      // Store trade
-      let list = walletTrades.get(wallet)
-      if (!list) { list = []; walletTrades.set(wallet, list) }
-      list.push(trade)
+      for (const trade of raw as TradeEntry[]) {
+        const wallet = String(trade.proxyWallet ?? '').trim().toLowerCase()
+        if (!wallet || !qualifiedWallets.has(wallet)) continue
 
-      // Capture profile info from trade payload
-      if (!tradeProfiles.has(wallet)) {
-        tradeProfiles.set(wallet, {
-          pseudonym:       typeof trade.pseudonym    === 'string' ? trade.pseudonym    : null,
-          profileImageUrl: typeof trade.profileImage === 'string' ? trade.profileImage : null,
-        })
-      }
+        // Store trade
+        let list = walletTrades.get(wallet)
+        if (!list) { list = []; walletTrades.set(wallet, list) }
+        list.push(trade)
 
-      // Track buy-side stats for avg bet size
-      if (trade.side === 'BUY') {
-        const size  = parseNum(trade.size)
-        const price = parseNum(trade.price)
-        if (size && price && size > 0 && price > 0) {
-          const existing = walletBuyStats.get(wallet) ?? { totalNotional: 0, count: 0 }
-          existing.totalNotional += size * price
-          existing.count         += 1
-          walletBuyStats.set(wallet, existing)
+        // Capture profile info from trade payload
+        if (!tradeProfiles.has(wallet)) {
+          tradeProfiles.set(wallet, {
+            pseudonym:       typeof trade.pseudonym    === 'string' ? trade.pseudonym    : null,
+            profileImageUrl: typeof trade.profileImage === 'string' ? trade.profileImage : null,
+          })
+        }
+
+        // Track buy-side stats for avg bet size scoring
+        if (trade.side === 'BUY') {
+          const size  = parseNum(trade.size)
+          const price = parseNum(trade.price)
+          if (size && price && size > 0 && price > 0) {
+            const existing = walletBuyStats.get(wallet) ?? { totalNotional: 0, count: 0 }
+            existing.totalNotional += size * price
+            existing.count         += 1
+            walletBuyStats.set(wallet, existing)
+          }
         }
       }
-    }
 
-    // If we got fewer than a full page, no more data
-    if ((raw as unknown[]).length < TRADES_PAGE_SIZE) break
+      // Short page = API has no more data
+      if ((raw as unknown[]).length < TRADES_PAGE_SIZE) { exhausted = true; break }
+    }
   }
 
   // ── Step 3: Compute open sports positions per wallet ──────────────────────────

@@ -126,14 +126,14 @@ function getEasternWindowStart(daysBack: number): string {
   return windowStart.toISOString()
 }
 
-// ── Main feed query ───────────────────────────────────────────────────────────
+// ── Main feed query — reads from insider_feed_cache (populated by refresh cron) ──
 
 export async function getInsiderFeed(opts: {
   sport?: string
   limit?: number
   offset?: number
   minScore?: number
-  /** How many calendar days back (Eastern) to include. 0 = today only, 3 = last 3 days, -1 = all time */
+  /** How many calendar days back (Eastern) to include. 0 = today only, -1 = all time */
   daysBack?: number
 } = {}): Promise<InsiderBet[]> {
   const {
@@ -141,114 +141,58 @@ export async function getInsiderFeed(opts: {
     limit    = 100,
     offset   = 0,
     minScore = MIN_INSIDER_SCORE,
-    daysBack = 3,
+    daysBack = 0,
   } = opts
 
   const supabase = createServiceClient()
 
-  // Step 1 — qualifying wallets (DB-side filters)
-  const summaryQuery = (supabase as any)
-    .from('polymarket_wallet_summary')
-    .select('wallet, roi_lifetime, win_rate, profit_factor, trade_count, buy_trade_count, avg_bet_size')
-    .gte('trade_count', MIN_TRADE_COUNT)
-    .gt('roi_lifetime', 0)
-    .gte('profit_factor', MIN_PROFIT_FACTOR)
-    .neq('qualification_status', 'excluded')
-    // Surface the highest-ROI wallets first so our 500-cap picks the best pool
-    .order('roi_lifetime', { ascending: false })
-    .limit(500)
-
-  const { data: summaries, error: summaryErr } = await summaryQuery
-
-  if (summaryErr || !summaries?.length) {
-    if (summaryErr) console.error('[INSIDER] summary query failed', summaryErr)
-    return []
-  }
-
-  const walletAddresses: string[] = summaries.map((s: any) => s.wallet)
-  const summaryMap = new Map<string, any>(summaries.map((s: any) => [s.wallet, s]))
-
-  // Step 2 — open positions for qualifying wallets (DB-side bet filters)
-  let posQuery = (supabase as any)
-    .from('polymarket_wallet_open_positions')
-    .select('wallet, title, outcome, sport_label, slug, avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, last_trade_time')
-    .in('wallet', walletAddresses)
-    .gte('stake_usd', MIN_STAKE_USD)
-    .gte('avg_entry_price', MIN_ENTRY_PRICE)
-    .lte('avg_entry_price', MAX_ENTRY_PRICE)
-    .not('avg_entry_price', 'is', null)
-    .limit(2000)
-
-  // Date window: filter by when the bet was last traded, anchored to Eastern time.
-  // daysBack = 0 → today only, 3 → last 3 days, -1 → no date filter (all time)
-  if (daysBack >= 0) {
-    const windowStart = getEasternWindowStart(daysBack)
-    posQuery = posQuery.gte('last_trade_time', windowStart)
-  }
+  let query = (supabase as any)
+    .from('insider_feed_cache')
+    .select(
+      'wallet, pseudonym, profile_image_url, title, outcome, sport_label, slug, ' +
+      'avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, ' +
+      'last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
+      'wallet_trade_count, wallet_profit_factor'
+    )
+    .gte('insider_score', minScore)
+    .order('insider_score', { ascending: false })
+    .limit(limit + offset)
 
   if (sport && sport !== 'ALL') {
-    posQuery = posQuery.eq('sport_label', sport)
+    query = query.eq('sport_label', sport)
   }
 
-  const { data: positions, error: posErr } = await posQuery
+  if (daysBack >= 0) {
+    const windowStart = getEasternWindowStart(daysBack)
+    query = query.gte('last_trade_time', windowStart)
+  }
 
-  if (posErr || !positions?.length) {
-    if (posErr) console.error('[INSIDER] positions query failed', posErr)
+  const { data, error } = await query
+
+  if (error) {
+    console.error('[INSIDER] cache query failed', error)
     return []
   }
 
-  // Step 3 — profiles for qualifying wallets
-  const { data: profiles } = await (supabase as any)
-    .from('polymarket_wallets')
-    .select('wallet, pseudonym, profile_image_url')
-    .in('wallet', walletAddresses)
+  if (!data?.length) return []
 
-  const profileMap = new Map<string, any>((profiles ?? []).map((p: any) => [p.wallet, p]))
-
-  // Step 4 — score each position in JS, filter by minScore
-  const scored: InsiderBet[] = []
-
-  for (const pos of positions as any[]) {
-    const summary = summaryMap.get(pos.wallet)
-    if (!summary) continue
-
-    const avgBetSize: number = summary.avg_bet_size ?? 0
-    if (avgBetSize <= 0) continue
-
-    const { score, sizeRatio } = computeInsiderScore(
-      summary.buy_trade_count ?? 0,
-      summary.roi_lifetime    ?? 0,
-      summary.profit_factor   ?? 0,
-      summary.win_rate        ?? 0,
-      avgBetSize,
-      pos.stake_usd,
-    )
-
-    if (score < minScore) continue
-
-    const profile = profileMap.get(pos.wallet)
-
-    scored.push({
-      wallet:                  pos.wallet,
-      pseudonym:               profile?.pseudonym        ?? null,
-      profile_image_url:       profile?.profile_image_url ?? null,
-      title:                   pos.title   ?? 'Unknown market',
-      outcome:                 pos.outcome ?? 'YES',
-      sport_label:             pos.sport_label ?? null,
-      slug:                    pos.slug,
-      avg_entry_price:         pos.avg_entry_price,
-      avg_entry_american_odds: pos.avg_entry_american_odds ?? null,
-      stake_usd:               pos.stake_usd,
-      potential_payout_usd:    pos.potential_payout_usd,
-      last_trade_time:         pos.last_trade_time ?? null,
-      insider_score:           score,
-      size_ratio:              sizeRatio,
-      wallet_roi_pct:          Math.round((summary.roi_lifetime ?? 0) * 100 * 10) / 10,
-      wallet_trade_count:      summary.trade_count ?? 0,
-      wallet_profit_factor:    summary.profit_factor   ?? 0,
-    })
-  }
-
-  scored.sort((a, b) => b.insider_score - a.insider_score)
-  return scored.slice(offset, offset + limit)
+  return (data as any[]).slice(offset).map((row): InsiderBet => ({
+    wallet:                  row.wallet,
+    pseudonym:               row.pseudonym               ?? null,
+    profile_image_url:       row.profile_image_url       ?? null,
+    title:                   row.title                   ?? 'Unknown market',
+    outcome:                 row.outcome                 ?? 'YES',
+    sport_label:             row.sport_label             ?? null,
+    slug:                    row.slug,
+    avg_entry_price:         row.avg_entry_price,
+    avg_entry_american_odds: row.avg_entry_american_odds ?? null,
+    stake_usd:               row.stake_usd,
+    potential_payout_usd:    row.potential_payout_usd,
+    last_trade_time:         row.last_trade_time         ?? null,
+    insider_score:           row.insider_score,
+    size_ratio:              row.size_ratio,
+    wallet_roi_pct:          row.wallet_roi_pct,
+    wallet_trade_count:      row.wallet_trade_count      ?? 0,
+    wallet_profit_factor:    row.wallet_profit_factor    ?? 0,
+  }))
 }

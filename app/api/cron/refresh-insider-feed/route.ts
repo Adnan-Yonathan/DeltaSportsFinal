@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ingestPolymarketWalletTradesForTrackedWallets } from '@/lib/services/polymarket-wallet-ingest'
-import { computePolymarketWalletRollups } from '@/lib/services/polymarket-wallet-rollups'
+import { refreshInsiderFeedCache } from '@/lib/services/insider-feed-direct'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/cron/refresh-insider-feed
- * Runs on a schedule: incrementally ingests fresh trades for all tracked wallets,
- * then recomputes wallet summary stats (trade_count, roi, open positions, etc.)
- * so the Insider Feed always reflects today's activity.
+ *
+ * New direct-API pipeline — no dependency on polymarket_wallet_summary or
+ * open_positions ETL tables.
+ *
+ * Steps:
+ *  1. Fetch top 150 wallets from Polymarket leaderboard (all-time PNL)
+ *  2. Filter to profitable wallets with min volume, rank by ROI, take top 75
+ *  3. Batch-fetch last 500 trades per wallet (10 concurrent)
+ *  4. Compute open sports positions from trades (net BUY shares remaining)
+ *  5. Score each position with computeInsiderScore
+ *  6. Upsert qualifying bets to insider_feed_cache table
  */
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -19,29 +26,13 @@ export async function GET(req: NextRequest) {
   const start = Date.now()
 
   try {
-    // Step 1: pull fresh trades from Polymarket API (incremental — only new since last_trade_ts)
-    const ingestResult = await ingestPolymarketWalletTradesForTrackedWallets({
-      limit: 500,
-      maxPages: 5,
-      fullBackfill: false,
-      sportsOnly: true,
-    })
-
-    // Step 2: recompute wallet summary stats and open positions from updated trade data
-    const rollupResult = await computePolymarketWalletRollups({})
+    const result = await refreshInsiderFeedCache()
 
     return NextResponse.json({
       ok: true,
       timestamp: new Date().toISOString(),
       durationMs: Date.now() - start,
-      ingest: {
-        walletsProcessed: ingestResult.walletsProcessed,
-        tradesFetched: ingestResult.tradesFetched,
-        tradesInserted: ingestResult.tradesInserted,
-      },
-      rollups: {
-        walletsProcessed: rollupResult.walletsProcessed,
-      },
+      ...result,
     })
   } catch (err: any) {
     console.error('[Cron: Insider Feed] Fatal error:', err)

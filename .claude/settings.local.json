@@ -29,7 +29,11 @@
       "Bash(git push:*)",
       "WebFetch(domain:www.sportsbettingdime.com)",
       "WebFetch(domain:cdn-sde.sbdfuel.com)",
-      "WebFetch(domain:x.com)"
+      "WebFetch(domain:x.com)",
+      "WebFetch(domain:docs.polymarket.com)",
+      "WebFetch(domain:data-api.polymarket.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:gist.github.com)"
     ],
     "deny": [],
     "ask": []

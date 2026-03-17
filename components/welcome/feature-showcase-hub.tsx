@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import {
   Activity,
   ArrowRight,
   ChartNoAxesCombined,
-  Check,
   Eye,
   FlaskConical,
   Waves,
@@ -22,6 +22,7 @@ type Feature = {
   id: string
   title: string
   icon: ReactNode
+  screenshotSrc: string
   outcome: string
   description: string
   stats: Stat[]
@@ -32,6 +33,7 @@ const FEATURES: Feature[] = [
     id: 'sharp-projections',
     title: 'Sharp Projections',
     icon: <ChartNoAxesCombined className="h-[1em] w-[1em]" />,
+    screenshotSrc: '/sharpprojections.png',
     outcome: 'See which games the model disagrees with the market on. Bet before the line corrects.',
     description:
       'Sharp Projections refreshes every 15 minutes, ranks the board by edge strength, and surfaces where model prices diverge from market prices — before the public closes the gap.',
@@ -45,6 +47,7 @@ const FEATURES: Feature[] = [
     id: 'sharp-props',
     title: 'Sharp Props',
     icon: <Activity className="h-[1em] w-[1em]" />,
+    screenshotSrc: '/Screenshot%202026-03-02%20015116.png',
     outcome: 'Read the orderbook before books adjust. Get the lean before it shows in the number.',
     description:
       'Sharp Props scans exchange depth, wall concentration, and side pressure to identify where informed prop money is positioning — so you move before books catch up.',
@@ -58,6 +61,7 @@ const FEATURES: Feature[] = [
     id: 'whale-feed',
     title: 'Whale Feed',
     icon: <Waves className="h-[1em] w-[1em]" />,
+    screenshotSrc: '/updatedwhalefeed.png',
     outcome: '$82,000 just hit the Lakers over. You saw it before the line moved.',
     description:
       'Whale Feed monitors outsized bets by market and timing, then maps that action to line movement and current book prices — so you can distinguish legitimate steam from noise.',
@@ -71,6 +75,7 @@ const FEATURES: Feature[] = [
     id: 'insider-feed',
     title: 'Insider Feed',
     icon: <Eye className="h-[1em] w-[1em]" />,
+    screenshotSrc: '/insiderfeed.png',
     outcome: 'The top Polymarket wallet just entered Lakers ML at +160. Their ROI is 51%.',
     description:
       'Insider Feed tracks verified profitable wallets on Polymarket, scores their open sports positions by authority and conviction, and shows you exactly where proven winners are allocating capital.',
@@ -84,6 +89,7 @@ const FEATURES: Feature[] = [
     id: 'research-mode',
     title: 'Research Mode',
     icon: <FlaskConical className="h-[1em] w-[1em]" />,
+    screenshotSrc: '/research.png',
     outcome: 'Your CLV went from +1.1% to +4.3%. This is what a disciplined process looks like.',
     description:
       'Research Mode aggregates closing outcomes, move patterns, and trend splits so every bet generates feedback you can study. It turns picks into a repeatable, improvable system.',
@@ -95,309 +101,20 @@ const FEATURES: Feature[] = [
   },
 ]
 
-// ─── Mockup: Sharp Projections ────────────────────────────────────────────────
+// ─── Screenshot preview ──────────────────────────────────────────────────────
 
-const PROJ_ROWS = [
-  { game: 'Knicks vs Heat', market: 'Spread', edge: '+5.2', line: 'NYK -6.5', hot: true },
-  { game: 'Lakers vs Celtics', market: 'Total', edge: '+3.8', line: 'Over 224.5', hot: false },
-  { game: 'Bills vs Chiefs', market: 'Moneyline', edge: '+2.7', line: 'KC -148', hot: false },
-]
-
-function ProjectionsMockup({ rm }: { rm: boolean }) {
+function FeatureScreenshot({ feature }: { feature: Feature }) {
   return (
-    <MockupCard badge="LIVE" badgeColor="emerald" liveDot>
-      <div className="space-y-2">
-        {PROJ_ROWS.map((row, i) => (
-          <motion.div
-            key={row.game}
-            initial={rm ? {} : { opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.08 + i * 0.1 }}
-            className={cn(
-              'flex items-center justify-between gap-3 rounded-[0.9rem] border px-3.5 py-3',
-              row.hot ? 'border-emerald-300/22 bg-emerald-400/7' : 'border-white/7 bg-black/25'
-            )}
-          >
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">{row.game}</div>
-              <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-white/38">{row.market}</div>
-            </div>
-            <div className="shrink-0 text-right">
-              <span className="rounded-full bg-emerald-400/15 px-2.5 py-0.5 text-xs font-bold text-emerald-300">
-                {row.edge}
-              </span>
-              <div className="mt-1 text-xs text-white/42">{row.line}</div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {['Spread gap', 'Total misprice', 'Model consensus'].map((pill) => (
-          <SignalPill key={pill}>{pill}</SignalPill>
-        ))}
-      </div>
-    </MockupCard>
-  )
-}
-
-// ─── Mockup: Sharp Props ──────────────────────────────────────────────────────
-
-const PROP_ROWS = [
-  { player: 'S. Curry', line: 'O 28.5 pts', pct: 78, edge: '+3.4', side: 'Over' },
-  { player: 'P. Mahomes', line: 'U 285.5 yds', pct: 71, edge: '+2.9', side: 'Under' },
-  { player: 'L. James', line: 'O 24.5 pts', pct: 62, edge: '+1.6', side: 'Over' },
-]
-
-function PropsMockup({ rm }: { rm: boolean }) {
-  return (
-    <MockupCard badge="SHARP" badgeColor="cyan">
-      <div className="space-y-2.5">
-        {PROP_ROWS.map((row, i) => (
-          <motion.div
-            key={row.player}
-            initial={rm ? {} : { opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.08 + i * 0.12 }}
-            className="rounded-[0.9rem] border border-white/7 bg-black/25 p-3.5"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <div className="text-sm font-bold">{row.player}</div>
-                <div className="mt-0.5 text-xs text-white/48">{row.line}</div>
-              </div>
-              <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-xs font-bold text-emerald-300">
-                {row.edge}
-              </span>
-            </div>
-            <div className="mt-2.5 flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-white/35">
-              <span>{row.side} lean</span>
-              <span className="font-semibold text-white/62">{row.pct}%</span>
-            </div>
-            <div className="mt-1.5 h-[4px] overflow-hidden rounded-full bg-white/8">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${row.pct}%` }}
-                transition={rm ? {} : { duration: 0.85, ease: 'easeOut', delay: 0.22 + i * 0.12 }}
-                className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-emerald-300"
-                style={{ boxShadow: '0 0 5px rgba(52,211,153,0.35)' }}
-              />
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </MockupCard>
-  )
-}
-
-// ─── Mockup: Whale Feed ───────────────────────────────────────────────────────
-
-const WHALE_ROWS = [
-  { amount: '$82,000', game: 'Lakers vs Celtics Total', line: 'OVER 224.5', time: '2m' },
-  { amount: '$54,500', game: 'Chiefs vs Bills Spread', line: 'KC -3', time: '11m' },
-  { amount: '$120,000', game: 'Yankees ML', line: 'ML -145', time: '34m' },
-  { amount: '$67,000', game: 'Heat vs Bucks Total', line: 'UNDER 218', time: '1h' },
-]
-
-function WhaleMockup({ rm }: { rm: boolean }) {
-  return (
-    <MockupCard badge="LIVE" badgeColor="emerald" liveDot>
-      <div className="space-y-2">
-        {WHALE_ROWS.map((row, i) => (
-          <motion.div
-            key={row.amount + row.time}
-            initial={rm ? {} : { opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.06 + i * 0.1 }}
-            className="flex items-center justify-between gap-3 rounded-[0.9rem] border border-white/7 bg-black/25 px-3.5 py-3"
-            style={{ borderLeft: '2px solid rgba(52,211,153,0.2)' }}
-          >
-            <div className="min-w-0">
-              <div className="text-sm font-bold text-emerald-300">{row.amount}</div>
-              <div className="mt-0.5 truncate text-xs text-white/58">{row.game}</div>
-            </div>
-            <div className="shrink-0 text-right">
-              <span className="rounded-full bg-cyan-400/12 px-2 py-0.5 text-xs font-bold text-cyan-200">
-                {row.line}
-              </span>
-              <div className="mt-1 text-[10px] uppercase tracking-[0.15em] text-white/32">{row.time} ago</div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {['Steam move', 'Line pressure', 'Exchange signal'].map((pill) => (
-          <SignalPill key={pill}>{pill}</SignalPill>
-        ))}
-      </div>
-    </MockupCard>
-  )
-}
-
-// ─── Mockup: Insider Feed ────────────────────────────────────────────────────
-
-const INSIDER_ROWS = [
-  { wallet: 'WhaleAlpha', score: 94, market: 'Lakers ML', odds: '+160', roi: '51.3%', tier: 'Elite' },
-  { wallet: 'SharpEdge', score: 86, market: 'Chiefs -3', odds: '-110', roi: '28.7%', tier: 'Sharp' },
-  { wallet: 'ProfitLoop', score: 78, market: 'Celtics Over 224.5', odds: '+105', roi: '14.2%', tier: 'Notable' },
-]
-
-function InsiderMockup({ rm }: { rm: boolean }) {
-  return (
-    <MockupCard badge="INSIDER" badgeColor="emerald">
-      <div className="space-y-2.5">
-        {INSIDER_ROWS.map((row, i) => (
-          <motion.div
-            key={row.wallet}
-            initial={rm ? {} : { opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.08 + i * 0.12 }}
-            className="rounded-[0.9rem] border border-white/7 bg-black/25 p-3.5"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-2">
-                  <div className="text-sm font-bold">{row.wallet}</div>
-                  <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[9px] font-bold text-emerald-300">
-                    {row.tier}
-                  </span>
-                </div>
-                <div className="mt-0.5 text-xs text-white/48">{row.market}</div>
-              </div>
-              <div className="shrink-0 text-right">
-                <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-xs font-bold text-emerald-300">
-                  {row.score}
-                </span>
-                <div className="mt-1 text-[10px] text-white/42">{row.odds}</div>
-              </div>
-            </div>
-            <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-white/35">
-              <span>Wallet ROI</span>
-              <span className="font-semibold text-emerald-300/70">{row.roi}</span>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {['Verified ROI', 'Conviction score', 'Open positions'].map((pill) => (
-          <SignalPill key={pill}>{pill}</SignalPill>
-        ))}
-      </div>
-    </MockupCard>
-  )
-}
-
-// ─── Mockup: Research Mode ────────────────────────────────────────────────────
-
-const RESEARCH_BARS = [
-  { label: 'Closing line value', value: '+3.2%', pct: 42, warn: false },
-  { label: 'Market movement accuracy', value: '71%', pct: 71, warn: false },
-  { label: 'Sharp-aligned bets', value: '68%', pct: 68, warn: false },
-  { label: 'Win rate on sharp picks', value: '57%', pct: 57, warn: true },
-]
-
-function ResearchMockup({ rm }: { rm: boolean }) {
-  return (
-    <MockupCard badge="SYNDICATE" badgeColor="violet">
-      <div className="mb-3 text-[10px] uppercase tracking-[0.22em] text-white/32">
-        Your last 30 days — example
-      </div>
-      <div className="space-y-3.5">
-        {RESEARCH_BARS.map((bar, i) => (
-          <div key={bar.label}>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-white/58">{bar.label}</span>
-              <span className={cn('font-bold', bar.warn ? 'text-amber-300' : 'text-emerald-300')}>
-                {bar.value}
-              </span>
-            </div>
-            <div className="mt-1.5 h-[4px] overflow-hidden rounded-full bg-white/7">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${bar.pct}%` }}
-                transition={rm ? {} : { duration: 1, ease: 'easeOut', delay: 0.1 + i * 0.15 }}
-                className={cn(
-                  'h-full rounded-full',
-                  bar.warn
-                    ? 'bg-gradient-to-r from-amber-300 to-orange-300'
-                    : 'bg-gradient-to-r from-emerald-300 to-cyan-300'
-                )}
-                style={{
-                  boxShadow: bar.warn
-                    ? '0 0 5px rgba(251,191,36,0.35)'
-                    : '0 0 5px rgba(52,211,153,0.3)',
-                }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 flex items-center gap-2 rounded-[0.8rem] border border-violet-400/18 bg-violet-500/7 px-3 py-2.5">
-        <span className="text-xs text-white/52">
-          Full history unlocks with{' '}
-          <span className="font-semibold text-violet-300">Syndicate</span>
-        </span>
-      </div>
-    </MockupCard>
-  )
-}
-
-// ─── Shared mockup card wrapper ────────────────────────────────────────────────
-
-function MockupCard({
-  badge,
-  badgeColor,
-  liveDot,
-  children,
-}: {
-  badge: string
-  badgeColor: 'emerald' | 'cyan' | 'violet'
-  liveDot?: boolean
-  children: ReactNode
-}) {
-  const cls = {
-    emerald: 'border-emerald-300/22 bg-emerald-400/9 text-emerald-300',
-    cyan: 'border-cyan-300/22 bg-cyan-400/9 text-cyan-300',
-    violet: 'border-violet-300/22 bg-violet-400/9 text-violet-300',
-  }
-  return (
-    <div className="w-full rounded-[1.8rem] border border-white/10 bg-[linear-gradient(155deg,rgba(5,17,15,0.98),rgba(2,7,6,0.99))] p-4 shadow-[0_28px_80px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.06)] sm:p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <span className="font-hero text-[9px] uppercase tracking-[0.38em] text-white/28">
-          Live tool preview
-        </span>
-        <div
-          className={cn(
-            'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-hero text-[9px] font-bold uppercase tracking-[0.18em]',
-            cls[badgeColor]
-          )}
-        >
-          {liveDot && (
-            <span className="ob-live-dot" style={{ width: 6, height: 6, minWidth: 6 }} />
-          )}
-          {badge}
-        </div>
-      </div>
-      {children}
+    <div className="w-full overflow-hidden rounded-[1.8rem] border border-white/10 bg-[#020810] shadow-[0_28px_80px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.06)]">
+      <Image
+        src={feature.screenshotSrc}
+        alt={`${feature.title} interface`}
+        width={1920}
+        height={1080}
+        className="h-auto w-full"
+      />
     </div>
   )
-}
-
-function SignalPill({ children }: { children: ReactNode }) {
-  return (
-    <span className="rounded-full border border-emerald-300/15 bg-emerald-400/7 px-2.5 py-1 text-xs text-emerald-200/70">
-      {children}
-    </span>
-  )
-}
-
-// ─── Mockup dispatcher ────────────────────────────────────────────────────────
-
-function FeatureMockup({ id, rm }: { id: string; rm: boolean }) {
-  if (id === 'sharp-projections') return <ProjectionsMockup rm={rm} />
-  if (id === 'sharp-props') return <PropsMockup rm={rm} />
-  if (id === 'whale-feed') return <WhaleMockup rm={rm} />
-  if (id === 'insider-feed') return <InsiderMockup rm={rm} />
-  return <ResearchMockup rm={rm} />
 }
 
 // ─── Desktop: left copy panel ─────────────────────────────────────────────────
@@ -488,18 +205,18 @@ function FeatureCopy({
 
 // ─── Mobile: stacked feature cards ────────────────────────────────────────────
 
-function MobileFeatureCard({ feature, rm }: { feature: Feature; rm: boolean }) {
+function MobileFeatureCard({ feature }: { feature: Feature }) {
   return (
     <motion.div
-      initial={rm ? {} : { opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-60px' }}
       transition={{ duration: 0.4 }}
       className="rounded-[1.8rem] border border-white/10 bg-[linear-gradient(160deg,rgba(255,255,255,0.055),rgba(255,255,255,0.02))] overflow-hidden"
     >
-      {/* Mockup */}
+      {/* Screenshot */}
       <div className="p-4 pb-0">
-        <FeatureMockup id={feature.id} rm={rm} />
+        <FeatureScreenshot feature={feature} />
       </div>
 
       {/* Copy */}
@@ -613,7 +330,7 @@ export function FeatureShowcaseHub() {
                 }
                 className="w-full"
               >
-                <FeatureMockup id={activeId} rm={rm} />
+                <FeatureScreenshot feature={activeFeature} />
 
                 {/* Active feature label below mockup */}
                 <motion.div
@@ -650,7 +367,7 @@ export function FeatureShowcaseHub() {
       {/* ── Mobile: stacked cards ── */}
       <div className="space-y-5 lg:hidden">
         {FEATURES.map((feature) => (
-          <MobileFeatureCard key={feature.id} feature={feature} rm={rm} />
+          <MobileFeatureCard key={feature.id} feature={feature} />
         ))}
         <div className="pt-2 text-center">
           <Link

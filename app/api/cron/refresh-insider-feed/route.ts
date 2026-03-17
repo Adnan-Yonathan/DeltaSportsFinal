@@ -10,9 +10,9 @@ export const dynamic = 'force-dynamic'
  * open_positions ETL tables.
  *
  * Steps:
- *  1. Fetch top 150 wallets from Polymarket leaderboard (all-time PNL)
- *  2. Filter to profitable wallets with min volume, rank by ROI, take top 75
- *  3. Batch-fetch last 500 trades per wallet (10 concurrent)
+ *  1. Fetch wallets from Polymarket leaderboard (multi-strategy discovery)
+ *  2. Filter to wallets with 3–20% ROI and minimum 500 trades, take top 40
+ *  3. Fetch last 200 trades per wallet (5 concurrent)
  *  4. Compute open sports positions from trades (net BUY shares remaining)
  *  5. Score each position with computeInsiderScore
  *  6. Upsert qualifying bets to insider_feed_cache table

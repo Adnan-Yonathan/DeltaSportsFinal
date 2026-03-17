@@ -514,8 +514,8 @@ export default function InsiderClient() {
               </div>
             </div>
 
-            {/* Right: detail panel */}
-            <div className="overflow-y-auto bg-black/20">
+            {/* Right: detail panel (sticky on desktop) */}
+            <div className="bg-black/20 lg:sticky lg:top-0 lg:self-start lg:max-h-screen lg:overflow-y-auto">
               <DetailPanel bet={selectedBet} />
             </div>
 

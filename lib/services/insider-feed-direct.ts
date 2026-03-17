@@ -28,7 +28,7 @@ const WALLET_FETCH_CONCURRENCY = 5
 
 const MIN_ROI            = 0.03
 const MAX_ROI            = 0.20
-const MIN_TRADES         = 500
+const MIN_VOLUME         = 25_000  // proxy for ~500+ trades
 const MIN_NET_SHARES     = 1
 const MIN_STAKE_USD      = 10
 const FETCH_TIMEOUT_MS   = 12_000
@@ -55,7 +55,6 @@ type LeaderboardEntry = {
   profileImage?:   string
   pnl?:            number | string
   vol?:            number | string
-  numTrades?:      number | string
 }
 
 type TradeEntry = {
@@ -170,9 +169,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       if (!wallet) continue
       const pnl = parseNum(row.pnl)
       const vol = parseNum(row.vol)
-      if (!pnl || !vol || pnl <= 0 || vol <= 0) continue
-      const numTrades = parseNum(row.numTrades)
-      if (!numTrades || numTrades < MIN_TRADES) continue
+      if (!pnl || !vol || pnl <= 0 || vol < MIN_VOLUME) continue
       const roi = pnl / vol
       if (!Number.isFinite(roi) || roi < MIN_ROI || roi > MAX_ROI) continue
 

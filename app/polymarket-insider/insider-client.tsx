@@ -212,7 +212,7 @@ export default function InsiderClient() {
     else setLoading(true)
 
     try {
-      const params = new URLSearchParams({ limit: '100', daysBack: '-1' })
+      const params = new URLSearchParams({ limit: '100', daysBack: '0' })
       if (sport !== 'ALL') params.set('sport', sport)
 
       const res  = await fetch(`/api/polymarket/insider?${params}`)

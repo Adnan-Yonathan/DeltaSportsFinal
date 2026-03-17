@@ -35,6 +35,11 @@ export const PRICING_TIERS: PricingTier[] = [
         description: "Upgrade to Syndicate for research mode.",
         included: false,
       },
+      {
+        name: "Insider Feed",
+        description: "Upgrade to Syndicate for insider feed.",
+        included: false,
+      },
     ],
   },
   {
@@ -66,6 +71,11 @@ export const PRICING_TIERS: PricingTier[] = [
       {
         name: "Research Mode",
         description: "Sharp action, trends, backtesting.",
+        included: true,
+      },
+      {
+        name: "Insider Feed",
+        description: "Top Polymarket wallet positions.",
         included: true,
       },
     ],

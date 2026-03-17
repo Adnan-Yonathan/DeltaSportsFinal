@@ -38,6 +38,7 @@ const TOOL_ROUTE_TO_GUIDE: Array<{ toolPrefix: string; guidePath: string }> = [
   { toolPrefix: '/sharp-props', guidePath: '/tools/sharp-props' },
   { toolPrefix: '/sharp-detector', guidePath: '/tools/whale-feed' },
   { toolPrefix: '/research', guidePath: '/tools/research-mode' },
+  { toolPrefix: '/polymarket-insider', guidePath: '/tools/insider-feed' },
 ]
 
 const PAST_DUE_GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000

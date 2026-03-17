@@ -29,6 +29,7 @@ export interface MembershipInfo {
   hasPaidAccess: boolean
   hasProjectionAccess: boolean
   hasResearchAccess: boolean
+  hasInsiderAccess: boolean
   hasFullAccess: boolean
   currentPeriodEnd: Date | null
   cancelAt: Date | null
@@ -107,6 +108,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
       : hasEverPaid || hasLegacyPaid
   const hasProjectionAccess = hasPaidAccess
   const hasResearchAccess = hasPaidAccess && tier === 'syndicate'
+  const hasInsiderAccess = hasPaidAccess && tier === 'syndicate'
   const hasFullAccess = hasPaidAccess
 
   const effectiveTier = tier
@@ -127,6 +129,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
       hasPaidAccess: legacyHasPaid,
       hasProjectionAccess: legacyHasPaid,
       hasResearchAccess: legacyHasPaid && tier === 'syndicate',
+      hasInsiderAccess: legacyHasPaid && tier === 'syndicate',
       hasFullAccess: legacyHasPaid,
       currentPeriodEnd: legacyExpiresAt,
       cancelAt: null,
@@ -147,6 +150,7 @@ const resolveMembershipStatus = (metadata: any): MembershipInfo => {
     hasPaidAccess,
     hasProjectionAccess,
     hasResearchAccess,
+    hasInsiderAccess,
     hasFullAccess,
     currentPeriodEnd,
     cancelAt,
@@ -172,6 +176,7 @@ export const getMembershipStatus = (metadata: any): MembershipInfo => {
       hasPaidAccess: true,
       hasProjectionAccess: true,
       hasResearchAccess: true,
+      hasInsiderAccess: true,
       hasFullAccess: true,
       currentPeriodEnd: devExpiresAt,
       cancelAt: null,

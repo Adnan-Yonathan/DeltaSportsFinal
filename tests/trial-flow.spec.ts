@@ -19,6 +19,7 @@ const buildMembership = (overrides: Partial<MembershipInfo>): MembershipInfo => 
   hasPaidAccess: false,
   hasProjectionAccess: false,
   hasResearchAccess: false,
+  hasInsiderAccess: false,
   hasFullAccess: false,
   currentPeriodEnd: null,
   cancelAt: null,

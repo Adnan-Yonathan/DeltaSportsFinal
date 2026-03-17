@@ -55,6 +55,7 @@ const TIER_FEATURES = {
     'Sharp Props (player prop edges)',
     'Whale Detector (follow market-moving action)',
     'Research Mode (backtesting, trends)',
+    'Insider Feed (top Polymarket wallet positions)',
   ],
 }
 
@@ -63,6 +64,7 @@ const MOBILE_MEMBERSHIP_TOOLS = [
   { key: 'props', label: 'Sharp Props' },
   { key: 'whale', label: 'Whale Feed' },
   { key: 'research', label: 'Research Mode' },
+  { key: 'insider', label: 'Insider Feed' },
 ] as const
 
 const formatDailyPrice = (value: number) => `$${value.toFixed(2)}/day`
@@ -328,10 +330,10 @@ function MobileCheckoutLayout({
               <div className="rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-4">
                 <div className="grid grid-cols-2 gap-2">
                   {MOBILE_MEMBERSHIP_TOOLS.map((tool) => {
+                    const isSyndicateOnly = tool.key === 'whale' || tool.key === 'research' || tool.key === 'insider'
                     const isEnabled =
                       selectedTier === 'syndicate' ||
-                      tool.key === 'projections' ||
-                      tool.key === 'props'
+                      !isSyndicateOnly
 
                     return (
                       <div

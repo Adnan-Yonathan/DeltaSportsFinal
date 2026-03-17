@@ -25,20 +25,9 @@ import {
   getSharpSignalStrengthPlain,
 } from '@/lib/utils/sharp-signal-language'
 
-type LinePoint = {
-  t: string
-  value: number
-}
-
-type LineSeries = {
-  book?: string
-  points: LinePoint[]
-}
-
-type GameLineHistory = {
-  spread?: LineSeries
-  total?: LineSeries
-  moneyline?: LineSeries
+type MarketPriceSeries = {
+  label: string
+  points: { t: string; value: number }[]
 }
 
 type GameSharpAction = {
@@ -51,7 +40,7 @@ type GameSharpAction = {
   narrative: string
   sharpSignals: SharpSignal[]
   strongestSignal?: SharpSignal
-  lineHistory?: GameLineHistory
+  marketPriceSeries?: Record<string, MarketPriceSeries>
   fallbackLines?: {
     spread?: number | null
     total?: number | null
@@ -212,126 +201,117 @@ const buildConsensusSharpSide = (
   }
 }
 
-const LineMovementChart = ({
-  title,
+const OUTCOME_COLORS = ['#f59e0b', '#22d3ee', '#a855f7', '#f472b6']
+
+const MarketPriceChart = ({
   series,
-  color,
-  fallbackValue,
 }: {
-  title: string
-  series?: LineSeries
-  color?: string
-  fallbackValue?: number | null
+  series?: Record<string, MarketPriceSeries>
 }) => {
-  const rawPoints = series?.points?.length
-    ? series.points
-    : Number.isFinite(fallbackValue)
-      ? [
-          {
-            t: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-            value: Number(fallbackValue),
-          },
-          {
-            t: new Date().toISOString(),
-            value: Number(fallbackValue),
-          },
-        ]
-      : []
+  const entries = series ? Object.values(series) : []
+  const hasData = entries.some((e) => e.points.length > 0)
 
-  const fallbackUsed = rawPoints.length === 0
-  const points = rawPoints.length
-    ? rawPoints
-    : [
-        {
-          t: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-          value: 0,
-        },
-        {
-          t: new Date().toISOString(),
-          value: 0,
-        },
-      ]
+  if (!hasData) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-black/30 p-4">
+        <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
+          <span>Market Line Movement</span>
+          <span>Market</span>
+        </div>
+        <div className="mt-3 flex h-28 items-center justify-center">
+          <span className="text-[10px] uppercase tracking-[0.2em] text-white/30">
+            No market data yet
+          </span>
+        </div>
+      </div>
+    )
+  }
 
-  const sorted = points
-    .slice()
-    .sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime())
-  const data = sorted.map((point) => ({
-    time: point.t,
-    value: point.value,
-  }))
+  // Merge all entries into a unified timeline
+  const allTimestamps = new Set<string>()
+  for (const entry of entries) {
+    for (const pt of entry.points) allTimestamps.add(pt.t)
+  }
+  const sortedTimes = Array.from(allTimestamps).sort(
+    (a, b) => new Date(a).getTime() - new Date(b).getTime()
+  )
+
+  // Build data array with one key per outcome
+  const data = sortedTimes.map((t) => {
+    const row: Record<string, any> = { time: t }
+    for (const entry of entries) {
+      const key = entry.label
+      const pt = entry.points.find((p) => p.t === t)
+      if (pt) {
+        row[key] = Math.round(pt.value * 100)
+      }
+    }
+    return row
+  })
+
+  // Forward-fill missing values
+  const keys = entries.map((e) => e.label)
+  for (let i = 1; i < data.length; i++) {
+    for (const key of keys) {
+      if (data[i][key] == null && data[i - 1][key] != null) {
+        data[i][key] = data[i - 1][key]
+      }
+    }
+  }
 
   return (
     <div className="rounded-xl border border-white/10 bg-black/30 p-4">
       <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
-        <span>{title}</span>
-        <span>{series?.book ? series.book.toUpperCase() : 'Market'}</span>
+        <span>Market Line Movement</span>
+        <span>Market</span>
       </div>
-      <div className="mt-3 h-28">
+      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
+        {entries.map((entry, idx) => (
+          <div key={entry.label} className="flex items-center gap-1.5 text-[10px] text-white/60">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ background: OUTCOME_COLORS[idx % OUTCOME_COLORS.length] }}
+            />
+            {entry.label}
+            {entry.points.length > 0 && (
+              <span className="text-white/40">
+                {Math.round(entry.points[entry.points.length - 1].value * 100)}¢
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 h-32">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <XAxis dataKey="time" hide />
-            <YAxis hide domain={['dataMin', 'dataMax']} />
+            <YAxis hide domain={['dataMin - 2', 'dataMax + 2']} />
             <Tooltip
               labelFormatter={(label) => formatTooltipTime(label as string)}
-              formatter={(value) => [Number(value).toFixed(2), 'Line']}
+              formatter={(value: number, name: string) => [`${value}¢`, name]}
               contentStyle={{
                 background: 'rgba(0,0,0,0.85)',
                 border: '1px solid rgba(255,255,255,0.1)',
                 borderRadius: '8px',
                 fontSize: '12px',
               }}
-              itemStyle={{ color: '#f59e0b' }}
             />
-            <Line
-              type="monotone"
-              dataKey="value"
-              stroke={color || '#f59e0b'}
-              strokeWidth={2}
-              dot={false}
-            />
+            {entries.map((entry, idx) => (
+              <Line
+                key={entry.label}
+                type="monotone"
+                dataKey={entry.label}
+                stroke={OUTCOME_COLORS[idx % OUTCOME_COLORS.length]}
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+              />
+            ))}
           </LineChart>
         </ResponsiveContainer>
       </div>
-      {fallbackUsed && (
-        <div className="mt-2 text-[10px] uppercase tracking-[0.2em] text-white/30">
-          No market line yet
-        </div>
-      )}
     </div>
   )
-}
-
-const buildSeriesFromMovements = (
-  lineMovements: any[],
-  market: 'spread' | 'total' | 'moneyline'
-): LineSeries | undefined => {
-  const movement = lineMovements.find((item) => item.market === market)
-  if (!movement) return undefined
-
-  const opening = Number.isFinite(movement.openingLine)
-    ? Number(movement.openingLine)
-    : null
-  const current = Number.isFinite(movement.currentLine)
-    ? Number(movement.currentLine)
-    : null
-  if (opening == null && current == null) return undefined
-
-  const now = Date.now()
-  const points: LinePoint[] = []
-  if (opening != null) {
-    points.push({
-      t: new Date(now - 12 * 60 * 60 * 1000).toISOString(),
-      value: opening,
-    })
-  }
-  if (current != null) {
-    points.push({
-      t: new Date().toISOString(),
-      value: current,
-    })
-  }
-
-  return points.length ? { points } : undefined
 }
 
 const isValidMatchupIntelPayload = (payload: unknown): payload is MatchupIntelResponse => {
@@ -447,11 +427,6 @@ export default function SharpActionClient({
                 moneyline:
                   edge?.moneyline?.sportsbook?.homeOdds ?? resolveFallback('moneyline'),
               },
-              lineHistory: {
-                spread: buildSeriesFromMovements(lineMovements, 'spread'),
-                total: buildSeriesFromMovements(lineMovements, 'total'),
-                moneyline: buildSeriesFromMovements(lineMovements, 'moneyline'),
-              },
             }
           })
 
@@ -478,42 +453,43 @@ export default function SharpActionClient({
           }
         })
 
-      const allGameIds = nextSections
-        .flatMap((section) => section.games)
-        .map((game) => game.gameId)
-        .filter(Boolean)
+      // Fetch market price history for all games in parallel
+      const allGames = nextSections.flatMap((section) =>
+        section.games.map((game) => ({ sportKey: section.key, game }))
+      )
 
-      let historySeries: Record<string, GameLineHistory> = {}
-      if (allGameIds.length > 0) {
-        const historyRes = await fetch('/api/lines/history-batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            gameIds: allGameIds,
-            markets: ['spread', 'total', 'moneyline'],
-            hours: 36,
-            lineType: 'current',
-          }),
+      const priceHistoryResults = await Promise.allSettled(
+        allGames.map(async ({ sportKey, game }) => {
+          const params = new URLSearchParams({
+            sportKey,
+            homeTeam: game.homeTeam,
+            awayTeam: game.awayTeam,
+          })
+          const res = await fetch(`/api/market-price-history?${params.toString()}`, {
+            cache: 'no-store',
+          })
+          if (!res.ok) return { gameId: game.gameId, series: null }
+          const body = await res.json()
+          return {
+            gameId: game.gameId,
+            series: body?.series ?? null,
+          }
         })
-        if (historyRes.ok) {
-          const historyPayload = await historyRes.json()
-          historySeries = historyPayload?.series || {}
+      )
+
+      const priceHistoryMap: Record<string, Record<string, MarketPriceSeries>> = {}
+      for (const result of priceHistoryResults) {
+        if (result.status === 'fulfilled' && result.value.series) {
+          priceHistoryMap[result.value.gameId] = result.value.series
         }
       }
 
       const enrichedSections = nextSections.map((section) => ({
         ...section,
-        games: section.games.map((game) => {
-          const history = historySeries[game.gameId]
-          return {
-            ...game,
-            lineHistory: {
-              spread: history?.spread ?? game.lineHistory?.spread,
-              total: history?.total ?? game.lineHistory?.total,
-              moneyline: history?.moneyline ?? game.lineHistory?.moneyline,
-            },
-          }
-        }),
+        games: section.games.map((game) => ({
+          ...game,
+          marketPriceSeries: priceHistoryMap[game.gameId] ?? undefined,
+        })),
       }))
 
       setSections(enrichedSections)
@@ -895,25 +871,8 @@ export default function SharpActionClient({
                     </p>
                   </div>
 
-                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                    <LineMovementChart
-                      title="Spread line"
-                      series={game.lineHistory?.spread}
-                      color="#f59e0b"
-                      fallbackValue={(game as any).fallbackLines?.spread ?? null}
-                    />
-                    <LineMovementChart
-                      title="Total line"
-                      series={game.lineHistory?.total}
-                      color="#22d3ee"
-                      fallbackValue={(game as any).fallbackLines?.total ?? null}
-                    />
-                    <LineMovementChart
-                      title="Moneyline (home)"
-                      series={game.lineHistory?.moneyline}
-                      color="#a855f7"
-                      fallbackValue={(game as any).fallbackLines?.moneyline ?? null}
-                    />
+                  <div className="mt-4">
+                    <MarketPriceChart series={game.marketPriceSeries} />
                   </div>
 
                   <div className="mt-4">

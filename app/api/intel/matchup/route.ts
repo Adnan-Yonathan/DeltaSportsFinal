@@ -81,6 +81,76 @@ const TEAM_STATS_CACHE_TTL_MS = 5 * 60 * 1000
 const teamStatsCache = new Map<string, { expiresAt: number; teams: TeamStats[] }>()
 const teamStatsInflight = new Map<string, Promise<TeamStats[]>>()
 
+// ── ESPN live records fetcher (all sports) ─────────────────────────────────────
+
+const ESPN_SPORT_PATHS: Record<string, string> = {
+  basketball_nba: "basketball/nba",
+  basketball_ncaab: "basketball/mens-college-basketball",
+  americanfootball_nfl: "football/nfl",
+  americanfootball_ncaaf: "football/college-football",
+  baseball_mlb: "baseball/mlb",
+  icehockey_nhl: "hockey/nhl",
+}
+const espnRecordsCache = new Map<string, { expiresAt: number; records: Map<string, { wins: number; losses: number }> }>()
+
+async function fetchEspnLiveRecords(sportKey: string): Promise<Map<string, { wins: number; losses: number }>> {
+  const cached = espnRecordsCache.get(sportKey)
+  if (cached && cached.expiresAt > Date.now()) return cached.records
+
+  const path = ESPN_SPORT_PATHS[sportKey]
+  if (!path) return new Map()
+
+  try {
+    const url = `https://site.api.espn.com/apis/site/v2/sports/${path}/teams`
+    const res = await fetch(url, { cache: "no-store" })
+    if (!res.ok) return new Map()
+    const data = await res.json()
+    const teams = data?.sports?.[0]?.leagues?.[0]?.teams
+    if (!Array.isArray(teams)) return new Map()
+
+    const records = new Map<string, { wins: number; losses: number }>()
+    for (const entry of teams) {
+      const team = entry.team
+      const name = String(team?.displayName || team?.name || "").toLowerCase()
+      const abbr = String(team?.abbreviation || "").toLowerCase()
+      const recordItem = team?.record?.items?.[0]
+      const pick = (n: string) => recordItem?.stats?.find((s: any) => s.name === n)?.value
+      const wins = typeof pick("wins") === "number" ? pick("wins") : undefined
+      const losses = typeof pick("losses") === "number" ? pick("losses") : undefined
+      if (wins != null && losses != null) {
+        const record = { wins, losses }
+        if (name) records.set(name, record)
+        if (abbr) records.set(abbr, record)
+        // Also store by short name and nickname
+        const shortName = String(team?.shortDisplayName || "").toLowerCase()
+        const nickname = String(team?.name || "").toLowerCase()
+        if (shortName) records.set(shortName, record)
+        if (nickname) records.set(nickname, record)
+      }
+    }
+
+    espnRecordsCache.set(sportKey, { expiresAt: Date.now() + 5 * 60 * 1000, records })
+    return records
+  } catch {
+    return new Map()
+  }
+}
+
+function lookupEspnRecord(records: Map<string, { wins: number; losses: number }>, teamName: string): { wins: number; losses: number } | null {
+  const norm = teamName.toLowerCase().trim()
+  // Try exact match
+  if (records.has(norm)) return records.get(norm)!
+  // Try last word (nickname)
+  const parts = norm.split(/\s+/)
+  const last = parts[parts.length - 1]
+  if (last && records.has(last)) return records.get(last)!
+  // Try partial match
+  for (const [key, val] of records) {
+    if (key.includes(norm) || norm.includes(key)) return val
+  }
+  return null
+}
+
 const SUPPORTED_SPORTS = new Set([
   "basketball_nba",
   "basketball_ncaab",
@@ -790,18 +860,30 @@ export async function GET(req: NextRequest) {
       (awayRaw as any)?.teamAbbr ? String((awayRaw as any).teamAbbr) : null
     )
 
+    // Fetch live ESPN records for all sports to ensure up-to-date W-L
+    const espnRecords = await fetchEspnLiveRecords(sportKey)
+    const homeLive = lookupEspnRecord(espnRecords, homeRaw?.team || homeTeam)
+    const awayLive = lookupEspnRecord(espnRecords, awayRaw?.team || awayTeam)
+
+    const formatLiveRecord = (live: { wins: number; losses: number } | null) => {
+      if (!live) return null
+      const total = live.wins + live.losses
+      const pct = total > 0 ? live.wins / total : 0
+      return `${live.wins}-${live.losses} (${(pct * 100).toFixed(1)}%)`
+    }
+
     const homeProfileBase = {
       name: homeBrand.name || homeRaw?.team || homeTeam,
       abbr: homeBrand.abbr,
       logoUrl: homeBrand.logoUrl,
-      record: buildRecord(homeRaw),
+      record: formatLiveRecord(homeLive) || buildRecord(homeRaw),
       metrics: buildMetrics(sportKey, (homeRaw?.stats as Record<string, unknown>) ?? null),
     }
     const awayProfileBase = {
       name: awayBrand.name || awayRaw?.team || awayTeam,
       abbr: awayBrand.abbr,
       logoUrl: awayBrand.logoUrl,
-      record: buildRecord(awayRaw),
+      record: formatLiveRecord(awayLive) || buildRecord(awayRaw),
       metrics: buildMetrics(sportKey, (awayRaw?.stats as Record<string, unknown>) ?? null),
     }
 

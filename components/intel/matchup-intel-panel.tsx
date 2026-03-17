@@ -354,8 +354,8 @@ export default function MatchupIntelPanel({
         side={isDesktop ? "center" : "bottom"}
         className={
           isDesktop
-            ? "max-h-[90vh] w-[min(95vw,1240px)] border border-white/10 bg-[#04070d] p-0 text-white shadow-[0_30px_120px_rgba(0,0,0,0.65)]"
-            : "h-[92vh] w-full rounded-t-3xl border-t border-white/10 bg-[#04070d] p-0 text-white"
+            ? "!max-h-[90vh] w-[min(95vw,1240px)] overflow-hidden border border-white/10 bg-[#04070d] p-0 text-white shadow-[0_30px_120px_rgba(0,0,0,0.65)]"
+            : "!h-[92vh] w-full overflow-hidden rounded-t-3xl border-t border-white/10 bg-[#04070d] p-0 text-white"
         }
       >
         <div className="flex h-full flex-col">

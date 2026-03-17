@@ -80,17 +80,16 @@ export function computeInsiderScore(
   const conviction = clamp((sizeRatio - 0.75) / 4.25, 0, 1) * 100
 
   // ── Combined score ────────────────────────────────────────────────────────
-  // Raw 0–100, then linearly mapped to display range 60–99.
-  // NO sqrt: that was compressing every qualifying bet to ~91.
+  // Raw 0–100, then linearly mapped to display range 70–99.
   // Linear preserves natural differentiation between wallets.
-  //   raw = 0  → 60 (hidden, below threshold)
-  //   raw = 30 → 71.7 (Notable)
-  //   raw = 50 → 79.5 (Notable)
-  //   raw = 67 → 86 (Sharp)
-  //   raw = 85 → 93 (Elite)
+  //   raw = 0  → 70 (threshold)
+  //   raw = 30 → 78.7 (Notable)
+  //   raw = 50 → 84.5 (Sharp)
+  //   raw = 67 → 89.4 (Sharp)
+  //   raw = 85 → 94.7 (Elite)
   //   raw = 100 → 99 (Elite)
   const raw    = authority * 0.60 + conviction * 0.40
-  const biased = 60 + (raw / 100) * 39
+  const biased = 70 + (raw / 100) * 29
   const score  = Math.floor(clamp(biased, 0, 99))
 
   return { score, sizeRatio: Math.round(sizeRatio * 10) / 10 }

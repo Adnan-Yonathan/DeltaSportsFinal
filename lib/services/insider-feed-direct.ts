@@ -28,6 +28,7 @@ const WALLET_FETCH_CONCURRENCY = 5
 
 const MIN_VOLUME         = 2_000
 const MIN_ROI            = 0
+const MAX_ROI            = 0.20
 const MIN_NET_SHARES     = 1
 const MIN_STAKE_USD      = 10
 const FETCH_TIMEOUT_MS   = 12_000
@@ -170,7 +171,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       const vol = parseNum(row.vol)
       if (!pnl || !vol || pnl <= 0 || vol < MIN_VOLUME) continue
       const roi = pnl / vol
-      if (!Number.isFinite(roi) || roi <= MIN_ROI) continue
+      if (!Number.isFinite(roi) || roi <= MIN_ROI || roi > MAX_ROI) continue
 
       const existing = qualifiedWallets.get(wallet)
       if (existing && existing.roi >= roi) continue

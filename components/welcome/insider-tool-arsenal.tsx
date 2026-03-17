@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { motion, useReducedMotion } from 'framer-motion'
-import { ArrowRight, ArrowUpRight, Beaker, Radar, Waves } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Beaker, Eye, Radar, Waves } from 'lucide-react'
 import { CardSpotlight } from '@/components/ui/card-spotlight'
 
 type Tool = {
@@ -49,6 +49,16 @@ const TOOLS: Tool[] = [
     cta: 'View guide',
     Icon: Waves,
     accent: 'from-emerald-300/15 via-black/60 to-black',
+  },
+  {
+    key: 'insider-feed',
+    title: 'Insider Feed',
+    subtitle: 'Follow proven winners',
+    href: '/tools/insider-feed',
+    meta: 'Scored positions from top-ROI Polymarket wallets.',
+    cta: 'View guide',
+    Icon: Eye,
+    accent: 'from-violet-300/15 via-black/60 to-black',
   },
   {
     key: 'research-mode',
@@ -104,7 +114,7 @@ export function InsiderToolArsenal() {
             whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-50px' }}
             transition={{ duration: 0.5 }}
-            className={secondary.length === 2 ? 'lg:col-span-6' : 'lg:col-span-4'}
+            className={secondary.length === 3 ? 'lg:col-span-4' : secondary.length === 2 ? 'lg:col-span-6' : 'lg:col-span-4'}
           >
             <ToolCard tool={t} size="small" />
           </motion.div>

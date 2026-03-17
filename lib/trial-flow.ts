@@ -23,6 +23,7 @@ export type RecommendedToolKey =
   | 'sharp-projections'
   | 'sharp-props'
   | 'whale-detector'
+  | 'insider-feed'
   | 'research-mode'
 
 export type TrialActivationStepKey =
@@ -101,6 +102,7 @@ export const TOOL_DISPLAY_NAMES: Record<RecommendedToolKey, string> = {
   'sharp-projections': 'Sharp Projections',
   'sharp-props': 'Sharp Props',
   'whale-detector': 'Whale Feed',
+  'insider-feed': 'Insider Feed',
   'research-mode': 'Research Mode',
 }
 
@@ -241,6 +243,14 @@ export const RECOMMENDED_TOOL_DETAILS: Record<RecommendedToolKey, ToolDetail> = 
       'Track large-ticket flow and compare exchange pricing against sportsbook movement in one stream.',
     statLabel: 'Alert cadence',
     statValue: 'Live',
+  },
+  'insider-feed': {
+    title: 'Insider Feed',
+    href: '/polymarket-insider',
+    screenshotSrc: '/insiderfeed.png',
+    summary: 'See where top-ROI Polymarket wallets are positioned on open sports markets.',
+    statLabel: 'Score range',
+    statValue: '60–99',
   },
   'research-mode': {
     title: 'Research Mode',

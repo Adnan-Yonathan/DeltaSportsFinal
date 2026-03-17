@@ -7,6 +7,7 @@ export const TOOLS_TUTORIAL_ORDER: CoreToolKey[] = [
   'sharp-projections',
   'sharp-props',
   'whale-feed',
+  'insider-feed',
   'research-mode',
 ]
 

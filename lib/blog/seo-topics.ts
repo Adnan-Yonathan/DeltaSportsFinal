@@ -19,7 +19,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Explain how sharp money works, how to identify it in real time, and how bettors can build a repeatable process around it.',
     metaDescription:
       'Sharp money sports betting explained with real examples, market signals, and a step-by-step process serious bettors can use.',
-    relatedToolKeys: ['whale-feed', 'sharp-projections'],
+    relatedToolKeys: ['whale-feed', 'sharp-projections', 'insider-feed'],
   },
   {
     slug: 'reverse-line-movement-betting',
@@ -61,7 +61,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Define what a sharp bettor is, contrast sharps with recreational bettors, explain how sharps approach line shopping, CLV, bankroll management, and market reading — and show what separates a genuine sharp process from casual betting.',
     metaDescription:
       'What is a sharp bettor? Learn how sharps actually win long-term — their process, mindset, and tools — and what separates them from recreational bettors.',
-    relatedToolKeys: ['whale-feed', 'sharp-projections'],
+    relatedToolKeys: ['whale-feed', 'sharp-projections', 'insider-feed'],
   },
   {
     slug: 'what-is-a-steam-move',
@@ -91,7 +91,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Explain what a betting exchange is, how it differs from a sportsbook, why exchanges matter for sharp bettors (true market prices, orderbook transparency, no limits), and give a practical overview of Kalshi, Novig, ProphetX, and Polymarket.',
     metaDescription:
       'Betting exchanges explained: what they are, how they differ from books, and why sharp bettors use Kalshi, Novig, ProphetX, and Polymarket to find real market prices.',
-    relatedToolKeys: ['sharp-props', 'whale-feed'],
+    relatedToolKeys: ['sharp-props', 'whale-feed', 'insider-feed'],
   },
   {
     slug: 'positive-ev-betting',
@@ -133,7 +133,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Give a concrete, actionable workflow for following sharp money: where to find signals (exchanges, line movement, bet splits), how to rank signal quality, when to follow vs fade, and how to build this into a repeatable daily process.',
     metaDescription:
       'How to follow sharp money in sports betting: a step-by-step system using exchange data, line movement, and bet splits to find and act on real sharp signals.',
-    relatedToolKeys: ['whale-feed', 'sharp-projections'],
+    relatedToolKeys: ['whale-feed', 'sharp-projections', 'insider-feed'],
   },
   {
     slug: 'how-to-read-line-movement',
@@ -183,7 +183,7 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Walk through how to use betting exchanges as a sharp bettor — reading orderbooks, understanding bid/ask spreads, identifying where large money is resting, using exchange prices as a market signal, and the key differences between US exchanges like Kalshi and Novig.',
     metaDescription:
       'How to use betting exchanges: read orderbooks, find where sharp money is resting, and use Kalshi, Novig, and ProphetX as a market signal for better betting decisions.',
-    relatedToolKeys: ['sharp-props', 'whale-feed'],
+    relatedToolKeys: ['sharp-props', 'whale-feed', 'insider-feed'],
   },
   {
     slug: 'how-to-bet-player-props',

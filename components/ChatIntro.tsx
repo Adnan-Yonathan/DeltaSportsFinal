@@ -27,6 +27,7 @@ type ToolCardId =
   | 'sharp-projections'
   | 'sharp-props'
   | 'whale-feed'
+  | 'insider-feed'
   | 'research'
 
 type ToolCard = {
@@ -58,6 +59,12 @@ const TOOL_CARDS: ToolCard[] = [
     subtitle: 'Large-ticket flow with timing and cluster context',
   },
   {
+    id: 'insider-feed',
+    title: 'Insider Feed',
+    href: '/polymarket-insider',
+    subtitle: 'Scored positions from top-ROI Polymarket wallets',
+  },
+  {
     id: 'research',
     title: 'Research',
     href: '/research/sharp-action',
@@ -80,6 +87,11 @@ const FALLBACK_PREVIEWS: Record<ToolCardId, string[]> = {
     'Loading latest whale tickets...',
     'Loading largest notional bets...',
     'Loading sharp market movement...',
+  ],
+  'insider-feed': [
+    'Loading top-ROI wallet positions...',
+    'Scanning insider score leaders...',
+    'Loading open sports positions...',
   ],
   research: [
     'Loading top game narratives...',

@@ -6,6 +6,7 @@ import {
   Activity,
   ArrowRight,
   Beaker,
+  Eye,
   Radar,
   Waves,
 } from 'lucide-react'
@@ -50,8 +51,17 @@ const STEPS: ToolStep[] = [
     Icon: Waves,
   },
   {
-    id: 'research-mode',
+    id: 'insider-feed',
     label: 'TOOL 04',
+    title: 'Insider Feed',
+    description:
+      'Track verified profitable wallets and their open sports positions on Polymarket.',
+    href: '/tools/insider-feed',
+    Icon: Eye,
+  },
+  {
+    id: 'research-mode',
+    label: 'TOOL 05',
     title: 'Research Mode',
     description:
       'Explain movement, validate a thesis, and study edges long-term with backtests.',
@@ -103,7 +113,7 @@ export function InsiderTransformation() {
         className="pointer-events-none absolute left-0 right-0 top-[164px] hidden h-px bg-gradient-to-r from-transparent via-emerald-400/35 to-transparent sm:block"
       />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
         {STEPS.map((step, idx) => (
           <motion.div
             key={step.id}

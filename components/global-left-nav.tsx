@@ -56,6 +56,7 @@ const NAV_ITEMS: NavItem[] = [
       { key: "guide-sharp-projections", label: "Sharp Projections", href: "/tools/sharp-projections" },
       { key: "guide-sharp-props", label: "Sharp Props", href: "/tools/sharp-props" },
       { key: "guide-whale-feed", label: "Whale Detector", href: "/tools/whale-feed" },
+      { key: "guide-insider-feed", label: "Insider Feed", href: "/tools/insider-feed" },
       { key: "guide-research-mode", label: "Research Mode", href: "/tools/research-mode" },
     ],
   },

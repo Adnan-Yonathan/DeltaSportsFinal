@@ -7,6 +7,7 @@ import {
   ArrowRight,
   ChartNoAxesCombined,
   Check,
+  Eye,
   FlaskConical,
   Waves,
 } from 'lucide-react'
@@ -64,6 +65,19 @@ const FEATURES: Feature[] = [
       { label: 'Ticket threshold', value: '$50K+' },
       { label: 'Move captured', value: '+0.9 pts' },
       { label: 'Tracked alerts', value: '3,420' },
+    ],
+  },
+  {
+    id: 'insider-feed',
+    title: 'Insider Feed',
+    icon: <Eye className="h-[1em] w-[1em]" />,
+    outcome: 'The top Polymarket wallet just entered Lakers ML at +160. Their ROI is 51%.',
+    description:
+      'Insider Feed tracks verified profitable wallets on Polymarket, scores their open sports positions by authority and conviction, and shows you exactly where proven winners are allocating capital.',
+    stats: [
+      { label: 'Wallet ROI floor', value: '>0%' },
+      { label: 'Score range', value: '60–99' },
+      { label: 'Wallets tracked', value: '40+' },
     ],
   },
   {
@@ -219,6 +233,59 @@ function WhaleMockup({ rm }: { rm: boolean }) {
   )
 }
 
+// ─── Mockup: Insider Feed ────────────────────────────────────────────────────
+
+const INSIDER_ROWS = [
+  { wallet: 'WhaleAlpha', score: 94, market: 'Lakers ML', odds: '+160', roi: '51.3%', tier: 'Elite' },
+  { wallet: 'SharpEdge', score: 86, market: 'Chiefs -3', odds: '-110', roi: '28.7%', tier: 'Sharp' },
+  { wallet: 'ProfitLoop', score: 78, market: 'Celtics Over 224.5', odds: '+105', roi: '14.2%', tier: 'Notable' },
+]
+
+function InsiderMockup({ rm }: { rm: boolean }) {
+  return (
+    <MockupCard badge="INSIDER" badgeColor="emerald">
+      <div className="space-y-2.5">
+        {INSIDER_ROWS.map((row, i) => (
+          <motion.div
+            key={row.wallet}
+            initial={rm ? {} : { opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.08 + i * 0.12 }}
+            className="rounded-[0.9rem] border border-white/7 bg-black/25 p-3.5"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-bold">{row.wallet}</div>
+                  <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[9px] font-bold text-emerald-300">
+                    {row.tier}
+                  </span>
+                </div>
+                <div className="mt-0.5 text-xs text-white/48">{row.market}</div>
+              </div>
+              <div className="shrink-0 text-right">
+                <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-xs font-bold text-emerald-300">
+                  {row.score}
+                </span>
+                <div className="mt-1 text-[10px] text-white/42">{row.odds}</div>
+              </div>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-white/35">
+              <span>Wallet ROI</span>
+              <span className="font-semibold text-emerald-300/70">{row.roi}</span>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {['Verified ROI', 'Conviction score', 'Open positions'].map((pill) => (
+          <SignalPill key={pill}>{pill}</SignalPill>
+        ))}
+      </div>
+    </MockupCard>
+  )
+}
+
 // ─── Mockup: Research Mode ────────────────────────────────────────────────────
 
 const RESEARCH_BARS = [
@@ -329,6 +396,7 @@ function FeatureMockup({ id, rm }: { id: string; rm: boolean }) {
   if (id === 'sharp-projections') return <ProjectionsMockup rm={rm} />
   if (id === 'sharp-props') return <PropsMockup rm={rm} />
   if (id === 'whale-feed') return <WhaleMockup rm={rm} />
+  if (id === 'insider-feed') return <InsiderMockup rm={rm} />
   return <ResearchMockup rm={rm} />
 }
 
@@ -462,7 +530,7 @@ function MobileFeatureCard({ feature, rm }: { feature: Feature; rm: boolean }) {
 export function FeatureShowcaseHub() {
   const rm = useReducedMotion() ?? false
   const [activeId, setActiveId] = useState(FEATURES[0].id)
-  const triggerRefs = useRef<Array<HTMLDivElement | null>>([null, null, null, null])
+  const triggerRefs = useRef<Array<HTMLDivElement | null>>([null, null, null, null, null])
 
   useEffect(() => {
     const observers: IntersectionObserver[] = []
@@ -492,7 +560,7 @@ export function FeatureShowcaseHub() {
           Tools
         </p>
         <h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
-          Four tools. One workflow. Zero guessing.
+          Five tools. One workflow. Zero guessing.
         </h2>
         <p className="mt-3 max-w-2xl text-sm text-white/62 sm:text-base">
           Every tool in Delta is built around the same principle: get the signal before the market
@@ -525,7 +593,7 @@ export function FeatureShowcaseHub() {
               href="/auth/signup"
               className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-300 transition hover:text-emerald-200"
             >
-              All four tools included — start free
+              All five tools included — start free
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -589,7 +657,7 @@ export function FeatureShowcaseHub() {
             href="/auth/signup"
             className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-300"
           >
-            All four tools included — start free
+            All five tools included — start free
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

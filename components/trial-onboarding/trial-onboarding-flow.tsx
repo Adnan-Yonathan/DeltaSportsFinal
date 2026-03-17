@@ -9,6 +9,7 @@ import {
   Check,
   ChartNoAxesCombined,
   DollarSign,
+  Eye,
   FlaskConical,
   Loader2,
   Lock,
@@ -380,6 +381,7 @@ const TOOL_ICONS: Record<RecommendedToolKey, ReactNode> = {
   'sharp-projections': <ChartNoAxesCombined className="h-3.5 w-3.5" />,
   'sharp-props': <Activity className="h-3.5 w-3.5" />,
   'whale-detector': <Waves className="h-3.5 w-3.5" />,
+  'insider-feed': <Eye className="h-3.5 w-3.5" />,
   'research-mode': <FlaskConical className="h-3.5 w-3.5" />,
 }
 

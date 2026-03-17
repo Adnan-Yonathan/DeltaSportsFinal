@@ -21,6 +21,7 @@ const resourceLinks = [
   { href: "/patch-notes", label: "Patch notes" },
   { href: "/tools/whale-feed", label: "Whale Detector" },
   { href: "/tools/sharp-props", label: "Sharp Props" },
+  { href: "/tools/insider-feed", label: "Insider Feed" },
 ]
 
 const legalLinks = [

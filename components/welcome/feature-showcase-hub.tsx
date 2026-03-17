@@ -76,13 +76,13 @@ const FEATURES: Feature[] = [
     title: 'Insider Feed',
     icon: <Eye className="h-[1em] w-[1em]" />,
     screenshotSrc: '/insiderfeed.png',
-    outcome: 'The top Polymarket wallet just entered Lakers ML at +160. Their ROI is 51%.',
+    outcome: 'The top Polymarket wallet just entered Lakers ML at +160. Their ROI is 13%.',
     description:
-      'Insider Feed tracks verified profitable wallets on Polymarket, scores their open sports positions by authority and conviction, and shows you exactly where proven winners are allocating capital.',
+      'Insider Feed tracks thousands of profitable wallets on Polymarket, scores their open sports positions by authority and conviction, and shows you exactly where proven winners are allocating capital.',
     stats: [
       { label: 'Wallet ROI floor', value: '>0%' },
       { label: 'Score range', value: '60–99' },
-      { label: 'Wallets tracked', value: '40+' },
+      { label: 'Wallets tracked', value: '1,000+' },
     ],
   },
   {

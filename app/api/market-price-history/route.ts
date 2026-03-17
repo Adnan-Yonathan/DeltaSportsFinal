@@ -75,26 +75,35 @@ export async function GET(request: NextRequest) {
     if (!Array.isArray(events)) return NextResponse.json({ series: null, matched: false })
 
     // Match event to this game
-    const homeNorm = normalizeKey(homeTeam)
-    const awayNorm = normalizeKey(awayTeam)
+    // Polymarket titles use nicknames like "Nuggets vs. Grizzlies"
+    // Research mode sends full names like "Denver Nuggets" or "Boston Celtics"
+    const homeTokens = teamTokens(homeTeam)
+    const awayTokens = teamTokens(awayTeam)
     let matchedEvent: any = null
     let bestScore = 0
 
     for (const event of events) {
       const title = String(event.title || '')
       const titleNorm = normalizeKey(title)
+      const titleLower = title.toLowerCase()
       let score = 0
+
+      // Try full normalized key match
+      const homeNorm = normalizeKey(homeTeam)
+      const awayNorm = normalizeKey(awayTeam)
       if (titleNorm.includes(homeNorm) && titleNorm.includes(awayNorm)) {
-        score = 2
-      } else if (titleNorm.includes(homeNorm) || titleNorm.includes(awayNorm)) {
-        score = 1
+        score = 3
       }
-      // Also try last-word matching (team nicknames)
-      const homeNick = lastWord(homeTeam)
-      const awayNick = lastWord(awayTeam)
-      if (homeNick && awayNick && titleNorm.includes(homeNick) && titleNorm.includes(awayNick)) {
-        score = Math.max(score, 2)
+
+      // Try nickname/token matching (most common case)
+      if (score < 2) {
+        const homeMatch = homeTokens.some((t) => titleLower.includes(t))
+        const awayMatch = awayTokens.some((t) => titleLower.includes(t))
+        if (homeMatch && awayMatch) {
+          score = Math.max(score, 2)
+        }
       }
+
       if (score > bestScore) {
         bestScore = score
         matchedEvent = event
@@ -102,8 +111,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (!matchedEvent || bestScore < 2) {
+      console.log(`[market-price-history] no match for "${homeTeam}" vs "${awayTeam}" in ${events.length} events`)
       return NextResponse.json({ series: null, matched: false })
     }
+
+    console.log(`[market-price-history] matched "${matchedEvent.title}" for "${homeTeam}" vs "${awayTeam}"`)
 
     // Step 2: Extract token IDs from the moneyline market
     const markets: any[] = Array.isArray(matchedEvent.markets) ? matchedEvent.markets : []
@@ -176,10 +188,30 @@ function normalizeKey(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
-function lastWord(value: string) {
-  const parts = value.trim().split(/\s+/)
+/**
+ * Extract meaningful tokens from a team name for matching.
+ * "Denver Nuggets" → ["nuggets", "denver"]
+ * "Boston Celtics" → ["celtics", "boston"]
+ * "LA Clippers" → ["clippers"]
+ * Returns tokens in priority order (nickname first, then city).
+ */
+function teamTokens(teamName: string): string[] {
+  const parts = teamName.trim().toLowerCase().split(/\s+/)
+  if (parts.length === 0) return []
+  // Last word is usually the nickname — most reliable for matching
+  const tokens: string[] = []
   const last = parts[parts.length - 1]
-  return last ? last.toLowerCase().replace(/[^a-z0-9]/g, '') : ''
+  if (last && last.length >= 3) tokens.push(last)
+  // Also add multi-word nicknames (e.g., "Trail Blazers", "Blue Jays")
+  if (parts.length >= 3) {
+    const lastTwo = parts.slice(-2).join(' ')
+    tokens.push(lastTwo)
+  }
+  // Add city/first word for disambiguation
+  if (parts.length >= 2 && parts[0].length >= 3) {
+    tokens.push(parts[0])
+  }
+  return tokens
 }
 
 function parseJsonArray<T>(value?: string): T[] {

@@ -453,46 +453,63 @@ export default function SharpActionClient({
           }
         })
 
-      // Fetch market price history for all games in parallel
+      // Show games immediately, then load price history in background
+      setSections(nextSections)
+      setLoading(false)
+
+      // Fetch market price history for all games in parallel (background)
       const allGames = nextSections.flatMap((section) =>
         section.games.map((game) => ({ sportKey: section.key, game }))
       )
 
-      const priceHistoryResults = await Promise.allSettled(
-        allGames.map(async ({ sportKey, game }) => {
-          const params = new URLSearchParams({
-            sportKey,
-            homeTeam: game.homeTeam,
-            awayTeam: game.awayTeam,
-          })
-          const res = await fetch(`/api/market-price-history?${params.toString()}`, {
-            cache: 'no-store',
-          })
-          if (!res.ok) return { gameId: game.gameId, series: null }
-          const body = await res.json()
-          return {
-            gameId: game.gameId,
-            series: body?.series ?? null,
-          }
-        })
-      )
+      if (allGames.length > 0) {
+        const chunkSize = 6
+        for (let i = 0; i < allGames.length; i += chunkSize) {
+          const chunk = allGames.slice(i, i + chunkSize)
+          const results = await Promise.allSettled(
+            chunk.map(async ({ sportKey, game }) => {
+              const params = new URLSearchParams({
+                sportKey,
+                homeTeam: game.homeTeam,
+                awayTeam: game.awayTeam,
+              })
+              const res = await fetch(`/api/market-price-history?${params.toString()}`, {
+                cache: 'no-store',
+              })
+              if (!res.ok) return { gameId: game.gameId, series: null }
+              const body = await res.json()
+              return {
+                gameId: game.gameId,
+                series: body?.series ?? null,
+              }
+            })
+          )
 
-      const priceHistoryMap: Record<string, Record<string, MarketPriceSeries>> = {}
-      for (const result of priceHistoryResults) {
-        if (result.status === 'fulfilled' && result.value.series) {
-          priceHistoryMap[result.value.gameId] = result.value.series
+          if (!isMountedRef.current) return
+
+          const newEntries: Record<string, Record<string, MarketPriceSeries>> = {}
+          for (const result of results) {
+            if (result.status === 'fulfilled' && result.value.series) {
+              newEntries[result.value.gameId] = result.value.series
+            }
+          }
+
+          if (Object.keys(newEntries).length > 0) {
+            setSections((prev) =>
+              prev.map((section) => ({
+                ...section,
+                games: section.games.map((game) =>
+                  newEntries[game.gameId]
+                    ? { ...game, marketPriceSeries: newEntries[game.gameId] }
+                    : game
+                ),
+              }))
+            )
+          }
         }
       }
 
-      const enrichedSections = nextSections.map((section) => ({
-        ...section,
-        games: section.games.map((game) => ({
-          ...game,
-          marketPriceSeries: priceHistoryMap[game.gameId] ?? undefined,
-        })),
-      }))
-
-      setSections(enrichedSections)
+      return
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sharp action')
       setSections([])

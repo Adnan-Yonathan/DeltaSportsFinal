@@ -20,7 +20,7 @@ export default function ShareInsiderBetButton({ bet }: ShareInsiderBetButtonProp
     setStatus('loading')
     setShowCard(true)
 
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    await new Promise((resolve) => setTimeout(resolve, 600))
 
     if (!cardRef.current) {
       setStatus('idle')

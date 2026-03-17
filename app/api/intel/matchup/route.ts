@@ -278,16 +278,21 @@ const buildMetrics = (sportKey: string, stats: Record<string, unknown> | null | 
     .filter((value): value is TeamMetric => Boolean(value))
 }
 
-const resolveLogoUrl = (sportKey: string, abbr?: string | null) => {
+const resolveLogoUrl = (sportKey: string, abbr?: string | null, teamId?: string | null) => {
   const cleanedAbbr = String(abbr || "")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "")
-  if (!cleanedAbbr) return null
 
-  if (sportKey === "basketball_nba") return `https://a.espncdn.com/i/teamlogos/nba/500/${cleanedAbbr}.png`
-  if (sportKey === "americanfootball_nfl") return `https://a.espncdn.com/i/teamlogos/nfl/500/${cleanedAbbr}.png`
-  if (sportKey === "baseball_mlb") return `https://a.espncdn.com/i/teamlogos/mlb/500/${cleanedAbbr}.png`
-  if (sportKey === "icehockey_nhl") return `https://a.espncdn.com/i/teamlogos/nhl/500/${cleanedAbbr}.png`
+  if (sportKey === "basketball_nba" && cleanedAbbr) return `https://a.espncdn.com/i/teamlogos/nba/500/${cleanedAbbr}.png`
+  if (sportKey === "americanfootball_nfl" && cleanedAbbr) return `https://a.espncdn.com/i/teamlogos/nfl/500/${cleanedAbbr}.png`
+  if (sportKey === "baseball_mlb" && cleanedAbbr) return `https://a.espncdn.com/i/teamlogos/mlb/500/${cleanedAbbr}.png`
+  if (sportKey === "icehockey_nhl" && cleanedAbbr) return `https://a.espncdn.com/i/teamlogos/nhl/500/${cleanedAbbr}.png`
+  // NCAA logos require numeric team IDs, not abbreviations
+  if (sportKey === "basketball_ncaab" || sportKey === "americanfootball_ncaaf") {
+    if (teamId) return `https://a.espncdn.com/i/teamlogos/ncaa/500/${teamId}.png`
+    return null
+  }
+  if (!cleanedAbbr) return null
   return `https://a.espncdn.com/i/teamlogos/ncaa/500/${cleanedAbbr}.png`
 }
 
@@ -336,7 +341,7 @@ const resolveTeamBrand = (sportKey: string, teamName: string, teamAbbr?: string 
     abbr: resolvedAbbr && resolvedAbbr.length > 0 ? resolvedAbbr : null,
     logoUrl:
       registryMatch?.logoUrl ??
-      resolveLogoUrl(sportKey, resolvedAbbr && resolvedAbbr.length > 0 ? resolvedAbbr : null),
+      resolveLogoUrl(sportKey, resolvedAbbr && resolvedAbbr.length > 0 ? resolvedAbbr : null, registryMatch?.id ?? null),
   }
 }
 

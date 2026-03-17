@@ -21,8 +21,8 @@ export default function ShareTradeButton({ trade, matchupLabel }: ShareTradeButt
     setStatus('loading')
     setShowCard(true)
 
-    // Wait for the card to render (longer wait for html-to-image reliability)
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    // Wait for the card to render and images to start loading
+    await new Promise((resolve) => setTimeout(resolve, 600))
 
     if (!cardRef.current) {
       setStatus('idle')

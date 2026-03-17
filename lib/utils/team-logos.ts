@@ -17,8 +17,21 @@ const SPORT_LABEL_TO_KEY: Record<string, string> = {
   MLB: 'mlb',
   NCAAB: 'ncaab',
   NCAAF: 'ncaaf',
-  CFB: 'cfb',
-  CBB: 'cbb',
+  CFB: 'ncaaf',
+  CBB: 'ncaab',
+  'COLLEGE BASKETBALL': 'ncaab',
+  'COLLEGE FOOTBALL': 'ncaaf',
+}
+
+// NCAA logos require numeric team IDs, not abbreviations.
+// Fix: if sport is ncaab/ncaaf and team has a numeric id, use /ncaa/500/{id}.png
+function resolveLogoUrl(team: TeamRecord): string {
+  if (!team.logoUrl) return ''
+  const isNcaa = team.sport === 'basketball_ncaab' || team.sport === 'americanfootball_ncaaf'
+  if (isNcaa && team.id) {
+    return `https://a.espncdn.com/i/teamlogos/ncaa/500/${team.id}.png`
+  }
+  return team.logoUrl
 }
 
 // Pre-build a lookup: normalized alias → TeamRecord
@@ -92,8 +105,9 @@ export function extractTeamLogos(
       // Clean up: remove spread/total markers like "-4.5", "Over 220.5"
       const cleaned = raw.replace(/\s*[-+]?\d+\.?\d*\s*$/, '').trim()
       const team = findTeamByName(cleaned, sportKey)
-      if (team?.logoUrl) {
-        results.push({ name: team.shortName, abbreviation: team.abbreviation, logoUrl: team.logoUrl })
+      const logoUrl = team ? resolveLogoUrl(team) : ''
+      if (team && logoUrl) {
+        results.push({ name: team.shortName, abbreviation: team.abbreviation, logoUrl })
       }
     }
     return results
@@ -118,9 +132,10 @@ export function extractTeamLogos(
     if (found.has(team.abbreviation)) continue
 
     const checks = [team.shortName.toLowerCase(), team.name.toLowerCase()]
-    if (checks.some(c => titleLower.includes(c)) && team.logoUrl) {
+    const logo = resolveLogoUrl(team)
+    if (checks.some(c => titleLower.includes(c)) && logo) {
       found.add(team.abbreviation)
-      results.push({ name: team.shortName, abbreviation: team.abbreviation, logoUrl: team.logoUrl })
+      results.push({ name: team.shortName, abbreviation: team.abbreviation, logoUrl: logo })
     }
   }
 

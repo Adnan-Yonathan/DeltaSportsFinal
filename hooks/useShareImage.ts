@@ -15,6 +15,44 @@ const supportsClipboardImage = !!(typeof navigator !== 'undefined' && (navigator
 
 const wait = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
+// 1x1 transparent PNG as fallback for broken images
+const TRANSPARENT_PIXEL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAABl0RVh0U29mdHdhcmUAcGFpbnQubmV0IDQuMC4xMkMEa+wAAAANSURBVBhXY2BgYGAAAAAFAAGKM+MAAAAAAElFTkSuQmCC'
+
+/**
+ * Preload all <img> elements inside a container.
+ * Returns when all images have loaded or errored (max 3s timeout).
+ */
+async function preloadImages(container: HTMLElement): Promise<void> {
+  const imgs = container.querySelectorAll('img')
+  if (imgs.length === 0) return
+
+  const promises = Array.from(imgs).map(
+    (img) =>
+      new Promise<void>((resolve) => {
+        if (img.complete && img.naturalWidth > 0) {
+          resolve()
+          return
+        }
+        const timeout = setTimeout(() => resolve(), 3000)
+        img.onload = () => { clearTimeout(timeout); resolve() }
+        img.onerror = () => {
+          clearTimeout(timeout)
+          // Replace broken src with transparent pixel so canvas doesn't fail
+          img.src = TRANSPARENT_PIXEL
+          resolve()
+        }
+        // Force re-fetch with cache bust
+        if (img.src && !img.src.startsWith('data:')) {
+          const sep = img.src.includes('?') ? '&' : '?'
+          img.src = `${img.src}${sep}_cb=${Date.now()}`
+        }
+      })
+  )
+
+  await Promise.all(promises)
+}
+
 export const useShareImage = () => {
   const shareImage = async (
     element: HTMLElement,
@@ -30,6 +68,9 @@ export const useShareImage = () => {
           : 2
 
     const buildImage = async () => {
+      // Preload all images first to avoid canvas taint / blank captures
+      await preloadImages(element)
+
       // Use multiple attempts for reliability
       let lastError: Error | null = null
 
@@ -37,7 +78,7 @@ export const useShareImage = () => {
         try {
           // Wait a bit between attempts
           if (attempt > 0) {
-            await wait(100)
+            await wait(200)
           }
 
           const dataUrl = await toPng(element, {
@@ -45,6 +86,7 @@ export const useShareImage = () => {
             cacheBust: true,
             skipAutoScale: true,
             backgroundColor: '#0a0a0a',
+            imagePlaceholder: TRANSPARENT_PIXEL,
             style: {
               transform: 'none',
               opacity: '1',

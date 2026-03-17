@@ -18,8 +18,7 @@ export type InsiderBet = {
   insider_score: number
   size_ratio: number
   wallet_roi_pct: number
-  wallet_buy_trade_count: number
-  wallet_win_rate: number
+  wallet_trade_count: number
   wallet_profit_factor: number
 }
 
@@ -37,7 +36,7 @@ export type InsiderBet = {
 //   avg_entry_price <= 0.92   not near-certainty (tiny upside)
 //   avg_bet_size > 0          needed for conviction ratio
 
-const MIN_TRADE_COUNT = 1000
+const MIN_TRADE_COUNT = 500
 const MIN_PROFIT_FACTOR = 1.1
 const MIN_STAKE_USD = 10
 const MIN_ENTRY_PRICE = 0.04
@@ -150,8 +149,8 @@ export async function getInsiderFeed(opts: {
   // Step 1 — qualifying wallets (DB-side filters)
   const summaryQuery = (supabase as any)
     .from('polymarket_wallet_summary')
-    .select('wallet, roi_lifetime, win_rate, profit_factor, buy_trade_count, avg_bet_size')
-    .gte('buy_trade_count', MIN_TRADE_COUNT)
+    .select('wallet, roi_lifetime, win_rate, profit_factor, trade_count, buy_trade_count, avg_bet_size')
+    .gte('trade_count', MIN_TRADE_COUNT)
     .gt('roi_lifetime', 0)
     .gte('profit_factor', MIN_PROFIT_FACTOR)
     .neq('qualification_status', 'excluded')
@@ -245,8 +244,7 @@ export async function getInsiderFeed(opts: {
       insider_score:           score,
       size_ratio:              sizeRatio,
       wallet_roi_pct:          Math.round((summary.roi_lifetime ?? 0) * 100 * 10) / 10,
-      wallet_buy_trade_count:  summary.buy_trade_count ?? 0,
-      wallet_win_rate:         summary.win_rate        ?? 0,
+      wallet_trade_count:      summary.trade_count ?? 0,
       wallet_profit_factor:    summary.profit_factor   ?? 0,
     })
   }

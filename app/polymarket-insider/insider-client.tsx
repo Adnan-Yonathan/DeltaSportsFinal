@@ -181,13 +181,7 @@ function InsiderBetCard({ bet }: { bet: InsiderBet }) {
           </div>
           <div>
             <span className="text-white/35">Trades </span>
-            <span className="font-semibold text-white/70">{bet.wallet_buy_trade_count.toLocaleString()}</span>
-          </div>
-          <div>
-            <span className="text-white/35">Win% </span>
-            <span className="font-semibold text-white/70">
-              {(bet.wallet_win_rate * 100).toFixed(0)}%
-            </span>
+            <span className="font-semibold text-white/70">{bet.wallet_trade_count.toLocaleString()}</span>
           </div>
         </div>
       </div>
@@ -276,7 +270,7 @@ export default function InsiderClient() {
                 Sharpest open bets on Polymarket
               </h1>
               <p className="mt-2 max-w-xl text-sm leading-6 text-white/55">
-                Only wallets with 1 000+ trades and a positive ROI. Ranked by long-term
+                Only wallets with 500+ trades and a positive ROI. Ranked by long-term
                 profitability and how large this bet is relative to their normal size.
               </p>
             </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowUpRight, CheckCircle2, Database, RefreshCw, TrendingUp, Zap } from 'lucide-react'
 import type { InsiderBet } from '@/lib/services/polymarket-insider'
+import ShareInsiderBetButton from '@/components/ShareInsiderBetButton'
 
 // ── Sport filter tabs ─────────────────────────────────────────────────────────
 
@@ -229,16 +230,37 @@ function DetailPanel({ bet }: { bet: InsiderBet | null }) {
         </div>
       </div>
 
-      {/* Polymarket link */}
-      <a
-        href={polymarketUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium text-white/70 transition hover:border-white/30 hover:text-white"
-      >
-        View on Polymarket
-        <ArrowUpRight className="h-4 w-4" />
-      </a>
+      {/* Actions */}
+      <div className="mt-3 flex items-center gap-2">
+        <a
+          href={polymarketUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium text-white/70 transition hover:border-white/30 hover:text-white"
+        >
+          View on Polymarket
+          <ArrowUpRight className="h-4 w-4" />
+        </a>
+        <ShareInsiderBetButton
+          bet={{
+            id: `${bet.wallet.slice(0, 8)}-${bet.slug.slice(0, 20)}`,
+            title: bet.title,
+            outcome: bet.outcome,
+            sportLabel: bet.sport_label,
+            avgEntryPrice: bet.avg_entry_price,
+            americanOdds: bet.avg_entry_american_odds,
+            stakeUsd: bet.stake_usd,
+            potentialPayoutUsd: bet.potential_payout_usd,
+            insiderScore: bet.insider_score,
+            sizeRatio: bet.size_ratio,
+            walletRoiPct: bet.wallet_roi_pct,
+            walletTradeCount: bet.wallet_trade_count,
+            displayName: displayName,
+            profileImageUrl: bet.profile_image_url,
+            lastTradeTime: bet.last_trade_time,
+          }}
+        />
+      </div>
     </div>
   )
 }

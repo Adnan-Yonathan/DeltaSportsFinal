@@ -9,25 +9,42 @@ import { extractTeamLogos } from '@/lib/utils/team-logos'
 // ── Sport filter tabs ─────────────────────────────────────────────────────────
 
 const SPORT_TABS = [
-  { label: 'All',      value: 'ALL' },
-  { label: 'NBA',      value: 'NBA' },
-  { label: 'NFL',      value: 'NFL' },
-  { label: 'NHL',      value: 'NHL' },
-  { label: 'MLB',      value: 'MLB' },
-  { label: 'NCAAB',    value: 'NCAAB' },
-  { label: 'NCAAF',    value: 'NCAAF' },
-  { label: 'Soccer',   value: 'SOCCER' },
-  { label: 'MLS',      value: 'MLS' },
-  { label: 'UFC',      value: 'UFC' },
-  { label: 'MMA',      value: 'MMA' },
-  { label: 'Boxing',   value: 'BOXING' },
-  { label: 'Tennis',   value: 'TENNIS' },
-  { label: 'Golf',     value: 'GOLF' },
-  { label: 'Esports',  value: 'ESPORTS' },
-  { label: 'Racing',   value: 'RACING' },
-  { label: 'Cricket',  value: 'CRICKET' },
-  { label: 'WNBA',     value: 'WNBA' },
-  { label: 'Olympics', value: 'OLYMPICS' },
+  { label: 'All',        value: 'ALL' },
+  // North American
+  { label: 'NBA',        value: 'NBA' },
+  { label: 'NFL',        value: 'NFL' },
+  { label: 'NHL',        value: 'NHL' },
+  { label: 'MLB',        value: 'MLB' },
+  { label: 'NCAAB',      value: 'NCAAB' },
+  { label: 'NCAAF',      value: 'NCAAF' },
+  { label: 'WNBA',       value: 'WNBA' },
+  // Soccer
+  { label: 'UCL',        value: 'UCL' },
+  { label: 'EPL',        value: 'EPL' },
+  { label: 'La Liga',    value: 'LA LIGA' },
+  { label: 'Bundesliga', value: 'BUNDESLIGA' },
+  { label: 'Serie A',    value: 'SERIE A' },
+  { label: 'Ligue 1',    value: 'LIGUE 1' },
+  { label: 'MLS',        value: 'MLS' },
+  { label: 'Soccer',     value: 'SOCCER' },
+  // Tennis
+  { label: 'ATP',        value: 'ATP' },
+  { label: 'WTA',        value: 'WTA' },
+  // Esports
+  { label: 'CS2',        value: 'CS2' },
+  { label: 'LoL',        value: 'LOL' },
+  { label: 'Dota 2',     value: 'DOTA 2' },
+  { label: 'Valorant',   value: 'VALORANT' },
+  // Combat
+  { label: 'UFC',        value: 'UFC' },
+  { label: 'MMA',        value: 'MMA' },
+  { label: 'Boxing',     value: 'BOXING' },
+  // Other
+  { label: 'Golf',       value: 'GOLF' },
+  { label: 'F1',         value: 'F1' },
+  { label: 'Cricket',    value: 'CRICKET' },
+  { label: 'Rugby',      value: 'RUGBY' },
+  { label: 'Olympics',   value: 'OLYMPICS' },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

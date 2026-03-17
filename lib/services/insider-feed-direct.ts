@@ -23,7 +23,7 @@ const LEADERBOARD_CONCURRENCY = 3
 
 // Per-wallet trade fetching
 const TOP_WALLETS_TO_FETCH = 100  // fetch trades for top N wallets by ROI
-const TRADES_PER_WALLET    = 200  // trades to fetch per wallet
+const TRADES_PER_WALLET    = 500  // trades to fetch per wallet
 const WALLET_FETCH_CONCURRENCY = 5
 
 const MIN_ROI            = 0.03
@@ -37,17 +37,50 @@ const GAMMA_API       = 'https://gamma-api.polymarket.com'
 const MARKET_FETCH_CONCURRENCY = 10
 
 const SPORT_PREFIXES = [
+  // North American leagues
   'nba-', 'wnba-', 'nfl-', 'cfb-', 'cbb-', 'ncaab-', 'ncaaf-',
-  'nhl-', 'mlb-', 'soccer-', 'tennis-', 'mma-', 'boxing-', 'ufc-',
-  'golf-', 'cricket-', 'esports-', 'racing-',
+  'nhl-', 'mlb-', 'mls-',
+  // Soccer / football — league-specific prefixes
+  'ucl-', 'uel-', 'uecl-', 'epl-', 'laliga-', 'bundesliga-', 'seriea-',
+  'ligue1-', 'soccer-', 'fifa-', 'coppa-', 'facup-',
+  // Tennis
+  'atp-', 'wta-', 'tennis-',
+  // Esports — game-specific prefixes
+  'cs2-', 'csgo-', 'lol-', 'dota2-', 'val-', 'rl-', 'cod-', 'esports-',
+  // Hockey (international)
+  'shl-', 'khl-', 'liiga-',
+  // Basketball (international)
+  'euroleague-', 'eurocup-', 'bkcl-',
+  // Combat sports
+  'mma-', 'ufc-', 'boxing-', 'pfl-', 'bellator-',
+  // Other
+  'golf-', 'pga-', 'cricket-', 'ipl-', 'f1-', 'nascar-', 'racing-',
+  'rugby-', 'afl-', 'olympics-',
 ]
 
 const SPORT_LABEL_MAP: Record<string, string> = {
-  nba: 'NBA', wnba: 'WNBA', nfl: 'NFL',
+  // North American
+  nba: 'NBA', wnba: 'WNBA', nfl: 'NFL', nhl: 'NHL', mlb: 'MLB', mls: 'MLS',
   cfb: 'NCAAF', cbb: 'NCAAB', ncaab: 'NCAAB', ncaaf: 'NCAAF',
-  nhl: 'NHL', mlb: 'MLB', soccer: 'SOCCER',
-  tennis: 'TENNIS', mma: 'MMA', boxing: 'BOXING',
-  ufc: 'UFC', golf: 'GOLF',
+  // Soccer
+  ucl: 'UCL', uel: 'UEL', uecl: 'UECL', epl: 'EPL', laliga: 'LA LIGA',
+  bundesliga: 'BUNDESLIGA', seriea: 'SERIE A', ligue1: 'LIGUE 1',
+  soccer: 'SOCCER', fifa: 'FIFA', coppa: 'COPPA', facup: 'FA CUP',
+  // Tennis
+  atp: 'ATP', wta: 'WTA', tennis: 'TENNIS',
+  // Esports
+  cs2: 'CS2', csgo: 'CS2', lol: 'LOL', dota2: 'DOTA 2', val: 'VALORANT',
+  rl: 'ROCKET LEAGUE', cod: 'COD', esports: 'ESPORTS',
+  // Hockey (international)
+  shl: 'SHL', khl: 'KHL', liiga: 'LIIGA',
+  // Basketball (international)
+  euroleague: 'EUROLEAGUE', eurocup: 'EUROCUP', bkcl: 'BKCL',
+  // Combat sports
+  mma: 'MMA', ufc: 'UFC', boxing: 'BOXING', pfl: 'PFL', bellator: 'BELLATOR',
+  // Other
+  golf: 'GOLF', pga: 'PGA', cricket: 'CRICKET', ipl: 'IPL',
+  f1: 'F1', nascar: 'NASCAR', racing: 'RACING',
+  rugby: 'RUGBY', afl: 'AFL', olympics: 'OLYMPICS',
 }
 
 // ── API types ─────────────────────────────────────────────────────────────────

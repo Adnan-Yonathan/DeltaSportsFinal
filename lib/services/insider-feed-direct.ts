@@ -33,6 +33,9 @@ const MIN_NET_SHARES     = 1
 const MIN_STAKE_USD      = 10
 const FETCH_TIMEOUT_MS   = 12_000
 
+const GAMMA_API       = 'https://gamma-api.polymarket.com'
+const MARKET_FETCH_CONCURRENCY = 10
+
 const SPORT_PREFIXES = [
   'nba-', 'wnba-', 'nfl-', 'cfb-', 'cbb-', 'ncaab-', 'ncaaf-',
   'nhl-', 'mlb-', 'soccer-', 'tennis-', 'mma-', 'boxing-', 'ufc-',
@@ -97,6 +100,58 @@ async function fetchJson(url: string): Promise<unknown> {
   } catch {
     return null
   }
+}
+
+// ── Fetch current market prices from Gamma API ──────────────────────────────
+
+type MarketPriceMap = Map<string, Map<string, number>> // slug → outcome → price
+
+async function fetchCurrentPrices(slugs: string[]): Promise<MarketPriceMap> {
+  const priceMap: MarketPriceMap = new Map()
+  const uniqueSlugs = [...new Set(slugs)]
+
+  for (let i = 0; i < uniqueSlugs.length; i += MARKET_FETCH_CONCURRENCY) {
+    const batch = uniqueSlugs.slice(i, i + MARKET_FETCH_CONCURRENCY)
+    const results = await Promise.all(
+      batch.map(async (slug) => {
+        const url = `${GAMMA_API}/markets?slug=${encodeURIComponent(slug)}&limit=1`
+        const raw = await fetchJson(url) as any[] | null
+        if (!Array.isArray(raw) || raw.length === 0) return null
+        const market = raw[0]
+        const outcomes = parseOutcomes(market.outcomes)
+        const prices = parseOutcomePrices(market.outcomePrices)
+        if (outcomes.length === 0 || outcomes.length !== prices.length) return null
+        const map = new Map<string, number>()
+        for (let j = 0; j < outcomes.length; j++) {
+          map.set(outcomes[j], prices[j])
+        }
+        return { slug, map }
+      })
+    )
+    for (const r of results) {
+      if (r) priceMap.set(r.slug, r.map)
+    }
+  }
+
+  return priceMap
+}
+
+function parseOutcomes(raw: unknown): string[] {
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw) } catch { return [] }
+  }
+  if (Array.isArray(raw)) return raw.map(String)
+  return []
+}
+
+function parseOutcomePrices(raw: unknown): number[] {
+  if (typeof raw === 'string') {
+    try {
+      return (JSON.parse(raw) as unknown[]).map(Number).filter(Number.isFinite)
+    } catch { return [] }
+  }
+  if (Array.isArray(raw)) return raw.map(Number).filter(Number.isFinite)
+  return []
 }
 
 // ── Position computation from trade list ──────────────────────────────────────
@@ -308,7 +363,13 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
   console.log(`[InsiderFeed] Open sport positions found: ${allPositions.length}`)
 
-  // ── Step 4: Score positions ────────────────────────────────────────────────
+  // ── Step 4: Fetch current market prices ───────────────────────────────────
+  const uniqueSlugs = [...new Set(allPositions.map(p => p.slug))]
+  console.log(`[InsiderFeed] Fetching current prices for ${uniqueSlugs.length} markets`)
+  const currentPrices = await fetchCurrentPrices(uniqueSlugs)
+  console.log(`[InsiderFeed] Got prices for ${currentPrices.size} markets`)
+
+  // ── Step 5: Score positions ────────────────────────────────────────────────
   const runTs  = new Date().toISOString()
   const scored: Record<string, unknown>[] = []
 
@@ -344,6 +405,11 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
     const americanOdds = probabilityToAmericanOdds(pos.avgEntryPrice)
 
+    // Current market price for this outcome
+    const slugPrices = currentPrices.get(pos.slug)
+    const curPrice = slugPrices?.get(pos.outcome) ?? null
+    const curAmericanOdds = curPrice !== null ? probabilityToAmericanOdds(curPrice) : null
+
     scored.push({
       wallet:                  pos.wallet,
       pseudonym:               meta.pseudonym,
@@ -354,6 +420,8 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       slug:                    pos.slug,
       avg_entry_price:         Math.round(pos.avgEntryPrice * 10_000) / 10_000,
       avg_entry_american_odds: Number.isFinite(americanOdds) ? americanOdds : null,
+      current_price:           curPrice !== null ? Math.round(curPrice * 10_000) / 10_000 : null,
+      current_american_odds:   curAmericanOdds !== null && Number.isFinite(curAmericanOdds) ? curAmericanOdds : null,
       stake_usd:               Math.round(pos.stakeUsd * 100) / 100,
       potential_payout_usd:    Math.round(pos.potentialPayoutUsd * 100) / 100,
       last_trade_time:         pos.lastTradeTime,
@@ -361,14 +429,13 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       size_ratio:              sizeRatio,
       wallet_roi_pct:          Math.round(meta.roi * 100 * 10) / 10,
       wallet_trade_count:      buyTradeCount,
-      wallet_profit_factor:    0,
       refreshed_at:            runTs,
     })
   }
 
   console.log(`[InsiderFeed] Scored positions passing threshold: ${scored.length}`)
 
-  // ── Step 5: Write to cache ─────────────────────────────────────────────────
+  // ── Step 6: Write to cache ─────────────────────────────────────────────────
   const supabase = createServiceClient()
 
   // Clear entire cache first to remove stale/broken entries

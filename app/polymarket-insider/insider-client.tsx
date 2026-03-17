@@ -220,12 +220,16 @@ function DetailPanel({ bet }: { bet: InsiderBet | null }) {
             </p>
           </div>
           <div>
-            <p className="text-[10px] text-white/35 mb-0.5">Trades</p>
-            <p className="text-sm font-bold text-white">{bet.wallet_trade_count.toLocaleString()}</p>
+            <p className="text-[10px] text-white/35 mb-0.5">Entry Odds</p>
+            <p className="text-sm font-bold text-white">{formatOdds(bet.avg_entry_american_odds, bet.avg_entry_price)}</p>
           </div>
           <div>
-            <p className="text-[10px] text-white/35 mb-0.5">Prof. Factor</p>
-            <p className="text-sm font-bold text-white">{bet.wallet_profit_factor.toFixed(2)}</p>
+            <p className="text-[10px] text-white/35 mb-0.5">Current Odds</p>
+            <p className="text-sm font-bold text-emerald-300">
+              {bet.current_price != null
+                ? formatOdds(bet.current_american_odds, bet.current_price)
+                : '—'}
+            </p>
           </div>
         </div>
       </div>

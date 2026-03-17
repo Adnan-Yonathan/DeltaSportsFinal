@@ -19,7 +19,8 @@ export type InsiderBet = {
   size_ratio: number
   wallet_roi_pct: number
   wallet_trade_count: number
-  wallet_profit_factor: number
+  current_price: number | null
+  current_american_odds: number | null
 }
 
 // ── Hard filters — "bad bets not included" ───────────────────────────────────
@@ -151,7 +152,7 @@ export async function getInsiderFeed(opts: {
       'wallet, pseudonym, profile_image_url, title, outcome, sport_label, slug, ' +
       'avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, ' +
       'last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
-      'wallet_trade_count, wallet_profit_factor'
+      'wallet_trade_count, current_price, current_american_odds'
     )
     .gte('insider_score', minScore)
     .order('insider_score', { ascending: false })
@@ -192,6 +193,7 @@ export async function getInsiderFeed(opts: {
     size_ratio:              row.size_ratio,
     wallet_roi_pct:          row.wallet_roi_pct,
     wallet_trade_count:      row.wallet_trade_count      ?? 0,
-    wallet_profit_factor:    row.wallet_profit_factor    ?? 0,
+    current_price:           row.current_price           ?? null,
+    current_american_odds:   row.current_american_odds   ?? null,
   }))
 }

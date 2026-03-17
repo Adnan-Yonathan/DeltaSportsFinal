@@ -487,10 +487,10 @@ export default function InsiderClient() {
           </div>
 
           {/* ── Two-panel grid ── */}
-          <div className="grid min-h-[620px] grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
 
             {/* Left: scrollable list */}
-            <div className="max-h-[72vh] overflow-y-auto border-b border-white/10 bg-black/30 lg:border-b-0 lg:border-r lg:border-white/10">
+            <div className="overflow-y-auto border-b border-white/10 bg-black/30 lg:border-b-0 lg:border-r lg:border-white/10">
               <div className="space-y-2 p-3">
                 {loading ? (
                   [...Array(8)].map((_, i) => (
@@ -515,7 +515,7 @@ export default function InsiderClient() {
             </div>
 
             {/* Right: detail panel */}
-            <div className="overflow-y-auto bg-black/20 lg:max-h-[72vh]">
+            <div className="overflow-y-auto bg-black/20">
               <DetailPanel bet={selectedBet} />
             </div>
 

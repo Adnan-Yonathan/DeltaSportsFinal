@@ -8,13 +8,13 @@ const DATA_API        = 'https://data-api.polymarket.com'
 const LEADERBOARD_URL = `${DATA_API}/v1/leaderboard`
 const TRADES_URL      = `${DATA_API}/trades`
 
-const LEADERBOARD_PAGE_SIZE = 60
+const LEADERBOARD_PAGE_SIZE = 100
 
 // Discovery strategies: [timePeriod, orderBy, offset]
 // ALL/VOLUME removed — API does not support orderBy=VOLUME
 const LEADERBOARD_STRATEGIES: Array<[string, string, number]> = [
   ['ALL',   'PNL',  0],    // all-time top earners (page 1)
-  ['ALL',   'PNL',  60],   // all-time top earners (page 2)
+  ['ALL',   'PNL',  100],  // all-time top earners (page 2)
   ['WEEK',  'PNL',  0],    // this week's winners
   ['MONTH', 'PNL',  0],    // this month's winners
   ['DAY',   'PNL',  0],    // today's movers
@@ -22,7 +22,7 @@ const LEADERBOARD_STRATEGIES: Array<[string, string, number]> = [
 const LEADERBOARD_CONCURRENCY = 3
 
 // Per-wallet trade fetching
-const TOP_WALLETS_TO_FETCH = 40   // fetch trades for top N wallets by ROI
+const TOP_WALLETS_TO_FETCH = 100  // fetch trades for top N wallets by ROI
 const TRADES_PER_WALLET    = 200  // trades to fetch per wallet
 const WALLET_FETCH_CONCURRENCY = 5
 

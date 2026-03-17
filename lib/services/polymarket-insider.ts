@@ -21,6 +21,7 @@ export type InsiderBet = {
   wallet_trade_count: number
   current_price: number | null
   current_american_odds: number | null
+  consensus_count: number
 }
 
 // ── Hard filters — "bad bets not included" ───────────────────────────────────
@@ -51,45 +52,35 @@ function clamp(v: number, lo: number, hi: number) {
 }
 
 export function computeInsiderScore(
-  buyTradeCount: number,
   roiLifetime: number,
-  profitFactor: number,
-  winRate: number,
   avgBetSize: number,
   stakeUsd: number,
+  consensus: number,
 ): { score: number; sizeRatio: number } {
-  // ── Authority: how trustworthy is this wallet long-term? ──────────────────
-  // 1 000 trades = 0.33, 3 000+ = 1.0 (full credit)
-  const tradeDepth = clamp(buyTradeCount / 3000, 0, 1)
-  // 200 % lifetime ROI = full credit
-  const roiComp    = clamp(roiLifetime, 0, 2.0) / 2.0
-  // Profit factor 5+ = full credit
-  const pfComp     = clamp(profitFactor, 0, 5.0) / 5.0
-  // Win rate meaningful between 40 % and 75 %
-  const winComp    = clamp((clamp(winRate, 0.40, 0.75) - 0.40) / 0.35, 0, 1)
-
-  const authority = (
-    tradeDepth * 0.35 +
-    roiComp    * 0.35 +
-    pfComp     * 0.20 +
-    winComp    * 0.10
-  ) * 100
-
-  // ── Conviction: how large is THIS bet relative to their norm? ─────────────
-  // 0.75× avg → 0,  1× → ~6,  2× → ~29,  3× → ~53,  5× → 100
+  // ── 1. Size Ratio (conviction) — 40% ─────────────────────────────────────
+  // How much bigger is this bet than the wallet's average?
+  // 0.75× → 0,  1× → ~6,  2× → ~29,  3× → ~53,  5× → 100
   const sizeRatio = avgBetSize > 0 ? stakeUsd / avgBetSize : 1
-  const conviction = clamp((sizeRatio - 0.75) / 4.25, 0, 1) * 100
+  const convictionRaw = clamp((sizeRatio - 0.75) / 4.25, 0, 1) * 100
+
+  // ── 2. Wallet ROI (authority) — 30% ──────────────────────────────────────
+  // ROI within 3–20% range. Scale: 3% → 0, 20% → 100
+  const roiPct = roiLifetime * 100  // e.g. 0.08 → 8
+  const roiRaw = clamp((roiPct - 3) / 17, 0, 1) * 100
+
+  // ── 3. Consensus (agreement) — 30% ───────────────────────────────────────
+  // How many other qualified wallets hold the same position?
+  // 1 wallet (just this one) → 0,  2 → 25,  3 → 50,  5+ → 100
+  const consensusRaw = clamp((consensus - 1) / 4, 0, 1) * 100
 
   // ── Combined score ────────────────────────────────────────────────────────
   // Raw 0–100, then linearly mapped to display range 70–99.
-  // Linear preserves natural differentiation between wallets.
   //   raw = 0  → 70 (threshold)
-  //   raw = 30 → 78.7 (Notable)
+  //   raw = 33 → 79.6 (Notable)
   //   raw = 50 → 84.5 (Sharp)
-  //   raw = 67 → 89.4 (Sharp)
-  //   raw = 85 → 94.7 (Elite)
+  //   raw = 75 → 91.8 (Elite)
   //   raw = 100 → 99 (Elite)
-  const raw    = authority * 0.60 + conviction * 0.40
+  const raw    = convictionRaw * 0.40 + roiRaw * 0.30 + consensusRaw * 0.30
   const biased = 70 + (raw / 100) * 29
   const score  = Math.floor(clamp(biased, 0, 99))
 
@@ -152,7 +143,7 @@ export async function getInsiderFeed(opts: {
       'wallet, pseudonym, profile_image_url, title, outcome, sport_label, slug, ' +
       'avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, ' +
       'last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
-      'wallet_trade_count, current_price, current_american_odds'
+      'wallet_trade_count, current_price, current_american_odds, consensus_count'
     )
     .gte('insider_score', minScore)
     .order('insider_score', { ascending: false })
@@ -195,5 +186,6 @@ export async function getInsiderFeed(opts: {
     wallet_trade_count:      row.wallet_trade_count      ?? 0,
     current_price:           row.current_price           ?? null,
     current_american_odds:   row.current_american_odds   ?? null,
+    consensus_count:         row.consensus_count         ?? 1,
   }))
 }

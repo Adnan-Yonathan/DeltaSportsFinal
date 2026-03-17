@@ -117,6 +117,11 @@ function ListCard({ bet, selected, onClick }: { bet: InsiderBet; selected: boole
                 {bet.size_ratio}×
               </span>
             )}
+            {bet.consensus_count > 1 && (
+              <span className="rounded-full border border-violet-400/30 bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-violet-300/80">
+                {bet.consensus_count}× agree
+              </span>
+            )}
           </div>
           <p className="line-clamp-2 text-xs font-semibold leading-snug text-white">{bet.title}</p>
           <div className="mt-1.5 flex items-center gap-2 text-[11px]">
@@ -188,6 +193,11 @@ function DetailPanel({ bet }: { bet: InsiderBet | null }) {
                 {formatOdds(bet.avg_entry_american_odds, bet.avg_entry_price)}
               </span>
               <span className="text-sm text-white/40">{(bet.avg_entry_price * 100).toFixed(0)}¢ avg entry</span>
+              {bet.consensus_count > 1 && (
+                <span className="ml-auto flex items-center gap-1 rounded-lg border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-300">
+                  {bet.consensus_count} insiders agree
+                </span>
+              )}
             </div>
           </div>
         )

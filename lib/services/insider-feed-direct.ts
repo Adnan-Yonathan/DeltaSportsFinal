@@ -381,6 +381,18 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     }
   }
 
+  // Build consensus map: how many unique wallets hold each slug+outcome?
+  const consensusMap = new Map<string, Set<string>>()
+  for (const pos of allPositions) {
+    const key = `${pos.slug}::${pos.outcome}`
+    let wallets = consensusMap.get(key)
+    if (!wallets) {
+      wallets = new Set()
+      consensusMap.set(key, wallets)
+    }
+    wallets.add(pos.wallet)
+  }
+
   for (const pos of allPositions) {
     const meta = qualifiedWallets.get(pos.wallet)
     if (!meta) continue
@@ -392,14 +404,14 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     if (avgBetSize <= 0) continue
 
     const buyTradeCount = buyStat?.count ?? 0
+    const consensusKey = `${pos.slug}::${pos.outcome}`
+    const consensus = consensusMap.get(consensusKey)?.size ?? 1
 
     const { score, sizeRatio } = computeInsiderScore(
-      buyTradeCount,
       meta.roi,
-      1.5,   // profit_factor placeholder
-      0.55,  // win_rate placeholder
       avgBetSize,
       pos.stakeUsd,
+      consensus,
     )
     if (score < MIN_INSIDER_SCORE) continue
 
@@ -429,6 +441,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       size_ratio:              sizeRatio,
       wallet_roi_pct:          Math.round(meta.roi * 100 * 10) / 10,
       wallet_trade_count:      buyTradeCount,
+      consensus_count:         consensus,
       refreshed_at:            runTs,
     })
   }

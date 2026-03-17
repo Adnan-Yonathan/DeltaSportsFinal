@@ -50,6 +50,9 @@
     },
     "app/api/cron/refresh-whale-trades-daily/route.ts": {
       "maxDuration": 120
+    },
+    "app/api/cron/refresh-insider-feed/route.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
@@ -100,6 +103,10 @@
     {
       "path": "/api/cron/refresh-whale-trades-daily",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-insider-feed",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

@@ -28,14 +28,6 @@ const SPORT_TABS = [
   { label: 'Olympics', value: 'OLYMPICS' },
 ]
 
-// ── Date window tabs ──────────────────────────────────────────────────────────
-
-const DATE_TABS = [
-  { label: 'Today',      daysBack: 0 },
-  { label: 'Last 3 Days', daysBack: 3 },
-  { label: 'All Time',   daysBack: -1 },
-]
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatOdds(american: number | null, price: number): string {
@@ -191,16 +183,15 @@ function InsiderBetCard({ bet }: { bet: InsiderBet }) {
 
 // ── Empty state ───────────────────────────────────────────────────────────────
 
-function EmptyState({ sport, daysBack }: { sport: string; daysBack: number }) {
-  const dateLabel = daysBack === 0 ? 'today' : daysBack < 0 ? 'all time' : `the last ${daysBack} days`
+function EmptyState({ sport }: { sport: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-black/40 px-8 py-16 text-center">
       <Eye className="mx-auto h-8 w-8 text-white/20" />
       <p className="mt-4 text-sm font-medium text-white/50">No insider bets found</p>
       <p className="mt-1.5 text-xs text-white/30">
         {sport !== 'ALL'
-          ? `No qualifying ${sport} positions for ${dateLabel}. Try a wider date range or All sports.`
-          : `No qualifying positions for ${dateLabel}. Try "Last 3 Days" or "All Time".`}
+          ? `No qualifying ${sport} positions right now. Try All sports.`
+          : 'No qualifying positions right now.'}
       </p>
     </div>
   )
@@ -211,7 +202,6 @@ function EmptyState({ sport, daysBack }: { sport: string; daysBack: number }) {
 export default function InsiderClient() {
   const [bets, setBets]       = useState<InsiderBet[]>([])
   const [sport, setSport]     = useState('ALL')
-  const [daysBack, setDaysBack] = useState(3)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
@@ -222,7 +212,7 @@ export default function InsiderClient() {
     else setLoading(true)
 
     try {
-      const params = new URLSearchParams({ limit: '100', daysBack: String(daysBack) })
+      const params = new URLSearchParams({ limit: '100', daysBack: '-1' })
       if (sport !== 'ALL') params.set('sport', sport)
 
       const res  = await fetch(`/api/polymarket/insider?${params}`)
@@ -238,7 +228,7 @@ export default function InsiderClient() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [sport, daysBack])
+  }, [sport])
 
   useEffect(() => { fetchBets() }, [fetchBets])
 
@@ -258,28 +248,12 @@ export default function InsiderClient() {
 
         {/* ── Header ── */}
         <div className="mb-8">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <Eye className="h-5 w-5 text-emerald-400" />
-                <span className="text-[11px] font-semibold uppercase tracking-[0.35em] text-emerald-300/80">
-                  Prediction Market Insider
-                </span>
-              </div>
-              <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                Sharpest open bets on Polymarket
-              </h1>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-white/55">
-                Only wallets with 500+ trades and a positive ROI. Ranked by long-term
-                profitability and how large this bet is relative to their normal size.
-              </p>
-            </div>
-
+          <div className="flex items-center justify-between gap-4">
             <button
               type="button"
               onClick={() => fetchBets(true)}
               disabled={refreshing || loading}
-              className="shrink-0 flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/60 transition hover:border-white/25 hover:text-white disabled:opacity-40"
+              className="ml-auto shrink-0 flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/60 transition hover:border-white/25 hover:text-white disabled:opacity-40"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
@@ -288,7 +262,7 @@ export default function InsiderClient() {
 
           {/* Stats row */}
           {!loading && bets.length > 0 && (
-            <div className="mt-5 flex flex-wrap gap-3">
+            <div className="mt-4 flex flex-wrap gap-3">
               <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/40">Shown</p>
                 <p className="mt-0.5 text-lg font-bold text-white">{bets.length}</p>
@@ -320,24 +294,6 @@ export default function InsiderClient() {
           )}
         </div>
 
-        {/* ── Date filter ── */}
-        <div className="mb-4 flex gap-2">
-          {DATE_TABS.map((tab) => (
-            <button
-              key={tab.daysBack}
-              type="button"
-              onClick={() => setDaysBack(tab.daysBack)}
-              className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-                daysBack === tab.daysBack
-                  ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200'
-                  : 'border-white/15 text-white/55 hover:border-white/25 hover:text-white'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
         {/* ── Sport filter — horizontally scrollable ── */}
         <div className="mb-6 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           {SPORT_TABS.map((tab) => (
@@ -364,7 +320,7 @@ export default function InsiderClient() {
             ))}
           </div>
         ) : bets.length === 0 ? (
-          <EmptyState sport={sport} daysBack={daysBack} />
+          <EmptyState sport={sport} />
         ) : (
           <div className="space-y-3">
             {bets.map((bet, idx) => (
@@ -393,7 +349,7 @@ export default function InsiderClient() {
               </div>
             </div>
             <p className="mt-3 text-[11px] text-white/25">
-              Min 1 000 buy trades · Positive ROI · Profit factor ≥ 1.1 · Entry price 4¢–92¢
+              Min 500 trades · Positive ROI · Profit factor ≥ 1.1 · Entry price 4¢–92¢
             </p>
           </div>
         )}

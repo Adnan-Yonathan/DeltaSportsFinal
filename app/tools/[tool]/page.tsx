@@ -150,7 +150,7 @@ const TOOL_GUIDE_CONFIGS: Partial<Record<CoreToolKey, ToolGuideConfig>> = {
     heroDescription:
       'Whale Detector streams active whale tickets and resting liquidity across supported markets so you can spot pressure before books fully reprice.',
     screenshotTitle: 'Read whale flow with timing and size context',
-    screenshotSrc: '/whalefeed.png',
+    screenshotSrc: '/updatedwhalefeed.png',
     screenshotAlt: 'Whale Detector feed showing high-notional trades and market context.',
     callouts: [
       {

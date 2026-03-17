@@ -238,7 +238,7 @@ export const RECOMMENDED_TOOL_DETAILS: Record<RecommendedToolKey, ToolDetail> = 
   'whale-detector': {
     title: 'Whale Feed',
     href: '/sharp-detector',
-    screenshotSrc: '/whalefeed.png',
+    screenshotSrc: '/updatedwhalefeed.png',
     summary:
       'Track large-ticket flow and compare exchange pricing against sportsbook movement in one stream.',
     statLabel: 'Alert cadence',

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowUpRight, RefreshCw, TrendingUp, Zap } from 'lucide-react'
+import { ArrowUpRight, CheckCircle2, Database, RefreshCw, TrendingUp, Zap } from 'lucide-react'
 import type { InsiderBet } from '@/lib/services/polymarket-insider'
 
 // ── Sport filter tabs ─────────────────────────────────────────────────────────
@@ -267,6 +267,11 @@ export default function InsiderClient() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Backfill state: null = idle, 'ingest' | 'rollups' = running, 'done' = finished
+  type BackfillPhase = 'ingest' | 'rollups' | 'done' | null
+  const [backfillPhase, setBackfillPhase] = useState<BackfillPhase>(null)
+  const [backfillResult, setBackfillResult] = useState<{ walletsProcessed?: number } | null>(null)
+
   const fetchBets = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
@@ -303,6 +308,36 @@ export default function InsiderClient() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [fetchBets])
 
+  const runBackfill = useCallback(async () => {
+    if (backfillPhase) return
+    setBackfillResult(null)
+
+    // Step 1: Sync Trades
+    setBackfillPhase('ingest')
+    try {
+      await fetch('/api/polymarket/insider/backfill?step=ingest', { method: 'POST' })
+    } catch {
+      // continue to rollups even if ingest fails
+    }
+
+    // Step 2: Recompute Stats
+    setBackfillPhase('rollups')
+    try {
+      const res = await fetch('/api/polymarket/insider/backfill?step=rollups', { method: 'POST' })
+      const json = await res.json()
+      setBackfillResult({ walletsProcessed: json.rollups?.walletsProcessed ?? 0 })
+    } catch {
+      setBackfillResult({})
+    }
+
+    setBackfillPhase('done')
+    // Auto-refresh the feed after backfill
+    setTimeout(() => {
+      fetchBets(true)
+      setBackfillPhase(null)
+    }, 2000)
+  }, [backfillPhase, fetchBets])
+
   const selectedBet = bets.find(b => `${b.wallet}-${b.slug}` === selectedId) ?? null
 
   return (
@@ -334,10 +369,44 @@ export default function InsiderClient() {
                   {timeAgo(lastUpdated.toISOString())}
                 </span>
               )}
+
+              {/* Backfill button */}
+              <button
+                type="button"
+                onClick={runBackfill}
+                disabled={!!backfillPhase || refreshing || loading}
+                title="Sync trades from Polymarket API then recompute wallet stats"
+                className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/60 transition hover:border-emerald-400/40 hover:text-emerald-200 disabled:opacity-40"
+              >
+                {backfillPhase === 'done' ? (
+                  <>
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                    {backfillResult?.walletsProcessed != null
+                      ? `${backfillResult.walletsProcessed} wallets`
+                      : 'Done'}
+                  </>
+                ) : backfillPhase === 'ingest' ? (
+                  <>
+                    <Database className="h-3.5 w-3.5 animate-pulse text-amber-400" />
+                    Syncing trades…
+                  </>
+                ) : backfillPhase === 'rollups' ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+                    Recomputing…
+                  </>
+                ) : (
+                  <>
+                    <Database className="h-3.5 w-3.5" />
+                    Backfill
+                  </>
+                )}
+              </button>
+
               <button
                 type="button"
                 onClick={() => fetchBets(true)}
-                disabled={refreshing || loading}
+                disabled={refreshing || loading || !!backfillPhase}
                 className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/60 transition hover:border-white/25 hover:text-white disabled:opacity-40"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />

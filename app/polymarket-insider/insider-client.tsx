@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { ArrowUpRight, CheckCircle2, ChevronDown, Database, RefreshCw, TrendingUp, Zap } from 'lucide-react'
 import type { InsiderBet } from '@/lib/services/polymarket-insider'
 import ShareInsiderBetButton from '@/components/ShareInsiderBetButton'
-import { extractTeamLogos } from '@/lib/utils/team-logos'
 
 // ── Sport filter tabs ─────────────────────────────────────────────────────────
 
@@ -173,7 +172,6 @@ function MobileExpandableCard({ bet, expanded, onToggle }: { bet: InsiderBet; ex
     ? `https://polymarket.com/event/${bet.event_slug}`
     : `https://polymarket.com/event/${bet.slug}`
   const kalshiUrl = `https://kalshi.com/browse?query=${encodeURIComponent(bet.title)}`
-  const logos = extractTeamLogos(bet.title, bet.sport_label)
 
   return (
     <div className={`rounded-2xl border transition-colors ${expanded ? 'border-emerald-400/60 bg-emerald-500/5' : 'border-white/10 bg-black/40'}`}>
@@ -226,18 +224,6 @@ function MobileExpandableCard({ bet, expanded, onToggle }: { bet: InsiderBet; ex
           <div className="rounded-xl border border-white/10 bg-black/45 p-3">
             <p className="text-[9px] font-semibold uppercase tracking-[0.25em] text-white/35 mb-2">The Position</p>
             <div className="flex items-center gap-2 flex-wrap">
-              {logos.length > 0 && (
-                <div className="flex items-center -space-x-2">
-                  {logos.map((logo) => (
-                    <img
-                      key={logo.abbreviation}
-                      src={logo.logoUrl}
-                      alt={logo.name}
-                      className="h-6 w-6 rounded-full border border-white/15 bg-black/60 object-contain"
-                    />
-                  ))}
-                </div>
-              )}
               <span className="text-base font-bold text-emerald-300">{bet.outcome}</span>
               <span className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-200">
                 {formatOdds(bet.avg_entry_american_odds, bet.avg_entry_price)}
@@ -392,23 +378,10 @@ function DetailPanel({ bet }: { bet: InsiderBet | null }) {
 
       {/* Outcome + odds */}
       {(() => {
-        const logos = extractTeamLogos(bet.title, bet.sport_label)
         return (
           <div className="mt-4 rounded-xl border border-white/10 bg-black/45 p-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/35 mb-2">The Position</p>
             <div className="flex items-center gap-3">
-              {logos.length > 0 && (
-                <div className="flex items-center -space-x-2">
-                  {logos.map((logo) => (
-                    <img
-                      key={logo.abbreviation}
-                      src={logo.logoUrl}
-                      alt={logo.name}
-                      className="h-8 w-8 rounded-full border border-white/15 bg-black/60 object-contain"
-                    />
-                  ))}
-                </div>
-              )}
               <span className="text-xl font-bold text-emerald-300">{bet.outcome}</span>
               <span className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-sm font-semibold text-emerald-200">
                 {formatOdds(bet.avg_entry_american_odds, bet.avg_entry_price)}

@@ -169,7 +169,8 @@ function MobileExpandableCard({ bet, expanded, onToggle }: { bet: InsiderBet; ex
 
   const walletShort = `${bet.wallet.slice(0, 6)}…${bet.wallet.slice(-4)}`
   const displayName = bet.pseudonym ?? walletShort
-  const polymarketUrl = `https://polymarket.com/event/${bet.slug}`
+  const polymarketUrl = `https://polymarket.com/browse?_q=${encodeURIComponent(bet.title)}`
+  const kalshiUrl = `https://kalshi.com/browse?query=${encodeURIComponent(bet.title)}`
   const logos = extractTeamLogos(bet.title, bet.sport_label)
 
   return (
@@ -313,7 +314,16 @@ function MobileExpandableCard({ bet, expanded, onToggle }: { bet: InsiderBet; ex
               rel="noreferrer"
               className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/70 transition hover:border-white/30 hover:text-white"
             >
-              Polymarket
+              Bet on Polymarket
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </a>
+            <a
+              href={kalshiUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/70 transition hover:border-white/30 hover:text-white"
+            >
+              Bet on Kalshi
               <ArrowUpRight className="h-3.5 w-3.5" />
             </a>
             <ShareInsiderBetButton
@@ -358,7 +368,8 @@ function DetailPanel({ bet }: { bet: InsiderBet | null }) {
 
   const walletShort = `${bet.wallet.slice(0, 6)}…${bet.wallet.slice(-4)}`
   const displayName = bet.pseudonym ?? walletShort
-  const polymarketUrl = `https://polymarket.com/event/${bet.slug}`
+  const polymarketUrl = `https://polymarket.com/browse?_q=${encodeURIComponent(bet.title)}`
+  const kalshiUrl = `https://kalshi.com/browse?query=${encodeURIComponent(bet.title)}`
 
   return (
     <div className="p-4">
@@ -479,7 +490,16 @@ function DetailPanel({ bet }: { bet: InsiderBet | null }) {
           rel="noreferrer"
           className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium text-white/70 transition hover:border-white/30 hover:text-white"
         >
-          View on Polymarket
+          Bet on Polymarket
+          <ArrowUpRight className="h-4 w-4" />
+        </a>
+        <a
+          href={kalshiUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium text-white/70 transition hover:border-white/30 hover:text-white"
+        >
+          Bet on Kalshi
           <ArrowUpRight className="h-4 w-4" />
         </a>
         <ShareInsiderBetButton

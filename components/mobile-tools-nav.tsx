@@ -153,13 +153,9 @@ export function MobileMoreSheet({
     [onDismiss]
   )
 
-  const handleOpenSubscription = useCallback(async () => {
+  const handleOpenSubscription = useCallback(() => {
     onDismiss()
-    if (!user) {
-      router.push('/checkout')
-      return
-    }
-    router.push('/billing')
+    router.push(user ? '/billing' : '/checkout')
   }, [onDismiss, router, user])
 
   if (!isOpen) return null

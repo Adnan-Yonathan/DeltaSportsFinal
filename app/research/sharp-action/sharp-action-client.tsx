@@ -30,6 +30,10 @@ type MarketPriceSeries = {
   points: { t: string; value: number }[]
 }
 
+type MarketTypeKey = 'moneyline' | 'spread' | 'total'
+
+type AllMarketSeries = Partial<Record<MarketTypeKey, Record<string, MarketPriceSeries>>>
+
 type GameSharpAction = {
   gameId: string
   homeTeam: string
@@ -41,6 +45,7 @@ type GameSharpAction = {
   sharpSignals: SharpSignal[]
   strongestSignal?: SharpSignal
   marketPriceSeries?: Record<string, MarketPriceSeries>
+  allMarketSeries?: AllMarketSeries
   fallbackLines?: {
     spread?: number | null
     total?: number | null
@@ -203,13 +208,70 @@ const buildConsensusSharpSide = (
 
 const OUTCOME_COLORS = ['#f59e0b', '#22d3ee', '#a855f7', '#f472b6']
 
+const MARKET_TABS: { key: MarketTypeKey; label: string }[] = [
+  { key: 'moneyline', label: 'Moneyline' },
+  { key: 'spread', label: 'Spread' },
+  { key: 'total', label: 'Total' },
+]
+
+/** Convert probability (0-1) to American odds string */
+const probToAmerican = (p: number): string => {
+  if (p <= 0 || p >= 1) return '—'
+  if (p >= 0.5) {
+    const odds = Math.round(-(p / (1 - p)) * 100)
+    return `${odds}`
+  }
+  const odds = Math.round(((1 - p) / p) * 100)
+  return `+${odds}`
+}
+
+type OddsFormat = 'american' | 'cents'
+
 const MarketPriceChart = ({
+  allMarketSeries,
   series,
 }: {
+  allMarketSeries?: AllMarketSeries
   series?: Record<string, MarketPriceSeries>
 }) => {
-  const entries = series ? Object.values(series) : []
+  const [activeMarket, setActiveMarket] = useState<MarketTypeKey>('moneyline')
+  const [oddsFormat, setOddsFormat] = useState<OddsFormat>('american')
+
+  // Determine which markets have data
+  const availableMarkets = useMemo(() => {
+    if (!allMarketSeries) return new Set<MarketTypeKey>()
+    const available = new Set<MarketTypeKey>()
+    for (const mType of MARKET_TABS.map((t) => t.key)) {
+      const s = allMarketSeries[mType]
+      if (s && Object.values(s).some((e) => e.points.length > 0)) {
+        available.add(mType)
+      }
+    }
+    return available
+  }, [allMarketSeries])
+
+  // Pick series for active market tab
+  const activeSeries = useMemo(() => {
+    if (allMarketSeries && availableMarkets.size > 0) {
+      // If current tab has no data, pick first available
+      const effectiveTab = availableMarkets.has(activeMarket)
+        ? activeMarket
+        : availableMarkets.values().next().value ?? activeMarket
+      return allMarketSeries[effectiveTab] ?? null
+    }
+    // Legacy fallback: use moneyline-only series prop
+    return series ?? null
+  }, [allMarketSeries, availableMarkets, activeMarket, series])
+
+  const entries = activeSeries ? Object.values(activeSeries) : []
   const hasData = entries.some((e) => e.points.length > 0)
+  const formatValue = useCallback(
+    (cents: number) => {
+      if (oddsFormat === 'cents') return `${cents}¢`
+      return probToAmerican(cents / 100)
+    },
+    [oddsFormat]
+  )
 
   if (!hasData) {
     return (
@@ -261,9 +323,45 @@ const MarketPriceChart = ({
 
   return (
     <div className="rounded-xl border border-white/10 bg-black/30 p-4">
-      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
-        <span>Market Line Movement</span>
-        <span>Market</span>
+      <div className="flex items-center justify-between gap-2">
+        {/* Market type tabs */}
+        <div className="flex items-center gap-1">
+          {MARKET_TABS.map((tab) => {
+            const available = availableMarkets.has(tab.key)
+            const isActive = activeMarket === tab.key
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (available) setActiveMarket(tab.key)
+                }}
+                disabled={!available}
+                className={`rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.15em] transition ${
+                  isActive && available
+                    ? 'bg-amber-500/15 text-amber-200 border border-amber-400/40'
+                    : available
+                      ? 'text-white/50 hover:text-white/80 border border-transparent hover:border-white/20'
+                      : 'text-white/20 border border-transparent cursor-not-allowed'
+                }`}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+        {/* Odds format toggle */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setOddsFormat((prev) => (prev === 'american' ? 'cents' : 'american'))
+          }}
+          className="rounded-full border border-white/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.15em] text-white/40 hover:text-white/70 hover:border-white/20 transition"
+        >
+          {oddsFormat === 'american' ? 'US Odds' : 'Cents'}
+        </button>
       </div>
       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
         {entries.map((entry, idx) => (
@@ -275,7 +373,7 @@ const MarketPriceChart = ({
             {entry.label}
             {entry.points.length > 0 && (
               <span className="text-white/40">
-                {Math.round(entry.points[entry.points.length - 1].value * 100)}¢
+                {formatValue(Math.round(entry.points[entry.points.length - 1].value * 100))}
               </span>
             )}
           </div>
@@ -288,7 +386,7 @@ const MarketPriceChart = ({
             <YAxis hide domain={['dataMin - 2', 'dataMax + 2']} />
             <Tooltip
               labelFormatter={(label) => formatTooltipTime(label as string)}
-              formatter={(value: number, name: string) => [`${value}¢`, name]}
+              formatter={(value: number, name: string) => [formatValue(value), name]}
               contentStyle={{
                 background: 'rgba(0,0,0,0.85)',
                 border: '1px solid rgba(255,255,255,0.1)',
@@ -476,21 +574,21 @@ export default function SharpActionClient({
               const res = await fetch(`/api/market-price-history?${params.toString()}`, {
                 cache: 'no-store',
               })
-              if (!res.ok) return { gameId: game.gameId, series: null }
+              if (!res.ok) return { gameId: game.gameId, markets: null }
               const body = await res.json()
               return {
                 gameId: game.gameId,
-                series: body?.series ?? null,
+                markets: body?.markets ?? null,
               }
             })
           )
 
           if (!isMountedRef.current) return
 
-          const newEntries: Record<string, Record<string, MarketPriceSeries>> = {}
+          const newEntries: Record<string, AllMarketSeries> = {}
           for (const result of results) {
-            if (result.status === 'fulfilled' && result.value.series) {
-              newEntries[result.value.gameId] = result.value.series
+            if (result.status === 'fulfilled' && result.value.markets) {
+              newEntries[result.value.gameId] = result.value.markets
             }
           }
 
@@ -500,7 +598,12 @@ export default function SharpActionClient({
                 ...section,
                 games: section.games.map((game) =>
                   newEntries[game.gameId]
-                    ? { ...game, marketPriceSeries: newEntries[game.gameId] }
+                    ? {
+                        ...game,
+                        allMarketSeries: newEntries[game.gameId],
+                        // Keep moneyline as legacy fallback
+                        marketPriceSeries: newEntries[game.gameId].moneyline,
+                      }
                     : game
                 ),
               }))
@@ -889,7 +992,10 @@ export default function SharpActionClient({
                   </div>
 
                   <div className="mt-4">
-                    <MarketPriceChart series={game.marketPriceSeries} />
+                    <MarketPriceChart
+                      allMarketSeries={game.allMarketSeries}
+                      series={game.marketPriceSeries}
+                    />
                   </div>
 
                   <div className="mt-4">

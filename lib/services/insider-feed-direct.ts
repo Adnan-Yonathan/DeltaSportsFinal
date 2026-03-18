@@ -190,13 +190,14 @@ function parseOutcomePrices(raw: unknown): number[] {
 // ── Position computation from trade list ──────────────────────────────────────
 
 type PositionState = {
-  shares:        number
-  costBasis:     number
-  title:         string
-  outcome:       string
-  slug:          string
-  lastTradeTime: string | null
-  buyCount:      number
+  shares:         number
+  costBasis:      number
+  title:          string
+  outcome:        string
+  slug:           string
+  firstTradeTime: string | null
+  lastTradeTime:  string | null
+  buyCount:       number
 }
 
 function applyTrade(positions: Map<string, PositionState>, trade: TradeEntry) {
@@ -212,7 +213,7 @@ function applyTrade(positions: Map<string, PositionState>, trade: TradeEntry) {
 
   let pos = positions.get(key)
   if (!pos) {
-    pos = { shares: 0, costBasis: 0, title: trade.title ?? slug, outcome, slug, lastTradeTime: null, buyCount: 0 }
+    pos = { shares: 0, costBasis: 0, title: trade.title ?? slug, outcome, slug, firstTradeTime: null, lastTradeTime: null, buyCount: 0 }
     positions.set(key, pos)
   }
 
@@ -229,6 +230,7 @@ function applyTrade(positions: Map<string, PositionState>, trade: TradeEntry) {
   const ts = parseNum(trade.timestamp)
   if (ts) {
     const iso = new Date(ts * 1000).toISOString()
+    if (!pos.firstTradeTime || iso < pos.firstTradeTime) pos.firstTradeTime = iso
     if (!pos.lastTradeTime || iso > pos.lastTradeTime) pos.lastTradeTime = iso
   }
 }
@@ -362,7 +364,8 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
   type RawPosition = {
     wallet: string; slug: string; title: string; outcome: string;
     sportLabel: string | null; avgEntryPrice: number; shares: number;
-    stakeUsd: number; potentialPayoutUsd: number; lastTradeTime: string | null;
+    stakeUsd: number; potentialPayoutUsd: number;
+    firstTradeTime: string | null; lastTradeTime: string | null;
     buyCount: number;
   }
   const allPositions: RawPosition[] = []
@@ -388,6 +391,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
         shares:             pos.shares,
         stakeUsd,
         potentialPayoutUsd: pos.shares,
+        firstTradeTime:     pos.firstTradeTime,
         lastTradeTime:      pos.lastTradeTime,
         buyCount:           pos.buyCount,
       })
@@ -469,6 +473,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       current_american_odds:   curAmericanOdds !== null && Number.isFinite(curAmericanOdds) ? curAmericanOdds : null,
       stake_usd:               Math.round(pos.stakeUsd * 100) / 100,
       potential_payout_usd:    Math.round(pos.potentialPayoutUsd * 100) / 100,
+      first_trade_time:        pos.firstTradeTime,
       last_trade_time:         pos.lastTradeTime,
       insider_score:           score,
       size_ratio:              sizeRatio,

@@ -117,54 +117,70 @@ export async function GET(request: NextRequest) {
 
     console.log(`[market-price-history] matched "${matchedEvent.title}" for "${homeTeam}" vs "${awayTeam}"`)
 
-    // Step 2: Extract token IDs from the moneyline market
-    const markets: any[] = Array.isArray(matchedEvent.markets) ? matchedEvent.markets : []
-    const moneylineMarket = markets.find(
-      (m: any) => m.sportsMarketType?.toLowerCase() === 'moneyline' && m.active && !m.closed
-    )
-    // Fallback: any active market
-    const targetMarket = moneylineMarket || markets.find((m: any) => m.active && !m.closed)
+    // Step 2: Extract all market types (moneyline, spread, total)
+    const allMarkets: any[] = Array.isArray(matchedEvent.markets) ? matchedEvent.markets : []
+    const activeMarkets = allMarkets.filter((m: any) => m.active && !m.closed)
 
-    if (!targetMarket) {
+    if (!activeMarkets.length) {
       return NextResponse.json({ series: null, matched: true, reason: 'no active market' })
     }
 
-    const tokenIds = parseJsonArray<string>(targetMarket.clobTokenIds)
-    const outcomes = parseJsonArray<string>(targetMarket.outcomes)
-
-    if (!tokenIds.length) {
-      return NextResponse.json({ series: null, matched: true, reason: 'no token IDs' })
+    const MARKET_TYPES = ['moneyline', 'spread', 'total'] as const
+    const marketsByType: Record<string, any> = {}
+    for (const mType of MARKET_TYPES) {
+      const found = activeMarkets.find(
+        (m: any) => m.sportsMarketType?.toLowerCase() === mType
+      )
+      if (found) marketsByType[mType] = found
+    }
+    // If no typed markets found, use first active as moneyline fallback
+    if (Object.keys(marketsByType).length === 0 && activeMarkets.length > 0) {
+      marketsByType['moneyline'] = activeMarkets[0]
     }
 
-    // Step 3: Fetch price history from CLOB for each token
-    const seriesResult: Record<string, { label: string; points: { t: string; value: number }[] }> = {}
+    // Step 3: Fetch price history from CLOB for each market type
+    type SeriesMap = Record<string, { label: string; points: { t: string; value: number }[] }>
+    const marketsResult: Record<string, SeriesMap> = {}
 
     await Promise.all(
-      tokenIds.map(async (tokenId, idx) => {
-        try {
-          const histUrl = `${POLYMARKET_CLOB}/prices-history?market=${tokenId}&interval=all&fidelity=60`
-          const histRes = await fetch(histUrl, { cache: 'no-store' })
-          if (!histRes.ok) return
-          const histData = await histRes.json()
-          const history: PricePoint[] = Array.isArray(histData?.history)
-            ? histData.history
-            : Array.isArray(histData)
-              ? histData
-              : []
+      Object.entries(marketsByType).map(async ([mType, market]) => {
+        const tokenIds = parseJsonArray<string>(market.clobTokenIds)
+        const outcomes = parseJsonArray<string>(market.outcomes)
+        if (!tokenIds.length) return
 
-          const label = outcomes[idx] || `Outcome ${idx + 1}`
-          const points = history
-            .filter((p: any) => p.t != null && p.p != null)
-            .map((p: any) => ({
-              t: new Date(Number(p.t) * 1000).toISOString(),
-              value: Number(p.p),
-            }))
+        const seriesForType: SeriesMap = {}
+        await Promise.all(
+          tokenIds.map(async (tokenId, idx) => {
+            try {
+              const histUrl = `${POLYMARKET_CLOB}/prices-history?market=${tokenId}&interval=all&fidelity=60`
+              const histRes = await fetch(histUrl, { cache: 'no-store' })
+              if (!histRes.ok) return
+              const histData = await histRes.json()
+              const history: PricePoint[] = Array.isArray(histData?.history)
+                ? histData.history
+                : Array.isArray(histData)
+                  ? histData
+                  : []
 
-          if (points.length > 0) {
-            seriesResult[label.toLowerCase()] = { label, points }
-          }
-        } catch {
-          // skip failed token
+              const label = outcomes[idx] || `Outcome ${idx + 1}`
+              const points = history
+                .filter((p: any) => p.t != null && p.p != null)
+                .map((p: any) => ({
+                  t: new Date(Number(p.t) * 1000).toISOString(),
+                  value: Number(p.p),
+                }))
+
+              if (points.length > 0) {
+                seriesForType[label.toLowerCase()] = { label, points }
+              }
+            } catch {
+              // skip failed token
+            }
+          })
+        )
+
+        if (Object.keys(seriesForType).length > 0) {
+          marketsResult[mType] = seriesForType
         }
       })
     )
@@ -172,8 +188,7 @@ export async function GET(request: NextRequest) {
     const result = {
       matched: true,
       eventTitle: matchedEvent.title,
-      marketType: targetMarket.sportsMarketType || 'moneyline',
-      series: Object.keys(seriesResult).length > 0 ? seriesResult : null,
+      markets: Object.keys(marketsResult).length > 0 ? marketsResult : null,
     }
 
     cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, data: result })

@@ -252,6 +252,9 @@ function DetailPanel({ bet }: { bet: InsiderBet | null }) {
           )}
           <div>
             <p className="text-sm font-semibold text-white">{displayName}</p>
+            {bet.first_trade_time && (
+              <p className="text-[11px] text-white/35">Placed {timeAgo(bet.first_trade_time)}</p>
+            )}
             {bet.last_trade_time && (
               <p className="text-[11px] text-white/35">Last traded {timeAgo(bet.last_trade_time)}</p>
             )}

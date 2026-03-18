@@ -14,6 +14,7 @@ export type InsiderBet = {
   avg_entry_american_odds: number | null
   stake_usd: number
   potential_payout_usd: number
+  first_trade_time: string | null
   last_trade_time: string | null
   insider_score: number
   size_ratio: number
@@ -142,7 +143,7 @@ export async function getInsiderFeed(opts: {
     .select(
       'wallet, pseudonym, profile_image_url, title, outcome, sport_label, slug, ' +
       'avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, ' +
-      'last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
+      'first_trade_time, last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
       'wallet_trade_count, current_price, current_american_odds, consensus_count'
     )
     .gte('insider_score', minScore)
@@ -167,7 +168,7 @@ export async function getInsiderFeed(opts: {
 
   if (!data?.length) return []
 
-  return (data as any[]).slice(offset).map((row): InsiderBet => ({
+  const mapped = (data as any[]).slice(offset).map((row): InsiderBet => ({
     wallet:                  row.wallet,
     pseudonym:               row.pseudonym               ?? null,
     profile_image_url:       row.profile_image_url       ?? null,
@@ -179,6 +180,7 @@ export async function getInsiderFeed(opts: {
     avg_entry_american_odds: row.avg_entry_american_odds ?? null,
     stake_usd:               row.stake_usd,
     potential_payout_usd:    row.potential_payout_usd,
+    first_trade_time:        row.first_trade_time        ?? null,
     last_trade_time:         row.last_trade_time         ?? null,
     insider_score:           row.insider_score,
     size_ratio:              row.size_ratio,
@@ -188,4 +190,54 @@ export async function getInsiderFeed(opts: {
     current_american_odds:   row.current_american_odds   ?? null,
     consensus_count:         row.consensus_count         ?? 1,
   }))
+
+  return deduplicateConflicts(mapped)
+}
+
+// ── Conflict resolution ────────────────────────────────────────────────────────
+//
+// When two insiders bet on opposite sides of the same market (same slug,
+// different outcome), keep only the side with the highest insider_score.
+// All bets on the winning side are kept; all bets on the losing side are dropped.
+
+function deduplicateConflicts(bets: InsiderBet[]): InsiderBet[] {
+  // Group bets by slug
+  const bySlug = new Map<string, InsiderBet[]>()
+  for (const bet of bets) {
+    const group = bySlug.get(bet.slug)
+    if (group) group.push(bet)
+    else bySlug.set(bet.slug, [bet])
+  }
+
+  const result: InsiderBet[] = []
+  for (const group of bySlug.values()) {
+    // Check if there are multiple distinct outcomes for this slug
+    const outcomes = new Set(group.map((b) => b.outcome))
+    if (outcomes.size <= 1) {
+      // No conflict — all on the same side
+      result.push(...group)
+      continue
+    }
+
+    // Find which outcome has the highest single insider_score
+    let bestOutcome = ''
+    let bestScore = -1
+    for (const bet of group) {
+      if (bet.insider_score > bestScore) {
+        bestScore = bet.insider_score
+        bestOutcome = bet.outcome
+      }
+    }
+
+    // Keep only bets on the winning side
+    for (const bet of group) {
+      if (bet.outcome === bestOutcome) {
+        result.push(bet)
+      }
+    }
+  }
+
+  // Re-sort by insider_score descending (grouping may have disrupted order)
+  result.sort((a, b) => b.insider_score - a.insider_score)
+  return result
 }

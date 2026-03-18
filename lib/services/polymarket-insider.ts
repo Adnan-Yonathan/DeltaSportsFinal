@@ -76,18 +76,9 @@ export function computeInsiderScore(
   const consensusRaw = clamp((consensus - 1) / 4, 0, 1) * 100
 
   // ── Combined score ────────────────────────────────────────────────────────
-  // Raw 0–100, then power-curved into display range 70–99.
-  // The exponent (1.5) compresses scores so most land in Sharp (80–89),
-  // with fewer Elites (90+) and a tail of Notables (70–79).
-  //   raw = 30  → ~75 (Notable)
-  //   raw = 50  → ~80 (Sharp)
-  //   raw = 70  → ~87 (Sharp)
-  //   raw = 85  → ~93 (Elite)
-  //   raw = 100 → 99  (Elite)
+  // Use the raw 0–99 score directly. Bets below 70 are filtered out downstream.
   const raw    = convictionRaw * 0.40 + roiRaw * 0.30 + consensusRaw * 0.30
-  const curved = Math.pow(raw / 100, 1.5)
-  const biased = 70 + curved * 29
-  const score  = Math.floor(clamp(biased, 0, 99))
+  const score  = Math.floor(clamp(raw, 0, 99))
 
   return { score, sizeRatio: Math.round(sizeRatio * 10) / 10 }
 }

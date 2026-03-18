@@ -101,6 +101,7 @@ type TradeEntry = {
   timestamp?:    number | string
   title?:        string
   slug?:         string
+  eventSlug?:    string
   outcome?:      string
 }
 
@@ -195,6 +196,7 @@ type PositionState = {
   title:          string
   outcome:        string
   slug:           string
+  eventSlug:      string | null
   firstTradeTime: string | null
   lastTradeTime:  string | null
   buyCount:       number
@@ -213,9 +215,12 @@ function applyTrade(positions: Map<string, PositionState>, trade: TradeEntry) {
 
   let pos = positions.get(key)
   if (!pos) {
-    pos = { shares: 0, costBasis: 0, title: trade.title ?? slug, outcome, slug, firstTradeTime: null, lastTradeTime: null, buyCount: 0 }
+    pos = { shares: 0, costBasis: 0, title: trade.title ?? slug, outcome, slug, eventSlug: trade.eventSlug ?? null, firstTradeTime: null, lastTradeTime: null, buyCount: 0 }
     positions.set(key, pos)
   }
+
+  // Capture eventSlug from any trade that provides it
+  if (!pos.eventSlug && trade.eventSlug) pos.eventSlug = trade.eventSlug
 
   if (trade.side === 'BUY') {
     pos.shares    += size
@@ -362,7 +367,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
   // ── Step 3: Compute open sports positions per wallet ──────────────────────────
   type RawPosition = {
-    wallet: string; slug: string; title: string; outcome: string;
+    wallet: string; slug: string; eventSlug: string | null; title: string; outcome: string;
     sportLabel: string | null; avgEntryPrice: number; shares: number;
     stakeUsd: number; potentialPayoutUsd: number;
     firstTradeTime: string | null; lastTradeTime: string | null;
@@ -384,6 +389,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       allPositions.push({
         wallet,
         slug:               pos.slug,
+        eventSlug:          pos.eventSlug,
         title:              pos.title,
         outcome:            pos.outcome,
         sportLabel:         sportLabel(pos.slug),
@@ -467,6 +473,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       outcome:                 pos.outcome,
       sport_label:             pos.sportLabel,
       slug:                    pos.slug,
+      event_slug:              pos.eventSlug,
       avg_entry_price:         Math.round(pos.avgEntryPrice * 10_000) / 10_000,
       avg_entry_american_odds: Number.isFinite(americanOdds) ? americanOdds : null,
       current_price:           curPrice !== null ? Math.round(curPrice * 10_000) / 10_000 : null,

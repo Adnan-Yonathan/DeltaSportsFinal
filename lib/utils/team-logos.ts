@@ -95,7 +95,9 @@ export function extractTeamLogos(
 ): TeamLogoResult[] {
   if (!title) return []
 
-  const sportKey = sportLabel ? SPORT_LABEL_TO_KEY[sportLabel] ?? sportLabel : undefined
+  // Only US sports have logos in the registry — skip all others to avoid false matches
+  const sportKey = sportLabel ? SPORT_LABEL_TO_KEY[sportLabel] : undefined
+  if (sportLabel && !sportKey) return []
 
   // Try common patterns: "Team A vs Team B", "Team A @ Team B", "Team A - Team B"
   const vsMatch = title.match(/^(.+?)\s+(?:vs\.?|@|at|-)\s+(.+?)(?:\s*[\(\[]|$)/i)

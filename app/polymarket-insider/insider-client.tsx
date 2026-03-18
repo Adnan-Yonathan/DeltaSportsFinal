@@ -169,7 +169,9 @@ function MobileExpandableCard({ bet, expanded, onToggle }: { bet: InsiderBet; ex
 
   const walletShort = `${bet.wallet.slice(0, 6)}…${bet.wallet.slice(-4)}`
   const displayName = bet.pseudonym ?? walletShort
-  const polymarketUrl = `https://polymarket.com/browse?_q=${encodeURIComponent(bet.title)}`
+  const polymarketUrl = bet.event_slug
+    ? `https://polymarket.com/event/${bet.event_slug}`
+    : `https://polymarket.com/event/${bet.slug}`
   const kalshiUrl = `https://kalshi.com/browse?query=${encodeURIComponent(bet.title)}`
   const logos = extractTeamLogos(bet.title, bet.sport_label)
 
@@ -368,7 +370,9 @@ function DetailPanel({ bet }: { bet: InsiderBet | null }) {
 
   const walletShort = `${bet.wallet.slice(0, 6)}…${bet.wallet.slice(-4)}`
   const displayName = bet.pseudonym ?? walletShort
-  const polymarketUrl = `https://polymarket.com/browse?_q=${encodeURIComponent(bet.title)}`
+  const polymarketUrl = bet.event_slug
+    ? `https://polymarket.com/event/${bet.event_slug}`
+    : `https://polymarket.com/event/${bet.slug}`
   const kalshiUrl = `https://kalshi.com/browse?query=${encodeURIComponent(bet.title)}`
 
   return (

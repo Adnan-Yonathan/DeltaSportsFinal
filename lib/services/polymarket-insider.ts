@@ -10,6 +10,7 @@ export type InsiderBet = {
   outcome: string
   sport_label: string | null
   slug: string
+  event_slug: string | null
   avg_entry_price: number
   avg_entry_american_odds: number | null
   stake_usd: number
@@ -176,6 +177,7 @@ export async function getInsiderFeed(opts: {
     outcome:                 row.outcome                 ?? 'YES',
     sport_label:             row.sport_label             ?? null,
     slug:                    row.slug,
+    event_slug:              row.event_slug              ?? null,
     avg_entry_price:         row.avg_entry_price,
     avg_entry_american_odds: row.avg_entry_american_odds ?? null,
     stake_usd:               row.stake_usd,

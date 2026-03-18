@@ -75,9 +75,6 @@ gtag('config', '${GA_MEASUREMENT_ID}');
         className="flex min-h-screen flex-col bg-bg-primary text-text-primary"
       >
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-          <div className="w-full bg-amber-500/90 px-4 py-2 text-center text-sm font-medium text-black">
-            Our database provider is currently experiencing issues — some features may not be working as expected. We&apos;re monitoring the situation.
-          </div>
           <SupabaseAuthListener />
           <SharpMoneyAlertHub />
           <AppShell>{children}</AppShell>

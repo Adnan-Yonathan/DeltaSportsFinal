@@ -1,9 +1,0 @@
-User-agent: *
-Disallow: /admin/
-Disallow: /checkout/
-Disallow: /onboarding/
-Disallow: /stripe/
-Disallow: /auth/
-Disallow: /welcome
-
-Sitemap: https://deltasports.app/sitemap.xml

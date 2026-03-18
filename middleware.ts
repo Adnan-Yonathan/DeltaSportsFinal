@@ -31,6 +31,14 @@ const ALWAYS_PUBLIC_PREFIXES = [
   '/privacy-policy',
   '/terms-of-service',
   '/refund-policy',
+  '/sharp-betting-tools',
+  '/oddsjam-alternative',
+  '/vs',
+  '/line-shopping',
+  '/player-prop-odds',
+  '/live-scores',
+  '/market-projections',
+  '/sharp-props',
 ]
 
 const TOOL_ROUTE_TO_GUIDE: Array<{ toolPrefix: string; guidePath: string }> = [

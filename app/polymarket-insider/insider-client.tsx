@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowUpRight, CheckCircle2, Database, RefreshCw, TrendingUp, Zap } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { ArrowUpRight, CheckCircle2, ChevronDown, Database, RefreshCw, TrendingUp, Zap } from 'lucide-react'
 import type { InsiderBet } from '@/lib/services/polymarket-insider'
 import ShareInsiderBetButton from '@/components/ShareInsiderBetButton'
 import { extractTeamLogos } from '@/lib/utils/team-logos'
@@ -150,6 +150,195 @@ function ListCard({ bet, selected, onClick }: { bet: InsiderBet; selected: boole
         </div>
       </div>
     </button>
+  )
+}
+
+// ── Mobile expandable card ────────────────────────────────────────────────────
+
+function MobileExpandableCard({ bet, expanded, onToggle }: { bet: InsiderBet; expanded: boolean; onToggle: () => void }) {
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [height, setHeight] = useState(0)
+
+  useEffect(() => {
+    if (expanded && contentRef.current) {
+      setHeight(contentRef.current.scrollHeight)
+    } else {
+      setHeight(0)
+    }
+  }, [expanded])
+
+  const walletShort = `${bet.wallet.slice(0, 6)}…${bet.wallet.slice(-4)}`
+  const displayName = bet.pseudonym ?? walletShort
+  const polymarketUrl = `https://polymarket.com/event/${bet.slug}`
+  const logos = extractTeamLogos(bet.title, bet.sport_label)
+
+  return (
+    <div className={`rounded-2xl border transition-colors ${expanded ? 'border-emerald-400/60 bg-emerald-500/5' : 'border-white/10 bg-black/40'}`}>
+      {/* Collapsed summary — always visible */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full px-3 py-3 text-left"
+      >
+        <div className="flex items-start gap-3">
+          <ScoreBadge score={bet.insider_score} size="sm" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 mb-1">
+              {bet.sport_label && (
+                <span className="rounded-full border border-white/15 bg-white/5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45">
+                  {bet.sport_label}
+                </span>
+              )}
+              {bet.size_ratio >= 2 && (
+                <span className="flex items-center gap-0.5 rounded-full border border-amber-400/30 bg-amber-400/8 px-1.5 py-0.5 text-[9px] font-semibold text-amber-300/80">
+                  <Zap className="h-2 w-2" />
+                  {bet.size_ratio}×
+                </span>
+              )}
+              {bet.consensus_count > 1 && (
+                <span className="rounded-full border border-violet-400/30 bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-violet-300/80">
+                  {bet.consensus_count}× agree
+                </span>
+              )}
+            </div>
+            <p className="line-clamp-2 text-xs font-semibold leading-snug text-white">{bet.title}</p>
+            <div className="mt-1.5 flex items-center gap-2 text-[11px]">
+              <span className="font-semibold text-emerald-300">{bet.outcome}</span>
+              <span className="text-white/35">·</span>
+              <span className="text-white/55">{formatOdds(bet.avg_entry_american_odds, bet.avg_entry_price)}</span>
+              <span className="ml-auto text-white/35">{formatUsd(bet.stake_usd)}</span>
+            </div>
+          </div>
+          <ChevronDown className={`mt-1 h-4 w-4 shrink-0 text-white/30 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+        </div>
+      </button>
+
+      {/* Expandable detail section */}
+      <div
+        className="overflow-hidden transition-[max-height] duration-300 ease-in-out"
+        style={{ maxHeight: expanded ? `${height}px` : '0px' } as CSSProperties}
+      >
+        <div ref={contentRef} className="border-t border-white/10 px-3 pb-3 pt-3">
+          {/* Position */}
+          <div className="rounded-xl border border-white/10 bg-black/45 p-3">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.25em] text-white/35 mb-2">The Position</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              {logos.length > 0 && (
+                <div className="flex items-center -space-x-2">
+                  {logos.map((logo) => (
+                    <img
+                      key={logo.abbreviation}
+                      src={logo.logoUrl}
+                      alt={logo.name}
+                      className="h-6 w-6 rounded-full border border-white/15 bg-black/60 object-contain"
+                    />
+                  ))}
+                </div>
+              )}
+              <span className="text-base font-bold text-emerald-300">{bet.outcome}</span>
+              <span className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-200">
+                {formatOdds(bet.avg_entry_american_odds, bet.avg_entry_price)}
+              </span>
+              <span className="text-[11px] text-white/40">{(bet.avg_entry_price * 100).toFixed(0)}¢</span>
+              {bet.consensus_count > 1 && (
+                <span className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                  {bet.consensus_count} agree
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Stats grid */}
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            <div className="rounded-xl border border-white/10 bg-black/45 px-2 py-2">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">Stake</p>
+              <p className="mt-0.5 text-sm font-bold text-white">{formatUsd(bet.stake_usd)}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/45 px-2 py-2">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">To Win</p>
+              <p className="mt-0.5 text-sm font-bold text-emerald-300">{formatUsd(bet.potential_payout_usd)}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/45 px-2 py-2">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">Size</p>
+              <div className="mt-0.5 flex items-center gap-1">
+                <p className="text-sm font-bold text-white">{bet.size_ratio}×</p>
+                {bet.size_ratio >= 2 && <Zap className="h-3 w-3 text-amber-400" />}
+              </div>
+            </div>
+          </div>
+
+          {/* Wallet info */}
+          <div className="mt-2 rounded-xl border border-white/10 bg-black/45 p-3">
+            <div className="flex items-center gap-2 mb-2">
+              {bet.profile_image_url ? (
+                <img src={bet.profile_image_url} alt={displayName} className="h-6 w-6 rounded-full object-cover" />
+              ) : (
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold text-white/60">
+                  {displayName.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-white truncate">{displayName}</p>
+                <div className="flex gap-2 text-[10px] text-white/35">
+                  {bet.first_trade_time && <span>Placed {timeAgo(bet.first_trade_time)}</span>}
+                  {bet.last_trade_time && <span>Last {timeAgo(bet.last_trade_time)}</span>}
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 border-t border-white/8 pt-2">
+              <div>
+                <p className="text-[9px] text-white/35">ROI</p>
+                <p className={`text-xs font-bold ${bet.wallet_roi_pct >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                  {formatPct(bet.wallet_roi_pct)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[9px] text-white/35">Entry</p>
+                <p className="text-xs font-bold text-white">{formatOdds(bet.avg_entry_american_odds, bet.avg_entry_price)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-white/35">Current</p>
+                <p className="text-xs font-bold text-emerald-300">
+                  {bet.current_price != null ? formatOdds(bet.current_american_odds, bet.current_price) : '—'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="mt-2 flex items-center gap-2">
+            <a
+              href={polymarketUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/70 transition hover:border-white/30 hover:text-white"
+            >
+              Polymarket
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </a>
+            <ShareInsiderBetButton
+              bet={{
+                id: `${bet.wallet.slice(0, 8)}-${bet.slug.slice(0, 20)}`,
+                title: bet.title,
+                outcome: bet.outcome,
+                sportLabel: bet.sport_label,
+                avgEntryPrice: bet.avg_entry_price,
+                americanOdds: bet.avg_entry_american_odds,
+                stakeUsd: bet.stake_usd,
+                potentialPayoutUsd: bet.potential_payout_usd,
+                insiderScore: bet.insider_score,
+                sizeRatio: bet.size_ratio,
+                walletRoiPct: bet.wallet_roi_pct,
+                walletTradeCount: bet.wallet_trade_count,
+                displayName: displayName,
+                profileImageUrl: bet.profile_image_url,
+                lastTradeTime: bet.last_trade_time,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -489,11 +678,36 @@ export default function InsiderClient() {
             </div>
           </div>
 
-          {/* ── Two-panel grid ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
+          {/* ── Mobile: expandable list ── */}
+          <div className="lg:hidden">
+            <div className="space-y-2 p-1">
+              {loading ? (
+                [...Array(8)].map((_, i) => (
+                  <div key={i} className="h-20 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+                ))
+              ) : bets.length === 0 ? (
+                <EmptyState sport={sport} />
+              ) : (
+                bets.map((bet, idx) => {
+                  const id = `${bet.wallet}-${bet.slug}`
+                  return (
+                    <MobileExpandableCard
+                      key={`${id}-${idx}`}
+                      bet={bet}
+                      expanded={selectedId === id}
+                      onToggle={() => setSelectedId(selectedId === id ? null : id)}
+                    />
+                  )
+                })
+              )}
+            </div>
+          </div>
+
+          {/* ── Desktop: Two-panel grid ── */}
+          <div className="hidden lg:grid lg:grid-cols-[320px_minmax(0,1fr)]">
 
             {/* Left: scrollable list */}
-            <div className="overflow-y-auto border-b border-white/10 bg-black/30 lg:border-b-0 lg:border-r lg:border-white/10">
+            <div className="overflow-y-auto border-r border-white/10 bg-black/30">
               <div className="space-y-2 p-3">
                 {loading ? (
                   [...Array(8)].map((_, i) => (
@@ -518,7 +732,7 @@ export default function InsiderClient() {
             </div>
 
             {/* Right: detail panel (sticky on desktop) */}
-            <div className="bg-black/20 lg:sticky lg:top-0 lg:self-start lg:max-h-screen lg:overflow-y-auto">
+            <div className="sticky top-0 self-start max-h-screen overflow-y-auto bg-black/20">
               <DetailPanel bet={selectedBet} />
             </div>
 

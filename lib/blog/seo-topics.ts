@@ -227,6 +227,184 @@ export const SEO_BLOG_TOPICS: SeoBlogTopic[] = [
       'Sharp props NBA guide: use exchange orderbook liquidity, sharp side pressure, and best available prices to find profitable NBA player props before lines move.',
     relatedToolKeys: ['sharp-props', 'whale-feed'],
   },
+
+  // --- Cluster 5: Glossary expansion ---
+  {
+    slug: 'what-is-vig-sports-betting',
+    primaryKeyword: 'vig sports betting',
+    title: 'What Is Vig in Sports Betting? How the Juice Works and How Sharps Beat It',
+    topic:
+      'Define vigorish (vig/juice) in sports betting, explain how sportsbooks build margin into odds, show how to calculate the vig on any line, and explain strategies sharp bettors use to minimize vig impact — including line shopping and betting exchanges.',
+    metaDescription:
+      'Vig in sports betting explained: what juice is, how books profit from it, how to calculate it, and how sharp bettors reduce vig through line shopping and exchanges.',
+    relatedToolKeys: ['sharp-projections', 'sharp-props'],
+  },
+  {
+    slug: 'what-is-a-parlay',
+    primaryKeyword: 'what is a parlay bet',
+    title: 'What Is a Parlay? How Parlays Work, Why Books Love Them, and When Sharps Use Them',
+    topic:
+      'Define parlay bets, explain how payouts are calculated by multiplying odds, why sportsbooks have massive margins on parlays, when correlated parlays can have value, and why sharp bettors rarely use standard parlays — with math showing the long-term house edge.',
+    metaDescription:
+      'What is a parlay bet? How parlay odds and payouts work, why sportsbooks profit from them, and the rare cases where sharp bettors find value in correlated parlays.',
+    relatedToolKeys: ['sharp-projections'],
+  },
+  {
+    slug: 'what-is-a-teaser-bet',
+    primaryKeyword: 'teaser bet explained',
+    title: 'Teaser Bets Explained: When Moving the Line Is Worth the Reduced Payout',
+    topic:
+      'Define teaser bets, explain how they work (buying points across multiple legs), the math behind standard teasers in NFL and NBA, when 6-point NFL teasers through key numbers can be +EV (Wong teasers), and when teasers are just worse parlays.',
+    metaDescription:
+      'Teaser bets explained: how teasers work, the math behind NFL and NBA teasers, and when buying points through key numbers creates genuine value for sharp bettors.',
+    relatedToolKeys: ['sharp-projections', 'research-mode'],
+  },
+  {
+    slug: 'what-is-middling-betting',
+    primaryKeyword: 'middling betting',
+    title: 'Middling in Sports Betting: How to Win Both Sides of a Bet',
+    topic:
+      'Define middling — betting both sides of a game at different numbers to create a window where both bets win — explain how line movement creates middling opportunities, the math on when middles are profitable, and a practical workflow for finding them using line shopping tools.',
+    metaDescription:
+      'Middling betting explained: how to bet both sides at different numbers, when the math favors a middle, and how to find opportunities using line movement and line shopping.',
+    relatedToolKeys: ['research-mode', 'sharp-projections'],
+  },
+  {
+    slug: 'what-is-contrarian-betting',
+    primaryKeyword: 'contrarian betting strategy',
+    title: 'Contrarian Betting: Why Fading the Public Works and When It Does Not',
+    topic:
+      'Define contrarian betting (fading public money), explain why betting against the public can be profitable due to sportsbook shading, when contrarian betting works (high-profile games, heavy public sides), when it fails (when the public is right), and how to use bet splits and reverse line movement to validate contrarian spots.',
+    metaDescription:
+      'Contrarian betting strategy explained: why fading the public works in sports betting, when it fails, and how to use bet splits and line movement to find real contrarian value.',
+    relatedToolKeys: ['whale-feed', 'research-mode'],
+  },
+
+  // --- Cluster 6: Sport-specific expansion ---
+  {
+    slug: 'how-to-bet-nfl-spreads',
+    primaryKeyword: 'how to bet NFL spreads',
+    title: 'How to Bet NFL Spreads: Key Numbers, Line Movement, and Sharp Strategy',
+    topic:
+      'Teach NFL spread betting from a sharp perspective — key numbers (3, 7, 10), how to read line movement on NFL sides, when to buy or sell half-points, how sharps approach NFL spreads differently from the public, and how to use exchange data and projections to find value on NFL spreads.',
+    metaDescription:
+      'How to bet NFL spreads: key numbers every bettor must know, how sharps read line movement on sides, and strategies for finding value on NFL point spreads.',
+    relatedToolKeys: ['sharp-projections', 'research-mode'],
+  },
+  {
+    slug: 'how-to-bet-nba-totals',
+    primaryKeyword: 'how to bet NBA totals',
+    title: 'How to Bet NBA Totals: Pace, Rest, and Where Sharp Money Sits',
+    topic:
+      'Teach NBA totals betting from a sharp perspective — how pace factors affect totals, the impact of rest and back-to-backs, how sharp money typically moves totals differently from spreads, how to use exchange orderbook data to see where money is positioned on overs/unders, and a practical process for NBA totals betting.',
+    metaDescription:
+      'How to bet NBA totals: how pace, rest, and back-to-back scheduling affect totals, where sharp money sits, and how to use exchange data to find value on NBA overs and unders.',
+    relatedToolKeys: ['sharp-projections', 'whale-feed'],
+  },
+  {
+    slug: 'how-to-bet-mlb-moneylines',
+    primaryKeyword: 'how to bet MLB moneylines',
+    title: 'How to Bet MLB Moneylines: Starting Pitching, Line Value, and Sharp Approach',
+    topic:
+      'Teach MLB moneyline betting from a sharp perspective — why MLB is a moneyline sport, how starting pitching drives line value, the role of bullpen matchups, how to find value on underdogs, how closing line value works in baseball, and how to use projections and exchange data for MLB moneyline betting.',
+    metaDescription:
+      'How to bet MLB moneylines: how starting pitching affects odds, where sharp bettors find value on baseball underdogs, and a process for profitable MLB moneyline betting.',
+    relatedToolKeys: ['sharp-projections', 'research-mode'],
+  },
+  {
+    slug: 'how-to-bet-nhl',
+    primaryKeyword: 'how to bet NHL',
+    title: 'How to Bet NHL: Puck Lines, Moneylines, and Sharp Hockey Betting',
+    topic:
+      'Teach NHL betting from a sharp perspective — puck lines vs moneylines, the importance of goaltending, how sharp money moves in hockey markets, why NHL is one of the most contrarian-friendly sports, period betting opportunities, and how to use exchange data and projections for NHL betting.',
+    metaDescription:
+      'How to bet NHL: puck lines vs moneylines, how goaltending drives odds, where sharp money moves in hockey, and a process for finding value in NHL betting markets.',
+    relatedToolKeys: ['sharp-projections', 'research-mode'],
+  },
+  {
+    slug: 'sharp-money-mlb-betting',
+    primaryKeyword: 'sharp money MLB betting',
+    title: 'Sharp Money MLB Betting: How Sharps Approach Baseball Markets',
+    topic:
+      'Explain how sharp money behaves in MLB markets — the role of starting pitching in line pricing, how sharps exploit the large MLB moneyline market, why baseball has some of the most consistent CLV opportunities, how reverse line movement manifests in MLB, and what exchange data reveals about sharp MLB positioning.',
+    metaDescription:
+      'Sharp money MLB betting: how sharps approach baseball markets, where CLV opportunities exist, and how exchange data reveals sharp positioning in MLB moneylines and totals.',
+    relatedToolKeys: ['whale-feed', 'sharp-projections'],
+  },
+  {
+    slug: 'sharp-money-nhl-betting',
+    primaryKeyword: 'sharp money NHL betting',
+    title: 'Sharp Money NHL Betting: Finding Edge in Hockey Markets',
+    topic:
+      'Explain how sharp money moves in NHL markets — why hockey is contrarian-friendly, how goalie announcements create sharp opportunities, line movement patterns in NHL, the value of puck line vs moneyline depending on the number, and how exchange data reveals sharp NHL positioning.',
+    metaDescription:
+      'Sharp money NHL betting: how sharps find edge in hockey markets, why NHL is contrarian-friendly, and how to use exchange data and line movement for profitable hockey betting.',
+    relatedToolKeys: ['whale-feed', 'sharp-projections'],
+  },
+  {
+    slug: 'sharp-money-ncaab-betting',
+    primaryKeyword: 'sharp money college basketball betting',
+    title: 'Sharp Money College Basketball Betting: Finding Edge in NCAAB Markets',
+    topic:
+      'Explain how sharp money behaves in college basketball markets — why NCAAB has softer lines than NBA, how to exploit the massive number of games, the role of conference play and tempo in line pricing, tournament betting sharp strategies, and how exchange data and line movement reveal sharp NCAAB positioning.',
+    metaDescription:
+      'Sharp money college basketball betting: why NCAAB lines are softer, how sharps exploit the large schedule, and strategies for finding edge in college basketball markets.',
+    relatedToolKeys: ['sharp-projections', 'research-mode'],
+  },
+
+  // --- Cluster 7: Beginner / high-volume ---
+  {
+    slug: 'how-to-read-betting-odds',
+    primaryKeyword: 'how to read betting odds',
+    title: 'How to Read Betting Odds: American, Decimal, and Implied Probability Explained',
+    topic:
+      'Teach beginners how to read betting odds in all formats — American (+150, -200), decimal (2.50), fractional (3/2) — explain implied probability, how to convert between formats, what odds tell you about expected outcomes, and how understanding odds is the foundation of profitable betting.',
+    metaDescription:
+      'How to read betting odds: American, decimal, and fractional formats explained with examples, implied probability calculations, and what odds actually mean for your bets.',
+    relatedToolKeys: ['sharp-projections'],
+  },
+  {
+    slug: 'sports-betting-for-beginners',
+    primaryKeyword: 'sports betting for beginners',
+    title: 'Sports Betting for Beginners: A Complete Guide to Getting Started the Right Way',
+    topic:
+      'A comprehensive beginner guide covering the fundamentals — how odds work, types of bets (moneyline, spread, total, props), bankroll management basics, why most bettors lose, the concept of value and expected value, and how to start building a process instead of chasing picks.',
+    metaDescription:
+      'Sports betting for beginners: learn how odds work, types of bets, bankroll basics, and how to start building a profitable process instead of chasing picks.',
+    relatedToolKeys: ['sharp-projections', 'research-mode'],
+  },
+
+  // --- Cluster 8: Platform / comparison guides ---
+  {
+    slug: 'betting-exchange-vs-sportsbook',
+    primaryKeyword: 'betting exchange vs sportsbook',
+    title: 'Betting Exchange vs Sportsbook: Which Is Better for Sharp Bettors?',
+    topic:
+      'Compare betting exchanges and traditional sportsbooks head-to-head — how pricing works differently (peer-to-peer vs house), the role of the orderbook, why exchanges offer no limits and better odds, the tradeoff of liquidity vs convenience, and why sharp bettors increasingly use both together.',
+    metaDescription:
+      'Betting exchange vs sportsbook: how pricing, limits, and odds differ, why sharp bettors use exchanges, and how to combine both for a more profitable betting process.',
+    relatedToolKeys: ['sharp-props', 'whale-feed', 'insider-feed'],
+  },
+  {
+    slug: 'polymarket-sports-betting-guide',
+    primaryKeyword: 'polymarket sports betting',
+    title: 'Polymarket Sports Betting: How to Use Prediction Markets for Betting Edge',
+    topic:
+      'Explain how Polymarket works for sports betting — prediction market mechanics, how Polymarket odds compare to sportsbook lines, how to read Polymarket for sharp money signals, the role of Polymarket whales and insiders, and how bettors can use Polymarket data as a signal even if they do not bet on Polymarket directly.',
+    metaDescription:
+      'Polymarket sports betting guide: how prediction markets work, how to read Polymarket odds as a sharp signal, and how to use insider wallet data for betting edge.',
+    relatedToolKeys: ['insider-feed', 'whale-feed'],
+  },
+  {
+    slug: 'kalshi-sports-betting-guide',
+    primaryKeyword: 'kalshi sports betting',
+    title: 'Kalshi Sports Betting: How to Use the Regulated Exchange for Betting Edge',
+    topic:
+      'Explain how Kalshi works for sports betting — CFTC-regulated exchange mechanics, how Kalshi orderbooks reveal sharp money positioning, how to read bid/ask spreads and liquidity walls, how Kalshi prices compare to sportsbook odds, and why sharp bettors use Kalshi data as a market signal.',
+    metaDescription:
+      'Kalshi sports betting guide: how the regulated exchange works, how to read Kalshi orderbooks for sharp signals, and how to use Kalshi data for a betting edge.',
+    relatedToolKeys: ['sharp-props', 'whale-feed'],
+  },
 ]
 
 export const DEFAULT_GAME_PRIMARY_KEYWORD = 'sharp money sports betting'

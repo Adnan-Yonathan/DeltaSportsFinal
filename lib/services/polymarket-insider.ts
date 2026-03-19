@@ -58,22 +58,32 @@ export function computeInsiderScore(
   avgBetSize: number,
   stakeUsd: number,
   consensus: number,
+  sportLabel?: string | null,
 ): { score: number; sizeRatio: number } {
+  const sizeRatio = avgBetSize > 0 ? stakeUsd / avgBetSize : 1
+
+  // NCAAB has fewer bettors and lower liquidity — soften thresholds
+  const isNcaab = sportLabel === 'NCAAB'
+
   // ── 1. Size Ratio (conviction) — 40% ─────────────────────────────────────
   // How much bigger is this bet than the wallet's average?
-  // 0.75× → 0,  1× → ~6,  2× → ~29,  3× → ~53,  5× → 100
-  const sizeRatio = avgBetSize > 0 ? stakeUsd / avgBetSize : 1
-  const convictionRaw = clamp((sizeRatio - 0.75) / 4.25, 0, 1) * 100
+  // Default: 0.75× → 0, 5× → 100.  NCAAB: 0.5× → 0, 3× → 100
+  const convFloor = isNcaab ? 0.5 : 0.75
+  const convRange = isNcaab ? 2.5 : 4.25
+  const convictionRaw = clamp((sizeRatio - convFloor) / convRange, 0, 1) * 100
 
   // ── 2. Wallet ROI (authority) — 30% ──────────────────────────────────────
-  // ROI within 3–20% range. Scale: 3% → 0, 20% → 100
-  const roiPct = roiLifetime * 100  // e.g. 0.08 → 8
-  const roiRaw = clamp((roiPct - 3) / 17, 0, 1) * 100
+  // Default: 3–20%. NCAAB: 2–15% (lower bar)
+  const roiPct = roiLifetime * 100
+  const roiFloor = isNcaab ? 2 : 3
+  const roiRange = isNcaab ? 13 : 17
+  const roiRaw = clamp((roiPct - roiFloor) / roiRange, 0, 1) * 100
 
   // ── 3. Consensus (agreement) — 30% ───────────────────────────────────────
-  // How many other qualified wallets hold the same position?
-  // 1 wallet (just this one) → 0,  2 → 25,  3 → 50,  5+ → 100
-  const consensusRaw = clamp((consensus - 1) / 4, 0, 1) * 100
+  // Default: 1→0, 5→100.  NCAAB: 1→20 (solo bets get baseline credit), 3→100
+  const consensusRaw = isNcaab
+    ? clamp(20 + ((consensus - 1) / 2) * 80, 0, 100)
+    : clamp((consensus - 1) / 4, 0, 1) * 100
 
   // ── Combined score ────────────────────────────────────────────────────────
   // Use the raw 0–99 score directly. Bets below 70 are filtered out downstream.

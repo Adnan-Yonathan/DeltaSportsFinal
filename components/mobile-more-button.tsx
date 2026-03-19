@@ -10,7 +10,7 @@ export default function MobileMoreButton() {
   const pushedHistoryRef = useRef(false)
   const [isOpen, setIsOpen] = useState(false)
 
-  // Close on route change
+  // Close on route change — the new route replaces the sheet's history entry
   useEffect(() => {
     setIsOpen(false)
     pushedHistoryRef.current = false

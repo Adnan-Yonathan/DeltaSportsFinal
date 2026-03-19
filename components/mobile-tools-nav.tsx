@@ -137,12 +137,14 @@ export function MobileMoreSheet({
     [pathname]
   )
 
+  // Navigate without calling onDismiss — the sheet auto-closes on route
+  // change via the pathname useEffect in MobileMoreButton. Calling onDismiss
+  // triggers window.history.back() which races with router.push().
   const handleInternalNavigation = useCallback(
     (href: string) => {
-      onDismiss()
       router.push(href)
     },
-    [onDismiss, router]
+    [router]
   )
 
   const handleExternalNavigation = useCallback(
@@ -154,9 +156,8 @@ export function MobileMoreSheet({
   )
 
   const handleOpenSubscription = useCallback(() => {
-    onDismiss()
     router.push(user ? '/billing' : '/checkout')
-  }, [onDismiss, router, user])
+  }, [router, user])
 
   if (!isOpen) return null
 

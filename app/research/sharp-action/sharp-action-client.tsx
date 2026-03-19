@@ -250,6 +250,8 @@ const MarketPriceChart = ({
     return available
   }, [allMarketSeries])
 
+  const isMarketDataLoading = !allMarketSeries
+
   // Pick series for active market tab
   const activeSeries = useMemo(() => {
     if (allMarketSeries && availableMarkets.size > 0) {
@@ -274,15 +276,40 @@ const MarketPriceChart = ({
   )
 
   if (!hasData) {
+    const loadingMarket = isMarketDataLoading && activeMarket !== 'moneyline'
     return (
       <div className="rounded-xl border border-white/10 bg-black/30 p-4">
         <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
           <span>Market Line Movement</span>
           <span>Market</span>
         </div>
+        <div className="flex items-center justify-between gap-2 mt-2">
+          <div className="flex items-center gap-1">
+            {MARKET_TABS.map((tab) => {
+              const isActive = activeMarket === tab.key
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setActiveMarket(tab.key)
+                  }}
+                  className={`rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.15em] transition ${
+                    isActive
+                      ? 'bg-amber-500/15 text-amber-200 border border-amber-400/40'
+                      : 'text-white/50 hover:text-white/80 border border-transparent hover:border-white/20'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
         <div className="mt-3 flex h-28 items-center justify-center">
           <span className="text-[10px] uppercase tracking-[0.2em] text-white/30">
-            No market data yet
+            {loadingMarket ? 'Loading line movement…' : 'No market data yet'}
           </span>
         </div>
       </div>
@@ -329,24 +356,22 @@ const MarketPriceChart = ({
           {MARKET_TABS.map((tab) => {
             const available = availableMarkets.has(tab.key)
             const isActive = activeMarket === tab.key
+            const loading = isMarketDataLoading && tab.key !== 'moneyline'
             return (
               <button
                 key={tab.key}
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (available) setActiveMarket(tab.key)
+                  setActiveMarket(tab.key)
                 }}
-                disabled={!available}
                 className={`rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.15em] transition ${
-                  isActive && available
+                  isActive
                     ? 'bg-amber-500/15 text-amber-200 border border-amber-400/40'
-                    : available
-                      ? 'text-white/50 hover:text-white/80 border border-transparent hover:border-white/20'
-                      : 'text-white/20 border border-transparent cursor-not-allowed'
+                    : 'text-white/50 hover:text-white/80 border border-transparent hover:border-white/20'
                 }`}
               >
-                {tab.label}
+                {tab.label}{loading && isActive ? '…' : ''}
               </button>
             )
           })}
@@ -561,7 +586,7 @@ export default function SharpActionClient({
       )
 
       if (allGames.length > 0) {
-        const chunkSize = 6
+        const chunkSize = 15
         for (let i = 0; i < allGames.length; i += chunkSize) {
           const chunk = allGames.slice(i, i + chunkSize)
           const results = await Promise.allSettled(
@@ -571,9 +596,7 @@ export default function SharpActionClient({
                 homeTeam: game.homeTeam,
                 awayTeam: game.awayTeam,
               })
-              const res = await fetch(`/api/market-price-history?${params.toString()}`, {
-                cache: 'no-store',
-              })
+              const res = await fetch(`/api/market-price-history?${params.toString()}`)
               if (!res.ok) return { gameId: game.gameId, markets: null }
               const body = await res.json()
               return {

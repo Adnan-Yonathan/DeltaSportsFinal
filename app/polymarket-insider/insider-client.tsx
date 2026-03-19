@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { ArrowUpRight, CheckCircle2, ChevronDown, Database, RefreshCw, TrendingUp, Zap } from 'lucide-react'
+import MobileToolsNav from '@/components/mobile-tools-nav'
 import type { InsiderBet } from '@/lib/services/polymarket-insider'
 import ShareInsiderBetButton from '@/components/ShareInsiderBetButton'
 
@@ -737,6 +738,7 @@ export default function InsiderClient() {
 
         </div>
       </div>
+      <MobileToolsNav />
     </div>
   )
 }

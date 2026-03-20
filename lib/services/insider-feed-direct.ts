@@ -13,27 +13,31 @@ const TRADES_URL      = `${DATA_API}/trades`
 const LEADERBOARD_PAGE_SIZE = 100
 
 // Discovery strategies: [timePeriod, orderBy, offset]
-// ALL/VOLUME removed — API does not support orderBy=VOLUME
 const LEADERBOARD_STRATEGIES: Array<[string, string, number]> = [
   ['ALL',   'PNL',  0],    // all-time top earners (page 1)
   ['ALL',   'PNL',  100],  // all-time top earners (page 2)
-  ['WEEK',  'PNL',  0],    // this week's winners
-  ['MONTH', 'PNL',  0],    // this month's winners
-  ['DAY',   'PNL',  0],    // today's movers
+  ['ALL',   'PNL',  200],  // all-time top earners (page 3)
+  ['ALL',   'PNL',  300],  // all-time top earners (page 4)
+  ['WEEK',  'PNL',  0],    // this week's winners (page 1)
+  ['WEEK',  'PNL',  100],  // this week's winners (page 2)
+  ['MONTH', 'PNL',  0],    // this month's winners (page 1)
+  ['MONTH', 'PNL',  100],  // this month's winners (page 2)
+  ['DAY',   'PNL',  0],    // today's movers (page 1)
+  ['DAY',   'PNL',  100],  // today's movers (page 2)
 ]
-const LEADERBOARD_CONCURRENCY = 3
+const LEADERBOARD_CONCURRENCY = 5
 
 // Per-wallet trade fetching
-const TOP_WALLETS_TO_FETCH = 100  // fetch trades for top N wallets by ROI
-const TRADES_PER_WALLET    = 500  // trades to fetch per wallet
-const WALLET_FETCH_CONCURRENCY = 5
+const TOP_WALLETS_TO_FETCH = 300  // fetch trades for top N wallets by ROI
+const TRADES_PER_WALLET    = 800  // trades to fetch per wallet
+const WALLET_FETCH_CONCURRENCY = 10
 
-const MIN_ROI            = 0.03
-const MAX_ROI            = 0.20
-const MIN_VOLUME         = 25_000  // proxy for ~500+ trades
+const MIN_ROI            = 0.02
+const MAX_ROI            = 0.25
+const MIN_VOLUME         = 15_000  // lower bar to catch more NCAAB bettors
 const MIN_NET_SHARES     = 1
 const MIN_STAKE_USD      = 10
-const FETCH_TIMEOUT_MS   = 12_000
+const FETCH_TIMEOUT_MS   = 15_000
 
 const GAMMA_API       = 'https://gamma-api.polymarket.com'
 const MARKET_FETCH_CONCURRENCY = 10
@@ -158,8 +162,9 @@ async function fetchCurrentPrices(slugs: string[]): Promise<FetchPricesResult> {
         if (!Array.isArray(raw) || raw.length === 0) return null
         const market = raw[0]
 
-        // Detect settled/closed markets
-        const isSettled = market.active === false || market.closed === true
+        // Detect settled/closed markets (acceptingOrders=false catches
+        // markets where the game ended but Polymarket hasn't settled yet)
+        const isSettled = market.closed === true || market.active === false || market.acceptingOrders === false
         if (isSettled) return { slug, map: null, settled: true }
 
         const outcomes = parseOutcomes(market.outcomes)

@@ -538,7 +538,10 @@ export default function InsiderClient() {
     else setLoading(true)
 
     try {
-      const params = new URLSearchParams({ limit: '100', daysBack: '0' })
+      // NCAAB has fewer Polymarket bettors — widen window so bets placed
+      // in the last 3 days (for upcoming games) still surface.
+      const daysBack = sport === 'NCAAB' ? '3' : '0'
+      const params = new URLSearchParams({ limit: '100', daysBack })
       if (sport !== 'ALL') params.set('sport', sport)
 
       const res  = await fetch(`/api/polymarket/insider?${params}`)

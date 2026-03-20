@@ -217,10 +217,33 @@ async function getCompletedOrLiveSlugs(
   if (espnPositions.length === 0) return removeSlugs
 
   try {
-    const { games } = await fetchAllLiveScores({ includeCompletedForDate: true })
-    const liveOrDone = games.filter(
-      (g) => g.bucket === 'live' || g.bucket === 'completed'
+    // Fetch ESPN data for today + past 2 days to cover the 3-day NCAAB window
+    const today = new Date()
+    const dates = [0, -1, -2].map((offset) => {
+      const d = new Date(today)
+      d.setDate(d.getDate() + offset)
+      return d.toISOString().slice(0, 10)
+    })
+
+    const allGamesResults = await Promise.all(
+      dates.map((date) =>
+        fetchAllLiveScores({ date, includeCompletedForDate: true })
+          .then((r) => r.games)
+          .catch(() => [] as LiveScoreGame[])
+      )
     )
+
+    // Dedupe games by id across date fetches
+    const seenIds = new Set<string>()
+    const liveOrDone: LiveScoreGame[] = []
+    for (const games of allGamesResults) {
+      for (const g of games) {
+        if ((g.bucket === 'live' || g.bucket === 'completed') && !seenIds.has(g.id)) {
+          seenIds.add(g.id)
+          liveOrDone.push(g)
+        }
+      }
+    }
     if (liveOrDone.length === 0) return removeSlugs
 
     // Index games by league for fast lookup

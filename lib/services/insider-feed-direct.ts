@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { probabilityToAmericanOdds } from '@/lib/utils/statistics'
 import { fetchAllLiveScores, type LiveScoreGame } from '@/lib/live-scores'
-import { computeInsiderScore, MIN_INSIDER_SCORE } from './polymarket-insider'
+import { computeInsiderScore } from './polymarket-insider'
 import { normalizeTeamName, extractTeamsFromTitle, ESPN_SPORT_TO_LEAGUE } from './whale-trades-daily'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -575,14 +575,14 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     const consensusKey = `${pos.slug}::${pos.outcome}`
     const consensus = consensusMap.get(consensusKey)?.size ?? 1
 
-    const { score, sizeRatio } = computeInsiderScore(
+    const { score, sizeRatio, minThreshold } = computeInsiderScore(
       meta.roi,
       avgBetSize,
       pos.stakeUsd,
       consensus,
       pos.sportLabel,
     )
-    if (score < MIN_INSIDER_SCORE) continue
+    if (score < minThreshold) continue
 
     const americanOdds = probabilityToAmericanOdds(pos.avgEntryPrice)
 

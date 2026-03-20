@@ -59,7 +59,7 @@ export function computeInsiderScore(
   stakeUsd: number,
   consensus: number,
   sportLabel?: string | null,
-): { score: number; sizeRatio: number } {
+): { score: number; sizeRatio: number; minThreshold: number } {
   const sizeRatio = avgBetSize > 0 ? stakeUsd / avgBetSize : 1
 
   // NCAAB has fewer bettors and lower liquidity — soften thresholds
@@ -67,30 +67,31 @@ export function computeInsiderScore(
 
   // ── 1. Size Ratio (conviction) — 40% ─────────────────────────────────────
   // How much bigger is this bet than the wallet's average?
-  // Default: 0.75× → 0, 5× → 100.  NCAAB: 0.5× → 0, 3× → 100
-  const convFloor = isNcaab ? 0.5 : 0.75
-  const convRange = isNcaab ? 2.5 : 4.25
+  // Default: 0.75× → 0, 5× → 100.  NCAAB: 0.3× → 0, 2× → 100
+  const convFloor = isNcaab ? 0.3 : 0.75
+  const convRange = isNcaab ? 1.7 : 4.25
   const convictionRaw = clamp((sizeRatio - convFloor) / convRange, 0, 1) * 100
 
   // ── 2. Wallet ROI (authority) — 30% ──────────────────────────────────────
-  // Default: 3–20%. NCAAB: 2–15% (lower bar)
+  // Default: 3–20%. NCAAB: 1.5–12% (lower bar)
   const roiPct = roiLifetime * 100
-  const roiFloor = isNcaab ? 2 : 3
-  const roiRange = isNcaab ? 13 : 17
+  const roiFloor = isNcaab ? 1.5 : 3
+  const roiRange = isNcaab ? 10.5 : 17
   const roiRaw = clamp((roiPct - roiFloor) / roiRange, 0, 1) * 100
 
   // ── 3. Consensus (agreement) — 30% ───────────────────────────────────────
-  // Default: 1→0, 5→100.  NCAAB: 1→20 (solo bets get baseline credit), 3→100
+  // Default: 1→0, 5→100.  NCAAB: 1→30 (solo bets get baseline credit), 2→100
   const consensusRaw = isNcaab
-    ? clamp(20 + ((consensus - 1) / 2) * 80, 0, 100)
+    ? clamp(30 + ((consensus - 1) / 1) * 70, 0, 100)
     : clamp((consensus - 1) / 4, 0, 1) * 100
 
   // ── Combined score ────────────────────────────────────────────────────────
-  // Use the raw 0–99 score directly. Bets below 70 are filtered out downstream.
+  // Use the raw 0–99 score directly. NCAAB uses a lower threshold (50 vs 70).
+  const minThreshold = isNcaab ? 50 : 70
   const raw    = convictionRaw * 0.40 + roiRaw * 0.30 + consensusRaw * 0.30
   const score  = Math.floor(clamp(raw, 0, 99))
 
-  return { score, sizeRatio: Math.round(sizeRatio * 10) / 10 }
+  return { score, sizeRatio: Math.round(sizeRatio * 10) / 10, minThreshold }
 }
 
 // ── Date helpers ──────────────────────────────────────────────────────────────

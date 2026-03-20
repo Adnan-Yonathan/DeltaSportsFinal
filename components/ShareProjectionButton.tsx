@@ -29,7 +29,9 @@ export default function ShareProjectionButton({ projection }: ShareProjectionBut
       return
     }
 
-    const result = await shareImage(cardRef.current, `delta-projection-${projection.id}.png`)
+    const result = await shareImage(cardRef.current, `delta-projection-${projection.id}.png`, {
+      profile: 'mobile-portrait',
+    })
     setShowCard(false)
 
     if (result.ok) {

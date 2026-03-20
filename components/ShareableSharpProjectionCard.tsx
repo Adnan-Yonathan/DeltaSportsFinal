@@ -1,6 +1,8 @@
-﻿'use client'
+'use client'
 
 import { forwardRef } from 'react'
+import { ShareCaptureRoot, ShareCardFrame } from '@/components/share/ShareCardFrame'
+import { extractTeamLogos } from '@/lib/utils/team-logos'
 
 export type ShareableSharpProjection = {
   id: string
@@ -18,173 +20,140 @@ const ShareableSharpProjectionCard = forwardRef<
   HTMLDivElement,
   { projection: ShareableSharpProjection }
 >(({ projection }, ref) => {
+  const logos = extractTeamLogos(projection.matchup, projection.sportLabel)
+
   return (
-    <div
-      style={{
-        position: 'fixed',
-        left: 0,
-        top: 0,
-        zIndex: -9999,
-        pointerEvents: 'none',
-        overflow: 'hidden',
-        opacity: 0,
-      }}
-      aria-hidden="true"
-    >
-      <div
-        ref={ref}
-        style={{
-          width: 1200,
-          height: 628,
-          background: '#0a0a0a',
-          color: '#ffffff',
-          fontFamily:
-            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          opacity: 1,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '24px 48px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-            backgroundColor: '#0a0a0a',
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: 0.5 }}>
-              deltasports.app
-            </span>
-            <span style={{ fontSize: 16, fontWeight: 600, color: '#34d399' }}>
-              Sharp Projections
-            </span>
-          </div>
-          <span
-            style={{
-              fontSize: 16,
-              fontWeight: 600,
-              color: '#34d399',
-              border: '1px solid rgba(52, 211, 153, 0.4)',
-              borderRadius: 9999,
-              padding: '6px 14px',
-              textTransform: 'uppercase',
-              letterSpacing: 1,
-            }}
-          >
-            {projection.sportLabel}
-          </span>
-        </div>
-
-        <div style={{ padding: '32px 48px', flex: 1 }}>
-          <div style={{ fontSize: 36, fontWeight: 700, marginBottom: 18 }}>
-            {projection.matchup}
-          </div>
+    <ShareCaptureRoot>
+      <div ref={ref}>
+        <ShareCardFrame accent="emerald">
           <div
             style={{
-              fontSize: 22,
-              color: 'rgba(255, 255, 255, 0.7)',
-              marginBottom: 28,
+              marginTop: 72,
+              borderRadius: 38,
+              border: '1px solid rgba(255,255,255,0.14)',
+              background: 'rgba(2, 6, 23, 0.84)',
+              padding: '28px 28px 24px',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
             }}
           >
-            {projection.filterLabel}
-          </div>
-
-          <div
-            style={{
-              borderRadius: 24,
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              padding: 32,
-              display: 'grid',
-              gridTemplateColumns: '1.2fr 1fr',
-              gap: 24,
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 18,
-                  color: 'rgba(255, 255, 255, 0.6)',
-                  marginBottom: 6,
-                }}
-              >
-                Projection
-              </div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: '#ffffff' }}>
-                {projection.pickLabel}
+            {/* Header: label + sport pill */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <div style={{ fontSize: 20, letterSpacing: 2.1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>
+                Sharp Projections
               </div>
               <div
                 style={{
-                  marginTop: 16,
-                  fontSize: 16,
-                  color: 'rgba(255, 255, 255, 0.6)',
+                  borderRadius: 999,
+                  border: '1px solid rgba(52, 211, 153, 0.45)',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  color: '#86efac',
+                  padding: '8px 14px',
+                  fontSize: 19,
+                  fontWeight: 700,
+                  letterSpacing: 1.2,
                 }}
               >
-                Best odds
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 600 }}>
-                {projection.oddsLabel}
+                {projection.sportLabel}
               </div>
             </div>
 
-            <div>
+            {/* Team logos + Matchup */}
+            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 14 }}>
+              {logos.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                  {logos.map((logo, i) => (
+                    <img
+                      key={logo.abbreviation}
+                      src={logo.logoUrl}
+                      alt={logo.name}
+                      style={{
+                        width: 52,
+                        height: 52,
+                        borderRadius: 999,
+                        objectFit: 'contain',
+                        border: '2px solid rgba(255,255,255,0.15)',
+                        background: 'rgba(0,0,0,0.5)',
+                        marginLeft: i > 0 ? -12 : 0,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+              <div style={{ fontSize: 40, fontWeight: 700, lineHeight: 1.06, color: '#f8fafc', minWidth: 0 }}>
+                {projection.matchup}
+              </div>
+            </div>
+
+            {/* Projection + Edge row */}
+            <div
+              style={{
+                marginTop: 18,
+                borderRadius: 22,
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(0,0,0,0.44)',
+                padding: '18px 18px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+              }}
+            >
+              {/* Edge badge */}
               <div
                 style={{
-                  fontSize: 18,
-                  color: 'rgba(255, 255, 255, 0.6)',
-                  marginBottom: 6,
+                  width: 110,
+                  height: 90,
+                  borderRadius: 20,
+                  border: '2px solid rgba(52,211,153,0.50)',
+                  background: 'rgba(16,185,129,0.15)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
                 }}
               >
-                Edge
-              </div>
-              <div style={{ fontSize: 42, fontWeight: 700, color: '#34d399' }}>
-                {projection.edgeLabel}
-              </div>
-              {projection.sharpSummary && (
-                <div
-                  style={{
-                    marginTop: 16,
-                    fontSize: 14,
-                    color: 'rgba(255, 255, 255, 0.55)',
-                  }}
-                >
-                  {projection.sharpSummary}
+                <div style={{ fontSize: 36, fontWeight: 700, lineHeight: 1, color: '#86efac' }}>
+                  {projection.edgeLabel}
                 </div>
-              )}
-              {projection.moveSummary && (
-                <div
-                  style={{
-                    marginTop: 10,
-                    fontSize: 14,
-                    color: 'rgba(255, 255, 255, 0.45)',
-                  }}
-                >
-                  {projection.moveSummary}
+                <div style={{ marginTop: 2, fontSize: 13, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', color: '#86efac', opacity: 0.7 }}>
+                  Edge
                 </div>
-              )}
+              </div>
+
+              {/* Pick label */}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 18, letterSpacing: 1.8, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' }}>
+                  {projection.filterLabel}
+                </div>
+                <div style={{ marginTop: 6, fontSize: 42, fontWeight: 700, lineHeight: 1.08, color: '#f8fafc' }}>
+                  {projection.pickLabel}
+                </div>
+              </div>
+            </div>
+
+            {/* Stats grid: Best Odds + Line Movement */}
+            <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ borderRadius: 14, border: '1px solid rgba(132,204,22,0.45)', background: 'rgba(132,204,22,0.14)', padding: '12px 14px' }}>
+                <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>
+                  Best Odds
+                </div>
+                <div style={{ marginTop: 6, fontSize: 30, fontWeight: 700, color: '#bef264' }}>
+                  {projection.oddsLabel || 'n/a'}
+                </div>
+              </div>
+              <div style={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(0,0,0,0.35)', padding: '12px 14px' }}>
+                <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>
+                  Line Movement
+                </div>
+                <div style={{ marginTop: 6, fontSize: 24, fontWeight: 700, color: '#f1f5f9', lineHeight: 1.2 }}>
+                  {projection.moveSummary || 'No movement yet'}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-
-        <div
-          style={{
-            padding: '20px 48px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-            backgroundColor: '#0a0a0a',
-            textAlign: 'center',
-          }}
-        >
-          <span style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.4)' }}>
-            Track sharp projections and best book prices in real-time.
-          </span>
-        </div>
+        </ShareCardFrame>
       </div>
-    </div>
+    </ShareCaptureRoot>
   )
 })
 

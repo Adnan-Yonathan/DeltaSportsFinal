@@ -1,22 +1,22 @@
 export const ALLOWED_POLYMARKET_SPORT_LABELS = [
-  'NBA',
-  'WNBA',
-  'NFL',
-  'NCAAF',
-  'NCAAB',
-  'NHL',
-  'MLB',
-  'SOCCER',
-  'UFC',
-  'MMA',
-  'BOXING',
-  'TENNIS',
-  'GOLF',
-  'MLS',
-  'CRICKET',
-  'RACING',
-  'OLYMPICS',
-  'ESPORTS',
+  // North American
+  'NBA', 'WNBA', 'NFL', 'NCAAF', 'NCAAB', 'NHL', 'MLB', 'MLS',
+  // Soccer — league-specific
+  'UCL', 'UEL', 'UECL', 'EPL', 'LA LIGA', 'BUNDESLIGA', 'SERIE A',
+  'LIGUE 1', 'SOCCER', 'FIFA', 'COPPA', 'FA CUP',
+  // Tennis
+  'ATP', 'WTA', 'TENNIS',
+  // Esports
+  'CS2', 'LOL', 'DOTA 2', 'VALORANT', 'ROCKET LEAGUE', 'COD', 'ESPORTS',
+  // Hockey (international)
+  'SHL', 'KHL', 'LIIGA',
+  // Basketball (international)
+  'EUROLEAGUE', 'EUROCUP', 'BKCL',
+  // Combat sports
+  'UFC', 'MMA', 'BOXING', 'PFL', 'BELLATOR',
+  // Other
+  'GOLF', 'PGA', 'CRICKET', 'IPL', 'F1', 'NASCAR', 'RACING',
+  'RUGBY', 'AFL', 'OLYMPICS',
 ] as const
 
 export type AllowedPolymarketSportLabel =

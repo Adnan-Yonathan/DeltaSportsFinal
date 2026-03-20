@@ -538,10 +538,9 @@ export default function InsiderClient() {
     else setLoading(true)
 
     try {
-      // NCAAB has fewer Polymarket bettors — widen window so bets placed
-      // in the last 3 days (for upcoming games) still surface.
-      const daysBack = sport === 'NCAAB' ? '3' : '0'
-      const params = new URLSearchParams({ limit: '100', daysBack })
+      // Use a consistent 3-day window so bets visible in "All" also appear
+      // in sport-specific tabs (NCAAB and other low-liquidity sports need this).
+      const params = new URLSearchParams({ limit: '100', daysBack: '3' })
       if (sport !== 'ALL') params.set('sport', sport)
 
       const res  = await fetch(`/api/polymarket/insider?${params}`)

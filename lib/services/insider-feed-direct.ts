@@ -1,6 +1,8 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { probabilityToAmericanOdds } from '@/lib/utils/statistics'
+import { fetchAllLiveScores, type LiveScoreGame } from '@/lib/live-scores'
 import { computeInsiderScore, MIN_INSIDER_SCORE } from './polymarket-insider'
+import { normalizeTeamName, extractTeamsFromTitle, ESPN_SPORT_TO_LEAGUE } from './whale-trades-daily'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -140,8 +142,11 @@ async function fetchJson(url: string): Promise<unknown> {
 
 type MarketPriceMap = Map<string, Map<string, number>> // slug → outcome → price
 
-async function fetchCurrentPrices(slugs: string[]): Promise<MarketPriceMap> {
+type FetchPricesResult = { prices: MarketPriceMap; settledSlugs: Set<string> }
+
+async function fetchCurrentPrices(slugs: string[]): Promise<FetchPricesResult> {
   const priceMap: MarketPriceMap = new Map()
+  const settledSlugs = new Set<string>()
   const uniqueSlugs = [...new Set(slugs)]
 
   for (let i = 0; i < uniqueSlugs.length; i += MARKET_FETCH_CONCURRENCY) {
@@ -152,6 +157,11 @@ async function fetchCurrentPrices(slugs: string[]): Promise<MarketPriceMap> {
         const raw = await fetchJson(url) as any[] | null
         if (!Array.isArray(raw) || raw.length === 0) return null
         const market = raw[0]
+
+        // Detect settled/closed markets
+        const isSettled = market.active === false || market.closed === true
+        if (isSettled) return { slug, map: null, settled: true }
+
         const outcomes = parseOutcomes(market.outcomes)
         const prices = parseOutcomePrices(market.outcomePrices)
         if (outcomes.length === 0 || outcomes.length !== prices.length) return null
@@ -159,15 +169,20 @@ async function fetchCurrentPrices(slugs: string[]): Promise<MarketPriceMap> {
         for (let j = 0; j < outcomes.length; j++) {
           map.set(outcomes[j], prices[j])
         }
-        return { slug, map }
+        return { slug, map, settled: false }
       })
     )
     for (const r of results) {
-      if (r) priceMap.set(r.slug, r.map)
+      if (!r) continue
+      if (r.settled) {
+        settledSlugs.add(r.slug)
+      } else if (r.map) {
+        priceMap.set(r.slug, r.map)
+      }
     }
   }
 
-  return priceMap
+  return { prices: priceMap, settledSlugs }
 }
 
 function parseOutcomes(raw: unknown): string[] {
@@ -186,6 +201,69 @@ function parseOutcomePrices(raw: unknown): number[] {
   }
   if (Array.isArray(raw)) return raw.map(Number).filter(Number.isFinite)
   return []
+}
+
+// ── ESPN live/completed game filtering ──────────────────────────────────────
+
+async function getCompletedOrLiveSlugs(
+  positions: { slug: string; title: string; sportLabel: string | null }[]
+): Promise<Set<string>> {
+  const removeSlugs = new Set<string>()
+
+  // Only check positions with ESPN-supported sports
+  const espnPositions = positions.filter(
+    (p) => p.sportLabel && p.sportLabel in ESPN_SPORT_TO_LEAGUE
+  )
+  if (espnPositions.length === 0) return removeSlugs
+
+  try {
+    const { games } = await fetchAllLiveScores({ includeCompletedForDate: true })
+    const liveOrDone = games.filter(
+      (g) => g.bucket === 'live' || g.bucket === 'completed'
+    )
+    if (liveOrDone.length === 0) return removeSlugs
+
+    // Index games by league for fast lookup
+    const gamesByLeague = new Map<string, LiveScoreGame[]>()
+    for (const g of liveOrDone) {
+      let list = gamesByLeague.get(g.league)
+      if (!list) {
+        list = []
+        gamesByLeague.set(g.league, list)
+      }
+      list.push(g)
+    }
+
+    for (const pos of espnPositions) {
+      const leagues = ESPN_SPORT_TO_LEAGUE[pos.sportLabel!] ?? []
+      const relevantGames = leagues.flatMap((l) => gamesByLeague.get(l) ?? [])
+      if (relevantGames.length === 0) continue
+
+      const marketTeams = extractTeamsFromTitle(pos.title)
+      if (marketTeams.length === 0) continue
+
+      for (const game of relevantGames) {
+        const gameTeams = game.competitors.flatMap((c) => [
+          normalizeTeamName(c.name),
+          normalizeTeamName(c.shortName),
+          normalizeTeamName(c.abbreviation),
+        ])
+
+        const hasMatch = marketTeams.some((mt) =>
+          gameTeams.some((gt) => gt.includes(mt) || mt.includes(gt))
+        )
+
+        if (hasMatch) {
+          removeSlugs.add(pos.slug)
+          break
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('[InsiderFeed] ESPN live/completed check failed:', error)
+  }
+
+  return removeSlugs
 }
 
 // ── Position computation from trade list ──────────────────────────────────────
@@ -243,10 +321,11 @@ function applyTrade(positions: Map<string, PositionState>, trade: TradeEntry) {
 // ── Main pipeline ──────────────────────────────────────────────────────────────
 
 export type InsiderFeedRefreshResult = {
-  walletsScanned:   number
-  walletsWithBets:  number
-  positionsFound:   number
-  betsCached:       number
+  walletsScanned:    number
+  walletsWithBets:   number
+  positionsFound:    number
+  removedCompleted:  number
+  betsCached:        number
 }
 
 export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResult> {
@@ -310,7 +389,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
   if (qualifiedWallets.size === 0) {
     console.error('[InsiderFeed] No qualified wallets from any leaderboard strategy')
-    return { walletsScanned: 0, walletsWithBets: 0, positionsFound: 0, betsCached: 0 }
+    return { walletsScanned: 0, walletsWithBets: 0, positionsFound: 0, removedCompleted: 0, betsCached: 0 }
   }
 
   // ── Step 2: Per-wallet trade fetching ───────────────────────────────────────
@@ -409,8 +488,15 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
   // ── Step 4: Fetch current market prices ───────────────────────────────────
   const uniqueSlugs = [...new Set(allPositions.map(p => p.slug))]
   console.log(`[InsiderFeed] Fetching current prices for ${uniqueSlugs.length} markets`)
-  const currentPrices = await fetchCurrentPrices(uniqueSlugs)
-  console.log(`[InsiderFeed] Got prices for ${currentPrices.size} markets`)
+  const { prices: currentPrices, settledSlugs } = await fetchCurrentPrices(uniqueSlugs)
+  console.log(`[InsiderFeed] Got prices for ${currentPrices.size} markets, ${settledSlugs.size} settled`)
+
+  // ── Step 4.5: Remove completed/live games ─────────────────────────────────
+  const espnRemoveSlugs = await getCompletedOrLiveSlugs(allPositions)
+  const removeSlugs = new Set([...settledSlugs, ...espnRemoveSlugs])
+  const activePositions = allPositions.filter(p => !removeSlugs.has(p.slug))
+  const removedCount = allPositions.length - activePositions.length
+  console.log(`[InsiderFeed] Removed ${removedCount} positions (${settledSlugs.size} settled, ${espnRemoveSlugs.size} ESPN live/completed)`)
 
   // ── Step 5: Score positions ────────────────────────────────────────────────
   const runTs  = new Date().toISOString()
@@ -426,7 +512,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
   // Build consensus map: how many unique wallets hold each slug+outcome?
   const consensusMap = new Map<string, Set<string>>()
-  for (const pos of allPositions) {
+  for (const pos of activePositions) {
     const key = `${pos.slug}::${pos.outcome}`
     let wallets = consensusMap.get(key)
     if (!wallets) {
@@ -436,7 +522,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     wallets.add(pos.wallet)
   }
 
-  for (const pos of allPositions) {
+  for (const pos of activePositions) {
     const meta = qualifiedWallets.get(pos.wallet)
     if (!meta) continue
 
@@ -511,9 +597,10 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
   }
 
   return {
-    walletsScanned:  qualifiedWallets.size,
-    walletsWithBets: walletsWithTrades.length,
-    positionsFound:  allPositions.length,
-    betsCached:      scored.length,
+    walletsScanned:   qualifiedWallets.size,
+    walletsWithBets:  walletsWithTrades.length,
+    positionsFound:   allPositions.length,
+    removedCompleted: removedCount,
+    betsCached:       scored.length,
   }
 }

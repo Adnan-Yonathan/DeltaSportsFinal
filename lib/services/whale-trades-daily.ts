@@ -56,7 +56,7 @@ async function fetchLiveGamesWithCache(): Promise<LiveScoreGame[]> {
 /**
  * Normalize team name for fuzzy matching
  */
-function normalizeTeamName(name: string): string {
+export function normalizeTeamName(name: string): string {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, '')
@@ -66,7 +66,7 @@ function normalizeTeamName(name: string): string {
 /**
  * Extract team names from market title
  */
-function extractTeamsFromTitle(title: string): string[] {
+export function extractTeamsFromTitle(title: string): string[] {
   // Common patterns: "Lakers vs Celtics", "Lakers @ Celtics", "Lakers - Celtics"
   const patterns = [
     /(.+?)\s+(?:vs\.?|@|v\.?|-)\s+(.+)/i,
@@ -84,6 +84,17 @@ function extractTeamsFromTitle(title: string): string[] {
   return title.split(/\s+/).map(normalizeTeamName).filter(Boolean)
 }
 
+/** Map sport labels to ESPN league IDs */
+export const ESPN_SPORT_TO_LEAGUE: Record<string, string[]> = {
+  NBA: ['nba'],
+  NFL: ['nfl'],
+  NHL: ['nhl'],
+  MLB: ['mlb'],
+  NCAAB: ['ncaab'],
+  NCAAF: ['cfb'],
+  WNBA: ['wnba'],
+}
+
 /**
  * Check if a game is currently live by matching market title to ESPN live games
  */
@@ -93,16 +104,7 @@ export async function isGameLive(
 ): Promise<{ isLive: boolean; status: GameStatus }> {
   const liveGames = await fetchLiveGamesWithCache()
 
-  // Map sport names to ESPN league IDs
-  const sportToLeague: Record<string, string[]> = {
-    NBA: ['nba'],
-    NFL: ['nfl'],
-    NHL: ['nhl'],
-    MLB: ['mlb'],
-    NCAAB: ['ncaab'],
-    NCAAF: ['cfb'],
-    WNBA: ['wnba'],
-  }
+  const sportToLeague = ESPN_SPORT_TO_LEAGUE
 
   const leagues = sportToLeague[sport] ?? []
   const relevantGames = leagues.length

@@ -205,6 +205,15 @@ function parseOutcomePrices(raw: unknown): number[] {
 
 // ── ESPN live/completed game filtering ──────────────────────────────────────
 
+/**
+ * Extract a YYYY-MM-DD date from a Polymarket slug if present.
+ * Slugs look like "nba-nets-knicks-2026-03-20" or "nhl-ana-utah-2026-03-20".
+ */
+function extractDateFromSlug(slug: string): string | null {
+  const m = slug.match(/(\d{4}-\d{2}-\d{2})/)
+  return m ? m[1] : null
+}
+
 async function getCompletedOrLiveSlugs(
   positions: { slug: string; title: string; sportLabel: string | null }[]
 ): Promise<Set<string>> {
@@ -265,7 +274,14 @@ async function getCompletedOrLiveSlugs(
       const marketTeams = extractTeamsFromTitle(pos.title)
       if (marketTeams.length === 0) continue
 
+      // Extract date from slug (e.g. "nba-nets-knicks-2026-03-20" → "2026-03-20")
+      // to avoid matching a completed game from yesterday against today's game
+      const slugDate = extractDateFromSlug(pos.slug)
+
       for (const game of relevantGames) {
+        // If the slug has a date and it doesn't match the game date, skip
+        if (slugDate && game.gameDate !== slugDate) continue
+
         const gameTeams = game.competitors.flatMap((c) => [
           normalizeTeamName(c.name),
           normalizeTeamName(c.shortName),

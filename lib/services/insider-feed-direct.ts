@@ -745,6 +745,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       avgBetSize,
       pos.stakeUsd,
       consensus,
+      buyTradeCount,
     )
     if (score < minThreshold) continue
 

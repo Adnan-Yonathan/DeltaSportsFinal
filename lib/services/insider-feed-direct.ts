@@ -22,29 +22,28 @@ function buildStrategies(): LeaderboardStrategy[] {
     for (let p = 0; p < pages; p++) strats.push([tp, ob, p * 50, cat])
   }
 
-  // SPORTS category — sport-specialist wallets invisible on OVERALL
-  add('SPORTS', 'PNL', 'ALL',   20)  // 0–950
+  // SPORTS category — deep crawl to ~10,000 entries
+  add('SPORTS', 'PNL', 'ALL',  200)  // 0–9950
+  add('SPORTS', 'VOL', 'ALL',   40)  // 0–1950, high-volume sports bettors
   add('SPORTS', 'PNL', 'WEEK',   4)  // 0–150
   add('SPORTS', 'PNL', 'MONTH',  4)  // 0–150
-  add('SPORTS', 'VOL', 'ALL',   10)  // 0–450, high-volume sports bettors
   add('SPORTS', 'VOL', 'WEEK',   4)  // 0–150
 
-  // OVERALL category — existing coverage + VOL ordering
+  // OVERALL category — catches cross-market profitable wallets
   add('OVERALL', 'PNL', 'ALL',    8)  // 0–350
+  add('OVERALL', 'VOL', 'ALL',    4)  // 0–150
   add('OVERALL', 'PNL', 'WEEK',   4)  // 0–150
   add('OVERALL', 'PNL', 'MONTH',  4)  // 0–150
   add('OVERALL', 'PNL', 'DAY',    4)  // 0–150
-  add('OVERALL', 'VOL', 'ALL',    4)  // 0–150
-  add('OVERALL', 'VOL', 'WEEK',   2)  // 0–50
 
   return strats
 }
 
 const LEADERBOARD_STRATEGIES = buildStrategies()
-const LEADERBOARD_CONCURRENCY = 5
+const LEADERBOARD_CONCURRENCY = 10  // bump concurrency for faster crawl
 
-// Per-wallet trade fetching
-const TOP_WALLETS_TO_FETCH = 600  // fetch trades for top N wallets by ROI
+// Per-wallet trade fetching — no cap, fetch ALL qualified wallets
+const MIN_BUY_TRADES = 500  // wallet must have 500+ buy trades to be included
 const TRADES_PER_WALLET    = 800  // trades to fetch per wallet
 const WALLET_FETCH_CONCURRENCY = 10
 
@@ -708,13 +707,12 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
   }
 
   // ── Step 2: Per-wallet trade fetching ───────────────────────────────────────
-  // Sort wallets by ROI descending, take top N, fetch each wallet's trades directly.
+  // Fetch trades for ALL qualified wallets (no cap). Filter by trade count after.
 
   const sortedWallets = [...qualifiedWallets.entries()]
     .sort((a, b) => b[1].roi - a[1].roi)
-    .slice(0, TOP_WALLETS_TO_FETCH)
 
-  console.log(`[InsiderFeed] Fetching trades for top ${sortedWallets.length} wallets by ROI`)
+  console.log(`[InsiderFeed] Fetching trades for ${sortedWallets.length} qualified wallets`)
 
   type WalletTradeResult = {
     wallet: string
@@ -764,8 +762,9 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     walletResults.push(...results)
   }
 
-  const walletsWithTrades = walletResults.filter(r => r.trades.length > 0)
-  console.log(`[InsiderFeed] Wallets with trades: ${walletsWithTrades.length}/${sortedWallets.length}`)
+  // Filter to wallets with enough buy trades to trust the ROI
+  const walletsWithTrades = walletResults.filter(r => r.totalBuys >= MIN_BUY_TRADES)
+  console.log(`[InsiderFeed] Wallets with ${MIN_BUY_TRADES}+ buy trades: ${walletsWithTrades.length}/${walletResults.length}`)
 
   // ── Step 3: Compute open sports positions per wallet ──────────────────────────
   type RawPosition = {

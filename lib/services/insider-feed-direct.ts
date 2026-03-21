@@ -159,7 +159,10 @@ async function fetchCurrentPrices(slugs: string[]): Promise<FetchPricesResult> {
       batch.map(async (slug) => {
         const url = `${GAMMA_API}/markets?slug=${encodeURIComponent(slug)}&limit=1`
         const raw = await fetchJson(url) as any[] | null
-        if (!Array.isArray(raw) || raw.length === 0) return null
+        // If Gamma returns nothing, treat as settled — a real upcoming
+        // market always has data. This prevents stale positions leaking
+        // through on transient API failures.
+        if (!Array.isArray(raw) || raw.length === 0) return { slug, map: null, settled: true }
         const market = raw[0]
 
         // Detect settled/closed markets (acceptingOrders=false catches
@@ -529,17 +532,34 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
   console.log(`[InsiderFeed] Open sport positions found: ${allPositions.length}`)
 
+  // ── Step 3.5: Pre-filter stale positions by slug date ────────────────────
+  // Polymarket settlements don't generate SELL trades, so wallets carry
+  // phantom "open" positions for games that ended days/weeks ago.
+  // Drop any position whose slug date is before yesterday.
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  const cutoffDate = yesterday.toISOString().slice(0, 10) // YYYY-MM-DD
+
+  const freshPositions = allPositions.filter((p) => {
+    const slugDate = extractDateFromSlug(p.slug)
+    // No date in slug → keep (can't determine age)
+    if (!slugDate) return true
+    // Slug date >= yesterday → keep
+    return slugDate >= cutoffDate
+  })
+  console.log(`[InsiderFeed] After slug-date filter: ${freshPositions.length} (removed ${allPositions.length - freshPositions.length} stale)`)
+
   // ── Step 4: Fetch current market prices ───────────────────────────────────
-  const uniqueSlugs = [...new Set(allPositions.map(p => p.slug))]
+  const uniqueSlugs = [...new Set(freshPositions.map(p => p.slug))]
   console.log(`[InsiderFeed] Fetching current prices for ${uniqueSlugs.length} markets`)
   const { prices: currentPrices, settledSlugs } = await fetchCurrentPrices(uniqueSlugs)
   console.log(`[InsiderFeed] Got prices for ${currentPrices.size} markets, ${settledSlugs.size} settled`)
 
   // ── Step 4.5: Remove completed/live games ─────────────────────────────────
-  const espnRemoveSlugs = await getCompletedOrLiveSlugs(allPositions)
+  const espnRemoveSlugs = await getCompletedOrLiveSlugs(freshPositions)
   const removeSlugs = new Set([...settledSlugs, ...espnRemoveSlugs])
-  const activePositions = allPositions.filter(p => !removeSlugs.has(p.slug))
-  const removedCount = allPositions.length - activePositions.length
+  const activePositions = freshPositions.filter(p => !removeSlugs.has(p.slug))
+  const removedCount = freshPositions.length - activePositions.length
   console.log(`[InsiderFeed] Removed ${removedCount} positions (${settledSlugs.size} settled, ${espnRemoveSlugs.size} ESPN live/completed)`)
 
   // ── Step 5: Score positions ────────────────────────────────────────────────

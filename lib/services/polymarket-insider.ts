@@ -45,7 +45,7 @@ const MIN_PROFIT_FACTOR = 1.1
 const MIN_STAKE_USD = 10
 const MIN_ENTRY_PRICE = 0.04
 const MAX_ENTRY_PRICE = 0.92
-export const MIN_INSIDER_SCORE = 70
+export const MIN_INSIDER_SCORE = 50
 
 // ── Scoring ───────────────────────────────────────────────────────────────────
 

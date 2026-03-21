@@ -1,8 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { probabilityToAmericanOdds } from '@/lib/utils/statistics'
-import { fetchAllLiveScores, type LiveScoreGame } from '@/lib/live-scores'
 import { computeInsiderScore } from './polymarket-insider'
-import { normalizeTeamName, extractTeamsFromTitle, ESPN_SPORT_TO_LEAGUE } from './whale-trades-daily'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -230,7 +228,7 @@ function parseOutcomePrices(raw: unknown): number[] {
   return []
 }
 
-// ── ESPN live/completed game filtering ──────────────────────────────────────
+// ── Slug helpers ─────────────────────────────────────────────────────────────
 
 /**
  * Extract a YYYY-MM-DD date from a Polymarket slug if present.
@@ -239,97 +237,6 @@ function parseOutcomePrices(raw: unknown): number[] {
 function extractDateFromSlug(slug: string): string | null {
   const m = slug.match(/(\d{4}-\d{2}-\d{2})/)
   return m ? m[1] : null
-}
-
-async function getCompletedOrLiveSlugs(
-  positions: { slug: string; title: string; sportLabel: string | null }[]
-): Promise<Set<string>> {
-  const removeSlugs = new Set<string>()
-
-  // Only check positions with ESPN-supported sports
-  const espnPositions = positions.filter(
-    (p) => p.sportLabel && p.sportLabel in ESPN_SPORT_TO_LEAGUE
-  )
-  if (espnPositions.length === 0) return removeSlugs
-
-  try {
-    // Fetch ESPN data for today + past 2 days to cover the 3-day NCAAB window
-    const today = new Date()
-    const dates = [0, -1, -2].map((offset) => {
-      const d = new Date(today)
-      d.setDate(d.getDate() + offset)
-      return d.toISOString().slice(0, 10)
-    })
-
-    const allGamesResults = await Promise.all(
-      dates.map((date) =>
-        fetchAllLiveScores({ date, includeCompletedForDate: true })
-          .then((r) => r.games)
-          .catch(() => [] as LiveScoreGame[])
-      )
-    )
-
-    // Dedupe games by id across date fetches
-    const seenIds = new Set<string>()
-    const liveOrDone: LiveScoreGame[] = []
-    for (const games of allGamesResults) {
-      for (const g of games) {
-        if ((g.bucket === 'live' || g.bucket === 'completed') && !seenIds.has(g.id)) {
-          seenIds.add(g.id)
-          liveOrDone.push(g)
-        }
-      }
-    }
-    if (liveOrDone.length === 0) return removeSlugs
-
-    // Index games by league for fast lookup
-    const gamesByLeague = new Map<string, LiveScoreGame[]>()
-    for (const g of liveOrDone) {
-      let list = gamesByLeague.get(g.league)
-      if (!list) {
-        list = []
-        gamesByLeague.set(g.league, list)
-      }
-      list.push(g)
-    }
-
-    for (const pos of espnPositions) {
-      const leagues = ESPN_SPORT_TO_LEAGUE[pos.sportLabel!] ?? []
-      const relevantGames = leagues.flatMap((l) => gamesByLeague.get(l) ?? [])
-      if (relevantGames.length === 0) continue
-
-      const marketTeams = extractTeamsFromTitle(pos.title)
-      if (marketTeams.length === 0) continue
-
-      // Extract date from slug (e.g. "nba-nets-knicks-2026-03-20" → "2026-03-20")
-      // to avoid matching a completed game from yesterday against today's game
-      const slugDate = extractDateFromSlug(pos.slug)
-
-      for (const game of relevantGames) {
-        // If the slug has a date and it doesn't match the game date, skip
-        if (slugDate && game.gameDate !== slugDate) continue
-
-        const gameTeams = game.competitors.flatMap((c) => [
-          normalizeTeamName(c.name),
-          normalizeTeamName(c.shortName),
-          normalizeTeamName(c.abbreviation),
-        ])
-
-        const hasMatch = marketTeams.some((mt) =>
-          gameTeams.some((gt) => gt.includes(mt) || mt.includes(gt))
-        )
-
-        if (hasMatch) {
-          removeSlugs.add(pos.slug)
-          break
-        }
-      }
-    }
-  } catch (error) {
-    console.warn('[InsiderFeed] ESPN live/completed check failed:', error)
-  }
-
-  return removeSlugs
 }
 
 // ── Position computation from trade list ──────────────────────────────────────
@@ -811,7 +718,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
   // Polymarket settlements don't generate SELL trades, so wallets carry
   // phantom "open" positions for games that ended weeks/months ago.
   // Use a 7-day window to cheaply remove ancient positions before the
-  // more expensive Gamma API + ESPN checks in Steps 4/4.5.
+  // more expensive Gamma API checks in Steps 4/4.5.
   const cutoffDate = new Date()
   cutoffDate.setDate(cutoffDate.getDate() - 7)
   const cutoffStr = cutoffDate.toISOString().slice(0, 10) // YYYY-MM-DD
@@ -831,12 +738,10 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
   const { prices: currentPrices, settledSlugs } = await fetchCurrentPrices(uniqueSlugs)
   console.log(`[InsiderFeed] Got prices for ${currentPrices.size} markets, ${settledSlugs.size} settled`)
 
-  // ── Step 4.5: Remove completed/live games ─────────────────────────────────
-  const espnRemoveSlugs = await getCompletedOrLiveSlugs(freshPositions)
-  const removeSlugs = new Set([...settledSlugs, ...espnRemoveSlugs])
-  const activePositions = freshPositions.filter(p => !removeSlugs.has(p.slug))
+  // Remove settled markets (Gamma API detected closed/inactive)
+  const activePositions = freshPositions.filter(p => !settledSlugs.has(p.slug))
   const removedCount = freshPositions.length - activePositions.length
-  console.log(`[InsiderFeed] Removed ${removedCount} positions (${settledSlugs.size} settled, ${espnRemoveSlugs.size} ESPN live/completed)`)
+  console.log(`[InsiderFeed] Removed ${removedCount} settled positions`)
 
   // ── Step 5: Score positions ────────────────────────────────────────────────
   const runTs  = new Date().toISOString()

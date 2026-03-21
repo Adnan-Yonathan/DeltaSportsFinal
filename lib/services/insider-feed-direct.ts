@@ -394,7 +394,14 @@ export type InsiderFeedRefreshResult = {
   removedCompleted:  number
   betsCached:        number
   reverseDiscovered: number
+  holderDiscovered:  number
 }
+
+// Target sports for holder-based wallet discovery
+const HOLDER_DISCOVERY_PREFIXES = ['nba-', 'cbb-', 'nhl-']
+const HOLDER_DISCOVERY_MARKETS_PER_SPORT = 20
+const HOLDER_DISCOVERY_CONCURRENCY = 10
+const HOLDER_DISCOVERY_MAX_NEW_WALLETS = 150
 
 export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResult> {
   // ── Step 1: Multi-strategy leaderboard discovery ────────────────────────────
@@ -458,7 +465,7 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
   if (qualifiedWallets.size === 0) {
     console.error('[InsiderFeed] No qualified wallets from any leaderboard strategy')
-    return { walletsScanned: 0, walletsWithBets: 0, positionsFound: 0, removedCompleted: 0, betsCached: 0, reverseDiscovered: 0 }
+    return { walletsScanned: 0, walletsWithBets: 0, positionsFound: 0, removedCompleted: 0, betsCached: 0, reverseDiscovered: 0, holderDiscovered: 0 }
   }
 
   // ── Step 1.5: Reverse discovery via recent sport trades ──────────────────
@@ -572,6 +579,134 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     console.warn('[InsiderFeed] Reverse discovery failed:', error)
   }
 
+  // ── Step 1.6: Holder-based discovery for NBA, NCAAB, NHL ─────────────────
+  // Find wallets holding positions in active target-sport markets via Gamma + /holders
+
+  let holderDiscoveredCount = 0
+  const holderTradeResults: ReverseWalletResult[] = []
+
+  try {
+    // Fetch active markets from Gamma (bulk, filter client-side by prefix)
+    const gammaMarketsUrl = `${GAMMA_API}/markets?closed=false&active=true&limit=200&order=volume24hr&ascending=false`
+    const gammaRaw = await fetchJson(gammaMarketsUrl) as any[] | null
+    const gammaMarkets = Array.isArray(gammaRaw) ? gammaRaw : []
+
+    // Filter to target sport prefixes and collect conditionIds
+    const targetMarkets: { slug: string; conditionId: string }[] = []
+    for (const m of gammaMarkets) {
+      const slug = String(m.slug ?? '')
+      const conditionId = String(m.conditionId ?? '')
+      if (!conditionId || !HOLDER_DISCOVERY_PREFIXES.some(p => slug.startsWith(p))) continue
+      targetMarkets.push({ slug, conditionId })
+    }
+
+    // Cap per sport to avoid over-fetching one sport
+    const perSport = new Map<string, number>()
+    const cappedMarkets = targetMarkets.filter(m => {
+      const prefix = HOLDER_DISCOVERY_PREFIXES.find(p => m.slug.startsWith(p)) ?? ''
+      const count = perSport.get(prefix) ?? 0
+      if (count >= HOLDER_DISCOVERY_MARKETS_PER_SPORT) return false
+      perSport.set(prefix, count + 1)
+      return true
+    })
+
+    console.log(`[InsiderFeed] Holder discovery: ${cappedMarkets.length} target markets (${[...perSport.entries()].map(([p, c]) => `${p.slice(0,-1)}:${c}`).join(', ')})`)
+
+    // Fetch holders for each market
+    const holderWallets = new Set<string>()
+    for (let i = 0; i < cappedMarkets.length; i += HOLDER_DISCOVERY_CONCURRENCY) {
+      const batch = cappedMarkets.slice(i, i + HOLDER_DISCOVERY_CONCURRENCY)
+      const results = await Promise.all(
+        batch.map(async ({ conditionId }) => {
+          const url = `${DATA_API}/holders?market=${encodeURIComponent(conditionId)}&limit=100`
+          const raw = await fetchJson(url) as any[] | null
+          if (!Array.isArray(raw)) return []
+          // Response is array of { token, holders: [...] }
+          const wallets: string[] = []
+          for (const group of raw) {
+            if (!Array.isArray(group.holders)) continue
+            for (const h of group.holders) {
+              const w = String(h.proxyWallet ?? '').trim().toLowerCase()
+              if (w) wallets.push(w)
+            }
+          }
+          return wallets
+        })
+      )
+      for (const wallets of results) {
+        for (const w of wallets) {
+          if (!qualifiedWallets.has(w)) holderWallets.add(w)
+        }
+      }
+    }
+
+    console.log(`[InsiderFeed] Holder discovery: ${holderWallets.size} new wallets from holders`)
+
+    // For each new wallet (capped), fetch trades and compute ROI
+    const holdersToCheck = [...holderWallets].slice(0, HOLDER_DISCOVERY_MAX_NEW_WALLETS)
+
+    for (let i = 0; i < holdersToCheck.length; i += REVERSE_WALLET_CONCURRENCY) {
+      const batch = holdersToCheck.slice(i, i + REVERSE_WALLET_CONCURRENCY)
+      const results = await Promise.all(
+        batch.map(async (wallet) => {
+          const url = new URL(TRADES_URL)
+          url.searchParams.set('user', wallet)
+          url.searchParams.set('limit', String(TRADES_PER_WALLET))
+          const raw = await fetchJson(url.toString())
+          const trades = Array.isArray(raw) ? (raw as TradeEntry[]) : []
+
+          let totalBuys = 0
+          let totalBuyNotional = 0
+          let totalSellNotional = 0
+          for (const t of trades) {
+            const size = parseNum(t.size)
+            const price = parseNum(t.price)
+            if (!size || !price || size <= 0 || price <= 0) continue
+            if (t.side === 'BUY') {
+              totalBuys++
+              totalBuyNotional += size * price
+            } else if (t.side === 'SELL') {
+              totalSellNotional += size * price
+            }
+          }
+
+          const vol = totalBuyNotional
+          const pnl = totalSellNotional - totalBuyNotional
+          const roi = vol > 0 ? pnl / vol : 0
+
+          return { wallet, trades, totalBuys, totalBuyNotional, vol, roi }
+        })
+      )
+
+      for (const r of results) {
+        if (
+          !Number.isFinite(r.roi) ||
+          r.roi < MIN_ROI ||
+          r.roi > MAX_ROI ||
+          r.vol < MIN_VOLUME
+        ) continue
+
+        qualifiedWallets.set(r.wallet, {
+          roi: r.roi,
+          vol: r.vol,
+          pseudonym: null,
+          profileImageUrl: null,
+        })
+        holderTradeResults.push({
+          wallet: r.wallet,
+          trades: r.trades,
+          totalBuys: r.totalBuys,
+          totalBuyNotional: r.totalBuyNotional,
+        })
+        holderDiscoveredCount++
+      }
+    }
+
+    console.log(`[InsiderFeed] Holder discovery: ${holderDiscoveredCount} wallets qualified`)
+  } catch (error) {
+    console.warn('[InsiderFeed] Holder discovery failed:', error)
+  }
+
   // ── Step 2: Per-wallet trade fetching ───────────────────────────────────────
   // Sort wallets by ROI descending, take top N, fetch each wallet's trades directly.
 
@@ -588,8 +723,9 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     totalBuyNotional: number
   }
 
-  // Skip wallets already fetched during reverse discovery
-  const reverseWalletSet = new Set(reverseTradeResults.map(r => r.wallet))
+  // Skip wallets already fetched during reverse/holder discovery
+  const alreadyFetched = [...reverseTradeResults, ...holderTradeResults]
+  const reverseWalletSet = new Set(alreadyFetched.map(r => r.wallet))
 
   async function fetchWalletTrades(wallet: string): Promise<WalletTradeResult> {
     const url = new URL(TRADES_URL)
@@ -615,8 +751,8 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     return { wallet, trades, totalBuys, totalBuyNotional }
   }
 
-  // Start with reverse-discovered wallet results (already fetched)
-  const walletResults: WalletTradeResult[] = [...reverseTradeResults]
+  // Start with reverse + holder discovered wallet results (already fetched)
+  const walletResults: WalletTradeResult[] = [...alreadyFetched]
 
   // Only fetch wallets not already fetched via reverse discovery
   const walletsToFetch = sortedWallets.filter(([w]) => !reverseWalletSet.has(w))
@@ -808,5 +944,6 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     removedCompleted: removedCount,
     betsCached:       scored.length,
     reverseDiscovered: reverseDiscoveredCount,
+    holderDiscovered: holderDiscoveredCount,
   }
 }

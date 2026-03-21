@@ -540,7 +540,7 @@ export default function InsiderClient() {
     try {
       // Use a consistent 3-day window so bets visible in "All" also appear
       // in sport-specific tabs (NCAAB and other low-liquidity sports need this).
-      const params = new URLSearchParams({ limit: '100', daysBack: '3' })
+      const params = new URLSearchParams({ limit: '200', daysBack: '-1' })
       if (sport !== 'ALL') params.set('sport', sport)
 
       const res  = await fetch(`/api/polymarket/insider?${params}`)

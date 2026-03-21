@@ -44,7 +44,7 @@ const MIN_PROFIT_FACTOR = 1.1
 const MIN_STAKE_USD = 10
 const MIN_ENTRY_PRICE = 0.04
 const MAX_ENTRY_PRICE = 0.92
-export const MIN_INSIDER_SCORE = 15
+export const MIN_INSIDER_SCORE = 70
 
 // ── Scoring ───────────────────────────────────────────────────────────────────
 //
@@ -56,11 +56,12 @@ export const MIN_INSIDER_SCORE = 15
 //   Consensus  (50%) — multiple profitable wallets on the same side
 //
 // Conviction (bet size) is a small bonus on top, never penalizes.
+// Output is scaled to 70-99 range for display.
 //
-// Examples (threshold = 15):
-//   100 trades, solo,    0.8× size → 5 + 10 + 1 = 16  ✓ (normal bet passes)
-//   500 trades, solo,    1× size   → 25 + 10 + 2 = 37  ✓
-//   500 trades, 3 walls, 2× size   → 25 + 43 + 10 = 78 ✓ (consensus tops)
+// Examples:
+//   100 trades, solo,    0.8× size → 72  ✓ (normal bet passes)
+//   500 trades, solo,    1× size   → 80  ✓
+//   500 trades, 3 walls, 2× size   → 93  ✓ (consensus tops)
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v))
@@ -88,10 +89,11 @@ export function computeInsiderScore(
   // Normal (1×) or below → 0 bonus. 3×+ → +10.
   const convictionBonus = sizeRatio > 1 ? clamp(((sizeRatio - 1) / 2) * 10, 0, 10) : 0
 
-  // ── Combined score ────────────────────────────────────────────────────────
-  const minThreshold = 15
+  // ── Combined → scale to 70-99 range ─────────────────────────────────────
+  const minThreshold = 70
   const raw    = experienceRaw * 0.50 + consensusRaw * 0.50 + convictionBonus
-  const score  = Math.floor(clamp(raw, 0, 99))
+  // raw is 0-110 → map to 70-99
+  const score  = 70 + Math.floor(clamp(raw / 110, 0, 1) * 29)
 
   return { score, sizeRatio: Math.round(sizeRatio * 10) / 10, minThreshold }
 }

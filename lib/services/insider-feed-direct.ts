@@ -672,20 +672,21 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
   console.log(`[InsiderFeed] Open sport positions found: ${allPositions.length}`)
 
-  // ── Step 3.5: Pre-filter stale positions by slug date ────────────────────
+  // ── Step 3.5: Pre-filter obviously stale positions by slug date ──────────
   // Polymarket settlements don't generate SELL trades, so wallets carry
-  // phantom "open" positions for games that ended days/weeks ago.
-  // Drop any position whose slug date is before yesterday.
-  const yesterday = new Date()
-  yesterday.setDate(yesterday.getDate() - 1)
-  const cutoffDate = yesterday.toISOString().slice(0, 10) // YYYY-MM-DD
+  // phantom "open" positions for games that ended weeks/months ago.
+  // Use a 7-day window to cheaply remove ancient positions before the
+  // more expensive Gamma API + ESPN checks in Steps 4/4.5.
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - 7)
+  const cutoffStr = cutoffDate.toISOString().slice(0, 10) // YYYY-MM-DD
 
   const freshPositions = allPositions.filter((p) => {
     const slugDate = extractDateFromSlug(p.slug)
     // No date in slug → keep (can't determine age)
     if (!slugDate) return true
-    // Slug date >= yesterday → keep
-    return slugDate >= cutoffDate
+    // Slug date within last 7 days or future → keep
+    return slugDate >= cutoffStr
   })
   console.log(`[InsiderFeed] After slug-date filter: ${freshPositions.length} (removed ${allPositions.length - freshPositions.length} stale)`)
 

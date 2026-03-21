@@ -238,7 +238,7 @@ export function PricingPageClient() {
       label:
         isLoading
           ? "Processing..."
-          : billingPeriod === "annual" && !membership?.hasUsedTrial
+          : !membership?.hasUsedTrial
             ? "Start your free trial"
             : "Start subscription",
       disabled: isLoading,
@@ -248,7 +248,7 @@ export function PricingPageClient() {
 
   const mobileAction = buildMobileAction()
   const isEligibleForTrial = !membership?.isActive && !membership?.hasUsedTrial
-  const hasAnnualTrial = isEligibleForTrial && billingPeriod === "annual"
+  const hasTrial = isEligibleForTrial
 
   return (
     <main className="relative min-h-screen bg-black text-white">
@@ -274,21 +274,21 @@ export function PricingPageClient() {
           <div className="mx-auto w-full max-w-md px-5 pb-40 pt-20">
             <div className="space-y-2 text-center">
               <h1 className="text-3xl font-semibold tracking-tight text-white">
-                {hasAnnualTrial ? "Start with annual and get 3 days free." : "Choose the plan that fits your workflow."}
+                {hasTrial ? "All plans include a 3-day free trial." : "Choose the plan that fits your workflow."}
               </h1>
               <p className="text-sm text-white/65">
-                {hasAnnualTrial
-                  ? "Annual subscriptions start with a free trial. Weekly and monthly plans bill immediately."
-                  : "Weekly and monthly plans bill today. Cancel anytime from billing."}
+                {hasTrial
+                  ? "Try any plan free for 3 days. Cancel anytime before your trial ends."
+                  : "Cancel anytime from billing."}
               </p>
             </div>
 
             <div className="mt-6 rounded-full border border-emerald-300/30 bg-emerald-500/10 p-1.5 backdrop-blur">
               {(
                 [
-                  { label: "Weekly", value: "weekly" as const, badge: null },
-                  { label: "Monthly", value: "monthly" as const, badge: null },
-                  { label: "Annually", value: "annual" as const, badge: "Free Trial" },
+                  { label: "Weekly", value: "weekly" as const },
+                  { label: "Monthly", value: "monthly" as const },
+                  { label: "Annually", value: "annual" as const },
                 ] as const
               ).map((period) => {
                 const isSelected = billingPeriod === period.value
@@ -304,11 +304,6 @@ export function PricingPageClient() {
                         : "text-white/70 hover:text-white"
                     )}
                   >
-                    {period.badge ? (
-                      <span className="absolute -top-2 right-2 rounded-full bg-emerald-400 px-2 py-0.5 text-[9px] font-bold text-slate-900 shadow">
-                        {period.badge}
-                      </span>
-                    ) : null}
                     {period.label}
                   </button>
                 )
@@ -337,7 +332,7 @@ export function PricingPageClient() {
                         : "border-white/10"
                     )}
                   >
-                    {hasAnnualTrial && isSelected ? (
+                    {hasTrial ? (
                       <span className="absolute -top-3 right-4 rounded-full bg-emerald-400 px-3 py-1 text-[10px] font-bold text-slate-900 shadow">
                         3-Day Free Trial
                       </span>
@@ -391,7 +386,7 @@ export function PricingPageClient() {
               </div>
             ) : null}
 
-            {hasAnnualTrial ? (
+            {hasTrial ? (
               <div className="mt-6 rounded-3xl border border-emerald-300/20 bg-white/[0.03] p-5">
                 <div className="flex gap-4">
                   <div className="flex flex-col items-center">
@@ -469,9 +464,9 @@ export function PricingPageClient() {
 
                 {!membership?.isActive ? (
                   <div className="mt-3 text-center text-xs text-white/60">
-                    {hasAnnualTrial
+                    {hasTrial
                       ? "No payment due now • Cancel anytime • We’ll remind you before your trial ends"
-                      : "Billed today • Cancel anytime from billing"}
+                      : "Cancel anytime from billing"}
                   </div>
                 ) : null}
               </div>
@@ -485,12 +480,12 @@ export function PricingPageClient() {
             {/* Header */}
             <div className="space-y-2 text-center">
               <h1 className="text-4xl font-semibold tracking-tight text-white">
-                {isEligibleForTrial ? "3 days free, then choose your plan." : "Choose the plan that fits your workflow."}
+                {isEligibleForTrial ? "All plans include a 3-day free trial." : "Choose the plan that fits your workflow."}
               </h1>
               <p className="text-sm text-white/55">
                 {isEligibleForTrial
-                  ? "Annual subscriptions start with a free trial. Weekly and monthly plans bill immediately."
-                  : "Weekly and monthly plans bill today. Cancel anytime from billing."}
+                  ? "Try any plan free for 3 days. Cancel anytime before your trial ends."
+                  : "Cancel anytime from billing."}
               </p>
             </div>
 
@@ -499,9 +494,9 @@ export function PricingPageClient() {
               <div className="inline-flex rounded-full border border-emerald-300/25 bg-emerald-500/[0.07] p-1.5 backdrop-blur">
                 {(
                   [
-                    { label: "Weekly", value: "weekly" as const, badge: null },
-                    { label: "Monthly", value: "monthly" as const, badge: null },
-                    { label: "Annually", value: "annual" as const, badge: "Free Trial" },
+                    { label: "Weekly", value: "weekly" as const },
+                    { label: "Monthly", value: "monthly" as const },
+                    { label: "Annually", value: "annual" as const },
                   ] as const
                 ).map((period) => {
                   const isSelected = billingPeriod === period.value
@@ -515,11 +510,6 @@ export function PricingPageClient() {
                         isSelected ? "bg-white text-black shadow" : "text-white/65 hover:text-white"
                       )}
                     >
-                      {period.badge ? (
-                        <span className="absolute -top-2.5 right-2 rounded-full bg-emerald-400 px-2 py-0.5 text-[9px] font-bold text-slate-900 shadow">
-                          {period.badge}
-                        </span>
-                      ) : null}
                       {period.label}
                     </button>
                   )
@@ -544,7 +534,7 @@ export function PricingPageClient() {
                   membership.tier &&
                   tierRank[tier.tierKey as TierKey] > tierRank[membership.tier as "free" | TierKey]
 
-                let btnLabel = billingPeriod === "annual" && isEligibleForTrial
+                let btnLabel = isEligibleForTrial
                   ? "Start 3-day free trial"
                   : "Start subscription"
                 let btnAction = () => planKey && handleCheckout(planKey)
@@ -576,7 +566,7 @@ export function PricingPageClient() {
                         {tier.badge}
                       </span>
                     ) : null}
-                    {hasAnnualTrial && isHighlight ? (
+                    {hasTrial ? (
                       <span className="absolute -top-3 right-8 rounded-full bg-white/10 border border-white/20 px-4 py-1 text-[11px] font-semibold text-white/80">
                         3-Day Free Trial
                       </span>
@@ -668,7 +658,7 @@ export function PricingPageClient() {
             </div>
 
             {/* Trial timeline */}
-            {hasAnnualTrial ? (
+            {hasTrial ? (
               <div className="mt-8 rounded-3xl border border-emerald-300/15 bg-white/[0.02] p-6">
                 <div className="text-xs font-semibold uppercase tracking-widest text-white/35 mb-4">Trial timeline</div>
                 <div className="flex items-start gap-8">

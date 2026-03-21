@@ -250,15 +250,11 @@ function MobileCheckoutLayout({
               Get access to the sharp money
             </h1>
             <p className="mt-3 text-lg font-medium text-white/82">
-              {selectedPlan?.billing === 'annual'
-                ? 'Become an insider with a 3-day free trial.'
-                : 'Become an insider today.'}
+              Become an insider with a 3-day free trial.
             </p>
             {selectedPlan ? (
               <p className="mt-1 text-sm text-white/55">
-                {selectedPlan.billing === 'annual'
-                  ? `Then just ${formatDailyPrice(selectedPlan.daily)}, billed annually.`
-                  : `Just ${formatDailyPrice(selectedPlan.daily)}.`}
+                Then just {formatDailyPrice(selectedPlan.daily)}, billed {selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}.
               </p>
             ) : null}
           </div>
@@ -432,10 +428,8 @@ function DesktopCheckoutLayout({
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Get access to the sharp money</h1>
           <p className="mt-3 text-lg text-white/60">
             {selectedPlan
-              ? selectedPlan.billing === 'annual'
-                ? `Annual plans include a 3-day free trial, then ${formatDailyPrice(selectedPlan.daily)} billed annually.`
-                : `Plans start immediately at ${formatDailyPrice(selectedPlan.daily)}.`
-              : 'Annual plans include a 3-day free trial.'}
+              ? `All plans include a 3-day free trial, then ${formatDailyPrice(selectedPlan.daily)} billed ${selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}.`
+              : 'All plans include a 3-day free trial.'}
           </p>
         </div>
 
@@ -534,11 +528,7 @@ function DesktopCheckoutLayout({
             <div className="space-y-3 text-sm text-white/50">
               <div className="flex items-center gap-2">
                 <CheckIcon className="h-4 w-4 text-emerald-400" />
-                <span>3-day free trial on annual plans only</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckIcon className="h-4 w-4 text-emerald-400" />
-                <span>Weekly and monthly plans start immediately</span>
+                <span>3-day free trial on all plans</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckIcon className="h-4 w-4 text-emerald-400" />

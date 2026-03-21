@@ -134,7 +134,7 @@ export function PricingSection({
   const [billingPeriod, setBillingPeriod] = useState<'weekly' | 'monthly' | 'annual'>('annual')
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const [membership, setMembership] = useState<MembershipInfo | null>(null)
-  const hasAnnualTrial = !membership?.isActive && !membership?.hasUsedTrial && billingPeriod === 'annual'
+  const hasTrial = !membership?.isActive && !membership?.hasUsedTrial
 
   useEffect(() => {
     const fetchMembership = async () => {
@@ -199,15 +199,15 @@ export function PricingSection({
         <div className="flex flex-col items-center gap-1.5 mb-2 text-center md:mb-4">
           {showTrialHeading && (
             <h2 className="text-xl font-bold text-white md:text-2xl">
-              {hasAnnualTrial ? "Try Delta Sports free for 3 days." : "Choose the plan that fits your workflow."}
+              {hasTrial ? "All plans include a 3-day free trial." : "Choose the plan that fits your workflow."}
             </h2>
           )}
           <div className="inline-flex items-center p-0.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 backdrop-blur">
             {(
               [
-                { label: "Weekly", value: "weekly" as const, badge: null },
-                { label: "Monthly", value: "monthly" as const, badge: null },
-                { label: "Annually", value: "annual" as const, badge: "Free Trial" },
+                { label: "Weekly", value: "weekly" as const },
+                { label: "Monthly", value: "monthly" as const },
+                { label: "Annually", value: "annual" as const },
               ] as const
             ).map((period) => (
               <button
@@ -220,18 +220,13 @@ export function PricingSection({
                     : "text-slate-200/70 hover:text-white",
                 )}
               >
-                {period.badge ? (
-                  <span className="absolute -top-2 right-2 rounded-full bg-emerald-400 px-2 py-0.5 text-[9px] font-bold text-slate-900 shadow">
-                    {period.badge}
-                  </span>
-                ) : null}
                 {period.label}
               </button>
             ))}
           </div>
           {showTrialDisclaimer && !membership?.isActive && (
             <p className="mt-2 text-xs text-white/60">
-              {hasAnnualTrial
+              {hasTrial
                 ? "No payment due now • Cancel anytime • We’ll remind you before your trial ends"
                 : "Billed today • Cancel anytime from billing"}
             </p>
@@ -350,7 +345,7 @@ export function PricingSection({
                     </>
                   ) : (
                     <>
-                      {hasAnnualTrial ? "Start your free trial" : "Start subscription"}
+                      {hasTrial ? "Start your free trial" : "Start subscription"}
                       <ArrowRightIcon className="w-4 h-4" />
                     </>
                   )}
@@ -438,7 +433,7 @@ export function PricingSection({
                               <p className="mt-1.5 text-xs text-slate-200/70">
                                 {tier.description}
                               </p>
-                      {hasAnnualTrial && tier.highlight && (
+                      {hasTrial && (
                         <div className="mt-2 inline-flex">
                           <Badge className={cn(badgeStyles, "bg-emerald-400")}>3-Day Free Trial</Badge>
                         </div>
@@ -481,7 +476,7 @@ export function PricingSection({
                   {actionButton}
                   {!membership?.isActive && (
                     <div className="mt-2 text-center text-xs text-white/60">
-                      {hasAnnualTrial ? "No payment due now • Cancel anytime" : "Billed today • Cancel anytime"}
+                      {hasTrial ? "No payment due now • Cancel anytime" : "Billed today • Cancel anytime"}
                     </div>
                   )}
                   {!membership?.isActive && membership?.hasUsedTrial && (
@@ -495,7 +490,7 @@ export function PricingSection({
           })}
         </div>
 
-        {showTrialTimeline && hasAnnualTrial && (
+        {showTrialTimeline && hasTrial && (
           <div className="mx-auto mt-4 w-full max-w-md rounded-3xl border border-emerald-300/20 bg-white/[0.03] p-4 text-left">
             <div className="flex gap-4">
               <div className="flex flex-col items-center">

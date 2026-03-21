@@ -5,7 +5,7 @@ import { Suspense } from "react"
 export const metadata: Metadata = {
   title: 'Pricing | Delta Sports – Sharp Money Tools from $24.99/wk',
   description:
-    'Delta Sports plans start at $24.99/week. Get exchange orderbook reads, whale bet tracking, sharp money signals, and AI market projections. 3-day free annual trial.',
+    'Delta Sports plans start at $24.99/week. Get exchange orderbook reads, whale bet tracking, sharp money signals, and AI market projections. 3-day free trial on all plans.',
   alternates: {
     canonical: 'https://deltasports.app/pricing',
   },

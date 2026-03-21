@@ -44,21 +44,23 @@ const MIN_PROFIT_FACTOR = 1.1
 const MIN_STAKE_USD = 10
 const MIN_ENTRY_PRICE = 0.04
 const MAX_ENTRY_PRICE = 0.92
-export const MIN_INSIDER_SCORE = 20
+export const MIN_INSIDER_SCORE = 15
 
 // ── Scoring ───────────────────────────────────────────────────────────────────
 //
 // ROI >= 3% is a hard prerequisite (enforced by MIN_ROI in wallet qualification).
-// Score is based on three equally-weighted signals:
+// Every bet from a qualified wallet is a profitable bettor's pick — score is
+// purely for RANKING, not gatekeeping. Two main signals:
 //
-//   1. Conviction — how oversized is this bet vs the wallet's average?
-//   2. Consensus  — how many insiders are on this same side?
-//   3. Experience — how many trades has this wallet made?
+//   Experience (50%) — more trades = ROI is statistically real
+//   Consensus  (50%) — multiple profitable wallets on the same side
 //
-// Examples (threshold = 20):
-//   1.5× size, solo, 100 trades  → 13 + 0 + 7  = 20 ✓ (barely passes)
-//   2× size,   solo, 500 trades  → 20 + 0 + 17 = 37 ✓
-//   2× size,   3 wal, 500 trades → 20 + 33 + 17 = 70 ✓ (strong signal)
+// Conviction (bet size) is a small bonus on top, never penalizes.
+//
+// Examples (threshold = 15):
+//   100 trades, solo,    0.8× size → 5 + 10 + 1 = 16  ✓ (normal bet passes)
+//   500 trades, solo,    1× size   → 25 + 10 + 2 = 37  ✓
+//   500 trades, 3 walls, 2× size   → 25 + 43 + 10 = 78 ✓ (consensus tops)
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v))
@@ -74,21 +76,21 @@ export function computeInsiderScore(
   const sizeRatio = avgBetSize > 0 ? stakeUsd / avgBetSize : 1
   const trades = buyTradeCount ?? 0
 
-  // ── 1. Conviction (size ratio) — 33% ─────────────────────────────────────
-  // 0.5× → 0, 3× → 100
-  const convictionRaw = clamp((sizeRatio - 0.5) / 2.5, 0, 1) * 100
+  // ── 1. Experience (trade count) — 50% ───────────────────────────────────
+  // 0 → 0, 1000 → 100. Proves ROI isn't luck.
+  const experienceRaw = clamp(trades / 1000, 0, 1) * 100
 
-  // ── 2. Consensus (insiders on same side) — 33% ───────────────────────────
-  // 1 → 0, 2 → 33, 3 → 67, 4+ → 100
-  const consensusRaw = clamp((consensus - 1) / 3, 0, 1) * 100
+  // ── 2. Consensus (insiders on same side) — 50% ─────────────────────────
+  // Solo → 20 (baseline — still a profitable bettor's pick), 4+ → 100
+  const consensusRaw = clamp(20 + ((consensus - 1) / 3) * 80, 0, 100)
 
-  // ── 3. Experience (buy trade count) — 33% ────────────────────────────────
-  // 50 → 0, 1500 → 100
-  const experienceRaw = clamp((trades - 50) / 1450, 0, 1) * 100
+  // ── 3. Conviction bonus — up to +10 points (never subtracts) ───────────
+  // Normal (1×) or below → 0 bonus. 3×+ → +10.
+  const convictionBonus = sizeRatio > 1 ? clamp(((sizeRatio - 1) / 2) * 10, 0, 10) : 0
 
   // ── Combined score ────────────────────────────────────────────────────────
-  const minThreshold = 20
-  const raw    = convictionRaw * 0.34 + consensusRaw * 0.33 + experienceRaw * 0.33
+  const minThreshold = 15
+  const raw    = experienceRaw * 0.50 + consensusRaw * 0.50 + convictionBonus
   const score  = Math.floor(clamp(raw, 0, 99))
 
   return { score, sizeRatio: Math.round(sizeRatio * 10) / 10, minThreshold }

@@ -567,7 +567,7 @@ export default function InsiderClient() {
 
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
-    intervalRef.current = setInterval(() => fetchBets(true), 5 * 60 * 1000)
+    intervalRef.current = setInterval(() => fetchBets(true), 15 * 60 * 1000)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [fetchBets])
 

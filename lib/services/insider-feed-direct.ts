@@ -928,12 +928,30 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
   const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) // YYYY-MM-DD
 
   // Clean up bets from previous days (midnight rollover)
-  const { count: purgedCount } = await (supabase as any)
+  const { error: purgeErr } = await (supabase as any)
     .from('insider_feed_cache')
     .delete()
     .lt('cached_date', todayET)
+  if (purgeErr) console.warn('[InsiderFeed] Purge failed:', purgeErr)
+
+  // Check how many bets exist for today already
+  const { count: existingCount } = await (supabase as any)
+    .from('insider_feed_cache')
     .select('*', { count: 'exact', head: true })
-  if (purgedCount) console.log(`[InsiderFeed] Purged ${purgedCount} bets from previous days`)
+    .eq('cached_date', todayET)
+  const existing = existingCount ?? 0
+
+  // If the cache has fewer bets than this refresh produced, do a full
+  // replace — this handles first-run-of-day and recovery from bad state.
+  // Otherwise, additive insert only (preserving scores).
+  const shouldReplace = scored.length > existing
+  if (shouldReplace && existing > 0) {
+    console.log(`[InsiderFeed] Full replace: ${scored.length} new > ${existing} existing`)
+    await (supabase as any)
+      .from('insider_feed_cache')
+      .delete()
+      .eq('cached_date', todayET)
+  }
 
   // Stamp each new bet with today's date
   for (const row of scored) {
@@ -941,11 +959,20 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
   }
 
   if (scored.length > 0) {
-    // Insert only — ignoreDuplicates keeps existing rows (preserving original score)
-    const { error } = await (supabase as any)
-      .from('insider_feed_cache')
-      .upsert(scored, { onConflict: 'wallet,slug,outcome', ignoreDuplicates: true })
-    if (error) console.error('[InsiderFeed] Cache insert failed:', error)
+    if (shouldReplace) {
+      // Full insert
+      const { error } = await (supabase as any)
+        .from('insider_feed_cache')
+        .insert(scored)
+      if (error) console.error('[InsiderFeed] Cache insert failed:', error)
+    } else {
+      // Additive — ignoreDuplicates preserves existing rows (scores stay locked)
+      const { error } = await (supabase as any)
+        .from('insider_feed_cache')
+        .upsert(scored, { onConflict: 'wallet,slug,outcome', ignoreDuplicates: true })
+      if (error) console.error('[InsiderFeed] Cache upsert failed:', error)
+    }
+    console.log(`[InsiderFeed] Wrote ${scored.length} bets (${shouldReplace ? 'full replace' : 'additive'})`)
   }
 
   // Count how many are now in cache for today

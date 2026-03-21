@@ -38,22 +38,21 @@ function buildStrategies(): LeaderboardStrategy[] {
 }
 
 const LEADERBOARD_STRATEGIES = buildStrategies()
-const LEADERBOARD_CONCURRENCY = 10  // bump concurrency for faster crawl
+const LEADERBOARD_CONCURRENCY = 10
 
-// Per-wallet trade fetching — no cap, fetch ALL qualified wallets
-const MIN_BUY_TRADES = 500  // wallet must have 500+ buy trades to be included
-const TRADES_PER_WALLET    = 800  // trades to fetch per wallet
+const TRADES_PER_WALLET    = 800
 const WALLET_FETCH_CONCURRENCY = 10
 
 const MIN_ROI            = 0.03
 const MAX_ROI            = 0.25
-const MIN_VOLUME         = 15_000  // lower bar to catch more NCAAB bettors
+const MIN_VOLUME         = 15_000
 const MIN_NET_SHARES     = 1
-const MIN_STAKE_USD      = 10
 const FETCH_TIMEOUT_MS   = 15_000
 
 const GAMMA_API       = 'https://gamma-api.polymarket.com'
 const MARKET_FETCH_CONCURRENCY = 10
+
+const POSITION_BATCH_SIZE = 200
 
 const SPORT_PREFIXES = [
   // North American leagues
@@ -176,14 +175,9 @@ async function fetchCurrentPrices(slugs: string[]): Promise<FetchPricesResult> {
       batch.map(async (slug) => {
         const url = `${GAMMA_API}/markets?slug=${encodeURIComponent(slug)}&limit=1`
         const raw = await fetchJson(url) as any[] | null
-        // If Gamma returns nothing, treat as settled — a real upcoming
-        // market always has data. This prevents stale positions leaking
-        // through on transient API failures.
         if (!Array.isArray(raw) || raw.length === 0) return { slug, map: null, settled: true }
         const market = raw[0]
 
-        // Detect settled/closed markets (acceptingOrders=false catches
-        // markets where the game ended but Polymarket hasn't settled yet)
         const isSettled = market.closed === true || market.active === false || market.acceptingOrders === false
         if (isSettled) return { slug, map: null, settled: true }
 
@@ -228,17 +222,6 @@ function parseOutcomePrices(raw: unknown): number[] {
   return []
 }
 
-// ── Slug helpers ─────────────────────────────────────────────────────────────
-
-/**
- * Extract a YYYY-MM-DD date from a Polymarket slug if present.
- * Slugs look like "nba-nets-knicks-2026-03-20" or "nhl-ana-utah-2026-03-20".
- */
-function extractDateFromSlug(slug: string): string | null {
-  const m = slug.match(/(\d{4}-\d{2}-\d{2})/)
-  return m ? m[1] : null
-}
-
 // ── Position computation from trade list ──────────────────────────────────────
 
 type PositionState = {
@@ -270,7 +253,6 @@ function applyTrade(positions: Map<string, PositionState>, trade: TradeEntry) {
     positions.set(key, pos)
   }
 
-  // Capture eventSlug from any trade that provides it
   if (!pos.eventSlug && trade.eventSlug) pos.eventSlug = trade.eventSlug
 
   if (trade.side === 'BUY') {
@@ -291,7 +273,29 @@ function applyTrade(positions: Map<string, PositionState>, trade: TradeEntry) {
   }
 }
 
-// ── Main pipeline ──────────────────────────────────────────────────────────────
+// ── Shared types ────────────────────────────────────────────────────────────
+
+type WalletMeta = {
+  roi: number; vol: number
+  pseudonym: string | null; profileImageUrl: string | null
+  buyTradeCount: number; avgBetSize: number
+  discoverySource: string
+}
+
+type WalletTradeResult = {
+  wallet: string
+  trades: TradeEntry[]
+  totalBuys: number
+  totalBuyNotional: number
+}
+
+type RawPosition = {
+  wallet: string; slug: string; eventSlug: string | null; title: string; outcome: string;
+  sportLabel: string | null; avgEntryPrice: number; shares: number;
+  stakeUsd: number; potentialPayoutUsd: number;
+  firstTradeTime: string | null; lastTradeTime: string | null;
+  buyCount: number;
+}
 
 export type InsiderFeedRefreshResult = {
   walletsScanned:    number
@@ -309,14 +313,57 @@ const HOLDER_DISCOVERY_MARKETS_PER_SPORT = 20
 const HOLDER_DISCOVERY_CONCURRENCY = 10
 const HOLDER_DISCOVERY_MAX_NEW_WALLETS = 150
 
-export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResult> {
-  // ── Step 1: Multi-strategy leaderboard discovery ────────────────────────────
+// ── Helper: compute wallet stats from trades ─────────────────────────────────
 
-  type WalletMeta = {
-    roi: number; vol: number
-    pseudonym: string | null; profileImageUrl: string | null
+function computeWalletStats(trades: TradeEntry[]): { totalBuys: number; totalBuyNotional: number; totalSellNotional: number } {
+  let totalBuys = 0
+  let totalBuyNotional = 0
+  let totalSellNotional = 0
+  for (const t of trades) {
+    const size = parseNum(t.size)
+    const price = parseNum(t.price)
+    if (!size || !price || size <= 0 || price <= 0) continue
+    if (t.side === 'BUY') {
+      totalBuys++
+      totalBuyNotional += size * price
+    } else if (t.side === 'SELL') {
+      totalSellNotional += size * price
+    }
   }
+  return { totalBuys, totalBuyNotional, totalSellNotional }
+}
+
+// ── Helper: fetch trades for a wallet ────────────────────────────────────────
+
+async function fetchWalletTrades(wallet: string): Promise<WalletTradeResult> {
+  const url = new URL(TRADES_URL)
+  url.searchParams.set('user', wallet)
+  url.searchParams.set('limit', String(TRADES_PER_WALLET))
+
+  const raw = await fetchJson(url.toString())
+  const trades = Array.isArray(raw) ? (raw as TradeEntry[]) : []
+
+  const { totalBuys, totalBuyNotional } = computeWalletStats(trades)
+  return { wallet, trades, totalBuys, totalBuyNotional }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 2a. discoverInsiderWallets() — Wallet Discovery (additive to DB)
+// ══════════════════════════════════════════════════════════════════════════════
+
+type DiscoveryResult = {
+  walletsScanned: number
+  reverseDiscovered: number
+  holderDiscovered: number
+}
+
+export async function discoverInsiderWallets(): Promise<DiscoveryResult> {
+  const supabase = createServiceClient()
+
+  // In-memory map used during discovery to deduplicate and compute best ROI
   const qualifiedWallets = new Map<string, WalletMeta>()
+
+  // ── Step 1: Multi-strategy leaderboard discovery ────────────────────────────
 
   const processLeaderboardPage = (rows: LeaderboardEntry[]) => {
     for (const row of rows) {
@@ -336,6 +383,9 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
         vol,
         pseudonym:       typeof row.userName     === 'string' ? row.userName     : null,
         profileImageUrl: typeof row.profileImage === 'string' ? row.profileImage : null,
+        buyTradeCount: 0,
+        avgBetSize: 0,
+        discoverySource: 'leaderboard',
       })
     }
   }
@@ -371,18 +421,10 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
   if (qualifiedWallets.size === 0) {
     console.error('[InsiderFeed] No qualified wallets from any leaderboard strategy')
-    return { walletsScanned: 0, walletsWithBets: 0, positionsFound: 0, removedCompleted: 0, betsCached: 0, reverseDiscovered: 0, holderDiscovered: 0 }
+    return { walletsScanned: 0, reverseDiscovered: 0, holderDiscovered: 0 }
   }
 
   // ── Step 1.5: Reverse discovery via recent sport trades ──────────────────
-  // Catches sport-specialist wallets the PNL leaderboard misses
-
-  type ReverseWalletResult = {
-    wallet: string
-    trades: TradeEntry[]
-    totalBuys: number
-    totalBuyNotional: number
-  }
 
   const REVERSE_DISCOVERY_PAGES = 3
   const REVERSE_DISCOVERY_LIMIT = 500
@@ -390,10 +432,8 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
   const REVERSE_WALLET_CONCURRENCY = 10
 
   let reverseDiscoveredCount = 0
-  const reverseTradeResults: ReverseWalletResult[] = []
 
   try {
-    // Fetch recent global trades (3 pages of 500)
     const globalTradePages = await Promise.all(
       Array.from({ length: REVERSE_DISCOVERY_PAGES }, (_, page) => {
         const url = new URL(TRADES_URL)
@@ -403,7 +443,6 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       })
     )
 
-    // Filter to sport slugs, extract unique wallet addresses not already known
     const newWalletAddresses = new Set<string>()
     for (const page of globalTradePages) {
       if (!Array.isArray(page)) continue
@@ -418,40 +457,18 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
     console.log(`[InsiderFeed] Reverse discovery: ${newWalletAddresses.size} new sport wallets found`)
 
-    // For each new wallet (cap 100), fetch trades and compute approximate ROI
     const walletsToCheck = [...newWalletAddresses].slice(0, REVERSE_DISCOVERY_MAX_WALLETS)
 
     for (let i = 0; i < walletsToCheck.length; i += REVERSE_WALLET_CONCURRENCY) {
       const batch = walletsToCheck.slice(i, i + REVERSE_WALLET_CONCURRENCY)
       const results = await Promise.all(
         batch.map(async (wallet) => {
-          const url = new URL(TRADES_URL)
-          url.searchParams.set('user', wallet)
-          url.searchParams.set('limit', String(TRADES_PER_WALLET))
-          const raw = await fetchJson(url.toString())
-          const trades = Array.isArray(raw) ? (raw as TradeEntry[]) : []
-
-          let totalBuys = 0
-          let totalBuyNotional = 0
-          let totalSellNotional = 0
-          for (const t of trades) {
-            const size = parseNum(t.size)
-            const price = parseNum(t.price)
-            if (!size || !price || size <= 0 || price <= 0) continue
-            if (t.side === 'BUY') {
-              totalBuys++
-              totalBuyNotional += size * price
-            } else if (t.side === 'SELL') {
-              totalSellNotional += size * price
-            }
-          }
-
-          // Approximate ROI from buy/sell data
-          const vol = totalBuyNotional
-          const pnl = totalSellNotional - totalBuyNotional
+          const result = await fetchWalletTrades(wallet)
+          const { totalSellNotional } = computeWalletStats(result.trades)
+          const vol = result.totalBuyNotional
+          const pnl = totalSellNotional - result.totalBuyNotional
           const roi = vol > 0 ? pnl / vol : 0
-
-          return { wallet, trades, totalBuys, totalBuyNotional, vol, roi }
+          return { ...result, vol, roi }
         })
       )
 
@@ -463,18 +480,14 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
           r.vol < MIN_VOLUME
         ) continue
 
-        // Wallet qualifies — add to qualified pool
         qualifiedWallets.set(r.wallet, {
           roi: r.roi,
           vol: r.vol,
           pseudonym: null,
           profileImageUrl: null,
-        })
-        reverseTradeResults.push({
-          wallet: r.wallet,
-          trades: r.trades,
-          totalBuys: r.totalBuys,
-          totalBuyNotional: r.totalBuyNotional,
+          buyTradeCount: r.totalBuys,
+          avgBetSize: r.totalBuys > 0 ? r.totalBuyNotional / r.totalBuys : 0,
+          discoverySource: 'reverse',
         })
         reverseDiscoveredCount++
       }
@@ -486,18 +499,14 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
   }
 
   // ── Step 1.6: Holder-based discovery for NBA, NCAAB, NHL ─────────────────
-  // Find wallets holding positions in active target-sport markets via Gamma + /holders
 
   let holderDiscoveredCount = 0
-  const holderTradeResults: ReverseWalletResult[] = []
 
   try {
-    // Fetch active markets from Gamma (bulk, filter client-side by prefix)
     const gammaMarketsUrl = `${GAMMA_API}/markets?closed=false&active=true&limit=200&order=volume24hr&ascending=false`
     const gammaRaw = await fetchJson(gammaMarketsUrl) as any[] | null
     const gammaMarkets = Array.isArray(gammaRaw) ? gammaRaw : []
 
-    // Filter to target sport prefixes and collect conditionIds
     const targetMarkets: { slug: string; conditionId: string }[] = []
     for (const m of gammaMarkets) {
       const slug = String(m.slug ?? '')
@@ -506,7 +515,6 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       targetMarkets.push({ slug, conditionId })
     }
 
-    // Cap per sport to avoid over-fetching one sport
     const perSport = new Map<string, number>()
     const cappedMarkets = targetMarkets.filter(m => {
       const prefix = HOLDER_DISCOVERY_PREFIXES.find(p => m.slug.startsWith(p)) ?? ''
@@ -518,7 +526,6 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
     console.log(`[InsiderFeed] Holder discovery: ${cappedMarkets.length} target markets (${[...perSport.entries()].map(([p, c]) => `${p.slice(0,-1)}:${c}`).join(', ')})`)
 
-    // Fetch holders for each market
     const holderWallets = new Set<string>()
     for (let i = 0; i < cappedMarkets.length; i += HOLDER_DISCOVERY_CONCURRENCY) {
       const batch = cappedMarkets.slice(i, i + HOLDER_DISCOVERY_CONCURRENCY)
@@ -527,7 +534,6 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
           const url = `${DATA_API}/holders?market=${encodeURIComponent(conditionId)}&limit=100`
           const raw = await fetchJson(url) as any[] | null
           if (!Array.isArray(raw)) return []
-          // Response is array of { token, holders: [...] }
           const wallets: string[] = []
           for (const group of raw) {
             if (!Array.isArray(group.holders)) continue
@@ -548,39 +554,19 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
     console.log(`[InsiderFeed] Holder discovery: ${holderWallets.size} new wallets from holders`)
 
-    // For each new wallet (capped), fetch trades and compute ROI
     const holdersToCheck = [...holderWallets].slice(0, HOLDER_DISCOVERY_MAX_NEW_WALLETS)
+    const REVERSE_WALLET_CONCURRENCY = 10
 
     for (let i = 0; i < holdersToCheck.length; i += REVERSE_WALLET_CONCURRENCY) {
       const batch = holdersToCheck.slice(i, i + REVERSE_WALLET_CONCURRENCY)
       const results = await Promise.all(
         batch.map(async (wallet) => {
-          const url = new URL(TRADES_URL)
-          url.searchParams.set('user', wallet)
-          url.searchParams.set('limit', String(TRADES_PER_WALLET))
-          const raw = await fetchJson(url.toString())
-          const trades = Array.isArray(raw) ? (raw as TradeEntry[]) : []
-
-          let totalBuys = 0
-          let totalBuyNotional = 0
-          let totalSellNotional = 0
-          for (const t of trades) {
-            const size = parseNum(t.size)
-            const price = parseNum(t.price)
-            if (!size || !price || size <= 0 || price <= 0) continue
-            if (t.side === 'BUY') {
-              totalBuys++
-              totalBuyNotional += size * price
-            } else if (t.side === 'SELL') {
-              totalSellNotional += size * price
-            }
-          }
-
-          const vol = totalBuyNotional
-          const pnl = totalSellNotional - totalBuyNotional
+          const result = await fetchWalletTrades(wallet)
+          const { totalSellNotional } = computeWalletStats(result.trades)
+          const vol = result.totalBuyNotional
+          const pnl = totalSellNotional - result.totalBuyNotional
           const roi = vol > 0 ? pnl / vol : 0
-
-          return { wallet, trades, totalBuys, totalBuyNotional, vol, roi }
+          return { ...result, vol, roi }
         })
       )
 
@@ -597,12 +583,9 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
           vol: r.vol,
           pseudonym: null,
           profileImageUrl: null,
-        })
-        holderTradeResults.push({
-          wallet: r.wallet,
-          trades: r.trades,
-          totalBuys: r.totalBuys,
-          totalBuyNotional: r.totalBuyNotional,
+          buyTradeCount: r.totalBuys,
+          avgBetSize: r.totalBuys > 0 ? r.totalBuyNotional / r.totalBuys : 0,
+          discoverySource: 'holder',
         })
         holderDiscoveredCount++
       }
@@ -613,87 +596,148 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     console.warn('[InsiderFeed] Holder discovery failed:', error)
   }
 
-  // ── Step 2: Per-wallet trade fetching ───────────────────────────────────────
-  // Fetch trades for ALL qualified wallets (no cap). Filter by trade count after.
+  // ── UPSERT all discovered wallets to insider_wallets table ─────────────────
 
-  const sortedWallets = [...qualifiedWallets.entries()]
-    .sort((a, b) => b[1].roi - a[1].roi)
+  const walletRows = [...qualifiedWallets.entries()].map(([wallet, meta]) => ({
+    wallet,
+    pseudonym:         meta.pseudonym,
+    profile_image_url: meta.profileImageUrl,
+    roi_pct:           meta.roi,
+    volume_usd:        meta.vol,
+    buy_trade_count:   meta.buyTradeCount,
+    avg_bet_size:      meta.avgBetSize,
+    discovery_source:  meta.discoverySource,
+  }))
 
-  console.log(`[InsiderFeed] Fetching trades for ${sortedWallets.length} qualified wallets`)
-
-  type WalletTradeResult = {
-    wallet: string
-    trades: TradeEntry[]
-    totalBuys: number
-    totalBuyNotional: number
+  // Batch upsert in chunks (Supabase has payload limits)
+  const UPSERT_CHUNK = 500
+  for (let i = 0; i < walletRows.length; i += UPSERT_CHUNK) {
+    const chunk = walletRows.slice(i, i + UPSERT_CHUNK)
+    const { error } = await (supabase as any)
+      .from('insider_wallets')
+      .upsert(chunk, {
+        onConflict: 'wallet',
+        ignoreDuplicates: false,
+      })
+    if (error) console.error(`[InsiderFeed] Wallet upsert chunk ${i} failed:`, error)
   }
 
-  // Skip wallets already fetched during reverse/holder discovery
-  const alreadyFetched = [...reverseTradeResults, ...holderTradeResults]
-  const reverseWalletSet = new Set(alreadyFetched.map(r => r.wallet))
+  console.log(`[InsiderFeed] Upserted ${walletRows.length} wallets to insider_wallets`)
 
-  async function fetchWalletTrades(wallet: string): Promise<WalletTradeResult> {
-    const url = new URL(TRADES_URL)
-    url.searchParams.set('user', wallet)
-    url.searchParams.set('limit', String(TRADES_PER_WALLET))
+  return {
+    walletsScanned: qualifiedWallets.size,
+    reverseDiscovered: reverseDiscoveredCount,
+    holderDiscovered: holderDiscoveredCount,
+  }
+}
 
-    const raw = await fetchJson(url.toString())
-    const trades = Array.isArray(raw) ? (raw as TradeEntry[]) : []
+// ══════════════════════════════════════════════════════════════════════════════
+// 2b. refreshInsiderPositions() — Position Refresh (batched, round-robin)
+// ══════════════════════════════════════════════════════════════════════════════
 
-    let totalBuys = 0
-    let totalBuyNotional = 0
-    for (const t of trades) {
-      if (t.side === 'BUY') {
-        const size = parseNum(t.size)
-        const price = parseNum(t.price)
-        if (size && price && size > 0 && price > 0) {
-          totalBuys++
-          totalBuyNotional += size * price
-        }
-      }
-    }
+type PositionRefreshResult = {
+  walletsWithBets: number
+  positionsFound:  number
+  removedCompleted: number
+  betsCached:      number
+}
 
-    return { wallet, trades, totalBuys, totalBuyNotional }
+export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH_SIZE): Promise<PositionRefreshResult> {
+  const supabase = createServiceClient()
+
+  // ── Step 1: Read wallet batch from DB (round-robin by last_refreshed_at) ──
+
+  const { data: walletRows, error: walletErr } = await (supabase as any)
+    .from('insider_wallets')
+    .select('wallet, pseudonym, profile_image_url, roi_pct, volume_usd, buy_trade_count, avg_bet_size')
+    .eq('is_active', true)
+    .order('last_refreshed_at', { ascending: true, nullsFirst: true })
+    .limit(batchSize)
+
+  if (walletErr) {
+    console.error('[InsiderFeed] Failed to read wallet batch:', walletErr)
+    return { walletsWithBets: 0, positionsFound: 0, removedCompleted: 0, betsCached: 0 }
   }
 
-  // Start with reverse + holder discovered wallet results (already fetched)
-  const walletResults: WalletTradeResult[] = [...alreadyFetched]
+  if (!walletRows || walletRows.length === 0) {
+    console.log('[InsiderFeed] No active wallets in insider_wallets table')
+    return { walletsWithBets: 0, positionsFound: 0, removedCompleted: 0, betsCached: 0 }
+  }
 
-  // Only fetch wallets not already fetched via reverse discovery
-  const walletsToFetch = sortedWallets.filter(([w]) => !reverseWalletSet.has(w))
-  for (let i = 0; i < walletsToFetch.length; i += WALLET_FETCH_CONCURRENCY) {
-    const batch = walletsToFetch.slice(i, i + WALLET_FETCH_CONCURRENCY)
-    const results = await Promise.all(
-      batch.map(([wallet]) => fetchWalletTrades(wallet))
-    )
+  console.log(`[InsiderFeed] Processing batch of ${walletRows.length} wallets`)
+
+  // Build lookup map
+  const walletMetaMap = new Map<string, {
+    pseudonym: string | null; profileImageUrl: string | null
+    roi: number; vol: number; buyTradeCount: number; avgBetSize: number
+  }>()
+  for (const row of walletRows as any[]) {
+    walletMetaMap.set(row.wallet, {
+      pseudonym:       row.pseudonym ?? null,
+      profileImageUrl: row.profile_image_url ?? null,
+      roi:             row.roi_pct,
+      vol:             row.volume_usd,
+      buyTradeCount:   row.buy_trade_count ?? 0,
+      avgBetSize:      row.avg_bet_size ?? 0,
+    })
+  }
+
+  // ── Step 2: Fetch trades for each wallet ────────────────────────────────────
+
+  const walletAddresses = [...walletMetaMap.keys()]
+  const walletResults: WalletTradeResult[] = []
+
+  for (let i = 0; i < walletAddresses.length; i += WALLET_FETCH_CONCURRENCY) {
+    const batch = walletAddresses.slice(i, i + WALLET_FETCH_CONCURRENCY)
+    const results = await Promise.all(batch.map(fetchWalletTrades))
     walletResults.push(...results)
   }
 
-  // Filter to wallets with enough buy trades to trust the ROI
-  const walletsWithTrades = walletResults.filter(r => r.totalBuys >= MIN_BUY_TRADES)
-  console.log(`[InsiderFeed] Wallets with ${MIN_BUY_TRADES}+ buy trades: ${walletsWithTrades.length}/${walletResults.length}`)
+  // Update buy_trade_count, avg_bet_size, last_refreshed_at on each wallet
+  const now = new Date().toISOString()
+  const walletUpdates = walletResults.map(r => ({
+    wallet:          r.wallet,
+    buy_trade_count: r.totalBuys,
+    avg_bet_size:    r.totalBuys > 0 ? Math.round((r.totalBuyNotional / r.totalBuys) * 100) / 100 : 0,
+    last_refreshed_at: now,
+  }))
 
-  // ── Step 3: Compute open sports positions per wallet ──────────────────────────
-  type RawPosition = {
-    wallet: string; slug: string; eventSlug: string | null; title: string; outcome: string;
-    sportLabel: string | null; avgEntryPrice: number; shares: number;
-    stakeUsd: number; potentialPayoutUsd: number;
-    firstTradeTime: string | null; lastTradeTime: string | null;
-    buyCount: number;
+  // Batch update wallet stats
+  for (let i = 0; i < walletUpdates.length; i += 500) {
+    const chunk = walletUpdates.slice(i, i + 500)
+    const { error } = await (supabase as any)
+      .from('insider_wallets')
+      .upsert(chunk, { onConflict: 'wallet', ignoreDuplicates: false })
+    if (error) console.error(`[InsiderFeed] Wallet stats update chunk ${i} failed:`, error)
   }
-  const allPositions: RawPosition[] = []
 
-  for (const { wallet, trades } of walletsWithTrades) {
+  // Also update the in-memory map with fresh trade stats
+  for (const r of walletResults) {
+    const meta = walletMetaMap.get(r.wallet)
+    if (meta) {
+      meta.buyTradeCount = r.totalBuys
+      meta.avgBetSize = r.totalBuys > 0 ? r.totalBuyNotional / r.totalBuys : 0
+    }
+  }
+
+  // ── Step 3: Compute open sports positions ─────────────────────────────────
+
+  const allPositions: RawPosition[] = []
+  let walletsWithBets = 0
+
+  for (const { wallet, trades } of walletResults) {
     const positions = new Map<string, PositionState>()
     for (const t of trades) applyTrade(positions, t)
 
+    let hasPosition = false
     for (const pos of positions.values()) {
+      // KEPT: MIN_NET_SHARES — confirms actual open position
       if (pos.shares < MIN_NET_SHARES) continue
       const avgEntryPrice = pos.costBasis / pos.shares
       if (!Number.isFinite(avgEntryPrice) || avgEntryPrice <= 0) continue
-      const stakeUsd = pos.costBasis
-      if (stakeUsd < MIN_STAKE_USD) continue
+      // REMOVED: MIN_STAKE_USD filter — let scoring handle it
 
+      hasPosition = true
       allPositions.push({
         wallet,
         slug:               pos.slug,
@@ -703,96 +747,99 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
         sportLabel:         sportLabel(pos.slug),
         avgEntryPrice,
         shares:             pos.shares,
-        stakeUsd,
+        stakeUsd:           pos.costBasis,
         potentialPayoutUsd: pos.shares,
         firstTradeTime:     pos.firstTradeTime,
         lastTradeTime:      pos.lastTradeTime,
         buyCount:           pos.buyCount,
       })
     }
+    if (hasPosition) walletsWithBets++
   }
 
   console.log(`[InsiderFeed] Open sport positions found: ${allPositions.length}`)
 
-  // ── Step 3.5: Pre-filter obviously stale positions by slug date ──────────
-  // Polymarket settlements don't generate SELL trades, so wallets carry
-  // phantom "open" positions for games that ended weeks/months ago.
-  // Use a 7-day window to cheaply remove ancient positions before the
-  // more expensive Gamma API checks in Steps 4/4.5.
-  const cutoffDate = new Date()
-  cutoffDate.setDate(cutoffDate.getDate() - 7)
-  const cutoffStr = cutoffDate.toISOString().slice(0, 10) // YYYY-MM-DD
+  // REMOVED: slug-date 7-day pre-filter — let Gamma settled check handle it
 
-  const freshPositions = allPositions.filter((p) => {
-    const slugDate = extractDateFromSlug(p.slug)
-    // No date in slug → keep (can't determine age)
-    if (!slugDate) return true
-    // Slug date within last 7 days or future → keep
-    return slugDate >= cutoffStr
-  })
-  console.log(`[InsiderFeed] After slug-date filter: ${freshPositions.length} (removed ${allPositions.length - freshPositions.length} stale)`)
+  // ── Step 4: Fetch current market prices (Gamma settled filter — KEPT) ─────
 
-  // ── Step 4: Fetch current market prices ───────────────────────────────────
-  const uniqueSlugs = [...new Set(freshPositions.map(p => p.slug))]
+  const uniqueSlugs = [...new Set(allPositions.map(p => p.slug))]
   console.log(`[InsiderFeed] Fetching current prices for ${uniqueSlugs.length} markets`)
   const { prices: currentPrices, settledSlugs } = await fetchCurrentPrices(uniqueSlugs)
   console.log(`[InsiderFeed] Got prices for ${currentPrices.size} markets, ${settledSlugs.size} settled`)
 
-  // Remove settled markets (Gamma API detected closed/inactive)
-  const activePositions = freshPositions.filter(p => !settledSlugs.has(p.slug))
-  const removedCount = freshPositions.length - activePositions.length
+  // KEPT: Remove settled markets (Gamma API detected closed/inactive)
+  const activePositions = allPositions.filter(p => !settledSlugs.has(p.slug))
+  const removedCount = allPositions.length - activePositions.length
   console.log(`[InsiderFeed] Removed ${removedCount} settled positions`)
 
-  // ── Step 5: Score positions ────────────────────────────────────────────────
-  const runTs  = new Date().toISOString()
-  const scored: Record<string, unknown>[] = []
+  // ── Step 5: Build consensus (batch + existing cache entries) ──────────────
 
-  // Build per-wallet buy stats from fetched trades
-  const walletBuyStatsMap = new Map<string, { totalNotional: number; count: number }>()
-  for (const r of walletResults) {
-    if (r.totalBuys > 0) {
-      walletBuyStatsMap.set(r.wallet, { totalNotional: r.totalBuyNotional, count: r.totalBuys })
-    }
-  }
-
-  // Build consensus map: how many unique wallets hold each slug+outcome?
-  const consensusMap = new Map<string, Set<string>>()
+  // Consensus from this batch
+  const batchConsensusMap = new Map<string, Set<string>>()
   for (const pos of activePositions) {
     const key = `${pos.slug}::${pos.outcome}`
-    let wallets = consensusMap.get(key)
+    let wallets = batchConsensusMap.get(key)
     if (!wallets) {
       wallets = new Set()
-      consensusMap.set(key, wallets)
+      batchConsensusMap.set(key, wallets)
     }
     wallets.add(pos.wallet)
   }
 
+  // Merge with existing cache entries for accurate cross-batch consensus
+  const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  const slugOutcomePairs = [...batchConsensusMap.keys()]
+
+  if (slugOutcomePairs.length > 0) {
+    // Query existing cache for today's entries on the same slug+outcome combos
+    const slugsInBatch = [...new Set(activePositions.map(p => p.slug))]
+    const { data: existingEntries } = await (supabase as any)
+      .from('insider_feed_cache')
+      .select('wallet, slug, outcome')
+      .eq('cached_date', todayET)
+      .in('slug', slugsInBatch)
+
+    if (existingEntries && Array.isArray(existingEntries)) {
+      for (const entry of existingEntries as { wallet: string; slug: string; outcome: string }[]) {
+        const key = `${entry.slug}::${entry.outcome}`
+        let wallets = batchConsensusMap.get(key)
+        if (!wallets) {
+          wallets = new Set()
+          batchConsensusMap.set(key, wallets)
+        }
+        wallets.add(entry.wallet)
+      }
+    }
+  }
+
+  // ── Step 6: Score ALL positions — NO score threshold on write ─────────────
+
+  const runTs  = new Date().toISOString()
+  const scored: Record<string, unknown>[] = []
+
   for (const pos of activePositions) {
-    const meta = qualifiedWallets.get(pos.wallet)
+    const meta = walletMetaMap.get(pos.wallet)
     if (!meta) continue
 
-    const buyStat = walletBuyStatsMap.get(pos.wallet)
-    const avgBetSize = buyStat && buyStat.count > 0
-      ? buyStat.totalNotional / buyStat.count
-      : 0
+    const avgBetSize = meta.avgBetSize
     if (avgBetSize <= 0) continue
 
-    const buyTradeCount = buyStat?.count ?? 0
+    const buyTradeCount = meta.buyTradeCount
     const consensusKey = `${pos.slug}::${pos.outcome}`
-    const consensus = consensusMap.get(consensusKey)?.size ?? 1
+    const consensus = batchConsensusMap.get(consensusKey)?.size ?? 1
 
-    const { score, sizeRatio, minThreshold } = computeInsiderScore(
+    const { score, sizeRatio } = computeInsiderScore(
       meta.roi,
       avgBetSize,
       pos.stakeUsd,
       consensus,
       buyTradeCount,
     )
-    if (score < minThreshold) continue
+    // REMOVED: score < minThreshold filter — write ALL scored positions
 
     const americanOdds = probabilityToAmericanOdds(pos.avgEntryPrice)
 
-    // Current market price for this outcome
     const slugPrices = currentPrices.get(pos.slug)
     const curPrice = slugPrices?.get(pos.outcome) ?? null
     const curAmericanOdds = curPrice !== null ? probabilityToAmericanOdds(curPrice) : null
@@ -823,60 +870,32 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     })
   }
 
-  console.log(`[InsiderFeed] Scored positions passing threshold: ${scored.length}`)
+  console.log(`[InsiderFeed] Scored positions: ${scored.length}`)
 
-  // ── Step 6: Write to cache ─────────────────────────────────────────────────
-  const supabase = createServiceClient()
+  // ── Step 7: Write to cache (additive upsert, no full-replace) ─────────────
 
-  // Determine today's date in Eastern time
-  const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) // YYYY-MM-DD
-
-  // Clean up bets from previous days (midnight rollover)
+  // Purge previous days
   const { error: purgeErr } = await (supabase as any)
     .from('insider_feed_cache')
     .delete()
     .lt('cached_date', todayET)
   if (purgeErr) console.warn('[InsiderFeed] Purge failed:', purgeErr)
 
-  // Check how many bets exist for today already
-  const { count: existingCount } = await (supabase as any)
-    .from('insider_feed_cache')
-    .select('*', { count: 'exact', head: true })
-    .eq('cached_date', todayET)
-  const existing = existingCount ?? 0
-
-  // If the cache has fewer bets than this refresh produced, do a full
-  // replace — this handles first-run-of-day and recovery from bad state.
-  // Otherwise, additive insert only (preserving scores).
-  const shouldReplace = scored.length > existing
-  if (shouldReplace && existing > 0) {
-    console.log(`[InsiderFeed] Full replace: ${scored.length} new > ${existing} existing`)
-    await (supabase as any)
-      .from('insider_feed_cache')
-      .delete()
-      .eq('cached_date', todayET)
-  }
-
-  // Stamp each new bet with today's date
+  // Stamp each row with today's date
   for (const row of scored) {
     (row as any).cached_date = todayET
   }
 
   if (scored.length > 0) {
-    if (shouldReplace) {
-      // Full insert
+    // Always additive upsert — ignoreDuplicates preserves existing rows (scores stay locked)
+    for (let i = 0; i < scored.length; i += 500) {
+      const chunk = scored.slice(i, i + 500)
       const { error } = await (supabase as any)
         .from('insider_feed_cache')
-        .insert(scored)
-      if (error) console.error('[InsiderFeed] Cache insert failed:', error)
-    } else {
-      // Additive — ignoreDuplicates preserves existing rows (scores stay locked)
-      const { error } = await (supabase as any)
-        .from('insider_feed_cache')
-        .upsert(scored, { onConflict: 'wallet,slug,outcome', ignoreDuplicates: true })
-      if (error) console.error('[InsiderFeed] Cache upsert failed:', error)
+        .upsert(chunk, { onConflict: 'wallet,slug,outcome', ignoreDuplicates: true })
+      if (error) console.error(`[InsiderFeed] Cache upsert chunk ${i} failed:`, error)
     }
-    console.log(`[InsiderFeed] Wrote ${scored.length} bets (${shouldReplace ? 'full replace' : 'additive'})`)
+    console.log(`[InsiderFeed] Wrote ${scored.length} bets (additive upsert)`)
   }
 
   // Count how many are now in cache for today
@@ -887,12 +906,28 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
   console.log(`[InsiderFeed] Total bets in cache for ${todayET}: ${totalCached ?? '?'}`)
 
   return {
-    walletsScanned:   qualifiedWallets.size,
-    walletsWithBets:  walletsWithTrades.length,
-    positionsFound:   allPositions.length,
+    walletsWithBets,
+    positionsFound: allPositions.length,
     removedCompleted: removedCount,
-    betsCached:       scored.length,
-    reverseDiscovered: reverseDiscoveredCount,
-    holderDiscovered: holderDiscoveredCount,
+    betsCached: scored.length,
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 2c. refreshInsiderFeedCache() — Orchestrator (preserved signature)
+// ══════════════════════════════════════════════════════════════════════════════
+
+export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResult> {
+  const discovery = await discoverInsiderWallets()
+  const positions = await refreshInsiderPositions(POSITION_BATCH_SIZE)
+
+  return {
+    walletsScanned:    discovery.walletsScanned,
+    walletsWithBets:   positions.walletsWithBets,
+    positionsFound:    positions.positionsFound,
+    removedCompleted:  positions.removedCompleted,
+    betsCached:        positions.betsCached,
+    reverseDiscovered: discovery.reverseDiscovered,
+    holderDiscovered:  discovery.holderDiscovered,
   }
 }

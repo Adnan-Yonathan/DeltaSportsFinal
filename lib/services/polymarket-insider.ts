@@ -45,7 +45,7 @@ const MIN_PROFIT_FACTOR = 1.1
 const MIN_STAKE_USD = 10
 const MIN_ENTRY_PRICE = 0.04
 const MAX_ENTRY_PRICE = 0.92
-export const MIN_INSIDER_SCORE = 50
+export const MIN_INSIDER_SCORE = 45
 
 // ── Scoring ───────────────────────────────────────────────────────────────────
 
@@ -58,37 +58,26 @@ export function computeInsiderScore(
   avgBetSize: number,
   stakeUsd: number,
   consensus: number,
-  sportLabel?: string | null,
 ): { score: number; sizeRatio: number; minThreshold: number } {
   const sizeRatio = avgBetSize > 0 ? stakeUsd / avgBetSize : 1
 
-  // NCAAB has fewer bettors and lower liquidity — soften thresholds
-  const isNcaab = sportLabel === 'NCAAB'
-
-  // ── 1. Size Ratio (conviction) — 40% ─────────────────────────────────────
+  // ── 1. Conviction (size ratio) — 50% ─────────────────────────────────────
   // How much bigger is this bet than the wallet's average?
-  // Default: 0.75× → 0, 5× → 100.  NCAAB: 0.3× → 0, 2× → 100
-  const convFloor = isNcaab ? 0.3 : 0.75
-  const convRange = isNcaab ? 1.7 : 4.25
-  const convictionRaw = clamp((sizeRatio - convFloor) / convRange, 0, 1) * 100
+  // 0.5× → 0, 5× → 100
+  const convictionRaw = clamp((sizeRatio - 0.5) / 4.5, 0, 1) * 100
 
-  // ── 2. Wallet ROI (authority) — 30% ──────────────────────────────────────
-  // Default: 3–20%. NCAAB: 1.5–12% (lower bar)
+  // ── 2. Authority (wallet ROI) — 40% ──────────────────────────────────────
+  // 2% → 0, 20% → 100
   const roiPct = roiLifetime * 100
-  const roiFloor = isNcaab ? 1.5 : 3
-  const roiRange = isNcaab ? 10.5 : 17
-  const roiRaw = clamp((roiPct - roiFloor) / roiRange, 0, 1) * 100
+  const roiRaw = clamp((roiPct - 2) / 18, 0, 1) * 100
 
-  // ── 3. Consensus (agreement) — 30% ───────────────────────────────────────
-  // Default: 1→0, 5→100.  NCAAB: 1→30 (solo bets get baseline credit), 2→100
-  const consensusRaw = isNcaab
-    ? clamp(30 + ((consensus - 1) / 1) * 70, 0, 100)
-    : clamp((consensus - 1) / 4, 0, 1) * 100
+  // ── 3. Consensus (agreement) — 10% ───────────────────────────────────────
+  // Solo bet → 30, 3+ wallets → 100 (small bonus, not a gatekeeper)
+  const consensusRaw = clamp(30 + ((consensus - 1) / 2) * 70, 0, 100)
 
   // ── Combined score ────────────────────────────────────────────────────────
-  // Use the raw 0–99 score directly. NCAAB uses a lower threshold (50 vs 70).
-  const minThreshold = isNcaab ? 50 : 70
-  const raw    = convictionRaw * 0.40 + roiRaw * 0.30 + consensusRaw * 0.30
+  const minThreshold = 45
+  const raw    = convictionRaw * 0.50 + roiRaw * 0.40 + consensusRaw * 0.10
   const score  = Math.floor(clamp(raw, 0, 99))
 
   return { score, sizeRatio: Math.round(sizeRatio * 10) / 10, minThreshold }

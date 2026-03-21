@@ -531,7 +531,7 @@ export default function InsiderClient() {
   // Backfill state: null = idle, 'ingest' | 'rollups' = running, 'done' = finished
   type BackfillPhase = 'ingest' | 'rollups' | 'done' | null
   const [backfillPhase, setBackfillPhase] = useState<BackfillPhase>(null)
-  const [backfillResult, setBackfillResult] = useState<{ walletsProcessed?: number } | null>(null)
+  const [backfillResult, setBackfillResult] = useState<{ walletsScanned?: number; betsCached?: number } | null>(null)
 
   const fetchBets = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -575,20 +575,14 @@ export default function InsiderClient() {
     if (backfillPhase) return
     setBackfillResult(null)
 
-    // Step 1: Sync Trades
     setBackfillPhase('ingest')
     try {
-      await fetch('/api/polymarket/insider/backfill?step=ingest', { method: 'POST' })
-    } catch {
-      // continue to rollups even if ingest fails
-    }
-
-    // Step 2: Recompute Stats
-    setBackfillPhase('rollups')
-    try {
-      const res = await fetch('/api/polymarket/insider/backfill?step=rollups', { method: 'POST' })
+      const res = await fetch('/api/polymarket/insider/backfill', { method: 'POST' })
       const json = await res.json()
-      setBackfillResult({ walletsProcessed: json.rollups?.walletsProcessed ?? 0 })
+      setBackfillResult({
+        walletsScanned: json.walletsScanned ?? 0,
+        betsCached: json.betsCached ?? 0,
+      })
     } catch {
       setBackfillResult({})
     }
@@ -607,11 +601,6 @@ export default function InsiderClient() {
     <div className="min-h-screen bg-black text-white">
       <div className="px-2 pb-[96px] pt-4 sm:px-4 sm:pb-0 sm:pt-5">
         <div className="mx-auto w-full max-w-none">
-
-          {/* ── Stale data warning banner ── */}
-          <div className="mb-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-center text-sm text-yellow-200">
-            ⚠️ Insider Feed may have stale bets — currently in the process of improving bugs within the tool.
-          </div>
 
           {/* ── Top bar: sport filters + refresh ── */}
           <div className="mb-3 flex items-center gap-3">
@@ -649,19 +638,14 @@ export default function InsiderClient() {
                 {backfillPhase === 'done' ? (
                   <>
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                    {backfillResult?.walletsProcessed != null
-                      ? `${backfillResult.walletsProcessed} wallets`
+                    {backfillResult?.walletsScanned != null
+                      ? `${backfillResult.walletsScanned} wallets · ${backfillResult.betsCached ?? 0} bets`
                       : 'Done'}
                   </>
                 ) : backfillPhase === 'ingest' ? (
                   <>
                     <Database className="h-3.5 w-3.5 animate-pulse text-amber-400" />
-                    Syncing trades…
-                  </>
-                ) : backfillPhase === 'rollups' ? (
-                  <>
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-400" />
-                    Recomputing…
+                    Scanning wallets…
                   </>
                 ) : (
                   <>

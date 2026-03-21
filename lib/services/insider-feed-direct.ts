@@ -10,29 +10,45 @@ const DATA_API        = 'https://data-api.polymarket.com'
 const LEADERBOARD_URL = `${DATA_API}/v1/leaderboard`
 const TRADES_URL      = `${DATA_API}/trades`
 
-const LEADERBOARD_PAGE_SIZE = 100
+const LEADERBOARD_PAGE_SIZE = 50
 
-// Discovery strategies: [timePeriod, orderBy, offset]
-const LEADERBOARD_STRATEGIES: Array<[string, string, number]> = [
-  ['ALL',   'PNL',  0],    // all-time top earners (page 1)
-  ['ALL',   'PNL',  100],  // all-time top earners (page 2)
-  ['ALL',   'PNL',  200],  // all-time top earners (page 3)
-  ['ALL',   'PNL',  300],  // all-time top earners (page 4)
-  ['WEEK',  'PNL',  0],    // this week's winners (page 1)
-  ['WEEK',  'PNL',  100],  // this week's winners (page 2)
-  ['MONTH', 'PNL',  0],    // this month's winners (page 1)
-  ['MONTH', 'PNL',  100],  // this month's winners (page 2)
-  ['DAY',   'PNL',  0],    // today's movers (page 1)
-  ['DAY',   'PNL',  100],  // today's movers (page 2)
-]
+// Discovery strategies: [timePeriod, orderBy, offset, category]
+// API returns max 50/page — use offsets in increments of 50
+type LeaderboardStrategy = [string, string, number, string]
+
+function buildStrategies(): LeaderboardStrategy[] {
+  const strats: LeaderboardStrategy[] = []
+  const add = (cat: string, ob: string, tp: string, pages: number) => {
+    for (let p = 0; p < pages; p++) strats.push([tp, ob, p * 50, cat])
+  }
+
+  // SPORTS category — sport-specialist wallets invisible on OVERALL
+  add('SPORTS', 'PNL', 'ALL',   20)  // 0–950
+  add('SPORTS', 'PNL', 'WEEK',   4)  // 0–150
+  add('SPORTS', 'PNL', 'MONTH',  4)  // 0–150
+  add('SPORTS', 'VOL', 'ALL',   10)  // 0–450, high-volume sports bettors
+  add('SPORTS', 'VOL', 'WEEK',   4)  // 0–150
+
+  // OVERALL category — existing coverage + VOL ordering
+  add('OVERALL', 'PNL', 'ALL',    8)  // 0–350
+  add('OVERALL', 'PNL', 'WEEK',   4)  // 0–150
+  add('OVERALL', 'PNL', 'MONTH',  4)  // 0–150
+  add('OVERALL', 'PNL', 'DAY',    4)  // 0–150
+  add('OVERALL', 'VOL', 'ALL',    4)  // 0–150
+  add('OVERALL', 'VOL', 'WEEK',   2)  // 0–50
+
+  return strats
+}
+
+const LEADERBOARD_STRATEGIES = buildStrategies()
 const LEADERBOARD_CONCURRENCY = 5
 
 // Per-wallet trade fetching
-const TOP_WALLETS_TO_FETCH = 300  // fetch trades for top N wallets by ROI
+const TOP_WALLETS_TO_FETCH = 600  // fetch trades for top N wallets by ROI
 const TRADES_PER_WALLET    = 800  // trades to fetch per wallet
 const WALLET_FETCH_CONCURRENCY = 10
 
-const MIN_ROI            = 0.02
+const MIN_ROI            = 0.03
 const MAX_ROI            = 0.25
 const MIN_VOLUME         = 15_000  // lower bar to catch more NCAAB bettors
 const MIN_NET_SHARES     = 1
@@ -62,6 +78,8 @@ const SPORT_PREFIXES = [
   // Other
   'golf-', 'pga-', 'cricket-', 'ipl-', 'f1-', 'nascar-', 'racing-',
   'rugby-', 'afl-', 'olympics-',
+  // Additional active prefixes
+  'cwbb-', 'mex-', 'per1-',
 ]
 
 const SPORT_LABEL_MAP: Record<string, string> = {
@@ -87,6 +105,8 @@ const SPORT_LABEL_MAP: Record<string, string> = {
   golf: 'GOLF', pga: 'PGA', cricket: 'CRICKET', ipl: 'IPL',
   f1: 'F1', nascar: 'NASCAR', racing: 'RACING',
   rugby: 'RUGBY', afl: 'AFL', olympics: 'OLYMPICS',
+  // Additional active prefixes
+  cwbb: 'CWBB', mex: 'LIGA MX', per1: 'PERU PRIMERA',
 }
 
 // ── API types ─────────────────────────────────────────────────────────────────
@@ -373,6 +393,7 @@ export type InsiderFeedRefreshResult = {
   positionsFound:    number
   removedCompleted:  number
   betsCached:        number
+  reverseDiscovered: number
 }
 
 export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResult> {
@@ -410,8 +431,9 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     const batch = LEADERBOARD_STRATEGIES.slice(i, i + LEADERBOARD_CONCURRENCY)
 
     const results = await Promise.all(
-      batch.map(([timePeriod, orderBy, offset]) => {
+      batch.map(([timePeriod, orderBy, offset, category]) => {
         const url = new URL(LEADERBOARD_URL)
+        url.searchParams.set('category', category)
         url.searchParams.set('timePeriod', timePeriod)
         url.searchParams.set('orderBy', orderBy)
         url.searchParams.set('limit', String(LEADERBOARD_PAGE_SIZE))
@@ -422,12 +444,12 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
     for (let j = 0; j < results.length; j++) {
       const raw = results[j]
-      const [tp, ob, off] = batch[j]
+      const [tp, ob, off, cat] = batch[j]
       if (!Array.isArray(raw)) {
-        console.warn(`[InsiderFeed] Strategy ${tp}/${ob}/+${off} failed`)
+        console.warn(`[InsiderFeed] Strategy ${cat}/${tp}/${ob}/+${off} failed`)
         continue
       }
-      console.log(`[InsiderFeed] Strategy ${tp}/${ob}/+${off}: ${raw.length} entries`)
+      console.log(`[InsiderFeed] Strategy ${cat}/${tp}/${ob}/+${off}: ${raw.length} entries`)
       processLeaderboardPage(raw as LeaderboardEntry[])
     }
   }
@@ -436,7 +458,118 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
 
   if (qualifiedWallets.size === 0) {
     console.error('[InsiderFeed] No qualified wallets from any leaderboard strategy')
-    return { walletsScanned: 0, walletsWithBets: 0, positionsFound: 0, removedCompleted: 0, betsCached: 0 }
+    return { walletsScanned: 0, walletsWithBets: 0, positionsFound: 0, removedCompleted: 0, betsCached: 0, reverseDiscovered: 0 }
+  }
+
+  // ── Step 1.5: Reverse discovery via recent sport trades ──────────────────
+  // Catches sport-specialist wallets the PNL leaderboard misses
+
+  type ReverseWalletResult = {
+    wallet: string
+    trades: TradeEntry[]
+    totalBuys: number
+    totalBuyNotional: number
+  }
+
+  const REVERSE_DISCOVERY_PAGES = 3
+  const REVERSE_DISCOVERY_LIMIT = 500
+  const REVERSE_DISCOVERY_MAX_WALLETS = 100
+  const REVERSE_WALLET_CONCURRENCY = 10
+
+  let reverseDiscoveredCount = 0
+  const reverseTradeResults: ReverseWalletResult[] = []
+
+  try {
+    // Fetch recent global trades (3 pages of 500)
+    const globalTradePages = await Promise.all(
+      Array.from({ length: REVERSE_DISCOVERY_PAGES }, (_, page) => {
+        const url = new URL(TRADES_URL)
+        url.searchParams.set('limit', String(REVERSE_DISCOVERY_LIMIT))
+        if (page > 0) url.searchParams.set('offset', String(page * REVERSE_DISCOVERY_LIMIT))
+        return fetchJson(url.toString())
+      })
+    )
+
+    // Filter to sport slugs, extract unique wallet addresses not already known
+    const newWalletAddresses = new Set<string>()
+    for (const page of globalTradePages) {
+      if (!Array.isArray(page)) continue
+      for (const trade of page as TradeEntry[]) {
+        const slug = trade.slug ?? ''
+        if (!isSportSlug(slug)) continue
+        const wallet = String(trade.proxyWallet ?? '').trim().toLowerCase()
+        if (!wallet || qualifiedWallets.has(wallet)) continue
+        newWalletAddresses.add(wallet)
+      }
+    }
+
+    console.log(`[InsiderFeed] Reverse discovery: ${newWalletAddresses.size} new sport wallets found`)
+
+    // For each new wallet (cap 100), fetch trades and compute approximate ROI
+    const walletsToCheck = [...newWalletAddresses].slice(0, REVERSE_DISCOVERY_MAX_WALLETS)
+
+    for (let i = 0; i < walletsToCheck.length; i += REVERSE_WALLET_CONCURRENCY) {
+      const batch = walletsToCheck.slice(i, i + REVERSE_WALLET_CONCURRENCY)
+      const results = await Promise.all(
+        batch.map(async (wallet) => {
+          const url = new URL(TRADES_URL)
+          url.searchParams.set('user', wallet)
+          url.searchParams.set('limit', String(TRADES_PER_WALLET))
+          const raw = await fetchJson(url.toString())
+          const trades = Array.isArray(raw) ? (raw as TradeEntry[]) : []
+
+          let totalBuys = 0
+          let totalBuyNotional = 0
+          let totalSellNotional = 0
+          for (const t of trades) {
+            const size = parseNum(t.size)
+            const price = parseNum(t.price)
+            if (!size || !price || size <= 0 || price <= 0) continue
+            if (t.side === 'BUY') {
+              totalBuys++
+              totalBuyNotional += size * price
+            } else if (t.side === 'SELL') {
+              totalSellNotional += size * price
+            }
+          }
+
+          // Approximate ROI from buy/sell data
+          const vol = totalBuyNotional
+          const pnl = totalSellNotional - totalBuyNotional
+          const roi = vol > 0 ? pnl / vol : 0
+
+          return { wallet, trades, totalBuys, totalBuyNotional, vol, roi }
+        })
+      )
+
+      for (const r of results) {
+        if (
+          !Number.isFinite(r.roi) ||
+          r.roi < MIN_ROI ||
+          r.roi > MAX_ROI ||
+          r.vol < MIN_VOLUME
+        ) continue
+
+        // Wallet qualifies — add to qualified pool
+        qualifiedWallets.set(r.wallet, {
+          roi: r.roi,
+          vol: r.vol,
+          pseudonym: null,
+          profileImageUrl: null,
+        })
+        reverseTradeResults.push({
+          wallet: r.wallet,
+          trades: r.trades,
+          totalBuys: r.totalBuys,
+          totalBuyNotional: r.totalBuyNotional,
+        })
+        reverseDiscoveredCount++
+      }
+    }
+
+    console.log(`[InsiderFeed] Reverse discovery: ${reverseDiscoveredCount} wallets qualified`)
+  } catch (error) {
+    console.warn('[InsiderFeed] Reverse discovery failed:', error)
   }
 
   // ── Step 2: Per-wallet trade fetching ───────────────────────────────────────
@@ -454,6 +587,9 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     totalBuys: number
     totalBuyNotional: number
   }
+
+  // Skip wallets already fetched during reverse discovery
+  const reverseWalletSet = new Set(reverseTradeResults.map(r => r.wallet))
 
   async function fetchWalletTrades(wallet: string): Promise<WalletTradeResult> {
     const url = new URL(TRADES_URL)
@@ -479,9 +615,13 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     return { wallet, trades, totalBuys, totalBuyNotional }
   }
 
-  const walletResults: WalletTradeResult[] = []
-  for (let i = 0; i < sortedWallets.length; i += WALLET_FETCH_CONCURRENCY) {
-    const batch = sortedWallets.slice(i, i + WALLET_FETCH_CONCURRENCY)
+  // Start with reverse-discovered wallet results (already fetched)
+  const walletResults: WalletTradeResult[] = [...reverseTradeResults]
+
+  // Only fetch wallets not already fetched via reverse discovery
+  const walletsToFetch = sortedWallets.filter(([w]) => !reverseWalletSet.has(w))
+  for (let i = 0; i < walletsToFetch.length; i += WALLET_FETCH_CONCURRENCY) {
+    const batch = walletsToFetch.slice(i, i + WALLET_FETCH_CONCURRENCY)
     const results = await Promise.all(
       batch.map(([wallet]) => fetchWalletTrades(wallet))
     )
@@ -605,7 +745,6 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
       avgBetSize,
       pos.stakeUsd,
       consensus,
-      pos.sportLabel,
     )
     if (score < minThreshold) continue
 
@@ -666,5 +805,6 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
     positionsFound:   allPositions.length,
     removedCompleted: removedCount,
     betsCached:       scored.length,
+    reverseDiscovered: reverseDiscoveredCount,
   }
 }

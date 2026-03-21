@@ -17,6 +17,8 @@ export const ALLOWED_POLYMARKET_SPORT_LABELS = [
   // Other
   'GOLF', 'PGA', 'CRICKET', 'IPL', 'F1', 'NASCAR', 'RACING',
   'RUGBY', 'AFL', 'OLYMPICS',
+  // Additional active prefixes
+  'CWBB', 'LIGA MX', 'PERU PRIMERA',
 ] as const
 
 export type AllowedPolymarketSportLabel =

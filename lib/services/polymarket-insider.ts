@@ -45,9 +45,14 @@ const MIN_PROFIT_FACTOR = 1.1
 const MIN_STAKE_USD = 10
 const MIN_ENTRY_PRICE = 0.04
 const MAX_ENTRY_PRICE = 0.92
-export const MIN_INSIDER_SCORE = 45
+export const MIN_INSIDER_SCORE = 25
 
 // ── Scoring ───────────────────────────────────────────────────────────────────
+//
+// Score examples (threshold = 25):
+//   3% ROI, 1.5× size, solo  → 20 + 3 + 3 = 26 ✓ (barely passes)
+//   5% ROI, 2× size,   solo  → 30 + 9 + 3 = 42 ✓
+//   10% ROI, 3× size,  2 wal → 50 + 25 + 7 = 82 ✓ (strong signal)
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v))
@@ -62,21 +67,20 @@ export function computeInsiderScore(
   const sizeRatio = avgBetSize > 0 ? stakeUsd / avgBetSize : 1
 
   // ── 1. Conviction (size ratio) — 50% ─────────────────────────────────────
-  // How much bigger is this bet than the wallet's average?
-  // 0.5× → 0, 5× → 100
-  const convictionRaw = clamp((sizeRatio - 0.5) / 4.5, 0, 1) * 100
+  // 0.5× → 0, 3× → 100 (tighter range: most sport bets are 1-3× average)
+  const convictionRaw = clamp((sizeRatio - 0.5) / 2.5, 0, 1) * 100
 
   // ── 2. Authority (wallet ROI) — 40% ──────────────────────────────────────
-  // 2% → 0, 20% → 100
+  // 2% → 0, 15% → 100 (MIN_ROI is 3%, so floor at 2% gives immediate credit)
   const roiPct = roiLifetime * 100
-  const roiRaw = clamp((roiPct - 2) / 18, 0, 1) * 100
+  const roiRaw = clamp((roiPct - 2) / 13, 0, 1) * 100
 
   // ── 3. Consensus (agreement) — 10% ───────────────────────────────────────
   // Solo bet → 30, 3+ wallets → 100 (small bonus, not a gatekeeper)
   const consensusRaw = clamp(30 + ((consensus - 1) / 2) * 70, 0, 100)
 
   // ── Combined score ────────────────────────────────────────────────────────
-  const minThreshold = 45
+  const minThreshold = 25
   const raw    = convictionRaw * 0.50 + roiRaw * 0.40 + consensusRaw * 0.10
   const score  = Math.floor(clamp(raw, 0, 99))
 

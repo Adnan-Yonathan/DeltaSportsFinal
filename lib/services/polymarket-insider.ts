@@ -135,18 +135,21 @@ export async function getInsiderFeed(opts: {
   limit?: number
   offset?: number
   minScore?: number
-  /** How many calendar days back (Eastern) to include. 0 = today only, -1 = all time */
+  /** @deprecated — feed now shows all bets cached for today (Eastern) */
   daysBack?: number
 } = {}): Promise<InsiderBet[]> {
   const {
     sport,
-    limit    = 100,
+    limit    = 200,
     offset   = 0,
     minScore = MIN_INSIDER_SCORE,
-    daysBack = 0,
   } = opts
 
   const supabase = createServiceClient()
+
+  // Show all bets cached for today (Eastern). Bets persist once they appear
+  // and are only cleaned up at the next refresh after midnight.
+  const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
   let query = (supabase as any)
     .from('insider_feed_cache')
@@ -156,17 +159,13 @@ export async function getInsiderFeed(opts: {
       'first_trade_time, last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
       'wallet_trade_count, current_price, current_american_odds, consensus_count'
     )
+    .eq('cached_date', todayET)
     .gte('insider_score', minScore)
     .order('insider_score', { ascending: false })
     .limit(limit + offset)
 
   if (sport && sport !== 'ALL') {
     query = query.eq('sport_label', sport)
-  }
-
-  if (daysBack >= 0) {
-    const windowStart = getEasternWindowStart(daysBack)
-    query = query.gte('last_trade_time', windowStart)
   }
 
   const { data, error } = await query

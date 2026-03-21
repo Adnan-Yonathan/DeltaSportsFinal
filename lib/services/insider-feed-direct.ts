@@ -924,18 +924,36 @@ export async function refreshInsiderFeedCache(): Promise<InsiderFeedRefreshResul
   // ── Step 6: Write to cache ─────────────────────────────────────────────────
   const supabase = createServiceClient()
 
-  // Clear entire cache first to remove stale/broken entries
-  await (supabase as any)
+  // Determine today's date in Eastern time
+  const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) // YYYY-MM-DD
+
+  // Clean up bets from previous days (midnight rollover)
+  const { count: purgedCount } = await (supabase as any)
     .from('insider_feed_cache')
     .delete()
-    .neq('id', 0)  // delete all rows
+    .lt('cached_date', todayET)
+    .select('*', { count: 'exact', head: true })
+  if (purgedCount) console.log(`[InsiderFeed] Purged ${purgedCount} bets from previous days`)
+
+  // Stamp each new bet with today's date
+  for (const row of scored) {
+    (row as any).cached_date = todayET
+  }
 
   if (scored.length > 0) {
+    // Insert only — ignoreDuplicates keeps existing rows (preserving original score)
     const { error } = await (supabase as any)
       .from('insider_feed_cache')
-      .upsert(scored, { onConflict: 'wallet,slug,outcome' })
-    if (error) console.error('[InsiderFeed] Cache upsert failed:', error)
+      .upsert(scored, { onConflict: 'wallet,slug,outcome', ignoreDuplicates: true })
+    if (error) console.error('[InsiderFeed] Cache insert failed:', error)
   }
+
+  // Count how many are now in cache for today
+  const { count: totalCached } = await (supabase as any)
+    .from('insider_feed_cache')
+    .select('*', { count: 'exact', head: true })
+    .eq('cached_date', todayET)
+  console.log(`[InsiderFeed] Total bets in cache for ${todayET}: ${totalCached ?? '?'}`)
 
   return {
     walletsScanned:   qualifiedWallets.size,

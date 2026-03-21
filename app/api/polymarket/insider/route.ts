@@ -17,11 +17,9 @@ export async function GET(request: Request) {
   const limit    = Math.min(Number(searchParams.get('limit')  ?? 50), 200)
   const offset   = Math.max(Number(searchParams.get('offset') ?? 0),  0)
   const minScore = Number(searchParams.get('minScore') ?? MIN_INSIDER_SCORE)
-  // daysBack: 0 = today only, 3 = last 3 days, -1 = all time
-  const daysBack = searchParams.has('daysBack') ? Number(searchParams.get('daysBack')) : 3
 
   try {
-    const bets = await getInsiderFeed({ sport, limit, offset, minScore, daysBack })
+    const bets = await getInsiderFeed({ sport, limit, offset, minScore })
     return NextResponse.json({ bets, total: bets.length })
   } catch (err) {
     console.error('[INSIDER] feed error', err)

@@ -608,6 +608,11 @@ export default function InsiderClient() {
       <div className="px-2 pb-[96px] pt-4 sm:px-4 sm:pb-0 sm:pt-5">
         <div className="mx-auto w-full max-w-none">
 
+          {/* ── Stale data warning banner ── */}
+          <div className="mb-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-center text-sm text-yellow-200">
+            ⚠️ Insider Feed may have stale bets — currently in the process of improving bugs within the tool.
+          </div>
+
           {/* ── Top bar: sport filters + refresh ── */}
           <div className="mb-3 flex items-center gap-3">
             <div className="flex flex-1 gap-2 overflow-x-auto pb-1 scrollbar-none">

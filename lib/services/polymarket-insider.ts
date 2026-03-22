@@ -177,7 +177,17 @@ export async function getInsiderFeed(opts: {
 
   if (!data?.length) return []
 
-  const mapped = (data as any[]).slice(offset).map((row): InsiderBet => ({
+  // Filter out bets for games that already happened (slug date < today ET).
+  // Slugs look like "nba-nets-knicks-2026-03-21". Bets without a date in the
+  // slug (futures, series, etc.) pass through.
+  const filtered = (data as any[]).filter((row) => {
+    const slug = row.slug ?? ''
+    const m = slug.match(/(\d{4}-\d{2}-\d{2})/)
+    if (!m) return true // no date in slug — keep
+    return m[1] >= todayET
+  })
+
+  const mapped = filtered.slice(offset).map((row): InsiderBet => ({
     wallet:                  row.wallet,
     pseudonym:               row.pseudonym               ?? null,
     profile_image_url:       row.profile_image_url       ?? null,

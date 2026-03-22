@@ -181,6 +181,8 @@ export async function getInsiderFeed(opts: {
   // Slugs look like "nba-nets-knicks-2026-03-21". Bets without a date in the
   // slug (futures, series, etc.) pass through.
   const filtered = (data as any[]).filter((row) => {
+    // $100 minimum bet size
+    if ((row.stake_usd ?? 0) < 100) return false
     const slug = row.slug ?? ''
     const m = slug.match(/(\d{4}-\d{2}-\d{2})/)
     if (!m) return true // no date in slug — keep

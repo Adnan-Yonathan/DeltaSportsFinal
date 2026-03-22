@@ -163,115 +163,16 @@ const resolveMostRecentTimestamp = (values: Array<string | null>) => {
 }
 
 
-export default async function MarketProjectionsPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>
-}) {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  const membership = getMembershipStatusFromMetadata(user?.user_metadata)
-  const hasProjectionAccess = membership.hasProjectionAccess
-  const previewMode = !hasProjectionAccess
-  const tier = membership.isActive ? membership.tier : membership.tier ?? null
-
-  const requestedSport = Array.isArray(searchParams?.sport)
-    ? searchParams?.sport[0]
-    : searchParams?.sport
-
-  const isValidSport = (value: string | undefined) =>
-    Boolean(
-      value &&
-        SPORT_OPTIONS.some((option) => option.key === value)
-    )
-
-  const sport = isValidSport(requestedSport) ? requestedSport! : "all"
-  let edges: GameEdgeAnalysis[] = []
-  let errorMessage: string | null = null
-  let hasCache = true
-  let lastUpdated: string | null = null
-  const isLocked = false
-
-  try {
-    const serviceClient = createServiceClient()
-
-    if (sport === "all") {
-      const cachedBySport = await Promise.all(
-        ACTIVE_SPORT_KEYS.map((sportKey) => loadCacheForSport(serviceClient, sportKey))
-      )
-      const availableCaches = cachedBySport.filter(Boolean) as Array<{
-        sport: string
-        edges: GameEdgeAnalysis[]
-        currentSlateEdgeCount: number
-        updatedAt: string | null
-      }>
-
-      if (!availableCaches.length) {
-        hasCache = false
-        errorMessage = "No projections cached yet."
-      } else {
-        const combinedEdges: GameEdgeAnalysis[] = []
-        let slateEdgeCount = 0
-
-        availableCaches.forEach((cachedSport) => {
-          const hydratedEdges = hydrateMissingSharpProjections(
-            cachedSport.edges,
-            cachedSport.sport
-          )
-          combinedEdges.push(...attachSportToEdges(hydratedEdges, cachedSport.sport))
-          slateEdgeCount += cachedSport.currentSlateEdgeCount
-        })
-
-        if (slateEdgeCount === 0) {
-          hasCache = false
-          errorMessage = "No current projections yet."
-        } else {
-          edges = combinedEdges
-          lastUpdated = resolveMostRecentTimestamp(
-            availableCaches.map((cachedSport) => cachedSport.updatedAt)
-          )
-        }
-      }
-    } else {
-      const cached = await loadCacheForSport(serviceClient, sport)
-      if (!cached || cached.currentSlateEdgeCount === 0) {
-        hasCache = false
-        errorMessage = "No current projections yet."
-      } else {
-        const hydratedEdges = hydrateMissingSharpProjections(cached.edges, sport)
-        edges = attachSportToEdges(hydratedEdges, sport)
-        lastUpdated = cached.updatedAt
-      }
-    }
-  } catch (error) {
-    hasCache = false
-    errorMessage = "Unable to load projections."
-  }
-
-  if (edges.length > 0) {
-    edges = stripNonSharpBookOdds(edges)
-  }
-
+export default async function MarketProjectionsPage() {
   return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="px-2 pb-[96px] pt-4 sm:px-4 sm:pb-0 sm:pt-5">
-        <div className="mx-auto w-full max-w-none">
-          <MarketProjectionsClient
-            key={sport}
-            initialEdges={edges}
-            initialUpdatedAt={lastUpdated}
-            hasCache={hasCache}
-            errorMessage={errorMessage}
-            sport={sport}
-            isLocked={isLocked}
-            tier={tier}
-            previewMode={previewMode}
-          />
-        </div>
+    <div className="min-h-screen bg-black flex items-center justify-center px-4">
+      <div className="text-center max-w-md">
+        <div className="text-5xl mb-6">🔒</div>
+        <h1 className="text-2xl font-bold text-white mb-3">Under Construction</h1>
+        <p className="text-zinc-400 text-sm leading-relaxed">
+          Sharp Projections is being upgraded. Check back soon.
+        </p>
       </div>
-      <MobileToolsNav />
     </div>
   )
 }

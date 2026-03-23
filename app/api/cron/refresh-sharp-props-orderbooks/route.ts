@@ -42,7 +42,16 @@ export async function GET(req: NextRequest) {
     url.searchParams.set('minSharpNotional', '100')
     url.searchParams.set('refresh', '1')
 
-    const res = await fetch(url.toString(), { cache: 'no-store' })
+    const refreshHeaders: HeadersInit = {}
+    if (process.env.CRON_SECRET) {
+      refreshHeaders.authorization = `Bearer ${process.env.CRON_SECRET}`
+      refreshHeaders['x-refresh-secret'] = process.env.CRON_SECRET
+    }
+
+    const res = await fetch(url.toString(), {
+      cache: 'no-store',
+      headers: refreshHeaders,
+    })
     const payload = await res.json().catch(() => ({}))
 
     if (!res.ok) {

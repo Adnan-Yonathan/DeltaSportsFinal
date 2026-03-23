@@ -5,6 +5,7 @@ import Image from "next/image"
 import BoxLoader from "@/components/ui/box-loader"
 import ShareSharpPropsToolButton from "@/components/ShareSharpPropsToolButton"
 import { shouldPersistPropOrderbooksSnapshot } from "@/lib/services/prop-orderbooks-cache-guard"
+import { SHARP_PROPS_SOURCE_ORDER } from "@/lib/config/odds-sources"
 import {
   isWithinSharpRefreshWindow,
   SHARP_REFRESH_INTERVAL_MS,
@@ -30,7 +31,7 @@ type OrderbookSide = {
 }
 
 type SourceKey = "kalshi" | "polymarket" | "novig" | "prophetx"
-type SharpBookKey = SourceKey | "pinnacle"
+type SharpBookKey = (typeof SHARP_PROPS_SOURCE_ORDER)[number]
 type SharpBookFilter = "all" | SharpBookKey
 
 export type OrderbookItem = {
@@ -57,6 +58,10 @@ export type OrderbookItem = {
   pinnacleLeanBookTitle: string | null
   fanduelLeanOdds: number | null
   fanduelLeanBookTitle: string | null
+  sportsbookOddsByBook?: Record<
+    string,
+    { over?: number | null; under?: number | null; title?: string | null }
+  >
   updatedAt: string
   sides: OrderbookSide[]
 }
@@ -133,23 +138,92 @@ const SOURCE_LOGOS: Record<SourceKey, { label: string; src: string }> = {
   prophetx: { label: "ProphetX", src: "/ProphetX.png" },
 }
 
-const SHARP_BOOK_ORDER: SharpBookKey[] = [
-  "prophetx",
-  "novig",
-  "polymarket",
-  "kalshi",
-  "pinnacle",
-]
+const SHARP_BOOK_ORDER: SharpBookKey[] = [...SHARP_PROPS_SOURCE_ORDER]
 
-const SHARP_BOOK_LOGOS: Record<SharpBookKey, { label: string; src: string }> = {
-  prophetx: { label: "ProphetX", src: "/ProphetX.png" },
+const SHARP_BOOK_LOGOS: Record<SharpBookKey, { label: string; src?: string }> = {
+  fanduel: { label: "FanDuel", src: "/fanduel.jpeg" },
+  draftkings: { label: "DraftKings" },
+  betmgm: { label: "BetMGM", src: "/BETMGM-Logo-Color-Scheme-PNG-thumb.png" },
+  caesars: { label: "Caesars", src: "/CZR_BIG.D-96274f93.png" },
+  betrivers: { label: "BetRivers", src: "/486540_BetRivers_1200x608.png" },
+  hardrockbet: {
+    label: "Hard Rock Bet",
+    src: "/ha2249h8a2-hard-rock-cafe-logo-hard-rock-hotel-amp-casino-atlantic-city.png",
+  },
+  fanatics: { label: "Fanatics" },
+  espnbet: { label: "ESPN BET", src: "/ESPN-BET-Logo.png" },
+  fliff: { label: "Fliff" },
+  circa: { label: "Circa" },
+  pinnacle: { label: "Pinnacle", src: "/pinnacle.jpg" },
   novig: { label: "NoVig", src: "/Novig.png" },
+  prophetx: { label: "ProphetX", src: "/ProphetX.png" },
   polymarket: { label: "Polymarket", src: "/polymarket.png" },
   kalshi: { label: "Kalshi", src: "/kalshi.png" },
-  pinnacle: { label: "Pinnacle", src: "/pinnacle.jpg" },
+  prizepicks: { label: "PrizePicks" },
+  underdog: { label: "Underdog" },
+  draftkings_pick6: { label: "DraftKings Pick6" },
+  sleeper: { label: "Sleeper" },
 }
 
-const ODDS_API_BOOK_KEYS = ["novig", "prophetx", "pinnacle"] as const
+const ODDS_API_BOOK_KEYS = [
+  "fanduel",
+  "draftkings",
+  "betmgm",
+  "caesars",
+  "betrivers",
+  "hardrockbet",
+  "fanatics",
+  "espnbet",
+  "fliff",
+  "circa",
+  "pinnacle",
+  "novig",
+  "prophetx",
+  "prizepicks",
+  "underdog",
+  "draftkings_pick6",
+  "sleeper",
+] as const
+
+const ODDS_API_BOOK_ALIASES: Record<(typeof ODDS_API_BOOK_KEYS)[number], string[]> = {
+  fanduel: ["fanduel"],
+  draftkings: ["draftkings"],
+  betmgm: ["betmgm"],
+  caesars: ["caesars"],
+  betrivers: ["betrivers", "bet_rivers"],
+  hardrockbet: ["hardrockbet", "hardrock", "hard_rock_bet"],
+  fanatics: ["fanatics", "fanaticssportsbook", "betfanatics"],
+  espnbet: ["espnbet", "espn_bet", "thescorebet"],
+  fliff: ["fliff"],
+  circa: ["circa", "circasports"],
+  pinnacle: ["pinnacle"],
+  novig: ["novig", "novigus"],
+  prophetx: ["prophetx", "prophet_x", "prophet"],
+  prizepicks: ["prizepicks", "prize_picks"],
+  underdog: ["underdog", "underdog_fantasy"],
+  draftkings_pick6: ["draftkings_pick6", "draftkings-pick6", "dk_pick6"],
+  sleeper: ["sleeper"],
+}
+
+const normalizeBookToken = (value?: string | null) =>
+  String(value ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]/g, "")
+
+const resolveSharpBookKey = (value?: string | null): SharpBookKey | null => {
+  const normalized = normalizeBookToken(value)
+  if (!normalized) return null
+  const direct = SHARP_BOOK_ORDER.find((key) => normalizeBookToken(key) === normalized)
+  if (direct) return direct
+  for (const key of ODDS_API_BOOK_KEYS) {
+    const aliases = ODDS_API_BOOK_ALIASES[key] ?? []
+    if (aliases.some((alias) => normalizeBookToken(alias) === normalized)) {
+      return key
+    }
+  }
+  return null
+}
 
 const ODDS_API_MARKETS_BY_PROP_TYPE: Record<string, string[]> = {
   points: ["player_points"],
@@ -331,6 +405,10 @@ const resolveSharpBookOddsForItem = (
   item: DisplayOrderbookItem,
   recommendedSide: "Over" | "Under" | null
 ): Record<SharpBookKey, number | null> => {
+  const oddsByBook = Object.fromEntries(
+    SHARP_BOOK_ORDER.map((key) => [key, null])
+  ) as Record<SharpBookKey, number | null>
+
   const sourceOdds: Record<SourceKey, number | null> = {
     kalshi: null,
     polymarket: null,
@@ -345,13 +423,30 @@ const resolveSharpBookOddsForItem = (
     sourceOdds[source] = pickBestAvailableOdds(candidates)
   }
 
-  return {
-    prophetx: sourceOdds.prophetx,
-    novig: sourceOdds.novig,
-    polymarket: sourceOdds.polymarket,
-    kalshi: sourceOdds.kalshi,
-    pinnacle: item.pinnacleLeanOdds ?? null,
+  oddsByBook.prophetx = sourceOdds.prophetx
+  oddsByBook.novig = sourceOdds.novig
+  oddsByBook.polymarket = sourceOdds.polymarket
+  oddsByBook.kalshi = sourceOdds.kalshi
+  oddsByBook.pinnacle = item.pinnacleLeanOdds ?? null
+
+  const sideKey = recommendedSide?.toLowerCase() as "over" | "under" | undefined
+  if (sideKey) {
+    for (const sourceItem of item.sourceItems) {
+      const byBook = sourceItem.sportsbookOddsByBook ?? {}
+      for (const [rawKey, value] of Object.entries(byBook)) {
+        const resolvedKey = resolveSharpBookKey(rawKey) ?? resolveSharpBookKey(value?.title)
+        if (!resolvedKey) continue
+        const quote = parseFiniteNumber(value?.[sideKey])
+        if (quote == null) continue
+        const current = oddsByBook[resolvedKey]
+        if (current == null || quote > current) {
+          oddsByBook[resolvedKey] = quote
+        }
+      }
+    }
   }
+
+  return oddsByBook
 }
 
 const resolveDisplayLeanForFilter = (
@@ -479,8 +574,11 @@ const resolveOddsApiBookOddsForItem = (
     if (lineDiff != null && lineDiff > 0.15) continue
 
     const hasSideOdds = ODDS_API_BOOK_KEYS.some((bookKey) => {
-      const candidate = parseFiniteNumber(row?.odds?.[bookKey]?.[sideKey])
-      return candidate != null
+      const aliases = ODDS_API_BOOK_ALIASES[bookKey] ?? [bookKey]
+      return aliases.some((alias) => {
+        const candidate = parseFiniteNumber(row?.odds?.[alias]?.[sideKey])
+        return candidate != null
+      })
     })
     if (!hasSideOdds) continue
 
@@ -497,7 +595,13 @@ const resolveOddsApiBookOddsForItem = (
 
   const result: Partial<Record<(typeof ODDS_API_BOOK_KEYS)[number], number | null>> = {}
   for (const bookKey of ODDS_API_BOOK_KEYS) {
-    result[bookKey] = parseFiniteNumber(bestRow.odds?.[bookKey]?.[sideKey])
+    const aliases = ODDS_API_BOOK_ALIASES[bookKey] ?? [bookKey]
+    let value: number | null = null
+    for (const alias of aliases) {
+      value = parseFiniteNumber(bestRow.odds?.[alias]?.[sideKey])
+      if (value != null) break
+    }
+    result[bookKey] = value
   }
   return result
 }
@@ -893,9 +997,6 @@ export default function PropOrderbooksPanel({
   const [cacheFetchedAt, setCacheFetchedAt] = useState<string | null>(
     initialData?.cache?.fetchedAt ?? null
   )
-  const [oddsFeedBySport, setOddsFeedBySport] = useState<
-    Record<string, PlayerPropOddsResponse | null | undefined>
-  >({})
   const [playerHeadshotsByKey, setPlayerHeadshotsByKey] = useState<Record<string, string | null>>({})
   const [headshotLoadingByKey, setHeadshotLoadingByKey] = useState<Record<string, boolean>>({})
   const [refreshWindowOpen, setRefreshWindowOpen] = useState<boolean>(() =>
@@ -942,8 +1043,7 @@ export default function PropOrderbooksPanel({
       }
 
       try {
-        const shouldForceRefresh =
-          forceRefresh && isWithinSharpRefreshWindow()
+        const shouldForceRefresh = forceRefresh && false
         const params = new URLSearchParams({
           sport: "all",
           limit: String(limit),
@@ -1039,7 +1139,7 @@ export default function PropOrderbooksPanel({
     const useBackgroundRefresh = hasSeededItems
 
     load({
-      forceRefresh: useBackgroundRefresh,
+      forceRefresh: false,
       background: useBackgroundRefresh,
     })
   }, [initialData, load, sport])
@@ -1047,7 +1147,7 @@ export default function PropOrderbooksPanel({
   useEffect(() => {
     const interval = window.setInterval(() => {
       if (!isWithinSharpRefreshWindow()) return
-      load({ forceRefresh: true, background: true })
+      load({ forceRefresh: false, background: true })
     }, SHARP_REFRESH_INTERVAL_MS)
     return () => window.clearInterval(interval)
   }, [load])
@@ -1226,44 +1326,7 @@ export default function PropOrderbooksPanel({
     () => filteredItems.find((item) => item.id === selectedItemId) ?? filteredItems[0] ?? null,
     [filteredItems, selectedItemId]
   )
-  const selectedSportForOdds = selectedItem?.sportKey ?? null
-  const selectedOddsFeed =
-    selectedSportForOdds != null ? oddsFeedBySport[selectedSportForOdds] : undefined
-
-  useEffect(() => {
-    if (!selectedSportForOdds) return
-    if (selectedOddsFeed !== undefined) return
-
-    let cancelled = false
-    const run = async () => {
-      try {
-        const res = await fetch(
-          `/api/player-prop-odds?sport=${encodeURIComponent(selectedSportForOdds)}`,
-          { cache: "no-store" }
-        )
-        const payload = (await res.json().catch(() => ({}))) as PlayerPropOddsResponse
-        if (!res.ok) {
-          throw new Error("Failed to load player prop odds feed.")
-        }
-        if (cancelled || !isMountedRef.current) return
-        setOddsFeedBySport((prev) => {
-          if (prev[selectedSportForOdds] !== undefined) return prev
-          return { ...prev, [selectedSportForOdds]: payload }
-        })
-      } catch {
-        if (cancelled || !isMountedRef.current) return
-        setOddsFeedBySport((prev) => {
-          if (prev[selectedSportForOdds] !== undefined) return prev
-          return { ...prev, [selectedSportForOdds]: null }
-        })
-      }
-    }
-
-    run()
-    return () => {
-      cancelled = true
-    }
-  }, [selectedOddsFeed, selectedSportForOdds])
+  const selectedOddsFeed: PlayerPropOddsResponse | null = null
 
   const selectedDisplayLean = useMemo(
     () => (selectedItem ? resolveDisplayLeanForFilter(selectedItem, selectedBookFilter) : null),
@@ -1403,7 +1466,7 @@ export default function PropOrderbooksPanel({
           <div>
             <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">Sharp Prop Orderbook</div>
             <div className="mt-1 text-xs text-white/55">
-              {totalCountLabel} | refreshes every 30m ({SHARP_REFRESH_WINDOW_LABEL})
+              {totalCountLabel} | refreshes every 10m ({SHARP_REFRESH_WINDOW_LABEL})
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/50">
@@ -1414,7 +1477,7 @@ export default function PropOrderbooksPanel({
             </span>
             <button
               type="button"
-              onClick={() => load({ forceRefresh: true, background: true })}
+              onClick={() => load({ forceRefresh: false, background: true })}
               disabled={refreshing || !refreshWindowOpen}
               className="rounded-md border border-white/15 px-2.5 py-1 text-white/75 transition-colors hover:border-emerald-400/50 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-45"
             >
@@ -1669,7 +1732,7 @@ export default function PropOrderbooksPanel({
 
                 <div className="mt-4 rounded-xl border border-white/10 bg-black/45 p-3">
                   <div className="text-[10px] uppercase tracking-[0.2em] text-white/45">
-                    Sharp Books Live Odds
+                    Current Odds (Snapshot)
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                     {selectedSharpBookOdds.map((book) => {
@@ -1680,14 +1743,20 @@ export default function PropOrderbooksPanel({
                           className="flex items-center justify-between rounded-lg border border-white/10 bg-black/50 px-2.5 py-2"
                         >
                           <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded border border-white/15 bg-black/40">
-                            <Image
-                              src={logo.src}
-                              alt={logo.label}
-                              width={26}
-                              height={26}
-                              className="h-full w-full object-contain"
-                              unoptimized
-                            />
+                            {logo.src ? (
+                              <Image
+                                src={logo.src}
+                                alt={logo.label}
+                                width={26}
+                                height={26}
+                                className="h-full w-full object-contain"
+                                unoptimized
+                              />
+                            ) : (
+                              <span className="text-[9px] font-semibold text-white/65">
+                                {logo.label.slice(0, 2).toUpperCase()}
+                              </span>
+                            )}
                           </div>
                           <div className="text-sm font-semibold text-lime-300">
                             {formatAmericanOdds(book.odds)}
@@ -1696,6 +1765,9 @@ export default function PropOrderbooksPanel({
                       )
                     })}
                   </div>
+                  <p className="mt-2 text-[10px] text-white/35">
+                    Snapshot data only. No live request-time odds are fetched.
+                  </p>
                 </div>
 
                 <div className="mt-4 rounded-xl border border-white/10 bg-black/45 p-3">

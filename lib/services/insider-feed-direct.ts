@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { probabilityToAmericanOdds } from '@/lib/utils/statistics'
 import { computeInsiderScore } from './polymarket-insider'
+import { buildInsiderOddsSnapshots } from './insider-odds-snapshot'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -817,6 +818,24 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
 
   const runTs  = new Date().toISOString()
   const scored: Record<string, unknown>[] = []
+  const oddsSnapshotMap = await buildInsiderOddsSnapshots(
+    activePositions.map((position) => {
+      const slugPrices = currentPrices.get(position.slug)
+      const currentPrice = slugPrices?.get(position.outcome) ?? null
+      const currentAmericanOdds =
+        currentPrice != null ? probabilityToAmericanOdds(currentPrice) : null
+      return {
+        slug: position.slug,
+        title: position.title,
+        outcome: position.outcome,
+        sportLabel: position.sportLabel,
+        currentAmericanOdds:
+          currentAmericanOdds != null && Number.isFinite(currentAmericanOdds)
+            ? currentAmericanOdds
+            : null,
+      }
+    })
+  )
 
   for (const pos of activePositions) {
     const meta = walletMetaMap.get(pos.wallet)
@@ -843,6 +862,7 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
     const slugPrices = currentPrices.get(pos.slug)
     const curPrice = slugPrices?.get(pos.outcome) ?? null
     const curAmericanOdds = curPrice !== null ? probabilityToAmericanOdds(curPrice) : null
+    const oddsSnapshot = oddsSnapshotMap.get(`${pos.slug}::${pos.outcome}`)
 
     scored.push({
       wallet:                  pos.wallet,
@@ -866,6 +886,12 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
       wallet_roi_pct:          Math.round(meta.roi * 100 * 10) / 10,
       wallet_trade_count:      buyTradeCount,
       consensus_count:         consensus,
+      odds_snapshot:           oddsSnapshot?.quotes ?? [],
+      odds_snapshot_at:        oddsSnapshot?.snapshotAt ?? null,
+      best_odds_american:      oddsSnapshot?.bestOddsAmerican ?? null,
+      best_odds_book:          oddsSnapshot?.bestOddsBook ?? null,
+      odds_source_count:       oddsSnapshot?.sourceCount ?? 0,
+      odds_is_stale:           false,
       refreshed_at:            runTs,
     })
   }
@@ -887,15 +913,15 @@ export async function refreshInsiderPositions(batchSize: number = POSITION_BATCH
   }
 
   if (scored.length > 0) {
-    // Always additive upsert — ignoreDuplicates preserves existing rows (scores stay locked)
+    // Upsert all rows so cached odds snapshots refresh every cycle.
     for (let i = 0; i < scored.length; i += 500) {
       const chunk = scored.slice(i, i + 500)
       const { error } = await (supabase as any)
         .from('insider_feed_cache')
-        .upsert(chunk, { onConflict: 'wallet,slug,outcome', ignoreDuplicates: true })
+        .upsert(chunk, { onConflict: 'wallet,slug,outcome', ignoreDuplicates: false })
       if (error) console.error(`[InsiderFeed] Cache upsert chunk ${i} failed:`, error)
     }
-    console.log(`[InsiderFeed] Wrote ${scored.length} bets (additive upsert)`)
+    console.log(`[InsiderFeed] Upserted ${scored.length} bets with odds snapshots`)
   }
 
   // Count how many are now in cache for today

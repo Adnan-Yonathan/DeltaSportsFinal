@@ -2,9 +2,10 @@
 
 import { forwardRef } from 'react'
 import { ShareCaptureRoot, ShareCardFrame } from '@/components/share/ShareCardFrame'
+import { SHARP_PROPS_SOURCE_ORDER } from '@/lib/config/odds-sources'
 
 type SourceKey = 'kalshi' | 'polymarket' | 'novig' | 'prophetx'
-type SharpBookKey = SourceKey | 'pinnacle'
+type SharpBookKey = (typeof SHARP_PROPS_SOURCE_ORDER)[number]
 
 const SOURCE_LOGOS: Record<SourceKey, { label: string; src: string }> = {
   kalshi: { label: 'Kalshi', src: '/kalshi.png' },
@@ -13,12 +14,26 @@ const SOURCE_LOGOS: Record<SourceKey, { label: string; src: string }> = {
   prophetx: { label: 'ProphetX', src: '/ProphetX.png' },
 }
 
-const SHARP_BOOK_LOGOS: Record<SharpBookKey, { label: string; src: string }> = {
+const SHARP_BOOK_LOGOS: Record<SharpBookKey, { label: string; src?: string }> = {
+  fanduel: { label: 'FanDuel' },
+  draftkings: { label: 'DraftKings' },
+  betmgm: { label: 'BetMGM' },
+  caesars: { label: 'Caesars' },
+  betrivers: { label: 'BetRivers' },
+  hardrockbet: { label: 'Hard Rock Bet' },
+  fanatics: { label: 'Fanatics' },
+  espnbet: { label: 'ESPN BET' },
+  fliff: { label: 'Fliff' },
+  circa: { label: 'Circa' },
+  pinnacle: { label: 'Pinnacle', src: '/pinnacle.jpg' },
   prophetx: { label: 'ProphetX', src: '/ProphetX.png' },
   novig: { label: 'NoVig', src: '/Novig.png' },
   polymarket: { label: 'Polymarket', src: '/polymarket.png' },
   kalshi: { label: 'Kalshi', src: '/kalshi.png' },
-  pinnacle: { label: 'Pinnacle', src: '/pinnacle.jpg' },
+  prizepicks: { label: 'PrizePicks' },
+  underdog: { label: 'Underdog' },
+  draftkings_pick6: { label: 'DraftKings Pick6' },
+  sleeper: { label: 'Sleeper' },
 }
 
 export type ShareableSharpPropsToolPayload = {
@@ -258,10 +273,10 @@ const ShareableSharpPropsToolCard = forwardRef<
                 padding: '12px 12px',
               }}
             >
-              <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.58)' }}>
-                Sharp books live odds
+                <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.58)' }}>
+                Current odds (snapshot)
               </div>
-              <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 8 }}>
+              <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
                 {payload.sharpBookOdds.map((book) => {
                   const logo = SHARP_BOOK_LOGOS[book.key]
                   return (
@@ -291,7 +306,13 @@ const ShareableSharpPropsToolCard = forwardRef<
                           justifyContent: 'center',
                         }}
                       >
-                        <img src={logo.src} alt={logo.label} style={{ width: 22, height: 22, objectFit: 'contain' }} />
+                        {logo.src ? (
+                          <img src={logo.src} alt={logo.label} style={{ width: 22, height: 22, objectFit: 'contain' }} />
+                        ) : (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.72)' }}>
+                            {logo.label.slice(0, 2).toUpperCase()}
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#86efac' }}>{book.oddsLabel}</div>
                     </div>

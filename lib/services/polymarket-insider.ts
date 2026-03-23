@@ -1,4 +1,14 @@
 import { createServiceClient } from '@/lib/supabase/service'
+import type { OddsSourceKey } from '@/lib/config/odds-sources'
+
+export type InsiderOddsQuote = {
+  sourceKey: OddsSourceKey
+  sourceLabel: string
+  oddsAmerican: number | null
+  marketType: 'h2h' | 'spreads' | 'totals'
+  line: number | null
+  updatedAt: string | null
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -24,6 +34,12 @@ export type InsiderBet = {
   current_price: number | null
   current_american_odds: number | null
   consensus_count: number
+  odds_snapshot: InsiderOddsQuote[]
+  odds_snapshot_at: string | null
+  best_odds_american: number | null
+  best_odds_book: string | null
+  odds_source_count: number
+  odds_is_stale: boolean
 }
 
 // ── Hard filters — "bad bets not included" ───────────────────────────────────
@@ -151,14 +167,22 @@ export async function getInsiderFeed(opts: {
   // and are only cleaned up at the next refresh after midnight.
   const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
+  const selectFieldsExtended =
+    'wallet, pseudonym, profile_image_url, title, outcome, sport_label, slug, ' +
+    'avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, ' +
+    'first_trade_time, last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
+    'wallet_trade_count, current_price, current_american_odds, consensus_count, ' +
+    'odds_snapshot, odds_snapshot_at, best_odds_american, best_odds_book, odds_source_count, odds_is_stale'
+
+  const selectFieldsLegacy =
+    'wallet, pseudonym, profile_image_url, title, outcome, sport_label, slug, ' +
+    'avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, ' +
+    'first_trade_time, last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
+    'wallet_trade_count, current_price, current_american_odds, consensus_count'
+
   let query = (supabase as any)
     .from('insider_feed_cache')
-    .select(
-      'wallet, pseudonym, profile_image_url, title, outcome, sport_label, slug, ' +
-      'avg_entry_price, avg_entry_american_odds, stake_usd, potential_payout_usd, ' +
-      'first_trade_time, last_trade_time, insider_score, size_ratio, wallet_roi_pct, ' +
-      'wallet_trade_count, current_price, current_american_odds, consensus_count'
-    )
+    .select(selectFieldsExtended)
     .eq('cached_date', todayET)
     .gte('insider_score', minScore)
     .order('insider_score', { ascending: false })
@@ -168,7 +192,27 @@ export async function getInsiderFeed(opts: {
     query = query.eq('sport_label', sport)
   }
 
-  const { data, error } = await query
+  let { data, error } = await query
+
+  if (
+    error &&
+    typeof error?.message === 'string' &&
+    (error.message.includes('odds_snapshot') || error.message.includes('best_odds_american'))
+  ) {
+    let fallbackQuery = (supabase as any)
+      .from('insider_feed_cache')
+      .select(selectFieldsLegacy)
+      .eq('cached_date', todayET)
+      .gte('insider_score', minScore)
+      .order('insider_score', { ascending: false })
+      .limit(limit + offset)
+    if (sport && sport !== 'ALL') {
+      fallbackQuery = fallbackQuery.eq('sport_label', sport)
+    }
+    const fallback = await fallbackQuery
+    data = fallback.data
+    error = fallback.error
+  }
 
   if (error) {
     console.error('[INSIDER] cache query failed', error)
@@ -211,6 +255,12 @@ export async function getInsiderFeed(opts: {
     current_price:           row.current_price           ?? null,
     current_american_odds:   row.current_american_odds   ?? null,
     consensus_count:         row.consensus_count         ?? 1,
+    odds_snapshot:           Array.isArray(row.odds_snapshot) ? row.odds_snapshot : [],
+    odds_snapshot_at:        row.odds_snapshot_at        ?? null,
+    best_odds_american:      row.best_odds_american      ?? null,
+    best_odds_book:          row.best_odds_book          ?? null,
+    odds_source_count:       row.odds_source_count       ?? 0,
+    odds_is_stale:           Boolean(row.odds_is_stale),
   }))
 
   return deduplicateConflicts(mapped)

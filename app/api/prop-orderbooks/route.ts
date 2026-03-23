@@ -24,7 +24,6 @@ export const dynamic = 'force-dynamic'
 const DEFAULT_DEPTH = 8
 const DEFAULT_MIN_SHARP_NOTIONAL = 100
 const PERSISTED_CACHE_LIMIT = 200
-const PERSISTED_CACHE_MAX_AGE_MS = 30 * 60 * 1000
 const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store, no-cache, must-revalidate',
 } as const
@@ -51,6 +50,19 @@ type DateWindow = 'today' | 'upcoming'
 
 const buildCacheKey = (sport: string, depth: number, minSharpNotional: number) =>
   `sport:${sport}:depth:${depth}:min:${minSharpNotional}`
+
+const isRefreshAuthorized = (req: NextRequest) => {
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) return false
+
+  const authHeader = req.headers.get('authorization')
+  if (authHeader === `Bearer ${cronSecret}`) return true
+
+  const refreshSecret = req.headers.get('x-refresh-secret')
+  if (refreshSecret === cronSecret) return true
+
+  return false
+}
 
 const parsePersistedPayload = (value: unknown): PersistedPayload | null => {
   if (!value || typeof value !== 'object') return null
@@ -137,7 +149,14 @@ export async function GET(req: NextRequest) {
       ? Math.max(minSharpNotional, 0)
       : 100
     const refreshWindowOpen = isWithinSharpRefreshWindow()
-    const effectiveForceRefresh = forceRefresh && refreshWindowOpen
+    const refreshAuthorized = isRefreshAuthorized(req)
+    if (forceRefresh && !refreshAuthorized) {
+      return NextResponse.json(
+        { ok: false, error: 'Unauthorized refresh request.' },
+        { status: 401, headers: NO_STORE_HEADERS }
+      )
+    }
+    const effectiveForceRefresh = forceRefresh && refreshWindowOpen && refreshAuthorized
     const requestedMode =
       requestedModeParam === 'fast' ||
       requestedModeParam === 'full' ||
@@ -215,8 +234,7 @@ export async function GET(req: NextRequest) {
       const cachedExact = await getPropOrderbooksCache(exactCacheKey)
       const exactPayload = parsePersistedPayload(cachedExact?.payload)
       const exactAgeMs = parseCacheAgeMs(cachedExact?.fetched_at ?? null)
-      const exactCacheFresh = exactAgeMs != null && exactAgeMs <= PERSISTED_CACHE_MAX_AGE_MS
-      if (exactPayload && exactCacheFresh) {
+      if (exactPayload) {
         return buildCachedResponse(
           sport,
           normalizedLimit,
@@ -234,8 +252,7 @@ export async function GET(req: NextRequest) {
         const cachedAll = await getPropOrderbooksCache(allCacheKey)
         const allPayload = parsePersistedPayload(cachedAll?.payload)
         const allAgeMs = parseCacheAgeMs(cachedAll?.fetched_at ?? null)
-        const allCacheFresh = allAgeMs != null && allAgeMs <= PERSISTED_CACHE_MAX_AGE_MS
-        if (allPayload && allCacheFresh) {
+        if (allPayload) {
           return buildCachedResponse(
             sport,
             normalizedLimit,
@@ -248,6 +265,33 @@ export async function GET(req: NextRequest) {
           )
         }
       }
+
+      return NextResponse.json({
+        ok: true,
+        sport,
+        updatedAt: null,
+        count: 0,
+        items: [],
+        refreshBlocked: true,
+        cache: {
+          forcedRefresh: false,
+          source: 'no_live_cache_miss',
+          fetchedAt: null,
+          cacheAgeMs: null,
+        },
+        diagnostics: resolveSnapshotDiagnostics([]),
+      }, { headers: NO_STORE_HEADERS })
+    }
+
+    if (!effectiveForceRefresh) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Live computation is disabled for this endpoint. Use default cached params or cron refresh.',
+        },
+        { status: 400, headers: NO_STORE_HEADERS }
+      )
     }
 
     const computeLimit =
@@ -317,18 +361,18 @@ export async function GET(req: NextRequest) {
         source: effectiveForceRefresh
           ? canUsePersistentCache
             ? mode === 'full'
-              ? 'live_computed_persisted_full'
-              : 'live_computed_persisted_fast_refresh'
+              ? 'snapshot_refreshed_persisted_full'
+              : 'snapshot_refreshed_persisted_fast'
             : mode === 'full'
-              ? 'live_computed_full'
-              : 'live_computed_fast_refresh'
+              ? 'snapshot_refreshed_full'
+              : 'snapshot_refreshed_fast'
           : canUsePersistentCache
             ? mode === 'overnight'
-              ? 'live_computed_persisted_overnight'
-              : 'live_computed_persisted_fast'
+              ? 'snapshot_cached_overnight'
+              : 'snapshot_cached'
             : mode === 'overnight'
-              ? 'live_computed_overnight'
-              : 'live_computed_fast',
+              ? 'snapshot_cached_overnight'
+              : 'snapshot_cached',
         persisted,
         cacheWriteSkippedDegraded,
         fallbackToPersistent,

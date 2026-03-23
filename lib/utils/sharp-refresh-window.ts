@@ -9,7 +9,7 @@ const EASTERN_TIME_FORMATTER = new Intl.DateTimeFormat("en-US", {
   hourCycle: "h23",
 })
 
-export const SHARP_REFRESH_INTERVAL_MS = 30 * 60 * 1000
+export const SHARP_REFRESH_INTERVAL_MS = 10 * 60 * 1000
 export const SHARP_REFRESH_WINDOW_LABEL = "10:00 AM-12:30 AM ET"
 
 export const getEasternMinutesOfDay = (date = new Date()) => {
@@ -32,4 +32,3 @@ export const isWithinSharpRefreshWindow = (date = new Date()) => {
     easternMinutes < OPEN_WINDOW_END_MINUTES
   )
 }
-

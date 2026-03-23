@@ -1,6 +1,7 @@
 import { fetchOdds } from '@/lib/api/odds-api'
 import { fetchTheOddsApiPlayerProps } from '@/lib/api/the-odds-api'
 import { fetchSbdGamePropsList, resolveSbdLeague } from '@/lib/api/sbd'
+import { resolveOddsSourceKey } from '@/lib/config/odds-sources'
 import { normalizeTeamKey } from '@/lib/identity/sport'
 import { TEAMS_REGISTRY } from '@/lib/data/teams-registry'
 import { buildFinalPropOrderbookItems } from '@/lib/services/prop-orderbooks-selection'
@@ -231,6 +232,10 @@ export type PropOrderbookItem = {
   pinnacleLeanBookTitle: string | null
   fanduelLeanOdds: number | null
   fanduelLeanBookTitle: string | null
+  sportsbookOddsByBook?: Record<
+    string,
+    { over: number | null; under: number | null; title: string | null }
+  >
   updatedAt: string
 }
 
@@ -269,6 +274,7 @@ type SportsbookPropLine = {
   fanduelUnderOdds: number | null
   fanduelOverBookTitle: string | null
   fanduelUnderBookTitle: string | null
+  oddsByBook: Record<string, { over: number | null; under: number | null; title: string | null }>
   noVigOverProbs: number[]
   noVigUnderProbs: number[]
 }
@@ -1714,6 +1720,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
               pinnacleBookTitle: null,
               fanduelOdds: null,
               fanduelBookTitle: null,
+              bookOddsByKey: {},
             }
       const leanBestOdds =
         leanSportsbookQuote.pinnacleOdds ??
@@ -1744,6 +1751,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         pinnacleLeanBookTitle: leanSportsbookQuote.pinnacleBookTitle ?? null,
         fanduelLeanOdds: leanSportsbookQuote.fanduelOdds ?? null,
         fanduelLeanBookTitle: leanSportsbookQuote.fanduelBookTitle ?? null,
+        sportsbookOddsByBook: leanSportsbookQuote.bookOddsByKey ?? {},
         updatedAt,
       }
     }
@@ -1892,6 +1900,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
                 pinnacleBookTitle: null,
                 fanduelOdds: null,
                 fanduelBookTitle: null,
+                bookOddsByKey: {},
               }
         const leanBestOdds =
           leanSportsbookQuote.pinnacleOdds ??
@@ -1922,6 +1931,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           pinnacleLeanBookTitle: leanSportsbookQuote.pinnacleBookTitle ?? null,
           fanduelLeanOdds: leanSportsbookQuote.fanduelOdds ?? null,
           fanduelLeanBookTitle: leanSportsbookQuote.fanduelBookTitle ?? null,
+          sportsbookOddsByBook: leanSportsbookQuote.bookOddsByKey ?? {},
           updatedAt,
         }
       }
@@ -2367,6 +2377,7 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
               fanduelUnderOdds: null,
               fanduelOverBookTitle: null,
               fanduelUnderBookTitle: null,
+              oddsByBook: {},
               noVigOverProbs: [],
               noVigUnderProbs: [],
             }
@@ -2408,6 +2419,30 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
             if (bucket.bestUnderOdds == null || underOdds > bucket.bestUnderOdds) {
               bucket.bestUnderOdds = underOdds
               bucket.bestUnderBookTitle = bookTitle
+            }
+          }
+
+          const canonicalBookKey =
+            resolveOddsSourceKey(
+              typeof book?.key === 'string' ? book.key : null
+            ) ??
+            resolveOddsSourceKey(bookTitle)
+          if (canonicalBookKey) {
+            const existing = bucket.oddsByBook[canonicalBookKey] ?? {
+              over: null,
+              under: null,
+              title: bookTitle ?? null,
+            }
+            bucket.oddsByBook[canonicalBookKey] = {
+              over:
+                overOdds != null && !Number.isNaN(overOdds)
+                  ? overOdds
+                  : existing.over,
+              under:
+                underOdds != null && !Number.isNaN(underOdds)
+                  ? underOdds
+                  : existing.under,
+              title: existing.title ?? bookTitle ?? null,
             }
           }
 
@@ -2455,6 +2490,7 @@ const resolveSportsbookPropPrices = async (
   pinnacleBookTitle: string | null
   fanduelOdds: number | null
   fanduelBookTitle: string | null
+  bookOddsByKey: Record<string, { over: number | null; under: number | null; title: string | null }>
 }> => {
   if (!propSide) {
     return {
@@ -2465,6 +2501,7 @@ const resolveSportsbookPropPrices = async (
       pinnacleBookTitle: null,
       fanduelOdds: null,
       fanduelBookTitle: null,
+      bookOddsByKey: {},
     }
   }
   const index = await fetchSportsbookPropIndex(sportKey)
@@ -2483,6 +2520,7 @@ const resolveSportsbookPropPrices = async (
       pinnacleBookTitle: null,
       fanduelOdds: null,
       fanduelBookTitle: null,
+      bookOddsByKey: {},
     }
   }
 
@@ -2500,6 +2538,7 @@ const resolveSportsbookPropPrices = async (
       pinnacleBookTitle: null,
       fanduelOdds: null,
       fanduelBookTitle: null,
+      bookOddsByKey: {},
     }
   }
 
@@ -2526,6 +2565,7 @@ const resolveSportsbookPropPrices = async (
     pinnacleBookTitle: pinnacleBookTitle ?? null,
     fanduelOdds: fanduelOdds ?? null,
     fanduelBookTitle: fanduelBookTitle ?? null,
+    bookOddsByKey: best.oddsByBook ?? {},
   }
 }
 

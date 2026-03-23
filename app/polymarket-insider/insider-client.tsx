@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { ArrowUpRight, CheckCircle2, ChevronDown, Database, RefreshCw, TrendingUp, Zap } from 'lucide-react'
 import MobileToolsNav from '@/components/mobile-tools-nav'
 import type { InsiderBet } from '@/lib/services/polymarket-insider'
+import { INSIDER_ODDS_SOURCE_ORDER } from '@/lib/config/odds-sources'
 import ShareInsiderBetButton from '@/components/ShareInsiderBetButton'
 
 // ── Sport filter tabs ─────────────────────────────────────────────────────────
@@ -66,6 +67,12 @@ function formatPct(value: number): string {
   return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`
 }
 
+function formatAmericanOnly(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—'
+  const rounded = Math.round(value)
+  return rounded > 0 ? `+${rounded}` : `${rounded}`
+}
+
 function timeAgo(iso: string | null): string {
   if (!iso) return ''
   const diff = Date.now() - new Date(iso).getTime()
@@ -73,6 +80,51 @@ function timeAgo(iso: string | null): string {
   if (h < 1) return `${Math.floor(diff / 60_000)}m ago`
   if (h < 24) return `${h}h ago`
   return `${Math.floor(h / 24)}d ago`
+}
+
+function BestOddsByBook({ bet }: { bet: InsiderBet }) {
+  const quoteBySource = new Map(
+    (bet.odds_snapshot ?? []).map((quote) => [quote.sourceKey, quote] as const)
+  )
+
+  return (
+    <div className="mt-3 rounded-xl border border-white/10 bg-black/45 p-4">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/35">
+          Best Odds By Book
+        </p>
+        <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-white/55">
+          Snapshot only · 10m
+        </span>
+      </div>
+      <div className="space-y-1">
+        {INSIDER_ODDS_SOURCE_ORDER.map((sourceKey) => {
+          const quote = quoteBySource.get(sourceKey)
+          const label = quote?.sourceLabel ?? sourceKey
+          const isBest =
+            quote?.oddsAmerican != null &&
+            bet.best_odds_american != null &&
+            Math.round(quote.oddsAmerican) === Math.round(bet.best_odds_american)
+          return (
+            <div
+              key={`${bet.slug}:${sourceKey}`}
+              className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs ${
+                isBest
+                  ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
+                  : 'border-white/10 bg-black/20 text-white/70'
+              }`}
+            >
+              <span className="truncate">{label}</span>
+              <span className="font-semibold">{formatAmericanOnly(quote?.oddsAmerican ?? null)}</span>
+            </div>
+          )
+        })}
+      </div>
+      <p className="mt-2 text-[10px] text-white/35">
+        No live odds are fetched in this view. Data is served from cached snapshots.
+      </p>
+    </div>
+  )
 }
 
 // ── Score badge ───────────────────────────────────────────────────────────────
@@ -335,6 +387,8 @@ function MobileExpandableCard({ bet, expanded, onToggle }: { bet: InsiderBet; ex
               }}
             />
           </div>
+
+          <BestOddsByBook bet={bet} />
         </div>
       </div>
     </div>
@@ -460,6 +514,8 @@ function DetailPanel({ bet }: { bet: InsiderBet | null }) {
         </div>
       </div>
 
+      <BestOddsByBook bet={bet} />
+
       {/* Actions */}
       <div className="mt-3 flex items-center gap-2">
         <a
@@ -565,7 +621,7 @@ export default function InsiderClient() {
 
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
-    intervalRef.current = setInterval(() => fetchBets(true), 15 * 60 * 1000)
+    intervalRef.current = setInterval(() => fetchBets(true), 10 * 60 * 1000)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [fetchBets])
 

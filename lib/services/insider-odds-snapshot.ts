@@ -1,4 +1,5 @@
 import { fetchOdds } from '@/lib/api/odds-api'
+import { getSportKey as getTheOddsApiSportKey } from '@/lib/api/the-odds-api'
 import {
   getOddsSource,
   INSIDER_ODDS_SOURCE_ORDER,
@@ -55,6 +56,40 @@ const SPORT_LABEL_TO_ODDS_KEY: Record<string, string> = {
   NHL: 'icehockey_nhl',
   NCAAB: 'basketball_ncaab',
   NCAAF: 'americanfootball_ncaaf',
+  WNBA: 'basketball_wnba',
+  EPL: 'soccer_epl',
+  UCL: 'soccer_uefa_champs_league',
+  MLS: 'soccer_usa_mls',
+  'LA LIGA': 'soccer_spain_la_liga',
+  BUNDESLIGA: 'soccer_germany_bundesliga',
+  'SERIE A': 'soccer_italy_serie_a',
+  'LIGUE 1': 'soccer_france_ligue_one',
+  ATP: 'tennis_atp',
+  WTA: 'tennis_wta',
+  UFC: 'mma_mixed_martial_arts',
+  MMA: 'mma_mixed_martial_arts',
+  BOXING: 'boxing_boxing',
+}
+
+const ESPORT_SPORT_LABELS = new Set([
+  'CS2',
+  'CSGO',
+  'LOL',
+  'DOTA 2',
+  'VALORANT',
+  'ROCKET LEAGUE',
+  'COD',
+  'ESPORTS',
+])
+
+const resolveOddsSportKey = (sportLabel: string) => {
+  const normalized = String(sportLabel ?? '').trim().toUpperCase()
+  if (!normalized) return null
+  if (ESPORT_SPORT_LABELS.has(normalized)) return null
+  const mapped = SPORT_LABEL_TO_ODDS_KEY[normalized]
+  if (mapped) return mapped
+  const fallback = getTheOddsApiSportKey(normalized)
+  return fallback ?? null
 }
 
 const LINE_TOLERANCE = 0.15
@@ -255,7 +290,7 @@ const buildSportGamesMap = async (positions: InsiderOddsPositionInput[]) => {
   const gamesMap = new Map<string, OddsGame[]>()
   await Promise.all(
     sportLabels.map(async (sportLabel) => {
-      const sportKey = SPORT_LABEL_TO_ODDS_KEY[sportLabel]
+      const sportKey = resolveOddsSportKey(sportLabel)
       if (!sportKey) {
         gamesMap.set(sportLabel, [])
         return

@@ -3,7 +3,7 @@ import { fetchTheOddsApiPlayerProps } from "@/lib/api/the-odds-api"
 
 export const dynamic = "force-dynamic"
 
-const CACHE_TTL_MS = 15 * 60 * 1000
+const CACHE_TTL_MS = 10 * 60 * 1000
 type CacheEntry = { ts: number; payload: any }
 const responseCache = new Map<string, CacheEntry>()
 
@@ -73,6 +73,7 @@ const SPORT_MARKETS: Record<string, string[]> = {
 }
 
 const BOOK_ALLOWLIST = [
+  "circa",
   "betrivers",
   "betmgm",
   "caesars",
@@ -127,6 +128,8 @@ const BOOK_ALIASES: Record<string, string> = {
   novig_us: "novig",
   prophetx: "prophetx",
   prophetx_us: "prophetx",
+  circa: "circa",
+  circasports: "circa",
   bet365: "bet365",
   bet365us: "bet365",
   bet365usnj: "bet365",
@@ -160,6 +163,7 @@ const resolveBookKeyFromTitle = (value: string) => {
   if (normalized.includes("sleeper")) return "sleeper"
   if (normalized.includes("novig")) return "novig"
   if (normalized.includes("prophetx") || normalized.includes("prophet x")) return "prophetx"
+  if (normalized.includes("circa")) return "circa"
   return ""
 }
 
@@ -214,6 +218,8 @@ const toDisplayBook = (key: string) => {
       return "NoVig"
     case "prophetx":
       return "ProphetX"
+    case "circa":
+      return "Circa"
     case "bet365":
       return "Bet365"
     default:

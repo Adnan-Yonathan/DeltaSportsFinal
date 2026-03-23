@@ -2,6 +2,7 @@
 
 import { forwardRef } from 'react'
 import { ShareCaptureRoot, ShareCardFrame } from '@/components/share/ShareCardFrame'
+import { INSIDER_ODDS_SOURCE_ORDER, type OddsSourceKey } from '@/lib/config/odds-sources'
 import { extractTeamLogos } from '@/lib/utils/team-logos'
 
 export interface ShareableInsiderBet {
@@ -20,6 +21,11 @@ export interface ShareableInsiderBet {
   displayName: string
   profileImageUrl: string | null
   lastTradeTime: string | null
+  oddsSnapshot: Array<{
+    sourceKey: OddsSourceKey
+    sourceLabel: string
+    oddsAmerican: number | null
+  }>
 }
 
 const formatCurrency = (amount: number): string => {
@@ -58,6 +64,34 @@ const formatTimestamp = (value: string | null): string => {
   })
 }
 
+const formatAmericanOnly = (value: number | null | undefined) => {
+  if (value == null || !Number.isFinite(value)) return '--'
+  const rounded = Math.round(value)
+  return rounded > 0 ? `+${rounded}` : `${rounded}`
+}
+
+const INSIDER_BOOK_LOGOS: Record<OddsSourceKey, string[]> = {
+  fanduel: ['/fanduel.png', '/fanduel.jpeg', '/36-360533_fanduel-logo-fanduel-logo.png'],
+  draftkings: ['/R%20(1).png', '/R.png', '/draftkings.png'],
+  betmgm: ['/betmgm.png', '/BETMGM-Logo-Color-Scheme-PNG-thumb.png'],
+  caesars: ['/caesars.png', '/CZR_BIG.D-96274f93.png'],
+  betrivers: ['/betrivers.png', '/BetRivers.png', '/486540_BetRivers_1200x608.png'],
+  hardrockbet: ['/hardrockbet.png', '/ha2249h8a2-hard-rock-cafe-logo-hard-rock-hotel-amp-casino-atlantic-city.png'],
+  fanatics: ['/icon.jpeg', '/icon.png', '/fanatics.png'],
+  espnbet: ['/espnbet.png', '/ESPN-BET-Logo.png'],
+  fliff: ['/fliff.png', '/Fliff.png'],
+  circa: ['/circa.png', '/circasports.png'],
+  pinnacle: ['/pinnacle.png', '/pinnacle.jpg'],
+  novig: ['/novig.png', '/Novig.png'],
+  prophetx: ['/prophetx.png', '/ProphetX.png'],
+  polymarket: ['/polymarket.png'],
+  kalshi: ['/kalshi.png', '/kalshi-logo.png'],
+  prizepicks: ['/prizepicks.png'],
+  underdog: ['/underdogfantasy.png', '/underdog.png'],
+  draftkings_pick6: ['/pick6.png', '/draftkings_pick6.png'],
+  sleeper: ['/sleeper.png'],
+}
+
 const scoreTier = (score: number) => {
   if (score >= 90) return { label: 'Elite', bg: 'rgba(255,255,255,0.10)', border: 'rgba(255,255,255,0.40)', color: '#ffffff', glow: '0 0 12px rgba(255,255,255,0.18)' }
   if (score >= 80) return { label: 'Sharp', bg: 'rgba(16,185,129,0.15)', border: 'rgba(52,211,153,0.50)', color: '#86efac', glow: 'none' }
@@ -71,6 +105,17 @@ const ShareableInsiderBetCard = forwardRef<HTMLDivElement, { bet: ShareableInsid
     const oddsLabel = formatOdds(bet.avgEntryPrice, bet.americanOdds)
     const roiLabel = formatPct(bet.walletRoiPct)
     const detectedLabel = formatTimestamp(bet.lastTradeTime)
+    const oddsBySource = new Map(
+      (bet.oddsSnapshot ?? []).map((quote) => [quote.sourceKey, quote] as const)
+    )
+    const orderedOddsSnapshot = INSIDER_ODDS_SOURCE_ORDER.map((sourceKey) => {
+      const quote = oddsBySource.get(sourceKey)
+      return {
+        sourceKey,
+        sourceLabel: quote?.sourceLabel ?? sourceKey,
+        oddsAmerican: quote?.oddsAmerican ?? null,
+      }
+    })
 
     return (
       <ShareCaptureRoot>
@@ -279,6 +324,67 @@ const ShareableInsiderBetCard = forwardRef<HTMLDivElement, { bet: ShareableInsid
                   <div style={{ marginTop: 6, fontSize: 30, fontWeight: 700, color: '#f1f5f9' }}>
                     {bet.sizeRatio}x
                   </div>
+                </div>
+              </div>
+
+              {/* Current odds snapshot */}
+              <div
+                style={{
+                  marginTop: 14,
+                  borderRadius: 16,
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  background: 'rgba(0,0,0,0.4)',
+                  padding: '12px 12px',
+                }}
+              >
+                <div style={{ fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.58)' }}>
+                  Current odds (snapshot)
+                </div>
+                <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
+                  {orderedOddsSnapshot.map((quote) => {
+                    const candidates = INSIDER_BOOK_LOGOS[quote.sourceKey] ?? []
+                    const logoSrc = candidates[0]
+                    return (
+                      <div
+                        key={`${bet.id}-${quote.sourceKey}`}
+                        style={{
+                          borderRadius: 10,
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          background: 'rgba(2, 8, 20, 0.88)',
+                          padding: '8px 8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 29,
+                            height: 29,
+                            borderRadius: 7,
+                            border: '1px solid rgba(255,255,255,0.14)',
+                            background: 'rgba(0,0,0,0.58)',
+                            overflow: 'hidden',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {logoSrc ? (
+                            <img src={logoSrc} alt={quote.sourceLabel} style={{ width: 22, height: 22, objectFit: 'contain' }} />
+                          ) : (
+                            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.72)' }}>
+                              {quote.sourceLabel.slice(0, 2).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: '#86efac' }}>
+                          {formatAmericanOnly(quote.oddsAmerican)}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </div>

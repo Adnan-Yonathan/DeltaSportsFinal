@@ -1120,7 +1120,6 @@ export default function PropOrderbooksPanel({
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      if (!isWithinSharpRefreshWindow()) return
       load({ forceRefresh: false, background: true })
     }, SHARP_REFRESH_INTERVAL_MS)
     return () => window.clearInterval(interval)
@@ -1300,6 +1299,7 @@ export default function PropOrderbooksPanel({
     () => filteredItems.find((item) => item.id === selectedItemId) ?? filteredItems[0] ?? null,
     [filteredItems, selectedItemId]
   )
+
   const selectedOddsFeed: PlayerPropOddsResponse | null = null
 
   const selectedDisplayLean = useMemo(

@@ -55,7 +55,7 @@ export const ODDS_SOURCES: OddsSourceDefinition[] = [
     key: 'draftkings_pick6',
     label: 'DraftKings Pick6',
     type: 'dfs',
-    providerKeys: ['draftkings_pick6', 'draftkings-pick6'],
+    providerKeys: ['draftkings_pick6', 'draftkings-pick6', 'pick6', 'pick_6'],
   },
   { key: 'sleeper', label: 'Sleeper', type: 'dfs', providerKeys: ['sleeper'] },
 ]

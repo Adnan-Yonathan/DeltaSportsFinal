@@ -374,7 +374,12 @@ const PROP_KEYWORDS: Record<string, Array<{ key: string; patterns: string[] }>> 
   ],
 }
 
-type ExchangeSportKey = 'basketball_nba' | 'basketball_ncaab' | 'icehockey_nhl'
+type ExchangeSportKey =
+  | 'basketball_nba'
+  | 'basketball_ncaab'
+  | 'americanfootball_nfl'
+  | 'baseball_mlb'
+  | 'icehockey_nhl'
 
 const EXCHANGE_PROP_MARKETS: Record<ExchangeSportKey, string[]> = {
   basketball_nba: [
@@ -399,6 +404,29 @@ const EXCHANGE_PROP_MARKETS: Record<ExchangeSportKey, string[]> = {
     'player_points_rebounds',
     'player_points_assists',
     'player_rebounds_assists',
+  ],
+  americanfootball_nfl: [
+    'player_pass_yds',
+    'player_pass_tds',
+    'player_pass_completions',
+    'player_pass_attempts',
+    'player_interceptions',
+    'player_rush_yds',
+    'player_rush_tds',
+    'player_receptions',
+    'player_reception_yds',
+    'player_receiving_tds',
+    'player_longest_reception',
+    'player_longest_rush',
+  ],
+  baseball_mlb: [
+    'player_hits',
+    'player_total_bases',
+    'player_home_runs',
+    'player_rbis',
+    'player_runs_scored',
+    'player_strikeouts',
+    'player_walks',
   ],
   icehockey_nhl: [
     'player_points',
@@ -429,11 +457,30 @@ const MARKET_KEY_TO_PROP_TYPE: Record<string, string> = {
   player_blocks: 'blocks',
   player_steals: 'steals',
   player_turnovers: 'turnovers',
+  player_pass_yds: 'passing_yards',
+  player_pass_tds: 'passing_tds',
+  player_pass_completions: 'pass_completions',
+  player_pass_attempts: 'pass_attempts',
+  player_interceptions: 'interceptions',
+  player_rush_yds: 'rushing_yards',
+  player_rush_tds: 'rushing_tds',
+  player_receptions: 'receptions',
+  player_reception_yds: 'receiving_yards',
+  player_receiving_tds: 'receiving_tds',
+  player_longest_reception: 'longest_reception',
+  player_longest_rush: 'longest_rush',
   player_goals: 'goals',
   player_shots_on_goal: 'shots',
   player_blocked_shots: 'blocked_shots',
   player_total_saves: 'saves',
   player_saves: 'saves',
+  player_hits: 'hits',
+  player_total_bases: 'total_bases',
+  player_home_runs: 'home_runs',
+  player_rbis: 'rbis',
+  player_runs_scored: 'runs',
+  player_strikeouts: 'strikeouts',
+  player_walks: 'walks',
 }
 
 const SUPPORTED_TEAM_SPORTS = new Set([
@@ -2281,6 +2328,250 @@ const resolveSportsbookNoVig = async (opts: {
   }
 }
 
+const SHARP_LINE_SHOP_BOOKMAKERS = [
+  'polymarket',
+  'kalshi',
+  'novig',
+  'pinnacle',
+  'circa',
+  'prophetx',
+  'prizepicks',
+  'underdog',
+  'pick6',
+  'sleeper',
+] as const
+
+const SHARP_LINE_SHOP_MARKETS: Record<string, string[]> = {
+  basketball_nba: [
+    'player_points',
+    'player_rebounds',
+    'player_assists',
+    'player_threes',
+    'player_points_rebounds_assists',
+    'player_points_rebounds',
+    'player_points_assists',
+    'player_rebounds_assists',
+    'player_blocks',
+    'player_steals',
+    'player_turnovers',
+  ],
+  basketball_ncaab: [
+    'player_points',
+    'player_rebounds',
+    'player_assists',
+    'player_threes',
+    'player_points_rebounds_assists',
+    'player_points_rebounds',
+    'player_points_assists',
+    'player_rebounds_assists',
+  ],
+  americanfootball_nfl: [
+    'player_pass_yds',
+    'player_pass_tds',
+    'player_pass_completions',
+    'player_pass_attempts',
+    'player_interceptions',
+    'player_rush_yds',
+    'player_rush_tds',
+    'player_receptions',
+    'player_reception_yds',
+    'player_receiving_tds',
+    'player_longest_reception',
+    'player_longest_rush',
+  ],
+  baseball_mlb: [
+    'player_hits',
+    'player_total_bases',
+    'player_home_runs',
+    'player_rbis',
+    'player_runs_scored',
+    'player_strikeouts',
+    'player_walks',
+  ],
+  icehockey_nhl: [
+    'player_points',
+    'player_goals',
+    'player_assists',
+    'player_shots_on_goal',
+    'player_blocked_shots',
+    'player_saves',
+    'player_total_saves',
+  ],
+}
+
+const createSportsbookPropLine = (playerName: string, propType: string, line: number): SportsbookPropLine => ({
+  playerName,
+  propType,
+  line,
+  bestOverOdds: null,
+  bestUnderOdds: null,
+  bestOverBookTitle: null,
+  bestUnderBookTitle: null,
+  pinnacleOverOdds: null,
+  pinnacleUnderOdds: null,
+  pinnacleOverBookTitle: null,
+  pinnacleUnderBookTitle: null,
+  fanduelOverOdds: null,
+  fanduelUnderOdds: null,
+  fanduelOverBookTitle: null,
+  fanduelUnderBookTitle: null,
+  oddsByBook: {},
+  noVigOverProbs: [],
+  noVigUnderProbs: [],
+})
+
+const upsertBookOdds = (
+  bucket: SportsbookPropLine,
+  book: { key?: string | null; title?: string | null; name?: string | null },
+  overOdds: number | null,
+  underOdds: number | null
+) => {
+  const bookTitle =
+    typeof book?.name === 'string'
+      ? book.name
+      : typeof book?.title === 'string'
+        ? book.title
+        : book?.key
+          ? String(book.key)
+          : null
+
+  if (overOdds != null && !Number.isNaN(overOdds)) {
+    if (isPinnacleBook(book)) {
+      bucket.pinnacleOverOdds = overOdds
+      bucket.pinnacleOverBookTitle = bookTitle
+    }
+    if (isFanDuelBook(book)) {
+      bucket.fanduelOverOdds = overOdds
+      bucket.fanduelOverBookTitle = bookTitle
+    }
+    if (bucket.bestOverOdds == null || overOdds > bucket.bestOverOdds) {
+      bucket.bestOverOdds = overOdds
+      bucket.bestOverBookTitle = bookTitle
+    }
+  }
+  if (underOdds != null && !Number.isNaN(underOdds)) {
+    if (isPinnacleBook(book)) {
+      bucket.pinnacleUnderOdds = underOdds
+      bucket.pinnacleUnderBookTitle = bookTitle
+    }
+    if (isFanDuelBook(book)) {
+      bucket.fanduelUnderOdds = underOdds
+      bucket.fanduelUnderBookTitle = bookTitle
+    }
+    if (bucket.bestUnderOdds == null || underOdds > bucket.bestUnderOdds) {
+      bucket.bestUnderOdds = underOdds
+      bucket.bestUnderBookTitle = bookTitle
+    }
+  }
+
+  const canonicalBookKey =
+    resolveOddsSourceKey(typeof book?.key === 'string' ? book.key : null) ??
+    resolveOddsSourceKey(bookTitle)
+  if (canonicalBookKey) {
+    const existing = bucket.oddsByBook[canonicalBookKey] ?? {
+      over: null,
+      under: null,
+      title: bookTitle ?? null,
+    }
+    bucket.oddsByBook[canonicalBookKey] = {
+      over:
+        overOdds != null && !Number.isNaN(overOdds)
+          ? overOdds
+          : existing.over,
+      under:
+        underOdds != null && !Number.isNaN(underOdds)
+          ? underOdds
+          : existing.under,
+      title: existing.title ?? bookTitle ?? null,
+    }
+  }
+
+  if (overOdds != null && underOdds != null) {
+    const overProb = oddsToImpliedProbability(overOdds)
+    const underProb = oddsToImpliedProbability(underOdds)
+    const total = overProb + underProb
+    if (Number.isFinite(total) && total > 0) {
+      bucket.noVigOverProbs.push(overProb / total)
+      bucket.noVigUnderProbs.push(underProb / total)
+    }
+  }
+}
+
+const buildSportsbookIndexFromOddsApi = async (sportKey: string) => {
+  const markets = SHARP_LINE_SHOP_MARKETS[sportKey]
+  if (!markets?.length) return null
+
+  const events = await fetchTheOddsApiPlayerProps(sportKey, {
+    markets: markets.join(','),
+    regions: 'us,us2,eu,us_ex',
+    bookmakers: [...SHARP_LINE_SHOP_BOOKMAKERS],
+    oddsFormat: 'american',
+    dateFormat: 'iso',
+  })
+
+  const result = new Map<string, SportsbookPropLine[]>()
+  for (const event of events ?? []) {
+    for (const bookmaker of event.bookmakers ?? []) {
+      for (const market of bookmaker.markets ?? []) {
+        const marketKey = String(market?.key ?? '')
+        const propType = resolvePropTypeFromMarketKey(marketKey)
+        if (!propType) continue
+
+        const lineRows = new Map<string, { over: number | null; under: number | null; playerName: string; line: number }>()
+        for (const outcome of market.outcomes ?? []) {
+          const normalizedOutcome = (outcome as Record<string, unknown>) ?? {}
+          const side = resolveOverUnderFromOutcome(normalizedOutcome)
+          if (!side) continue
+          const line = resolveExchangeOutcomeLine(normalizedOutcome)
+          if (line == null || !Number.isFinite(line)) continue
+          const odds = parseOptionalNumber(normalizedOutcome?.price)
+          if (odds == null || !Number.isFinite(odds)) continue
+          const playerName = resolveExchangeOutcomePlayerName(normalizedOutcome, side) ?? null
+          if (!playerName) continue
+
+          const key = `${normalizePlayerName(playerName)}:${propType}:${formatLineKey(line)}`
+          const existing = lineRows.get(key) ?? {
+            over: null,
+            under: null,
+            playerName,
+            line,
+          }
+          if (side === 'Over') existing.over = odds
+          if (side === 'Under') existing.under = odds
+          lineRows.set(key, existing)
+        }
+
+        for (const row of lineRows.values()) {
+          const normalizedPlayer = normalizePlayerName(row.playerName)
+          if (!normalizedPlayer) continue
+          if (!result.has(normalizedPlayer)) result.set(normalizedPlayer, [])
+
+          let bucket = result.get(normalizedPlayer)!.find(
+            (item) => item.propType === propType && Math.abs(item.line - row.line) < 0.001
+          )
+          if (!bucket) {
+            bucket = createSportsbookPropLine(normalizedPlayer, propType, row.line)
+            result.get(normalizedPlayer)!.push(bucket)
+          }
+
+          upsertBookOdds(
+            bucket,
+            {
+              key: bookmaker?.key ?? null,
+              title: bookmaker?.title ?? null,
+              name: bookmaker?.title ?? null,
+            },
+            row.over,
+            row.under
+          )
+        }
+      }
+    }
+  }
+
+  return result
+}
+
 const fetchSportsbookPropIndex = async (sportKey: string) => {
   const cached = sportsbookCache.get(sportKey)
   const now = Date.now()
@@ -2295,6 +2586,16 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
 
   const loadPromise = (async () => {
     try {
+      try {
+        const oddsApiResult = await buildSportsbookIndexFromOddsApi(sportKey)
+        if (oddsApiResult && oddsApiResult.size > 0) {
+          sportsbookCache.set(sportKey, { fetchedAt: now, data: oddsApiResult })
+          return oddsApiResult
+        }
+      } catch (oddsApiError) {
+        console.warn('[prop-liquidity-detector] Odds API line-shop index failed, falling back to SBD:', oddsApiError)
+      }
+
       const league = resolveSbdLeague(sportKey)
       if (!league) return new Map<string, SportsbookPropLine[]>()
 
@@ -2361,26 +2662,7 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
           )
 
           if (!bucket) {
-            bucket = {
-              playerName: normalizedPlayer,
-              propType,
-              line,
-              bestOverOdds: null,
-              bestUnderOdds: null,
-              bestOverBookTitle: null,
-              bestUnderBookTitle: null,
-              pinnacleOverOdds: null,
-              pinnacleUnderOdds: null,
-              pinnacleOverBookTitle: null,
-              pinnacleUnderBookTitle: null,
-              fanduelOverOdds: null,
-              fanduelUnderOdds: null,
-              fanduelOverBookTitle: null,
-              fanduelUnderBookTitle: null,
-              oddsByBook: {},
-              noVigOverProbs: [],
-              noVigUnderProbs: [],
-            }
+            bucket = createSportsbookPropLine(normalizedPlayer, propType, line)
             result.get(normalizedPlayer)!.push(bucket)
           }
 
@@ -2393,68 +2675,16 @@ const fetchSportsbookPropIndex = async (sportKey: string) => {
                   ? String(book.key)
                   : null
 
-          if (overOdds != null && !Number.isNaN(overOdds)) {
-            if (isPinnacleBook(book)) {
-              bucket.pinnacleOverOdds = overOdds
-              bucket.pinnacleOverBookTitle = bookTitle
-            }
-            if (isFanDuelBook(book)) {
-              bucket.fanduelOverOdds = overOdds
-              bucket.fanduelOverBookTitle = bookTitle
-            }
-            if (bucket.bestOverOdds == null || overOdds > bucket.bestOverOdds) {
-              bucket.bestOverOdds = overOdds
-              bucket.bestOverBookTitle = bookTitle
-            }
-          }
-          if (underOdds != null && !Number.isNaN(underOdds)) {
-            if (isPinnacleBook(book)) {
-              bucket.pinnacleUnderOdds = underOdds
-              bucket.pinnacleUnderBookTitle = bookTitle
-            }
-            if (isFanDuelBook(book)) {
-              bucket.fanduelUnderOdds = underOdds
-              bucket.fanduelUnderBookTitle = bookTitle
-            }
-            if (bucket.bestUnderOdds == null || underOdds > bucket.bestUnderOdds) {
-              bucket.bestUnderOdds = underOdds
-              bucket.bestUnderBookTitle = bookTitle
-            }
-          }
-
-          const canonicalBookKey =
-            resolveOddsSourceKey(
-              typeof book?.key === 'string' ? book.key : null
-            ) ??
-            resolveOddsSourceKey(bookTitle)
-          if (canonicalBookKey) {
-            const existing = bucket.oddsByBook[canonicalBookKey] ?? {
-              over: null,
-              under: null,
-              title: bookTitle ?? null,
-            }
-            bucket.oddsByBook[canonicalBookKey] = {
-              over:
-                overOdds != null && !Number.isNaN(overOdds)
-                  ? overOdds
-                  : existing.over,
-              under:
-                underOdds != null && !Number.isNaN(underOdds)
-                  ? underOdds
-                  : existing.under,
-              title: existing.title ?? bookTitle ?? null,
-            }
-          }
-
-          if (overOdds != null && underOdds != null) {
-            const overProb = oddsToImpliedProbability(overOdds)
-            const underProb = oddsToImpliedProbability(underOdds)
-            const total = overProb + underProb
-            if (Number.isFinite(total) && total > 0) {
-              bucket.noVigOverProbs.push(overProb / total)
-              bucket.noVigUnderProbs.push(underProb / total)
-            }
-          }
+          upsertBookOdds(
+            bucket,
+            {
+              key: typeof book?.key === 'string' ? book.key : null,
+              title: bookTitle,
+              name: bookTitle,
+            },
+            overOdds,
+            underOdds
+          )
         }
       }
 

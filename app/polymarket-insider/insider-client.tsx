@@ -84,14 +84,14 @@ function timeAgo(iso: string | null): string {
 
 const INSIDER_BOOK_LOGOS: Record<OddsSourceKey, string[]> = {
   fanduel: ['/fanduel.png', '/fanduel.jpeg', '/36-360533_fanduel-logo-fanduel-logo.png'],
-  draftkings: ['/draftkings.png'],
+  draftkings: ['/R%20(1).png', '/R.png', '/draftkings.png'],
   betmgm: ['/betmgm.png', '/BETMGM-Logo-Color-Scheme-PNG-thumb.png'],
   caesars: ['/caesars.png', '/CZR_BIG.D-96274f93.png'],
-  betrivers: ['/betrivers.png', '/486540_BetRivers_1200x608.png'],
+  betrivers: ['/betrivers.png', '/BetRivers.png', '/486540_BetRivers_1200x608.png'],
   hardrockbet: ['/hardrockbet.png', '/ha2249h8a2-hard-rock-cafe-logo-hard-rock-hotel-amp-casino-atlantic-city.png'],
-  fanatics: ['/fanatics.png'],
+  fanatics: ['/icon.jpeg', '/icon.png', '/fanatics.png'],
   espnbet: ['/espnbet.png', '/ESPN-BET-Logo.png'],
-  fliff: ['/fliff.png'],
+  fliff: ['/fliff.png', '/Fliff.png'],
   circa: ['/circa.png', '/circasports.png'],
   pinnacle: ['/pinnacle.png', '/pinnacle.jpg'],
   novig: ['/novig.png', '/Novig.png'],
@@ -121,6 +121,20 @@ function BookLogo({ sourceKey, label }: { sourceKey: OddsSourceKey; label: strin
       onError={() => setCandidateIndex((prev) => prev + 1)}
     />
   )
+}
+
+function buildShareOddsSnapshot(bet: InsiderBet) {
+  const quoteBySource = new Map(
+    (bet.odds_snapshot ?? []).map((quote) => [quote.sourceKey, quote] as const)
+  )
+  return INSIDER_ODDS_SOURCE_ORDER.map((sourceKey) => {
+    const quote = quoteBySource.get(sourceKey)
+    return {
+      sourceKey,
+      sourceLabel: quote?.sourceLabel ?? sourceKey,
+      oddsAmerican: quote?.oddsAmerican ?? null,
+    }
+  })
 }
 
 function BestOddsByBook({ bet }: { bet: InsiderBet }) {
@@ -433,6 +447,7 @@ function MobileExpandableCard({ bet, expanded, onToggle }: { bet: InsiderBet; ex
                 displayName: displayName,
                 profileImageUrl: bet.profile_image_url,
                 lastTradeTime: bet.last_trade_time,
+                oddsSnapshot: buildShareOddsSnapshot(bet),
               }}
             />
           </div>
@@ -602,6 +617,7 @@ function DetailPanel({ bet }: { bet: InsiderBet | null }) {
             displayName: displayName,
             profileImageUrl: bet.profile_image_url,
             lastTradeTime: bet.last_trade_time,
+            oddsSnapshot: buildShareOddsSnapshot(bet),
           }}
         />
       </div>

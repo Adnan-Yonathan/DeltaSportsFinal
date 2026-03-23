@@ -108,6 +108,14 @@ const normalizeName = (value?: string | null) =>
 
 const cleanTeamLabel = (value: string) => value.split(':')[0]?.trim() ?? ''
 
+const stripOutcomeToTeam = (value: string) =>
+  String(value ?? '')
+    .replace(/\b(yes|no|over|under)\b/gi, ' ')
+    .replace(/[+-]?\d+(?:\.\d+)?/g, ' ')
+    .replace(/[()|:,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
 const parseTeamsFromTitle = (title?: string | null): ParsedTeams | null => {
   if (!title) return null
   const parts = String(title).split(SPLIT_PATTERN)
@@ -145,7 +153,10 @@ const resolveSelection = (title: string, outcome: string, teams: ParsedTeams | n
   }
 
   if (marketType === 'spreads' || marketType === 'h2h') {
-    if (!teams) return { marketType, line }
+    if (!teams) {
+      const fallbackTeam = stripOutcomeToTeam(outcome)
+      return { marketType, team: fallbackTeam || undefined, line }
+    }
     const outcomeKey = normalizeName(outcome)
     const awayKey = normalizeName(teams.away)
     const homeKey = normalizeName(teams.home)
@@ -161,21 +172,42 @@ const resolveSelection = (title: string, outcome: string, teams: ParsedTeams | n
   return { marketType, line }
 }
 
-const findMatchingGame = (games: OddsGame[], teams: ParsedTeams | null) => {
-  if (!teams) return null
-  const awayKey = normalizeName(teams.away)
-  const homeKey = normalizeName(teams.home)
-  if (!awayKey || !homeKey) return null
-  return (
-    games.find((game) => {
-      const gameAway = normalizeName(game.away_team)
-      const gameHome = normalizeName(game.home_team)
-      return (
-        (gameAway.includes(awayKey) && gameHome.includes(homeKey)) ||
-        (gameAway.includes(homeKey) && gameHome.includes(awayKey))
-      )
-    }) ?? null
-  )
+const gameContainsSelection = (
+  game: OddsGame,
+  selection: ParsedSelection,
+  teams: ParsedTeams | null
+) => {
+  for (const book of game.bookmakers ?? []) {
+    const market = resolveOddsMarket(book.markets ?? [], selection.marketType)
+    if (!market) continue
+    const outcome = findOutcomeForSelection(market, selection, teams)
+    if (outcome) return true
+  }
+  return false
+}
+
+const findMatchingGame = (
+  games: OddsGame[],
+  teams: ParsedTeams | null,
+  selection: ParsedSelection
+) => {
+  if (teams) {
+    const awayKey = normalizeName(teams.away)
+    const homeKey = normalizeName(teams.home)
+    if (awayKey && homeKey) {
+      const direct = games.find((game) => {
+        const gameAway = normalizeName(game.away_team)
+        const gameHome = normalizeName(game.home_team)
+        return (
+          (gameAway.includes(awayKey) && gameHome.includes(homeKey)) ||
+          (gameAway.includes(homeKey) && gameHome.includes(awayKey))
+        )
+      })
+      if (direct) return direct
+    }
+  }
+
+  return games.find((game) => gameContainsSelection(game, selection, teams)) ?? null
 }
 
 const findOutcomeForSelection = (
@@ -326,7 +358,7 @@ export const buildInsiderOddsSnapshots = async (
     const selection = resolveSelection(position.title, position.outcome, teams)
     const sportLabel = String(position.sportLabel ?? '').trim().toUpperCase()
     const games = gamesBySport.get(sportLabel) ?? []
-    const game = findMatchingGame(games, teams)
+    const game = findMatchingGame(games, teams, selection)
 
     const quoteBySource = new Map<OddsSourceKey, InsiderOddsQuote>()
     for (const quote of buildEmptyQuotes(selection.marketType)) {

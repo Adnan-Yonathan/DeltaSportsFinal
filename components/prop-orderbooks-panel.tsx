@@ -404,18 +404,22 @@ const resolveSharpBookOddsForItem = (
   oddsByBook.pinnacle = item.pinnacleLeanOdds ?? null
 
   const sideKey = recommendedSide?.toLowerCase() as "over" | "under" | undefined
-  if (sideKey) {
-    for (const sourceItem of item.sourceItems) {
-      const byBook = sourceItem.sportsbookOddsByBook ?? {}
-      for (const [rawKey, value] of Object.entries(byBook)) {
-        const resolvedKey = resolveSharpBookKey(rawKey) ?? resolveSharpBookKey(value?.title)
-        if (!resolvedKey) continue
-        const quote = parseFiniteNumber(value?.[sideKey])
-        if (quote == null) continue
-        const current = oddsByBook[resolvedKey]
-        if (current == null || quote > current) {
-          oddsByBook[resolvedKey] = quote
-        }
+  for (const sourceItem of item.sourceItems) {
+    const byBook = sourceItem.sportsbookOddsByBook ?? {}
+    for (const [rawKey, value] of Object.entries(byBook)) {
+      const resolvedKey = resolveSharpBookKey(rawKey) ?? resolveSharpBookKey(value?.title)
+      if (!resolvedKey) continue
+      const selectedQuote =
+        sideKey != null
+          ? parseFiniteNumber(value?.[sideKey])
+          : pickBestAvailableOdds([
+              parseFiniteNumber(value?.over),
+              parseFiniteNumber(value?.under),
+            ])
+      if (selectedQuote == null) continue
+      const current = oddsByBook[resolvedKey]
+      if (current == null || selectedQuote > current) {
+        oddsByBook[resolvedKey] = selectedQuote
       }
     }
   }

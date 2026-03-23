@@ -141,43 +141,24 @@ const SOURCE_LOGOS: Record<SourceKey, { label: string; src: string }> = {
 const SHARP_BOOK_ORDER: SharpBookKey[] = [...SHARP_PROPS_SOURCE_ORDER]
 
 const SHARP_BOOK_LOGOS: Record<SharpBookKey, { label: string; src?: string }> = {
-  fanduel: { label: "FanDuel", src: "/fanduel.jpeg" },
-  draftkings: { label: "DraftKings" },
-  betmgm: { label: "BetMGM", src: "/BETMGM-Logo-Color-Scheme-PNG-thumb.png" },
-  caesars: { label: "Caesars", src: "/CZR_BIG.D-96274f93.png" },
-  betrivers: { label: "BetRivers", src: "/486540_BetRivers_1200x608.png" },
-  hardrockbet: {
-    label: "Hard Rock Bet",
-    src: "/ha2249h8a2-hard-rock-cafe-logo-hard-rock-hotel-amp-casino-atlantic-city.png",
-  },
-  fanatics: { label: "Fanatics" },
-  espnbet: { label: "ESPN BET", src: "/ESPN-BET-Logo.png" },
-  fliff: { label: "Fliff" },
-  circa: { label: "Circa" },
-  pinnacle: { label: "Pinnacle", src: "/pinnacle.jpg" },
-  novig: { label: "NoVig", src: "/Novig.png" },
-  prophetx: { label: "ProphetX", src: "/ProphetX.png" },
   polymarket: { label: "Polymarket", src: "/polymarket.png" },
   kalshi: { label: "Kalshi", src: "/kalshi.png" },
-  prizepicks: { label: "PrizePicks" },
-  underdog: { label: "Underdog" },
-  draftkings_pick6: { label: "DraftKings Pick6" },
-  sleeper: { label: "Sleeper" },
+  novig: { label: "NoVig", src: "/Novig.png" },
+  pinnacle: { label: "Pinnacle", src: "/pinnacle.jpg" },
+  circa: { label: "Circa", src: "/circasports.png" },
+  prophetx: { label: "ProphetX", src: "/ProphetX.png" },
+  prizepicks: { label: "PrizePicks", src: "/prizepicks.png" },
+  underdog: { label: "Underdog", src: "/underdogfantasy.png" },
+  draftkings_pick6: { label: "Pick6", src: "/pick6.png" },
+  sleeper: { label: "Sleeper", src: "/sleeper.png" },
 }
 
 const ODDS_API_BOOK_KEYS = [
-  "fanduel",
-  "draftkings",
-  "betmgm",
-  "caesars",
-  "betrivers",
-  "hardrockbet",
-  "fanatics",
-  "espnbet",
-  "fliff",
-  "circa",
-  "pinnacle",
+  "polymarket",
+  "kalshi",
   "novig",
+  "pinnacle",
+  "circa",
   "prophetx",
   "prizepicks",
   "underdog",
@@ -186,22 +167,15 @@ const ODDS_API_BOOK_KEYS = [
 ] as const
 
 const ODDS_API_BOOK_ALIASES: Record<(typeof ODDS_API_BOOK_KEYS)[number], string[]> = {
-  fanduel: ["fanduel"],
-  draftkings: ["draftkings"],
-  betmgm: ["betmgm"],
-  caesars: ["caesars"],
-  betrivers: ["betrivers", "bet_rivers"],
-  hardrockbet: ["hardrockbet", "hardrock", "hard_rock_bet"],
-  fanatics: ["fanatics", "fanaticssportsbook", "betfanatics"],
-  espnbet: ["espnbet", "espn_bet", "thescorebet"],
-  fliff: ["fliff"],
-  circa: ["circa", "circasports"],
-  pinnacle: ["pinnacle"],
+  polymarket: ["polymarket"],
+  kalshi: ["kalshi"],
   novig: ["novig", "novigus"],
+  pinnacle: ["pinnacle"],
+  circa: ["circa", "circasports"],
   prophetx: ["prophetx", "prophet_x", "prophet"],
   prizepicks: ["prizepicks", "prize_picks"],
   underdog: ["underdog", "underdog_fantasy"],
-  draftkings_pick6: ["draftkings_pick6", "draftkings-pick6", "dk_pick6"],
+  draftkings_pick6: ["draftkings_pick6", "draftkings-pick6", "dk_pick6", "pick6", "pick_6"],
   sleeper: ["sleeper"],
 }
 
@@ -1731,46 +1705,6 @@ export default function PropOrderbooksPanel({
                 </div>
 
                 <div className="mt-4 rounded-xl border border-white/10 bg-black/45 p-3">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/45">
-                    Current Odds (Snapshot)
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                    {selectedSharpBookOdds.map((book) => {
-                      const logo = SHARP_BOOK_LOGOS[book.key]
-                      return (
-                        <div
-                          key={`${selectedItem.id}:sharp-book:${book.key}`}
-                          className="flex items-center justify-between rounded-lg border border-white/10 bg-black/50 px-2.5 py-2"
-                        >
-                          <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded border border-white/15 bg-black/40">
-                            {logo.src ? (
-                              <Image
-                                src={logo.src}
-                                alt={logo.label}
-                                width={26}
-                                height={26}
-                                className="h-full w-full object-contain"
-                                unoptimized
-                              />
-                            ) : (
-                              <span className="text-[9px] font-semibold text-white/65">
-                                {logo.label.slice(0, 2).toUpperCase()}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm font-semibold text-lime-300">
-                            {formatAmericanOdds(book.odds)}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <p className="mt-2 text-[10px] text-white/35">
-                    Snapshot data only. No live request-time odds are fetched.
-                  </p>
-                </div>
-
-                <div className="mt-4 rounded-xl border border-white/10 bg-black/45 p-3">
                   <div className="text-[10px] uppercase tracking-[0.2em] text-lime-300">The Play</div>
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
@@ -1881,6 +1815,46 @@ export default function PropOrderbooksPanel({
                       </div>
                     )}
                   </div>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-white/10 bg-black/45 p-3">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                    Current Odds (Snapshot)
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                    {selectedSharpBookOdds.map((book) => {
+                      const logo = SHARP_BOOK_LOGOS[book.key]
+                      return (
+                        <div
+                          key={`${selectedItem.id}:sharp-book:${book.key}`}
+                          className="flex items-center justify-between rounded-lg border border-white/10 bg-black/50 px-2.5 py-2"
+                        >
+                          <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded border border-white/15 bg-black/40">
+                            {logo.src ? (
+                              <Image
+                                src={logo.src}
+                                alt={logo.label}
+                                width={26}
+                                height={26}
+                                className="h-full w-full object-contain"
+                                unoptimized
+                              />
+                            ) : (
+                              <span className="text-[9px] font-semibold text-white/65">
+                                {logo.label.slice(0, 2).toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm font-semibold text-lime-300">
+                            {formatAmericanOdds(book.odds)}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="mt-2 text-[10px] text-white/35">
+                    Snapshot data only. No live request-time odds are fetched.
+                  </p>
                 </div>
               </>
             )}

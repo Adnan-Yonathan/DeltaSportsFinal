@@ -1,8 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  isWithinSharpRefreshWindow,
-  SHARP_REFRESH_WINDOW_LABEL,
-} from '@/lib/utils/sharp-refresh-window'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,16 +19,6 @@ export async function GET(req: NextRequest) {
 
     if (!isAuthed) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (!isWithinSharpRefreshWindow()) {
-      return NextResponse.json({
-        ok: true,
-        refreshed: false,
-        skipped: true,
-        reason: `Refresh window closed. Active window: ${SHARP_REFRESH_WINDOW_LABEL}.`,
-        timestamp: new Date().toISOString(),
-      })
     }
 
     const url = new URL('/api/prop-orderbooks', req.nextUrl.origin)

@@ -15,25 +15,16 @@ const SOURCE_LOGOS: Record<SourceKey, { label: string; src: string }> = {
 }
 
 const SHARP_BOOK_LOGOS: Record<SharpBookKey, { label: string; src?: string }> = {
-  fanduel: { label: 'FanDuel' },
-  draftkings: { label: 'DraftKings' },
-  betmgm: { label: 'BetMGM' },
-  caesars: { label: 'Caesars' },
-  betrivers: { label: 'BetRivers' },
-  hardrockbet: { label: 'Hard Rock Bet' },
-  fanatics: { label: 'Fanatics' },
-  espnbet: { label: 'ESPN BET' },
-  fliff: { label: 'Fliff' },
-  circa: { label: 'Circa' },
-  pinnacle: { label: 'Pinnacle', src: '/pinnacle.jpg' },
-  prophetx: { label: 'ProphetX', src: '/ProphetX.png' },
-  novig: { label: 'NoVig', src: '/Novig.png' },
   polymarket: { label: 'Polymarket', src: '/polymarket.png' },
   kalshi: { label: 'Kalshi', src: '/kalshi.png' },
-  prizepicks: { label: 'PrizePicks' },
-  underdog: { label: 'Underdog' },
-  draftkings_pick6: { label: 'DraftKings Pick6' },
-  sleeper: { label: 'Sleeper' },
+  novig: { label: 'NoVig', src: '/Novig.png' },
+  pinnacle: { label: 'Pinnacle', src: '/pinnacle.jpg' },
+  circa: { label: 'Circa', src: '/circasports.png' },
+  prophetx: { label: 'ProphetX', src: '/ProphetX.png' },
+  prizepicks: { label: 'PrizePicks', src: '/prizepicks.png' },
+  underdog: { label: 'Underdog', src: '/underdogfantasy.png' },
+  draftkings_pick6: { label: 'Pick6', src: '/pick6.png' },
+  sleeper: { label: 'Sleeper', src: '/sleeper.png' },
 }
 
 export type ShareableSharpPropsToolPayload = {

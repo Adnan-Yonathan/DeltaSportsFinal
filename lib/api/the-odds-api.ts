@@ -484,7 +484,7 @@ export async function fetchTheOddsApiEvents(
   url.searchParams.set('dateFormat', dateFormat)
 
   const res = await fetch(url.toString(), {
-    next: { revalidate: 900 }, // Cache for 15 minutes
+    next: { revalidate: 600 }, // Cache for 10 minutes
   })
 
   if (!res.ok) {
@@ -548,7 +548,7 @@ export async function fetchTheOddsApiEventOdds(
   }
 
   const res = await fetch(url.toString(), {
-    next: { revalidate: 900 }, // Cache for 15 minutes
+    next: { revalidate: 600 }, // Cache for 10 minutes
   })
 
   if (!res.ok) {

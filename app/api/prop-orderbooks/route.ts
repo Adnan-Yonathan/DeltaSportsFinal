@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
         { status: 401, headers: NO_STORE_HEADERS }
       )
     }
-    const effectiveForceRefresh = forceRefresh && refreshWindowOpen && refreshAuthorized
+    const effectiveForceRefresh = forceRefresh && refreshAuthorized
     const requestedMode =
       requestedModeParam === 'fast' ||
       requestedModeParam === 'full' ||
@@ -172,7 +172,7 @@ export async function GET(req: NextRequest) {
       normalizedMinSharpNotional === DEFAULT_MIN_SHARP_NOTIONAL
 
 
-    if (!refreshWindowOpen) {
+    if (!refreshWindowOpen && !effectiveForceRefresh) {
       if (canUsePersistentCache) {
         const exactCacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
         const cachedExact = await getPropOrderbooksCache(exactCacheKey)

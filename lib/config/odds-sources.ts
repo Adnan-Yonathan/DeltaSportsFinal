@@ -68,7 +68,7 @@ const SOURCE_KEY_BY_ALIAS = new Map<string, OddsSourceKey>(
 
 const SOURCE_BY_KEY = new Map(ODDS_SOURCES.map((entry) => [entry.key, entry]))
 
-export const INSIDER_ODDS_SOURCE_ORDER: OddsSourceKey[] = [
+export const INSIDER_ODDS_SOURCE_ORDER = [
   'fanduel',
   'draftkings',
   'betmgm',
@@ -84,15 +84,20 @@ export const INSIDER_ODDS_SOURCE_ORDER: OddsSourceKey[] = [
   'prophetx',
   'polymarket',
   'kalshi',
-]
+] as const satisfies readonly OddsSourceKey[]
 
-export const SHARP_PROPS_SOURCE_ORDER: OddsSourceKey[] = [
-  ...INSIDER_ODDS_SOURCE_ORDER,
+export const SHARP_PROPS_SOURCE_ORDER = [
+  'polymarket',
+  'kalshi',
+  'novig',
+  'pinnacle',
+  'circa',
+  'prophetx',
   'prizepicks',
   'underdog',
   'draftkings_pick6',
   'sleeper',
-]
+] as const satisfies readonly OddsSourceKey[]
 
 export const INSIDER_ODDS_SPORTSBOOK_PROVIDER_KEYS = [
   'fanduel',

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { ArrowUpRight, CheckCircle2, ChevronDown, Database, RefreshCw, TrendingUp, Zap } from 'lucide-react'
 import MobileToolsNav from '@/components/mobile-tools-nav'
 import type { InsiderBet } from '@/lib/services/polymarket-insider'
-import { INSIDER_ODDS_SOURCE_ORDER } from '@/lib/config/odds-sources'
+import { INSIDER_ODDS_SOURCE_ORDER, type OddsSourceKey } from '@/lib/config/odds-sources'
 import ShareInsiderBetButton from '@/components/ShareInsiderBetButton'
 
 // ── Sport filter tabs ─────────────────────────────────────────────────────────
@@ -82,6 +82,47 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
+const INSIDER_BOOK_LOGOS: Record<OddsSourceKey, string[]> = {
+  fanduel: ['/fanduel.png', '/fanduel.jpeg', '/36-360533_fanduel-logo-fanduel-logo.png'],
+  draftkings: ['/draftkings.png'],
+  betmgm: ['/betmgm.png', '/BETMGM-Logo-Color-Scheme-PNG-thumb.png'],
+  caesars: ['/caesars.png', '/CZR_BIG.D-96274f93.png'],
+  betrivers: ['/betrivers.png', '/486540_BetRivers_1200x608.png'],
+  hardrockbet: ['/hardrockbet.png', '/ha2249h8a2-hard-rock-cafe-logo-hard-rock-hotel-amp-casino-atlantic-city.png'],
+  fanatics: ['/fanatics.png'],
+  espnbet: ['/espnbet.png', '/ESPN-BET-Logo.png'],
+  fliff: ['/fliff.png'],
+  circa: ['/circa.png', '/circasports.png'],
+  pinnacle: ['/pinnacle.png', '/pinnacle.jpg'],
+  novig: ['/novig.png', '/Novig.png'],
+  prophetx: ['/prophetx.png', '/ProphetX.png'],
+  polymarket: ['/polymarket.png'],
+  kalshi: ['/kalshi.png', '/kalshi-logo.png'],
+  prizepicks: ['/prizepicks.png'],
+  underdog: ['/underdogfantasy.png', '/underdog.png'],
+  draftkings_pick6: ['/pick6.png', '/draftkings_pick6.png'],
+  sleeper: ['/sleeper.png'],
+}
+
+function BookLogo({ sourceKey, label }: { sourceKey: OddsSourceKey; label: string }) {
+  const candidates = INSIDER_BOOK_LOGOS[sourceKey] ?? []
+  const [candidateIndex, setCandidateIndex] = useState(0)
+  const src = candidates[candidateIndex]
+
+  if (!src) {
+    return <span className="text-[9px] font-semibold text-white/70">{label.slice(0, 2).toUpperCase()}</span>
+  }
+
+  return (
+    <img
+      src={src}
+      alt={label}
+      className="h-5 w-5 object-contain"
+      onError={() => setCandidateIndex((prev) => prev + 1)}
+    />
+  )
+}
+
 function BestOddsByBook({ bet }: { bet: InsiderBet }) {
   const quoteBySource = new Map(
     (bet.odds_snapshot ?? []).map((quote) => [quote.sourceKey, quote] as const)
@@ -90,14 +131,14 @@ function BestOddsByBook({ bet }: { bet: InsiderBet }) {
   return (
     <div className="mt-3 rounded-xl border border-white/10 bg-black/45 p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/35">
-          Best Odds By Book
+        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/45">
+          Current Odds (Snapshot)
         </p>
         <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-white/55">
-          Snapshot only · 10m
+          Snapshot only - 10m
         </span>
       </div>
-      <div className="space-y-1">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {INSIDER_ODDS_SOURCE_ORDER.map((sourceKey) => {
           const quote = quoteBySource.get(sourceKey)
           const label = quote?.sourceLabel ?? sourceKey
@@ -108,14 +149,23 @@ function BestOddsByBook({ bet }: { bet: InsiderBet }) {
           return (
             <div
               key={`${bet.slug}:${sourceKey}`}
-              className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs ${
+              className={`flex items-center justify-between rounded-lg border px-2.5 py-2 ${
                 isBest
-                  ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
-                  : 'border-white/10 bg-black/20 text-white/70'
+                  ? 'border-emerald-400/35 bg-emerald-500/10'
+                  : 'border-white/10 bg-black/50'
               }`}
             >
-              <span className="truncate">{label}</span>
-              <span className="font-semibold">{formatAmericanOnly(quote?.oddsAmerican ?? null)}</span>
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded border border-white/15 bg-black/40">
+                  <BookLogo sourceKey={sourceKey} label={label} />
+                </span>
+                <span className={`truncate text-[11px] ${isBest ? 'text-emerald-200' : 'text-white/70'}`}>
+                  {label}
+                </span>
+              </span>
+              <span className={`text-sm font-semibold ${quote?.oddsAmerican != null ? 'text-lime-300' : 'text-white/45'}`}>
+                {formatAmericanOnly(quote?.oddsAmerican ?? null)}
+              </span>
             </div>
           )
         })}
@@ -126,7 +176,6 @@ function BestOddsByBook({ bet }: { bet: InsiderBet }) {
     </div>
   )
 }
-
 // ── Score badge ───────────────────────────────────────────────────────────────
 
 function ScoreBadge({ score, size = 'md' }: { score: number; size?: 'sm' | 'md' | 'lg' }) {
@@ -787,3 +836,4 @@ export default function InsiderClient() {
     </div>
   )
 }
+

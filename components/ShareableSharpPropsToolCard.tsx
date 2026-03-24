@@ -113,7 +113,7 @@ const ShareableSharpPropsToolCard = forwardRef<
               <div style={{ fontSize: 52, fontWeight: 700, lineHeight: 1, color: '#86efac' }}>
                 {payload.whaleVolumeLabel}
               </div>
-              <div style={{ fontSize: 24, color: 'rgba(255,255,255,0.62)' }}>Total liquidity on this market</div>
+              <div style={{ fontSize: 24, color: 'rgba(255,255,255,0.62)' }}>Net liquidity on this market</div>
             </div>
 
             <div

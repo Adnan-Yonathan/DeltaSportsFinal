@@ -136,7 +136,7 @@ const SOURCE_LOGOS: Record<SourceKey, { label: string; src: string }> = {
   prophetx: { label: "ProphetX", src: "/ProphetX.png" },
 }
 
-const SHARP_BOOK_ORDER: SharpBookKey[] = [...SHARP_PROPS_SOURCE_ORDER]
+const SHARP_BOOK_ORDER: SharpBookKey[] = ["polymarket", "kalshi", "novig", "prophetx"]
 
 const SHARP_BOOK_LOGOS: Record<SharpBookKey, { label: string; src?: string }> = {
   polymarket: { label: "Polymarket", src: "/polymarket.png" },
@@ -550,10 +550,15 @@ const resolveOverUnderLiquidity = (item: DisplayOrderbookItem | OrderbookItem) =
   const under = item.sides
     .filter((side) => side.propSide === "Under")
     .reduce((sum, side) => sum + (side.totalNotional > 0 ? side.totalNotional : side.wallNotional ?? 0), 0)
+  const net = Math.max(Math.abs(over - under), 0)
+  const netSide = over > under ? "Over" : under > over ? "Under" : null
   return {
     over,
     under,
-    total: over + under,
+    total: net,
+    net,
+    netSide,
+    gross: over + under,
   }
 }
 
@@ -1453,7 +1458,10 @@ export default function PropOrderbooksPanel({
     [ladderRows]
   )
   const selectedSideLiquidity = useMemo(
-    () => (selectedItem ? resolveOverUnderLiquidity(selectedItem) : { over: 0, under: 0, total: 0 }),
+    () =>
+      selectedItem
+        ? resolveOverUnderLiquidity(selectedItem)
+        : { over: 0, under: 0, total: 0, net: 0, netSide: null, gross: 0 },
     [selectedItem]
   )
   const sharpPropsSharePayload = useMemo(() => {
@@ -1470,7 +1478,7 @@ export default function PropOrderbooksPanel({
       sportLabel: selectedItem.sportLabel,
       matchup: selectedItem.matchup ?? selectedItem.marketTitle,
       sourceKeys: selectedItem.sources,
-      whaleVolumeLabel: formatCompactCurrency(resolveOverUnderLiquidity(selectedItem).total),
+      whaleVolumeLabel: formatCompactCurrency(resolveOverUnderLiquidity(selectedItem).net),
       playLabel: resolvePropText(selectedItem, selectedDisplayLean.side),
       playOddsLabel: formatAmericanOdds(selectedDisplayLean.odds ?? null),
       playSubtext,
@@ -1654,7 +1662,7 @@ export default function PropOrderbooksPanel({
                             : baseDisplayLean.bestBookTitle,
                       }
                 const sideLiquidity = resolveOverUnderLiquidity(item)
-                const totalLiquidity = sideLiquidity.total
+                const dominantLabel = sideLiquidity.netSide ? `Net on ${sideLiquidity.netSide}` : "Balanced"
                 const playerHeadshot = resolvePlayerHeadshot(item, playerHeadshotsByKey)
                 const playerFaceSrc = playerHeadshot
                   ? `/api/image-proxy?url=${encodeURIComponent(playerHeadshot)}`
@@ -1673,9 +1681,12 @@ export default function PropOrderbooksPanel({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="text-3xl font-bold leading-none text-lime-300">
-                        {formatCompactCurrency(totalLiquidity)}
+                        {formatCompactCurrency(sideLiquidity.net)}
                       </div>
                       <div className="text-[10px] text-white/40">{item.eventDate ?? "TBD"}</div>
+                    </div>
+                    <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-white/45">
+                      {dominantLabel}
                     </div>
 
                     <div className="mt-2 line-clamp-1 text-sm font-semibold text-white">
@@ -1792,9 +1803,11 @@ export default function PropOrderbooksPanel({
                 </h2>
                 <div className="mt-2 flex flex-wrap items-center gap-3">
                   <div className="text-4xl font-bold leading-none text-lime-300">
-                    {formatCompactCurrency(selectedSideLiquidity.total)}
+                    {formatCompactCurrency(selectedSideLiquidity.net)}
                   </div>
-                  <div className="text-sm text-white/55">Total Liquidity</div>
+                  <div className="text-sm text-white/55">
+                    Total Liquidity{selectedSideLiquidity.netSide ? ` on ${selectedSideLiquidity.netSide}` : ""}
+                  </div>
                   <div className="rounded-md border border-white/10 bg-black/35 px-2 py-1 text-[11px] text-white/70">
                     Over {formatCompactCurrency(selectedSideLiquidity.over)}
                   </div>

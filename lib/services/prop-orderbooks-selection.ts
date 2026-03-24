@@ -66,6 +66,16 @@ const buildSourceCaps = (limit: number): Record<SourceKey, number> => {
   }
 }
 
+const buildMinimumSourceTargets = (limit: number): Record<SourceKey, number> => {
+  if (limit <= 4) {
+    return { kalshi: 1, polymarket: 1, novig: 1, prophetx: 1 }
+  }
+  if (limit <= 12) {
+    return { kalshi: 2, polymarket: 2, novig: 1, prophetx: 1 }
+  }
+  return { kalshi: 3, polymarket: 3, novig: 2, prophetx: 2 }
+}
+
 export const buildFinalPropOrderbookItems = <T extends SelectableOrderbookItem>({
   sportFilter,
   requestedLimit,
@@ -90,6 +100,7 @@ export const buildFinalPropOrderbookItems = <T extends SelectableOrderbookItem>(
   }
 
   const sourceCaps = buildSourceCaps(requestedLimit)
+  const sourceMinimums = buildMinimumSourceTargets(requestedLimit)
   const selected: T[] = []
   const selectedById = new Set<string>()
   const sourceCounts: Record<SourceKey, number> = {
@@ -107,9 +118,32 @@ export const buildFinalPropOrderbookItems = <T extends SelectableOrderbookItem>(
     return true
   }
 
+  const candidatesBySource: Record<SourceKey, T[]> = {
+    kalshi: [],
+    polymarket: [],
+    novig: [],
+    prophetx: [],
+  }
+  for (const item of allCandidates) {
+    candidatesBySource[item.source].push(item)
+  }
+
+  // Seed source diversity so non-Kalshi books are always represented when data exists.
+  for (const source of ["kalshi", "polymarket", "novig", "prophetx"] as const) {
+    const target = sourceMinimums[source]
+    if (target <= 0) continue
+    for (const item of candidatesBySource[source]) {
+      if (selected.length >= requestedLimit) break
+      if (sourceCounts[source] >= target) break
+      pushItem(item)
+    }
+  }
+
   for (const item of allCandidates) {
     if (selected.length >= requestedLimit) break
     if (resolveItemNotional(item) < HIGH_LIQUIDITY_NOTIONAL) continue
+    const cap = sourceCaps[item.source]
+    if (sourceCounts[item.source] >= cap) continue
     pushItem(item)
   }
 

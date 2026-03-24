@@ -250,11 +250,11 @@ function MobileCheckoutLayout({
               Get access to the sharp money
             </h1>
             <p className="mt-3 text-lg font-medium text-white/82">
-              Become an insider with a 7-day free trial.
+              Start your 7-day trial for just $1.
             </p>
             {selectedPlan ? (
               <p className="mt-1 text-sm text-white/55">
-                Then just {formatDailyPrice(selectedPlan.daily)}, billed {selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}.
+                Then just {formatDailyPrice(selectedPlan.daily)}, billed {selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}. Your $1 is credited toward your first payment.
               </p>
             ) : null}
           </div>
@@ -428,8 +428,8 @@ function DesktopCheckoutLayout({
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Get access to the sharp money</h1>
           <p className="mt-3 text-lg text-white/60">
             {selectedPlan
-              ? `All plans include a 7-day free trial, then ${formatDailyPrice(selectedPlan.daily)} billed ${selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}.`
-              : 'All plans include a 7-day free trial.'}
+              ? `Start your 7-day trial for just $1, then ${formatDailyPrice(selectedPlan.daily)} billed ${selectedPlan.billing === 'annual' ? 'annually' : selectedPlan.billing}. Your $1 is credited toward your first payment.`
+              : 'Start your 7-day trial for just $1. Credited toward your first payment.'}
           </p>
         </div>
 
@@ -528,7 +528,11 @@ function DesktopCheckoutLayout({
             <div className="space-y-3 text-sm text-white/50">
               <div className="flex items-center gap-2">
                 <CheckIcon className="h-4 w-4 text-emerald-400" />
-                <span>7-day free trial on all plans</span>
+                <span>7-day trial for $1 — credited toward first payment</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckIcon className="h-4 w-4 text-emerald-400" />
+                <span>Cancel during trial for a full refund</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckIcon className="h-4 w-4 text-emerald-400" />

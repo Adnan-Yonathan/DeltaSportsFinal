@@ -5,6 +5,7 @@ import {
   buildCheckoutContext,
   buildCheckoutSessionMetadata,
   buildSubscriptionData,
+  buildTrialFeeLineItems,
 } from '@/lib/stripe-checkout'
 
 export const runtime = 'nodejs'
@@ -23,6 +24,8 @@ export async function POST(req: NextRequest) {
     const checkoutContext = await buildCheckoutContext(supabase, user, planKey)
     const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
+    const { extraLineItems, couponId } = await buildTrialFeeLineItems(checkoutContext)
+
     const session = await stripe.checkout.sessions.create({
       ui_mode: 'custom',
       customer: checkoutContext.customerId,
@@ -32,8 +35,9 @@ export async function POST(req: NextRequest) {
           price: checkoutContext.priceId,
           quantity: 1,
         },
+        ...extraLineItems,
       ],
-      subscription_data: buildSubscriptionData(checkoutContext),
+      subscription_data: buildSubscriptionData(checkoutContext, couponId ?? undefined),
       return_url: `${origin}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
       metadata: buildCheckoutSessionMetadata(checkoutContext),
     })

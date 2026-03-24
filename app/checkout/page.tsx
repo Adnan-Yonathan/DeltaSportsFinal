@@ -538,10 +538,6 @@ function DesktopCheckoutLayout({
               </div>
               <div className="flex items-center gap-2">
                 <CheckIcon className="h-4 w-4 text-emerald-400" />
-                <span>Cancel during trial for a full refund</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckIcon className="h-4 w-4 text-emerald-400" />
                 <span>Cancel anytime in 2 clicks</span>
               </div>
             </div>

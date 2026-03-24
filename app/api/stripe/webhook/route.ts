@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { stripe, PLAN_CONFIG, type PlanKey } from '@/lib/stripe'
 import { createServiceClient } from '@/lib/supabase/service'
 import { updateUserSubscriptionState } from '@/lib/stripe-user-subscription'
-import { refundTrialFee } from '@/lib/stripe-trial-fee'
 import type Stripe from 'stripe'
 
 export const runtime = 'nodejs'
@@ -251,13 +250,6 @@ export async function POST(req: NextRequest) {
         if (userId) {
           if (customerId) {
             await ensureStripeCustomerMetadata(customerId, userId)
-          }
-
-          // Refund the $1 trial fee if canceled during the trial period.
-          const wasTrial = subscription.status === 'trialing' ||
-            (subscription.trial_end && subscription.trial_end * 1000 > Date.now())
-          if (wasTrial && customerId) {
-            await refundTrialFee(customerId)
           }
 
           await updateUserSubscriptionState(supabase, userId, subscription)

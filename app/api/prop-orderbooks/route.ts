@@ -95,6 +95,7 @@ export async function GET(req: NextRequest) {
         updatedAt: snapshot.updatedAt,
         count: responseItems.length,
         items: responseItems,
+        sourceCounts: diagnostics.sourceCounts,
         cache: {
           forcedRefresh: forceRefresh,
           source: mode === 'fast' ? 'snapshot_live_fast' : 'snapshot_live_full',

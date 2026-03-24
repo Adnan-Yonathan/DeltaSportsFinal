@@ -31,6 +31,7 @@ type OrderbookSide = {
 type SourceKey = "kalshi" | "polymarket" | "novig" | "prophetx"
 type SharpBookKey = (typeof SHARP_PROPS_SOURCE_ORDER)[number]
 type SharpBookFilter = "all" | SharpBookKey
+type SideFilter = "all" | "over" | "under"
 
 export type OrderbookItem = {
   id: string
@@ -136,7 +137,8 @@ const SOURCE_LOGOS: Record<SourceKey, { label: string; src: string }> = {
   prophetx: { label: "ProphetX", src: "/ProphetX.png" },
 }
 
-const SHARP_BOOK_ORDER: SharpBookKey[] = ["polymarket", "kalshi", "novig", "prophetx"]
+const SHARP_BOOK_ODDS_ORDER: SharpBookKey[] = [...SHARP_PROPS_SOURCE_ORDER]
+const SHARP_BOOK_FILTER_ORDER: SharpBookKey[] = ["polymarket", "kalshi", "novig", "prophetx"]
 
 const SHARP_BOOK_LOGOS: Record<SharpBookKey, { label: string; src?: string }> = {
   polymarket: { label: "Polymarket", src: "/polymarket.png" },
@@ -194,7 +196,7 @@ const normalizeBookToken = (value?: string | null) =>
 const resolveSharpBookKey = (value?: string | null): SharpBookKey | null => {
   const normalized = normalizeBookToken(value)
   if (!normalized) return null
-  const direct = SHARP_BOOK_ORDER.find((key) => normalizeBookToken(key) === normalized)
+  const direct = SHARP_BOOK_ODDS_ORDER.find((key) => normalizeBookToken(key) === normalized)
   if (direct) return direct
   for (const key of ODDS_API_BOOK_KEYS) {
     const aliases = ODDS_API_BOOK_ALIASES[key] ?? []
@@ -330,6 +332,41 @@ const mergeBackgroundItems = (
   return [...incomingItems, ...retained].slice(0, limit)
 }
 
+const resolveSourceCounts = (items: OrderbookItem[]) => {
+  const counts: Record<SourceKey, number> = {
+    kalshi: 0,
+    polymarket: 0,
+    novig: 0,
+    prophetx: 0,
+  }
+  for (const item of items) {
+    counts[item.source] += 1
+  }
+  return counts
+}
+
+const hasSevereNonKalshiSourceDrop = (
+  previousItems: OrderbookItem[],
+  incomingItems: OrderbookItem[]
+) => {
+  if (!previousItems.length || !incomingItems.length) return false
+  const prev = resolveSourceCounts(previousItems)
+  const next = resolveSourceCounts(incomingItems)
+  const prevAlt = prev.polymarket + prev.novig + prev.prophetx
+  const nextAlt = next.polymarket + next.novig + next.prophetx
+  const nextKalshiDominance = next.kalshi >= Math.max(10, Math.floor(incomingItems.length * 0.7))
+  const severeAltDrop = prevAlt >= 8 && nextAlt <= Math.floor(prevAlt * 0.2)
+  const droppedToKalshiOnly = prevAlt >= 3 && nextAlt === 0
+  const lostEveryAltSource =
+    prev.polymarket >= 3 &&
+    prev.novig >= 2 &&
+    prev.prophetx >= 2 &&
+    next.polymarket === 0 &&
+    next.novig === 0 &&
+    next.prophetx === 0
+  return nextKalshiDominance && (severeAltDrop || droppedToKalshiOnly || lostEveryAltSource)
+}
+
 const resolveLargestWall = (item: OrderbookItem) =>
   [...item.sides]
     .filter((side) => (side.wallNotional ?? 0) > 0)
@@ -386,7 +423,7 @@ const resolveSharpBookOddsForItem = (
   recommendedSide: "Over" | "Under" | null
 ): Record<SharpBookKey, number | null> => {
   const oddsByBook = Object.fromEntries(
-    SHARP_BOOK_ORDER.map((key) => [key, null])
+    SHARP_BOOK_ODDS_ORDER.map((key) => [key, null])
   ) as Record<SharpBookKey, number | null>
 
   const sourceOdds: Record<SourceKey, number | null> = {
@@ -990,6 +1027,7 @@ export default function PropOrderbooksPanel({
   const [search, setSearch] = useState("")
   const [oddsPreset, setOddsPreset] = useState<OddsPreset>("evenish")
   const [selectedBookFilter, setSelectedBookFilter] = useState<SharpBookFilter>("all")
+  const [sideFilter, setSideFilter] = useState<SideFilter>("all")
   const [minOdds, setMinOdds] = useState<string>("-150")
   const [maxOdds, setMaxOdds] = useState<string>("150")
   const [selectedItemId, setSelectedItemId] = useState<string | null>(
@@ -1076,12 +1114,15 @@ export default function PropOrderbooksPanel({
         const nextUpdatedAtMs = parseTimestampMs(payload?.updatedAt ?? null)
         const hasNewerSnapshot = nextUpdatedAtMs > previousUpdatedAtMs
         const sourceLabel = String(payload?.cache?.source ?? "")
+        const severeSourceDrop =
+          background && hasSevereNonKalshiSourceDrop(previousItems, nextItems)
         const shouldAcceptBackground =
           !background ||
-          hasNewerSnapshot ||
-          sourceLabel.includes("fast") ||
-          shouldPersistPropOrderbooksSnapshot(previousItems, nextItems) ||
-          payload?.cache?.fallbackToPersistent === true
+          (!severeSourceDrop &&
+            (hasNewerSnapshot ||
+              sourceLabel.includes("fast") ||
+              shouldPersistPropOrderbooksSnapshot(previousItems, nextItems) ||
+              payload?.cache?.fallbackToPersistent === true))
         const resolvedItems = background
           ? shouldAcceptBackground
             ? mergeBackgroundItems(previousItems, nextItems, limit)
@@ -1135,6 +1176,7 @@ export default function PropOrderbooksPanel({
     setSearch("")
     setOddsPreset("evenish")
     setSelectedBookFilter("all")
+    setSideFilter("all")
     setMinOdds("-150")
     setMaxOdds("150")
   }, [initialData, sport])
@@ -1363,6 +1405,10 @@ export default function PropOrderbooksPanel({
         if (selectedBookFilter !== "all") {
           if (oddsByBook[selectedBookFilter] == null) return null
         }
+        if (sideFilter !== "all") {
+          const targetSide = sideFilter === "over" ? "Over" : "Under"
+          if (displayLean.side !== targetSide) return null
+        }
         if (!matchesOddsRange(displayLean.odds)) return null
         const sideLiquidity = resolveOverUnderLiquidity(item)
         return {
@@ -1379,7 +1425,7 @@ export default function PropOrderbooksPanel({
         return a.item.marketTitle.localeCompare(b.item.marketTitle)
       })
       .map((entry) => entry.item)
-  }, [maxOdds, mergedItems, minOdds, oddsFeedsBySport, oddsPreset, search, selectedBookFilter, selectedSport])
+  }, [maxOdds, mergedItems, minOdds, oddsFeedsBySport, oddsPreset, search, selectedBookFilter, selectedSport, sideFilter])
 
   useEffect(() => {
     if (!filteredItems.length) {
@@ -1424,7 +1470,7 @@ export default function PropOrderbooksPanel({
     const recommendedSide = selectedDisplayLean?.side ?? null
     const oddsByBook = resolveMergedSharpBookOddsForItem(selectedItem, recommendedSide, selectedOddsFeed)
 
-    return SHARP_BOOK_ORDER.map((key) => ({
+    return SHARP_BOOK_ODDS_ORDER.map((key) => ({
       key,
       odds: oddsByBook[key] ?? null,
     }))
@@ -1522,25 +1568,8 @@ export default function PropOrderbooksPanel({
   const totalCountLabel = `${filteredItems.length} props`
   const updatedLabel = lastUpdatedAt ? formatDateLabel(lastUpdatedAt) : "--"
   const fetchedLabel = cacheFetchedAt ? formatDateLabel(cacheFetchedAt) : null
-
-  if (loading && !items.length) {
-    return (
-      <div className="flex min-h-[360px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-6">
-        <div className="flex flex-col items-center gap-4">
-          <BoxLoader />
-          <span className="text-xs uppercase tracking-[0.3em] text-white/50">Loading orderbooks...</span>
-        </div>
-      </div>
-    )
-  }
-
-  if (!loading && !items.length && errorMessage) {
-    return (
-      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-red-200">
-        {errorMessage}
-      </div>
-    )
-  }
+  const showInitialLoading = loading && !items.length
+  const showHardError = !loading && !items.length && errorMessage
 
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#06090f]">
@@ -1606,11 +1635,20 @@ export default function PropOrderbooksPanel({
             className="h-9 rounded-xl border border-white/10 bg-black/50 px-3 text-xs text-white/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
           >
             <option value="all">Book: All</option>
-            {SHARP_BOOK_ORDER.map((key) => (
+            {SHARP_BOOK_FILTER_ORDER.map((key) => (
               <option key={key} value={key}>
                 Book: {SHARP_BOOK_LOGOS[key].label}
               </option>
             ))}
+          </select>
+          <select
+            value={sideFilter}
+            onChange={(event) => setSideFilter(event.target.value as SideFilter)}
+            className="h-9 rounded-xl border border-white/10 bg-black/50 px-3 text-xs text-white/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+          >
+            <option value="all">Side: All</option>
+            <option value="over">Side: Over</option>
+            <option value="under">Side: Under</option>
           </select>
           {oddsPreset === "custom" && (
             <div className="flex items-center gap-2">
@@ -1635,7 +1673,18 @@ export default function PropOrderbooksPanel({
         </div>
       </div>
 
-      {filteredItems.length === 0 ? (
+      {showInitialLoading ? (
+        <div className="px-4 py-10">
+          <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-6">
+            <div className="flex flex-col items-center gap-4">
+              <BoxLoader />
+              <span className="text-xs uppercase tracking-[0.3em] text-white/50">Loading orderbooks...</span>
+            </div>
+          </div>
+        </div>
+      ) : showHardError ? (
+        <div className="px-4 py-10 text-sm text-red-200">{errorMessage}</div>
+      ) : filteredItems.length === 0 ? (
         <div className="px-4 py-10 text-sm text-white/55">No order books match your filters.</div>
       ) : (
         <div className="grid min-h-[620px] grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">

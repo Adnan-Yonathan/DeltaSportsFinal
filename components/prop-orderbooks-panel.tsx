@@ -1662,7 +1662,9 @@ export default function PropOrderbooksPanel({
                             : baseDisplayLean.bestBookTitle,
                       }
                 const sideLiquidity = resolveOverUnderLiquidity(item)
-                const dominantLabel = sideLiquidity.netSide ? `Net on ${sideLiquidity.netSide}` : "Balanced"
+                const dominantLabel = sideLiquidity.netSide
+                  ? `Total Liquidity on ${sideLiquidity.netSide}`
+                  : "Total Liquidity"
                 const playerHeadshot = resolvePlayerHeadshot(item, playerHeadshotsByKey)
                 const playerFaceSrc = playerHeadshot
                   ? `/api/image-proxy?url=${encodeURIComponent(playerHeadshot)}`
@@ -1745,19 +1747,8 @@ export default function PropOrderbooksPanel({
                     </div>
 
                     <div className="mt-3">
-                      <div className="grid grid-cols-2 gap-2 text-[10px] uppercase tracking-[0.12em] text-white/45">
-                        <div className="rounded-md border border-white/10 bg-black/40 px-2 py-1">
-                          <div className="text-white/45">Over</div>
-                          <div className="mt-1 text-[11px] font-semibold text-lime-200">
-                            {formatCompactCurrency(sideLiquidity.over)}
-                          </div>
-                        </div>
-                        <div className="rounded-md border border-white/10 bg-black/40 px-2 py-1">
-                          <div className="text-white/45">Under</div>
-                          <div className="mt-1 text-[11px] font-semibold text-lime-200">
-                            {formatCompactCurrency(sideLiquidity.under)}
-                          </div>
-                        </div>
+                      <div className="rounded-md border border-white/10 bg-black/40 px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-white/55">
+                        {dominantLabel}
                       </div>
                     </div>
                   </button>
@@ -1807,12 +1798,6 @@ export default function PropOrderbooksPanel({
                   </div>
                   <div className="text-sm text-white/55">
                     Total Liquidity{selectedSideLiquidity.netSide ? ` on ${selectedSideLiquidity.netSide}` : ""}
-                  </div>
-                  <div className="rounded-md border border-white/10 bg-black/35 px-2 py-1 text-[11px] text-white/70">
-                    Over {formatCompactCurrency(selectedSideLiquidity.over)}
-                  </div>
-                  <div className="rounded-md border border-white/10 bg-black/35 px-2 py-1 text-[11px] text-white/70">
-                    Under {formatCompactCurrency(selectedSideLiquidity.under)}
                   </div>
                   <div className="ml-auto">
                     {sharpPropsSharePayload && (

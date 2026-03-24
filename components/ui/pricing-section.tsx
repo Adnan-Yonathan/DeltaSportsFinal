@@ -199,7 +199,7 @@ export function PricingSection({
         <div className="flex flex-col items-center gap-1.5 mb-2 text-center md:mb-4">
           {showTrialHeading && (
             <h2 className="text-xl font-bold text-white md:text-2xl">
-              {hasTrial ? "All plans include a 3-day free trial." : "Choose the plan that fits your workflow."}
+              {hasTrial ? "All plans include a 7-day free trial." : "Choose the plan that fits your workflow."}
             </h2>
           )}
           <div className="inline-flex items-center p-0.5 rounded-full border border-emerald-300/30 bg-emerald-500/10 backdrop-blur">
@@ -435,7 +435,7 @@ export function PricingSection({
                               </p>
                       {hasTrial && (
                         <div className="mt-2 inline-flex">
-                          <Badge className={cn(badgeStyles, "bg-emerald-400")}>3-Day Free Trial</Badge>
+                          <Badge className={cn(badgeStyles, "bg-emerald-400")}>7-Day Free Trial</Badge>
                         </div>
                       )}
                             </>

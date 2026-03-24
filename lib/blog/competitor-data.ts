@@ -234,7 +234,7 @@ export const COMPETITORS: CompetitorData[] = [
       { feature: 'Insider wallet tracking', them: 'No', delta: 'Yes — Polymarket wallets', deltaWins: true },
       { feature: 'Prop orderbook depth', them: 'No', delta: 'Yes', deltaWins: true },
       { feature: 'Starting price', them: '$99/month', delta: '$79/month', deltaWins: true },
-      { feature: 'Free trial', them: 'Limited', delta: '3-day free trial', deltaWins: true },
+      { feature: 'Free trial', them: 'Limited', delta: '7-day free trial', deltaWins: true },
     ],
     switchReasons: [
       {
@@ -291,7 +291,7 @@ export const COMPETITORS: CompetitorData[] = [
       { feature: 'Line movement tracking', them: 'Limited', delta: 'Yes', deltaWins: true },
       { feature: 'Prop market depth', them: 'Limited', delta: 'Yes — orderbook depth', deltaWins: true },
       { feature: 'Starting price', them: '$49/month', delta: '$79/month', deltaWins: false },
-      { feature: 'Free trial', them: 'Limited', delta: '3-day free trial', deltaWins: true },
+      { feature: 'Free trial', them: 'Limited', delta: '7-day free trial', deltaWins: true },
     ],
     switchReasons: [
       {
@@ -348,7 +348,7 @@ export const COMPETITORS: CompetitorData[] = [
       { feature: 'Game-level sharp signals', them: 'No — props only', delta: 'Yes — full market coverage', deltaWins: true },
       { feature: 'Insider wallet tracking', them: 'No', delta: 'Yes', deltaWins: true },
       { feature: 'Starting price', them: '$29/month', delta: '$79/month', deltaWins: false },
-      { feature: 'Free trial', them: 'Limited', delta: '3-day free trial', deltaWins: true },
+      { feature: 'Free trial', them: 'Limited', delta: '7-day free trial', deltaWins: true },
     ],
     switchReasons: [
       {
@@ -405,7 +405,7 @@ export const COMPETITORS: CompetitorData[] = [
       { feature: 'AI market projections', them: 'No', delta: 'Yes', deltaWins: true },
       { feature: 'Prop orderbook depth', them: 'No', delta: 'Yes', deltaWins: true },
       { feature: 'Starting price', them: '$19/month', delta: '$79/month', deltaWins: false },
-      { feature: 'Free trial', them: 'Free tier available', delta: '3-day free trial', deltaWins: false },
+      { feature: 'Free trial', them: 'Free tier available', delta: '7-day free trial', deltaWins: false },
     ],
     switchReasons: [
       {
@@ -462,7 +462,7 @@ export const COMPETITORS: CompetitorData[] = [
       { feature: 'AI market projections', them: 'No', delta: 'Yes', deltaWins: true },
       { feature: 'Insider wallet tracking', them: 'No', delta: 'Yes — Polymarket wallets', deltaWins: true },
       { feature: 'Starting price', them: 'Free', delta: '$79/month', deltaWins: false },
-      { feature: 'Free trial', them: 'Free tier', delta: '3-day free trial', deltaWins: false },
+      { feature: 'Free trial', them: 'Free tier', delta: '7-day free trial', deltaWins: false },
     ],
     switchReasons: [
       {

@@ -90,7 +90,7 @@ export function WelcomeFaqAndFinalCta() {
           </h3>
 
           <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-white/58 sm:text-base">
-            Join them in 60 seconds. All plans include a 3-day free trial — cancel before day 3 and you pay nothing.
+            Join them in 60 seconds. All plans include a 7-day free trial — cancel before day 7 and you pay nothing.
           </p>
 
           <Link

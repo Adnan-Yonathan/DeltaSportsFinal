@@ -274,11 +274,11 @@ export function PricingPageClient() {
           <div className="mx-auto w-full max-w-md px-5 pb-40 pt-20">
             <div className="space-y-2 text-center">
               <h1 className="text-3xl font-semibold tracking-tight text-white">
-                {hasTrial ? "All plans include a 3-day free trial." : "Choose the plan that fits your workflow."}
+                {hasTrial ? "All plans include a 7-day free trial." : "Choose the plan that fits your workflow."}
               </h1>
               <p className="text-sm text-white/65">
                 {hasTrial
-                  ? "Try any plan free for 3 days. Cancel anytime before your trial ends."
+                  ? "Try any plan free for 7 days. Cancel anytime before your trial ends."
                   : "Cancel anytime from billing."}
               </p>
             </div>
@@ -334,7 +334,7 @@ export function PricingPageClient() {
                   >
                     {hasTrial ? (
                       <span className="absolute -top-3 right-4 rounded-full bg-emerald-400 px-3 py-1 text-[10px] font-bold text-slate-900 shadow">
-                        3-Day Free Trial
+                        7-Day Free Trial
                       </span>
                     ) : null}
 
@@ -480,11 +480,11 @@ export function PricingPageClient() {
             {/* Header */}
             <div className="space-y-2 text-center">
               <h1 className="text-4xl font-semibold tracking-tight text-white">
-                {isEligibleForTrial ? "All plans include a 3-day free trial." : "Choose the plan that fits your workflow."}
+                {isEligibleForTrial ? "All plans include a 7-day free trial." : "Choose the plan that fits your workflow."}
               </h1>
               <p className="text-sm text-white/55">
                 {isEligibleForTrial
-                  ? "Try any plan free for 3 days. Cancel anytime before your trial ends."
+                  ? "Try any plan free for 7 days. Cancel anytime before your trial ends."
                   : "Cancel anytime from billing."}
               </p>
             </div>
@@ -535,7 +535,7 @@ export function PricingPageClient() {
                   tierRank[tier.tierKey as TierKey] > tierRank[membership.tier as "free" | TierKey]
 
                 let btnLabel = isEligibleForTrial
-                  ? "Start 3-day free trial"
+                  ? "Start 7-day free trial"
                   : "Start subscription"
                 let btnAction = () => planKey && handleCheckout(planKey)
 
@@ -568,7 +568,7 @@ export function PricingPageClient() {
                     ) : null}
                     {hasTrial ? (
                       <span className="absolute -top-3 right-8 rounded-full bg-white/10 border border-white/20 px-4 py-1 text-[11px] font-semibold text-white/80">
-                        3-Day Free Trial
+                        7-Day Free Trial
                       </span>
                     ) : null}
 

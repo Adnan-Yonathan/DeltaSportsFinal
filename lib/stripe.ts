@@ -43,15 +43,15 @@ export const PRICE_IDS = {
 export type PlanKey = keyof typeof PRICE_IDS
 
 export const PLAN_CONFIG: Record<PlanKey, { tier: 'sharp' | 'syndicate'; label: string; trialDays?: number }> = {
-  pro_weekly: { tier: 'sharp', label: 'Sharp Weekly', trialDays: 3 },
-  pro_monthly: { tier: 'sharp', label: 'Sharp Monthly', trialDays: 3 },
-  pro_annual: { tier: 'sharp', label: 'Sharp Annual', trialDays: 3 },
-  sharp_weekly: { tier: 'sharp', label: 'Sharp Weekly', trialDays: 3 },
-  sharp_monthly: { tier: 'sharp', label: 'Sharp Monthly', trialDays: 3 },
-  sharp_annual: { tier: 'sharp', label: 'Sharp Annual', trialDays: 3 },
-  syndicate_weekly: { tier: 'syndicate', label: 'Syndicate Weekly', trialDays: 3 },
-  syndicate_monthly: { tier: 'syndicate', label: 'Syndicate Monthly', trialDays: 3 },
-  syndicate_annual: { tier: 'syndicate', label: 'Syndicate Annual', trialDays: 3 },
+  pro_weekly: { tier: 'sharp', label: 'Sharp Weekly', trialDays: 7 },
+  pro_monthly: { tier: 'sharp', label: 'Sharp Monthly', trialDays: 7 },
+  pro_annual: { tier: 'sharp', label: 'Sharp Annual', trialDays: 7 },
+  sharp_weekly: { tier: 'sharp', label: 'Sharp Weekly', trialDays: 7 },
+  sharp_monthly: { tier: 'sharp', label: 'Sharp Monthly', trialDays: 7 },
+  sharp_annual: { tier: 'sharp', label: 'Sharp Annual', trialDays: 7 },
+  syndicate_weekly: { tier: 'syndicate', label: 'Syndicate Weekly', trialDays: 7 },
+  syndicate_monthly: { tier: 'syndicate', label: 'Syndicate Monthly', trialDays: 7 },
+  syndicate_annual: { tier: 'syndicate', label: 'Syndicate Annual', trialDays: 7 },
 }
 
 // Helper to get subscription status

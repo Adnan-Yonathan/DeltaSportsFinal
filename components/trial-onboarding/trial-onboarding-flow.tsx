@@ -1163,7 +1163,7 @@ function ScreenFinal({
         <div className="flex items-start gap-3">
           <Shield className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
           <div>
-            <div className="text-sm font-bold text-emerald-200">3-Day Free Trial Guarantee</div>
+            <div className="text-sm font-bold text-emerald-200">7-Day Free Trial Guarantee</div>
             <div className="mt-1 text-xs leading-relaxed text-white/55">
               Cancel before day 3 and you pay nothing — one click, no forms, no calls.
             </div>

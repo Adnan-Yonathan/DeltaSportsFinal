@@ -82,7 +82,7 @@ export function HeroSection({ className }: HeroSectionProps) {
           <Button asChild size="lg" className="rounded-full px-7 text-black" style={{ backgroundColor: ACCENT }}>
             <a href="/auth/signup">
               <ShimmerText className="font-semibold text-black" duration={1.2} delay={0.3}>
-                Try 3 days free
+                Try 7 days free
               </ShimmerText>
               <ArrowRightIcon className="ml-2 size-4" />
             </a>

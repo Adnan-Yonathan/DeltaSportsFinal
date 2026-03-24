@@ -3,7 +3,7 @@ import TrialOnboardingFlow from '@/components/trial-onboarding/trial-onboarding-
 
 export const metadata: Metadata = {
   title: 'Trial Onboarding | Delta Sports',
-  description: 'Personalize your first week inside Delta before you start your 3-day free trial.',
+  description: 'Personalize your first week inside Delta before you start your 7-day free trial.',
 }
 
 export default function TrialOnboardingPage() {

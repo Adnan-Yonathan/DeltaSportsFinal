@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Delta Sports | Sharp Money Tracking & Betting Analytics',
   description:
-    'Follow sharp money in real time. Delta reads exchange orderbooks, tracks whale bets, and surfaces sharp money signals across NBA, NFL, NHL, and MLB. Start with a 3-day free trial.',
+    'Follow sharp money in real time. Delta reads exchange orderbooks, tracks whale bets, and surfaces sharp money signals across NBA, NFL, NHL, and MLB. Start with a 7-day free trial.',
   alternates: {
     canonical: 'https://deltasports.app',
   },

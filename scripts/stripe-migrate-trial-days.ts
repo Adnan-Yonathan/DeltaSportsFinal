@@ -98,13 +98,13 @@ async function run() {
     console.log(`        current trial: ${currentTrial ?? 'none'}`)
 
     if (currentTrial === TARGET_TRIAL_DAYS) {
-      console.log('        OK: already 3-day trial\n')
+      console.log('        OK: already 7-day trial\n')
       results.push({ envKey, oldPriceId: priceId })
       continue
     }
 
     if (!apply) {
-      console.log('        Would create a new price with a 3-day trial.\n')
+      console.log('        Would create a new price with a 7-day trial.\n')
       results.push({ envKey, oldPriceId: priceId })
       continue
     }
@@ -118,7 +118,7 @@ async function run() {
         interval_count: price.recurring.interval_count ?? undefined,
         trial_period_days: TARGET_TRIAL_DAYS,
       },
-      nickname: price.nickname ? `${price.nickname} (3-day trial)` : undefined,
+      nickname: price.nickname ? `${price.nickname} (7-day trial)` : undefined,
       tax_behavior: price.tax_behavior ?? undefined,
       metadata: {
         migrated_from_price: price.id,

@@ -18,7 +18,8 @@ const POLYMARKET_GAMES_TAG_ID = '100639'
 const PROP_ORDER_NOTIONAL_MIN = 500
 const TEAM_ORDER_NOTIONAL_MIN = 2000
 const TEAM_MARKET_LIQUIDITY_MAX = 14000
-const CACHE_TTL_MS = 10 * 60 * 1000
+// Keep sharp props ingestion live-first; disable in-memory staleness caching.
+const CACHE_TTL_MS = 0
 const MAX_KALSHI_PAGES = 5
 const MAX_POLYMARKET_MARKETS = 250
 const MAX_POLYMARKET_ORDERBOOKS = 80
@@ -1758,11 +1759,11 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
               bookOddsByKey: {},
             }
       const leanBestOdds =
-        leanSportsbookQuote.pinnacleOdds ??
+        leanSportsbookQuote.fanduelOdds ??
         leanSportsbookQuote.bestOdds ??
         (skipOddsApis ? sharpLean.sharpLeanAmericanOdds : null)
       const leanBestBookTitle =
-        leanSportsbookQuote.pinnacleBookTitle ??
+        leanSportsbookQuote.fanduelBookTitle ??
         leanSportsbookQuote.bestBookTitle ??
         (skipOddsApis ? 'Kalshi' : null)
 
@@ -1938,11 +1939,11 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
                 bookOddsByKey: {},
               }
         const leanBestOdds =
-          leanSportsbookQuote.pinnacleOdds ??
+          leanSportsbookQuote.fanduelOdds ??
           leanSportsbookQuote.bestOdds ??
           (skipOddsApis ? sharpLean.sharpLeanAmericanOdds : null)
         const leanBestBookTitle =
-          leanSportsbookQuote.pinnacleBookTitle ??
+          leanSportsbookQuote.fanduelBookTitle ??
           leanSportsbookQuote.bestBookTitle ??
           (skipOddsApis ? 'Polymarket' : null)
 
@@ -2314,7 +2315,7 @@ const SHARP_LINE_SHOP_BOOKMAKERS = [
   'polymarket',
   'kalshi',
   'novig',
-  'pinnacle',
+  'fanduel',
   'circa',
   'prophetx',
   'prizepicks',

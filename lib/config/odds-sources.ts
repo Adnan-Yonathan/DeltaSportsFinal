@@ -45,8 +45,18 @@ export const ODDS_SOURCES: OddsSourceDefinition[] = [
   { key: 'fliff', label: 'Fliff', type: 'sportsbook', providerKeys: ['fliff'] },
   { key: 'circa', label: 'Circa', type: 'sportsbook', providerKeys: ['circa', 'circasports'] },
   { key: 'pinnacle', label: 'Pinnacle', type: 'sportsbook', providerKeys: ['pinnacle'] },
-  { key: 'novig', label: 'NoVig', type: 'exchange', providerKeys: ['novig', 'novigus'] },
-  { key: 'prophetx', label: 'ProphetX', type: 'exchange', providerKeys: ['prophetx', 'prophet'] },
+  {
+    key: 'novig',
+    label: 'NoVig',
+    type: 'exchange',
+    providerKeys: ['novig', 'novigus', 'novig_us'],
+  },
+  {
+    key: 'prophetx',
+    label: 'ProphetX',
+    type: 'exchange',
+    providerKeys: ['prophetx', 'prophet', 'prophetx_us', 'prophetxus'],
+  },
   { key: 'polymarket', label: 'Polymarket', type: 'exchange', providerKeys: ['polymarket'] },
   { key: 'kalshi', label: 'Kalshi', type: 'exchange', providerKeys: ['kalshi'] },
   { key: 'prizepicks', label: 'PrizePicks', type: 'dfs', providerKeys: ['prizepicks'] },
@@ -63,6 +73,17 @@ export const ODDS_SOURCES: OddsSourceDefinition[] = [
 const SOURCE_KEY_BY_ALIAS = new Map<string, OddsSourceKey>(
   ODDS_SOURCES.flatMap((entry) =>
     entry.providerKeys.map((providerKey) => [providerKey.toLowerCase(), entry.key] as const)
+  )
+)
+const normalizeSourceAlias = (value?: string | null) =>
+  String(value ?? '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]/g, '')
+
+const SOURCE_KEY_BY_NORMALIZED_ALIAS = new Map<string, OddsSourceKey>(
+  ODDS_SOURCES.flatMap((entry) =>
+    entry.providerKeys.map((providerKey) => [normalizeSourceAlias(providerKey), entry.key] as const)
   )
 )
 
@@ -90,7 +111,7 @@ export const SHARP_PROPS_SOURCE_ORDER = [
   'polymarket',
   'kalshi',
   'novig',
-  'pinnacle',
+  'fanduel',
   'circa',
   'prophetx',
   'prizepicks',
@@ -117,7 +138,15 @@ export const INSIDER_ODDS_SPORTSBOOK_PROVIDER_KEYS = [
 
 export const resolveOddsSourceKey = (value?: string | null): OddsSourceKey | null => {
   if (!value) return null
-  return SOURCE_KEY_BY_ALIAS.get(String(value).toLowerCase().trim()) ?? null
+  const raw = String(value).toLowerCase().trim()
+  const direct = SOURCE_KEY_BY_ALIAS.get(raw)
+  if (direct) return direct
+  const normalized = normalizeSourceAlias(value)
+  const normalizedMatch = SOURCE_KEY_BY_NORMALIZED_ALIAS.get(normalized)
+  if (normalizedMatch) return normalizedMatch
+  if (normalized.includes('novig')) return 'novig'
+  if (normalized.includes('prophetx') || normalized.includes('prophet')) return 'prophetx'
+  return null
 }
 
 export const getOddsSource = (key: OddsSourceKey) => SOURCE_BY_KEY.get(key) ?? null

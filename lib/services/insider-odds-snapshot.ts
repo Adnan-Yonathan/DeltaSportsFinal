@@ -3,6 +3,7 @@ import { getSportKey as getTheOddsApiSportKey } from '@/lib/api/the-odds-api'
 import {
   getOddsSource,
   INSIDER_ODDS_SOURCE_ORDER,
+  INSIDER_ODDS_SPORTSBOOK_PROVIDER_KEYS,
   resolveOddsSourceKey,
   type OddsSourceKey,
 } from '@/lib/config/odds-sources'
@@ -333,6 +334,7 @@ const buildSportGamesMap = async (positions: InsiderOddsPositionInput[]) => {
           revalidateSeconds: 600,
           includePredictionMarkets: true,
           forceProvider: 'the-odds-api',
+          bookmakers: [...INSIDER_ODDS_SPORTSBOOK_PROVIDER_KEYS],
         })
         gamesMap.set(sportLabel, games)
       } catch (error) {

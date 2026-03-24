@@ -142,7 +142,7 @@ const SHARP_BOOK_LOGOS: Record<SharpBookKey, { label: string; src?: string }> = 
   polymarket: { label: "Polymarket", src: "/polymarket.png" },
   kalshi: { label: "Kalshi", src: "/kalshi.png" },
   novig: { label: "NoVig", src: "/Novig.png" },
-  pinnacle: { label: "Pinnacle", src: "/pinnacle.jpg" },
+  fanduel: { label: "FanDuel", src: "/fanduel.png" },
   circa: { label: "Circa", src: "/circasports.png" },
   prophetx: { label: "ProphetX", src: "/ProphetX.png" },
   prizepicks: { label: "PrizePicks", src: "/prizepicks.png" },
@@ -155,7 +155,7 @@ const ODDS_API_BOOK_KEYS = [
   "polymarket",
   "kalshi",
   "novig",
-  "pinnacle",
+  "fanduel",
   "circa",
   "prophetx",
   "prizepicks",
@@ -167,15 +167,23 @@ const ODDS_API_BOOK_KEYS = [
 const ODDS_API_BOOK_ALIASES: Record<(typeof ODDS_API_BOOK_KEYS)[number], string[]> = {
   polymarket: ["polymarket"],
   kalshi: ["kalshi"],
-  novig: ["novig", "novigus"],
-  pinnacle: ["pinnacle"],
+  novig: ["novig", "novigus", "novig_us"],
+  fanduel: ["fanduel", "fan_duel"],
   circa: ["circa", "circasports"],
-  prophetx: ["prophetx", "prophet_x", "prophet"],
+  prophetx: ["prophetx", "prophet_x", "prophet", "prophetx_us", "prophetxus"],
   prizepicks: ["prizepicks", "prize_picks"],
   underdog: ["underdog", "underdog_fantasy"],
   draftkings_pick6: ["draftkings_pick6", "draftkings-pick6", "dk_pick6", "pick6", "pick_6"],
   sleeper: ["sleeper"],
 }
+
+const PLAYER_PROP_ODDS_SUPPORTED_SPORTS = new Set([
+  "basketball_nba",
+  "basketball_ncaab",
+  "americanfootball_nfl",
+  "icehockey_nhl",
+  "baseball_mlb",
+])
 
 const normalizeBookToken = (value?: string | null) =>
   String(value ?? "")
@@ -399,7 +407,7 @@ const resolveSharpBookOddsForItem = (
   oddsByBook.novig = sourceOdds.novig
   oddsByBook.polymarket = sourceOdds.polymarket
   oddsByBook.kalshi = sourceOdds.kalshi
-  oddsByBook.pinnacle = item.pinnacleLeanOdds ?? null
+  oddsByBook.fanduel = item.fanduelLeanOdds ?? null
 
   const sideKey = recommendedSide?.toLowerCase() as "over" | "under" | undefined
   for (const sourceItem of item.sourceItems) {
@@ -409,10 +417,10 @@ const resolveSharpBookOddsForItem = (
       if (!resolvedKey) continue
       const selectedQuote =
         sideKey != null
-          ? parseFiniteNumber(value?.[sideKey])
+          ? normalizeAmericanOddsQuote(parseFiniteNumber(value?.[sideKey]))
           : pickBestAvailableOdds([
-              parseFiniteNumber(value?.over),
-              parseFiniteNumber(value?.under),
+              normalizeAmericanOddsQuote(parseFiniteNumber(value?.over)),
+              normalizeAmericanOddsQuote(parseFiniteNumber(value?.under)),
             ])
       if (selectedQuote == null) continue
       const current = oddsByBook[resolvedKey]
@@ -473,13 +481,13 @@ const resolveDisplayLean = (item: OrderbookItem) => {
     inverseOddsFromLiquidity ??
     item.sharpLeanAmericanOdds ??
     oddsFromSide ??
-    item.pinnacleLeanOdds ??
+    item.fanduelLeanOdds ??
     item.sharpLeanBestOdds
   const bestBookTitle =
     inverseOddsFromLiquidity != null
       ? null
-      : item.pinnacleLeanOdds != null
-        ? item.pinnacleLeanBookTitle
+      : item.fanduelLeanOdds != null
+        ? item.fanduelLeanBookTitle
         : item.sharpLeanBestBookTitle
 
   return {
@@ -510,9 +518,43 @@ const parseFiniteNumber = (value: unknown) => {
   if (typeof value === "number" && Number.isFinite(value)) return value
   if (typeof value === "string") {
     const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
+    if (Number.isFinite(parsed)) return parsed
+    const cleaned = value.trim().replace(/[^0-9.+-]/g, "")
+    if (!cleaned) return null
+    const reparsed = Number(cleaned)
+    return Number.isFinite(reparsed) ? reparsed : null
   }
   return null
+}
+
+const decimalToAmericanOdds = (decimal: number) => {
+  if (!Number.isFinite(decimal) || decimal <= 1) return null
+  if (decimal >= 2) return Math.round((decimal - 1) * 100)
+  return -Math.round(100 / (decimal - 1))
+}
+
+const normalizeAmericanOddsQuote = (raw: number | null) => {
+  if (raw == null || !Number.isFinite(raw)) return null
+  // Odds API should return American, but some DFS books can surface decimal-like payouts.
+  if (raw > -100 && raw < 100 && raw !== 0) {
+    const decimal = decimalToAmericanOdds(raw)
+    return decimal
+  }
+  return raw
+}
+
+const resolveOverUnderLiquidity = (item: DisplayOrderbookItem | OrderbookItem) => {
+  const over = item.sides
+    .filter((side) => side.propSide === "Over")
+    .reduce((sum, side) => sum + (side.totalNotional > 0 ? side.totalNotional : side.wallNotional ?? 0), 0)
+  const under = item.sides
+    .filter((side) => side.propSide === "Under")
+    .reduce((sum, side) => sum + (side.totalNotional > 0 ? side.totalNotional : side.wallNotional ?? 0), 0)
+  return {
+    over,
+    under,
+    total: over + under,
+  }
 }
 
 const resolveOddsApiBookOddsForItem = (
@@ -547,12 +589,12 @@ const resolveOddsApiBookOddsForItem = (
     const targetLine = item.propLine
     const lineDiff =
       rowLine != null && targetLine != null ? Math.abs(rowLine - targetLine) : null
-    if (lineDiff != null && lineDiff > 0.15) continue
+    if (lineDiff != null && lineDiff > 1.0) continue
 
     const hasSideOdds = ODDS_API_BOOK_KEYS.some((bookKey) => {
       const aliases = ODDS_API_BOOK_ALIASES[bookKey] ?? [bookKey]
       return aliases.some((alias) => {
-        const candidate = parseFiniteNumber(row?.odds?.[alias]?.[sideKey])
+        const candidate = normalizeAmericanOddsQuote(parseFiniteNumber(row?.odds?.[alias]?.[sideKey]))
         return candidate != null
       })
     })
@@ -574,12 +616,28 @@ const resolveOddsApiBookOddsForItem = (
     const aliases = ODDS_API_BOOK_ALIASES[bookKey] ?? [bookKey]
     let value: number | null = null
     for (const alias of aliases) {
-      value = parseFiniteNumber(bestRow.odds?.[alias]?.[sideKey])
+      value = normalizeAmericanOddsQuote(parseFiniteNumber(bestRow.odds?.[alias]?.[sideKey]))
       if (value != null) break
     }
     result[bookKey] = value
   }
   return result
+}
+
+const resolveMergedSharpBookOddsForItem = (
+  item: DisplayOrderbookItem,
+  recommendedSide: "Over" | "Under" | null,
+  oddsFeed: PlayerPropOddsResponse | null | undefined
+) => {
+  const oddsByBook = resolveSharpBookOddsForItem(item, recommendedSide)
+  const oddsApiOverrides = resolveOddsApiBookOddsForItem(item, recommendedSide, oddsFeed)
+  for (const bookKey of ODDS_API_BOOK_KEYS) {
+    const override = oddsApiOverrides[bookKey]
+    if (override != null) {
+      oddsByBook[bookKey] = override
+    }
+  }
+  return oddsByBook
 }
 
 const buildPlayerHeadshotKey = (sportKey: string, playerName: string) =>
@@ -632,35 +690,6 @@ const priceCentsToAmericanOdds = (priceCents: number | null) => {
   if (priceCents == null) return null
   const probability = priceCents / 100
   return probabilityToAmericanOdds(probability)
-}
-
-const resolveMiniBarShares = (item: OrderbookItem) => {
-  const overNotional =
-    item.sides
-      .filter((side) => side.propSide === "Over")
-      .reduce((sum, side) => sum + (side.wallNotional ?? 0), 0) ?? 0
-  const underNotional =
-    item.sides
-      .filter((side) => side.propSide === "Under")
-      .reduce((sum, side) => sum + (side.wallNotional ?? 0), 0) ?? 0
-  const total = overNotional + underNotional
-  if (total <= 0) return { overPct: 0, underPct: 0 }
-  return {
-    overPct: Math.round((overNotional / total) * 100),
-    underPct: Math.round((underNotional / total) * 100),
-  }
-}
-
-const resolveSideWallNotional = (
-  item: OrderbookItem,
-  side: "Over" | "Under" | null | undefined
-) => {
-  if (!side) return 0
-  return (
-    item.sides
-      .filter((entry) => entry.propSide === side)
-      .reduce((sum, entry) => sum + (entry.wallNotional ?? 0), 0) ?? 0
-  )
 }
 
 const mergeSidesAcrossSources = (sourceItems: OrderbookItem[]): OrderbookSide[] => {
@@ -954,10 +983,10 @@ export default function PropOrderbooksPanel({
   const [selectedSport, setSelectedSport] = useState<string>(sport)
   const [items, setItems] = useState<OrderbookItem[]>(initialData?.items ?? [])
   const [search, setSearch] = useState("")
-  const [oddsPreset, setOddsPreset] = useState<OddsPreset>("all")
+  const [oddsPreset, setOddsPreset] = useState<OddsPreset>("evenish")
   const [selectedBookFilter, setSelectedBookFilter] = useState<SharpBookFilter>("all")
-  const [minOdds, setMinOdds] = useState<string>("-200")
-  const [maxOdds, setMaxOdds] = useState<string>("")
+  const [minOdds, setMinOdds] = useState<string>("-150")
+  const [maxOdds, setMaxOdds] = useState<string>("150")
   const [selectedItemId, setSelectedItemId] = useState<string | null>(
     initialData?.items?.[0]?.id ?? null
   )
@@ -973,6 +1002,8 @@ export default function PropOrderbooksPanel({
   const [cacheFetchedAt, setCacheFetchedAt] = useState<string | null>(
     initialData?.cache?.fetchedAt ?? null
   )
+  const [oddsFeedsBySport, setOddsFeedsBySport] = useState<Record<string, PlayerPropOddsResponse | null>>({})
+  const [oddsFeedLoadingBySport, setOddsFeedLoadingBySport] = useState<Record<string, boolean>>({})
   const [playerHeadshotsByKey, setPlayerHeadshotsByKey] = useState<Record<string, string | null>>({})
   const [headshotLoadingByKey, setHeadshotLoadingByKey] = useState<Record<string, boolean>>({})
 
@@ -1092,13 +1123,15 @@ export default function PropOrderbooksPanel({
     setLastUpdatedAt(initialData?.updatedAt ?? null)
     setCacheSource(initialData?.cache?.source ?? null)
     setCacheFetchedAt(initialData?.cache?.fetchedAt ?? null)
+    setOddsFeedsBySport({})
+    setOddsFeedLoadingBySport({})
     setPlayerHeadshotsByKey({})
     setHeadshotLoadingByKey({})
     setSearch("")
-    setOddsPreset("all")
+    setOddsPreset("evenish")
     setSelectedBookFilter("all")
-    setMinOdds("-200")
-    setMaxOdds("")
+    setMinOdds("-150")
+    setMaxOdds("150")
   }, [initialData, sport])
 
   useEffect(() => {
@@ -1218,13 +1251,65 @@ export default function PropOrderbooksPanel({
 
   const mergedItems = useMemo(() => mergeOrderbookItemsByProp(items), [items])
 
+  const sportsNeedingOddsFeed = useMemo(() => {
+    const candidates =
+      selectedSport === "all"
+        ? Array.from(new Set(mergedItems.map((item) => item.sportKey)))
+        : [selectedSport]
+    return candidates.filter((sportKey) => PLAYER_PROP_ODDS_SUPPORTED_SPORTS.has(sportKey))
+  }, [mergedItems, selectedSport])
+
+  useEffect(() => {
+    let cancelled = false
+    const pendingSports = sportsNeedingOddsFeed.filter(
+      (sportKey) =>
+        !hasOwn(oddsFeedsBySport as Record<string, unknown>, sportKey) &&
+        !oddsFeedLoadingBySport[sportKey]
+    )
+    if (!pendingSports.length) return
+
+    const run = async () => {
+      for (const sportKey of pendingSports) {
+        if (cancelled) return
+        setOddsFeedLoadingBySport((prev) => ({ ...prev, [sportKey]: true }))
+        try {
+          const res = await fetch(`/api/player-prop-odds?sport=${encodeURIComponent(sportKey)}`, {
+            cache: "no-store",
+          })
+          const payload = (await res.json().catch(() => ({}))) as PlayerPropOddsResponse
+          if (cancelled) return
+          if (!res.ok) {
+            setOddsFeedsBySport((prev) => ({ ...prev, [sportKey]: null }))
+            continue
+          }
+          setOddsFeedsBySport((prev) => ({ ...prev, [sportKey]: payload }))
+        } catch {
+          if (cancelled) return
+          setOddsFeedsBySport((prev) => ({ ...prev, [sportKey]: null }))
+        } finally {
+          if (cancelled) return
+          setOddsFeedLoadingBySport((prev) => {
+            const next = { ...prev }
+            delete next[sportKey]
+            return next
+          })
+        }
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [oddsFeedLoadingBySport, oddsFeedsBySport, sportsNeedingOddsFeed])
+
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase()
     const resolvedRange = (() => {
       if (oddsPreset === "all") return { min: null as number | null, max: null as number | null }
       if (oddsPreset === "underdog200") return { min: 200, max: null as number | null }
       if (oddsPreset === "plusMoney") return { min: 100, max: null as number | null }
-      if (oddsPreset === "evenish") return { min: -120, max: 120 }
+      if (oddsPreset === "evenish") return { min: -150, max: 150 }
       if (oddsPreset === "favorites") return { min: -200, max: -101 }
       if (oddsPreset === "custom") {
         const min = minOdds.trim() === "" ? null : Number(minOdds)
@@ -1256,27 +1341,40 @@ export default function PropOrderbooksPanel({
             .trim()
           if (!haystack.includes(query)) return null
         }
-        const displayLean = resolveDisplayLeanForFilter(item, selectedBookFilter)
+        const baseDisplayLean = resolveDisplayLean(item)
+        const oddsFeed = oddsFeedsBySport[item.sportKey] ?? null
+        const oddsByBook = resolveMergedSharpBookOddsForItem(item, baseDisplayLean.side ?? null, oddsFeed)
+        const displayLean =
+          selectedBookFilter === "all"
+            ? resolveDisplayLeanForFilter(item, selectedBookFilter)
+            : {
+                ...baseDisplayLean,
+                odds: oddsByBook[selectedBookFilter],
+                bestBookTitle:
+                  oddsByBook[selectedBookFilter] != null
+                    ? SHARP_BOOK_LOGOS[selectedBookFilter].label
+                    : baseDisplayLean.bestBookTitle,
+              }
         if (selectedBookFilter !== "all") {
-          const oddsByBook = resolveSharpBookOddsForItem(item, displayLean.side ?? null)
           if (oddsByBook[selectedBookFilter] == null) return null
         }
         if (!matchesOddsRange(displayLean.odds)) return null
+        const sideLiquidity = resolveOverUnderLiquidity(item)
         return {
           item,
-          rankLiquidity: resolveRecommendedLiquidityForItem(item, displayLean.side ?? null),
+          rankMoney: sideLiquidity.total,
         }
       })
-      .filter((entry): entry is { item: DisplayOrderbookItem; rankLiquidity: number } => entry != null)
+      .filter((entry): entry is { item: DisplayOrderbookItem; rankMoney: number } => entry != null)
       .sort((a, b) => {
-        if (b.rankLiquidity !== a.rankLiquidity) return b.rankLiquidity - a.rankLiquidity
+        if (b.rankMoney !== a.rankMoney) return b.rankMoney - a.rankMoney
         const aSize = resolveDisplayOrderSize(a.item) ?? 0
         const bSize = resolveDisplayOrderSize(b.item) ?? 0
         if (bSize !== aSize) return bSize - aSize
         return a.item.marketTitle.localeCompare(b.item.marketTitle)
       })
       .map((entry) => entry.item)
-  }, [maxOdds, mergedItems, minOdds, oddsPreset, search, selectedBookFilter, selectedSport])
+  }, [maxOdds, mergedItems, minOdds, oddsFeedsBySport, oddsPreset, search, selectedBookFilter, selectedSport])
 
   useEffect(() => {
     if (!filteredItems.length) {
@@ -1293,27 +1391,33 @@ export default function PropOrderbooksPanel({
     [filteredItems, selectedItemId]
   )
 
-  const selectedOddsFeed: PlayerPropOddsResponse | null = null
+  const selectedOddsFeed: PlayerPropOddsResponse | null =
+    selectedItem ? oddsFeedsBySport[selectedItem.sportKey] ?? null : null
 
-  const selectedDisplayLean = useMemo(
-    () => (selectedItem ? resolveDisplayLeanForFilter(selectedItem, selectedBookFilter) : null),
-    [selectedBookFilter, selectedItem]
-  )
+  const selectedDisplayLean = useMemo(() => {
+    if (!selectedItem) return null
+    if (selectedBookFilter === "all") {
+      return resolveDisplayLeanForFilter(selectedItem, selectedBookFilter)
+    }
+    const baseDisplayLean = resolveDisplayLean(selectedItem)
+    const oddsByBook = resolveMergedSharpBookOddsForItem(
+      selectedItem,
+      baseDisplayLean.side ?? null,
+      selectedOddsFeed
+    )
+    return {
+      ...baseDisplayLean,
+      odds: oddsByBook[selectedBookFilter],
+      bestBookTitle:
+        oddsByBook[selectedBookFilter] != null
+          ? SHARP_BOOK_LOGOS[selectedBookFilter].label
+          : baseDisplayLean.bestBookTitle,
+    }
+  }, [selectedBookFilter, selectedItem, selectedOddsFeed])
   const selectedSharpBookOdds = useMemo(() => {
     if (!selectedItem) return [] as Array<{ key: SharpBookKey; odds: number | null }>
     const recommendedSide = selectedDisplayLean?.side ?? null
-    const oddsByBook = resolveSharpBookOddsForItem(selectedItem, recommendedSide)
-    const oddsApiOverrides = resolveOddsApiBookOddsForItem(
-      selectedItem,
-      recommendedSide,
-      selectedOddsFeed
-    )
-    for (const bookKey of ODDS_API_BOOK_KEYS) {
-      const override = oddsApiOverrides[bookKey]
-      if (override != null) {
-        oddsByBook[bookKey] = override
-      }
-    }
+    const oddsByBook = resolveMergedSharpBookOddsForItem(selectedItem, recommendedSide, selectedOddsFeed)
 
     return SHARP_BOOK_ORDER.map((key) => ({
       key,
@@ -1348,6 +1452,10 @@ export default function PropOrderbooksPanel({
     () => resolveWeightedAverageOdds(ladderRows),
     [ladderRows]
   )
+  const selectedSideLiquidity = useMemo(
+    () => (selectedItem ? resolveOverUnderLiquidity(selectedItem) : { over: 0, under: 0, total: 0 }),
+    [selectedItem]
+  )
   const sharpPropsSharePayload = useMemo(() => {
     if (!selectedItem || !selectedDisplayLean) return null
 
@@ -1362,7 +1470,7 @@ export default function PropOrderbooksPanel({
       sportLabel: selectedItem.sportLabel,
       matchup: selectedItem.matchup ?? selectedItem.marketTitle,
       sourceKeys: selectedItem.sources,
-      whaleVolumeLabel: formatCompactCurrency(resolveDisplayOrderSize(selectedItem)),
+      whaleVolumeLabel: formatCompactCurrency(resolveOverUnderLiquidity(selectedItem).total),
       playLabel: resolvePropText(selectedItem, selectedDisplayLean.side),
       playOddsLabel: formatAmericanOdds(selectedDisplayLean.odds ?? null),
       playSubtext,
@@ -1480,7 +1588,7 @@ export default function PropOrderbooksPanel({
             <option value="default">Odds: -200 or better</option>
             <option value="underdog200">Odds: +200 or worse</option>
             <option value="plusMoney">Odds: +100 or worse</option>
-            <option value="evenish">Odds: -120 to +120</option>
+            <option value="evenish">Odds: -150 to +150</option>
             <option value="favorites">Odds: -200 to -101</option>
             <option value="custom">Custom range</option>
           </select>
@@ -1527,28 +1635,26 @@ export default function PropOrderbooksPanel({
             <div className="space-y-2 p-3">
               {filteredItems.map((item) => {
                 const isSelected = selectedItem?.id === item.id
-                const orderSize = resolveDisplayOrderSize(item)
-                const displayLean = resolveDisplayLeanForFilter(item, selectedBookFilter)
-                const miniShares = resolveMiniBarShares(item)
-                const directRecommendedSharePct =
-                  displayLean.side === "Over"
-                    ? miniShares.overPct
-                    : displayLean.side === "Under"
-                      ? miniShares.underPct
-                      : 0
-                const fallbackSide = resolveOppositeSide(displayLean.side ?? null)
-                const fallbackSharePct =
-                  fallbackSide === "Over"
-                    ? miniShares.overPct
-                    : fallbackSide === "Under"
-                      ? miniShares.underPct
-                      : 0
-                const recommendedSharePct =
-                  directRecommendedSharePct > 0 ? directRecommendedSharePct : fallbackSharePct
-                const directRecommendedNotional = resolveSideWallNotional(item, displayLean.side)
-                const fallbackNotional = resolveSideWallNotional(item, fallbackSide)
-                const recommendedNotional =
-                  directRecommendedNotional > 0 ? directRecommendedNotional : fallbackNotional
+                const baseDisplayLean = resolveDisplayLean(item)
+                const oddsFeed = oddsFeedsBySport[item.sportKey] ?? null
+                const oddsByBook = resolveMergedSharpBookOddsForItem(
+                  item,
+                  baseDisplayLean.side ?? null,
+                  oddsFeed
+                )
+                const displayLean =
+                  selectedBookFilter === "all"
+                    ? resolveDisplayLeanForFilter(item, selectedBookFilter)
+                    : {
+                        ...baseDisplayLean,
+                        odds: oddsByBook[selectedBookFilter],
+                        bestBookTitle:
+                          oddsByBook[selectedBookFilter] != null
+                            ? SHARP_BOOK_LOGOS[selectedBookFilter].label
+                            : baseDisplayLean.bestBookTitle,
+                      }
+                const sideLiquidity = resolveOverUnderLiquidity(item)
+                const totalLiquidity = sideLiquidity.total
                 const playerHeadshot = resolvePlayerHeadshot(item, playerHeadshotsByKey)
                 const playerFaceSrc = playerHeadshot
                   ? `/api/image-proxy?url=${encodeURIComponent(playerHeadshot)}`
@@ -1567,7 +1673,7 @@ export default function PropOrderbooksPanel({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="text-3xl font-bold leading-none text-lime-300">
-                        {formatCompactCurrency(orderSize)}
+                        {formatCompactCurrency(totalLiquidity)}
                       </div>
                       <div className="text-[10px] text-white/40">{item.eventDate ?? "TBD"}</div>
                     </div>
@@ -1628,15 +1734,19 @@ export default function PropOrderbooksPanel({
                     </div>
 
                     <div className="mt-3">
-                      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-white/40">
-                        <span>{displayLean.side ? `${displayLean.side} Liquidity` : "Recommended Liquidity"}</span>
-                        <span>{formatCompactCurrency(recommendedNotional)}</span>
-                      </div>
-                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
-                        <div
-                          className="h-full rounded-full bg-lime-400"
-                          style={{ width: `${recommendedSharePct}%` }}
-                        />
+                      <div className="grid grid-cols-2 gap-2 text-[10px] uppercase tracking-[0.12em] text-white/45">
+                        <div className="rounded-md border border-white/10 bg-black/40 px-2 py-1">
+                          <div className="text-white/45">Over</div>
+                          <div className="mt-1 text-[11px] font-semibold text-lime-200">
+                            {formatCompactCurrency(sideLiquidity.over)}
+                          </div>
+                        </div>
+                        <div className="rounded-md border border-white/10 bg-black/40 px-2 py-1">
+                          <div className="text-white/45">Under</div>
+                          <div className="mt-1 text-[11px] font-semibold text-lime-200">
+                            {formatCompactCurrency(sideLiquidity.under)}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -1682,9 +1792,15 @@ export default function PropOrderbooksPanel({
                 </h2>
                 <div className="mt-2 flex flex-wrap items-center gap-3">
                   <div className="text-4xl font-bold leading-none text-lime-300">
-                    {formatCompactCurrency(resolveDisplayOrderSize(selectedItem))}
+                    {formatCompactCurrency(selectedSideLiquidity.total)}
                   </div>
-                  <div className="text-sm text-white/55">Whale Volume</div>
+                  <div className="text-sm text-white/55">Total Liquidity</div>
+                  <div className="rounded-md border border-white/10 bg-black/35 px-2 py-1 text-[11px] text-white/70">
+                    Over {formatCompactCurrency(selectedSideLiquidity.over)}
+                  </div>
+                  <div className="rounded-md border border-white/10 bg-black/35 px-2 py-1 text-[11px] text-white/70">
+                    Under {formatCompactCurrency(selectedSideLiquidity.under)}
+                  </div>
                   <div className="ml-auto">
                     {sharpPropsSharePayload && (
                       <ShareSharpPropsToolButton payload={sharpPropsSharePayload} />
@@ -1732,7 +1848,7 @@ export default function PropOrderbooksPanel({
                 <div className="mt-5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-[11px] uppercase tracking-[0.22em] text-white/45">
-                      Recommended Side Liquidity
+                      Orderbook Liquidity Levels
                     </div>
                     <div className="text-xs text-white/50">
                       {formatAmericanOdds(ladderAverageOdds)} avg | {formatCompactCurrency(ladderVolume)} vol
@@ -1841,7 +1957,7 @@ export default function PropOrderbooksPanel({
                     })}
                   </div>
                   <p className="mt-2 text-[10px] text-white/35">
-                    Snapshot data only. No live request-time odds are fetched.
+                    Snapshot + live line-shop merge (auto-refresh).
                   </p>
                 </div>
               </>

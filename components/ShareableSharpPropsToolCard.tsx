@@ -18,7 +18,7 @@ const SHARP_BOOK_LOGOS: Record<SharpBookKey, { label: string; src?: string }> = 
   polymarket: { label: 'Polymarket', src: '/polymarket.png' },
   kalshi: { label: 'Kalshi', src: '/kalshi.png' },
   novig: { label: 'NoVig', src: '/Novig.png' },
-  pinnacle: { label: 'Pinnacle', src: '/pinnacle.jpg' },
+  fanduel: { label: 'FanDuel', src: '/fanduel.png' },
   circa: { label: 'Circa', src: '/circasports.png' },
   prophetx: { label: 'ProphetX', src: '/ProphetX.png' },
   prizepicks: { label: 'PrizePicks', src: '/prizepicks.png' },
@@ -113,7 +113,7 @@ const ShareableSharpPropsToolCard = forwardRef<
               <div style={{ fontSize: 52, fontWeight: 700, lineHeight: 1, color: '#86efac' }}>
                 {payload.whaleVolumeLabel}
               </div>
-              <div style={{ fontSize: 24, color: 'rgba(255,255,255,0.62)' }}>Whale volume on this market</div>
+              <div style={{ fontSize: 24, color: 'rgba(255,255,255,0.62)' }}>Total liquidity on this market</div>
             </div>
 
             <div

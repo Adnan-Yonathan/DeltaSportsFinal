@@ -3,10 +3,6 @@ import { fetchTheOddsApiPlayerProps } from "@/lib/api/the-odds-api"
 
 export const dynamic = "force-dynamic"
 
-const CACHE_TTL_MS = 10 * 60 * 1000
-type CacheEntry = { ts: number; payload: any }
-const responseCache = new Map<string, CacheEntry>()
-
 const SUPPORTED_SPORTS = [
   "basketball_nba",
   "basketball_ncaab",
@@ -234,12 +230,6 @@ export async function GET(request: Request) {
     ? sport
     : "basketball_nba"
   const markets = SPORT_MARKETS[normalizedSport] || SPORT_MARKETS.basketball_nba
-  const cacheKey = `${normalizedSport}:${markets.join(",")}`
-
-  const cached = responseCache.get(cacheKey)
-  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
-    return NextResponse.json({ ...cached.payload, cached: true })
-  }
 
   try {
     const events = await fetchTheOddsApiPlayerProps(normalizedSport, {
@@ -251,7 +241,6 @@ export async function GET(request: Request) {
     })
 
     const rows = new Map<string, any>()
-    const booksSeen = new Set<string>()
 
     for (const event of events || []) {
       const gameLabel = `${event.away_team} @ ${event.home_team}`
@@ -296,7 +285,6 @@ export async function GET(request: Request) {
               existing.odds[bookKey] = {}
             }
             existing.odds[bookKey][side] = price
-            booksSeen.add(bookKey)
             rows.set(key, existing)
           }
         }
@@ -336,8 +324,6 @@ export async function GET(request: Request) {
       props,
       cached: false,
     }
-
-    responseCache.set(cacheKey, { ts: Date.now(), payload })
     return NextResponse.json(payload)
   } catch (error: any) {
     return NextResponse.json(

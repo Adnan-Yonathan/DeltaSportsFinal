@@ -1444,7 +1444,7 @@ export default function PropOrderbooksPanel({
             </span>
             <button
               type="button"
-              onClick={() => load({ forceRefresh: false, background: true })}
+              onClick={() => load({ forceRefresh: true, background: true })}
               disabled={refreshing}
               className="rounded-md border border-white/15 px-2.5 py-1 text-white/75 transition-colors hover:border-emerald-400/50 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-45"
             >

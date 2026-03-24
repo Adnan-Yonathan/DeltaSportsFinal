@@ -4,15 +4,7 @@ import {
   fetchPropOrderbooksSnapshot,
   type PropOrderbookItem,
 } from '@/lib/services/prop-liquidity-detector'
-import {
-  getPropOrderbooksCache,
-  setPropOrderbooksCache,
-} from '@/lib/services/prop-orderbooks-cache'
-import {
-  parseCacheAgeMs,
-  resolveSnapshotDiagnostics,
-  shouldPersistPropOrderbooksSnapshot,
-} from '@/lib/services/prop-orderbooks-cache-guard'
+import { resolveSnapshotDiagnostics } from '@/lib/services/prop-orderbooks-cache-guard'
 import {
   filterUpcomingEventItems,
   getUsMarketDayKey,
@@ -20,9 +12,6 @@ import {
 } from '@/lib/utils/upcoming-event-filter'
 
 export const dynamic = 'force-dynamic'
-const DEFAULT_DEPTH = 8
-const DEFAULT_MIN_SHARP_NOTIONAL = 100
-const PERSISTED_CACHE_LIMIT = 200
 const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store, no-cache, must-revalidate',
 } as const
@@ -37,46 +26,7 @@ const SUPPORTED_SPORTS = new Set([
   'americanfootball_ncaaf',
 ])
 
-type PersistedPayload = {
-  sport: string
-  depth: number
-  minSharpNotional: number
-  updatedAt: string
-  items: PropOrderbookItem[]
-}
-
 type DateWindow = 'today' | 'upcoming'
-
-const buildCacheKey = (sport: string, depth: number, minSharpNotional: number) =>
-  `sport:${sport}:depth:${depth}:min:${minSharpNotional}`
-
-const isRefreshAuthorized = (req: NextRequest) => {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return false
-
-  const authHeader = req.headers.get('authorization')
-  if (authHeader === `Bearer ${cronSecret}`) return true
-
-  const refreshSecret = req.headers.get('x-refresh-secret')
-  if (refreshSecret === cronSecret) return true
-
-  return false
-}
-
-const parsePersistedPayload = (value: unknown): PersistedPayload | null => {
-  if (!value || typeof value !== 'object') return null
-  const payload = value as Partial<PersistedPayload>
-  if (
-    typeof payload.sport !== 'string' ||
-    typeof payload.depth !== 'number' ||
-    typeof payload.minSharpNotional !== 'number' ||
-    typeof payload.updatedAt !== 'string' ||
-    !Array.isArray(payload.items)
-  ) {
-    return null
-  }
-  return payload as PersistedPayload
-}
 
 const filterItemsByDateWindow = (
   items: PropOrderbookItem[],
@@ -90,47 +40,13 @@ const filterItemsByDateWindow = (
   return items.filter((item) => resolveEventDayKey(item.eventDate) === todayKey)
 }
 
-const buildCachedResponse = (
-  sport: string,
-  normalizedLimit: number,
-  cachedPayload: PersistedPayload,
-  cacheSource: 'persistent' | 'persistent_all_fallback',
-  fetchedAt: string | null,
-  cacheAgeMs: number | null,
-  todayKey: string,
-  dateWindow: DateWindow
-) => {
-  const upcomingItems = filterItemsByDateWindow(cachedPayload.items, todayKey, dateWindow)
-  const items =
-    sport === 'all'
-      ? upcomingItems
-      : upcomingItems.filter((item) => item.sportKey === sport)
-  const sliced = items.slice(0, normalizedLimit)
-  const diagnostics = resolveSnapshotDiagnostics(sliced)
-
-  return NextResponse.json({
-    ok: true,
-    sport,
-    updatedAt: cachedPayload.updatedAt,
-    count: sliced.length,
-    items: sliced,
-    cache: {
-      forcedRefresh: false,
-      source: cacheSource,
-      fetchedAt,
-      cacheAgeMs,
-    },
-    diagnostics,
-  }, { headers: NO_STORE_HEADERS })
-}
-
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const sport = searchParams.get('sport') || 'all'
-    const forceRefresh = searchParams.get('refresh') === '1'
     const requestedModeParam = searchParams.get('mode')
     const dateWindowParam = searchParams.get('dateWindow')
+    const forceRefresh = searchParams.get('refresh') === '1'
     const limit = Number(searchParams.get('limit') || 60)
     const depth = Number(searchParams.get('depth') || 8)
     const minSharpNotional = Number(searchParams.get('minSharpNotional') || 100)
@@ -147,149 +63,48 @@ export async function GET(req: NextRequest) {
     const normalizedMinSharpNotional = Number.isFinite(minSharpNotional)
       ? Math.max(minSharpNotional, 0)
       : 100
-    const refreshAuthorized = isRefreshAuthorized(req)
-    if (forceRefresh && !refreshAuthorized) {
-      return NextResponse.json(
-        { ok: false, error: 'Unauthorized refresh request.' },
-        { status: 401, headers: NO_STORE_HEADERS }
-      )
-    }
-    const effectiveForceRefresh = forceRefresh && refreshAuthorized
-    const requestedMode =
-      requestedModeParam === 'fast' ||
-      requestedModeParam === 'full'
+    const mode =
+      requestedModeParam === 'fast' || requestedModeParam === 'full'
         ? requestedModeParam
-        : null
-    const mode = requestedMode ?? 'full'
+        : 'full'
     const dateWindow: DateWindow = dateWindowParam === 'today' ? 'today' : 'upcoming'
     const todayKey = getUsMarketDayKey()
 
-    const canUsePersistentCache =
-      normalizedDepth === DEFAULT_DEPTH &&
-      normalizedMinSharpNotional === DEFAULT_MIN_SHARP_NOTIONAL
-
-
-    if (canUsePersistentCache && !effectiveForceRefresh) {
-      const exactCacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
-      const cachedExact = await getPropOrderbooksCache(exactCacheKey)
-      const exactPayload = parsePersistedPayload(cachedExact?.payload)
-      const exactAgeMs = parseCacheAgeMs(cachedExact?.fetched_at ?? null)
-      if (exactPayload) {
-        return buildCachedResponse(
-          sport,
-          normalizedLimit,
-          exactPayload,
-          'persistent',
-          cachedExact?.fetched_at ?? null,
-          exactAgeMs,
-          todayKey,
-          dateWindow
-        )
-      }
-
-      if (sport !== 'all') {
-        const allCacheKey = buildCacheKey('all', normalizedDepth, normalizedMinSharpNotional)
-        const cachedAll = await getPropOrderbooksCache(allCacheKey)
-        const allPayload = parsePersistedPayload(cachedAll?.payload)
-        const allAgeMs = parseCacheAgeMs(cachedAll?.fetched_at ?? null)
-        if (allPayload) {
-          return buildCachedResponse(
-            sport,
-            normalizedLimit,
-            allPayload,
-            'persistent_all_fallback',
-            cachedAll?.fetched_at ?? null,
-            allAgeMs,
-            todayKey,
-            dateWindow
-          )
-        }
-      }
-    }
-
-    const computeLimit =
-      effectiveForceRefresh && canUsePersistentCache && mode === 'full'
-        ? Math.max(normalizedLimit, PERSISTED_CACHE_LIMIT)
-        : normalizedLimit
-
     const snapshot = await fetchPropOrderbooksSnapshot({
       sportKey: sport,
-      limit: computeLimit,
+      limit: normalizedLimit,
       depth: normalizedDepth,
       minSharpNotional: normalizedMinSharpNotional,
       mode,
     })
-    const snapshotItems = filterItemsByDateWindow(snapshot.items, todayKey, dateWindow)
 
-    let persisted = false
-    let cacheWriteSkippedDegraded = false
-    let fallbackToPersistent = false
-    let fallbackFetchedAt: string | null = null
-    let fallbackCacheAgeMs: number | null = null
-    let responseSnapshotItems = snapshotItems
-    let responseUpdatedAt = snapshot.updatedAt
-    if (canUsePersistentCache) {
-      const cacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
-      const existingCache = await getPropOrderbooksCache(cacheKey)
-      const existingPayload = parsePersistedPayload(existingCache?.payload)
-      const existingItems = existingPayload
-        ? filterItemsByDateWindow(existingPayload.items, todayKey, dateWindow)
-        : []
-      const shouldPersist =
-        !existingPayload ||
-        shouldPersistPropOrderbooksSnapshot(existingItems, snapshotItems)
+    const filteredItems = filterItemsByDateWindow(snapshot.items, todayKey, dateWindow)
+    const responseItems =
+      sport === 'all'
+        ? filteredItems.slice(0, normalizedLimit)
+        : filteredItems
+            .filter((item) => item.sportKey === sport)
+            .slice(0, normalizedLimit)
 
-      const payload: PersistedPayload = {
-        sport,
-        depth: normalizedDepth,
-        minSharpNotional: normalizedMinSharpNotional,
-        updatedAt: snapshot.updatedAt,
-        items: snapshotItems,
-      }
-      if (shouldPersist) {
-        persisted = await setPropOrderbooksCache(cacheKey, payload)
-      } else {
-        cacheWriteSkippedDegraded = true
-        if (existingItems.length) {
-          fallbackToPersistent = true
-          fallbackFetchedAt = existingCache?.fetched_at ?? null
-          fallbackCacheAgeMs = parseCacheAgeMs(fallbackFetchedAt)
-          responseSnapshotItems = existingItems
-          responseUpdatedAt = existingPayload?.updatedAt ?? responseUpdatedAt
-        }
-      }
-    }
-
-    const responseItems = responseSnapshotItems.slice(0, normalizedLimit)
     const diagnostics = resolveSnapshotDiagnostics(responseItems)
 
-    return NextResponse.json({
-      ok: true,
-      sport,
-      updatedAt: responseUpdatedAt,
-      count: responseItems.length,
-      items: responseItems,
-      cache: {
-        forcedRefresh: effectiveForceRefresh,
-        source: effectiveForceRefresh
-          ? canUsePersistentCache
-            ? mode === 'full'
-              ? 'snapshot_refreshed_persisted_full'
-              : 'snapshot_refreshed_persisted_fast'
-            : mode === 'full'
-              ? 'snapshot_refreshed_full'
-              : 'snapshot_refreshed_fast'
-          : canUsePersistentCache
-            ? 'snapshot_cached'
-            : 'snapshot_cached',
-        persisted,
-        cacheWriteSkippedDegraded,
-        fallbackToPersistent,
-        fetchedAt: fallbackFetchedAt,
-        cacheAgeMs: fallbackCacheAgeMs,
+    return NextResponse.json(
+      {
+        ok: true,
+        sport,
+        updatedAt: snapshot.updatedAt,
+        count: responseItems.length,
+        items: responseItems,
+        cache: {
+          forcedRefresh: forceRefresh,
+          source: mode === 'fast' ? 'snapshot_live_fast' : 'snapshot_live_full',
+          fetchedAt: null,
+          cacheAgeMs: null,
+        },
+        diagnostics,
       },
-      diagnostics,
-    }, { headers: NO_STORE_HEADERS })
+      { headers: NO_STORE_HEADERS }
+    )
   } catch (error: any) {
     console.error('[prop-orderbooks] error:', error)
     return NextResponse.json(

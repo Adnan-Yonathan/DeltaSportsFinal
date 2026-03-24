@@ -1592,13 +1592,6 @@ const fetchExchangePropOrderbookItems = async (opts: {
   return items
 }
 
-type OrderbookCacheEntry = {
-  fetchedAt: number
-  updatedAt: string
-  items: PropOrderbookItem[]
-}
-
-const orderbooksCache = new Map<string, OrderbookCacheEntry>()
 type PropOrderbooksSnapshot = {
   updatedAt: string
   items: PropOrderbookItem[]
@@ -1637,7 +1630,6 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
   minSharpNotional?: number
   mode?: SnapshotMode
 }) => {
-  const now = Date.now()
   const sportFilter = opts?.sportKey ?? 'all'
   const requestedLimit = opts?.limit ?? 60
   const depth = opts?.depth ?? 8
@@ -1653,14 +1645,6 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         : Math.min(Math.max(requestedLimit * 3, requestedLimit), 360)
       : requestedLimit
   const cacheKey = `${sportFilter}:${requestedLimit}:${depth}:${minSharpNotional}:${mode}`
-  const cached = orderbooksCache.get(cacheKey)
-
-  if (cached && now - cached.fetchedAt < CACHE_TTL_MS) {
-    return {
-      updatedAt: cached.updatedAt,
-      items: cached.items.slice(0, requestedLimit),
-    }
-  }
 
   const inFlight = orderbooksInFlight.get(cacheKey)
   if (inFlight) {
@@ -2067,12 +2051,6 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
         highLiquidityCount,
       })
     }
-
-    orderbooksCache.set(cacheKey, {
-      fetchedAt: Date.now(),
-      updatedAt,
-      items: finalItems,
-    })
 
     return {
       updatedAt,

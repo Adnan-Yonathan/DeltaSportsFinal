@@ -7,9 +7,7 @@ import ShareSharpPropsToolButton from "@/components/ShareSharpPropsToolButton"
 import { shouldPersistPropOrderbooksSnapshot } from "@/lib/services/prop-orderbooks-cache-guard"
 import { SHARP_PROPS_SOURCE_ORDER } from "@/lib/config/odds-sources"
 import {
-  isWithinSharpRefreshWindow,
   SHARP_REFRESH_INTERVAL_MS,
-  SHARP_REFRESH_WINDOW_LABEL,
 } from "@/lib/utils/sharp-refresh-window"
 
 type OrderbookLevel = {
@@ -956,7 +954,7 @@ export default function PropOrderbooksPanel({
   const [selectedSport, setSelectedSport] = useState<string>(sport)
   const [items, setItems] = useState<OrderbookItem[]>(initialData?.items ?? [])
   const [search, setSearch] = useState("")
-  const [oddsPreset, setOddsPreset] = useState<OddsPreset>("evenish")
+  const [oddsPreset, setOddsPreset] = useState<OddsPreset>("all")
   const [selectedBookFilter, setSelectedBookFilter] = useState<SharpBookFilter>("all")
   const [minOdds, setMinOdds] = useState<string>("-200")
   const [maxOdds, setMaxOdds] = useState<string>("")
@@ -977,9 +975,6 @@ export default function PropOrderbooksPanel({
   )
   const [playerHeadshotsByKey, setPlayerHeadshotsByKey] = useState<Record<string, string | null>>({})
   const [headshotLoadingByKey, setHeadshotLoadingByKey] = useState<Record<string, boolean>>({})
-  const [refreshWindowOpen, setRefreshWindowOpen] = useState<boolean>(() =>
-    isWithinSharpRefreshWindow()
-  )
 
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -991,13 +986,6 @@ export default function PropOrderbooksPanel({
   useEffect(() => {
     setSelectedSport(sport)
   }, [sport])
-
-  useEffect(() => {
-    const updateWindow = () => setRefreshWindowOpen(isWithinSharpRefreshWindow())
-    updateWindow()
-    const timer = window.setInterval(updateWindow, 60 * 1000)
-    return () => window.clearInterval(timer)
-  }, [])
 
   const load = useCallback(
     async ({
@@ -1021,12 +1009,14 @@ export default function PropOrderbooksPanel({
       }
 
       try {
-        const shouldForceRefresh = forceRefresh && false
+        const shouldForceRefresh = forceRefresh
         const params = new URLSearchParams({
           sport: "all",
           limit: String(limit),
           depth: String(depth),
           minSharpNotional: String(minSharpNotional),
+          mode: "full",
+          dateWindow: "upcoming",
         })
         if (shouldForceRefresh) {
           params.set("refresh", "1")
@@ -1050,11 +1040,10 @@ export default function PropOrderbooksPanel({
         const nextUpdatedAtMs = parseTimestampMs(payload?.updatedAt ?? null)
         const hasNewerSnapshot = nextUpdatedAtMs > previousUpdatedAtMs
         const sourceLabel = String(payload?.cache?.source ?? "")
-        const isOvernightSnapshot = sourceLabel.includes("overnight")
         const shouldAcceptBackground =
           !background ||
           hasNewerSnapshot ||
-          isOvernightSnapshot ||
+          sourceLabel.includes("fast") ||
           shouldPersistPropOrderbooksSnapshot(previousItems, nextItems) ||
           payload?.cache?.fallbackToPersistent === true
         const resolvedItems = background
@@ -1106,10 +1095,10 @@ export default function PropOrderbooksPanel({
     setPlayerHeadshotsByKey({})
     setHeadshotLoadingByKey({})
     setSearch("")
-    setOddsPreset("evenish")
+    setOddsPreset("all")
     setSelectedBookFilter("all")
-    setMinOdds("-120")
-    setMaxOdds("120")
+    setMinOdds("-200")
+    setMaxOdds("")
   }, [initialData, sport])
 
   useEffect(() => {
@@ -1441,12 +1430,12 @@ export default function PropOrderbooksPanel({
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#06090f]">
       <div className="border-b border-white/10 bg-black/40 px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">Sharp Prop Orderbook</div>
-            <div className="mt-1 text-xs text-white/55">
-              {totalCountLabel} | refreshes every 10m ({SHARP_REFRESH_WINDOW_LABEL})
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">Sharp Prop Orderbook</div>
+              <div className="mt-1 text-xs text-white/55">
+                {totalCountLabel} | refreshes every 10m
+              </div>
             </div>
-          </div>
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/50">
             <span>Updated {updatedLabel}</span>
             {fetchedLabel && <span>Cache {fetchedLabel}</span>}
@@ -1456,16 +1445,11 @@ export default function PropOrderbooksPanel({
             <button
               type="button"
               onClick={() => load({ forceRefresh: false, background: true })}
-              disabled={refreshing || !refreshWindowOpen}
+              disabled={refreshing}
               className="rounded-md border border-white/15 px-2.5 py-1 text-white/75 transition-colors hover:border-emerald-400/50 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-45"
             >
               {refreshing ? "Refreshing..." : "Refresh"}
             </button>
-            {!refreshWindowOpen && (
-              <span className="text-[10px] uppercase tracking-[0.15em] text-white/40">
-                Auto-refresh paused
-              </span>
-            )}
           </div>
         </div>
 

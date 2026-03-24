@@ -444,6 +444,13 @@ const EXCHANGE_SOURCE_LABELS: Record<'novig' | 'prophetx', string> = {
   novig: 'NoVig',
   prophetx: 'ProphetX',
 }
+const EXCHANGE_SPORT_LABELS: Record<ExchangeSportKey, string> = {
+  basketball_nba: 'NBA',
+  basketball_ncaab: 'NCAAB',
+  americanfootball_nfl: 'NFL',
+  baseball_mlb: 'MLB',
+  icehockey_nhl: 'NHL',
+}
 
 const MARKET_KEY_TO_PROP_TYPE: Record<string, string> = {
   player_points: 'points',
@@ -1428,7 +1435,7 @@ const fetchExchangePropOrderbookItems = async (opts: {
       if (reachedSportLimit()) break
       if (items.length >= limit) break
       const eventDate = resolveEventDate(event?.commence_time)
-      if (!eventDate || eventDate !== today) continue
+      if (!eventDate || eventDate < today) continue
       const gameLabel = `${event?.away_team ?? 'Away'} @ ${event?.home_team ?? 'Home'}`
 
       for (const bookmaker of event.bookmakers ?? []) {
@@ -1560,7 +1567,7 @@ const fetchExchangePropOrderbookItems = async (opts: {
             id: `${source}:${event.id}:${normalizePlayerName(row.playerName)}:${row.propType}:${formatLineKey(row.propLine)}`,
             source,
             sportKey,
-            sportLabel: sportKey === 'basketball_nba' ? 'NBA' : sportKey === 'basketball_ncaab' ? 'NCAAB' : 'NHL',
+            sportLabel: EXCHANGE_SPORT_LABELS[sportKey],
             matchup: row.matchup,
             marketTitle: row.marketTitle,
             playerName: row.playerName,
@@ -1596,7 +1603,7 @@ type PropOrderbooksSnapshot = {
   updatedAt: string
   items: PropOrderbookItem[]
 }
-type SnapshotMode = 'fast' | 'full' | 'overnight'
+type SnapshotMode = 'fast' | 'full'
 const orderbooksInFlight = new Map<string, Promise<PropOrderbooksSnapshot>>()
 
 const mapWithConcurrency = async <T, R>(
@@ -1637,9 +1644,8 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
   const minSharpNotional = opts?.minSharpNotional ?? 100
   const mode = opts?.mode ?? 'full'
   const isFastMode = mode === 'fast'
-  const isOvernightMode = mode === 'overnight'
-  const useLightCollection = isFastMode || isOvernightMode
-  const skipOddsApis = isOvernightMode
+  const useLightCollection = isFastMode
+  const skipOddsApis = false
   const collectionLimit =
     sportFilter === 'all'
       ? useLightCollection
@@ -1676,16 +1682,14 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
 
     const kalshiItems: PropOrderbookItem[] = []
     const polymarketItems: PropOrderbookItem[] = []
-    const exchangeItems = useLightCollection
-      ? []
-      : await fetchExchangePropOrderbookItems({
-          sportFilter,
-          today,
-          depth,
-          minSharpNotional,
-          updatedAt,
-          limit: collectionLimit,
-        })
+    const exchangeItems = await fetchExchangePropOrderbookItems({
+      sportFilter,
+      today,
+      depth,
+      minSharpNotional,
+      updatedAt,
+      limit: useLightCollection ? Math.min(collectionLimit, 140) : collectionLimit,
+    })
 
     const buildKalshiItem = async (
       series: (typeof KALSHI_PROP_SERIES)[number],
@@ -1812,7 +1816,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
       const markets = await fetchKalshiPropMarkets(series.ticker, kalshiPageLimit)
       const upcoming = markets.filter((market) => {
         const eventDate = parseKalshiDate(market.ticker)
-        return Boolean(eventDate && eventDate === today)
+        return Boolean(eventDate && eventDate >= today)
       })
       const remaining = collectionLimit - kalshiItems.length
       if (remaining <= 0) break
@@ -2009,7 +2013,7 @@ export const fetchPropOrderbooksSnapshot = async (opts?: {
           if (!sportMeta) continue
           if (sportFilter !== 'all' && sportMeta.sportKey !== sportFilter) continue
           const eventDate = resolvePolymarketEventDate(market)
-          if (!eventDate || eventDate !== today) continue
+          if (!eventDate || eventDate < today) continue
           const question = market.question || market.title
           if (!question) continue
           if (!isPlayerPropQuestion(question.trim())) continue

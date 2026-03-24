@@ -729,6 +729,8 @@ export default function SharpPlayerPropsTable({ sport }: { sport: string }) {
         limit: "200",
         depth: "8",
         minSharpNotional: "100",
+        mode: "full",
+        dateWindow: "upcoming",
       })
 
       const res = await fetch(`/api/prop-orderbooks?${params.toString()}`, {

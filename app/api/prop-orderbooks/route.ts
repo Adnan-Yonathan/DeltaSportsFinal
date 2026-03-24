@@ -13,7 +13,6 @@ import {
   resolveSnapshotDiagnostics,
   shouldPersistPropOrderbooksSnapshot,
 } from '@/lib/services/prop-orderbooks-cache-guard'
-import { isWithinSharpRefreshWindow } from '@/lib/utils/sharp-refresh-window'
 import {
   filterUpcomingEventItems,
   getUsMarketDayKey,
@@ -148,7 +147,6 @@ export async function GET(req: NextRequest) {
     const normalizedMinSharpNotional = Number.isFinite(minSharpNotional)
       ? Math.max(minSharpNotional, 0)
       : 100
-    const refreshWindowOpen = isWithinSharpRefreshWindow()
     const refreshAuthorized = isRefreshAuthorized(req)
     if (forceRefresh && !refreshAuthorized) {
       return NextResponse.json(
@@ -159,74 +157,16 @@ export async function GET(req: NextRequest) {
     const effectiveForceRefresh = forceRefresh && refreshAuthorized
     const requestedMode =
       requestedModeParam === 'fast' ||
-      requestedModeParam === 'full' ||
-      requestedModeParam === 'overnight'
+      requestedModeParam === 'full'
         ? requestedModeParam
         : null
-    const mode = requestedMode ?? (effectiveForceRefresh ? 'full' : 'fast')
-    const dateWindow: DateWindow = dateWindowParam === 'upcoming' ? 'upcoming' : 'today'
+    const mode = requestedMode ?? 'full'
+    const dateWindow: DateWindow = dateWindowParam === 'today' ? 'today' : 'upcoming'
     const todayKey = getUsMarketDayKey()
 
     const canUsePersistentCache =
       normalizedDepth === DEFAULT_DEPTH &&
       normalizedMinSharpNotional === DEFAULT_MIN_SHARP_NOTIONAL
-
-
-    if (!refreshWindowOpen && !effectiveForceRefresh) {
-      if (canUsePersistentCache) {
-        const exactCacheKey = buildCacheKey(sport, normalizedDepth, normalizedMinSharpNotional)
-        const cachedExact = await getPropOrderbooksCache(exactCacheKey)
-        const exactPayload = parsePersistedPayload(cachedExact?.payload)
-        const exactAgeMs = parseCacheAgeMs(cachedExact?.fetched_at ?? null)
-        if (exactPayload) {
-          return buildCachedResponse(
-            sport,
-            normalizedLimit,
-            exactPayload,
-            'persistent',
-            cachedExact?.fetched_at ?? null,
-            exactAgeMs,
-            todayKey,
-            dateWindow
-          )
-        }
-
-        if (sport !== 'all') {
-          const allCacheKey = buildCacheKey('all', normalizedDepth, normalizedMinSharpNotional)
-          const cachedAll = await getPropOrderbooksCache(allCacheKey)
-          const allPayload = parsePersistedPayload(cachedAll?.payload)
-          const allAgeMs = parseCacheAgeMs(cachedAll?.fetched_at ?? null)
-          if (allPayload) {
-            return buildCachedResponse(
-              sport,
-              normalizedLimit,
-              allPayload,
-              'persistent_all_fallback',
-              cachedAll?.fetched_at ?? null,
-              allAgeMs,
-              todayKey,
-              dateWindow
-            )
-          }
-        }
-      }
-
-      return NextResponse.json({
-        ok: true,
-        sport,
-        updatedAt: null,
-        count: 0,
-        items: [],
-        refreshBlocked: true,
-        cache: {
-          forcedRefresh: false,
-          source: 'refresh_window_closed',
-          fetchedAt: null,
-          cacheAgeMs: null,
-        },
-        diagnostics: resolveSnapshotDiagnostics([]),
-      })
-    }
 
 
     if (canUsePersistentCache && !effectiveForceRefresh) {
@@ -265,33 +205,6 @@ export async function GET(req: NextRequest) {
           )
         }
       }
-
-      return NextResponse.json({
-        ok: true,
-        sport,
-        updatedAt: null,
-        count: 0,
-        items: [],
-        refreshBlocked: true,
-        cache: {
-          forcedRefresh: false,
-          source: 'no_live_cache_miss',
-          fetchedAt: null,
-          cacheAgeMs: null,
-        },
-        diagnostics: resolveSnapshotDiagnostics([]),
-      }, { headers: NO_STORE_HEADERS })
-    }
-
-    if (!effectiveForceRefresh) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'Live computation is disabled for this endpoint. Use default cached params or cron refresh.',
-        },
-        { status: 400, headers: NO_STORE_HEADERS }
-      )
     }
 
     const computeLimit =
@@ -367,12 +280,8 @@ export async function GET(req: NextRequest) {
               ? 'snapshot_refreshed_full'
               : 'snapshot_refreshed_fast'
           : canUsePersistentCache
-            ? mode === 'overnight'
-              ? 'snapshot_cached_overnight'
-              : 'snapshot_cached'
-            : mode === 'overnight'
-              ? 'snapshot_cached_overnight'
-              : 'snapshot_cached',
+            ? 'snapshot_cached'
+            : 'snapshot_cached',
         persisted,
         cacheWriteSkippedDegraded,
         fallbackToPersistent,

@@ -207,6 +207,9 @@ const resolveSharpBookKey = (value?: string | null): SharpBookKey | null => {
   return null
 }
 
+const isSourceBookFilter = (value: SharpBookFilter): value is SourceKey =>
+  value === "kalshi" || value === "polymarket" || value === "novig" || value === "prophetx"
+
 const ODDS_API_MARKETS_BY_PROP_TYPE: Record<string, string[]> = {
   points: ["player_points"],
   rebounds: ["player_rebounds"],
@@ -1089,7 +1092,7 @@ export default function PropOrderbooksPanel({
           limit: String(limit),
           depth: String(depth),
           minSharpNotional: String(minSharpNotional),
-          mode: "full",
+          mode: background ? "full" : "fast",
           dateWindow: "upcoming",
         })
         if (shouldForceRefresh) {
@@ -1402,7 +1405,9 @@ export default function PropOrderbooksPanel({
                     ? SHARP_BOOK_LOGOS[selectedBookFilter].label
                     : baseDisplayLean.bestBookTitle,
               }
-        if (selectedBookFilter !== "all") {
+        if (selectedBookFilter !== "all" && isSourceBookFilter(selectedBookFilter)) {
+          if (!item.sources.includes(selectedBookFilter)) return null
+        } else if (selectedBookFilter !== "all") {
           if (oddsByBook[selectedBookFilter] == null) return null
         }
         if (sideFilter !== "all") {
@@ -1456,9 +1461,12 @@ export default function PropOrderbooksPanel({
       baseDisplayLean.side ?? null,
       selectedOddsFeed
     )
+    if (isSourceBookFilter(selectedBookFilter) && !selectedItem.sources.includes(selectedBookFilter)) {
+      return baseDisplayLean
+    }
     return {
       ...baseDisplayLean,
-      odds: oddsByBook[selectedBookFilter],
+      odds: oddsByBook[selectedBookFilter] ?? baseDisplayLean.odds,
       bestBookTitle:
         oddsByBook[selectedBookFilter] != null
           ? SHARP_BOOK_LOGOS[selectedBookFilter].label
@@ -1493,10 +1501,6 @@ export default function PropOrderbooksPanel({
   )
   const maxLadderNotional = useMemo(
     () => ladderRows.reduce((max, row) => Math.max(max, row.notional), 0),
-    [ladderRows]
-  )
-  const ladderVolume = useMemo(
-    () => ladderRows.reduce((sum, row) => sum + row.notional, 0),
     [ladderRows]
   )
   const ladderAverageOdds = useMemo(
@@ -1898,7 +1902,7 @@ export default function PropOrderbooksPanel({
                       Orderbook Liquidity Levels
                     </div>
                     <div className="text-xs text-white/50">
-                      {formatAmericanOdds(ladderAverageOdds)} avg | {formatCompactCurrency(ladderVolume)} vol
+                      {formatAmericanOdds(ladderAverageOdds)} avg | {formatCompactCurrency(selectedSideLiquidity.net)} total
                     </div>
                   </div>
 

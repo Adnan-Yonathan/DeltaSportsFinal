@@ -165,15 +165,18 @@ const resolveMostRecentTimestamp = (values: Array<string | null>) => {
 
 export default async function MarketProjectionsPage() {
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center px-4">
-      <div className="text-center max-w-md">
-        <div className="text-5xl mb-6">🔒</div>
-        <h1 className="text-2xl font-bold text-white mb-3">Under Construction</h1>
-        <p className="text-zinc-400 text-sm leading-relaxed">
-          Sharp Projections is being upgraded. Check back soon.
-        </p>
+    <>
+      <div className="min-h-screen bg-black flex items-center justify-center px-4 pb-20">
+        <div className="text-center max-w-md">
+          <div className="text-5xl mb-6">🔒</div>
+          <h1 className="text-2xl font-bold text-white mb-3">Under Construction</h1>
+          <p className="text-zinc-400 text-sm leading-relaxed">
+            Sharp Projections is being upgraded. Check back soon.
+          </p>
+        </div>
       </div>
-    </div>
+      <MobileToolsNav />
+    </>
   )
 }
 

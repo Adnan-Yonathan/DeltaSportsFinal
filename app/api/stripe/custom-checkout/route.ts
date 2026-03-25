@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { stripe, type PlanKey } from '@/lib/stripe'
 import {
+  buildCheckoutDiscounts,
   buildCheckoutContext,
   buildCheckoutSessionMetadata,
   buildSubscriptionData,
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest) {
     const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
     const { extraLineItems, couponId } = await buildTrialFeeLineItems(checkoutContext)
+    const discounts = buildCheckoutDiscounts(couponId ?? undefined)
 
     const session = await stripe.checkout.sessions.create({
       ui_mode: 'custom',
@@ -37,7 +39,8 @@ export async function POST(req: NextRequest) {
         },
         ...extraLineItems,
       ],
-      subscription_data: buildSubscriptionData(checkoutContext, couponId ?? undefined),
+      subscription_data: buildSubscriptionData(checkoutContext),
+      ...(discounts ? { discounts } : {}),
       return_url: `${origin}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
       metadata: buildCheckoutSessionMetadata(checkoutContext),
     })

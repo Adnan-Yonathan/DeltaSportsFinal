@@ -132,8 +132,9 @@ export async function POST(req: NextRequest) {
       ...(isTrialEligible
         ? { trial_period_days: planConfig.trialDays }
         : {}),
-      ...(trialFeeCouponId ? { coupon: trialFeeCouponId } : {}),
     }
+    const discounts: Stripe.Checkout.SessionCreateParams.Discount[] | undefined =
+      trialFeeCouponId ? [{ coupon: trialFeeCouponId }] : undefined
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
@@ -147,6 +148,7 @@ export async function POST(req: NextRequest) {
         ...trialFeeLineItems,
       ],
       subscription_data: subscriptionData,
+      ...(discounts ? { discounts } : {}),
       success_url: resolvedSuccessUrl,
       cancel_url: resolvedCancelUrl,
       metadata: {

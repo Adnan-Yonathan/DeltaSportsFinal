@@ -82,8 +82,7 @@ export const resolveTrialEligibility = async (user: User, customerId: string) =>
 }
 
 export const buildSubscriptionData = (
-  context: CheckoutContext,
-  couponId?: string
+  context: CheckoutContext
 ): Stripe.Checkout.SessionCreateParams.SubscriptionData => ({
   metadata: {
     supabase_user_id: context.user.id,
@@ -93,8 +92,12 @@ export const buildSubscriptionData = (
   ...(context.planConfig.trialDays && !context.hasUsedTrial
     ? { trial_period_days: context.planConfig.trialDays }
     : {}),
-  ...(couponId ? { coupon: couponId } : {}),
 })
+
+export const buildCheckoutDiscounts = (
+  couponId?: string
+): Stripe.Checkout.SessionCreateParams.Discount[] | undefined =>
+  couponId ? [{ coupon: couponId }] : undefined
 
 /** Returns extra line items + coupon id when the user is trial-eligible. */
 export const buildTrialFeeLineItems = async (
